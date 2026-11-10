@@ -465,14 +465,19 @@ articles:
       # dit artikel omschrijft, zoals bij artikel 8:79. Het telt voor artikel
       # 8:85, tweede lid, onder b: de voorlopige voorziening vervalt zodra het
       # bezwaar of het beroep is ingetrokken. Wie de intrekking vastlegt,
-      # zegt de wet niet; de partij die haar ontvangt, legt haar vast (eigen
-      # keuze). Eigen keuze: de intrekking verwijst naar wat in de kroniek
-      # van het bestuursorgaan staat (refers_to, RFC-053): het bezwaar, of bij
-      # een beroep, dat in de kroniek van de bestuursrechter staat, de
-      # beslissing op bezwaar waartegen het is ingesteld. Een intrekking trekt
-      # geen besluit in, dus het feit heeft geen effect op een besluit
-      # (`effects`). Of zij schriftelijk of mondeling geschiedde, legt het
-      # feit niet vast.
+      # zegt de wet niet. Eigen keuze: het bestuursorgaan legt haar vast in
+      # zijn eigen kroniek, en zij verwijst naar wat daar staat (refers_to,
+      # RFC-053): het bezwaar, of bij een beroep de beslissing op bezwaar
+      # waartegen het is ingesteld. Een bezwaar trekt de indiener in bij het
+      # bestuursorgaan; een beroep trekt hij in bij de bestuursrechter, en hoe
+      # het bestuursorgaan daarvan hoort, is niet gemodelleerd: de app legt
+      # geen intrekking vast, alleen de tests van de schorsing doen dat. Het
+      # feit noemt niet welk bezwaar of beroep een voorlopige voorziening
+      # draagt; maken twee indieners bezwaar en trekt een van hen in, dan
+      # vervalt in deze poc ook een voorziening op het bezwaar van de ander.
+      # Een intrekking trekt geen besluit in, dus het feit heeft geen effect
+      # op een besluit (`effects`). Of zij schriftelijk of mondeling
+      # geschiedde, legt het feit niet vast.
       requires:
         - fact: intrekking_van_het_bezwaar_of_beroep
           description: >-

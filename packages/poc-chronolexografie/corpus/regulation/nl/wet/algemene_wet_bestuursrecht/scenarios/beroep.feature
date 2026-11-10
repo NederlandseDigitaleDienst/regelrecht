@@ -9,8 +9,8 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
   termijn is ontvangen (artikelen 6:7 tot en met 6:9); is het te laat, dan
   blijft niet-ontvankelijkverklaring achterwege als redelijkerwijs niet kan
   worden geoordeeld dat de indiener in verzuim is geweest (artikel 6:11). De
-  uitspraak strekt tot niet-ontvankelijkverklaring, ongegrondverklaring of gegrondverklaring van
-  het beroep (artikel 8:70). Bij een gegrond beroep vernietigt de
+  uitspraak strekt tot niet-ontvankelijkverklaring, ongegrondverklaring of
+  gegrondverklaring van het beroep (artikel 8:70). Bij een gegrond beroep vernietigt de
   bestuursrechter het besluit en vermeldt hij welke rechtsregel geschonden
   is (artikelen 8:72, eerste lid, en 8:77, tweede lid). Hij kan de
   rechtsgevolgen in stand laten (artikel 8:72, derde lid, onder a); anders

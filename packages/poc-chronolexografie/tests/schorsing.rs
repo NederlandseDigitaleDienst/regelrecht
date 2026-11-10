@@ -33,19 +33,8 @@ use regelrecht_engine::{LawExecutionService, Value as EngineValue};
 use regelrecht_poc_chronolexografie::kern::Corpus;
 use regelrecht_poc_chronolexografie::spel::Spel;
 use serde_json::{Map, Value, json};
-/// `bevindingen` for a decision on an objection, with what the authority
-/// judges on admissibility (Awb 7:11) where `bevindingen` says nothing: the
-/// objector is an interested party (1:2, 7:1 and 8:1), and was at fault for
-/// a late objection, so 6:11 does not save it.
-fn ontvankelijk(bevindingen: &Map<String, Value>) -> Map<String, Value> {
-    let mut uit = bevindingen.clone();
-    uit.entry("indiener_bezwaarschrift_is_belanghebbende")
-        .or_insert(json!(true));
-    uit.entry("indiener_bezwaarschrift_niet_in_verzuim")
-        .or_insert(json!(false));
-    uit
-}
 
+mod common;
 const CASUS: &str = "bedrijfsparkeervergunning";
 const BAKKERIJ: &str = "99990011";
 const EERSTE: &str = "ZZ-001-Z";
@@ -176,7 +165,7 @@ fn chronicle(verder: &Verder) -> (Vec<Gram>, String) {
         let beslissing = spel
             .beslissen_op_bezwaar(
                 bezwaar["id"].as_str().unwrap(),
-                &ontvankelijk(&Map::new()),
+                &common::ontvankelijk(&Map::new()),
                 dag("2026-11-25"),
             )
             .unwrap();
@@ -470,8 +459,10 @@ fn per_permit_a_withdrawal_before_the_suspension_leaves_it() {
 
 #[test]
 fn per_permit_withdrawing_the_appeal_ends_the_suspension() {
-    // The appeal is in the court's chronicle; its withdrawal refers to the
-    // decision on objection it was against, which the municipality holds.
+    // The appeal is in the court's chronicle. How the municipality hears of
+    // its withdrawal is not modeled; it records the withdrawal itself, as
+    // a fact that refers to the decision on objection the appeal was
+    // against.
     // The court ruled on 11 January 2027 in the main case; withdrawn on 20
     // December 2026, the measure lapsed then (8:85, second paragraph, under
     // b), before the judgment.
@@ -727,7 +718,7 @@ fn op_bezwaar_verleend() -> (String, String, Vec<Gram>) {
     let gegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &ontvankelijk(&hardheid(true)),
+            &common::ontvankelijk(&hardheid(true)),
             dag("2026-11-20"),
         )
         .unwrap();

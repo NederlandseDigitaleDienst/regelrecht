@@ -4,24 +4,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::path::Path;
-/// `bevindingen` for a decision on an objection, with what the authority
-/// judges on admissibility (Awb 7:11) where `bevindingen` says nothing: the
-/// objector is an interested party (1:2, 7:1 and 8:1), and was at fault for
-/// a late objection, so 6:11 does not save it.
-fn ontvankelijk(bevindingen: &Map<String, Value>) -> Map<String, Value> {
-    let mut uit = bevindingen.clone();
-    uit.entry("indiener_bezwaarschrift_is_belanghebbende")
-        .or_insert(json!(true));
-    uit.entry("indiener_bezwaarschrift_niet_in_verzuim")
-        .or_insert(json!(false));
-    uit
-}
-
 use chrono::NaiveDate;
 use regelrecht_poc_chronolexografie::kern::Corpus;
 use regelrecht_poc_chronolexografie::spel::{Fout, Spel};
 use serde_json::{Map, Value, json};
+use std::path::Path;
+
+mod common;
 
 fn spel() -> Spel {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -272,7 +261,7 @@ fn the_appeal_from_the_objection_to_the_decision_taken_again() {
     let ongegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &ontvankelijk(&Map::new()),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-15"),
         )
         .unwrap();
@@ -306,14 +295,22 @@ fn the_appeal_from_the_objection_to_the_decision_taken_again() {
     assert_eq!(toets["bezwaar"], bezwaar["id"]);
     let bevindingen = map(&json!({ "specifieke_aard_beroep_ouder": true }));
     let voorlopig = spel
-        .voorvertoning_na_uitspraak(&ontvangst, &ontvankelijk(&bevindingen), dag("2027-01-18"))
+        .voorvertoning_na_uitspraak(
+            &ontvangst,
+            &common::ontvankelijk(&bevindingen),
+            dag("2027-01-18"),
+        )
         .unwrap();
     assert_eq!(
         voorlopig["voorlopig"]["nieuw_besluit"]["outputs"]["verlof_verleend"],
         json!(true)
     );
     let opnieuw = spel
-        .opnieuw_beslissen_op_bezwaar(&ontvangst, &ontvankelijk(&bevindingen), dag("2027-01-18"))
+        .opnieuw_beslissen_op_bezwaar(
+            &ontvangst,
+            &common::ontvankelijk(&bevindingen),
+            dag("2027-01-18"),
+        )
         .unwrap();
     assert_eq!(
         opnieuw["nieuw_besluit"]["outputs"]["verlof_verleend"],
@@ -535,7 +532,7 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
     let gegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &ontvankelijk(&Map::new()),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -768,7 +765,7 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
     let gegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &ontvankelijk(&Map::new()),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -982,7 +979,7 @@ fn thuiszorg_tot_bezwaar(spel: &mut Spel) -> (Value, Value) {
     let toets = spel
         .heroverweging(
             bezwaar["id"].as_str().unwrap(),
-            &ontvankelijk(&Map::new()),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -1010,7 +1007,7 @@ fn bedrijfsparkeervergunning_the_hardship_clause_on_objection_grants_a_third_per
     let gegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &ontvankelijk(&hardheid(true)),
+            &common::ontvankelijk(&hardheid(true)),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -1070,7 +1067,7 @@ fn bedrijfsparkeervergunning_the_hardship_clause_not_applied_leaves_the_refusal(
     let ongegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &ontvankelijk(&hardheid(false)),
+            &common::ontvankelijk(&hardheid(false)),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -1160,7 +1157,7 @@ fn bedrijfsparkeervergunning_an_objection_against_a_permit_at_the_cap_does_not_c
     let beslissing = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &ontvankelijk(&Map::new()),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-20"),
         )
         .unwrap();

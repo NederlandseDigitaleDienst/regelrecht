@@ -82,22 +82,26 @@ const opnieuwVorm = formulier((id) => scenarioWaarden('beslissing_op_bezwaar', {
 const opnieuw = opnieuwVorm.eigen;
 const ontvankelijkheidsOordelen = () => state.vormen?.beslissing_op_bezwaar?.bevindingen ?? [];
 // Wat het bestuursorgaan over de ontvankelijkheid oordeelt. Een schakelaar
-// die uit staat, zegt nee, zoals bij een besluit (`uit`).
+// die uit staat, zegt nee, zoals bij een besluit (`uit`); ook bij een casus
+// uit een bron, zodat een te laat bezwaar niet stil verschoonbaar wordt.
 const ontvankelijkheid = (bz) => {
   const gegeven = zonderLeeg(opnieuwVorm.waarden(bz.id));
-  const standaard = !!(state.casus.bron && state.scenario);
   return Object.fromEntries(
-    ontvankelijkheidsOordelen().map((o) => [o.naam, gegeven[o.naam] ?? standaard]),
+    ontvankelijkheidsOordelen().map((o) => [o.naam, gegeven[o.naam] ?? false]),
   );
 };
 // Wat het bestuursorgaan oordeelt over begrippen die de cel niet weet (stil.js).
 const { stil, meldStil } = stilBegrippen(oordeel, opnieuw);
 const beslissingen = reactive({});
 
+// De oordelen over de ontvankelijkheid blijven bij de toets staan: het
+// formulier wordt daarna gewist voor de heroverweging, en de beslissing moet
+// op dezelfde oordelen berusten als de toets.
 async function toets(bz) {
-  const antwoord = await stap(() => api.heroverweging(bz.id, ontvankelijkheid(bz), state.datum));
+  const oordeel = ontvankelijkheid(bz);
+  const antwoord = await stap(() => api.heroverweging(bz.id, oordeel, state.datum));
   if (antwoord) {
-    toetsen[bz.id] = antwoord;
+    toetsen[bz.id] = { ...antwoord, ontvankelijkheid: oordeel };
     opnieuwVorm.wis(bz.id);
   }
 }
@@ -106,7 +110,7 @@ async function toets(bz) {
 // de heroverweging opnieuw vindt; 'Laat staan' geeft niets.
 const gegevenOpBezwaar = (bz) => ({
   ...(toetsen[bz.id]?.ontvankelijk ? zonderLeeg(opnieuwVorm.waarden(bz.id)) : {}),
-  ...ontvankelijkheid(bz),
+  ...(toetsen[bz.id]?.ontvankelijkheid ?? ontvankelijkheid(bz)),
 });
 
 // Waarom een bezwaar niet-ontvankelijk is, in de volgorde waarin Awb 7:11
@@ -240,7 +244,7 @@ const uitkomstOpBezwaar = (uit) =>
             <nldd-container>
               <nldd-button appearance="primary" text="Beslissen op bezwaar" @click="beslisOpBezwaar(bz)"></nldd-button>
             </nldd-container>
-            <Voorvertoning soort="bezwaar" :op="bz.id" :bevindingen="ontvankelijkheid(bz)" />
+            <Voorvertoning soort="bezwaar" :op="bz.id" :bevindingen="gegevenOpBezwaar(bz)" />
           </nldd-container>
         </template>
         <template v-else>

@@ -48,11 +48,10 @@ const ontvankelijkheidsOordelen = () => state.vormen?.beslissing_op_bezwaar?.bev
 // Wat het bestuursorgaan opnieuw vindt; 'Laat staan' geeft niets.
 const gegeven = (o) => {
   const waarden = zonderLeeg(vorm.waarden(o.id));
-  const standaard = !!(state.casus.bron && state.scenario);
   return {
     ...waarden,
     ...Object.fromEntries(
-      ontvankelijkheidsOordelen().map((v) => [v.naam, waarden[v.naam] ?? standaard]),
+      ontvankelijkheidsOordelen().map((v) => [v.naam, waarden[v.naam] ?? false]),
     ),
   };
 };

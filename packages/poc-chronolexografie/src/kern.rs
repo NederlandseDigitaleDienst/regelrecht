@@ -1982,6 +1982,11 @@ pub fn heroverweging(
         && toets.fields.get("indiener_bezwaarschrift_niet_in_verzuim") != Some(&json!(true))
     {
         Some("te_laat")
+    // Awb 7:11 reads `taken_on` of the contested decision value. In the
+    // cell's own chronicle only a decision on objection rests on 7:11, and
+    // its value takes `taken_on` from the objection it decided, also 7:11;
+    // a new decision it holds is no record of its own. So the basis says the
+    // same here.
     } else if bestreden.basis == format!("{}#{}", corpus.awb(), corpus.objection()) {
         Some("genomen_in_bezwaar")
     } else {
@@ -3344,6 +3349,65 @@ mod tests {
                 .contains("indiener_bezwaarschrift_is_belanghebbende"),
             "{e}"
         );
+    }
+
+    #[test]
+    fn the_reason_follows_the_order_in_which_7_11_tests() {
+        // An excused late objection by someone not concerned fails on the
+        // interested party, not on the period (Awb 6:11, then 7:1 with 8:1).
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let besluit = geweigerd(&corpus, &mut cell);
+        let laat = bezwaren(
+            &corpus,
+            &mut cell,
+            &besluit.besluit.id,
+            &bezwaar_velden("2026-12-02"),
+            day("2026-12-02"),
+        )
+        .unwrap();
+        let oordeel = ontvankelijk(&Map::from_iter([
+            (
+                "indiener_bezwaarschrift_niet_in_verzuim".to_string(),
+                json!(true),
+            ),
+            (
+                "indiener_bezwaarschrift_is_belanghebbende".to_string(),
+                json!(false),
+            ),
+        ]));
+        let toets = heroverweging(&corpus, &cell, &laat.id, &oordeel, day("2026-12-10")).unwrap();
+        assert_eq!(toets["reden"], json!("geen_belanghebbende"));
+
+        // An objection against the decision on objection fails on the
+        // contested decision (Awb 7:1, first paragraph, under a).
+        let beslist = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &laat.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-12-10"),
+        )
+        .unwrap();
+        let op_bezwaar = beslist["beslissing"]["id"].as_str().unwrap().to_string();
+        let tegen = bezwaren(
+            &corpus,
+            &mut cell,
+            &op_bezwaar,
+            &bezwaar_velden("2026-12-11"),
+            day("2026-12-11"),
+        )
+        .unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &tegen.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-12-12"),
+        )
+        .unwrap();
+        assert_eq!(toets["ontvankelijk"], json!(false));
+        assert_eq!(toets["reden"], json!("genomen_in_bezwaar"));
     }
 
     #[test]

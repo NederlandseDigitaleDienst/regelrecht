@@ -87,7 +87,7 @@ input:
 
 This call runs on the day of the decision on the objection. It uses the fields and findings of the contested decision, plus any new findings of the authority. [Cross-Law References](/concepts/cross-law-references#calling-the-decision-of-an-article) describes the decision value.
 
-Two questions of admissibility are for the authority to judge in the single case, as open terms of 7:11 with `decided_per_case_by`: whether the objector is an interested party (Awb 7:1 lid 1 with 8:1 and 1:2), and, for an objection that came in late, whether the objector can reasonably not be held at fault (Awb 6:11). 7:11 tests the period first, then the contested decision, then the interested party, and stops at the first test that fails. A finding the deciding article asks cannot be left out, so the authority gives both findings on every objection; the one under 6:11 only matters when the objection is late.
+The authority judges two questions of admissibility case by case, as open terms of 7:11 with `decided_per_case_by`. Is the objector an interested party (Awb 7:1 lid 1 with 8:1 and 1:2)? And for an objection that came in late, can the objector reasonably not be held at fault (Awb 6:11)? 7:11 tests the period first, then the contested decision, then the interested party, and the engine stops at the first test that fails. The cell still refuses a decision without a required finding of the deciding article, also one the engine would not reach. So the authority gives both findings on every objection, and the one under 6:11 only counts when the objection is late.
 
 | Situation | Result |
 |---|---|
