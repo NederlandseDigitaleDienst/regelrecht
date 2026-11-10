@@ -2,7 +2,7 @@
 import type { ExecutionField, InputSource, RawDefinition } from '../lib/lawFormat';
 import { ref, computed, watch, watchEffect, nextTick } from 'vue';
 import { collectAvailableVariables } from '../utils/operationTree';
-import { lawsListUrl } from '../composables/corpusUrls';
+import { lawOutputsUrl, lawsListUrl } from '../composables/corpusUrls';
 import { apiFetchJson } from '../lib/apiFetch';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import type { NLDDComboBox } from '@nldd/design-system/combo-box';
@@ -181,9 +181,7 @@ async function fetchOutputsForLaw(lawId: string | undefined) {
   }
   outputsLoading.value = true;
   try {
-    availableOutputs.value = await apiFetchJson<LawOutput[]>(
-      `/api/corpus/laws/${encodeURIComponent(lawId)}/outputs`,
-    );
+    availableOutputs.value = await apiFetchJson<LawOutput[]>(lawOutputsUrl(props.trajectRef, lawId));
   } catch {
     // HTTP or network failure - no output suggestions for this law.
     availableOutputs.value = [];

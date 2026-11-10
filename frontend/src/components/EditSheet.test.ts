@@ -681,6 +681,32 @@ describe('EditSheet', () => {
       expect(wrapper.vm.availableOutputs).toEqual(mockOutputs);
     });
 
+    it('reads the outputs of a law from the traject it is open in', async () => {
+      // A law that exists only in the traject has no outputs on the global
+      // route, so inside a traject both the list and the outputs must come
+      // from the traject's corpus.
+      fetchSpy.mockImplementation(async (url) => {
+        const urlStr = typeof url === 'string' ? url : url.toString();
+        if (urlStr === '/api/trajects/proef-0123abcd/corpus/laws/eigen_regeling/outputs') {
+          return fakeResponse(true, mockOutputs);
+        }
+        if (urlStr.startsWith('/api/trajects/proef-0123abcd/corpus/laws?')) {
+          return fakeResponse(true, [{ law_id: 'eigen_regeling', name: 'Eigen regeling', display_name: 'Eigen regeling' }]);
+        }
+        return fakeResponse(false, {});
+      });
+      const wrapper = mount(EditSheet, {
+        attachTo: document.body,
+        props: { item: null, trajectRef: 'proef-0123abcd' },
+      }) as unknown as SheetWrapper;
+      await setItem(wrapper, { section: 'add-input', isNew: true });
+      await vi.waitFor(() => expect(wrapper.vm.allLaws.length).toBeGreaterThan(0));
+
+      await wrapper.vm.onLawComboChange({ detail: { value: 'eigen_regeling' } });
+
+      await vi.waitFor(() => expect(wrapper.vm.availableOutputs).toEqual(mockOutputs));
+    });
+
     it('onOutputComboChange auto-populates name, type, and parameters', async () => {
       const wrapper = mountSheet();
       await setItem(wrapper, { section: 'add-input', isNew: true });
