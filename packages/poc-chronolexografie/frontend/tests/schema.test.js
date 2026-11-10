@@ -49,8 +49,12 @@ describe('the picture of one value', () => {
     expect(heeft(k, 'kroniek', [KRONIEK, 'algemene_wet_bestuursrecht#7:11#'], ['reductie_bedrijfsparkeervergunning', 'besluit_datum'])).toBe(true);
     expect(heeft(k, 'kroniek', [KRONIEK, 'algemene_wet_bestuursrecht#8:84#afschrift_van_de_uitspraak_van_de_voorzieningenrechter'], ['reductie_schorsing_bedrijfsparkeervergunning', 'geschorst_vanaf'])).toBe(true);
     expect(heeft(k, 'vraagt', ['gemeente_wilgendaal', 'aantal_geldige_bedrijfsparkeervergunningen'], ['beleid_bedrijfsparkeervergunning_gemeente_wilgendaal', 'antwoord_aantal_geldig'])).toBe(true);
-    // The maximum: where the firm is and how many work there, from the KvK.
-    expect(heeft(k, 'kroniek', [KRONIEK, 'beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven'], ['reductie_vestiging_in_handelsregister', 'inschrijvingen'])).toBe(true);
+    // The maximum: where the firm is and how many work there, from the KvK:
+    // one aggregate per registration, with the corrections that refer to it.
+    const per = 'reductie_inschrijving_vestiging';
+    expect(heeft(k, 'kroniek', [KRONIEK, 'beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven'], [per, 'postcode'])).toBe(true);
+    expect(heeft(k, 'kroniek', [KRONIEK, 'beleid_handelsregister_kamer_van_koophandel#2#inschrijving_gecorrigeerd'], [per, 'aantal_werkzame_personen'])).toBe(true);
+    expect(heeft(k, 'leest', [per, 'postcode'], ['reductie_vestiging_in_handelsregister', 'inschrijvingen'])).toBe(true);
     expect(heeft(k, 'rekent', ['uitvoeringsbesluit_parkeren_gemeente_wilgendaal', 'vergunninggebied_van_postcode'], ['uitvoeringsbesluit_parkeren_gemeente_wilgendaal', 'vergunninggebied_van_vestiging'])).toBe(true);
   });
 
@@ -135,29 +139,24 @@ describe('the picture of one value', () => {
     });
 
     it('walks the longest path, on a tie the one with the most sources', () => {
-      // Through the count of the municipality, its read model and the
-      // aggregate per permit, the one with the most sources behind it: its
-      // decisions, the decisions on objection and the copies of rulings.
-      const pad = [beleid, 'gemeente_wilgendaal', 'reductie_geldige_bedrijfsparkeervergunningen', 'reductie_bedrijfsparkeervergunning', KRONIEK];
+      // Through the postcode the Chamber answers, its read model and the
+      // aggregate per registration with the corrections that refer to it.
+      const pad = [beleid, 'kamer_van_koophandel', 'reductie_vestiging_in_handelsregister', 'reductie_inschrijving_vestiging', KRONIEK];
       const stappen = pad.map((b) => alleNamen.find((g) => g.map === b && g.stap < k.reststap)?.stap);
-      expect(stappen).toEqual([3, 4, 5, 6, 7]);
+      expect(stappen).toEqual([4, 5, 6, 7, 8]);
     });
 
     it('ends the path at its sources, together', () => {
-      // The sources in the chronicle, and what the policy says a new
-      // decision on objection grants, which the step on that decision reads.
+      // The sources in the chronicle at the end of the path through the
+      // Chamber, and of the municipality's decisions that reach as far.
       const laatste = alleNamen.filter((g) => g.stap === k.reststap - 1);
       expect(laatste.filter((g) => g.map === KRONIEK).map((g) => `${g.naam} · ${g.vorm}`).sort()).toEqual([
         'afschrift_van_de_uitspraak · Algemene wet bestuursrecht art. 8:79',
-        'afschrift_van_de_uitspraak_van_de_voorzieningenrechter · Algemene wet bestuursrecht art. 8:84',
         'beschikking · Algemene wet bestuursrecht art. 7:11',
-        'beschikking · Parkeerverordening Wilgendaal 2026 (fictief) art. 2',
+        'inschrijving_gecorrigeerd · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 2',
+        'vestiging_ingeschreven · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 1',
       ]);
-      expect(laatste.filter((g) => g.map !== KRONIEK).map((g) => `${g.map}#${g.naam}`).sort()).toEqual(
-        ['besluit_datum_na_bezwaar', 'in_de_plaats_na_bezwaar', 'vergunning_geldig_tot_na_bezwaar', 'verleend_na_bezwaar'].map(
-          (n) => `beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal#${n}`,
-        ),
-      );
+      expect(laatste.filter((g) => g.map !== KRONIEK)).toEqual([]);
       for (const g of laatste) expect(k.lijnen.some((l) => eind(l.naar) === sleutel(g.pad, g.key))).toBe(false);
     });
 
@@ -165,9 +164,9 @@ describe('the picture of one value', () => {
       expect(k.reststap).toBe(k.stappen);
       expect(stapVan(beleid, 'aantal_werkzame_personen_volgens_handelsregister')).toBe(k.reststap);
       expect(stapVan(besluit, 'vergunninggebied_van_postcode')).toBe(k.reststap);
-      expect(stapVan('kamer_van_koophandel', 'postcode_vestiging')).toBe(k.reststap);
-      expect(stapVan('reductie_vestiging_in_handelsregister', 'inschrijvingen')).toBe(k.reststap);
+      expect(stapVan('kamer_van_koophandel', 'aantal_werkzame_personen')).toBe(k.reststap);
       expect(stapVan('reductie_schorsing_bedrijfsparkeervergunning', 'geschorst_vanaf')).toBe(k.reststap);
+      expect(stapVan('reductie_bedrijfsparkeervergunning', 'besluit_datum')).toBe(k.reststap);
       expect(stapVan('beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal', 'aantal_geldige_vergunningen')).toBe(k.reststap);
       expect(bron('Algemene wet bestuursrecht art. 8:87').stap).toBe(k.reststap);
     });
@@ -243,13 +242,13 @@ describe('the picture of one value', () => {
       const alles = zinnen.join(' ');
       for (const waar of ['uit een ander regelwerk', 'van een cel', 'van een reductie', 'uit de kroniek']) expect(alles).toContain(waar);
       expect(stapZin(k, k.reststap - 1)).toBe(
-        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 4 uitkomsten uit een ander regelwerk en 4 bronnen uit de kroniek.`,
+        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 4 bronnen uit de kroniek.`,
       );
     });
 
     it('says of the rest that it works the same way, and where it ends up', () => {
       expect(stapZin(k, k.reststap)).toBe(
-        `Stap ${k.reststap} van ${k.stappen}, de andere invoer werkt op dezelfde manier en komt via Kamer van Koophandel bij de bron uit.`,
+        `Stap ${k.reststap} van ${k.stappen}, de andere invoer werkt op dezelfde manier en komt via 2 cellen bij de bron uit.`,
       );
     });
 
@@ -277,7 +276,7 @@ describe('the picture of one value', () => {
       expect(k.bestanden.filter((b) => b.soort === 'kroniek')).toEqual([kroniek]);
       expect(SOORTEN.at(-1).soort).toBe('kroniek');
       const bronnen = k.lijnen.filter((l) => ['source.decisions', 'source.facts', 'projection.steps', 'effects'].includes(l.yaml) && l.soort === 'kroniek');
-      expect(new Set(bronnen.map((l) => l.yaml))).toEqual(new Set(['source.facts', 'projection.steps', 'effects']));
+      expect(new Set(bronnen.map((l) => l.yaml))).toEqual(new Set(['projection.steps', 'effects']));
       expect(bronnen.length).toBeGreaterThan(0);
       for (const l of bronnen) {
         expect(l.soort).toBe('kroniek');
@@ -290,6 +289,7 @@ describe('the picture of one value', () => {
         'afschrift_van_de_uitspraak_van_de_voorzieningenrechter · Algemene wet bestuursrecht art. 8:84',
         'beschikking · Algemene wet bestuursrecht art. 7:11',
         'beschikking · Parkeerverordening Wilgendaal 2026 (fictief) art. 2',
+        'inschrijving_gecorrigeerd · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 2',
         'vestiging_ingeschreven · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 1',
       ]);
     });

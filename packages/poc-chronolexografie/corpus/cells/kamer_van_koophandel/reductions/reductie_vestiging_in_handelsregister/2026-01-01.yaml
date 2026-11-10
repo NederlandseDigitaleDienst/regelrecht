@@ -1,14 +1,14 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json
 $id: reductie_vestiging_in_handelsregister
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
 # Geen regelgeving: een reductie van de Kamer van Koophandel over haar eigen
-# kroniek (RFC-022 §4.1, RFC-048, RFC-051). Ze leest de executogrammen van het
-# feit vestiging_ingeschreven, dat het fictieve beleid
-# beleid_handelsregister_kamer_van_koophandel (artikel 1) vereist, en
-# geeft de inschrijving die op de peildatum geldt. De cel van de Kamer geeft
+# kroniek (RFC-022 §4.1, RFC-048, RFC-051). Ze leest de aggregaten van de
+# inschrijvingen van het bedrijf (reductie_inschrijving_vestiging, elk met de
+# correcties erop, source.projections, schema v0.8.17) en geeft de
+# inschrijving die op de peildatum geldt. De cel van de Kamer geeft
 # haar uitvoer als de antwoorden postcode_vestiging en
 # aantal_werkzame_personen (cel.yaml, answers). Artikel 1 van het fictieve
 # beleid bedrijfsparkeervergunning van Wilgendaal koppelt ze aan de open
@@ -38,12 +38,15 @@ articles:
             type: date
             description: De dag waarop het gevraagde gegeven moet gelden.
         input:
-          # De inschrijvingen, één rij per executogram, met kvk_nummer,
-          # postcode, aantal_werkzame_personen en datum_inschrijving.
+          # De inschrijvingen van het bedrijf, één rij per aggregaat, met
+          # postcode, aantal_werkzame_personen en datum_inschrijving zoals de
+          # correcties ze laten.
           - name: inschrijvingen
             type: array
             source:
-              facts: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+              projections: reductie_inschrijving_vestiging
+              where:
+                kvk_nummer: $kvk_nummer
         output:
           - name: dagen_sinds_inschrijving
             type: number
@@ -66,7 +69,7 @@ articles:
             description: Het aantal personen dat op de peildatum in de onderneming werkzaam is.
         actions:
           # De inschrijving met de laatste dag op of vóór de peildatum. Eerst
-          # het nummer: AND stopt bij de eerste onwaar.
+          # of zij een dag heeft: AND stopt bij de eerste onwaar.
           - output: dagen_sinds_inschrijving
             value:
               operation: FOREACH
@@ -75,9 +78,8 @@ articles:
               filter:
                 operation: AND
                 conditions:
-                  - operation: EQUALS
-                    subject: $i.kvk_nummer
-                    value: $kvk_nummer
+                  - operation: NOT
+                    value: {operation: EQUALS, subject: $i.datum_inschrijving, value: null}
                   - operation: GREATER_THAN_OR_EQUAL
                     subject:
                       operation: DATE_DIFF
@@ -102,9 +104,8 @@ articles:
               filter:
                 operation: AND
                 conditions:
-                  - operation: EQUALS
-                    subject: $i.kvk_nummer
-                    value: $kvk_nummer
+                  - operation: NOT
+                    value: {operation: EQUALS, subject: $i.datum_inschrijving, value: null}
                   - operation: EQUALS
                     subject:
                       operation: DATE_DIFF

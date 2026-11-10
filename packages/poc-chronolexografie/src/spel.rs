@@ -179,7 +179,22 @@ impl Spel {
         velden: &Map<String, Value>,
         datum: NaiveDate,
     ) -> Antwoord {
-        ok(self.met(|c, cell| kern::vastleggen(c, cell, cel, feit, velden, datum))?)
+        self.vastleggen_verwijzend(cel, feit, velden, None, datum)
+    }
+
+    /// [`Spel::vastleggen`], for a fact about the record that the begin of
+    /// `cel` names `verwijst_naar` ([`kern::vastleggen_verwijzend`]).
+    pub fn vastleggen_verwijzend(
+        &mut self,
+        cel: &str,
+        feit: &str,
+        velden: &Map<String, Value>,
+        verwijst_naar: Option<&str>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| {
+            kern::vastleggen_verwijzend(c, cell, cel, feit, velden, verwijst_naar, datum)
+        })?)
     }
 
     /// Decide on the application `op`, with the deciding authority's

@@ -242,7 +242,7 @@ export const steps = [
     },
     text: [
       'Of het bedrijf in een vergunninggebied zit, blijkt uit het handelsregister. Daarom vraagt artikel 1 van het beleid de postcode van de vestiging en het aantal mensen dat er werkt aan de cel van de Kamer van Koophandel.',
-      'Die cel leest haar eigen inschrijvingen terug.',
+      'Die cel leest haar eigen inschrijvingen terug, elk met de correcties die ernaar verwijzen.',
     ],
     panels: [
       {

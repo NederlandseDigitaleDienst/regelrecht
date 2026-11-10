@@ -79,6 +79,90 @@ pub struct Casus {
     pub scenarios: Vec<Scenario>,
 }
 
+impl Casus {
+    /// Each cell of the case by its directory under `cells/`, with what it
+    /// records before the first scenario.
+    fn begins(&self) -> impl Iterator<Item = (&str, &Begin)> {
+        std::iter::once((self.cel.as_str(), self.begin.as_ref()))
+            .chain(
+                self.andere_cellen
+                    .iter()
+                    .map(|a| (a.cel.as_str(), a.begin.as_ref())),
+            )
+            .filter_map(|(cel, begin)| Some((cel, begin?)))
+    }
+
+    /// The executogram of the begin of `cel` that carries `kenmerk`, with
+    /// its place in that begin: the place of its record in the cell's
+    /// chronicle, which starts with its begin.
+    pub fn met_kenmerk(&self, cel: &str, kenmerk: &str) -> Option<(usize, &BeginExecutogram)> {
+        self.begins()
+            .filter(|(c, _)| *c == cel)
+            .flat_map(|(_, begin)| begin.executogrammen.iter().enumerate())
+            .find(|(_, e)| e.kenmerk.as_deref() == Some(kenmerk))
+    }
+
+    /// That every reference to an earlier record names one: a kenmerk is
+    /// unique within the case, an executogram of a begin refers to an
+    /// earlier one of that begin, and a record step refers to one in the
+    /// begin of the cell that records it. Only a record step refers.
+    pub fn verwijzingen_kloppen(&self) -> Result<()> {
+        let fout = |m: String| Err(Error::Setup(format!("case '{}': {m}", self.id)));
+        let mut gezien = BTreeSet::new();
+        for (cel, begin) in self.begins() {
+            let mut eerder = BTreeSet::new();
+            for e in &begin.executogrammen {
+                if let Some(naar) = &e.verwijst_naar
+                    && !eerder.contains(naar.as_str())
+                {
+                    return fout(format!(
+                        "the begin of '{cel}' refers to '{naar}', which is the kenmerk of no \
+                         earlier executogram of that begin"
+                    ));
+                }
+                if let Some(k) = &e.kenmerk {
+                    if !gezien.insert(k.as_str()) {
+                        return fout(format!("the kenmerk '{k}' is given twice"));
+                    }
+                    eerder.insert(k.as_str());
+                }
+            }
+        }
+        for scenario in &self.scenarios {
+            for stap in &scenario.stappen {
+                let Stap::Handeling(h) = stap else { continue };
+                let Some(naar) = &h.verwijst_naar else {
+                    continue;
+                };
+                let waar = format!("a step of the scenario '{}'", scenario.naam);
+                if h.stap != Soort::Vastleggen {
+                    return fout(format!(
+                        "{waar} refers to '{naar}', but only a record step (vastleggen) refers \
+                         to an earlier record"
+                    ));
+                }
+                let Some(cel) = h
+                    .cel
+                    .as_deref()
+                    .filter(|c| self.andere_cellen.iter().any(|a| a.cel == *c))
+                else {
+                    return fout(format!(
+                        "{waar} refers to '{naar}', but names no other cell of the case that \
+                         records it"
+                    ));
+                };
+                if self.met_kenmerk(cel, naar).is_none() {
+                    return fout(format!(
+                        "{waar} refers to '{naar}', which is the kenmerk of no executogram in the \
+                         begin of '{cel}'"
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Another cell of the case: its directory under `cells/` of the corpus, its name
 /// as the visitor reads it, and what it records before the first scenario.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -113,6 +197,18 @@ pub struct BeginExecutogram {
     pub velden: Map<String, Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub datum: Option<NaiveDate>,
+    /// The name the case gives this record, so that a later fact can refer
+    /// to it ([`BeginExecutogram::verwijst_naar`],
+    /// [`Handeling::verwijst_naar`]). The record's id only exists once the
+    /// cell records it, so the case file cannot name that. Unique within
+    /// the case.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kenmerk: Option<String>,
+    /// The [`BeginExecutogram::kenmerk`] of an earlier executogram of the
+    /// same [`Begin`] that this record is about (`refers_to`, schema
+    /// v0.8.17), such as the registration a correction corrects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verwijst_naar: Option<String>,
 }
 
 /// Fictional values the forms start with while the visitor follows a
@@ -156,7 +252,7 @@ pub struct Scenario {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Stap {
-    Handeling(Handeling),
+    Handeling(Box<Handeling>),
     Tekst(String),
 }
 
@@ -168,7 +264,7 @@ impl<'de> Deserialize<'de> for Stap {
         match Value::deserialize(d)? {
             Value::String(tekst) => Ok(Self::Tekst(tekst)),
             v => serde_json::from_value(v)
-                .map(Self::Handeling)
+                .map(|h| Self::Handeling(Box::new(h)))
                 .map_err(serde::de::Error::custom),
         }
     }
@@ -202,6 +298,12 @@ pub struct Handeling {
     pub cel: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub feit: Option<String>,
+    /// For [`Soort::Vastleggen`]: the [`BeginExecutogram::kenmerk`] of the
+    /// record in the recording cell's [`Begin`] that this fact is about
+    /// (`refers_to`, schema v0.8.17), such as the registration a correction
+    /// corrects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verwijst_naar: Option<String>,
     /// The values the step fills in, under the names the law gives the
     /// fields and findings. A form starts from the case's
     /// [`Voorbeeld`] for its kind and takes these over it.
@@ -1084,4 +1186,115 @@ fn rol(law: &ArticleBasedLaw, article: &str) -> Option<String> {
     } else {
         one.name
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    const FEIT: &str = "beleid_x#1#ingeschreven";
+    const CORRECTIE: &str = "beleid_x#2#gecorrigeerd";
+
+    /// A case whose other cell `register` begins with `begin` (executograms
+    /// as YAML) and plays `stappen` (steps as YAML).
+    fn casus(begin: &str, stappen: &str) -> Casus {
+        let yaml = format!(
+            "cel: gemeente\nartikel: wet#1\ncorpus: []\nuitkomst: verleend\ntitel: T\n\
+             cel_naam: G\nspeeldatum: 2026-01-01\nvoorbeeld: {{}}\n\
+             andere_cellen:\n  - cel: register\n    cel_naam: R\n    begin:\n      \
+             datum: 2026-01-01\n      executogrammen: {begin}\n\
+             scenarios:\n  - naam: S\n    eind: E\n    stappen: {stappen}\n"
+        );
+        let mut c: Casus = serde_yaml_ng::from_str(&yaml).unwrap();
+        c.id = "test".into();
+        c
+    }
+
+    fn inschrijving(kenmerk: &str) -> String {
+        format!("{{feit: '{FEIT}', velden: {{}}, kenmerk: {kenmerk}}}")
+    }
+
+    fn correctie(naar: &str) -> String {
+        format!("{{feit: '{CORRECTIE}', velden: {{}}, verwijst_naar: {naar}}}")
+    }
+
+    fn vastleggen(cel: &str, naar: &str) -> String {
+        format!("[{{stap: vastleggen, cel: {cel}, feit: '{CORRECTIE}', verwijst_naar: {naar}}}]")
+    }
+
+    fn fout(c: &Casus) -> String {
+        c.verwijzingen_kloppen().unwrap_err().to_string()
+    }
+
+    #[test]
+    fn a_reference_to_an_earlier_kenmerk_holds() {
+        let c = casus(
+            &format!("[{}, {}]", inschrijving("a"), correctie("a")),
+            &vastleggen("register", "a"),
+        );
+        c.verwijzingen_kloppen().unwrap();
+        let (i, e) = c.met_kenmerk("register", "a").unwrap();
+        assert_eq!((i, e.feit.as_str()), (0, FEIT));
+        assert!(c.met_kenmerk("gemeente", "a").is_none());
+    }
+
+    #[test]
+    fn a_begin_that_refers_to_an_unknown_kenmerk_is_refused() {
+        let c = casus(
+            &format!("[{}, {}]", inschrijving("a"), correctie("b")),
+            "[]",
+        );
+        assert!(fout(&c).contains("refers to 'b', which is the kenmerk of no earlier"));
+    }
+
+    #[test]
+    fn a_begin_that_refers_to_a_later_executogram_is_refused() {
+        let c = casus(
+            &format!("[{}, {}]", correctie("a"), inschrijving("a")),
+            "[]",
+        );
+        assert!(fout(&c).contains("refers to 'a', which is the kenmerk of no earlier"));
+    }
+
+    #[test]
+    fn a_kenmerk_given_twice_is_refused() {
+        let c = casus(
+            &format!("[{}, {}]", inschrijving("a"), inschrijving("a")),
+            "[]",
+        );
+        assert!(fout(&c).contains("the kenmerk 'a' is given twice"));
+    }
+
+    #[test]
+    fn a_step_that_refers_to_an_unknown_kenmerk_is_refused() {
+        let c = casus(
+            &format!("[{}]", inschrijving("a")),
+            &vastleggen("register", "b"),
+        );
+        assert!(fout(&c).contains("refers to 'b', which is the kenmerk of no executogram"));
+    }
+
+    #[test]
+    fn a_step_that_refers_from_a_cell_that_does_not_record_is_refused() {
+        let c = casus(
+            &format!("[{}]", inschrijving("a")),
+            &vastleggen("gemeente", "a"),
+        );
+        assert!(fout(&c).contains("names no other cell of the case"));
+        let c = casus(
+            &format!("[{}]", inschrijving("a")),
+            "[{stap: vastleggen, verwijst_naar: a}]",
+        );
+        assert!(fout(&c).contains("names no other cell of the case"));
+    }
+
+    #[test]
+    fn only_a_record_step_refers() {
+        let c = casus(
+            &format!("[{}]", inschrijving("a")),
+            "[{stap: aanvraag, verwijst_naar: a}]",
+        );
+        assert!(fout(&c).contains("only a record step (vastleggen) refers"));
+    }
 }

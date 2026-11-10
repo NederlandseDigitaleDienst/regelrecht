@@ -101,8 +101,10 @@ export const api = {
   kroniek: () => roep((p) => p.kroniek()),
   aanvragen: (velden, datum) => roep((p) => p.aanvragen(json(velden), datum)),
   // Een andere cel van de casus legt een handeling vast, zoals de GGD een
-  // geneeskundig onderzoek (RFC-048).
-  vastleggen: (cel, feit, velden, datum) => roep((p) => p.vastleggen(cel, feit, json(velden), datum)),
+  // geneeskundig onderzoek (RFC-048). `verwijstNaar` is het kenmerk van een
+  // eerder record in het begin van die cel waarover het feit gaat, of null.
+  vastleggen: (cel, feit, velden, datum, verwijstNaar = null) =>
+    roep((p) => p.vastleggen(cel, feit, json(velden), datum, verwijstNaar ?? undefined)),
   besluiten: (op, bevindingen, datum) => roep((p) => p.besluiten(op, json(bevindingen), datum)),
   // Wat het besluit zou worden, op een kopie van de cel: er wordt niets
   // vastgelegd. Een weigering van de cel komt terug als `{ geweigerd }`.

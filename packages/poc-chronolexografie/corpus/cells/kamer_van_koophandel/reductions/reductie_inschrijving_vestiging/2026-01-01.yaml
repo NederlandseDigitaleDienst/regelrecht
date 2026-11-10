@@ -1,0 +1,56 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json
+$id: reductie_inschrijving_vestiging
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van de Kamer van Koophandel over haar eigen
+# kroniek (RFC-022 §4.1, RFC-048). Eén aggregaat per inschrijving van een
+# vestiging (artikel 1 van het fictieve beleid
+# beleid_handelsregister_kamer_van_koophandel, schema v0.8.17), met de
+# correcties die ernaar verwijzen (artikel 2). Elke stap noemt het feit dat
+# hij leest bij naam (schema v0.8.18). Een correctie zet de postcode
+# en het aantal werkzame personen van de inschrijving; de dag van
+# inschrijving en het nummer blijven. Een nieuwe inschrijving is een eigen
+# aggregaat. Welke inschrijving op een dag geldt, zegt de reductie
+# reductie_vestiging_in_handelsregister. De url wijst naar artikel 11 van de
+# Handelsregisterwet 2007.
+url: https://wetten.overheid.nl/BWBR0021777/2025-07-16#Artikel11
+name: Inschrijving van een vestiging (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving. Het systeem van de Kamer van Koophandel houdt door
+      middel van een chronolexografische reductie op zijn eigen kroniek per
+      inschrijving van een vestiging bij met welke postcode, met hoeveel
+      werkzame personen en vanaf welke dag zij geldt, met de correcties
+      erop.
+    url: https://wetten.overheid.nl/BWBR0021777/2025-07-16#Artikel11
+    machine_readable:
+      projection:
+        per: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+        state:
+          - name: postcode
+            type: string
+          - name: aantal_werkzame_personen
+            type: number
+          # Trekt een later record de inschrijving in, dan telt zij niet mee
+          # en blijft dit leeg; reductie_vestiging_in_handelsregister slaat
+          # zo'n aggregaat over.
+          - name: datum_inschrijving
+            type: date
+        steps:
+          - record: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+            actions:
+              - output: postcode
+                value: $record.postcode
+              - output: aantal_werkzame_personen
+                value: $record.aantal_werkzame_personen
+              - output: datum_inschrijving
+                value: $record.datum_inschrijving
+          - record: beleid_handelsregister_kamer_van_koophandel#2#inschrijving_gecorrigeerd
+            actions:
+              - output: postcode
+                value: $record.postcode
+              - output: aantal_werkzame_personen
+                value: $record.aantal_werkzame_personen
