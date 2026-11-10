@@ -13,7 +13,7 @@
 // Callers pass a ref, or null/undefined/'' when no traject is active.
 type TrajectRef = string | null | undefined;
 
-function corpusBase(trajectRef: TrajectRef): string {
+export function corpusBase(trajectRef: TrajectRef): string {
   return trajectRef
     ? `/api/trajects/${encodeURIComponent(trajectRef)}/corpus`
     : `/api/corpus`;

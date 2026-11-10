@@ -6,7 +6,8 @@ import { apiFetch } from '../lib/apiFetch';
 import type { RequestError } from '../lib/apiFetch';
 import { createLruMap } from '../lib/lruMap';
 import { useLatest } from '../lib/useLatest';
-import { humanizeLawId } from '../lib/lawName';
+import { resolveLawName } from '../lib/lawName';
+export { resolveLawName } from '../lib/lawName';
 import { holdRetryFloor } from '../lib/retryFeedback';
 import type { LawArticle, LawDocument } from '../lib/lawFormat';
 export type { LawArticle, LawDocument } from '../lib/lawFormat';
@@ -43,26 +44,6 @@ const lawCache = createLruMap<string, LawCacheEntry>(50);
 
 function lawCacheKey(trajectRef: TrajectRef, lawId: string): string {
   return `${trajectRef || ''}::${lawId}`;
-}
-
-export function resolveLawName(law: LawDocument | null | undefined): string {
-  if (!law) return '';
-  const nameRef = law.name;
-  if (typeof nameRef === 'string' && nameRef.startsWith('#')) {
-    const outputName = nameRef.slice(1);
-    for (const article of law.articles ?? []) {
-      const actions = article.machine_readable?.execution?.actions;
-      if (!actions) continue;
-      for (const action of actions) {
-        // The schema allows any operation value here; only a literal string
-        // is a name.
-        if (action.output === outputName && typeof action.value === 'string') return action.value;
-      }
-    }
-  }
-  // No explicit name → a readable version of the id, never the raw snake_case
-  // (e.g. tab labels / titles for laws whose YAML carries no `name`).
-  return nameRef || humanizeLawId(law.$id);
 }
 
 // Shared apiFetch options for law GETs. The thrown ApiError carries the
