@@ -170,7 +170,8 @@ fn a_request_for_a_decision_that_is_not_there_is_an_error_when_used() {
 
 /// A decision that names the submission it is taken on (`taken_on`, schema
 /// v0.8.19): the advance of article 2 is taken on the application of
-/// article 1, which asks for the allowance of article 1 itself.
+/// article 1, which asks for the allowance of article 1 itself. The
+/// allowance names the same application with `taken_on`, which it may.
 const ADVANCE_LAW: &str = r#"
 $id: wet_toeslag
 regulatory_layer: WET
@@ -186,6 +187,7 @@ articles:
             requests: wet_toeslag#1
             parameters: [jaar]
           - type: BESCHIKKING
+            taken_on: wet_toeslag#1
             outputs: [toegekend]
         parameters:
           - {name: jaar, type: number}
@@ -216,6 +218,7 @@ fn a_decision_taken_on_a_submission_finds_that_submission() {
             .applications_for("wet_toeslag", article, DAY)
             .unwrap()
     };
+    // Asked for and named with `taken_on` alike: the application once.
     assert_eq!(applications("1"), ["wet_toeslag#1"]);
     assert_eq!(applications("2"), ["wet_toeslag#1"]);
     // The application still asks for the allowance only.
