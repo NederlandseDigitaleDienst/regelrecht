@@ -86,7 +86,7 @@ describe('the picture of one value', () => {
     expect(heeft(k, 'leest', [aggregaat, 'vergunning_geldig_tot'], [red, 'vergunningen'])).toBe(true);
     expect(heeft(k, 'rekent', [red, 'vergunningen'], [red, 'aantal_geldige_bedrijfsparkeervergunningen'])).toBe(true);
     expect(heeft(k, 'leest', ['beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal', 'aantal_geldige_vergunningen'], [red, 'aantal_geldige_bedrijfsparkeervergunningen'])).toBe(true);
-    expect(namen(aggregaat).sort()).toEqual(['besluit_datum', 'in_de_plaats_op_bezwaar', 'uitspraak_hoofdzaak_op', 'vergunning_geldig_tot', 'verleend', 'voorziening_op_besluit']);
+    expect(namen(aggregaat).sort()).toEqual(['besluit_dat_verleent', 'besluit_datum', 'uitspraak_hoofdzaak_op', 'vergunning_geldig_tot', 'verleend']);
     // One line into a property per source in the chronicle: the decision on
     // the application with its step, the decision on an objection with its
     // effect and with its step, which reads the new decision it holds.
@@ -165,6 +165,9 @@ describe('the picture of one value', () => {
       expect(stapVan(beleid, 'aantal_werkzame_personen_volgens_handelsregister')).toBe(k.reststap);
       expect(stapVan(besluit, 'vergunninggebied_van_postcode')).toBe(k.reststap);
       expect(stapVan('kamer_van_koophandel', 'aantal_werkzame_personen')).toBe(k.reststap);
+      expect(stapVan('reductie_geldige_bedrijfsparkeervergunningen', 'vergunningen')).toBe(k.reststap);
+      expect(stapVan('reductie_bedrijfsparkeervergunning', 'besluit_dat_verleent')).toBe(k.reststap);
+      expect(stapVan('beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal', 'besluit_dat_verleent_na_bezwaar')).toBe(k.reststap);
       expect(stapVan('reductie_schorsing_bedrijfsparkeervergunning', 'geschorst_vanaf')).toBe(k.reststap);
       expect(stapVan('reductie_bedrijfsparkeervergunning', 'besluit_datum')).toBe(k.reststap);
       expect(stapVan('beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal', 'aantal_geldige_vergunningen')).toBe(k.reststap);

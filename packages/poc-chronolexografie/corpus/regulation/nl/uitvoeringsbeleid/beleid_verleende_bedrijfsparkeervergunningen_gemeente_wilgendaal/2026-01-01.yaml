@@ -53,10 +53,9 @@ articles:
           - name: vergunningen
             type: array
             description: >-
-              De besluiten op aanvragen, elk met zijn id, het besluit uit
-              zijn aggregaat waarop een uitspraak van de voorzieningenrechter
-              ziet, of een beslissing op bezwaar een nieuw besluit in zijn
-              plaats nam, en de dag van de uitspraak in de hoofdzaak.
+              De besluiten op aanvragen, elk met het besluit uit zijn
+              aggregaat dat de vergunning nu verleent en de dag van de
+              uitspraak in de hoofdzaak.
           - name: schorsingen
             type: array
             description: >-
@@ -129,18 +128,9 @@ articles:
                           # Het besluit dat de vergunning verleent: het besluit
                           # op de aanvraag, of de beslissing op bezwaar die in
                           # zijn plaats een nieuw besluit nam.
-                          - operation: IF
-                            cases:
-                              - when: $vergunning.in_de_plaats_op_bezwaar
-                                then:
-                                  operation: AND
-                                  conditions:
-                                    - operation: EQUALS
-                                      subject: $vergunning.voorziening_op_besluit
-                                      value: $schorsing.besluit
-                                    - operation: NOT
-                                      value: {operation: EQUALS, subject: $vergunning.id, value: $schorsing.besluit}
-                            default: {operation: EQUALS, subject: $vergunning.id, value: $schorsing.besluit}
+                          - operation: EQUALS
+                            subject: $vergunning.besluit_dat_verleent
+                            value: $schorsing.besluit
                           - operation: NOT
                             value: {operation: EQUALS, subject: $vergunning.uitspraak_hoofdzaak_op, value: null}
                           - operation: GREATER_THAN_OR_EQUAL
@@ -174,8 +164,8 @@ articles:
           - name: vergunningen
             type: array
             description: >-
-              De besluiten op aanvragen, elk met zijn id, of het een
-              vergunning verleent, de dag van het besluit, de laatste geldige
+              De besluiten op aanvragen, elk met het besluit dat de
+              vergunning nu verleent, of het een vergunning verleent, de dag van het besluit, de laatste geldige
               dag van de vergunning en de dag van de uitspraak in de hoofdzaak.
           - name: schorsingen
             type: array
@@ -235,24 +225,9 @@ articles:
                   # nam, als er een is; een schorsing van het herroepen besluit
                   # raakt dan niets meer.
                   - when:
-                      operation: IF
-                      cases:
-                        - when: $vergunning.in_de_plaats_op_bezwaar
-                          then:
-                            operation: AND
-                            conditions:
-                              - operation: NOT
-                                value:
-                                  operation: EQUALS
-                                  subject: $vergunning.voorziening_op_besluit
-                                  value: $vergunning.id
-                              - operation: IN
-                                subject: $vergunning.voorziening_op_besluit
-                                value: $geschorst
-                      default:
-                        operation: IN
-                        subject: $vergunning.id
-                        value: $geschorst
+                      operation: IN
+                      subject: $vergunning.besluit_dat_verleent
+                      value: $geschorst
                     then: false
                 default: true
               body: 1
@@ -269,8 +244,10 @@ articles:
       een nieuw besluit in de plaats van het herroepen besluit, dan telt dat
       besluit zoals een besluit op de aanvraag: verleent het een vergunning,
       dan is die verleend op de dag van het nieuwe besluit en geldig tot en
-      met de dag die het noemt. Een beslissing op bezwaar zonder nieuw besluit
-      laat staan wat gold.
+      met de dag die het noemt. De vergunning berust dan op de beslissing op
+      bezwaar: een schorsing raakt haar alleen als zij over die beslissing
+      gaat. Een beslissing op bezwaar zonder nieuw besluit laat staan wat
+      gold.
     url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel7:11
     machine_readable:
       # Awb 7:11, tweede lid: het bestuursorgaan herroept het bestreden
@@ -280,9 +257,16 @@ articles:
       # leest niets anders dan wat het krijgt.
       execution:
         parameters:
-          - name: al_in_de_plaats
-            type: boolean
-            description: Of een eerdere beslissing op bezwaar al een nieuw besluit in de plaats nam.
+          - name: al_besluit_dat_verleent
+            type: string
+            nullable: true
+            description: >-
+              Het besluit dat de vergunning vóór deze beslissing op bezwaar
+              verleende: het besluit op de aanvraag, of een eerdere beslissing
+              op bezwaar die een nieuw besluit in de plaats nam.
+          - name: beslissing_op_bezwaar
+            type: string
+            description: Deze beslissing op bezwaar.
           - name: al_verleend
             type: boolean
             description: Of het besluit vóór deze beslissing op bezwaar een vergunning verleende.
@@ -312,17 +296,21 @@ articles:
             type: date
             nullable: true
             description: De laatste geldige dag van die vergunning.
-          - name: in_de_plaats_na_bezwaar
-            type: boolean
-            description: Of er na deze beslissing op bezwaar een nieuw besluit in de plaats is genomen.
+          - name: besluit_dat_verleent_na_bezwaar
+            type: string
+            nullable: true
+            description: >-
+              Het besluit dat de vergunning na deze beslissing op bezwaar
+              verleent: deze beslissing als zij een nieuw besluit in de plaats
+              nam, anders het besluit van daarvoor.
         actions:
-          - output: in_de_plaats_na_bezwaar
+          - output: besluit_dat_verleent_na_bezwaar
             value:
               operation: IF
               cases:
                 - when: {operation: EQUALS, subject: $nieuw_besluit, value: null}
-                  then: $al_in_de_plaats
-              default: true
+                  then: $al_besluit_dat_verleent
+              default: $beslissing_op_bezwaar
           - output: verleend_na_bezwaar
             value:
               operation: IF

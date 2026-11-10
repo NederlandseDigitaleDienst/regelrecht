@@ -1,0 +1,29 @@
+---
+# Since schema v0.8.19 a reduction is an aggregate (a projection) or a read
+# model whose execution reads aggregates (`source.projections`). One that
+# only calls other rulework reads no chronicle and is no reduction.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: test_conformance_reduction_without_aggregates
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-09'
+valid_from: '2026-11-09'
+name: Testreductie zonder kroniek
+url: https://example.invalid/reduction-without-aggregates
+articles:
+  - number: '1'
+    url: https://example.invalid/reduction-without-aggregates/1
+    text: Een uitkomst uit een ander regelwerk.
+    machine_readable:
+      execution:
+        input:
+          - name: regio
+            type: string
+            source:
+              regulation: test_conformance_fact
+              output: regio
+        output:
+          - name: regio_van_school
+            type: string
+        actions:
+          - output: regio_van_school
+            value: $regio

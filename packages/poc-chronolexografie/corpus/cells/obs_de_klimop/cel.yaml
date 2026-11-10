@@ -10,7 +10,6 @@ category: het hoofd
 # logica; het beleid van het hoofd koppelt de antwoorden aan open begrippen.
 answers:
   verlof_al_verleend_in_schooljaar: reductie_verlof_al_verleend_in_schooljaar
-  verlof_valt_buiten_schoolvakanties: reductie_verlof_valt_buiten_schoolvakanties
   gemeente_van_vestiging: reductie_plaats_van_vestiging
   provincie_van_vestiging: reductie_plaats_van_vestiging
   deel_van_gemeente_van_vestiging: reductie_plaats_van_vestiging

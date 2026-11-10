@@ -70,8 +70,8 @@ voorbeeld:
 # fictief_beleid_vestiging_obs_de_klimop vereist; geen artikel in het corpus
 # vereist dat feit letterlijk. De herfst- en
 # voorjaarsvakantie staan in het fictieve beleid van de school
-# (fictief_beleid_vakantierooster_obs_de_klimop). Zo beantwoordt de cel
-# verlof_valt_buiten_schoolvakanties zelf; 1 tot en met 5 februari en 10 tot
+# (fictief_beleid_vakantierooster_obs_de_klimop). Zo bepaalt het beleid van het hoofd
+# verlof_valt_buiten_schoolvakanties; 1 tot en met 5 februari en 10 tot
 # en met 14 mei 2027 vallen buiten de vakanties van regio midden.
 begin:
   datum: 2026-08-01

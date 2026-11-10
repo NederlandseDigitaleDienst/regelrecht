@@ -431,8 +431,9 @@ fn the_reduction_tab_shows_the_copies_the_permit_reduction_reads() {
     // A step on an executogram reads the facts its article requires; the
     // tab Reductie lists them beside the decisions, also those of the
     // aggregates the reduction reads (source.projections): the permit's,
-    // with the judgment in the main case and the decision a suspension is
-    // about, then the suspension's.
+    // with the judgment in the main case, then the suspension's. Which
+    // decision grants the permit the permit's aggregate takes from its own
+    // decisions ($record.id), not from the copies of the suspension.
     let mut spel = spel();
     let stand = spel.reducties(dag("2026-12-01")).unwrap();
     let reductie = stand["reducties"]
@@ -451,7 +452,6 @@ fn the_reduction_tab_shows_the_copies_the_permit_reduction_reads() {
         feiten,
         [
             "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak",
-            "algemene_wet_bestuursrecht#8:84#afschrift_van_de_uitspraak_van_de_voorzieningenrechter",
             "algemene_wet_bestuursrecht#8:84#afschrift_van_de_uitspraak_van_de_voorzieningenrechter",
             "algemene_wet_bestuursrecht#8:87#afschrift_van_de_uitspraak_tot_opheffing",
         ]
@@ -598,17 +598,14 @@ fn per_permit_annulling_the_decision_on_objection_leaves_the_permit_and_ends_the
     assert!(geldig(&service, &grams, EERSTE, "2027-01-11"));
 }
 
-#[test]
-fn per_permit_a_permit_granted_on_objection_can_be_suspended() {
-    // The bakery reaches the maximum of two in the city centre, and the
-    // college refuses a third permit. On objection it applies the hardship
-    // clause: the refusal is revoked (Awb 7:11, second paragraph, as an
-    // effect) and a new decision grants the permit. The voorzieningenrechter
-    // then suspends that decision on the objection, which holds the new
-    // decision: one act, one record. The request and the appeal it needs
-    // (8:81, first paragraph) are not played, as elsewhere in this file.
-    const DERDE: &str = "ZZ-003-Z";
-    let service = service();
+/// The bakery reaches the maximum of two in the city centre, and the college
+/// refuses a third permit. On objection it applies the hardship clause: the
+/// refusal is revoked (Awb 7:11, second paragraph, as an effect) and a new
+/// decision grants the permit; the decision on the objection holds the new
+/// decision, one act, one record. Returns the refusal, the decision on the
+/// objection and the chronicle. The request and the appeal a suspension
+/// needs (8:81, first paragraph) are not played, as elsewhere in this file.
+fn op_bezwaar_verleend() -> (String, String, Vec<Gram>) {
     let mut spel = spel();
     vergunning(&mut spel, EERSTE, "2026-10-13", "2026-10-20");
     vergunning(&mut spel, TWEEDE, "2026-10-21", "2026-10-22");
@@ -646,13 +643,29 @@ fn per_permit_a_permit_granted_on_objection_can_be_suspended() {
     let beslissing = gegrond["beslissing"]["id"].as_str().unwrap().to_string();
     let kroniek = spel.kroniek().unwrap();
     let grams: Vec<Gram> = serde_json::from_value(kroniek["grammen"].clone()).unwrap();
+    (weigering, beslissing, grams)
+}
 
-    let mut geschorst = schorsing(&beslissing);
+/// The kenteken of the permit granted on objection ([`op_bezwaar_verleend`]).
+const DERDE: &str = "ZZ-003-Z";
+
+/// The voorzieningenrechter suspends `besluit` from 1 December 2026.
+fn schorsing_vanaf_december(besluit: &str) -> Gram {
+    let mut geschorst = schorsing(besluit);
     geschorst.recorded_on = dag("2026-12-01");
     geschorst
         .fields
         .insert("besluit_geschorst_vanaf".into(), json!("2026-12-01"));
-    let grams = met(grams, [geschorst]);
+    geschorst
+}
+
+#[test]
+fn per_permit_a_permit_granted_on_objection_can_be_suspended() {
+    // The voorzieningenrechter suspends the decision on the objection, which
+    // holds the new decision that grants the permit.
+    let service = service();
+    let (_, beslissing, grams) = op_bezwaar_verleend();
+    let grams = met(grams, [schorsing_vanaf_december(&beslissing)]);
     // Before the decision on the objection there is no permit: the refusal
     // gives none, and its revocation does not reach back to a day before
     // the new decision.
@@ -662,45 +675,35 @@ fn per_permit_a_permit_granted_on_objection_can_be_suspended() {
 }
 
 #[test]
+fn per_permit_a_later_ruling_about_the_revoked_decision_leaves_the_suspension() {
+    // The decision on the objection is suspended from 1 December. A copy of
+    // a later ruling about the revoked refusal comes in on 10 December. It
+    // is about a decision that no longer grants the permit, so the
+    // suspension of the decision on the objection holds: the aggregate keeps
+    // which decision grants the permit by its own id ($record.id, schema
+    // v0.8.18), not by the last ruling it received.
+    let service = service();
+    let (weigering, beslissing, grams) = op_bezwaar_verleend();
+    let grams = met(
+        grams,
+        [
+            schorsing_vanaf_december(&beslissing),
+            afwijzing(&weigering, "2026-12-10", json!(null)),
+        ],
+    );
+    assert!(!geldig(&service, &grams, DERDE, "2026-12-15"));
+}
+
+#[test]
 fn per_permit_a_suspension_of_the_revoked_decision_leaves_the_permit_in_its_place() {
     // The voorzieningenrechter suspends the refusal of the third permit
-    // pending the objection. On the objection the college applies the
-    // hardship clause: it revokes the refusal and grants the permit in its
-    // place. The suspension concerns the revoked refusal, not the decision
-    // on the objection that now grants the permit, so the permit holds.
-    const DERDE: &str = "ZZ-003-Z";
+    // pending the objection. On the objection the college grants the permit
+    // in its place. The suspension concerns the revoked refusal, not the
+    // decision on the objection that now grants the permit, so the permit
+    // holds. The copy of the ruling on the suspension of the refusal was
+    // received on 10 November, before the decision on the objection.
     let service = service();
-    let mut spel = spel();
-    vergunning(&mut spel, EERSTE, "2026-10-13", "2026-10-20");
-    vergunning(&mut spel, TWEEDE, "2026-10-21", "2026-10-22");
-    let hardheid =
-        |oordeel: bool| map(&json!({ "toepassing_leidt_tot_onaanvaardbare_gevolgen": oordeel }));
-    let (weigering, _) = besluit(
-        &mut spel,
-        DERDE,
-        "2026-10-23",
-        "2026-10-27",
-        &hardheid(false),
-    );
-    let casus = spel.casus().unwrap();
-    let mut bezwaar = map(&casus["voorbeeld"]["bezwaar"]);
-    bezwaar.insert(
-        "dagtekening_bezwaar_of_beroepschrift".into(),
-        json!("2026-11-01"),
-    );
-    let bezwaar = spel
-        .bezwaren(&weigering, &bezwaar, dag("2026-11-01"))
-        .unwrap();
-    spel.beslissen_op_bezwaar(
-        bezwaar["id"].as_str().unwrap(),
-        &hardheid(true),
-        dag("2026-11-20"),
-    )
-    .unwrap();
-    let kroniek = spel.kroniek().unwrap();
-    let grams: Vec<Gram> = serde_json::from_value(kroniek["grammen"].clone()).unwrap();
-    // The copy of the ruling on the suspension of the refusal, received on
-    // 10 November, before the decision on the objection.
+    let (weigering, _, grams) = op_bezwaar_verleend();
     let grams = met(grams, [schorsing(&weigering)]);
     assert!(geldig(&service, &grams, DERDE, "2026-11-25"));
 }

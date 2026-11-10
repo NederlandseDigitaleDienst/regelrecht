@@ -1,0 +1,59 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: reductie_geneeskundig_advies_ontvangen
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van het college van de (fictieve) gemeente
+# Wilgendaal over zijn eigen kroniek (RFC-022 §4.1, RFC-048). Eén aggregaat
+# per ontvangen geneeskundig advies: het feit geneeskundig_advies_ontvangen,
+# dat artikel 5 van het fictieve beleid
+# beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal vereist, en wat ernaar
+# verwijst. Artikel 5 vereist ook het feit geneeskundig_advies_uitgebracht,
+# dat de GGD in haar eigen kroniek vastlegt; daarom noemt per het feit bij
+# naam (schema v0.8.18). De staat houdt wat het advies vermeldt, onder de
+# namen van het feit. reductie_geneeskundig_advies en
+# reductie_geneeskundig_onderzoek lezen de aggregaten. Er is geen
+# bekendmaking; de url wijst naar artikel 3 van de regeling, dat zegt wie
+# onderzoekt.
+url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+name: Ontvangen geneeskundig advies per feit bij de gemeente Wilgendaal (reductie)
+articles:
+  - number: '1'
+    text: >-
+      Geen regelgeving. Het systeem van de gemeente houdt door middel van een
+      chronolexografische reductie op zijn eigen kroniek per ontvangen advies
+      bij over wie het gaat, van een onderzoek op welke dag, en wat het advies
+      over elk gegeven zegt.
+    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    machine_readable:
+      projection:
+        per: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_ontvangen
+        state:
+          - name: bsn_aanvrager
+            type: string
+          - name: datum_onderzoek
+            type: date
+          - name: langdurige_loopbeperking
+            type: boolean
+          - name: continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+          - name: permanent_rolstoelgebonden
+            type: boolean
+          - name: ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+        steps:
+          - record: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_ontvangen
+            actions:
+              - output: bsn_aanvrager
+                value: $record.bsn_aanvrager
+              - output: datum_onderzoek
+                value: $record.datum_onderzoek
+              - output: langdurige_loopbeperking
+                value: $record.langdurige_loopbeperking
+              - output: continu_afhankelijk_van_hulp_bestuurder
+                value: $record.continu_afhankelijk_van_hulp_bestuurder
+              - output: permanent_rolstoelgebonden
+                value: $record.permanent_rolstoelgebonden
+              - output: ernstige_beperkingen_andere_dan_loopbeperkingen
+                value: $record.ernstige_beperkingen_andere_dan_loopbeperkingen

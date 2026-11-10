@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
 $id: reductie_bedrijfsparkeervergunning
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -17,8 +17,10 @@ valid_from: '2026-01-01'
 # dag betekenen, zegt het fictieve beleid verleende
 # bedrijfsparkeervergunningen, wanneer een reductie die telt het vraagt. Een
 # schorsing door de voorzieningenrechter is een eigen aggregaat
-# (reductie_schorsing_bedrijfsparkeervergunning); de staat houdt het besluit
-# uit dit aggregaat waarop een schorsing ziet. Er is geen bekendmaking; de url
+# (reductie_schorsing_bedrijfsparkeervergunning); de staat houdt welk besluit
+# uit dit aggregaat de vergunning nu verleent, zodat een schorsing alleen
+# meetelt als zij over dat besluit gaat. Daarvoor leest een stap het id van
+# zijn record ($record.id, schema v0.8.19). Er is geen bekendmaking; de url
 # wijst naar het model van de verordening.
 url: https://lokaleregelgeving.overheid.nl/CVDR642699
 name: Bedrijfsparkeervergunning per besluit bij de gemeente Wilgendaal (reductie)
@@ -45,16 +47,12 @@ articles:
             type: date
           - name: uitspraak_hoofdzaak_op
             type: date
-          # Het besluit uit dit aggregaat waarop een uitspraak van de
-          # voorzieningenrechter ziet: het besluit op de aanvraag, of de
-          # beslissing op bezwaar die in zijn plaats een vergunning verleende.
-          - name: voorziening_op_besluit
+          # Het besluit uit dit aggregaat dat de vergunning nu verleent: het
+          # besluit op de aanvraag, of de beslissing op bezwaar die in zijn
+          # plaats een nieuw besluit nam. Een schorsing raakt de vergunning
+          # alleen als zij over dit besluit gaat.
+          - name: besluit_dat_verleent
             type: string
-          # Of een beslissing op bezwaar die meetelt een nieuw besluit in de
-          # plaats van het besluit op de aanvraag nam. Dan gaat een schorsing
-          # van dat besluit op de aanvraag niet meer over de vergunning.
-          - name: in_de_plaats_op_bezwaar
-            type: boolean
         steps:
           - record: parkeerverordening_gemeente_wilgendaal#2#BESCHIKKING
             actions:
@@ -64,6 +62,8 @@ articles:
                 value: $record.besluit_datum
               - output: vergunning_geldig_tot
                 value: $record.vergunning_geldig_tot
+              - output: besluit_dat_verleent
+                value: $record.id
           # De beslissing op een bezwaar tegen dit besluit. Nam zij een nieuw
           # besluit in de plaats van het herroepen besluit (Awb 7:11, tweede
           # lid), dan houdt zij dat nieuwe besluit zelf (nieuw_besluit): één
@@ -77,7 +77,8 @@ articles:
                   regulation: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
                   output: verleend_na_bezwaar
                   parameters: &bezwaar
-                    al_in_de_plaats: $state.in_de_plaats_op_bezwaar
+                    al_besluit_dat_verleent: $state.besluit_dat_verleent
+                    beslissing_op_bezwaar: $record.id
                     al_verleend: $state.verleend
                     al_besluit_datum: $state.besluit_datum
                     al_vergunning_geldig_tot: $state.vergunning_geldig_tot
@@ -94,15 +95,16 @@ articles:
                   regulation: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
                   output: vergunning_geldig_tot_na_bezwaar
                   parameters: *bezwaar
-              - name: in_de_plaats_na_bezwaar
-                type: boolean
+              - name: besluit_dat_verleent_na_bezwaar
+                type: string
+                nullable: true
                 source:
                   regulation: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
-                  output: in_de_plaats_na_bezwaar
+                  output: besluit_dat_verleent_na_bezwaar
                   parameters: *bezwaar
             actions:
-              - output: in_de_plaats_op_bezwaar
-                value: $in_de_plaats_na_bezwaar
+              - output: besluit_dat_verleent
+                value: $besluit_dat_verleent_na_bezwaar
               - output: verleend
                 value: $verleend_na_bezwaar
               - output: besluit_datum
@@ -115,10 +117,3 @@ articles:
             actions:
               - output: uitspraak_hoofdzaak_op
                 value: $record.uitspraak_datum
-          # Een uitspraak van de voorzieningenrechter (8:84) over een besluit
-          # uit dit aggregaat. Wat zij op een dag betekent, houdt
-          # reductie_schorsing_bedrijfsparkeervergunning bij.
-          - record: algemene_wet_bestuursrecht#8:84#EXECUTOGRAM
-            actions:
-              - output: voorziening_op_besluit
-                value: $record.refers_to

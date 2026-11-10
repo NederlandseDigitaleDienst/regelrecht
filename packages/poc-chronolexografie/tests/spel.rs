@@ -801,14 +801,19 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
         );
     }
     assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
+    // Each aggregate holds which of its decisions grants the permit now:
+    // the first permit itself, and the decision on the objection that took
+    // a new decision in the refusal's place ($record.id, schema v0.8.18).
     assert!(
-        spoor.contains(&format!("{eerste}: besluit_datum: null -> ")),
+        spoor.contains(&format!(
+            "{eerste}: besluit_dat_verleent: null -> {eerste}, besluit_datum: null -> "
+        )),
         "{spoor}"
     );
     assert!(
         spoor.contains(&format!(
             "{beslissing}: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal#3: \
-             besluit_datum: null -> "
+             besluit_dat_verleent: null -> {beslissing}, besluit_datum: null -> "
         )),
         "{spoor}"
     );

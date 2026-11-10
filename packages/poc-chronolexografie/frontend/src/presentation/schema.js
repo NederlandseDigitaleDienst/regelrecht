@@ -407,7 +407,17 @@ export function keten(alle, id, { law, article, naam }) {
             : undefined;
       if (r) lijn('kroniek', kroniek(), bron(r, rArt, feit), box, uit.begrip, 'projection.steps');
     }
-    for (const e of effecten) lijn('kroniek', kroniek(), bron(e.w, e.artikel, e.feit), box, uit.begrip, 'effects');
+    // The effects that decide which records count, where they can reach a
+    // record of the aggregate: one rooted in a decision, or one whose steps
+    // play records of the law that gives the effect. An aggregate of facts
+    // of another law, such as an inscription in the trade register, no
+    // objection or ruling reaches.
+    const gespeeld = new Set([projection.per, ...(projection.steps ?? []).map((s) => s.record)].filter(Boolean).map((r) => splits(r).law));
+    const soort = projection.per && String(projection.per).split('#')[2];
+    const opBesluit = Boolean(projection.per) && soort !== 'EXECUTOGRAM' && !(soort && soort !== soort.toUpperCase());
+    for (const e of effecten) {
+      if (opBesluit || gespeeld.has(e.w.doc.$id)) lijn('kroniek', kroniek(), bron(e.w, e.artikel, e.feit), box, uit.begrip, 'effects');
+    }
     uit.box.begrippen.get(begrip(box, uit.begrip)).volgorde = volgorde++;
     return uit;
   }

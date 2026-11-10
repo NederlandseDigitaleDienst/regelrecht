@@ -1,12 +1,13 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
 $id: reductie_plaats_van_vestiging
 regulatory_layer: REDUCTIE
 publication_date: '2026-07-01'
 valid_from: '2026-08-01'
 # Geen regelgeving: een reductie van het hoofd van OBS De Klimop over zijn
-# eigen kroniek (RFC-022 §4.1, RFC-048, RFC-051). Ze leest de executogrammen
-# van het feit vestiging, dat het fictieve beleid
+# eigen kroniek (RFC-022 §4.1, RFC-048, RFC-051). Ze speelt zelf niets af: ze
+# leest de aggregaten van de vastgelegde vestigingen (reductie_vestiging,
+# source.projections), elk een feit vestiging dat het fictieve beleid
 # fictief_beleid_vestiging_obs_de_klimop (artikel 1) vereist, en geeft de
 # vestiging die op de verlofdagen geldt. De cel van de school geeft haar
 # uitvoer als de antwoorden gemeente_van_vestiging, provincie_van_vestiging en
@@ -49,12 +50,12 @@ articles:
             type: date
             description: Laatste dag van het gevraagde verlof (artikel 13a).
         input:
-          # De vastgelegde vestigingen van de school, één rij per
-          # executogram, met gemeente, provincie, deel_van_gemeente en sinds.
+          # De vastgelegde vestigingen van de school, één rij per aggregaat,
+          # met gemeente, provincie, deel_van_gemeente en sinds.
           - name: vestigingen
             type: array
             source:
-              facts: fictief_beleid_vestiging_obs_de_klimop#1#vestiging
+              projections: reductie_vestiging
         output:
           - name: dagen_sinds_vestiging_op_eerste_verlofdag
             type: number

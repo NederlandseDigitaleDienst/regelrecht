@@ -751,7 +751,8 @@ fn oordelen_van_de_rechter(
 }
 
 /// What each other cell of the sphere records by hand (RFC-051 §2): the facts
-/// whose executograms its reductions read (`source.facts`) and the facts of
+/// whose executograms its reductions read (`source.facts` up to schema
+/// v0.8.17, an aggregate's `per` and steps since) and the facts of
 /// the regelwerken of the case that name it as who establishes them
 /// (`competent_authority`), each with the fields the article that requires
 /// it lists. For the parking card: the GGD records its advice (the
@@ -768,11 +769,33 @@ fn handelingen(
         // Only a reduction reads a chronicle (RFC-048).
         for (_, reduction) in reducties_in(&|id: &str| service.resolver().get_law(id), &[cell]) {
             for article in &reduction.articles {
-                for input in article.get_inputs() {
-                    if let Some(f) = input.source.as_ref().and_then(|s| s.facts.as_ref())
-                        && !feiten.contains(f)
-                    {
-                        feiten.push(f.clone());
+                let gelezen = article
+                    .get_inputs()
+                    .iter()
+                    .filter_map(|input| input.source.as_ref()?.facts.clone());
+                // The aggregates a read model reads, and a projection of the
+                // reduction itself (schema v0.8.14 to v0.8.16).
+                let gelezen_aggregaten: Vec<_> = article
+                    .get_inputs()
+                    .iter()
+                    .filter_map(|input| input.source.as_ref()?.projections.as_deref())
+                    .filter_map(|id| service.resolver().get_law_for_date(id, Some(on)))
+                    .flat_map(|aggregaat| aggregaat.articles.iter())
+                    .collect();
+                let gespeeld = std::iter::once(article)
+                    .chain(gelezen_aggregaten)
+                    .filter_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
+                    .flat_map(|p| {
+                        p.per_basis_and_kind()
+                            .into_iter()
+                            .chain(p.steps.iter().map(|s| s.basis_and_kind()))
+                    })
+                    .flat_map(|(basis, kind)| {
+                        feiten_van_record(service, basis, kind, on).unwrap_or_default()
+                    });
+                for f in gelezen.chain(gespeeld) {
+                    if !feiten.contains(&f) {
+                        feiten.push(f);
                     }
                 }
             }
@@ -806,6 +829,38 @@ fn handelingen(
         }));
     }
     Ok(uit)
+}
+
+/// The facts (`<regulation>#<article>#<fact>`) whose executograms a step or
+/// the `per` of a projection plays when it names the article `basis` and
+/// the kind `kind`: the fact it names, or else the facts the article
+/// requires, when the record is an executogram or the article takes no
+/// decision. `None` when the article is not found on `on`.
+fn feiten_van_record(
+    service: &LawExecutionService,
+    basis: &str,
+    kind: Option<&str>,
+    on: NaiveDate,
+) -> Option<Vec<String>> {
+    let (law, nummer) = basis.split_once('#')?;
+    let article = service
+        .resolver()
+        .get_law_for_date(law, Some(on))?
+        .find_article_by_number(nummer)?;
+    // A fact named by name (schema v0.8.18) is that fact alone.
+    let genoemd = kind.filter(|k| regelrecht_law_model::names_fact(k));
+    if genoemd.is_none() && kind != Some(EXECUTOGRAM) && article.get_decision().is_some() {
+        return Some(Vec::new());
+    }
+    Some(
+        article
+            .get_requires()
+            .iter()
+            .filter_map(|r| r.fact.as_deref())
+            .filter(|feit| genoemd.is_none_or(|g| g == *feit))
+            .map(|feit| format!("{basis}#{feit}"))
+            .collect(),
+    )
 }
 
 /// Another cell of the sphere records an executogram of the fact `feit`
@@ -2263,30 +2318,10 @@ fn lezingen_van(
         .flat_map(|p| &p.steps)
     {
         let (basis, kind) = step.basis_and_kind();
-        let article = basis.split_once('#').and_then(|(law, nummer)| {
-            service
-                .resolver()
-                .get_law_for_date(law, Some(on))?
-                .find_article_by_number(nummer)
-        });
-        // A step that names a fact (schema v0.8.18) reads that fact alone.
-        let genoemd = kind.filter(|k| regelrecht_law_model::names_fact(k));
-        let feiten: Vec<String> = article
-            .filter(|a| {
-                genoemd.is_some() || kind == Some(EXECUTOGRAM) || a.get_decision().is_none()
-            })
-            .map(|a| {
-                a.get_requires()
-                    .iter()
-                    .filter_map(|r| r.fact.as_deref())
-                    .filter(|feit| genoemd.is_none_or(|g| g == *feit))
-                    .map(|feit| format!("{basis}#{feit}"))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let feiten = feiten_van_record(service, basis, kind, on).unwrap_or_default();
         let bronnen = if feiten.is_empty() {
             // A step on facts whose article is not found reads nothing here.
-            if kind == Some(EXECUTOGRAM) || genoemd.is_some() {
+            if kind == Some(EXECUTOGRAM) || kind.is_some_and(regelrecht_law_model::names_fact) {
                 continue;
             }
             vec![Bron::Besluiten(basis.to_string())]
@@ -2851,20 +2886,23 @@ mod tests {
                 .collect()
         };
         assert!(namen("/aanvraag/velden").contains(&"laatste_verlofdag".to_string()));
-        // The cell answers verlof_al_verleend_in_schooljaar and
-        // verlof_valt_buiten_schoolvakanties from its chronicle, so the head
+        // The cell answers verlof_al_verleend_in_schooljaar from its
+        // chronicle, and the head's policy computes
+        // verlof_valt_buiten_schoolvakanties from the holidays, so the head
         // is not asked them.
         assert_eq!(
             namen("/besluit/bevindingen"),
             ["specifieke_aard_beroep_ouder"]
         );
         let invoer = vormen["besluit"]["invoer"].as_array().unwrap();
-        for begrip in [
-            "verlof_al_verleend_in_schooljaar",
-            "verlof_valt_buiten_schoolvakanties",
-        ] {
-            assert!(invoer.contains(&json!({ "naam": begrip, "bron": "kroniek van de cel" })));
-        }
+        assert!(invoer.contains(
+            &json!({ "naam": "verlof_al_verleend_in_schooljaar", "bron": "kroniek van de cel" })
+        ));
+        assert!(
+            invoer.contains(
+                &json!({ "naam": "verlof_valt_buiten_schoolvakanties", "bron": "beleid" })
+            )
+        );
         let bezwaar = namen("/bezwaar/velden");
         assert!(bezwaar.contains(&"gronden_bezwaar_of_beroep".to_string()));
         // The contested decision the cell fills from `refers_to`.
@@ -2981,10 +3019,6 @@ mod tests {
                     "verlof_al_verleend_in_schooljaar",
                     "reductie_verlof_al_verleend_in_schooljaar"
                 ),
-                (
-                    "verlof_valt_buiten_schoolvakanties",
-                    "reductie_verlof_valt_buiten_schoolvakanties"
-                ),
                 ("gemeente_van_vestiging", "reductie_plaats_van_vestiging"),
                 ("provincie_van_vestiging", "reductie_plaats_van_vestiging"),
                 (
@@ -3032,8 +3066,7 @@ mod tests {
             ),
             0
         );
-        // The vestiging is read from its executograms. The holidays come
-        // from the regeling and the school's policy, not from the chronicle.
+        // The vestiging is read from the aggregates of its executograms.
         assert_eq!(
             rijen(
                 "reductie_plaats_van_vestiging",
@@ -3041,12 +3074,6 @@ mod tests {
                 "fictief_beleid_vestiging_obs_de_klimop#1#vestiging"
             ),
             1
-        );
-        assert!(
-            reductie("reductie_verlof_valt_buiten_schoolvakanties")["invoer"]
-                .as_array()
-                .unwrap()
-                .is_empty()
         );
         // The YAML is the version whose `valid_from` is `geldig_vanaf`.
         let yaml = reductie(lid_2)["yaml"].as_str().unwrap().to_string();
@@ -3363,15 +3390,15 @@ mod tests {
             json!(true)
         );
 
-        // Why: one node per term the cell answers. May falls outside the
-        // school holidays; the earlier leave, read up to the objection
-        // against B, is "nee".
+        // Why: one node per term the cell answers. The school is in
+        // Utrecht, which the head's policy needs for the holidays; the
+        // earlier leave, read up to the objection against B, is "nee".
         let beslissing = op_b["beslissing"]["id"].as_str().unwrap();
         let antwoorden = op_b["waarom"]["antwoorden"].as_array().unwrap();
-        assert_eq!(antwoorden.len(), 2, "{antwoorden:?}");
+        assert_eq!(antwoorden.len(), 4, "{antwoorden:?}");
         assert_eq!(
-            antwoord(&op_b["waarom"], "verlof_valt_buiten_schoolvakanties")["waarde"],
-            json!(true)
+            antwoord(&op_b["waarom"], "gemeente_van_vestiging")["waarde"],
+            json!("Utrecht")
         );
         let antwoord = &antwoord(&op_b["waarom"], "verlof_al_verleend_in_schooljaar");
         assert_eq!(
@@ -3537,23 +3564,30 @@ mod tests {
         assert_eq!(besluit.waarom.bevindingen, ["specifieke_aard_beroep_ouder"]);
         let id = besluit.besluit.id.as_str();
 
-        // Why: the cell's answer "nee", read up to the application.
-        let antwoord = besluit
+        // Why: the cell's answer where the school is established, read up
+        // to the application. Whether the leave falls outside the school
+        // holidays is no answer of the cell: the head's policy computes it
+        // from the regeling and the school's rooster (art. 3).
+        let gemeente = besluit
             .waarom
             .antwoorden
             .iter()
-            .find(|a| a["begrip"] == json!("verlof_valt_buiten_schoolvakanties"))
-            .unwrap();
-        assert_eq!(antwoord["waarde"], json!(false));
-        assert_eq!(antwoord["door"], json!(SCHOOL));
-        assert_eq!(
-            antwoord["reductie"],
-            json!("reductie_verlof_valt_buiten_schoolvakanties")
+            .find(|a| a["begrip"] == json!("gemeente_van_vestiging"))
+            .unwrap_or_else(|| panic!("{:?}", besluit.waarom.antwoorden));
+        assert_eq!(gemeente["waarde"], json!("Utrecht"));
+        assert_eq!(gemeente["door"], json!(SCHOOL));
+        assert_eq!(gemeente["reductie"], json!("reductie_plaats_van_vestiging"));
+        assert_eq!(gemeente["tot_en_met"], json!(app.id));
+        assert!(
+            !besluit
+                .waarom
+                .antwoorden
+                .iter()
+                .any(|a| a["begrip"] == json!("verlof_valt_buiten_schoolvakanties"))
         );
-        assert_eq!(antwoord["tot_en_met"], json!(app.id));
 
         // In the log's chain: art. 13a runs, and the term is one step,
-        // filled in by the school.
+        // filled in by the head's policy.
         let log = serde_json::to_value(logboek(&corpus, &cell).unwrap()).unwrap();
         let keten = &log[0]["waarom"]["keten"];
         assert_eq!(keten[0]["artikel"], json!(ARTICLE));
@@ -3563,58 +3597,41 @@ mod tests {
         .unwrap();
         assert_eq!(stap["soort"], json!("begrip"));
         assert_eq!(stap["waarde"], json!(false));
-        // Filled by the head's binding, with the school's answer (RFC-048).
         assert_eq!(
-            stap["ingevuld_door"]["answer"]["law_id"],
-            json!("fictief_beleid_vakantieverlof_obs_de_klimop")
+            stap["ingevuld_door"]["regulation"],
+            json!({ "law_id": "fictief_beleid_vakantieverlof_obs_de_klimop", "article": "3" })
         );
+        // Under it the regio of the school, from the cell's answer where it
+        // is established (RFC-048).
+        let gemeente_stap = vind(&stap["stappen"], &|s| {
+            s["naam"] == json!("gemeente_van_vestiging")
+        })
+        .unwrap();
+        assert_eq!(gemeente_stap["waarde"], json!("Utrecht"));
+        // And the region and the holiday the leave falls in: the
+        // kerstvakantie the regeling sets for the school year.
+        let regio = vind(&stap["stappen"], &|s| {
+            s["naam"] == json!("regio_van_school")
+        })
+        .unwrap();
+        assert_eq!(regio["waarde"], json!("Midden"));
+        let kerst = vind(&stap["stappen"], &|s| {
+            s["naam"] == json!("kerstvakantie_eerste_dag")
+        })
+        .unwrap();
+        assert_eq!(kerst["waarde"], json!("2026-12-19"));
         assert_eq!(
-            stap["ingevuld_door"]["answer"]["answers"][0]["answerer"],
+            gemeente_stap["ingevuld_door"]["answer"]["answers"][0]["answerer"],
             json!(SCHOOL)
         );
-        assert_eq!(stap["keer"], json!(0));
         // The school's own executogram is the oldest in the log, without a
         // chain.
         let n = log.as_array().unwrap().len();
         assert_eq!(log[n - 1]["gram"]["kind"], json!("EXECUTOGRAM"));
         assert!(log[n - 1]["waarom"].is_null());
 
-        // How the school answered: its reduction read the kerstvakantie of
-        // the regeling for region midden, and in it the cell answered where
-        // the school is established.
-        let hoe = hoe_beantwoord(&corpus, &cell, id, "verlof_valt_buiten_schoolvakanties").unwrap();
-        let eerst = &hoe["antwoorden"][0];
-        assert_eq!(
-            eerst["uitvoer"]["verlof_valt_buiten_schoolvakanties"],
-            json!(false)
-        );
-        let gelezen = |naam: &str| {
-            eerst["uit_regelgeving"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .find(|g| g["naam"] == json!(naam))
-                .unwrap_or_else(|| panic!("{naam}: {}", eerst["uit_regelgeving"]))
-                .clone()
-        };
-        let regio = gelezen("regio");
-        assert_eq!(regio["waarde"], json!("Midden"));
-        assert_eq!(
-            regio["regelwerk"],
-            json!("regeling_vaststelling_schoolvakanties_20252030")
-        );
-        assert_eq!(
-            gelezen("kerstvakantie_eerste_dag")["waarde"],
-            json!("2026-12-19")
-        );
-        let genest = eerst["antwoorden"].as_array().unwrap();
-        let gemeente = genest
-            .iter()
-            .find(|a| a["begrip"] == json!("gemeente_van_vestiging"))
-            .unwrap_or_else(|| panic!("{genest:?}"));
-        assert_eq!(gemeente["waarde"], json!("Utrecht"));
-        assert_eq!(gemeente["reductie"], json!("reductie_plaats_van_vestiging"));
-        // And how it answered that: from the executogram of its vestiging.
+        // And how the cell answered where the school is: from the aggregate
+        // of its vestiging.
         let plaats = hoe_beantwoord(&corpus, &cell, id, "gemeente_van_vestiging").unwrap();
         let k = gemeente["keer"].as_u64().unwrap() as usize;
         let vestiging = &plaats["antwoorden"][k];
@@ -3738,7 +3755,7 @@ mod tests {
                 "reductie_plaats_van_vestiging",
                 "reductie_verlof",
                 "reductie_verlof_al_verleend_in_schooljaar",
-                "reductie_verlof_valt_buiten_schoolvakanties",
+                "reductie_vestiging",
                 "regeling_vaststelling_schoolvakanties_20252030",
             ]
         );
@@ -3779,6 +3796,7 @@ mod tests {
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
+                "reductie_geneeskundig_advies_ontvangen",
                 "reductie_geneeskundig_onderzoek",
                 "reductie_schorsing_bedrijfsparkeervergunning",
                 "regeling_gehandicaptenparkeerkaart",
@@ -3818,6 +3836,7 @@ mod tests {
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
+                "reductie_geneeskundig_advies_ontvangen",
                 "reductie_geneeskundig_onderzoek",
                 "reductie_inschrijving_vestiging",
                 "reductie_schorsing_bedrijfsparkeervergunning",

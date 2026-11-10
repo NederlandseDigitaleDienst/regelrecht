@@ -1,14 +1,15 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
 $id: reductie_geneeskundig_advies
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
 # Geen regelgeving: een reductie van de (fictieve) gemeente Wilgendaal over
-# haar eigen kroniek (RFC-048). Ze leest de executogrammen van het feit dat
-# artikel 5 van het fictieve beleid
-# beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal vereist: de adviezen
-# die de gemeente van de GGD ontving. Welk advies telt, zegt het fictieve
+# haar eigen kroniek (RFC-048). Ze speelt zelf niets af: ze leest de
+# aggregaten van de adviezen die de gemeente van de GGD ontving
+# (reductie_geneeskundig_advies_ontvangen, source.projections), elk een feit
+# dat artikel 5 van het fictieve beleid
+# beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal vereist. Welk advies telt, zegt het fictieve
 # beleid beleid_geneeskundig_advies_gemeente_wilgendaal; deze reductie geeft
 # het de adviezen mee (source.regulation). De cel van de gemeente geeft haar
 # vier uitvoeren als antwoorden (cel.yaml, answers). Artikel 7 van het beleid
@@ -41,12 +42,14 @@ articles:
             type: date
             description: De dag waarop het college op de aanvraag besluit.
         input:
-          # De ontvangen adviezen, één rij per executogram, met
-          # bsn_aanvrager, datum_onderzoek en de vier gegevens.
+          # De ontvangen adviezen over de aanvrager, één rij per aggregaat,
+          # met bsn_aanvrager, datum_onderzoek en de vier gegevens.
           - name: adviezen
             type: array
             source:
-              facts: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_ontvangen
+              projections: reductie_geneeskundig_advies_ontvangen
+              where:
+                bsn_aanvrager: $bsn_aanvrager
           - name: volgens_beleid_langdurige_loopbeperking
             type: boolean
             nullable: true
