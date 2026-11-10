@@ -147,8 +147,8 @@ describe('the picture of one value', () => {
     });
 
     it('ends the path at its sources, together', () => {
-      // The sources in the chronicle, and what the policy says a new
-      // decision on objection grants, which the step on that decision reads.
+      // The sources in the chronicle at the end of the path through the
+      // Chamber, and of the municipality's decisions that reach as far.
       const laatste = alleNamen.filter((g) => g.stap === k.reststap - 1);
       expect(laatste.filter((g) => g.map === KRONIEK).map((g) => `${g.naam} · ${g.vorm}`).sort()).toEqual([
         'afschrift_van_de_uitspraak · Algemene wet bestuursrecht art. 8:79',
@@ -156,11 +156,7 @@ describe('the picture of one value', () => {
         'inschrijving_gecorrigeerd · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 2',
         'vestiging_ingeschreven · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 1',
       ]);
-      expect(laatste.filter((g) => g.map !== KRONIEK).map((g) => `${g.map}#${g.naam}`).sort()).toEqual(
-        ['besluit_datum_na_bezwaar', 'in_de_plaats_na_bezwaar', 'vergunning_geldig_tot_na_bezwaar', 'verleend_na_bezwaar'].map(
-          (n) => `beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal#${n}`,
-        ),
-      );
+      expect(laatste.filter((g) => g.map !== KRONIEK)).toEqual([]);
       for (const g of laatste) expect(k.lijnen.some((l) => eind(l.naar) === sleutel(g.pad, g.key))).toBe(false);
     });
 
@@ -246,7 +242,7 @@ describe('the picture of one value', () => {
       const alles = zinnen.join(' ');
       for (const waar of ['uit een ander regelwerk', 'van een cel', 'van een reductie', 'uit de kroniek']) expect(alles).toContain(waar);
       expect(stapZin(k, k.reststap - 1)).toBe(
-        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 4 uitkomsten uit een ander regelwerk en 4 bronnen uit de kroniek.`,
+        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 4 bronnen uit de kroniek.`,
       );
     });
 

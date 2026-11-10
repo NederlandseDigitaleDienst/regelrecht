@@ -112,13 +112,13 @@ impl Casus {
         for (cel, begin) in self.begins() {
             let mut eerder = BTreeSet::new();
             for e in &begin.executogrammen {
-                if let Some(naar) = &e.verwijst_naar {
-                    if !eerder.contains(naar.as_str()) {
-                        return fout(format!(
-                            "the begin of '{cel}' refers to '{naar}', which is the kenmerk of no \
-                             earlier executogram of that begin"
-                        ));
-                    }
+                if let Some(naar) = &e.verwijst_naar
+                    && !eerder.contains(naar.as_str())
+                {
+                    return fout(format!(
+                        "the begin of '{cel}' refers to '{naar}', which is the kenmerk of no \
+                         earlier executogram of that begin"
+                    ));
                 }
                 if let Some(k) = &e.kenmerk {
                     if !gezien.insert(k.as_str()) {
