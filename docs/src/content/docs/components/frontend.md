@@ -112,7 +112,13 @@ When the backend has no database, the PUT returns 503 and the frontend keeps the
 
 ## Data loading
 
-Law content comes from the editor-api. `src/composables/corpusUrls.ts` builds every corpus URL in one of two shapes: `/api/corpus/...` for the public corpus (read-only) and `/api/trajects/{ref}/corpus/...` inside a traject (read and write). `useLaw.ts` loads a law with a `GET` on that URL and saves it with a `PUT`. A save in a traject is written back to the traject's repository; the response carries the pull request it went to, which is where the "PR #N" link comes from.
+Law content comes from the editor-api, and every read of a rulework or the law list goes through one module, `src/corpus`. `useCorpus()` returns the reader that `src/main.ts` installs. It reads from the traject the route names, or from the public corpus outside a traject, so no caller picks between `/api/corpus/...` and `/api/trajects/{ref}/corpus/...` itself. It caches rulework bodies, their versions and the full law list per traject, so content from one traject never shows up in another; searches, outputs and implementors are read fresh each time. Opening a rulework to edit it asks for a fresh copy, because the save needs the current ETag.
+
+`useLaw.ts` is the one caller that names its traject (`forTraject`). During a navigation to another traject it loads the new rulework before the route has changed, so the route cannot tell it which traject to read.
+
+Writes stay outside the reader, and so do scenarios, notes, documents and favorites, which have their own modules. `src/composables/corpusUrls.ts` builds their URLs. `useLaw.ts` saves a rulework with a `PUT` and hands the saved body to the reader, so the next read needs no request. A save in a traject is written back to the traject's repository; the response carries the pull request it went to, which is where the "PR #N" link comes from.
+
+Tests read the corpus from memory. `src/test-utils/corpusSetup.ts` installs an empty in-memory corpus before every test, and `installTestCorpus` fills one per traject with ruleworks, outputs, implementors and failures. A test does not fake corpus URLs.
 
 Scenarios run on the engine compiled to WASM, loaded by `useEngine.ts` from the WASM package that `just wasm-build` writes into the app's public directory.
 
