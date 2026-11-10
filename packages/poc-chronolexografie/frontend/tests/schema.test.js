@@ -148,11 +148,11 @@ describe('the picture of one value', () => {
 
     it('ends the path at its sources, together', () => {
       // The sources in the chronicle at the end of the path through the
-      // Chamber, and of the municipality's decisions that reach as far.
+      // Chamber. The municipality's decisions end a step earlier: which
+      // decision grants a permit the aggregate takes from the decision
+      // itself ($record.id), not through the policy.
       const laatste = alleNamen.filter((g) => g.stap === k.reststap - 1);
       expect(laatste.filter((g) => g.map === KRONIEK).map((g) => `${g.naam} · ${g.vorm}`).sort()).toEqual([
-        'afschrift_van_de_uitspraak · Algemene wet bestuursrecht art. 8:79',
-        'beschikking · Algemene wet bestuursrecht art. 7:11',
         'inschrijving_gecorrigeerd · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 2',
         'vestiging_ingeschreven · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 1',
       ]);
@@ -245,7 +245,7 @@ describe('the picture of one value', () => {
       const alles = zinnen.join(' ');
       for (const waar of ['uit een ander regelwerk', 'van een cel', 'van een reductie', 'uit de kroniek']) expect(alles).toContain(waar);
       expect(stapZin(k, k.reststap - 1)).toBe(
-        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 4 bronnen uit de kroniek.`,
+        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 2 bronnen uit de kroniek (vestiging ingeschreven, inschrijving gecorrigeerd).`,
       );
     });
 
