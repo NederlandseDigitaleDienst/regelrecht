@@ -1421,7 +1421,10 @@ pub(crate) fn check_per<'l>(
         (None, Versions::InForce(_)) => None,
     }
     .ok_or_else(|| format!("{basis} names no article {versions}"))?;
-    record_kind(article, basis, segment).map(|_| ())
+    match record_kind(article, basis, segment)? {
+        None => Err("the article gives no record, so no record is a root".to_string()),
+        Some(_) => Ok(()),
+    }
 }
 
 /// Why a step cannot read `source`: there is no such field, property, input
@@ -1486,8 +1489,8 @@ fn record_kind(
             && kind.is_none_or(|k| k == EXECUTOGRAM) =>
         {
             return Err(format!(
-                "the article requires more than one fact; a step cannot pick one, so name \
-                 the fact: {}",
+                "the article requires more than one fact; it cannot pick one, so name the \
+                 fact: {}",
                 facts
                     .iter()
                     .map(|f| format!("{basis}#{f}"))
@@ -2936,7 +2939,7 @@ articles:
             let reduction = REDUCTION.replace("record: wet#4\n", &format!("record: {step}\n"));
             for err in refused_in_either_order(&law, &reduction) {
                 assert!(
-                    err.contains("the article requires more than one fact; a step cannot pick one"),
+                    err.contains("the article requires more than one fact; it cannot pick one"),
                     "{step}: {err}"
                 );
             }
@@ -4311,5 +4314,18 @@ articles:
             .load_law(&later)
             .expect_err("per without a kind on an article with two kinds");
         assert!(err.to_string().contains("per wet#1: needs a kind"), "{err}");
+    }
+
+    #[test]
+    fn per_on_an_article_that_gives_no_record_is_refused() {
+        let none = PER_FACT
+            .replace("$id: per_inlevering", "$id: reductie")
+            .replace("per: wet#4#ingeleverd", "per: wet#6");
+        for err in per_refused_in_either_order(&two_facts(), &none) {
+            assert!(
+                err.contains("per wet#6: the article gives no record"),
+                "{err}"
+            );
+        }
     }
 }
