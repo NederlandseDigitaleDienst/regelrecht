@@ -21,6 +21,7 @@ import {
 } from './composables/useLastVisitedRoute';
 import { useAppChrome, openSearch, openSearchAt, onBarSearchKeydown } from './composables/useAppChrome';
 import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from './constants';
+import type { OpenTab } from './lib/openTabsStorage';
 
 // Persistent shell that owns the shared chrome (tab-bar, search trigger,
 // TrajectMenu, settings menu) and a nested <router-view> for the editor /
@@ -277,14 +278,36 @@ interface TabDismissDetail {
   nextItem?: HTMLElement | null;
 }
 
-function onTabDismiss(e: Event) {
+async function onTabDismiss(e: Event) {
   const actions = tabActions.value;
   if (!actions) return;
   const detail = (e as CustomEvent<TabDismissDetail | null | undefined>).detail;
   const toTab = (el: HTMLElement | null | undefined) =>
     documentTabs.value.find((t) => actions.key(t) === el?.dataset?.tabKey) ?? null;
   const dismissed = toTab(detail?.item);
-  if (dismissed) actions.close(dismissed, toTab(detail?.nextItem));
+  if (dismissed && !(await actions.close(dismissed, toTab(detail?.nextItem)))) restoreTabSelection();
+}
+
+async function onTabClick(tab: OpenTab) {
+  const actions = tabActions.value;
+  if (actions && !(await actions.select(tab))) restoreTabSelection();
+}
+
+// The bar marks a clicked tab, or a closed tab's neighbour, as selected before
+// the editor answers. When the editor keeps the open article (the user chose
+// to keep unsaved edits), put the selection back on it. The bar keeps no
+// selection of its own beyond each item's `selected`, and Vue does not patch
+// a binding whose value did not change, so this sets it directly.
+const tabBarEl = ref<HTMLElement | null>(null);
+function restoreTabSelection() {
+  const actions = tabActions.value;
+  const active = activeDocumentTab.value;
+  const activeKey = actions && active ? actions.key(active) : null;
+  tabBarEl.value
+    ?.querySelectorAll<HTMLElement & { selected: boolean }>('nldd-document-tab-bar-item')
+    .forEach((item) => {
+      item.selected = item.dataset.tabKey === activeKey;
+    });
 }
 </script>
 
@@ -499,6 +522,7 @@ function onTabDismiss(e: Event) {
                No has-dismiss-button (the item renders its own dismiss button in
                0.8.44); accessible-label names the navigation landmark. -->
           <nldd-document-tab-bar
+            ref="tabBarEl"
             :key="documentTabsTrajectRef ?? ''"
             accessible-label="Open artikelen"
             @nldd-reorder="tabActions?.reorder($event.detail.fromIndex, $event.detail.toIndex)"
@@ -513,7 +537,7 @@ function onTabDismiss(e: Event) {
               :short-text="`Art. ${tab.articleNumber}`"
               :short-supporting-text="tabActions?.displayName(tab)"
               :selected="activeDocumentTab && tabActions?.key(activeDocumentTab) === tabActions?.key(tab) || undefined"
-              @click="tabActions?.select(tab)"
+              @click="onTabClick(tab)"
             >
             </nldd-document-tab-bar-item>
           </nldd-document-tab-bar>

@@ -214,7 +214,7 @@ export function useDraftNotes(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(notesToSend),
-      // Same content-type guard as useLaw.saveLaw: only render the body
+      // Same content-type guard as useOpenLaw.save: only render the body
       // when it's editor-api's own text/plain error, never a proxy's HTML.
       errorMessage: (status: number, body: string, contentType: string) =>
         contentType.startsWith('text/plain') && body
@@ -234,7 +234,7 @@ export function useDraftNotes(
     }
     // Only OVERWRITE the badge when this save produced a PR. A PR-less
     // 200 (local source, or a NoChange re-save) must NOT null an existing
-    // badge - same "keep any prior PR" rule as useLaw.saveLaw.
+    // badge - same "keep any prior PR" rule as useOpenLaw.save.
     if (pr) {
       lastSavedPr.value = pr;
     }

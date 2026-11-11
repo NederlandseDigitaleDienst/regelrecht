@@ -102,7 +102,7 @@ export function useNotes(
   // while a slow annotations fetch is in flight lets the older response
   // overwrite the newer law's notes - and because article numbers collide
   // across laws ('1','2','3' everywhere) the stale offsets would silently
-  // highlight wrong spans. useLaw guards the same race the same way.
+  // highlight wrong spans. useOpenLaw guards the same race the same way.
   const claimLoad = useLatest();
 
   async function load() {
@@ -218,7 +218,7 @@ export function useNotes(
     const articleNr = selectedArticle.value?.number;
     if (articleNr == null || articleNr === '') return [];
     // String() both sides: js-yaml decodes an unquoted `number: 2` to a JS
-    // number while the resolver's article_number is always a string. useLaw
+    // number while the resolver's article_number is always a string. useOpenLaw
     // applies the same defensive coercion for the same reason.
     const target = String(articleNr);
     const out: NoteWithSpans[] = [];

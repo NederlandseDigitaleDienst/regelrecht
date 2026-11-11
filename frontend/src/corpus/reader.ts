@@ -57,7 +57,7 @@ export interface CorpusReader extends TrajectCorpusView {
   displayName(lawId: string): string;
   /**
    * The corpus of one fixed traject. Only for a caller that loads for a
-   * traject the route has not committed yet: `useLaw` during a cross-traject
+   * traject the route has not committed yet: `useOpenLaw` during a cross-traject
    * navigation, and recording a save that finished after a switch.
    */
   forTraject(trajectRef: string | null | undefined): TrajectCorpusView;

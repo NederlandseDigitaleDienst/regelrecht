@@ -12,7 +12,7 @@ export interface FieldDeclaration {
   source?: unknown;
 }
 
-/** The parts of an article (as useLaw() returns it) that these maps read. */
+/** The parts of an article (as useOpenLaw() returns it) that these maps read. */
 interface ArticleLike {
   number?: string | number;
   machine_readable?: {
@@ -40,7 +40,7 @@ export interface OutputMeta {
 /**
  * Builds a mapping from output/input/parameter names to article numbers.
  *
- * @param {Array} articles - Articles array from useLaw()
+ * @param {Array} articles - Articles array from useOpenLaw()
  * @returns {{ outputToArticle: Map<string, string>, inputToArticle: Map<string, string>, paramToArticle: Map<string, string> }}
  */
 export function buildArticleMap(articles: readonly ArticleLike[] | null | undefined) {
@@ -101,7 +101,7 @@ function fieldMeta(field: FieldDeclaration & { type: string }): FieldMeta {
  * and `buildExternalFieldTypeMap` reads inputs only, untouched by any
  * same-named parameter.
  *
- * @param {Array} articles - Articles array from useLaw()
+ * @param {Array} articles - Articles array from useOpenLaw()
  * @returns {Map<string, { type: string, unit: (string|null), nullable: boolean }>}
  */
 export function buildTypeMap(articles: readonly ArticleLike[] | null | undefined): Map<string, FieldMeta> {
@@ -132,7 +132,7 @@ export function buildTypeMap(articles: readonly ArticleLike[] | null | undefined
  * name. First declaration wins on a name collision, matching the backend's
  * `collect_law_outputs` dedup.
  *
- * @param {Array} articles - Articles array from useLaw()
+ * @param {Array} articles - Articles array from useOpenLaw()
  * @returns {Map<string, { type: (string|null), unit: (string|null) }>}
  */
 export function buildOutputTypeMap(articles: readonly ArticleLike[] | null | undefined): Map<string, OutputMeta> {

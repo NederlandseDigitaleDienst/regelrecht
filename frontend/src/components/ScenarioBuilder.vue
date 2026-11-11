@@ -57,7 +57,7 @@ const props = withDefaults(defineProps<{
    *  indicators handing off would each restart the DS anti-flash timer on mount,
    *  giving spinner -> 1s blank -> spinner. */
   articleLoading?: boolean;
-  /** Articles array from useLaw() for article mapping */
+  /** Articles array from useOpenLaw() for article mapping */
   articles?: MappedArticle[];
   /** Active traject ref. Required for scenario writes; reads route
    *  through the matching traject's backend so a save is visible

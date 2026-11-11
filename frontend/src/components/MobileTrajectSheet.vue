@@ -180,10 +180,12 @@ function isActiveTab(tab: OpenTab): boolean {
 }
 function selectTab(tab: OpenTab): void {
   closeSheet();
-  tabActions.value?.select(tab);
+  // The sheet shows the active tab from the editor's state, so a switch the
+  // editor refuses (unsaved edits the user kept) needs nothing put back here.
+  void tabActions.value?.select(tab);
 }
 function closeTab(tab: OpenTab): void {
-  tabActions.value?.close(tab);
+  void tabActions.value?.close(tab);
 }
 // Reorder is tijdelijk uitgeschakeld op sm (drag-bugs). De editor exposeert
 // `tabActions.reorder` nog, dus opnieuw inschakelen = `reorderable`

@@ -1,19 +1,22 @@
-// Gerichte tests voor de review-modus-orkestratie in EditorView.vue (de
-// `?task=`-watches, `applyProposedContent` en het opruimen daarvan).
-// EditorView.vue is een view van ~3000 regels zonder eigen testharnas, dus dit
-// bestand mount hem `shallow` met elke composable die hij aanraakt vervangen
-// door een stuurbare stub - net als LibraryView.docReview.test.js doet voor de
-// werkdocument-review. Bewust smal: alleen het review-oppervlak, de rest van de
-// view (panes, notities, scenario's, graaf) blijft in zijn lege standaardstaat.
+// Focused tests for the review-mode orchestration in EditorView.vue (the
+// `?task=` watches, `applyProposedContent` and its cleanup). EditorView.vue
+// has no test harness of its own, so this file mounts it `shallow` with every
+// composable it touches replaced by a controllable stub - as
+// LibraryView.docReview.test.ts does for the document review - except the open
+// regelwerk, which is the real useOpenLaw over an in-memory corpus.
+// Deliberately narrow: only the review surface; the rest of the view (panes,
+// notes, scenarios, graph) stays in its empty default state.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { shallowMount } from '@vue/test-utils';
+import { flushPromises, shallowMount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
-import { ref, computed, reactive, nextTick } from 'vue';
+import { ref, reactive, nextTick } from 'vue';
 import type { EditorChanges } from './composables/useAppChrome';
+import type { OpenLaw } from './composables/useOpenLaw';
+import { installTestCorpus } from './test-utils/corpusSetup';
 
-// --- vue-router: geen echte router. `route` is reactief, want de hele bug
-// hangt aan een watch op `route.query.task`: die moet in een test net zo
-// kunnen wisselen als bij een tabwissel in de echte editor.
+// --- vue-router: no real router. `route` is reactive, because the whole bug
+// hangs on a watch on `route.query.task`: a test must be able to change it the
+// way a tab switch in the real editor does.
 const routeState = reactive({
   name: 'editor-traject',
   params: { trajectRef: 'kieswet-kandidaatstelling-86070ac7', lawId: 'kieswet', articleNumber: 'B 5' },
@@ -50,9 +53,10 @@ vi.mock('./composables/useTrajects', () => ({
   refreshTrajects: vi.fn(),
 }));
 
-// --- useLaw: de wet zoals hij opgeslagen staat. `selectedArticle` volgt
-// `selectedArticleNumber`, zodat een artikelwissel in de test hetzelfde
-// aanvoelt als in de view.
+// --- useOpenLaw: the real module, over an in-memory corpus with the law as
+// saved. The test drives it the way the view does (select an article, open
+// another law) through the instance the view created.
+const TRAJECT = 'kieswet-kandidaatstelling-86070ac7';
 const SAVED_LAW_YAML = [
   '$id: kieswet',
   'articles:',
@@ -61,62 +65,42 @@ const SAVED_LAW_YAML = [
   "  - number: 'B 5'",
   '    text: B5 opgeslagen',
 ].join('\n');
-const SAVED_ARTICLES = [
-  { number: 'B 1', text: 'B1 opgeslagen', machine_readable: null },
-  { number: 'B 5', text: 'B5 opgeslagen', machine_readable: null },
-];
-// Een tweede wet in hetzelfde traject die tóevallig dezelfde artikelnummers
-// gebruikt - doodgewoon ("B 1", "1", "2" bestaan in half de corpus). Precies
-// dat maakt hem interessant: bij een wetwissel verandert `selectedArticleNumber`
-// dan niet, alleen de wet eronder.
-const OTHER_LAW_ARTICLES = [
-  { number: 'B 1', text: 'B1 andere wet', machine_readable: null },
-  { number: 'B 5', text: 'B5 andere wet', machine_readable: null },
-];
-const articles = ref(SAVED_ARTICLES);
-const lawId = ref('kieswet');
-// Wissel van wet zoals `switchLaw` dat doet: de wet eronder verandert, het
-// artikelnummer in de URL kan hetzelfde blijven.
-function switchToLaw(id: string, lawArticles: typeof SAVED_ARTICLES) {
-  lawId.value = id;
-  articles.value = lawArticles;
+// A second law in the same traject that happens to use the same article
+// numbers - common enough ("B 1", "1", "2" exist in half the corpus). That is
+// what makes it interesting: switching law then leaves the article number as
+// it is, and only the law underneath changes.
+const OTHER_LAW_YAML = [
+  '$id: andere-wet',
+  'articles:',
+  "  - number: 'B 1'",
+  '    text: B1 andere wet',
+  "  - number: 'B 5'",
+  '    text: B5 andere wet',
+].join('\n');
+let openLaw: OpenLaw | null = null;
+const save = vi.fn();
+vi.mock('./composables/useOpenLaw', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./composables/useOpenLaw')>();
+  return {
+    ...actual,
+    useOpenLaw: (...args: Parameters<typeof actual.useOpenLaw>) => {
+      const real = actual.useOpenLaw(...args);
+      openLaw = real;
+      return {
+        ...real,
+        save: (...a: Parameters<typeof real.save>) => {
+          save(...a);
+          return real.save(...a);
+        },
+      };
+    },
+  };
+});
+/** The module instance the mounted view uses. */
+function law(): OpenLaw {
+  if (!openLaw) throw new Error('EditorView created no useOpenLaw');
+  return openLaw;
 }
-const selectedArticleNumber = ref('B 5');
-const selectedArticle = computed(
-  () => articles.value.find((a) => String(a.number) === String(selectedArticleNumber.value)) ?? null,
-);
-const loading = ref(false);
-const lawError = ref(null);
-const currentEtag = ref('etag-1');
-const seedFromYaml = vi.fn();
-const saveLaw = vi.fn().mockResolvedValue(undefined);
-const reloadLaw = vi.fn().mockResolvedValue(undefined);
-// The whole-law save failure; drives the save-error notification.
-const lawSaveError = ref<Error | null>(null);
-vi.mock('./composables/useLaw', () => ({
-  useLaw: () => ({
-    law: ref({ $id: 'kieswet', valid_from: '2025-01-01' }),
-    lawId,
-    rawYaml: ref(SAVED_LAW_YAML),
-    articles,
-    lawName: ref('Kieswet'),
-    selectedArticle,
-    selectedArticleNumber,
-    switchLaw: vi.fn().mockResolvedValue(true),
-    clearLaw: vi.fn(),
-    lawTrajectRef: ref('kieswet-kandidaatstelling-86070ac7'),
-    loading,
-    error: lawError,
-    saving: ref(false),
-    saveError: lawSaveError,
-    saveLaw: (...a: unknown[]) => saveLaw(...a),
-    reloadLaw: (...a: unknown[]) => reloadLaw(...a),
-    seedFromYaml,
-    createLaw: vi.fn().mockResolvedValue(undefined),
-    currentEtag,
-    lastSavedPr: ref(null),
-  }),
-}));
 
 vi.mock('./composables/useEngine', () => ({
   useEngine: () => ({
@@ -188,14 +172,14 @@ vi.mock('./composables/useLastVisitedRoute', () => ({
 }));
 
 vi.mock('./lib/apiFetch', () => ({
-  apiFetch: vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({}) }),
+  apiFetch: vi.fn().mockResolvedValue({ ok: true, status: 200, headers: { get: () => null }, json: async () => ({}) }),
   apiFetchJson: vi.fn().mockResolvedValue({}),
   ApiError: class ApiError extends Error {},
 }));
 
-// De app-shell rendert de review-balk en de Wijzigingenbalk; EditorView
-// publiceert er alleen naartoe. `editorChanges` is dus precies wat de
-// gebruiker ziet: `review: true` = de beoordeel-weergave staat op het scherm.
+// The app shell renders the review bar and the changes bar; EditorView only
+// publishes to them. So `editorChanges` is exactly what the user sees:
+// `review: true` = the review view is on screen.
 let editorChanges: EditorChanges | null = null;
 vi.mock('./composables/useAppChrome', () => ({
   registerSearchPopover: vi.fn(),
@@ -208,8 +192,8 @@ vi.mock('./composables/useAppChrome', () => ({
   clearEditorChrome: vi.fn(),
 }));
 
-// useTaskReview zelf blijft ECHT - dit bestand test juist de samenloop van de
-// composable met de watches in de view. Alleen de HTTP-laag eronder is een stub.
+// useTaskReview itself stays REAL - this file tests exactly how the composable
+// works together with the view's watches. Only the HTTP layer below is a stub.
 const fetchTask = vi.fn();
 const resolveTask = vi.fn();
 const fetchJobTasks = vi.fn();
@@ -254,13 +238,16 @@ function reviewTaskDetail(overrides = {}) {
   };
 }
 
+// Lets loads from the in-memory corpus and the watches after them run.
 async function settle(times = 4) {
-  for (let i = 0; i < times; i += 1) await nextTick();
+  for (let i = 0; i < times; i += 1) {
+    await flushPromises();
+    await nextTick();
+  }
 }
 
-// De Tekst-pane leest `activeFormats` van zijn ArticleTextEditor-ref voor de
-// vet/schuin-control; een kale shallow-stub heeft dat veld niet, dus geven we
-// er een die het wél publiceert.
+// The Tekst pane reads `activeFormats` from its ArticleTextEditor ref for the
+// bold/italic control; a bare shallow stub lacks it, so this one publishes it.
 const ArticleTextEditorStub = {
   name: 'ArticleTextEditor',
   template: '<div />',
@@ -292,8 +279,8 @@ function mountEditor() {
   return mounted;
 }
 
-// Ook na een gefaalde assertie: een gemount gebleven view blijft meeluisteren
-// naar de gedeelde reactieve route en vervuilt dan de volgende test.
+// Also after a failed assertion: a view left mounted keeps listening to the
+// shared reactive route and then pollutes the next test.
 afterEach(() => {
   mounted?.unmount();
   mounted = null;
@@ -306,16 +293,13 @@ beforeEach(() => {
   applyEnrichment.mockReset().mockResolvedValue({ accepted: 1, total: 1 });
   replaceMock.mockReset();
   pushMock.mockReset();
-  seedFromYaml.mockReset();
-  saveLaw.mockReset().mockResolvedValue(undefined);
-  reloadLaw.mockReset().mockResolvedValue(undefined);
+  save.mockReset();
+  openLaw = null;
   editorChanges = null;
-  switchToLaw('kieswet', SAVED_ARTICLES);
-  selectedArticleNumber.value = 'B 5';
-  loading.value = false;
-  lawError.value = null;
-  currentEtag.value = 'etag-1';
-  lawSaveError.value = null;
+  installTestCorpus(
+    { '': {}, [TRAJECT]: { laws: { kieswet: SAVED_LAW_YAML, 'andere-wet': OTHER_LAW_YAML }, etags: { kieswet: 'etag-1' } } },
+    TRAJECT,
+  );
   routeState.params = {
     trajectRef: 'kieswet-kandidaatstelling-86070ac7',
     lawId: 'kieswet',
@@ -324,8 +308,8 @@ beforeEach(() => {
   routeState.query = {};
 });
 
-describe('EditorView review-modus', () => {
-  it('opent de beoordeel-weergave bij ?task= en seedt het voorstel', async () => {
+describe('EditorView review mode', () => {
+  it('opens the review view on ?task= and seeds the proposal', async () => {
     routeState.query = { task: 'taak-1' };
     mountEditor();
     await settle();
@@ -333,35 +317,35 @@ describe('EditorView review-modus', () => {
     expect(fetchTask).toHaveBeenCalledWith('taak-1');
     expect(changes().review).toBe(true);
     expect(changes().reviewStatus).toContain('gegenereerd voorstel');
-    // Het voorstel staat als niet-opgeslagen wijziging in de panes.
+    // The proposal is in the panes as an unsaved change.
     expect(changes().dirty).toBe(true);
   });
 
-  // De bug: een artikelwissel (tabwissel in de editor) doet
-  // `router.replace(editorRouteFor(...))` en dat laat `?task=` vallen, maar de
-  // review-state bleef staan. Resultaat: de beoordeel-weergave hing over een
-  // artikel waar de taak niet over gaat - inclusief een actieve "Sla voorstel
-  // op" die de taak zou goedkeuren met de inhoud van dát andere artikel.
-  it('sluit de beoordeel-weergave zodra ?task= uit de URL verdwijnt', async () => {
+  // The bug: an article switch (a tab switch in the editor) does
+  // `router.replace(editorRouteFor(...))`, which dropped `?task=`, but the
+  // review state stayed. Result: the review view hung over an article the
+  // task is not about - including an active "Sla voorstel op" that would
+  // approve the task with the content of THAT other article.
+  it('closes the review view as soon as ?task= leaves the URL', async () => {
     routeState.query = { task: 'taak-1' };
     mountEditor();
     await settle();
     expect(changes().review).toBe(true);
 
-    // Tabwissel naar een ander artikel: de URL houdt geen taak meer vast.
+    // Tab switch to another article: the URL no longer holds the task.
     routeState.params = { ...routeState.params, articleNumber: 'B 1' };
     routeState.query = {};
-    selectedArticleNumber.value = 'B 1';
+    law().selectArticle('B 1');
     await settle();
 
     expect(changes().review).toBe(false);
     expect(changes().reviewStatus).toBeNull();
   });
 
-  // De taak reist mee met de navigatie: elke editor-route die de view bouwt
-  // (tabwissel, artikelwissel, wetwissel) houdt `?task=` vast, zodat een
-  // uitstapje - of een refresh onderweg - de beoordeling niet weggooit.
-  it('houdt ?task= vast op elke editor-route zolang de taak open staat', async () => {
+  // The task travels with navigation: every editor route the view builds (tab,
+  // article and law switches) keeps `?task=`, so a detour - or a refresh on
+  // the way - does not throw the review away.
+  it('keeps ?task= on every editor route while the task is open', async () => {
     routeState.query = { task: 'taak-1' };
     const wrapper = mountEditor();
     await settle();
@@ -371,76 +355,75 @@ describe('EditorView review-modus', () => {
       params: { lawId: 'kieswet', articleNumber: 'B 1' },
       query: { task: 'taak-1' },
     });
-    // Zonder wet is er niets om bij te horen.
+    // Without a law there is nothing to belong to.
     expect(internals(wrapper).editorRouteFor(null, null).query).toBeUndefined();
   });
 
-  // Het gevaarlijke geval: de balk hing over een ander artikel én "Sla voorstel
-  // op" bleef werken. Die keurde de taak goed met de inhoud van dát artikel.
-  it('zet de beoordeel-weergave uit op een ander artikel, ook met ?task= in de URL', async () => {
+  // The dangerous case: the bar hung over another article AND "Sla voorstel
+  // op" kept working. It approved the task with the content of THAT article.
+  it('turns the review view off on another article, also with ?task= in the URL', async () => {
     routeState.query = { task: 'taak-1' };
     const wrapper = mountEditor();
     await settle();
     expect(changes().review).toBe(true);
 
-    // Tabwissel: de taak blijft in de URL staan, het zicht verschuift.
+    // Tab switch: the task stays in the URL, the view moves.
     routeState.params = { ...routeState.params, articleNumber: 'B 1' };
-    selectedArticleNumber.value = 'B 1';
+    law().selectArticle('B 1');
     await settle();
 
     expect(changes().review).toBe(false);
     expect(changes().reviewStatus).toBeNull();
 
-    // Opslaan is hier een gewone artikel-save, geen goedkeuring.
+    // Saving here is an ordinary article save, not an approval.
     await internals(wrapper).handleLawSave();
     await settle();
-    expect(saveLaw).toHaveBeenCalled(); // de save gebeurt wel...
-    expect(resolveTask).not.toHaveBeenCalled(); // ...maar keurt niets goed.
+    expect(save).toHaveBeenCalled(); // the save does happen...
+    expect(resolveTask).not.toHaveBeenCalled(); // ...but approves nothing.
   });
 
-  it('zet balk en voorstel terug zodra je terug bent op het artikel van de taak', async () => {
+  it('restores bar and proposal once you are back on the task article', async () => {
     routeState.query = { task: 'taak-1' };
     mountEditor();
     await settle();
 
     routeState.params = { ...routeState.params, articleNumber: 'B 1' };
-    selectedArticleNumber.value = 'B 1';
+    law().selectArticle('B 1');
     await settle();
     expect(changes().review).toBe(false);
 
     routeState.params = { ...routeState.params, articleNumber: 'B 5' };
-    selectedArticleNumber.value = 'B 5';
+    law().selectArticle('B 5');
     await settle();
 
     expect(changes().review).toBe(true);
-    // Het voorstel staat er weer als niet-opgeslagen wijziging...
+    // The proposal is back as an unsaved change...
     expect(changes().dirty).toBe(true);
-    // ...zonder de taak opnieuw op te halen: die was nooit weg.
+    // ...without fetching the task again: it was never gone.
     expect(fetchTask).toHaveBeenCalledTimes(1);
   });
 
-  it('springt niet weg wanneer je met ?task= op een ander artikel binnenkomt', async () => {
-    // Refresh terwijl je even bij B 1 keek: de taak reist mee in de URL, maar
-    // het artikel uit de URL wint - geen ongevraagde sprong naar B 5.
+  it('does not jump away when entering with ?task= on another article', async () => {
+    // A refresh while looking at B 1: the task travels in the URL, but the
+    // URL's article wins - no unasked-for jump to B 5.
     routeState.params = { ...routeState.params, articleNumber: 'B 1' };
     routeState.query = { task: 'taak-1' };
-    selectedArticleNumber.value = 'B 1';
     mountEditor();
     await settle();
 
-    expect(selectedArticleNumber.value).toBe('B 1');
+    expect(law().selectedArticleNumber.value).toBe('B 1');
     expect(changes().review).toBe(false);
 
-    // En zodra je naar het artikel van de taak gaat, staat het voorstel er.
+    // And once you go to the task's article, the proposal is there.
     routeState.params = { ...routeState.params, articleNumber: 'B 5' };
-    selectedArticleNumber.value = 'B 5';
+    law().selectArticle('B 5');
     await settle();
 
     expect(changes().review).toBe(true);
     expect(changes().dirty).toBe(true);
   });
 
-  it('laat de taak wel los bij verwerpen', async () => {
+  it('does let go of the task on reject', async () => {
     routeState.query = { task: 'taak-1' };
     const wrapper = mountEditor();
     await settle();
@@ -452,7 +435,7 @@ describe('EditorView review-modus', () => {
     // apply endpoint can find, so rejecting it releases the task itself.
     expect(applyEnrichment).not.toHaveBeenCalled();
     expect(resolveTask).toHaveBeenCalledWith('taak-1', 'rejected');
-    // De enige route die de taak bewust NIET meeneemt.
+    // The one route that deliberately does NOT carry the task.
     const lastReplace = replaceMock.mock.calls.at(-1);
     if (!lastReplace) throw new Error('router.replace was not called');
     const target = lastReplace[0];
@@ -484,11 +467,11 @@ describe('EditorView review-modus', () => {
     expect(internals(wrapper).editedText).toBe('een onopgeslagen wijziging');
   });
 
-  // Tweede helft van dezelfde bug: terug op het artikel van de taak was de
-  // inhoud weg (de panes zijn opnieuw uit de opgeslagen wet gevuld) terwijl de
-  // beoordeel-weergave er nog stond. Komt de taak wél terug in de URL, dan
-  // hoort het voorstel opnieuw geladen en geseed te worden.
-  it('laadt de taak opnieuw wanneer je met ?task= terugkeert', async () => {
+  // Second half of the same bug: back on the task's article the content was
+  // gone (the panes were refilled from the saved law) while the review view
+  // was still up. When the task does come back in the URL, the proposal must
+  // be loaded and seeded again.
+  it('loads the task again when you return with ?task=', async () => {
     routeState.query = { task: 'taak-1' };
     mountEditor();
     await settle();
@@ -496,15 +479,15 @@ describe('EditorView review-modus', () => {
 
     routeState.params = { ...routeState.params, articleNumber: 'B 1' };
     routeState.query = {};
-    selectedArticleNumber.value = 'B 1';
+    law().selectArticle('B 1');
     await settle();
     expect(changes().review).toBe(false);
 
-    // Terug naar het artikel van de taak, via "Beoordeel voorstel" - dat is
-    // een route mét ?task=.
+    // Back to the task's article, through "Beoordeel voorstel" - a route
+    // WITH ?task=.
     routeState.params = { ...routeState.params, articleNumber: 'B 5' };
     routeState.query = { task: 'taak-1' };
-    selectedArticleNumber.value = 'B 5';
+    law().selectArticle('B 5');
     await settle();
 
     expect(fetchTask).toHaveBeenCalledTimes(2);
@@ -512,40 +495,40 @@ describe('EditorView review-modus', () => {
     expect(changes().dirty).toBe(true);
   });
 
-  // De taak reist mee met de navigatie, dus `?task=` staat ook in de URL van een
-  // ANDERE wet. Een refresh daar laadt de taak opnieuw - en dan mag het voorstel
-  // niet in die vreemde wet landen. Het artikelnummer alleen is geen bewijs dat
-  // je goed zit: nummers als "B 5" bestaan in meerdere wetten.
-  it('seedt het voorstel niet in een andere wet bij binnenkomen met ?task=', async () => {
-    switchToLaw('andere-wet', OTHER_LAW_ARTICLES);
+  // The task travels with navigation, so `?task=` is also in the URL of
+  // ANOTHER law. A refresh there loads the task again - and then the proposal
+  // must not land in that other law. The article number alone proves nothing:
+  // numbers like "B 5" exist in several laws.
+  it('does not seed the proposal into another law when entering with ?task=', async () => {
+    routeState.params = { ...routeState.params, lawId: 'andere-wet' };
     routeState.query = { task: 'taak-1' };
     mountEditor();
     await settle();
 
     expect(changes().review).toBe(false);
-    // Niets geseed: de panes staan nog op de opgeslagen tekst van de andere wet.
+    // Nothing seeded: the panes still show the other law's saved text.
     expect(changes().dirty).toBe(false);
   });
 
-  // Dezelfde valkuil bij terugkeren. Wissel je naar een wet die hetzelfde
-  // artikelnummer heeft, dan verandert `selectedArticleNumber` niet - alleen de
-  // wet eronder. De panes zijn dan wél teruggezet naar de opgeslagen wet, dus
-  // terug op de taak moet het voorstel er opnieuw in.
-  it('seedt opnieuw na een uitstapje naar een wet met hetzelfde artikelnummer', async () => {
+  // The same trap on return. Switching to a law with the same article number
+  // leaves `selectedArticleNumber` as it is - only the law underneath changes.
+  // The panes ARE reset to the saved law then, so back on the task the
+  // proposal must go in again.
+  it('seeds again after a detour to a law with the same article number', async () => {
     routeState.query = { task: 'taak-1' };
     mountEditor();
     await settle();
     expect(changes().review).toBe(true);
     expect(changes().dirty).toBe(true);
 
-    // Wetwissel, zelfde artikelnummer: de beoordeling hoort uit beeld.
-    switchToLaw('andere-wet', OTHER_LAW_ARTICLES);
+    // Law switch, same article number: the review belongs out of view.
+    await law().open({ lawId: 'andere-wet', articleNumber: 'B 5' });
     await settle();
     expect(changes().review).toBe(false);
     expect(changes().dirty).toBe(false);
 
-    // Terug op de wet van de taak: balk én voorstel horen er weer te staan.
-    switchToLaw('kieswet', SAVED_ARTICLES);
+    // Back on the task's law: bar and proposal belong there again.
+    await law().open({ lawId: 'kieswet', articleNumber: 'B 5' });
     await settle();
     expect(changes().review).toBe(true);
     expect(changes().dirty).toBe(true);
@@ -560,7 +543,7 @@ describe('EditorView save-failure notification', () => {
     await settle();
     expect(notification(wrapper).exists()).toBe(false);
 
-    lawSaveError.value = new Error('Conflict');
+    law().saveError.value = new Error('Conflict');
     await settle();
     expect(notification(wrapper).attributes('supporting-text')).toBe('Conflict');
 
@@ -570,7 +553,7 @@ describe('EditorView save-failure notification', () => {
     await settle();
     expect(notification(wrapper).exists()).toBe(false);
 
-    lawSaveError.value = new Error('Netwerkfout');
+    law().saveError.value = new Error('Netwerkfout');
     await settle();
     expect(notification(wrapper).attributes('supporting-text')).toBe('Netwerkfout');
   });

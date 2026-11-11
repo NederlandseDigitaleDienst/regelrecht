@@ -124,3 +124,31 @@ describe('ArticleTextEditor', () => {
     expect(wrapper.vm.canUndo).toBe(false);
   });
 });
+
+// The editor renumbers ordered lists when it takes in a text, and an article's
+// numbered paragraphs each read as a list of one: "2." comes back as "1.".
+describe('ArticleTextEditor renumbering echo', () => {
+  const ARTICLE = '1. Eerste lid.\n\n2. Tweede lid.';
+
+  function typeInto(wrapper: ReturnType<typeof mountEditor>, value: string) {
+    const el = editorElement(wrapper);
+    el.value = value;
+    el.dispatchEvent(new CustomEvent('input', { detail: { value } }));
+  }
+
+  it('drops an input that only renumbers the paragraphs', () => {
+    const wrapper = mountEditor({ modelValue: ARTICLE });
+    typeInto(wrapper, '1. Eerste lid.\n\n1. Tweede lid.');
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined();
+  });
+
+  it('passes on a real edit, renumbered or not', () => {
+    const wrapper = mountEditor({ modelValue: ARTICLE });
+    typeInto(wrapper, '1. Eerste lid, gewijzigd.\n\n1. Tweede lid.');
+    typeInto(wrapper, '1. Eerste lid.\n\n2. Tweede lid!');
+    expect(wrapper.emitted('update:modelValue')).toEqual([
+      ['1. Eerste lid, gewijzigd.\n\n1. Tweede lid.'],
+      ['1. Eerste lid.\n\n2. Tweede lid!'],
+    ]);
+  });
+});

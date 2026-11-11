@@ -48,7 +48,7 @@ let initPromise: Promise<EditorEngine> | null = null;
 // every traject switch, so the map only grows within one traject's
 // session. The cap is a safety net for any future code path that
 // loads a dependency without going through `unloadAllLaws` on scope
-// change. Cap mirrors `lawCache`'s order of magnitude (`useLaw.js`).
+// change.
 const loadedScopes = createLruMap<string, string>(50, {
   onEvict: (lawId) => {
     // Drop the WASM-side copy alongside the tracking entry - without
