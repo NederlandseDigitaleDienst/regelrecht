@@ -285,15 +285,6 @@ const {
   activeActionPath,
   activeActionIsNew,
 } = openLaw;
-// Same shape as useLaw's old switchLaw, for the switch paths below.
-function switchLaw(
-  newLawId: string,
-  articleNumber?: string | number | null,
-  newTrajectRef?: string | null,
-  { minLoadingMs = 0 }: { minLoadingMs?: number } = {},
-): Promise<boolean> {
-  return openLaw.open({ lawId: newLawId, articleNumber, trajectRef: newTrajectRef, minLoadingMs });
-}
 
 // --- Multi-law tab state (persisted per traject in localStorage) ---
 // Tab state is DERIVED from the active traject rather than a single ref that a
@@ -325,7 +316,7 @@ const tabRestore = createTabRestore({
   activeTabFor,
   setActiveTab,
   dropLaw,
-  switchLaw,
+  switchLaw: (id, articleNumber, trajectRef) => openLaw.open({ lawId: id, articleNumber, trajectRef }),
   clearLaw,
   error,
   router,
@@ -334,11 +325,11 @@ const tabRestore = createTabRestore({
 });
 
 // When the active traject changes (router.push to /editor/{otherRef}/…)
-// the URL stays on the same component; re-fetch the open law through the
-// new traject's backends. The display names need no handling here - the
-// corpus reader follows the route's traject itself. `switchLaw` crosses
-// trajects too via its third argument, so it reads through the new traject
-// before the route has committed.
+// the URL stays on the same component; re-open the law through the new
+// traject's backends. The display names need no handling here - the corpus
+// reader follows the route's traject itself. `open` takes the traject
+// explicitly, so it reads through the new traject before the route has
+// committed.
 //
 // Also flush the WASM engine: it caches loaded laws by id only, so
 // without this a scenario run after a traject switch would evaluate
@@ -346,19 +337,26 @@ const tabRestore = createTabRestore({
 // dependency walker re-loads on demand on the next run, so a single
 // `unloadAllLaws` is enough - no per-dep bookkeeping needed.
 //
-// This handler is an async chain (`await switchLaw` on a deep link, then
-// `await nextTick`) that mutates shared state, so two switches in quick
-// succession (rapid back/forward across trajects) can overlap. Guard it with
-// the same `useLatest()` pattern `selectTab`/`onBeforeRouteUpdate` use, so a
-// stale invocation can't land its writes - or lower the auto-open latch a newer
-// switch raised - after the newer one, which would leave the bar showing the
-// previous traject's tabs while the route is on the new one.
+// Two switches in quick succession (rapid back/forward across trajects) can
+// overlap. `open` resolves to false when a later open superseded it, and the
+// reconciliation below then stops. The auto-open latch is a separate matter:
+// only the latest traject switch may lower it, also when a tab click
+// superseded its open, or the net would stay off for good.
 const claimTrajectSwitch = useLatest();
 watch(activeTrajectRef, async (next) => {
-  const isCurrent = claimTrajectSwitch();
-  // A traject switch reconciles the bar for `next`: stand the auto-open
-  // robustness net down for this tick so it doesn't race the restore below.
+  const ownsLatch = claimTrajectSwitch();
+  // Stand the auto-open robustness net down while the bar is reconciled for
+  // `next`, so it doesn't race the restore below.
   suppressTabAutoOpen = true;
+  try {
+    await reconcileTraject(next);
+  } finally {
+    await nextTick();
+    if (ownsLatch()) suppressTabAutoOpen = false;
+  }
+});
+
+async function reconcileTraject(next: string | null): Promise<void> {
   unloadAllLaws();
   // Tabs are DERIVED from the active traject: the `openTabs`/`activeTab`
   // computeds have already flipped to `next`'s bucket now the route committed,
@@ -366,64 +364,50 @@ watch(activeTrajectRef, async (next) => {
   // through the new traject.
   backfillTabLabels(next);
   const urlLawId = singleParam(route.params.lawId);
-  if (urlLawId) {
-    // A URL that still names a law in the new traject can only come from a deep
-    // link or browser back/forward now (the traject switcher navigates to the
-    // bare root - see trajectSwitchTarget). Make sure that law is loaded THROUGH
-    // the new traject before adopting it as a tab.
-    //
-    // onBeforeRouteUpdate only (re)loads when the URL's lawId *changes*; a
-    // cross-traject nav that keeps the SAME lawId (a bookmarked/back-forward URL
-    // differing only in trajectRef, or a law shared across trajects) skips it,
-    // leaving law.value / selectedArticleNumber / useOpenLaw's traject
-    // pointed at the PREVIOUS traject's copy. Reload here whenever the open law
-    // isn't already this traject's copy, so we never adopt stale, wrong-traject
-    // content - and so a later save PUTs to the right traject. When the id and
-    // traject already match (the lawId-changed deep link, loaded by
-    // onBeforeRouteUpdate), this is skipped - no duplicate fetch.
-    if (lawTrajectRef.value !== next || lawId.value !== urlLawId) {
-      await switchLaw(urlLawId, singleParam(route.params.articleNumber), next);
-      // A newer switch superseded us mid-load: drop our writes so we don't
-      // reconcile the bar against a traject the route already left.
-      if (!isCurrent()) return;
-    }
-    // Only reflect the URL's law as this traject's active tab when it actually
-    // loaded FOR this traject. When the traject doesn't have the law, switchLaw
-    // 404s: `error` is set and lawId/selectedArticleNumber still hold the
-    // previous traject's law. Adopting that would add a foreign law as an
-    // open+active tab and persist it under this traject - re-introducing the
-    // exact leak this PR fixes. Require a clean load, for this traject, whose id
-    // matches the URL; the error view renders the "niet beschikbaar" dialog for
-    // the failed case.
-    const loaded =
-      !error.value &&
-      lawTrajectRef.value === next &&
-      lawId.value === singleParam(route.params.lawId) &&
-      selectedArticleNumber.value != null;
-    if (loaded) {
-      // openTab de-dups, caps at MAX_TABS and marks it active - all under `next`.
-      // `loaded` checked that lawId equals the URL's law id: a string, unless
-      // the route left the law during the await above.
-      openTab(next, { lawId: lawId.value as string, articleNumber: String(selectedArticleNumber.value) });
-    } else {
-      // Failed cross-traject deep link: don't leave the previous traject's law
-      // marked active in this traject's bar (it isn't in this bucket here).
-      setActiveTab(next, null);
-    }
-  } else {
+  if (!urlLawId) {
     // No law in the URL (the switcher dropped us on the traject root): restore
     // the last active article of the traject we just entered, pruning any tab
-    // whose law 404s here, or land on the neutral root. This deliberately
-    // replaces the previous "always neutral on switch" behaviour.
+    // whose law 404s here, or land on the neutral root.
     await tabRestore.restoreForTraject(next, { hasLawInUrl: false });
-    if (!isCurrent()) return;
+    return;
   }
-  await nextTick();
-  // Only the latest switch may lower the latch: a stale invocation clearing it
-  // here would re-enable the auto-open net mid-way through a newer switch.
-  if (!isCurrent()) return;
-  suppressTabAutoOpen = false;
-});
+  // A URL that still names a law in the new traject can only come from a deep
+  // link or browser back/forward (the traject switcher navigates to the bare
+  // root - see trajectSwitchTarget). The route guard only opens a law when the
+  // URL's lawId *changes*; a cross-traject navigation that keeps the SAME
+  // lawId leaves the open law pointing at the PREVIOUS traject's copy. Open it
+  // again here whenever it isn't this traject's copy, so we never adopt stale,
+  // wrong-traject content - and a later save PUTs to the right traject.
+  if (lawTrajectRef.value !== next || lawId.value !== urlLawId) {
+    const won = await openLaw.open({
+      lawId: urlLawId,
+      articleNumber: singleParam(route.params.articleNumber),
+      trajectRef: next,
+    });
+    // A later open superseded us: don't reconcile the bar against it.
+    if (!won) return;
+  }
+  // Only reflect the URL's law as this traject's active tab when it actually
+  // loaded FOR this traject. When the traject doesn't have the law, the open
+  // 404s: `error` is set and the previous traject's law is still open.
+  // Adopting that would add a foreign law as an open+active tab and persist it
+  // under this traject. The error view renders the "niet beschikbaar" dialog
+  // for the failed case.
+  const loaded =
+    !error.value &&
+    lawTrajectRef.value === next &&
+    lawId.value === singleParam(route.params.lawId) &&
+    selectedArticleNumber.value != null;
+  if (loaded) {
+    // openTab de-dups, caps at MAX_TABS and marks it active - all under `next`.
+    // `loaded` checked that lawId equals the URL's law id.
+    openTab(next, { lawId: lawId.value as string, articleNumber: String(selectedArticleNumber.value) });
+  } else {
+    // Failed cross-traject deep link: don't leave the previous traject's law
+    // marked active in this traject's bar (it isn't in this bucket here).
+    setActiveTab(next, null);
+  }
+}
 
 // Notes (RFC-005/RFC-018) for the current law, resolved against its text.
 // `lawValidFrom` names the version on screen: the engine holds every version
@@ -981,13 +965,13 @@ const failedLawName = computed(() => {
 const lawErrorIs404 = computed(() => error.value?.status === 404);
 
 /**
- * Retry the failed law fetch. switchLaw clears `error` and re-runs the
+ * Retry the failed law fetch. `open` clears `error` and re-runs the
  * fetch; failed responses don't enter the cache so a retry actually hits
  * the network again.
  */
 function retryLoadLaw() {
   if (!lawId.value) return;
-  switchLaw(lawId.value, selectedArticleNumber.value, undefined, { minLoadingMs: RETRY_MIN_SPINNER_MS });
+  openLaw.open({ lawId: lawId.value, articleNumber: selectedArticleNumber.value, minLoadingMs: RETRY_MIN_SPINNER_MS });
 }
 
 function onSearchSelectLaw(lawIdVal: string) {
@@ -1088,7 +1072,7 @@ watch([() => lawId.value, selectedArticle], ([id, article]) => {
   if (!id || !article) return;
   // Only record a tab for the traject the law was actually loaded through.
   // During a cross-traject route change (browser back/forward, or any nav to a
-  // law URL in another traject) `switchLaw` loads the law a tick before the
+  // law URL in another traject) `open` loads the law a tick before the
   // route - and thus `activeTrajectRef` - commits to the new traject. Keying on
   // `activeTrajectRef.value` here would append this law to (and persist it
   // under) the traject we're *leaving*, leaking a foreign law into its tab bar.
@@ -1113,12 +1097,7 @@ watch(lawName, (name) => {
   }
 });
 
-// Shared between selectTab and the route guard below: a tab switch and a
-// URL-driven switch supersede each other.
-const claimTabSwitch = useLatest();
-
 async function selectTab(tab: OpenTab) {
-  const isCurrent = claimTabSwitch();
   setActiveTab(activeTrajectRef.value, tab);
   // Restore snapshot if the user is mid-edit, otherwise the partial mutations
   // would persist into the new tab's view.
@@ -1129,12 +1108,16 @@ async function selectTab(tab: OpenTab) {
     selectArticle(tab.articleNumber);
   } else {
     // Fetch through the tab's own traject (every open tab belongs to the
-    // active traject). Passing it explicitly matters when this restore runs
-    // right after a traject switch with no law in the URL: `switchLaw`'s
-    // internal traject is still the previous one, so without this the law
-    // would be read through the old traject's scope.
-    await switchLaw(tab.lawId, tab.articleNumber, singleParam(route.params.trajectRef) || null);
-    if (!isCurrent()) return; // stale, another switch started
+    // active traject). Passing it explicitly matters when this runs right
+    // after a traject switch with no law in the URL: the open law's traject
+    // is still the previous one, so without this the law would be read
+    // through the old traject's scope.
+    const won = await openLaw.open({
+      lawId: tab.lawId,
+      articleNumber: tab.articleNumber,
+      trajectRef: singleParam(route.params.trajectRef) || null,
+    });
+    if (!won) return; // a later tab or route switch took over
     lawNames.value = {
       ...lawNames.value,
       [lawNameKey(activeTrajectRef.value, tab.lawId)]: lawName.value,
@@ -1187,11 +1170,10 @@ watch(trajectMissing, (missing) => {
 // URL changes.
 //
 // trajectRef-only changes are intentionally NOT handled here: the
-// `watch(activeTrajectRef)` above already does `unloadAllLaws` +
-// `switchLaw`, and triggering switchLaw twice in
-// the same tick would burn an extra fetch (the first await loses
-// useOpenLaw's stale-open race, but still hits the network). This guard
-// handles the law / article portion only.
+// `watch(activeTrajectRef)` above already unloads the engine and opens the
+// law, and opening it twice in the same tick would burn an extra fetch (the
+// first loses useOpenLaw's stale-open race, but still hits the network).
+// This guard handles the law / article portion only.
 onBeforeRouteUpdate(async (to) => {
   const newLawId = singleParam(to.params.lawId);
   const newArticle = singleParam(to.params.articleNumber);
@@ -1199,9 +1181,12 @@ onBeforeRouteUpdate(async (to) => {
   // has committed.
   if (!newLawId) return;
   if (newLawId !== lawId.value) {
-    const isCurrent = claimTabSwitch();
-    await switchLaw(newLawId, newArticle, singleParam(to.params.trajectRef) || null);
-    if (!isCurrent()) return;
+    const won = await openLaw.open({
+      lawId: newLawId,
+      articleNumber: newArticle,
+      trajectRef: singleParam(to.params.trajectRef) || null,
+    });
+    if (!won) return;
     lawNames.value = {
       ...lawNames.value,
       [lawNameKey(singleParam(to.params.trajectRef) || null, newLawId)]: lawName.value,
@@ -1762,7 +1747,7 @@ const reviewProgressNote = computed(() => {
 });
 
 // Fires once the law + its first article have finished loading (whether
-// that's the initial load or a tab-restore switchLaw), so it works
+// that's the initial load or a tab-restore open), so it works
 // regardless of how the route.query.task navigation happened to arrive.
 // `reviewTaskIdParam` is itself a source: navigating from the taken-lijst
 // to a wet that is ALREADY open (the target law/article is unchanged) is a

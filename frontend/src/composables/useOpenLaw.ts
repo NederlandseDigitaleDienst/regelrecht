@@ -292,21 +292,32 @@ export function useOpenLaw(
   // One staleness token for every load: a later open supersedes an earlier
   // one, whichever caller started it.
   const claimOpen = useLatest();
+  // The law a load in flight is for, or null.
+  let loadingLawId: string | null = null;
+  // An article selected while that law was loading; the load lands on it.
+  let articleChosenMeanwhile: string | null = null;
 
-  // Take a loaded law as the saved version and pick the article: the
-  // requested one, else the first. Resets the edits.
+  function startLoad(id: string | null): () => boolean {
+    loadingLawId = id;
+    articleChosenMeanwhile = null;
+    return claimOpen();
+  }
+
+  // Take a loaded law as the saved version and pick the article: one chosen
+  // while it loaded, else the requested one, else the first. Resets the edits.
   function adopt(entry: LawBody, pick: () => string | null): void {
     rawYaml.value = entry.rawYaml;
     law.value = entry.law;
     currentEtag.value = entry.etag ?? null;
-    selectedNumber.value = pick();
+    selectedNumber.value = articleChosenMeanwhile ?? pick();
+    articleChosenMeanwhile = null;
     resetEdits();
   }
 
   const firstArticle = () => (articles.value[0] ? String(articles.value[0].number) : null);
 
   async function loadInitial(): Promise<void> {
-    const isCurrent = claimOpen();
+    const isCurrent = startLoad(lawParam);
     // Snapshot before any await: a concurrent `open` moves `currentTrajectRef`.
     const loadTrajectRef = currentTrajectRef;
     try {
@@ -337,7 +348,10 @@ export function useOpenLaw(
       if (!isCurrent()) return;
       error.value = e as RequestError;
     } finally {
-      if (isCurrent()) loading.value = false;
+      if (isCurrent()) {
+        loading.value = false;
+        loadingLawId = null;
+      }
     }
   }
 
@@ -353,7 +367,7 @@ export function useOpenLaw(
    * when the load failed (`error` is set and the previous law stays).
    */
   async function open(target: OpenTarget): Promise<boolean> {
-    const isCurrent = claimOpen();
+    const isCurrent = startLoad(target.lawId);
     const startedAt = Date.now();
     let failed = false;
     try {
@@ -382,15 +396,38 @@ export function useOpenLaw(
         // On a failed retry, hold the spinner briefly so the click reads as
         // feedback instead of the error dialog snapping straight back.
         await holdRetryFloor({ startedAt, minMs: target.minLoadingMs ?? 0, failed });
-        if (isCurrent()) loading.value = false;
+        if (isCurrent()) {
+          loading.value = false;
+          loadingLawId = null;
+        }
       }
     }
     return true;
   }
 
-  /** Select another article of the open law. Its unsaved edits are dropped. */
+  /**
+   * Select another article of the open law. Its unsaved edits are dropped.
+   *
+   * With a load in flight this is the newer request. When that load is for
+   * another law, the selection supersedes it, so a slow open cannot land on
+   * top of it. When it is for this law (the first load, a retry), the load
+   * lands on the chosen article.
+   */
   function selectArticle(articleNumber: string | number): void {
     const next = String(articleNumber);
+    if (loadingLawId !== null) {
+      if (loadingLawId === lawId.value) {
+        articleChosenMeanwhile = next;
+      } else {
+        claimOpen();
+        loadingLawId = null;
+        loading.value = false;
+      }
+    }
+    pickArticle(next);
+  }
+
+  function pickArticle(next: string): void {
     if (next === selectedNumber.value) return;
     selectedNumber.value = next;
     resetEdits();
@@ -403,6 +440,7 @@ export function useOpenLaw(
    */
   function clear(): void {
     claimOpen();
+    loadingLawId = null;
     lawParam = null;
     law.value = null;
     rawYaml.value = '';
@@ -463,7 +501,9 @@ export function useOpenLaw(
    * the review seeds it again on return.
    */
   function seedProposal(article: Pick<LawArticle, 'number' | 'text' | 'machine_readable'>): void {
-    selectArticle(article.number);
+    // Not `selectArticle`: the proposal arrives on its own schedule and must
+    // not cancel a switch the user started meanwhile.
+    pickArticle(String(article.number));
     setBuffer(article);
     seedBaseline.value = { text: editedText.value, machineReadable: machineReadable.value ? copy(machineReadable.value) : null };
   }
@@ -530,7 +570,10 @@ export function useOpenLaw(
    */
   function beginActionEdit(action: ExecutionAction, path: Path | null = null): void {
     const actions = machineReadable.value?.execution?.actions ?? [];
-    const index = actions.findIndex((a) => a === action || sameJson(a, action));
+    // The object itself first; an equal copy only when the pane handed over
+    // a copy, so two identical actions cannot be mixed up.
+    let index = actions.indexOf(action);
+    if (index < 0) index = actions.findIndex((a) => sameJson(a, action));
     if (index < 0) return;
     startActionEdit(index, action, Array.isArray(path) ? path : null);
   }

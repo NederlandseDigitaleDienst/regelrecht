@@ -360,8 +360,11 @@ const TWO_ARTICLES = [
   '',
 ].join('\n');
 
+// A second law in the same traject, to switch to.
+const OTHER_LAW = '$id: wet_ander\narticles:\n  - number: "9"\n';
+
 async function openTwoArticles() {
-  corpusWith({ wet_edit: TWO_ARTICLES }, { wet_edit: '"v1"' });
+  corpusWith({ wet_edit: TWO_ARTICLES, wet_ander: OTHER_LAW }, { wet_edit: '"v1"' });
   const law = useOpenLaw({ lawId: 'wet_edit', articleNumber: '1', trajectRef: TRAJECT });
   await waitForLoaded(law);
   return law;
@@ -559,5 +562,69 @@ describe('useOpenLaw action edits', () => {
     law.beginActionEdit(firstAction(law));
     law.selectArticle('2');
     expect(law.activeAction.value).toBeNull();
+  });
+});
+
+describe('useOpenLaw switching', () => {
+  it('lets a later article selection supersede a slower open of another law', async () => {
+    const law = await openTwoArticles();
+
+    const pending = law.open({ lawId: 'wet_ander' });
+    law.selectArticle('2');
+
+    expect(await pending).toBe(false);
+    expect(law.lawId.value).toBe('wet_edit');
+    expect(law.selectedArticleNumber.value).toBe('2');
+    expect(law.loading.value).toBe(false);
+  });
+
+  it('opens the requested article, or the first when none is asked for', async () => {
+    const law = await openTwoArticles();
+    await law.open({ lawId: 'wet_edit', articleNumber: '2' });
+    expect(law.selectedArticleNumber.value).toBe('2');
+    await law.open({ lawId: 'wet_edit' });
+    expect(law.selectedArticleNumber.value).toBe('1');
+  });
+});
+
+describe('useOpenLaw selecting while the law loads', () => {
+  it('lands the first load on an article chosen before it arrived', async () => {
+    corpusWith({ wet_edit: TWO_ARTICLES }, { wet_edit: '"v1"' });
+    const law = useOpenLaw({ lawId: 'wet_edit', trajectRef: TRAJECT });
+    law.selectArticle('2');
+    await waitForLoaded(law);
+
+    expect(law.law.value?.$id).toBe('wet_edit');
+    expect(law.selectedArticleNumber.value).toBe('2');
+    expect(law.editedText.value).toBe('Tweede artikel');
+  });
+
+  it('lets a review proposal not cancel an open of another law', async () => {
+    const law = await openTwoArticles();
+
+    const pending = law.open({ lawId: 'wet_ander' });
+    law.seedProposal({ number: '2', text: 'Voorstel', machine_readable: null });
+
+    expect(await pending).toBe(true);
+    expect(law.lawId.value).toBe('wet_ander');
+  });
+});
+
+describe('useOpenLaw action edit lookup', () => {
+  it('edits the action that was clicked, also when an earlier one is identical', async () => {
+    const law = await openTwoArticles();
+    law.beginNewAction();
+    if (law.activeAction.value) law.activeAction.value.value = 5;
+    if (law.activeAction.value) law.activeAction.value.output = 'hoogte';
+    expect(law.commitActionEdit()).toBeNull();
+    const actions = law.machineReadable.value?.execution?.actions ?? [];
+    expect(actions).toHaveLength(2);
+
+    // Both actions are { output: 'hoogte', value: 5 }; open the second.
+    law.beginActionEdit(actions[1]!);
+    if (law.activeAction.value) law.activeAction.value.value = 6;
+    expect(law.commitActionEdit()).toBeNull();
+
+    expect(law.machineReadable.value?.execution?.actions?.map((a) => a.value)).toEqual([5, 6]);
   });
 });
