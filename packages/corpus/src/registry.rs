@@ -230,6 +230,7 @@ impl CorpusRegistry {
                     .into_token();
                 match crate::github::fetch_source_filtered(
                     &client,
+                    github_settings.tree_listings(),
                     github,
                     token.as_deref(),
                     filter,
@@ -320,10 +321,17 @@ impl CorpusRegistry {
         let client = github_settings.client()?;
         let mut failed: Vec<SourceIndexFailure> = Vec::new();
 
-        for source in &self.sources {
+        // List every GitHub source at once: each listing is a round trip or
+        // two, and none depends on another. The map is filled afterwards in
+        // source order, so priorities resolve exactly as when listing one by
+        // one.
+        let listings = futures::future::join_all(self.sources.iter().map(|source| {
+            Self::list_one_source(&client, source, github_settings, scan_override, today)
+        }))
+        .await;
+        for (source, listed) in self.sources.iter().zip(listings) {
             if let Err(e) =
-                Self::index_one_source(&mut map, &client, source, github_settings, scan_override)
-                    .await
+                listed.and_then(|listing| Self::index_one_source(&mut map, source, listing))
             {
                 tracing::warn!(
                     source_id = %source.id,
@@ -357,50 +365,67 @@ impl CorpusRegistry {
         Ok((map, failed))
     }
 
-    /// Index a single source: load local content eagerly, but enumerate a
-    /// GitHub source's laws by path only (no body fetch). Factored out so one
-    /// source's failure is skipped, not fatal.
+    /// List a GitHub source's laws by path only (no body fetch). `None` for
+    /// a local source, which [`Self::index_one_source`] loads itself, and
+    /// for an unchanged tree (HTTP 304).
     #[cfg(feature = "github")]
-    async fn index_one_source(
-        map: &mut SourceMap,
+    async fn list_one_source(
         client: &regelrecht_github::GithubClient,
         source: &Source,
         github_settings: &crate::GithubSettings,
         scan_override: Option<ScanTokenOverride<'_>>,
+        today: &str,
+    ) -> Result<Option<crate::github::SourceListing>> {
+        let SourceType::GitHub { github } = &source.source_type else {
+            return Ok(None);
+        };
+        // `resolve_source` honours `strict_auth`: the scan of a
+        // traject's writable-own repo resolves with exactly the same
+        // rules as its push path, so a repo the server can push to is
+        // also a repo the server can index (and vice versa — no more
+        // "promote succeeded but the index reads with a different
+        // token and comes back empty").
+        let mut token = github_settings
+            .credentials()
+            .resolve_source(source)?
+            .into_token();
+        // Only when the server resolves NO token may the per-call
+        // override authenticate this scan — and only for the one
+        // source it was issued for. A configured service token always
+        // wins (mirroring the request-bound read fallback), and the
+        // override never reaches any other (seed) source.
+        if token.is_none()
+            && let Some(o) = scan_override.filter(|o| o.source_id == source.id)
+        {
+            token = Some(o.token.to_string());
+        }
+        // `None` only for a ref that resolves to no commit and whose
+        // listing by ref then comes back 304 (see `list_yaml_files`).
+        crate::github::list_source_law_paths(
+            client,
+            github_settings.tree_listings(),
+            github,
+            token.as_deref(),
+            today,
+        )
+        .await
+    }
+
+    /// Index a single source into `map`: load a local source's content
+    /// eagerly, or add a GitHub source's `listing` by path. Factored out so
+    /// one source's failure is skipped, not fatal.
+    #[cfg(feature = "github")]
+    fn index_one_source(
+        map: &mut SourceMap,
+        source: &Source,
+        listing: Option<crate::github::SourceListing>,
     ) -> Result<()> {
         match &source.source_type {
             SourceType::Local { .. } => {
                 map.load_source(source)?;
             }
             SourceType::GitHub { github } => {
-                // `resolve_source` honours `strict_auth`: the scan of a
-                // traject's writable-own repo resolves with exactly the same
-                // rules as its push path, so a repo the server can push to is
-                // also a repo the server can index (and vice versa — no more
-                // "promote succeeded but the index reads with a different
-                // token and comes back empty").
-                let mut token = github_settings
-                    .credentials()
-                    .resolve_source(source)?
-                    .into_token();
-                // Only when the server resolves NO token may the per-call
-                // override authenticate this scan — and only for the one
-                // source it was issued for. A configured service token always
-                // wins (mirroring the request-bound read fallback), and the
-                // override never reaches any other (seed) source.
-                if token.is_none()
-                    && let Some(o) = scan_override.filter(|o| o.source_id == source.id)
-                {
-                    token = Some(o.token.to_string());
-                }
-                let today = map.reference_date().to_string();
-                // One client per scan: only a second source on the same
-                // repo, ref and token could see a 304 here (`None`), and it
-                // adds nothing the first did not.
-                let Some(listing) =
-                    crate::github::list_source_law_paths(client, github, token.as_deref(), &today)
-                        .await?
-                else {
+                let Some(listing) = listing else {
                     return Ok(());
                 };
                 map.record_sidecars(&source.id, listing.sidecars);
@@ -477,8 +502,14 @@ impl CorpusRegistry {
                     .credentials()
                     .resolve_source(source)?
                     .into_token();
-                crate::github::list_source_law_paths(&client, github, token.as_deref(), &today)
-                    .await
+                crate::github::list_source_law_paths(
+                    &client,
+                    github_settings.tree_listings(),
+                    github,
+                    token.as_deref(),
+                    &today,
+                )
+                .await
             }
             .await;
             let paths = match listed {
