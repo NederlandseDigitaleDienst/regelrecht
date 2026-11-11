@@ -229,6 +229,13 @@ repos:
         pass_filenames: false
         files: ^(\.github/workflows/ci\.yml|package-lock\.json|docs/package-lock\.json|script/playwright-image\.test\.mjs|script/install-a11y-debs\.sh)$
 
+      - id: a11y-debs-tests
+        name: Pakketten voor de toegankelijkheidspoort komen uit een cache of een bron die antwoordt
+        entry: just a11y-debs-test
+        language: system
+        pass_filenames: false
+        files: ^script/install-a11y-debs(\.test)?\.sh$
+
       - id: deploy-gate-tests
         name: Deploy-poort op een groene CI doet wat hij belooft
         entry: script/require-ci-green.test.sh
