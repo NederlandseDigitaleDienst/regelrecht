@@ -157,6 +157,9 @@ export function useOpenLaw(
   const yamlSource = ref('');
   const editedText = ref('');
   const parseError = ref<string | null>(null);
+  // The YAML pane holds text that does not parse, so `machineReadable` still
+  // has the last valid structure and the text exists nowhere else.
+  const yamlTextUnparsed = ref(false);
   // What the edits started from when a review proposal was seeded, instead
   // of the saved article. The guard compares against this, so an untouched
   // proposal is not someone's unsaved work.
@@ -171,6 +174,7 @@ export function useOpenLaw(
     machineReadable.value = mr;
     yamlSource.value = mr ? yaml.dump(mr, DUMP_OPTIONS) : '';
     parseError.value = null;
+    yamlTextUnparsed.value = false;
   }
 
   function setBuffer(article: Pick<LawArticle, 'text' | 'machine_readable'> | null): void {
@@ -225,6 +229,8 @@ export function useOpenLaw(
    */
   const hasUnsavedWork = computed(() => {
     if (isActionEditDirty.value) return true;
+    // YAML that does not parse is typed work the structure does not show.
+    if (yamlTextUnparsed.value) return true;
     const base = seedBaseline.value;
     if (!base) return articleDirty.value;
     return editedText.value !== base.text || !sameJson(base.machineReadable, machineReadable.value);
@@ -518,9 +524,11 @@ export function useOpenLaw(
       // Unchecked YAML, like every machine_readable the editor reads.
       machineReadable.value = parsed != null && typeof parsed === 'object' ? (parsed as MachineReadableSection) : null;
       parseError.value = null;
+      yamlTextUnparsed.value = false;
     } catch (e) {
       // js-yaml throws a YAMLException.
       parseError.value = (e as Error).message;
+      yamlTextUnparsed.value = true;
     }
   }
 
@@ -695,6 +703,11 @@ export function useOpenLaw(
    * On success the edits reset to the saved article. A failure keeps them
    * and sets `saveError`.
    */
+  // The selected article and its edits as one comparable string.
+  function currentEdits(): string {
+    return JSON.stringify([selectedNumber.value, editedText.value, yamlSource.value, machineReadable.value ?? null]);
+  }
+
   async function save(options: { content?: string; create?: boolean } = {}): Promise<SaveOutcome> {
     const content = options.content ?? currentLawYaml.value;
     const wholeLaw = options.content !== undefined;
@@ -706,6 +719,9 @@ export function useOpenLaw(
     const savedTrajectRef = currentTrajectRef;
     const savedLawId = lawId.value;
     const isSameLaw = () => lawId.value === savedLawId && currentTrajectRef === savedTrajectRef;
+    // The edits as they were sent, to tell afterwards whether the user went on
+    // editing while the request was out.
+    const editsAtSend = currentEdits();
     saving.value = true;
     saveError.value = null;
     try {
@@ -725,8 +741,11 @@ export function useOpenLaw(
     // The user switched laws while the request was out: their new edits stay.
     if (!isSameLaw()) return { status: 'switched', touchedText };
     // Reset now, in the same tick, so the dirty flags clear with the save and
-    // a second click cannot save again.
-    resetEdits();
+    // a second click cannot save again. Edits made while the request was out
+    // were not sent, so they stay; the dirty flags then show them against the
+    // saved version.
+    if (currentEdits() === editsAtSend) resetEdits();
+    else seedBaseline.value = null;
     lastSaveTouchedText.value = false;
     lastSaveTouchedMachine.value = false;
     return { status: 'saved', touchedText };

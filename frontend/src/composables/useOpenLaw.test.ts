@@ -628,3 +628,36 @@ describe('useOpenLaw action edit lookup', () => {
     expect(law.machineReadable.value?.execution?.actions?.map((a) => a.value)).toEqual([5, 6]);
   });
 });
+
+describe('useOpenLaw edits the structure does not show', () => {
+  it('counts YAML that does not parse as unsaved work', async () => {
+    const law = await openTwoArticles();
+    law.setYamlText('definitions: [nog niet af');
+    expect(law.parseError.value).toBeTruthy();
+    expect(law.hasUnsavedWork.value).toBe(true);
+
+    law.discard();
+    expect(law.hasUnsavedWork.value).toBe(false);
+  });
+
+  it('keeps edits made while a save was out', async () => {
+    const law = await openTwoArticles();
+    let answer: (() => void) | undefined;
+    stubFetch(() => new Promise((resolve) => {
+      answer = () => resolve(res({ etag: '"v2"', json: { pr: null, etag: '"v2"' } }));
+    }));
+    law.editedText.value = 'Verzonden';
+
+    const saving = law.save();
+    await vi.waitFor(() => expect(answer).toBeDefined());
+    law.editedText.value = 'Verzonden, en daarna verder getypt';
+    answer?.();
+    const outcome = await saving;
+
+    expect(outcome.status).toBe('saved');
+    expect(law.selectedArticle.value?.text).toBe('Verzonden');
+    expect(law.editedText.value).toBe('Verzonden, en daarna verder getypt');
+    expect(law.isArticleTextDirty.value).toBe(true);
+    expect(law.hasUnsavedWork.value).toBe(true);
+  });
+});
