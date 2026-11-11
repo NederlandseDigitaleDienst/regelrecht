@@ -13,8 +13,10 @@ type SearchPopoverRef = Readonly<Ref<SearchPopoverHandle | null | undefined>>;
 export interface TabActions {
   key: (tab: OpenTab) => string;
   displayName: (tab: OpenTab) => string;
-  select: (tab: OpenTab) => void;
-  close: (tab: OpenTab, next?: OpenTab | null) => void;
+  /** Resolves to false when the editor kept the open article (unsaved edits the user chose to keep). */
+  select: (tab: OpenTab) => Promise<boolean>;
+  /** Resolves to false when the editor kept the tab open, for the same reason. */
+  close: (tab: OpenTab, next?: OpenTab | null) => Promise<boolean>;
   reorder: (fromIndex: number, toIndex: number) => void;
 }
 

@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watch, watchEffect, nextTick, onBeforeUnmount } from 'vue';
-import { useRoute, useRouter, onBeforeRouteUpdate } from 'vue-router';
+import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import * as yaml from 'js-yaml';
 import { useOpenLaw } from './composables/useOpenLaw';
 import { useCorpus } from './corpus';
@@ -1097,10 +1097,12 @@ watch(lawName, (name) => {
   }
 });
 
-async function selectTab(tab: OpenTab) {
+// Resolves to false when the user chose to stay on the article that is open
+// (unsaved edits), so the tab bar can put its selection back.
+async function selectTab(tab: OpenTab): Promise<boolean> {
+  if (!isOpenArticle(tab.lawId, tab.articleNumber) && !(await confirmLeave())) return false;
   setActiveTab(activeTrajectRef.value, tab);
-  // Restore snapshot if the user is mid-edit, otherwise the partial mutations
-  // would persist into the new tab's view.
+  // Drop an open action edit; it belongs to the article we are leaving.
   if (activeAction.value) {
     handleActionClose();
   }
@@ -1117,7 +1119,7 @@ async function selectTab(tab: OpenTab) {
       articleNumber: tab.articleNumber,
       trajectRef: singleParam(route.params.trajectRef) || null,
     });
-    if (!won) return; // a later tab or route switch took over
+    if (!won) return true; // a later tab or route switch took over
     lawNames.value = {
       ...lawNames.value,
       [lawNameKey(activeTrajectRef.value, tab.lawId)]: lawName.value,
@@ -1127,7 +1129,71 @@ async function selectTab(tab: OpenTab) {
   // `replace` (not `push`) keeps history clean - a tab switch isn't
   // navigation the user wants to undo with the back button.
   router.replace(editorRouteFor(tab.lawId, tab.articleNumber));
+  return true;
 }
+
+// --- Leaving an article with unsaved edits ---------------------------------
+// Only the selected article's edits are kept, so anything that leaves it -
+// another tab, article, law or traject, closing its tab, back/forward,
+// another page - asks first when that would lose someone's work. An untouched
+// review proposal is not such work (useOpenLaw's `hasUnsavedWork`).
+const leaveModalEl = ref<NLDDModalDialog | null>(null);
+let pendingLeave: Promise<boolean> | null = null;
+let answerPendingLeave: ((leave: boolean) => void) | null = null;
+
+function isOpenArticle(lawIdVal: string, articleNumber: string | number): boolean {
+  return lawIdVal === lawId.value && String(articleNumber) === String(selectedArticleNumber.value);
+}
+
+/**
+ * Whether the user may leave the open article: at once when nothing would be
+ * lost, else once they choose in the dialog. Choosing to leave throws the
+ * edits away, so the navigation that follows asks nothing more. A second
+ * request while the dialog is open waits for the same answer.
+ */
+function confirmLeave(): Promise<boolean> {
+  if (!openLaw.hasUnsavedWork.value) return Promise.resolve(true);
+  if (pendingLeave) return pendingLeave;
+  const dialog = leaveModalEl.value;
+  // Without the design system there is no dialog to ask with; let it go.
+  if (!dialog?.show) return Promise.resolve(true);
+  pendingLeave = new Promise<boolean>((resolve) => {
+    answerPendingLeave = resolve;
+  });
+  dialog.show();
+  return pendingLeave;
+}
+
+function answerLeave(leave: boolean) {
+  const answer = answerPendingLeave;
+  answerPendingLeave = null;
+  pendingLeave = null;
+  // The dialog's close event after a button click finds nothing pending.
+  if (!answer) return;
+  if (leave) discardArticle();
+  leaveModalEl.value?.hide?.();
+  answer(leave);
+}
+
+onBeforeRouteLeave(async () => {
+  if (!(await confirmLeave())) return false;
+});
+
+// Reloading or closing the browser tab: the browser asks with its own words.
+// Registered only while there is unsaved work, because a beforeunload
+// listener keeps some browsers from caching the page for back/forward.
+function warnBeforeUnload(event: BeforeUnloadEvent) {
+  event.preventDefault();
+}
+watch(
+  () => openLaw.hasUnsavedWork.value,
+  (unsaved) => {
+    if (unsaved) window.addEventListener('beforeunload', warnBeforeUnload);
+    else window.removeEventListener('beforeunload', warnBeforeUnload);
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => window.removeEventListener('beforeunload', warnBeforeUnload));
 
 // On the INITIAL mount, restore the last active article of this traject when
 // the URL carries no law (a fresh load / refresh returns the user where they
@@ -1177,6 +1243,14 @@ watch(trajectMissing, (missing) => {
 onBeforeRouteUpdate(async (to) => {
   const newLawId = singleParam(to.params.lawId);
   const newArticle = singleParam(to.params.articleNumber);
+  // A navigation away from the open article (another article, law or
+  // traject, or the bare root) asks first when that would lose edits. One
+  // that only changes the query (`?task=`) stays on the article.
+  const leavesArticle =
+    (newLawId ?? null) !== (lawId.value ?? null) ||
+    (!!newArticle && String(newArticle) !== String(selectedArticleNumber.value)) ||
+    (singleParam(to.params.trajectRef) ?? null) !== (singleParam(route.params.trajectRef) ?? null);
+  if (leavesArticle && !(await confirmLeave())) return false;
   // The bare editor root is restored by the watch below, after the navigation
   // has committed.
   if (!newLawId) return;
@@ -1220,13 +1294,16 @@ watch(
 // that item selected, so choosing differently here leaves both lit. Callers
 // without a bar (no pick to follow) get the same rule the bar applies: the
 // neighbour to the right, else the one to the left.
-function closeTab(tab: OpenTab, next: OpenTab | null = null) {
+// Resolves to false when the user chose to keep the article open (unsaved
+// edits), so the tab bar can put its selection back.
+async function closeTab(tab: OpenTab, next: OpenTab | null = null): Promise<boolean> {
   const wasActive = !!activeTab.value && tabKey(activeTab.value) === tabKey(tab);
+  if (wasActive && !(await confirmLeave())) return false;
   // The store removes the tab, promotes the replacement (the bar's `next` pick,
   // else right-then-left) and persists both keys - closing the active tab and
   // reloading must not resurrect it.
   const replacement = closeTabIn(activeTrajectRef.value, tab, next);
-  if (!wasActive) return;
+  if (!wasActive) return true;
   // Drive selectTab so the promoted tab's law actually loads into the panes.
   if (replacement) selectTab(replacement).catch(console.warn);
   else {
@@ -1234,6 +1311,7 @@ function closeTab(tab: OpenTab, next: OpenTab | null = null) {
     clearLaw();
     router.replace(editorRouteFor(null, null));
   }
+  return true;
 }
 
 function tabDisplayName(tab: OpenTab) {
@@ -1254,8 +1332,9 @@ function reorderTabs(fromIndex: number, toIndex: number) {
 registerTabActions({
   key: tabKey,
   displayName: tabDisplayName,
-  select: (tab) => { selectTab(tab).catch(console.warn); },
-  close: closeTab,
+  // A failure is logged and treated as done: the bar keeps what it shows.
+  select: (tab) => selectTab(tab).catch((e) => { console.warn(e); return true; }),
+  close: (tab, next) => closeTab(tab, next).catch((e) => { console.warn(e); return true; }),
   reorder: reorderTabs,
 });
 watchEffect(() => {
@@ -3057,6 +3136,20 @@ async function handleActionSave() {
   >
     <nldd-button slot="actions" appearance="primary" text="Behoud notitie" @click="cancelDelete"></nldd-button>
     <nldd-button slot="actions" appearance="destructive" text="Verwijder" data-testid="delete-confirm-btn" @click="confirmDelete"></nldd-button>
+  </nldd-modal-dialog>
+
+  <!-- Leaving an article with unsaved edits (see confirmLeave). The safe
+       option, staying, is the primary action. -->
+  <nldd-modal-dialog
+    ref="leaveModalEl"
+    variant="alert"
+    :text="`Je hebt niet-opgeslagen wijzigingen in artikel ${selectedArticleNumber ?? ''}`"
+    supporting-text="Als je doorgaat, gaan ze verloren."
+    data-testid="leave-confirm"
+    @close="answerLeave(false)"
+  >
+    <nldd-button slot="actions" appearance="primary" text="Blijf hier" data-testid="leave-stay-btn" @click="answerLeave(false)"></nldd-button>
+    <nldd-button slot="actions" appearance="destructive" text="Wijzigingen weggooien" data-testid="leave-discard-btn" @click="answerLeave(true)"></nldd-button>
   </nldd-modal-dialog>
 
   <!-- Whole-law save failure, shown over the whole editor rather than inline in
