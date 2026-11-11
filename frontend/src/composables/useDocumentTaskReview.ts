@@ -3,22 +3,21 @@
  * `payload.kind === 'document'` (documentconversie) in de werkdocumenten-
  * sectie.
  *
- * Zelfde vorm als useTaskReview.js (de wet-tegenhanger): haal de taakdetail
- * op, valideer 'm, en lever (a) de voorgestelde markdown, (b) approve/reject-
- * acties. Puur fetch/resolve - het INZETTEN van de voorgestelde markdown als
- * niet-opgeslagen wijziging in de documenten-manager (en het weer terugdraaien
- * bij Verwerpen) is orkestratie die, net als bij de wet-review in
- * EditorView.vue, in de aanroeper (LibraryView.vue) blijft: deze composable
- * kent de documenten-manager niet.
+ * Fetch the task detail, validate it, and provide (a) the proposed markdown
+ * and (b) approve/reject actions. Only fetch and resolve: putting the proposed
+ * markdown in the documents manager as an unsaved change (and taking it out
+ * again on reject) is orchestration that stays in the caller (LibraryView.vue),
+ * because this composable does not know the documents manager. The law
+ * counterpart, useProposalReview, does both, since it owns the open law.
  */
 import { ref } from 'vue';
 import { useTaskActions } from './useTasks';
 import type { TaskDetail, TaskRecordPayload } from './useTasks';
 
 export function useDocumentTaskReview() {
-  // useTaskActions(), not useTasks(): zie useTaskReview.js - voorkomt dat elke
-  // (ook anonieme) bezoeker van de werkdocumenten-sectie de 30s-poll van de
-  // gedeelde takenlijst start.
+  // useTaskActions(), not useTasks(): that keeps every (also anonymous)
+  // visitor of the werkdocumenten section from starting the shared task
+  // list's 30s poll.
   const { fetchTask, resolveTask } = useTaskActions();
   const reviewTask = ref<TaskDetail | null>(null);
   const proposedContent = ref<string | null>(null);

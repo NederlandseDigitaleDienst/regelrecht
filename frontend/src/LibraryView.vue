@@ -737,8 +737,8 @@ function onDocBack() {
 // `?task=<id>` on the werkdocumenten route:
 // show a document-conversion job_review task's proposed markdown as an
 // unsaved edit on the addressed document, the same way EditorView seeds a
-// law-review proposal into the article panes. Mirrors EditorView's
-// `useTaskReview` wiring; see the comment on useDocumentTaskReview.js for
+// law-review proposal into the article panes. Mirrors how
+// useProposalReview seeds a law proposal; see the comment on useDocumentTaskReview.ts for
 // why the fetch/resolve logic lives in the composable while the seeding
 // (this component's job, since it owns `docsMgr`) lives here.
 const {

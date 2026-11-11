@@ -2,7 +2,6 @@
 import { ref, computed, reactive, watch, watchEffect, nextTick, onBeforeUnmount } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
-import * as yaml from 'js-yaml';
 import { useOpenLaw } from './composables/useOpenLaw';
 import { useCorpus } from './corpus';
 import { useEngine } from './composables/useEngine';
@@ -10,7 +9,7 @@ import { useAuth } from './composables/useAuth';
 import { useTrajectsStore } from './stores/trajects';
 import { useFeatureFlagsStore } from './stores/featureFlags';
 import { useEnrichState } from './composables/useEnrichState';
-import { useTaskReview } from './composables/useTaskReview';
+import { useProposalReview } from './composables/useProposalReview';
 import { useNotes, useResolvedDraftNotes } from './composables/useNotes';
 import { useDraftNotes } from './composables/useDraftNotes';
 import { lastHomePath, homeTarget } from './composables/useLastVisitedRoute';
@@ -26,7 +25,6 @@ import { humanize } from './utils/outputFormat';
 import { useLatest } from './lib/useLatest';
 import { useOpenTabs } from './composables/useOpenTabs';
 import { createTabRestore } from './composables/useTabRestore';
-import { proposalDivergence } from './lib/taskReview';
 import ArticleText from './components/ArticleText.vue';
 import ArticleTextEditor from './components/ArticleTextEditor.vue';
 import NoteCreator from './components/NoteCreator.vue';
@@ -51,11 +49,8 @@ import type { NLDDPopover } from '@nldd/design-system/popover';
 import type { Annotation } from '@nldd/design-system/text-editor';
 import type { Note } from './composables/useNotes';
 import type { EditorEngine } from './composables/useEngine';
-import type { Verdict } from './composables/useTaskReview';
-import type { JobTaskSummary } from './composables/useTasks';
 import type { OpenTab } from './lib/openTabsStorage';
-import type { RequestError } from './lib/apiFetch';
-import type { ExecutionAction, LawArticle, LawDocument, MachineReadableSection } from './lib/lawFormat';
+import type { ExecutionAction } from './lib/lawFormat';
 import type { ScenarioExecutedPayload } from './components/ScenarioBuilder.vue';
 import type { EditSheetItem } from './components/EditSheet.vue';
 import type { MachineReadableDelete, MachineReadableSave } from './lib/machineReadableEdits';
@@ -89,7 +84,6 @@ interface NoteGroup {
 
 /** What a mounted ArticleTextEditor exposes (its defineExpose). */
 type TextEditorInstance = InstanceType<typeof ArticleTextEditor>;
-
 
 const { authenticated, oidcConfigured } = useAuth();
 const featureFlags = useFeatureFlagsStore();
@@ -234,14 +228,6 @@ const canEditArticleText = computed(() => canEdit.value);
 const route = useRoute();
 const router = useRouter();
 
-// De review-taak uit de URL (`?task=`). Staat hier hoog omdat `editorRouteFor`
-// hem meeneemt: zolang een taak in beoordeling is, reist hij mee met elke
-// navigatie binnen de editor (tab-, artikel- en wetwissel). De hele
-// review-modus verderop hangt aan deze ene bron.
-const reviewTaskIdParam = computed(() =>
-  typeof route.query.task === 'string' ? route.query.task : null,
-);
-
 // Bibliotheek tab / "naar bibliotheek" buttons: restore the last library
 // position but re-stamp it with the currently active traject, so the
 // traject survives the Editor→Bibliotheek switch (it lives in the URL).
@@ -269,9 +255,6 @@ const {
   error,
   saving: lawSaving,
   saveError: lawSaveError,
-  reload: reloadLaw,
-  seedFromYaml,
-  currentEtag,
   lastSavedPr,
   editedText,
   machineReadable,
@@ -288,6 +271,16 @@ const {
   activeActionPath,
   activeActionIsNew,
 } = openLaw;
+
+// Review mode: deciding on a generated proposal for the open regelwerk. Made
+// here, early, because `editorRouteFor` carries its task along from the start.
+const review = useProposalReview({
+  openLaw,
+  routeFor: editorRouteFor,
+  leaveRoute: () => libraryTabTarget.value,
+  discard: () => discardArticle(),
+  reloadNotes: () => void reloadNotes(),
+});
 
 // --- Multi-law tab state (persisted per traject in localStorage) ---
 // Tab state is DERIVED from the active traject rather than a single ref that a
@@ -1022,7 +1015,7 @@ function editorRouteFor(
   // enige route zonder). Zo overleeft de beoordeling een uitstapje naar een
   // ander artikel - en een refresh onderweg - in plaats van stilletjes weg te
   // vallen bij de eerste tabwissel. Zonder wet is er niets om bij te horen.
-  const task = keepReviewTask && lawIdVal ? reviewTaskIdParam.value : null;
+  const task = keepReviewTask && lawIdVal ? review.taskId.value : null;
   if (trajectRef) {
     return {
       name: 'editor-traject',
@@ -1521,8 +1514,6 @@ function onListChange(idx: number, e: Event) {
   setList(idx, (e as CustomEvent<{ value: string }>).detail.value);
 }
 
-const dumpOpts = { lineWidth: 80, noRefs: true };
-
 // Another article closes the item sheet; the module drops the edits itself.
 watch(selectedArticle, () => {
   activeEditItem.value = null;
@@ -1579,469 +1570,6 @@ watch(
 
 onBeforeUnmount(() => clearTimeout(engineLoadDebounce));
 
-// --- Review-modus (job_review-taak) -----------------------------------
-// `?task=<id>`: show a job_review task's
-// proposed law YAML as an unsaved edit rather than fetching it
-// separately. The proposal is applied to the first article where it
-// diverges from the saved law (seeding `editedText`/`machineReadable`,
-// the same pane-local "current" refs a manual edit would touch), so the
-// existing dirty-tracking and Wijzigingenbalk (Opslaan/Wijzigingen-
-// ongedaan) drive the review UI the same way they drive a manual edit.
-// Seeden is artikel-scoped: de taak wijst het artikel aan (`payload.article`)
-// en de editor toont dat.
-//
-// Opslaan schrijft niet meer. Een verrijking is de eenheid die geschreven
-// wordt, dus "Neem voorstel over" legt het oordeel over dít onderdeel vast en
-// brengt je naar het volgende; pas als elk onderdeel een oordeel heeft, gaat
-// alles in één keer naar de backend, die er één commit van maakt. Tot dat
-// moment verandert er niets aan de wet.
-const {
-  reviewTask,
-  proposedContent: reviewProposedContent,
-  loadError: reviewLoadError,
-  partIndex: reviewPartIndex,
-  partCount: reviewPartCount,
-  undecidedParts: reviewUndecidedParts,
-  loadReview,
-  decide: decideReviewPart,
-  processEnrichment,
-  reset: resetReview,
-  approveAfterSave,
-  reject: rejectReviewInternal,
-} = useTaskReview();
-// `law_create`-taak: de wet bestaat nog niet in het traject; het voorstel
-// wordt integraal in de editor geseed en Opslaan gaat via het create-pad
-// (POST) in plaats van de PUT.
-const reviewIsLawCreate = computed(
-  () => reviewTask.value?.payload?.kind === 'law_create',
-);
-// Het artikel waar deze taak over gaat. De worker maakt sinds de opsplitsing
-// één review-taak per gewijzigd artikel en zet het nummer in de payload, zodat
-// een beoordelaar zich uitspreekt over wat er werkelijk veranderd is.
-//
-// Zonder nummer gaat de taak over de hele wet. Dat blijft bestaan voor een
-// `law_create` (de wet ís het voorstel), voor een voorstel dat de worker niet
-// kon opsplitsen, en voor taken van vóór deze wijziging.
-const reviewArticleNumber = computed(() => {
-  const number = reviewTask.value?.payload?.article;
-  return number == null ? null : String(number);
-});
-// Kijk je op dit moment naar waar de taak over gaat? De taak reist mee met de
-// navigatie (zie `editorRouteFor`), zodat een uitstapje naar een ander artikel
-// de beoordeling niet weggooit - maar de beoordeel-weergave hoort alleen te
-// staan boven het artikel waarover je je uitspreekt. Anders hangt de balk over
-// vreemde inhoud en keurt "Opslaan" de taak goed met een artikel dat de
-// verrijking nooit heeft aangeraakt.
-//
-// Een taak zonder artikelnummer gaat over de hele wet: die slaat het voorstel
-// integraal op (`reviewSavesWholeLaw`), dus dan is elk artikel van die wet een
-// geldige plek om hem te beoordelen.
-const reviewOnTarget = computed(() => {
-  const task = reviewTask.value;
-  if (!task) return false;
-  const taskLawId = task.payload?.law_id;
-  if (taskLawId && lawId.value && taskLawId !== lawId.value) return false;
-  const number = reviewArticleNumber.value;
-  if (number == null) return true;
-  return String(selectedArticleNumber.value ?? '') === number;
-});
-// De beoordeel-weergave (balk, Opslaan-als-goedkeuren, Verwerpen) staat aan.
-// Bewust smaller dan "er is een taak geladen": zie `reviewOnTarget`.
-const reviewActive = computed(() => !!reviewTask.value && reviewOnTarget.value);
-
-// Een taak die één artikel aanwijst, accordeert dat artikel zoals het in de
-// panes staat - inclusief wat de beoordelaar er zelf nog aan veranderde. Een
-// taak zonder artikelnummer accordeert het voorstel in zijn geheel, want daar
-// is geen kleinere eenheid om over te beslissen.
-const reviewSavesWholeLaw = computed(() => reviewActive.value && !reviewArticleNumber.value);
-// Guards against re-firing loadReview for a task id already attempted -
-// approve/reject null out `reviewTask`, which would otherwise look
-// indistinguishable from "not loaded yet" and re-trigger against the
-// task we just resolved.
-let reviewAttemptedForTaskId: string | null = null;
-
-// Drop `?task=` from the URL once the review is resolved (approved or
-// rejected) so a refresh/back-navigation doesn't re-open review mode.
-// Rebuilt from the CURRENT law/article (not `route.params`, which still
-// names whatever article the URL originally pointed at): applyProposedContent
-// may have moved `selectedArticleNumber` to the article the proposal
-// actually touches, and `onBeforeRouteUpdate` would otherwise see the
-// stale route param disagree with `selectedArticleNumber` and snap the
-// editor back to the pre-review article right after resolving.
-function clearReviewQuery() {
-  router.replace(
-    editorRouteFor(lawId.value, selectedArticleNumber.value, { keepReviewTask: false }),
-  );
-}
-
-// Whether the proposal seeded anything (false when every proposed article
-// matches the saved law, or the only differences are articles the saved
-// law doesn't have - see the comment on the loop below).
-const reviewSeeded = ref(false);
-// Whether the proposal touches article(s) beyond the single one seeded into
-// the editor panes (or, when nothing was seedable, the proposal touches
-// anything at all). The visible editor is always single-article-scoped, but
-// Opslaan now approves the FULL proposal regardless - this only drives the
-// banner copy that points the reviewer at the YAML panel for the rest.
-const reviewHasHiddenChanges = ref(false);
-// The article the proposal should land in (`payload.article`, or - for a
-// proposal about the whole law - the article `proposalDivergence` picked), and
-// the article it actually sits in right now. The two part as soon as you look
-// at another article: useOpenLaw then drops the edits and the panes show the
-// saved law again. That difference is exactly the signal to seed again on
-// return.
-const reviewSeedTarget = ref<string | null>(null);
-// Where the proposal actually sits in the panes right now, as `law::article`.
-// The law belongs in the key: two laws in one traject can share article
-// numbers ("B 5", "1", "2" are not unique), and a law switch then leaves
-// `selectedArticleNumber` as it is while the panes went back to the saved law.
-// On the number alone the proposal would not go in again on return.
-const reviewSeededAt = ref<string | null>(null);
-function reviewSeedKey(number: string | null | undefined) {
-  return `${lawId.value ?? ''}::${number ?? ''}`;
-}
-watch([lawId, selectedArticleNumber], ([, nr]) => {
-  if (reviewSeededAt.value && reviewSeededAt.value !== reviewSeedKey(nr)) {
-    reviewSeededAt.value = null;
-  }
-});
-
-function applyProposedContent(proposedYaml: string) {
-  reviewSeeded.value = false;
-  reviewHasHiddenChanges.value = false;
-  let proposed: LawDocument | null;
-  try {
-    // Unchecked YAML; `articles` is checked with Array.isArray below.
-    proposed = yaml.load(proposedYaml) as LawDocument | null;
-  } catch {
-    return; // malformed proposal - leave the saved content in place
-  }
-  const proposedArticles: LawArticle[] = Array.isArray(proposed?.articles) ? proposed.articles : [];
-  // v1 can only seed an EXISTING article as an unsaved edit (same
-  // single-article model as `currentLawYaml`'s KNOWN LIMITATION below,
-  // which has no way to splice in an article the saved law doesn't have),
-  // and can't show a removed article either - proposalDivergence folds both
-  // into `hiddenChanges` so the banner points at the YAML panel for them.
-  const { target, hiddenChanges } = proposalDivergence(
-    articles.value,
-    proposedArticles,
-    reviewArticleNumber.value,
-  );
-  reviewHasHiddenChanges.value = hiddenChanges;
-  if (!target) return; // nothing seedable differs - nothing to seed
-  reviewSeeded.value = true;
-  reviewSeedTarget.value = String(target.number);
-  // Set before seeding: the watches that clean up on an article switch and
-  // re-seed on return run in the next flush, and must already see this as
-  // seeded - otherwise they would seed over it again.
-  reviewSeededAt.value = reviewSeedKey(String(target.number));
-  // Selects the article and puts the proposal in its edits, in one call. The
-  // proposal is the leave guard's baseline: until the reviewer edits it,
-  // leaving loses nothing, since it is seeded again on return.
-  openLaw.seedProposal(target);
-}
-
-// Variant + copy for the review-mode bar (a low, full-width nldd-banner -
-// see PR #935 UX feedback; it used to be a page-height nldd-inline-dialog
-// that ate half the viewport). Opslaan always approves the FULL proposal
-// (see `handleLawSave`), so the copy says so explicitly; when the proposal
-// touches more than the single seeded article (or nothing could be seeded
-// at all), point the reviewer at the YAML panel (`panel.yaml_editor`) for
-// the parts the article-scoped editor can't show. A bar has no room for
-// paragraphs, so copy stays to a heading line + one short supporting line.
-const REVIEW_HIDDEN_CHANGES_NOTE = 'Zie ook het YAML-paneel voor wijzigingen buiten dit artikel.';
-// Accent, not neutral: a generated proposal is the one thing on screen that
-// asks for a decision, and a neutral bar reads as background chrome.
-const reviewBannerVariant = computed(() => {
-  if (reviewLoadError.value) return 'critical';
-  if (reviewIsLawCreate.value) return 'accent';
-  if (reviewActive.value && !reviewSeeded.value) return 'warning';
-  return 'accent';
-});
-const reviewBannerText = computed(() =>
-  reviewIsLawCreate.value ? 'Nieuw regelwerk uit documentconversie' : 'Voorstel uit verrijking',
-);
-const reviewBannerSupportingText = computed(() => {
-  if (reviewLoadError.value) return reviewLoadError.value;
-  if (reviewIsLawCreate.value) {
-    return 'Controleer het regelwerk; Opslaan voegt het toe aan het traject, Verwerpen wijst af.';
-  }
-  if (!reviewSeeded.value) {
-    return reviewArticleNumber.value
-      ? `Artikel ${reviewArticleNumber.value} wijkt niet af van het voorstel; er valt niets te wijzigen.`
-      : 'Voorstel raakt alleen inhoud die hier niet zichtbaar is - bekijk het YAML-paneel.';
-  }
-  // Artikel-scoped: het oordeel gaat over dit artikel zoals het hier staat,
-  // dus eigen aanpassingen gaan wél mee.
-  if (!reviewSavesWholeLaw.value) {
-    return `Overnemen bewaart artikel ${reviewArticleNumber.value} zoals het hier staat, Verwerpen laat het ongemoeid.`;
-  }
-  return (
-    'Overnemen neemt het volledige voorstel over (eigen aanpassingen gaan niet mee), Verwerpen wijst af.' +
-    (reviewHasHiddenChanges.value ? ` ${REVIEW_HIDDEN_CHANGES_NOTE}` : '')
-  );
-});
-
-// Which panes carry the proposal, for de review-melding. De verrijking schrijft
-// machine_readable en scenario's, niet de wettekst, dus Tekst hoort hier niet
-// in. YAML toont altijd de volledige proposal; Machine alleen als het seeden
-// lukte. Scenario's staat er bewust niet bij: de worker staged wel
-// `features/*.feature`, maar useTaskReview pakt alleen de wet-YAML uit de
-// resultaat-blobs, dus daar komt nooit een scenario aan.
-const reviewChangedPanes = computed(() => {
-  const panes = [];
-  if (reviewSeeded.value) panes.push('Machine');
-  panes.push('YAML');
-  return panes;
-});
-const reviewStatusText = computed(() => {
-  if (reviewLoadError.value) return reviewLoadError.value;
-  const what = reviewIsLawCreate.value
-    ? 'Dit is een nieuw regelwerk uit documentconversie'
-    : 'Dit is een gegenereerd voorstel';
-  const panes = reviewChangedPanes.value;
-  const list =
-    panes.length > 1 ? `${panes.slice(0, -1).join(', ')} en ${panes.at(-1)}` : panes[0];
-  return `${what}. Beoordeel ${list}.${reviewProgressNote.value}`;
-});
-
-// Waar de beoordelaar in de verrijking staat, en - zolang er nog onderdelen
-// open staan - dat de wet nog niet is bijgewerkt. Zonder die tweede zin leest
-// "Neem voorstel over" als "opgeslagen", terwijl er tot het laatste oordeel
-// niets is weggeschreven.
-const reviewProgressNote = computed(() => {
-  if (reviewIsLawCreate.value || reviewPartCount.value <= 1) return '';
-  const position =
-    reviewPartIndex.value > 0
-      ? ` Onderdeel ${reviewPartIndex.value} van ${reviewPartCount.value}.`
-      : '';
-  return reviewUndecidedParts.value.length > 1
-    ? `${position} Het regelwerk wordt pas bijgewerkt als alle onderdelen zijn beoordeeld.`
-    : `${position} Dit is het laatste onderdeel; daarna wordt het regelwerk bijgewerkt.`;
-});
-
-// Fires once the law + its first article have finished loading (whether
-// that's the initial load or a tab-restore open), so it works
-// regardless of how the route.query.task navigation happened to arrive.
-// `reviewTaskIdParam` is itself a source: navigating from the taken-lijst
-// to a wet that is ALREADY open (the target law/article is unchanged) is a
-// query-only route change - `loading`/`selectedArticle` never flip, so
-// without this source the watch would simply never re-fire and the review
-// would never activate.
-watch(
-  [loading, selectedArticle, reviewTaskIdParam],
-  ([isLoading, article, taskId]) => {
-    if (isLoading || !article || !taskId) return;
-    if (reviewAttemptedForTaskId === taskId) return;
-    reviewAttemptedForTaskId = taskId;
-    loadReview(taskId).then(() => {
-      if (!reviewProposedContent.value) return;
-      // Alleen seeden waar de taak over gaat - dezelfde vraag als voor de balk,
-      // dus dezelfde `reviewOnTarget`. Een taak die één artikel aanwijst hoort
-      // in dát artikel te landen, en `applyProposedContent` springt er zo nodig
-      // heen. Meestal ben je er al (de takenlijst linkt erheen), maar doordat de
-      // taak meereist met de navigatie staat `?task=` ook op de route van een
-      // ander artikel - en van een andere wet. Kom je daar binnen (een refresh
-      // terwijl je even elders keek), dan wint wat er op het scherm staat: niet
-      // ongevraagd wegspringen, en zeker het voorstel niet in vreemde inhoud
-      // laten landen. Het artikelnummer alleen is daarvoor geen toets: nummers
-      // als "B 5" bestaan in meerdere wetten. Het seed-doel wordt wel
-      // vastgelegd, zodat de her-seed-watch het oppakt zodra je er terug bent.
-      if (!reviewOnTarget.value) {
-        reviewSeedTarget.value = reviewArticleNumber.value;
-        return;
-      }
-      applyProposedContent(reviewProposedContent.value);
-    });
-  },
-  { immediate: true },
-);
-
-// `law_create`-variant van de watch hierboven: de wet bestaat nog niet, dus
-// de load eindigt in een 404 en `selectedArticle` komt er nooit - de normale
-// watch kan niet vuren. Bij een 404 mét ?task= halen we de taak alsnog op;
-// is het een law_create-taak voor precies deze wet, dan wordt het voorstel
-// integraal geseed (`seedFromYaml`) in plaats van gespliced - de hele wet ÍS
-// het voorstel. Elke andere combinatie laat de bestaande 404-foutstaat staan.
-watch(
-  [error, reviewTaskIdParam],
-  ([err, taskId]) => {
-    if (!taskId || err?.status !== 404) return;
-    if (reviewAttemptedForTaskId === taskId) return;
-    reviewAttemptedForTaskId = taskId;
-    loadReview(taskId).then(() => {
-      const task = reviewTask.value;
-      if (
-        task?.payload?.kind === 'law_create' &&
-        task?.payload?.law_id === lawId.value &&
-        reviewProposedContent.value
-      ) {
-        seedFromYaml(reviewProposedContent.value);
-        // Niets is als dirty edit geseed: de banner levert de primaire
-        // opslaan-knop (zie `reviewSeeded` in de template), niet de
-        // Wijzigingenbalk.
-        reviewSeeded.value = false;
-        reviewHasHiddenChanges.value = false;
-      }
-    });
-  },
-  { immediate: true },
-);
-
-// De keerzijde van de twee watches hierboven: `?task=` is niet alleen hoe een
-// review begint, het is ook wat hem gaande houdt. Elke artikel- of wetwissel in
-// de editor (een tabwissel, `selectTab`) stampt de URL opnieuw met
-// `editorRouteFor`, en die draagt geen query - de taak valt er dus vanzelf uit
-// zodra je iets anders bekijkt. Zonder deze watch bleef `reviewTask` staan: de
-// beoordeel-balk hing over een artikel waar de taak niet over gaat, terwijl het
-// geseede voorstel allang was teruggezet door `watch(selectedArticle)`. Erger
-// dan lelijk: "Opslaan" keurde de taak dan goed met de inhoud van dát andere
-// artikel, en zolang de modus aanstond hield `reviewReady` de knop "Beoordeel
-// voorstel" verborgen waarmee je terug had gekund.
-//
-// De guard gaat mee terug op null: kom je later met dezelfde taak terug (via de
-// takenlijst of "Beoordeel voorstel"), dan hoort het voorstel opnieuw geladen en
-// geseed te worden in plaats van als "al geprobeerd" te worden overgeslagen.
-watch(reviewTaskIdParam, (taskId) => {
-  if (taskId) return;
-  reviewAttemptedForTaskId = null;
-  resetReview();
-  reviewSeeded.value = false;
-  reviewHasHiddenChanges.value = false;
-  reviewSeedTarget.value = null;
-  reviewSeededAt.value = null;
-});
-
-// Terug op het artikel van de taak: zet het voorstel er weer in. De panes zijn
-// bij de artikelwissel teruggezet naar de opgeslagen wet, dus zonder dit zie je
-// een beoordeling zonder iets te beoordelen - balk aan, voorstel weg. Dat was
-// de tweede helft van de gemelde bug.
-//
-// `law_create` blijft erbuiten: daar is de wet zelf het voorstel en is het
-// integraal geseed (`seedFromYaml`), niet als artikel-splice.
-watch([reviewOnTarget, selectedArticle], ([onTarget, article]) => {
-  if (!onTarget || !article || reviewIsLawCreate.value) return;
-  if (!reviewProposedContent.value) return;
-  if (reviewSeededAt.value === reviewSeedKey(String(article.number))) return;
-  // Waar het voorstel heen moet. Bij een taak over één artikel ligt dat vast;
-  // bij een voorstel over de hele wet kiest `proposalDivergence` het artikel, en
-  // is het doel dus pas bekend na de eerste keer seeden. Kwam je binnen op een
-  // andere wet, dan is dat nog niet gebeurd - laat `applyProposedContent` het
-  // dan alsnog bepalen (die springt zo nodig zelf naar het juiste artikel).
-  if (reviewSeedTarget.value) {
-    if (String(article.number) !== reviewSeedTarget.value) return;
-  } else if (reviewArticleNumber.value) {
-    // Artikel-taak zonder doel: `applyProposedContent` vond niets seedbaars.
-    return;
-  }
-  applyProposedContent(reviewProposedContent.value);
-});
-
-// "Verwerpen": bij een `law_create` is er niets samen te stellen - die taak
-// staat op zichzelf en wordt direct afgehandeld. Bij een verrijking is dit een
-// oordeel over één onderdeel, net als "Overnemen".
-async function rejectReview() {
-  if (reviewIsLawCreate.value) {
-    await rejectReviewInternal();
-    // De wet bestaat niet (en komt er na verwerpen ook niet): terugroutes
-    // naar de wetsroute zouden op een 404 landen, dus terug naar Home.
-    router.replace(libraryTabTarget.value);
-    return;
-  }
-  await decideReview('rejected');
-}
-
-// "Rond af, neem de rest niet over": de vastgelegde oordelen plus "niet
-// overnemen" voor alles wat nog open staat, in één verwerking. Zonder deze weg
-// zou een verrijking van dertig artikelen dertig klikken kosten voordat er ook
-// maar iets geschreven kan worden.
-async function rejectRestOfReview() {
-  if (!reviewActive.value || reviewIsLawCreate.value) return;
-  await processReview({ rejectRemaining: true });
-}
-
-/**
- * De inhoud die de beoordelaar met "Overnemen" accordeert.
- *
- * Voor een artikel-taak: het artikel zoals het nu in de panes staat - het
- * geseede voorstel plus wat de beoordelaar er zelf nog aan veranderde. Zelfde
- * splice-regels als `currentLawYaml`, maar dan alléén het artikel: wat dat
- * betekent voor het bestand stelt de backend samen, want alleen daar kan het
- * tegen precies de bytes waartegen de `If-Match` is gecontroleerd.
- *
- * `null` betekent "neem het ruwe voorstel over" - dat is wat de backend doet
- * als er geen inhoud meekomt. Dat is de juiste terugval wanneer de editor het
- * artikel niet kan tonen (het staat niet in de opgeslagen wet), want dan heeft
- * de beoordelaar er ook niets aan kunnen veranderen.
- */
-function acceptedReviewContent() {
-  if (reviewSavesWholeLaw.value) return reviewProposedContent.value;
-  const base = selectedArticle.value;
-  if (!base || String(base.number) !== reviewArticleNumber.value) return null;
-  const patched = { ...base, text: editedText.value };
-  if (machineReadable.value != null) {
-    patched.machine_readable = machineReadable.value;
-  } else {
-    delete patched.machine_readable;
-  }
-  try {
-    return yaml.dump(patched, dumpOpts);
-  } catch {
-    return null;
-  }
-}
-
-// Eén oordeel over het onderdeel dat nu open staat. Is het het laatste, dan
-// wordt de verrijking meteen verwerkt; anders schuift de editor door naar het
-// volgende onbeoordeelde onderdeel.
-async function decideReview(action: Verdict['action']) {
-  const { done, next } = decideReviewPart(
-    action,
-    action === 'approved' ? acceptedReviewContent() : null,
-  );
-  if (done) {
-    await processReview();
-    return;
-  }
-  // No review task is loaded (the review ended while the reject-confirmation
-  // dialog was open): there is nothing to decide, so keep the panes as they are.
-  if (!next) return;
-  // De geseede wijziging is vastgelegd in het oordeel; de panes gaan terug
-  // naar de opgeslagen wet voordat het volgende onderdeel eroverheen komt.
-  discardArticle();
-  router.replace(reviewRouteForPart(next));
-}
-
-// De editor-route van een ander onderdeel van dezelfde verrijking, met de
-// taak-id als `?task=` zodat de bestemming hem oppakt.
-function reviewRouteForPart(part: JobTaskSummary) {
-  const target = editorRouteFor(lawId.value, part.article ?? selectedArticleNumber.value);
-  return { ...target, query: { ...(target.query ?? {}), task: part.id } };
-}
-
-// Verwerk de verrijking: één schrijfactie, één commit, alle taken dicht. De
-// backend stelt de eindstand samen, dus de wet wordt daarna opnieuw geladen -
-// de client kent de uitkomst niet.
-const reviewProcessing = ref(false);
-const reviewProcessError = ref<RequestError | null>(null);
-async function processReview(options: { rejectRemaining?: boolean } = {}) {
-  reviewProcessing.value = true;
-  reviewProcessError.value = null;
-  try {
-    await processEnrichment(currentEtag.value, options);
-    await reloadLaw();
-    discardArticle();
-    // De wettekst kan gewijzigd zijn, dus notities moeten opnieuw ankeren.
-    void reloadNotes();
-    clearReviewQuery();
-  } catch (e) {
-    // processEnrichment and reloadLaw reject with an Error (an ApiError for HTTP failures).
-    reviewProcessError.value = e as RequestError;
-  } finally {
-    reviewProcessing.value = false;
-  }
-}
-
 // --- Verrijken aanvragen (levert een job_review-taak op) -----------------
 // Fire-and-forget request; the resulting job_review task shows up in the
 // taken-lijst in Home on its next poll (TasksSidebarItem/TasksListPane poll
@@ -2062,7 +1590,7 @@ const {
   articleNumber: selectedArticleNumber,
   // Niet melden dat er een voorstel klaarstaat terwijl je die taak al aan het
   // beoordelen bent.
-  reviewActive,
+  reviewActive: review.active,
 });
 const enrichFeedback = ref<{ variant: string; text: string } | null>(null); // { variant, text } | null
 // An actual traject open (write access implies a traject, see `canEdit`
@@ -2103,28 +1631,15 @@ function dismissEnrichFeedback() {
 
 // Single save handler shared by the Tekst and Machine panes. The PUT writes
 // the whole law YAML, so one click persists every in-memory edit for the
-// selected article regardless of which pane surfaced the button.
-//
-// Review-modus van een verrijking gaat hier NIET langs: daar is Opslaan een
-// oordeel over één onderdeel en geen schrijfactie (`decideReview`). Alleen een
-// `law_create` slaat hier nog op - die taak staat op zichzelf, de wet bestaat
-// nog niet en gaat via het create-pad (POST). `createLaw` accepteert
-// willekeurige volledige-wet-YAML, dus dat is dezelfde aanroep met andere
-// inhoud; er komt geen tweede save-pad bij.
+// selected article regardless of which pane surfaced the button. In review
+// mode the button approves the proposal instead, which the review decides how
+// to do.
 async function handleLawSave() {
-  if (reviewActive.value && !reviewIsLawCreate.value) {
-    await decideReview('approved');
+  if (review.active.value) {
+    await review.approve();
     return;
   }
-  // A whole-law review proposal saves as it is, not spliced into the article.
-  const content = reviewSavesWholeLaw.value ? reviewProposedContent.value : undefined;
-  if (reviewSavesWholeLaw.value && !content) return;
-  // law_create: the law does not exist in the traject yet, so the proposal
-  // goes through the create path (POST); later saves take the normal PUT.
-  const outcome = await openLaw.save({
-    content: content ?? undefined,
-    create: reviewActive.value && reviewIsLawCreate.value,
-  });
+  const outcome = await openLaw.save();
   if (outcome.status === 'failed') {
     // The failure is surfaced via lawSaveError; log for dev visibility.
     console.warn('saveLaw failed:', lawSaveError.value);
@@ -2138,12 +1653,6 @@ async function handleLawSave() {
   // text was edited orphans (surfaced in the issues list) rather than silently
   // re-attaching. Fire-and-forget.
   if (outcome.touchedText) void reloadNotes();
-  // Review mode: a successful save IS the approval (save first, then
-  // resolve). The changes bar has already cleared before the task disappears.
-  if (reviewActive.value) {
-    await approveAfterSave();
-    clearReviewQuery();
-  }
 }
 
 // Whole-law save failures surface as a single notification over the editor
@@ -2154,7 +1663,7 @@ async function handleLawSave() {
 // aan - dat is voor de gebruiker dezelfde gebeurtenis (mijn wijziging kwam er
 // niet in) en verdient dezelfde melding, inclusief de 412-uitleg bij een
 // conflict.
-const saveFailure = computed(() => reviewProcessError.value ?? lawSaveError.value);
+const saveFailure = computed(() => review.processError.value ?? lawSaveError.value);
 const saveErrorText = computed(() =>
   saveFailure.value ? saveFailure.value.message || String(saveFailure.value) : '',
 );
@@ -2166,7 +1675,7 @@ const showSaveError = computed(
 );
 function dismissSaveError() {
   dismissedSaveFailure.value = saveFailure.value;
-  reviewProcessError.value = null;
+  review.processError.value = null;
 }
 
 // Alias kept to minimise template churn; both panes ultimately call the
@@ -2215,26 +1724,21 @@ registerEditorActions({
   discard: discardArticle,
   undo: undoText,
   redo: redoText,
-  reject: rejectReview,
-  rejectRest: rejectRestOfReview,
+  reject: review.reject,
+  rejectRest: review.rejectRest,
 });
 watchEffect(() => {
   setEditorChanges({
     dirty: articleDirty.value,
-    saving: lawSaving.value || reviewProcessing.value,
+    saving: lawSaving.value || review.processing.value,
     canUndo: canUndoText.value,
     canRedo: canRedoText.value,
-    // `reviewProcessing` telt mee zodat de balk niet halverwege het verwerken
-    // verdwijnt: `processEnrichment` sluit de review-state zodra de backend
-    // klaar is, terwijl het herladen van de wet dan nog loopt.
-    review: reviewActive.value || reviewProcessing.value,
-    reviewStatus: reviewActive.value || reviewLoadError.value ? reviewStatusText.value : null,
-    reviewVariant: reviewBannerVariant.value,
-    // Meer dan één onbeoordeeld onderdeel: dan is "rond af, neem de rest niet
-    // over" een echte afkorting. Bij het laatste onderdeel doet Verwerpen
-    // hetzelfde, en dan zou het een tweede knop voor dezelfde daad zijn.
-    reviewCanRejectRest:
-      reviewActive.value && !reviewIsLawCreate.value && reviewUndecidedParts.value.length > 1,
+    // Processing counts too, so the bar does not vanish halfway: the review
+    // closes as soon as the backend is done, while the law is still reloading.
+    review: review.active.value || review.processing.value,
+    reviewStatus: review.active.value || review.loadError.value ? review.statusText.value : null,
+    reviewVariant: review.variant.value,
+    reviewCanRejectRest: review.canRejectRest.value,
   });
 });
 
