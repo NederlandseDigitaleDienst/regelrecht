@@ -5,7 +5,7 @@ import { buildOperationTree, type OperationNode, type OperationTreeRow } from '.
 import OperationSettings, { type OperationSettingsArticle } from './OperationSettings.vue';
 import { articleContext, formatLiteral, pathKey, renderAction, renderFocus } from '@regelrecht/frontend-shared/regelrijm/index';
 import type { Path, Segment, Token } from '@regelrecht/frontend-shared/regelrijm/index';
-import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useFeatureFlagsStore } from '../stores/featureFlags';
 import { useCorpus } from '../corpus';
 import { humanize } from '../utils/outputFormat';
 import RegelRijmText from '../regelrijm/RegelRijmText.vue';
@@ -53,7 +53,7 @@ const emit = defineEmits<{
   navigate: [target: { lawId: string; articleNumber: string }];
   'open-output': [output: string];
 }>();
-const { isEnabled } = useFeatureFlags();
+const featureFlags = useFeatureFlagsStore();
 
 const sheetEl = ref<NLDDSheet | null>(null);
 
@@ -159,7 +159,7 @@ interface Reading {
 }
 
 const reading = computed((): Reading | null => {
-  if (!props.regelrijm || !isEnabled('panel.regelrijm') || !props.action) return null;
+  if (!props.regelrijm || !featureFlags.isEnabled('panel.regelrijm') || !props.action) return null;
   try {
     const full = renderAction(props.action, { article: props.article });
     // An action without an operation (a value or a single name) reads whole.

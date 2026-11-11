@@ -16,8 +16,9 @@ export default mergeConfig(
       include: ['src/**/*.test.{js,ts}', 'e2e/**/*.test.js'],
       exclude: [...configDefaults.exclude],
       root: fileURLToPath(new URL('./', import.meta.url)),
-      // Every test starts with an empty in-memory corpus reader installed.
-      setupFiles: ['src/test-utils/corpusSetup.ts'],
+      // Every test starts with an empty in-memory corpus reader and a fresh
+      // Pinia installed.
+      setupFiles: ['src/test-utils/corpusSetup.ts', 'src/test-utils/piniaSetup.ts'],
       pool: 'vmThreads',
       testTimeout: 10000,
       server: {

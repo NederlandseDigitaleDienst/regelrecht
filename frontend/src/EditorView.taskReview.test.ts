@@ -10,9 +10,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { flushPromises, shallowMount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import { ref, reactive, nextTick } from 'vue';
-import type { EditorChanges } from './composables/useAppChrome';
+import { useAppChromeStore, type EditorChanges } from './stores/appChrome';
 import type { OpenLaw } from './composables/useOpenLaw';
 import { installTestCorpus } from './test-utils/corpusSetup';
+import { testingPinia } from './test-utils/testingPinia';
+import { allFlagsOn } from './test-utils/featureFlagState';
 
 // --- vue-router: no real router. `route` is reactive, because the whole bug
 // hangs on a watch on `route.query.task`: a test must be able to change it the
@@ -38,19 +40,6 @@ vi.mock('vue-router', () => ({
 
 vi.mock('./composables/useAuth', () => ({
   useAuth: () => ({ authenticated: ref(true), oidcConfigured: ref(true), login: vi.fn() }),
-}));
-
-vi.mock('./composables/useFeatureFlags', () => ({
-  useFeatureFlags: () => ({ isEnabled: () => true }),
-}));
-
-vi.mock('./composables/useTrajects', () => ({
-  useTrajects: () => ({
-    activeTrajectRef: ref('kieswet-kandidaatstelling-86070ac7'),
-    activeTraject: ref({ name: 'Kieswet-Kandidaatstelling' }),
-    trajectMissing: ref(false),
-  }),
-  refreshTrajects: vi.fn(),
 }));
 
 // --- useOpenLaw: the real module, over an in-memory corpus with the law as
@@ -96,6 +85,21 @@ vi.mock('./composables/useOpenLaw', async (importOriginal) => {
     },
   };
 });
+// The traject list as loaded, with the traject the route is in.
+const LOADED_TRAJECTS = {
+  trajects: [{
+    id: '00000000-0000-0000-0000-000086070ac7',
+    name: 'Kieswet-Kandidaatstelling',
+    description: '',
+    scope: '',
+    status: 'bezig',
+    role: 'owner',
+    ref: TRAJECT,
+  }],
+  loading: false,
+  error: null,
+};
+
 /** The module instance the mounted view uses. */
 function law(): OpenLaw {
   if (!openLaw) throw new Error('EditorView created no useOpenLaw');
@@ -178,19 +182,9 @@ vi.mock('./lib/apiFetch', () => ({
 }));
 
 // The app shell renders the review bar and the changes bar; EditorView only
-// publishes to them. So `editorChanges` is exactly what the user sees:
-// `review: true` = the review view is on screen.
-let editorChanges: EditorChanges | null = null;
-vi.mock('./composables/useAppChrome', () => ({
-  registerSearchPopover: vi.fn(),
-  setEditorChrome: vi.fn(),
-  registerTabActions: vi.fn(),
-  setEditorChanges: (state: EditorChanges | null) => {
-    editorChanges = state;
-  },
-  registerEditorActions: vi.fn(),
-  clearEditorChrome: vi.fn(),
-}));
+// publishes to them through the chrome store. So the store's `editorChanges`
+// is exactly what the user sees: `review: true` = the review view is on
+// screen. The store's actions run for real (see mountEditor).
 
 // useTaskReview itself stays REAL - this file tests exactly how the composable
 // works together with the view's watches. Only the HTTP layer below is a stub.
@@ -258,6 +252,7 @@ const ArticleTextEditorStub = {
 
 /** The state EditorView last published to the changes bar; fails the test when it published none. */
 function changes(): EditorChanges {
+  const { editorChanges } = useAppChromeStore();
   if (!editorChanges) throw new Error('EditorView published no editor changes');
   return editorChanges;
 }
@@ -274,7 +269,11 @@ const internals = (wrapper: VueWrapper) => wrapper.vm as unknown as EditorViewIn
 let mounted: VueWrapper | null = null;
 function mountEditor() {
   mounted = shallowMount(EditorView, {
-    global: { stubs: { teleport: true, ArticleTextEditor: ArticleTextEditorStub } },
+    global: {
+      stubs: { teleport: true, ArticleTextEditor: ArticleTextEditorStub },
+      // Real actions: the test reads what EditorView publishes to the chrome store.
+      plugins: [testingPinia({ initialState: { featureFlags: allFlagsOn(), trajects: LOADED_TRAJECTS }, stubActions: false })],
+    },
   });
   return mounted;
 }
@@ -295,7 +294,6 @@ beforeEach(() => {
   pushMock.mockReset();
   save.mockReset();
   openLaw = null;
-  editorChanges = null;
   installTestCorpus(
     { '': {}, [TRAJECT]: { laws: { kieswet: SAVED_LAW_YAML, 'andere-wet': OTHER_LAW_YAML }, etags: { kieswet: 'etag-1' } } },
     TRAJECT,

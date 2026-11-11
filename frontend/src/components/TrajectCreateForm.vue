@@ -2,7 +2,7 @@
 import { computed, ref } from 'vue';
 import type { NLDDTextField } from '@nldd/design-system/text-field';
 import { deriveAuthRef, tokenEnvName as tokenEnvNameFor } from '../lib/corpusAuth';
-import type { CreateTrajectRequest } from '../composables/useTrajects';
+import type { CreateTrajectRequest } from '../stores/trajects';
 
 // Gedeeld aanmaakformulier voor een traject - gebruikt door de
 // TrajectMenu-sheet en de /editor/nieuw-traject-pagina. Gebouwd op de

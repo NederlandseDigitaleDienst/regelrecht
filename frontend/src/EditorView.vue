@@ -1,26 +1,20 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watch, watchEffect, nextTick, onBeforeUnmount } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import * as yaml from 'js-yaml';
 import { useOpenLaw } from './composables/useOpenLaw';
 import { useCorpus } from './corpus';
 import { useEngine } from './composables/useEngine';
 import { useAuth } from './composables/useAuth';
-import { useTrajects } from './composables/useTrajects';
-import { useFeatureFlags } from './composables/useFeatureFlags';
+import { useTrajectsStore } from './stores/trajects';
+import { useFeatureFlagsStore } from './stores/featureFlags';
 import { useEnrichState } from './composables/useEnrichState';
 import { useTaskReview } from './composables/useTaskReview';
 import { useNotes, useResolvedDraftNotes } from './composables/useNotes';
 import { useDraftNotes } from './composables/useDraftNotes';
 import { lastHomePath, homeTarget } from './composables/useLastVisitedRoute';
-import {
-  registerSearchPopover,
-  setEditorChrome,
-  registerTabActions,
-  setEditorChanges,
-  registerEditorActions,
-  clearEditorChrome,
-} from './composables/useAppChrome';
+import { useAppChromeStore } from './stores/appChrome';
 import { SUPPORT_EMAIL } from './constants';
 import { apiFetchJson } from './lib/apiFetch';
 import { RETRY_MIN_SPINNER_MS } from './lib/retryFeedback';
@@ -98,7 +92,16 @@ type TextEditorInstance = InstanceType<typeof ArticleTextEditor>;
 
 
 const { authenticated, oidcConfigured } = useAuth();
-const { isEnabled } = useFeatureFlags();
+const featureFlags = useFeatureFlagsStore();
+// What this view publishes to the shell: tabs, the changes bar, the PR badge.
+const {
+  registerSearchPopover,
+  setEditorChrome,
+  registerTabActions,
+  setEditorChanges,
+  registerEditorActions,
+  clearEditorChrome,
+} = useAppChromeStore();
 
 // Per-pane view selection. Each pane independently picks one of the
 // available views (Tekst, Machine, Scenario's, YAML). Same view can be
@@ -115,7 +118,7 @@ const VIEW_DEFINITIONS = [
   { id: 'notes', flag: 'panel.notes', label: 'Notities' },
 ];
 
-const availableViews = computed(() => VIEW_DEFINITIONS.filter(v => isEnabled(v.flag)));
+const availableViews = computed(() => VIEW_DEFINITIONS.filter(v => featureFlags.isEnabled(v.flag)));
 
 function viewLabel(viewId: string) {
   return VIEW_DEFINITIONS.find(v => v.id === viewId)?.label ?? viewId;
@@ -218,7 +221,7 @@ function movePane(idx: number, target: PaneMoveTarget) {
 //     `canEdit` is true; writes land in that traject's branch.
 // Pick a traject in the TrajectMenu to flip from the first shape to
 // the second.
-const { activeTrajectRef, activeTraject, trajectMissing } = useTrajects();
+const { activeTrajectRef, activeTraject, trajectMissing } = storeToRefs(useTrajectsStore());
 const canEdit = computed(
   () => (!oidcConfigured.value || authenticated.value) && activeTrajectRef.value !== null,
 );
@@ -508,7 +511,7 @@ const editorAnnotations = computed(() => {
 // article text that a linking note ties to that rule, for the Machine pane.
 // Same resolved notes as the highlights, so both show the same fragments.
 const regelrijmLinks = computed(() => {
-  if (!isEnabled('panel.regelrijm')) return new Map<string, LinkedFragment[]>();
+  if (!featureFlags.isEnabled('panel.regelrijm')) return new Map<string, LinkedFragment[]>();
   return linksByOutput(notesForArticle.value, {
     lawId: [law.value?.$id, lawId.value],
     text: selectedArticle.value?.text || '',
@@ -518,7 +521,7 @@ const regelrijmLinks = computed(() => {
 // The action a linking note points at in this article, for "Actie openen" in
 // the note popover; null for any other note or with the flag off.
 function linkedAction(note: Note): ExecutionAction | null {
-  if (!isEnabled('panel.regelrijm')) return null;
+  if (!featureFlags.isEnabled('panel.regelrijm')) return null;
   const output = linkedOutput(note, [law.value?.$id, lawId.value]);
   return output ? (machineReadable.value?.execution?.actions?.find((a) => a?.output === output) ?? null) : null;
 }
@@ -2173,7 +2176,7 @@ const handleMachineReadableSave = handleLawSave;
 // --- Wijzigingenbalk (article-level pending changes) -----------------------
 // Tekst + Machine edits share one whole-law save, so "dirty" is article-wide.
 // The AppShell renders the bar; the editor publishes the state and the
-// Opslaan / Wijzigingen-ongedaan / undo / redo actions via useAppChrome.
+// Opslaan / Wijzigingen-ongedaan / undo / redo actions via the chrome store.
 
 // Throw away every in-memory edit for the selected article.
 function discardArticle() {
@@ -2421,12 +2424,12 @@ async function handleActionSave() {
              stay in the DOM so state is preserved when the viewport
              widens. -->
         <template v-else>
-          <!-- Review-modus (job_review-taak) heeft geen eigen blok meer in de
-               content. De melding gaat als `slot="review-notice"` naar de
-               bar-split-view in AppShell (onder de document-tab-bar, boven
-               `main`) en de beslissing staat in de Wijzigingenbalk eronder.
-               Allebei via useAppChrome, net als de rest van de shell-chrome,
-               zodat geen van beide met de panes meescrollt. -->
+          <!-- Review mode (a job_review task) has no block of its own in
+               the content any more. The notice goes to the bar-split-view in
+               AppShell as `slot="review-notice"` (under the document tab bar,
+               above `main`), and the decision sits in the changes bar below
+               it. Both go through the chrome store, like the rest of the
+               shell chrome, so neither scrolls with the panes. -->
 
           <!-- Feedback op een aangevraagde verrijking (zie de Machine/YAML-pane):
                same page-wide banner-in-container pattern as the review notice

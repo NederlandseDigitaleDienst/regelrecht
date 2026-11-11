@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { isNavigationFailure, useRoute, useRouter } from 'vue-router';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
-import { useTrajects } from '../composables/useTrajects';
-import type { TrajectSummary } from '../composables/useTrajects';
+import { useTrajectsStore } from '../stores/trajects';
+import type { TrajectSummary } from '../stores/trajects';
 import { useAuth } from '../composables/useAuth';
 import { useLoginToChooser } from '../composables/useLoginToChooser';
 import { homeTarget, trajectSwitchTarget } from '../composables/useLastVisitedRoute';
@@ -30,13 +31,9 @@ defineOptions({ inheritAttrs: false });
 
 const emit = defineEmits<{ switched: [trajectRef: string] }>();
 
-const {
-  trajects,
-  activeTrajectRef,
-  activeTraject,
-  loading,
-  createTraject,
-} = useTrajects();
+const trajectsStore = useTrajectsStore();
+const { trajects, activeTrajectRef, activeTraject, loading } = storeToRefs(trajectsStore);
+const { createTraject } = trajectsStore;
 // Auth gates the menu: logged-in users get the traject switcher; everyone
 // else gets a popover explaining that trajecten unlock after login.
 const { authenticated } = useAuth();

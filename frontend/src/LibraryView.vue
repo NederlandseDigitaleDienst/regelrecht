@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, shallowRef, nextTick, watch, watchEffect, onBeforeUnmount, inject } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter, onBeforeRouteUpdate, onBeforeRouteLeave } from 'vue-router';
 import type { RouteLocationNormalized } from 'vue-router';
 import type { NLDDButton } from '@nldd/design-system/button';
@@ -34,10 +35,10 @@ import { useCorpus } from './corpus';
 // aanvraag - en mag daarvoor niet de 30s-poll aanzetten (die hoort bij de
 // taken-componenten, en anonieme bezoekers pollen nooit).
 import { useEnrichState } from './composables/useEnrichState';
-import { useTrajects, refreshTrajects } from './composables/useTrajects';
+import { useTrajectsStore } from './stores/trajects';
 import { lawUploadUrl, favoritesUrl, favoriteUrl } from './composables/corpusUrls';
 import { SUPPORT_EMAIL, paneChromeVisible } from './constants';
-import { registerSearchPopover, setLibraryEmpty, openSearch } from './composables/useAppChrome';
+import { useAppChromeStore } from './stores/appChrome';
 import { homeTarget } from './composables/useLastVisitedRoute';
 import { useDocumentsManager } from './composables/useDocumentsManager';
 import { useTrajectDocumentJobs } from './composables/useTrajectDocumentJobs';
@@ -124,7 +125,10 @@ const router = useRouter();
 // Active traject (null = global browse). Derived from the URL via
 // `route.params.trajectRef`, so the new `library-traject` route makes the
 // bibliotheek traject-aware without any extra plumbing.
-const { activeTrajectRef, activeTraject } = useTrajects();
+const trajectsStore = useTrajectsStore();
+const { activeTrajectRef, activeTraject } = storeToRefs(trajectsStore);
+const { refreshTrajects } = trajectsStore;
+const { registerSearchPopover, setLibraryEmpty, openSearch } = useAppChromeStore();
 
 // Favorites without an account live in this browser (useLocalFavorites), in
 // Corpus juris only: a traject needs a login anyway. The sidebar says so, and

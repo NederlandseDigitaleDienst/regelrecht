@@ -3,10 +3,10 @@
 // array; passed into a route param as is, vue-router throws on resolving it.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
-import { ref } from 'vue';
 import type { LocationQuery, RouteLocationRaw } from 'vue-router';
 import appRouter from './router';
 import TrajectChooserView from './TrajectChooserView.vue';
+import { testingPinia } from './test-utils/testingPinia';
 
 const routeState: { query: LocationQuery } = { query: {} };
 const push = vi.fn<(to: RouteLocationRaw) => void>();
@@ -17,11 +17,6 @@ vi.mock('vue-router', async (importOriginal) => ({
   useRouter: () => ({ push }),
 }));
 
-vi.mock('./composables/useTrajects', () => ({
-  useTrajects: () => ({ trajects: ref([]), loading: ref(false), error: ref(null) }),
-  refreshTrajects: vi.fn(),
-}));
-
 const REF = 'mijn-traject-1a2b3c4d';
 
 interface ChooserInternals {
@@ -30,7 +25,9 @@ interface ChooserInternals {
 
 function selectWithQuery(query: LocationQuery): RouteLocationRaw {
   routeState.query = query;
-  const wrapper = shallowMount(TrajectChooserView);
+  const wrapper = shallowMount(TrajectChooserView, {
+    global: { plugins: [testingPinia({ initialState: { trajects: { trajects: [], loading: false, error: null } } })] },
+  });
   (wrapper.vm as unknown as ChooserInternals).selectTraject({ ref: REF });
   expect(push).toHaveBeenCalledTimes(1);
   return push.mock.calls[0]![0];

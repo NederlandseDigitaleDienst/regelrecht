@@ -1,12 +1,20 @@
 // The action sheet behind the flag panel.regelrijm: it reads the selected part
 // as RegelRijm text, and opens at the part a reading in the Machine pane
 // pointed at.
-import { describe, it, expect, vi, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { reactive } from 'vue';
+import ActionSheet from './ActionSheet.vue';
+import { testingPinia } from '../test-utils/testingPinia';
+import { allFlagsOn } from '../test-utils/featureFlagState';
 
-vi.mock('../composables/useFeatureFlags', () => ({ useFeatureFlags: () => ({ isEnabled: () => true }) }));
-const { default: ActionSheet } = await import('./ActionSheet.vue');
+// The sheet with panel.regelrijm (and every other flag) on.
+function mountSheet(props: InstanceType<typeof ActionSheet>['$props']) {
+  return mount(ActionSheet, {
+    props,
+    global: { plugins: [testingPinia({ initialState: { featureFlags: allFlagsOn() } })] },
+  });
+}
 
 const ACTION = { output: 'hoogte', value: { operation: 'MAX', values: [0, { operation: 'MULTIPLY', values: ['$inkomen', '$percentage'] }] } };
 const ARTICLE = { number: '2', machine_readable: { execution: { actions: [ACTION] } } };
@@ -22,13 +30,13 @@ const reading = (wrapper: VueWrapper) => wrapper.find('[data-testid="action-shee
 
 describe('ActionSheet with RegelRijm', () => {
   it('reads the whole action when it opens at the top', async () => {
-    const wrapper = mount(ActionSheet, { props: { regelrijm: true, action: ACTION, article: ARTICLE } });
+    const wrapper = mountSheet({ regelrijm: true, action: ACTION, article: ARTICLE });
     await flushPromises();
     expect(reading(wrapper)).toBe('[hoogte] wordt: de grootste van ( 0; [inkomen] maal [percentage] )');
   });
 
   it('opens at the part a reading pointed at', async () => {
-    const wrapper = mount(ActionSheet, { props: { regelrijm: true, action: ACTION, article: ARTICLE, focusPath: ['value', 'values', 1] } });
+    const wrapper = mountSheet({ regelrijm: true, action: ACTION, article: ARTICLE, focusPath: ['value', 'values', 1] });
     await flushPromises();
     expect(reading(wrapper)).toBe('[inkomen] maal [percentage]');
   });
@@ -36,7 +44,7 @@ describe('ActionSheet with RegelRijm', () => {
   it('shows no reading where the view does not ask for one', async () => {
     // The library mounts the sheet without handling navigate; the flag alone
     // must not put a reading there.
-    const wrapper = mount(ActionSheet, { props: { action: ACTION, article: ARTICLE } });
+    const wrapper = mountSheet({ action: ACTION, article: ARTICLE });
     await flushPromises();
     expect(wrapper.find('[data-testid="action-sheet-regelrijm"]').exists()).toBe(false);
   });
@@ -48,7 +56,7 @@ describe('ActionSheet with RegelRijm', () => {
 
     it('opens that rule when the sheet has no unsaved edit', async () => {
       const a = total();
-      const wrapper = mount(ActionSheet, { props: { regelrijm: true, action: a, article: article(a) } });
+      const wrapper = mountSheet({ regelrijm: true, action: a, article: article(a) });
       await flushPromises();
       await follow(wrapper).trigger('click');
       await flushPromises();
@@ -57,7 +65,7 @@ describe('ActionSheet with RegelRijm', () => {
 
     it('stays put and says why when there is an unsaved edit', async () => {
       const a = total();
-      const wrapper = mount(ActionSheet, { props: { regelrijm: true, action: a, article: article(a) } });
+      const wrapper = mountSheet({ regelrijm: true, action: a, article: article(a) });
       await flushPromises();
       a.value.values[1] = 2;
       await flushPromises();

@@ -96,7 +96,7 @@ The settings sheet (`SettingsSheet.vue`, from the account menu) has two sections
 
 ## Feature flags
 
-Flags are deployment-wide, stored in the `feature_flags` table and served by `GET /api/feature-flags`. `PUT /api/feature-flags/{key}` is behind the `editor-admin` role. The frontend keeps its own defaults in `src/composables/useFeatureFlags.ts` so it can render before the API answers.
+Flags are deployment-wide, stored in the `feature_flags` table and served by `GET /api/feature-flags`. `PUT /api/feature-flags/{key}` is behind the `editor-admin` role. The frontend keeps its own defaults in the feature-flag store, `src/stores/featureFlags.ts`, so it can render before the API answers.
 
 The list in `packages/editor-api/src/feature_flags.rs` is also the allow-list: the backend rejects a PUT for a key it does not know with 400, and the frontend then reverts the switch. The two lists therefore have to name the same keys.
 
@@ -161,7 +161,17 @@ Besides the views in `src/` (`AppShell.vue`, `LibraryView.vue`, `EditorView.vue`
 | `TrajectDetailsPane.vue` / `TrajectMembersPane.vue` / `TrajectIntegrityPane.vue` | Traject settings and the structure report |
 | `SearchPopover.vue` / `AddLawSheet.vue` | Finding a law, and adding one to a traject: copied from the central corpus, harvested by BWB id, or converted from an uploaded PDF or DOCX |
 
-Shared state and API calls live in composables under `src/composables/`, most of them module-level singletons (`useTrajects.ts`, `useTasks.ts`, `useFeatureFlags.ts` and others).
+## State
+
+Where state lives depends on who shares it.
+
+- State the whole app shares lives in a Pinia setup store under `src/stores/`. So far these are the feature flags (`featureFlags.ts`), the user's trajecten with the active one (`trajects.ts`), and what the views publish to the shell (`appChrome.ts`). `main.ts` installs Pinia and starts loading the flags and the traject list; a store does nothing on import.
+- State of one open document lives in a composable each caller creates, such as `useOpenLaw` for the rulework open in the editor. Every open document has its own, so it is not a store.
+- Rulework content goes through the corpus reader (see [Data loading](#data-loading)).
+
+Other shared state still sits in module-level singletons under `src/composables/`, such as `useTasks.ts` and `useAddActions.ts`. Each moves to a store when someone changes it; there is no separate conversion.
+
+Tests follow Pinia's testing guide. Every test starts with a fresh Pinia. A component test that needs stubbed store actions or a given starting state mounts with `testingPinia()` from `src/test-utils/testingPinia.ts` (a `createTestingPinia` with `vi.fn` spies) instead of mocking the store's module.
 
 ## Corpusinwinning (harvester dashboard)
 

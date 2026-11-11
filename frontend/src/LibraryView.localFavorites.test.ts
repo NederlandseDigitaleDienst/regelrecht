@@ -4,18 +4,18 @@
 // composable stubs from test-utils/libraryViewHarness.ts.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
-import { nextTick, ref } from 'vue';
+import { nextTick, ref, reactive } from 'vue';
 import * as harness from './test-utils/libraryViewHarness';
 import { installTestCorpus } from './test-utils/corpusSetup';
 import { LOCAL_FAVORITES_KEY } from './composables/useLocalFavorites';
 
-const routeState: { name: string; params: Record<string, string>; query: Record<string, string>; fullPath: string; hash: string } = {
+const routeState: { name: string; params: Record<string, string>; query: Record<string, string>; fullPath: string; hash: string } = reactive({
   name: 'corpus-juris',
   params: { lawId: 'wet_a' },
   query: {},
   fullPath: '/corpus-juris/wet_a',
   hash: '',
-};
+});
 vi.mock('vue-router', () => harness.vueRouter(() => routeState));
 
 // The login state, with a /auth/status answer a test can hold back: while
@@ -27,11 +27,6 @@ vi.mock('./composables/useAuth', () => ({
   useAuth: () => ({ authenticated, loading: authLoading, login: vi.fn() }),
   ensureAuthReady: () => auth.ready,
 }));
-
-const activeTrajectRef = ref<string | null>(null);
-vi.mock('./composables/useTrajects', () =>
-  harness.trajectsModule(() => ({ activeTrajectRef, activeTraject: ref({ name: 'Traject A' }) })),
-);
 
 // Every favorites request, in order: method and url. The account's favorites
 // answer with what the PUTs stored. Corpus reads go to the in-memory corpus.
@@ -52,7 +47,6 @@ vi.mock('./lib/apiFetch', () =>
     }),
   }),
 );
-vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 vi.mock('./composables/useDocumentsManager', () => harness.documentsManager());
 vi.mock('./composables/useTrajectDocumentJobs', () => harness.trajectDocumentJobs());
 vi.mock('./composables/useDocumentUpload', () => harness.documentUpload());
@@ -66,8 +60,8 @@ function mountLibrary() {
     laws: { wet_a: '$id: wet_a\narticles: []\n' },
     list: ['wet_a', 'wet_b'].map((law_id) => ({ law_id, name: law_id })),
   };
-  installTestCorpus({ '': content, 'traject-aaaa1111': content }, activeTrajectRef.value);
-  return shallowMount(LibraryView, { global: { stubs: { teleport: true } } }) as VueWrapper;
+  installTestCorpus({ '': content, 'traject-aaaa1111': content }, routeState.params.trajectRef ?? null);
+  return shallowMount(LibraryView, { global: { stubs: { teleport: true }, plugins: [harness.pinia()] } }) as VueWrapper;
 }
 
 // The login path chains several awaits (the saves, then the account's list,
@@ -88,7 +82,6 @@ beforeEach(() => {
   authenticated.value = false;
   authLoading.value = false;
   auth.ready = Promise.resolve();
-  activeTrajectRef.value = null;
   routeState.params = { lawId: 'wet_a' };
   server.calls = [];
   server.account = new Set();
@@ -114,7 +107,6 @@ describe('LibraryView favorites without an account', () => {
   });
 
   it('offers no star inside a traject, where favorites need an account', async () => {
-    activeTrajectRef.value = 'traject-aaaa1111';
     routeState.params = { trajectRef: 'traject-aaaa1111', lawId: 'wet_a' };
     const wrapper = mountLibrary();
     await settle();

@@ -1,8 +1,11 @@
 import './nldd-components.js';
 import '@nldd/design-system/styles';
 import { computed, createApp } from 'vue';
+import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
+import { useFeatureFlagsStore } from './stores/featureFlags';
+import { useTrajectsStore } from './stores/trajects';
 import { installApiAuthGuard } from './lib/apiAuthGuard';
 import { installDevSlowMode } from './lib/devSlowMode';
 import { createCorpusReader, createHttpTransport, installCorpus } from './corpus';
@@ -23,6 +26,14 @@ installCorpus(createCorpusReader({
   trajectRef: computed(() => singleParam(router.currentRoute.value.params.trajectRef) ?? null),
 }));
 
+// App-wide state lives in Pinia stores (src/stores); see the editor's
+// component page in the docs for what goes in a store and what does not.
 const app = createApp(App);
+const pinia = createPinia();
+app.use(pinia);
 app.use(router);
+// The server's feature flags (the defaults hold until they arrive) and the
+// user's trajecten, which the shell shows on every page.
+useFeatureFlagsStore(pinia).load();
+useTrajectsStore(pinia).ensureReady();
 app.mount('#app');

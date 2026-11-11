@@ -17,8 +17,8 @@ pub const GITHUB_USER_OAUTH: &str = "github.user_oauth";
 /// Every flag the editor knows, with its default. This is also the allow-list
 /// for `PUT /api/feature-flags/{key}`: a key missing here is rejected with 400,
 /// and the frontend then silently reverts the toggle. The frontend keeps its
-/// own copy in `frontend/src/composables/useFeatureFlags.js` (it must render
-/// before the API answers); `useFeatureFlags.drift.test.js` reads this block
+/// own copy in `frontend/src/stores/featureFlags.ts` (it must render before
+/// the API answers); `featureFlags.drift.test.ts` reads this block
 /// and fails when the two drift apart.
 static DEFAULTS: LazyLock<HashMap<String, bool>> = LazyLock::new(|| {
     HashMap::from([

@@ -12,7 +12,7 @@ import MachineEmptyState from './MachineEmptyState.vue';
 import RegelRijmPane from '../regelrijm/RegelRijmPane.vue';
 import type { LinkedFragment } from '../regelrijm/regelrijmLinks';
 import type { Path } from '@regelrecht/frontend-shared/regelrijm/index';
-import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useFeatureFlagsStore } from '../stores/featureFlags';
 
 // Law-format shapes (schema/latest/schema.json), only the fields read here.
 
@@ -247,8 +247,8 @@ const outputs = computed(() =>
 const actions = computed(() => execution.value?.actions ?? []);
 // Behind `panel.regelrijm` the actions come first, as RegelRijm readings: the
 // way into the article's rules, instead of a list of output names at the end.
-const { isEnabled } = useFeatureFlags();
-const regelrijm = computed(() => props.regelrijm && isEnabled('panel.regelrijm'));
+const featureFlags = useFeatureFlagsStore();
+const regelrijm = computed(() => props.regelrijm && featureFlags.isEnabled('panel.regelrijm'));
 
 function onProducesChange(key: string, event: Event) {
   updateProduces(key, (event.target as HTMLSelectElement).value);

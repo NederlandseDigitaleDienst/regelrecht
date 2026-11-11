@@ -24,11 +24,12 @@
  * nldd-simple-section, footer) spiegelt EditSheet.vue en NewHarvestJobSheet.vue.
  */
 import { ref, computed, watch, nextTick } from 'vue';
+import { storeToRefs } from 'pinia';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import type { NLDDTextField } from '@nldd/design-system/text-field';
 import { useBwbSearch, MIN_QUERY_LENGTH } from '../composables/useBwbSearch';
 import { useCorpus, type CorpusLaw } from '../corpus';
-import { useTrajects } from '../composables/useTrajects';
+import { useTrajectsStore } from '../stores/trajects';
 import { useLawPromote } from '../composables/useLawPromote';
 import { trajectHarvestUrl } from '../composables/corpusUrls';
 import { apiFetch, ApiError } from '../lib/apiFetch';
@@ -46,7 +47,7 @@ type ValueEvent = Event & { detail?: { value?: string } | null };
 /** A traject-scoped harvest request's state, per bwb_id. */
 type HarvestRequestState = 'busy' | 'requested' | 'conflict' | 'error';
 
-const { activeTrajectRef, activeTraject } = useTrajects();
+const { activeTrajectRef, activeTraject } = storeToRefs(useTrajectsStore());
 const corpus = useCorpus();
 const { results: bwbResults, loading: bwbLoading, search: searchBwb, clear: clearBwb } = useBwbSearch();
 

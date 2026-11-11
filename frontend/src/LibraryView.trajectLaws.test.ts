@@ -10,7 +10,7 @@
 // composable stubbed, deliberately narrow to this one surface.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
-import { ref, nextTick } from 'vue';
+import { nextTick, reactive } from 'vue';
 import * as harness from './test-utils/libraryViewHarness';
 import { installTestCorpus, type TestCorpus } from './test-utils/corpusSetup';
 
@@ -42,25 +42,14 @@ interface FakeServer {
   holdChanged: Promise<unknown> | null;
 }
 
-const routeState: RouteStub = {
+const routeState: RouteStub = reactive({
   name: 'library-traject',
   params: { trajectRef: 'traject-abcd1234' },
   query: {},
   fullPath: '/trajecten/traject-abcd1234',
-};
+});
 vi.mock('vue-router', () => harness.vueRouter(() => routeState));
 vi.mock('./composables/useAuth', () => harness.auth());
-
-// The ref the view watches: the traject switcher leaves LibraryView mounted
-// and only swaps the route param, which is what `watch(activeTrajectRef)`
-// reacts to, so a test switches traject in-place by writing to this exact ref.
-const activeTrajectRef = ref('traject-abcd1234');
-vi.mock('./composables/useTrajects', () =>
-  harness.trajectsModule(() => ({
-    activeTrajectRef,
-    activeTraject: ref({ name: 'Testtraject' }),
-  })),
-);
 
 // The answer book each test adjusts: the traject's sources, the laws of its
 // own source, the favorites and the edited laws. Favorites go through
@@ -135,7 +124,6 @@ vi.mock('./lib/apiFetch', () =>
     ApiError: ApiErrorStub,
   }),
 );
-vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 vi.mock('./composables/useDocumentsManager', () => harness.documentsManager());
 vi.mock('./composables/useTrajectDocumentJobs', () => harness.trajectDocumentJobs());
 vi.mock('./composables/useDocumentUpload', () => harness.documentUpload());
@@ -190,7 +178,7 @@ let corpus: TestCorpus;
 
 // Both trajects read from the answer book as it stands at the time of the read.
 function installCorpus() {
-  corpus = installTestCorpus({ 'traject-abcd1234': {}, 'traject-99998888': {} }, activeTrajectRef.value);
+  corpus = installTestCorpus({ 'traject-abcd1234': {}, 'traject-99998888': {} }, routeState.params.trajectRef ?? null);
   corpus.transport.list = async (_trajectRef, query) => {
     const laws = (query.ids ?? []).map(byId);
     return { laws, total: laws.length };
@@ -204,16 +192,15 @@ function installCorpus() {
   };
 }
 
-// A traject switch as the traject chooser makes it: the route, the ref
-// LibraryView watches, and the traject the corpus reads from.
+// A traject switch as the traject chooser makes it: the route, which the
+// trajecten store reads, and the traject the corpus reads from.
 function switchTraject(trajectRef: string) {
   routeState.params = { trajectRef };
-  activeTrajectRef.value = trajectRef;
   corpus.trajectRef.value = trajectRef;
 }
 
 async function mountLibrary() {
-  const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true } } });
+  const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true }, plugins: [harness.pinia()] } });
   for (let i = 0; i < 6; i++) await nextTick();
   return wrapper;
 }
@@ -261,7 +248,6 @@ beforeEach(() => {
   localStorage.clear();
   routeState.name = 'library-traject';
   routeState.params = { trajectRef: 'traject-abcd1234' };
-  activeTrajectRef.value = 'traject-abcd1234';
   server.sourceLaws = SEVEN_LAWS;
   server.favorites = [];
   server.changed = SEVEN_LAWS.map((l) => l.law_id);

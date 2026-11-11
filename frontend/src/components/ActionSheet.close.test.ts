@@ -2,11 +2,14 @@
 // <dialog> that turns Escape into its own close, with the closing animation.
 // A second listener on the document closed the sheet as well when Escape was
 // meant for a menu or popover inside it.
-import { describe, it, expect, beforeAll, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterEach } from 'vitest';
 import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils';
 
-vi.mock('../composables/useFeatureFlags', () => ({ useFeatureFlags: () => ({ isEnabled: () => false }) }));
-const { default: ActionSheet } = await import('./ActionSheet.vue');
+import ActionSheet from './ActionSheet.vue';
+import { testingPinia } from '../test-utils/testingPinia';
+
+// The plain sheet, without the RegelRijm reading.
+const plugins = () => [testingPinia({ initialState: { featureFlags: { flags: { 'panel.regelrijm': false } } } })];
 
 const ACTION = { output: 'hoogte', value: 5 };
 const ARTICLE = { number: '2', machine_readable: { execution: { actions: [ACTION] } } };
@@ -22,14 +25,14 @@ enableAutoUnmount(afterEach);
 
 describe('ActionSheet closing', () => {
   it('leaves Escape to the sheet', async () => {
-    const wrapper = mount(ActionSheet, { props: { action: ACTION, article: ARTICLE }, attachTo: document.body });
+    const wrapper = mount(ActionSheet, { props: { action: ACTION, article: ARTICLE }, attachTo: document.body, global: { plugins: plugins() } });
     await flushPromises();
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     expect(wrapper.emitted('close')).toBeUndefined();
   });
 
   it('closes when the sheet does', async () => {
-    const wrapper = mount(ActionSheet, { props: { action: ACTION, article: ARTICLE } });
+    const wrapper = mount(ActionSheet, { props: { action: ACTION, article: ARTICLE }, global: { plugins: plugins() } });
     await flushPromises();
     wrapper.find('nldd-sheet').element.dispatchEvent(new CustomEvent('close'));
     expect(wrapper.emitted('close')).toHaveLength(1);
