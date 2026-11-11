@@ -1602,19 +1602,18 @@ const reviewSeeded = ref(false);
 // Opslaan now approves the FULL proposal regardless - this only drives the
 // banner copy that points the reviewer at the YAML panel for the rest.
 const reviewHasHiddenChanges = ref(false);
-// In welk artikel het voorstel hoort te landen (`payload.article`, of - bij een
-// voorstel over de hele wet - het artikel dat `proposalDivergence` uitkoos), en
-// welk artikel het op dit moment daadwerkelijk vasthoudt. Die twee lopen uiteen
-// zodra je naar een ander artikel kijkt: `watch(selectedArticle)` zet de panes
-// dan terug naar de opgeslagen wet. Het verschil is precies het signaal om bij
-// terugkomst opnieuw te seeden.
+// The article the proposal should land in (`payload.article`, or - for a
+// proposal about the whole law - the article `proposalDivergence` picked), and
+// the article it actually sits in right now. The two part as soon as you look
+// at another article: useOpenLaw then drops the edits and the panes show the
+// saved law again. That difference is exactly the signal to seed again on
+// return.
 const reviewSeedTarget = ref<string | null>(null);
-// Waar het voorstel op dit moment daadwerkelijk in de panes staat, als
-// `wet::artikel`. De wet hoort in die sleutel: twee wetten in hetzelfde traject
-// kunnen dezelfde artikelnummers hebben ("B 5", "1", "2" zijn niet uniek), en
-// bij een wetwissel verandert `selectedArticleNumber` dan niet terwijl
-// `watch(selectedArticle)` de panes wél heeft teruggezet naar de opgeslagen wet.
-// Op het nummer alleen zou het voorstel er bij terugkomst niet opnieuw in gaan.
+// Where the proposal actually sits in the panes right now, as `law::article`.
+// The law belongs in the key: two laws in one traject can share article
+// numbers ("B 5", "1", "2" are not unique), and a law switch then leaves
+// `selectedArticleNumber` as it is while the panes went back to the saved law.
+// On the number alone the proposal would not go in again on return.
 const reviewSeededAt = ref<string | null>(null);
 function reviewSeedKey(number: string | null | undefined) {
   return `${lawId.value ?? ''}::${number ?? ''}`;
@@ -1650,21 +1649,14 @@ function applyProposedContent(proposedYaml: string) {
   if (!target) return; // nothing seedable differs - nothing to seed
   reviewSeeded.value = true;
   reviewSeedTarget.value = String(target.number);
-  // Meteen (niet pas in de nextTick hieronder): de watch die bij een
-  // artikelwissel opruimt en de her-seed-watch draaien in de flush ertussen, en
-  // moeten dit al als "geseed" zien - anders seeden ze er direct nog eens
-  // overheen.
+  // Set before seeding: the watches that clean up on an article switch and
+  // re-seed on return run in the next flush, and must already see this as
+  // seeded - otherwise they would seed over it again.
   reviewSeededAt.value = reviewSeedKey(String(target.number));
-  selectArticle(String(target.number));
-  // `watch(selectedArticle)` (above) resets editedText/machineReadable to
-  // the (still-saved) newly selected article; wait a tick so the seed
-  // below lands after that reset instead of being clobbered by it.
-  nextTick(() => {
-    const mr = target.machine_readable ?? null;
-    machineReadable.value = mr ? structuredClone(mr) : null;
-    yamlSource.value = mr ? yaml.dump(mr, dumpOpts) : '';
-    editedText.value = target.text ?? '';
-  });
+  // Selects the article and puts the proposal in its edits, in one call. The
+  // proposal is the leave guard's baseline: until the reviewer edits it,
+  // leaving loses nothing, since it is seeded again on return.
+  openLaw.seedProposal(target);
 }
 
 // Variant + copy for the review-mode bar (a low, full-width nldd-banner -
