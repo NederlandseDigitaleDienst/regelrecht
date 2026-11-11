@@ -255,7 +255,7 @@ A policy reaches a projection the normal way. When an article binds an open term
 A state holds single values. One state per person breaks down once a person holds several decisions, each with its own days: two business parking permits of one company, each with its last valid day, one of them suspended for a while. Since schema v0.8.17 a projection therefore plays one aggregate per record of a kind (`per`). Each such record is the root of an aggregate. The aggregate holds the root and every record that refers to it through `refers_to`, directly or through another record of the aggregate. Another record of the root's kind that refers into the aggregate is an aggregate of its own and counts in this one for its effects only. A decision put in the place of the root on objection is no such record, as described below. A root that does not count applies no step; the other records of its aggregate that count still apply theirs.
 
 ```yaml
-# reductie_bedrijfsparkeervergunning (PoC), one aggregate per decision
+# reductie_bedrijfsparkeervergunning (PoC), article vergunning, one aggregate per decision
 projection:
   per: parkeerverordening_gemeente_wilgendaal#2#BESCHIKKING
   state:
@@ -275,7 +275,7 @@ projection:
 A projection per record answers no question of its own and has no `execution`. A read model reads its aggregates with `source.projections`: one row per root the chronicle holds on the calculation date, the last state of its aggregate with the root's `id`. With `where`, the reduction reads only the roots whose field or output of a given name equals a parameter of the reading article, such as `kvk_nummer: $kvk_nummer`. Such an article plays nothing itself; it is a read model over the aggregates, and an article of policy says what the rows mean on the day asked about:
 
 ```yaml
-# reductie_geldige_bedrijfsparkeervergunningen (PoC), the count per company
+# reductie_bedrijfsparkeervergunning (PoC), article aantal_geldige_bedrijfsparkeervergunningen, the count per company
 input:
   - name: vergunningen
     type: array
@@ -284,7 +284,7 @@ input:
       where: {kvk_nummer: $kvk_nummer}
   - name: schorsingen
     type: array
-    source: {projections: reductie_schorsing_bedrijfsparkeervergunning#schorsing}
+    source: {projections: reductie_bedrijfsparkeervergunning#schorsing}
   - name: aantal
     type: number
     source:
@@ -293,7 +293,7 @@ input:
       parameters: {vergunningen: $vergunningen, schorsingen: $schorsingen, peildatum: $besluit_datum}
 ```
 
-Since schema v0.8.19 `source.projections` names the article of the aggregate, `<regulation>#<article>`, also when that article is in the reading file itself; up to v0.8.18 it named the reduction alone. The loader refuses a reference to an article that does not exist or plays no aggregate, as soon as it holds the file named. An aggregate that only one read model reads lives in the file of that read model, as article `inschrijving` of `reductie_vestiging_in_handelsregister` in the PoC does; one that several read models read, such as `reductie_bedrijfsparkeervergunning#vergunning`, keeps a file of its own.
+Since schema v0.8.19 `source.projections` names the article of the aggregate, `<regulation>#<article>`, also when that article is in the reading file itself; up to v0.8.18 it named the reduction alone. The loader refuses a reference to an article that does not exist or plays no aggregate, as soon as it holds the file named. One file may hold several aggregates and several read models. The PoC keeps the reductions of one subject together: `reductie_bedrijfsparkeervergunning` holds the aggregates per decision (`vergunning`) and per suspension (`schorsing`) and the two read models over them, and `reductie_vestiging_in_handelsregister` holds the aggregate per registration (`inschrijving`) beside the read model that reads it.
 
 The articles of the PoC's reductions have names instead of numbers, since a reduction has no published article numbers to follow. An aggregate is named after what it tracks, such as `vergunning`, `schorsing` or `advies`, and a read model after its question or main output, such as `plaats_van_vestiging`, in lowercase snake case.
 

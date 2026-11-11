@@ -39,8 +39,10 @@ const BAKKERIJ: &str = "99990011";
 const EERSTE: &str = "ZZ-001-Z";
 const TWEEDE: &str = "ZZ-002-Z";
 const AWB: &str = "algemene_wet_bestuursrecht";
-const PER_VERGUNNING: &str = "reductie_bedrijfsparkeervergunning_op_peildatum";
-const PER_BEDRIJF: &str = "reductie_geldige_bedrijfsparkeervergunningen";
+/// The reduction of the business parking permit (schema v0.8.19): its
+/// aggregates per decision and per suspension, and its read models per
+/// licence plate and per company, in one file.
+const REDUCTIE: &str = "reductie_bedrijfsparkeervergunning";
 const GEVRAAGD_OP: &str = "2028-01-15";
 
 fn corpus_dir() -> std::path::PathBuf {
@@ -317,7 +319,7 @@ fn s(v: &str) -> EngineValue {
 fn geldig(service: &LawExecutionService, grams: &[Gram], kenteken: &str, peildatum: &str) -> bool {
     match antwoord(
         service,
-        PER_VERGUNNING,
+        REDUCTIE,
         "bedrijfsparkeervergunning_geldig_op_peildatum",
         grams,
         &[("kenteken", s(kenteken)), ("peildatum", s(peildatum))],
@@ -333,7 +335,7 @@ fn geldig(service: &LawExecutionService, grams: &[Gram], kenteken: &str, peildat
 fn aantal(service: &LawExecutionService, grams: &[Gram], peildatum: &str) -> EngineValue {
     antwoord(
         service,
-        PER_BEDRIJF,
+        REDUCTIE,
         "aantal_geldige_bedrijfsparkeervergunningen",
         grams,
         &[("kvk_nummer", s(BAKKERIJ)), ("besluit_datum", s(peildatum))],
@@ -440,7 +442,7 @@ fn the_reduction_tab_shows_the_copies_the_permit_reduction_reads() {
         .as_array()
         .unwrap()
         .iter()
-        .find(|r| r["id"] == json!(PER_VERGUNNING))
+        .find(|r| r["id"] == json!(REDUCTIE))
         .unwrap();
     let feiten: Vec<&str> = reductie["invoer"]
         .as_array()

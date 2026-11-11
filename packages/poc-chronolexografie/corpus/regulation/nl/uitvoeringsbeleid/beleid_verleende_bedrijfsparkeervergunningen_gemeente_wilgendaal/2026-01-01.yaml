@@ -9,11 +9,11 @@ valid_from: '2026-01-01'
 # url wijst daarom naar het Delftse besluit waarnaar het uitvoeringsbesluit
 # parkeren van Wilgendaal is gemodelleerd. Welke bedrijfsparkeervergunningen
 # (artikel 2 van de fictieve parkeerverordening) op een dag geldig zijn. De
-# gemeente houdt per besluit op een aanvraag een aggregaat bij
-# (reductie_bedrijfsparkeervergunning) en per afschrift van een uitspraak van
-# de voorzieningenrechter een (reductie_schorsing_bedrijfsparkeervergunning);
-# de reducties die tellen, per bedrijf en per kenteken, geven dit beleid de
-# rijen van die aggregaten en de dag (schema v0.8.17). Wat een rij op die dag
+# gemeente houdt per besluit op een aanvraag een aggregaat bij en per
+# afschrift van een uitspraak van de voorzieningenrechter een
+# (reductie_bedrijfsparkeervergunning, artikelen vergunning en schorsing); de
+# read models van die reductie, per bedrijf en per kenteken, geven dit beleid
+# de rijen van die aggregaten en de dag (schema v0.8.17). Wat een rij op die dag
 # betekent, staat hier: artikel 1 zegt welke besluiten op de dag geschorst
 # zijn, artikel 2 welke vergunningen geldig zijn. Artikel 3 zegt per
 # beslissing op bezwaar wat het nieuwe besluit verleent dat zij in de plaats

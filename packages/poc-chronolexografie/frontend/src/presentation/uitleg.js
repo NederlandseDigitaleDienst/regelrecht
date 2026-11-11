@@ -34,9 +34,8 @@ const BELEID =
   `${CORPUS}/regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal/2026-01-01.yaml`;
 const CEL = `${CORPUS}/cells/gemeente_wilgendaal/cel.yaml`;
 const REDUCTIE =
-  `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_geldige_bedrijfsparkeervergunningen/2026-01-01.yaml`;
-const AGGREGAAT =
   `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_bedrijfsparkeervergunning/2026-01-01.yaml`;
+const AGGREGAAT = REDUCTIE;
 const STAP =
   `${CORPUS}/regulation/nl/uitvoeringsbeleid/beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal/2026-01-01.yaml`;
 const AWB = `${CORPUS}/regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml`;
@@ -45,7 +44,7 @@ const KVK_REDUCTIE =
   `${CORPUS}/cells/kamer_van_koophandel/reductions/reductie_vestiging_in_handelsregister/2026-01-01.yaml`;
 
 /** The files the panels show, for the page that loads them (UitlegPagina.vue). */
-export const bronnen = [VERORDENING, BESLUIT, BELEID, CEL, REDUCTIE, AGGREGAAT, STAP, AWB, KVK_CEL, KVK_REDUCTIE];
+export const bronnen = [VERORDENING, BESLUIT, BELEID, CEL, REDUCTIE, STAP, AWB, KVK_CEL, KVK_REDUCTIE];
 
 /**
  * The paths of a panel that start open: its own, and the article each one
@@ -188,7 +187,7 @@ export const steps = [
     title: 'Reductie telt de vergunningen',
     text: [
       'De gemeente houdt elk besluit onder artikel 2 van de verordening apart bij, met alles wat ernaar verwijst, en zo ook elke schorsing door de voorzieningenrechter.',
-      'Zo\'n bundel heet een aggregaat. Een tweede reductie leest de aggregaten van het bedrijf, en het beleid van het college telt welke vergunningen op de dag van het besluit gelden.',
+      'Zo\'n bundel heet een aggregaat. Een ander artikel van dezelfde reductie leest de aggregaten van het bedrijf, en het beleid van het college telt welke vergunningen op de dag van het besluit gelden.',
     ],
     panels: [
       {
