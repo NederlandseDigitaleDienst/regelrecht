@@ -1,6 +1,7 @@
 import './nldd-components.js';
 import '@nldd/design-system/styles';
 import { computed, createApp } from 'vue';
+import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
 import { installApiAuthGuard } from './lib/apiAuthGuard';
@@ -23,6 +24,9 @@ installCorpus(createCorpusReader({
   trajectRef: computed(() => singleParam(router.currentRoute.value.params.trajectRef) ?? null),
 }));
 
+// App-wide state lives in Pinia stores (src/stores); see the editor's
+// component page in the docs for what goes in a store and what does not.
 const app = createApp(App);
+app.use(createPinia());
 app.use(router);
 app.mount('#app');
