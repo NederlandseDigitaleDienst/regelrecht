@@ -150,17 +150,19 @@ versions; the script says how to look them up.
 
 The files come from a cache first. The job restores them with GitHub's cache
 action, under a key built from the hash of the script, and on a hit the step
-needs no network at all. After a download the job saves the
-directory in a separate step, so the files are kept even when the gate fails
-on a page later on. GitHub scopes a cache to the branch that saved it: a
-rerun or the next push to the same pull request finds it, and one saved on
-`main` serves every pull request.
+needs no network at all. After a download the job saves the directory in a
+separate step, so the files are kept even when the gate fails on a page later
+on. On a cold cache all three shards download and try to save; two of them log
+that another job is creating the cache, which is harmless. GitHub scopes a
+cache to the branch that saved it. A rerun or the next push to the same pull
+request finds it, and a cache saved on `main` serves every pull request.
 
 Without a cache hit the script tries five sources in turn:
 
 1. Launchpad, which keeps every version that was ever published.
 2. The Ubuntu archive pool on `archive.ubuntu.com`, which holds a version only
-   until a newer one replaces it. The mirrors below follow that pool.
+   until a newer one replaces it. Sources 3 to 5 mirror that pool and drop old
+   versions the same way.
 3. The Azure mirror under `azure.archive.ubuntu.com`, the host in the image's
    apt sources.
 4. The same Azure mirror under its Azure name,
@@ -169,10 +171,10 @@ Without a cache hit the script tries five sources in turn:
 
 The first three depend on Canonical's DNS. On 2026-11-11 the name servers for
 `ubuntu.com` and `launchpad.net` failed, none of those hosts resolved in the
-container, and the gate blocked every pull request and every entry in the
-merge queue. The last two sources resolve without Canonical. A host that does
-not answer at all is skipped for the remaining files, so it costs its timeout
-once. A host that answers with an HTTP error, or with the wrong bytes, still
+container, and the gate failed on every pull request that touched the docs and
+on its entry in the merge queue. The last two sources resolve without
+Canonical. A host that does not answer at all is skipped for the remaining
+files, so it costs its timeout once (at most ten seconds to connect). A host that answers with an HTTP error, or with the wrong bytes, still
 gets the next file. `script/install-a11y-debs.test.sh` covers these paths with
 `curl` and `dpkg` as stubs.
 

@@ -1458,7 +1458,9 @@ jobs:
       # and downloads nothing. Restore and save are separate steps so a
       # download is kept even when the gate itself fails further on. `~` is
       # the container's home (/github/home) for both the cache action and the
-      # script, since both run inside the container.
+      # script, since both run inside the container. On a cold cache all three
+      # shards try to save the same key; two log "Unable to reserve cache",
+      # which is a warning, not a failure.
       - name: Restore the .debs for unzip and fonts
         id: a11y-debs
         if: needs.changes.outputs.docs == 'true'

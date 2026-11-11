@@ -31,7 +31,8 @@
 # archive.ubuntu.com and azure.archive.ubuntu.com (the mirror in the image's
 # apt sources) are names under ubuntu.com, and launchpad.net is Canonical's
 # too. On 2026-11-11 public resolvers returned SERVFAIL for both domains,
-# none of the three names resolved on the runners, and every PR was blocked.
+# none of the three names resolved in the container, and every PR that
+# touched the docs was blocked.
 # The last two sources do not depend on Canonical's DNS: the Azure mirror
 # under its own Azure name, and the kernel.org mirror. A source that does not
 # answer at all is skipped for the remaining files, so a dead host costs its
@@ -88,10 +89,11 @@ else
   trap 'rm -rf "${dir:?}"' EXIT
 fi
 
+# No --retry: the next source is the retry, and a curl retry would double
+# what a dead host costs.
 fetch() {
-  curl -fsSL --connect-timeout 10 --max-time 120 --retry 1 --retry-connrefused -o "$1" "$2"
+  curl -fsSL --connect-timeout 10 --max-time 120 -o "$1" "$2"
 }
-
 
 verify() {
   echo "$sha  $dir/$file" | sha256sum -c --status -

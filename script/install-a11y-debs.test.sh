@@ -138,7 +138,7 @@ hosts launchpad.example=dead one.example=dead two.example=dead
 run
 expect_status "no source answering fails" 1
 if [ -f "$tmp/dpkg.log" ]; then bad "dpkg runs although nothing was downloaded"; else ok "dpkg does not run when a download fails"; fi
-if grep -qF "no source delivered" <<<"$out"; then ok "the failure names the file"; else bad "the failure names the file"; fi
+if grep -qF "a_1_all.deb: no source delivered" <<<"$out"; then ok "the failure names the file"; else bad "the failure names the file"; fi
 
 hosts one.example=only:b_1_all.deb two.example=serve
 run
