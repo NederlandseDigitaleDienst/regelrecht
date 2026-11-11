@@ -83,6 +83,7 @@ const KNOWN_GAPS: &[&str] = &[
     "projection_step_set_operation.yaml", // schema v0.8.14 allows only a bare reference as the value of a step's action; the model reads an operation, and the loader refuses it (`reject_malformed_projection`)
     "produces_list_unknown_type.yaml", // schema v0.8.1 pins `type` to a submission kind or a legal character; the model reads any string, and an unknown one as a legal character, as for `produces_unknown_legal_character`
     "produces_list_requests_on_decision.yaml", // schema v0.8.1 allows `requests` only on a submission (`if`/`then`); the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)
+    "produces_list_taken_on_on_submission.yaml", // schema v0.8.19 allows `taken_on` only on a decision; the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)
     "produces_list_derived_on_submission.yaml", // schema v0.8.4 allows `derived` only on a decision (`if`/`then`); the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)
     "requires_fact_with_law.yaml", // schema v0.8.7 lets a `requires` entry name a fact or another provision, not both (`if`/`then`); the model has all fields on one entry, and the loader refuses it (`reject_malformed_facts`)
     "projection_key.yaml", // schema v0.8.17 has no `key` on a projection, only `per`; the model still reads `key` for a law under v0.8.14 to v0.8.16, and the loader refuses it in a file under v0.8.17 (`reject_malformed_projection`)

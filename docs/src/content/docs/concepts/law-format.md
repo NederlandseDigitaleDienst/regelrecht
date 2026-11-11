@@ -210,7 +210,7 @@ The set is short on purpose. An operation earns its place when a real law needs 
 
 `produces` states what executing the article yields in legal terms. Article 3 is a `TOETS`: it tests a condition, and its outcome feeds the decision article 2 takes. Article 2 declares a `BESCHIKKING`, and that difference matters to the engine. The legal character selects which procedural hooks fire, such as the objection period the Awb attaches to a beschikking, so an article's outcome and the procedure around it both depend on this declaration. [Hooks and Reactive Execution](/concepts/hooks-and-reactive-execution#the-produces-annotation) explains the mechanism, and the [glossary](/reference/glossary#legal-character) defines each value.
 
-An article that yields more than one thing writes `produces` as a list, one item per thing (schema v0.8.1). Each item says what it is with `type`, a kind of submission or a legal character. Leerplichtwet 1969 art. 13a establishes the application for leave and decides on it. The application lists the parameters it contains under `parameters` and names the decision it asks for with `requests`; the decision lists its outputs under `outputs`. [RFC-045](/rfcs/rfc-045) shows it and gives the rules.
+An article that yields more than one thing writes `produces` as a list, one item per thing (schema v0.8.1). Each item says what it is with `type`, a kind of submission or a legal character. Leerplichtwet 1969 art. 13a establishes the application for leave and decides on it. The application lists the parameters it contains under `parameters` and names the decision it asks for with `requests`; the decision lists its outputs under `outputs`. A decision taken on an application that asks for another one names, under `taken_on`, the article that establishes that application (schema v0.8.19). Awir 16 grants an advance on the application for an allowance, while the application asks for the allowance itself. [RFC-045](/rfcs/rfc-045) shows it and gives the rules.
 
 #### Derived data
 
@@ -240,6 +240,7 @@ Every output of an article belongs to at most one item, under `outputs` or `deri
 - No output that belongs to no item, unless a decision beside it lists its own outputs. A forgotten or misspelled output fails instead of quietly becoming derived data.
 - `derived` names outputs of the article, and never sits on a submission.
 - `requests` sits on a submission only. Within the same law it must name an article that takes a decision; one to another law is checked when it is used, since that law may load later.
+- `taken_on` sits on a decision only. Within the same law it must name an article that establishes a submission, and a submission of that law that asks for this decision must be the one it names.
 
 ## Type Specifications
 

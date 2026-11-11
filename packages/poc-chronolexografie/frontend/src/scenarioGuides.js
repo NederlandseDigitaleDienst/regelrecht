@@ -25,10 +25,20 @@ import { hoofdletter, jaNee, leesbaar, longDate } from './state.js';
 // What the scenario expects of a step, as warning text.
 const expectation = (check, text) => ({ check, text });
 
-const granted = (n) =>
-  expectation((k) => k.decided[n - 1] === true, 'hier hoort het besluit de aanvraag toe te wijzen');
-const rejected = (n) =>
-  expectation((k) => k.decided[n - 1] === false, 'hier hoort het besluit de aanvraag af te wijzen');
+// The decisions a step counts: those under its article when it names one,
+// as for an application that leads to more than one decision.
+const besluitenVan = (stap) => (k) => (stap?.artikel ? k.decidedOnder(stap.artikel) : k.decided);
+
+const granted = (n, stap) =>
+  expectation(
+    (k) => besluitenVan(stap)(k)[n - 1] === true,
+    'hier hoort het besluit de aanvraag toe te wijzen',
+  );
+const rejected = (n, stap) =>
+  expectation(
+    (k) => besluitenVan(stap)(k)[n - 1] === false,
+    'hier hoort het besluit de aanvraag af te wijzen',
+  );
 const upheld = (n) => expectation((k) => k.gegrond >= n, 'hier hoort het bezwaar gegrond te zijn');
 const dismissed = (n) => expectation((k) => k.ongegrond >= n, 'hier hoort het bezwaar ongegrond te zijn');
 const inadmissible = (n) =>
@@ -58,7 +68,7 @@ const KINDS = {
     title: (n) => (n === 1 ? 'Besluit nemen' : 'Besluiten op de tweede aanvraag'),
     todo: 'Klik onder Open aanvragen op Besluit nemen.',
     seen: () => 'Het besluit staat bij Aanvrager onder Mijn aanvragen.',
-    done: (n) => (k) => k.decided.length >= n,
+    done: (n, stap) => (k) => besluitenVan(stap)(k).length >= n,
     weigering: /no judgement was given|asks '/,
   },
   bezwaar: {
@@ -169,10 +179,10 @@ export function bouwGids(scenario, casus = null) {
     let expect = null;
     switch (stap.uitkomst) {
       case 'toegewezen':
-        expect = granted(doel);
+        expect = granted(doel, stap);
         break;
       case 'afgewezen':
-        expect = rejected(doel);
+        expect = rejected(doel, stap);
         break;
       case 'gegrond':
         expect = upheld(keer);

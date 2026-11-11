@@ -32,6 +32,13 @@ export function counts() {
       .map((a) => besluitOp(a.id))
       .filter(Boolean)
       .map((g) => !!toegewezen(g)),
+    // The same for the decisions under one article, for an application
+    // that leads to more than one decision (`taken_on`).
+    decidedOnder: (basis) =>
+      aanvragen()
+        .map((a) => besluitOp(a.id, basis))
+        .filter(Boolean)
+        .map((g) => !!toegewezen(g)),
     bezwaren: state.grammen.filter((g) => g.kind === 'BEZWAAR').length,
     beslissingen: beslissingen.length,
     gegrond: beslissingen.filter((g) => uit(g).bestreden_besluit_herroepen === true).length,

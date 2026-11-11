@@ -47,11 +47,19 @@ export const state = reactive({
 /** Het artikel waaronder de casus op een aanvraag besluit, `<wet>#<artikel>`. */
 export const besluitBasis = () => state.casus?.besluit;
 
+/** Elk artikel waaronder de casus op een aanvraag besluit: het gevraagde eerst. */
+export const besluitBases = () =>
+  state.casus?.besluiten?.map((b) => b.basis) ?? [besluitBasis()];
+
 /** Het artikel van de beslissing op bezwaar (Awb 7:11). */
 export const bezwaarBasis = () => state.casus?.beslissing_op_bezwaar;
 
 /** Of een besluit het gevraagde toewijst, volgens de uitvoer die de casus noemt. */
-export const toegewezen = (g) => g?.outputs?.[state.casus?.uitkomst];
+export const toegewezen = (g) => g?.outputs?.[uitkomstVan(g)];
+
+/** De uitvoer die zegt of besluit `g` toewijst: per artikel, of die van de casus. */
+export const uitkomstVan = (g) =>
+  state.casus?.besluiten?.find((b) => b.basis === g?.basis)?.uitkomst ?? state.casus?.uitkomst;
 
 // Het spel van dit tabblad, bewaard zodat een herladen tabblad verder gaat
 // waar het was. Elk tabblad speelt zijn eigen spel, in het geheugen van de
@@ -222,9 +230,14 @@ export const verwijstNaar = (id) => state.grammen.filter((g) => g.refers_to === 
 
 export const aanvragen = () => state.grammen.filter((g) => g.kind === 'AANVRAAG');
 
-/** Het besluit op een aanvraag, als het er is. */
-export const besluitOp = (id) =>
-  verwijstNaar(id).find((g) => g.basis === besluitBasis() && g.kind !== 'BEZWAAR');
+/**
+ * Het besluit op een aanvraag, als het er is: onder `basis`, of zonder die het
+ * eerste onder een artikel van de casus.
+ */
+export const besluitOp = (id, basis) =>
+  verwijstNaar(id).find(
+    (g) => (basis ? g.basis === basis : besluitBases().includes(g.basis)) && g.kind !== 'BEZWAAR',
+  );
 
 /**
  * Het nieuwe besluit dat beslissing op bezwaar `b` in de plaats van het
@@ -283,8 +296,10 @@ export function rol(g) {
 export function dossier(aanvraag) {
   const stap = (gram, rechter = false) => ({ gram, rol: rol(gram), rechter });
   const stappen = [stap(aanvraag)];
-  const besluit = besluitOp(aanvraag.id);
-  if (besluit) {
+  // Een aanvraag kan tot meer besluiten leiden: elk met zijn eigen keten.
+  for (const basis of besluitBases()) {
+    const besluit = besluitOp(aanvraag.id, basis);
+    if (!besluit) continue;
     stappen.push(stap(besluit));
     for (const bezwaar of bezwarenTegen(besluit.id)) {
       stappen.push(stap(bezwaar));
@@ -306,17 +321,23 @@ export function dossier(aanvraag) {
  * Het besluit dat nu voor een aanvraag geldt: het besluit op de aanvraag,
  * of het nieuwe besluit dat de laatste beslissing op een bezwaar ertegen in
  * zijn plaats nam. Een beslissing die de rechter met haar rechtsgevolgen
- * vernietigde, telt niet, en het nieuwe besluit dat zij hield evenmin.
+ * vernietigde, telt niet, en het nieuwe besluit dat zij hield evenmin. Leidt
+ * de aanvraag tot meer besluiten, dan gaat het gevraagde voor.
  */
 export function geldendBesluit(aanvraag) {
-  const besluit = besluitOp(aanvraag.id);
-  if (!besluit) return null;
-  let geldend = besluit;
-  for (const bezwaar of bezwarenTegen(besluit.id)) {
-    const beslissing = geldendeBeslissingOp(bezwaar.id);
-    if (beslissing?.outputs?.bestreden_besluit_herroepen === true) geldend = nieuwBesluit(beslissing);
-  }
-  return geldend;
+  const geldendOnder = (basis) => {
+    const besluit = besluitOp(aanvraag.id, basis);
+    if (!besluit) return null;
+    let geldend = besluit;
+    for (const bezwaar of bezwarenTegen(besluit.id)) {
+      const beslissing = geldendeBeslissingOp(bezwaar.id);
+      if (beslissing?.outputs?.bestreden_besluit_herroepen === true) {
+        geldend = nieuwBesluit(beslissing);
+      }
+    }
+    return geldend;
+  };
+  return besluitBases().map(geldendOnder).find(Boolean) ?? null;
 }
 
 /**
@@ -406,14 +427,14 @@ const isMetadata = (w) => w == null || isBesluitwaarde(w) || GRAM_ID.test(w);
 
 /**
  * The main fields of a chronolexogram as `name: value`: for a decision the
- * outcome of the case (`casus.uitkomst`), otherwise the fields its article
+ * outcome of the case for its article (`uitkomstVan`), otherwise the fields its article
  * gives it itself (`vormen.eigen_velden`, not what a hook adds) that are no
  * metadata. With more than two left there are none: nothing says which of
  * them matter most.
  */
 export function hoofdvelden(gram) {
   const waarden = { ...gram.fields, ...gram.outputs };
-  const uitkomst = state.casus?.uitkomst;
+  const uitkomst = uitkomstVan(gram);
   const namen = uitkomst in (gram.outputs ?? {}) ? [uitkomst] : (state.vormen?.eigen_velden?.[gram.id] ?? []);
   const eigen = namen.filter((naam) => !isMetadata(waarden[naam]));
   if (eigen.length > 2) return [];

@@ -59,8 +59,8 @@ use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
-    ActionOperation, ActionValue, CompetentAuthority, MachineReadable, ParameterType,
-    RegulatoryLayer, names_fact,
+    ActionOperation, ActionValue, Article, CompetentAuthority, MachineReadable, ParameterType,
+    Produced, RegulatoryLayer, names_fact,
 };
 
 /// Refuse a construct that a later schema version removed, naming what
@@ -634,6 +634,66 @@ pub(crate) fn from_version(law: &ArticleBasedLaw, version: (u32, u32, u32)) -> b
         .is_none_or(|declared| declared >= version)
 }
 
+/// The article `target` (`<regulation>#<article>`) names in `law`: `None`
+/// when it is in another law, which the loader cannot check yet (RFC-047),
+/// and `Some(None)` when this law has no such article.
+fn same_law_article<'l>(law: &'l ArticleBasedLaw, target: &str) -> Option<Option<&'l Article>> {
+    let (regulation, number) = target.split_once('#')?;
+    (regulation == law.id).then(|| law.find_article_by_number(number))
+}
+
+/// Refuse a `taken_on` (schema v0.8.19) that is not on a decision, that a
+/// file under an earlier version names, or whose target in the same law
+/// establishes no submission. A decision that a submission of this law asks
+/// for with `requests` is taken on that submission, so `taken_on` names
+/// that one: the decision value of the decision says so, and an application
+/// cannot be the one a decision is taken on in two ways.
+fn check_taken_on(
+    law: &ArticleBasedLaw,
+    article: &Article,
+    item: Produced<'_>,
+    target: &str,
+) -> std::result::Result<(), String> {
+    if item.legal_character().is_none() {
+        return Err(format!(
+            "names taken_on '{target}' on its {}; only a decision is taken on a submission",
+            item.submission_kind().unwrap_or("item")
+        ));
+    }
+    if !from_version(law, (0, 8, 19)) {
+        return Err(format!(
+            "names taken_on '{target}', which schema v0.8.19 introduced; the file declares {}",
+            law.schema_version().unwrap_or("no version")
+        ));
+    }
+    match same_law_article(law, target) {
+        Some(None) => {
+            return Err(format!(
+                "is taken on the submission of '{target}', but this law has no article {}",
+                target.split_once('#').map_or("", |(_, n)| n)
+            ));
+        }
+        Some(Some(a)) if a.get_submission().is_none() => {
+            return Err(format!(
+                "is taken on the submission of '{target}', which establishes no submission"
+            ));
+        }
+        _ => {}
+    }
+    let own = format!("{}#{}", law.id, article.number);
+    if let Some(asking) = law.articles.iter().find(|a| {
+        let theirs = format!("{}#{}", law.id, a.number);
+        theirs != target && a.requested_decision(&theirs).as_deref() == Some(own.as_str())
+    }) {
+        return Err(format!(
+            "is taken on the submission of '{target}', but the submission of article {} \
+             requests this decision",
+            asking.number
+        ));
+    }
+    Ok(())
+}
+
 /// Refuse an article whose `produces` list (schema v0.8.1, RFC-045 §1) has two
 /// items of one type, gives an output to two items (as one of its
 /// `outputs`, or as data `derived` for the decision, RFC-045 §1), lists
@@ -682,32 +742,32 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             types.push(ty);
         }
         for item in &produced {
-            let Some(target) = item.requests() else {
-                continue;
-            };
-            if item.submission_kind().is_none() {
-                return refuse(format!(
-                    "requests '{target}' on a decision; only a submission requests a decision"
-                ));
-            }
-            let Some((regulation, number)) = target.split_once('#') else {
-                continue;
-            };
-            if regulation != law.id {
-                continue;
-            }
-            match law.find_article_by_number(number) {
-                None => {
+            if let Some(target) = item.requests() {
+                if item.submission_kind().is_none() {
                     return refuse(format!(
-                        "requests the decision of '{target}', but this law has no article {number}"
+                        "requests '{target}' on a decision; only a submission requests a decision"
                     ));
                 }
-                Some(a) if a.get_decision().is_none() => {
-                    return refuse(format!(
-                        "requests the decision of '{target}', which takes no decision"
-                    ));
+                match same_law_article(law, target) {
+                    Some(None) => {
+                        return refuse(format!(
+                            "requests the decision of '{target}', but this law has no article \
+                             {}",
+                            target.split_once('#').map_or("", |(_, n)| n)
+                        ));
+                    }
+                    Some(Some(a)) if a.get_decision().is_none() => {
+                        return refuse(format!(
+                            "requests the decision of '{target}', which takes no decision"
+                        ));
+                    }
+                    _ => {}
                 }
-                Some(_) => {}
+            }
+            if let Some(target) = item.taken_on()
+                && let Err(why) = check_taken_on(law, article, *item, target)
+            {
+                return refuse(why);
             }
         }
         if let Some(item) = produced
@@ -1710,6 +1770,22 @@ articles:
                 "which takes no decision",
             ),
             (
+                "          - type: AANVRAAG\n            taken_on: lijst#1\n          - type: BESCHIKKING",
+                "only a decision is taken on a submission",
+            ),
+            (
+                "          - type: AANVRAAG\n          - type: BESCHIKKING\n            taken_on: lijst#2",
+                "this law has no article 2",
+            ),
+            (
+                "          - type: BESCHIKKING\n            taken_on: lijst#1",
+                "which establishes no submission",
+            ),
+            (
+                "          - type: AANVRAAG\n            requests: lijst#1\n          - type: BESCHIKKING\n            taken_on: ander#1",
+                "the submission of article 1 requests this decision",
+            ),
+            (
                 "          - type: AANVRAAG\n            parameters: [p]",
                 "declares output 'x', but nothing it produces yields it",
             ),
@@ -1747,6 +1823,57 @@ articles:
                 "{why}: got {err:?}"
             );
         }
+    }
+
+    /// A decision may name the submission it is taken on (schema v0.8.19),
+    /// as Awir 16 does for the application of Awir 15: that submission asks
+    /// for the decision of another article, and leads to this one as well.
+    /// A file under an earlier version may not name one.
+    #[test]
+    fn a_decision_names_the_submission_it_is_taken_on() {
+        let yaml = format!(
+            "{}\n{}",
+            law_producing(
+                "          - type: AANVRAAG\n            parameters: [p]\n            requests: lijst#1\n          - type: BESCHIKKING\n            outputs: [x]"
+            )
+            .trim_end(),
+            r#"  - number: '2'
+    text: t
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            taken_on: lijst#1
+        parameters:
+          - name: p
+            type: string
+        output:
+          - name: y
+            type: boolean
+        actions:
+          - output: y
+            value: true
+"#
+        );
+        let mut service = LawExecutionService::new();
+        service
+            .load_law(&yaml)
+            .expect("a decision taken on a submission loads");
+        let law: ArticleBasedLaw = serde_yaml_ng::from_str(&yaml).expect("parses");
+        assert_eq!(law.articles[1].decision_taken_on(), Some("lijst#1"));
+        assert_eq!(law.articles[0].decision_taken_on(), None);
+
+        let earlier = format!(
+            "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json\n{}",
+            yaml.trim_start()
+        );
+        let err = LawExecutionService::new()
+            .load_law(&earlier)
+            .expect_err("taken_on under v0.8.18 must not load");
+        assert!(
+            err.to_string().contains("schema v0.8.19 introduced"),
+            "{err}"
+        );
     }
 
     /// A decision's effects name a parameter of the article, and may depend

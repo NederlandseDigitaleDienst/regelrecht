@@ -161,7 +161,7 @@ GEMEENTELIJKE_VERORDENING, PROVINCIALE_VERORDENING, WATERSCHAPS_VERORDENING.
 
 **Schema URL:**
 ```
-https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json
+https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
 ```
 
 **Required Fields (always):**
