@@ -370,6 +370,12 @@ impl LawExecutionService {
     /// no step; the other records of its aggregate that count apply
     /// theirs. The reduction in force on the calculation
     /// date plays every aggregate.
+    ///
+    /// # Errors
+    ///
+    /// When the reduction is not loaded on the calculation date, when the
+    /// article `reference` names does not exist or plays no aggregate per
+    /// record, or when a step of the projection fails.
     pub fn projection_rows(
         &self,
         reference: &str,
@@ -384,6 +390,12 @@ impl LawExecutionService {
     /// [`Self::projection_rows`], and when `trace` asks for it, per
     /// aggregate a `PROJECTION` node: which records count and the fold, as
     /// a projection with a key traces them.
+    ///
+    /// # Errors
+    ///
+    /// When the reduction is not loaded on the calculation date, when the
+    /// article `reference` names does not exist or plays no aggregate per
+    /// record, or when a step of the projection fails.
     pub fn projection_rows_traced(
         &self,
         reference: &str,
@@ -412,6 +424,12 @@ impl LawExecutionService {
     /// The aggregates [`Self::projection_rows`] reads, each with its last
     /// state, which record set each property last, and what became of each
     /// of its records, as a projection reports them.
+    ///
+    /// # Errors
+    ///
+    /// When the reduction is not loaded on the calculation date, when the
+    /// article `reference` names does not exist or plays no aggregate per
+    /// record, or when a step of the projection fails.
     pub fn aggregates(
         &self,
         reference: &str,
