@@ -38,7 +38,7 @@ import { useEnrichState } from './composables/useEnrichState';
 import { useTrajectsStore } from './stores/trajects';
 import { lawUploadUrl, favoritesUrl, favoriteUrl } from './composables/corpusUrls';
 import { SUPPORT_EMAIL, paneChromeVisible } from './constants';
-import { registerSearchPopover, setLibraryEmpty, openSearch } from './composables/useAppChrome';
+import { useAppChromeStore } from './stores/appChrome';
 import { homeTarget } from './composables/useLastVisitedRoute';
 import { useDocumentsManager } from './composables/useDocumentsManager';
 import { useTrajectDocumentJobs } from './composables/useTrajectDocumentJobs';
@@ -128,6 +128,7 @@ const router = useRouter();
 const trajectsStore = useTrajectsStore();
 const { activeTrajectRef, activeTraject } = storeToRefs(trajectsStore);
 const { refreshTrajects } = trajectsStore;
+const { registerSearchPopover, setLibraryEmpty, openSearch } = useAppChromeStore();
 
 // Favorites without an account live in this browser (useLocalFavorites), in
 // Corpus juris only: a traject needs a login anyway. The sidebar says so, and

@@ -9,7 +9,7 @@ import type { OpenTab } from '../lib/openTabsStorage';
 import { useAuth } from '../composables/useAuth';
 import { useLoginToChooser } from '../composables/useLoginToChooser';
 import { homeTarget, trajectSwitchTarget } from '../composables/useLastVisitedRoute';
-import { useAppChrome } from '../composables/useAppChrome';
+import { useAppChromeStore } from '../stores/appChrome';
 import TrajectCreateForm from './TrajectCreateForm.vue';
 
 // Mobiele (sm) samenvoeging van de traject-knop en de artikel-tabbladen-knop:
@@ -21,7 +21,7 @@ const trajectsStore = useTrajectsStore();
 const { trajects, activeTrajectRef, activeTraject, loading } = storeToRefs(trajectsStore);
 const { createTraject } = trajectsStore;
 const { authenticated } = useAuth();
-const { documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions } = useAppChrome();
+const { documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions } = storeToRefs(useAppChromeStore());
 const route = useRoute();
 const router = useRouter();
 
@@ -32,7 +32,7 @@ const loginToChooser = useLoginToChooser();
 const sheetEl = ref<NLDDSheet | null>(null);
 const sheetMode = ref<'list' | 'create'>('list'); // 'list' | 'create'
 
-// Editor = de editor-view publiceert open tabbladen via useAppChrome.
+// In the editor, the editor view publishes its open tabs through the chrome store.
 const hasArticles = computed(() => documentTabs.value.length > 0 && !!tabActions.value);
 
 // --- Knoptekst: in de editor het actieve artikel · wet, met het traject als

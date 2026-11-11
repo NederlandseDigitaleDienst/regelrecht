@@ -14,14 +14,7 @@ import { useTaskReview } from './composables/useTaskReview';
 import { useNotes, useResolvedDraftNotes } from './composables/useNotes';
 import { useDraftNotes } from './composables/useDraftNotes';
 import { lastHomePath, homeTarget } from './composables/useLastVisitedRoute';
-import {
-  registerSearchPopover,
-  setEditorChrome,
-  registerTabActions,
-  setEditorChanges,
-  registerEditorActions,
-  clearEditorChrome,
-} from './composables/useAppChrome';
+import { useAppChromeStore } from './stores/appChrome';
 import { SUPPORT_EMAIL } from './constants';
 import { apiFetchJson } from './lib/apiFetch';
 import { RETRY_MIN_SPINNER_MS } from './lib/retryFeedback';
@@ -100,6 +93,15 @@ type TextEditorInstance = InstanceType<typeof ArticleTextEditor>;
 
 const { authenticated, oidcConfigured } = useAuth();
 const featureFlags = useFeatureFlagsStore();
+// What this view publishes to the shell: tabs, the changes bar, the PR badge.
+const {
+  registerSearchPopover,
+  setEditorChrome,
+  registerTabActions,
+  setEditorChanges,
+  registerEditorActions,
+  clearEditorChrome,
+} = useAppChromeStore();
 
 // Per-pane view selection. Each pane independently picks one of the
 // available views (Tekst, Machine, Scenario's, YAML). Same view can be
@@ -2174,7 +2176,7 @@ const handleMachineReadableSave = handleLawSave;
 // --- Wijzigingenbalk (article-level pending changes) -----------------------
 // Tekst + Machine edits share one whole-law save, so "dirty" is article-wide.
 // The AppShell renders the bar; the editor publishes the state and the
-// Opslaan / Wijzigingen-ongedaan / undo / redo actions via useAppChrome.
+// Opslaan / Wijzigingen-ongedaan / undo / redo actions via the chrome store.
 
 // Throw away every in-memory edit for the selected article.
 function discardArticle() {
@@ -2422,12 +2424,12 @@ async function handleActionSave() {
              stay in the DOM so state is preserved when the viewport
              widens. -->
         <template v-else>
-          <!-- Review-modus (job_review-taak) heeft geen eigen blok meer in de
-               content. De melding gaat als `slot="review-notice"` naar de
-               bar-split-view in AppShell (onder de document-tab-bar, boven
-               `main`) en de beslissing staat in de Wijzigingenbalk eronder.
-               Allebei via useAppChrome, net als de rest van de shell-chrome,
-               zodat geen van beide met de panes meescrollt. -->
+          <!-- Review mode (a job_review task) has no block of its own in
+               the content any more. The notice goes to the bar-split-view in
+               AppShell as `slot="review-notice"` (under the document tab bar,
+               above `main`), and the decision sits in the changes bar below
+               it. Both go through the chrome store, like the rest of the
+               shell chrome, so neither scrolls with the panes. -->
 
           <!-- Feedback op een aangevraagde verrijking (zie de Machine/YAML-pane):
                same page-wide banner-in-container pattern as the review notice

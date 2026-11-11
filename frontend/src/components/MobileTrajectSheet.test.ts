@@ -12,11 +12,7 @@ vi.mock('vue-router', () => ({
 }));
 
 import MobileTrajectSheet from './MobileTrajectSheet.vue';
-import {
-  setEditorChrome,
-  registerTabActions,
-  clearEditorChrome,
-} from '../composables/useAppChrome';
+import { useAppChromeStore } from '../stores/appChrome';
 import type { OpenTab } from '../lib/openTabsStorage';
 
 // nldd-sheet compiles to a raw custom element; stub show()/hide() with spies.
@@ -41,17 +37,17 @@ const tabKey = (t: OpenTab) => `${t.lawId}:${t.articleNumber}`;
 beforeEach(() => {
   showSpy = vi.fn();
   hideSpy = vi.fn();
-  registerTabActions({
+  useAppChromeStore().registerTabActions({
     key: tabKey,
     displayName: (t: OpenTab) => NAMES[t.lawId] || t.lawId,
     select: vi.fn(),
     close: vi.fn(),
     reorder: vi.fn(),
   });
-  setEditorChrome({ pr: null, tabs: TABS, activeTab: TABS[0] });
+  useAppChromeStore().setEditorChrome({ pr: null, tabs: TABS, activeTab: TABS[0] });
 });
 
-afterEach(() => clearEditorChrome());
+afterEach(() => useAppChromeStore().clearEditorChrome());
 
 function mountSheet() {
   return mount(MobileTrajectSheet, {
@@ -75,8 +71,8 @@ describe('MobileTrajectSheet', () => {
   });
 
   it('falls back to "Trajecten" on the button when no tab and no traject', () => {
-    clearEditorChrome();
-    setEditorChrome({ pr: null, tabs: [], activeTab: null });
+    useAppChromeStore().clearEditorChrome();
+    useAppChromeStore().setEditorChrome({ pr: null, tabs: [], activeTab: null });
     const wrapper = mountSheet();
     expect(wrapper.get('nldd-button').attributes('text')).toBe('Trajecten');
   });

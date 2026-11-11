@@ -20,7 +20,7 @@ import {
   homeTabTarget,
   isHomeSection,
 } from './composables/useLastVisitedRoute';
-import { useAppChrome, openSearch, openSearchAt, onBarSearchKeydown } from './composables/useAppChrome';
+import { useAppChromeStore } from './stores/appChrome';
 import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from './constants';
 import type { OpenTab } from './lib/openTabsStorage';
 
@@ -176,7 +176,9 @@ function onEditorTab(e: Event) {
 }
 
 // View-specific toolbar bits published by the active view.
-const { lastSavedPr, documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions, editorChanges, editorActions, libraryEmpty } = useAppChrome();
+const appChrome = useAppChromeStore();
+const { lastSavedPr, documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions, editorChanges, editorActions, libraryEmpty } = storeToRefs(appChrome);
+const { openSearch, openSearchAt, onBarSearchKeydown } = appChrome;
 
 // The toolbars' overflow-menu alternatives. A `select` there arrives on the
 // original menu item, which sits hidden in its collapsed toolbar item, so a
@@ -567,7 +569,7 @@ function restoreTabSelection() {
 
       <!-- Wijzigingenbalk (editor only): one article-level bar with Opslaan +
            Wijzigingen-ongedaan (+ text undo/redo), replacing the per-pane save
-           footers. Published by EditorView via useAppChrome; shown only while
+           footers. Published by EditorView via the chrome store; shown only while
            the article has unsaved changes. Sits after `main` in the DOM, so on
            sm it lands above the two mobile bars and on md+ it's the bottom bar. -->
       <nldd-split-view-pane v-if="editorChanges && (editorChanges.dirty || editorChanges.review)" slot="changes-bar">
