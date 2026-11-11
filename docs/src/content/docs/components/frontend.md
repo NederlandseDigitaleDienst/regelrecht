@@ -55,6 +55,8 @@ A traject ref has the form `{slug}-{8 hex}`. The router pins that pattern in eve
 
 **Members** have one of two roles, *Beheerder* (owner) or *Bijdrager* (contributor). An owner changes roles and removes members; the last owner cannot be demoted. Invites go through `InviteMembersSheet.vue`, reachable from the members pane and the "+" menu.
 
+**Long article lists.** A law with more than 200 articles shows only the rows of its article list that are in view, plus a margin (`useVirtualRows`); padding above and below stands in for the rest. The largest laws in the corpus have over six thousand articles, and an `nldd-list` that renders every row then takes minutes before it responds ([design-system#408](https://github.com/NederlandseDigitaleDienst/design-system/issues/408)). Each row carries `aria-setsize` and `aria-posinset`, so a screen reader still reports its place in the whole list. The arrow keys continue past the rendered rows, and focus on a row that scrolls out of the window moves to the first row in view. Home and End, and the wrap from the last row to the first, stay within the rendered rows, and the browser's find-in-page only finds rendered articles; the list's own search field finds them all. The design system has no such list yet ([design-system#409](https://github.com/NederlandseDigitaleDienst/design-system/issues/409)); once it does, this goes.
+
 ### Editor
 
 `/trajecten/{ref}/editor/{lawId?}/{article?}` renders `EditorView.vue`. There is no editor outside a traject: `/editor`, the old `/editor/{lawId}` links and `/editor.html` all redirect to the traject chooser, carrying the law along so it opens after the choice.
