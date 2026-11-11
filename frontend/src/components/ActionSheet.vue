@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import { buildOperationTree, type OperationNode, type OperationTreeRow } from '../utils/operationTree';
 import OperationSettings, { type OperationSettingsArticle } from './OperationSettings.vue';
@@ -237,20 +237,6 @@ async function followName(seg: Token) {
   else if (to.kind === 'navigate') emit('navigate', { lawId: to.lawId, articleNumber: to.articleNumber });
   else emit('open-output', to.output);
 }
-
-function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && props.action) {
-    emit('close');
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('keydown', handleKeydown);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown);
-});
 </script>
 
 <template>
