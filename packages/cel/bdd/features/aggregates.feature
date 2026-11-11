@@ -29,6 +29,13 @@ Feature: One aggregate per decision, read as rows
     When I evaluate "aantal_kaarten" of "test_reductie_kaarten_van_aanvrager" over the chronicle
     Then output "aantal_kaarten" equals 2
 
+  Scenario: An aggregate and its read model share one file
+    # test_reductie_kaarten_in_een_bestand (schema v0.8.19) holds the
+    # aggregate per decision in its article verlening and the read model in
+    # its article aantal_kaarten, which names that article.
+    When I evaluate "kaarten_in_een_bestand" of "test_reductie_kaarten_in_een_bestand" over the chronicle
+    Then output "kaarten_in_een_bestand" equals 2
+
   Scenario: Another applicant's decisions are other aggregates
     When the cell records submission "aanvraag_y" under article "1" of "test_chronicle_effects" with:
       | ernstig_beperkt | true     |

@@ -72,7 +72,7 @@ describe('the explanation page', () => {
     expect(existsSync(join(repo, 'packages/poc-chronolexografie/corpus/casussen', `${casus}.yaml`))).toBe(true);
     const sources = steps.flatMap((s) => s.panels.map((p) => p.source)).join('\n');
     expect(sources).toContain('gemeente_wilgendaal/cel.yaml');
-    expect(sources).toContain('reductie_geldige_bedrijfsparkeervergunningen');
+    expect(sources).toContain('reductie_bedrijfsparkeervergunning');
     expect(sources).toContain('wet/algemene_wet_bestuursrecht');
     expect(sources).toContain('kamer_van_koophandel');
     expect(`${texts.join(' ')} ${sources}`).not.toMatch(/oostmeer|cbr|gehandicapt/i);

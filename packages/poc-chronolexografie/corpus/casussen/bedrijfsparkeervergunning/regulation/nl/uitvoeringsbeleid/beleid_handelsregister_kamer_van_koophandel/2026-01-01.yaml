@@ -88,7 +88,7 @@ articles:
       # inschrijving (refers_to, schema v0.8.17) en draagt geen eigen dag.
       # Zij trekt niets in; de reductie per inschrijving leest haar als een
       # stap op het aggregaat van de inschrijving
-      # (reductie_inschrijving_vestiging).
+      # (reductie_vestiging_in_handelsregister, artikel inschrijving).
       requires:
         - fact: inschrijving_gecorrigeerd
           description: >-

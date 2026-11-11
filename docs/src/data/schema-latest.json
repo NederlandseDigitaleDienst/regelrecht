@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.18",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.19",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -54,7 +54,7 @@
         "WATERSCHAPS_VERORDENING",
         "REDUCTIE"
       ],
-      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4, RFC-048). Since v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), or with none (`corpus/cells/reductions/`), where every cell applies it to its own chronicle, and names no `competent_authority`: the directory is its holder. Its cell gives its outputs as named answers (the catalogue `answers` in `cel.yaml`). It is the only rulework that reads a chronicle: the aggregates of another reduction (`source.projections`, since v0.8.17; `source.decisions` read decisions up to v0.8.16) and the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051). It may call law or policy (`source.regulation`), passing what it reads from the chronicle as parameters. It fills no open term (no `implements`; v0.8.5 to v0.8.8 allowed it): the policy of the authority that decides binds a term to an answer (`source.reduction`). Beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
+      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4, RFC-048). Since v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), or with none (`corpus/cells/reductions/`), where every cell applies it to its own chronicle, and names no `competent_authority`: the directory is its holder. Its cell gives its outputs as named answers (the catalogue `answers` in `cel.yaml`). It is the only rulework that reads a chronicle. Since v0.8.19 each article with a `machine_readable` takes one of two forms, and one file may hold both: an aggregate, a `projection` with `per` and no `execution`, which plays the records of the chronicle, decisions and recorded facts alike; or a read model, whose every article with an `execution` reads the aggregates of another reduction (`source.projections`, since v0.8.17). Up to v0.8.16 it read decisions directly (`source.decisions`) and up to v0.8.18 the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051). A read model may call law or policy (`source.regulation`), passing what it reads from the aggregates as parameters. It fills no open term (no `implements`; v0.8.5 to v0.8.8 allowed it): the policy of the authority that decides binds a term to an answer (`source.reduction`). Beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
       "examples": [
         "WET",
         "GEMEENTELIJKE_VERORDENING"
@@ -611,7 +611,55 @@
                         }
                       }
                     ]
-                  }
+                  },
+                  "allOf": [
+                    {
+                      "if": {
+                        "required": [
+                          "execution"
+                        ]
+                      },
+                      "then": {
+                        "properties": {
+                          "execution": {
+                            "required": [
+                              "input"
+                            ],
+                            "properties": {
+                              "input": {
+                                "contains": {
+                                  "required": [
+                                    "source"
+                                  ],
+                                  "properties": {
+                                    "source": {
+                                      "required": [
+                                        "projections"
+                                      ]
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "required": [
+                            "projection"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "execution"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
                 }
               }
             }
@@ -654,7 +702,55 @@
                       }
                     }
                   ]
-                }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "required": [
+                        "execution"
+                      ]
+                    },
+                    "then": {
+                      "properties": {
+                        "execution": {
+                          "required": [
+                            "input"
+                          ],
+                          "properties": {
+                            "input": {
+                              "contains": {
+                                "required": [
+                                  "source"
+                                ],
+                                "properties": {
+                                  "source": {
+                                    "required": [
+                                      "projections"
+                                    ]
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "projection"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "execution"
+                        ]
+                      }
+                    ]
+                  }
+                ]
               }
             }
           }
@@ -674,17 +770,8 @@
                             "properties": {
                               "source": {
                                 "not": {
-                                  "anyOf": [
-                                    {
-                                      "required": [
-                                        "decisions"
-                                      ]
-                                    },
-                                    {
-                                      "required": [
-                                        "facts"
-                                      ]
-                                    }
+                                  "required": [
+                                    "decisions"
                                   ]
                                 }
                               }
@@ -709,17 +796,8 @@
                           "properties": {
                             "source": {
                               "not": {
-                                "anyOf": [
-                                  {
-                                    "required": [
-                                      "decisions"
-                                    ]
-                                  },
-                                  {
-                                    "required": [
-                                      "facts"
-                                    ]
-                                  }
+                                "required": [
+                                  "decisions"
                                 ]
                               }
                             }
@@ -1190,18 +1268,10 @@
                   "type": "string",
                   "description": "Endpoint to call on the delegated regulation."
                 },
-                "facts": {
-                  "type": "string",
-                  "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?#[a-z][a-z0-9_]*$",
-                  "not": {
-                    "pattern": " lid [0-9]"
-                  },
-                  "description": "Since v0.8.7 (`executograms` in v0.8.6): the recorded instances of a fact an article requires, `<regulation>#<article>#<fact>`: the article and the `fact` of its `requires` entry, since an article may require more than one fact. A list with one row per recorded instance, holding the parameters the `requires` entry lists, the record's `basis` and `id`, and the decision it refers to as `refers_to`, or null; a `decision` value in it is a row as under `decisions`. Only a `REDUCTIE` rulework reads it (RFC-048), and only a data source (or the caller, as a parameter) answers it: its cell binds the facts it recorded; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint` or `decisions`. Without a source that answers it the input is an error, never an empty list."
-                },
                 "reduction": {
                   "type": "string",
                   "pattern": "^[a-z][a-z0-9_]*$",
-                  "description": "Since v0.8.9 (RFC-048): the named answer of a cell this input takes, by the name under which cells give it (the catalogue `answers` in `cel.yaml`). Only an article of `UITVOERINGSBELEID` that fills an open term (`implements`) takes one: it binds the term to the answer, and its policy names its holder (`competent_authority`). `parameters` gives the values the answer takes, under the names the cell's reduction declares; one it declares and the binding does not pass is an error. The engine asks one cell of the execution: the cell the filled term names in its `competent_authority` (RFC-052), or else the cell of the policy's holder. Where the execution holds more than one cell the term names, the input is an error at run time: one question goes to one cell, and the engine merges no answers. A cell without an answer of that name, or with a null one, is silent. Without an answer the input is null, so the binding fills nothing and the term is what it is without it, such as the finding of the deciding authority; an input that takes an answer is therefore declared `nullable: true`, and one that is not is an error at run time when no cell answers. It stands alone, without `regulation`, `output`, `endpoint`, `decisions`, `facts` or `article`."
+                  "description": "Since v0.8.9 (RFC-048): the named answer of a cell this input takes, by the name under which cells give it (the catalogue `answers` in `cel.yaml`). Only an article of `UITVOERINGSBELEID` that fills an open term (`implements`) takes one: it binds the term to the answer, and its policy names its holder (`competent_authority`). `parameters` gives the values the answer takes, under the names the cell's reduction declares; one it declares and the binding does not pass is an error. The engine asks one cell of the execution: the cell the filled term names in its `competent_authority` (RFC-052), or else the cell of the policy's holder. Where the execution holds more than one cell the term names, the input is an error at run time: one question goes to one cell, and the engine merges no answers. A cell without an answer of that name, or with a null one, is silent. Without an answer the input is null, so the binding fills nothing and the term is what it is without it, such as the finding of the deciding authority; an input that takes an answer is therefore declared `nullable: true`, and one that is not is an error at run time when no cell answers. It stands alone, without `regulation`, `output`, `endpoint` or `article`."
                 },
                 "article": {
                   "oneOf": [
@@ -1224,8 +1294,14 @@
                 },
                 "projections": {
                   "type": "string",
-                  "pattern": "^[a-z0-9_]+$",
-                  "description": "Since v0.8.17: the aggregates of a reduction with a `projection`, by the `$id` of that reduction. A list with one row per root record the chronicle holds on the calculation date: the last state of its aggregate, with the root's `id`. With `where`, only the roots that hold each named value, as a field or an output. Only a `REDUCTIE` reads it, and the cell that runs the reduction plays the aggregates on its own chronicle; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint`, `facts`, `reduction` or `article`. Without a chronicle the input is an error, never an empty list."
+                  "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?$",
+                  "description": "Since v0.8.17: the aggregates of a reduction with a `projection`. Since v0.8.19 it names the article of the aggregate, `<regulation>#<article>`, also when that article is in the reading file itself; up to v0.8.18 it named the `$id` of the reduction alone. The article must play one aggregate per record (`projection.per`). A list with one row per root record the chronicle holds on the calculation date: the last state of its aggregate, with the root's `id`. With `where`, only the roots that hold each named value, as a field or an output. Only a `REDUCTIE` reads it, and the cell that runs the reduction plays the aggregates on its own chronicle; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint`, `reduction` or `article`. Without a chronicle the input is an error, never an empty list.",
+                  "not": {
+                    "pattern": " lid [0-9]"
+                  },
+                  "examples": [
+                    "reductie_vestiging_in_handelsregister#inschrijving"
+                  ]
                 },
                 "where": {
                   "type": "object",
@@ -1253,11 +1329,6 @@
                         "required": [
                           "endpoint"
                         ]
-                      },
-                      {
-                        "required": [
-                          "facts"
-                        ]
                       }
                     ]
                   }
@@ -1266,32 +1337,6 @@
                   "required": [
                     "article"
                   ]
-                },
-                "facts": {
-                  "not": {
-                    "anyOf": [
-                      {
-                        "required": [
-                          "regulation"
-                        ]
-                      },
-                      {
-                        "required": [
-                          "output"
-                        ]
-                      },
-                      {
-                        "required": [
-                          "parameters"
-                        ]
-                      },
-                      {
-                        "required": [
-                          "endpoint"
-                        ]
-                      }
-                    ]
-                  }
                 },
                 "reduction": {
                   "not": {
@@ -1309,11 +1354,6 @@
                       {
                         "required": [
                           "endpoint"
-                        ]
-                      },
-                      {
-                        "required": [
-                          "facts"
                         ]
                       },
                       {
@@ -1345,11 +1385,6 @@
                       {
                         "required": [
                           "endpoint"
-                        ]
-                      },
-                      {
-                        "required": [
-                          "facts"
                         ]
                       },
                       {
@@ -1380,9 +1415,6 @@
                   }
                 },
                 {
-                  "facts": "fictief_beleid_vestiging_obs_de_klimop#1#vestiging"
-                },
-                {
                   "reduction": "verlof_al_verleend_in_schooljaar",
                   "parameters": {
                     "bsn_jongere": "$bsn_jongere",
@@ -1407,7 +1439,7 @@
                   }
                 },
                 {
-                  "projections": "reductie_bedrijfsparkeervergunning",
+                  "projections": "reductie_bedrijfsparkeervergunning#vergunning",
                   "where": {
                     "kvk_nummer": "$kvk_nummer"
                   }
@@ -2903,7 +2935,7 @@
                         }
                       ]
                     },
-                    "description": "The outputs of a law the step takes, each written as an article input with `source: {regulation, output, parameters}` and no other kind of source. A parameter is `$record.<field>` (since v0.8.16 a field of the kind of record the step is about, as its law declares it: for a fact the parameters it holds, for a decision the parameters of its article, its outputs and the data derived for it, for a submission what its item lists), or `$state.<property>` (the state before the record). `$record.refers_to` is the id of the record this record refers to, or null. A step passes no parameter of a question. The step passes no parameter the called article does not declare, and since v0.8.16 every required parameter the output reads, directly or through another output of its article. The engine calls the law in the version in force on the day the record was recorded, not on the calculation date, the same rule as for effects. The output it takes reads nothing else: neither that output nor any output of its article it reads in turn may read an `input` or an open term; other outputs of the article may. An article that plays a projection itself cannot be called. Since v0.8.16 the loader checks this when the reduction loads, against the laws it holds, and the engine again when it plays the projection, against the versions in force on the calculation date, and nests the trace of the call under the step."
+                    "description": "The outputs of a law the step takes, each written as an article input with `source: {regulation, output, parameters}` and no other kind of source. A parameter is `$record.<field>` (since v0.8.16 a field of the kind of record the step is about, as its law declares it: for a fact the parameters it holds, for a decision the parameters of its article, its outputs and the data derived for it, for a submission what its item lists), or `$state.<property>` (the state before the record). `$record.refers_to` is the id of the record this record refers to, or null. Since v0.8.19 `$record.id` is the id of the record itself, so the state can keep which record set a property; in a projection with `per` it hides a field of the record named `id`. A step passes no parameter of a question. The step passes no parameter the called article does not declare, and since v0.8.16 every required parameter the output reads, directly or through another output of its article. The engine calls the law in the version in force on the day the record was recorded, not on the calculation date, the same rule as for effects. The output it takes reads nothing else: neither that output nor any output of its article it reads in turn may read an `input` or an open term; other outputs of the article may. An article that plays a projection itself cannot be called. Since v0.8.16 the loader checks this when the reduction loads, against the laws it holds, and the engine again when it plays the projection, against the versions in force on the calculation date, and nests the trace of the call under the step."
                   },
                   "actions": {
                     "type": "array",
@@ -2962,7 +2994,7 @@
                         }
                       ]
                     },
-                    "description": "What the step gives each property of the state, as the actions of an article: `output` names a property of the state, `value` is an input of the step (`$<input>`), a field of the record (`$record.<field>`) or a property of the state before it (`$state.<property>`). Only a bare reference: a step computes nothing itself, so what a record does stays in the law. A property no action names keeps its value, and a step gives a property one action at most. Every value must be of the property's type; a null fits only a string or a date. `$record.refers_to` is the id of the record this record refers to, or null, such as the decision a copy of a ruling concerns."
+                    "description": "What the step gives each property of the state, as the actions of an article: `output` names a property of the state, `value` is an input of the step (`$<input>`), a field of the record (`$record.<field>`) or a property of the state before it (`$state.<property>`). Only a bare reference: a step computes nothing itself, so what a record does stays in the law. A property no action names keeps its value, and a step gives a property one action at most. Every value must be of the property's type; a null fits only a string or a date. `$record.refers_to` is the id of the record this record refers to, or null, such as the decision a copy of a ruling concerns. Since v0.8.19 `$record.id` is the id of the record itself, so the state can keep which record set a property; in a projection with `per` it hides a field of the record named `id`."
                   }
                 }
               }

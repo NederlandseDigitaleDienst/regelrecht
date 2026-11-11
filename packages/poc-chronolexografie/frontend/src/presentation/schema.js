@@ -330,13 +330,18 @@ export function keten(alle, id, { law, article, naam }) {
           lijn('vraagt', celBox, vraag, box, uit.begrip, 'source.reduction');
         }
       } else if (s.projections) {
-        // The aggregates of another reduction (schema v0.8.17): each
-        // property of their state, set by its steps, runs into the input.
-        const doel = wet(s.projections);
-        const art = doel?.doc.articles.find((a) => a.machine_readable?.projection);
-        const projection = art?.machine_readable.projection;
+        // The aggregates of a reduction (schema v0.8.17): each property of
+        // their state, set by its steps, runs into the input. Since schema
+        // v0.8.19 the reference names the article of the aggregate, which
+        // may be in the same file; before that, the reduction alone.
+        const { law: pLaw, article: pArt } = splits(s.projections);
+        const doel = wet(pLaw);
+        const art = doel?.doc.articles.find((a) =>
+          pArt === undefined ? a.machine_readable?.projection : String(a.number) === pArt,
+        );
+        const projection = art?.machine_readable?.projection;
         for (const eigenschap of (projection?.state ?? []).map((p) => p.name)) {
-          const d = toestand(s.projections, art.number, projection, eigenschap);
+          const d = toestand(pLaw, art.number, projection, eigenschap);
           if (d) lijn('leest', d.box, d.begrip, box, uit.begrip, 'source.projections');
         }
       } else if (s.facts) {
@@ -407,7 +412,17 @@ export function keten(alle, id, { law, article, naam }) {
             : undefined;
       if (r) lijn('kroniek', kroniek(), bron(r, rArt, feit), box, uit.begrip, 'projection.steps');
     }
-    for (const e of effecten) lijn('kroniek', kroniek(), bron(e.w, e.artikel, e.feit), box, uit.begrip, 'effects');
+    // The effects that decide which records count, where they can reach a
+    // record of the aggregate: one rooted in a decision, or one whose steps
+    // play records of the law that gives the effect. An aggregate of facts
+    // of another law, such as an inscription in the trade register, no
+    // objection or ruling reaches.
+    const gespeeld = new Set([projection.per, ...(projection.steps ?? []).map((s) => s.record)].filter(Boolean).map((r) => splits(r).law));
+    const soort = projection.per && String(projection.per).split('#')[2];
+    const opBesluit = Boolean(projection.per) && soort !== 'EXECUTOGRAM' && !(soort && soort !== soort.toUpperCase());
+    for (const e of effecten) {
+      if (opBesluit || gespeeld.has(e.w.doc.$id)) lijn('kroniek', kroniek(), bron(e.w, e.artikel, e.feit), box, uit.begrip, 'effects');
+    }
     uit.box.begrippen.get(begrip(box, uit.begrip)).volgorde = volgorde++;
     return uit;
   }

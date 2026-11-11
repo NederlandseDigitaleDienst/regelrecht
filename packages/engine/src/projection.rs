@@ -47,6 +47,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use chrono::NaiveDate;
 use regelrecht_law_model::{
     Article, ArticleBasedLaw, Projection, ProjectionStep, StateProperty, StepSource, names_fact,
+    split_projections,
 };
 use serde::{Deserialize, Serialize};
 
@@ -275,7 +276,17 @@ impl LawExecutionService {
             .collect();
         self.check_steps(law_id, &projection, &question, day, since_v0_8_16)?;
         let partition = self.partition(&projection, key_type.as_ref(), &known, &parameters)?;
-        let played = self.play(law_id, &projection, &known, &partition, &parameters, trace)?;
+        // A keyed projection is older than v0.8.19: `$record.id` reads a
+        // field of that name.
+        let played = self.play(
+            law_id,
+            &projection,
+            &known,
+            &partition,
+            &parameters,
+            false,
+            trace,
+        )?;
 
         let state = Some(Value::Object(played.state.clone()));
         let mut result = if trace {
@@ -348,7 +359,9 @@ impl LawExecutionService {
         })
     }
 
-    /// The aggregates of the reduction `law_id`, whose projection plays one
+    /// The aggregates `reference` names (`source.projections`): an article of
+    /// a reduction, `<regulation>#<article>` (schema v0.8.19), or a
+    /// reduction alone (up to v0.8.18), whose projection plays one aggregate
     /// per record of a kind (`projection.per`, schema v0.8.17), over the
     /// records known on `calculation_date`: one row per root record that
     /// holds every value of `filter` under its name, as a field or an
@@ -357,23 +370,35 @@ impl LawExecutionService {
     /// no step; the other records of its aggregate that count apply
     /// theirs. The reduction in force on the calculation
     /// date plays every aggregate.
+    ///
+    /// # Errors
+    ///
+    /// When the reduction is not loaded on the calculation date, when the
+    /// article `reference` names does not exist or plays no aggregate per
+    /// record, or when a step of the projection fails.
     pub fn projection_rows(
         &self,
-        law_id: &str,
+        reference: &str,
         records: &[ChronicleRecord],
         filter: &BTreeMap<String, Value>,
         calculation_date: &str,
     ) -> Result<Value> {
-        self.projection_rows_traced(law_id, records, filter, calculation_date, false)
+        self.projection_rows_traced(reference, records, filter, calculation_date, false)
             .map(|(rows, _)| rows)
     }
 
     /// [`Self::projection_rows`], and when `trace` asks for it, per
     /// aggregate a `PROJECTION` node: which records count and the fold, as
     /// a projection with a key traces them.
+    ///
+    /// # Errors
+    ///
+    /// When the reduction is not loaded on the calculation date, when the
+    /// article `reference` names does not exist or plays no aggregate per
+    /// record, or when a step of the projection fails.
     pub fn projection_rows_traced(
         &self,
-        law_id: &str,
+        reference: &str,
         records: &[ChronicleRecord],
         filter: &BTreeMap<String, Value>,
         calculation_date: &str,
@@ -382,7 +407,7 @@ impl LawExecutionService {
         let mut rows = Vec::new();
         let mut nodes = Vec::new();
         for (root, played) in
-            self.play_aggregates(law_id, records, filter, calculation_date, trace)?
+            self.play_aggregates(reference, records, filter, calculation_date, trace)?
         {
             if trace {
                 let mut node = trace_node(&played);
@@ -399,15 +424,21 @@ impl LawExecutionService {
     /// The aggregates [`Self::projection_rows`] reads, each with its last
     /// state, which record set each property last, and what became of each
     /// of its records, as a projection reports them.
+    ///
+    /// # Errors
+    ///
+    /// When the reduction is not loaded on the calculation date, when the
+    /// article `reference` names does not exist or plays no aggregate per
+    /// record, or when a step of the projection fails.
     pub fn aggregates(
         &self,
-        law_id: &str,
+        reference: &str,
         records: &[ChronicleRecord],
         filter: &BTreeMap<String, Value>,
         calculation_date: &str,
     ) -> Result<Vec<Aggregate>> {
         Ok(self
-            .play_aggregates(law_id, records, filter, calculation_date, false)?
+            .play_aggregates(reference, records, filter, calculation_date, false)?
             .into_iter()
             .map(|(root, played)| Aggregate {
                 root,
@@ -418,33 +449,32 @@ impl LawExecutionService {
             .collect())
     }
 
-    /// Play the aggregate of each root of `law_id` that holds `filter`, in
-    /// the order of the chronicle.
+    /// Play the aggregate of each root of the aggregates `reference` names
+    /// (`source.projections`) that holds `filter`, in the order of the
+    /// chronicle.
     fn play_aggregates(
         &self,
-        law_id: &str,
+        reference: &str,
         records: &[ChronicleRecord],
         filter: &BTreeMap<String, Value>,
         calculation_date: &str,
         trace: bool,
     ) -> Result<Vec<(String, Played)>> {
         let day = parse_day(calculation_date)?;
-        let projection = {
+        let (law_id, article) = split_projections(reference);
+        let (projection, own_id) = {
             let law = self
                 .resolver()
                 .get_law_for_date(law_id, Some(day))
                 .ok_or_else(|| EngineError::LawNotFound(law_id.to_string()))?;
-            law.articles
-                .iter()
-                .find_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
-                .filter(|p| p.per.is_some())
-                .cloned()
-                .ok_or_else(|| {
-                    EngineError::InvalidOperation(format!(
-                        "'{law_id}' plays no aggregate per record (projection.per), so it has \
-                         no aggregates to read"
-                    ))
-                })?
+            // From schema v0.8.19 `$record.id` is the record's own id; a
+            // reduction on v0.8.18 or earlier reads a field of that name, as
+            // it did.
+            let own_id = crate::load_check::from_version(law, (0, 8, 19));
+            let projection = aggregate_projection(law, article)
+                .map_err(EngineError::InvalidOperation)?
+                .clone();
+            (projection, own_id)
         };
         let Some(per) = projection.per_basis_and_kind() else {
             return Err(EngineError::InvalidOperation(format!(
@@ -475,7 +505,15 @@ impl LawExecutionService {
             let aggregate = self.aggregate(per, &known, &root.id)?;
             played.push((
                 root.id.clone(),
-                self.play(law_id, &projection, &known, &aggregate, &none, trace)?,
+                self.play(
+                    law_id,
+                    &projection,
+                    &known,
+                    &aggregate,
+                    &none,
+                    own_id,
+                    trace,
+                )?,
             ));
         }
         Ok(played)
@@ -489,6 +527,7 @@ impl LawExecutionService {
     /// state. Then
     /// the fold: the steps of the records that count, in the order the cell
     /// recorded them, each from the state the one before left.
+    #[allow(clippy::too_many_arguments)]
     fn play(
         &self,
         law_id: &str,
@@ -496,6 +535,7 @@ impl LawExecutionService {
         records: &[ChronicleRecord],
         partition: &Partition,
         question: &BTreeMap<String, Value>,
+        own_id: bool,
         trace: bool,
     ) -> Result<Played> {
         // Phase 1: per record, the records that count and revoke it, found
@@ -555,9 +595,9 @@ impl LawExecutionService {
                 changes,
                 traces,
             } = match step_for(projection, record) {
-                Some(step) => {
-                    self.apply_step(law_id, projection, step, record, &state, question, trace)?
-                }
+                Some(step) => self.apply_step(
+                    law_id, projection, step, record, &state, question, own_id, trace,
+                )?,
                 None => AppliedStep::default(),
             };
             for change in &changes {
@@ -596,8 +636,13 @@ impl LawExecutionService {
         since_v0_8_16: bool,
     ) -> Result<()> {
         let law_of = |id: &str| self.resolver().get_law_for_date(id, Some(day));
-        let since_v0_8_18 =
-            law_of(law_id).is_some_and(|law| crate::load_check::from_version(law, (0, 8, 18)));
+        let since = |version| {
+            law_of(law_id).is_some_and(|law| crate::load_check::from_version(law, version))
+        };
+        let since_v0_8_18 = since((0, 8, 18));
+        // `$record.id` is the record's own id from v0.8.19, in a projection
+        // with `per`.
+        let own_id = projection.per.is_some() && since((0, 8, 19));
         check_per(projection, &law_of, Versions::InForce(day), since_v0_8_18).map_err(|why| {
             EngineError::InvalidOperation(format!(
                 "'{law_id}' per {}: {why}",
@@ -612,6 +657,7 @@ impl LawExecutionService {
                 &law_of,
                 Versions::InForce(day),
                 since_v0_8_16,
+                own_id,
             )
             .map_err(|why| {
                 EngineError::InvalidOperation(format!(
@@ -638,6 +684,7 @@ impl LawExecutionService {
         record: &ChronicleRecord,
         state: &BTreeMap<String, Value>,
         question: &BTreeMap<String, Value>,
+        own_id: bool,
         trace: bool,
     ) -> Result<AppliedStep> {
         let fail = |why: String| {
@@ -652,6 +699,8 @@ impl LawExecutionService {
         // of the same name. From schema v0.8.17, the version that brought
         // `per`, `$record.refers_to` is the record it refers to, whatever a
         // field of that name holds; up to v0.8.16 a field keeps its name.
+        // From v0.8.19 (`own_id`) `$record.id` is the record's own id,
+        // whatever a field of that name holds; before, a field keeps it.
         let mut row = record.fields.clone();
         row.extend(record.outputs.clone());
         if projection.per.is_some() {
@@ -659,6 +708,9 @@ impl LawExecutionService {
                 REFERS_TO.to_string(),
                 record.refers_to.clone().map_or(Value::Null, Value::String),
             );
+        }
+        if own_id {
+            row.insert(RECORD_ID.to_string(), Value::String(record.id.clone()));
         }
         let mut inputs: BTreeMap<&str, Value> = BTreeMap::new();
         let read = |source: &StepSource, inputs: &BTreeMap<&str, Value>| match source {
@@ -1116,8 +1168,50 @@ fn about(record: &ChronicleRecord, target: &str, earlier: &[ChronicleRecord]) ->
 /// The name under which a step reads the record a record refers to.
 const REFERS_TO: &str = regelrecht_law_model::RecordEffect::REFERS_TO;
 
+/// The name under which a step reads the record's own id (schema v0.8.19).
+pub const RECORD_ID: &str = "id";
+
 /// The name under which a row of aggregates holds the id of its root.
 pub const ROOT_ID: &str = "id";
+
+/// The projection whose aggregates `article` of `law` plays: the article a
+/// reference names (`<regulation>#<article>`, schema v0.8.19), or without
+/// one, as up to v0.8.18, the first article of the law that plays one.
+/// Refused when the article does not exist or plays no aggregate per
+/// record.
+pub(crate) fn aggregate_projection<'l>(
+    law: &'l ArticleBasedLaw,
+    article: Option<&str>,
+) -> std::result::Result<&'l Projection, String> {
+    let per_projection = |a: &'l Article| {
+        a.machine_readable
+            .as_ref()?
+            .projection
+            .as_ref()
+            .filter(|p| p.per.is_some())
+    };
+    match article {
+        Some(number) => {
+            let found = law.find_article_by_number(number).ok_or_else(|| {
+                format!("'{}' has no article {number} to read aggregates of", law.id)
+            })?;
+            per_projection(found).ok_or_else(|| {
+                format!(
+                    "article {number} of '{}' plays no aggregate per record (projection.per), \
+                     so it has no aggregates to read",
+                    law.id
+                )
+            })
+        }
+        None => law.articles.iter().find_map(per_projection).ok_or_else(|| {
+            format!(
+                "'{}' plays no aggregate per record (projection.per), so it has no aggregates \
+                 to read",
+                law.id
+            )
+        }),
+    }
+}
 
 /// Whether `record` is a root of a projection with `per`: it rests on that
 /// article, and is of that kind or an instance of that fact where `per`
@@ -1235,6 +1329,7 @@ pub(crate) fn check_step<'l>(
     law_of: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
     versions: Versions,
     since_v0_8_16: bool,
+    own_id: bool,
 ) -> std::result::Result<(), String> {
     // The article of `law_id` that `pick` finds: `Ok(None)` when the loader
     // does not hold that law yet, so there is nothing to check against.
@@ -1282,8 +1377,11 @@ pub(crate) fn check_step<'l>(
                     .map(|i| i.input_type),
             ),
             StepSource::Record(field) => record.as_ref().map(|(article, kind)| {
-                // `per` and `$record.refers_to` came with schema v0.8.17.
-                if projection.per.is_some() && field == REFERS_TO {
+                // `per` and `$record.refers_to` came with schema v0.8.17,
+                // `$record.id` as the record's own id with v0.8.19.
+                if (projection.per.is_some() && field == REFERS_TO)
+                    || (own_id && field == RECORD_ID)
+                {
                     return Some(ParameterType::String);
                 }
                 match fact {
@@ -2570,10 +2668,12 @@ articles:
     #[test]
     fn a_reduction_with_a_projection_is_not_evaluated_directly() {
         let mut service = service();
-        // Another reduction that takes the answer of this one as an input.
+        // Another reduction that takes the answer of this one as an input;
+        // a form schema v0.8.19 no longer allows, so it declares v0.8.18.
         service
             .load_law(
                 r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json
 $id: andere_reductie
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'
@@ -3499,6 +3599,7 @@ articles:
                         &law_of,
                         Versions::Loaded,
                         true,
+                        true,
                     )
                 })
                 .find_map(std::result::Result::err)
@@ -3529,7 +3630,8 @@ articles:
 
     /// Up to v0.8.16 a field named `refers_to` keeps its own value in a
     /// step: `$record.refers_to` is the record a record refers to only from
-    /// v0.8.17, the version that brought `per`.
+    /// v0.8.17, the version that brought `per`. A field named `id` keeps its
+    /// value as well.
     #[test]
     fn under_v0_8_14_a_field_named_refers_to_keeps_its_value() {
         let law = r#"
@@ -3545,7 +3647,7 @@ articles:
       execution:
         produces:
           - {type: BESCHIKKING, outputs: [b]}
-        parameters: [{name: refers_to, type: string}]
+        parameters: [{name: refers_to, type: string}, {name: id, type: string}]
         output: [{name: b, type: boolean}]
         actions: [{output: b, value: true}]
 "#;
@@ -3560,13 +3662,19 @@ articles:
     text: t
     machine_readable:
       projection:
-        state: [{name: van, type: string}]
+        state: [{name: van, type: string}, {name: eigen, type: string}]
         steps:
           - record: velden#1#BESCHIKKING
-            actions: [{output: van, value: $record.refers_to}]
+            actions:
+              - {output: van, value: $record.refers_to}
+              - {output: eigen, value: $record.id}
       execution:
-        output: [{name: van, type: string, nullable: true}]
-        actions: [{output: van, value: $state.van}]
+        output:
+          - {name: van, type: string, nullable: true}
+          - {name: eigen, type: string, nullable: true}
+        actions:
+          - {output: van, value: $state.van}
+          - {output: eigen, value: $state.eigen}
 "#;
         let mut service = LawExecutionService::new();
         service.load_law(law).unwrap();
@@ -3577,14 +3685,17 @@ articles:
             ..record(
                 "b",
                 "1",
-                &[("refers_to", Value::String("veld".to_string()))],
+                &[
+                    ("refers_to", Value::String("veld".to_string())),
+                    ("id", Value::String("eigen veld".to_string())),
+                ],
                 &[("b", Value::Bool(true))],
             )
         };
         let outcome = service
             .evaluate_projection(
                 "velden_reductie",
-                &["van"],
+                &["van", "eigen"],
                 &[besluit],
                 BTreeMap::new(),
                 "2025-03-01",
@@ -3594,6 +3705,115 @@ articles:
         assert_eq!(
             outcome.result.outputs["van"],
             Value::String("veld".to_string())
+        );
+        // So does a field named `id`: `$record.id` is the record's own id
+        // only in a projection with `per`, from v0.8.19.
+        assert_eq!(
+            outcome.result.outputs["eigen"],
+            Value::String("eigen veld".to_string())
+        );
+    }
+
+    /// Since schema v0.8.19 a step of a projection with `per` reads the id of
+    /// its record as `$record.id`, as it reads `$record.refers_to` since
+    /// v0.8.17. Under v0.8.18 and earlier `$record.id` stays what it was: a
+    /// field of the record named `id`, of its own type. Nothing that loaded
+    /// under v0.8.18 is refused.
+    #[test]
+    fn a_step_reads_the_id_of_its_record_since_v0_8_19() {
+        let law = r#"
+$id: velden
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      requires:
+        - fact: gemeld
+          parameters: [id]
+      execution:
+        parameters: [{name: id, type: string}]
+"#;
+        let reduction = |version: &str| {
+            format!(
+                r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json
+$id: per_melding
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      projection:
+        per: velden#1
+        state: [{{name: welk, type: string}}]
+        steps:
+          - record: velden#1
+            actions: [{{output: welk, value: $record.id}}]
+"#
+            )
+        };
+        let melding = ChronicleRecord {
+            basis: "velden#1".to_string(),
+            ..fact(
+                "r",
+                "1",
+                "gemeld",
+                &[("id", Value::String("veld".to_string()))],
+            )
+        };
+        for (version, welk) in [("v0.8.18", "veld"), ("v0.8.19", "r")] {
+            let mut service = LawExecutionService::new();
+            service.load_law(law).unwrap();
+            service.load_law(&reduction(version)).unwrap();
+            assert_eq!(
+                service
+                    .projection_rows(
+                        "per_melding",
+                        std::slice::from_ref(&melding),
+                        &BTreeMap::new(),
+                        "2025-03-01"
+                    )
+                    .unwrap(),
+                Value::Array(vec![Value::Object(BTreeMap::from([
+                    ("id".to_string(), Value::String("r".to_string())),
+                    ("welk".to_string(), Value::String(welk.to_string())),
+                ]))]),
+                "{version}"
+            );
+        }
+        // Under v0.8.18 `$record.id` has the type of the field: a number
+        // field fills a number property, and the play holds the step to it.
+        let numeric = law.replace("{name: id, type: string}", "{name: id, type: number}");
+        let mut service = LawExecutionService::new();
+        service.load_law(&numeric).unwrap();
+        service
+            .load_law(
+                &reduction("v0.8.18")
+                    .replace("{name: welk, type: string}", "{name: welk, type: number}"),
+            )
+            .unwrap();
+        let melding = ChronicleRecord {
+            basis: "velden#1".to_string(),
+            ..fact("r", "1", "gemeld", &[("id", Value::Int(7))])
+        };
+        assert_eq!(
+            service
+                .projection_rows(
+                    "per_melding",
+                    std::slice::from_ref(&melding),
+                    &BTreeMap::new(),
+                    "2025-03-01"
+                )
+                .unwrap(),
+            Value::Array(vec![Value::Object(BTreeMap::from([
+                ("id".to_string(), Value::String("r".to_string())),
+                ("welk".to_string(), Value::Int(7)),
+            ]))])
         );
     }
 
@@ -3694,7 +3914,7 @@ articles:
         input:
           - name: kaarten
             type: array
-            source: {projections: per_verlening, where: {aanvrager: $aanvrager}}
+            source: {projections: per_verlening#1, where: {aanvrager: $aanvrager}}
         output: [{name: aantal, type: number}]
         actions:
           - output: aantal
@@ -3923,7 +4143,7 @@ articles:
             .expect_err("no chronicle");
         assert!(
             err.to_string().contains(
-                "input 'kaarten' of kaarten_van reads the aggregates of per_verlening, and no \
+                "input 'kaarten' of kaarten_van reads the aggregates of per_verlening#1, and no \
                  chronicle supplies its records"
             ),
             "{err}"
@@ -4039,7 +4259,7 @@ articles:
                 "{}{}",
                 "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json\n",
                 READ_MODEL.replace("kaarten_van", "besluiten_van").replace(
-                    "source: {projections: per_verlening, where: {aanvrager: $aanvrager}}",
+                    "source: {projections: per_verlening#1, where: {aanvrager: $aanvrager}}",
                     "source: {decisions: 'wet#1'}",
                 )
             ))
@@ -4371,5 +4591,204 @@ articles:
             executogram_field_type(article, None, "reden"),
             Some(ParameterType::String)
         );
+    }
+
+    /// A file with two aggregates and a read model over one of them (schema
+    /// v0.8.19), each article named.
+    const NAMED: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: gemengd
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: verlening
+    text: t
+    machine_readable:
+      projection:
+        per: wet#1#BESCHIKKING
+        state:
+          - {name: kaart, type: boolean}
+          - {name: aanvrager, type: string}
+        steps:
+          - record: wet#1#BESCHIKKING
+            actions:
+              - {output: kaart, value: $record.verleend}
+              - {output: aanvrager, value: $record.aanvrager}
+  - number: inlevering
+    text: t
+    machine_readable:
+      projection:
+        per: wet#4#EXECUTOGRAM
+        state: [{name: op, type: date}]
+        steps:
+          - record: wet#4#EXECUTOGRAM
+            actions: [{output: op, value: $record.op}]
+  - number: kaarten
+    text: t
+    machine_readable:
+      execution:
+        parameters: [{name: aanvrager, type: string}]
+        input:
+          - name: kaarten
+            type: array
+            source: {projections: gemengd#verlening, where: {aanvrager: $aanvrager}}
+        output: [{name: aantal, type: number}]
+        actions:
+          - output: aantal
+            value: {operation: FOREACH, collection: $kaarten, as: k, filter: $k.kaart, body: 1, combine: ADD}
+"#;
+
+    /// Since schema v0.8.19 a reference names the article of the aggregate,
+    /// so one file holds several aggregates and the read model over one of
+    /// them, each article by its name.
+    #[test]
+    fn a_reference_names_the_article_of_the_aggregate() {
+        let mut service = service();
+        service.load_law(NAMED).unwrap();
+        let op = Value::String("2025-02-01".to_string());
+        let records = [
+            granted_to("a", "x"),
+            fact("i", "4", "ingeleverd", &[("op", op.clone())]),
+        ];
+        let rows = |reference: &str| {
+            service
+                .projection_rows(reference, &records, &BTreeMap::new(), "2025-03-01")
+                .unwrap()
+        };
+        assert_eq!(
+            rows("gemengd#verlening"),
+            Value::Array(vec![Value::Object(BTreeMap::from([
+                ("id".to_string(), Value::String("a".to_string())),
+                ("kaart".to_string(), Value::Bool(true)),
+                ("aanvrager".to_string(), Value::String("x".to_string())),
+            ]))])
+        );
+        assert_eq!(
+            rows("gemengd#inlevering"),
+            Value::Array(vec![Value::Object(BTreeMap::from([
+                ("id".to_string(), Value::String("i".to_string())),
+                ("op".to_string(), op),
+            ]))])
+        );
+        // The read model in the same file reads the aggregate it names.
+        let outcome = service
+            .evaluate_projection(
+                "gemengd",
+                &["aantal"],
+                &records,
+                BTreeMap::from([("aanvrager".to_string(), Value::String("x".to_string()))]),
+                "2025-03-01",
+                false,
+            )
+            .unwrap();
+        assert_eq!(outcome.result.outputs["aantal"], Value::Int(1));
+        // An article that is no aggregate, and one that does not exist.
+        for (reference, why) in [
+            (
+                "gemengd#kaarten",
+                "article kaarten of 'gemengd' plays no aggregate per record (projection.per)",
+            ),
+            (
+                "gemengd#gestolen",
+                "'gemengd' has no article gestolen to read aggregates of",
+            ),
+        ] {
+            let err = service
+                .projection_rows(reference, &records, &BTreeMap::new(), "2025-03-01")
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{reference}: {err}");
+        }
+    }
+
+    /// The loader holds a reference on v0.8.19 to an article that exists and
+    /// plays aggregates, in the same file or in a reduction it holds, and
+    /// refuses the reduction alone; a file on v0.8.18 keeps the reduction
+    /// alone.
+    #[test]
+    fn the_loader_checks_the_article_a_reference_names() {
+        let refused = |reduction: &str| {
+            let mut service = service();
+            service.load_law(PER_GRANT).unwrap();
+            service
+                .load_law(reduction)
+                .expect_err(reduction)
+                .to_string()
+        };
+        for (from, to, why) in [
+            (
+                "projections: gemengd#verlening,",
+                "projections: gemengd#kaarten,",
+                "article kaarten: input 'kaarten': article kaarten of 'gemengd' plays no aggregate per record",
+            ),
+            (
+                "projections: gemengd#verlening,",
+                "projections: gemengd#gestolen,",
+                "input 'kaarten': 'gemengd' has no article gestolen to read aggregates of",
+            ),
+            (
+                "projections: gemengd#verlening,",
+                "projections: gemengd,",
+                "input 'kaarten' reads the aggregates of gemengd; since schema v0.8.19 source.projections names the article of the aggregate, as gemengd#<article>",
+            ),
+            // Another reduction the loader holds, by an article it lacks.
+            (
+                "projections: gemengd#verlening,",
+                "projections: per_verlening#2,",
+                "'per_verlening' has no article 2 to read aggregates of",
+            ),
+        ] {
+            let err = refused(&NAMED.replace(from, to));
+            assert!(err.contains(why), "{to}: {err}");
+        }
+        // The aggregate of another reduction, by its article.
+        let mut with_grant = service();
+        with_grant.load_law(PER_GRANT).unwrap();
+        with_grant
+            .load_law(&NAMED.replace(
+                "projections: gemengd#verlening,",
+                "projections: per_verlening#1,",
+            ))
+            .unwrap();
+        // A reduction the loader does not hold yet is checked when it plays.
+        LawExecutionService::new()
+            .load_law(&NAMED.replace("projections: gemengd#verlening,", "projections: elders#1,"))
+            .unwrap();
+        // Up to v0.8.18 a reference names the reduction alone.
+        let mut older = service();
+        older.load_law(PER_GRANT).unwrap();
+        older
+            .load_law(&format!(
+                "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json\n{}",
+                READ_MODEL.replace("per_verlening#1", "per_verlening")
+            ))
+            .unwrap();
+    }
+
+    /// Since schema v0.8.19 an article of a reduction with a
+    /// `machine_readable` is an aggregate or a read model; one that is
+    /// neither, or both, is refused. An article with only text is allowed.
+    #[test]
+    fn each_article_of_a_reduction_is_an_aggregate_or_a_read_model() {
+        let with = |article: &str| format!("{NAMED}{article}");
+        let mut service = service();
+        service
+            .load_law(&with("  - number: uitleg\n    text: Alleen tekst.\n"))
+            .unwrap();
+        for (article, why) in [
+            (
+                "  - number: niets\n    text: t\n    machine_readable:\n      definitions: {x: {value: 1}}\n",
+                "article niets: reads no aggregates (source.projections) and plays none (projection)",
+            ),
+            (
+                "  - number: beide\n    text: t\n    machine_readable:\n      projection:\n        per: wet#1#BESCHIKKING\n        state: [{name: k, type: boolean}]\n        steps: []\n      execution:\n        output: [{name: y, type: boolean}]\n        actions: [{output: y, value: true}]\n",
+                "has a projection per wet#1#BESCHIKKING and an execution",
+            ),
+        ] {
+            let err = LawExecutionService::new()
+                .load_law(&with(article))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
     }
 }

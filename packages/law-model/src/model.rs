@@ -260,10 +260,13 @@ pub struct Source {
     #[serde(default, skip_serializing, deserialize_with = "present")]
     pub combine: Option<serde_json::Value>,
     /// The aggregates of a reduction whose projection plays one per record
-    /// of a kind (`projection.per`, schema v0.8.17), by its `$id`: a list
-    /// with one row per root record, the last state of its aggregate with
-    /// the root's `id`. Only the chronicle of the cell that runs the
-    /// reduction answers it. Only a `REDUCTIE` may read it.
+    /// of a kind (`projection.per`, schema v0.8.17): a list with one row per
+    /// root record, the last state of its aggregate with the root's `id`.
+    /// From schema v0.8.19 it names the article of the aggregate,
+    /// `<regulation>#<article>`, also in the reading file itself; up to
+    /// v0.8.18 the `$id` of the reduction alone ([`split_projections`]).
+    /// Only the chronicle of the cell that runs the reduction answers it.
+    /// Only a `REDUCTIE` may read it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub projections: Option<String>,
     /// Only with `projections`: the roots whose aggregates are read, as a
@@ -1390,6 +1393,16 @@ pub fn is_article_reference(s: &str) -> bool {
             .chars()
             .all(|c| alnum(c) || matches!(c, ':' | '.' | '_' | ' ' | '-'))
         && !names_paragraph
+}
+
+/// A reference to aggregates (`source.projections`) split into the
+/// reduction and the article of its aggregate: `<regulation>#<article>`
+/// (schema v0.8.19), or the reduction alone, as up to v0.8.18.
+pub fn split_projections(reference: &str) -> (&str, Option<&str>) {
+    match reference.split_once('#') {
+        Some((regulation, article)) => (regulation, Some(article)),
+        None => (reference, None),
+    }
 }
 
 /// Whether `s` names a fact an article requires, `<regulation>#<article>#<fact>`

@@ -144,7 +144,13 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
             let Some(source) = input.source.as_ref() else {
                 continue;
             };
-            if let Err(why) = check_projections_read(input, source, section, reduction) {
+            if let Err(why) = check_projections_read(
+                input,
+                source,
+                section,
+                reduction,
+                from_version(law, (0, 8, 19)),
+            ) {
                 return refuse(format!("{where_}: {why}"));
             }
             if let Some(answer) = &source.reduction {
@@ -229,6 +235,17 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                     input.name
                 ));
             }
+            // From schema v0.8.19 a reduction reads no recorded facts either:
+            // an aggregate plays them (`projection.per`), and a read model
+            // reads that aggregate.
+            if source.facts.is_some() && from_version(law, (0, 8, 19)) {
+                return refuse(format!(
+                    "{where_}: input '{}' reads {read}; since schema v0.8.19 a REDUCTIE reads \
+                     the aggregates of the facts (source.projections), not the facts \
+                     themselves (source.facts)",
+                    input.name
+                ));
+            }
             // The article whose decisions it reads may be the value of a
             // parameter (schema v0.8.11): one the article declares itself.
             if let Some(name) = source
@@ -250,6 +267,14 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                 }
             }
         }
+        // Checked after the inputs, so that a reading of the chronicle that
+        // the version refuses names itself first.
+        if reduction
+            && from_version(law, (0, 8, 19))
+            && let Some(why) = neither_aggregate_nor_read_model(section)
+        {
+            return refuse(format!("{where_}: {why}"));
+        }
     }
     if reduction && law.competent_authority.is_some() {
         return refuse(
@@ -257,6 +282,53 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
              none (schema v0.8.12)"
                 .to_string(),
         );
+    }
+    Ok(())
+}
+
+/// Since schema v0.8.19 each article of a `REDUCTIE` with a
+/// `machine_readable` takes one of two forms: an aggregate (a projection,
+/// which plays the chronicle) or a read model, whose execution reads
+/// aggregates (`source.projections`). One file may hold both kinds. Why
+/// `section` is neither, or `None` when it is one of them; an article with
+/// only text has no `machine_readable` and is not asked. An article that is
+/// both, a projection with an execution, is refused with the projection.
+fn neither_aggregate_nor_read_model(section: &MachineReadable) -> Option<String> {
+    if section.projection.is_some() {
+        return None;
+    }
+    let reads_aggregates = inputs(section)
+        .iter()
+        .any(|i| i.source.as_ref().is_some_and(|s| s.projections.is_some()));
+    (!reads_aggregates).then(|| {
+        "reads no aggregates (source.projections) and plays none (projection); since schema \
+         v0.8.19 a REDUCTIE is an aggregate or a read model over one"
+            .to_string()
+    })
+}
+
+/// Since schema v0.8.19 an input that reads aggregates names an article that
+/// plays them (`<regulation>#<article>`): an article of the same file, or of
+/// a reduction the loader holds. A reduction the loader does not hold yet is
+/// checked when the aggregates are played, because the two load in any
+/// order.
+fn check_projections_targets<'l>(
+    law: &ArticleBasedLaw,
+    lookup: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
+) -> std::result::Result<(), String> {
+    for (where_, section) in sections(law) {
+        for input in inputs(section) {
+            let Some(reference) = input.source.as_ref().and_then(|s| s.projections.as_deref())
+            else {
+                continue;
+            };
+            let (target, article) = regelrecht_law_model::split_projections(reference);
+            // `lookup` gives this law for its own id.
+            if let Some(held) = lookup(target) {
+                crate::projection::aggregate_projection(held, article)
+                    .map_err(|why| format!("{where_}: input '{}': {why}", input.name))?;
+            }
+        }
     }
     Ok(())
 }
@@ -270,6 +342,7 @@ fn check_projections_read(
     source: &regelrecht_law_model::Source,
     section: &MachineReadable,
     reduction: bool,
+    since_v0_8_19: bool,
 ) -> std::result::Result<(), String> {
     let name = &input.name;
     let Some(of) = &source.projections else {
@@ -310,6 +383,14 @@ fn check_projections_read(
         .iter()
         .map(|p| p.name.as_str())
         .collect();
+    // From schema v0.8.19 the reference names the article of the aggregate,
+    // also in the reading file itself; up to v0.8.18 the reduction alone.
+    if since_v0_8_19 && !regelrecht_law_model::is_article_reference(of) {
+        return Err(format!(
+            "input '{name}' reads the aggregates of {of}; since schema v0.8.19 \
+             source.projections names the article of the aggregate, as {of}#<article>"
+        ));
+    }
     for (field, reference) in source.where_.iter().flatten() {
         let parameter = reference.strip_prefix('$').filter(|p| declared.contains(p));
         if parameter.is_none() {
@@ -1174,6 +1255,9 @@ pub(crate) fn check_projection_wiring<'l>(
     if !from_version(law, (0, 8, 16)) {
         return Ok(());
     }
+    if from_version(law, (0, 8, 19)) {
+        check_projections_targets(law, lookup)?;
+    }
     for (where_, section) in sections(law) {
         let Some(projection) = &section.projection else {
             continue;
@@ -1203,6 +1287,9 @@ pub(crate) fn check_projection_wiring<'l>(
                 lookup,
                 crate::projection::Versions::Loaded,
                 true,
+                // `$record.id` is the record's own id from v0.8.19, in a
+                // projection with `per`, as when the projection plays.
+                projection.per.is_some() && from_version(law, (0, 8, 19)),
             )
             .map_err(|why| format!("{where_}: the step on {}: {why}", step.record))?;
         }
@@ -2259,36 +2346,36 @@ articles:
         LawExecutionService::new()
             .load_law(&reader(
                 "REDUCTIE",
-                "{projections: per_besluit, where: {aanvrager: $wie}}",
+                "{projections: per_besluit#1, where: {aanvrager: $wie}}",
             ))
             .unwrap();
         LawExecutionService::new()
-            .load_law(&reader("REDUCTIE", "{projections: per_besluit}"))
+            .load_law(&reader("REDUCTIE", "{projections: per_besluit#1}"))
             .unwrap();
         for (layer, source, why) in [
             (
                 "WET",
-                "{projections: per_besluit}",
-                "input 'rijen' reads the aggregates of per_besluit; only a REDUCTIE reads a chronicle",
+                "{projections: per_besluit#1}",
+                "input 'rijen' reads the aggregates of per_besluit#1; only a REDUCTIE reads a chronicle",
             ),
             (
                 "REDUCTIE",
-                "{projections: per_besluit, regulation: wet, output: o}",
-                "input 'rijen' reads the aggregates of per_besluit, which no regulation can stand beside",
+                "{projections: per_besluit#1, regulation: wet, output: o}",
+                "input 'rijen' reads the aggregates of per_besluit#1, which no regulation can stand beside",
             ),
             (
                 "REDUCTIE",
-                "{projections: per_besluit, decisions: 'wet#1'}",
-                "input 'rijen' reads the aggregates of per_besluit, which no decisions can stand beside",
+                "{projections: per_besluit#1, decisions: 'wet#1'}",
+                "input 'rijen' reads the aggregates of per_besluit#1, which no decisions can stand beside",
             ),
             (
                 "REDUCTIE",
-                "{projections: per_besluit, where: {aanvrager: $niemand}}",
-                "input 'rijen' picks the aggregates of per_besluit where 'aanvrager' is $niemand, which is no $-reference to a parameter of the article",
+                "{projections: per_besluit#1, where: {aanvrager: $niemand}}",
+                "input 'rijen' picks the aggregates of per_besluit#1 where 'aanvrager' is $niemand, which is no $-reference to a parameter of the article",
             ),
             (
                 "REDUCTIE",
-                "{projections: per_besluit, where: {aanvrager: wie}}",
+                "{projections: per_besluit#1, where: {aanvrager: wie}}",
                 "where 'aanvrager' is wie, which is no $-reference",
             ),
             (
@@ -2345,6 +2432,106 @@ articles:
                 .expect_err(why);
             assert!(err.to_string().contains(why), "{version}: {err}");
         }
+    }
+
+    /// The `$schema` line for `version`, or none, which counts as the latest.
+    fn schema_line(version: &str) -> String {
+        if version.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json\n"
+            )
+        }
+    }
+
+    /// From schema v0.8.19 a reduction reads the aggregates of recorded
+    /// facts, not the facts themselves (`source.facts`).
+    #[test]
+    fn since_v0_8_19_a_reduction_reads_no_facts() {
+        let reduction = |version: &str| {
+            let schema = schema_line(version);
+            format!(
+                r#"
+{schema}$id: lezer
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        input:
+          - {{name: rijen, type: array, source: {{facts: 'wet#1#feit'}}}}
+        output: [{{name: n, type: number}}]
+        actions:
+          - {{output: n, value: 0}}
+"#
+            )
+        };
+        LawExecutionService::new()
+            .load_law(&reduction("v0.8.18"))
+            .unwrap();
+        let why = "input 'rijen' reads the recorded facts wet#1#feit; since schema v0.8.19 a REDUCTIE reads the aggregates of the facts (source.projections), not the facts themselves (source.facts)";
+        for version in ["v0.8.19", ""] {
+            let err = LawExecutionService::new()
+                .load_law(&reduction(version))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{version}: {err}");
+        }
+    }
+
+    /// From schema v0.8.19 a reduction is an aggregate (a projection) or a
+    /// read model, whose every article with an execution reads aggregates
+    /// (`source.projections`). An article without an execution is neither
+    /// and is no reason to refuse.
+    #[test]
+    fn since_v0_8_19_a_reduction_is_an_aggregate_or_a_read_model() {
+        let reduction = |version: &str, input: &str| {
+            let schema = schema_line(version);
+            format!(
+                r#"
+{schema}$id: lezer
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Alleen tekst.
+  - number: '2'
+    text: t
+    machine_readable:
+      execution:
+        parameters: [{{name: wie, type: string}}]
+        input:
+{input}        output: [{{name: n, type: number}}]
+        actions:
+          - {{output: n, value: 0}}
+"#
+            )
+        };
+        let call = "          - {name: x, type: number, source: {regulation: wet, output: x}}\n";
+        let read = "          - {name: rijen, type: array, source: {projections: aggregaat#1, where: {wie: $wie}}}\n";
+        let load = |law: String| LawExecutionService::new().load_law(&law);
+        // Up to v0.8.18 a reduction may only call other rulework.
+        load(reduction("v0.8.18", call)).unwrap();
+        // A read model may call other rulework beside the aggregates it reads.
+        load(reduction("v0.8.19", &format!("{call}{read}"))).unwrap();
+        load(reduction("", read)).unwrap();
+        let why = "article 2: reads no aggregates (source.projections) and plays none (projection); since schema v0.8.19 a REDUCTIE is an aggregate or a read model over one";
+        for version in ["v0.8.19", ""] {
+            let err = load(reduction(version, call)).expect_err(why);
+            assert!(err.to_string().contains(why), "{version}: {err}");
+        }
+        // Another layer is not held to it.
+        load(
+            reduction("v0.8.19", call)
+                .replace("REDUCTIE", "UITVOERINGSBELEID")
+                .replace(
+                    "$id: lezer",
+                    "$id: lezer\ncompetent_authority: {name: Iemand}",
+                ),
+        )
+        .unwrap();
     }
 
     /// An answer reads `$state.<property>` of a property its state declares;
