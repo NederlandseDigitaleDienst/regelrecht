@@ -45,6 +45,8 @@ import { useTrajectDocumentJobs } from './composables/useTrajectDocumentJobs';
 import { useDocumentUpload } from './composables/useDocumentUpload';
 import { useAddActions } from './composables/useAddActions';
 import { useDocumentTaskReview } from './composables/useDocumentTaskReview';
+import { useVirtualRows } from './composables/useVirtualRows';
+import type { PageScroller } from './composables/useVirtualRows';
 import { humanizeLawId, resolveLawName } from './lib/lawName';
 import { officialTextUrl } from './lib/searchResults';
 import { sameTraject } from './lib/taskReview';
@@ -964,6 +966,9 @@ const changedLawIds = ref<Set<string> | null>(null);
 // Boven TRAJECT_LAWS_COLLAPSED wordt het een muur tekst, dus dan de eerste
 // twintig met een uitklapknop.
 const TRAJECT_LAWS_COLLAPSED = 20;
+// Up to this many articles the article list renders every row; above it only
+// the rows in view (see useVirtualRows). Most regelwerken stay well under it.
+const ARTICLE_LIST_FULL_UP_TO = 200;
 // Staat de lijst uitgeklapt? Per traject, dus gereset bij een wissel.
 const trajectLawsExpanded = ref(false);
 // Alfabetisch op weergavenaam. De backend ordent op law_id, en dat is een
@@ -2048,6 +2053,21 @@ const filteredArticles = computed(() => {
   });
 });
 
+// The article list of a large regelwerk renders only the rows in view: the
+// Wet op het financieel toezicht has 6,263 articles, and rendering them all
+// froze the library for minutes (see useVirtualRows).
+const lawPage = ref<(HTMLElement & Partial<PageScroller>) | null>(null);
+const articleList = ref<HTMLElement | null>(null);
+const {
+  active: articleListWindowed,
+  rows: articleRows,
+  listStyle: articleListStyle,
+} = useVirtualRows(filteredArticles, (article) => String(article.number), lawPage, articleList, {
+  threshold: ARTICLE_LIST_FULL_UP_TO,
+  estimate: 64,
+  margin: 800,
+});
+
 // Web Share is absent on most desktop browsers, so the button only appears
 // where the OS can actually take over. Checked once: it cannot change at runtime.
 const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
@@ -2560,7 +2580,7 @@ watch(activeTrajectRef, () => {
                so the navigation-split-view reflows to spatial mode and
                shows the sidebar (Wetten Browser) alongside main. -->
           <nldd-split-view-pane v-else-if="selectedLawId && !lawError" slot="secondary-sidebar" has-content>
-            <nldd-page sticky-header>
+            <nldd-page ref="lawPage" sticky-header>
               <nldd-top-title-bar
                 slot="header"
                 :text="paneChromeVisible(selectedLawLoading) ? lawTitle : undefined"
@@ -2705,10 +2725,13 @@ watch(activeTrajectRef, () => {
                     @click="resetArticleFilters"
                   ></nldd-button>
                 </nldd-inline-dialog>
-                <nldd-list v-else appearance="simple">
+                <nldd-list v-else ref="articleList" appearance="simple" :style="articleListStyle">
                   <nldd-list-item
-                    v-for="article in filteredArticles"
+                    v-for="{ item: article, index } in articleRows"
                     :key="article.number"
+                    :data-row-key="article.number"
+                    :aria-setsize="articleListWindowed ? filteredArticles.length : undefined"
+                    :aria-posinset="articleListWindowed ? index + 1 : undefined"
                     size="md"
                     button
                     :current="String(article.number) === String(selectedArticleNumber) || undefined"
