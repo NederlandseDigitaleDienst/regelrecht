@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { useTaskReview, clearVerdicts } from './useTaskReview';
+import { useTaskReview } from './useTaskReview';
 
 const fetchTask = vi.fn();
 const resolveTask = vi.fn();
@@ -47,8 +47,8 @@ describe('useTaskReview', () => {
     fetchJobTasks.mockReset();
     applyEnrichment.mockReset();
     applyEnrichment.mockResolvedValue({ accepted: 1, total: 2 });
-    clearVerdicts(JOB);
-    clearVerdicts('t1');
+    // The global test setup gives every test a fresh Pinia; the verdicts
+    // store reads sessionStorage when it is created.
     window.sessionStorage.clear();
   });
 

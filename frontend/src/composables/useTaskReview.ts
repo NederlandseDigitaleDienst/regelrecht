@@ -20,72 +20,9 @@
 import { ref, computed } from 'vue';
 import { useTaskActions } from './useTasks';
 import type { EnrichDecision, JobTaskSummary, TaskDetail } from './useTasks';
+import { useEnrichVerdictsStore, type Verdict } from '../stores/enrichVerdicts';
 
-/** A recorded verdict on one part of an enrichment. */
-export interface Verdict {
-  action: EnrichDecision['action'];
-  content: string | null;
-}
-
-/** Verdicts per task id. */
-export type JobVerdicts = Record<string, Verdict>;
-
-const STORAGE_KEY = 'regelrecht.enrich-verdicts';
-
-/**
- * Vastgelegde oordelen per verrijking: `{ [jobId]: { [taskId]: { action, content } } }`.
- *
- * Bewust module-level en niet per component-mount: je beoordeelt artikel voor
- * artikel en navigeert daar tussendoor, dus de tussenstand moet die navigatie
- * overleven. sessionStorage houdt hem ook een herlaadbeurt vol; is die niet
- * beschikbaar (quota vol, privacy-modus), dan blijft het geheugen over en is de
- * tussenstand na een herlading weg - dan beoordeel je opnieuw, er is nog niets
- * geschreven.
- */
-const verdicts = ref<Record<string, JobVerdicts>>(loadVerdicts());
-
-function loadVerdicts(): Record<string, JobVerdicts> {
-  try {
-    // Our own sessionStorage entry, written by persistVerdicts.
-    return JSON.parse(window.sessionStorage.getItem(STORAGE_KEY) ?? '{}') ?? {};
-  } catch {
-    return {};
-  }
-}
-
-function persistVerdicts(): void {
-  try {
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(verdicts.value));
-  } catch {
-    // Geheugen is de bron; opslag is alleen de herlaadbestendigheid.
-  }
-}
-
-export function verdictsForJob(jobId: string | null | undefined): JobVerdicts {
-  return (jobId && verdicts.value[jobId]) || {};
-}
-
-export function recordVerdict(
-  jobId: string | null | undefined,
-  taskId: string | null | undefined,
-  action: Verdict['action'],
-  content: string | null,
-): void {
-  if (!jobId || !taskId) return;
-  verdicts.value = {
-    ...verdicts.value,
-    [jobId]: { ...verdictsForJob(jobId), [taskId]: { action, content } },
-  };
-  persistVerdicts();
-}
-
-export function clearVerdicts(jobId: string | null | undefined): void {
-  if (!jobId || !verdicts.value[jobId]) return;
-  const next = { ...verdicts.value };
-  delete next[jobId];
-  verdicts.value = next;
-  persistVerdicts();
-}
+export type { Verdict, JobVerdicts } from '../stores/enrichVerdicts';
 
 export function useTaskReview() {
   // useTaskActions(), not useTasks(): useTaskReview() is itself called
@@ -93,6 +30,7 @@ export function useTaskReview() {
   // useTasks() here would start the 30s poll for every editor visitor
   // (including anonymous ones).
   const { fetchTask, resolveTask, fetchJobTasks, applyEnrichment } = useTaskActions();
+  const verdicts = useEnrichVerdictsStore();
   const reviewTask = ref<TaskDetail | null>(null);
   const proposedContent = ref<string | null>(null);
   const loadError = ref<string | null>(null);
@@ -111,7 +49,7 @@ export function useTaskReview() {
   const openParts = computed(() => jobParts.value.filter((p) => p.status === 'open'));
   /** Onderdelen die nog op een oordeel wachten. */
   const undecidedParts = computed(() => {
-    const decided = verdictsForJob(verdictKey.value);
+    const decided = verdicts.forJob(verdictKey.value);
     return openParts.value.filter((p) => !decided[p.id]);
   });
   /** Hoeveelste onderdeel je nu beoordeelt, 1-based (0 als het er niet bij zit). */
@@ -197,7 +135,7 @@ export function useTaskReview() {
   ): { done: boolean; next: JobTaskSummary | null } {
     const task = reviewTask.value;
     if (!task) return { done: false, next: null };
-    recordVerdict(verdictKey.value, task.id, action, content ?? null);
+    verdicts.record(verdictKey.value, task.id, action, content ?? null);
     const next = undecidedParts.value.find((p) => p.id !== task.id) ?? null;
     return { done: !next, next };
   }
@@ -216,7 +154,7 @@ export function useTaskReview() {
     if (!task) return null;
     // With a task loaded the key falls back to at least its id.
     const key = verdictKey.value!;
-    const decided = verdictsForJob(key);
+    const decided = verdicts.forJob(key);
     const decisions = openParts.value
       .map((part): EnrichDecision | null => {
         const verdict = decided[part.id];
@@ -239,12 +177,12 @@ export function useTaskReview() {
         throw new Error('Deze taak hoort bij geen verrijking meer en kan niet worden overgenomen. Verwerp haar om haar af te sluiten.');
       }
       await resolveTask(task.id, 'rejected');
-      clearVerdicts(key);
+      verdicts.clear(key);
       reset();
       return null;
     }
     const result = await applyEnrichment(jobId.value, decisions, etag);
-    clearVerdicts(key);
+    verdicts.clear(key);
     reset();
     return result;
   }
