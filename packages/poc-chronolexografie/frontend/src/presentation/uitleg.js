@@ -195,14 +195,14 @@ export const steps = [
         label: 'De reductie: zij leest de aggregaten van het bedrijf en laat het beleid tellen',
         source: REDUCTIE,
         open: [
-          'articles.1.machine_readable.execution.input.vergunningen.source',
-          'articles.1.machine_readable.execution.input.aantal.source.parameters',
+          'articles.aantal_geldige_bedrijfsparkeervergunningen.machine_readable.execution.input.vergunningen.source',
+          'articles.aantal_geldige_bedrijfsparkeervergunningen.machine_readable.execution.input.aantal.source.parameters',
         ],
       },
       {
         label: 'Eén aggregaat per besluit',
         source: AGGREGAAT,
-        open: ['articles.1.machine_readable.projection.per', 'articles.1.machine_readable.projection.steps.0.actions'],
+        open: ['articles.vergunning.machine_readable.projection.per', 'articles.vergunning.machine_readable.projection.steps.0.actions'],
       },
       {
         label: 'Het beleid zegt welke vergunning op de dag geldt',
@@ -258,7 +258,7 @@ export const steps = [
       {
         label: 'De reductie leest de inschrijvingen',
         source: KVK_REDUCTIE,
-        open: ['articles.1.machine_readable.execution.input.inschrijvingen.source'],
+        open: ['articles.vestiging_in_handelsregister.machine_readable.execution.input.inschrijvingen.source'],
       },
     ],
   },

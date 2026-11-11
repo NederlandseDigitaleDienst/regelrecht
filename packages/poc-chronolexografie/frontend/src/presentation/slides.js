@@ -29,7 +29,6 @@ export const CORPUS_NAMES = Object.freeze([
   'reductie_geldige_gehandicaptenparkeerkaart',
   'beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal',
   'beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal',
-  'reductie_gehandicaptenparkeerkaart',
   'geldige_kaart',
   'bestreden_besluit_herroepen',
   'rechtsgevolgen_vernietigd',
@@ -62,7 +61,7 @@ answers:
   aanvrager_heeft_geldige_gehandicaptenparkeerkaart: reductie_geldige_gehandicaptenparkeerkaart
   aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt: reductie_geldige_gehandicaptenparkeerkaart`;
 
-const STAP = `# reductie_gehandicaptenparkeerkaart, artikel 1
+const STAP = `# reductie_geldige_gehandicaptenparkeerkaart, artikel kaart
 projection:
   per: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
   state:
@@ -177,11 +176,11 @@ export const slides = [
       'Dat gebeurt altijd in de cel waar die feiten staan.',
       'Hoe een cel reduceert, bepaalt de cel zelf.',
       'RegelRecht biedt één manier: een reductie als regelwerk met een benoemd antwoord.',
-      'In het fragment houdt de cel per besluit bij of het een kaart verstrekt en tot wanneer. Een tweede reductie leest die besluiten van de aanvrager, en het beleid van de gemeente zegt welke kaart op een dag geldig is.',
+      'In het fragment houdt de cel per besluit bij of het een kaart verstrekt en tot wanneer. Een ander artikel van dezelfde reductie leest die besluiten van de aanvrager, en het beleid van de gemeente zegt welke kaart op een dag geldig is.',
     ],
     figure: {
       code: STAP,
-      source: `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_gehandicaptenparkeerkaart/2026-01-01.yaml`,
+      source: `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_geldige_gehandicaptenparkeerkaart/2026-01-01.yaml`,
       label: 'Uit de reductie van de gemeente Wilgendaal, ingekort',
     },
   },

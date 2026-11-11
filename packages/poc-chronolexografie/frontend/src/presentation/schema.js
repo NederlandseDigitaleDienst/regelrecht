@@ -330,13 +330,18 @@ export function keten(alle, id, { law, article, naam }) {
           lijn('vraagt', celBox, vraag, box, uit.begrip, 'source.reduction');
         }
       } else if (s.projections) {
-        // The aggregates of another reduction (schema v0.8.17): each
-        // property of their state, set by its steps, runs into the input.
-        const doel = wet(s.projections);
-        const art = doel?.doc.articles.find((a) => a.machine_readable?.projection);
-        const projection = art?.machine_readable.projection;
+        // The aggregates of a reduction (schema v0.8.17): each property of
+        // their state, set by its steps, runs into the input. Since schema
+        // v0.8.19 the reference names the article of the aggregate, which
+        // may be in the same file; before that, the reduction alone.
+        const { law: pLaw, article: pArt } = splits(s.projections);
+        const doel = wet(pLaw);
+        const art = doel?.doc.articles.find((a) =>
+          pArt === undefined ? a.machine_readable?.projection : String(a.number) === pArt,
+        );
+        const projection = art?.machine_readable?.projection;
         for (const eigenschap of (projection?.state ?? []).map((p) => p.name)) {
-          const d = toestand(s.projections, art.number, projection, eigenschap);
+          const d = toestand(pLaw, art.number, projection, eigenschap);
           if (d) lijn('leest', d.box, d.begrip, box, uit.begrip, 'source.projections');
         }
       } else if (s.facts) {

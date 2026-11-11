@@ -32,7 +32,7 @@ pub use model::{
     Produces, ProducesList, Projection, ProjectionStep, ProvisionReference, RecordEffect,
     ResolveSpec, SUBMISSION_KINDS, Source, Stage, StageRequirement, StateProperty, StepSource,
     Submission, Temporal, TypeSpec, UntranslatableEntry, foreach_binding, is_article_reference,
-    is_fact_reference, is_variable_reference, names_fact,
+    is_fact_reference, is_variable_reference, names_fact, split_projections,
 };
 /// The engine reads a version through the model, not from `regelrecht-shared`
 /// itself: it sits on the model alone.

@@ -779,8 +779,8 @@ fn handelingen(
                     .get_inputs()
                     .iter()
                     .filter_map(|input| input.source.as_ref()?.projections.as_deref())
-                    .filter_map(|id| service.resolver().get_law_for_date(id, Some(on)))
-                    .flat_map(|aggregaat| aggregaat.articles.iter())
+                    .filter_map(|reference| aggregaat_artikelen(service, reference, on))
+                    .flat_map(|(_, artikelen)| artikelen)
                     .collect();
                 let gespeeld = std::iter::once(article)
                     .chain(gelezen_aggregaten)
@@ -1549,7 +1549,10 @@ pub(crate) fn beleid_van<'s>(
         .iter()
         .flat_map(|a| a.get_inputs())
         .filter_map(|i| i.source.as_ref()?.projections.as_deref())
-        .filter_map(|id| service.resolver().get_law(id))
+        .filter_map(|reference| {
+            let (id, _) = regelrecht_law_model::split_projections(reference);
+            service.resolver().get_law(id)
+        })
         .flat_map(leest_uit);
     let gelezen: Vec<(String, String)> =
         leest_uit(reduction).into_iter().chain(aggregaten).collect();
@@ -2296,6 +2299,28 @@ fn kroniek_lezingen(
     uit
 }
 
+/// The reduction a reference to aggregates (`source.projections`) names on
+/// `on`, with the articles that play them: the article it names
+/// (`<regulation>#<article>`, schema v0.8.19), or every article of the
+/// reduction (up to v0.8.18). `None` when the reduction is not found.
+fn aggregaat_artikelen<'s>(
+    service: &'s LawExecutionService,
+    reference: &str,
+    on: NaiveDate,
+) -> Option<(
+    &'s regelrecht_engine::ArticleBasedLaw,
+    Vec<&'s regelrecht_engine::Article>,
+)> {
+    let (id, artikel) = regelrecht_law_model::split_projections(reference);
+    let law = service.resolver().get_law_for_date(id, Some(on))?;
+    let artikelen = law
+        .articles
+        .iter()
+        .filter(|a| artikel.is_none_or(|n| a.number == n))
+        .collect();
+    Some((law, artikelen))
+}
+
 /// [`kroniek_lezingen`] for `articles` of `reduction`, with `given` as the
 /// literal parameters of its caller. `bezig` holds the reductions being
 /// followed, so a reduction that calls back is not followed again.
@@ -2364,16 +2389,25 @@ fn lezingen_van(
         }
         // The aggregates of another reduction (schema v0.8.17): it reads
         // what that reduction's steps read.
-        if let Some(regelwerk) = &source.projections {
-            if bezig.contains(regelwerk) {
-                continue;
-            }
-            let Some(called) = service.resolver().get_law_for_date(regelwerk, Some(on)) else {
+        // An aggregate in the same file (schema v0.8.19) is read with the
+        // rest of that file.
+        if let Some(reference) = &source.projections {
+            let Some((called, artikelen)) = aggregaat_artikelen(service, reference, on) else {
                 continue;
             };
-            let alle: Vec<&regelrecht_engine::Article> = called.articles.iter().collect();
+            if bezig.contains(&called.id) {
+                continue;
+            }
             bezig.push(called.id.clone());
-            lezingen_van(service, called, &alle, &BTreeMap::new(), bezig, on, uit);
+            lezingen_van(
+                service,
+                called,
+                &artikelen,
+                &BTreeMap::new(),
+                bezig,
+                on,
+                uit,
+            );
             bezig.pop();
             continue;
         }
@@ -3753,9 +3787,7 @@ mod tests {
                 "fictief_beleid_vestiging_obs_de_klimop",
                 LAW,
                 "reductie_plaats_van_vestiging",
-                "reductie_verlof",
                 "reductie_verlof_al_verleend_in_schooljaar",
-                "reductie_vestiging",
                 "regeling_vaststelling_schoolvakanties_20252030",
             ]
         );
@@ -3792,7 +3824,6 @@ mod tests {
                 "parkeerverordening_gemeente_wilgendaal",
                 "reductie_bedrijfsparkeervergunning",
                 "reductie_bedrijfsparkeervergunning_op_peildatum",
-                "reductie_gehandicaptenparkeerkaart",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
@@ -3832,13 +3863,11 @@ mod tests {
                 "parkeerverordening_gemeente_wilgendaal",
                 "reductie_bedrijfsparkeervergunning",
                 "reductie_bedrijfsparkeervergunning_op_peildatum",
-                "reductie_gehandicaptenparkeerkaart",
                 "reductie_geldige_bedrijfsparkeervergunningen",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
                 "reductie_geneeskundig_advies_ontvangen",
                 "reductie_geneeskundig_onderzoek",
-                "reductie_inschrijving_vestiging",
                 "reductie_schorsing_bedrijfsparkeervergunning",
                 "reductie_vestiging_in_handelsregister",
                 "regeling_gehandicaptenparkeerkaart",

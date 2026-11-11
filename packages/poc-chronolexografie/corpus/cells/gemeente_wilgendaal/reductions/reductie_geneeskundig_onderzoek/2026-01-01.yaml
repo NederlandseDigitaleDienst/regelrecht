@@ -19,7 +19,7 @@ valid_from: '2026-01-01'
 url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
 name: Geneeskundig onderzoek volgens de gemeente Wilgendaal (reductie)
 articles:
-  - number: '1'
+  - number: geneeskundig_onderzoek_heeft_plaatsgehad
     text: >-
       Geen regelgeving. Het systeem van de gemeente kijkt door middel van een
       chronolexografische reductie op zijn eigen kroniek of voor deze aanvraag
@@ -50,7 +50,7 @@ articles:
           - name: onderzoeken
             type: array
             source:
-              projections: reductie_geneeskundig_advies_ontvangen
+              projections: reductie_geneeskundig_advies_ontvangen#advies
               where:
                 bsn_aanvrager: $bsn_aanvrager
         output:

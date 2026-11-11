@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
 $id: reductie_geldige_bedrijfsparkeervergunningen
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -30,7 +30,7 @@ valid_from: '2026-01-01'
 url: https://lokaleregelgeving.overheid.nl/CVDR642699
 name: Geldige bedrijfsparkeervergunningen bij de gemeente Wilgendaal (reductie)
 articles:
-  - number: '1'
+  - number: aantal_geldige_bedrijfsparkeervergunningen
     text: >-
       Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
       telt door middel van een chronolexografische reductie op zijn eigen
@@ -54,13 +54,13 @@ articles:
           - name: vergunningen
             type: array
             source:
-              projections: reductie_bedrijfsparkeervergunning
+              projections: reductie_bedrijfsparkeervergunning#vergunning
               where:
                 kvk_nummer: $kvk_nummer
           - name: schorsingen
             type: array
             source:
-              projections: reductie_schorsing_bedrijfsparkeervergunning
+              projections: reductie_schorsing_bedrijfsparkeervergunning#schorsing
           - name: aantal
             type: number
             source:

@@ -21,7 +21,7 @@ articles:
           - name: kaarten
             type: array
             source:
-              projections: test_conformance_per_record
+              projections: test_conformance_per_record#1
               where:
                 aanvrager: $aanvrager
         output:

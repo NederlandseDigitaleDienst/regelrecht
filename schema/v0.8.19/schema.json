@@ -54,7 +54,7 @@
         "WATERSCHAPS_VERORDENING",
         "REDUCTIE"
       ],
-      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4, RFC-048). Since v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), or with none (`corpus/cells/reductions/`), where every cell applies it to its own chronicle, and names no `competent_authority`: the directory is its holder. Its cell gives its outputs as named answers (the catalogue `answers` in `cel.yaml`). It is the only rulework that reads a chronicle. Since v0.8.19 it takes one of two forms: an aggregate, a `projection` with `per` and no `execution`, which plays the records of the chronicle, decisions and recorded facts alike; or a read model, whose every article with an `execution` reads the aggregates of another reduction (`source.projections`, since v0.8.17). Up to v0.8.16 it read decisions directly (`source.decisions`) and up to v0.8.18 the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051). A read model may call law or policy (`source.regulation`), passing what it reads from the aggregates as parameters. It fills no open term (no `implements`; v0.8.5 to v0.8.8 allowed it): the policy of the authority that decides binds a term to an answer (`source.reduction`). Beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
+      "description": "Type of legal instrument (regelgevingslaag). It fixes which identifier the file must carry, and it ranks candidates when several regulations implement the same open term. Which layer may implement a term is set by that term's `delegation_type`, not by this field alone. `REDUCTIE`: not a regulation but a cell's reduction over its own chronicle (RFC-022 §4, RFC-048). Since v0.8.12 it sits with its cell (`corpus/cells/<cell>/reductions/`), or with none (`corpus/cells/reductions/`), where every cell applies it to its own chronicle, and names no `competent_authority`: the directory is its holder. Its cell gives its outputs as named answers (the catalogue `answers` in `cel.yaml`). It is the only rulework that reads a chronicle. Since v0.8.19 each article with a `machine_readable` takes one of two forms, and one file may hold both: an aggregate, a `projection` with `per` and no `execution`, which plays the records of the chronicle, decisions and recorded facts alike; or a read model, whose every article with an `execution` reads the aggregates of another reduction (`source.projections`, since v0.8.17). Up to v0.8.16 it read decisions directly (`source.decisions`) and up to v0.8.18 the facts its cell recorded (`source.facts`, since v0.8.7; `source.executograms` in v0.8.6, RFC-051). A read model may call law or policy (`source.regulation`), passing what it reads from the aggregates as parameters. It fills no open term (no `implements`; v0.8.5 to v0.8.8 allowed it): the policy of the authority that decides binds a term to an answer (`source.reduction`). Beyond that it does not act on law (no `hooks` or `overrides`), takes no decisions (no `execution.produces`) and delegates nothing (no `open_terms`).",
       "examples": [
         "WET",
         "GEMEENTELIJKE_VERORDENING"
@@ -644,6 +644,20 @@
                           }
                         }
                       }
+                    },
+                    {
+                      "anyOf": [
+                        {
+                          "required": [
+                            "projection"
+                          ]
+                        },
+                        {
+                          "required": [
+                            "execution"
+                          ]
+                        }
+                      ]
                     }
                   ]
                 }
@@ -721,6 +735,20 @@
                         }
                       }
                     }
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "required": [
+                          "projection"
+                        ]
+                      },
+                      {
+                        "required": [
+                          "execution"
+                        ]
+                      }
+                    ]
                   }
                 ]
               }
@@ -1266,8 +1294,14 @@
                 },
                 "projections": {
                   "type": "string",
-                  "pattern": "^[a-z0-9_]+$",
-                  "description": "Since v0.8.17: the aggregates of a reduction with a `projection`, by the `$id` of that reduction. A list with one row per root record the chronicle holds on the calculation date: the last state of its aggregate, with the root's `id`. With `where`, only the roots that hold each named value, as a field or an output. Only a `REDUCTIE` reads it, and the cell that runs the reduction plays the aggregates on its own chronicle; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint`, `reduction` or `article`. Without a chronicle the input is an error, never an empty list."
+                  "pattern": "^[a-z0-9_]+#[A-Za-z0-9]([A-Za-z0-9:._ -]*[A-Za-z0-9])?$",
+                  "description": "Since v0.8.17: the aggregates of a reduction with a `projection`. Since v0.8.19 it names the article of the aggregate, `<regulation>#<article>`, also when that article is in the reading file itself; up to v0.8.18 it named the `$id` of the reduction alone. The article must play one aggregate per record (`projection.per`). A list with one row per root record the chronicle holds on the calculation date: the last state of its aggregate, with the root's `id`. With `where`, only the roots that hold each named value, as a field or an output. Only a `REDUCTIE` reads it, and the cell that runs the reduction plays the aggregates on its own chronicle; no regulation is executed for it, so it stands alone, without `regulation`, `output`, `parameters`, `endpoint`, `reduction` or `article`. Without a chronicle the input is an error, never an empty list.",
+                  "not": {
+                    "pattern": " lid [0-9]"
+                  },
+                  "examples": [
+                    "reductie_vestiging_in_handelsregister#inschrijving"
+                  ]
                 },
                 "where": {
                   "type": "object",
@@ -1405,7 +1439,7 @@
                   }
                 },
                 {
-                  "projections": "reductie_bedrijfsparkeervergunning",
+                  "projections": "reductie_bedrijfsparkeervergunning#vergunning",
                   "where": {
                     "kvk_nummer": "$kvk_nummer"
                   }

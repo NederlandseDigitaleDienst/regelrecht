@@ -1,0 +1,53 @@
+---
+# Tier C: one reduction file with an aggregate and the read model over it,
+# each article named (schema v0.8.19). The read model names the article of
+# the aggregate in its own file.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: test_conformance_named_articles
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-11'
+valid_from: '2026-11-11'
+url: https://example.invalid/named
+name: Testreductie met benoemde artikelen
+articles:
+  - number: verlening
+    url: https://example.invalid/named/verlening
+    text: Per verlening of de kaart er nog is.
+    machine_readable:
+      projection:
+        per: test_conformance_decision_effects#2#BESCHIKKING
+        state:
+          - name: in_bezit
+            type: boolean
+        steps:
+          - record: test_conformance_decision_effects#2#BESCHIKKING
+            actions:
+              - output: in_bezit
+                value: $record.verleend
+  - number: aantal_kaarten
+    url: https://example.invalid/named/aantal_kaarten
+    text: Hoeveel kaarten de aanvrager heeft.
+    machine_readable:
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+        input:
+          - name: kaarten
+            type: array
+            source:
+              projections: test_conformance_named_articles#verlening
+              where:
+                aanvrager: $aanvrager
+        output:
+          - name: aantal_kaarten
+            type: number
+        actions:
+          - output: aantal_kaarten
+            value:
+              operation: FOREACH
+              collection: $kaarten
+              as: kaart
+              filter: $kaart.in_bezit
+              body: 1
+              combine: ADD

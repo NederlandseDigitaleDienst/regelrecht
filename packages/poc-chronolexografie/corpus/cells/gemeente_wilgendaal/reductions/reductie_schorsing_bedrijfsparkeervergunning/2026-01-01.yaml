@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
 $id: reductie_schorsing_bedrijfsparkeervergunning
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -17,7 +17,7 @@ valid_from: '2026-01-01'
 url: https://lokaleregelgeving.overheid.nl/CVDR642699
 name: Schorsing van een bedrijfsparkeervergunning bij de gemeente Wilgendaal (reductie)
 articles:
-  - number: '1'
+  - number: schorsing
     text: >-
       Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
       houdt door middel van een chronolexografische reductie op zijn eigen

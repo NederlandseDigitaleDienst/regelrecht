@@ -50,11 +50,13 @@ describe('the picture of one value', () => {
     expect(heeft(k, 'kroniek', [KRONIEK, 'algemene_wet_bestuursrecht#8:84#afschrift_van_de_uitspraak_van_de_voorzieningenrechter'], ['reductie_schorsing_bedrijfsparkeervergunning', 'geschorst_vanaf'])).toBe(true);
     expect(heeft(k, 'vraagt', ['gemeente_wilgendaal', 'aantal_geldige_bedrijfsparkeervergunningen'], ['beleid_bedrijfsparkeervergunning_gemeente_wilgendaal', 'antwoord_aantal_geldig'])).toBe(true);
     // The maximum: where the firm is and how many work there, from the KvK:
-    // one aggregate per registration, with the corrections that refer to it.
-    const per = 'reductie_inschrijving_vestiging';
-    expect(heeft(k, 'kroniek', [KRONIEK, 'beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven'], [per, 'postcode'])).toBe(true);
-    expect(heeft(k, 'kroniek', [KRONIEK, 'beleid_handelsregister_kamer_van_koophandel#2#inschrijving_gecorrigeerd'], [per, 'aantal_werkzame_personen'])).toBe(true);
-    expect(heeft(k, 'leest', [per, 'postcode'], ['reductie_vestiging_in_handelsregister', 'inschrijvingen'])).toBe(true);
+    // one aggregate per registration, with the corrections that refer to it,
+    // in the same file as the read model that reads it (schema v0.8.19).
+    const red = 'reductie_vestiging_in_handelsregister';
+    const toestand = (b, naam) => heeft(k, 'kroniek', [KRONIEK, b], [red, naam]);
+    expect(toestand('beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven', 'postcode')).toBe(true);
+    expect(toestand('beleid_handelsregister_kamer_van_koophandel#2#inschrijving_gecorrigeerd', 'aantal_werkzame_personen')).toBe(true);
+    expect(k.lijnen.some((l) => map(l.van.pad) === red && l.van.begrip === 'inschrijving#state#postcode' && map(l.naar.pad) === red && l.naar.begrip === 'vestiging_in_handelsregister#output#postcode_vestiging')).toBe(true);
     expect(heeft(k, 'rekent', ['uitvoeringsbesluit_parkeren_gemeente_wilgendaal', 'vergunninggebied_van_postcode'], ['uitvoeringsbesluit_parkeren_gemeente_wilgendaal', 'vergunninggebied_van_vestiging'])).toBe(true);
   });
 
@@ -92,8 +94,9 @@ describe('the picture of one value', () => {
     // effect and with its step, which reads the new decision it holds.
     const bronnen = k.lijnen.filter((l) => l.soort === 'kroniek' && l.naar.begrip.endsWith('#vergunning_geldig_tot'));
     expect(bronnen.map((l) => l.yaml).sort()).toEqual(['effects', 'projection.steps', 'projection.steps']);
-    // A reduction that reads rows keeps only what it reads and answers.
-    expect(namen('reductie_vestiging_in_handelsregister').sort()).toEqual(['aantal_werkzame_personen', 'inschrijvingen', 'postcode_vestiging']);
+    // A file with an aggregate and its read model shows the state and the
+    // answers; the rows between them pass through.
+    expect(namen('reductie_vestiging_in_handelsregister').sort()).toEqual(['aantal_werkzame_personen', 'aantal_werkzame_personen', 'datum_inschrijving', 'postcode', 'postcode_vestiging']);
     // A law keeps its steps in between.
     expect(namen('uitvoeringsbesluit_parkeren_gemeente_wilgendaal')).toContain('maximum_bedrijfsparkeervergunningen');
   });
@@ -129,7 +132,7 @@ describe('the picture of one value', () => {
     it('takes a reduction as one step', () => {
       const red = 'reductie_vestiging_in_handelsregister';
       const stap = stapVan(red, 'postcode_vestiging');
-      for (const naam of ['inschrijvingen', 'aantal_werkzame_personen']) expect(stapVan(red, naam)).toBe(stap);
+      for (const naam of ['datum_inschrijving', 'postcode']) expect(stapVan(red, naam)).toBe(stap);
       const telling = 'reductie_geldige_bedrijfsparkeervergunningen';
       expect(stapVan(telling, 'vergunningen')).toBe(stapVan(telling, 'aantal_geldige_bedrijfsparkeervergunningen'));
     });
@@ -138,25 +141,31 @@ describe('the picture of one value', () => {
       expect(bron('Parkeerverordening').stap).toBeGreaterThan(1);
     });
 
-    it('walks the longest path, on a tie the one with the most sources', () => {
-      // Through the postcode the Chamber answers, its read model and the
-      // aggregate per registration with the corrections that refer to it.
-      const pad = [beleid, 'kamer_van_koophandel', 'reductie_vestiging_in_handelsregister', 'reductie_inschrijving_vestiging', KRONIEK];
+    it('walks the longest path', () => {
+      // Through the count of the municipality, its read model and the
+      // aggregate per permit. The Chamber's read model and its aggregate
+      // share a file, so that path is a step shorter.
+      const pad = [beleid, 'gemeente_wilgendaal', 'reductie_geldige_bedrijfsparkeervergunningen', 'reductie_bedrijfsparkeervergunning', KRONIEK];
       const stappen = pad.map((b) => alleNamen.find((g) => g.map === b && g.stap < k.reststap)?.stap);
-      expect(stappen).toEqual([4, 5, 6, 7, 8]);
+      expect(stappen).toEqual([3, 4, 5, 6, 7]);
     });
 
     it('ends the path at its sources, together', () => {
       // The sources in the chronicle at the end of the path through the
-      // Chamber. The municipality's decisions end a step earlier: which
-      // decision grants a permit the aggregate takes from the decision
-      // itself ($record.id), not through the policy.
+      // municipality, and what the policy says a decision on objection
+      // grants, which the step on that decision reads.
       const laatste = alleNamen.filter((g) => g.stap === k.reststap - 1);
       expect(laatste.filter((g) => g.map === KRONIEK).map((g) => `${g.naam} · ${g.vorm}`).sort()).toEqual([
-        'inschrijving_gecorrigeerd · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 2',
-        'vestiging_ingeschreven · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 1',
+        'afschrift_van_de_uitspraak · Algemene wet bestuursrecht art. 8:79',
+        'beschikking · Algemene wet bestuursrecht art. 7:11',
+        'beschikking · Parkeerverordening Wilgendaal 2026 (fictief) art. 2',
       ]);
-      expect(laatste.filter((g) => g.map !== KRONIEK)).toEqual([]);
+      expect(laatste.filter((g) => g.map !== KRONIEK).map((g) => g.naam).sort()).toEqual([
+        'besluit_dat_verleent_na_bezwaar',
+        'besluit_datum_na_bezwaar',
+        'vergunning_geldig_tot_na_bezwaar',
+        'verleend_na_bezwaar',
+      ]);
       for (const g of laatste) expect(k.lijnen.some((l) => eind(l.naar) === sleutel(g.pad, g.key))).toBe(false);
     });
 
@@ -165,11 +174,8 @@ describe('the picture of one value', () => {
       expect(stapVan(beleid, 'aantal_werkzame_personen_volgens_handelsregister')).toBe(k.reststap);
       expect(stapVan(besluit, 'vergunninggebied_van_postcode')).toBe(k.reststap);
       expect(stapVan('kamer_van_koophandel', 'aantal_werkzame_personen')).toBe(k.reststap);
-      expect(stapVan('reductie_geldige_bedrijfsparkeervergunningen', 'vergunningen')).toBe(k.reststap);
-      expect(stapVan('reductie_bedrijfsparkeervergunning', 'besluit_dat_verleent')).toBe(k.reststap);
-      expect(stapVan('beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal', 'besluit_dat_verleent_na_bezwaar')).toBe(k.reststap);
+      expect(stapVan('reductie_vestiging_in_handelsregister', 'postcode')).toBe(k.reststap);
       expect(stapVan('reductie_schorsing_bedrijfsparkeervergunning', 'geschorst_vanaf')).toBe(k.reststap);
-      expect(stapVan('reductie_bedrijfsparkeervergunning', 'besluit_datum')).toBe(k.reststap);
       expect(stapVan('beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal', 'aantal_geldige_vergunningen')).toBe(k.reststap);
       expect(bron('Algemene wet bestuursrecht art. 8:87').stap).toBe(k.reststap);
     });
@@ -245,13 +251,13 @@ describe('the picture of one value', () => {
       const alles = zinnen.join(' ');
       for (const waar of ['uit een ander regelwerk', 'van een cel', 'van een reductie', 'uit de kroniek']) expect(alles).toContain(waar);
       expect(stapZin(k, k.reststap - 1)).toBe(
-        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 2 bronnen uit de kroniek (vestiging ingeschreven, inschrijving gecorrigeerd).`,
+        `Stap ${k.reststap - 1} van ${k.stappen}, hier komt de keten bij de bron uit: 4 uitkomsten uit een ander regelwerk en 3 bronnen uit de kroniek.`,
       );
     });
 
     it('says of the rest that it works the same way, and where it ends up', () => {
       expect(stapZin(k, k.reststap)).toBe(
-        `Stap ${k.reststap} van ${k.stappen}, de andere invoer werkt op dezelfde manier en komt via 2 cellen bij de bron uit.`,
+        `Stap ${k.reststap} van ${k.stappen}, de andere invoer werkt op dezelfde manier en komt via Kamer van Koophandel bij de bron uit.`,
       );
     });
 

@@ -47,6 +47,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use chrono::NaiveDate;
 use regelrecht_law_model::{
     Article, ArticleBasedLaw, Projection, ProjectionStep, StateProperty, StepSource, names_fact,
+    split_projections,
 };
 use serde::{Deserialize, Serialize};
 
@@ -358,7 +359,9 @@ impl LawExecutionService {
         })
     }
 
-    /// The aggregates of the reduction `law_id`, whose projection plays one
+    /// The aggregates `reference` names (`source.projections`): an article of
+    /// a reduction, `<regulation>#<article>` (schema v0.8.19), or a
+    /// reduction alone (up to v0.8.18), whose projection plays one aggregate
     /// per record of a kind (`projection.per`, schema v0.8.17), over the
     /// records known on `calculation_date`: one row per root record that
     /// holds every value of `filter` under its name, as a field or an
@@ -369,12 +372,12 @@ impl LawExecutionService {
     /// date plays every aggregate.
     pub fn projection_rows(
         &self,
-        law_id: &str,
+        reference: &str,
         records: &[ChronicleRecord],
         filter: &BTreeMap<String, Value>,
         calculation_date: &str,
     ) -> Result<Value> {
-        self.projection_rows_traced(law_id, records, filter, calculation_date, false)
+        self.projection_rows_traced(reference, records, filter, calculation_date, false)
             .map(|(rows, _)| rows)
     }
 
@@ -383,7 +386,7 @@ impl LawExecutionService {
     /// a projection with a key traces them.
     pub fn projection_rows_traced(
         &self,
-        law_id: &str,
+        reference: &str,
         records: &[ChronicleRecord],
         filter: &BTreeMap<String, Value>,
         calculation_date: &str,
@@ -392,7 +395,7 @@ impl LawExecutionService {
         let mut rows = Vec::new();
         let mut nodes = Vec::new();
         for (root, played) in
-            self.play_aggregates(law_id, records, filter, calculation_date, trace)?
+            self.play_aggregates(reference, records, filter, calculation_date, trace)?
         {
             if trace {
                 let mut node = trace_node(&played);
@@ -411,13 +414,13 @@ impl LawExecutionService {
     /// of its records, as a projection reports them.
     pub fn aggregates(
         &self,
-        law_id: &str,
+        reference: &str,
         records: &[ChronicleRecord],
         filter: &BTreeMap<String, Value>,
         calculation_date: &str,
     ) -> Result<Vec<Aggregate>> {
         Ok(self
-            .play_aggregates(law_id, records, filter, calculation_date, false)?
+            .play_aggregates(reference, records, filter, calculation_date, false)?
             .into_iter()
             .map(|(root, played)| Aggregate {
                 root,
@@ -428,17 +431,19 @@ impl LawExecutionService {
             .collect())
     }
 
-    /// Play the aggregate of each root of `law_id` that holds `filter`, in
-    /// the order of the chronicle.
+    /// Play the aggregate of each root of the aggregates `reference` names
+    /// (`source.projections`) that holds `filter`, in the order of the
+    /// chronicle.
     fn play_aggregates(
         &self,
-        law_id: &str,
+        reference: &str,
         records: &[ChronicleRecord],
         filter: &BTreeMap<String, Value>,
         calculation_date: &str,
         trace: bool,
     ) -> Result<Vec<(String, Played)>> {
         let day = parse_day(calculation_date)?;
+        let (law_id, article) = split_projections(reference);
         let (projection, own_id) = {
             let law = self
                 .resolver()
@@ -448,18 +453,9 @@ impl LawExecutionService {
             // reduction on v0.8.18 or earlier reads a field of that name, as
             // it did.
             let own_id = crate::load_check::from_version(law, (0, 8, 19));
-            let projection = law
-                .articles
-                .iter()
-                .find_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
-                .filter(|p| p.per.is_some())
-                .cloned()
-                .ok_or_else(|| {
-                    EngineError::InvalidOperation(format!(
-                        "'{law_id}' plays no aggregate per record (projection.per), so it has \
-                         no aggregates to read"
-                    ))
-                })?;
+            let projection = aggregate_projection(law, article)
+                .map_err(EngineError::InvalidOperation)?
+                .clone();
             (projection, own_id)
         };
         let Some(per) = projection.per_basis_and_kind() else {
@@ -1159,6 +1155,45 @@ pub const RECORD_ID: &str = "id";
 
 /// The name under which a row of aggregates holds the id of its root.
 pub const ROOT_ID: &str = "id";
+
+/// The projection whose aggregates `article` of `law` plays: the article a
+/// reference names (`<regulation>#<article>`, schema v0.8.19), or without
+/// one, as up to v0.8.18, the first article of the law that plays one.
+/// Refused when the article does not exist or plays no aggregate per
+/// record.
+pub(crate) fn aggregate_projection<'l>(
+    law: &'l ArticleBasedLaw,
+    article: Option<&str>,
+) -> std::result::Result<&'l Projection, String> {
+    let per_projection = |a: &'l Article| {
+        a.machine_readable
+            .as_ref()?
+            .projection
+            .as_ref()
+            .filter(|p| p.per.is_some())
+    };
+    match article {
+        Some(number) => {
+            let found = law.find_article_by_number(number).ok_or_else(|| {
+                format!("'{}' has no article {number} to read aggregates of", law.id)
+            })?;
+            per_projection(found).ok_or_else(|| {
+                format!(
+                    "article {number} of '{}' plays no aggregate per record (projection.per), \
+                     so it has no aggregates to read",
+                    law.id
+                )
+            })
+        }
+        None => law.articles.iter().find_map(per_projection).ok_or_else(|| {
+            format!(
+                "'{}' plays no aggregate per record (projection.per), so it has no aggregates \
+                 to read",
+                law.id
+            )
+        }),
+    }
+}
 
 /// Whether `record` is a root of a projection with `per`: it rests on that
 /// article, and is of that kind or an instance of that fact where `per`
@@ -3861,7 +3896,7 @@ articles:
         input:
           - name: kaarten
             type: array
-            source: {projections: per_verlening, where: {aanvrager: $aanvrager}}
+            source: {projections: per_verlening#1, where: {aanvrager: $aanvrager}}
         output: [{name: aantal, type: number}]
         actions:
           - output: aantal
@@ -4090,7 +4125,7 @@ articles:
             .expect_err("no chronicle");
         assert!(
             err.to_string().contains(
-                "input 'kaarten' of kaarten_van reads the aggregates of per_verlening, and no \
+                "input 'kaarten' of kaarten_van reads the aggregates of per_verlening#1, and no \
                  chronicle supplies its records"
             ),
             "{err}"
@@ -4206,7 +4241,7 @@ articles:
                 "{}{}",
                 "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json\n",
                 READ_MODEL.replace("kaarten_van", "besluiten_van").replace(
-                    "source: {projections: per_verlening, where: {aanvrager: $aanvrager}}",
+                    "source: {projections: per_verlening#1, where: {aanvrager: $aanvrager}}",
                     "source: {decisions: 'wet#1'}",
                 )
             ))
@@ -4538,5 +4573,204 @@ articles:
             executogram_field_type(article, None, "reden"),
             Some(ParameterType::String)
         );
+    }
+
+    /// A file with two aggregates and a read model over one of them (schema
+    /// v0.8.19), each article named.
+    const NAMED: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: gemengd
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: verlening
+    text: t
+    machine_readable:
+      projection:
+        per: wet#1#BESCHIKKING
+        state:
+          - {name: kaart, type: boolean}
+          - {name: aanvrager, type: string}
+        steps:
+          - record: wet#1#BESCHIKKING
+            actions:
+              - {output: kaart, value: $record.verleend}
+              - {output: aanvrager, value: $record.aanvrager}
+  - number: inlevering
+    text: t
+    machine_readable:
+      projection:
+        per: wet#4#EXECUTOGRAM
+        state: [{name: op, type: date}]
+        steps:
+          - record: wet#4#EXECUTOGRAM
+            actions: [{output: op, value: $record.op}]
+  - number: kaarten
+    text: t
+    machine_readable:
+      execution:
+        parameters: [{name: aanvrager, type: string}]
+        input:
+          - name: kaarten
+            type: array
+            source: {projections: gemengd#verlening, where: {aanvrager: $aanvrager}}
+        output: [{name: aantal, type: number}]
+        actions:
+          - output: aantal
+            value: {operation: FOREACH, collection: $kaarten, as: k, filter: $k.kaart, body: 1, combine: ADD}
+"#;
+
+    /// Since schema v0.8.19 a reference names the article of the aggregate,
+    /// so one file holds several aggregates and the read model over one of
+    /// them, each article by its name.
+    #[test]
+    fn a_reference_names_the_article_of_the_aggregate() {
+        let mut service = service();
+        service.load_law(NAMED).unwrap();
+        let op = Value::String("2025-02-01".to_string());
+        let records = [
+            granted_to("a", "x"),
+            fact("i", "4", "ingeleverd", &[("op", op.clone())]),
+        ];
+        let rows = |reference: &str| {
+            service
+                .projection_rows(reference, &records, &BTreeMap::new(), "2025-03-01")
+                .unwrap()
+        };
+        assert_eq!(
+            rows("gemengd#verlening"),
+            Value::Array(vec![Value::Object(BTreeMap::from([
+                ("id".to_string(), Value::String("a".to_string())),
+                ("kaart".to_string(), Value::Bool(true)),
+                ("aanvrager".to_string(), Value::String("x".to_string())),
+            ]))])
+        );
+        assert_eq!(
+            rows("gemengd#inlevering"),
+            Value::Array(vec![Value::Object(BTreeMap::from([
+                ("id".to_string(), Value::String("i".to_string())),
+                ("op".to_string(), op),
+            ]))])
+        );
+        // The read model in the same file reads the aggregate it names.
+        let outcome = service
+            .evaluate_projection(
+                "gemengd",
+                &["aantal"],
+                &records,
+                BTreeMap::from([("aanvrager".to_string(), Value::String("x".to_string()))]),
+                "2025-03-01",
+                false,
+            )
+            .unwrap();
+        assert_eq!(outcome.result.outputs["aantal"], Value::Int(1));
+        // An article that is no aggregate, and one that does not exist.
+        for (reference, why) in [
+            (
+                "gemengd#kaarten",
+                "article kaarten of 'gemengd' plays no aggregate per record (projection.per)",
+            ),
+            (
+                "gemengd#gestolen",
+                "'gemengd' has no article gestolen to read aggregates of",
+            ),
+        ] {
+            let err = service
+                .projection_rows(reference, &records, &BTreeMap::new(), "2025-03-01")
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{reference}: {err}");
+        }
+    }
+
+    /// The loader holds a reference on v0.8.19 to an article that exists and
+    /// plays aggregates, in the same file or in a reduction it holds, and
+    /// refuses the reduction alone; a file on v0.8.18 keeps the reduction
+    /// alone.
+    #[test]
+    fn the_loader_checks_the_article_a_reference_names() {
+        let refused = |reduction: &str| {
+            let mut service = service();
+            service.load_law(PER_GRANT).unwrap();
+            service
+                .load_law(reduction)
+                .expect_err(reduction)
+                .to_string()
+        };
+        for (from, to, why) in [
+            (
+                "projections: gemengd#verlening,",
+                "projections: gemengd#kaarten,",
+                "article kaarten: input 'kaarten': article kaarten of 'gemengd' plays no aggregate per record",
+            ),
+            (
+                "projections: gemengd#verlening,",
+                "projections: gemengd#gestolen,",
+                "input 'kaarten': 'gemengd' has no article gestolen to read aggregates of",
+            ),
+            (
+                "projections: gemengd#verlening,",
+                "projections: gemengd,",
+                "input 'kaarten' reads the aggregates of gemengd; since schema v0.8.19 source.projections names the article of the aggregate, as gemengd#<article>",
+            ),
+            // Another reduction the loader holds, by an article it lacks.
+            (
+                "projections: gemengd#verlening,",
+                "projections: per_verlening#2,",
+                "'per_verlening' has no article 2 to read aggregates of",
+            ),
+        ] {
+            let err = refused(&NAMED.replace(from, to));
+            assert!(err.contains(why), "{to}: {err}");
+        }
+        // The aggregate of another reduction, by its article.
+        let mut with_grant = service();
+        with_grant.load_law(PER_GRANT).unwrap();
+        with_grant
+            .load_law(&NAMED.replace(
+                "projections: gemengd#verlening,",
+                "projections: per_verlening#1,",
+            ))
+            .unwrap();
+        // A reduction the loader does not hold yet is checked when it plays.
+        LawExecutionService::new()
+            .load_law(&NAMED.replace("projections: gemengd#verlening,", "projections: elders#1,"))
+            .unwrap();
+        // Up to v0.8.18 a reference names the reduction alone.
+        let mut older = service();
+        older.load_law(PER_GRANT).unwrap();
+        older
+            .load_law(&format!(
+                "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json\n{}",
+                READ_MODEL.replace("per_verlening#1", "per_verlening")
+            ))
+            .unwrap();
+    }
+
+    /// Since schema v0.8.19 an article of a reduction with a
+    /// `machine_readable` is an aggregate or a read model; one that is
+    /// neither, or both, is refused. An article with only text is allowed.
+    #[test]
+    fn each_article_of_a_reduction_is_an_aggregate_or_a_read_model() {
+        let with = |article: &str| format!("{NAMED}{article}");
+        let mut service = service();
+        service
+            .load_law(&with("  - number: uitleg\n    text: Alleen tekst.\n"))
+            .unwrap();
+        for (article, why) in [
+            (
+                "  - number: niets\n    text: t\n    machine_readable:\n      definitions: {x: {value: 1}}\n",
+                "article niets: reads no aggregates (source.projections) and plays none (projection)",
+            ),
+            (
+                "  - number: beide\n    text: t\n    machine_readable:\n      projection:\n        per: wet#1#BESCHIKKING\n        state: [{name: k, type: boolean}]\n        steps: []\n      execution:\n        output: [{name: y, type: boolean}]\n        actions: [{output: y, value: true}]\n",
+                "has a projection per wet#1#BESCHIKKING and an execution",
+            ),
+        ] {
+            let err = LawExecutionService::new()
+                .load_law(&with(article))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
     }
 }

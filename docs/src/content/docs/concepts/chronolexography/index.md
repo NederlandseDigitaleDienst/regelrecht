@@ -94,7 +94,7 @@ execution:                         # shortened
     - name: besluiten
       type: array
       source:                           # one row per decision under art. 3
-        projections: reductie_besluit_voorbeeld
+        projections: reductie_besluit_voorbeeld#besluit
         where: {bsn_aanvrager: $bsn_aanvrager}
   output:
     - name: eerder_vergunning_verleend
@@ -117,7 +117,7 @@ execution:
 
 This policy article is called a binding: it binds the open term to the answer.
 
-- Each cell decides for itself how it reduces. The engine only asks it for an answer by name. The cell in `packages/cel` uses what the engine offers: rulework of its own kind (`REDUCTIE`) in the cell's own directory. The directory says whose reduction it is, so the reduction names no `competent_authority`. Since schema v0.8.19 a reduction takes one of two forms. An aggregate plays the records of the chronicle, decisions and recorded facts alike. A read model reads the aggregates of another reduction (`source.projections`) in every article that has an `execution`, and may call policy for a norm; see [One aggregate per decision](#one-aggregate-per-decision-experimental). Up to schema v0.8.16 a reduction read decisions directly (`source.decisions`), and up to v0.8.18 recorded facts (`source.facts`); the loader refuses each from the version after. A rule that only combines other rulework reads no chronicle and is no reduction. Such a rule belongs in the authority's policy. In the PoC, article 3 of the head's policy decides whether leave falls outside the school holidays.
+- Each cell decides for itself how it reduces. The engine only asks it for an answer by name. The cell in `packages/cel` uses what the engine offers: rulework of its own kind (`REDUCTIE`) in the cell's own directory. The directory says whose reduction it is, so the reduction names no `competent_authority`. Since schema v0.8.19 each article of a reduction with a `machine_readable` takes one of two forms. An aggregate plays the records of the chronicle, decisions and recorded facts alike. A read model reads aggregates (`source.projections`) and may call policy for a norm; see [One aggregate per decision](#one-aggregate-per-decision-experimental). One file may hold both. An article with only text is allowed. Up to schema v0.8.16 a reduction read decisions directly (`source.decisions`), and up to v0.8.18 recorded facts (`source.facts`); the loader refuses each from the version after. A rule that only combines other rulework reads no chronicle and is no reduction. Such a rule belongs in the authority's policy. In the PoC, article 3 of the head's policy decides whether leave falls outside the school holidays.
 - A reduction may also call a reduction of no cell, in `cells/reductions/`. Such a reduction has no chronicle of its own, and no cell gives it as an answer. It reads the chronicle of the cell that runs the reduction that calls it. No reduction of the PoC is of this kind any more: which decisions still hold after objection and appeal follows from the effects in its Awb (see below).
 - A reduction never calls a reduction of another cell, because that reduction would read the wrong chronicle. The corpus loader of the PoC refuses such a call, and its tests check the whole corpus for it.
 - The engine asks the cell for the answer wherever the binding runs. The cell then runs the reduction that its catalogue names for that answer. Because the binding is an article of policy, its value becomes the value of the term, even when that value is null. A finding of the authority cannot replace it ([Inversion of Control](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer)). Sometimes the cell has no answer and the authority should judge the case itself. The policy then says so with an open term of its own (`decided_per_case_by`).
@@ -228,7 +228,7 @@ execution:
     - name: kaarten
       type: array
       source:
-        projections: test_reductie_kaart_per_besluit
+        projections: test_reductie_kaart_per_besluit#1
         where: {aanvrager: $aanvrager}
     - name: kaart_geldig
       type: boolean
@@ -272,7 +272,7 @@ projection:
         - {output: uitspraak_hoofdzaak_op, value: $record.uitspraak_datum}
 ```
 
-A projection per record answers no question of its own and has no `execution`. Another reduction reads its aggregates with `source.projections`: one row per root the chronicle holds on the calculation date, the last state of its aggregate with the root's `id`. With `where`, the reduction reads only the roots whose field or output of a given name equals a parameter of the reading article, such as `kvk_nummer: $kvk_nummer`. Such a reduction plays nothing itself; it is a read model over the aggregates, and an article of policy says what the rows mean on the day asked about:
+A projection per record answers no question of its own and has no `execution`. A read model reads its aggregates with `source.projections`: one row per root the chronicle holds on the calculation date, the last state of its aggregate with the root's `id`. With `where`, the reduction reads only the roots whose field or output of a given name equals a parameter of the reading article, such as `kvk_nummer: $kvk_nummer`. Such an article plays nothing itself; it is a read model over the aggregates, and an article of policy says what the rows mean on the day asked about:
 
 ```yaml
 # reductie_geldige_bedrijfsparkeervergunningen (PoC), the count per company
@@ -280,11 +280,11 @@ input:
   - name: vergunningen
     type: array
     source:
-      projections: reductie_bedrijfsparkeervergunning
+      projections: reductie_bedrijfsparkeervergunning#vergunning
       where: {kvk_nummer: $kvk_nummer}
   - name: schorsingen
     type: array
-    source: {projections: reductie_schorsing_bedrijfsparkeervergunning}
+    source: {projections: reductie_schorsing_bedrijfsparkeervergunning#schorsing}
   - name: aantal
     type: number
     source:
@@ -292,6 +292,10 @@ input:
       output: aantal_geldige_vergunningen
       parameters: {vergunningen: $vergunningen, schorsingen: $schorsingen, peildatum: $besluit_datum}
 ```
+
+Since schema v0.8.19 `source.projections` names the article of the aggregate, `<regulation>#<article>`, also when that article is in the reading file itself; up to v0.8.18 it named the reduction alone. The loader refuses a reference to an article that does not exist or plays no aggregate, as soon as it holds the file named. An aggregate that only one read model reads lives in the file of that read model, as article `inschrijving` of `reductie_vestiging_in_handelsregister` in the PoC does; one that several read models read, such as `reductie_bedrijfsparkeervergunning#vergunning`, keeps a file of its own.
+
+The articles of the PoC's reductions have names instead of numbers, since a reduction has no published article numbers to follow. An aggregate is named after what it tracks, such as `vergunning`, `schorsing` or `advies`, and a read model after its question or main output, such as `plaats_van_vestiging`, in lowercase snake case.
 
 A decision put in the place of another lands in the aggregate of the decision it replaces, by both routes of the Awb. On objection (Awb 7:11, second paragraph) the authority revokes the contested decision and takes a new one in its place. Legally that is one decision on the objection, and the cell records it as one record: the new decision is the value of its output `nieuw_besluit`, not a record of its own. The decision on the objection refers to the objection, which refers to the contested decision, so it joins that aggregate. A step on it reads the new decision, through a policy of the authority, because a step reads no path into a value. When the court decides the case itself (8:72, third paragraph, under b), the cell records the receipt of the ruling, a fact about the annulled decision. That receipt joins the aggregate of the annulled decision, and a step on it reads the decision the ruling puts in place.
 

@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
 $id: reductie_bedrijfsparkeervergunning_op_peildatum
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -20,7 +20,7 @@ valid_from: '2026-01-01'
 url: https://lokaleregelgeving.overheid.nl/CVDR642699
 name: Bedrijfsparkeervergunning op een peildatum bij de gemeente Wilgendaal (reductie)
 articles:
-  - number: '1'
+  - number: bedrijfsparkeervergunning_geldig_op_peildatum
     text: >-
       Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
       leest door middel van een chronolexografische reductie op zijn eigen
@@ -41,13 +41,13 @@ articles:
           - name: vergunningen
             type: array
             source:
-              projections: reductie_bedrijfsparkeervergunning
+              projections: reductie_bedrijfsparkeervergunning#vergunning
               where:
                 kenteken: $kenteken
           - name: schorsingen
             type: array
             source:
-              projections: reductie_schorsing_bedrijfsparkeervergunning
+              projections: reductie_schorsing_bedrijfsparkeervergunning#schorsing
           - name: geldig
             type: boolean
             source:

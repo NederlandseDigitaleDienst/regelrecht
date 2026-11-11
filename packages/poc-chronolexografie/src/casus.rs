@@ -1077,12 +1077,14 @@ fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
             }
         }
         for source in a.get_inputs().iter().filter_map(|i| i.source.as_ref()) {
-            // The aggregates of another reduction (schema v0.8.17).
-            for id in [&source.regulation, &source.projections]
-                .into_iter()
-                .flatten()
-            {
+            if let Some(id) = &source.regulation {
                 uit.insert(id.clone());
+            }
+            // The aggregates of another reduction (schema v0.8.17), by the
+            // reduction alone or by one of its articles (schema v0.8.19).
+            if let Some(reference) = &source.projections {
+                let (id, _) = regelrecht_law_model::split_projections(reference);
+                uit.insert(id.to_string());
             }
             for verwijzing in [&source.article, &source.decisions, &source.facts]
                 .into_iter()
