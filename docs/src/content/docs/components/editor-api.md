@@ -115,6 +115,10 @@ The traject-scoped view of the corpus: the global corpus with the traject's own 
 
 `...` stands for `/api/trajects/{traject_ref}`.
 
+The first request to a traject after a restart builds its index from one tree listing per source, and every request waits for that build. After that the index is served from memory and refreshed in the background once it is a minute old. A later request waits only when the traject's own repository could not be listed and its own GitHub token can repair the index. The list of changed laws works the same way: when only a member's own GitHub token can read the traject repository, the first member past the minute lends that token to the background refresh and gets the previous list meanwhile.
+
+A law without notes gets an empty notes document (`annotations: []`) with status 200; a 404 means the law is not in the traject. Whether a law has notes comes from the tree listing of the index, at the repository root or at the older location under the source's subpath, so a law without notes costs no call to GitHub. A note saved through the editor counts at once; a notes file added to the repository some other way shows up with the next refresh.
+
 ### Tasks
 
 Review tasks produced by asynchronous jobs, scoped to the account that requested them. Reader + account for reads, Writer + account for resolving.

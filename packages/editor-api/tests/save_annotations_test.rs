@@ -269,10 +269,38 @@ async fn saved_note_is_readable_on_the_same_traject() {
 }
 
 #[tokio::test]
-async fn missing_sidecar_returns_404() {
-    // A law without any notes (sidecar nor personal) is the normal case;
-    // the frontend's `useNotes.js` treats 404 as "no notes" rather than
-    // an error.
+async fn law_without_notes_gets_an_empty_notes_document() {
+    // A law without any notes (sidecar nor personal) is the normal case, so
+    // it gets a 200 with an empty, schema-valid document rather than a 404
+    // that the browser's console reports as an error.
+    let db = TestDb::new().await;
+    let state = empty_state(db.pool.clone());
+    let account = seed_account_record(&db.pool, "alice@test.local", TEST_NAME).await;
+
+    let corpus = tempfile::tempdir().unwrap();
+    write_law(corpus.path());
+    let traject_id = local_traject(&db.pool, account.id, corpus.path()).await;
+
+    let session = verified_session(&account.person_sub, &account.email).await;
+    let (status, _, body) = get_traject_annotations(
+        State(state),
+        session,
+        Extension(account.clone()),
+        Path((traject_ref(traject_id), LAW_ID.to_string())),
+        HeaderMap::new(),
+    )
+    .await
+    .expect("a law without notes is not an error");
+    assert_eq!(status, StatusCode::OK);
+    let doc = regelrecht_corpus::annotation_schema::parse_and_validate_annotation_yaml(&body)
+        .unwrap_or_else(|e| panic!("empty notes document must be schema-valid: {e:?}\n{body}"));
+    assert_eq!(doc["annotations"], serde_json::json!([]));
+}
+
+#[tokio::test]
+async fn notes_of_a_law_outside_the_traject_are_a_404() {
+    // The empty document is for a law that exists and has no notes; a law
+    // the traject does not have is still missing.
     let db = TestDb::new().await;
     let state = empty_state(db.pool.clone());
     let account = seed_account_record(&db.pool, "alice@test.local", TEST_NAME).await;
@@ -286,12 +314,55 @@ async fn missing_sidecar_returns_404() {
         State(state),
         session,
         Extension(account.clone()),
-        Path((traject_ref(traject_id), LAW_ID.to_string())),
+        Path((traject_ref(traject_id), "wet_die_er_niet_is".to_string())),
         HeaderMap::new(),
     )
     .await
-    .expect_err("no sidecar yet, expect 404");
+    .expect_err("an unknown law is not found");
     assert_eq!(err.0, StatusCode::NOT_FOUND, "{}", err.1);
+}
+
+#[tokio::test]
+async fn personal_notes_of_a_law_outside_the_traject_are_still_served() {
+    // A law can drop out of the traject index (or its own repo can fail to
+    // scan) while the caller still has personal notes on it. Those come
+    // back; only without them is the law a 404.
+    let db = TestDb::new().await;
+    let state = empty_state(db.pool.clone());
+    let account = seed_account_record(&db.pool, "alice@test.local", TEST_NAME).await;
+
+    let corpus = tempfile::tempdir().unwrap();
+    write_law(corpus.path());
+    let traject_id = local_traject(&db.pool, account.id, corpus.path()).await;
+
+    let missing = "wet_die_er_niet_is";
+    let (status, _) = regelrecht_editor_api::user_notes::create(
+        State(state.clone()),
+        Extension(account.clone()),
+        Path(missing.to_string()),
+        Json(regelrecht_editor_api::user_notes::NoteRequest {
+            value: "prive context".to_string(),
+            format: None,
+            motivation: None,
+            selector: None,
+        }),
+    )
+    .await
+    .expect("personal note is stored");
+    assert_eq!(status, StatusCode::CREATED);
+
+    let session = verified_session(&account.person_sub, &account.email).await;
+    let (status, _, body) = get_traject_annotations(
+        State(state),
+        session,
+        Extension(account.clone()),
+        Path((traject_ref(traject_id), missing.to_string())),
+        HeaderMap::new(),
+    )
+    .await
+    .expect("personal notes are served even when the law is not indexed");
+    assert_eq!(status, StatusCode::OK);
+    assert!(body.contains("prive context"), "{body}");
 }
 
 #[tokio::test]
@@ -453,16 +524,11 @@ async fn cross_traject_isolation_on_reads() {
     let from_a = read_annotations(state.clone(), &account, traject_a).await;
     assert!(from_a.contains("A-only-note"));
 
-    // B sees nothing — its sidecar does not exist.
-    let session = verified_session(&account.person_sub, &account.email).await;
-    let err = get_traject_annotations(
-        State(state),
-        session,
-        Extension(account.clone()),
-        Path((traject_ref(traject_b), LAW_ID.to_string())),
-        HeaderMap::new(),
-    )
-    .await
-    .expect_err("traject B must not see traject A's notes");
-    assert_eq!(err.0, StatusCode::NOT_FOUND, "{}", err.1);
+    // B sees no notes — its sidecar does not exist.
+    let from_b = read_annotations(state, &account, traject_b).await;
+    assert!(
+        !from_b.contains("A-only-note"),
+        "traject B must not see traject A's notes: {from_b}"
+    );
+    assert!(from_b.contains("annotations: []"), "{from_b}");
 }
