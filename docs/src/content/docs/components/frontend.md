@@ -165,8 +165,8 @@ Besides the views in `src/` (`AppShell.vue`, `LibraryView.vue`, `EditorView.vue`
 
 Where state lives depends on who shares it.
 
-- State the whole app shares lives in a Pinia setup store under `src/stores/`. So far these are the feature flags (`featureFlags.ts`), the user's trajecten with the active one (`trajects.ts`), and what the views publish to the shell (`appChrome.ts`). `main.ts` installs Pinia and starts loading the flags and the traject list; a store does nothing on import.
-- State of one open document lives in a composable each caller creates, such as `useOpenLaw` for the rulework open in the editor. Every open document has its own, so it is not a store.
+- State the whole app shares lives in a Pinia setup store under `src/stores/`. So far these are the feature flags (`featureFlags.ts`), the user's trajecten with the active one (`trajects.ts`), what the views publish to the shell (`appChrome.ts`), and the verdicts on an enrichment under review, which have to outlive moving from article to article (`enrichVerdicts.ts`). `main.ts` installs Pinia and starts loading the flags and the traject list; a store does nothing on import.
+- State of one open document lives in a composable each caller creates, such as `useOpenLaw` for the rulework open in the editor and `useProposalReview` for deciding on a generated proposal for it. Every open document has its own, so it is not a store.
 - Rulework content goes through the corpus reader (see [Data loading](#data-loading)).
 
 Other shared state still sits in module-level singletons under `src/composables/`, such as `useTasks.ts` and `useAddActions.ts`. Each moves to a store when someone changes it; there is no separate conversion.
