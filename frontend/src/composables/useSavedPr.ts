@@ -18,7 +18,7 @@ export interface SavedPr {
 
 /**
  * Module-level shared ref so every composable that performs a save
- * (useLaw, useScenarios, useDraftNotes, …) updates the same value - and
+ * (useOpenLaw, useScenarios, useDraftNotes, …) updates the same value - and
  * the AppShell's "PR #N" badge picks up the most recent PR regardless of
  * which pane triggered the save. Saves in the same traject land on the
  * same upstream branch/PR, so a single shared ref is exactly what the
