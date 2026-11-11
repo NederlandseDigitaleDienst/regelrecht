@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Covers the paths in script/install-a11y-debs.sh that decide where a .deb
 # comes from: the fallback over the sources, skipping a host that does not
-# answer, the SHA256 check, and the cache. `curl` and `dpkg` are stubs, so
+# answer, and the SHA256 check. `curl` and `dpkg` are stubs, so
 # nothing goes over the network and nothing is installed. The .debs are two
 # small fake files with their own checksums.
 set -uo pipefail
@@ -76,12 +76,11 @@ hosts() {
   done
 }
 
-# Runs the script with the stubs on PATH. Extra arguments go to the script.
-# Sets $status and $out.
+# Runs the script with the stubs on PATH. Sets $status and $out.
 run() {
   out="$(PATH="$tmp/bin:$PATH" STUB_DIR="$tmp" A11Y_DEBS="$DEBS" \
     A11Y_SOURCES="${SOURCES_OVERRIDE-$SOURCES}" DPKG=dpkg \
-    bash "$script" "$@" 2>&1)"
+    bash "$script" 2>&1)"
   status=$?
 }
 
@@ -157,41 +156,6 @@ expect_installed "the right bytes reach dpkg"
 hosts launchpad.example=wrong one.example=wrong two.example=wrong
 run
 expect_status "only wrong bytes everywhere fails" 1
-
-# --- Cache ----------------------------------------------------------------
-
-cache="$tmp/cache"
-hosts launchpad.example=dead one.example=serve
-run "$cache"
-expect_status "a cold cache downloads" 0
-if cmp -s "$cache/a_1_all.deb" "$tmp/fixtures/a_1_all.deb" && cmp -s "$cache/b_1_all.deb" "$tmp/fixtures/b_1_all.deb"; then
-  ok "a download lands in the cache directory"
-else
-  bad "a download lands in the cache directory"
-fi
-
-hosts launchpad.example=dead one.example=dead two.example=dead
-run "$cache"
-expect_status "a warm cache needs no source" 0
-if [ -s "$tmp/curl.log" ]; then bad "a warm cache still calls curl"; else ok "a warm cache calls no curl"; fi
-expect_installed "the cached files reach dpkg"
-
-echo tampered >"$cache/b_1_all.deb"
-hosts two.example=serve
-run "$cache"
-expect_status "a damaged cached file is fetched again" 0
-expect_calls "only the damaged file is fetched" "https://two.example/ubuntu/pool/main/a/a/a_1_all.deb" 0
-if cmp -s "$cache/b_1_all.deb" "$tmp/fixtures/b_1_all.deb"; then
-  ok "the damaged file is replaced in the cache"
-else
-  bad "the damaged file is replaced in the cache"
-fi
-
-echo tampered >"$cache/a_1_all.deb"
-hosts launchpad.example=dead one.example=dead two.example=dead
-run "$cache"
-expect_status "a damaged cached file without a source fails" 1
-if [ -f "$tmp/dpkg.log" ]; then bad "dpkg runs on a damaged cache"; else ok "dpkg does not run on a damaged cache"; fi
 
 # --- The real source list -------------------------------------------------
 

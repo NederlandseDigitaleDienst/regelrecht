@@ -1452,33 +1452,9 @@ jobs:
       # script installs the exact .debs apt would pick, pinned by checksum,
       # without going through the image's apt mirror; why, which sources it
       # tries, and how to refresh them, is in the script.
-      #
-      # The .debs are cached under the hash of the script, which holds their
-      # list. On a hit the script checks each cached file against its SHA256
-      # and downloads nothing. Restore and save are separate steps so a
-      # download is kept even when the gate itself fails further on. `~` is
-      # the container's home (/github/home) for both the cache action and the
-      # script, since both run inside the container. On a cold cache all three
-      # shards try to save the same key; two log "Unable to reserve cache",
-      # which is a warning, not a failure.
-      - name: Restore the .debs for unzip and fonts
-        id: a11y-debs
-        if: needs.changes.outputs.docs == 'true'
-        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: ~/.cache/a11y-debs
-          key: a11y-debs-${{ hashFiles('script/install-a11y-debs.sh') }}
-
       - name: Install unzip and fonts
         if: needs.changes.outputs.docs == 'true'
-        run: script/install-a11y-debs.sh "$HOME/.cache/a11y-debs"
-
-      - name: Save the .debs for unzip and fonts
-        if: needs.changes.outputs.docs == 'true' && steps.a11y-debs.outputs.cache-hit != 'true'
-        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
-        with:
-          path: ~/.cache/a11y-debs
-          key: ${{ steps.a11y-debs.outputs.cache-primary-key }}
+        run: script/install-a11y-debs.sh
 
       # pa11y draait niet op playwright maar op puppeteer, met een eigen
       # browsercache (~/.cache/puppeteer). Die download zat in puppeteers

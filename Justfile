@@ -257,8 +257,8 @@ playwright-image-test:
     node --test script/playwright-image.test.mjs
 
 # How the docs accessibility gate gets its .debs: the fallback over the
-# sources, the SHA256 check and the cache. `curl` and `dpkg` are stubs on
-# PATH, so nothing goes over the network and nothing is installed.
+# sources and the SHA256 check. `curl` and `dpkg` are stubs on PATH, so
+# nothing goes over the network and nothing is installed.
 [doc("Check the .deb install for the docs accessibility gate")]
 a11y-debs-test:
     script/install-a11y-debs.test.sh

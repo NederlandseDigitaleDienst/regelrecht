@@ -2,8 +2,6 @@
 # Install the packages the docs accessibility gate needs inside the Playwright
 # image, without apt. Used by the docs-a11y job in .github/workflows/ci.yml.
 #
-#   script/install-a11y-debs.sh [cache-dir]
-#
 # The image lacks two things the gate needs. Puppeteer unpacks its Chrome
 # download with `unzip`. Without DejaVu, fontconfig resolves `monospace` to a
 # CJK font (WenQuanYi Zen Hei Mono) whose wider glyphs make code blocks
@@ -18,11 +16,6 @@
 # fonts-dejavu-core` picks in the image (fonts-dejavu-mono is a dependency of
 # fonts-dejavu-core), so dpkg installs the same files, fontconfig
 # configuration included.
-#
-# Cache: with a cache directory, a file already there with the right SHA256
-# is used as is, and a download lands there. ci.yml restores that directory
-# with actions/cache before this script and saves it after, so a job with a
-# cache hit needs no network for this step at all.
 #
 # Sources, tried in the order of SOURCES below. Launchpad's copy of the Ubuntu
 # archive comes first: the librarian keeps every version that was ever
@@ -40,7 +33,7 @@
 # still gets the next file.
 #
 # Every file is checked against the SHA256 below, wherever it came from: a
-# mirror or a cache can only yield the bytes the signed package index names.
+# mirror can only yield the bytes the signed package index names.
 # The plain-http Azure name is what the image's apt uses; the checksum, not
 # the transport, is what makes a file trustworthy.
 #
@@ -55,7 +48,7 @@
 # `Filename:` line. Check it against the file at
 #   https://launchpad.net/ubuntu/+archive/primary/+files/<file>
 #
-# script/install-a11y-debs.test.sh covers the fallback and the cache, with
+# script/install-a11y-debs.test.sh covers the fallback and the checksum, with
 # `curl` and `dpkg` as stubs. It sets A11Y_DEBS, A11Y_SOURCES and DPKG; CI
 # sets none of them.
 set -euo pipefail
@@ -81,13 +74,8 @@ pool https://mirrors.edge.kernel.org/ubuntu/pool/
 
 DPKG="${DPKG:-dpkg}"
 
-if [ -n "${1:-}" ]; then
-  dir="$1"
-  mkdir -p "$dir"
-else
-  dir="$(mktemp -d)"
-  trap 'rm -rf "${dir:?}"' EXIT
-fi
+dir="$(mktemp -d)"
+trap 'rm -rf "${dir:?}"' EXIT
 
 # No --retry: the next source is the retry, and a curl retry would double
 # what a dead host costs.
@@ -104,11 +92,6 @@ files=()
 while read -r sha file pool; do
   [ -n "$file" ] || continue
   files+=("$dir/$file")
-  if [ -f "$dir/$file" ] && verify; then
-    echo "$file: from the cache" >&2
-    continue
-  fi
-  rm -f "${dir:?}/$file"
   got=no
   while read -r layout source; do
     [ -n "$source" ] || continue
