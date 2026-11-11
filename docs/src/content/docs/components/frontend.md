@@ -96,7 +96,7 @@ The settings sheet (`SettingsSheet.vue`, from the account menu) has two sections
 
 ## Feature flags
 
-Flags are deployment-wide, stored in the `feature_flags` table and served by `GET /api/feature-flags`. `PUT /api/feature-flags/{key}` is behind the `editor-admin` role. The frontend keeps its own defaults in `src/composables/useFeatureFlags.ts` so it can render before the API answers.
+Flags are deployment-wide, stored in the `feature_flags` table and served by `GET /api/feature-flags`. `PUT /api/feature-flags/{key}` is behind the `editor-admin` role. The frontend keeps its own defaults in the feature-flag store, `src/stores/featureFlags.ts`, so it can render before the API answers.
 
 The list in `packages/editor-api/src/feature_flags.rs` is also the allow-list: the backend rejects a PUT for a key it does not know with 400, and the frontend then reverts the switch. The two lists therefore have to name the same keys.
 

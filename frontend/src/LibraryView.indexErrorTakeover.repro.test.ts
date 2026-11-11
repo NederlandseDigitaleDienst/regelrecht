@@ -67,7 +67,6 @@ const BROKEN = 'traject-abcd1234';
 const HEALTHY = 'traject-99998888';
 
 vi.mock('./lib/apiFetch', () => harness.apiFetchModule());
-vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 vi.mock('./composables/useDocumentsManager', () => harness.documentsManager());
 vi.mock('./composables/useTrajectDocumentJobs', () => harness.trajectDocumentJobs());
 vi.mock('./composables/useDocumentUpload', () => harness.documentUpload());

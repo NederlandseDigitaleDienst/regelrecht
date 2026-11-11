@@ -71,10 +71,6 @@ export function apiFetchModule(module: Record<string, unknown> = {}) {
   };
 }
 
-export function featureFlags() {
-  return { useFeatureFlags: () => ({ isEnabled: () => true }) };
-}
-
 export function documentsManager<A extends unknown[]>(overrides?: Overrides<A>) {
   return {
     useDocumentsManager: (...args: A) => ({

@@ -7,7 +7,7 @@ import { useCorpus } from './corpus';
 import { useEngine } from './composables/useEngine';
 import { useAuth } from './composables/useAuth';
 import { useTrajects } from './composables/useTrajects';
-import { useFeatureFlags } from './composables/useFeatureFlags';
+import { useFeatureFlagsStore } from './stores/featureFlags';
 import { useEnrichState } from './composables/useEnrichState';
 import { useTaskReview } from './composables/useTaskReview';
 import { useNotes, useResolvedDraftNotes } from './composables/useNotes';
@@ -98,7 +98,7 @@ type TextEditorInstance = InstanceType<typeof ArticleTextEditor>;
 
 
 const { authenticated, oidcConfigured } = useAuth();
-const { isEnabled } = useFeatureFlags();
+const featureFlags = useFeatureFlagsStore();
 
 // Per-pane view selection. Each pane independently picks one of the
 // available views (Tekst, Machine, Scenario's, YAML). Same view can be
@@ -115,7 +115,7 @@ const VIEW_DEFINITIONS = [
   { id: 'notes', flag: 'panel.notes', label: 'Notities' },
 ];
 
-const availableViews = computed(() => VIEW_DEFINITIONS.filter(v => isEnabled(v.flag)));
+const availableViews = computed(() => VIEW_DEFINITIONS.filter(v => featureFlags.isEnabled(v.flag)));
 
 function viewLabel(viewId: string) {
   return VIEW_DEFINITIONS.find(v => v.id === viewId)?.label ?? viewId;
@@ -508,7 +508,7 @@ const editorAnnotations = computed(() => {
 // article text that a linking note ties to that rule, for the Machine pane.
 // Same resolved notes as the highlights, so both show the same fragments.
 const regelrijmLinks = computed(() => {
-  if (!isEnabled('panel.regelrijm')) return new Map<string, LinkedFragment[]>();
+  if (!featureFlags.isEnabled('panel.regelrijm')) return new Map<string, LinkedFragment[]>();
   return linksByOutput(notesForArticle.value, {
     lawId: [law.value?.$id, lawId.value],
     text: selectedArticle.value?.text || '',
@@ -518,7 +518,7 @@ const regelrijmLinks = computed(() => {
 // The action a linking note points at in this article, for "Actie openen" in
 // the note popover; null for any other note or with the flag off.
 function linkedAction(note: Note): ExecutionAction | null {
-  if (!isEnabled('panel.regelrijm')) return null;
+  if (!featureFlags.isEnabled('panel.regelrijm')) return null;
   const output = linkedOutput(note, [law.value?.$id, lawId.value]);
   return output ? (machineReadable.value?.execution?.actions?.find((a) => a?.output === output) ?? null) : null;
 }

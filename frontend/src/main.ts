@@ -4,6 +4,7 @@ import { computed, createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
+import { useFeatureFlagsStore } from './stores/featureFlags';
 import { installApiAuthGuard } from './lib/apiAuthGuard';
 import { installDevSlowMode } from './lib/devSlowMode';
 import { createCorpusReader, createHttpTransport, installCorpus } from './corpus';
@@ -27,6 +28,9 @@ installCorpus(createCorpusReader({
 // App-wide state lives in Pinia stores (src/stores); see the editor's
 // component page in the docs for what goes in a store and what does not.
 const app = createApp(App);
-app.use(createPinia());
+const pinia = createPinia();
+app.use(pinia);
 app.use(router);
+// The server's feature flags; the defaults hold until they arrive.
+useFeatureFlagsStore(pinia).load();
 app.mount('#app');

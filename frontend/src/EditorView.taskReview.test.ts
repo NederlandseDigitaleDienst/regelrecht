@@ -13,6 +13,7 @@ import { ref, reactive, nextTick } from 'vue';
 import type { EditorChanges } from './composables/useAppChrome';
 import type { OpenLaw } from './composables/useOpenLaw';
 import { installTestCorpus } from './test-utils/corpusSetup';
+import { allFlagsOn, testingPinia } from './test-utils/testingPinia';
 
 // --- vue-router: no real router. `route` is reactive, because the whole bug
 // hangs on a watch on `route.query.task`: a test must be able to change it the
@@ -40,9 +41,6 @@ vi.mock('./composables/useAuth', () => ({
   useAuth: () => ({ authenticated: ref(true), oidcConfigured: ref(true), login: vi.fn() }),
 }));
 
-vi.mock('./composables/useFeatureFlags', () => ({
-  useFeatureFlags: () => ({ isEnabled: () => true }),
-}));
 
 vi.mock('./composables/useTrajects', () => ({
   useTrajects: () => ({
@@ -274,7 +272,10 @@ const internals = (wrapper: VueWrapper) => wrapper.vm as unknown as EditorViewIn
 let mounted: VueWrapper | null = null;
 function mountEditor() {
   mounted = shallowMount(EditorView, {
-    global: { stubs: { teleport: true, ArticleTextEditor: ArticleTextEditorStub } },
+    global: {
+      stubs: { teleport: true, ArticleTextEditor: ArticleTextEditorStub },
+      plugins: [testingPinia({ initialState: { featureFlags: allFlagsOn() } })],
+    },
   });
   return mounted;
 }

@@ -52,7 +52,6 @@ vi.mock('./lib/apiFetch', () =>
     }),
   }),
 );
-vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 vi.mock('./composables/useDocumentsManager', () => harness.documentsManager());
 vi.mock('./composables/useTrajectDocumentJobs', () => harness.trajectDocumentJobs());
 vi.mock('./composables/useDocumentUpload', () => harness.documentUpload());

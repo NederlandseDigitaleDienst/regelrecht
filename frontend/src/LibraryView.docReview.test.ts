@@ -58,7 +58,6 @@ vi.mock('vue-router', () =>
 vi.mock('./composables/useAuth', () => harness.auth());
 vi.mock('./composables/useTrajects', () => harness.trajectsModule());
 vi.mock('./lib/apiFetch', () => harness.apiFetchModule());
-vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 
 // The manager stub deliberately keeps `currentPath`/`currentBody`/`docLoading`/
 // `docError` as module-level refs so tests can drive the exact state the

@@ -1,12 +1,18 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { ref } from 'vue';
 import { jsonResponse } from '../test-utils/fetchStubs';
+import { useFeatureFlagsStore } from './featureFlags';
 
-// useFeatureFlags is a module singleton; reset modules per test for a clean
-// store, and stub the global fetch that apiFetch ultimately calls.
+// Whether OIDC is configured decides what a failed write does; each test sets
+// it. The global test setup gives every test a fresh Pinia, so the store
+// starts from the defaults (plus localStorage) each time.
+const oidcConfigured = ref(false);
+vi.mock('../composables/useAuth', () => ({ useAuth: () => ({ oidcConfigured }) }));
+
 async function freshFlags() {
-  vi.resetModules();
-  const mod = await import('./useFeatureFlags');
-  return mod.useFeatureFlags();
+  const store = useFeatureFlagsStore();
+  await store.load();
+  return store;
 }
 
 function stubFetch(putResponse: () => Response) {
@@ -27,9 +33,10 @@ function stubFetch(putResponse: () => Response) {
 // which is all these tests about the store mechanics need.
 const KEY = 'test.flag';
 
-describe('useFeatureFlags', () => {
+describe('useFeatureFlagsStore', () => {
   beforeEach(() => {
     localStorage.clear();
+    oidcConfigured.value = false;
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -38,8 +45,7 @@ describe('useFeatureFlags', () => {
 
   it('keeps a toggle locally when the backend write is rejected (e.g. 401 in OIDC-off dev)', async () => {
     stubFetch(() => new Response('unauthorized', { status: 401 }));
-    const { isEnabled, toggle, loaded } = await freshFlags();
-    await vi.waitFor(() => expect(loaded.value).toBe(true));
+    const { isEnabled, toggle } = await freshFlags();
 
     expect(isEnabled(KEY)).toBe(true); // unknown key defaults on
     await toggle(KEY);
@@ -51,30 +57,11 @@ describe('useFeatureFlags', () => {
   });
 
   it('reverts the toggle when OIDC is configured and the write fails (prod - no sticky override)', async () => {
-    // With OIDC configured, /auth/status reports it; a failed write must not
-    // persist a local override that would beat the server on the next load.
-    vi.stubGlobal(
-      'fetch',
-      vi.fn((input, init) => {
-        const url = typeof input === 'string' ? input : input?.url ?? '';
-        const method = init?.method ?? 'GET';
-        if (method === 'PUT') return Promise.resolve(new Response('unauthorized', { status: 401 }));
-        if (url.includes('/auth/status')) {
-          return Promise.resolve(
-            jsonResponse({ authenticated: true, oidc_configured: true }),
-          );
-        }
-        return Promise.resolve(
-          jsonResponse({}),
-        );
-      }),
-    );
-    vi.resetModules();
-    const flagsMod = await import('./useFeatureFlags');
-    const authMod = await import('./useAuth');
-    await authMod.ensureAuthReady(); // load oidc_configured: true before toggling
-    const { isEnabled, toggle, loaded } = flagsMod.useFeatureFlags();
-    await vi.waitFor(() => expect(loaded.value).toBe(true));
+    // With OIDC configured, a failed write must not persist a local override
+    // that would beat the server on the next load.
+    oidcConfigured.value = true;
+    stubFetch(() => new Response('unauthorized', { status: 401 }));
+    const { isEnabled, toggle } = await freshFlags();
 
     expect(isEnabled(KEY)).toBe(true); // default
     await toggle(KEY);
@@ -100,8 +87,7 @@ describe('useFeatureFlags', () => {
         );
       }),
     );
-    const { isEnabled, loaded } = await freshFlags();
-    await vi.waitFor(() => expect(loaded.value).toBe(true));
+    const { isEnabled } = await freshFlags();
 
     expect(isEnabled(KEY)).toBe(true);
   });
@@ -111,8 +97,7 @@ describe('useFeatureFlags', () => {
     // is the only source and must survive.
     localStorage.setItem('regelrecht-feature-flags', JSON.stringify({ [KEY]: false }));
     stubFetch(() => new Response('{}', { status: 200 }));
-    const { isEnabled, loaded } = await freshFlags();
-    await vi.waitFor(() => expect(loaded.value).toBe(true));
+    const { isEnabled } = await freshFlags();
 
     expect(isEnabled(KEY)).toBe(false);
   });
@@ -122,8 +107,7 @@ describe('useFeatureFlags', () => {
       () =>
         jsonResponse({ [KEY]: false }),
     );
-    const { isEnabled, toggle, loaded } = await freshFlags();
-    await vi.waitFor(() => expect(loaded.value).toBe(true));
+    const { isEnabled, toggle } = await freshFlags();
 
     await toggle(KEY);
 

@@ -11,9 +11,15 @@ import { vi, type Mock } from 'vitest';
 import type { UnwrapRef } from 'vue';
 import type { Store, StoreDefinition } from 'pinia';
 import { createTestingPinia, type TestingOptions } from '@pinia/testing';
+import { DEFAULTS } from '../stores/featureFlags';
 
 export function testingPinia(options: Omit<TestingOptions, 'createSpy'> = {}) {
   return createTestingPinia({ createSpy: vi.fn, ...options });
+}
+
+/** Every known feature flag switched on, as `initialState` for the featureFlags store. */
+export function allFlagsOn(): { flags: Record<string, boolean> } {
+  return { flags: Object.fromEntries(Object.keys(DEFAULTS).map((key) => [key, true])) };
 }
 
 /**

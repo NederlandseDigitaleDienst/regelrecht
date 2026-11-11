@@ -17,7 +17,7 @@ import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
 import type { NLDDPopover } from '@nldd/design-system/popover';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import type { NLDDSwitch } from '@nldd/design-system/switch';
-import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useFeatureFlagsStore } from '../stores/featureFlags';
 import { useGithubAuth } from '../composables/useGithubAuth';
 import { useSettingsSections } from '../composables/useSettingsSections';
 
@@ -32,7 +32,7 @@ function hide(): void {
 
 defineExpose({ show, hide });
 
-const { isEnabled, toggle: toggleFlag } = useFeatureFlags();
+const featureFlags = useFeatureFlagsStore();
 const {
   status: githubStatus,
   connect: connectGithub,
@@ -64,13 +64,13 @@ const githubConfigured = computed(() => signedIn.value && !!githubStatus.value?.
 // They differ when the deployment forces it through config; then the switch
 // would be a control that changes nothing, so it makes way for a plain line.
 const githubRequired = computed(() => !!githubStatus.value?.required);
-const githubEnforced = computed(() => isEnabled('github.user_oauth'));
+const githubEnforced = computed(() => featureFlags.isEnabled('github.user_oauth'));
 const githubForcedByConfig = computed(() => githubRequired.value && !githubEnforced.value);
 const githubConnected = computed(() => !!githubStatus.value?.connected);
 
 function onPanelFlagChange(key: string, event: Event): void {
   // Follow the store rather than the switch's own DOM state.
-  if ((event as CustomEvent<{ checked: boolean }>).detail.checked !== isEnabled(key)) toggleFlag(key);
+  if ((event as CustomEvent<{ checked: boolean }>).detail.checked !== featureFlags.isEnabled(key)) featureFlags.toggle(key);
 }
 
 // Enabling `github.user_oauth` is not a personal display preference like the
@@ -86,7 +86,7 @@ const enforcementSwitch = ref<NLDDSwitch | null>(null);
 function onEnforcementChange(event: Event): void {
   // The change event comes from the nldd-switch itself.
   const target = event.target as NLDDSwitch;
-  if (!isEnabled('github.user_oauth')) {
+  if (!featureFlags.isEnabled('github.user_oauth')) {
     // Revert the switch: it flipped itself, and the flag only actually turns
     // on once the confirmation is accepted.
     target.checked = false;
@@ -96,12 +96,12 @@ function onEnforcementChange(event: Event): void {
     }
     return;
   }
-  toggleFlag('github.user_oauth');
+  featureFlags.toggle('github.user_oauth');
 }
 
 function confirmUserOauthEnforcement(): void {
   enforcementConfirm.value?.hide();
-  toggleFlag('github.user_oauth');
+  featureFlags.toggle('github.user_oauth');
 }
 
 // Release the anchor when the popover closes (confirm, cancel, or light
@@ -179,7 +179,7 @@ function confirmDisconnect(): void {
                 <nldd-cell>
                   <nldd-switch
                     :accessible-label="label"
-                    :checked="isEnabled(key) || undefined"
+                    :checked="featureFlags.isEnabled(key) || undefined"
                     @change="onPanelFlagChange(key, $event)"
                   ></nldd-switch>
                 </nldd-cell>

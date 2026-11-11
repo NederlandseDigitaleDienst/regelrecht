@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { DEFAULTS } from './useFeatureFlags';
+import { DEFAULTS } from './featureFlags';
 
 // The backend's DEFAULTS map is both its default set and the allow-list for
 // PUT /api/feature-flags/{key}. A flag the frontend knows but the backend does

@@ -29,7 +29,6 @@ vi.mock('vue-router', () => harness.vueRouter(() => routeState));
 vi.mock('./composables/useAuth', () => harness.auth());
 vi.mock('./composables/useTrajects', () => harness.trajectsModule());
 vi.mock('./lib/apiFetch', () => harness.apiFetchModule());
-vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 
 // Module-level so each test can drive the exact state the watcher reacts to.
 const documents = ref<DocumentEntry[]>([]);
