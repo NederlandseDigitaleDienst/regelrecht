@@ -146,6 +146,9 @@ describe('useProposalReview: the task', () => {
     expect(law.editedText.value).toBe('een, voorgesteld');
     expect(law.selectedArticle.value?.text).toBe('een');
     expect(review.statusText.value).toContain('Onderdeel 1 van 2');
+    expect(review.statusText.value).not.toContain('wijkt niet af');
+    expect(review.statusText.value).not.toContain('YAML-paneel');
+    expect(review.variant.value).toBe('accent');
     expect(review.canRejectRest.value).toBe(true);
   });
 
@@ -218,6 +221,20 @@ describe('useProposalReview: the task', () => {
     expect(review.active.value).toBe(true);
     expect(law.editedText.value).toBe('een, voorgesteld');
     expect(tasks.fetchTask).toHaveBeenCalledTimes(1);
+  });
+
+  it('seeds again after a detour to another law with the same article number', async () => {
+    const { law: opened, review } = await startReview();
+    // The article number stays "1"; only the law underneath changes.
+    await opened.open({ lawId: 'andere_wet', articleNumber: '1' });
+    await settle();
+    expect(review.active.value).toBe(false);
+    expect(opened.editedText.value).toBe('ander');
+
+    await opened.open({ lawId: 'test_wet', articleNumber: '1' });
+    await settle();
+    expect(review.active.value).toBe(true);
+    expect(opened.editedText.value).toBe('een, voorgesteld');
   });
 
   it('ends when ?task= leaves the URL, and loads the task again when it comes back', async () => {
@@ -392,6 +409,23 @@ describe('useProposalReview: a new regelwerk from a document conversion', () => 
     expect(route.query.task).toBeUndefined();
   });
 
+  it('creates nothing when approve is asked for while another law is open', async () => {
+    tasks.fetchTask.mockResolvedValue(lawCreateTask());
+    const calls: string[] = [];
+    stubFetch(async (url: string) => {
+      calls.push(url);
+      return res({ json: {} });
+    });
+    const { law: opened, review } = await startReview({ lawId: 'nieuwe_wet' });
+    await opened.open({ lawId: 'test_wet', articleNumber: '1' });
+    await settle();
+    expect(review.active.value).toBe(false);
+
+    await review.approve();
+    expect(calls).toEqual([]);
+    expect(tasks.resolveTask).not.toHaveBeenCalled();
+  });
+
   it('rejects without creating anything, and leaves the law route', async () => {
     tasks.fetchTask.mockResolvedValue(lawCreateTask());
     const { review } = await startReview({ lawId: 'nieuwe_wet' });
@@ -399,5 +433,53 @@ describe('useProposalReview: a new regelwerk from a document conversion', () => 
 
     expect(tasks.resolveTask).toHaveBeenCalledWith('t1', 'rejected');
     expect(replace).toHaveBeenLastCalledWith({ name: 'home' });
+  });
+});
+
+describe('useProposalReview: the status line', () => {
+  it('says so when the article does not differ from the proposal, rather than only turning yellow', async () => {
+    tasks.fetchTask.mockResolvedValue(
+      openTask({
+        payload: { law_id: 'test_wet', article: '2', yaml_path: LAW_PATH },
+        results: [{ path: LAW_PATH, content: law('een, voorgesteld', 'twee') }],
+      }),
+    );
+    const { law: opened, review } = await startReview({ article: '2' });
+
+    expect(review.active.value).toBe(true);
+    expect(opened.editedText.value).toBe('twee');
+    expect(review.variant.value).toBe('warning');
+    expect(review.statusText.value).toContain('Artikel 2 wijkt niet af van het voorstel; er valt niets te wijzigen.');
+  });
+
+  it('points at the YAML pane when a whole-law proposal also changes other articles', async () => {
+    tasks.fetchTask.mockResolvedValue(openTask({ payload: { law_id: 'test_wet', yaml_path: LAW_PATH } }));
+    const { law: opened, review } = await startReview();
+
+    expect(opened.editedText.value).toBe('een, voorgesteld');
+    expect(review.statusText.value).toContain('Zie ook het YAML-paneel voor wijzigingen buiten dit artikel.');
+  });
+
+  it('neither turns yellow nor explains anything while the proposal is still on its way', async () => {
+    let releaseParts: (value: unknown) => void = () => {};
+    tasks.fetchJobTasks.mockReturnValue(new Promise((resolve) => { releaseParts = resolve; }));
+    const { review } = await startReview();
+
+    // The task is loaded, so review mode is on, but nothing has been seeded yet.
+    expect(review.active.value).toBe(true);
+    expect(review.variant.value).toBe('accent');
+    expect(review.statusText.value).not.toContain('wijkt niet af');
+
+    releaseParts(twoParts());
+    await settle();
+    expect(review.statusText.value).toContain('Onderdeel 1 van 2');
+  });
+
+  it('does not claim the article matches the proposal when the proposal cannot be read', async () => {
+    tasks.fetchTask.mockResolvedValue(openTask({ results: [{ path: LAW_PATH, content: 'articles: [kapot' }] }));
+    const { law: opened, review } = await startReview();
+
+    expect(opened.editedText.value).toBe('een');
+    expect(review.statusText.value).not.toContain('wijkt niet af');
   });
 });

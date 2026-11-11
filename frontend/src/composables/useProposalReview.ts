@@ -256,7 +256,6 @@ export function useProposalReview(host: ProposalReviewHost) {
     jobParts.value = [];
   }
 
-
   // The review task in the URL (`?task=`). Editor routes carry it along
   // (`taskId`, which EditorView's `editorRouteFor` reads), so while a task is
   // under review it travels with every navigation inside the editor: tab,
@@ -346,16 +345,21 @@ export function useProposalReview(host: ProposalReviewHost) {
     );
   }
 
-  // Whether the proposal seeded anything (false when every proposed article
-  // matches the saved law, or the only differences are articles the saved
-  // law doesn't have - see the comment on the loop below).
+  // Whether the proposal seeded anything (false when no proposed article
+  // differs from the saved law in a way the editor can show - see
+  // `proposalDivergence`).
   const reviewSeeded = ref(false);
   // Whether the proposal touches article(s) beyond the single one seeded into
   // the editor panes (or, when nothing was seedable, the proposal touches
   // anything at all). The visible editor is always single-article-scoped, but
   // Opslaan now approves the FULL proposal regardless - this only drives the
-  // banner copy that points the reviewer at the YAML panel for the rest.
+  // note in the status line that points the reviewer at the YAML panel for
+  // the rest.
   const reviewHasHiddenChanges = ref(false);
+  // Whether the proposal has been put in the panes, or tried to be. Until
+  // then `reviewSeeded` is false only because nothing happened yet, which the
+  // status line must not read as "nothing differs".
+  const reviewSeedTried = ref(false);
   // The article the proposal should land in (`payload.article`, or - for a
   // proposal about the whole law - the article `proposalDivergence` picked), and
   // the article it actually sits in right now. The two part as soon as you look
@@ -388,12 +392,15 @@ export function useProposalReview(host: ProposalReviewHost) {
     } catch {
       return; // malformed proposal - leave the saved content in place
     }
+    // Tried only once the proposal parses: a broken one says nothing about
+    // whether the article differs.
+    reviewSeedTried.value = true;
     const proposedArticles: LawArticle[] = Array.isArray(proposed?.articles) ? proposed.articles : [];
-    // v1 can only seed an EXISTING article as an unsaved edit (same
-    // single-article model as `currentLawYaml`'s KNOWN LIMITATION below,
-    // which has no way to splice in an article the saved law doesn't have),
-    // and can't show a removed article either - proposalDivergence folds both
-    // into `hiddenChanges` so the banner points at the YAML panel for them.
+    // v1 can only seed an EXISTING article as an unsaved edit (the same
+    // single-article model as useOpenLaw's `currentLawYaml`, which has no way
+    // to splice in an article the saved law doesn't have), and can't show a
+    // removed article either - proposalDivergence folds both into
+    // `hiddenChanges` so the status line points at the YAML panel for them.
     const { target, hiddenChanges } = proposalDivergence(
       articles.value,
       proposedArticles,
@@ -413,45 +420,30 @@ export function useProposalReview(host: ProposalReviewHost) {
     host.openLaw.seedProposal(target);
   }
 
-  // Variant + copy for the review-mode bar (a low, full-width nldd-banner -
-  // see PR #935 UX feedback; it used to be a page-height nldd-inline-dialog
-  // that ate half the viewport). Opslaan always approves the FULL proposal
-  // (see `handleLawSave`), so the copy says so explicitly; when the proposal
-  // touches more than the single seeded article (or nothing could be seeded
-  // at all), point the reviewer at the YAML panel (`panel.yaml_editor`) for
-  // the parts the article-scoped editor can't show. A bar has no room for
-  // paragraphs, so copy stays to a heading line + one short supporting line.
+  // The status line the shell shows for the review (a low, full-width bar -
+  // see PR #935 UX feedback; it used to be a page-height dialog that ate half
+  // the viewport). A bar has no room for paragraphs, so it says what the
+  // proposal is, which panes to review, and only what the panes cannot show
+  // by themselves.
   const REVIEW_HIDDEN_CHANGES_NOTE = 'Zie ook het YAML-paneel voor wijzigingen buiten dit artikel.';
   // Accent, not neutral: a generated proposal is the one thing on screen that
-  // asks for a decision, and a neutral bar reads as background chrome.
+  // asks for a decision, and a neutral bar reads as background chrome. Warning
+  // when it could not be put in the panes: then there is nothing to see here.
   const reviewBannerVariant = computed(() => {
     if (loadError.value) return 'critical';
     if (reviewIsLawCreate.value) return 'accent';
-    if (reviewActive.value && !reviewSeeded.value) return 'warning';
+    if (reviewActive.value && reviewSeedTried.value && !reviewSeeded.value) return 'warning';
     return 'accent';
   });
-  const reviewBannerText = computed(() =>
-    reviewIsLawCreate.value ? 'Nieuw regelwerk uit documentconversie' : 'Voorstel uit verrijking',
-  );
-  const reviewBannerSupportingText = computed(() => {
-    if (loadError.value) return loadError.value;
-    if (reviewIsLawCreate.value) {
-      return 'Controleer het regelwerk; Opslaan voegt het toe aan het traject, Verwerpen wijst af.';
+  // What the panes cannot show by themselves: an article that does not differ
+  // from the proposal (the bar is yellow, and says why), or a whole-law
+  // proposal that also changes other articles.
+  const reviewSeedNote = computed(() => {
+    if (reviewIsLawCreate.value || !reviewSeedTried.value) return '';
+    if (!reviewSeeded.value && reviewArticleNumber.value) {
+      return ` Artikel ${reviewArticleNumber.value} wijkt niet af van het voorstel; er valt niets te wijzigen.`;
     }
-    if (!reviewSeeded.value) {
-      return reviewArticleNumber.value
-        ? `Artikel ${reviewArticleNumber.value} wijkt niet af van het voorstel; er valt niets te wijzigen.`
-        : 'Voorstel raakt alleen inhoud die hier niet zichtbaar is - bekijk het YAML-paneel.';
-    }
-    // Artikel-scoped: het oordeel gaat over dit artikel zoals het hier staat,
-    // dus eigen aanpassingen gaan wél mee.
-    if (!reviewSavesWholeLaw.value) {
-      return `Overnemen bewaart artikel ${reviewArticleNumber.value} zoals het hier staat, Verwerpen laat het ongemoeid.`;
-    }
-    return (
-      'Overnemen neemt het volledige voorstel over (eigen aanpassingen gaan niet mee), Verwerpen wijst af.' +
-      (reviewHasHiddenChanges.value ? ` ${REVIEW_HIDDEN_CHANGES_NOTE}` : '')
-    );
+    return reviewHasHiddenChanges.value ? ` ${REVIEW_HIDDEN_CHANGES_NOTE}` : '';
   });
 
   // Which panes carry the proposal, for the review notice. An enrichment writes
@@ -474,7 +466,7 @@ export function useProposalReview(host: ProposalReviewHost) {
     const panes = reviewChangedPanes.value;
     const list =
       panes.length > 1 ? `${panes.slice(0, -1).join(', ')} en ${panes.at(-1)}` : panes[0];
-    return `${what}. Beoordeel ${list}.${reviewProgressNote.value}`;
+    return `${what}. Beoordeel ${list}.${reviewSeedNote.value}${reviewProgressNote.value}`;
   });
 
   // Waar de beoordelaar in de verrijking staat, en - zolang er nog onderdelen
@@ -506,6 +498,8 @@ export function useProposalReview(host: ProposalReviewHost) {
       if (isLoading || !article || !taskId) return;
       if (reviewAttemptedForTaskId === taskId) return;
       reviewAttemptedForTaskId = taskId;
+      // A new task: what the previous one seeded says nothing about this one.
+      reviewSeedTried.value = false;
       loadReview(taskId).then(() => {
         if (!proposedContent.value) return;
         // Alleen seeden waar de taak over gaat - dezelfde vraag als voor de balk,
@@ -541,6 +535,8 @@ export function useProposalReview(host: ProposalReviewHost) {
       if (!taskId || err?.status !== 404) return;
       if (reviewAttemptedForTaskId === taskId) return;
       reviewAttemptedForTaskId = taskId;
+      // A new task: what the previous one seeded says nothing about this one.
+      reviewSeedTried.value = false;
       loadReview(taskId).then(() => {
         const task = reviewTask.value;
         if (
@@ -549,9 +545,8 @@ export function useProposalReview(host: ProposalReviewHost) {
           proposedContent.value
         ) {
           seedFromYaml(proposedContent.value);
-          // Niets is als dirty edit geseed: de banner levert de primaire
-          // opslaan-knop (zie `reviewSeeded` in de template), niet de
-          // Wijzigingenbalk.
+          // Nothing is seeded as an unsaved edit: the whole regelwerk is the
+          // proposal, and the changes bar approves it in review mode.
           reviewSeeded.value = false;
           reviewHasHiddenChanges.value = false;
         }
@@ -579,6 +574,7 @@ export function useProposalReview(host: ProposalReviewHost) {
     reviewAttemptedForTaskId = null;
     reset();
     reviewSeeded.value = false;
+    reviewSeedTried.value = false;
     reviewHasHiddenChanges.value = false;
     reviewSeedTarget.value = null;
     reviewSeededAt.value = null;
@@ -719,6 +715,7 @@ export function useProposalReview(host: ProposalReviewHost) {
   // task stands alone and the law does not exist yet, so it goes through the
   // create path (POST); later saves take the normal PUT.
   async function approve(): Promise<void> {
+    if (!reviewActive.value) return;
     if (!reviewIsLawCreate.value) {
       await decideReview('approved');
       return;
