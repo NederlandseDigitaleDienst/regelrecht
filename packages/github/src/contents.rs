@@ -438,7 +438,13 @@ impl GithubClient {
                 message: format!("Path '{path}' is a {}, not a file", item.entry_type),
             });
         }
-        let content = decode_contents_payload(&item)?;
+        // Over 1 MiB the JSON representation carries no content; the blob
+        // the response names does, at any size up to GitHub's 100 MiB.
+        let content = if item.encoding.as_deref() == Some("none") {
+            self.fetch_blob_text(repo, &item.sha, path, token).await?
+        } else {
+            decode_contents_payload(&item)?
+        };
         if let Some(etag) = etag {
             self.store_response(
                 &cache_key,
@@ -450,6 +456,46 @@ impl GithubClient {
             );
         }
         Ok(Some((content, item.sha)))
+    }
+
+    /// The text of blob `sha` in `repo`, in its raw representation. The route
+    /// for a file the Contents API answers without content because it is
+    /// over 1 MiB; `path` only names the file in an error.
+    async fn fetch_blob_text(
+        &self,
+        repo: &str,
+        sha: &str,
+        path: &str,
+        token: Option<&str>,
+    ) -> Result<String> {
+        let url = format!("{}/repos/{}/git/blobs/{}", self.api_base, repo, sha);
+        let mut headers = self.default_headers(token)?;
+        headers.insert(
+            ACCEPT,
+            HeaderValue::from_static("application/vnd.github.raw+json"),
+        );
+        let response = self
+            .client
+            .get(&url)
+            .headers(headers)
+            .send()
+            .await
+            .map_err(|e| GithubError::Transport(format!("GitHub API request failed: {e}")))?;
+        self.track_rate_limit(&response);
+        let status = response.status();
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_default();
+            return Err(GithubError::Api {
+                status: status.as_u16(),
+                message: format!("Blob API for {path} ({sha}): {body}"),
+            });
+        }
+        let bytes = response
+            .bytes()
+            .await
+            .map_err(|e| GithubError::Transport(format!("failed to read blob for {path}: {e}")))?;
+        String::from_utf8(bytes.to_vec())
+            .map_err(|e| GithubError::Decode(format!("UTF-8 decode failed for {path}: {e}")))
     }
 
     /// List a directory via the Contents API. Returns an empty list for a
@@ -652,7 +698,8 @@ impl GithubClient {
 
 /// Decode a Contents-API response's content payload. The JSON path always
 /// gives base64 (default `encoding: "base64"`); files >1 MiB come back without
-/// `content` (encoding `"none"`), for which the Git Blob API is the route.
+/// `content` (encoding `"none"`), which `fetch_file_with_sha` reads through
+/// the Git Blob API instead.
 fn decode_contents_payload(item: &ContentsItem) -> Result<String> {
     let encoding = item.encoding.as_deref().unwrap_or("base64");
     if encoding != "base64" {
@@ -697,6 +744,66 @@ mod tests {
 
     fn client(server: &MockServer) -> GithubClient {
         GithubClient::from_base(Some(&server.uri())).unwrap()
+    }
+
+    /// Over 1 MiB the Contents API answers without content (`encoding:
+    /// "none"`). The file is then read from the blob the answer names, so a
+    /// large regelwerk opens like any other.
+    #[tokio::test]
+    async fn a_file_over_one_mib_is_read_from_its_blob() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path_matcher("/repos/acme/corpus/contents/wet/groot.yaml"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "name": "groot.yaml",
+                "path": "wet/groot.yaml",
+                "sha": "blob-groot",
+                "type": "file",
+                "content": "",
+                "encoding": "none",
+            })))
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path_matcher("/repos/acme/corpus/git/blobs/blob-groot"))
+            .and(header("accept", "application/vnd.github.raw+json"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("$id: groot\n"))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let (content, sha) = client(&server)
+            .fetch_file_with_sha("acme/corpus", "main", "wet/groot.yaml", Some("tok"))
+            .await
+            .unwrap()
+            .expect("the file exists");
+        assert_eq!(content, "$id: groot\n");
+        assert_eq!(sha, "blob-groot");
+    }
+
+    /// A blob that cannot be read is an error that names the file, not an
+    /// empty regelwerk.
+    #[tokio::test]
+    async fn an_unreadable_blob_is_an_error() {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path_matcher("/repos/acme/corpus/contents/wet/groot.yaml"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+                "name": "groot.yaml",
+                "path": "wet/groot.yaml",
+                "sha": "blob-groot",
+                "type": "file",
+                "content": "",
+                "encoding": "none",
+            })))
+            .mount(&server)
+            .await;
+
+        let err = client(&server)
+            .fetch_file_with_sha("acme/corpus", "main", "wet/groot.yaml", Some("tok"))
+            .await
+            .expect_err("a missing blob is not an empty file");
+        assert!(err.to_string().contains("wet/groot.yaml"), "{err}");
     }
 
     /// The probe that turns a 404 into absence: the repo answers, so this
