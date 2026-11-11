@@ -148,9 +148,9 @@ result is the same files as `apt-get install`, fontconfig configuration
 included, in about two seconds. A newer Playwright image may need newer
 versions; the script says how to look them up.
 
-The files come from a cache first. The job restores them with
-`actions/cache` under a key built from the hash of the script, and on a hit
-the step needs no network at all. After a download the job saves the
+The files come from a cache first. The job restores them with GitHub's cache
+action, under a key built from the hash of the script, and on a hit the step
+needs no network at all. After a download the job saves the
 directory in a separate step, so the files are kept even when the gate fails
 on a page later on. GitHub scopes a cache to the branch that saved it: a
 rerun or the next push to the same pull request finds it, and one saved on
