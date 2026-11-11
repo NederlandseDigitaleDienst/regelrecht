@@ -19,7 +19,10 @@
 #
 # Source: Launchpad's copy of the Ubuntu archive. The librarian keeps every
 # version that was ever published, so a URL keeps working after noble-updates
-# moves on; the archive pool drops superseded versions.
+# moves on; the archive pool drops superseded versions. When Launchpad does
+# not answer (it was down on 2026-11-11 and blocked every PR), the file comes
+# from the archive pool instead, as long as it still holds that version. The
+# SHA256 check below applies to both, so either source yields the same bytes.
 #
 # The list is only right for the image ci.yml pins, named on the line below;
 # script/playwright-image.test.mjs fails when the two differ. To refresh it after
@@ -28,24 +31,38 @@
 #   apt-get install --no-install-recommends --print-uris -y unzip fonts-dejavu-core
 # and put each listed file name below, with the SHA256 that
 #   apt-cache show <package>=<version>
-# prints for it (from the signed package index). Check it against the file at
+# prints for it (from the signed package index) and the pool directory of its
+# `Filename:` line. Check it against the file at
 #   https://launchpad.net/ubuntu/+archive/primary/+files/<file>
 set -euo pipefail
 
 # Made for: mcr.microsoft.com/playwright:v1.64.1-noble
 
 DEBS="
-a505b9d491386167bd8e14e3383315a4a7d6539e4406745901ccf009a7988271  unzip_6.0-28ubuntu4.1_amd64.deb
-40049660c194f3b8a2541fc7369efebb10e9f94bdac836a2f38fafedd10fa73a  fonts-dejavu-core_2.37-8_all.deb
-8a599d6553307db7ecb795d2f0e5a301e03234afc75c7358b0ba43466454c89a  fonts-dejavu-mono_2.37-8_all.deb
+a505b9d491386167bd8e14e3383315a4a7d6539e4406745901ccf009a7988271  unzip_6.0-28ubuntu4.1_amd64.deb  main/u/unzip
+40049660c194f3b8a2541fc7369efebb10e9f94bdac836a2f38fafedd10fa73a  fonts-dejavu-core_2.37-8_all.deb  main/f/fonts-dejavu
+8a599d6553307db7ecb795d2f0e5a301e03234afc75c7358b0ba43466454c89a  fonts-dejavu-mono_2.37-8_all.deb  main/f/fonts-dejavu
 "
 
 dir="$(mktemp -d)"
 trap 'rm -rf "$dir"' EXIT
 
-while read -r sha file; do
+fetch() {
+  curl -fsSL --connect-timeout 10 --max-time 120 --retry 1 --retry-connrefused -o "$1" "$2"
+}
+
+# Once Launchpad has failed, the remaining files skip it rather than wait
+# for it again.
+launchpad=yes
+while read -r sha file pool; do
   [ -n "$file" ] || continue
-  curl -fsSL --connect-timeout 10 --max-time 120 --retry 3 --retry-connrefused -o "$dir/$file" "https://launchpad.net/ubuntu/+archive/primary/+files/$file"
+  if [ "$launchpad" = yes ] && fetch "$dir/$file" "https://launchpad.net/ubuntu/+archive/primary/+files/$file"; then
+    :
+  else
+    [ "$launchpad" = no ] || echo "Launchpad did not answer; using the Ubuntu archive pool" >&2
+    launchpad=no
+    fetch "$dir/$file" "https://archive.ubuntu.com/ubuntu/pool/$pool/$file"
+  fi
   echo "$sha  $dir/$file" | sha256sum -c -
 done <<< "$DEBS"
 
