@@ -62,17 +62,10 @@ pub async fn fetch_source_filtered(
 
     let base_path = source.path.as_deref().unwrap_or("");
 
-    let all_paths = match list_yaml_files(
-        client,
-        &source.full_repo(),
-        source.effective_ref(),
-        base_path,
-        token,
-    )
-    .await?
-    {
-        Some(paths) => paths,
-        None => return Ok(FetchResult::NotModified),
+    let Some(all_paths) =
+        list_yaml_files(client, &source.full_repo(), source.effective_ref(), token).await?
+    else {
+        return Ok(FetchResult::NotModified);
     };
 
     let best_per_law = group_best_versions(&all_paths, base_path, law_ids, today);
@@ -107,35 +100,70 @@ pub async fn fetch_source_filtered(
     Ok(FetchResult::Fetched(files))
 }
 
+/// What one Trees call says about a GitHub source: its laws, and which of
+/// them have a notes sidecar.
+#[derive(Debug)]
+pub struct SourceListing {
+    /// `(law_id, repo_path, blob_sha)` for the best version of each law; the
+    /// sha is the file's content identity from the tree listing, so callers
+    /// can detect content change across enumerations without fetching bodies.
+    pub laws: Vec<(String, String, Option<String>)>,
+    /// The law ids with a notes sidecar, at the repository root or at the
+    /// legacy location under the source's subpath (see
+    /// [`crate::annotation_sidecar`]). The listing is complete (a truncated
+    /// tree is an error), so a law missing here has no sidecar in this tree.
+    pub sidecars: HashSet<String>,
+}
+
 /// Enumerate every law in a source via the Trees API (1 call), selecting the
-/// best version per law — WITHOUT fetching any file content. Returns
-/// `(law_id, repo_path, blob_sha)` triples; the sha is the file's content
-/// identity from the tree listing, so callers can detect content change across
-/// enumerations without fetching bodies. This is the cheap enumeration the
-/// lightweight corpus index is built from.
+/// best version per law — WITHOUT fetching any file content. This is the
+/// cheap enumeration the lightweight corpus index is built from. `None` when
+/// the tree is unchanged since this client's previous listing (HTTP 304).
+///
+/// # Errors
+///
+/// When the Trees call fails: a transport error, a non-success status, or a
+/// truncated listing.
 pub async fn list_source_law_paths(
     client: &GithubClient,
     source: &GitHubSource,
     token: Option<&str>,
     today: &str,
-) -> Result<Vec<(String, String, Option<String>)>> {
+) -> Result<Option<SourceListing>> {
     let base_path = source.path.as_deref().unwrap_or("");
-    let all_paths = match list_yaml_files(
-        client,
-        &source.full_repo(),
-        source.effective_ref(),
-        base_path,
-        token,
-    )
-    .await?
-    {
-        Some(paths) => paths,
-        None => return Ok(Vec::new()),
+    let Some(all_paths) =
+        list_yaml_files(client, &source.full_repo(), source.effective_ref(), token).await?
+    else {
+        return Ok(None);
     };
-    Ok(group_best_versions(&all_paths, base_path, None, today)
-        .into_iter()
-        .map(|(law_id, file)| (law_id, file.path, file.sha))
-        .collect())
+    Ok(Some(SourceListing {
+        laws: group_best_versions(&all_paths, base_path, None, today)
+            .into_iter()
+            .map(|(law_id, file)| (law_id, file.path, file.sha))
+            .collect(),
+        sidecars: sidecar_law_ids(&all_paths, base_path),
+    }))
+}
+
+/// The law ids whose notes sidecar appears in `all_paths`: either
+/// `annotations/{law_id}/annotations.yaml` at the repository root, or the
+/// same path under `base_path` where earlier editor versions wrote it.
+fn sidecar_law_ids(all_paths: &[TreeFile], base_path: &str) -> HashSet<String> {
+    let legacy_prefix = format!("{base_path}/");
+    all_paths
+        .iter()
+        .filter_map(|file| {
+            let path = file.path.as_str();
+            let rel = match path.strip_prefix(&legacy_prefix) {
+                Some(rel) if !base_path.is_empty() => rel,
+                _ => path,
+            };
+            match rel.split('/').collect::<Vec<_>>().as_slice() {
+                ["annotations", law_id, "annotations.yaml"] => Some((*law_id).to_string()),
+                _ => None,
+            }
+        })
+        .collect()
 }
 
 /// Bulk `implements` scan via the repo archive: download the tarball in one
@@ -160,15 +188,15 @@ pub async fn fetch_archive_implements(
     Ok(files)
 }
 
-/// List YAML files under `base_path` in a repo tree via the shared client's
-/// Trees call, keeping the blob sha each entry reported. Returns `None` on a
-/// 304 (tree unchanged). Narrows the crate's blob listing to `.yaml` files
-/// inside `base_path`.
+/// List the YAML files in a repo tree via the shared client's Trees call,
+/// keeping the blob sha each entry reported. Returns `None` on a 304 (tree
+/// unchanged). Callers narrow to their source's subpath themselves:
+/// [`group_best_versions`] skips paths outside it, and [`sidecar_law_ids`]
+/// needs the repository root as well.
 async fn list_yaml_files(
     client: &GithubClient,
     repo: &str,
     git_ref: &str,
-    base_path: &str,
     token: Option<&str>,
 ) -> Result<Option<Vec<TreeFile>>> {
     let entries = match client.list_tree_files(repo, git_ref, token).await? {
@@ -178,12 +206,7 @@ async fn list_yaml_files(
 
     let yaml_files: Vec<TreeFile> = entries
         .into_iter()
-        .filter(|e| {
-            e.path.ends_with(".yaml")
-                && (base_path.is_empty()
-                    || e.path == base_path
-                    || e.path.starts_with(&format!("{}/", base_path)))
-        })
+        .filter(|e| e.path.ends_with(".yaml"))
         .map(|e| TreeFile {
             path: e.path,
             sha: e.sha,
@@ -375,6 +398,38 @@ mod tests {
         assert!(
             !best.contains_key("zorgtoeslagwet"),
             "annotation file was mis-indexed as law 'zorgtoeslagwet'"
+        );
+    }
+
+    #[test]
+    fn sidecars_are_found_at_the_root_and_at_the_legacy_location() {
+        let file = |path: &str| TreeFile {
+            path: path.to_string(),
+            sha: None,
+        };
+        let paths = vec![
+            file("annotations/wet_root/annotations.yaml"),
+            file("regulation/nl/annotations/wet_legacy/annotations.yaml"),
+            // Not a sidecar: a law file, a sidecar outside the source's
+            // subpath, and a file next to a sidecar.
+            file("regulation/nl/wet/wet_root/2025-01-01.yaml"),
+            file("elders/annotations/wet_elders/annotations.yaml"),
+            file("annotations/wet_root/extra.yaml"),
+        ];
+        let mut found: Vec<String> = super::sidecar_law_ids(&paths, "regulation/nl")
+            .into_iter()
+            .collect();
+        found.sort();
+        assert_eq!(
+            found,
+            vec!["wet_legacy".to_string(), "wet_root".to_string()]
+        );
+
+        // Without a subpath only the root location exists.
+        let found = super::sidecar_law_ids(&paths, "");
+        assert_eq!(
+            found,
+            std::collections::HashSet::from(["wet_root".to_string()])
         );
     }
 

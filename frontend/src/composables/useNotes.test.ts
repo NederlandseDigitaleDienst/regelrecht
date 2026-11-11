@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { afterEach, describe, it, expect, vi } from 'vitest';
 import { ref } from 'vue';
 import { useNotes, useResolvedDraftNotes } from './useNotes';
 import type { Note, ResolvedNote } from './useNotes';
@@ -11,6 +11,11 @@ const engineCalls = vi.hoisted(
 );
 // What the mocked engine returns from resolveNotes; per-test.
 const resolveNotesResult = vi.hoisted(() => ({ value: [] as ResolvedNote[] }));
+const resolveNotesCalls = vi.hoisted(() => ({ count: 0 }));
+// The notes document the API answers with; per-test.
+const notesDocument = vi.hoisted(() => ({
+  value: 'annotations:\n  - type: Annotation\n',
+}));
 vi.mock('./useEngine', () => ({
   useEngine: () => ({
     initEngine: async () => ({
@@ -21,14 +26,17 @@ vi.mock('./useEngine', () => ({
           matches: [{ article_number: '1', start: 0, end: 3 }],
         };
       },
-      resolveNotes: () => resolveNotesResult.value,
+      resolveNotes: () => {
+        resolveNotesCalls.count += 1;
+        return resolveNotesResult.value;
+      },
     }),
     loadDependency: async () => {},
   }),
 }));
 
 vi.mock('../lib/apiFetch', () => ({
-  apiFetch: async () => ({ status: 200, text: async () => 'annotations: []' }),
+  apiFetch: async () => ({ status: 200, text: async () => notesDocument.value }),
 }));
 
 describe('useNotes issues', () => {
@@ -73,6 +81,28 @@ describe('useNotes issues', () => {
     });
     expect(orphaned).toContain('orphaned');
     expect(orphaned).not.toContain('niet naar gezocht');
+  });
+});
+
+describe('useNotes without notes', () => {
+  afterEach(() => {
+    notesDocument.value = 'annotations:\n  - type: Annotation\n';
+  });
+
+  it('resolves an empty notes document to no notes, without the engine', async () => {
+    // The API answers a law without notes with an empty document (200), not
+    // a 404. That costs no engine start.
+    notesDocument.value = '$schema: https://example.org/schema.json\nannotations: []\n';
+    resolveNotesCalls.count = 0;
+    const { loading, notesForArticle } = useNotes(
+      ref('wet_zonder_notities'),
+      ref({ number: '1' }),
+      ref(null),
+      ref('2024-01-01'),
+    );
+    await vi.waitFor(() => expect(loading.value).toBe(false));
+    expect(notesForArticle.value).toEqual([]);
+    expect(resolveNotesCalls.count).toBe(0);
   });
 });
 

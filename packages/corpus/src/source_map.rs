@@ -108,6 +108,11 @@ pub struct SourceMap {
     /// wins across sources, and priority only decides between two sources that
     /// supply the same date. See [`Self::prefer_version_in_force`].
     version_in_force_first: bool,
+    /// Per source id, the law ids with a notes sidecar in that source's tree
+    /// listing (see [`crate::github::SourceListing::sidecars`]). Only GitHub
+    /// sources that were listed have an entry; for any other source the
+    /// presence of a sidecar is unknown.
+    sidecars: HashMap<String, HashSet<String>>,
 }
 
 /// Record of a conflict that was resolved by priority.
@@ -129,7 +134,21 @@ impl SourceMap {
             resolved_conflicts: Vec::new(),
             reference_date: reference_date.into(),
             version_in_force_first: false,
+            sidecars: HashMap::new(),
         }
+    }
+
+    /// Record which laws of `source_id` have a notes sidecar, from a complete
+    /// tree listing of that source.
+    pub fn record_sidecars(&mut self, source_id: &str, law_ids: HashSet<String>) {
+        self.sidecars.insert(source_id.to_string(), law_ids);
+    }
+
+    /// The laws of `source_id` with a notes sidecar, or `None` when the
+    /// source was not listed (a local source, or a listing that failed), in
+    /// which case nothing is known either way.
+    pub fn sidecars(&self, source_id: &str) -> Option<&HashSet<String>> {
+        self.sidecars.get(source_id)
     }
 
     /// Let the date decide a law's current version across sources, instead of

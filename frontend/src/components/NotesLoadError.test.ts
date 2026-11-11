@@ -26,7 +26,8 @@ vi.mock('../composables/useEngine', () => ({
 vi.mock('../lib/apiFetch', () => ({
   apiFetch: async () => ({
     status: 200,
-    text: async () => 'annotations: []\n',
+    // One note, so there is something for the engine to resolve.
+    text: async () => 'annotations:\n  - type: Annotation\n',
   }),
 }));
 

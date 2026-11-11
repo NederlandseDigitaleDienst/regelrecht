@@ -24,7 +24,7 @@
 //! in-flight saves, read-your-writes semantics and implementor lookups
 //! are unaffected.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, Ordering};
@@ -125,6 +125,11 @@ pub struct TrajectCorpus {
     /// window via [`Self::store_sidecar`] / [`Self::invalidate_sidecar`]
     /// (read-your-writes, like the law-body `overlay`).
     sidecar_cache: RwLock<BoundedCache<Option<String>>>,
+    /// Law ids whose notes sidecar a save in this process wrote. Shared
+    /// across refreshes (like `overlay`): a refresh may have listed the tree
+    /// just before such a save landed, and its listing must then not be read
+    /// as "this law has no notes" (see [`Self::sidecar_known_absent`]).
+    saved_sidecars: Arc<RwLock<HashSet<String>>>,
     /// Per-law scenario listing (filenames + extracted target law ids),
     /// the result of the union-listing in `list_scenarios_in_scope`. One
     /// entry costs 2 `list_files` calls plus a read per scenario file to
@@ -772,6 +777,28 @@ impl TrajectCorpus {
         }
     }
 
+    /// Whether `law_id` certainly has no notes sidecar in `source_id`: this
+    /// snapshot's tree listing of that source has none, and no save in this
+    /// process wrote one since. `false` when the source was not listed, so
+    /// the caller then reads the backend as before.
+    ///
+    /// As fresh as the snapshot, like the law index: a sidecar added outside
+    /// this process shows up at the next refresh, within
+    /// [`TRAJECT_INDEX_TTL`].
+    pub async fn sidecar_known_absent(&self, source_id: &str, law_id: &str) -> bool {
+        let Some(listed) = self.corpus.source_map.sidecars(source_id) else {
+            return false;
+        };
+        !listed.contains(law_id) && !self.saved_sidecars.read().await.contains(law_id)
+    }
+
+    /// Note that a save wrote `law_id`'s notes sidecar, so no tree listing
+    /// taken before it can rule the sidecar out (see
+    /// [`Self::sidecar_known_absent`]).
+    pub async fn record_saved_sidecar(&self, law_id: &str) {
+        self.saved_sidecars.write().await.insert(law_id.to_string());
+    }
+
     /// Store a just-written sidecar body for `key` — the sidecar analogue
     /// of [`Self::record_save`]'s read-your-writes. Bumps the write
     /// generation (under the cache write lock) so an in-flight GET-path
@@ -1271,7 +1298,7 @@ impl TrajectCorpus {
             // would ever recompute again and the stale ids would serve until
             // process restart — the AtomicBool analogue of the snapshot
             // refresh's OwnedMutexGuard.
-            let _reset = ResetOnDrop(corpus.changed_refresh_in_flight.clone());
+            let _reset = ResetOnDrop(Arc::clone(&corpus.changed_refresh_in_flight));
             corpus
                 .recompute_changed_cache(refresh_token.as_deref())
                 .await;
@@ -2020,6 +2047,7 @@ async fn build_traject_corpus(
         changed_refresh_in_flight: Arc::new(AtomicBool::new(false)),
         changed_refresh_gate: Arc::new(Mutex::new(())),
         sidecar_cache: RwLock::new(BoundedCache::default()),
+        saved_sidecars: Arc::new(RwLock::new(HashSet::new())),
         scenario_list_cache: RwLock::new(BoundedCache::default()),
         sidecar_write_gen: AtomicU64::new(0),
         scenario_list_write_gen: AtomicU64::new(0),
@@ -2137,6 +2165,7 @@ async fn next_snapshot(old: &Arc<TrajectCorpus>, source_map: SourceMap) -> Arc<T
         changed_refresh_in_flight: old.changed_refresh_in_flight.clone(),
         changed_refresh_gate: old.changed_refresh_gate.clone(),
         sidecar_cache: RwLock::new(BoundedCache::default()),
+        saved_sidecars: Arc::clone(&old.saved_sidecars),
         scenario_list_cache: RwLock::new(BoundedCache::default()),
         sidecar_write_gen: AtomicU64::new(0),
         scenario_list_write_gen: AtomicU64::new(0),
@@ -2495,6 +2524,7 @@ mod tests {
             changed_refresh_in_flight: Arc::new(AtomicBool::new(false)),
             changed_refresh_gate: Arc::new(Mutex::new(())),
             sidecar_cache: RwLock::new(BoundedCache::default()),
+            saved_sidecars: Arc::new(RwLock::new(HashSet::new())),
             scenario_list_cache: RwLock::new(BoundedCache::default()),
             sidecar_write_gen: AtomicU64::new(0),
             scenario_list_write_gen: AtomicU64::new(0),
@@ -3004,6 +3034,7 @@ mod tests {
             changed_refresh_in_flight: Arc::new(AtomicBool::new(false)),
             changed_refresh_gate: Arc::new(Mutex::new(())),
             sidecar_cache: RwLock::new(BoundedCache::default()),
+            saved_sidecars: Arc::new(RwLock::new(HashSet::new())),
             scenario_list_cache: RwLock::new(BoundedCache::default()),
             sidecar_write_gen: AtomicU64::new(0),
             scenario_list_write_gen: AtomicU64::new(0),
@@ -3015,6 +3046,44 @@ mod tests {
         let law_dir = dir.join("wet").join(law_id);
         std::fs::create_dir_all(&law_dir).unwrap();
         std::fs::write(law_dir.join("2025-01-01.yaml"), body).unwrap();
+    }
+
+    #[tokio::test]
+    async fn listed_source_rules_out_a_sidecar_only_until_a_save_writes_one() {
+        let mut map = SourceMap::new("2026-06-01");
+        metadata_entry(&mut map, "wet_a", "own");
+        metadata_entry(&mut map, "wet_b", "own");
+        map.record_sidecars("own", HashSet::from(["wet_b".to_string()]));
+        let corpus = test_corpus(map, HashMap::new());
+
+        assert!(corpus.sidecar_known_absent("own", "wet_a").await);
+        assert!(
+            !corpus.sidecar_known_absent("own", "wet_b").await,
+            "the listing shows wet_b's sidecar"
+        );
+        assert!(
+            !corpus.sidecar_known_absent("seed", "wet_a").await,
+            "an unlisted source rules nothing out"
+        );
+
+        // A save after the listing: the listing no longer speaks for wet_a.
+        corpus.record_saved_sidecar("wet_a").await;
+        assert!(!corpus.sidecar_known_absent("own", "wet_a").await);
+    }
+
+    #[tokio::test]
+    async fn saved_sidecars_survive_a_refresh() {
+        // A refresh may list the tree just before a save lands; the saved
+        // set is shared, so the refreshed snapshot still knows about it.
+        let dir = tempfile::tempdir().unwrap();
+        write_law_file(dir.path(), "wet_a", "$id: wet_a\nname: v1\n");
+        let old = local_corpus(dir.path()).await;
+        let refreshed = refresh_traject_corpus(&old, Uuid::new_v4(), None)
+            .await
+            .expect("local refresh must succeed");
+
+        old.record_saved_sidecar("wet_a").await;
+        assert!(refreshed.saved_sidecars.read().await.contains("wet_a"));
     }
 
     #[tokio::test]
@@ -3576,13 +3645,16 @@ mod tests {
             vec!["wet_oud".to_string()]
         );
         wait_for(|| {
-            let corpus = corpus.clone();
+            let corpus = Arc::clone(&corpus);
             async move {
-                let cache = corpus.changed_cache.read().await;
-                let cached = cache.as_ref().unwrap();
-                (cached.law_ids == vec!["wet_eigen".to_string()]
-                    && !corpus.changed_refresh_in_flight.load(Ordering::SeqCst))
-                .then_some(())
+                let refreshed = corpus
+                    .changed_cache
+                    .read()
+                    .await
+                    .as_ref()
+                    .is_some_and(|c| c.law_ids == vec!["wet_eigen".to_string()]);
+                (refreshed && !corpus.changed_refresh_in_flight.load(Ordering::SeqCst))
+                    .then_some(())
             }
         })
         .await;
@@ -3605,14 +3677,12 @@ mod tests {
             vec!["wet_oud".to_string()]
         );
         wait_for(|| {
-            let corpus = corpus.clone();
+            let corpus = Arc::clone(&corpus);
             async move {
-                let cache = corpus.changed_cache.read().await;
-                let cached = cache.as_ref().unwrap();
-                (cached.computed_at > expired
-                    && cached.law_ids == vec!["wet_oud".to_string()]
-                    && !corpus.changed_refresh_in_flight.load(Ordering::SeqCst))
-                .then_some(())
+                let rearmed = corpus.changed_cache.read().await.as_ref().is_some_and(|c| {
+                    c.computed_at > expired && c.law_ids == vec!["wet_oud".to_string()]
+                });
+                (rearmed && !corpus.changed_refresh_in_flight.load(Ordering::SeqCst)).then_some(())
             }
         })
         .await;

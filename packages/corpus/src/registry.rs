@@ -394,10 +394,17 @@ impl CorpusRegistry {
                     token = Some(o.token.to_string());
                 }
                 let today = map.reference_date().to_string();
-                for (law_id, path, sha) in
+                // One client per scan: only a second source on the same
+                // repo, ref and token could see a 304 here (`None`), and it
+                // adds nothing the first did not.
+                let Some(listing) =
                     crate::github::list_source_law_paths(client, github, token.as_deref(), &today)
                         .await?
-                {
+                else {
+                    return Ok(());
+                };
+                map.record_sidecars(&source.id, listing.sidecars);
+                for (law_id, path, sha) in listing.laws {
                     map.load_metadata_entry(
                         &law_id,
                         &path,
@@ -486,7 +493,10 @@ impl CorpusRegistry {
                 }
             };
             let mut added = 0usize;
-            for (law_id, path, sha) in paths {
+            let Some(paths) = paths else {
+                continue;
+            };
+            for (law_id, path, sha) in paths.laws {
                 let held = map.get_law_versions(&law_id).is_some_and(|versions| {
                     versions.iter().any(|v| {
                         v.source_id == source.id || local_ids.contains(v.source_id.as_str())

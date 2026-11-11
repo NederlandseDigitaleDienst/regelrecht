@@ -9,12 +9,29 @@
  * the DOM needs UTF-16.
  */
 import { ref, computed, watch } from 'vue';
+import * as yaml from 'js-yaml';
 import type { Ref } from 'vue';
 import { useEngine } from './useEngine';
 import { annotationsUrl } from './corpusUrls';
 import { apiFetch } from '../lib/apiFetch';
 import { useLatest } from '../lib/useLatest';
 import type { MatchResult, TextMatch, TextQuoteSelector } from './useTextSelection';
+
+/**
+ * Whether a notes document holds at least one note. A document that does not
+ * parse counts as having notes, so the engine reports what is wrong with it.
+ */
+function hasNotes(yamlText: string): boolean {
+  if (!yamlText.trim()) return false;
+  try {
+    // Unchecked YAML; only `annotations` is read, and checked with
+    // Array.isArray.
+    const doc = yaml.load(yamlText) as { annotations?: unknown } | null;
+    return !Array.isArray(doc?.annotations) || doc.annotations.length > 0;
+  } catch {
+    return true;
+  }
+}
 
 /**
  * A note: a W3C Web Annotation (annotation schema, `definitions/Annotation`).
@@ -144,13 +161,15 @@ export function useNotes(
         allowStatuses: [404],
         errorMessage: (status: number) => `Kon notities niet laden: ${status}`,
       });
-      if (res.status === 404) {
-        // A law without a sidecar is normal, not an error.
+      // A law without notes gets an empty document; a 404 means the law is
+      // not in this corpus, and then it has no notes either. Neither needs
+      // the engine.
+      const yamlText = res.status === 404 ? '' : await res.text();
+      if (!hasNotes(yamlText)) {
         cache.set(key, []);
         if (!isStale()) resolved.value = [];
         return;
       }
-      const yamlText = await res.text();
 
       const engine = await initEngine();
       // The resolver needs the law's articles loaded; mirror how the

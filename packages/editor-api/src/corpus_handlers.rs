@@ -1601,7 +1601,7 @@ type SharedBackend = Arc<Mutex<Box<dyn RepoBackend>>>;
 fn resolve_annotation_read_backend(
     scope: &ReadScope,
     law_id: &str,
-) -> Result<SharedBackend, (StatusCode, String)> {
+) -> Result<AnnotationReadTarget, (StatusCode, String)> {
     match scope {
         ReadScope::Traject(ts) => {
             let traject = &ts.traject;
@@ -1621,7 +1621,10 @@ fn resolve_annotation_read_backend(
                         "Writable backend not initialised".to_string(),
                     )
                 })?;
-            Ok(entry.backend.clone())
+            Ok(AnnotationReadTarget {
+                backend: Arc::clone(&entry.backend),
+                source_id: target_source_id,
+            })
         }
         ReadScope::Global(corpus) => {
             // No traject: read from the law's own source. There is no
@@ -1638,9 +1641,19 @@ fn resolve_annotation_read_backend(
                     format!("No backend registered for source '{}'", law.source_id),
                 )
             })?;
-            Ok(entry.backend.clone())
+            Ok(AnnotationReadTarget {
+                backend: Arc::clone(&entry.backend),
+                source_id: law.source_id.clone(),
+            })
         }
     }
+}
+
+/// Where a law's notes sidecar is read: the backend, and the source it
+/// belongs to.
+struct AnnotationReadTarget {
+    backend: SharedBackend,
+    source_id: String,
 }
 
 /// GET /api/corpus/laws/{law_id}/annotations — return the law's stand-off
@@ -1657,8 +1670,9 @@ fn resolve_annotation_read_backend(
 /// resolved backend for the law (the central source's main view), matching
 /// the static-mirror semantics the frontend used to rely on.
 ///
-/// A missing sidecar returns 404 — "law without notes" is the normal
-/// case and `useNotes.js` already treats it as a non-error.
+/// A law without a sidecar — the normal case — gets an empty notes
+/// document ([`empty_notes_document`]), not a 404: nothing is missing. A
+/// 404 means the law itself is not in the corpus.
 ///
 /// Why not reuse `resolve_backend_for_law` (which `get_scenario` uses)?
 /// That helper verifies a candidate writable backend by reading the
@@ -1692,13 +1706,16 @@ pub async fn get_traject_annotations(
     headers: axum::http::HeaderMap,
 ) -> Result<YamlResponse, (StatusCode, String)> {
     let scope = require_traject_scope(&state, &session, &account, &headers, &traject_ref).await?;
-    let sidecar = match get_annotations_in_scope(&scope, &law_id).await {
-        Ok((_, _, content)) => Some(content),
-        // Absent sidecar is fine here: the caller may still have personal
-        // notes, which then make up the whole document.
-        Err((StatusCode::NOT_FOUND, _)) => None,
+    // An absent sidecar is fine here: the caller may still have personal
+    // notes, which then make up the whole document. So may a law the
+    // traject index does not hold (it dropped out, or the own repo failed
+    // to scan); only without personal notes is that a 404.
+    let (sidecar, law_known) = match read_annotations_in_scope(&scope, &law_id).await {
+        Ok(sidecar) => (sidecar, true),
+        Err((StatusCode::NOT_FOUND, _)) => (None, false),
         Err(other) => return Err(other),
     };
+    drop(scope);
 
     // Unified read: merge the caller's personal notes (marked
     // `regelrecht:visibility: personal`) into the returned document, so
@@ -1713,20 +1730,21 @@ pub async fn get_traject_annotations(
     };
 
     let content = if personal.is_empty() {
-        sidecar.ok_or((StatusCode::NOT_FOUND, "Annotations not found".to_string()))?
+        if !law_known {
+            return Err((StatusCode::NOT_FOUND, format!("Law '{law_id}' not found")));
+        }
+        sidecar.unwrap_or_else(empty_notes_document)
     } else {
         match append_notes_to_sidecar(sidecar.as_deref(), &personal, ANNOTATION_SCHEMA_URL) {
             Ok(AppendOutcome::Write(text)) => text,
             // Every personal value carries a unique `id`, so dedup can
             // only fire on a pathological sidecar; fall back to it.
-            Ok(AppendOutcome::NoChange) => {
-                sidecar.ok_or((StatusCode::NOT_FOUND, "Annotations not found".to_string()))?
-            }
+            Ok(AppendOutcome::NoChange) => sidecar.unwrap_or_else(empty_notes_document),
             Err(e) => {
                 // A sidecar too broken to merge into must still be
                 // readable; serve it unmerged rather than failing the GET.
                 tracing::warn!(law_id = %law_id, error = %e, "could not merge personal notes into sidecar");
-                sidecar.ok_or((StatusCode::NOT_FOUND, "Annotations not found".to_string()))?
+                sidecar.unwrap_or_else(empty_notes_document)
             }
         }
     };
@@ -1744,7 +1762,7 @@ async fn get_annotations_in_scope(
 ) -> Result<YamlResponse, (StatusCode, String)> {
     let content = read_annotations_in_scope(scope, law_id)
         .await?
-        .ok_or((StatusCode::NOT_FOUND, "Annotations not found".to_string()))?;
+        .unwrap_or_else(empty_notes_document);
 
     Ok((
         StatusCode::OK,
@@ -1795,7 +1813,19 @@ async fn read_annotations_in_scope(
         }
     }
 
-    let backend = resolve_annotation_read_backend(scope, law_id)?;
+    let target = resolve_annotation_read_backend(scope, law_id)?;
+
+    // Most laws have no notes. When the snapshot's tree listing already says
+    // so, answer without asking GitHub (one or two Contents reads otherwise,
+    // and those were what made opening a law slow).
+    if let ReadScope::Traject(ts) = scope
+        && ts
+            .traject
+            .sidecar_known_absent(&target.source_id, law_id)
+            .await
+    {
+        return Ok(None);
+    }
 
     // Traject-scoped, the resolved backend is the write target — the
     // writable-own source — so this read carries the per-request token
@@ -1816,7 +1846,7 @@ async fn read_annotations_in_scope(
         ReadScope::Global(_) => LegacyFallback::Skip,
     };
     let content = {
-        let backend = backend.lock().await;
+        let backend = target.backend.lock().await;
         annotation_sidecar::read_sidecar(&**backend, law_id, own_read_token.as_deref(), fallback)
             .await
             .map_err(|e| {
@@ -2609,6 +2639,13 @@ pub async fn save_scenario(
 /// annotation validator (kept in lockstep with the engine's resolver).
 const ANNOTATION_SCHEMA_URL: &str = "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/heads/main/schema/v0.5.3/annotation-schema.json";
 
+/// The notes document for a law without notes: valid against the
+/// annotation schema, with an empty `annotations` list. Served instead of a
+/// 404, which would read as an error in the browser's console.
+fn empty_notes_document() -> String {
+    format!("$schema: {ANNOTATION_SCHEMA_URL}\nannotations: []\n")
+}
+
 /// Upper bound on notes accepted in a single save. The body limit on the
 /// route already caps raw size; this caps the *count* so a single request
 /// cannot append an unreasonable number of notes in one commit.
@@ -2886,6 +2923,11 @@ pub async fn save_annotations(
             "A note's target does not match the law it is being saved to".to_string(),
         ));
     }
+
+    // Before the write, not after: from here on a tree listing taken
+    // earlier must not rule this sidecar out. Recording it for a save that
+    // then fails costs no more than one extra read later.
+    traject.record_saved_sidecar(&law_id).await;
 
     // Always written at the repository root. A legacy file under the
     // subpath that served as the base is left behind untouched; reads
