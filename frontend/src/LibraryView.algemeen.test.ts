@@ -5,25 +5,20 @@
 // test-utils/libraryViewHarness.ts.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
-import { nextTick, ref } from 'vue';
+import { nextTick, reactive } from 'vue';
 import * as harness from './test-utils/libraryViewHarness';
 import { installTestCorpus, type TestCorpus } from './test-utils/corpusSetup';
 import type { CorpusLaw } from './corpus';
 
-const routeState: { name: string; params: Record<string, string>; query: Record<string, string>; fullPath: string; hash: string } = {
+const routeState: { name: string; params: Record<string, string>; query: Record<string, string>; fullPath: string; hash: string } = reactive({
   name: 'corpus-juris',
   params: { lawId: 'wet_a', articleNumber: 'algemeen' },
   query: {},
   fullPath: '/corpus-juris/wet_a/algemeen',
   hash: '',
-};
+});
 vi.mock('vue-router', () => harness.vueRouter(() => routeState));
 vi.mock('./composables/useAuth', () => harness.auth());
-
-const activeTrajectRef = ref<string | null>(null);
-vi.mock('./composables/useTrajects', () =>
-  harness.trajectsModule(() => ({ activeTrajectRef, activeTraject: ref({ name: 'Traject A' }) })),
-);
 
 // What the corpus holds: the law's file, and its list entry for `?ids=`.
 const server = {
@@ -42,8 +37,8 @@ let corpus: TestCorpus;
 // The same law globally and in the traject; the route decides which is read.
 function mountLibrary() {
   const content = { laws: { wet_a: server.lawText }, list: [server.entry] };
-  corpus = installTestCorpus({ '': content, 'traject-aaaa1111': content }, activeTrajectRef.value);
-  return shallowMount(LibraryView, { global: { stubs: { teleport: true } } }) as VueWrapper;
+  corpus = installTestCorpus({ '': content, 'traject-aaaa1111': content }, routeState.params.trajectRef ?? null);
+  return shallowMount(LibraryView, { global: { stubs: { teleport: true }, plugins: [harness.pinia()] } }) as VueWrapper;
 }
 
 async function settle() {
@@ -60,7 +55,6 @@ const LAW_TEXT = [
 const FOLDER = 'https://github.com/example-org/central-corpus/tree/main/regulation/nl/wet/wet_a';
 
 beforeEach(() => {
-  activeTrajectRef.value = null;
   routeState.params = { lawId: 'wet_a', articleNumber: 'algemeen' };
   routeState.hash = '';
   server.lawText = LAW_TEXT;
@@ -120,7 +114,6 @@ describe('LibraryView Algemeen', () => {
   });
 
   it('asks the traject for the GitHub folder inside a traject', async () => {
-    activeTrajectRef.value = 'traject-aaaa1111';
     routeState.params = { trajectRef: 'traject-aaaa1111', lawId: 'wet_a', articleNumber: 'algemeen' };
     const wrapper = mountLibrary();
     await settle();

@@ -5,6 +5,7 @@ import { createPinia } from 'pinia';
 import App from './App.vue';
 import router from './router';
 import { useFeatureFlagsStore } from './stores/featureFlags';
+import { useTrajectsStore } from './stores/trajects';
 import { installApiAuthGuard } from './lib/apiAuthGuard';
 import { installDevSlowMode } from './lib/devSlowMode';
 import { createCorpusReader, createHttpTransport, installCorpus } from './corpus';
@@ -31,6 +32,8 @@ const app = createApp(App);
 const pinia = createPinia();
 app.use(pinia);
 app.use(router);
-// The server's feature flags; the defaults hold until they arrive.
+// The server's feature flags (the defaults hold until they arrive) and the
+// user's trajecten, which the shell shows on every page.
 useFeatureFlagsStore(pinia).load();
+useTrajectsStore(pinia).ensureReady();
 app.mount('#app');

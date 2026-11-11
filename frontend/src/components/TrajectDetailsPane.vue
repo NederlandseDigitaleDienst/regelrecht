@@ -11,12 +11,7 @@ import {
   branchTreeUrl,
   isCentralSource,
 } from '../composables/useTrajectDetail';
-import {
-  deleteTraject,
-  leaveTraject,
-  moveTrajectRepo,
-  updateTraject,
-} from '../composables/useTrajects';
+import { useTrajectsStore } from '../stores/trajects';
 import { hasRole } from '../composables/useAuth';
 import { paneChromeVisible } from '../constants';
 
@@ -36,6 +31,7 @@ const emit = defineEmits<{
 }>();
 
 const { detail, loading, error: loadError, load } = useTrajectDetail();
+const { updateTraject, moveTrajectRepo, deleteTraject, leaveTraject } = useTrajectsStore();
 
 function reload(): void {
   if (props.trajectId) load(props.trajectId);

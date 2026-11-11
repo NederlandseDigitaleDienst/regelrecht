@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, onMounted, onBeforeUnmount, provide } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
 import type { NLDDPopover } from '@nldd/design-system/popover';
@@ -11,7 +12,7 @@ import SettingsSheet from './components/SettingsSheet.vue';
 import NewMenuItems from './components/NewMenuItems.vue';
 import AccountMenuItems from './components/AccountMenuItems.vue';
 import { useAuth } from './composables/useAuth';
-import { useTrajects } from './composables/useTrajects';
+import { useTrajectsStore } from './stores/trajects';
 import {
   lastHomePath,
   lastEditorPath,
@@ -30,7 +31,7 @@ import type { OpenTab } from './lib/openTabsStorage';
 // instance is reused, so the chrome never rebuilds (no refresh flash).
 
 const { authenticated, loading: authLoading, oidcConfigured, person, login } = useAuth();
-const { activeTrajectRef } = useTrajects();
+const { activeTrajectRef } = storeToRefs(useTrajectsStore());
 
 // "Over RegelRecht" about sheet, opened from the account menu.
 const aboutSheet = ref<InstanceType<typeof AboutSheet> | null>(null);

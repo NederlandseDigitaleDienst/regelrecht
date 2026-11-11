@@ -4,7 +4,7 @@
 // decisions LibraryView makes (the rendering is plain v-if on them).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
-import { nextTick, ref } from 'vue';
+import { nextTick, ref, reactive } from 'vue';
 import * as harness from './test-utils/libraryViewHarness';
 import { installTestCorpus } from './test-utils/corpusSetup';
 import type { CorpusLaw } from './corpus';
@@ -17,24 +17,18 @@ interface Internals {
 }
 type Wrapper = Omit<VueWrapper, 'vm'> & { vm: VueWrapper['vm'] & Internals };
 
-const routeState: { name: string; params: Record<string, string>; query: Record<string, string>; fullPath: string; hash: string } = {
+const routeState: { name: string; params: Record<string, string>; query: Record<string, string>; fullPath: string; hash: string } = reactive({
   name: 'corpus-juris',
   params: { lawId: 'wet_a' },
   query: {},
   fullPath: '/corpus-juris/wet_a#machine',
   hash: '#machine',
-};
+});
 vi.mock('vue-router', () => harness.vueRouter(() => routeState));
 
 // Logged in. Favorites without a login: LibraryView.localFavorites.test.ts.
 const authenticated = ref(true);
 vi.mock('./composables/useAuth', () => harness.auth(() => ({ authenticated })));
-
-// No traject: Corpus juris. A test that needs a traject sets this ref.
-const activeTrajectRef = ref<string | null>(null);
-vi.mock('./composables/useTrajects', () =>
-  harness.trajectsModule(() => ({ activeTrajectRef, activeTraject: ref({ name: 'Traject A' }) })),
-);
 
 // The open law's list entry: what the test sets here is what `?ids=` answers.
 // A minimal law body, so the law pane (and its toolbar with the star) renders.
@@ -51,8 +45,8 @@ import LibraryView from './LibraryView.vue';
 // The same corpus globally and in the traject; the route decides which is read.
 function mountLibrary() {
   const content = { laws: { wet_a: '$id: wet_a\narticles: []\n' }, list: entries.list };
-  installTestCorpus({ '': content, 'traject-aaaa1111': content }, activeTrajectRef.value);
-  return shallowMount(LibraryView, { global: { stubs: { teleport: true } } }) as unknown as Wrapper;
+  installTestCorpus({ '': content, 'traject-aaaa1111': content }, routeState.params.trajectRef ?? null);
+  return shallowMount(LibraryView, { global: { stubs: { teleport: true }, plugins: [harness.pinia()] } }) as unknown as Wrapper;
 }
 
 async function settle() {
@@ -61,7 +55,6 @@ async function settle() {
 
 beforeEach(() => {
   authenticated.value = true;
-  activeTrajectRef.value = null;
   routeState.params = { lawId: 'wet_a' };
   entries.list = [];
 });
@@ -103,7 +96,6 @@ describe('LibraryView machine views in Corpus juris', () => {
     // An entry that would raise the other-version note in Corpus juris: inside
     // a traject the note stays away.
     entries.list = [{ law_id: 'wet_a', enriched: false, enriched_version: '2025-01-01' }];
-    activeTrajectRef.value = 'traject-aaaa1111';
     routeState.params = { trajectRef: 'traject-aaaa1111', lawId: 'wet_a' };
     const wrapper = mountLibrary();
     await settle();

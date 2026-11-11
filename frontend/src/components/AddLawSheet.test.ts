@@ -9,8 +9,9 @@ import type { MemoryTransport } from '../corpus/memoryTransport';
 import { installTestCorpus } from '../test-utils/corpusSetup';
 import type { BwbSearchResult } from '../composables/useBwbSearch';
 
-// De sheet is traject-gebonden: useTrajects() leest de trajectRef uit de
-// route. Fictieve ref, geen echte repo/traject-namen (publiek testbestand).
+// The sheet is bound to a traject: the trajecten store reads the trajectRef
+// from the route. A fictional ref, no real repo or traject names (this is a
+// public test file).
 const TRAJECT_REF = 'voorbeeld-abcd1234';
 
 vi.mock('vue-router', () => ({

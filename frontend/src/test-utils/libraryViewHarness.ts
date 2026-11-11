@@ -13,10 +13,13 @@
 // Usage, with the import above `import LibraryView`:
 //
 //   vi.mock('vue-router', () => harness.vueRouter(() => routeState));
+//   shallowMount(LibraryView, { global: { plugins: [harness.pinia()] } });
 //   vi.mock('./composables/useDocumentsManager', () =>
 //     harness.documentsManager(() => ({ open: openDoc })));
 import { vi } from 'vitest';
 import { ref } from 'vue';
+import { testingPinia } from './testingPinia';
+import type { TrajectSummary } from '../stores/trajects';
 
 /**
  * Fields that replace a stub's defaults, computed when LibraryView calls the
@@ -46,20 +49,30 @@ export function vueRouter(route: () => unknown, router?: Overrides<[]>) {
 // /auth/status has answered; `ensureAuthReady` resolves straight away.
 export function auth(overrides?: Overrides<[]>) {
   return {
-    useAuth: () => ({ authenticated: ref(true), loading: ref(false), login: vi.fn(), ...apply(overrides, []) }),
+    useAuth: () => ({ authenticated: ref(true), oidcConfigured: ref(false), loading: ref(false), login: vi.fn(), ...apply(overrides, []) }),
     ensureAuthReady: async () => {},
   };
 }
 
-export function trajectsModule<A extends unknown[]>(overrides?: Overrides<A>) {
-  return {
-    useTrajects: (...args: A) => ({
-      activeTrajectRef: ref<string | null>('traject-abcd1234'),
-      activeTraject: ref({ name: 'Testtraject' }),
-      ...apply(overrides, args),
-    }),
-    refreshTrajects: vi.fn(),
-  };
+// The trajecten the tests use, so the store finds a name for the active one.
+const TEST_TRAJECT_REFS = ['traject-abcd1234', 'traject-aaaa1111', 'traject-bbbb2222', 'traject-99998888'];
+
+/**
+ * A testing Pinia for LibraryView: every store action is a spy, and the
+ * trajecten store holds the test trajecten, loaded. The active traject comes
+ * from the route stub, as in the app.
+ */
+export function pinia() {
+  const trajects: TrajectSummary[] = TEST_TRAJECT_REFS.map((ref, i) => ({
+    id: `00000000-0000-0000-0000-00000000000${i}`,
+    name: `Traject ${i + 1}`,
+    description: '',
+    scope: '',
+    status: 'bezig',
+    role: 'owner',
+    ref,
+  }));
+  return testingPinia({ initialState: { trajects: { trajects, loading: false, error: null } } });
 }
 
 export function apiFetchModule(module: Record<string, unknown> = {}) {

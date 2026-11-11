@@ -7,19 +7,15 @@
 // Stubbing has one limit in setup stores: an action that calls another action
 // of the same store calls the real function. The guide's advice is to test the
 // real code there rather than work around it.
+// It imports no store: a test helper that loads a store can run into a
+// `vi.mock` factory before that factory's own imports are ready.
 import { vi, type Mock } from 'vitest';
 import type { UnwrapRef } from 'vue';
 import type { Store, StoreDefinition } from 'pinia';
 import { createTestingPinia, type TestingOptions } from '@pinia/testing';
-import { DEFAULTS } from '../stores/featureFlags';
 
 export function testingPinia(options: Omit<TestingOptions, 'createSpy'> = {}) {
   return createTestingPinia({ createSpy: vi.fn, ...options });
-}
-
-/** Every known feature flag switched on, as `initialState` for the featureFlags store. */
-export function allFlagsOn(): { flags: Record<string, boolean> } {
-  return { flags: Object.fromEntries(Object.keys(DEFAULTS).map((key) => [key, true])) };
 }
 
 /**

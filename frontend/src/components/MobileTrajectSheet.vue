@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
-import { useTrajects } from '../composables/useTrajects';
-import type { TrajectSummary } from '../composables/useTrajects';
+import { useTrajectsStore } from '../stores/trajects';
+import type { TrajectSummary } from '../stores/trajects';
 import type { OpenTab } from '../lib/openTabsStorage';
 import { useAuth } from '../composables/useAuth';
 import { useLoginToChooser } from '../composables/useLoginToChooser';
@@ -16,7 +17,9 @@ import TrajectCreateForm from './TrajectCreateForm.vue';
 // menu-acties + traject-switcher + nieuw traject) en - in de editor - een
 // "Artikelen"-lijst (de open tabbladen). md/lg houden TrajectMenu + de
 // document-tab-bar. Hergebruikt dezelfde composables/handlers als TrajectMenu.
-const { trajects, activeTrajectRef, activeTraject, loading, createTraject } = useTrajects();
+const trajectsStore = useTrajectsStore();
+const { trajects, activeTrajectRef, activeTraject, loading } = storeToRefs(trajectsStore);
+const { createTraject } = trajectsStore;
 const { authenticated } = useAuth();
 const { documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions } = useAppChrome();
 const route = useRoute();

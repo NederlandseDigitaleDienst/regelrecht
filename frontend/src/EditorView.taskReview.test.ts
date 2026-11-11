@@ -13,7 +13,8 @@ import { ref, reactive, nextTick } from 'vue';
 import type { EditorChanges } from './composables/useAppChrome';
 import type { OpenLaw } from './composables/useOpenLaw';
 import { installTestCorpus } from './test-utils/corpusSetup';
-import { allFlagsOn, testingPinia } from './test-utils/testingPinia';
+import { testingPinia } from './test-utils/testingPinia';
+import { allFlagsOn } from './test-utils/featureFlagState';
 
 // --- vue-router: no real router. `route` is reactive, because the whole bug
 // hangs on a watch on `route.query.task`: a test must be able to change it the
@@ -42,14 +43,7 @@ vi.mock('./composables/useAuth', () => ({
 }));
 
 
-vi.mock('./composables/useTrajects', () => ({
-  useTrajects: () => ({
-    activeTrajectRef: ref('kieswet-kandidaatstelling-86070ac7'),
-    activeTraject: ref({ name: 'Kieswet-Kandidaatstelling' }),
-    trajectMissing: ref(false),
-  }),
-  refreshTrajects: vi.fn(),
-}));
+
 
 // --- useOpenLaw: the real module, over an in-memory corpus with the law as
 // saved. The test drives it the way the view does (select an article, open

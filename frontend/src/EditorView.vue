@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watch, watchEffect, nextTick, onBeforeUnmount } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
 import * as yaml from 'js-yaml';
 import { useOpenLaw } from './composables/useOpenLaw';
 import { useCorpus } from './corpus';
 import { useEngine } from './composables/useEngine';
 import { useAuth } from './composables/useAuth';
-import { useTrajects } from './composables/useTrajects';
+import { useTrajectsStore } from './stores/trajects';
 import { useFeatureFlagsStore } from './stores/featureFlags';
 import { useEnrichState } from './composables/useEnrichState';
 import { useTaskReview } from './composables/useTaskReview';
@@ -218,7 +219,7 @@ function movePane(idx: number, target: PaneMoveTarget) {
 //     `canEdit` is true; writes land in that traject's branch.
 // Pick a traject in the TrajectMenu to flip from the first shape to
 // the second.
-const { activeTrajectRef, activeTraject, trajectMissing } = useTrajects();
+const { activeTrajectRef, activeTraject, trajectMissing } = storeToRefs(useTrajectsStore());
 const canEdit = computed(
   () => (!oidcConfigured.value || authenticated.value) && activeTrajectRef.value !== null,
 );

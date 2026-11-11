@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import type { Mock } from 'vitest';
 import { mount } from '@vue/test-utils';
 
-// The component (and useTrajects) use vue-router; provide a light mock so it
+// The component (and the trajecten store) use vue-router; provide a light mock so it
 // mounts without a real router. The full traject-list / create / auth flows
 // are ported verbatim from TrajectMenu + DocumentTabsSheet and verified there.
 const pushMock = vi.fn();

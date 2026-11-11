@@ -11,7 +11,7 @@
 // composable stubbed, deliberately narrow to this one surface.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { flushPromises, shallowMount } from '@vue/test-utils';
-import { ref, nextTick } from 'vue';
+import { nextTick, reactive } from 'vue';
 import * as harness from './test-utils/libraryViewHarness';
 import { installTestCorpus, type TestCorpus } from './test-utils/corpusSetup';
 import type { LawListQuery } from './corpus';
@@ -24,26 +24,14 @@ interface RouteStub {
   fullPath: string;
 }
 
-const routeState: RouteStub = {
+const routeState: RouteStub = reactive({
   name: 'taken-traject',
   params: { trajectRef: 'traject-abcd1234', categorie: 'alle' },
   query: {},
   fullPath: '/trajecten/traject-abcd1234/taken',
-};
+});
 vi.mock('vue-router', () => harness.vueRouter(() => routeState));
 vi.mock('./composables/useAuth', () => harness.auth());
-
-// The ref the view watches: the traject switcher leaves LibraryView mounted
-// and only swaps the route param, which is what LibraryView's
-// `watch(activeTrajectRef)` reacts to, so a test switches traject in-place by
-// writing to this exact ref.
-const activeTrajectRef = ref('traject-abcd1234');
-vi.mock('./composables/useTrajects', () =>
-  harness.trajectsModule(() => ({
-    activeTrajectRef,
-    activeTraject: ref({ name: 'Afgeschermde test Kandidaatstellingsprocedure Kieswet' }),
-  })),
-);
 
 // The 502 body below is the backend's own text for a traject whose
 // writable-own (private) repo could not be scanned - see
@@ -75,7 +63,7 @@ vi.mock('./composables/useDocumentTaskReview', () => harness.documentTaskReview(
 import LibraryView from './LibraryView.vue';
 
 async function mountAfterFailedIndex() {
-  const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true } } });
+  const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true }, plugins: [harness.pinia()] } });
   await flushPromises();
   await nextTick();
   return wrapper;
@@ -90,7 +78,6 @@ let listCalls: { trajectRef: string | null; query: LawListQuery }[];
 
 function switchTraject(trajectRef: string, params: Record<string, string>) {
   routeState.params = { trajectRef, ...params };
-  activeTrajectRef.value = trajectRef;
   corpus.trajectRef.value = trajectRef;
 }
 
@@ -109,7 +96,6 @@ beforeEach(() => {
   routeState.name = 'taken-traject';
   routeState.params = { trajectRef: 'traject-abcd1234', categorie: 'alle' };
   routeState.query = {};
-  activeTrajectRef.value = 'traject-abcd1234';
 });
 
 // The warning banner LibraryView now raises over the non-library modes.
@@ -148,7 +134,7 @@ describe('LibraryView index-error scoping', () => {
       rejectCorpus = () =>
         rej(new ApiErrorStub('Failed to load corpus: 502', { status: 502, body: 'kapot' }));
     });
-    const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true } } });
+    const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true }, plugins: [harness.pinia()] } });
     await nextTick();
     await nextTick();
     // The task list is on screen while the corpus probe is still in flight...

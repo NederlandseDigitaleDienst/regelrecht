@@ -5,7 +5,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { reactive } from 'vue';
 import ActionSheet from './ActionSheet.vue';
-import { allFlagsOn, testingPinia } from '../test-utils/testingPinia';
+import { testingPinia } from '../test-utils/testingPinia';
+import { allFlagsOn } from '../test-utils/featureFlagState';
 
 // The sheet with panel.regelrijm (and every other flag) on.
 function mountSheet(props: InstanceType<typeof ActionSheet>['$props']) {

@@ -7,7 +7,7 @@
 // search, traject panes, ...), which stay in their default/empty state.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
-import { ref } from 'vue';
+import { ref, reactive } from 'vue';
 import type { DocError } from './composables/useTrajectDocuments';
 import * as harness from './test-utils/libraryViewHarness';
 
@@ -41,12 +41,12 @@ const internals = (wrapper: VueWrapper) => wrapper.vm as unknown as LibraryViewI
 // setup to register a callback - stubbing them as no-ops absorbs that
 // registration without needing real guard machinery (same technique
 // TasksListPane.test.js / MobileTrajectSheet.test.js use for useRoute/useRouter).
-const routeState: RouteStub = {
+const routeState: RouteStub = reactive({
   name: 'werkdocumenten-traject',
   params: { trajectRef: 'traject-abcd1234', docPath: '' },
   query: {},
   fullPath: '/traject/traject-abcd1234/werkdocumenten',
-};
+});
 const replaceMock = vi.fn();
 const pushMock = vi.fn();
 vi.mock('vue-router', () =>
@@ -56,7 +56,6 @@ vi.mock('vue-router', () =>
   ),
 );
 vi.mock('./composables/useAuth', () => harness.auth());
-vi.mock('./composables/useTrajects', () => harness.trajectsModule());
 vi.mock('./lib/apiFetch', () => harness.apiFetchModule());
 
 // The manager stub deliberately keeps `currentPath`/`currentBody`/`docLoading`/
@@ -106,7 +105,7 @@ vi.mock('./composables/useDocumentTaskReview', () =>
 import LibraryView from './LibraryView.vue';
 
 function mountLibrary() {
-  return shallowMount(LibraryView, { global: { stubs: { teleport: true } } });
+  return shallowMount(LibraryView, { global: { stubs: { teleport: true }, plugins: [harness.pinia()] } });
 }
 
 beforeEach(() => {
