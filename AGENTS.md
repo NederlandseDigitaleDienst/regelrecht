@@ -374,14 +374,19 @@ Where the skill and this repository differ, the repository wins:
 ## Frontend code
 
 Frontends are Vue applications that follow Vue's own conventions: Vite to build,
-Vitest to test, single-file components, and composables for shared state. The
-aim is TypeScript for code that runs in the browser (`.ts`,
+Vitest to test, single-file components, and composables or Pinia stores for
+shared state. The aim is TypeScript for code that runs in the browser (`.ts`,
 `<script setup lang="ts">`). The editor, lawmaking, the demo and
 `frontend-shared` are there; the PoC frontends are still JavaScript and will be
 migrated later, so keep new code in those in JavaScript until then. Scripts
 that run in plain Node, the modules they load, and generated files stay
 JavaScript. The setup is in `docs/src/content/docs/guide/frontend-code.md`.
 
+- In the editor, state the whole app shares goes in a Pinia setup store under
+  `src/stores/`; state of one open document goes in a composable each caller
+  creates (`useOpenLaw`). Component tests mount with `testingPinia()` to set
+  store state or stub actions. Details:
+  `docs/src/content/docs/components/frontend.md#state`.
 - Import a TypeScript module without its extension (`'./values'`). Plain Node
   cannot resolve that, so a module that Node loads keeps its `.js`.
 - Prefer `unknown` and narrowing over `any`. An `any` or a non-null `!` gets a
