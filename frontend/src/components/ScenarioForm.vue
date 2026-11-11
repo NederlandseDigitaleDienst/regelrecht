@@ -7,6 +7,7 @@ import type { EditorEngine } from '../composables/useEngine';
 import type { Expectation } from '../utils/outputFormat';
 import { formatValue, formatMissing, normalizeForCompare, matchStatus as _matchStatus, humanize, expectationsFromAssertions } from '../utils/outputFormat';
 import { NOT_NULLABLE_MESSAGE, nullAllowed, isNullText } from '../utils/nullability';
+import { todayLocalIso } from '../lib/localDate';
 import DataSourceTable from './DataSourceTable.vue';
 import ScenarioParameterInput from './ScenarioParameterInput.vue';
 import AbsenceToggle from './AbsenceToggle.vue';
@@ -109,7 +110,7 @@ const emit = defineEmits<{
 }>();
 
 // --- Form state (initialized from scenario setup) ---
-const calculationDate = ref(props.setup.calculationDate || new Date().toISOString().slice(0, 10));
+const calculationDate = ref(props.setup.calculationDate || todayLocalIso());
 
 // Scalar parameters edit as one control each; a collection-valued parameter
 // (RFC-016, `Given parameter "x" is the collection:`) is a table and gets
@@ -261,7 +262,7 @@ const errorTraceText = ref<unknown>(null);
 // when the scenario/setup props change and when the parent discards edits
 // (cancel / click-away) without replacing formState - see ScenarioBuilder.
 function discardEdits() {
-  calculationDate.value = props.setup.calculationDate || new Date().toISOString().slice(0, 10);
+  calculationDate.value = props.setup.calculationDate || todayLocalIso();
   parameterValues.value = Object.fromEntries(
     scalarParams().map((p) => [p.name, p.value ?? '']),
   );
