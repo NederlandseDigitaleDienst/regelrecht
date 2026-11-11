@@ -23,6 +23,10 @@ pub struct GithubSettings {
     api_base: Option<String>,
     auth_file: Option<PathBuf>,
     env: Arc<Lookup>,
+    /// Repository tree listings, shared by every clone of these settings:
+    /// the global corpus, each traject and each index refresh.
+    #[cfg(feature = "github")]
+    tree_listings: Arc<crate::github::TreeListings>,
 }
 
 impl fmt::Debug for GithubSettings {
@@ -42,6 +46,8 @@ impl GithubSettings {
             api_base: std::env::var("GITHUB_API_BASE").ok(),
             auth_file,
             env: Arc::new(crate::auth::process_env),
+            #[cfg(feature = "github")]
+            tree_listings: Arc::default(),
         }
     }
 
@@ -56,6 +62,8 @@ impl GithubSettings {
             api_base: api_base.map(str::to_string),
             auth_file,
             env: Arc::new(env),
+            #[cfg(feature = "github")]
+            tree_listings: Arc::default(),
         }
     }
 
@@ -74,6 +82,12 @@ impl GithubSettings {
     /// The resolver for server tokens under these settings.
     pub fn credentials(&self) -> CredentialResolver<'_> {
         CredentialResolver::with_env(self.auth_file.as_deref(), &*self.env)
+    }
+
+    /// The tree listings shared by everything built from these settings.
+    #[cfg(feature = "github")]
+    pub fn tree_listings(&self) -> &crate::github::TreeListings {
+        &self.tree_listings
     }
 
     /// A GitHub client pointed at the configured API base.

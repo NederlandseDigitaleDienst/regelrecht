@@ -22,6 +22,8 @@ regelrecht-law-model = { path = "../law-model" }
 # keeps only the domain layer (source enumeration, archive extraction). No
 # direct reqwest dependency any more.
 regelrecht-github = { path = "../github", optional = true }
+# Lists a traject's sources at once (`join_all`) instead of one by one.
+futures = { version = "0.3", optional = true }
 # Non-optional: the implements-index artefact (module + generator binary)
 # is JSON and must build without the `github` feature.
 serde_json.workspace = true
@@ -35,7 +37,7 @@ default = ["github"]
 # The GitHub domain layer talks to the shared `regelrecht-github` client.
 # The implements-index bulk read downloads the repo archive (tarball) in one
 # request and extracts it here, so it needs gzip + tar.
-github = ["dep:regelrecht-github", "dep:flate2", "dep:tar"]
+github = ["dep:regelrecht-github", "dep:flate2", "dep:tar", "dep:futures"]
 # Schema validation for note (annotation) YAML. Pulls in jsonschema; only
 # the editor-api write path needs it, so it stays optional.
 annotation-validation = ["dep:jsonschema"]

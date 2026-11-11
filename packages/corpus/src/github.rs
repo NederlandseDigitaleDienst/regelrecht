@@ -10,7 +10,8 @@
 //! there is no second GitHub client type and no circular dependency (the crate
 //! never learns about corpus types).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap, HashSet, VecDeque};
+use std::sync::{Arc, Mutex};
 
 use regelrecht_github::GithubClient;
 
@@ -42,6 +43,73 @@ struct TreeFile {
     sha: Option<String>,
 }
 
+/// How many repository refs [`TreeListings`] keeps a listing for. One per
+/// branch that gets listed: the central corpus, and the branch of each
+/// traject in use. Only the central listing is large (tens of thousands of
+/// entries); a traject repo holds a handful.
+const TREE_LISTINGS_KEPT: usize = 64;
+
+/// The YAML files of a repository ref, as last listed, kept per
+/// `(repo, ref)` together with the commit they were listed at.
+///
+/// A commit's tree never changes, so a listing is reused for as long as the
+/// ref still points at that commit: [`list_yaml_files`] asks GitHub for the
+/// commit first (one small call) and fetches the tree only when it moved.
+/// Listing the central corpus costs seconds, and every traject build and
+/// every index refresh lists it again; with this they share one listing.
+///
+/// Shared by everything built from the same [`crate::GithubSettings`].
+/// Reuse needs the commit, which only a caller that can read the ref gets
+/// from GitHub, so a listing of a private repository is never handed to
+/// someone without access to it.
+#[derive(Default)]
+pub struct TreeListings {
+    /// Least recently used first.
+    entries: Mutex<VecDeque<CachedListing>>,
+}
+
+struct CachedListing {
+    repo: String,
+    git_ref: String,
+    commit: String,
+    files: Arc<[TreeFile]>,
+}
+
+impl TreeListings {
+    /// The listing of `repo@git_ref` when it was taken at `commit`.
+    fn get(&self, repo: &str, git_ref: &str, commit: &str) -> Option<Arc<[TreeFile]>> {
+        // A poisoned lock only means another lister panicked; a cache miss
+        // is always safe, so recover nothing and list again.
+        let mut entries = self.entries.lock().ok()?;
+        let at = entries
+            .iter()
+            .position(|e| e.repo == repo && e.git_ref == git_ref && e.commit == commit)?;
+        let entry = entries.remove(at)?;
+        let files = Arc::clone(&entry.files);
+        entries.push_back(entry);
+        drop(entries);
+        Some(files)
+    }
+
+    /// Keep `files` as the listing of `repo@git_ref` at `commit`, replacing
+    /// whatever that ref had before.
+    fn insert(&self, repo: &str, git_ref: &str, commit: String, files: Arc<[TreeFile]>) {
+        let Ok(mut entries) = self.entries.lock() else {
+            return;
+        };
+        entries.retain(|e| !(e.repo == repo && e.git_ref == git_ref));
+        if entries.len() >= TREE_LISTINGS_KEPT {
+            entries.pop_front();
+        }
+        entries.push_back(CachedListing {
+            repo: repo.to_string(),
+            git_ref: git_ref.to_string(),
+            commit,
+            files,
+        });
+    }
+}
+
 /// Fetch the laws matching the given `$id` set from a GitHub source, or every
 /// law when `law_ids` is `None`.
 ///
@@ -49,8 +117,13 @@ struct TreeFile {
 /// `law_ids` by extracting the law directory name from the path
 /// (`{base}/{layer}/{law_id}/{date}.yaml`), picks the best version per law
 /// (latest `valid_from` ≤ today), and fetches only those files.
+///
+/// # Errors
+///
+/// When listing the tree fails. A file that fails to fetch is skipped.
 pub async fn fetch_source_filtered(
     client: &GithubClient,
+    listings: &TreeListings,
     source: &GitHubSource,
     token: Option<&str>,
     law_ids: Option<&HashSet<String>>,
@@ -62,8 +135,14 @@ pub async fn fetch_source_filtered(
 
     let base_path = source.path.as_deref().unwrap_or("");
 
-    let Some(all_paths) =
-        list_yaml_files(client, &source.full_repo(), source.effective_ref(), token).await?
+    let Some(all_paths) = list_yaml_files(
+        client,
+        listings,
+        &source.full_repo(),
+        source.effective_ref(),
+        token,
+    )
+    .await?
     else {
         return Ok(FetchResult::NotModified);
     };
@@ -126,13 +205,20 @@ pub struct SourceListing {
 /// truncated listing.
 pub async fn list_source_law_paths(
     client: &GithubClient,
+    listings: &TreeListings,
     source: &GitHubSource,
     token: Option<&str>,
     today: &str,
 ) -> Result<Option<SourceListing>> {
     let base_path = source.path.as_deref().unwrap_or("");
-    let Some(all_paths) =
-        list_yaml_files(client, &source.full_repo(), source.effective_ref(), token).await?
+    let Some(all_paths) = list_yaml_files(
+        client,
+        listings,
+        &source.full_repo(),
+        source.effective_ref(),
+        token,
+    )
+    .await?
     else {
         return Ok(None);
     };
@@ -188,22 +274,61 @@ pub async fn fetch_archive_implements(
     Ok(files)
 }
 
-/// List the YAML files in a repo tree via the shared client's Trees call,
-/// keeping the blob sha each entry reported. Returns `None` on a 304 (tree
-/// unchanged). Callers narrow to their source's subpath themselves:
-/// [`group_best_versions`] skips paths outside it, and [`sidecar_law_ids`]
-/// needs the repository root as well.
+/// List the YAML files of `repo@git_ref`, keeping the blob sha each entry
+/// reported. Reuses the listing in `listings` while the ref still points at
+/// the commit it was taken at (see [`TreeListings`]); otherwise lists the
+/// tree at that commit with one Trees call and keeps it. Returns `None` only
+/// when the ref does not resolve to a commit and the fallback listing by ref
+/// gets a 304 (unchanged since this client's previous listing). Callers narrow
+/// to their source's subpath themselves: [`group_best_versions`] skips paths
+/// outside it, and [`sidecar_law_ids`] needs the repository root as well.
 async fn list_yaml_files(
+    client: &GithubClient,
+    listings: &TreeListings,
+    repo: &str,
+    git_ref: &str,
+    token: Option<&str>,
+) -> Result<Option<Arc<[TreeFile]>>> {
+    let Some(commit) =
+        crate::timing::measure("gh_commit", client.commit_sha(repo, git_ref, token)).await?
+    else {
+        // No such ref: the Trees call reports it the way it always has.
+        return Ok(list_tree_yaml(client, repo, git_ref, token)
+            .await?
+            .map(Arc::from));
+    };
+    if let Some(files) = listings.get(repo, git_ref, &commit) {
+        tracing::debug!(repo = %repo, git_ref = %git_ref, commit = %commit, "tree listing reused");
+        return Ok(Some(files));
+    }
+    let entries = crate::timing::measure(
+        "gh_tree",
+        client.list_commit_tree_files(repo, &commit, token),
+    )
+    .await?;
+    let files: Arc<[TreeFile]> = Arc::from(yaml_files(entries));
+    listings.insert(repo, git_ref, commit, Arc::clone(&files));
+    Ok(Some(files))
+}
+
+/// One conditional Trees call: the YAML files of `repo` at `git_ref`, or
+/// `None` on a 304.
+async fn list_tree_yaml(
     client: &GithubClient,
     repo: &str,
     git_ref: &str,
     token: Option<&str>,
 ) -> Result<Option<Vec<TreeFile>>> {
-    let entries = match client.list_tree_files(repo, git_ref, token).await? {
-        Some(entries) => entries,
-        None => return Ok(None),
+    let Some(entries) =
+        crate::timing::measure("gh_tree", client.list_tree_files(repo, git_ref, token)).await?
+    else {
+        return Ok(None);
     };
+    Ok(Some(yaml_files(entries)))
+}
 
+/// The YAML files among a tree listing's entries.
+fn yaml_files(entries: Vec<regelrecht_github::TreeEntryFile>) -> Vec<TreeFile> {
     let yaml_files: Vec<TreeFile> = entries
         .into_iter()
         .filter(|e| e.path.ends_with(".yaml"))
@@ -212,9 +337,8 @@ async fn list_yaml_files(
             sha: e.sha,
         })
         .collect();
-
-    tracing::debug!(repo = %repo, count = yaml_files.len(), "Found YAML files in tree");
-    Ok(Some(yaml_files))
+    tracing::debug!(count = yaml_files.len(), "Found YAML files in tree");
+    yaml_files
 }
 
 /// Group repo-relative YAML files by `law_id` (the directory name), keeping the

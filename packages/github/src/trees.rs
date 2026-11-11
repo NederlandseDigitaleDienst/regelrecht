@@ -46,11 +46,51 @@ impl GithubClient {
     /// are filtered out; the caller narrows further (e.g. by extension or
     /// sub-path). A truncated response (repo too large for one page) is an
     /// error rather than a silent partial list.
+    ///
+    /// # Errors
+    ///
+    /// When the request fails, GitHub answers anything but 200 or 304, the
+    /// response does not parse, or the listing is truncated.
     pub async fn list_tree_files(
         &self,
         repo: &str,
         git_ref: &str,
         token: Option<&str>,
+    ) -> Result<Option<Vec<TreeEntryFile>>> {
+        self.fetch_tree_files(repo, git_ref, token, true).await
+    }
+
+    /// [`Self::list_tree_files`] for the tree of a commit, which never
+    /// changes: always fetched in full, never answered with a 304. A
+    /// conditional request could come back 304 because an earlier listing of
+    /// the same commit (another branch at the same commit, say) stored its
+    /// ETag, and the caller would be left without the files it asked for.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::list_tree_files`].
+    pub async fn list_commit_tree_files(
+        &self,
+        repo: &str,
+        commit: &str,
+        token: Option<&str>,
+    ) -> Result<Vec<TreeEntryFile>> {
+        self.fetch_tree_files(repo, commit, token, false)
+            .await?
+            .ok_or_else(|| GithubError::Api {
+                status: 304,
+                message: format!("Trees API for {repo}@{commit}: unexpected 304"),
+            })
+    }
+
+    /// The Trees call behind both listings; `conditional` sends and keeps the
+    /// ETag.
+    async fn fetch_tree_files(
+        &self,
+        repo: &str,
+        git_ref: &str,
+        token: Option<&str>,
+        conditional: bool,
     ) -> Result<Option<Vec<TreeEntryFile>>> {
         let url = format!(
             "{}/repos/{}/git/trees/{}?recursive=1",
@@ -59,7 +99,8 @@ impl GithubClient {
 
         let cache_key = Self::cache_key(&url, None, token);
         let mut headers = self.default_headers(token)?;
-        if let Some(etag) = self.cached_etag(&cache_key)
+        if conditional
+            && let Some(etag) = self.cached_etag(&cache_key)
             && let Ok(val) = reqwest::header::HeaderValue::from_str(&etag)
         {
             headers.insert(reqwest::header::IF_NONE_MATCH, val);
@@ -88,7 +129,9 @@ impl GithubClient {
             });
         }
 
-        if let Some(etag) = response.headers().get("etag").and_then(|v| v.to_str().ok()) {
+        if conditional
+            && let Some(etag) = response.headers().get("etag").and_then(|v| v.to_str().ok())
+        {
             self.store_etag(&cache_key, etag);
         }
 
@@ -216,5 +259,88 @@ impl GithubClient {
             .await
             .map(Some)
             .map_err(|e| GithubError::Decode(format!("failed to parse tree response: {e}")))
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use wiremock::matchers::{header_exists, method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const TREE_PATH: &str = "/repos/example-org/corpus/git/trees/commit-1";
+
+    /// A tree that answers a conditional request with 304 and a plain one
+    /// with the files and an ETag, as GitHub does.
+    async fn tree_server() -> MockServer {
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path(TREE_PATH))
+            .and(header_exists("if-none-match"))
+            .respond_with(ResponseTemplate::new(304))
+            .with_priority(1)
+            .mount(&server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(TREE_PATH))
+            .respond_with(
+                ResponseTemplate::new(200)
+                    .insert_header("etag", "\"tree-1\"")
+                    .set_body_json(serde_json::json!({
+                        "sha": "tree-1",
+                        "truncated": false,
+                        "tree": [
+                            { "path": "wet/wet_een/2025-01-01.yaml", "type": "blob", "sha": "blob-1" },
+                        ],
+                    })),
+            )
+            .with_priority(2)
+            .mount(&server)
+            .await;
+        server
+    }
+
+    #[tokio::test]
+    async fn a_commit_tree_is_always_listed_in_full() {
+        // An earlier conditional listing of the same URL stored its ETag. A
+        // commit's tree must still come back whole: a 304 here would leave
+        // the caller with no files at all.
+        let server = tree_server().await;
+        let client = GithubClient::from_base(Some(&server.uri())).unwrap();
+
+        let first = client
+            .list_tree_files("example-org/corpus", "commit-1", None)
+            .await
+            .unwrap();
+        assert_eq!(first.map(|f| f.len()), Some(1));
+        assert_eq!(
+            client
+                .list_tree_files("example-org/corpus", "commit-1", None)
+                .await
+                .unwrap()
+                .map(|f| f.len()),
+            None,
+            "the conditional listing does send the ETag"
+        );
+
+        for _ in 0..2 {
+            let files = client
+                .list_commit_tree_files("example-org/corpus", "commit-1", None)
+                .await
+                .unwrap();
+            assert_eq!(files.len(), 1);
+        }
+        let conditional = server
+            .received_requests()
+            .await
+            .unwrap()
+            .iter()
+            .filter(|r| r.headers.contains_key("if-none-match"))
+            .count();
+        assert_eq!(
+            conditional, 1,
+            "only the second list_tree_files was conditional"
+        );
     }
 }

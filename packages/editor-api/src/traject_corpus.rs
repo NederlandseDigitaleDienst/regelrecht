@@ -1825,7 +1825,89 @@ async fn build_traject_corpus(
     let sources: Vec<Source> = rows.iter().map(|r| r.to_source()).collect();
     let registry = CorpusRegistry::from_sources(sources.clone());
 
-    // Build a backend per source, scoped to a traject-specific clone path.
+    // The backends and the index do not depend on each other: check the
+    // backends' branches while the sources are listed, instead of after.
+    let (backends, (source_map, index_failures)) = tokio::join!(
+        init_traject_backends(
+            traject_id,
+            &rows,
+            &sources,
+            &writable_own_source_id,
+            settings,
+            own_scan_token,
+        ),
+        index_traject_sources(
+            &registry,
+            traject_id,
+            &writable_own_source_id,
+            settings,
+            own_scan_token,
+        ),
+    );
+    let backends = backends?;
+    // The backend check creates a traject branch that is still missing (a
+    // traject from before branches were cut when it was created). Listed at
+    // the same time, the own repo may have been asked for before the branch
+    // existed, so list once more now that it does. That costs a second
+    // listing only when the own repo failed to list.
+    let (source_map, index_failures) = if index_failures.contains_key(&writable_own_source_id) {
+        index_traject_sources(
+            &registry,
+            traject_id,
+            &writable_own_source_id,
+            settings,
+            own_scan_token,
+        )
+        .await
+    } else {
+        (source_map, index_failures)
+    };
+
+    Ok(Arc::new(TrajectCorpus {
+        corpus: CorpusState {
+            registry,
+            source_map,
+            backends,
+            github: settings.clone(),
+            index_failures,
+            lazy_bodies: Default::default(),
+        },
+        traject_id,
+        own_base_branch,
+        write_target_for_source,
+        writable_own_source_id,
+        overlay: Arc::new(RwLock::new(HashMap::new())),
+        body_cache: RwLock::new(BoundedCache::default()),
+        implements_index: RwLock::new(None),
+        implements_index_stale: AtomicBool::new(false),
+        implements_build_lock: Mutex::new(()),
+        implements_memo: Arc::new(RwLock::new(HashMap::new())),
+        changed_cache: Arc::new(RwLock::new(None)),
+        changed_refresh_in_flight: Arc::new(AtomicBool::new(false)),
+        changed_refresh_gate: Arc::new(Mutex::new(())),
+        sidecar_cache: RwLock::new(BoundedCache::default()),
+        saved_sidecars: Arc::new(RwLock::new(HashSet::new())),
+        scenario_list_cache: RwLock::new(BoundedCache::default()),
+        sidecar_write_gen: AtomicU64::new(0),
+        scenario_list_write_gen: AtomicU64::new(0),
+        // Only the *fact* that a user token was available; the token
+        // itself dies with this call.
+        own_index_scanned_with_user_token: own_scan_token.is_some(),
+    }))
+}
+
+/// Build a backend per traject source, scoped to a traject-specific clone
+/// path, and check each one is ready. Fails only when the writable-own
+/// backend cannot be built or initialised; any other source that fails is
+/// left out.
+async fn init_traject_backends(
+    traject_id: Uuid,
+    rows: &[TrajectSourceRow],
+    sources: &[Source],
+    writable_own_source_id: &str,
+    settings: &GithubSettings,
+    own_scan_token: Option<&str>,
+) -> Result<HashMap<String, BackendEntry>, TrajectCorpusError> {
     let mut backends: HashMap<String, BackendEntry> = HashMap::new();
     for (row, source) in rows.iter().zip(sources.iter()) {
         // Token resolution honours `Source::strict_auth` (set by
@@ -1952,31 +2034,42 @@ async fn build_traject_corpus(
             }
         }
     }
+    Ok(backends)
+}
 
-    // Build a lightweight INDEX of every law across the traject's sources —
-    // the private writable-own repo and the seeded central corpus — so the
-    // bibliotheek search can surface any law without fetching every law's body
-    // up front (which meant N per-file GitHub Contents API calls per traject
-    // build — slow and rate-limited). Bodies are fetched lazily on first read
-    // (see `TrajectCorpus::law_yaml`). Per-source index failures are tolerated
-    // inside `index_all_sources_async` (a bad seed source is skipped, not
-    // fatal). A failure to enumerate the writable-own source is the one we care
-    // about most — its laws are the point of the traject — so it's logged at
-    // error level for operators. The traject still opens, though: it degrades
-    // (those laws missing from search until the next rebuild) rather than
-    // failing entirely on what is usually a transient GitHub hiccup. The hard
-    // failure path is the writable-own *backend* init above, which returns
-    // `Err` so a broken write target never opens silently.
-    // The scan may fall back to the acting user's token for the
-    // writable-own source — and only for that source, only when the
-    // server-side resolution yields no token (both enforced corpus-side
-    // by `ScanTokenOverride`).
+/// Build a lightweight INDEX of every law across the traject's sources —
+/// the private writable-own repo and the seeded central corpus — so the
+/// bibliotheek search can surface any law without fetching every law's body
+/// up front (which meant N per-file GitHub Contents API calls per traject
+/// build — slow and rate-limited). Bodies are fetched lazily on first read
+/// (see `TrajectCorpus::law_yaml`). Per-source index failures are tolerated
+/// inside `index_all_sources_async` (a bad seed source is skipped, not
+/// fatal). A failure to enumerate the writable-own source is the one we care
+/// about most — its laws are the point of the traject — so it's logged at
+/// error level for operators. The traject still opens, though: it degrades
+/// (those laws missing from search until the next rebuild) rather than
+/// failing entirely on what is usually a transient GitHub hiccup. The hard
+/// failure path is the writable-own *backend* init
+/// ([`init_traject_backends`]), which returns `Err` so a broken write target
+/// never opens silently.
+///
+/// The scan may fall back to the acting user's token for the
+/// writable-own source — and only for that source, only when the
+/// server-side resolution yields no token (both enforced corpus-side
+/// by `ScanTokenOverride`).
+async fn index_traject_sources(
+    registry: &CorpusRegistry,
+    traject_id: Uuid,
+    writable_own_source_id: &str,
+    settings: &GithubSettings,
+    own_scan_token: Option<&str>,
+) -> (SourceMap, HashMap<String, String>) {
     let scan_override = own_scan_token.map(|token| regelrecht_corpus::ScanTokenOverride {
-        source_id: &writable_own_source_id,
+        source_id: writable_own_source_id,
         token,
     });
     let today = regelrecht_shared::dates::today_str();
-    let (source_map, index_failures) = match timing::measure(
+    match timing::measure(
         "index",
         registry.index_all_sources_with_override(settings, scan_override, &today),
     )
@@ -2022,39 +2115,7 @@ async fn build_traject_corpus(
                 failures,
             )
         }
-    };
-
-    Ok(Arc::new(TrajectCorpus {
-        corpus: CorpusState {
-            registry,
-            source_map,
-            backends,
-            github: settings.clone(),
-            index_failures,
-            lazy_bodies: Default::default(),
-        },
-        traject_id,
-        own_base_branch,
-        write_target_for_source,
-        writable_own_source_id,
-        overlay: Arc::new(RwLock::new(HashMap::new())),
-        body_cache: RwLock::new(BoundedCache::default()),
-        implements_index: RwLock::new(None),
-        implements_index_stale: AtomicBool::new(false),
-        implements_build_lock: Mutex::new(()),
-        implements_memo: Arc::new(RwLock::new(HashMap::new())),
-        changed_cache: Arc::new(RwLock::new(None)),
-        changed_refresh_in_flight: Arc::new(AtomicBool::new(false)),
-        changed_refresh_gate: Arc::new(Mutex::new(())),
-        sidecar_cache: RwLock::new(BoundedCache::default()),
-        saved_sidecars: Arc::new(RwLock::new(HashSet::new())),
-        scenario_list_cache: RwLock::new(BoundedCache::default()),
-        sidecar_write_gen: AtomicU64::new(0),
-        scenario_list_write_gen: AtomicU64::new(0),
-        // Only the *fact* that a user token was available; the token
-        // itself dies with this call.
-        own_index_scanned_with_user_token: own_scan_token.is_some(),
-    }))
+    }
 }
 
 /// Build a TTL-refreshed [`TrajectCorpus`] from an existing one: a fresh
