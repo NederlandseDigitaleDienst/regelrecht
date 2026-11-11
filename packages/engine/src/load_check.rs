@@ -1287,7 +1287,9 @@ pub(crate) fn check_projection_wiring<'l>(
                 lookup,
                 crate::projection::Versions::Loaded,
                 true,
-                from_version(law, (0, 8, 19)),
+                // `$record.id` is the record's own id from v0.8.19, in a
+                // projection with `per`, as when the projection plays.
+                projection.per.is_some() && from_version(law, (0, 8, 19)),
             )
             .map_err(|why| format!("{where_}: the step on {}: {why}", step.record))?;
         }
