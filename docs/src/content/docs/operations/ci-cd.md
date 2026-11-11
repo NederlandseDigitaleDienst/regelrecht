@@ -142,8 +142,10 @@ scrollable regions without keyboard access.
 It installs them without apt, to stay off the mirror described above.
 `script/install-a11y-debs.sh` downloads the three `.deb` files apt would pick
 (`unzip`, `fonts-dejavu-core` and its dependency `fonts-dejavu-mono`) from
-Launchpad, which keeps every published version. It checks each file against a
-SHA-256 in the script, stops on a mismatch, and installs them with `dpkg -i`.
+Launchpad, which keeps every published version. When Launchpad does not answer,
+it takes them from the Ubuntu archive pool, which holds a version until a newer
+one replaces it. It checks each file against a SHA-256 in the script, whichever
+source it came from, stops on a mismatch, and installs them with `dpkg -i`.
 The result is the same files as `apt-get install`, fontconfig configuration
 included, in about two seconds. A newer Playwright image may need newer
 versions; the script says how to look them up.
