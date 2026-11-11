@@ -13,11 +13,13 @@
  * `scrollTarget` says which. The scroll listener goes on that element (or on
  * the window for the document), and moves when the page's size changes,
  * since that is when the mode can change. A listener on the document would
- * not do: a scroll inside the page's shadow root never reaches it. Row heights vary (the supporting text wraps), so rows are
- * measured once rendered, with a ResizeObserver: it reports sizes after
- * layout and forces none of its own. A row not measured yet counts as the
- * average of the measured ones; when that estimate changes, the scroll
- * position moves along so the rows in view stay put.
+ * not do: a scroll inside the page's shadow root never reaches it.
+ *
+ * Row heights vary (the supporting text wraps), so rows are measured once
+ * rendered, with a ResizeObserver: it reports sizes after layout and forces
+ * none of its own. A row not measured yet counts as the average of the
+ * measured ones; when that estimate changes, the scroll position moves along
+ * so the rows in view stay put.
  *
  * Limits: Home, End and the wrap from the last row go to the ends of the
  * rendered rows, not of the whole list, and find-in-page only finds rows

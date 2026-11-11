@@ -61,11 +61,6 @@ export function rowWindow(
   return { start, end, padStart, padEnd: sum(heights, end, count) };
 }
 
-/** The distance from the list's start to the start of row `index`. */
-export function offsetOf(heights: readonly number[], index: number): number {
-  return sum(heights, 0, Math.min(index, heights.length));
-}
-
 function sum(heights: readonly number[], from: number, to: number): number {
   let total = 0;
   for (let i = from; i < to; i++) total += heights[i] ?? 0;

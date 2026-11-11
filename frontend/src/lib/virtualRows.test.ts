@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rowWindow, offsetOf } from './virtualRows';
+import { rowWindow } from './virtualRows';
 
 const rows = (n: number, h = 50) => Array.from({ length: n }, () => h);
 
@@ -51,13 +51,5 @@ describe('rowWindow', () => {
 
   it('handles an empty list', () => {
     expect(rowWindow([], 0, 500, 100, 20)).toEqual({ start: 0, end: 0, padStart: 0, padEnd: 0 });
-  });
-});
-
-describe('offsetOf', () => {
-  it('sums the heights before a row', () => {
-    expect(offsetOf([10, 20, 30], 0)).toBe(0);
-    expect(offsetOf([10, 20, 30], 2)).toBe(30);
-    expect(offsetOf([10, 20, 30], 9)).toBe(60);
   });
 });
