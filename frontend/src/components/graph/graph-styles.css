@@ -94,24 +94,19 @@
 
 /* --- Trace stepping highlights -------------------------------------- */
 
-/* Active edge pulses amber. !important overrides the per-edge inline
- * stroke that impl/override/hook edges set so the trace path always wins. */
+/* Active edge is amber and wide. !important overrides the per-edge inline
+ * stroke that impl/override/hook edges set so the trace path always wins.
+ * It does not pulse: an important declaration also beats an animation, so
+ * the stroke-width pulse that used to be here never showed. */
 .vue-flow__edge.trace-active path {
   stroke: var(--primitives-color-donkergeel-500) !important;
-  /* Match the keyframe start so the first paint frame doesn't flash
-   * the inherited (thinner) edge width before the animation begins. */
   stroke-width: 6 !important;
   stroke-dasharray: none !important;
-  animation: trace-pulse 1.2s ease-in-out infinite;
 }
 .vue-flow__edge.trace-visited path {
   stroke: var(--primitives-color-donkergeel-300) !important;
   stroke-width: 4 !important;
   opacity: 0.75;
-}
-@keyframes trace-pulse {
-  0%, 100% { stroke-width: 6; }
-  50% { stroke-width: 10; }
 }
 
 /* Active node: leaves get a solid amber fill; law/group containers get

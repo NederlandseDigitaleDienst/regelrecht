@@ -20,6 +20,7 @@ import { findOutput, followReference, isNavigable, originHint, resolveReference 
 import type { NavigableTarget, ReferenceTarget } from './regelrijmNav';
 import type { LinkedFragment } from './regelrijmLinks';
 import type { ExecutionAction, MachineReadableSection } from '../lib/lawFormat';
+import { scrollBehavior } from '../lib/motion';
 
 /** The article as the pane reads it. */
 interface PaneArticle {
@@ -209,7 +210,7 @@ async function follow(seg: Token) {
   else if (to.kind === 'navigate') emit('navigate', { lawId: to.lawId, articleNumber: to.articleNumber });
   else {
     const index = actions.value.findIndex((a) => a?.output === to.output);
-    document.getElementById(ruleId(String(index)))?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    document.getElementById(ruleId(String(index)))?.scrollIntoView?.({ behavior: scrollBehavior(), block: 'start' });
   }
 }
 
