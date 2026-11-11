@@ -12,6 +12,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
 import { ref, nextTick } from 'vue';
 import * as harness from './test-utils/libraryViewHarness';
+import { installTestCorpus, type TestCorpus } from './test-utils/corpusSetup';
 
 /** The route fields LibraryView reads; tests reassign params freely. */
 interface RouteStub {
@@ -61,8 +62,10 @@ vi.mock('./composables/useTrajects', () =>
   })),
 );
 
-// Het antwoordboek dat elke test naar smaak omzet: de bronnen van het traject,
-// de wetten van de eigen bron, de favorieten en de bewerkte wetten.
+// The answer book each test adjusts: the traject's sources, the laws of its
+// own source, the favorites and the edited laws. Favorites go through
+// apiFetch; the laws and the edited laws through the in-memory corpus, which
+// reads from the same answer book below.
 const { server, ApiErrorStub, apiFetch, apiFetchJson } = vi.hoisted(() => {
   class ApiErrorStub extends Error {
     status: number | undefined;
@@ -90,28 +93,8 @@ const { server, ApiErrorStub, apiFetch, apiFetchJson } = vi.hoisted(() => {
     // onderweg is. `null` = meteen antwoorden.
     holdChanged: null,
   };
-  // Metadata voor `?ids=`: de sidebar resolvet favorieten + aangeraakte wetten
-  // via die route, dus die moeten uit dezelfde catalogus komen.
-  const byId = (id: string): LawRow =>
-    server.sourceLaws.find((l) => l.law_id === id) || {
-      law_id: id,
-      display_name: id,
-      source_name: 'Onbekend',
-      source_priority: 0,
-    };
-  const idsFrom = (url: unknown): string[] => {
-    const match = /[?&]ids=([^&]*)/.exec(String(url));
-    // The pattern has one group, so a match always carries match[1].
-    return match ? decodeURIComponent(match[1]!).split(',').filter(Boolean) : [];
-  };
   const answer = (url: unknown): unknown => {
     const u = String(url);
-    if (u.includes('/changed-laws')) {
-      if (server.changedFails) {
-        throw new ApiErrorStub('Failed to load changed-laws: 502', { status: 502 });
-      }
-      return server.changed;
-    }
     // Favorieten zijn per plek: `/api/favorites` in Corpus juris,
     // `/api/trajects/{ref}/favorites` in een traject. Beide eindigen op
     // `/favorites`, dus dat is genoeg om ze hier te herkennen.
@@ -121,7 +104,6 @@ const { server, ApiErrorStub, apiFetch, apiFetchJson } = vi.hoisted(() => {
       }
       return server.favorites;
     }
-    if (u.includes('/corpus/laws')) return idsFrom(u).map(byId);
     return [];
   };
   return {
@@ -133,7 +115,6 @@ const { server, ApiErrorStub, apiFetch, apiFetchJson } = vi.hoisted(() => {
       json: async () => answer(url),
     })),
     apiFetchJson: vi.fn(async (url: unknown, _init?: unknown) => {
-      if (server.holdChanged && String(url).includes('/changed-laws')) await server.holdChanged;
       if (server.holdFavoritesFor && String(url).includes(server.holdFavoritesFor.ref)) {
         const held = server.holdFavoritesFor;
         await held.promise;
@@ -195,6 +176,42 @@ function manyLaws(n: number): LawRow[] {
   }));
 }
 
+// Metadata for an id lookup: the sidebar resolves favorites and touched laws
+// through it, so they must come from the same catalog.
+const byId = (id: string): LawRow =>
+  server.sourceLaws.find((l) => l.law_id === id) || {
+    law_id: id,
+    display_name: id,
+    source_name: 'Onbekend',
+    source_priority: 0,
+  };
+
+let corpus: TestCorpus;
+
+// Both trajects read from the answer book as it stands at the time of the read.
+function installCorpus() {
+  corpus = installTestCorpus({ 'traject-abcd1234': {}, 'traject-99998888': {} }, activeTrajectRef.value);
+  corpus.transport.list = async (_trajectRef, query) => {
+    const laws = (query.ids ?? []).map(byId);
+    return { laws, total: laws.length };
+  };
+  corpus.transport.changedLaws = async () => {
+    if (server.holdChanged) await server.holdChanged;
+    if (server.changedFails) {
+      throw new ApiErrorStub('Failed to load changed-laws: 502', { status: 502 });
+    }
+    return server.changed;
+  };
+}
+
+// A traject switch as the traject chooser makes it: the route, the ref
+// LibraryView watches, and the traject the corpus reads from.
+function switchTraject(trajectRef: string) {
+  routeState.params = { trajectRef };
+  activeTrajectRef.value = trajectRef;
+  corpus.trajectRef.value = trajectRef;
+}
+
 async function mountLibrary() {
   const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true } } });
   for (let i = 0; i < 6; i++) await nextTick();
@@ -252,6 +269,7 @@ beforeEach(() => {
   server.favoritesFails = false;
   server.holdFavoritesFor = null;
   server.holdChanged = null;
+  installCorpus();
 });
 
 describe('LibraryView - wat dit traject heeft aangeraakt, in het linkermenu', () => {
@@ -348,8 +366,7 @@ describe('LibraryView - wat dit traject heeft aangeraakt, in het linkermenu', ()
     // zichtbaar als "Zorgverzekeringswet" in plaats van weggefilterd.
     server.holdFavoritesFor = null;
     server.favorites = ['wet_a', 'wet_f'];
-    routeState.params = { trajectRef: 'traject-99998888' };
-    activeTrajectRef.value = 'traject-99998888';
+    switchTraject('traject-99998888');
     for (let i = 0; i < 8; i++) await nextTick();
 
     expect(sectionLaws(wrapper, 'favorites')).toEqual(['Zorgverzekeringswet', 'Kieswet']);
@@ -435,8 +452,7 @@ describe('LibraryView - wat dit traject heeft aangeraakt, in het linkermenu', ()
       releaseChanged = resolve;
     });
     server.changed = [];
-    routeState.params = { trajectRef: 'traject-99998888' };
-    activeTrajectRef.value = 'traject-99998888';
+    switchTraject('traject-99998888');
     for (let i = 0; i < 4; i++) await nextTick();
 
     expect(sectionLaws(wrapper, 'favorites')).toEqual(['Kieswet']);

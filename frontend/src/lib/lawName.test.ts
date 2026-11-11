@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { humanizeLawId } from './lawName';
+import { humanizeLawId, resolveLawName } from './lawName';
+import type { LawDocument } from './lawFormat';
 
 describe('humanizeLawId', () => {
   it('turns a snake_case law id into title-cased words', () => {
@@ -16,5 +17,28 @@ describe('humanizeLawId', () => {
     expect(humanizeLawId(null)).toBe('');
     expect(humanizeLawId(undefined)).toBe('');
     expect(humanizeLawId('')).toBe('');
+  });
+});
+
+describe('resolveLawName', () => {
+  it('returns the action value a #name reference points at', () => {
+    const law = {
+      $id: 'wet_x',
+      name: '#naam',
+      articles: [{ number: '1', machine_readable: { execution: { actions: [{ output: 'naam', value: 'Wet X' }] } } }],
+    } as unknown as LawDocument;
+    expect(resolveLawName(law)).toBe('Wet X');
+  });
+
+  it('never returns a non-string action value as the name', () => {
+    const law = {
+      $id: 'wet_x',
+      name: '#naam',
+      articles: [
+        { number: '1', machine_readable: { execution: { actions: [{ output: 'naam', value: { operation: 'ADD' } }] } } },
+      ],
+    } as unknown as LawDocument;
+    // Not the raw reference either: the readable id.
+    expect(resolveLawName(law)).toBe('Wet X');
   });
 });

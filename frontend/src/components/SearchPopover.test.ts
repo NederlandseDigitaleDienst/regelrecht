@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import type { Mock } from 'vitest';
+import type { Mock, MockInstance } from 'vitest';
 import { mount } from '@vue/test-utils';
 import type { VueWrapper } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import SearchPopover from './SearchPopover.vue';
 import { MIN_QUERY_LENGTH } from '../composables/useBwbSearch';
-import type { CorpusLaw } from '../composables/useCorpusLaws';
+import type { CorpusLaw, CorpusTransport, LawListQuery } from '../corpus';
+import { installTestCorpus } from '../test-utils/corpusSetup';
 
 /** The part of a Response apiFetch reads; the stubs return only this. */
 interface StubResponse {
@@ -43,14 +44,15 @@ interface PopoverStub {
 }
 const popoverEl = (wrapper: VueWrapper) => wrapper.find('nldd-popover').element as PopoverStub;
 
-// SearchPopover queries the corpus server-side (`/corpus/laws?q=`) and orders
-// the response into a flat option list (private repo first). We drive it via
-// `wrapper.vm` and assert on the `shownLaws` computed.
+// SearchPopover queries the corpus server-side (the law list with `q`) and
+// orders the response into a flat option list (private repo first). We drive
+// it via `wrapper.vm` and assert on the `shownLaws` computed. The corpus is the
+// in-memory one; the global fetch stub only answers auth, the external
+// wetten.overheid.nl search and promote.
 //
-// useTrajects() calls vue-router's useRoute(); mock it so the component mounts
-// without a router. Default: no active traject → global /api/corpus URL. The
-// traject-scoped tests swap in a trajectRef per test (vi.hoisted so the
-// hoisted mock factory can reference it).
+// useAuth and the router are mocked so the component mounts without a router.
+// The traject-scoped tests make a traject active per test (vi.hoisted so the
+// hoisted mock factory can reference the route).
 const routeMock = vi.hoisted((): { params: Record<string, string> } => ({ params: {} }));
 // useRouter only resolves the address of a suggested law.
 vi.mock('vue-router', () => ({
@@ -78,16 +80,31 @@ const LAWS: CorpusLaw[] = [
   },
 ];
 
+/** Every read of the law list, passed through to the in-memory corpus unless a test overrides it. */
+let listSpy: MockInstance<CorpusTransport['list']>;
+
+/**
+ * Install a corpus whose law list is `list`, with `active` as the active
+ * traject (null: the global corpus), and spy on its list reads.
+ */
+function useCorpusList(list: CorpusLaw[], active: string | null = null) {
+  const { transport } = installTestCorpus({ [active ?? '']: { list } }, active);
+  listSpy = vi.spyOn(transport, 'list');
+}
+
+/** The search queries (those with `q`) that reached the corpus. */
+function searchQueries(): LawListQuery[] {
+  return listSpy.mock.calls.map(([, query]) => query).filter((q) => q.q !== undefined);
+}
+
 beforeEach(() => {
   routeMock.params = {};
+  useCorpusList(LAWS);
   vi.stubGlobal(
     'fetch',
     vi.fn<FetchStub>(async (url) => {
       const u = String(url);
       if (u.includes('/auth/status')) return { ok: false, json: async () => ({}) };
-      if (u.includes('/corpus/laws') && u.includes('q=')) {
-        return { ok: true, json: async () => LAWS };
-      }
       return { ok: true, json: async () => [] };
     }),
   );
@@ -151,7 +168,8 @@ describe('SearchPopover server-side search', () => {
       text: 'Centrale Regelrecht Corpus',
     });
 
-    internals(wrapper).search = 'zorgverzekeringen';
+    // A different query that matches both sources again.
+    internals(wrapper).search = 'besluit zorgverzekering';
     await nextTick();
     await settle();
     await nextTick();
@@ -162,17 +180,8 @@ describe('SearchPopover server-side search', () => {
   });
 
   it('marks the last source count as a lower bound when the backend capped the list', async () => {
-    fetchMock().mockImplementation(async (url) => {
-      const u = String(url);
-      if (u.includes('/corpus/laws') && u.includes('q=')) {
-        return {
-          ok: true,
-          headers: new Headers({ 'X-Total-Count': '80' }),
-          json: async () => LAWS,
-        };
-      }
-      return { ok: true, json: async () => [] };
-    });
+    // The backend found 80 matches but returned only these two.
+    listSpy.mockResolvedValue({ laws: LAWS, total: 80 });
     const wrapper = mount(SearchPopover);
     internals(wrapper).search = 'zorgverzekering';
     await nextTick();
@@ -194,13 +203,7 @@ describe('SearchPopover server-side search', () => {
   });
 
   it('falls through to the next source when the first has no match', async () => {
-    fetchMock().mockImplementation(async (url) => {
-      const u = String(url);
-      if (u.includes('/corpus/laws') && u.includes('q=')) {
-        return { ok: true, json: async () => [LAWS[0]] };
-      }
-      return { ok: true, json: async () => [] };
-    });
+    useCorpusList(LAWS.slice(0, 1));
     const wrapper = mount(SearchPopover);
     await searchFor(wrapper, 'zorgverzekering');
 
@@ -217,8 +220,7 @@ describe('SearchPopover server-side search', () => {
     await nextTick();
     await settle();
 
-    const urls = fetchMock().mock.calls.map((c) => String(c[0]));
-    expect(urls.some((u) => u.includes('/corpus/laws') && u.includes('q=kieswet'))).toBe(true);
+    expect(searchQueries().map((q) => q.q)).toEqual(['kieswet']);
   });
 
   it('debounces: a single query fires one corpus request', async () => {
@@ -231,26 +233,15 @@ describe('SearchPopover server-side search', () => {
     await nextTick();
     await settle();
 
-    const corpusCalls = fetchMock().mock.calls
-      .map((c) => String(c[0]))
-      .filter((u) => u.includes('/corpus/laws') && u.includes('q='));
-    expect(corpusCalls).toHaveLength(1);
-    expect(corpusCalls[0]).toContain('q=zorg');
+    expect(searchQueries().map((q) => q.q)).toEqual(['zorg']);
   });
 
   it('clearing the query discards an in-flight corpus fetch (no stale results)', async () => {
-    // Make the corpus fetch hang so we can clear the input mid-flight.
+    // Make the corpus search hang so we can clear the input mid-flight.
     let resolveCorpus: (() => void) | undefined;
-    fetchMock().mockImplementation((url) => {
-      const u = String(url);
-      if (u.includes('/auth/status')) return Promise.resolve({ ok: false, json: async () => ({}) });
-      if (u.includes('/corpus/laws') && u.includes('q=')) {
-        return new Promise<StubResponse>((r) => {
-          resolveCorpus = () => r({ ok: true, json: async () => LAWS });
-        });
-      }
-      return Promise.resolve({ ok: true, json: async () => [] });
-    });
+    listSpy.mockImplementation(() => new Promise((r) => {
+      resolveCorpus = () => r({ laws: LAWS, total: LAWS.length });
+    }));
 
     const wrapper = mount(SearchPopover);
     internals(wrapper).search = 'zorg';
@@ -274,14 +265,7 @@ describe('SearchPopover server-side search', () => {
   });
 
   it('a backend error surfaces as failed, not a cascade to the external fallback', async () => {
-    fetchMock().mockImplementation((url) => {
-      const u = String(url);
-      if (u.includes('/auth/status')) return Promise.resolve({ ok: false, json: async () => ({}) });
-      if (u.includes('/corpus/laws') && u.includes('q=')) {
-        return Promise.resolve({ ok: false, status: 500, json: async () => [] });
-      }
-      return Promise.resolve({ ok: true, json: async () => [] });
-    });
+    installTestCorpus({ '': { list: LAWS, failures: { list: 500 } } });
 
     const wrapper = mount(SearchPopover);
     internals(wrapper).search = 'zorg';
@@ -329,6 +313,7 @@ function promoteButtons(wrapper: VueWrapper) {
 describe('SearchPopover zonder "Toevoegen aan traject" in zoekresultaten', () => {
   beforeEach(() => {
     routeMock.params = { trajectRef: TRAJECT_REF };
+    useCorpusList(LAWS, TRAJECT_REF);
   });
 
   it('shows no promote button inside a traject; the label names the source', async () => {
@@ -504,11 +489,7 @@ describe('SearchPopover: minimale zoeklengte', () => {
     return wrapper.findAll('nldd-inline-dialog').map((d) => d.attributes('text'));
   }
 
-  function corpusCalls() {
-    return fetchMock().mock.calls
-      .map(([u]) => String(u))
-      .filter((u) => u.includes('/corpus/laws') && u.includes('q='));
-  }
+  const corpusCalls = searchQueries;
 
   it('noemt het aantal tekens waarbij het zoeken echt begint', async () => {
     expect(WORDS[MIN_QUERY_LENGTH], `voeg ${MIN_QUERY_LENGTH} toe aan WORDS`).toBeDefined();
@@ -535,19 +516,10 @@ describe('SearchPopover: minimale zoeklengte', () => {
 
 describe('SearchPopover: laws with a machine version', () => {
   it('marks a match whose current version is enriched with a Machine tag', async () => {
-    fetchMock().mockImplementation(async (url) => {
-      const u = String(url);
-      if (u.includes('/corpus/laws') && u.includes('q=')) {
-        return {
-          ok: true,
-          json: async () => [
-            { law_id: 'wet_a', display_name: 'Wet A', source_id: 'central', source_name: 'Centraal', enriched: true },
-            { law_id: 'wet_b', display_name: 'Wet B', source_id: 'central', source_name: 'Centraal', enriched: false },
-          ],
-        };
-      }
-      return { ok: true, json: async () => [] };
-    });
+    useCorpusList([
+      { law_id: 'wet_a', display_name: 'Wet A', source_id: 'central', source_name: 'Centraal', enriched: true },
+      { law_id: 'wet_b', display_name: 'Wet B', source_id: 'central', source_name: 'Centraal', enriched: false },
+    ]);
     const wrapper = mount(SearchPopover);
     internals(wrapper).search = 'wet';
     await nextTick();
@@ -564,25 +536,14 @@ describe('SearchPopover: laws with a machine version', () => {
     await nextTick();
     await settle();
     expect(wrapper.find('nldd-checkbox-field').exists()).toBe(false);
-    const urls = fetchMock().mock.calls.map((c) => String(c[0]));
-    expect(urls.some((u) => u.includes('enriched=true'))).toBe(false);
+    // The list query has no enriched filter at all.
+    expect(searchQueries()).toEqual([{ q: 'zorgtoeslag', limit: 60 }]);
   });
 });
 
 describe('SearchPopover: suggestions and wetten.overheid.nl', () => {
   it('suggests five laws from Corpus juris when not logged in and the field is empty', async () => {
-    fetchMock().mockImplementation(async (url) => {
-      const u = String(url);
-      if (u.includes('/auth/status')) return { ok: false, json: async () => ({}) };
-      const ids = /[?&]ids=([^&]*)/.exec(u)?.[1];
-      if (ids) {
-        return {
-          ok: true,
-          json: async () => decodeURIComponent(ids).split(',').map((law_id) => ({ law_id, display_name: law_id })),
-        };
-      }
-      return { ok: true, json: async () => [] };
-    });
+    useCorpusList(__SUGGESTED_LAW_IDS__.map((law_id) => ({ law_id, display_name: law_id })));
     const wrapper = mount(SearchPopover);
     await wrapper.get('nldd-popover').trigger('open');
     await settle();

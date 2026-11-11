@@ -2,20 +2,6 @@
 import type { ExecutionData } from './ScenarioForm.vue';
 import type { Expectation } from '../utils/outputFormat';
 
-// Parsed-version cache, MODULE-scoped (shared across all ScenarioBuilder
-// instances) so it survives remounts - switching the panel view away and back,
-// or opening another article, remounts this component. The data-source column
-// type map (`rebuildExternalFieldTypeMap`) is derived from these YAMLs, while
-// the WASM engine that gates whether `loadAllDependencies` re-fetches a dep is
-// itself a shared singleton that stays warm across mounts. A per-instance cache
-// would therefore be empty on every remount once the engine is warm, forcing a
-// full dependency re-fetch each time. Invalidated per-traject in
-// `fetchLawVersions`. Assumes at most one ScenarioBuilder is mounted at a time
-// (the scenario panel): `versionsCacheTrajectRef` is shared, so two concurrent
-// instances with different trajectRefs would invalidate each other's cache.
-const versionsCache: Record<string, string[]> = {};
-let versionsCacheTrajectRef: string | null = null;
-
 /** Which sheet the parent opens for a scenario's result. */
 type DetailsView = 'trace' | 'graph';
 
@@ -39,8 +25,7 @@ import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue';
 import { useDependencies } from '../composables/useDependencies';
 import { loadLawVersions } from '../composables/useEngine';
 import { useScenarios, isScenarioMismatch } from '../composables/useScenarios';
-import { lawVersionsUrl } from '../composables/corpusUrls';
-import { apiFetchJson } from '../lib/apiFetch';
+import { useCorpus } from '../corpus';
 import { useLatest } from '../lib/useLatest';
 import { parseFeature } from '../gherkin/parser';
 import { mapFeatureToForm, getEffectiveSetup, formStateToGherkin, syncEditedValues } from '../gherkin/formMapper';
@@ -77,9 +62,6 @@ const props = withDefaults(defineProps<{
   /** Active traject ref. Required for scenario writes; reads route
    *  through the matching traject's backend so a save is visible
    *  without a corpus reload. */
-  // Single-instance assumption: the module-scoped versionsCache keys on this
-  // trajectRef (see the <script> block at the top), so at most one
-  // ScenarioBuilder may be mounted at a time.
   trajectRef?: string | null;
 }>(), {
   lawYaml: null,
@@ -232,27 +214,18 @@ watch(featureText, (text) => {
   }
 });
 
-// Cache for fetched law version lists, scoped to the active traject so a
-// traject switch doesn't return the previous traject's bodies. The dependency
-// loader needs *every* version of a law (not just today's-best) so the engine
-// can pick the one in force on the scenario's calculation date.
-async function fetchLawVersions(lawId: string): Promise<string[]> {
-  if (versionsCacheTrajectRef !== props.trajectRef) {
-    Object.keys(versionsCache).forEach((k) => delete versionsCache[k]);
-    versionsCacheTrajectRef = props.trajectRef;
-  }
-  if (versionsCache[lawId]) return versionsCache[lawId];
-  const yamls = await apiFetchJson(lawVersionsUrl(props.trajectRef, lawId), {
-    errorMessage: (status) => `Failed to fetch versions of law '${lawId}': ${status}`,
-  });
-  // The endpoint returns every version's YAML text.
-  const list: string[] = Array.isArray(yamls) ? yamls : [];
-  // Only cache a non-empty result. An empty array (unknown/not-yet-harvested
-  // law) must stay uncached so a retry after harvest re-fetches rather than
-  // returning the stale `[]` - `[]` is truthy, so caching it would short-
-  // circuit the `if (versionsCache[lawId])` guard forever.
-  if (list.length > 0) versionsCache[lawId] = list;
-  return list;
+// The dependency loader needs *every* version of a law (not just today's-best)
+// so the engine can pick the one in force on the scenario's calculation date.
+// The corpus reader caches them per traject, so a remount with a warm engine
+// does not refetch. Each run records what it fetched: the data-source type map
+// is built from exactly the ruleworks of this run.
+const corpus = useCorpus();
+function versionsFetcher(seen: Map<string, string[]>) {
+  return async (lawId: string): Promise<string[]> => {
+    const { yamls } = await corpus.versions(lawId);
+    seen.set(lawId, yamls);
+    return yamls;
+  };
 }
 
 // --- Dependencies ready tracking ---
@@ -288,12 +261,12 @@ watch(() => props.lawYaml, (val, prev) => {
 onBeforeUnmount(() => clearTimeout(lawYamlDebounce));
 
 // Collect external data-source column types from the current law plus the
-// dependency YAMLs already fetched into versionsCache (parsed with js-yaml).
-// Called once the dependency load settles so the data-source tables can render
-// typed cells. Tolerates unparseable/text-only versions.
-function rebuildExternalFieldTypeMap() {
+// dependency YAMLs this run fetched (parsed with js-yaml). Called once the
+// dependency load settles so the data-source tables can render typed cells.
+// Tolerates unparseable/text-only versions.
+function rebuildExternalFieldTypeMap(seen: ReadonlyMap<string, string[]>) {
   const docs: MappedLawDoc[] = [{ articles: props.articles || [] }];
-  for (const [lawId, versions] of Object.entries(versionsCache)) {
+  for (const [lawId, versions] of seen) {
     for (const v of Array.isArray(versions) ? versions : []) {
       try {
         const doc = yaml.load(v);
@@ -315,6 +288,8 @@ async function runDependencyLoad() {
   if (!lawYaml || !props.ready || !props.engine) return;
   const isCurrent = claimDependencyLoad();
   depsReady.value = false;
+  const seen = new Map<string, string[]>();
+  const fetchLawVersions = versionsFetcher(seen);
 
   const mainLawId = await loadAllDependencies(lawYaml, props.engine, fetchLawVersions);
   if (!isCurrent()) return;
@@ -328,10 +303,10 @@ async function runDependencyLoad() {
     }
     for (const depId of allDeps) {
       try {
-        // Fetch versions unconditionally to populate versionsCache for the
-        // data-source type map (same rationale as loadAllDependencies - the
-        // map is built from cached YAMLs, independent of engine state); load
-        // into the shared engine only if it isn't already present.
+        // Fetch versions unconditionally so the data-source type map sees
+        // them (same rationale as loadAllDependencies - the map is built from
+        // this run's YAMLs, independent of engine state); load into the
+        // shared engine only if it isn't already present.
         const yamls = await fetchLawVersions(depId);
         if (!props.engine.hasLaw(depId)) {
           loadLawVersions(props.engine, yamls, depId);
@@ -354,15 +329,16 @@ async function runDependencyLoad() {
     // Vue ignores ref writes after unmount, the shared WASM engine outlives
     // the component, and the guard resets on error so a fresh mount retries.
     depsReady.value = true;
-    rebuildExternalFieldTypeMap();
+    rebuildExternalFieldTypeMap(seen);
     if (mainLawId) {
-      // Implementor regulations load in the background, populating versionsCache
-      // after the rebuild above. Re-type once they settle so any source:{}
-      // fields they declare get picked up (idempotent; skipped if superseded).
+      // Implementor regulations load in the background, adding to this run's
+      // versions after the rebuild above. Re-type once they settle so any
+      // source:{} fields they declare get picked up (idempotent; skipped if
+      // superseded).
       Promise.resolve(
-        loadImplementors(mainLawId, props.engine, fetchLawVersions, props.trajectRef),
+        loadImplementors(mainLawId, props.engine, fetchLawVersions),
       )
-        .then(() => { if (isCurrent()) rebuildExternalFieldTypeMap(); })
+        .then(() => { if (isCurrent()) rebuildExternalFieldTypeMap(seen); })
         .catch((e) => console.warn('Implementor load / re-type failed (non-fatal):', e));
     }
   }

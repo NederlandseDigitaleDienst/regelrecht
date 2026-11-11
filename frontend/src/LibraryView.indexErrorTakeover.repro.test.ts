@@ -10,9 +10,11 @@
 // Harness: test-utils/libraryViewHarness.ts, shallow-mount with every
 // composable stubbed, deliberately narrow to this one surface.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { shallowMount } from '@vue/test-utils';
+import { flushPromises, shallowMount } from '@vue/test-utils';
 import { ref, nextTick } from 'vue';
 import * as harness from './test-utils/libraryViewHarness';
+import { installTestCorpus, type TestCorpus } from './test-utils/corpusSetup';
+import type { LawListQuery } from './corpus';
 
 /** The route fields LibraryView reads; tests reassign params freely. */
 interface RouteStub {
@@ -45,50 +47,26 @@ vi.mock('./composables/useTrajects', () =>
 
 // The 502 body below is the backend's own text for a traject whose
 // writable-own (private) repo could not be scanned - see
-// `require_traject_index` in corpus_handlers.rs.
-//
-// `vi.mock` factories are hoisted above module-level consts, so the shared
-// stubs have to be hoisted too.
-const { ApiErrorStub, apiFetch, apiFetchJson } = vi.hoisted(() => {
-  class ApiErrorStub extends Error {
-    status: number | undefined;
-    body: string;
-    constructor(message: string, { status, body = '' }: { status?: number; body?: string } = {}) {
-      super(message);
-      this.name = 'ApiError';
-      this.status = status;
-      this.body = body;
-    }
+// `require_traject_index` in corpus_handlers.rs. LibraryView reads the `body`
+// of the error it catches, whatever its class.
+class ApiErrorStub extends Error {
+  status: number | undefined;
+  body: string;
+  constructor(message: string, { status, body = '' }: { status?: number; body?: string } = {}) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+    this.body = body;
   }
-  const BODY =
-    'De bibliotheek van dit traject is niet beschikbaar: de traject-repo kon niet ' +
-    'worden gescand (Trees API for org/afgeschermd-traject@main: 409)';
-  const fail = () => {
-    throw new ApiErrorStub('Failed to load corpus: 502', { status: 502, body: BODY });
-  };
-  // Every traject-scoped corpus call fails; favorites/changed-laws resolve
-  // (they swallow their own errors anyway, so failing them would prove nothing
-  // about the takeover).
-  return {
-    ApiErrorStub,
-    apiFetch: vi.fn(async (url: unknown, _init?: unknown) => {
-      if (String(url).includes('/corpus/laws')) fail();
-      return { ok: true, status: 200, json: async () => [] };
-    }),
-    apiFetchJson: vi.fn(async (url: unknown, _init?: unknown) => {
-      if (String(url).includes('/corpus/laws')) fail();
-      return [];
-    }),
-  };
-});
+}
+const BODY =
+  'De bibliotheek van dit traject is niet beschikbaar: de traject-repo kon niet ' +
+  'worden gescand (Trees API for org/afgeschermd-traject@main: 409)';
 
-vi.mock('./lib/apiFetch', () =>
-  harness.apiFetchModule({
-    apiFetch: (...a: Parameters<typeof apiFetch>) => apiFetch(...a),
-    apiFetchJson: (...a: Parameters<typeof apiFetchJson>) => apiFetchJson(...a),
-    ApiError: ApiErrorStub,
-  }),
-);
+const BROKEN = 'traject-abcd1234';
+const HEALTHY = 'traject-99998888';
+
+vi.mock('./lib/apiFetch', () => harness.apiFetchModule());
 vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 vi.mock('./composables/useDocumentsManager', () => harness.documentsManager());
 vi.mock('./composables/useTrajectDocumentJobs', () => harness.trajectDocumentJobs());
@@ -99,18 +77,36 @@ import LibraryView from './LibraryView.vue';
 
 async function mountAfterFailedIndex() {
   const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true } } });
-  await nextTick();
-  await nextTick();
+  await flushPromises();
   await nextTick();
   return wrapper;
 }
 
-// vi.fn(impl) always has an implementation.
-const defaultApiFetch = apiFetch.getMockImplementation()!;
+// Every law-list read of the broken traject fails with the 502 (or waits on
+// `failing.pending`); favorites and changed laws resolve (they swallow their
+// own errors anyway, so failing them would prove nothing about the takeover).
+const failing: { body: string; pending: Promise<never> | null } = { body: BODY, pending: null };
+let corpus: TestCorpus;
+let listCalls: { trajectRef: string | null; query: LawListQuery }[];
+
+function switchTraject(trajectRef: string, params: Record<string, string>) {
+  routeState.params = { trajectRef, ...params };
+  activeTrajectRef.value = trajectRef;
+  corpus.trajectRef.value = trajectRef;
+}
 
 beforeEach(() => {
-  apiFetch.mockClear().mockImplementation(defaultApiFetch);
-  apiFetchJson.mockClear();
+  failing.body = BODY;
+  failing.pending = null;
+  listCalls = [];
+  corpus = installTestCorpus({ [BROKEN]: {}, [HEALTHY]: {} }, BROKEN);
+  const list = corpus.transport.list;
+  corpus.transport.list = async (trajectRef, query) => {
+    listCalls.push({ trajectRef, query });
+    if (trajectRef !== BROKEN) return list(trajectRef, query);
+    if (failing.pending) return failing.pending;
+    throw new ApiErrorStub('Failed to load corpus: 502', { status: 502, body: failing.body });
+  };
   routeState.name = 'taken-traject';
   routeState.params = { trajectRef: 'traject-abcd1234', categorie: 'alle' };
   routeState.query = {};
@@ -128,10 +124,7 @@ describe('LibraryView index-error scoping', () => {
     // No favorites, no changed laws => the ids set is empty, but LibraryView
     // still probes `?limit=1` so a broken traject repo is not shown as a
     // normal-looking empty library.
-    expect(apiFetch).toHaveBeenCalledWith(
-      '/api/trajects/traject-abcd1234/corpus/laws?limit=1',
-      expect.anything(),
-    );
+    expect(listCalls).toContainEqual({ trajectRef: BROKEN, query: { limit: 1 } });
   });
 
   it('keeps the TAKEN route standing and shows a non-blocking warning banner', async () => {
@@ -152,23 +145,19 @@ describe('LibraryView index-error scoping', () => {
 
   it('keeps the taken panes even when the corpus call fails mid-flight (no flash)', async () => {
     let rejectCorpus: (() => void) | undefined;
-    apiFetch.mockImplementation(async (url: unknown) => {
-      if (String(url).includes('/corpus/laws')) {
-        return new Promise((_, rej) => {
-          rejectCorpus = () =>
-            rej(new ApiErrorStub('Failed to load corpus: 502', { status: 502, body: 'kapot' }));
-        });
-      }
-      return { ok: true, status: 200, json: async () => [] };
+    failing.pending = new Promise<never>((_, rej) => {
+      rejectCorpus = () =>
+        rej(new ApiErrorStub('Failed to load corpus: 502', { status: 502, body: 'kapot' }));
     });
     const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true } } });
     await nextTick();
     await nextTick();
     // The task list is on screen while the corpus probe is still in flight...
     expect(wrapper.findComponent({ name: 'TasksCategoriesPane' }).exists()).toBe(true);
-    // Assigned once the mount reached the corpus probe, two ticks ago.
+    // Assigned when the pending probe was set up above.
     rejectCorpus!();
-    for (let i = 0; i < 5; i++) await nextTick();
+    await flushPromises();
+    await nextTick();
     // ...and it stays put once the unrelated corpus call fails - only the
     // warning banner appears on top.
     expect(wrapper.findComponent({ name: 'TasksCategoriesPane' }).exists()).toBe(true);
@@ -208,10 +197,9 @@ describe('LibraryView index-error scoping', () => {
     expect(wrapper.html()).toContain(NOTIFICATION_TEXT);
 
     // Same view, other traject - and this one indexes fine.
-    apiFetch.mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }));
-    routeState.params = { trajectRef: 'traject-99998888', categorie: 'alle' };
-    activeTrajectRef.value = 'traject-99998888';
-    for (let i = 0; i < 6; i++) await nextTick();
+    switchTraject(HEALTHY, { categorie: 'alle' });
+    await flushPromises();
+    await nextTick();
 
     expect(wrapper.html()).not.toContain(NOTIFICATION_TEXT);
     expect(wrapper.find('nldd-notification').exists()).toBe(false);
@@ -224,10 +212,9 @@ describe('LibraryView index-error scoping', () => {
     const wrapper = await mountAfterFailedIndex();
     expect(wrapper.html()).toContain(FULLSCREEN_TEXT);
 
-    apiFetch.mockImplementation(async () => ({ ok: true, status: 200, json: async () => [] }));
-    routeState.params = { trajectRef: 'traject-99998888' };
-    activeTrajectRef.value = 'traject-99998888';
-    for (let i = 0; i < 6; i++) await nextTick();
+    switchTraject(HEALTHY, {});
+    await flushPromises();
+    await nextTick();
 
     expect(wrapper.html()).not.toContain(FULLSCREEN_TEXT);
     routeState.name = 'taken-traject';
@@ -264,12 +251,7 @@ describe('LibraryView index-error scoping', () => {
       'De bibliotheek van dit traject is niet beschikbaar: de traject-repo kon niet ' +
       `worden gescand (GitHub API error 409: Trees API for example-org/regelrecht-corpus-example@main: ${githubBody})`;
     expect(long.length).toBeGreaterThan(300);
-    apiFetch.mockImplementation(async (url: unknown) => {
-      if (String(url).includes('/corpus/laws')) {
-        throw new ApiErrorStub('Failed to load corpus: 502', { status: 502, body: long });
-      }
-      return { ok: true, status: 200, json: async () => [] };
-    });
+    failing.body = long;
     const wrapper = await mountAfterFailedIndex();
     const html = wrapper.html();
     // The reason reaches the user instead of "De gegevens konden niet worden opgehaald."

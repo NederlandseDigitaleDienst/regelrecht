@@ -3,12 +3,9 @@ import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router';
 import type { NLDDPopover } from '@nldd/design-system/popover';
 import { useBwbSearch, MIN_QUERY_LENGTH } from '../composables/useBwbSearch';
-import type { CorpusLaw } from '../composables/useCorpusLaws';
+import { useCorpus, type CorpusLaw } from '../corpus';
 import { useAuth } from '../composables/useAuth';
-import { useTrajects } from '../composables/useTrajects';
-import { lawsListUrl } from '../composables/corpusUrls';
 import { homeTarget } from '../composables/useLastVisitedRoute';
-import { apiFetch, apiFetchJson } from '../lib/apiFetch';
 import { groupBySource, otherSourceLabel, pickSuggestions, officialTextUrl } from '../lib/searchResults';
 import { useLatest } from '../lib/useLatest';
 import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from '../constants';
@@ -24,7 +21,7 @@ const emit = defineEmits<{
 /** The listbox's own `input` event: the search value on `detail`. */
 type ValueEvent = Event & { detail?: { value?: string } | null };
 
-const { activeTrajectRef } = useTrajects();
+const corpus = useCorpus();
 const router = useRouter();
 
 const { results: bwbResults, loading: bwbLoading, search: searchBwb, clear: clearBwb } = useBwbSearch();
@@ -144,7 +141,8 @@ async function loadSuggestions() {
   const ids = pickSuggestions(__SUGGESTED_LAW_IDS__, SUGGESTION_COUNT);
   if (ids.length === 0) return;
   try {
-    const found = await apiFetchJson<CorpusLaw[]>(lawsListUrl(null, `ids=${ids.map(encodeURIComponent).join(',')}`));
+    // From the active traject: inside one, an id it does not have is dropped below.
+    const { laws: found } = await corpus.searchLaws({ ids });
     if (!isCurrent()) return;
     // Keep the random order; drop an id the corpus does not have (yet).
     suggestions.value = ids
@@ -219,12 +217,10 @@ function runQuery(q: string) {
 async function runCorpusSearch(term: string) {
   const isCurrent = claimSearch();
   try {
-    const url = lawsListUrl(activeTrajectRef.value, `q=${encodeURIComponent(term)}&limit=60`);
-    const res = await apiFetch(url);
-    const laws = (await res.json()) as CorpusLaw[];
+    const { laws, total } = await corpus.searchLaws({ q: term, limit: 60 });
     if (!isCurrent()) return; // a newer query superseded this one
     serverLaws.value = laws;
-    totalMatches.value = Number(res.headers?.get('X-Total-Count')) || laws.length;
+    totalMatches.value = total;
     searchFailed.value = false;
     // No match anywhere in the corpus → offer the external wetten.overheid.nl
     // search (unless the user must log in first to reach it).

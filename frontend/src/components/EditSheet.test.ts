@@ -1,8 +1,9 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { nextTick } from 'vue';
 import type { DefinitionForm } from '../lib/definitionForm';
 import EditSheet, { type EditSheetItem } from './EditSheet.vue';
+import { installTestCorpus } from '../test-utils/corpusSetup';
 
 /** A source.parameters row as the tests read and write it. */
 type TestParamRow = { key: string; value: string; _rowId?: number };
@@ -47,11 +48,6 @@ function firstSave(events: unknown[][] | undefined): SavedPayload {
   const first = events?.[0];
   if (!first) throw new Error('no save event emitted');
   return first[0] as SavedPayload;
-}
-
-/** A fetch Response stand-in with only what apiFetchJson reads. */
-function fakeResponse(ok: boolean, body: unknown): Response {
-  return { ok, json: async () => body } as unknown as Response;
 }
 
 // Vite is configured with `isCustomElement: tag => tag.startsWith('nldd-')`
@@ -644,23 +640,32 @@ describe('EditSheet', () => {
       { name: 'leeftijd', output_type: 'number', article_number: '2.7', parameters: [{ name: 'bsn', param_type: 'string' }, { name: 'peildatum', param_type: 'date' }] },
       { name: 'heeft_partner', output_type: 'boolean', article_number: '2.8', parameters: [{ name: 'bsn', param_type: 'string' }] },
     ];
-    let fetchSpy: MockInstance<typeof fetch>;
-
     beforeEach(() => {
-      fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
-        const urlStr = typeof url === 'string' ? url : url.toString();
-        if (urlStr.includes('/api/corpus/laws') && urlStr.includes('/outputs')) {
-          return fakeResponse(true, mockOutputs);
-        }
-        if (urlStr.includes('/api/corpus/laws')) {
-          return fakeResponse(true, mockLaws);
-        }
-        return fakeResponse(false, {});
+      installTestCorpus({
+        '': {
+          list: mockLaws,
+          outputs: Object.fromEntries(mockLaws.map((l) => [l.law_id, mockOutputs])),
+        },
       });
     });
 
-    afterEach(() => {
-      fetchSpy.mockRestore();
+    it('reads the law list and outputs from the traject it is open in', async () => {
+      // A law that exists only in the traject has no outputs in the global
+      // corpus, so inside a traject both must come from the traject's corpus.
+      installTestCorpus({
+        '': {},
+        'proef-0123abcd': {
+          list: [{ law_id: 'eigen_regeling', name: 'Eigen regeling', display_name: 'Eigen regeling' }],
+          outputs: { eigen_regeling: mockOutputs },
+        },
+      }, 'proef-0123abcd');
+      const wrapper = mountSheet();
+      await setItem(wrapper, { section: 'add-input', isNew: true });
+      await vi.waitFor(() => expect(wrapper.vm.allLaws.map((l) => l.law_id)).toEqual(['eigen_regeling']));
+
+      await wrapper.vm.onLawComboChange({ detail: { value: 'eigen_regeling' } });
+
+      await vi.waitFor(() => expect(wrapper.vm.availableOutputs).toEqual(mockOutputs));
     });
 
     it('onLawComboChange sets sourceRegulation, clears sourceOutput, and fetches outputs', async () => {
@@ -679,32 +684,6 @@ describe('EditSheet', () => {
       // Outputs are fetched and populated
       await vi.waitFor(() => expect(wrapper.vm.availableOutputs.length).toBeGreaterThan(0));
       expect(wrapper.vm.availableOutputs).toEqual(mockOutputs);
-    });
-
-    it('reads the outputs of a law from the traject it is open in', async () => {
-      // A law that exists only in the traject has no outputs on the global
-      // route, so inside a traject both the list and the outputs must come
-      // from the traject's corpus.
-      fetchSpy.mockImplementation(async (url) => {
-        const urlStr = typeof url === 'string' ? url : url.toString();
-        if (urlStr === '/api/trajects/proef-0123abcd/corpus/laws/eigen_regeling/outputs') {
-          return fakeResponse(true, mockOutputs);
-        }
-        if (urlStr.startsWith('/api/trajects/proef-0123abcd/corpus/laws?')) {
-          return fakeResponse(true, [{ law_id: 'eigen_regeling', name: 'Eigen regeling', display_name: 'Eigen regeling' }]);
-        }
-        return fakeResponse(false, {});
-      });
-      const wrapper = mount(EditSheet, {
-        attachTo: document.body,
-        props: { item: null, trajectRef: 'proef-0123abcd' },
-      }) as unknown as SheetWrapper;
-      await setItem(wrapper, { section: 'add-input', isNew: true });
-      await vi.waitFor(() => expect(wrapper.vm.allLaws.length).toBeGreaterThan(0));
-
-      await wrapper.vm.onLawComboChange({ detail: { value: 'eigen_regeling' } });
-
-      await vi.waitFor(() => expect(wrapper.vm.availableOutputs).toEqual(mockOutputs));
     });
 
     it('onOutputComboChange auto-populates name, type, and parameters', async () => {

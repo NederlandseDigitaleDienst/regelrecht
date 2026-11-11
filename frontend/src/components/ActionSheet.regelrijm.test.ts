@@ -6,7 +6,6 @@ import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
 import { reactive } from 'vue';
 
 vi.mock('../composables/useFeatureFlags', () => ({ useFeatureFlags: () => ({ isEnabled: () => true }) }));
-vi.mock('../composables/useLaw', () => ({ fetchLaw: vi.fn(async () => null) }));
 const { default: ActionSheet } = await import('./ActionSheet.vue');
 
 const ACTION = { output: 'hoogte', value: { operation: 'MAX', values: [0, { operation: 'MULTIPLY', values: ['$inkomen', '$percentage'] }] } };

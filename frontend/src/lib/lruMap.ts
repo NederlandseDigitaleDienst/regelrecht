@@ -17,7 +17,7 @@ export interface LruMap<K, V> {
  * createLruMap - a Map with least-recently-used eviction.
  *
  * Consolidates the copy-pasted "Map insertion order IS the LRU order"
- * caches (law cache in `useLaw`, per-scope laws list in `useCorpusLaws`,
+ * caches (the corpus reader's caches in `src/corpus/reader.ts`,
  * loaded-scope tracking in `useEngine`): `set` and `get` move the key to
  * the most-recent position (delete + set), and `set` evicts the oldest
  * entries past `maxSize`.

@@ -6,6 +6,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
 import { nextTick, ref } from 'vue';
 import * as harness from './test-utils/libraryViewHarness';
+import { installTestCorpus } from './test-utils/corpusSetup';
 import { LOCAL_FAVORITES_KEY } from './composables/useLocalFavorites';
 
 const routeState: { name: string; params: Record<string, string>; query: Record<string, string>; fullPath: string; hash: string } = {
@@ -32,14 +33,9 @@ vi.mock('./composables/useTrajects', () =>
   harness.trajectsModule(() => ({ activeTrajectRef, activeTraject: ref({ name: 'Traject A' }) })),
 );
 
-// Every request, in order: method and url. `?ids=` answers with an entry per
-// id, so a favorite resolves to a sidebar row; the account's favorites answer
-// with what the PUTs stored.
+// Every favorites request, in order: method and url. The account's favorites
+// answer with what the PUTs stored. Corpus reads go to the in-memory corpus.
 const server = vi.hoisted(() => ({ calls: [] as string[], account: new Set<string>() }));
-const entriesFor = vi.hoisted(() => (url: string) => {
-  const ids = /[?&]ids=([^&]*)/.exec(url)?.[1];
-  return ids ? decodeURIComponent(ids).split(',').map((law_id) => ({ law_id, name: law_id })) : [];
-});
 vi.mock('./lib/apiFetch', () =>
   harness.apiFetchModule({
     apiFetch: vi.fn(async (url: string, init?: { method?: string }) => {
@@ -47,12 +43,12 @@ vi.mock('./lib/apiFetch', () =>
       server.calls.push(`${method} ${url}`);
       const fav = /^\/api\/favorites\/([^/?]+)$/.exec(url);
       if (fav && method === 'PUT') server.account.add(decodeURIComponent(fav[1]!));
-      return { ok: true, status: 200, json: async () => entriesFor(url), text: async () => '$id: wet_a\narticles: []\n' };
+      return { ok: true, status: 200, json: async () => [] };
     }),
     apiFetchJson: vi.fn(async (url: string) => {
       server.calls.push(`GET ${url}`);
       if (url === '/api/favorites') return [...server.account];
-      return entriesFor(url);
+      return [];
     }),
   }),
 );
@@ -64,8 +60,15 @@ vi.mock('./composables/useDocumentTaskReview', () => harness.documentTaskReview(
 
 import LibraryView from './LibraryView.vue';
 
-const mountLibrary = () =>
-  shallowMount(LibraryView, { global: { stubs: { teleport: true } } }) as VueWrapper;
+// An entry per law, so a favorite resolves to a sidebar row.
+function mountLibrary() {
+  const content = {
+    laws: { wet_a: '$id: wet_a\narticles: []\n' },
+    list: ['wet_a', 'wet_b'].map((law_id) => ({ law_id, name: law_id })),
+  };
+  installTestCorpus({ '': content, 'traject-aaaa1111': content }, activeTrajectRef.value);
+  return shallowMount(LibraryView, { global: { stubs: { teleport: true } } }) as VueWrapper;
+}
 
 // The login path chains several awaits (the saves, then the account's list,
 // then the sidebar's entries), so let the queued tasks run out.

@@ -6,6 +6,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
 import { nextTick, ref } from 'vue';
 import * as harness from './test-utils/libraryViewHarness';
+import { installTestCorpus } from './test-utils/corpusSetup';
+import type { CorpusLaw } from './corpus';
 
 interface Internals {
   showMachineViews: boolean;
@@ -36,18 +38,8 @@ vi.mock('./composables/useTrajects', () =>
 
 // The open law's list entry: what the test sets here is what `?ids=` answers.
 // A minimal law body, so the law pane (and its toolbar with the star) renders.
-const entries = vi.hoisted(() => ({ list: [] as Record<string, unknown>[] }));
-vi.mock('./lib/apiFetch', () =>
-  harness.apiFetchModule({
-    apiFetch: vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => [],
-      text: async () => '$id: wet_a\narticles: []\n',
-    }),
-    apiFetchJson: vi.fn(async (url: string) => (url.includes('ids=') ? entries.list : [])),
-  }),
-);
+const entries = { list: [] as CorpusLaw[] };
+vi.mock('./lib/apiFetch', () => harness.apiFetchModule());
 
 vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 vi.mock('./composables/useDocumentsManager', () => harness.documentsManager());
@@ -57,8 +49,12 @@ vi.mock('./composables/useDocumentTaskReview', () => harness.documentTaskReview(
 
 import LibraryView from './LibraryView.vue';
 
-const mountLibrary = () =>
-  shallowMount(LibraryView, { global: { stubs: { teleport: true } } }) as unknown as Wrapper;
+// The same corpus globally and in the traject; the route decides which is read.
+function mountLibrary() {
+  const content = { laws: { wet_a: '$id: wet_a\narticles: []\n' }, list: entries.list };
+  installTestCorpus({ '': content, 'traject-aaaa1111': content }, activeTrajectRef.value);
+  return shallowMount(LibraryView, { global: { stubs: { teleport: true } } }) as unknown as Wrapper;
+}
 
 async function settle() {
   for (let i = 0; i < 6; i++) await nextTick();
