@@ -38,7 +38,7 @@ const REDUCTIE =
 const AGGREGAAT = REDUCTIE;
 const STAP =
   `${CORPUS}/regulation/nl/uitvoeringsbeleid/beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal/2026-01-01.yaml`;
-const AWB = `${CORPUS}/regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml`;
+const AWB = `${CORPUS}/regulation/nl/wet/algemene_wet_bestuursrecht/2021-07-01.yaml`;
 const KVK_CEL = `${CORPUS}/cells/kamer_van_koophandel/cel.yaml`;
 const KVK_REDUCTIE =
   `${CORPUS}/cells/kamer_van_koophandel/reductions/reductie_vestiging_in_handelsregister/2026-01-01.yaml`;

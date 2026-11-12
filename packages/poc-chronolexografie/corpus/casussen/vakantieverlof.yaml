@@ -45,6 +45,12 @@ voorbeeld:
     adres_indiener: Voorbeeldstraat 1
     omschrijving_bestreden_besluit: weigering vakantieverlof
     gronden_bezwaar_of_beroep: 'verklaring van de werkgever: geen verlof in de schoolvakanties'
+  # Wat het bestuursorgaan oordeelt over de ontvankelijkheid van het
+  # bezwaar (Awb 7:11): de indiener is belanghebbende (1:2, 7:1 en 8:1),
+  # en was bij een te laat bezwaarschrift in verzuim (6:11).
+  beslissing_op_bezwaar:
+    indiener_bezwaarschrift_is_belanghebbende: true
+    indiener_bezwaarschrift_niet_in_verzuim: false
   # Het beroepschrift (Awb 6:5): dezelfde velden als het bezwaarschrift.
   beroep:
     bezwaar_of_beroepschrift_ondertekend: true
@@ -57,6 +63,7 @@ voorbeeld:
   # de zaak en de school krijgt twee weken.
   uitspraak:
     indiener_is_belanghebbende: true
+    indiener_beroepschrift_niet_in_verzuim: false
     rechtsregel_geschonden: true
     geschonden_rechtsregel: artikel 7:12, eerste lid, van de Algemene wet bestuursrecht
     rechtsgevolgen_in_stand: false

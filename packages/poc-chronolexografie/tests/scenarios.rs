@@ -223,8 +223,10 @@ fn speel(casus_id: &str, index: usize) {
             }
             "beslissing_op_bezwaar" => {
                 let op = stand.bezwaren[doel].0.clone();
-                spel.heroverweging(&op, datum).unwrap();
-                let genomen = spel.beslissen_op_bezwaar(&op, &map(invoer), datum);
+                // What the authority judges on admissibility, then anew.
+                let bevindingen = met(&voorbeeld["beslissing_op_bezwaar"], invoer);
+                spel.heroverweging(&op, &bevindingen, datum).unwrap();
+                let genomen = spel.beslissen_op_bezwaar(&op, &bevindingen, datum);
                 if verwacht == Some("geweigerd") {
                     let e = genomen
                         .err()
@@ -303,7 +305,11 @@ fn speel(casus_id: &str, index: usize) {
                 let ontvangst = kies(&stand.ontvangsten, &stap["op"], |l| l.len().checked_sub(1));
                 spel.heroverweging_na_uitspraak(&ontvangst).unwrap();
                 let genomen = spel
-                    .opnieuw_beslissen_op_bezwaar(&ontvangst, &map(invoer), datum)
+                    .opnieuw_beslissen_op_bezwaar(
+                        &ontvangst,
+                        &met(&voorbeeld["beslissing_op_bezwaar"], invoer),
+                        datum,
+                    )
                     .unwrap_or_else(|e| panic!("{waar}: {e}"));
                 if let Some(v) = verwacht {
                     assert_eq!(op_bezwaar(&genomen["beslissing"]), v, "{waar}");

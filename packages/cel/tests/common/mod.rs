@@ -34,6 +34,33 @@ pub fn object_map(value: Value) -> Map<String, Value> {
     value.as_object().unwrap().clone()
 }
 
+/// `findings` for a decision on an objection under Awb 7:11, with what the
+/// administrative body judges on admissibility where `findings` says
+/// nothing: the objector is an interested party (Awb 1:2, 7:1 and 8:1), and
+/// was at fault for a late objection, so 6:11 does not save it. A test that
+/// is about either judgement gives it itself.
+pub fn on_objection(findings: &Map<String, Value>) -> Map<String, Value> {
+    let mut findings = findings.clone();
+    findings
+        .entry("indiener_bezwaarschrift_is_belanghebbende")
+        .or_insert(Value::Bool(true));
+    findings
+        .entry("indiener_bezwaarschrift_niet_in_verzuim")
+        .or_insert(Value::Bool(false));
+    findings
+}
+
+/// `findings` for a judgment on an appeal under Awb 8:70, with the court's
+/// judgement under 6:11 where `findings` says nothing: the appellant was at
+/// fault for a late appeal. A test about that judgement gives it itself.
+pub fn on_appeal(findings: &Map<String, Value>) -> Map<String, Value> {
+    let mut findings = findings.clone();
+    findings
+        .entry("indiener_beroepschrift_niet_in_verzuim")
+        .or_insert(Value::Bool(false));
+    findings
+}
+
 /// A service with the given regelwerken, as YAML.
 pub fn service_of(laws: &[&str]) -> LawExecutionService {
     let mut service = LawExecutionService::new();

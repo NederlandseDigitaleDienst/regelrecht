@@ -111,7 +111,10 @@ export const api = {
   voorvertoningBesluit: (op, bevindingen, datum) =>
     roep((p) => p.voorvertoningBesluit(op, json(bevindingen), datum)),
   bezwaren: (besluit, velden, datum) => roep((p) => p.bezwaren(besluit, json(velden), datum)),
-  heroverweging: (bezwaar, datum) => roep((p) => p.heroverweging(bezwaar, datum)),
+  // Of het bezwaar ontvankelijk is, met wat het bestuursorgaan daarover
+  // oordeelt (Awb 7:11 met 6:11 en 8:1), en wat het opnieuw kan vinden.
+  heroverweging: (bezwaar, ontvankelijkheid, datum) =>
+    roep((p) => p.heroverweging(bezwaar, json(ontvankelijkheid), datum)),
   beslissenOpBezwaar: (op, bevindingen, datum) =>
     roep((p) => p.beslissenOpBezwaar(op, json(bevindingen), datum)),
   voorvertoningOpBezwaar: (op, bevindingen, datum) =>

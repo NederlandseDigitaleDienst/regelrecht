@@ -630,7 +630,7 @@ fn reconsider_in(
         OBJECTION,
         objection,
         &Map::new(),
-        findings,
+        &common::on_objection(findings),
         day(on),
     )
     .unwrap()
@@ -829,7 +829,7 @@ fn judged_by_the_court_in(
             "8:70",
             &appeal.id,
             &Map::new(),
-            findings,
+            &common::on_appeal(findings),
             day("2027-01-11"),
         )
         .unwrap()

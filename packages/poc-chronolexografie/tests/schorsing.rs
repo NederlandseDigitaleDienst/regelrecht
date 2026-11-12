@@ -34,6 +34,7 @@ use regelrecht_poc_chronolexografie::kern::Corpus;
 use regelrecht_poc_chronolexografie::spel::Spel;
 use serde_json::{Map, Value, json};
 
+mod common;
 const CASUS: &str = "bedrijfsparkeervergunning";
 const BAKKERIJ: &str = "99990011";
 const EERSTE: &str = "ZZ-001-Z";
@@ -164,7 +165,7 @@ fn chronicle(verder: &Verder) -> (Vec<Gram>, String) {
         let beslissing = spel
             .beslissen_op_bezwaar(
                 bezwaar["id"].as_str().unwrap(),
-                &Map::new(),
+                &common::ontvankelijk(&Map::new()),
                 dag("2026-11-25"),
             )
             .unwrap();
@@ -401,6 +402,88 @@ fn per_permit_an_end_set_in_the_ruling_ends_the_suspension() {
     assert!(geldig(&service, &grams, EERSTE, "2026-12-20"));
 }
 
+/// The withdrawal of `bezwaar` on `on` (Awb 6:21), as the municipality
+/// records it: an executogram of the fact 6:21 requires, that refers to the
+/// objection. The objector withdraws it with the municipality, so nothing
+/// came in from another cell.
+fn intrekking(bezwaar: &str, on: &str) -> Gram {
+    let mut gram = ontvangst(
+        "6:21",
+        "intrekking_van_het_bezwaar_of_beroep",
+        bezwaar,
+        on,
+        json!({ "ingetrokken_op": on }),
+    );
+    gram.received = None;
+    gram
+}
+
+/// The objection in `grams`: the chronicle of [`chronicle`] holds one.
+fn het_bezwaar(grams: &[Gram]) -> String {
+    grams
+        .iter()
+        .find(|g| g.kind == "BEZWAAR")
+        .map(|g| g.id.clone())
+        .unwrap()
+}
+
+#[test]
+fn per_permit_withdrawing_the_objection_ends_the_suspension() {
+    // Awb 8:85, second paragraph, under b: the measure lapses as soon as
+    // the objection is withdrawn, here on 1 December 2026.
+    let service = service();
+    let (grams, eerste) = twee_vergunningen_en_een_bezwaar();
+    let bezwaar = het_bezwaar(&grams);
+    let grams = met(
+        grams,
+        [schorsing(&eerste), intrekking(&bezwaar, "2026-12-01")],
+    );
+    assert!(!geldig(&service, &grams, EERSTE, "2026-11-30"));
+    assert!(geldig(&service, &grams, EERSTE, "2026-12-01"));
+}
+
+#[test]
+fn per_permit_a_withdrawal_before_the_suspension_leaves_it() {
+    // A withdrawal recorded before the suspension began does not end it:
+    // as for the judgment in the main case, only what follows the start of
+    // the suspension counts.
+    let service = service();
+    let (grams, eerste) = twee_vergunningen_en_een_bezwaar();
+    let bezwaar = het_bezwaar(&grams);
+    let grams = met(
+        grams,
+        [intrekking(&bezwaar, "2026-11-05"), schorsing(&eerste)],
+    );
+    assert!(!geldig(&service, &grams, EERSTE, "2026-11-20"));
+}
+
+#[test]
+fn per_permit_withdrawing_the_appeal_ends_the_suspension() {
+    // The appeal is in the court's chronicle. How the municipality hears of
+    // its withdrawal is not modeled; it records the withdrawal itself, as
+    // a fact that refers to the decision on objection the appeal was
+    // against.
+    // The court ruled on 11 January 2027 in the main case; withdrawn on 20
+    // December 2026, the measure lapsed then (8:85, second paragraph, under
+    // b), before the judgment.
+    let service = service();
+    let (grams, eerste) = chronicle(&Verder {
+        hoofdzaak: true,
+        ..Verder::default()
+    });
+    let beslissing = grams
+        .iter()
+        .find(|g| g.basis == format!("{AWB}#7:11") && g.kind == "BESCHIKKING")
+        .map(|g| g.id.clone())
+        .unwrap();
+    let grams = met(
+        grams,
+        [schorsing(&eerste), intrekking(&beslissing, "2026-12-20")],
+    );
+    assert!(!geldig(&service, &grams, EERSTE, "2026-12-19"));
+    assert!(geldig(&service, &grams, EERSTE, "2026-12-20"));
+}
+
 /// Outside the suspension the copies of 8:84 and 8:87 leave the count
 /// alone: before the suspension begins and after it is lifted, both
 /// permits count. The test below counts on a day inside it.
@@ -433,9 +516,10 @@ fn the_reduction_tab_shows_the_copies_the_permit_reduction_reads() {
     // A step on an executogram reads the facts its article requires; the
     // tab Reductie lists them beside the decisions, also those of the
     // aggregates the reduction reads (source.projections): the permit's,
-    // with the judgment in the main case, then the suspension's. Which
-    // decision grants the permit the permit's aggregate takes from its own
-    // decisions ($record.id), not from the copies of the suspension.
+    // with the withdrawal of an objection or appeal and the judgment in the
+    // main case, then the suspension's. Which decision grants the permit
+    // the permit's aggregate takes from its own decisions ($record.id), not
+    // from the copies of the suspension.
     let mut spel = spel();
     let stand = spel.reducties(dag("2026-12-01")).unwrap();
     let reductie = stand["reducties"]
@@ -453,6 +537,7 @@ fn the_reduction_tab_shows_the_copies_the_permit_reduction_reads() {
     assert_eq!(
         feiten,
         [
+            "algemene_wet_bestuursrecht#6:21#intrekking_van_het_bezwaar_of_beroep",
             "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak",
             "algemene_wet_bestuursrecht#8:84#afschrift_van_de_uitspraak_van_de_voorzieningenrechter",
             "algemene_wet_bestuursrecht#8:87#afschrift_van_de_uitspraak_tot_opheffing",
@@ -633,7 +718,7 @@ fn op_bezwaar_verleend() -> (String, String, Vec<Gram>) {
     let gegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &hardheid(true),
+            &common::ontvankelijk(&hardheid(true)),
             dag("2026-11-20"),
         )
         .unwrap();

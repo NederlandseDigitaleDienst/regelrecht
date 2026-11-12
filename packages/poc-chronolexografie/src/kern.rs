@@ -633,9 +633,15 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "velden": in_te_vullen(&bezwaar),
             "moment": moment(&bezwaar),
         },
+        // What the authority judges itself on the objection, before any
+        // heroverweging: whether it is admissible (Awb 7:11 with 6:11 and
+        // 8:1).
         "beslissing_op_bezwaar": {
             "soort": op_bezwaar.kind,
             "basis": op_bezwaar.basis(),
+            "bevindingen": eigen_oordelen(&op_bezwaar, wie)
+                .map(|t| veld(&decision::finding_field(t)))
+                .collect::<Vec<_>>(),
             "uitvoer": op_bezwaar.outputs,
         },
         "andere_cellen": handelingen(&service, corpus, cell, on)?,
@@ -1915,27 +1921,48 @@ pub fn bezwaren(
 }
 
 /// Before the authority decides on the objection `bezwaar` on `on`: whether it
-/// is admissible, as Awb 7:11 decides it (on time per 6:9, and not against
-/// a decision taken on objection), and, if so, what the authority can find anew
-/// at the heroverweging. Those are the findings the contested decision
-/// used ([`Cell::findings`]), with what the authority found then. A term the
+/// is admissible, as Awb 7:11 decides it (on time per 6:9 or excused per
+/// 6:11, not against a decision taken on objection, and by an interested
+/// party), and, if so, what the authority can find anew at the
+/// heroverweging. Those are the findings the contested decision used
+/// ([`Cell::findings`]), with what the authority found then. A term the
 /// cell answered is none of them.
 ///
-/// The admissibility is that of the decision without new findings, taken
-/// on a copy of the cell: the law decides it, not the app. Nothing is kept.
+/// `ontvankelijkheid` holds what the authority judges itself on
+/// admissibility, the findings of Awb 7:11 itself; any other finding in it
+/// is left out here. The admissibility is that of the decision with those
+/// findings and none anew, taken on a copy of the cell: the law decides it,
+/// not the app. Nothing is kept. `reden` says why an objection is not
+/// admissible, in the order Awb 7:11 tests it.
+///
+/// # Errors
+///
+/// When `bezwaar` is no objection in the cell or contests no decision, or
+/// when the cell refuses the decision, such as for a judgement on
+/// admissibility that `ontvankelijkheid` leaves out.
 pub fn heroverweging(
     corpus: &Corpus,
     cell: &Cellen,
     bezwaar: &str,
+    ontvankelijkheid: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Value> {
+    let service = corpus.service()?;
+    let op_bezwaar = decision::derive(&service, corpus.awb(), corpus.objection(), on)?;
+    let eigen: Map<String, Value> = eigen_oordelen(&op_bezwaar, cell.eigen.authority())
+        .filter_map(|t| {
+            ontvankelijkheid
+                .get(&t.id)
+                .map(|v| (t.id.clone(), v.clone()))
+        })
+        .collect();
     let toets = beslissen(
         corpus,
         &mut cell.sandbox(),
         corpus.awb(),
         corpus.objection(),
         bezwaar,
-        &Map::new(),
+        &eigen,
         on,
     )?
     .remove(0);
@@ -1946,11 +1973,31 @@ pub fn heroverweging(
     } else {
         Vec::new()
     };
+    let tijdig = toets
+        .fields
+        .get("bezwaar_of_beroepschrift_tijdig_ingediend");
+    let reden = if ontvankelijk {
+        None
+    } else if tijdig == Some(&json!(false))
+        && toets.fields.get("indiener_bezwaarschrift_niet_in_verzuim") != Some(&json!(true))
+    {
+        Some("te_laat")
+    // Awb 7:11 reads `taken_on` of the contested decision value. In the
+    // cell's own chronicle only a decision on objection rests on 7:11, and
+    // its value takes `taken_on` from the objection it decided, also 7:11;
+    // a new decision it holds is no record of its own. So the basis says the
+    // same here.
+    } else if bestreden.basis == format!("{}#{}", corpus.awb(), corpus.objection()) {
+        Some("genomen_in_bezwaar")
+    } else {
+        Some("geen_belanghebbende")
+    };
     Ok(json!({
         "bezwaar": bezwaar,
         "bestreden_besluit": bestreden.id,
         "ontvankelijk": ontvankelijk,
-        "tijdig": toets.fields.get("bezwaar_of_beroepschrift_tijdig_ingediend"),
+        "tijdig": tijdig,
+        "reden": reden,
         "uitvoer": toets.outputs,
         "bevindingen": bevindingen,
     }))
@@ -2780,6 +2827,19 @@ pub fn voorvertoning_na_uitspraak(
 mod tests {
     use super::*;
 
+    /// `bevindingen` for a decision on an objection, with what the authority
+    /// judges on admissibility (Awb 7:11) where `bevindingen` says nothing:
+    /// the objector is an interested party (1:2, 7:1 and 8:1), and was at
+    /// fault for a late objection, so 6:11 does not save it.
+    fn ontvankelijk(bevindingen: &Map<String, Value>) -> Map<String, Value> {
+        let mut uit = bevindingen.clone();
+        uit.entry("indiener_bezwaarschrift_is_belanghebbende")
+            .or_insert(json!(true));
+        uit.entry("indiener_bezwaarschrift_niet_in_verzuim")
+            .or_insert(json!(false));
+        uit
+    }
+
     const LAW: &str = "leerplichtwet_1969";
     const ARTICLE: &str = "13a";
     const SCHOOL: &str = "obs_de_klimop";
@@ -2990,7 +3050,14 @@ mod tests {
             bezwaar.refers_to.as_deref(),
             Some(besluit.besluit.id.as_str())
         );
-        let toets = heroverweging(&corpus, &cell, &bezwaar.id, day("2026-11-15")).unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &bezwaar.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-11-15"),
+        )
+        .unwrap();
         assert_eq!(toets["ontvankelijk"], json!(true));
         let gevraagd: Vec<_> = toets["bevindingen"]
             .as_array()
@@ -3008,7 +3075,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &beroep(true),
+            &ontvankelijk(&beroep(true)),
             day("2026-11-15"),
         )
         .unwrap();
@@ -3158,7 +3225,14 @@ mod tests {
             day("2026-12-02"),
         )
         .unwrap();
-        let toets = heroverweging(&corpus, &cell, &laat.id, day("2026-12-10")).unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &laat.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-12-10"),
+        )
+        .unwrap();
         assert_eq!(toets["ontvankelijk"], json!(false));
         assert_eq!(toets["tijdig"], json!(false));
         assert_eq!(
@@ -3171,7 +3245,7 @@ mod tests {
             &corpus,
             &mut cell,
             &laat.id,
-            &beroep(true),
+            &ontvankelijk(&beroep(true)),
             day("2026-12-10"),
         )
         .unwrap_err();
@@ -3179,14 +3253,181 @@ mod tests {
             e.to_string().contains("specifieke_aard_beroep_ouder"),
             "{e}"
         );
-        let beslist =
-            beslissen_op_bezwaar(&corpus, &mut cell, &laat.id, &Map::new(), day("2026-12-10"))
-                .unwrap();
+        let beslist = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &laat.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-12-10"),
+        )
+        .unwrap();
         assert_eq!(
             beslist["beslissing"]["outputs"]["bezwaar_ontvankelijk"],
             json!(false)
         );
         assert!(beslist["nieuw_besluit"].is_null());
+        assert_eq!(toets["reden"], json!("te_laat"));
+    }
+
+    #[test]
+    fn a_late_objection_the_head_excuses_is_admissible() {
+        // Awb 6:11: the head judges that the objector was not at fault, so
+        // the objection is not declared inadmissible for being late, and
+        // the head reconsiders the refusal.
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let besluit = geweigerd(&corpus, &mut cell);
+        let laat = bezwaren(
+            &corpus,
+            &mut cell,
+            &besluit.besluit.id,
+            &bezwaar_velden("2026-12-02"),
+            day("2026-12-02"),
+        )
+        .unwrap();
+        let verschoonbaar = ontvankelijk(&Map::from_iter([(
+            "indiener_bezwaarschrift_niet_in_verzuim".to_string(),
+            json!(true),
+        )]));
+        let toets =
+            heroverweging(&corpus, &cell, &laat.id, &verschoonbaar, day("2026-12-10")).unwrap();
+        assert_eq!(toets["tijdig"], json!(false));
+        assert_eq!(toets["ontvankelijk"], json!(true));
+        assert!(!toets["bevindingen"].as_array().unwrap().is_empty());
+        let mut bevindingen = verschoonbaar.clone();
+        bevindingen.extend(beroep(true));
+        let beslist = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &laat.id,
+            &bevindingen,
+            day("2026-12-10"),
+        )
+        .unwrap();
+        assert_eq!(
+            beslist["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
+            json!(true)
+        );
+    }
+
+    #[test]
+    fn an_objection_by_someone_not_concerned_is_not_admissible() {
+        // Awb 7:1, first paragraph, with 8:1 and 1:2: only an interested
+        // party objects. The head judges that the objector is none; there
+        // is no heroverweging.
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let besluit = geweigerd(&corpus, &mut cell);
+        let bezwaar = bezwaren(
+            &corpus,
+            &mut cell,
+            &besluit.besluit.id,
+            &bezwaar_velden("2026-11-01"),
+            day("2026-11-01"),
+        )
+        .unwrap();
+        let geen = ontvankelijk(&Map::from_iter([(
+            "indiener_bezwaarschrift_is_belanghebbende".to_string(),
+            json!(false),
+        )]));
+        let toets = heroverweging(&corpus, &cell, &bezwaar.id, &geen, day("2026-11-15")).unwrap();
+        assert_eq!(toets["ontvankelijk"], json!(false));
+        assert_eq!(toets["tijdig"], json!(true));
+        assert_eq!(toets["reden"], json!("geen_belanghebbende"));
+        assert!(toets["bevindingen"].as_array().unwrap().is_empty());
+        // Without the head's judgement the cell decides nothing.
+        let e = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &bezwaar.id,
+            &Map::new(),
+            day("2026-11-15"),
+        )
+        .unwrap_err();
+        assert!(
+            e.to_string()
+                .contains("indiener_bezwaarschrift_is_belanghebbende"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn the_reason_follows_the_order_in_which_7_11_tests() {
+        // An excused late objection by someone not concerned fails on the
+        // interested party, not on the period (Awb 6:11, then 7:1 with 8:1).
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let besluit = geweigerd(&corpus, &mut cell);
+        let laat = bezwaren(
+            &corpus,
+            &mut cell,
+            &besluit.besluit.id,
+            &bezwaar_velden("2026-12-02"),
+            day("2026-12-02"),
+        )
+        .unwrap();
+        let oordeel = ontvankelijk(&Map::from_iter([
+            (
+                "indiener_bezwaarschrift_niet_in_verzuim".to_string(),
+                json!(true),
+            ),
+            (
+                "indiener_bezwaarschrift_is_belanghebbende".to_string(),
+                json!(false),
+            ),
+        ]));
+        let toets = heroverweging(&corpus, &cell, &laat.id, &oordeel, day("2026-12-10")).unwrap();
+        assert_eq!(toets["reden"], json!("geen_belanghebbende"));
+
+        // An objection against the decision on objection fails on the
+        // contested decision (Awb 7:1, first paragraph, under a).
+        let beslist = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &laat.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-12-10"),
+        )
+        .unwrap();
+        let op_bezwaar = beslist["beslissing"]["id"].as_str().unwrap().to_string();
+        let tegen = bezwaren(
+            &corpus,
+            &mut cell,
+            &op_bezwaar,
+            &bezwaar_velden("2026-12-11"),
+            day("2026-12-11"),
+        )
+        .unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &tegen.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-12-12"),
+        )
+        .unwrap();
+        assert_eq!(toets["ontvankelijk"], json!(false));
+        assert_eq!(toets["reden"], json!("genomen_in_bezwaar"));
+    }
+
+    #[test]
+    fn the_form_of_the_decision_on_objection_asks_its_own_findings() {
+        let corpus = corpus();
+        let cell = corpus.cell().unwrap();
+        let vormen = vormen(&corpus, &cell, day("2026-11-15")).unwrap();
+        let namen: Vec<&str> = vormen["beslissing_op_bezwaar"]["bevindingen"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v["naam"].as_str())
+            .collect();
+        assert_eq!(
+            namen,
+            [
+                "indiener_bezwaarschrift_is_belanghebbende",
+                "indiener_bezwaarschrift_niet_in_verzuim"
+            ]
+        );
     }
 
     #[test]
@@ -3223,7 +3464,7 @@ mod tests {
             &corpus,
             &mut cell,
             &eerste.id,
-            &beroep(false),
+            &ontvankelijk(&beroep(false)),
             day("2026-11-15"),
         )
         .unwrap();
@@ -3233,13 +3474,20 @@ mod tests {
         );
         let vastgelegd = cell.grams().len();
         // The second is admissible; the finding anew is what the cell refuses.
-        let toets = heroverweging(&corpus, &cell, &tweede.id, day("2026-11-16")).unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &tweede.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-11-16"),
+        )
+        .unwrap();
         assert_eq!(toets["ontvankelijk"], json!(true));
         let e = beslissen_op_bezwaar(
             &corpus,
             &mut cell,
             &tweede.id,
-            &beroep(false),
+            &ontvankelijk(&beroep(false)),
             day("2026-11-16"),
         )
         .unwrap_err();
@@ -3293,13 +3541,20 @@ mod tests {
             day("2026-11-01"),
         )
         .unwrap();
-        let toets = heroverweging(&corpus, &cell, &bezwaar.id, day("2026-11-15")).unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &bezwaar.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-11-15"),
+        )
+        .unwrap();
         assert_eq!(toets["ontvankelijk"], json!(true));
         let beslist = beslissen_op_bezwaar(
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-15"),
         )
         .unwrap();
@@ -3375,7 +3630,7 @@ mod tests {
             &corpus,
             &mut cell,
             &tegen_a.id,
-            &beroep(false),
+            &ontvankelijk(&beroep(false)),
             day("2026-11-15"),
         )
         .unwrap();
@@ -3398,7 +3653,14 @@ mod tests {
             day("2026-11-20"),
         )
         .unwrap();
-        let toets = heroverweging(&corpus, &cell, &tegen_b.id, day("2026-12-01")).unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &tegen_b.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-12-01"),
+        )
+        .unwrap();
         assert_eq!(toets["ontvankelijk"], json!(true));
         let gevraagd: Vec<&str> = toets["bevindingen"]
             .as_array()
@@ -3411,7 +3673,7 @@ mod tests {
             &corpus,
             &mut cell,
             &tegen_b.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-12-01"),
         )
         .unwrap();
@@ -4075,7 +4337,7 @@ mod tests {
         let vastgelegd = cell.grams().len();
         let op = day("2026-11-15");
         let voorlopig = |b: &Map<String, Value>| {
-            voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar.id, b, op)
+            voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar.id, &ontvankelijk(b), op)
                 .unwrap()
                 .voorlopig
                 .unwrap()
@@ -4089,8 +4351,14 @@ mod tests {
         let voorlopig = voorlopig(&beroep(true));
         assert_eq!(cell.grams().len(), vastgelegd);
 
-        let genomen =
-            beslissen_op_bezwaar(&corpus, &mut cell, &bezwaar.id, &beroep(true), op).unwrap();
+        let genomen = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &bezwaar.id,
+            &ontvankelijk(&beroep(true)),
+            op,
+        )
+        .unwrap();
         assert_eq!(
             voorlopig["beslissing"]["outputs"]["heroverweging_geeft_aanleiding"],
             json!(true)
@@ -4206,12 +4474,19 @@ mod tests {
             let bevindingen =
                 map(json!({ "toepassing_leidt_tot_onaanvaardbare_gevolgen": oordeel }));
             let (mut cell, bezwaar) = hardheid_bezwaar(&corpus);
-            let voorlopig = voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar, &bevindingen, op)
-                .unwrap()
-                .voorlopig
-                .unwrap();
-            let genomen =
-                beslissen_op_bezwaar(&corpus, &mut cell, &bezwaar, &bevindingen, op).unwrap();
+            let voorlopig =
+                voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar, &ontvankelijk(&bevindingen), op)
+                    .unwrap()
+                    .voorlopig
+                    .unwrap();
+            let genomen = beslissen_op_bezwaar(
+                &corpus,
+                &mut cell,
+                &bezwaar,
+                &ontvankelijk(&bevindingen),
+                op,
+            )
+            .unwrap();
             assert_eq!(
                 voorlopig.pointer(herroepen),
                 Some(&json!(oordeel)),
@@ -4234,9 +4509,14 @@ mod tests {
         // and the college finds the hardship clause anew.
         let corpus = casus("bedrijfsparkeervergunning");
         let (mut cell, bezwaar) = hardheid_bezwaar(&corpus);
-        let ongegrond =
-            beslissen_op_bezwaar(&corpus, &mut cell, &bezwaar, &Map::new(), day("2026-11-20"))
-                .unwrap();
+        let ongegrond = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &bezwaar,
+            &ontvankelijk(&Map::new()),
+            day("2026-11-20"),
+        )
+        .unwrap();
         let op_bezwaar = ongegrond["beslissing"]["id"].as_str().unwrap().to_string();
         let mut velden = corpus.casus.voorbeeld.beroep.clone();
         velden.insert(
@@ -4272,13 +4552,24 @@ mod tests {
 
         let op = day("2027-01-18");
         let bevindingen = map(json!({ "toepassing_leidt_tot_onaanvaardbare_gevolgen": true }));
-        let voorlopig = voorvertoning_na_uitspraak(&corpus, &cell, &ontvangst.id, &bevindingen, op)
-            .unwrap()
-            .voorlopig
-            .unwrap();
-        let genomen =
-            opnieuw_beslissen_op_bezwaar(&corpus, &mut cell, &ontvangst.id, &bevindingen, op)
-                .unwrap();
+        let voorlopig = voorvertoning_na_uitspraak(
+            &corpus,
+            &cell,
+            &ontvangst.id,
+            &ontvankelijk(&bevindingen),
+            op,
+        )
+        .unwrap()
+        .voorlopig
+        .unwrap();
+        let genomen = opnieuw_beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &ontvangst.id,
+            &ontvankelijk(&bevindingen),
+            op,
+        )
+        .unwrap();
         let herroepen = "/beslissing/outputs/bestreden_besluit_herroepen";
         assert_eq!(voorlopig.pointer(herroepen), Some(&json!(true)));
         for pad in [herroepen, "/nieuw_besluit/outputs", "/waarom/keten"] {
@@ -4313,18 +4604,27 @@ mod tests {
         .unwrap();
         let op = day("2026-11-15");
         let term = "verlof_valt_buiten_schoolvakanties_volgens_hoofd";
-        let zonder =
-            voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar.id, &beroep(true), op).unwrap();
+        let zonder = voorvertoning_op_bezwaar(
+            &corpus,
+            &cell,
+            &bezwaar.id,
+            &ontvankelijk(&beroep(true)),
+            op,
+        )
+        .unwrap();
         assert_eq!(namen(&zonder.stil), [term]);
         assert!(zonder.voorlopig.is_none());
 
         let mut oordeel = beroep(true);
         oordeel.insert(term.into(), json!(true));
-        let met = voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar.id, &oordeel, op)
-            .unwrap()
-            .voorlopig
-            .unwrap();
-        let genomen = beslissen_op_bezwaar(&corpus, &mut cell, &bezwaar.id, &oordeel, op).unwrap();
+        let met =
+            voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar.id, &ontvankelijk(&oordeel), op)
+                .unwrap()
+                .voorlopig
+                .unwrap();
+        let genomen =
+            beslissen_op_bezwaar(&corpus, &mut cell, &bezwaar.id, &ontvankelijk(&oordeel), op)
+                .unwrap();
         let verleend = "/nieuw_besluit/outputs/verlof_verleend";
         assert_eq!(met.pointer(verleend), Some(&json!(true)));
         assert_eq!(met.pointer(verleend), genomen.pointer(verleend));
@@ -4361,7 +4661,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-15"),
         )
         .unwrap();
@@ -4391,8 +4691,14 @@ mod tests {
 
         let op = day("2027-01-18");
         let term = "verlof_valt_buiten_schoolvakanties_volgens_hoofd";
-        let zonder =
-            voorvertoning_na_uitspraak(&corpus, &cell, &ontvangst.id, &beroep(true), op).unwrap();
+        let zonder = voorvertoning_na_uitspraak(
+            &corpus,
+            &cell,
+            &ontvangst.id,
+            &ontvankelijk(&beroep(true)),
+            op,
+        )
+        .unwrap();
         assert_eq!(namen(&zonder.stil), [term]);
         assert_eq!(
             zonder.stil[0]["basis"],
@@ -4403,12 +4709,19 @@ mod tests {
 
         let mut oordeel = beroep(true);
         oordeel.insert(term.into(), json!(true));
-        let met = voorvertoning_na_uitspraak(&corpus, &cell, &ontvangst.id, &oordeel, op)
-            .unwrap()
-            .voorlopig
-            .unwrap();
-        let genomen =
-            opnieuw_beslissen_op_bezwaar(&corpus, &mut cell, &ontvangst.id, &oordeel, op).unwrap();
+        let met =
+            voorvertoning_na_uitspraak(&corpus, &cell, &ontvangst.id, &ontvankelijk(&oordeel), op)
+                .unwrap()
+                .voorlopig
+                .unwrap();
+        let genomen = opnieuw_beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &ontvangst.id,
+            &ontvankelijk(&oordeel),
+            op,
+        )
+        .unwrap();
         let verleend = "/nieuw_besluit/outputs/verlof_verleend";
         assert_eq!(met.pointer(verleend), Some(&json!(true)));
         assert_eq!(met.pointer(verleend), genomen.pointer(verleend));
@@ -4888,7 +5201,14 @@ mod tests {
         let (corpus, mut cell) = kaart_onderzocht();
         let verstrekt = kaart_besluit(&corpus, &mut cell, "2026-10-13", "2026-10-20", true).besluit;
         let bezwaar = kaart_bezwaar(&corpus, &mut cell, &verstrekt.id, "2026-11-01");
-        let toets = heroverweging(&corpus, &cell, &bezwaar.id, day("2026-11-20")).unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &bezwaar.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-11-20"),
+        )
+        .unwrap();
         assert_eq!(toets["ontvankelijk"], json!(true));
         // The three of art. 2 lid 2 of the Regeling; the four criteria came
         // from the advice, so they were no findings of the college.
@@ -4897,7 +5217,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-20"),
         )
         .unwrap();
@@ -4945,7 +5265,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-20"),
         )
         .unwrap();
@@ -5019,7 +5339,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-15"),
         )
         .unwrap();
@@ -5051,11 +5371,17 @@ mod tests {
             namen("/uitspraak/bevindingen"),
             [
                 "indiener_is_belanghebbende",
+                "indiener_beroepschrift_niet_in_verzuim",
                 "rechtsregel_geschonden",
                 "geschonden_rechtsregel",
                 "rechtsgevolgen_in_stand",
                 "uitspraak_treedt_in_de_plaats",
                 "termijn_nieuw_besluit",
+                // Deciding itself, the court takes the decision on the
+                // objection anew, admissibility included (Awb 8:72 lid 3
+                // onder b).
+                "indiener_bezwaarschrift_is_belanghebbende",
+                "indiener_bezwaarschrift_niet_in_verzuim",
                 "specifieke_aard_beroep_ouder",
                 "verlof_valt_buiten_schoolvakanties_volgens_hoofd",
                 "verlof_al_verleend_in_schooljaar_volgens_hoofd",
@@ -5187,7 +5513,7 @@ mod tests {
             &corpus,
             &mut cell,
             &ontvangst.id,
-            &beroep(true),
+            &ontvankelijk(&beroep(true)),
             day("2027-01-18"),
         )
         .unwrap();
@@ -5245,7 +5571,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-20"),
         )
         .unwrap();
@@ -5314,7 +5640,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-15"),
         )
         .unwrap();
@@ -5398,7 +5724,7 @@ mod tests {
             &corpus,
             &mut cell,
             &tegen_a.id,
-            &beroep(false),
+            &ontvankelijk(&beroep(false)),
             day("2026-11-15"),
         )
         .unwrap();
@@ -5520,7 +5846,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-15"),
         )
         .unwrap();
@@ -5821,7 +6147,7 @@ mod tests {
             &corpus,
             &mut cell,
             &tegen_a.id,
-            &beroep(false),
+            &ontvankelijk(&beroep(false)),
             day("2026-11-15"),
         )
         .unwrap();

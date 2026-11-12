@@ -90,6 +90,7 @@ describe('the picture of one value', () => {
       'besluit_dat_verleent',
       'besluit_datum',
       'geschorst_vanaf',
+      'ingetrokken_op',
       'uitspraak_hoofdzaak_op',
       'uitspraak_strekt_tot',
       'vergunning_geldig_tot',
@@ -303,6 +304,7 @@ describe('the picture of one value', () => {
         'beschikking · Algemene wet bestuursrecht art. 7:11',
         'beschikking · Parkeerverordening Wilgendaal 2026 (fictief) art. 2',
         'inschrijving_gecorrigeerd · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 2',
+        'intrekking_van_het_bezwaar_of_beroep · Algemene wet bestuursrecht art. 6:21',
         'vestiging_ingeschreven · Inschrijving van een vestiging in het handelsregister (fictief beleid) art. 1',
       ]);
     });

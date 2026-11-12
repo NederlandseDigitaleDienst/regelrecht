@@ -199,7 +199,7 @@ fn objected(school: &mut Cell, refused: &Gram, findings: Value) -> (Gram, Vec<Gr
             OBJECTION,
             &objection.id,
             &Map::new(),
-            &object_map(findings),
+            &common::on_objection(&object_map(findings)),
             day("2026-11-15"),
         )
         .unwrap();
@@ -257,7 +257,7 @@ fn judged_on(court: &mut Cell, appeal: &Gram, findings: &Map<String, Value>, on:
             APPEAL,
             &appeal.id,
             &Map::new(),
-            findings,
+            &common::on_appeal(findings),
             day(on),
         )
         .unwrap();
@@ -531,7 +531,7 @@ fn after_the_judgment_the_school_decides_on_the_objection_again() {
             &case.objection.id,
             &receipt.id,
             &Map::new(),
-            &object_map(json!({ PROFESSION: true })),
+            &common::on_objection(&object_map(json!({ PROFESSION: true }))),
             day("2027-01-18"),
         )
         .unwrap();
@@ -577,7 +577,7 @@ fn a_chronicle_with_a_receipt_and_a_decision_taken_again_reads_back() {
             &case.objection.id,
             &receipt.id,
             &Map::new(),
-            &object_map(json!({ PROFESSION: true })),
+            &common::on_objection(&object_map(json!({ PROFESSION: true }))),
             day("2027-01-18"),
         )
         .unwrap();
@@ -682,7 +682,7 @@ fn a_decided_objection_is_not_decided_again_without_a_later_chronolexogram() {
             OBJECTION,
             &case.objection.id,
             &Map::new(),
-            &Map::new(),
+            &common::on_objection(&Map::new()),
             day("2027-01-18"),
         )
         .unwrap_err();
@@ -699,7 +699,7 @@ fn a_decided_objection_is_not_decided_again_without_a_later_chronolexogram() {
             &case.objection.id,
             &refused,
             &Map::new(),
-            &Map::new(),
+            &common::on_objection(&Map::new()),
             day("2027-01-18"),
         )
         .unwrap_err();
@@ -730,7 +730,7 @@ fn a_submission_not_decided_on_is_not_decided_again() {
             &objection.id,
             &refused.id,
             &Map::new(),
-            &Map::new(),
+            &common::on_objection(&Map::new()),
             day("2026-11-15"),
         )
         .unwrap_err();
@@ -817,7 +817,7 @@ fn a_grant_on_objection_the_court_annulled_no_longer_counts() {
             &objection.id,
             &receipt.id,
             &Map::new(),
-            &object_map(json!({ PROFESSION: true })),
+            &common::on_objection(&object_map(json!({ PROFESSION: true }))),
             day("2027-01-18"),
         )
         .unwrap();
@@ -952,7 +952,7 @@ fn annulled_twice(school: &mut Cell) -> (Vec<Gram>, Vec<Gram>) {
                 &objection.id,
                 &receipt.id,
                 &Map::new(),
-                &object_map(grant()),
+                &common::on_objection(&object_map(grant())),
                 day(days[2]),
             )
             .unwrap();
@@ -1165,7 +1165,7 @@ fn a_court_that_decides_itself_without_the_fact_the_school_would_give_fails() {
             APPEAL,
             &appeal.id,
             &Map::new(),
-            &findings,
+            &common::on_appeal(&findings),
             day("2027-01-11"),
         )
         .unwrap_err();

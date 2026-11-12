@@ -16,6 +16,7 @@ import { alsJson, jaNee, kort, leesbaar, state, stap, waarde, zonderLeeg } from 
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import { stilBegrippen } from '../stil.js';
 import OordeelKeuze from './OordeelKeuze.vue';
+import VeldInvoer from './VeldInvoer.vue';
 import StilOordeel from './StilOordeel.vue';
 import Uitkomst from './Uitkomst.vue';
 import Voorvertoning from './Voorvertoning.vue';
@@ -39,8 +40,21 @@ async function toon(o) {
   }
 }
 
+// Wat het bestuursorgaan over de ontvankelijkheid van het bezwaar oordeelt
+// (Awb 7:11 met 6:11 en 8:1): de nieuwe beslissing op bezwaar toetst die
+// opnieuw. Een schakelaar die uit staat, zegt nee.
+const ontvankelijkheidsOordelen = () => state.vormen?.beslissing_op_bezwaar?.bevindingen ?? [];
+
 // Wat het bestuursorgaan opnieuw vindt; 'Laat staan' geeft niets.
-const gegeven = (o) => zonderLeeg(vorm.waarden(o.id));
+const gegeven = (o) => {
+  const waarden = zonderLeeg(vorm.waarden(o.id));
+  return {
+    ...waarden,
+    ...Object.fromEntries(
+      ontvankelijkheidsOordelen().map((v) => [v.naam, waarden[v.naam] ?? false]),
+    ),
+  };
+};
 
 async function beslis(o) {
   const antwoord = await stap(() => beroepApi.opnieuwBeslissen(o.id, gegeven(o), state.datum));
@@ -92,6 +106,13 @@ const termijn = (o) => {
           <template v-else>
             <nldd-container layout="grid" gap="16">
               <nldd-container gap="12">
+                <VeldInvoer
+                  v-for="v in ontvankelijkheidsOordelen()"
+                  :key="v.naam"
+                  :model-value="vorm.waarden(o.id)[v.naam]"
+                  :veld="v"
+                  @update:model-value="vorm.zet(o.id, v.naam, $event)"
+                />
                 <OordeelKeuze
                   v-for="b in toetsen[o.id].bevindingen"
                   :key="b.naam"

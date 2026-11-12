@@ -20,6 +20,9 @@ const VOORBEELD = {
   aanvraag: 'aanvraag',
   besluit: 'bevindingen',
   bezwaar: 'bezwaar',
+  // Het oordeel van het bestuursorgaan over de ontvankelijkheid (Awb 7:11).
+  beslissing_op_bezwaar: 'beslissing_op_bezwaar',
+  opnieuw_beslissen: 'beslissing_op_bezwaar',
   beroep: 'beroep',
   uitspraak: 'uitspraak',
 };

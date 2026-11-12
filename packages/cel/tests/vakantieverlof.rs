@@ -1278,7 +1278,7 @@ fn reconsider(
         OBJECTION,
         objection,
         &Map::new(),
-        findings,
+        &common::on_objection(findings),
         day(on),
     )
 }
@@ -1891,7 +1891,7 @@ fn a_late_objection_is_not_admissible_where_the_heroverweging_would_fail() {
             OBJECTION,
             &late.id,
             &Map::new(),
-            &Map::new(),
+            &common::on_objection(&Map::new()),
             day("2026-12-10"),
         )
         .unwrap();
@@ -1910,7 +1910,7 @@ fn a_late_objection_is_not_admissible_where_the_heroverweging_would_fail() {
             OBJECTION,
             &on_time.id,
             &Map::new(),
-            &Map::new(),
+            &common::on_objection(&Map::new()),
             day("2026-12-10"),
         )
         .unwrap_err();
@@ -1957,8 +1957,20 @@ fn the_heroverweging_runs_only_for_an_admissible_objection() {
         .into_iter()
         .map(|(name, value)| (name.to_string(), regelrecht_engine::Value::from(value)))
         .collect();
+        // The head judges the objector an interested party, and at fault
+        // for being late (Awb 6:11).
+        let findings = common::on_objection(&Map::new())
+            .into_iter()
+            .map(|(name, value)| (name, regelrecht_engine::Value::from(value)))
+            .collect();
         let result = service()
-            .evaluate_law_output_with_trace(AWB, REVOKED, parameters, "2026-11-15")
+            .evaluate_law_with_trace_and_findings(
+                AWB,
+                &[REVOKED],
+                parameters,
+                findings,
+                "2026-11-15",
+            )
             .unwrap();
         assert_eq!(
             result.outputs[REVOKED],

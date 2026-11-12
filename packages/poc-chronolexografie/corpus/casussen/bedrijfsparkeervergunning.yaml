@@ -56,6 +56,12 @@ voorbeeld:
     adres_indiener: Kade 3, 7713 AA Wilgendaal
     omschrijving_bestreden_besluit: weigering van een bedrijfsparkeervergunning
     gronden_bezwaar_of_beroep: er werken nu twee mensen in het bedrijf
+  # Wat het bestuursorgaan oordeelt over de ontvankelijkheid van het
+  # bezwaar (Awb 7:11): de indiener is belanghebbende (1:2, 7:1 en 8:1),
+  # en was bij een te laat bezwaarschrift in verzuim (6:11).
+  beslissing_op_bezwaar:
+    indiener_bezwaarschrift_is_belanghebbende: true
+    indiener_bezwaarschrift_niet_in_verzuim: false
   # Het beroepschrift (Awb 6:5): dezelfde velden als het bezwaarschrift.
   beroep:
     bezwaar_of_beroepschrift_ondertekend: true
@@ -66,6 +72,7 @@ voorbeeld:
   # Wat de rechter vindt (Awb 8:70): de gemeente schond geen rechtsregel.
   uitspraak:
     indiener_is_belanghebbende: true
+    indiener_beroepschrift_niet_in_verzuim: false
     rechtsregel_geschonden: false
 
 # De andere cellen van de sfeer (RFC-048). Het open begrip zegt wie bevoegd
