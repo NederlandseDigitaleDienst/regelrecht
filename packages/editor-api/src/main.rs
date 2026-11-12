@@ -36,6 +36,7 @@ mod tasks_api;
 mod traject_corpus;
 mod traject_index_diagnosis;
 mod traject_integrity;
+mod traject_runs;
 mod trajects;
 mod user_notes;
 mod user_settings;
@@ -400,6 +401,9 @@ async fn main() {
             "/api/trajects/{traject_ref}/sources",
             get(corpus_handlers::list_traject_sources),
         )
+        // The traject's runs (harvests, enrichments, conversions) for the
+        // Verwerkingen overview: a read, open to every member.
+        .route("/api/trajects/{traject_ref}/runs", get(traject_runs::list))
         .route(
             "/api/trajects/{traject_ref}/corpus/laws",
             get(corpus_handlers::list_traject_corpus_laws),
