@@ -329,6 +329,7 @@ The cell refuses these:
 - a copy of something that is not a decision;
 - a copy of its own decision, offered back to it;
 - a receipt for a decision that the copy is not about, or a receipt dated before the decision in the copy;
+- a second receipt of the same copy, so a copy sent twice is recorded once;
 - a decision taken again without such a later chronolexogram;
 - a fact that refers to a record not in the chronicle.
 

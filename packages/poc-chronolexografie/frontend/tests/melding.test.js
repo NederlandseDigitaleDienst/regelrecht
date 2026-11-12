@@ -30,6 +30,13 @@ describe('melding', () => {
     expect(melding(fout)).toBe('Dit spel is opgeslagen in een oudere vorm en kan niet verder. Begin opnieuw met een casus.');
   });
 
+  it('zegt dat een afschrift al ontvangen is', () => {
+    const fout =
+      `refused: the copy of '${ids.besluit}' of 'rechtbank' is already received, as '${ids.beslissing}': ` +
+      'a copy is received once';
+    expect(melding(fout)).toBe('Het afschrift van uitspraak 0000aaaa is al ontvangen. Er is niets vastgelegd.');
+  });
+
   it('zegt dat de kroniek alleen vooruit loopt', () => {
     const fout =
       `refused: chronolexogram '${ids.besluit}' is dated 2026-10-20, before the last chronolexogram of the chronicle ` +
