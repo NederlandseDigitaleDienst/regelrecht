@@ -65,7 +65,7 @@ onUnmounted(() => (here = false));
        or a dev checkout with a timeline but without `walkthrough build`). -->
   <nldd-page v-if="loaded && (!timeline || replay.failed)">
     <nldd-simple-section width="720px">
-      <nldd-title slot="header" size="2">
+      <nldd-title slot="header" size="display-2">
         <h1>{{ t('walkthrough.missing.title') }}</h1>
         <span slot="supporting-text">{{ t('walkthrough.missing.body') }}</span>
       </nldd-title>
@@ -75,7 +75,7 @@ onUnmounted(() => (here = false));
 
   <nldd-page v-else-if="loaded && narrow">
     <nldd-simple-section>
-      <nldd-title slot="header" size="2">
+      <nldd-title slot="header" size="display-2">
         <h1>{{ t('walkthrough.label') }}</h1>
         <span slot="supporting-text">{{ t('walkthrough.phone') }}</span>
       </nldd-title>

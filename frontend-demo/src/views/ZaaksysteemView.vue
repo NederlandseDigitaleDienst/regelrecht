@@ -247,7 +247,7 @@ function claimLawName(cl: DemoClaim) {
             <nldd-box v-for="lane in lanes" :key="lane.key" background="tinted">
               <nldd-container padding="12" gap="8">
                 <nldd-container layout="row" gap="8" vertical-alignment="center" padding-inline="4">
-                  <nldd-title-cell size="6" :text="lane.title" heading-level="2"></nldd-title-cell>
+                  <nldd-title-cell size="display-6" :text="lane.title" heading-level="2"></nldd-title-cell>
                   <nldd-badge color="neutral" :number="lane.items.length" :accessible-label="t('zaak.lane.count', { n: lane.items.length })"></nldd-badge>
                 </nldd-container>
                 <nldd-container v-if="lane.items.length === 0" padding-inline="4" padding-block="8">

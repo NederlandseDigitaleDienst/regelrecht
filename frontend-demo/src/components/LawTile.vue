@@ -283,7 +283,7 @@ const statusTag = computed(() => {
   <nldd-card :accessible-label="law.name">
     <nldd-container slot="header" padding="20" layout="row" gap="12" vertical-alignment="top">
       <OrgLogo :service="law.service" />
-      <nldd-title-cell size="5" :text="law.name" :supporting-text="corpus!.services[law.service]?.name ?? law.service"></nldd-title-cell>
+      <nldd-title-cell size="display-5" :text="law.name" :supporting-text="corpus!.services[law.service]?.name ?? law.service"></nldd-title-cell>
       <nldd-tag v-if="statusTag" :color="statusTag.color" :text="statusTag.text" :icon="statusTag.icon" size="sm"></nldd-tag>
     </nldd-container>
 
@@ -331,14 +331,14 @@ const statusTag = computed(() => {
                  shouts a non-result across three lines. -->
             <nldd-title-cell
               v-if="phrased"
-              :size="phrased.lead ? '3' : '5'"
+              :size="phrased.lead ? 'display-3' : 'display-5'"
               :overline="phrased.lead || undefined"
               :text="phrased.headline"
               :supporting-text="phrased.unit || undefined"
             ></nldd-title-cell>
             <nldd-title-cell
               v-else
-              size="4"
+              size="display-4"
               :overline="requirementsMet ? t('wet.tile.conditions.met') : t('wet.tile.conditions.not_met')"
               :text="requirementsMet ? (primary ? formatValue(primary.value, primary.spec) : t('wet.tile.outcome.yes')) : t('wet.tile.outcome.not_applicable')"
               :supporting-text="requirementsMet && primary ? (isUnknown(primary.value) ? t('wet.tile.outcome.missing', { field: humanize(primary.name), missing: formatMissing(primary.value, { ownLaw: law.id, lawName }) }) : humanize(primary.name)) : ''"
