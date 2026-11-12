@@ -192,7 +192,7 @@ function closeTab(tab: OpenTab): void {
 }
 // Reorder is tijdelijk uitgeschakeld op sm (drag-bugs). De editor exposeert
 // `tabActions.reorder` nog, dus opnieuw inschakelen = `reorderable`
-// @nldd-reorder + de drag-handle-cells terugzetten op de Artikelen-lijst.
+// @reorder + de reorder-handle-cells terugzetten op de Artikelen-lijst.
 
 // Sluit de sheet zodra het scherm groter dan sm wordt (md+ heeft eigen chrome).
 let breakpointQuery: MediaQueryList | null = null;
@@ -287,7 +287,7 @@ onBeforeUnmount(() => {
                sheet header. -->
           <template v-if="activeTraject">
             <nldd-spacer size="24"></nldd-spacer>
-            <nldd-title size="5"><h2>Trajecten</h2></nldd-title>
+            <nldd-title size="display-5"><h2>Trajecten</h2></nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
           </template>
           <nldd-list appearance="box-tinted">
@@ -331,7 +331,7 @@ onBeforeUnmount(() => {
           <!-- hasArticles implies tabActions is set, hence the `!` below. -->
           <template v-if="hasArticles">
             <nldd-spacer size="24"></nldd-spacer>
-            <nldd-title size="5"><h2>Artikelen</h2></nldd-title>
+            <nldd-title size="display-5"><h2>Artikelen</h2></nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
             <nldd-list appearance="box-tinted">
               <nldd-list-item

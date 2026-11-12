@@ -275,7 +275,7 @@ const hasDocumentTabs = computed(
 //
 // Map elements back to tabs by data-tab-key rather than by index - the bar
 // reorders its own DOM to keep the selected tab visible when tabs overflow.
-// The bar's `tabdismiss` detail: the dismissed item and the one it selected.
+// The bar's `tab-dismiss` detail: the dismissed item and the one it selected.
 interface TabDismissDetail {
   item?: HTMLElement | null;
   nextItem?: HTMLElement | null;
@@ -349,7 +349,7 @@ function restoreTabSelection() {
                 supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
                 :active="showSearchHintMd || undefined"
                 :dismissable="trajectActive || undefined"
-                @nldd-close="onSearchHintClose"
+                @close="onSearchHintClose"
               >
                 <nldd-button data-search-trigger size="md" start-icon="search" text="Zoeken" @click="openSearch"></nldd-button>
               </nldd-just-in-time-education>
@@ -432,7 +432,7 @@ function restoreTabSelection() {
                 supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
                 :active="showSearchHintLg || undefined"
                 :dismissable="trajectActive || undefined"
-                @nldd-close="onSearchHintClose"
+                @close="onSearchHintClose"
               >
                 <nldd-search-field
                   data-search-trigger
@@ -507,11 +507,11 @@ function restoreTabSelection() {
       <nldd-split-view-pane v-if="hasDocumentTabs" slot="document-tabs" above="md">
         <nldd-container padding-inline="8" padding-top="0" padding-bottom="8">
           <!-- Drag-reorder: the bar reorders its items visually and fires
-               nldd-reorder; without this listener that move never reaches
+               `reorder`; without this listener that move never reaches
                `openTabs`, so it was lost (reverted from localStorage) the next
                time the editor mounted. EditorView's `reorderTabs` mirrors the
                move into the array and persists it. -->
-          <!-- `tabdismiss` (the bar), not `dismiss` (the item): the bar picks
+          <!-- `tab-dismiss` (the bar), not `dismiss` (the item): the bar picks
                the replacement for a dismissed tab itself and hands it over as
                `nextItem`. See onTabDismiss. -->
           <!-- `:key` on the bar (the traject the tabs belong to, published WITH
@@ -528,8 +528,8 @@ function restoreTabSelection() {
             ref="tabBarEl"
             :key="documentTabsTrajectRef ?? ''"
             accessible-label="Open artikelen"
-            @nldd-reorder="tabActions?.reorder($event.detail.fromIndex, $event.detail.toIndex)"
-            @tabdismiss="onTabDismiss"
+            @reorder="tabActions?.reorder($event.detail.fromIndex, $event.detail.toIndex)"
+            @tab-dismiss="onTabDismiss"
           >
             <nldd-document-tab-bar-item
               v-for="tab in documentTabs"
@@ -725,7 +725,7 @@ function restoreTabSelection() {
                 supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
                 :active="showSearchHintSm || undefined"
                 :dismissable="trajectActive || undefined"
-                @nldd-close="onSearchHintClose"
+                @close="onSearchHintClose"
               >
                 <nldd-icon-button data-search-trigger size="lg" icon="search" text="Zoeken" @click="openSearch"></nldd-icon-button>
               </nldd-just-in-time-education>

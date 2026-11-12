@@ -518,7 +518,8 @@ defineExpose({ show });
           <nldd-title
             v-if="resultHeading"
             data-testid="search-result-label"
-            size="6"
+            size="display-6"
+            heading-level="2"
             :overline="resultHeading.overline"
             :text="resultHeading.text"
             :supporting-text="resultHeading.supportingText"

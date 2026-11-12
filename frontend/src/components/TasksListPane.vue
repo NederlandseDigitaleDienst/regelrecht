@@ -358,7 +358,7 @@ function viewLaw(job: RunningTaskJob): void {
           @dismiss="closeDetails"
         ></nldd-top-title-bar>
         <nldd-simple-section v-if="detailTask">
-          <nldd-title size="3"><h3>{{ taskTitle(detailTask, displayName) }}</h3></nldd-title>
+          <nldd-title size="display-3"><h3>{{ taskTitle(detailTask, displayName) }}</h3></nldd-title>
           <nldd-spacer size="16"></nldd-spacer>
           <nldd-rich-text v-if="detailTask.payload?.error">
             <h4>Foutmelding</h4>

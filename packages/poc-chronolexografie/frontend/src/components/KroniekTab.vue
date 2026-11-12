@@ -37,7 +37,7 @@ watch(
 
 <template>
   <nldd-simple-section v-for="k in kronieken" :key="k.naam">
-    <nldd-title slot="header" size="3" :text="`Kroniek van ${k.naam}`">
+    <nldd-title heading-level="2" slot="header" size="display-3" :text="`Kroniek van ${k.naam}`">
       <nldd-text v-if="k.eigen" slot="supporting-text">
         Eén kroniek, van de cel van de uitvoerder. Elke stap in het proces legt er één
         chronolexogram in vast (een beslissing op bezwaar die herroept, legt er twee vast); er wordt

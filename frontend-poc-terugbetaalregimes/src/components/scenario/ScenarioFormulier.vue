@@ -8,7 +8,7 @@
   >
     <nldd-page>
       <nldd-container padding="24" gap="24">
-        <nldd-title :size="3">
+        <nldd-title heading-level="2" size="display-3">
           <span slot="overline">Voor beleidsmakers</span>
           <span>{{ bewerken ? 'Scenario aanpassen' : 'Scenario toevoegen' }}</span>
           <span slot="supporting-text">
@@ -51,7 +51,7 @@
               :key="`hh:${vorm.huishoudtype}`"
               size="sm"
               width="100%"
-              @change="vorm.huishoudtype = $event.detail?.value ?? vorm.huishoudtype"
+              @change="vorm.huishoudtype = $event.target.value ?? vorm.huishoudtype"
             >
               <select :value="vorm.huishoudtype" aria-label="Huishouden">
                 <option v-for="(label, key) in HUISHOUD" :key="key" :value="key">{{ label }}</option>
@@ -88,7 +88,7 @@
                 :key="`op:${vorm.onderwijssoort}`"
                 size="sm"
                 width="100%"
-                @change="vorm.onderwijssoort = $event.detail?.value ?? vorm.onderwijssoort"
+                @change="vorm.onderwijssoort = $event.target.value ?? vorm.onderwijssoort"
               >
                 <select :value="vorm.onderwijssoort" aria-label="Opleiding">
                   <option v-for="(label, key) in ONDERWIJS" :key="key" :value="key">{{ label }}</option>
@@ -303,9 +303,12 @@ const voorbeeld = computed(() => {
   }
 });
 
+/** The number in a number field, or `huidig` while the field is empty (null since design system 0.18). */
 function num(event, huidig) {
-  const v = event.detail?.value ?? Number(event.target?.value);
-  return v === null || v === undefined || Number.isNaN(v) ? huidig : Number(v);
+  const v = event.detail?.value ?? event.target?.value;
+  if (v === null || v === undefined || v === '') return huidig;
+  const n = Number(v);
+  return Number.isNaN(n) ? huidig : n;
 }
 
 function opslaan() {

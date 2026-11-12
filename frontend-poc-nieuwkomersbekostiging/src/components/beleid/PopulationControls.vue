@@ -111,7 +111,7 @@
               :min="0"
               :step="500"
               size="sm"
-              @input="debounced(`i:${rij.jaar}:po`, () => setInstroom(rij.jaar, 'po', num($event)))"
+              @input="debounced(`i:${rij.jaar}:po`, $event, (value) => setInstroom(rij.jaar, 'po', value))"
             ></nldd-number-field>
           </nldd-form-field>
           <nldd-form-field :label="`${rij.jaar} vo`">
@@ -120,7 +120,7 @@
               :min="0"
               :step="500"
               size="sm"
-              @input="debounced(`i:${rij.jaar}:vo`, () => setInstroom(rij.jaar, 'vo', num($event)))"
+              @input="debounced(`i:${rij.jaar}:vo`, $event, (value) => setInstroom(rij.jaar, 'vo', value))"
             ></nldd-number-field>
           </nldd-form-field>
         </div>
@@ -149,7 +149,7 @@
               :max="100"
               :step="1"
               size="sm"
-              @input="debounced(`c:${groep.sector}:${item.naam}`, () => setCategorie(groep.sector, item.naam, num($event) / 100))"
+              @input="debounced(`c:${groep.sector}:${item.naam}`, $event, (value) => setCategorie(groep.sector, item.naam, value / 100))"
             ></nldd-number-field>
           </nldd-form-field>
         </template>
@@ -174,7 +174,7 @@
             :min="1"
             :step="50"
             size="sm"
-            @input="debounced(`s:${sector}`, () => setScholen(sector, num($event)))"
+            @input="debounced(`s:${sector}`, $event, (value) => setScholen(sector, value))"
           ></nldd-number-field>
         </nldd-form-field>
       </div>
@@ -198,7 +198,7 @@
             :max="100"
             :step="1"
             size="sm"
-            @input="debounced(`f:${knop.key}`, () => setFractie(knop.key, num($event) / 100))"
+            @input="debounced(`f:${knop.key}`, $event, (value) => setFractie(knop.key, value / 100))"
           ></nldd-number-field>
         </nldd-form-field>
       </div>
@@ -397,15 +397,24 @@ function categorieVanRecord(r) {
   return ASIEL_CODES.has(Number(code)) ? 'asielzoeker' : 'overige_vreemdeling';
 }
 
+/**
+ * The number in a number field, or null while the field is empty. Since design
+ * system 0.18 an emptied field reports null; Number(null) would read that as 0.
+ */
 function num(event) {
-  const v = event.detail?.value ?? Number(event.target?.value);
-  return v === null || v === undefined || Number.isNaN(v) ? 0 : Number(v);
+  const v = event.detail?.value ?? event.target?.value;
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
 }
 
 const timers = new Map();
-function debounced(key, fn) {
+// An empty field is no answer yet: the value it had stays until a number is typed.
+function debounced(key, event, apply) {
+  const n = num(event);
+  if (n === null) return;
   clearTimeout(timers.get(key));
-  timers.set(key, setTimeout(fn, 400));
+  timers.set(key, setTimeout(() => apply(n), 400));
 }
 </script>
 

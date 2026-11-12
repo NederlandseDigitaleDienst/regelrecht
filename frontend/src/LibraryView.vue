@@ -1099,7 +1099,7 @@ const detailView = computed<string>({
     }
   },
 });
-// nldd-tab-bar fires `tabchange` on BOTH pointer click and arrow-key
+// nldd-tab-bar fires `tab-change` on BOTH pointer click and arrow-key
 // activation (content-switching tabs auto-activate on arrow - the ARIA
 // pattern). Driving detailView from this single event keeps the keyboard, the
 // selected tab, and the visible panel in lockstep; a per-item @click never
@@ -2351,7 +2351,7 @@ watch(activeTrajectRef, () => {
               <nldd-top-title-bar v-if="!loading" slot="header" :text="sidebarTitle" collapse-anchor="home-titel"></nldd-top-title-bar>
 
               <nldd-simple-section width="full">
-                <nldd-title v-if="!loading" id="home-titel" size="3"><h3>{{ sidebarTitle }}</h3></nldd-title>
+                <nldd-title v-if="!loading" id="home-titel" size="display-3"><h3>{{ sidebarTitle }}</h3></nldd-title>
                 <nldd-spacer v-if="!loading" size="16"></nldd-spacer>
                 <nldd-activity-indicator v-if="loading" :text="sidebarLoadingText" show-text></nldd-activity-indicator>
                 <template v-else>
@@ -2386,7 +2386,7 @@ watch(activeTrajectRef, () => {
                          curated groups read as distinct blocks. -->
                     <nldd-spacer v-if="sectionIndex > 0" size="24"></nldd-spacer>
                     <template v-if="section.title">
-                      <nldd-title size="5">
+                      <nldd-title size="display-5">
                         <h4>{{ section.title }}</h4>
                         <nldd-button
                           v-if="section.key === 'recent'"
@@ -2497,7 +2497,7 @@ watch(activeTrajectRef, () => {
             <nldd-page sticky-header>
               <nldd-top-title-bar slot="header" text="Instellingen" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="instellingen-titel"></nldd-top-title-bar>
               <nldd-simple-section width="full">
-                <nldd-title id="instellingen-titel" size="3"><h3>Instellingen</h3></nldd-title>
+                <nldd-title id="instellingen-titel" size="display-3"><h3>Instellingen</h3></nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
                 <nldd-list appearance="simple">
                   <!-- Zelfde iconen als in TrajectMenu/MobileTrajectSheet: deze
@@ -2528,7 +2528,7 @@ watch(activeTrajectRef, () => {
             <nldd-page sticky-header>
               <nldd-top-title-bar slot="header" text="Taken" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="taken-titel"></nldd-top-title-bar>
               <nldd-simple-section width="full">
-                <nldd-title id="taken-titel" size="3"><h3>Taken</h3></nldd-title>
+                <nldd-title id="taken-titel" size="display-3"><h3>Taken</h3></nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
                 <TasksCategoriesPane
                   :traject-ref="activeTrajectRef"
@@ -2545,7 +2545,7 @@ watch(activeTrajectRef, () => {
             <nldd-page sticky-header>
               <nldd-top-title-bar slot="header" text="Werkdocumenten" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="werkdoc-titel"></nldd-top-title-bar>
               <nldd-simple-section width="full">
-                <nldd-title id="werkdoc-titel" size="3"><h3>Werkdocumenten</h3></nldd-title>
+                <nldd-title id="werkdoc-titel" size="display-3"><h3>Werkdocumenten</h3></nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
                 <nldd-toolbar accessible-label="Documentacties">
                   <nldd-toolbar-item slot="start">
@@ -2589,7 +2589,7 @@ watch(activeTrajectRef, () => {
               ></nldd-top-title-bar>
 
               <nldd-simple-section width="full">
-                <nldd-title v-if="paneChromeVisible(selectedLawLoading)" id="wet-titel" size="3"><h3>{{ lawTitle }}</h3></nldd-title>
+                <nldd-title v-if="paneChromeVisible(selectedLawLoading)" id="wet-titel" size="display-3"><h3>{{ lawTitle }}</h3></nldd-title>
                 <nldd-spacer v-if="paneChromeVisible(selectedLawLoading)" size="16"></nldd-spacer>
                 <!-- Keyed on the chrome flag only, like the title above: the
                      favourite button runs entirely off `selectedLawId` (route)
@@ -2701,7 +2701,7 @@ watch(activeTrajectRef, () => {
                   </nldd-list-item>
                 </nldd-list>
                 <nldd-spacer size="24"></nldd-spacer>
-                <nldd-title size="5">
+                <nldd-title size="display-5">
                   <h4>Artikelen</h4>
                 </nldd-title>
                 <nldd-spacer size="8"></nldd-spacer>
@@ -2789,7 +2789,7 @@ watch(activeTrajectRef, () => {
                 :collapse-anchor="takenCategorie ? 'taken-pane-titel' : undefined"
               ></nldd-top-title-bar>
               <nldd-simple-section v-if="takenCategorie">
-                <nldd-title id="taken-pane-titel" size="3"><h3>{{ takenTitle }}</h3></nldd-title>
+                <nldd-title id="taken-pane-titel" size="display-3"><h3>{{ takenTitle }}</h3></nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
                 <TasksListPane
                   :traject-ref="activeTrajectRef"
@@ -2935,7 +2935,7 @@ watch(activeTrajectRef, () => {
                 </nldd-inline-dialog>
               </nldd-simple-section>
               <nldd-simple-section width="full" v-else-if="isAlgemeen">
-                <nldd-title id="algemeen-titel" size="3">
+                <nldd-title id="algemeen-titel" size="display-3">
                   <h3>Algemeen</h3>
                   <span slot="supporting-text">{{ lawName }}</span>
                 </nldd-title>
@@ -2954,7 +2954,7 @@ watch(activeTrajectRef, () => {
                     </nldd-list>
                     <template v-if="algemeenLinks.length">
                       <nldd-spacer size="24"></nldd-spacer>
-                      <nldd-title size="4">
+                      <nldd-title size="display-4">
                         <h4>Bronnen</h4>
                       </nldd-title>
                       <nldd-spacer size="8"></nldd-spacer>
@@ -2977,7 +2977,7 @@ watch(activeTrajectRef, () => {
                     </template>
                     <template v-if="algemeenLegalBasis.length">
                       <nldd-spacer size="24"></nldd-spacer>
-                      <nldd-title size="4">
+                      <nldd-title size="display-4">
                         <h4>Grondslag</h4>
                       </nldd-title>
                       <nldd-spacer size="8"></nldd-spacer>
@@ -3004,7 +3004,7 @@ watch(activeTrajectRef, () => {
                 </nldd-container>
               </nldd-simple-section>
               <nldd-simple-section width="full" v-else-if="isYaml">
-                <nldd-title id="yaml-titel" size="3">
+                <nldd-title id="yaml-titel" size="display-3">
                   <h3>YAML</h3>
                   <span slot="supporting-text">{{ lawName }}</span>
                 </nldd-title>
@@ -3016,7 +3016,7 @@ watch(activeTrajectRef, () => {
               </nldd-simple-section>
               <template v-else>
                 <nldd-simple-section width="full">
-                  <nldd-title id="article-titel" size="3">
+                  <nldd-title id="article-titel" size="display-3">
                     <h3>Artikel {{ selectedArticle.number }}</h3>
                     <span slot="supporting-text">{{ lawName }}</span>
                   </nldd-title>
@@ -3042,7 +3042,7 @@ watch(activeTrajectRef, () => {
                   </template>
                   <nldd-toolbar>
                     <nldd-toolbar-item v-if="showMachineViews" slot="start">
-                      <nldd-tab-bar size="md" accessible-label="Weergave" @tabchange="onDetailTabChange">
+                      <nldd-tab-bar size="md" accessible-label="Weergave" @tab-change="onDetailTabChange">
                         <nldd-tab-bar-item
                           v-for="v in DETAIL_VIEWS"
                           :key="v.key"

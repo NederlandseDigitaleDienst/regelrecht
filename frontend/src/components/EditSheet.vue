@@ -237,6 +237,23 @@ const defSuffix = computed(() => (def.value ? valueSuffix(def.value) : ''));
 // screen reader then hears "Waarde, %" rather than only "Waarde".
 const defLabel = computed(() => (defSuffix.value ? `Waarde (${defSuffix.value})` : 'Waarde'));
 
+/**
+ * The number field of a definition. A definition always has a number, but since
+ * design system 0.18 the field can be emptied and then reports null. The
+ * definition keeps its number while the field is empty, and the field shows it
+ * again once it commits, so what is on screen is what gets saved.
+ */
+function onDefNumber(event: Event) {
+  if (!def.value) return;
+  const value = (event as CustomEvent<{ value?: unknown } | null | undefined>).detail?.value;
+  if (value === null || value === undefined || value === '') {
+    if (event.type === 'change') (event.target as EventTarget & { value: unknown }).value = def.value.number;
+    return;
+  }
+  const n = Number(value);
+  if (Number.isFinite(n)) def.value.number = n;
+}
+
 function onDefTypeChange(event: Event) {
   if (!def.value) return;
   changeType(def.value, (event.target as HTMLSelectElement).value as DefinitionType | '');
@@ -524,11 +541,10 @@ const sectionLabels: Record<string, string> = {
                          intentional: @input gives live-as-you-type updates;
                          @change delivers the value the field normalises on
                          commit/blur. The assignment is idempotent. -->
-                    <!-- Keyed on the kind: Getal and Bedrag share this field, and
-                         the field remembers its last committed value as a
-                         fallback for a cleared input. A fresh element per kind
-                         keeps a cleared amount from falling back to the
-                         eurocent number shown before the switch. -->
+                    <!-- Keyed on the kind: Getal and Bedrag share this field,
+                         and a fresh element per kind starts from the number of
+                         that kind. A cleared field keeps the definition's
+                         number (see onDefNumber). -->
                     <nldd-number-field
                       :key="defKind ?? ''"
                       :value="def.number"
@@ -537,8 +553,8 @@ const sectionLabels: Record<string, string> = {
                       width="full"
                       hide-spin-buttons
                       data-testid="def-number"
-                      @input="def.number = Number($event.detail?.value ?? def.number)"
-                      @change="def.number = Number($event.detail?.value ?? def.number)"
+                      @input="onDefNumber"
+                      @change="onDefNumber"
                     ></nldd-number-field>
                   </nldd-cell>
                   <nldd-cell v-else-if="defKind === 'date'">
@@ -683,7 +699,7 @@ const sectionLabels: Record<string, string> = {
 
             <template v-if="values.sourceParameters?.length">
               <nldd-spacer size="12"></nldd-spacer>
-              <nldd-title size="6"><h6>Bron parameters</h6></nldd-title>
+              <nldd-title size="display-6"><h6>Bron parameters</h6></nldd-title>
               <nldd-spacer size="8"></nldd-spacer>
               <nldd-list appearance="box-tinted" class="edit-settings-list" data-testid="source-parameters-list">
                 <nldd-list-item

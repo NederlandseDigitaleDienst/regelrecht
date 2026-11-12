@@ -161,7 +161,7 @@ function select(categorie: string, lawId: string | null = null): void {
        Anders staat er een kop boven een ingang die naar een lege lijst leidt. -->
   <template v-if="hasContexten">
     <nldd-spacer size="24"></nldd-spacer>
-    <nldd-title size="5"><h3>Contexten</h3></nldd-title>
+    <nldd-title size="display-5"><h3>Contexten</h3></nldd-title>
     <nldd-spacer size="8"></nldd-spacer>
 
     <nldd-list appearance="simple">

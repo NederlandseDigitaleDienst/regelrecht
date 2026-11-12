@@ -37,7 +37,7 @@ onMounted(async () => {
     />
 
     <nldd-simple-section>
-      <nldd-title size="1">
+      <nldd-title size="display-1">
         <span slot="overline">Openbaar register</span>
         <h1>Subsidiebesluiten politieke partijen</h1>
       </nldd-title>
@@ -76,7 +76,7 @@ onMounted(async () => {
     </nldd-simple-section>
 
     <nldd-simple-section>
-      <nldd-title size="3" slot="header"><h2>Register</h2></nldd-title>
+      <nldd-title size="display-3" slot="header"><h2>Register</h2></nldd-title>
 
       <NBanner v-if="fout" variant="critical" text="Register laden mislukt" :supporting-text="fout" />
 
@@ -116,7 +116,7 @@ onMounted(async () => {
     </nldd-simple-section>
 
     <nldd-simple-section v-if="stats?.per_maand?.length">
-      <nldd-title size="3" slot="header"><h2>Toegekend bedrag per maand</h2></nldd-title>
+      <nldd-title size="display-3" slot="header"><h2>Toegekend bedrag per maand</h2></nldd-title>
       <nldd-container gap="12">
         <nldd-progress-bar
           v-for="maand in stats.per_maand"

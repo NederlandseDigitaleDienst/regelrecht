@@ -2,7 +2,7 @@
 import { ref, reactive } from 'vue';
 import type { Annotation, NLDDTextEditor, TextEditorState } from '@nldd/design-system/text-editor';
 
-/** Detail of `nldd-text-editor-annotation-click` (not typed by the design system). */
+/** Detail of `annotation-click` (not typed by the design system). */
 interface AnnotationClickDetail {
   ids: string[];
   rect: DOMRect;
@@ -42,7 +42,7 @@ const emit = defineEmits<{
 const editorRef = ref<NLDDTextEditor | null>(null);
 
 // Reactive mirror of the editor's toolbar state, fed by the
-// `nldd-text-editor-state` event. The parent's header toolbar reads
+// `state-change` event. The parent's header toolbar reads
 // activeFormats/canUndo/canRedo off the exposed refs to drive the format
 // segmented-controls and the article-level undo/redo bar.
 const activeFormats = reactive({
@@ -180,7 +180,7 @@ defineExpose({
   <div v-else class="article-text-editor" data-testid="article-text-editor">
     <nldd-text-editor
       ref="editorRef"
-      appearance="simple"
+      embedded
       :rows="8"
       resize="auto"
       annotatable
@@ -190,8 +190,8 @@ defineExpose({
       accessible-label="Artikeltekst"
       @input="onInput"
       @focusin="onFocusIn"
-      @nldd-text-editor-state="onState"
-      @nldd-text-editor-annotation-click="onAnnotationClick"
+      @state-change="onState"
+      @annotation-click="onAnnotationClick"
     ></nldd-text-editor>
   </div>
 </template>

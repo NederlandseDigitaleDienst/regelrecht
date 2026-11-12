@@ -127,7 +127,7 @@ function onSheetClose() {
 
           <template v-for="section in textSections" :key="section.title">
             <nldd-spacer size="16" />
-            <nldd-title size="6"><h3>{{ section.title }}</h3></nldd-title>
+            <nldd-title size="display-6"><h3>{{ section.title }}</h3></nldd-title>
             <nldd-spacer size="4" />
             <nldd-code-viewer wrap>{{ section.code }}</nldd-code-viewer>
           </template>

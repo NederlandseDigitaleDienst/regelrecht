@@ -53,7 +53,7 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
 
 <template>
   <nldd-simple-section>
-    <nldd-title slot="header" size="3" :text="`Ingekomen beroepen bij ${state.casus.rechter.cel_naam}`">
+    <nldd-title heading-level="2" slot="header" size="display-3" :text="`Ingekomen beroepen bij ${state.casus.rechter.cel_naam}`">
       <nldd-text slot="supporting-text">
         De rechtbank beslist op een beroep onder <ArtikelLink :basis="state.casus.beroep" />, in haar eigen cel. Het beroep
         draagt het afschrift van de beslissing op bezwaar dat {{ state.casus.cel_naam }} maakte.
@@ -71,8 +71,8 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
     <nldd-container gap="16">
       <nldd-card v-for="b in open" :key="b.id">
         <nldd-container padding="16" gap="12">
-          <nldd-title
-            size="5"
+          <nldd-title heading-level="3"
+            size="display-5"
             :text="`Beroep ${kort(b.id)} tegen beslissing ${kort(b.received.id)} van ${state.casus.cel_naam}`"
             :supporting-text="`ontvangen ${b.recorded_on} · ${b.fields.gronden_bezwaar_of_beroep ?? ''}`"
           ></nldd-title>
@@ -119,7 +119,7 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
   </nldd-simple-section>
 
   <nldd-simple-section>
-    <nldd-title slot="header" size="3" text="Uitspraken">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Uitspraken">
       <nldd-text slot="supporting-text">
         Elke uitspraak, met wat zij inhoudt. Toezenden geeft {{ state.casus.cel_naam }} een
         afschrift (Awb 8:79); zij legt de ontvangst vast in haar eigen kroniek, op de speeldatum.
@@ -129,8 +129,8 @@ const uitvoer = (g) => Object.entries(g.outputs ?? {}).map(([naam, w]) => ({ naa
     <nldd-container gap="16">
       <nldd-card v-for="u in uitspraken" :key="u.id">
         <nldd-container padding="16" gap="12">
-          <nldd-title
-            size="5"
+          <nldd-title heading-level="3"
+            size="display-5"
             :text="`Uitspraak ${kort(u.id)} op beroep ${kort(u.refers_to)} (${u.recorded_on})`"
             :supporting-text="u.outputs.uitspraak_strekt_tot"
           >

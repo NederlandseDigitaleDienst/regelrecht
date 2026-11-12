@@ -89,7 +89,7 @@ function kind(cluster: MarkingCluster): { text: string; color: string } {
          the padding, so nothing here needs custom CSS. -->
     <nldd-card>
       <nldd-container padding="16">
-        <nldd-title size="5"><h2>Wat het formaat mist</h2></nldd-title>
+        <nldd-title size="display-5"><h2>Wat het formaat mist</h2></nldd-title>
         <nldd-spacer size="4" />
         <nldd-rich-text>
           <p>

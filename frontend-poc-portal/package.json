@@ -10,7 +10,7 @@
     "nldd:check": "node ../script/check-nldd-imports.mjs . nldd-components.js"
   },
   "dependencies": {
-    "@nldd/design-system": "^0.16.0"
+    "@nldd/design-system": "^0.22.0"
   },
   "devDependencies": {
     "vite": "^8.3.4"

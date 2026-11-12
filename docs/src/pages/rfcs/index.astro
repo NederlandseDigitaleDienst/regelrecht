@@ -30,7 +30,7 @@ const { startHere, groups, retired, placeholders } = rfcIndex();
     lg-padding-bottom="96"
   >
     <div slot="left">
-      <nldd-title size="2">
+      <nldd-title size="display-2">
         <h1>RFCs</h1>
       </nldd-title>
       <nldd-spacer />
@@ -57,7 +57,7 @@ const { startHere, groups, retired, placeholders } = rfcIndex();
       <EditLink filePath="src/pages/rfcs/index.astro" />
     </div>
     <div slot="right">
-      <nldd-title size="5">
+      <nldd-title size="display-5">
         <h2>Start here</h2>
       </nldd-title>
       <nldd-spacer size="8" />
@@ -82,7 +82,7 @@ const { startHere, groups, retired, placeholders } = rfcIndex();
         groups.map((group) => (
           <Fragment>
             <nldd-spacer size="32" />
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h2>{group.label}</h2>
             </nldd-title>
             <nldd-spacer size="4" />
@@ -122,7 +122,7 @@ const { startHere, groups, retired, placeholders } = rfcIndex();
         retired.length > 0 && (
           <Fragment>
             <nldd-spacer size="32" />
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h2>Superseded and rejected</h2>
             </nldd-title>
             <nldd-spacer size="4" />
@@ -153,7 +153,7 @@ const { startHere, groups, retired, placeholders } = rfcIndex();
         placeholders.length > 0 && (
           <Fragment>
             <nldd-spacer size="32" />
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h2>Reserved numbers</h2>
             </nldd-title>
             <nldd-spacer size="4" />

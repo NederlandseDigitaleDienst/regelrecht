@@ -64,13 +64,13 @@ async function vastleggen(cel, handeling) {
   <template v-for="c in state.vormen.andere_cellen" :key="c.cel">
     <RechterCel v-if="c.cel === state.casus.rechter?.cel" />
     <nldd-simple-section v-else>
-      <nldd-title slot="header" size="3" :text="c.cel_naam">
+      <nldd-title heading-level="2" slot="header" size="display-3" :text="c.cel_naam">
         <nldd-text slot="supporting-text">Een andere cel van de casus, met een eigen kroniek.</nldd-text>
       </nldd-title>
       <nldd-container gap="16" max-width="560px">
         <nldd-card v-for="h in c.handelingen" :key="h.feit">
           <nldd-container padding="16" gap="12">
-            <nldd-title size="5" :text="`Vastleggen: ${naam(h.feit)}`">
+            <nldd-title heading-level="3" size="display-5" :text="`Vastleggen: ${naam(h.feit)}`">
               <nldd-text slot="supporting-text" size="sm" color="secondary">
                 <ArtikelLink :basis="artikelVan(h.feit)" />
               </nldd-text>

@@ -105,7 +105,7 @@ fn kaart(poc: &Poc) -> String {
     format!(
         r#"        <nldd-card accessible-label="{titel}">
           <nldd-container padding="20" padding-bottom="12">
-            <nldd-title size="3"><h3>{titel}</h3></nldd-title>
+            <nldd-title size="display-3"><h3>{titel}</h3></nldd-title>
             <nldd-spacer size="12"></nldd-spacer>
             <nldd-rich-text><p>{samenvatting}</p></nldd-rich-text>
           </nldd-container>
@@ -137,7 +137,7 @@ fn kaart(poc: &Poc) -> String {
 fn demo_kaart() -> &'static str {
     r#"        <nldd-card accessible-label="De demo">
           <nldd-container padding="20" padding-bottom="12">
-            <nldd-title size="3"><h3>De demo</h3></nldd-title>
+            <nldd-title size="display-3"><h3>De demo</h3></nldd-title>
             <nldd-spacer size="12"></nldd-spacer>
             <nldd-rich-text><p>Tachtig wetten die samen rekenen op fictieve
             personen: toeslagen, bijstand, studiefinanciering. Te bekijken
@@ -174,7 +174,7 @@ pub fn index(registry: &Registry) -> String {
     // in kale HTML doet.
     let inhoud = format!(
         r#"  <nldd-hero main-width="full" padding-bottom="0">
-    <nldd-title size="1" color="inherit">
+    <nldd-title size="display-1" color="inherit">
       <span slot="overline">regelrecht</span>
       <h1>Proof-of-concepts</h1>
       <span slot="supporting-text">Wat wetgeving doet als je haar uitvoert</span>
@@ -189,7 +189,7 @@ pub fn index(registry: &Registry) -> String {
   </nldd-hero>
 
   <nldd-simple-section sm-padding-block="32" md-padding-block="48">
-    <nldd-title slot="header" size="3">
+    <nldd-title slot="header" size="display-3">
       <h2>Beleidsverkenningen</h2>
     </nldd-title>
     <nldd-collection layout="grid" item-min-width="320px">
@@ -199,14 +199,14 @@ pub fn index(registry: &Registry) -> String {
   </nldd-simple-section>
 
   <nldd-simple-section background="tinted" sm-padding-block="32" md-padding-block="48">
-    <nldd-title slot="header" size="3">
+    <nldd-title slot="header" size="display-3">
       <h2>Verder lezen</h2>
     </nldd-title>
     <nldd-collection layout="grid" item-min-width="240px">
       <nldd-card href="https://regelrecht.rijks.app" target="_blank" accessible-label="regelrecht.rijks.app">
         <nldd-container padding="16" gap="8">
           <nldd-icon icon="home" size="24"></nldd-icon>
-          <nldd-title size="5"><h3>regelrecht.rijks.app</h3></nldd-title>
+          <nldd-title size="display-5"><h3>regelrecht.rijks.app</h3></nldd-title>
           <nldd-rich-text size="sm" spacing="tight">
             <p>Wat regelrecht is, voor wie, en hoe je meedoet.</p>
           </nldd-rich-text>
@@ -215,7 +215,7 @@ pub fn index(registry: &Registry) -> String {
       <nldd-card href="https://docs.regelrecht.rijks.app/docs/" target="_blank" accessible-label="Documentatie">
         <nldd-container padding="16" gap="8">
           <nldd-icon icon="document" size="24"></nldd-icon>
-          <nldd-title size="5"><h3>Documentatie</h3></nldd-title>
+          <nldd-title size="display-5"><h3>Documentatie</h3></nldd-title>
           <nldd-rich-text size="sm" spacing="tight">
             <p>Het wetformaat, de engine, de RFC&#39;s en hoe je zelf een wet
             toevoegt.</p>
@@ -225,7 +225,7 @@ pub fn index(registry: &Registry) -> String {
       <nldd-card href="https://regelrecht.rijks.app/research/" target="_blank" accessible-label="Onderzoek">
         <nldd-container padding="16" gap="8">
           <nldd-icon icon="library" size="24"></nldd-icon>
-          <nldd-title size="5"><h3>Onderzoek</h3></nldd-title>
+          <nldd-title size="display-5"><h3>Onderzoek</h3></nldd-title>
           <nldd-rich-text size="sm" spacing="tight">
             <p>Het position paper Rules as Executed en het onderzoek eromheen.</p>
           </nldd-rich-text>
@@ -322,7 +322,7 @@ pub fn inloggen(poc: &Poc, pad: &str, mislukt: bool) -> String {
 
     let inhoud = format!(
         r#"  <nldd-simple-section width="480px" sm-padding-block="32" md-padding-block="64">
-      <nldd-title size="1"><h1>{titel}</h1></nldd-title>
+      <nldd-title size="display-1"><h1>{titel}</h1></nldd-title>
       <nldd-spacer size="12"></nldd-spacer>
       <nldd-rich-text><p>{samenvatting}</p></nldd-rich-text>
       <nldd-spacer size="24"></nldd-spacer>

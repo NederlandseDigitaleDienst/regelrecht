@@ -46,7 +46,7 @@ const stappen = [
     />
 
     <nldd-simple-section>
-      <nldd-title size="1">
+      <nldd-title size="display-1">
         <span slot="overline">Nederlandse autoriteit politieke partijen</span>
         <h1>Subsidie voor politieke partijen</h1>
       </nldd-title>
@@ -77,7 +77,7 @@ const stappen = [
     </nldd-simple-section>
 
     <nldd-simple-section background="tinted">
-      <nldd-title size="2" slot="header">
+      <nldd-title size="display-2" slot="header">
         <h2>Hoe werkt het?</h2>
       </nldd-title>
       <nldd-list appearance="simple" dividers="never">
@@ -93,7 +93,7 @@ const stappen = [
     </nldd-simple-section>
 
     <nldd-simple-section>
-      <nldd-title size="2" slot="header">
+      <nldd-title size="display-2" slot="header">
         <h2>Direct regelen</h2>
       </nldd-title>
       <nldd-collection layout="grid" item-min-width="300px">
@@ -101,7 +101,7 @@ const stappen = [
           <nldd-container padding="20">
             <nldd-icon icon="apartment-building" size="32" color="lintblauw"></nldd-icon>
             <nldd-spacer size="12"></nldd-spacer>
-            <nldd-title size="4"><h3>Voor politieke partijen</h3></nldd-title>
+            <nldd-title size="display-4"><h3>Voor politieke partijen</h3></nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
             <nldd-rich-text>
               <p>
@@ -122,7 +122,7 @@ const stappen = [
           <nldd-container padding="20">
             <nldd-icon icon="books-vertical" size="32" color="lintblauw"></nldd-icon>
             <nldd-spacer size="12"></nldd-spacer>
-            <nldd-title size="4"><h3>Voor iedereen</h3></nldd-title>
+            <nldd-title size="display-4"><h3>Voor iedereen</h3></nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
             <nldd-rich-text>
               <p>
@@ -144,7 +144,7 @@ const stappen = [
 
     <nldd-page-footer slot="footer">
       <nldd-container padding="24" gap="8">
-        <nldd-title size="5"><p>Nederlandse autoriteit politieke partijen</p></nldd-title>
+        <nldd-text size="display-5">Nederlandse autoriteit politieke partijen</nldd-text>
         <nldd-rich-text>
           <p>
             De Napp is een onafhankelijke autoriteit, ingesteld bij de Wet op de

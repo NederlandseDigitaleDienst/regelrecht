@@ -116,7 +116,7 @@ const uitkomstOpBezwaar = (uit) =>
 
 <template>
   <nldd-simple-section>
-    <nldd-title slot="header" size="3" text="Open aanvragen">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Open aanvragen">
       <nldd-text slot="supporting-text">
         Het bestuursorgaan is hier {{ state.casus.rol }} (<ArtikelLink :basis="besluitBasis()" />). Het beslist met de
         aanvraag, het beleid en de bevindingen hieronder. Wat de cel zelf uit haar
@@ -132,8 +132,8 @@ const uitkomstOpBezwaar = (uit) =>
     <nldd-container gap="16">
       <nldd-card v-for="a in open" :key="a.id">
         <nldd-container padding="16" gap="12">
-        <nldd-title
-          size="5"
+        <nldd-title heading-level="3"
+          size="display-5"
           :text="`Aanvraag ${kort(a.id)}`"
           :supporting-text="samenvatting(a)"
         ></nldd-title>
@@ -167,7 +167,7 @@ const uitkomstOpBezwaar = (uit) =>
   </nldd-simple-section>
 
   <nldd-simple-section>
-    <nldd-title slot="header" size="3" text="Open bezwaren">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Open bezwaren">
       <nldd-text slot="supporting-text">
         Beslissen op bezwaar (Awb 7:11). Eerst de ontvankelijkheid: een bezwaar dat te laat
         kwam, of tegen een besluit op bezwaar, wordt niet heroverwogen. Anders heroverweegt
@@ -185,8 +185,8 @@ const uitkomstOpBezwaar = (uit) =>
     <nldd-container gap="16">
       <nldd-card v-for="bz in openBezwaren" :key="bz.id">
         <nldd-container padding="16" gap="12">
-        <nldd-title
-          size="5"
+        <nldd-title heading-level="3"
+          size="display-5"
           :text="`Bezwaar ${kort(bz.id)} tegen besluit ${kort(bz.refers_to)}`"
           :supporting-text="`ontvangen ${bz.recorded_on} · ${bz.fields.gronden_bezwaar_of_beroep ?? ''}`"
         ></nldd-title>
@@ -249,11 +249,11 @@ const uitkomstOpBezwaar = (uit) =>
   </nldd-simple-section>
 
   <nldd-simple-section v-if="Object.keys(beslissingen).length">
-    <nldd-title slot="header" size="3" text="Beslissingen op bezwaar"></nldd-title>
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Beslissingen op bezwaar"></nldd-title>
     <nldd-container gap="24">
       <nldd-container v-for="(b, id) in beslissingen" :key="id" gap="12">
-        <nldd-title
-          size="5"
+        <nldd-title heading-level="3"
+          size="display-5"
           :text="`Bezwaar ${kort(id)}`"
           :supporting-text="uitkomstOpBezwaar(b.beslissing.outputs)"
         ></nldd-title>

@@ -221,13 +221,13 @@ function ruleId(key: string): string {
 
 <template>
   <div data-testid="regelrijm-pane">
-    <nldd-title size="5" data-testid="section-actions"><h5>Acties</h5></nldd-title>
+    <nldd-title size="display-5" data-testid="section-actions"><h5>Acties</h5></nldd-title>
     <nldd-banner v-if="navError" variant="warning" :text="navError"></nldd-banner>
 
     <template v-for="rule in rules" :key="rule.key">
       <nldd-spacer size="24"></nldd-spacer>
       <div :id="ruleId(rule.key)" :data-testid="`regelrijm-pane-rule-${rule.output ?? rule.key}`">
-        <nldd-title size="6"><h6>{{ rule.output ? humanize(rule.output) : 'Actie zonder uitkomst' }}</h6></nldd-title>
+        <nldd-title size="display-6"><h6>{{ rule.output ? humanize(rule.output) : 'Actie zonder uitkomst' }}</h6></nldd-title>
         <nldd-spacer size="4"></nldd-spacer>
         <nldd-box background="tinted">
           <nldd-container padding="12">
