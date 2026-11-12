@@ -51,6 +51,7 @@ import UitlegPagina from './presentation/UitlegPagina.vue';
 import { KORT, useKort } from './presentation/useKort.js';
 import { useUitleg } from './presentation/useUitleg.js';
 import { startIndex, usePresentation } from './presentation/usePresentation.js';
+import { useAlleCasussen } from './verborgen.js';
 
 // Het tabblad Andere cellen staat er alleen bij een casus met andere cellen
 // (RFC-048).
@@ -83,7 +84,10 @@ onMounted(async () => {
 const presentation = usePresentation();
 const uitleg = useUitleg();
 const kort = useKort();
+const alleCasussen = useAlleCasussen();
 onMounted(() => {
+  // `?alle-casussen` holds for this browser, not for the address: read it and take it off.
+  alleCasussen.follow();
   const i = startIndex(window.location.search, presentation.total.value);
   if (i !== null) presentation.start(i);
   // The pages belong to the choice screen; on a case's address they give way.

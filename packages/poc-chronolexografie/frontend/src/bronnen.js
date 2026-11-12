@@ -2,8 +2,9 @@
  * De bronnen van de app: corpora die het poc-portaal ophaalt terwijl de app
  * draait (`sources` van chronolexografie in pocs/registry.yaml), elk met
  * casussen, hun regelingen en hun cellen. Welke er zijn, schrijft
- * scripts/copy-assets.js naar public/bronnen.json; elke bron staat op
- * `bron/<naam>`, achter hetzelfde wachtwoord als de app.
+ * scripts/copy-assets.js naar public/bronnen.json, met per bron of zij
+ * verborgen is (src/verborgen.js); elke bron staat op `bron/<naam>`, achter
+ * hetzelfde wachtwoord als de app.
  *
  * Een bron die er niet is (geen token, lokaal geen POC_BRON_<NAAM>, GitHub
  * plat) is geen fout van de app: de casus van die bron toont dan "bron niet
@@ -31,18 +32,26 @@ export async function haalBron(naam, url, haal = fetch) {
 }
 
 /**
- * Elke bron uit `namen`, elk op `url(naam)`, tegelijk opgehaald. Een lijst
- * die niet te lezen is (een oude build zonder bronnen.json), is geen bron.
+ * De bronnen die de build noemt (public/bronnen.json), elk als
+ * `{ naam, verborgen }`. Een lijst die niet te lezen is (een oude build
+ * zonder bronnen.json), is geen bron; een kale naam (een build van vóór
+ * `verborgen`) is een bron die niet verborgen is.
  */
-export async function haalBronnen(namenUrl, url, haal = fetch) {
-  let namen = [];
+export async function leesBronLijst(lijstUrl, haal = fetch) {
+  let lijst = [];
   try {
-    const res = await haal(namenUrl);
-    if (res.ok) namen = await res.json();
+    const res = await haal(lijstUrl);
+    if (res.ok) lijst = await res.json();
   } catch {
-    namen = [];
+    lijst = [];
   }
-  return Promise.all(namen.map((naam) => haalBron(naam, url(naam), haal)));
+  if (!Array.isArray(lijst)) return [];
+  return lijst.map((b) => (typeof b === 'string' ? { naam: b, verborgen: false } : { naam: b.naam, verborgen: !!b.verborgen }));
+}
+
+/** Elke bron uit `lijst` (`leesBronLijst`), elk op `url(naam)`, tegelijk opgehaald. */
+export function haalBronnen(lijst, url, haal = fetch) {
+  return Promise.all(lijst.map(({ naam }) => haalBron(naam, url(naam), haal)));
 }
 
 /**

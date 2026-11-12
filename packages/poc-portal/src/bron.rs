@@ -536,6 +536,7 @@ mod tests {
                 path: "x".into(),
             },
             token_env: "EXAMPLE_TOKEN".into(),
+            verborgen: false,
         }
     }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bronMeldingen, haalBron, haalBronnen, herkomst } from '../src/bronnen.js';
+import { bronMeldingen, haalBron, haalBronnen, herkomst, leesBronLijst } from '../src/bronnen.js';
 
 const antwoord = (status, body) => ({
   ok: status >= 200 && status < 300,
@@ -44,13 +44,35 @@ describe('haalBron', () => {
   });
 });
 
+describe('leesBronLijst', () => {
+  it('leest per bron of zij verborgen is, en zonder lijst geen bron', async () => {
+    const lijst = [{ naam: 'open' }, { naam: 'dicht', verborgen: true }];
+    expect(await leesBronLijst('/bronnen.json', async () => antwoord(200, lijst))).toEqual([
+      { naam: 'open', verborgen: false },
+      { naam: 'dicht', verborgen: true },
+    ]);
+    expect(await leesBronLijst('/bronnen.json', async () => antwoord(404, ''))).toEqual([]);
+  });
+
+  it('neemt een kale naam van een oudere build als een bron die niet verborgen is', async () => {
+    expect(await leesBronLijst('/bronnen.json', async () => antwoord(200, ['voorbeeld']))).toEqual([
+      { naam: 'voorbeeld', verborgen: false },
+    ]);
+  });
+});
+
 describe('haalBronnen', () => {
-  it('haalt elke bron uit de lijst op, en zonder lijst geen', async () => {
-    const haal = async (url) =>
-      url === '/bronnen.json' ? antwoord(200, ['voorbeeld']) : antwoord(200, { versie: 'v', bestanden: {} });
-    const bronnen = await haalBronnen('/bronnen.json', (n) => `/bron/${n}`, haal);
-    expect(bronnen.map((b) => b.naam)).toEqual(['voorbeeld']);
-    expect(await haalBronnen('/bronnen.json', (n) => n, async () => antwoord(404, ''))).toEqual([]);
+  it('haalt elke bron uit de lijst op, ook een verborgen bron', async () => {
+    const haal = async () => antwoord(200, { versie: 'v', bestanden: {} });
+    const lijst = [
+      { naam: 'voorbeeld', verborgen: false },
+      { naam: 'verborgen', verborgen: true },
+    ];
+    const bronnen = await haalBronnen(lijst, (n) => `/bron/${n}`, haal);
+    expect(bronnen.map((b) => b.naam)).toEqual(['voorbeeld', 'verborgen']);
+    // The cell refuses an unknown field (src/bundel.rs, `Bron`).
+    expect(bronnen.every((b) => !('verborgen' in b))).toBe(true);
+    expect(await haalBronnen([], (n) => n, haal)).toEqual([]);
   });
 });
 

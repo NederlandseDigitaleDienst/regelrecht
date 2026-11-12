@@ -33,7 +33,9 @@ vi.mock('../src/state.js', () => ({
   },
 }));
 vi.mock('../src/api.js', () => ({
-  api: { casussen: async () => ({ casussen: [{ id: 'vakantieverlof' }] }) },
+  // `uit-bron` comes from a hidden source: the choice screen leaves it out,
+  // the address does not (verborgen.js).
+  api: { casussen: async () => ({ casussen: [{ id: 'vakantieverlof' }, { id: 'uit-bron', bron: 'voorbeeld' }] }) },
 }));
 
 // The address bar and the history of one tab.
@@ -127,6 +129,14 @@ describe('the address', () => {
     await toChoice();
     expect(unknown.value).toBeNull();
     expect(location.pathname).toBe('/');
+  });
+
+  it('opens a case from a hidden source by its address', async () => {
+    go('/uit-bron');
+    await listeners.popstate();
+    expect(unknown.value).toBeNull();
+    expect(calls).toEqual([['kiezen', 'uit-bron']]);
+    expect(location.pathname).toBe('/uit-bron');
   });
 
   it('stays on an address the cell could not open, so a reload tries it again', async () => {
