@@ -13,7 +13,7 @@ use super::text::{
 };
 use crate::config::SCHEMA_URL;
 use crate::error::{HarvesterError, Result};
-use crate::types::{Law, Reference};
+use crate::types::{Law, Placement, Reference};
 
 /// Regex matching a single-quoted YAML scalar value on a key line.
 /// Captures: (1) prefix including key and colon-space, (2) the unquoted value.
@@ -49,6 +49,8 @@ struct YamlArticle {
     number: String,
     text: String,
     url: String,
+    #[serde(skip_serializing_if = "Placement::is_empty")]
+    placement: Placement,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     references: Vec<Reference>,
 }
@@ -131,6 +133,7 @@ fn generate_yaml_struct(law: &Law, effective_date: &str) -> (YamlLaw, Vec<(Strin
             number: article.number.clone(),
             text: prepare_text(&article.text, &mut fold_plan),
             url: article.url.clone(),
+            placement: article.placement.clone(),
             references: article.references.clone(),
         })
         .collect();
@@ -600,7 +603,7 @@ pub fn save_yaml(law: &Law, effective_date: &str, output_base: Option<&Path>) ->
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::types::{Article, LawMetadata, RegulatoryLayer};
+    use crate::types::{Article, LawMetadata, PlacementLevel, RegulatoryLayer};
     use tempfile::tempdir;
 
     fn create_test_law() -> Law {
@@ -786,7 +789,14 @@ mod tests {
                 hoofdstuk: None,
                 paragraaf: None,
                 afdeling: None,
-            }]),
+            }])
+            .with_placement(Placement {
+                hoofdstuk: Some(PlacementLevel {
+                    number: "1".to_string(),
+                    heading: Some("Algemene bepalingen".to_string()),
+                }),
+                ..Placement::default()
+            }),
         );
         law
     }
@@ -820,7 +830,8 @@ articles:
     }
 
     /// Golden byte-identity test for a CVDR (local) law, covering the
-    /// writer-only projection fields and a per-article `references` block.
+    /// writer-only projection fields, an article's `placement` and its
+    /// `references` block.
     #[test]
     fn test_generate_yaml_golden_cvdr() {
         let law = create_test_cvdr_law();
@@ -845,6 +856,10 @@ articles:
   - number: '1'
     text: Begripsbepalingen.
     url: https://lokaleregelgeving.overheid.nl/CVDR123456#Artikel1
+    placement:
+      hoofdstuk:
+        number: '1'
+        heading: Algemene bepalingen
     references:
       - id: ref1
         bwb_id: BWBR0018451
@@ -872,6 +887,18 @@ articles:
                 });
             assert_eq!(parsed.articles.len(), law.articles.len());
             assert_eq!(parsed.regulatory_layer, law.metadata.regulatory_layer);
+            // The model ignores keys it does not know, so a parse alone would
+            // not notice a misnamed `placement`. Compare what arrived.
+            // Compared as YAML values, so every level counts, not one.
+            for (written, read) in law.articles.iter().zip(&parsed.articles) {
+                let read = serde_yaml_ng::to_value(&read.placement).unwrap();
+                let written = if written.placement.is_empty() {
+                    serde_yaml_ng::Value::Null
+                } else {
+                    serde_yaml_ng::to_value(&written.placement).unwrap()
+                };
+                assert_eq!(read, written);
+            }
         }
     }
 

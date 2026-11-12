@@ -33,6 +33,7 @@
 //! - [`xml`]: XML utilities
 //! - [`registry`]: Extensible element handler system
 //! - [`splitting`]: Article splitting logic
+//! - [`placement`]: The containers (hoofdstuk, afdeling, ...) around an article
 //! - [`yaml`]: YAML output generation
 //! - `cli`: Command-line interface (feature `cli`, on by default)
 //! - [`harvester`]: Main harvester service
@@ -47,6 +48,7 @@ pub mod error;
 pub mod harvester;
 pub mod http;
 pub mod manifest;
+pub mod placement;
 pub mod registry;
 pub mod source;
 pub mod splitting;

@@ -32,6 +32,7 @@ flowchart LR
 4. **Download content XML** - the consolidated law text (with size limit check)
 5. **Parse elements** - via extensible registry of element handlers
 6. **Split articles** - hierarchical splitting into artikel → lid → lijst → li with dot-notation numbering (e.g., `1`, `1.1`, `1.1.a`)
+   and record each article's `placement`: the containers around it
 7. **Normalize text** - fix spacing, wrap at 115 chars (the slug in the output path is ASCII-folded through Unicode NFKD; article text keeps its accents)
 8. **Generate YAML** - schema-compliant output with yamllint compliance
 9. **Atomic write** - temp file → sync → rename
@@ -71,6 +72,31 @@ artikel (number from kop/nr)
 ```
 
 Produces dot-notation: `1`, `1.1`, `1.1.a`, `1.1.a.1°`
+
+### Placement
+
+Above the article sit the containers that organize the law: `boek`, `deel`,
+`hoofdstuk`, `titeldeel`, `afdeling` and `paragraaf`. The harvester walks up
+from each `artikel` and writes the ones it finds to the article's `placement`,
+with the number from `kop/nr` and the opschrift from `kop/titel` as `heading`.
+Inline markup in an opschrift keeps its text; a footnote (`noot`) is left out.
+Article 3 of the Archiefwet 1995 comes out as:
+
+```yaml
+- number: '3'
+  text: ...
+  url: https://wetten.overheid.nl/BWBR0007376/2024-06-19#Artikel3
+  placement:
+    hoofdstuk:
+      number: II
+      heading: Archiefbescheiden in het algemeen
+```
+
+An article that no container encloses has no `placement`, which is normal for
+a short law. When the same kind is nested, the innermost one is recorded.
+Elements the schema has no slot for (`sub-paragraaf`, `divisie`, the `bijlage`
+itself) are not recorded, so the articles in an Awb bijlage, whose chapters are
+`divisie` elements, come out without a placement.
 
 ## Usage
 

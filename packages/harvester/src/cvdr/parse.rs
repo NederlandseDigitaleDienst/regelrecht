@@ -13,6 +13,7 @@
 use roxmltree::Document;
 
 use crate::error::Result;
+use crate::placement::find_placement;
 use crate::splitting::{LeafSplitStrategy, SplitContext, SplitEngine, create_dutch_law_hierarchy};
 use crate::types::Article;
 use crate::xml::{find_by_path, get_tag_name, get_text};
@@ -73,6 +74,8 @@ pub fn parse_cvdr_articles(xml: &str, base_url: &str) -> Result<ParsedCvdrConten
             continue; // Skip articles without number
         };
 
+        let placement = find_placement(artikel);
+
         // Build article URL
         let artikel_nr_url = artikel_nr.replace(' ', "_");
         let article_url = format!("{base_url}#Artikel{artikel_nr_url}");
@@ -89,7 +92,7 @@ pub fn parse_cvdr_articles(xml: &str, base_url: &str) -> Result<ParsedCvdrConten
             for warning in &component.warnings {
                 all_warnings.push(format!("Article {}: {}", component.to_number(), warning));
             }
-            articles.push(component.to_article());
+            articles.push(component.to_article().with_placement(placement.clone()));
         }
     }
 
@@ -210,6 +213,14 @@ mod tests {
         assert_eq!(result.articles.len(), 2);
         assert_eq!(result.articles[0].number, "1");
         assert_eq!(result.articles[1].number, "2");
+        for article in &result.articles {
+            let hoofdstuk = article.placement.hoofdstuk.as_ref();
+            assert_eq!(hoofdstuk.map(|h| h.number.as_str()), Some("1"));
+            assert_eq!(
+                hoofdstuk.and_then(|h| h.heading.as_deref()),
+                Some("Algemene bepalingen")
+            );
+        }
     }
 
     #[test]
