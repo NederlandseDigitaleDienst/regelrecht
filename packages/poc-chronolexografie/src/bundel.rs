@@ -505,7 +505,7 @@ mod tests {
     #[test]
     fn an_unavailable_source_leaves_the_other_cases_alone() {
         let weg = Bron {
-            naam: "napp".into(),
+            naam: "voorbeeld".into(),
             fout: Some("bron niet beschikbaar".into()),
             ..Bron::default()
         };

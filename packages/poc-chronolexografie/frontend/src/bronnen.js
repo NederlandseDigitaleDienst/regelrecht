@@ -1,7 +1,7 @@
 /**
  * De bronnen van de app: corpora die het poc-portaal ophaalt terwijl de app
- * draait (`sources` van chronolexografie in pocs/registry.yaml), zoals de
- * NAPP-bron met een casus, haar regeling en haar cel. Welke er zijn, schrijft
+ * draait (`sources` van chronolexografie in pocs/registry.yaml), elk met
+ * casussen, hun regelingen en hun cellen. Welke er zijn, schrijft
  * scripts/copy-assets.js naar public/bronnen.json; elke bron staat op
  * `bron/<naam>`, achter hetzelfde wachtwoord als de app.
  *

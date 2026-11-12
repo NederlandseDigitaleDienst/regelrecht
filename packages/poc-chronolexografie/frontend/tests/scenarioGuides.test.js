@@ -131,7 +131,7 @@ describe('guideFor', () => {
   });
 
   it('has none for a case from a source, plain-text steps, an unknown scenario or no case', () => {
-    expect(guideFor({ ...c, bron: 'napp' }, naam)).toBeNull();
+    expect(guideFor({ ...c, bron: 'voorbeeld' }, naam)).toBeNull();
     expect(guideFor({ id: 'x', scenarios: [{ naam, stappen: ['Klik op Aanvraag indienen.'] }] }, naam)).toBeNull();
     expect(guideFor(c, 'Bestaat niet')).toBeNull();
     expect(guideFor(null, naam)).toBeNull();

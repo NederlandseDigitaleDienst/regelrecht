@@ -10,10 +10,10 @@ describe('bronAntwoord', () => {
     mkdirSync(join(dir, 'casussen'));
     writeFileSync(join(dir, 'casussen', 'c.yaml'), 'cel: c');
     writeFileSync(join(dir, 'notities.txt'), 'nee');
-    const [status, type, tekst] = bronAntwoord('napp', { [lokaleEnv('napp')]: dir });
+    const [status, type, tekst] = bronAntwoord('voorbeeld', { [lokaleEnv('voorbeeld')]: dir });
     rmSync(dir, { recursive: true });
     expect([status, type]).toEqual([200, 'application/json']);
-    expect(JSON.parse(tekst)).toEqual({ naam: 'napp', versie: 'lokaal', bestanden: { 'casussen/c.yaml': 'cel: c' } });
+    expect(JSON.parse(tekst)).toEqual({ naam: 'voorbeeld', versie: 'lokaal', bestanden: { 'casussen/c.yaml': 'cel: c' } });
   });
 
   it('maakt de bron uit een manifest, met de langste map per bestand', () => {
@@ -24,13 +24,13 @@ describe('bronAntwoord', () => {
     };
     schrijf(
       'werk/m/bron.yaml',
-      'wortel: ../..\nmappen:\n  regulation/nl/w: regulation/nl/w\n  cells/c: werk/m/cellen/c\n  cells/c/reductions: werk/m/cellen/c/reducties\n',
+      'repo_root: ../..\ndirectories:\n  regulation/nl/w: regulation/nl/w\n  cells/c: werk/m/cellen/c\n  cells/c/reductions: werk/m/cellen/c/reducties\n',
     );
     schrijf('regulation/nl/w/2026-01-01.yaml', '$id: w');
     schrijf('werk/m/cellen/c/cel.yaml', 'name: C');
     schrijf('werk/m/cellen/c/reducties/r/2026-01-01.yaml', '$id: r');
     schrijf('werk/groot/niet.yaml', 'niet genoemd');
-    const [status, , tekst] = bronAntwoord('napp', { [lokaleEnv('napp')]: join(dir, 'werk/m/bron.yaml') });
+    const [status, , tekst] = bronAntwoord('voorbeeld', { [lokaleEnv('voorbeeld')]: join(dir, 'werk/m/bron.yaml') });
     rmSync(dir, { recursive: true });
     expect(status).toBe(200);
     expect(Object.keys(JSON.parse(tekst).bestanden).sort()).toEqual([
@@ -40,10 +40,10 @@ describe('bronAntwoord', () => {
     ]);
   });
 
-  it('weigert een manifest met een map boven de wortel, zoals het portaal', () => {
+  it('rejects a manifest with a directory above the repository root, as the portal does', () => {
     const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
-    writeFileSync(join(dir, 'bron.yaml'), 'mappen:\n  cells/c: ../elders\n');
-    const [status, , tekst] = bronAntwoord('napp', { [lokaleEnv('napp')]: join(dir, 'bron.yaml') });
+    writeFileSync(join(dir, 'bron.yaml'), 'directories:\n  cells/c: ../elders\n');
+    const [status, , tekst] = bronAntwoord('voorbeeld', { [lokaleEnv('voorbeeld')]: join(dir, 'bron.yaml') });
     rmSync(dir, { recursive: true });
     expect(status).toBe(502);
     expect(tekst).toContain('no directory below the root');
@@ -51,17 +51,43 @@ describe('bronAntwoord', () => {
 
   it('weigert een manifest dat een map twee keer noemt, zoals het portaal', () => {
     const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
-    writeFileSync(join(dir, 'bron.yaml'), 'mappen:\n  a: b\n  c: b/\n');
-    const [status, , tekst] = bronAntwoord('napp', { [lokaleEnv('napp')]: join(dir, 'bron.yaml') });
+    writeFileSync(join(dir, 'bron.yaml'), 'directories:\n  a: b\n  c: b/\n');
+    const [status, , tekst] = bronAntwoord('voorbeeld', { [lokaleEnv('voorbeeld')]: join(dir, 'bron.yaml') });
     rmSync(dir, { recursive: true });
     expect(status).toBe(502);
     expect(tekst).toContain('named twice');
   });
 
+  it('still reads the old Dutch field names wortel and mappen', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
+    mkdirSync(join(dir, 'werk', 'w'), { recursive: true });
+    writeFileSync(join(dir, 'werk', 'bron.yaml'), 'wortel: ..\nmappen:\n  regulation/nl/w: werk/w\n');
+    writeFileSync(join(dir, 'werk', 'w', '2026-01-01.yaml'), '$id: w');
+    const [status, , tekst] = bronAntwoord('voorbeeld', { [lokaleEnv('voorbeeld')]: join(dir, 'werk', 'bron.yaml') });
+    rmSync(dir, { recursive: true });
+    expect(status).toBe(200);
+    expect(Object.keys(JSON.parse(tekst).bestanden)).toEqual(['regulation/nl/w/2026-01-01.yaml']);
+  });
+
+  it('rejects a manifest without directories, or with a field under both names, as the portal does', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
+    const antwoord = (yaml) => {
+      writeFileSync(join(dir, 'bron.yaml'), yaml);
+      return bronAntwoord('voorbeeld', { [lokaleEnv('voorbeeld')]: join(dir, 'bron.yaml') });
+    };
+    const zonder = antwoord('repo_root: ..\n');
+    const dubbel = antwoord('repo_root: ..\nwortel: ..\ndirectories: {a: b}\n');
+    rmSync(dir, { recursive: true });
+    expect(zonder[0]).toBe(502);
+    expect(zonder[2]).toContain('missing field `directories`');
+    expect(dubbel[0]).toBe(502);
+    expect(dubbel[2]).toContain('duplicate field `repo_root`');
+  });
+
   it('zegt zonder POC_BRON_<NAAM> dat de bron niet beschikbaar is', () => {
     expect(lokaleEnv('mijn-bron')).toBe('POC_BRON_MIJN_BRON');
-    const [status, , tekst] = bronAntwoord('napp', {});
+    const [status, , tekst] = bronAntwoord('voorbeeld', {});
     expect(status).toBe(503);
-    expect(tekst).toBe('bron niet beschikbaar: POC_BRON_NAPP is niet gezet');
+    expect(tekst).toBe('bron niet beschikbaar: POC_BRON_VOORBEELD is niet gezet');
   });
 });

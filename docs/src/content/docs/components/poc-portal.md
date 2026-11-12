@@ -82,11 +82,11 @@ The browser gets the whole corpus in one bundle, `bundel.json`, without the scen
 
 The scenarios run as bucket A over this corpus alone. `just bdd-chrono` loads the shared regulation and that of every case together; `script/chrono-regulation-dirs.sh` lists the directories. CI runs the same in the `bdd-demo` job. `just validate`, the type check and the cross-law check cover the corpus as well.
 
-A fourth case, a fictional subsidy at the Nederlandse autoriteit politieke partijen, lives in the private NAPP corpus. The register lists it under `sources` as `napp`, with the manifest `werkbank/chronolex/napp/bron.yaml` on the branch integratie/analistenportaal. A manifest names the directories of the repository that make up the source, so the NAPP corpus serves as a source without moving anything. The portal serves the source at `/chronolexografie/bron/napp`, behind the PoC's own password (`packages/poc-portal/src/bron.rs`). It fetches the branch from the GitHub API with `NAPP_CORPUS_TOKEN`, a user env var on the ZAD component `poc`, and keeps each fetch for 60 seconds. A push to that branch reaches the PoC within a minute, without a build of regelrecht. The token stays in the portal and never reaches the browser.
+A static PoC can also load cases from another repository, as a source. The register lists each source under `sources`, with its repository, branch and path, and with `token_env`, the env var that holds the token for that repository. The path names a folder, or a manifest that makes the source from directories elsewhere on the branch, so a repository laid out for other work serves as a source without moving anything. Under `directories` the manifest maps each directory of the source to a directory of the repository, and `repo_root` is the path from the manifest's own directory to the repository root, such as `../..`. The portal serves a source at `/<slug>/bron/<name>`, behind the PoC's own password (`packages/poc-portal/src/bron.rs`). It fetches the branch from the GitHub API with the token and keeps each fetch for 60 seconds. A push to that branch reaches the PoC within a minute, without a build of regelrecht. The token stays in the portal and never reaches the browser.
 
 A source holds the same directories as the corpus: `casussen/`, `regulation/nl/` and `cells/`. A case from a source runs on that source alone. It brings its own Awb and every other rulework it needs, and nothing of the regelrecht corpus takes their place. A case id that is already taken is set aside, and the app says so.
 
-When GitHub fails, the portal serves its last good copy. Without a copy it answers `502`, and without a token `503`. A source that is not available never stops the app: a banner gives the reason, and the other cases play as before. Errors in the source show only when the page loads, because the CI of regelrecht never sees the source. To work on it locally without a token, set `POC_BRON_NAPP` to a folder or a manifest (see [Running locally](#running-locally)).
+When GitHub fails, the portal serves its last good copy. Without a copy it answers `502`, and without a token `503`. A source that is not available never stops the app: a banner gives the reason, and the other cases play as before. Errors in the source show only when the page loads, because the CI of regelrecht never sees the source. To work on one locally without a token, set `POC_BRON_<NAME>` to a folder or a manifest (see [Running locally](#running-locally)).
 
 ### The gate
 
@@ -121,10 +121,10 @@ This builds the engine and chronolexografie to WASM, the design-system bundle an
 To work on a source without a token, point `POC_BRON_<NAME>` at a local folder that has the layout of the source, or at a manifest in a local checkout. A relative path counts from the repository root, where `just` starts:
 
 ```bash
-POC_BRON_NAPP=<checkout-of-the-source>/werkbank/chronolex/napp/bron.yaml just poc-chronolexografie
+POC_BRON_<NAME>=<checkout-of-the-source>/path/to/bron.yaml just poc-chronolexografie
 ```
 
-The Vite dev server then answers the route of the source from that folder (`frontend/scripts/bron-dev.js`), and so does the portal under `just poc`. The folder is read again on every request, so an edit shows after a reload. With the same variable, `cargo test -p regelrecht-poc-chronolexografie` loads every case in the folder and plays its example to a decision. Without it, the NAPP case shows "bron niet beschikbaar" and the test skips the folder.
+The Vite dev server then answers the route of the source from that folder (`frontend/scripts/bron-dev.js`), and so does the portal under `just poc`. The folder is read again on every request, so an edit shows after a reload. With the same variable, `cargo test -p regelrecht-poc-chronolexografie` loads every case in the folder and plays its example to a decision. Without it, a case from that source shows "bron niet beschikbaar" and the test skips the folder.
 
 `just poc` does not start napp or an assistant. The napp card then answers `503` until `POC_UPSTREAM_NAPP` points at a running napp backend. For the assistant, run `just poc-assistent <case>` in a second terminal (it needs `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`) and start the portal with the matching variable, for example `POC_ASSISTENT_TERUGBETAALREGIMES=http://127.0.0.1:3600 just poc`.
 
@@ -144,7 +144,7 @@ The Vite dev server then answers the route of the source from that folder (`fron
 | `CLAUDE_CODE_OAUTH_TOKEN` | none | Token for the Claude Code CLI the assistant runs on; without it (and without `ANTHROPIC_API_KEY`) no assistant starts |
 | `ANTHROPIC_API_KEY` | none | Alternative to the OAuth token |
 | `POC_ASSISTENT_CASUSSEN` | both assistant cases | Space-separated list of cases `start.sh` starts an assistant for |
-| `NAPP_CORPUS_TOKEN` | none | Token for the `napp` source of chronolexografie: a fine-grained token with only Contents read on the NAPP corpus. The name comes from `token_env` in the register. Without it the NAPP case is unavailable |
+| the `token_env` of a source | none | Token for that source's repository, named in the register: a fine-grained token with only Contents read. Without it the cases of that source are unavailable |
 | `POC_BRON_<NAME>` | none | A local folder or manifest that replaces the source `<name>`, without a token; for local development |
 
 Passwords and tokens live only in the platform's environment, never in the repository.

@@ -5,7 +5,7 @@
  * (`invoer`), what the step comes to (`uitkomst`) and its text. This file
  * only turns that into what the panel shows: the tab of each kind, a title
  * and text where the step gives none, when a step is done and what the
- * scenario expects of it. A case from a source (NAPP) gives its steps as
+ * scenario expects of it. A case from a source gives its steps as
  * plain text and has no guide; the tab Scenario's shows those instead.
  *
  * A built step: `title`, the `tab` it happens on, the play date it wants
@@ -220,7 +220,7 @@ const gebouwd = new WeakMap();
 
 /**
  * The guide for scenario `naam` of `casus`, or null: a case from a source
- * (`casus.bron`, such as NAPP) has none, and neither has a scenario whose
+ * (`casus.bron`) has none, and neither has a scenario whose
  * steps are plain text or a name the case does not know. Those show the
  * steps from the YAML instead.
  */
