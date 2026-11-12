@@ -33,44 +33,49 @@ export function bestandenUitMap(dir) {
 const zonderSlash = (pad) => pad.replace(/^\/+|\/+$/g, '');
 
 /**
- * The source the manifest in `bestand` makes: under `directories`, per
+ * The source the manifest in `manifestPath` makes: under `directories`, per
  * directory of the source, the directory of the repository it is, and under
  * `repo_root` the path from the manifest's directory to the repository root.
  * A file belongs to the longest directory that holds it. A directory without
  * YAML is an error that names it, as in the portal.
  */
-export function filesFromManifest(bestand) {
-  const manifest = leesYaml(readFileSync(bestand, 'utf8')) ?? {};
+export function filesFromManifest(manifestPath) {
+  const manifest = leesYaml(readFileSync(manifestPath, 'utf8')) ?? {};
   // The Dutch names (`wortel`, `mappen`) are the ones the first manifests
   // used, accepted like the serde aliases in the portal. They go once the
   // NAPP manifests are renamed.
-  const repoRoot = manifest.repo_root ?? manifest.wortel ?? '';
-  const directories = manifest.directories ?? manifest.mappen;
-  if (directories == null) throw new Error(`the manifest ${bestand}: missing field \`directories\``);
-  const rootDir = resolve(dirname(bestand), repoRoot);
-  const paren = Object.entries(directories).map(([doel, van]) => [zonderSlash(doel), zonderSlash(van)]);
-  // Every directory lies below the repository root, as `Manifest::lees` in the portal demands.
-  for (const pad of paren.flat()) {
-    if (!pad || pad.split('/').some((d) => d === '..' || d === '.' || d === '')) {
-      throw new Error(`the manifest ${bestand}: '${pad}' is no directory below the root`);
+  for (const [name, alias] of [['repo_root', 'wortel'], ['directories', 'mappen']]) {
+    if (name in manifest && alias in manifest) {
+      throw new Error(`the manifest ${manifestPath}: duplicate field \`${name}\``);
     }
   }
-  const dubbel = paren.map(([, van]) => van).find((van, i, alle) => alle.indexOf(van) !== i);
-  if (dubbel !== undefined) throw new Error(`the manifest ${bestand}: '${dubbel}' is named twice`);
+  const repoRoot = manifest.repo_root ?? manifest.wortel ?? '';
+  const directories = manifest.directories ?? manifest.mappen;
+  if (directories == null) throw new Error(`the manifest ${manifestPath}: missing field \`directories\``);
+  const rootDir = resolve(dirname(manifestPath), repoRoot);
+  const pairs = Object.entries(directories).map(([doel, van]) => [zonderSlash(doel), zonderSlash(van)]);
+  // Every directory lies below the repository root, as `Manifest::lees` in the portal demands.
+  for (const pad of pairs.flat()) {
+    if (!pad || pad.split('/').some((d) => d === '..' || d === '.' || d === '')) {
+      throw new Error(`the manifest ${manifestPath}: '${pad}' is no directory below the root`);
+    }
+  }
+  const dubbel = pairs.map(([, van]) => van).find((van, i, alle) => alle.indexOf(van) !== i);
+  if (dubbel !== undefined) throw new Error(`the manifest ${manifestPath}: '${dubbel}' is named twice`);
   const alle = {};
-  for (const [, van] of paren) {
+  for (const [, van] of pairs) {
     const dir = join(rootDir, van);
     if (!existsSync(dir)) continue;
     for (const [pad, tekst] of Object.entries(bestandenUitMap(dir))) alle[`${van}/${pad}`] = tekst;
   }
   const uit = {};
   for (const [pad, tekst] of Object.entries(alle)) {
-    const passend = paren.filter(([, van]) => pad.startsWith(`${van}/`));
+    const passend = pairs.filter(([, van]) => pad.startsWith(`${van}/`));
     if (!passend.length) continue;
     const [doel, van] = passend.reduce((a, b) => (b[1].length > a[1].length ? b : a));
     uit[`${doel}${pad.slice(van.length)}`] = tekst;
   }
-  for (const [doel, van] of paren) {
+  for (const [doel, van] of pairs) {
     if (!Object.keys(alle).some((p) => p.startsWith(`${van}/`))) {
       throw new Error(`the manifest names '${van}' for '${doel}', which holds no YAML file`);
     }
