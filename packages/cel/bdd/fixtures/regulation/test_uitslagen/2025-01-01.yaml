@@ -1,0 +1,60 @@
+---
+# FICTIEF. A synthetic law for the cell's BDD suite
+# (packages/cel/bdd/features/tables.feature): a fact that holds a table
+# (schema v0.8.20). None of it is the text of a law. Article 1 records the
+# result of a polling station, with per list the number of votes; article 2
+# records a correction of a result, which refers to it, with a new table.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json
+$id: test_uitslagen
+name: Testregeling uitslagen per stembureau
+regulatory_layer: WET
+bwb_id: BWBR9999919
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_uitslagen
+
+articles:
+  - number: '1'
+    url: https://example.com/test_uitslagen/1
+    text: >-
+      FICTIEF. Het stembureau stelt de uitslag vast: per lijst het aantal
+      stemmen dat zij kreeg.
+    machine_readable:
+      requires:
+        - fact: uitslag
+          description: De uitslag van het stembureau, met per lijst het aantal stemmen.
+          parameters:
+            - stembureau
+            - lijsten
+      execution:
+        parameters:
+          - name: stembureau
+            type: string
+          - name: lijsten
+            type: array
+            columns:
+              - name: aanduiding
+                type: string
+              - name: aantal_stemmen
+                type: number
+
+  - number: '2'
+    url: https://example.com/test_uitslagen/2
+    text: >-
+      FICTIEF. Blijkt een uitslag onjuist, dan stelt het stembureau de
+      gecorrigeerde uitslag vast. Die vervangt de lijsten van de uitslag.
+    machine_readable:
+      requires:
+        - fact: correctie
+          description: De gecorrigeerde lijsten van de uitslag waarnaar het feit verwijst.
+          parameters:
+            - lijsten
+      execution:
+        parameters:
+          - name: lijsten
+            type: array
+            columns:
+              - name: aanduiding
+                type: string
+              - name: aantal_stemmen
+                type: number

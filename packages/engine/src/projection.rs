@@ -46,8 +46,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
 use regelrecht_law_model::{
-    Article, ArticleBasedLaw, Projection, ProjectionStep, StateProperty, StepSource, names_fact,
-    split_projections,
+    Article, ArticleBasedLaw, Column, Projection, ProjectionStep, StateProperty, StateType,
+    StepSource, names_fact, split_projections,
 };
 use serde::{Deserialize, Serialize};
 
@@ -787,14 +787,12 @@ impl LawExecutionService {
         for action in &step.actions {
             let (property, value) = step_action(action).map_err(fail)?;
             let source = set_source(value).map_err(fail)?;
-            let to = read(&source, &inputs)?;
-            let declared = projection.state.iter().find(|p| &p.name == property);
-            if let Some(declared) = declared.filter(|p| !fits_property(p, &to)) {
-                return Err(fail(format!(
-                    "it sets '{property}' from {source} to {to:?}, which is no {:?}",
-                    declared.property_type
-                )));
-            }
+            let read_value = read(&source, &inputs)?;
+            let to = match projection.state.iter().find(|p| &p.name == property) {
+                Some(declared) => conform(declared, read_value)
+                    .map_err(|why| fail(format!("it sets '{property}' from {source} {why}")))?,
+                None => read_value,
+            };
             let from = state.get(property).cloned().unwrap_or(Value::Null);
             applied.changes.push(StateChange {
                 property: property.clone(),
@@ -1490,6 +1488,18 @@ pub(crate) fn check_step<'l>(
             }
             _ => {}
         }
+        // A table (schema v0.8.20) and the table it is filled from declare
+        // the same columns, as far as the source declares them.
+        let table = projection
+            .state
+            .iter()
+            .find(|p| &p.name == property && p.property_type == StateType::Table)
+            .and_then(|p| p.columns.as_deref());
+        let given = source_columns(projection, record.as_ref().map(|(a, _)| *a), &source);
+        if let (Some(table), Some(given)) = (table, given) {
+            same_columns(table, given)
+                .map_err(|why| format!("fills table '{property}' from {source}, {why}"))?;
+        }
     }
     Ok(())
 }
@@ -1720,7 +1730,68 @@ fn state_type(projection: &Projection, name: &str) -> Option<ParameterType> {
         .state
         .iter()
         .find(|p| p.name == name)
-        .map(|p| p.property_type)
+        .map(|p| p.property_type.value_type())
+}
+
+/// The columns of what `source` reads, where they are declared: a field of
+/// the record whose parameter declares them, or a table of the state. A
+/// field the record holds as an output (an output wins over a parameter of
+/// the same name when the step plays) declares none, and neither does an
+/// input of the step, which takes an output of a law.
+fn source_columns<'a>(
+    projection: &'a Projection,
+    record: Option<&'a Article>,
+    source: &StepSource,
+) -> Option<&'a [Column]> {
+    match source {
+        StepSource::Record(field) => {
+            let article = record?;
+            if article.get_outputs().iter().any(|o| &o.name == field) {
+                return None;
+            }
+            article
+                .get_parameters()
+                .iter()
+                .find(|p| &p.name == field)?
+                .columns
+                .as_deref()
+        }
+        StepSource::State(property) => projection
+            .state
+            .iter()
+            .find(|p| &p.name == property)?
+            .columns
+            .as_deref(),
+        StepSource::Input(_) => None,
+    }
+}
+
+/// Refuse a table filled from a source whose declared columns differ from
+/// its own: each column of one must be a column of the other, of the same
+/// type.
+fn same_columns(table: &[Column], given: &[Column]) -> std::result::Result<(), String> {
+    for column in table {
+        match given.iter().find(|c| c.name == column.name) {
+            None => return Err(format!("which has no column '{}'", column.name)),
+            Some(c) if c.column_type != column.column_type => {
+                return Err(format!(
+                    "whose column '{}' is a {:?}, not a {:?}",
+                    column.name, c.column_type, column.column_type
+                ));
+            }
+            Some(_) => {}
+        }
+    }
+    match given
+        .iter()
+        .find(|c| !table.iter().any(|t| t.name == c.name))
+    {
+        Some(extra) => Err(format!(
+            "which has a column '{}' the table does not declare",
+            extra.name
+        )),
+        None => Ok(()),
+    }
 }
 
 /// The type of field `name` of a record of `kind` under `article`, as the
@@ -1848,12 +1919,69 @@ struct AppliedStep {
     traces: Vec<PathNode>,
 }
 
-/// Whether a step may give `property` the value `value`: one of its type,
-/// or null for a string or a date, whose start value is null.
-pub(crate) fn fits_property(property: &StateProperty, value: &Value) -> bool {
-    match value {
-        Value::Null => property.start().is_null(),
-        _ => fits_state_type(&property.property_type, value),
+/// The value a step gives `property`, as the state holds it: one of its
+/// type, or null for a string or a date, whose start value is null. A table
+/// (schema v0.8.20) takes a list of rows, each an object that holds no
+/// column the table does not declare, and in each column it holds null or a
+/// value of the column's type. A row lacking a column gets null there, so
+/// every row of the state holds every column. `Err` says why the value does
+/// not fit, worded to follow "it sets <property> from <source>".
+pub(crate) fn conform(
+    property: &StateProperty,
+    value: Value,
+) -> std::result::Result<Value, String> {
+    let no_value = |value: &Value| {
+        format!(
+            "to {value:?}, which is no {}",
+            type_name(property.property_type)
+        )
+    };
+    match (property.property_type, value) {
+        (_, Value::Null) if property.start().is_null() => Ok(Value::Null),
+        (StateType::Table, Value::Array(rows)) => {
+            let columns = property.columns.as_deref().unwrap_or_default();
+            rows.into_iter()
+                .enumerate()
+                .map(|(i, row)| {
+                    conform_row(columns, row).map_err(|why| format!("but row {}: {why}", i + 1))
+                })
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map(Value::Array)
+        }
+        (StateType::Field(ty), value) if fits_state_type(&ty, &value) => Ok(value),
+        (_, value) => Err(no_value(&value)),
+    }
+}
+
+/// One row of a table, with every column of `columns` ([`conform`]).
+fn conform_row(columns: &[Column], row: Value) -> std::result::Result<Value, String> {
+    let Value::Object(mut cells) = row else {
+        return Err(format!("{row:?} is no row"));
+    };
+    let mut conformed = BTreeMap::new();
+    for column in columns {
+        let cell = cells.remove(&column.name).unwrap_or(Value::Null);
+        if !cell.is_null() && !fits_state_type(&column.column_type, &cell) {
+            return Err(format!(
+                "column '{}' holds {cell:?}, which is no {:?}",
+                column.name, column.column_type
+            ));
+        }
+        conformed.insert(column.name.clone(), cell);
+    }
+    match cells.keys().next() {
+        Some(extra) => Err(format!(
+            "it holds '{extra}', which is no column of the table"
+        )),
+        None => Ok(Value::Object(conformed)),
+    }
+}
+
+/// The name of a type of state property in a message.
+fn type_name(ty: StateType) -> String {
+    match ty {
+        StateType::Table => "table".to_string(),
+        StateType::Field(ty) => format!("{ty:?}"),
     }
 }
 
@@ -3057,17 +3185,62 @@ articles:
         assert_eq!(property("string").start(), Value::Null);
         assert_eq!(property("date").start(), Value::Null);
         // A string or a date may be set to null again; a boolean may not.
-        assert!(fits_property(&property("string"), &Value::Null));
-        assert!(!fits_property(&property("boolean"), &Value::Null));
+        let fits = |ty: &str, value: Value| conform(&property(ty), value).is_ok();
+        assert!(fits("string", Value::Null));
+        assert!(!fits("boolean", Value::Null));
         // A date is a string that reads as one.
-        assert!(fits_property(
-            &property("date"),
-            &Value::String("2025-01-01".into())
-        ));
-        assert!(!fits_property(
-            &property("date"),
-            &Value::String("morgen".into())
-        ));
+        assert!(fits("date", Value::String("2025-01-01".into())));
+        assert!(!fits("date", Value::String("morgen".into())));
+        // A table (schema v0.8.20) starts empty and is never null.
+        let table: StateProperty = serde_yaml_ng::from_str(
+            "{name: t, type: table, columns: [{name: a, type: string}, {name: n, type: number}]}",
+        )
+        .unwrap();
+        assert_eq!(table.start(), Value::Array(Vec::new()));
+        assert!(conform(&table, Value::Null).is_err());
+    }
+
+    /// A row of a table holds every declared column, null where the value
+    /// lacks one; a row with another column, a cell of another type or a
+    /// value that is no list of rows does not fit (schema v0.8.20).
+    #[test]
+    fn a_table_holds_rows_with_its_columns() {
+        let table: StateProperty = serde_yaml_ng::from_str(
+            "{name: t, type: table, columns: [{name: a, type: string}, {name: n, type: number}]}",
+        )
+        .unwrap();
+        let row = |cells: &[(&str, Value)]| {
+            Value::Object(
+                cells
+                    .iter()
+                    .map(|(k, v)| ((*k).to_string(), v.clone()))
+                    .collect(),
+            )
+        };
+        let given = Value::Array(vec![row(&[("a", Value::String("x".into()))])]);
+        assert_eq!(
+            conform(&table, given).unwrap(),
+            Value::Array(vec![row(&[
+                ("a", Value::String("x".into())),
+                ("n", Value::Null)
+            ])])
+        );
+        let extra = Value::Array(vec![row(&[("b", Value::Int(1))])]);
+        assert_eq!(
+            conform(&table, extra).unwrap_err(),
+            "but row 1: it holds 'b', which is no column of the table"
+        );
+        let wrong = Value::Array(vec![row(&[("n", Value::String("vijf".into()))])]);
+        assert!(
+            conform(&table, wrong)
+                .unwrap_err()
+                .contains("column 'n' holds String(\"vijf\"), which is no Number")
+        );
+        assert!(conform(&table, Value::Array(vec![Value::Int(1)])).is_err());
+        assert_eq!(
+            conform(&table, Value::Int(1)).unwrap_err(),
+            "to Int(1), which is no table"
+        );
     }
 
     #[test]

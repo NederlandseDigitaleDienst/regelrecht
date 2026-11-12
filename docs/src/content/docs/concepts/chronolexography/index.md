@@ -132,7 +132,7 @@ This policy article is called a binding: it binds the open term to the answer.
 
 ### Playing the chronicle forward (experimental)
 
-A reduction with a `projection` declares a state, a few named properties each with a type, and says per article what a record under it does with that state. A property starts from the value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date. The engine plays the chronicle forward, record by record, one aggregate per record of a kind (`per`, see [One aggregate per decision](#one-aggregate-per-decision-experimental)). A read model answers from their last states.
+A reduction with a `projection` declares a state, a few named properties each with a type, and says per article what a record under it does with that state. A property starts from the value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date, and an empty table for a table. The engine plays the chronicle forward, record by record, one aggregate per record of a kind (`per`, see [One aggregate per decision](#one-aggregate-per-decision-experimental)). A read model answers from their last states.
 
 A step names the article its records rest on, such as `test_chronicle_effects#3`. Where the article gives more than one kind of record, a third segment names the kind (`#BESCHIKKING`). Where it requires more than one fact, the third segment is the name of the fact in lower case (`#plaats_gehuurd`). `per` takes the same notation. The loader refuses a step that could apply to more than one of them. The rules per schema version are in the [version history](/reference/schema#version-history).
 
@@ -195,7 +195,7 @@ A policy reaches a projection the normal way: the binding asks the cell, and the
 
 ### One aggregate per decision (experimental)
 
-A state holds single values. One state per person breaks down once a person holds several decisions, each with its own days, such as two business parking permits of one company. A projection therefore plays one aggregate per record of a kind (`per`). Each such record is the root of an aggregate. The aggregate holds the root and every record that refers to it through `refers_to`, directly or through another record of the aggregate. Another record of the root's kind that refers into the aggregate is an aggregate of its own and counts in this one for its effects only. A root that does not count applies no step; the other records of its aggregate that count still apply theirs.
+A state holds one value per property. One state per person breaks down once a person holds several decisions, each with its own days, such as two business parking permits of one company. A projection therefore plays one aggregate per record of a kind (`per`). Each such record is the root of an aggregate. The aggregate holds the root and every record that refers to it through `refers_to`, directly or through another record of the aggregate. Another record of the root's kind that refers into the aggregate is an aggregate of its own and counts in this one for its effects only. A root that does not count applies no step; the other records of its aggregate that count still apply theirs.
 
 ```yaml
 # reductie_bedrijfsparkeervergunning (PoC), article vergunning
@@ -218,6 +218,31 @@ A decision put in the place of another lands in the aggregate of the decision it
 A row does not say whether its root counts. A root that does not count applies no step, so a property its step sets keeps its start value. A reduction that needs to know therefore has its step on the root set a property of its own, such as `verleend`, which a revoked root leaves false.
 
 A recorded fact is played the same way, one aggregate per recorded instance, with `per` naming the fact where its article requires more than one. Real legislation often lays down two acts in one article, so the article stays whole rather than being split to suit the reductions. The step on the root copies the fields of the fact into the state, and the read model gets one row per instance. A revoked root keeps its row, with the start values of its state, so a read model that counts rows has to skip it.
+
+A fact may hold a table, such as the result of a polling station with the number of votes per list. The law declares it as a parameter of type `array` with its `columns`. The state then has a property of type `table` with the same columns, and the step on the root copies the table whole:
+
+```yaml
+# test_reductie_uitslagen (fictional), article uitslag
+projection:
+  per: test_uitslagen#1
+  state:
+    - {name: stembureau, type: string}
+    - name: lijsten
+      type: table
+      columns:
+        - {name: aanduiding, type: string}
+        - {name: aantal_stemmen, type: number}
+  steps:
+    - record: test_uitslagen#1
+      actions:
+        - {output: stembureau, value: $record.stembureau}
+        - {output: lijsten, value: $record.lijsten}
+    - record: test_uitslagen#2   # a correction that refers to the result
+      actions:
+        - {output: lijsten, value: $record.lijsten}
+```
+
+The loader checks that the columns of the state match those of the fact, where the fact declares them. That is the only check on those columns: the cell does not hold a recorded fact to them, and a column of type `amount` declares no unit. A row lacking a column holds null there; a row with a column the table does not declare fails the step. A step replaces the table and never adds rows to it, so a correction that refers to the result gives the whole new table. The read model reads the table as a field of each row, `$uitslag.lijsten`, and iterates over it with a `FOREACH` inside the `FOREACH` over the rows. The inner one sees the element of the outer one. The tests are in `packages/cel/bdd/features/tables.feature` and `packages/engine/tests/projection_table.rs`.
 
 The engine plays each aggregate on every question, in the version of the reduction in force on the calculation date. The trace of the reading input holds a `PROJECTION` node per aggregate, with its `COUNTS` and `FOLD`. The cell gives the records of its chronicle for it (`Chronicle::records`); `evaluate_projection` plays a read model on the records it is given.
 

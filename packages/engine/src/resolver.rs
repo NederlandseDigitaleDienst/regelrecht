@@ -552,6 +552,8 @@ impl RuleResolver {
         crate::load_check::reject_ambiguous_produces(&law)?;
         // RFC-051: a fact an article requires holds parameters it declares.
         crate::load_check::reject_malformed_facts(&law)?;
+        // Schema v0.8.20: a parameter that declares columns is a table.
+        crate::load_check::reject_malformed_columns(&law)?;
         // Schema v0.8.14: a projection sits in a reduction and sets its own state.
         crate::load_check::reject_malformed_projection(&law)?;
         crate::load_check::reject_unknown_state(&law)?;

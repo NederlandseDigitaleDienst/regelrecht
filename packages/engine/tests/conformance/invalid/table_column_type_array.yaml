@@ -1,0 +1,31 @@
+---
+# A column of a table holds a scalar (schema v0.8.20), not an array.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json
+$id: test_conformance_column_type_array
+regulatory_layer: WET
+bwb_id: BWBR9999962
+publication_date: '2026-11-12'
+valid_from: '2026-11-12'
+url: https://example.invalid/fact-table
+articles:
+  - number: '1'
+    url: https://example.invalid/fact-table/1
+    text: Het stembureau stelt de uitslag vast, met per lijst het aantal stemmen.
+    machine_readable:
+      requires:
+        - fact: uitslag
+          parameters:
+            - stembureau
+            - lijsten
+      execution:
+        parameters:
+          - name: stembureau
+            type: string
+          - name: lijsten
+            type: array
+            columns:
+              - name: aanduiding
+                type: string
+                description: De aanduiding van de lijst.
+              - name: aantal_stemmen
+                type: array
