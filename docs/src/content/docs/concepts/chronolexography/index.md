@@ -123,7 +123,7 @@ This policy article is called a binding: it binds the open term to the answer.
 - A reduction may also call a reduction of no cell, in `cells/reductions/`. Such a reduction has no chronicle of its own, and no cell gives it as an answer. It reads the chronicle of the cell that runs the reduction that calls it.
 - A reduction never calls a reduction of another cell, because that reduction would read the wrong chronicle. The corpus loader of the PoC refuses such a call.
 - The engine asks the cell for the answer wherever the binding runs. The cell then runs the reduction that its catalogue names for that answer. Because the binding is an article of policy, its value becomes the value of the term, even when that value is null. A finding of the authority cannot replace it ([Inversion of Control](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer)). Sometimes the cell has no answer and the authority should judge the case itself. The policy then says so with an open term of its own (`decided_per_case_by`).
-- The loader refuses `source.projections` outside a `REDUCTIE`, as it did the older `source.decisions` and `source.facts`. It refuses `source.reduction` outside such a binding.
+- The loader refuses `source.projections` outside a `REDUCTIE`, as it does the older `source.decisions` and `source.facts`. It refuses `source.reduction` outside such a binding.
 
 ### Playing the chronicle forward (experimental)
 
