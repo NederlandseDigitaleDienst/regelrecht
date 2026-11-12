@@ -96,6 +96,8 @@ This call runs on the day of the decision on the objection. It uses the fields a
 
 Only `outputs` count. A `derived` end date that shifts because the day is later does not make the objection founded.
 
+In the Awb of the chronolexography PoC, 7:11 declares the effect `revokes: bestreden_besluit` when `bestreden_besluit_herroepen` is true. A reduction that plays the chronicle then no longer counts the contested decision ([Which records count](/concepts/chronolexography#which-records-count)).
+
 ## Appeal
 
 Against the decision on the objection, an interested party (*belanghebbende*) can go to court (Awb 8:1). Awb 8:70 establishes the appeal and decides on it, as 7:11 does for the objection.
@@ -133,6 +135,8 @@ produces:
 | A rule breached, legal effects not kept | Well founded: the decision is annulled, with an order for a new decision |
 | A rule breached, legal effects kept | Well founded: the decision is annulled, and no new decision is needed |
 | A rule breached, and the court decides the case itself | Well founded: the decision is annulled, and the judgment holds the decision in its place. There is no order |
+
+A party records the receipt of the copy of the judgment (8:79) as a fact (`Cell::record_receipt`). In the Awb of the PoC that fact revokes the decision it refers to when the court annulled it with its legal effects (`rechtsgevolgen_vernietigd`). A judgment that keeps the legal effects revokes nothing. When the court decides the case itself, the copy holds the decision in its place (`uitspraak_in_de_plaats`) as an `object`, not a `decision`: the receiving cell reads it and does not take it anew.
 
 [RFC-053](/rfcs/rfc-053) gives the design. `packages/poc-chronolexografie/corpus/regulation/nl/wet/algemene_wet_bestuursrecht/scenarios/beroep.feature` plays these cases.
 

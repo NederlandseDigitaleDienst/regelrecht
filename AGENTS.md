@@ -25,8 +25,9 @@ page by its repo path; `docs/src/content/docs/operations/ci-cd.md` renders at
 `https://docs.regelrecht.rijks.app/operations/ci-cd`.
 
 When you change how the system works, update the docs page in the same pull
-request. When you find a fact here that the docs also state, move it there and
-leave a link: two copies drift.
+request, on the page of the concept the change belongs to ("One page, one
+concept" in the `docs-writing` skill). When you find a fact here that the docs
+also state, move it there and leave a link: two copies drift.
 
 ## Project Overview
 
