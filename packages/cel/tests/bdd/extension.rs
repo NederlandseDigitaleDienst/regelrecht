@@ -385,6 +385,7 @@ fn gram(
             .collect()
     };
     Gram {
+        law_versions: Vec::new(),
         id: id.to_string(),
         kind,
         basis,

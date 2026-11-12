@@ -15,6 +15,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 use crate::error::{Result, refused, setup};
+use regelrecht_engine::RegulationRead;
 use regelrecht_law_model::stored;
 
 /// The `kind` of an executogram: the record of a fact an article requires
@@ -27,7 +28,10 @@ pub const EXECUTOGRAM: &str = "EXECUTOGRAM";
 ///
 /// The chronolexogram does not repeat the law. Its establishing article and the
 /// day it was recorded name the law version in force; the provisions each field
-/// and output rest on follow from that version.
+/// and output rest on follow from that version. A submission or a decision
+/// also refers to each regulation version it was taken under, by `$id`,
+/// `valid_from` and content hash (`law_versions`), so a replay can tell that
+/// the corpus changed since.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Gram {
     /// Its own id, a uuid v7.
@@ -89,6 +93,13 @@ pub struct Gram {
     /// cell computes it when asked ([`crate::Cell::submission_outputs`]).
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub outputs: BTreeMap<String, Value>,
+    /// The regulation versions whose articles ran when the cell recorded
+    /// it, each once, and the reductions that answered it: a reference to
+    /// the law it rests on, not a copy of it. Empty for an executogram and a
+    /// receipt, which run no article, and for a record from before the cell
+    /// kept them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub law_versions: Vec<RegulationRead>,
 }
 
 impl Gram {

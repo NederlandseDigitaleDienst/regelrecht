@@ -17,7 +17,7 @@ use std::path::Path;
 use chrono::NaiveDate;
 use regelrecht_engine::{
     ArticleResult, Authority, Call, FilledBy, LawExecutionService, OpenTermAnswerer,
-    OutputProvenance, ParameterType, Value,
+    OutputProvenance, ParameterType, RegulationRead, Value,
 };
 use serde_json::Map;
 
@@ -28,6 +28,7 @@ use crate::files::{Disk, Files};
 use crate::identity;
 use crate::reading::{Asked, Reader};
 use crate::shape::{self, Field, Shape};
+use crate::versions::{self, LawSince};
 use regelrecht_law_model::stored;
 
 /// A cell. It holds who it is, its catalogue of answers and its chronicle,
@@ -517,7 +518,16 @@ impl Cell {
         // submission the law cannot take is not recorded. What it gives is
         // not kept: it follows from the fields and the law of the day, and
         // the cell computes it again when asked ([`Cell::submission_outputs`]).
-        self.given(service, sphere, shape, &fields, moment.as_ref(), on)?;
+        let mut law_versions = Vec::new();
+        self.given(
+            service,
+            sphere,
+            shape,
+            &fields,
+            moment.as_ref(),
+            on,
+            &mut law_versions,
+        )?;
 
         let gram = Gram {
             id: uuid::Uuid::now_v7().to_string(),
@@ -533,6 +543,7 @@ impl Cell {
             fields,
             missing,
             outputs: BTreeMap::new(),
+            law_versions,
         };
         Ok(self.chronicle.append(gram)?.clone())
     }
@@ -540,7 +551,9 @@ impl Cell {
     /// What the article that establishes a submission of `shape` gives on
     /// `fields`, with the moment `moment`, in the law in force on `on`: its
     /// own outputs and those of the hooks on the submission, such as the
-    /// last day of the decision period (Awb 4:13).
+    /// last day of the decision period (Awb 4:13). Adds the regulation
+    /// versions it ran to `law_versions`.
+    #[allow(clippy::too_many_arguments)]
     fn given(
         &self,
         service: &mut LawExecutionService,
@@ -549,6 +562,7 @@ impl Cell {
         fields: &BTreeMap<String, serde_json::Value>,
         moment: Option<&GramMoment>,
         on: NaiveDate,
+        law_versions: &mut Vec<RegulationRead>,
     ) -> Result<BTreeMap<String, serde_json::Value>> {
         let law_id = shape.law_id.as_str();
         let article = shape.article.as_str();
@@ -601,6 +615,7 @@ impl Cell {
                 service.evaluate_law(law_id, &outputs, parameters, &date)?
             }
         };
+        note_versions(service, &result, law_versions)?;
         let mut output_values = BTreeMap::new();
         collect_outputs(&result, &mut output_values)?;
         Ok(output_values)
@@ -653,6 +668,7 @@ impl Cell {
             &gram.fields,
             gram.moment.as_ref(),
             gram.recorded_on,
+            &mut Vec::new(),
         )
     }
 
@@ -742,6 +758,7 @@ impl Cell {
             fields,
             missing: Vec::new(),
             outputs: BTreeMap::new(),
+            law_versions: Vec::new(),
         };
         Ok(self.chronicle.append(gram)?.clone())
     }
@@ -899,6 +916,7 @@ impl Cell {
             fields,
             missing: Vec::new(),
             outputs: BTreeMap::new(),
+            law_versions: Vec::new(),
         };
         Ok(self.chronicle.append(gram)?.clone())
     }
@@ -1203,7 +1221,16 @@ impl Cell {
         }
         check_decision_supplied(&shape, supplied)?;
         let inputs = asked(&shape, applied.as_ref(), &decisions, supplied, on)?;
-        let (mut fields, mut outputs) = take(service, &shape, inputs, findings, &answerers, on)?;
+        let mut law_versions = Vec::new();
+        let (mut fields, mut outputs) = take(
+            service,
+            &shape,
+            inputs,
+            findings,
+            &answerers,
+            on,
+            &mut law_versions,
+        )?;
         for (name, (id, _)) in decisions {
             fields.insert(name, serde_json::Value::String(id));
         }
@@ -1226,7 +1253,16 @@ impl Cell {
             };
             // One act is one record: the decision taken in turn is part of
             // this decision, held as its value, and falls with it.
-            let taken = self.decided(service, &shape, &name, value, applied, &answerers, on)?;
+            let taken = self.decided(
+                service,
+                &shape,
+                &name,
+                value,
+                applied,
+                &answerers,
+                on,
+                &mut law_versions,
+            )?;
             outputs.insert(name, taken);
             took = true;
         }
@@ -1256,6 +1292,7 @@ impl Cell {
             fields,
             missing: Vec::new(),
             outputs,
+            law_versions,
         }];
         revokes_only_what_it_is_about(service, self.chronicle.grams(), &grams)?;
         Ok(self.chronicle.append_all(grams)?.to_vec())
@@ -1311,6 +1348,26 @@ impl Cell {
             )));
         }
         Ok(explained)
+    }
+
+    /// Whether the regulation versions the chronolexogram `id` was recorded
+    /// under are still those the corpus of `service` holds in force on the
+    /// day it was recorded ([`versions::since`]). This needs no replay: a
+    /// regelwerk can change and the decision come out the same, which
+    /// [`Cell::explain`] then takes again without complaint. Where the
+    /// outcome differs, the replay fails and names the changes too.
+    ///
+    /// # Errors
+    ///
+    /// Refused when `id` is no chronolexogram of this chronicle.
+    pub fn law_since(&self, service: &LawExecutionService, id: &str) -> Result<LawSince> {
+        let gram = self.grams().iter().find(|g| g.id == id).ok_or_else(|| {
+            refused(format!(
+                "'{id}' is no chronolexogram in the chronicle of '{}'",
+                self.recording_actor
+            ))
+        })?;
+        Ok(versions::since(service, gram))
     }
 
     /// The fields of the decision `id` that hold a finding of the deciding
@@ -1511,9 +1568,20 @@ impl Cell {
                 _ => stored::same_held(again.as_ref(), recorded)?,
             };
             if !same {
+                // Whether the law changed since is a second finding, beside
+                // the outcome: it names a cause, where there is one.
+                let since = match versions::since(service, &decision) {
+                    LawSince::Unchanged => String::new(),
+                    LawSince::NotRecorded => {
+                        "; the decision keeps no regulation versions, so whether the law \
+                         changed since is not known"
+                            .to_string()
+                    }
+                    changed @ LawSince::Changed(_) => format!("; {changed}"),
+                };
                 return Err(setup(format!(
                     "the decision '{}' recorded '{name}' as {}, but taken again it is {}; the \
-                     replay is not this decision",
+                     replay is not this decision{since}",
                     decision.id,
                     recorded.cloned().unwrap_or(serde_json::Value::Null),
                     again.unwrap_or(serde_json::Value::Null)
@@ -1699,6 +1767,7 @@ impl Cell {
         submission: &Gram,
         answerers: &Answerers<'_>,
         on: NaiveDate,
+        law_versions: &mut Vec<RegulationRead>,
     ) -> Result<serde_json::Value> {
         let not_a_decision = || {
             setup(format!(
@@ -1761,6 +1830,7 @@ impl Cell {
             answerers,
             on,
             &mut stage_fields,
+            law_versions,
         )?;
         // The new decision holds no decision it took in turn: the cell
         // keeps one level.
@@ -1989,7 +2059,8 @@ struct Filled {
 /// for an article the decision calls. The engine gets the findings apart from
 /// the parameters (RFC-045 §5), so one applies to every article in the decision
 /// that leaves the term to the authority. Returns the fields, with what a
-/// policy or a finding filled, and the outputs.
+/// policy or a finding filled, and the outputs; adds the regulation versions
+/// the stages ran to `law_versions`.
 fn take(
     service: &LawExecutionService,
     shape: &DecisionShape,
@@ -1997,6 +2068,7 @@ fn take(
     findings: &Map<String, serde_json::Value>,
     answerers: &Answerers<'_>,
     on: NaiveDate,
+    law_versions: &mut Vec<RegulationRead>,
 ) -> Result<(Values, Values)> {
     let parameters = engine_values(
         fields
@@ -2016,6 +2088,7 @@ fn take(
         answerers,
         on,
         &mut fields,
+        law_versions,
     )?;
     Ok((fields, outputs))
 }
@@ -2126,6 +2199,7 @@ fn asked(
 /// Run the stages of a decision on `on`, with the authority's `findings`
 /// for the articles it calls and the cell as `answerer`: add what a policy
 /// filled to `fields`, and return the outputs.
+#[allow(clippy::too_many_arguments)]
 fn run_stages(
     service: &LawExecutionService,
     shape: &DecisionShape,
@@ -2134,6 +2208,7 @@ fn run_stages(
     answerers: &Answerers<'_>,
     on: NaiveDate,
     fields: &mut BTreeMap<String, serde_json::Value>,
+    law_versions: &mut Vec<RegulationRead>,
 ) -> Result<BTreeMap<String, serde_json::Value>> {
     let date = on.to_string();
     let mut outputs = BTreeMap::new();
@@ -2151,6 +2226,7 @@ fn run_stages(
             &date,
         )?;
         collect_outputs(&result, &mut outputs)?;
+        note_versions(service, &result, law_versions)?;
         // What a policy filled of the deciding article's open terms: the
         // gram takes what the engine used.
         for filled in result.open_terms.iter().filter(|f| {
@@ -2253,6 +2329,38 @@ fn collect_outputs(
             continue;
         }
         values.insert(name.clone(), stored::to_stored(value)?);
+    }
+    Ok(())
+}
+
+/// Add to `law_versions` what `result` ran that is not there yet: each
+/// regulation version whose articles ran, and the version of each
+/// reduction whose answer a binding took (RFC-048), which the cell ran
+/// apart from the engine's execution. What such a reduction reads in turn
+/// is not added. A reduction whose version the service does not hold is an
+/// error, so no entry keeps an incomplete list.
+fn note_versions(
+    service: &LawExecutionService,
+    result: &ArticleResult,
+    law_versions: &mut Vec<RegulationRead>,
+) -> Result<()> {
+    let answers = result
+        .open_terms
+        .iter()
+        .filter_map(|filled| match &filled.filled_by {
+            FilledBy::Answer { answers, .. } => Some(answers),
+            _ => None,
+        })
+        .flatten();
+    let mut read = result.regulations_read.clone();
+    for answer in answers {
+        let law = service.get_law_version(&answer.law_id, Some(&answer.valid_from))?;
+        read.push(RegulationRead::of(law));
+    }
+    for version in read {
+        if !law_versions.contains(&version) {
+            law_versions.push(version);
+        }
     }
     Ok(())
 }
@@ -2618,6 +2726,7 @@ mod tests {
         fields: serde_json::Value,
     ) -> Gram {
         Gram {
+            law_versions: Vec::new(),
             id: id.to_string(),
             kind: kind.to_string(),
             basis: basis.to_string(),

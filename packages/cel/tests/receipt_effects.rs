@@ -50,6 +50,7 @@ fn gram(
 ) -> Gram {
     let map = |v: Value| -> BTreeMap<String, Value> { object_map(v).into_iter().collect() };
     Gram {
+        law_versions: Vec::new(),
         id: id.to_string(),
         kind: kind.to_string(),
         basis: basis.to_string(),

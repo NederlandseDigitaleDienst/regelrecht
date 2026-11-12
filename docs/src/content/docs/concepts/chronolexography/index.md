@@ -53,11 +53,16 @@ A chronicle holds three kinds of entry. An executogram is a fact that an article
   "recorded_on": "2026-10-20",
   "refers_to": "019a1b2c-…",
   "fields": { "bsn_aanvrager": "999993653", "medische_beoordeling": true },
-  "outputs": { "vergunning_verleend": true, "bezwaartermijn_einddatum": "2026-12-01" }
+  "outputs": { "vergunning_verleend": true, "bezwaartermijn_einddatum": "2026-12-01" },
+  "law_versions": [
+    { "law_id": "wet_voorbeeld", "valid_from": "2026-01-01", "hash": "sha256:4f1c…" }
+  ]
 }
 ```
 
 A chronolexogram does not copy anything the law already says. The law in force on `recorded_on` tells where each field came from and on what legal basis. To see which fields were the authority's findings, the cell takes the decision again (a replay). The chronicle only grows: entries are added in date order and never changed.
+
+A submission and a decision do name the law they rest on. `law_versions` lists, once each, every rulework version whose articles ran when the entry was recorded, and the version of each reduction whose answer it took: the `$id`, the `valid_from` and a hash of the content. That is a reference, as a decision letter cites the article it rests on. What a reduction reads in turn is not listed.
 
 A cell in `packages/cel` keeps one chronicle. The position paper lets a cell keep several chronicles (chronolexokronieken), and building that is on [the open questions page](/concepts/chronolexography/open-questions).
 
@@ -248,10 +253,13 @@ Synthesis is what the asking article does with those answers. It takes answers f
 
 The cell stores no reasons. It explains a decision by taking it again.
 
-- `Cell::explain` takes the decision again on its original day, with the law and the chronicle as they were then. It fails if the outcome differs.
+- `Cell::explain` takes the decision again on its original day, with the chronicle as it was then and the law the corpus now holds in force on that day. It fails if the outcome differs.
+- `Cell::law_since` compares the `law_versions` of an entry with the corpus, without a replay. It names each version that is gone, has other content, or has been replaced on the day of the entry by a later version.
 - `Cell::findings` reads from that replay which findings counted.
 - In the trace of the decision, the node of a cell's answer holds the run of the cell's reduction. That run includes the `PROJECTION` node and, under each record that counted, the law calls of its step. The engine asks the cell for this run only in a traced execution.
 - `Cell::explain_answer` runs a reduction again on its own, for one answer of a decision.
+
+A changed rulework and a different outcome are two findings. A correction that leaves the outcome alone still replays, and `law_since` names it. A different outcome fails the replay, and the error names the ruleworks that changed since. The replay does not refuse a changed version, because that would make every decision unexplainable after any edit of a rulework it ran. Replaying under the recorded version is an [open question](/concepts/chronolexography/open-questions).
 
 ## Try it
 
