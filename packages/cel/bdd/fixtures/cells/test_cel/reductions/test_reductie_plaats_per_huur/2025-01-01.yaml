@@ -1,0 +1,36 @@
+---
+# FICTIEF. A reduction of the cell's BDD suite (schema v0.8.18): one
+# aggregate per rent of a place under article 4 of
+# test_chronicle_corrections, with the termination that refers to it. The
+# article requires two facts, so `per` and each step name the fact.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json
+$id: test_reductie_plaats_per_huur
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_plaats_per_huur
+name: Parkeerplaats per huur (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_plaats_per_huur/1
+    text: >-
+      FICTIEF. Per huur het nummer van de plaats en de dag waarop de huur
+      eindigt, als zij is opgezegd.
+    machine_readable:
+      projection:
+        per: test_chronicle_corrections#4#plaats_gehuurd
+        state:
+          - name: plaatsnummer
+            type: string
+          - name: einde_huur
+            type: date
+        steps:
+          - record: test_chronicle_corrections#4#plaats_gehuurd
+            actions:
+              - output: plaatsnummer
+                value: $record.plaatsnummer
+          - record: test_chronicle_corrections#4#huur_opgezegd
+            actions:
+              - output: einde_huur
+                value: $record.einde_huur

@@ -1,0 +1,48 @@
+---
+# FICTIEF. A read model of the cell's BDD suite: whether the applicant holds
+# a valid card on the day the question names. It reads the aggregates of
+# test_reductie_kaart_per_besluit, each with the period of a suspension
+# (articles 13 and 14 of test_chronicle_effects); article 15 of the law says
+# whether a card is valid on the day.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$id: test_reductie_kaart_op_peildatum
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_kaart_op_peildatum
+name: Geldige gehandicaptenparkeerkaart op een peildatum (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_kaart_op_peildatum/1
+    text: >-
+      FICTIEF. Of de aanvrager op de peildatum een geldige kaart heeft, volgt
+      uit artikel 15 van de wet.
+    machine_readable:
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+          - name: peildatum
+            type: date
+        input:
+          - name: kaarten
+            type: array
+            source:
+              projections: test_reductie_kaart_per_besluit
+              where:
+                aanvrager: $aanvrager
+          - name: kaart_geldig
+            type: boolean
+            source:
+              regulation: test_chronicle_effects
+              output: kaart_geldig_op_peildatum
+              parameters:
+                kaarten: $kaarten
+                peildatum: $peildatum
+        output:
+          - name: heeft_geldige_kaart_op_peildatum
+            type: boolean
+        actions:
+          - output: heeft_geldige_kaart_op_peildatum
+            value: $kaart_geldig

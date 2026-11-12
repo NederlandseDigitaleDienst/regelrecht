@@ -6,7 +6,7 @@
 use std::path::{Path, PathBuf};
 
 use cucumber::feature::Ext as _;
-use cucumber::{cli, parser, World as _};
+use cucumber::{World as _, cli, parser};
 use futures::stream;
 
 /// Parser that consumes an explicit, pre-collected list of feature file paths

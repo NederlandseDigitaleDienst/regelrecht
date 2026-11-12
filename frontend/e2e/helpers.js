@@ -25,7 +25,7 @@ const TEST_PERSON = {
 };
 
 // Minimal traject the mocked `/api/trajects` list/detail returns. `ref` MUST
-// match `TEST_TRAJECT_REF` so `useTrajects` resolves the active traject and
+// match `TEST_TRAJECT_REF` so the trajecten store resolves the active traject and
 // `trajectMissing` stays false; the id is any UUID whose last 8 hex chars match
 // the ref's suffix (the backend resolver keys off those).
 const TEST_TRAJECT = {
@@ -84,7 +84,7 @@ export async function clearOpenTabsStorage(page) {
  * Mock the auth + traject endpoints so the `requiresAuth`, traject-scoped
  * editor routes mount under Playwright without a real backend or SSO. The
  * router guard awaits `/auth/status` (served as authenticated here), and
- * `useTrajects` needs the active ref present in the `/api/trajects` list.
+ * the trajecten store needs the active ref present in the `/api/trajects` list.
  *
  * The traject detail handler only answers the bare `/api/trajects/{id}`
  * endpoint and falls through for its `/corpus/...` sub-routes, leaving those
@@ -104,7 +104,7 @@ export async function mockAuthedEditor(page) {
       }),
     }),
   );
-  // GET /api/trajects - the membership list `useTrajects` reads.
+  // GET /api/trajects - the membership list the trajecten store reads.
   await page.route('**/api/trajects', (route) =>
     route.fulfill({
       status: 200,

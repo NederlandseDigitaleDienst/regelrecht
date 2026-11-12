@@ -16,7 +16,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use regelrecht_engine::article::{ArticleBasedLaw, LawLoad};
-use regelrecht_engine::typecheck::{check_law, Finding};
+use regelrecht_engine::typecheck::{Finding, check_law};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use walkdir::WalkDir;

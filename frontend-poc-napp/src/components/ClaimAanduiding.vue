@@ -90,7 +90,7 @@ onMounted(async () => {
       :supporting-text="`Ingediend op ${datum(claim.created_at)}. Een beoordelaar bevestigt de koppeling na controle van de Handelsregister-toets hieronder. Tot die tijd heeft uw organisatie geen aanspraken.`"
     />
     <nldd-spacer size="16"></nldd-spacer>
-    <nldd-title size="4"><h3>Handelsregister-toets (gesimuleerd)</h3></nldd-title>
+    <nldd-title size="display-4"><h3>Handelsregister-toets (gesimuleerd)</h3></nldd-title>
     <nldd-spacer size="8"></nldd-spacer>
     <HrToetsRegels :toets="claim.hr_toets" />
   </template>
@@ -125,7 +125,7 @@ onMounted(async () => {
 
     <!-- Claim-formulier -->
     <template v-if="toonFormulier">
-      <nldd-title size="4"><h3>Aanduiding claimen</h3></nldd-title>
+      <nldd-title size="display-4"><h3>Aanduiding claimen</h3></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-rich-text>
         <p>

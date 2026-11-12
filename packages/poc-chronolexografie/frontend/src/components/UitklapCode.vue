@@ -13,6 +13,8 @@ defineProps({
   naam: { type: String, required: true },
   language: { type: String, required: true },
   code: { type: String, required: true },
+  // The title's level in the outline around it; 3 under a section's h2.
+  headingLevel: { type: Number, default: 3 },
 });
 
 const open = ref(false);
@@ -20,7 +22,7 @@ const open = ref(false);
 
 <template>
   <nldd-container gap="8">
-    <nldd-title size="6" :overline="overline" :text="text" :supporting-text="supportingText">
+    <nldd-title :heading-level="headingLevel" size="display-6" :overline="overline" :text="text" :supporting-text="supportingText">
       <nldd-button
         slot="end"
         appearance="neutral-tinted"

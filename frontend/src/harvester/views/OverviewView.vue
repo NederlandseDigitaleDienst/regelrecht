@@ -96,24 +96,21 @@ async function onFailureClick(row: RecentFailure) {
     <nldd-one-half-one-half-section>
       <nldd-card v-for="(kpi, i) in topKpis" :key="kpi.label" :slot="i === 0 ? 'left' : 'right'">
         <nldd-container padding="16">
-          <nldd-title size="2">
-            <span slot="overline">{{ kpi.label }}</span>
-            {{ formatNumber(kpi.value) }}
-          </nldd-title>
+          <!-- A figure, not a heading: nldd-text with a display size. -->
+          <nldd-text size="md" color="secondary">{{ kpi.label }}</nldd-text>
+          <nldd-text size="display-2">{{ formatNumber(kpi.value) }}</nldd-text>
         </nldd-container>
       </nldd-card>
     </nldd-one-half-one-half-section>
 
     <!-- One titled section per job type: details next to the daily chart -->
     <nldd-one-half-one-half-section v-for="panel in typePanels" :key="panel.key">
-      <nldd-title slot="header" size="6"><h3>{{ panel.label }}</h3></nldd-title>
+      <nldd-title slot="header" size="display-6"><h3>{{ panel.label }}</h3></nldd-title>
 
       <nldd-card slot="left">
         <nldd-container padding="16">
-          <nldd-title size="3">
-            {{ formatNumber(panel.total) }}
-            <span slot="supporting-text">jobs totaal</span>
-          </nldd-title>
+          <nldd-text size="display-3">{{ formatNumber(panel.total) }}</nldd-text>
+          <nldd-text size="md" color="secondary">jobs totaal</nldd-text>
 
           <nldd-spacer size="16"></nldd-spacer>
 
@@ -153,7 +150,7 @@ async function onFailureClick(row: RecentFailure) {
 
     <!-- Recent failures -->
     <nldd-simple-section>
-      <nldd-title slot="header" size="6"><h3>Gefaalde jobs</h3></nldd-title>
+      <nldd-title slot="header" size="display-6"><h3>Gefaalde jobs</h3></nldd-title>
     </nldd-simple-section>
     <DataTable
       :columns="FAILED_COLUMNS"

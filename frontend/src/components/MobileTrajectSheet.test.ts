@@ -2,7 +2,7 @@ import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from 'vite
 import type { Mock } from 'vitest';
 import { mount } from '@vue/test-utils';
 
-// The component (and useTrajects) use vue-router; provide a light mock so it
+// The component (and the trajecten store) use vue-router; provide a light mock so it
 // mounts without a real router. The full traject-list / create / auth flows
 // are ported verbatim from TrajectMenu + DocumentTabsSheet and verified there.
 const pushMock = vi.fn();
@@ -12,11 +12,7 @@ vi.mock('vue-router', () => ({
 }));
 
 import MobileTrajectSheet from './MobileTrajectSheet.vue';
-import {
-  setEditorChrome,
-  registerTabActions,
-  clearEditorChrome,
-} from '../composables/useAppChrome';
+import { useAppChromeStore } from '../stores/appChrome';
 import type { OpenTab } from '../lib/openTabsStorage';
 
 // nldd-sheet compiles to a raw custom element; stub show()/hide() with spies.
@@ -41,17 +37,17 @@ const tabKey = (t: OpenTab) => `${t.lawId}:${t.articleNumber}`;
 beforeEach(() => {
   showSpy = vi.fn();
   hideSpy = vi.fn();
-  registerTabActions({
+  useAppChromeStore().registerTabActions({
     key: tabKey,
     displayName: (t: OpenTab) => NAMES[t.lawId] || t.lawId,
     select: vi.fn(),
     close: vi.fn(),
     reorder: vi.fn(),
   });
-  setEditorChrome({ pr: null, tabs: TABS, activeTab: TABS[0] });
+  useAppChromeStore().setEditorChrome({ pr: null, tabs: TABS, activeTab: TABS[0] });
 });
 
-afterEach(() => clearEditorChrome());
+afterEach(() => useAppChromeStore().clearEditorChrome());
 
 function mountSheet() {
   return mount(MobileTrajectSheet, {
@@ -75,8 +71,8 @@ describe('MobileTrajectSheet', () => {
   });
 
   it('falls back to "Trajecten" on the button when no tab and no traject', () => {
-    clearEditorChrome();
-    setEditorChrome({ pr: null, tabs: [], activeTab: null });
+    useAppChromeStore().clearEditorChrome();
+    useAppChromeStore().setEditorChrome({ pr: null, tabs: [], activeTab: null });
     const wrapper = mountSheet();
     expect(wrapper.get('nldd-button').attributes('text')).toBe('Trajecten');
   });

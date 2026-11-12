@@ -143,7 +143,7 @@ const loadFailureText = computed(() => loadFailures.value.map((f) => `${f.id} ($
            burger recht op heeft, niet over wie er is ingelogd. De identiteit
            staat daarom onder de kop, waar zij de vraag beantwoordt in plaats
            van hem aan te kondigen. -->
-      <nldd-title slot="header" size="2">
+      <nldd-title slot="header" size="display-2">
         <h1>{{ heading }}</h1>
         <span v-if="!narrow" slot="supporting-text">{{ subtitle }}</span>
       </nldd-title>

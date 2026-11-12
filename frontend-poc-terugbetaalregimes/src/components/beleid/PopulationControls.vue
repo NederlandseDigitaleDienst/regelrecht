@@ -98,7 +98,7 @@
             :min="1000"
             :step="50000"
             size="sm"
-            @input="debounced('td', () => setTotaalDebiteuren(num($event)))"
+            @input="debounced('td', $event, (value) => setTotaalDebiteuren(value))"
           ></nldd-number-field>
         </nldd-form-field>
         <p class="pc-hint">{{ HERKOMST.regime }} Het regime zelf volgt in de wet uit het cohort; deze verdeling stuurt alleen welke cohortparameters een record trekt.</p>
@@ -114,7 +114,7 @@
             :max="100"
             :step="1"
             size="sm"
-            @input="debounced(`r:${rij.regime}`, () => setRegimeAandeel(rij.regime, num($event) / 100))"
+            @input="debounced(`r:${rij.regime}`, $event, (value) => setRegimeAandeel(rij.regime, value / 100))"
           ></nldd-number-field>
         </nldd-form-field>
       </div>
@@ -139,7 +139,7 @@
             :max="100"
             :step="5"
             size="sm"
-            @input="debounced(`d:${regime}`, () => setDraagkrachtPrior(regime, num($event) / 100))"
+            @input="debounced(`d:${regime}`, $event, (value) => setDraagkrachtPrior(regime, value / 100))"
           ></nldd-number-field>
         </nldd-form-field>
       </div>
@@ -164,7 +164,7 @@
             :max="100"
             :step="1"
             size="sm"
-            @input="debounced(`h:${rij.type}`, () => setHuishouden(rij.type, num($event) / 100))"
+            @input="debounced(`h:${rij.type}`, $event, (value) => setHuishouden(rij.type, value / 100))"
           ></nldd-number-field>
         </nldd-form-field>
         <p class="pc-hint">{{ HERKOMST.gedrag }}</p>
@@ -178,7 +178,7 @@
             :max="100"
             :step="1"
             size="sm"
-            @input="debounced('optout', () => setGedrag('partner_opt_out_prior', num($event) / 100))"
+            @input="debounced('optout', $event, (value) => setGedrag('partner_opt_out_prior', value / 100))"
           ></nldd-number-field>
         </nldd-form-field>
         <p class="pc-hint">{{ HERKOMST.inkomen }}</p>
@@ -189,7 +189,7 @@
             :max="20"
             :step="0.5"
             size="sm"
-            @input="debounced('groei', () => setInkomensgroei(num($event) / 100))"
+            @input="debounced('groei', $event, (value) => setInkomensgroei(value / 100))"
           ></nldd-number-field>
         </nldd-form-field>
       </div>
@@ -321,15 +321,24 @@ const profiel = computed(() => {
   };
 });
 
+/**
+ * The number in a number field, or null while the field is empty. Since design
+ * system 0.18 an emptied field reports null; Number(null) would read that as 0.
+ */
 function num(event) {
-  const v = event.detail?.value ?? Number(event.target?.value);
-  return v === null || v === undefined || Number.isNaN(v) ? 0 : Number(v);
+  const v = event.detail?.value ?? event.target?.value;
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
 }
 
 const timers = new Map();
-function debounced(key, fn) {
+// An empty field is no answer yet: the value it had stays until a number is typed.
+function debounced(key, event, apply) {
+  const n = num(event);
+  if (n === null) return;
   clearTimeout(timers.get(key));
-  timers.set(key, setTimeout(fn, 400));
+  timers.set(key, setTimeout(() => apply(n), 400));
 }
 </script>
 

@@ -61,7 +61,7 @@ const termijn = (o) => {
 
 <template>
   <nldd-simple-section v-if="openOntvangsten().length || Object.keys(beslissingen).length">
-    <nldd-title slot="header" size="3" text="Na een uitspraak">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Na een uitspraak">
       <nldd-text slot="supporting-text">
         De rechter vernietigde een beslissing op bezwaar en droeg een nieuw besluit op. Het
         bestuursorgaan beslist dan opnieuw op hetzelfde bezwaar: het heroverweegt het bestreden
@@ -71,8 +71,8 @@ const termijn = (o) => {
     <nldd-container gap="16">
       <nldd-card v-for="o in openOntvangsten()" :key="o.id">
         <nldd-container padding="16" gap="12">
-          <nldd-title
-            size="5"
+          <nldd-title heading-level="3"
+            size="display-5"
             :text="`Uitspraak ontvangen op ${o.recorded_on}, over beslissing op bezwaar ${kort(o.refers_to)}`"
             :supporting-text="`${o.fields.uitspraak_strekt_tot} · ontvangen van ${o.received.from}`"
           ></nldd-title>
@@ -121,8 +121,8 @@ const termijn = (o) => {
         </nldd-container>
       </nldd-card>
       <nldd-container v-for="(b, id) in beslissingen" :key="id" gap="12">
-        <nldd-title
-          size="5"
+        <nldd-title heading-level="3"
+          size="display-5"
           :text="`Opnieuw beslist op bezwaar ${kort(b.beslissing.refers_to)}`"
           :supporting-text="b.beslissing.outputs.bestreden_besluit_herroepen ? 'Gegrond: het besluit is herroepen, er is een nieuw besluit' : 'Ongegrond: het besluit blijft'"
         ></nldd-title>

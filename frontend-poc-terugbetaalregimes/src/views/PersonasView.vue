@@ -1,7 +1,7 @@
 <template>
   <nldd-page>
     <nldd-simple-section>
-      <nldd-title :size="2">
+      <nldd-title heading-level="1" size="display-2">
         <span slot="overline">Voor beleidsmakers</span>
         <span>Scenario's: wie gaat erop vooruit, wie achteruit</span>
         <span slot="supporting-text">

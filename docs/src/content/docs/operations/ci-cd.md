@@ -140,13 +140,33 @@ font with wider glyphs. Code blocks then overflow, and axe reports them as
 scrollable regions without keyboard access.
 
 It installs them without apt, to stay off the mirror described above.
-`script/install-a11y-debs.sh` downloads the three `.deb` files apt would pick
-(`unzip`, `fonts-dejavu-core` and its dependency `fonts-dejavu-mono`) from
-Launchpad, which keeps every published version. It checks each file against a
-SHA-256 in the script, stops on a mismatch, and installs them with `dpkg -i`.
-The result is the same files as `apt-get install`, fontconfig configuration
+`script/install-a11y-debs.sh` installs the three `.deb` files apt would pick
+(`unzip`, `fonts-dejavu-core` and its dependency `fonts-dejavu-mono`) with
+`dpkg -i`. Each file is checked against a SHA-256 in the script, wherever it
+came from, and the script stops when no source delivers the right bytes. The
+result is the same files as `apt-get install`, fontconfig configuration
 included, in about two seconds. A newer Playwright image may need newer
 versions; the script says how to look them up.
+
+The script tries five sources in turn:
+
+1. Launchpad, which keeps every version that was ever published.
+2. The Ubuntu archive pool on `archive.ubuntu.com`, which holds a version only
+   until a newer one replaces it. Sources 3 to 5 mirror that pool and drop old
+   versions the same way.
+3. The Azure mirror under `azure.archive.ubuntu.com`, the host in the image's
+   apt sources.
+4. The same Azure mirror under its Azure name,
+   `ubuntu-archive-asm.trafficmanager.net`.
+5. The kernel.org mirror, `mirrors.edge.kernel.org`.
+
+The last two are there because their names do not depend on Canonical's DNS
+for `ubuntu.com` and `launchpad.net`, which failed on 2026-11-11 and took the
+first three sources down with it. A host that does not answer at all is
+skipped for the remaining files, so it costs its timeout once (at most ten
+seconds to connect). A host that answers with an HTTP error, or with the wrong
+bytes, still gets the next file. `script/install-a11y-debs.test.sh` covers
+these paths with `curl` and `dpkg` as stubs.
 
 The preview server that pa11y reads from binds to `127.0.0.1` (`npm run a11y`
 in `docs/package.json`), and the gate's page list uses the same address. Left
@@ -183,11 +203,11 @@ Neither scans for known vulnerabilities. That is `just audit-advisories` (RustSe
 
 ### Schema protection (on PRs)
 
-Released schema versions in `schema/v*.*.*` are immutable. CI fails if a PR tries to modify or delete a released schema. `schema/latest` is a symlink to the highest released version (currently `v0.8.14`), not a directory to edit; a schema change goes into a new version directory.
+Released schema versions in `schema/v*.*.*` are immutable. CI fails if a PR tries to modify or delete a released schema. `schema/latest` is a symlink to the highest released version (currently `v0.8.19`), not a directory to edit; a schema change goes into a new version directory.
 
 ### Provenance checks (on corpus/engine changes)
 
-Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the corpus of the chronolexografie PoC (`packages/poc-chronolexografie/corpus/`, its reductions included) names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.14`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
+Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the corpus of the chronolexografie PoC (`packages/poc-chronolexografie/corpus/`, its reductions included) names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.19`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
 
 ### Docs accessibility gate (on docs changes)
 

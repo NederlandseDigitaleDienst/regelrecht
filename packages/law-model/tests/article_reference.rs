@@ -3,7 +3,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use regelrecht_law_model::{is_article_reference, is_variable_reference, ArticleBasedLaw};
+use regelrecht_law_model::{ArticleBasedLaw, is_article_reference, is_variable_reference};
 
 fn law_established_by(reference: &str) -> Result<ArticleBasedLaw, serde_yaml_ng::Error> {
     serde_yaml_ng::from_str(&format!(

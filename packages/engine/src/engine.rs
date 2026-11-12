@@ -407,36 +407,36 @@ impl<'a> ArticleEngine<'a> {
             // An external (cross-law) reference can only be resolved by the
             // service layer. If it was not pre-resolved into parameters, this
             // standalone engine cannot proceed.
-            if let Some(regulation) = &source.regulation {
-                if !parameters.contains_key(&input.name) {
-                    return Err(EngineError::ExternalReferenceNotResolved {
-                        input_name: input.name.clone(),
-                        regulation: regulation.clone(),
-                        output: source.output.clone().unwrap_or_default(),
-                    });
-                }
+            if let Some(regulation) = &source.regulation
+                && !parameters.contains_key(&input.name)
+            {
+                return Err(EngineError::ExternalReferenceNotResolved {
+                    input_name: input.name.clone(),
+                    regulation: regulation.clone(),
+                    output: source.output.clone().unwrap_or_default(),
+                });
             }
             // A call to an article (RFC-045) runs another article, which
             // only the service can do.
-            if let Some(target) = &source.article {
-                if !parameters.contains_key(&input.name) {
-                    return Err(EngineError::ExternalReferenceNotResolved {
-                        input_name: input.name.clone(),
-                        regulation: target.clone(),
-                        output: source.output.clone().unwrap_or_default(),
-                    });
-                }
+            if let Some(target) = &source.article
+                && !parameters.contains_key(&input.name)
+            {
+                return Err(EngineError::ExternalReferenceNotResolved {
+                    input_name: input.name.clone(),
+                    regulation: target.clone(),
+                    output: source.output.clone().unwrap_or_default(),
+                });
             }
             // The decisions taken under an article come from a data source
             // only (RFC-048); this engine has none, so they must be passed.
             // So do the recorded facts an article requires (RFC-051).
-            if let Some(read) = crate::load_check::chronicle_read(source) {
-                if !parameters.contains_key(&input.name) {
-                    return Err(EngineError::DataSourceError(format!(
-                        "input '{}' reads {read}, and no data source supplies them",
-                        input.name
-                    )));
-                }
+            if let Some(read) = crate::load_check::chronicle_read(source)
+                && !parameters.contains_key(&input.name)
+            {
+                return Err(EngineError::DataSourceError(format!(
+                    "input '{}' reads {read}, and no data source supplies them",
+                    input.name
+                )));
             }
             // Internal (`source.output`) and empty (`source: {}`) inputs need no
             // action here: resolved by the service when present in parameters,
@@ -471,10 +471,10 @@ impl<'a> ArticleEngine<'a> {
 
         for (position, &index) in order.iter().enumerate() {
             let action = &actions[index];
-            if let (Some(outputs), Some(name)) = (outputs, &action.output) {
-                if !outputs.contains(name) {
-                    continue;
-                }
+            if let (Some(outputs), Some(name)) = (outputs, &action.output)
+                && !outputs.contains(name)
+            {
+                continue;
             }
 
             // An action without `output` is a computation with nowhere to
@@ -1483,8 +1483,10 @@ articles:
     #[test]
     fn test_decisions_come_from_parameters_only() {
         // This engine has no data source: decisions passed in are read,
-        // decisions not passed are an error (RFC-048).
+        // decisions not passed are an error (RFC-048). Up to schema
+        // v0.8.16 a reduction reads decisions (`source.decisions`).
         let yaml = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_test
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

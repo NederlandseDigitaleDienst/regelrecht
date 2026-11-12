@@ -69,8 +69,8 @@
 //!   and claims nothing about its fields (`$x.outputs.y`), as for rows.
 
 use crate::article::{
-    foreach_binding, Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, CombineOp,
-    Source,
+    Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, CombineOp, Source,
+    foreach_binding,
 };
 use crate::types::{ParameterType, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -632,22 +632,22 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 .flatten()
         };
         for reference in source.parameters_from.iter().flatten() {
-            if let Some(ty) = declared_root(self, reference) {
-                if ty != Ty::Object {
-                    let hint = if ty == Ty::Decision {
-                        format!(" (the parameters of a decision are {reference}.fields)")
-                    } else {
-                        String::new()
-                    };
-                    self.report(
-                        Rule::T5,
-                        format!(
-                            "'{name}' merges {reference} into the parameters of {target}, but \
+            if let Some(ty) = declared_root(self, reference)
+                && ty != Ty::Object
+            {
+                let hint = if ty == Ty::Decision {
+                    format!(" (the parameters of a decision are {reference}.fields)")
+                } else {
+                    String::new()
+                };
+                self.report(
+                    Rule::T5,
+                    format!(
+                        "'{name}' merges {reference} into the parameters of {target}, but \
                              it is declared {}; parameters_from takes objects{hint}",
-                            ty.name()
-                        ),
-                    );
-                }
+                        ty.name()
+                    ),
+                );
             }
         }
         if !input.is_nullable() {
@@ -877,17 +877,18 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
         };
 
         let info = self.check_expr(&expression, &facts, slot);
-        if let (Some(declared), Some(actual)) = (declared_ty, info.ty) {
-            if !declared.compatible(actual) && is_literal_shaped(&expression) {
-                self.report(
-                    Rule::T4,
-                    format!(
-                        "output is declared {} but is assigned a {} literal",
-                        declared.name(),
-                        actual.name()
-                    ),
-                );
-            }
+        if let (Some(declared), Some(actual)) = (declared_ty, info.ty)
+            && !declared.compatible(actual)
+            && is_literal_shaped(&expression)
+        {
+            self.report(
+                Rule::T4,
+                format!(
+                    "output is declared {} but is assigned a {} literal",
+                    declared.name(),
+                    actual.name()
+                ),
+            );
         }
         // A literal in a branch of an IF that is the output's value is an
         // assignment to the output as well (T4).
@@ -918,17 +919,17 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
         for branch in branches {
             match branch {
                 ActionValue::Literal(value) => {
-                    if let Some(actual) = Ty::of_literal(value) {
-                        if !declared.compatible(actual) {
-                            self.report(
-                                Rule::T4,
-                                format!(
-                                    "output is declared {} but a branch assigns a {} literal",
-                                    declared.name(),
-                                    actual.name()
-                                ),
-                            );
-                        }
+                    if let Some(actual) = Ty::of_literal(value)
+                        && !declared.compatible(actual)
+                    {
+                        self.report(
+                            Rule::T4,
+                            format!(
+                                "output is declared {} but a branch assigns a {} literal",
+                                declared.name(),
+                                actual.name()
+                            ),
+                        );
                     }
                 }
                 ActionValue::Operation(nested) => self.check_branch_literals(nested, declared),
@@ -1098,18 +1099,18 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
 
     /// T2: an operand of logic or an `IF` condition that must be a boolean.
     fn require_boolean(&mut self, info: &Info, operation: &str) {
-        if let Some(ty) = info.ty {
-            if ty != Ty::Boolean {
-                self.report(
-                    Rule::T2,
-                    format!(
-                        "{} is a {} and is used as a condition in {operation}, which needs a \
+        if let Some(ty) = info.ty
+            && ty != Ty::Boolean
+        {
+            self.report(
+                Rule::T2,
+                format!(
+                    "{} is a {} and is used as a condition in {operation}, which needs a \
                          boolean",
-                        info.describe,
-                        ty.name()
-                    ),
-                );
-            }
+                    info.describe,
+                    ty.name()
+                ),
+            );
         }
     }
 
@@ -1150,20 +1151,20 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 // ISO strings, RFC-021).
                 let both_ordered = self.require_numeric(&left, name, &[Ty::Date, Ty::String])
                     & self.require_numeric(&right, name, &[Ty::Date, Ty::String]);
-                if let (true, Some(l), Some(r)) = (both_ordered, left.ty, right.ty) {
-                    if !l.compatible(r) {
-                        self.report(
-                            Rule::T1,
-                            format!(
-                                "{name} orders {} ({}) against {} ({}), which are not the same \
+                if let (true, Some(l), Some(r)) = (both_ordered, left.ty, right.ty)
+                    && !l.compatible(r)
+                {
+                    self.report(
+                        Rule::T1,
+                        format!(
+                            "{name} orders {} ({}) against {} ({}), which are not the same \
                                  kind of value",
-                                left.describe,
-                                l.name(),
-                                right.describe,
-                                r.name()
-                            ),
-                        );
-                    }
+                            left.describe,
+                            l.name(),
+                            right.describe,
+                            r.name()
+                        ),
+                    );
                 }
                 Info::present(Some(Ty::Boolean), &format!("the {name}"))
             }
@@ -1419,19 +1420,19 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             (false, false) => {
                 let left = self.check_expr(subject, facts, OPERAND);
                 let right = self.check_expr(value, facts, OPERAND);
-                if let (Some(l), Some(r)) = (left.ty, right.ty) {
-                    if !l.compatible(r) {
-                        self.report(
-                            Rule::T3,
-                            format!(
-                                "{name} compares {} ({}) with {} ({}), which can never be equal",
-                                left.describe,
-                                l.name(),
-                                right.describe,
-                                r.name()
-                            ),
-                        );
-                    }
+                if let (Some(l), Some(r)) = (left.ty, right.ty)
+                    && !l.compatible(r)
+                {
+                    self.report(
+                        Rule::T3,
+                        format!(
+                            "{name} compares {} ({}) with {} ({}), which can never be equal",
+                            left.describe,
+                            l.name(),
+                            right.describe,
+                            r.name()
+                        ),
+                    );
                 }
             }
         }
@@ -2083,17 +2084,34 @@ actions:
         assert_only(&property, Rule::N4, "'partner.inkomen' may be absent");
         // Every operand position that needs a present value.
         for (op, body) in [
-            ("GREATER_THAN", "    operation: GREATER_THAN\n    subject: $huur\n    value: 100\n"),
+            (
+                "GREATER_THAN",
+                "    operation: GREATER_THAN\n    subject: $huur\n    value: 100\n",
+            ),
             ("NOT", "    operation: NOT\n    value: $huur\n"),
-            ("AND", "    operation: AND\n    conditions:\n      - true\n      - $huur\n"),
-            ("ROUND", "    operation: ROUND\n    value: $huur\n    precision: 0\n"),
-            ("IF condition", "    value:\n      operation: IF\n      cases:\n        - when: $huur\n          then: 1\n      default: 2\n"),
-            ("AGE", "    value:\n      operation: AGE\n      date_of_birth: $huur\n      reference_date: $referencedate\n"),
+            (
+                "AND",
+                "    operation: AND\n    conditions:\n      - true\n      - $huur\n",
+            ),
+            (
+                "ROUND",
+                "    operation: ROUND\n    value: $huur\n    precision: 0\n",
+            ),
+            (
+                "IF condition",
+                "    value:\n      operation: IF\n      cases:\n        - when: $huur\n          then: 1\n      default: 2\n",
+            ),
+            (
+                "AGE",
+                "    value:\n      operation: AGE\n      date_of_birth: $huur\n      reference_date: $referencedate\n",
+            ),
         ] {
             let yaml = n4_law(&format!("  - output: uitkomst\n{body}"));
             let findings = check(&yaml);
             assert!(
-                findings.iter().any(|f| f.rule == Rule::N4 && f.message.contains(op)),
+                findings
+                    .iter()
+                    .any(|f| f.rule == Rule::N4 && f.message.contains(op)),
                 "{op}: {findings:#?}"
             );
         }
@@ -2121,7 +2139,9 @@ actions:
             ))
         };
         assert_only(
-            &branch("            operation: GREATER_THAN\n            subject: 1\n            value: 0\n"),
+            &branch(
+                "            operation: GREATER_THAN\n            subject: 1\n            value: 0\n",
+            ),
             Rule::N4,
             "is assigned to 'uitkomst'",
         );
@@ -2129,7 +2149,9 @@ actions:
             "            operation: NOT\n            value:\n              operation: EQUALS\n              subject: $huur\n              value: null\n",
         ));
         assert_only(
-            &branch("            operation: EQUALS\n            subject: $huur\n            value: null\n"),
+            &branch(
+                "            operation: EQUALS\n            subject: $huur\n            value: null\n",
+            ),
             Rule::N4,
             "'huur' is absent on this path",
         );
@@ -3009,7 +3031,9 @@ actions:
         );
         // `.iso` is a string, and orders like a date.
         assert_only(
-            &format!("{base}    operation: GREATER_THAN\n    subject: $referencedate.iso\n    value: 2025\n"),
+            &format!(
+                "{base}    operation: GREATER_THAN\n    subject: $referencedate.iso\n    value: 2025\n"
+            ),
             Rule::T1,
             "orders 'referencedate.iso' (string) against the literal (number)",
         );
@@ -3326,9 +3350,11 @@ actions:
         let findings = check(base);
         assert_eq!(rules(&findings), vec![Rule::N3, Rule::N4], "{findings:#?}");
         assert!(findings[1].message.contains("the IF"));
-        assert!(findings[1]
-            .message
-            .contains("may be absent and is used in ADD"));
+        assert!(
+            findings[1]
+                .message
+                .contains("may be absent and is used in ADD")
+        );
     }
 
     #[test]
@@ -3556,7 +3582,9 @@ actions:
             "NOT",
         );
         assert_only(
-            &format!("{base}    value:\n      operation: IF\n      cases:\n        - when: $bedrag\n          then: true\n      default: false\n"),
+            &format!(
+                "{base}    value:\n      operation: IF\n      cases:\n        - when: $bedrag\n          then: true\n      default: false\n"
+            ),
             Rule::T2,
             "condition in IF",
         );
@@ -3627,7 +3655,9 @@ actions:
         assert_clean(&format!("{base}    value: 12\n").replace("type: number", "type: amount"));
         // Through the branches of the IF that is the output's value.
         assert_only(
-            &format!("{base}    value:\n      operation: IF\n      cases:\n        - when: true\n          then: aap\n"),
+            &format!(
+                "{base}    value:\n      operation: IF\n      cases:\n        - when: true\n          then: aap\n"
+            ),
             Rule::T4,
             "a branch assigns a string literal",
         );

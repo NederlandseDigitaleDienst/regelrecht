@@ -1,7 +1,7 @@
+use axum::Json;
 use axum::http::header::WWW_AUTHENTICATE;
 use axum::http::{HeaderValue, StatusCode};
 use axum::response::{IntoResponse, Response};
-use axum::Json;
 use serde::Serialize;
 
 /// Structured API error response body.

@@ -71,37 +71,36 @@ impl AgentDialect for OpenCodeDialect {
     fn read_line(&self, line: &str) -> Vec<AgentEvent> {
         // Lines can be a megabyte of inlined file content; only parse the ones
         // that can be an event this reads.
-        if line.contains(r#""type":"step_start""#)
+        if (line.contains(r#""type":"step_start""#)
             || line.contains(r#""type":"tool_use""#)
             || line.contains(r#""type":"step_finish""#)
             || line.contains(r#""type":"text""#)
-            || line.contains(r#""type":"reasoning""#)
+            || line.contains(r#""type":"reasoning""#))
+            && let Ok(event) = serde_json::from_str::<serde_json::Value>(line)
         {
-            if let Ok(event) = serde_json::from_str::<serde_json::Value>(line) {
-                match event.get("type").and_then(serde_json::Value::as_str) {
-                    Some("step_start") => return vec![AgentEvent::Turn { message_id: None }],
-                    Some("tool_use") => {
-                        let mut out: Vec<AgentEvent> = opencode_tool_summary(&event)
-                            .map(AgentEvent::Tool)
-                            .into_iter()
-                            .collect();
-                        out.push(AgentEvent::Part {
-                            kind: PartKind::ToolInput,
-                            chars: tool_input_chars(&event),
-                        });
-                        return out;
-                    }
-                    Some("text") => return vec![part_text_size(&event, PartKind::Text)],
-                    Some("reasoning") => {
-                        return vec![part_text_size(&event, PartKind::Reasoning)];
-                    }
-                    Some("step_finish") => {
-                        let mut out = vec![AgentEvent::StepFinished(step_finish_fields(&event))];
-                        out.extend(step_usage(&event).map(AgentEvent::StepUsage));
-                        return out;
-                    }
-                    _ => {}
+            match event.get("type").and_then(serde_json::Value::as_str) {
+                Some("step_start") => return vec![AgentEvent::Turn { message_id: None }],
+                Some("tool_use") => {
+                    let mut out: Vec<AgentEvent> = opencode_tool_summary(&event)
+                        .map(AgentEvent::Tool)
+                        .into_iter()
+                        .collect();
+                    out.push(AgentEvent::Part {
+                        kind: PartKind::ToolInput,
+                        chars: tool_input_chars(&event),
+                    });
+                    return out;
                 }
+                Some("text") => return vec![part_text_size(&event, PartKind::Text)],
+                Some("reasoning") => {
+                    return vec![part_text_size(&event, PartKind::Reasoning)];
+                }
+                Some("step_finish") => {
+                    let mut out = vec![AgentEvent::StepFinished(step_finish_fields(&event))];
+                    out.extend(step_usage(&event).map(AgentEvent::StepUsage));
+                    return out;
+                }
+                _ => {}
             }
         }
         if is_error_event(line) {
@@ -241,10 +240,10 @@ pub(crate) fn prepare_worker(
 /// Give an opencode provider `model` when it names none (or an empty one).
 /// Any other provider is left alone.
 pub(crate) fn fill_default_model(provider: &mut LlmProvider, model: &str) {
-    if let LlmProvider::OpenCode { model: m, .. } = provider {
-        if m.as_deref().is_none_or(str::is_empty) {
-            *m = Some(model.to_string());
-        }
+    if let LlmProvider::OpenCode { model: m, .. } = provider
+        && m.as_deref().is_none_or(str::is_empty)
+    {
+        *m = Some(model.to_string());
     }
 }
 
@@ -591,9 +590,11 @@ mod tests {
         let nested = r#"{"type":"tool_use","part":{"state":{"output":{"type":"step_finish","tokens":{"input":5}}}}}"#;
         assert!(serde_json::from_str::<serde_json::Value>(nested).is_ok());
         assert!(nested.contains(r#""type":"step_finish""#));
-        assert!(!read(nested)
-            .iter()
-            .any(|e| matches!(e, AgentEvent::StepUsage(_))));
+        assert!(
+            !read(nested)
+                .iter()
+                .any(|e| matches!(e, AgentEvent::StepUsage(_)))
+        );
     }
 
     #[test]

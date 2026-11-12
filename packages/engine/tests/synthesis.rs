@@ -21,7 +21,7 @@ use std::collections::BTreeMap;
 
 use regelrecht_engine::{
     Answer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, Authority, Call, FilledBy,
-    LawExecutionService, LawLoad, OpenTermAnswerer, PathNode, Value,
+    LawExecutionService, LawLoad, OpenTermAnswerer, PathNode, PathNodeType, Value,
 };
 
 const DATE: &str = "2026-10-20";
@@ -554,6 +554,7 @@ impl OpenTermAnswerer for Fake {
         Ok(self.answers.get(request.name).map(|value| Answer {
             value: value.clone(),
             provenance: provenance(&self.authority.name, request.name),
+            trace: None,
         }))
     }
 }
@@ -1280,4 +1281,159 @@ fn an_output_beside_the_decision_is_asked_only_when_read() {
     assert_eq!(result.outputs["gelezen"], Value::Bool(true));
     assert!(running.asked().is_empty());
     assert_eq!(other.asked(), ["eerder_verstrekt"]);
+}
+
+/// A law with an open term the policy below binds to an answer, for
+/// `a_binding_passes_another_input_of_its_article_to_the_cell`.
+const PEIL: &str = r#"
+$id: wet_peil
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Of er in het jaar van de dag al eerder iets is verstrekt.
+    machine_readable:
+      open_terms:
+        - id: al_eerder
+          type: boolean
+          required: true
+          decided_per_case_by: het college
+      execution:
+        parameters:
+          - {name: datum, type: date}
+        output:
+          - {name: al_eerder_verstrekt, type: boolean}
+        actions:
+          - output: al_eerder_verstrekt
+            value: $al_eerder
+"#;
+
+/// The policy that binds the term: it asks the cell with the year of the
+/// day, which another of its own articles computes.
+const PEIL_BELEID: &str = r#"
+$id: beleid_peil
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-01-01'
+url: https://example.org/beleid_peil
+competent_authority:
+  name: wilgendaal
+articles:
+  - number: '1'
+    text: Wat het beleid ontleent aan het antwoord al_eerder.
+    machine_readable:
+      implements:
+        - {law: wet_peil, article: '1', open_term: al_eerder}
+      execution:
+        parameters:
+          - {name: datum, type: date}
+        input:
+          - name: jaar
+            type: number
+            source:
+              regulation: beleid_peil
+              output: jaar_van
+              parameters: {datum: $datum}
+          - name: antwoord
+            type: boolean
+            nullable: true
+            source:
+              reduction: al_eerder
+              parameters: {jaar: $jaar}
+        output:
+          - {name: al_eerder, type: boolean}
+        actions:
+          - output: al_eerder
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord, value: null}
+                  then: false
+              default: $antwoord
+  - number: '2'
+    text: Het jaar van een dag.
+    machine_readable:
+      execution:
+        parameters:
+          - {name: datum, type: date}
+        output:
+          - {name: jaar_van, type: number}
+        actions:
+          - output: jaar_van
+            value: {operation: DATE_PART, date: $datum, in: year}
+"#;
+
+#[test]
+fn a_binding_passes_another_input_of_its_article_to_the_cell() {
+    // The parameter of the answer is another input of the binding, which
+    // the engine resolves before it asks the cell, as for a call to a law.
+    let mut service = LawExecutionService::new();
+    service.load_law(PEIL).unwrap();
+    service.load_law(PEIL_BELEID).unwrap();
+    let running = Fake::college("wilgendaal").answering("al_eerder", Value::Bool(true));
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(&running),
+        chronicle: None,
+        sphere: vec![],
+    };
+    let result = service
+        .evaluate_law_in(
+            "wet_peil",
+            &["al_eerder_verstrekt"],
+            BTreeMap::from([("datum".to_string(), Value::String(DATE.into()))]),
+            call,
+            DATE,
+        )
+        .unwrap();
+    assert_eq!(result.outputs["al_eerder_verstrekt"], Value::Bool(true));
+    let asked = running.asked.borrow();
+    assert_eq!(asked.len(), 1);
+    assert_eq!(asked[0].1["jaar"], Value::Int(2026));
+}
+
+/// An answerer that says how it came to its answer, as a trace of its own.
+struct Explaining(Fake);
+
+impl OpenTermAnswerer for Explaining {
+    fn authority(&self) -> &Authority {
+        self.0.authority()
+    }
+
+    fn answer(
+        &self,
+        service: &LawExecutionService,
+        request: &AnswerRequest<'_>,
+    ) -> regelrecht_engine::Result<Option<Answer>> {
+        let how = PathNode::new(PathNodeType::Article, "reductie_oostmeer")
+            .with_node_id("n")
+            .with_child(PathNode::new(PathNodeType::Operation, "PROJECTION").with_node_id("n0"));
+        // Only a traced execution asks how the answer came about.
+        assert!(request.trace);
+        Ok(self.0.answer(service, request)?.map(|a| Answer {
+            trace: Some(how),
+            ..a
+        }))
+    }
+}
+
+#[test]
+fn a_traced_execution_nests_how_the_answerer_came_to_its_answer() {
+    let cell =
+        Explaining(Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true)));
+    let result = read("eerder_gelezen", &cell, vec![], BTreeMap::new()).unwrap();
+    let input = node(result.trace.as_ref().unwrap(), "eerder_verstrekt").unwrap();
+    let answer = input
+        .children
+        .iter()
+        .find(|c| c.answer.is_some())
+        .expect("the node of the answer");
+    let [how] = &answer.children[..] else {
+        panic!("one trace under the answer: {answer:?}");
+    };
+    assert_eq!(how.name, "reductie_oostmeer");
+    // The ids follow the place in this trace, not the one it was built in.
+    let id = answer.node_id.clone().unwrap();
+    assert_eq!(how.node_id, Some(format!("{id}.0")));
+    assert_eq!(how.children[0].name, "PROJECTION");
+    assert_eq!(how.children[0].node_id, Some(format!("{id}.0.0")));
 }

@@ -138,9 +138,12 @@ function statusLabel(a) {
   return null;
 }
 
+/** The number in a number field, or null while it is empty (design system 0.18). */
 function num(event) {
-  const v = event.detail?.value ?? Number(event.target?.value);
-  return Number.isFinite(v) ? v : 0;
+  const v = event.detail?.value ?? event.target?.value;
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
 }
 
 function aanvraagParameters() {
@@ -266,7 +269,7 @@ watch(() => session.aanvrager, laadRegistratie);
 
     <template v-else>
       <nldd-simple-section width="820px">
-        <nldd-title size="2">
+        <nldd-title size="display-2">
           <span slot="overline">{{ overline }}</span>
           <h2>Subsidie aanvragen voor {{ registratie?.subsidiejaar ?? '…' }}</h2>
         </nldd-title>
@@ -324,7 +327,7 @@ watch(() => session.aanvrager, laadRegistratie);
             accessible-label="Rekening voor uitbetaling opgeven"
           >
             <nldd-container padding="20" gap="8">
-              <nldd-title size="5"><h4>Nog geen rekeningnummer bekend</h4></nldd-title>
+              <nldd-title size="display-5"><h4>Nog geen rekeningnummer bekend</h4></nldd-title>
               <nldd-rich-text>
                 <p>
                   Voor uitbetaling van het voorschot is een rekeningnummer op
@@ -379,7 +382,7 @@ watch(() => session.aanvrager, laadRegistratie);
         </template>
 
         <template v-for="groep in zichtbareGroepen" :key="groep.titel">
-          <nldd-title size="4">
+          <nldd-title size="display-4">
             <h3>{{ groep.titel }}</h3>
             <div v-if="groepLeden(groep).length > 1" slot="actions">
               <nldd-button-group orientation="horizontal">
@@ -429,7 +432,7 @@ watch(() => session.aanvrager, laadRegistratie);
         </template>
 
         <template v-if="landelijkGeselecteerd">
-          <nldd-title size="4"><h3>Ledental</h3></nldd-title>
+          <nldd-title size="display-4"><h3>Ledental</h3></nldd-title>
           <nldd-spacer size="8"></nldd-spacer>
           <nldd-form-field label="Betalende leden">
             <nldd-number-field
@@ -437,8 +440,8 @@ watch(() => session.aanvrager, laadRegistratie);
               name="leden"
               min="0"
               step="100"
-              @input="leden = num($event)"
-              @change="leden = num($event)"
+              @input="leden = num($event) ?? leden"
+              @change="leden = num($event) ?? leden"
             ></nldd-number-field>
             <nldd-form-field-help-text>
               Eigen opgave, alleen vereist voor de landelijke subsidie: leden
@@ -451,7 +454,7 @@ watch(() => session.aanvrager, laadRegistratie);
           </nldd-form-field>
           <nldd-spacer size="24"></nldd-spacer>
 
-          <nldd-title size="4"><h3>Neveninstellingen</h3></nldd-title>
+          <nldd-title size="display-4"><h3>Neveninstellingen</h3></nldd-title>
           <nldd-spacer size="4"></nldd-spacer>
           <nldd-rich-text>
             <p>
@@ -479,8 +482,8 @@ watch(() => session.aanvrager, laadRegistratie);
                   name="pjo_leden"
                   min="0"
                   step="100"
-                  @input="pjoLeden = num($event)"
-                  @change="pjoLeden = num($event)"
+                  @input="pjoLeden = num($event) ?? pjoLeden"
+                  @change="pjoLeden = num($event) ?? pjoLeden"
                 ></nldd-number-field>
                 <nldd-form-field-help-text>
                   Eigen opgave; voor de jongerenorganisatie geldt een vast
@@ -497,7 +500,7 @@ watch(() => session.aanvrager, laadRegistratie);
           <nldd-spacer size="24"></nldd-spacer>
         </template>
 
-        <nldd-title size="4"><h3>Transparantieverklaringen</h3></nldd-title>
+        <nldd-title size="display-4"><h3>Transparantieverklaringen</h3></nldd-title>
         <nldd-spacer size="4"></nldd-spacer>
         <nldd-rich-text>
           <p>De verklaringen gelden voor de hele rechtspersoon (artikel 5 Wpp).</p>
@@ -538,7 +541,7 @@ watch(() => session.aanvrager, laadRegistratie);
         <template v-else-if="proef && !formulierAangeraakt">
           <nldd-box>
             <nldd-container padding="16" gap="8">
-              <nldd-title size="4">
+              <nldd-title size="display-4">
                 <span slot="overline">Indicatieve uitkomst volgens de wet</span>
                 <h4>Vul het formulier in</h4>
               </nldd-title>
@@ -556,7 +559,7 @@ watch(() => session.aanvrager, laadRegistratie);
         <template v-else-if="proef">
           <nldd-box>
             <nldd-container padding="16" gap="8">
-              <nldd-title size="4">
+              <nldd-title size="display-4">
                 <span slot="overline">Indicatieve uitkomst volgens de wet</span>
                 <h4>{{ proef.subsidie_toegekend ? euro(proef.subsidiebedrag) : 'Nog geen toekenning' }}</h4>
               </nldd-title>

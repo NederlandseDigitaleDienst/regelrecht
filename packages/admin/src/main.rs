@@ -3,13 +3,13 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use std::time::Duration;
 
+use axum::Router;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::middleware as axum_middleware;
 use axum::routing::{delete, get, post};
-use axum::Router;
-use sqlx::postgres::PgPoolOptions;
 use sqlx::PgPool;
+use sqlx::postgres::PgPoolOptions;
 use tower_http::trace::TraceLayer;
 use tower_sessions::cookie::SameSite;
 use tower_sessions::{ExpiredDeletion, Expiry, SessionManagerLayer};
@@ -257,7 +257,7 @@ async fn main() {
         });
 
     let shutdown = async {
-        use tokio::signal::unix::{signal, SignalKind};
+        use tokio::signal::unix::{SignalKind, signal};
         let mut sigterm = signal(SignalKind::terminate()).unwrap_or_else(|e| {
             tracing::error!(error = %e, "failed to install SIGTERM handler");
             std::process::exit(1);

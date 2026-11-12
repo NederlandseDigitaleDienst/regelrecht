@@ -103,12 +103,16 @@ fn the_real_repository_layout_resolves() {
     let features =
         collect_feature_paths(root, Bucket::All).expect("both buckets exist in this repository");
 
-    assert!(features
-        .iter()
-        .any(|p| p.components().any(|c| c.as_os_str() == "scenarios")));
-    assert!(features
-        .iter()
-        .any(|p| p.components().any(|c| c.as_os_str() == "conformance")));
+    assert!(
+        features
+            .iter()
+            .any(|p| p.components().any(|c| c.as_os_str() == "scenarios"))
+    );
+    assert!(
+        features
+            .iter()
+            .any(|p| p.components().any(|c| c.as_os_str() == "conformance"))
+    );
 }
 
 #[test]

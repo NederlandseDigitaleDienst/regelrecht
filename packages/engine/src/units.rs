@@ -482,15 +482,15 @@ pub fn check_law(law: &crate::article::ArticleBasedLaw) -> Vec<UnitFinding> {
         if let Some(actions) = &exec.actions {
             for action in actions {
                 let output = action.output.clone().unwrap_or_default();
-                if let Some(expr) = &action.value {
-                    if let Err(e) = infer_unit(expr, &symbols) {
-                        findings.push(UnitFinding {
-                            article: article_no.clone(),
-                            output,
-                            is_error: true,
-                            message: e.to_string(),
-                        });
-                    }
+                if let Some(expr) = &action.value
+                    && let Err(e) = infer_unit(expr, &symbols)
+                {
+                    findings.push(UnitFinding {
+                        article: article_no.clone(),
+                        output,
+                        is_error: true,
+                        message: e.to_string(),
+                    });
                 }
             }
         }
@@ -499,22 +499,22 @@ pub fn check_law(law: &crate::article::ArticleBasedLaw) -> Vec<UnitFinding> {
         // have *already opted into* unit annotations. A fully un-annotated
         // article stays silent (the opt-in cornerstone), so `just validate`
         // isn't flooded with warnings about laws nobody has started annotating.
-        if symbols.has_any_unit() {
-            if let Some(outputs) = &exec.output {
-                for o in outputs {
-                    let has_unit = o
-                        .type_spec
-                        .as_ref()
-                        .and_then(|t| t.unit.as_deref())
-                        .is_some();
-                    if matches!(o.output_type, ParameterType::Amount) && !has_unit {
-                        findings.push(UnitFinding {
-                            article: article_no.clone(),
-                            output: o.name.clone(),
-                            is_error: false,
-                            message: "no unit declared".to_string(),
-                        });
-                    }
+        if symbols.has_any_unit()
+            && let Some(outputs) = &exec.output
+        {
+            for o in outputs {
+                let has_unit = o
+                    .type_spec
+                    .as_ref()
+                    .and_then(|t| t.unit.as_deref())
+                    .is_some();
+                if matches!(o.output_type, ParameterType::Amount) && !has_unit {
+                    findings.push(UnitFinding {
+                        article: article_no.clone(),
+                        output: o.name.clone(),
+                        is_error: false,
+                        message: "no unit declared".to_string(),
+                    });
                 }
             }
         }
@@ -608,13 +608,15 @@ mod tests {
             Unit::Eurocent
         );
         // amount × amount is meaningless → error
-        assert!(combine(
-            AlgebraOp::Multiply,
-            "MULTIPLY",
-            Unit::Eurocent,
-            Unit::Eurocent
-        )
-        .is_err());
+        assert!(
+            combine(
+                AlgebraOp::Multiply,
+                "MULTIPLY",
+                Unit::Eurocent,
+                Unit::Eurocent
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -642,13 +644,15 @@ mod tests {
             .unwrap(),
             Unit::Unknown
         );
-        assert!(combine(
-            AlgebraOp::Comparison,
-            "GREATER_THAN",
-            Unit::Eurocent,
-            Unit::Euro
-        )
-        .is_err());
+        assert!(
+            combine(
+                AlgebraOp::Comparison,
+                "GREATER_THAN",
+                Unit::Eurocent,
+                Unit::Euro
+            )
+            .is_err()
+        );
     }
 
     fn lit(v: impl Into<Value>) -> ActionValue {

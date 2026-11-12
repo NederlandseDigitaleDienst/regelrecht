@@ -59,11 +59,13 @@ A chronicle holds three kinds of entry. An executogram is a fact that an article
 
 A chronolexogram does not copy anything the law already says. The law in force on `recorded_on` tells where each field came from and on what legal basis. To see which fields were the authority's findings, the cell takes the decision again (a replay). The chronicle only grows: entries are added in date order and never changed.
 
+A cell in `packages/cel` keeps one chronicle. The position paper lets a cell keep several chronicles (chronolexokronieken), and building that is on [the open questions page](/concepts/chronolexography/open-questions).
+
 ## Recording and deciding
 
 - `Cell::record_submission` runs the article that establishes the submission. It runs that article at the stage named after the kind of submission, so the hooks on the submission run too. A required field that is missing goes under `missing`, because an incomplete application is still an application (Awb 4:5). The moment the law counts from is the day the cell records the submission. A submission may refer to a decision (`refers_to`), as an objection does. The cell does not store what the article and its hooks give. `Cell::submission_outputs` computes it again from the fields, under the law in force on `recorded_on`. A decision on the submission computes it the same way, for example whether an objection came in time (Awb 6:9).
-- `Cell::decide` takes the id of a submission in the chronicle that asks for this decision. It then runs the later stages. A finding is what the authority itself decides on an open norm in a single case. Findings are passed separately from the parameters. Some outputs have the type `decision`, such as a new decision taken on an objection. Each of those that is not null becomes a chronolexogram of its own, recorded in the same step.
-- `Cell::record_executogram` records a fact completely or not at all. The fact refers to no other entry. To change a fact, the cell records a new executogram. The old one stays.
+- `Cell::decide` takes the id of a submission in the chronicle that asks for this decision. It then runs the later stages. A finding is what the authority itself decides on an open norm in a single case. Findings are passed separately from the parameters. Some outputs have the type `decision`, such as a new decision taken on an objection. The cell checks each of those that is not null by taking it again under its own article, and keeps it as the value of that output. It records no chronolexogram for it: revoking a decision and putting a new one in its place are one act, so they are one record. When that record is revoked, the new decision falls with it.
+- `Cell::record_executogram` records a fact completely or not at all. `Cell::record_executogram_referring` records one that refers to an earlier entry. To change a fact, the cell records a new executogram. The old one stays.
 
 The code of the cell names no article of any law. Everything it checks comes from the law. The cell refuses:
 
@@ -93,8 +95,9 @@ execution:                         # shortened
   input:
     - name: besluiten
       type: array
-      source:
-        decisions: wet_voorbeeld#3      # one row per decision under art. 3
+      source:                           # one row per decision under art. 3
+        projections: reductie_besluit_voorbeeld#besluit
+        where: {bsn_aanvrager: $bsn_aanvrager}
   output:
     - name: eerder_vergunning_verleend
 ```
@@ -116,22 +119,22 @@ execution:
 
 This policy article is called a binding: it binds the open term to the answer.
 
-- Each cell decides for itself how it reduces. The engine only asks it for an answer by name. The cell in `packages/cel` uses what the engine offers: rulework of its own kind (`REDUCTIE`) in the cell's own directory. The directory says whose reduction it is, so the reduction names no `competent_authority`. A reduction reads decisions or facts (`source.decisions`, `source.facts`). For decisions it names an article, or a parameter that names one. It may call policy for a norm.
-- A reduction may also call a reduction of no cell, in `cells/reductions/`. Such a reduction has no chronicle of its own, and no cell gives it as an answer. It reads the chronicle of the cell that runs the reduction that calls it. The reduction of the Awb is one: given an article, it gives the decisions under that article that still hold after objection and appeal.
-- A reduction never calls a reduction of another cell, because that reduction would read the wrong chronicle. The corpus loader of the PoC refuses such a call, and its tests check the whole corpus for it.
+- Each cell decides for itself how it reduces. The engine only asks it for an answer by name. The cell in `packages/cel` uses what the engine offers: rulework of its own kind (`REDUCTIE`) in the cell's own directory. The directory says whose reduction it is, so the reduction names no `competent_authority`. Each article of a reduction with a `machine_readable` is an aggregate, which plays the records of the chronicle, or a read model, which reads aggregates (`source.projections`) and may call policy for a norm. One file may hold both. Which forms earlier schema versions allowed is in the [version history](/reference/schema#version-history). A rule that only combines other rulework reads no chronicle and is no reduction; it belongs in the authority's policy.
+- A reduction may also call a reduction of no cell, in `cells/reductions/`. Such a reduction has no chronicle of its own, and no cell gives it as an answer. It reads the chronicle of the cell that runs the reduction that calls it.
+- A reduction never calls a reduction of another cell, because that reduction would read the wrong chronicle. The corpus loader of the PoC refuses such a call.
 - The engine asks the cell for the answer wherever the binding runs. The cell then runs the reduction that its catalogue names for that answer. Because the binding is an article of policy, its value becomes the value of the term, even when that value is null. A finding of the authority cannot replace it ([Inversion of Control](/concepts/inversion-of-control#policy-that-fills-an-open-term-with-a-cells-answer)). Sometimes the cell has no answer and the authority should judge the case itself. The policy then says so with an open term of its own (`decided_per_case_by`).
-- The loader refuses `source.decisions` and `source.facts` outside a `REDUCTIE`. It refuses `source.reduction` outside such a binding.
+- The loader refuses `source.projections` outside a `REDUCTIE`, as it does the older `source.decisions` and `source.facts`. It refuses `source.reduction` outside such a binding.
 
 ### Playing the chronicle forward (experimental)
 
-Schema v0.8.14 adds a second way to reduce. A reduction with a `projection` declares a state, a few named properties each with a type, and says per article what a record under it does with that state. A property starts from the value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date. The engine plays the chronicle forward, record by record, and the reduction's `execution` answers from the last state as `$state.<property>`. The loader refuses an answer that reads a property the state does not declare, or the state as a whole, and an article without a projection that reads `$state`.
+A reduction with a `projection` declares a state, a few named properties each with a type, and says per article what a record under it does with that state. A property starts from the value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date. The engine plays the chronicle forward, record by record, one aggregate per record of a kind (`per`, see [One aggregate per decision](#one-aggregate-per-decision-experimental)). A read model answers from their last states.
 
-A step names the article its records rest on, such as `test_chronicle_effects#3`. Where the article gives more than one kind of record, such as an application and the decision on it, a third segment names the kind: `test_chronicle_effects#1#BESCHIKKING`. A step on an article that requires a fact applies to the recorded instances of that fact.
+A step names the article its records rest on, such as `test_chronicle_effects#3`. Where the article gives more than one kind of record, a third segment names the kind (`#BESCHIKKING`). Where it requires more than one fact, the third segment is the name of the fact in lower case (`#plaats_gehuurd`). `per` takes the same notation. The loader refuses a step that could apply to more than one of them. The rules per schema version are in the [version history](/reference/schema#version-history).
 
-What a record does with the state is law, so a step does not compute it. It is written like an article: its `input` takes outputs of a law through `source.regulation`, with parameters from a field of the record (`$record.<field>`) or a property of the state (`$state.<property>`), and its `actions`, written as the actions of an article, give properties of the state their values: `output` names a property and `value` is a bare reference to an input of the step, a field of the record or a property of the state. A property no action names keeps its value, and one step gives a property one action at most. In the parking-card test, article 7 of the test law says that a grant gives the applicant a card and raises the number of grants by one, and article 8 says that a card handed in is gone:
+What a record does with the state is law, so a step does not compute it. It is written like an article: its `input` takes outputs of a law through `source.regulation`, with parameters from a field of the record (`$record.<field>`) or a property of the state (`$state.<property>`). Its `actions` give properties of the state their values. A value is a bare reference: an input of the step, a field of the record or a property of the state. A property no action names keeps its value. In the parking-card test, article 7 of the test law says that a grant gives the applicant a card, and article 8 says that a card handed in is gone:
 
 ```yaml
-steps:
+steps:                                # shortened
   - record: test_chronicle_effects#1#BESCHIKKING
     input:
       - name: in_bezit_na_besluit
@@ -141,14 +144,10 @@ steps:
           output: in_bezit_na_besluit
           parameters:
             in_bezit: $state.in_bezit
-            aantal_verleend: $state.aantal_verleend
             kaart_verleend: $record.kaart_verleend
-      # aantal_verleend_na_besluit in the same way
     actions:
       - output: in_bezit
         value: $in_bezit_na_besluit
-      - output: aantal_verleend
-        value: $aantal_verleend_na_besluit
   - record: test_chronicle_effects#5
     input:
       - name: in_bezit_na_inlevering
@@ -161,17 +160,61 @@ steps:
         value: $in_bezit_na_inlevering
 ```
 
-A parameter may also be a parameter of the question the reduction answers, written `$<name>`, such as a reference date: a permit counts while it is valid on the day asked about. The projection then depends on the question, as it already does through its key, and the same question on the same chronicle always gets the same answer.
+A step is a function of the record and the state before it. It passes no parameter of the question, so the fold depends on the chronicle alone; a day the question asks about is compared in an article of the law when the question is answered. The engine calls the law in the version in force on the day the record was recorded, not on the calculation date. The output a step takes may read nothing else: no `input` and no open term, directly or through another output it reads. Another output of the same article may read either. `$referencedate` is the day of the record.
 
-The engine calls the law in the version in force on the day the record was recorded, not on the calculation date, the same rule as for effects. The article it calls reads only what the step passes: an article with an `input`, with or without a `source`, or with open terms cannot be called, so a step stays a function of the record and the state before it. A step takes no other source than `source.regulation`, and its actions take no operation and no literal. Each parameter must be one the called article takes, of the type of the field or property it comes from, each input must have the type of the output it takes, and each value an action gives must fit its property. The loader checks the shape of the step; the engine checks the called law when it plays the projection, because the reduction and the law are separate regelwerken that load in any order. In the trace, the call hangs under the node of the record, like any law call, and that node shows every property the step set, before and after.
+When the reduction loads, the loader checks each step against the laws it already holds, and the engine checks again when it plays. In the trace, the call hangs under the node of the record, which shows every property the step set, before and after.
 
-What one decision does with another stays in the law. The article declares it in `produces[].effects`: `revokes`, optionally only `when` a boolean outcome of the same decision is true, such as a well-founded objection. `when` reads nothing else, not the state, a parameter or another record. A decision in the place of another revokes it and counts as a record of its own.
+#### Which records count
 
-Which records count follows from those effects alone: a record counts unless a later record that itself counts revokes it. A revoked record revokes nothing, so what it alone revoked counts again. Because this never depends on the state, the engine decides it first, in one pass from the last record back, and then runs the steps of the records that count in the order the cell recorded them. That order of work is how the engine does it, not part of the meaning. The engine records which record set each property last and what became of each record: applied, revoked and by which records, or counting for its effects only. The trace shows the first phase as a `COUNTS` node and the steps as a `FOLD` node.
+What one record does with another stays in the law as well. An article declares it in `produces[].effects`, and a fact on its `requires` entry: `revokes`, optionally only `when` a boolean of the same record is true: an output of a decision, a field of a fact. A decision on a well-founded objection revokes the contested decision this way. The receipt of a copy of a court ruling ([RFC-053](/rfcs/rfc-053)) revokes the decision it refers to when the ruling annuls it:
 
-A chronicle holds the records of many people. With `key`, a projection plays the records of one of them: the records that hold the value asked for under the key's name, as a field or an output, such as an applicant, and every record that refers to one of those, through `refers_to` or a field an effect names. An application holds the applicant and so plays as well, without a step. An objection and the decision on it usually carry no applicant and join through the grant they refer to. A record that refers in but holds another key of its own belongs to someone else. It still counts for its effects: a decision that moves a parking permit to a new licence plate revokes the permit for the old plate too, because the law says once what the decision does, whichever key the question is about. Its step is not applied, and the trace shows it as counting for its effects only. The same holds for a record without a key that refers only to such records, such as the revocation of that move, which brings the permit back for the old plate. Records never join through what they themselves refer to, so the partition stays the records reachable from the key. An effect on a record outside the partition is ignored.
+```yaml
+# test_chronicle_effects, article 11 (fictional)
+requires:
+  - fact: afschrift_uitspraak_ontvangen
+    parameters: [vernietigd]
+    effects:
+      - revokes: refers_to
+        when: vernietigd
+```
 
-A policy reaches a projection the normal way. When an article binds an open term to the cell's answer (`source.reduction`), the engine asks the cell, and the cell plays its chronicle through the reduction's projection, with the parameters the binding passes, such as the key. The engine refuses a reduction with a projection on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. The tests are in `packages/cel/bdd`; one of them has a fictional policy take the cell's answer, and its outcome flips when a well-founded objection revokes the grant.
+`revokes` has one meaning: the record does not count, from the start (ex tunc). That covers a decision revoked on objection, a decision the court annuls, and a ruling annulled on further appeal, which brings back what it annulled. A change from a later day on (ex nunc), such as a suspension or a withdrawal "met ingang van" a date, is no effect. It is a step of the reduction with a date property, as for any other change of state, and the law compares that date with the day asked about.
+
+A record counts unless a later record that itself counts revokes it. A revoked record revokes nothing, so what it alone revoked counts again. Because this never depends on the state, the engine decides it first, in one pass from the last record back. It then runs the steps of the records that count, in the order the cell recorded them. The trace shows the first phase as a `COUNTS` node and the steps as a `FOLD` node.
+
+`refers_to` names, on every record, the record this record is about: a submission the decision it contests, a decision the submission it was taken on, a fact the record it concerns. A decision taken on no submission, such as a withdrawal ex officio, refers to the decision it affects; the cell takes one with `Cell::decide_ex_officio`. A decision revokes only a record its `refers_to` reaches, directly or through the records it refers to in turn: the decision on an objection reaches the contested decision through the objection. The effect still names the record through a parameter of the article, such as `revokes: bestreden_besluit`; `refers_to` only limits which record that may be, and the cell refuses another. The rule counts no fixed number of steps and knows no procedure, so a decision on objection and a new decision after the court annulled one follow it alike.
+
+A correction of a recorded fact is a fact of its own. One that corrects a single field has a step that sets that property and leaves the rest. One that says an earlier fact was wrong from the start revokes it, and a new fact takes its place. The tests are in `packages/cel/bdd/features/corrections.feature`.
+
+A policy reaches a projection the normal way: the binding asks the cell, and the cell plays its chronicle through the reduction's projection with the parameters the binding passes. The engine refuses a reduction with a projection on every path that bypasses the chronicle: asked directly, from another rulework, at a stage, or with a `state` the caller passes. The tests are in `packages/cel/bdd`.
+
+### One aggregate per decision (experimental)
+
+A state holds single values. One state per person breaks down once a person holds several decisions, each with its own days, such as two business parking permits of one company. A projection therefore plays one aggregate per record of a kind (`per`). Each such record is the root of an aggregate. The aggregate holds the root and every record that refers to it through `refers_to`, directly or through another record of the aggregate. Another record of the root's kind that refers into the aggregate is an aggregate of its own and counts in this one for its effects only. A root that does not count applies no step; the other records of its aggregate that count still apply theirs.
+
+```yaml
+# reductie_bedrijfsparkeervergunning (PoC), article vergunning
+projection:
+  per: parkeerverordening_gemeente_wilgendaal#2#BESCHIKKING
+  state:
+    - {name: besluit_datum, type: date}
+    - {name: vergunning_geldig_tot, type: date}
+  steps:
+    - record: parkeerverordening_gemeente_wilgendaal#2#BESCHIKKING
+      actions:
+        - {output: besluit_datum, value: $record.besluit_datum}
+        - {output: vergunning_geldig_tot, value: $record.vergunning_geldig_tot}
+```
+
+A projection per record answers no question of its own and has no `execution`. A read model reads its aggregates with `source.projections`, which names the article of the aggregate (`<regulation>#<article>`). It gets one row per root the chronicle holds on the calculation date: the last state of its aggregate, with the root's `id`. With `where`, it reads only the roots whose field or output of a given name equals a parameter of the reading article, such as `kvk_nummer: $kvk_nummer`. An article of policy says what the rows mean on the day asked about.
+
+A decision put in the place of another lands in the aggregate of the decision it replaces. On objection, revoking the contested decision and taking a new one is one decision, and the cell records it as one record: the new decision is the value of its output `nieuw_besluit`. The decision on the objection refers to the objection, which refers to the contested decision, so it joins that aggregate. Because the new decision is part of that record, it falls with it: when the court annuls the decision on the objection, the contested decision counts again and the new decision in its place is gone (`a_grant_on_objection_the_court_annulled_no_longer_counts` in `packages/cel/tests/beroep.rs`). No rule says that a decision falls with the decision it refers to. The receipt revokes one record, and that record holds both. A step reads the id of its own record as `$record.id`, and the record it refers to as `$record.refers_to`. An aggregate can keep which of its records grants the permit now by storing that id in its state.
+
+A row does not say whether its root counts. A root that does not count applies no step, so a property its step sets keeps its start value. A reduction that needs to know therefore has its step on the root set a property of its own, such as `verleend`, which a revoked root leaves false.
+
+A recorded fact is played the same way, one aggregate per recorded instance, with `per` naming the fact where its article requires more than one. Real legislation often lays down two acts in one article, so the article stays whole rather than being split to suit the reductions. The step on the root copies the fields of the fact into the state, and the read model gets one row per instance. A revoked root keeps its row, with the start values of its state, so a read model that counts rows has to skip it.
+
+The engine plays each aggregate on every question, in the version of the reduction in force on the calculation date. The trace of the reading input holds a `PROJECTION` node per aggregate, with its `COUNTS` and `FOLD`. The cell gives the records of its chronicle for it (`Chronicle::records`); `evaluate_projection` plays a read model on the records it is given.
 
 ## Documents between cells
 
@@ -179,17 +222,19 @@ Each actor keeps its own chronicle. The law sends documents from one actor to an
 
 - `Cell::afschrift` makes a copy of one of the cell's own decisions. The copy holds the chronolexogram, the decision value from a replay in that cell, and `about`: what the submission behind the decision had received. When a field of type `decision` holds an id, the copy holds the value of that decision instead, nested in the same way. Only the cell that took the decision makes a copy of it.
 - `record_submission` with `Reference::Received(&copy)` records a submission against a decision of another cell. The chronolexogram then holds `received: {from, id}` instead of `refers_to`. Its field of type `decision` holds the decision value itself, because this cell cannot replay the other cell's decision.
-- `Cell::record_receipt` records that the cell received a copy. It does so as an executogram of the fact that the law requires for it. The receipt is the only executogram that refers to a decision: the cell's own decision that the copy is about.
+- `Cell::record_receipt` records that the cell received a copy. It does so as an executogram of the fact that the law requires for it. The receipt refers to the cell's own decision that the copy is about.
 - `Cell::decide_after` decides on a submission again. It needs a later chronolexogram, such as a receipt, that refers to the last decision on that submission. The new decision holds that chronolexogram as `after`. This rule names no article. Whether the earlier decision still counts is up to whoever reads the chronicle.
 
-The cell refuses four things here:
+The cell refuses these:
 
 - a copy of something that is not a decision;
 - a copy of its own decision, offered back to it;
 - a receipt for a decision that the copy is not about, or a receipt dated before the decision in the copy;
-- a decision taken again without such a later chronolexogram.
+- a second receipt of the same copy, so a copy sent twice is recorded once;
+- a decision taken again without such a later chronolexogram;
+- a fact that refers to a record not in the chronicle.
 
-When it opens a chronicle, the cell checks `after` and every receipt in the same way. A reduction reads receipts like any other recorded fact. The row of a receipt also gives the decision it is about, under `refers_to`. [RFC-053](/rfcs/rfc-053) gives the design, for the appeal to the administrative court.
+When it opens a chronicle, the cell checks `after` and every receipt in the same way, and that a fact that refers to a record without having received a copy refers to one before it. A reduction reads receipts like any other recorded fact. The row of a receipt also gives the decision it is about, under `refers_to`. [RFC-053](/rfcs/rfc-053) gives the design, for the appeal to the administrative court.
 
 ## Answers of other cells
 
@@ -205,7 +250,8 @@ The cell stores no reasons. It explains a decision by taking it again.
 
 - `Cell::explain` takes the decision again on its original day, with the law and the chronicle as they were then. It fails if the outcome differs.
 - `Cell::findings` reads from that replay which findings counted.
-- `Cell::explain_answer` runs a reduction again to show how it reached its answer. In the trace of the decision, the answer is a single step.
+- In the trace of the decision, the node of a cell's answer holds the run of the cell's reduction. That run includes the `PROJECTION` node and, under each record that counted, the law calls of its step. The engine asks the cell for this run only in a traced execution.
+- `Cell::explain_answer` runs a reduction again on its own, for one answer of a decision.
 
 ## Try it
 

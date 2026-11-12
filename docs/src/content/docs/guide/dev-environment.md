@@ -184,7 +184,7 @@ On commit the hooks run, each only when a matching file changed:
 - Trailing whitespace, end-of-file, merge-conflict and large-file checks
 - YAML linting (yamllint, config in `.yamllint`)
 - Rust formatting (`just format`) and clippy (`just lint`)
-- Schema validation of corpus files (`just validate`)
+- Schema validation of ruleworks (`just validate`): the corpus, the chronolexografie PoC and the fixtures of the cell's BDD suite
 - Licence information (`reuse lint`): every file needs a licence, set in
   `REUSE.toml` with the licence texts in `LICENSES/`. Code and text get the
   default by file type. An image, a font or a file type the list does not name

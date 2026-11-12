@@ -24,8 +24,8 @@
 use std::path::Path;
 
 use regelrecht_corpus::CorpusConfig;
-use regelrecht_pipeline::enrich::create_enrich_corpus;
 use regelrecht_pipeline::PipelineError;
+use regelrecht_pipeline::enrich::create_enrich_corpus;
 use uuid::Uuid;
 
 /// Run a git command in `dir` and assert it succeeded.

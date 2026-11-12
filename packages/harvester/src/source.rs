@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 
 use crate::config::{
-    lokaleregelgeving_url, validate_bwb_id, validate_cvdr_id, DEFAULT_MAX_RESPONSE_SIZE,
+    DEFAULT_MAX_RESPONSE_SIZE, lokaleregelgeving_url, validate_bwb_id, validate_cvdr_id,
 };
 use crate::error::{HarvesterError, Result};
 use crate::types::Law;

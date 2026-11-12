@@ -146,7 +146,7 @@ watch(item, (i) => {
         ></nldd-button>
         <nldd-spacer size="16"></nldd-spacer>
 
-        <nldd-title size="2">
+        <nldd-title size="display-2">
           <span slot="overline">{{ item.aanvraag.partij_naam }}</span>
           <h2>Jaaraanvraag {{ item.aanvraag.subsidiejaar }} · {{ onderdelen(item.aanvraag.componenten.length) }}</h2>
         </nldd-title>
@@ -194,7 +194,7 @@ watch(item, (i) => {
         <nldd-spacer size="32"></nldd-spacer>
 
         <template v-if="item.besluit">
-          <nldd-title size="4"><h3>Specificatie per onderdeel</h3></nldd-title>
+          <nldd-title size="display-4"><h3>Specificatie per onderdeel</h3></nldd-title>
           <nldd-spacer size="12"></nldd-spacer>
           <nldd-table
             columns="minmax(220px,1fr) 110px 120px 150px"
@@ -224,7 +224,7 @@ watch(item, (i) => {
 
           <template v-if="landelijkeDelen">
             <nldd-spacer size="16"></nldd-spacer>
-            <nldd-title size="5"><h4>Landelijke subsidie in delen (art. 14)</h4></nldd-title>
+            <nldd-title size="display-5"><h4>Landelijke subsidie in delen (art. 14)</h4></nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
             <nldd-list appearance="box-tinted">
               <nldd-list-item v-for="d in landelijkeDelen" :key="d.label" size="sm">
@@ -236,7 +236,7 @@ watch(item, (i) => {
           <nldd-spacer size="32"></nldd-spacer>
         </template>
 
-        <nldd-title size="4"><h3>Verloop van uw aanvraag</h3></nldd-title>
+        <nldd-title size="display-4"><h3>Verloop van uw aanvraag</h3></nldd-title>
         <nldd-spacer size="12"></nldd-spacer>
         <LifecycleTimeline :aanvraag="item.aanvraag" :besluit="item.besluit" :bezwaar="item.bezwaar" />
 
@@ -245,7 +245,7 @@ watch(item, (i) => {
 
           <!-- Lopend of beslist bezwaar -->
           <template v-if="item.bezwaar && (item.bezwaar.beslissing || item.bezwaar.status === 'HERSTEL')">
-            <nldd-title size="4"><h3>Uw bezwaar</h3></nldd-title>
+            <nldd-title size="display-4"><h3>Uw bezwaar</h3></nldd-title>
             <nldd-spacer size="12"></nldd-spacer>
             <NBanner
               v-if="item.bezwaar.beslissing"

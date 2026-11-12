@@ -196,16 +196,16 @@ impl TraceView {
     }
 
     fn toggle_collapse(&mut self) {
-        if let Some(node) = self.flat_nodes.get(self.selected) {
-            if node.has_children {
-                let id = node.node_id.clone();
-                if self.collapsed.contains(&id) {
-                    self.collapsed.remove(&id);
-                } else {
-                    self.collapsed.insert(id);
-                }
-                self.rebuild_flat();
+        if let Some(node) = self.flat_nodes.get(self.selected)
+            && node.has_children
+        {
+            let id = node.node_id.clone();
+            if self.collapsed.contains(&id) {
+                self.collapsed.remove(&id);
+            } else {
+                self.collapsed.insert(id);
             }
+            self.rebuild_flat();
         }
     }
 

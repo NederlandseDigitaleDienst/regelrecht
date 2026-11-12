@@ -251,17 +251,17 @@ impl Registry {
             }
             match poc.soort {
                 Soort::Statisch if poc.bron.is_none() => {
-                    return Err(RegistryError::StaticWithoutBron(poc.slug.clone()))
+                    return Err(RegistryError::StaticWithoutBron(poc.slug.clone()));
                 }
                 Soort::Proxy if poc.upstream.is_none() => {
-                    return Err(RegistryError::ProxyWithoutUpstream(poc.slug.clone()))
+                    return Err(RegistryError::ProxyWithoutUpstream(poc.slug.clone()));
                 }
                 // The assistant spawns the Claude CLI inside *this* container
                 // and rewrites this image's own corpus copy. A proxied PoC runs
                 // somewhere else, so switching it on there would silently do
                 // nothing.
                 Soort::Proxy if poc.assistent => {
-                    return Err(RegistryError::ProxyWithAssistent(poc.slug.clone()))
+                    return Err(RegistryError::ProxyWithAssistent(poc.slug.clone()));
                 }
                 _ => {}
             }
@@ -399,8 +399,7 @@ mod tests {
 
     #[test]
     fn a_placeholder_voorbehoud_is_refused() {
-        let yaml =
-            "pocs:\n  - slug: a\n    titel: T\n    samenvatting: S\n    soort: statisch\n    \
+        let yaml = "pocs:\n  - slug: a\n    titel: T\n    samenvatting: S\n    soort: statisch\n    \
                     bron: b\n    status: verkenning\n    voorbehoud: tbd\n";
         let err = Registry::from_yaml(yaml).expect_err("must fail");
         assert!(err.to_string().contains("voorbehoud"), "{err}");

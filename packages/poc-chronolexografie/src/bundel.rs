@@ -32,7 +32,7 @@ use serde::{Deserialize, Serialize};
 
 #[cfg(doc)]
 use crate::casus::Casus;
-use crate::casus::{casussen as lees_casussen, Regelwerken};
+use crate::casus::{Regelwerken, casussen as lees_casussen};
 use crate::kern::{Corpus, Result};
 
 /// This crate's corpus, under the repository root: the cases under
@@ -946,11 +946,11 @@ articles:
 
     #[test]
     fn a_reduction_that_reads_one_of_another_cell_is_refused() {
-        // The school's reduction asks the Chamber's: that one would read the
-        // school's chronicle, not the Chamber's.
+        // A step of the school's reduction asks the Chamber's: that one would
+        // read the school's chronicle, not the Chamber's.
         let e = verplaatst(VERLOF, VERLOF, |tekst| {
             tekst.replacen(
-                "regulation: reductie_algemene_wet_bestuursrecht",
+                "regulation: fictief_beleid_verleend_verlof_obs_de_klimop",
                 "regulation: reductie_vestiging_in_handelsregister",
                 1,
             )

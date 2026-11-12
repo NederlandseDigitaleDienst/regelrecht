@@ -4,9 +4,9 @@ use std::net::SocketAddr;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use axum::middleware as axum_middleware;
-use axum::routing::{get, MethodRouter};
 use axum::Router;
+use axum::middleware as axum_middleware;
+use axum::routing::{MethodRouter, get};
 use tokio::sync::{Mutex, RwLock};
 use tower::ServiceExt;
 use tower_http::services::{ServeDir, ServeFile};
@@ -27,6 +27,7 @@ mod favorites;
 mod feature_flags;
 mod github_oauth;
 mod harvest_proxy;
+mod law_search;
 mod middleware;
 mod state;
 mod static_cache;
@@ -221,10 +222,16 @@ async fn main() {
     const MAX_UPLOAD_BODY: usize = 25 * 1024 * 1024;
 
     // Reader routes — `editor-reader` covers user-scoped reads (favorites,
-    // settings) and harvest search (search is behind auth because it triggers
-    // outbound requests and would otherwise be an amplification vector).
+    // settings), the user's own Corpus juris favorites (any account may keep
+    // them; they touch nothing but the account), and harvest search (search is
+    // behind auth because it triggers outbound requests and would otherwise be
+    // an amplification vector).
     let reader_routes = Router::new()
         .route("/api/favorites", get(favorites::list))
+        .route(
+            "/api/favorites/{law_id}",
+            axum::routing::put(favorites::add).delete(favorites::remove),
+        )
         .route("/api/user/settings", get(user_settings::list))
         .route("/api/harvest/search", get(harvest_proxy::proxy_harvest))
         .route_layer(axum_middleware::from_fn_with_state(
@@ -239,10 +246,6 @@ async fn main() {
     // POSTs (which trigger outbound requests) sit here so anonymous callers
     // can never reach them.
     let writer_routes = Router::new()
-        .route(
-            "/api/favorites/{law_id}",
-            axum::routing::put(favorites::add).delete(favorites::remove),
-        )
         // 4 KiB is ample for `{"value":"<one allowed enum>"}` and rejects
         // oversized bodies before deserialization.
         .route(
@@ -267,7 +270,7 @@ async fn main() {
     // never git). Handlers extract `Extension<AccountRecord>`, so
     // `account_middleware` must run per request, same as traject routes.
     // Reads at reader tier, mutations at writer tier, mirroring how
-    // favorites/settings split across `reader_routes`/`writer_routes`
+    // settings split across `reader_routes`/`writer_routes`
     // (which stay Session-based and therefore don't carry the account
     // middleware).
     let user_notes_reader_routes = Router::new()
@@ -779,15 +782,12 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
         regelrecht_corpus::CorpusRegistry::empty()
     };
 
-    let auth_file = if auth_path.exists() {
-        Some(auth_path.as_path())
-    } else {
-        None
-    };
+    let github =
+        regelrecht_corpus::GithubSettings::from_env(auth_path.exists().then_some(auth_path));
 
     let today = regelrecht_shared::dates::today_str();
-    let source_map = match registry
-        .load_favorites_async(favorites, auth_file, &today)
+    let mut source_map = match registry
+        .load_favorites_async(favorites, &github, &today)
         .await
     {
         Ok(map) => {
@@ -809,18 +809,33 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
         }
     };
 
-    let backends = init_backends(&registry, auth_file).await;
+    // Corpus juris shows the version in force, whichever source supplies it;
+    // priority only settles two sources for the same version (RFC-010).
+    // Trajecten keep priority first: their own repo must stay current there.
+    source_map.prefer_version_in_force();
+
+    // The rest of each GitHub source by path only, so Corpus juris can find
+    // every law in it; a body is fetched when someone opens the law (see
+    // `ReadScope::law_yaml`). A source that fails to list is reported on
+    // `/api/sources` instead of silently showing fewer laws. After
+    // `prefer_version_in_force`, so a law refused for a conflict between two
+    // sources is left out rather than kept as a version.
+    let index_failures: HashMap<String, String> = registry
+        .index_github_sources_into(&mut source_map, &github)
+        .await
+        .into_iter()
+        .map(|f| (f.source_id, f.error))
+        .collect();
+
+    let backends = init_backends(&registry, &github).await;
 
     CorpusState {
         registry,
         source_map,
         backends,
-        auth_file: auth_file.map(|p| p.to_path_buf()),
-        // The global startup path loads favorites with its own all-or-
-        // nothing fallback above; per-source scan health is only tracked
-        // on the traject path (`build_traject_corpus`), where a silently
-        // missing source changes which corpus a law resolves from.
-        index_failures: HashMap::new(),
+        github,
+        index_failures,
+        lazy_bodies: Default::default(),
     }
 }
 
@@ -832,7 +847,7 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
 /// read/write path mismatch — see [`crate::state::BackendEntry::writable`].
 async fn init_backends(
     registry: &regelrecht_corpus::CorpusRegistry,
-    auth_file: Option<&std::path::Path>,
+    github: &regelrecht_corpus::GithubSettings,
 ) -> HashMap<String, crate::state::BackendEntry> {
     let mut backends = HashMap::new();
 
@@ -845,7 +860,8 @@ async fn init_backends(
         // `CORPUS_GIT_TOKEN` keep working — but a strict source ever
         // reaching this path now resolves strictly, consistent with the
         // traject backend path in `traject_corpus.rs`.
-        let token = regelrecht_corpus::auth::CredentialResolver::new(auth_file)
+        let token = github
+            .credentials()
             .resolve_source(source)
             .map(regelrecht_corpus::auth::TokenDecision::into_token)
             .unwrap_or_else(|e| {
@@ -856,7 +872,7 @@ async fn init_backends(
         // When a push token is present, the backend will push commits to the
         // remote repo. This requires authentication on the write endpoints —
         // do NOT enable push tokens without adding auth middleware first.
-        match regelrecht_corpus::backend::create_backend(source, token.as_deref()) {
+        match regelrecht_corpus::backend::create_backend(source, token.as_deref(), github) {
             Ok(mut backend) => {
                 if let Err(e) = backend.ensure_ready().await {
                     tracing::warn!(
@@ -1486,10 +1502,10 @@ mod static_service_tests {
 #[cfg(test)]
 mod security_header_tests {
     use super::{middleware, serve_static_and_secure};
+    use axum::Router;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use axum::routing::get;
-    use axum::Router;
     use tower::ServiceExt;
 
     /// The router shape both production branches end in: some API routes,

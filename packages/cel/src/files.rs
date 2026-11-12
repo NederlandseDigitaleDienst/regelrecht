@@ -83,17 +83,17 @@ impl Bundle {
         // A path is a file or a directory, never both, as on a disk.
         let mut paths = bundle.keys().peekable();
         while let Some(path) = paths.next() {
-            if let Some(next) = paths.peek() {
-                if next.starts_with(path) {
-                    return Err(io::Error::new(
-                        io::ErrorKind::InvalidInput,
-                        format!(
-                            "'{}' is a file in the bundle and a directory of '{}'",
-                            path.display(),
-                            next.display()
-                        ),
-                    ));
-                }
+            if let Some(next) = paths.peek()
+                && next.starts_with(path)
+            {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    format!(
+                        "'{}' is a file in the bundle and a directory of '{}'",
+                        path.display(),
+                        next.display()
+                    ),
+                ));
             }
         }
         Ok(Self { files: bundle })

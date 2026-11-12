@@ -9,8 +9,8 @@
 // die de cel weigerde, legde niets vast en staat er dus niet in.
 import { nextTick, ref, watch } from 'vue';
 import { api } from '../api.js';
-import { celNaam, genomenBij, genummerd, toon, uitslag } from '../logboek.js';
-import { herroepen, kort, leesbaar, rol, state } from '../state.js';
+import { celNaam, genummerd, toon, uitslag } from '../logboek.js';
+import { herroepen, kort, leesbaar, nieuwBesluit, rol, state, toegewezen } from '../state.js';
 import KetenStap from './KetenStap.vue';
 
 const emit = defineEmits(['kroniek']);
@@ -82,13 +82,13 @@ function regels(h) {
       toelichting: `${celNaam(g.recording_actor)} legde het feit ${leesbaar(g.fact ?? '')} vast, dat ${g.basis} vereist (een executogram, RFC-051). Een reductie van die cel leest het terug.`,
     });
   } else uit.push({ naam: 'Reden', waarde: 'geen', toelichting: 'dit is het begin van een dossier' });
-  const bij = genomenBij(g.id, state.grammen);
-  if (bij) {
+  const nieuw = nieuwBesluit(g);
+  if (nieuw) {
     uit.push({
-      naam: 'Genomen in',
-      waarde: naam(bij.id),
-      naar: bij.id,
-      toelichting: 'in de plaats van het herroepen besluit',
+      naam: 'Nieuw besluit',
+      waarde: toegewezen(nieuw) ? 'toegewezen' : 'afgewezen',
+      toelichting:
+        'in de plaats van het herroepen besluit; het hoort bij deze beslissing en vervalt met haar',
     });
   }
   // Wat een feit van een andere cel opleverde, leest de cel van de casus
@@ -122,7 +122,7 @@ function regels(h) {
     ></nldd-inline-dialog>
   </nldd-simple-section>
   <nldd-simple-section v-else-if="handelingen.length">
-    <nldd-title slot="header" size="3" text="Logboek">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Logboek">
       <nldd-text slot="supporting-text">
         Wat er gebeurde, de nieuwste stap bovenaan. Elke stap is een chronolexogram uit de
         kroniek. Ook een feit dat een andere cel vastlegde, zoals een inschrijving bij de Kamer

@@ -1,63 +1,43 @@
 ---
-# FICTIEF. A reduction of the cell's BDD suite over test_parkeervergunning,
-# keyed by kenteken. The same chronicle is also read keyed by the other field
-# (test_reductie_vergunning_per_kenteken, test_reductie_vergunning_per_bewoner):
-# a decision that moves a permit revokes it for both questions.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+# FICTIEF. A read model of the cell's BDD suite: whether a plate has a
+# permit, from the aggregates of test_reductie_parkeervergunning. A permit
+# moved to another plate holds the new plate in its state.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_vergunning_per_kenteken
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'
 valid_from: '2025-01-01'
 url: https://example.com/test_reductie_vergunning_per_kenteken
-name: Parkeervergunning per kenteken (testreductie)
+name: Vergunning per kenteken (testreductie)
 
 articles:
   - number: '1'
     url: https://example.com/test_reductie_vergunning_per_kenteken/1
     text: >-
-      FICTIEF. Een kenteken heeft een vergunning als een verlening of omzetting voor dat kenteken meetelt.
+      FICTIEF. Een kenteken heeft een vergunning als een vergunning die geldt
+      voor dat kenteken geldt.
     machine_readable:
-      projection:
-        key: kenteken
-        state:
-          - name: vergunning
-            type: boolean
-        steps:
-          # A grant and a move both give a permit for the plate in the
-          # decision (article 4 of the law).
-          - record: test_parkeervergunning#1
-            input:
-              - name: vergunning
-                type: boolean
-                source:
-                  regulation: test_parkeervergunning
-                  output: vergunning
-                  parameters:
-                    verleend: $record.vergunning_verleend
-                    kenteken: $record.kenteken
-            actions:
-              - output: vergunning
-                value: $vergunning
-          - record: test_parkeervergunning#2
-            input:
-              - name: vergunning
-                type: boolean
-                source:
-                  regulation: test_parkeervergunning
-                  output: vergunning
-                  parameters:
-                    verleend: $record.vergunning_omgezet
-                    kenteken: $record.kenteken
-            actions:
-              - output: vergunning
-                value: $vergunning
       execution:
         parameters:
           - name: kenteken
             type: string
+        input:
+          - name: vergunningen
+            type: array
+            source:
+              projections: test_reductie_parkeervergunning
         output:
           - name: kenteken_heeft_vergunning
             type: boolean
         actions:
           - output: kenteken_heeft_vergunning
-            value: $state.vergunning
+            value:
+              operation: FOREACH
+              collection: $vergunningen
+              as: v
+              filter:
+                operation: EQUALS
+                subject: $v.kenteken
+                value: $kenteken
+              body: $v.vergunning
+              combine: OR

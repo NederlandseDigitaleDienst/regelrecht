@@ -4,7 +4,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use regelrecht_law_model::{is_fact_reference, ArticleBasedLaw, Source};
+use regelrecht_law_model::{ArticleBasedLaw, Source, is_fact_reference};
 
 #[test]
 fn a_fact_reference_names_an_article_and_a_fact() {

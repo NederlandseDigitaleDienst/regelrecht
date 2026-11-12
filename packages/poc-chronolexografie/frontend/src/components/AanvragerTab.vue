@@ -109,7 +109,7 @@ async function indienenTegen() {
        screen Mijn aanvragen falls below the form. -->
   <nldd-one-half-one-half-section>
     <nldd-container slot="left" gap="16">
-      <nldd-title size="3" :text="`Aanvraag: ${state.casus.titel.toLowerCase()}`">
+      <nldd-title heading-level="2" size="display-3" :text="`Aanvraag: ${state.casus.titel.toLowerCase()}`">
         <nldd-text slot="supporting-text">
           <ArtikelLink :basis="state.casus.besluit" />. De velden komen uit de wet: wat het
           artikel vraagt en wat de Algemene wet
@@ -130,7 +130,7 @@ async function indienenTegen() {
       </nldd-container>
     </nldd-container>
     <nldd-container slot="right" gap="16">
-      <nldd-title size="3" text="Mijn aanvragen"></nldd-title>
+      <nldd-title heading-level="2" size="display-3" text="Mijn aanvragen"></nldd-title>
       <nldd-inline-dialog
         v-if="aanvragen().length === 0"
         icon="info"
@@ -139,8 +139,8 @@ async function indienenTegen() {
       <nldd-container gap="16">
         <nldd-card v-for="a in aanvragen()" :key="a.id">
           <nldd-container padding="16" gap="12">
-          <nldd-title
-            size="5"
+          <nldd-title heading-level="3"
+            size="display-5"
             :text="`Aanvraag ${kort(a.id)}`"
             :supporting-text="samenvatting(a)"
           >

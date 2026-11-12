@@ -137,7 +137,7 @@ function errorMessage(e: unknown): string | undefined {
 
 <template>
   <nldd-simple-section>
-    <nldd-title v-if="paneChromeVisible(loading)" id="instellingen-pane-titel" size="3"><h3>Leden</h3></nldd-title>
+    <nldd-title v-if="paneChromeVisible(loading)" id="instellingen-pane-titel" size="display-3"><h3>Leden</h3></nldd-title>
     <nldd-spacer v-if="paneChromeVisible(loading)" size="16"></nldd-spacer>
     <nldd-toolbar v-if="isOwner && paneChromeVisible(loading)" accessible-label="Ledenacties">
       <nldd-toolbar-item slot="start">

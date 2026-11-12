@@ -24,10 +24,10 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use regelrecht_corpus::implements_index::generator::{
-    run, Args, Drift, Outcome, Skipped, DEFAULT_SCAN_ROOT,
-};
 use regelrecht_corpus::implements_index::IMPLEMENTS_INDEX_FILENAME;
+use regelrecht_corpus::implements_index::generator::{
+    Args, DEFAULT_SCAN_ROOT, Drift, Outcome, Skipped, run,
+};
 
 /// Cap on how many failing paths are listed individually, so a noisy
 /// corpus does not bury the actual result in CI output.

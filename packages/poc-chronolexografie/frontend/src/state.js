@@ -227,13 +227,16 @@ export const besluitOp = (id) =>
   verwijstNaar(id).find((g) => g.basis === besluitBasis() && g.kind !== 'BEZWAAR');
 
 /**
- * Of beslissing `b` het besluit `id` nam: een beslissing op bezwaar noemt
- * het besluit dat zij in de plaats nam bij id in haar uitvoer.
+ * Het nieuwe besluit dat beslissing op bezwaar `b` in de plaats van het
+ * herroepen besluit nam (Awb 7:11, tweede lid), of null. Het is geen eigen
+ * chronolexogram: de beslissing houdt het als waarde in haar uitvoer
+ * (`nieuw_besluit`), want één handeling is één record. Het krijgt de dag van
+ * de beslissing mee.
  */
-export const neemt = (b, id) => Object.values(b.outputs ?? {}).includes(id);
-
-/** De besluiten die een beslissing op bezwaar nam. */
-export const genomenDoor = (beslissing) => state.grammen.filter((g) => neemt(beslissing, g.id));
+export const nieuwBesluit = (b) => {
+  const v = b?.outputs?.nieuw_besluit;
+  return isBesluitwaarde(v) ? { ...v, recorded_on: b.recorded_on } : null;
+};
 
 export const bezwarenTegen = (id) => verwijstNaar(id).filter((g) => g.kind === 'BEZWAAR');
 
@@ -267,24 +270,22 @@ export function rol(g) {
   if (g.kind === 'UITSPRAAK') return 'Uitspraak';
   if (g.kind === 'BEZWAAR') return 'Bezwaar';
   if (g.basis === bezwaarBasis()) return 'Beslissing op bezwaar';
-  const op = state.grammen.find((x) => x.id === g.refers_to);
-  return op?.kind === 'BEZWAAR' ? 'Nieuw besluit' : 'Besluit';
+  return 'Besluit';
 }
 
 /**
  * Het dossier van een aanvraag, in de volgorde waarin het ontstond: de
- * aanvraag, het besluit erop, en per bezwaar elke beslissing en het besluit
- * dat in de plaats van het herroepene kwam. Na een beslissing op bezwaar het
- * beroep en de uitspraak uit de kroniek van de rechtbank (`rechter: true`)
- * en de ontvangst van die uitspraak.
+ * aanvraag, het besluit erop, en per bezwaar elke beslissing, die het besluit
+ * houdt dat zij in de plaats van het herroepene nam. Na een beslissing op
+ * bezwaar het beroep en de uitspraak uit de kroniek van de rechtbank
+ * (`rechter: true`) en de ontvangst van die uitspraak.
  */
 export function dossier(aanvraag) {
   const stap = (gram, rechter = false) => ({ gram, rol: rol(gram), rechter });
   const stappen = [stap(aanvraag)];
-  let besluit = besluitOp(aanvraag.id);
-  while (besluit) {
+  const besluit = besluitOp(aanvraag.id);
+  if (besluit) {
     stappen.push(stap(besluit));
-    let volgende = null;
     for (const bezwaar of bezwarenTegen(besluit.id)) {
       stappen.push(stap(bezwaar));
       for (const beslissing of beslissingenOp(bezwaar.id)) {
@@ -296,24 +297,26 @@ export function dossier(aanvraag) {
         }
         for (const ontvangst of ontvangstenBij(beslissing.id)) stappen.push(stap(ontvangst));
       }
-      // Het dossier volgt het besluit dat de laatste beslissing op het
-      // bezwaar nam. Een besluit dat een eerdere, door de rechter
-      // vernietigde beslissing nam, geldt niet meer en staat alleen in de
-      // kroniek.
-      const laatste = geldendeBeslissingOp(bezwaar.id);
-      volgende = (laatste && genomenDoor(laatste)[0]) ?? volgende;
     }
-    besluit = volgende;
   }
   return stappen;
 }
 
-/** Het besluit dat nu voor een aanvraag geldt. */
+/**
+ * Het besluit dat nu voor een aanvraag geldt: het besluit op de aanvraag,
+ * of het nieuwe besluit dat de laatste beslissing op een bezwaar ertegen in
+ * zijn plaats nam. Een beslissing die de rechter met haar rechtsgevolgen
+ * vernietigde, telt niet, en het nieuwe besluit dat zij hield evenmin.
+ */
 export function geldendBesluit(aanvraag) {
-  const besluiten = dossier(aanvraag)
-    .map((s) => s.gram)
-    .filter((g) => g.basis === besluitBasis() && g.refers_to);
-  return besluiten.filter((b) => !herroepen(b)).at(-1) ?? null;
+  const besluit = besluitOp(aanvraag.id);
+  if (!besluit) return null;
+  let geldend = besluit;
+  for (const bezwaar of bezwarenTegen(besluit.id)) {
+    const beslissing = geldendeBeslissingOp(bezwaar.id);
+    if (beslissing?.outputs?.bestreden_besluit_herroepen === true) geldend = nieuwBesluit(beslissing);
+  }
+  return geldend;
 }
 
 /**

@@ -199,7 +199,7 @@ function show(claim: ChangeClaim) {
                 <p>{{ t('sheet.change.values.intro') }}</p>
               </nldd-rich-text>
               <template v-for="group in type?.groups ?? []" :key="group.labelKey">
-                <nldd-title size="4"><h2>{{ groupLabel(group) }}</h2></nldd-title>
+                <nldd-title size="display-4"><h2>{{ groupLabel(group) }}</h2></nldd-title>
                 <nldd-form-field v-for="f in group.fields" :key="f.name" :label="fieldLabel(f)" optional>
                   <nldd-text-field
                     :value="answers[f.name] ?? ''"

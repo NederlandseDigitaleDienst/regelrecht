@@ -153,7 +153,7 @@ onMounted(run);
       ></nldd-button>
       <nldd-spacer size="16"></nldd-spacer>
 
-      <nldd-title size="2">
+      <nldd-title size="display-2">
         <span slot="overline">Beoordelingsomgeving</span>
         <h2>Scenario's</h2>
         <div slot="actions">
@@ -193,7 +193,7 @@ onMounted(run);
 
       <template v-for="feature in resultaten" :key="feature.feature">
         <nldd-spacer size="32"></nldd-spacer>
-        <nldd-title size="4"><h3>{{ feature.feature }}</h3></nldd-title>
+        <nldd-title size="display-4"><h3>{{ feature.feature }}</h3></nldd-title>
         <nldd-spacer size="12"></nldd-spacer>
         <nldd-list appearance="box-tinted">
           <template v-for="scenario in feature.scenarios" :key="scenario.name">

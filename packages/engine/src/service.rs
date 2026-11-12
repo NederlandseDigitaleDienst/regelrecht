@@ -40,11 +40,11 @@ use crate::error::{EngineError, Result};
 use crate::operations::ValueResolver;
 use crate::priority;
 use crate::resolver::{
-    hook_filter_admits, missing_article_reason, submission_filter_admits, DeclarationKind,
-    DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal, HookEntry,
-    LawArticleRef, ProcedureMiss, RuleResolver, SelectionReason,
+    DeclarationKind, DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal,
+    HookEntry, LawArticleRef, ProcedureMiss, RuleResolver, SelectionReason, hook_filter_admits,
+    missing_article_reason, submission_filter_admits,
 };
-use crate::trace::{LegalAnchor, TraceBuilder, ValueSource};
+use crate::trace::{LegalAnchor, PathNode, TraceBuilder, ValueSource};
 use crate::types::{
     Connectivity, LegalStatus, MissingKind, PathNodeType, RegulatoryLayer, ResolveType, TypeSpec,
     UntranslatableMode, Value,
@@ -485,6 +485,13 @@ impl<'a> ResolutionContext<'a> {
         }
     }
 
+    /// Nest a trace built in another execution under the current node.
+    fn trace_adopt(&self, node: PathNode) {
+        if let Some(ref tb) = self.trace {
+            tb.borrow_mut().adopt(node);
+        }
+    }
+
     /// Record where the current node's value came from (RFC-039).
     fn trace_set_source(&self, source: ValueSource) {
         if let Some(ref tb) = self.trace {
@@ -737,7 +744,7 @@ fn check_decision_parameters(
                     article,
                     &declared.name,
                     &format!("is of type {}", other.type_name()),
-                ))
+                ));
             }
         };
         let flaw = if at_top {
@@ -2105,10 +2112,10 @@ impl LawExecutionService {
         // leaves a consumer to discover an absence it has no ground for; the
         // error carries the words of the article that excluded it.
         for name in output_names {
-            if !result.outputs.contains_key(*name) {
-                if let Some(error) = voided_output_error(law_id, name, &result.output_provenance) {
-                    return Err(error);
-                }
+            if !result.outputs.contains_key(*name)
+                && let Some(error) = voided_output_error(law_id, name, &result.output_provenance)
+            {
+                return Err(error);
             }
         }
         Ok(result)
@@ -2532,7 +2539,7 @@ impl LawExecutionService {
                     "{law_id} article {article_number} establishes an {kind} and follows \
                      procedure '{}', which has no stage {kind} for the hooks on it to fire at",
                     procedure.id
-                )))
+                )));
             }
         };
         let articles = self.taking_part(law, article, ref_date, |hook_point| {
@@ -4254,14 +4261,14 @@ impl LawExecutionService {
         // call in the same situation was already turned into a skip by
         // `resolve_external_input_internal`, so it never gets here with a
         // deeper depth.
-        if res_ctx.depth == 0 {
-            if let Some((name, value)) = required_parameter_for_nobody(article, &parameters) {
-                return Err(EngineError::MissingParameter {
-                    law_id: law.id.clone(),
-                    name,
-                    value: value.to_string(),
-                });
-            }
+        if res_ctx.depth == 0
+            && let Some((name, value)) = required_parameter_for_nobody(article, &parameters)
+        {
+            return Err(EngineError::MissingParameter {
+                law_id: law.id.clone(),
+                name,
+                value: value.to_string(),
+            });
         }
         check_decision_parameters(law, article, &parameters, res_ctx.depth == 0)?;
 
@@ -4610,8 +4617,11 @@ impl LawExecutionService {
             name: answer,
             parameters: &parameters,
             calculation_date: res_ctx.calculation_date,
+            // When tracing, the answerer may say how it came to the answer;
+            // that trace hangs under the node of the answer.
+            trace: res_ctx.trace.is_some(),
         };
-        let given = match askee.answer(self, &request) {
+        let mut given = match askee.answer(self, &request) {
             Ok(Some(given)) => given,
             Ok(None) => {
                 let message = format!(
@@ -4641,6 +4651,9 @@ impl LawExecutionService {
             } else {
                 format!("Answered by {}", given.provenance)
             });
+            if let Some(how) = given.trace.take() {
+                res_ctx.trace_adopt(how);
+            }
         }
         if given.value.is_null() {
             let message = format!(
@@ -5110,31 +5123,31 @@ impl LawExecutionService {
         // term's id (RFC-045 §5), and wins over a default. A regulation that is
         // silent on a term with a default leaves it to the default, not to
         // a finding (RFC-036, RFC-048 §2).
-        if let Some(by) = &term.decided_per_case_by {
-            if let Some(value) = parameters.get(&term.id) {
-                if !silent.is_empty() {
-                    let message = format!(
-                        "Open term '{}' on {}#{} is filled by its default: implementation {} \
+        if let Some(by) = &term.decided_per_case_by
+            && let Some(value) = parameters.get(&term.id)
+        {
+            if !silent.is_empty() {
+                let message = format!(
+                    "Open term '{}' on {}#{} is filled by its default: implementation {} \
                          is silent for this case (null); the finding of {by} for it is asked by \
                          none (RFC-048)",
-                        term.id,
-                        law.id,
-                        article.number,
-                        silent.join(", ")
-                    );
-                    res_ctx.trace_set_message(message.clone());
-                    res_ctx.leave(&ot_key);
-                    return Err(EngineError::InvalidOperation(message));
-                }
-                res_ctx.trace_set_result(value.clone());
-                res_ctx.trace_set_message(format!(
-                    "Open term '{}' decided in this case by {by}",
-                    term.id
-                ));
-                res_ctx.note_open_term(&law.id, &article.number, &term.id, FilledBy::Finding);
+                    term.id,
+                    law.id,
+                    article.number,
+                    silent.join(", ")
+                );
+                res_ctx.trace_set_message(message.clone());
                 res_ctx.leave(&ot_key);
-                return Ok(value.clone());
+                return Err(EngineError::InvalidOperation(message));
             }
+            res_ctx.trace_set_result(value.clone());
+            res_ctx.trace_set_message(format!(
+                "Open term '{}' decided in this case by {by}",
+                term.id
+            ));
+            res_ctx.note_open_term(&law.id, &article.number, &term.id, FilledBy::Finding);
+            res_ctx.leave(&ot_key);
+            return Ok(value.clone());
         }
         let value = if let Some(ref default) = term.default {
             // No implementation found, or a silent one — execute default actions
@@ -5400,23 +5413,85 @@ impl LawExecutionService {
         Err(EngineError::DataSourceError(message))
     }
 
-    /// Whether resolving `input` calls another law: it names a regulation or
-    /// an article (RFC-045 §6) and no data source answers for it first, the
-    /// order [`Self::resolve_input`] follows.
+    /// Resolve an input that reads the aggregates of a reduction
+    /// (`source.projections`, schema v0.8.17): the engine plays them on the
+    /// records of the chronicle of the call, for the roots that hold the
+    /// values `where` names ([`Self::projection_rows`]). Without a
+    /// chronicle that gives records, the input is an error, never an empty
+    /// list.
+    fn resolve_projections(
+        &self,
+        law: &ArticleBasedLaw,
+        input: &Input,
+        source: &regelrecht_law_model::Source,
+        reduction: &str,
+        context: &RuleContext,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Result<Value> {
+        let _guard = res_ctx.trace_guard(&input.name, PathNodeType::Resolve);
+        let mut filter = BTreeMap::new();
+        for (name, reference) in source.where_.iter().flatten() {
+            let path = reference.strip_prefix('$').unwrap_or(reference);
+            filter.insert(name.clone(), context.resolve(path)?);
+        }
+        let records = match res_ctx.chronicle {
+            Some(chronicle) => chronicle
+                .records()
+                .inspect_err(|e| res_ctx.trace_set_message(e.to_string()))?
+                .map(|records| (chronicle.keeper().to_string(), records)),
+            None => None,
+        };
+        let Some((keeper, records)) = records else {
+            let message = format!(
+                "input '{}' of {} reads the aggregates of {reduction}, and no chronicle supplies \
+                 its records",
+                input.name, law.id
+            );
+            res_ctx.trace_set_message(message.clone());
+            return Err(EngineError::DataSourceError(message));
+        };
+        let (rows, aggregates) = self
+            .projection_rows_traced(
+                reduction,
+                &records,
+                &filter,
+                res_ctx.calculation_date,
+                res_ctx.trace.is_some(),
+            )
+            .inspect_err(|e| res_ctx.trace_set_message(e.to_string()))?;
+        for node in aggregates {
+            res_ctx.trace_adopt(node);
+        }
+        res_ctx.trace_set_resolve_type(ResolveType::DataSource);
+        res_ctx.trace_set_result(rows.clone());
+        res_ctx.trace_set_source(ValueSource {
+            kind: ResolveType::DataSource,
+            provider: Some(keeper.clone()),
+            scope: Some(law.id.clone()),
+        });
+        res_ctx.trace_set_message(format!(
+            "Resolving from the chronicle of {keeper}: the aggregates of {reduction}"
+        ));
+        Ok(rows)
+    }
+
+    /// Whether resolving `input` calls another law: it names a regulation, an
+    /// article (RFC-045 §6) or the answer of a cell (`source.reduction`,
+    /// RFC-048), and no data source answers for it first, the order
+    /// [`Self::resolve_input`] follows. Each passes parameters that may read
+    /// other inputs of the article.
     fn calls_other_law(
         &self,
         law: &ArticleBasedLaw,
         input: &Input,
         parameters: &BTreeMap<String, Value>,
     ) -> bool {
-        input
-            .source
-            .as_ref()
-            .is_some_and(|source| source.regulation.is_some() || source.article.is_some())
-            && self
-                .data_registry
-                .resolve_for_law(&input.name, parameters, Some(&law.id))
-                .is_none()
+        input.source.as_ref().is_some_and(|source| {
+            source.regulation.is_some() || source.article.is_some() || source.reduction.is_some()
+        }) && self
+            .data_registry
+            .resolve_for_law(&input.name, parameters, Some(&law.id))
+            .is_none()
     }
 
     /// Resolve one input from its source, the first time an action reads it
@@ -5503,6 +5578,14 @@ impl LawExecutionService {
         if let Some(read) = crate::load_check::chronicle_read(source) {
             return self
                 .resolve_chronicle_read(law, input, read, context, res_ctx)
+                .map(Some);
+        }
+
+        // The aggregates of another reduction (schema v0.8.17), played on
+        // the chronicle of the call.
+        if let Some(reduction) = &source.projections {
+            return self
+                .resolve_projections(law, input, source, reduction, context, res_ctx)
                 .map(Some);
         }
 
@@ -6040,7 +6123,7 @@ impl LawExecutionService {
                             "an article reference or a decision value in {named_by} for {caller}"
                         ),
                         actual: other.to_string(),
-                    })
+                    });
                 }
             },
         };
@@ -6117,9 +6200,9 @@ impl LawExecutionService {
                 return refuse(
                     res_ctx,
                     format!(
-                    "{caller} takes '{output}' from {target}, which is no output of its decision"
-                ),
-                )
+                        "{caller} takes '{output}' from {target}, which is no output of its decision"
+                    ),
+                );
             }
         };
 
@@ -6595,13 +6678,13 @@ impl LawExecutionService {
             .resolver
             .get_law_for_date_reported(law_id, reference_date)
             .map_err(|reason| selection_error(law_id, valid_from.unwrap_or(""), reason))?;
-        if let Some(requested) = valid_from {
-            if law.valid_from.as_deref() != Some(requested) {
-                return Err(EngineError::LoadError(format!(
-                    "law '{law_id}' has no loaded version with valid_from {requested}; \
+        if let Some(requested) = valid_from
+            && law.valid_from.as_deref() != Some(requested)
+        {
+            return Err(EngineError::LoadError(format!(
+                "law '{law_id}' has no loaded version with valid_from {requested}; \
                      the viewed version may have failed to load"
-                )));
-            }
+            )));
         }
         Ok(law)
     }
@@ -6619,11 +6702,11 @@ impl LawExecutionService {
         // Collect output names from all articles
         let mut outputs = Vec::new();
         for article in &law.articles {
-            if let Some(exec) = article.get_execution_spec() {
-                if let Some(output_specs) = &exec.output {
-                    for output in output_specs {
-                        outputs.push(output.name.clone());
-                    }
+            if let Some(exec) = article.get_execution_spec()
+                && let Some(output_specs) = &exec.output
+            {
+                for output in output_specs {
+                    outputs.push(output.name.clone());
                 }
             }
         }

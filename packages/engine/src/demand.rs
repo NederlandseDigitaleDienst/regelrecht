@@ -10,7 +10,7 @@
 //! so the walk goes through [`crate::article::ActionOperation::operands`], which is exhaustive
 //! over the operation variants.
 
-use crate::article::{foreach_binding, Action, ActionOperation, ActionValue, Article};
+use crate::article::{Action, ActionOperation, ActionValue, Article, foreach_binding};
 use crate::types::Value;
 use std::collections::{BTreeMap, BTreeSet};
 

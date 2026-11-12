@@ -12,7 +12,7 @@
 import { reactive, watch } from 'vue';
 import { api } from '../api.js';
 import { hoofdletter, leesbaar, state, stap } from '../state.js';
-import { formulier, huidigeStap, ingeklapt, scenarioWaarden } from '../scenarioInvoer.js';
+import { formulier, huidigeStap, ingeklapt, scenarioVerwijzing, scenarioWaarden } from '../scenarioInvoer.js';
 import ArtikelLink from './ArtikelLink.vue';
 import RechterCel from './RechterCel.vue';
 import VeldInvoer from './VeldInvoer.vue';
@@ -43,7 +43,9 @@ const artikelVan = (feit) => feit.split('#').slice(0, 2).join('#');
 const kroniek = (cel) => state.andere.find((a) => a.cel === cel)?.grammen ?? [];
 
 // Een schakelaar die uit staat, zegt nee: een feit met ja/nee-velden (zoals
-// het advies van de GGD per criterium) is anders nooit heel.
+// het advies van de GGD per criterium) is anders nooit heel. Verwijst de stap
+// van het scenario naar een eerder record, zoals een correctie naar de
+// inschrijving die ze verbetert, dan gaat dat kenmerk mee.
 async function vastleggen(cel, handeling) {
   const basis = handeling.feit;
   const ingevuld = velden(cel, basis);
@@ -52,7 +54,8 @@ async function vastleggen(cel, handeling) {
       .map((v) => [v.naam, ingevuld[v.naam] ?? (v.type === 'boolean' && !v.mag_leeg ? false : undefined)])
       .filter(([, v]) => v !== undefined),
   );
-  const ok = await stap(() => api.vastleggen(cel, basis, gegeven, state.datum));
+  const verwijstNaar = scenarioVerwijzing(cel, basis);
+  const ok = await stap(() => api.vastleggen(cel, basis, gegeven, state.datum, verwijstNaar));
   if (ok) vorm.wis(sleutel(cel, basis));
 }
 </script>
@@ -61,13 +64,13 @@ async function vastleggen(cel, handeling) {
   <template v-for="c in state.vormen.andere_cellen" :key="c.cel">
     <RechterCel v-if="c.cel === state.casus.rechter?.cel" />
     <nldd-simple-section v-else>
-      <nldd-title slot="header" size="3" :text="c.cel_naam">
+      <nldd-title heading-level="2" slot="header" size="display-3" :text="c.cel_naam">
         <nldd-text slot="supporting-text">Een andere cel van de casus, met een eigen kroniek.</nldd-text>
       </nldd-title>
       <nldd-container gap="16" max-width="560px">
         <nldd-card v-for="h in c.handelingen" :key="h.feit">
           <nldd-container padding="16" gap="12">
-            <nldd-title size="5" :text="`Vastleggen: ${naam(h.feit)}`">
+            <nldd-title heading-level="3" size="display-5" :text="`Vastleggen: ${naam(h.feit)}`">
               <nldd-text slot="supporting-text" size="sm" color="secondary">
                 <ArtikelLink :basis="artikelVan(h.feit)" />
               </nldd-text>

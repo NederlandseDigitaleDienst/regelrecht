@@ -85,6 +85,12 @@ const KNOWN_GAPS: &[&str] = &[
     "produces_list_requests_on_decision.yaml", // schema v0.8.1 allows `requests` only on a submission (`if`/`then`); the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)
     "produces_list_derived_on_submission.yaml", // schema v0.8.4 allows `derived` only on a decision (`if`/`then`); the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)
     "requires_fact_with_law.yaml", // schema v0.8.7 lets a `requires` entry name a fact or another provision, not both (`if`/`then`); the model has all fields on one entry, and the loader refuses it (`reject_malformed_facts`)
+    "projection_key.yaml", // schema v0.8.17 has no `key` on a projection, only `per`; the model still reads `key` for a law under v0.8.14 to v0.8.16, and the loader refuses it in a file under v0.8.17 (`reject_malformed_projection`)
+    "projection_step_passes_question.yaml", // schema v0.8.17 allows only `$record.<field>` and `$state.<property>` as a parameter of a step; the model reads any reference, and the loader refuses a parameter of the question in a file under v0.8.17 (`reject_malformed_projection`), as v0.8.14 to v0.8.16 allowed it
+    "reduction_article_both.yaml", // schema v0.8.17 forbids an execution beside a projection in one article (`if`/`then`); the model has both as options on the section, and the loader refuses the pair (`reject_malformed_projection`)
+    "projection_fact_name_before_v0_8_18.yaml", // schema v0.8.17 allows only a kind in capitals as the third segment of `per` and `steps[].record`; the model reads a fact name in lower case for any version, and the loader refuses it in a file under v0.8.17 or earlier (`reject_malformed_projection`)
+    "requires_effects_without_fact.yaml", // schema v0.8.15 allows `effects` on a `requires` entry only with `fact` (`if`/`else`); the model has all fields on one entry, and the loader refuses it (`reject_malformed_facts`)
+    "requires_fact_effect_revokes_field.yaml", // schema v0.8.15 pins `revokes` on a fact to `refers_to`; the model reads any string, and the loader refuses another (`reject_malformed_facts`)
     "produces_list_decision_type_on_submission.yaml", // schema v0.8.1 allows `decision_type` and `procedure_id` only on a decision; the model has them on every item, and a submission's are never read
     "temporal_unknown_type.yaml", // schema pins period|point_in_time; model reads any string
     "start_of_week_unit.yaml", // schema pins START_OF `in` to year|month; model reads any string, engine errors at runtime (same family as date_part_plural_unit)
@@ -141,10 +147,10 @@ fn first_difference(a: &Value, b: &Value, path: &str) -> Option<String> {
                         }
                     }
                     (Some(xv), None) => {
-                        return Some(format!("{sub}: source has {xv}, model omits"))
+                        return Some(format!("{sub}: source has {xv}, model omits"));
                     }
                     (None, Some(yv)) => {
-                        return Some(format!("{sub}: source omits, model has {yv}"))
+                        return Some(format!("{sub}: source omits, model has {yv}"));
                     }
                     (None, None) => {}
                 }
@@ -610,15 +616,15 @@ fn branch_matches(schema: &Value, branch: &Value, instance: &Value) -> bool {
             let Some(present) = object.get(key) else {
                 continue;
             };
-            if let Some(constant) = sub.get("const") {
-                if present != constant {
-                    return false;
-                }
+            if let Some(constant) = sub.get("const")
+                && present != constant
+            {
+                return false;
             }
-            if let Some(allowed) = sub.get("enum").and_then(Value::as_array) {
-                if !allowed.contains(present) {
-                    return false;
-                }
+            if let Some(allowed) = sub.get("enum").and_then(Value::as_array)
+                && !allowed.contains(present)
+            {
+                return false;
             }
         }
     }

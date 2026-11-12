@@ -199,18 +199,17 @@ pub fn append_notes_to_sidecar(
         // content, we would silently drop the lot. Refuse instead: a
         // loud abort with the bytes untouched beats a quiet corpus
         // deletion. RFC-018 §10 / RFC-005 verbatim-preservation.
-        if base_notes.is_empty() {
-            if let Some(raw) = base_text {
-                if raw.contains("type: Annotation") || raw.contains("\"type\": \"Annotation\"") {
-                    return Err(
-                        "refusing to rebuild a notes file whose existing content could not \
+        if base_notes.is_empty()
+            && let Some(raw) = base_text
+            && (raw.contains("type: Annotation") || raw.contains("\"type\": \"Annotation\""))
+        {
+            return Err(
+                "refusing to rebuild a notes file whose existing content could not \
                          be parsed as a block sequence: this would discard the notes already \
                          in it. The sidecar must be repaired (LF endings, block-style \
                          `annotations:` list) before new notes can be added."
-                            .to_string(),
-                    );
-                }
-            }
+                    .to_string(),
+            );
         }
         let mut all = base_notes;
         all.extend(to_add.iter().map(|n| (*n).clone()));

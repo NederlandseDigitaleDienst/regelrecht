@@ -9,11 +9,11 @@
 use std::collections::BTreeSet;
 
 use regelrecht_engine::{
-    annotation, Article, OutputProvenance, SelectorHint, TextQuoteSelector, Value,
+    Article, OutputProvenance, SelectorHint, TextQuoteSelector, Value, annotation,
 };
 use rust_decimal::Decimal;
 
-use crate::helpers::table::{rows_to_params, rows_to_records, Rows};
+use crate::helpers::table::{Rows, rows_to_params, rows_to_records};
 use crate::helpers::value_conversion::{convert_gherkin_value, values_equal_with_tolerance};
 use crate::world::RegelrechtWorld;
 

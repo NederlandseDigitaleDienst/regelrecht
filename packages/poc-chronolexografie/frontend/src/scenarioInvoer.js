@@ -97,6 +97,16 @@ export function scenarioWaarden(soort, doel = {}) {
 }
 
 /**
+ * The kenmerk of the earlier record that the record step the scenario is at
+ * refers to (`verwijst_naar`), when that step records `feit` in cell `cel`;
+ * null otherwise, and always in free play.
+ */
+export function scenarioVerwijzing(cel, feit) {
+  if (!isHuidigeStap('vastleggen', { cel, feit })) return null;
+  return huidigeStap().step.stap.verwijst_naar ?? null;
+}
+
+/**
  * A set of forms, one per key (an application, an objection, a cell's
  * fact), that start from `standaard(key)` and keep what the visitor
  * changes, an emptied value included, until the scenario moves to another

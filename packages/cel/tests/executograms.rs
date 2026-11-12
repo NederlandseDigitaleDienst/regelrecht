@@ -7,9 +7,9 @@
 // a failing fixture reports itself.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use regelrecht_cel::{reading, Cell, Error, EXECUTOGRAM};
+use regelrecht_cel::{Cell, EXECUTOGRAM, Error, reading};
 use regelrecht_engine::{AnswerRequest, Authority, LawExecutionService, OpenTermAnswerer};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 mod common;
 use common::{cell_tempdir, day, object_map};
@@ -281,13 +281,14 @@ fn an_executogram_read_back_records_a_fact_and_nothing_else() {
         matches!(&e, Error::Setup(m) if m.contains("records a fact and nothing else")),
         "{e}"
     );
+    // A fact refers only to a chronolexogram before it (schema v0.8.15).
     let e = opens(line.replace(
         "\"recording_actor\"",
         "\"refers_to\":\"x\",\"recording_actor\"",
     ))
     .unwrap_err();
     assert!(
-        matches!(&e, Error::Setup(m) if m.contains("records a fact and nothing else")),
+        matches!(&e, Error::Setup(m) if m.contains("refers to 'x', which is not a chronolexogram before it")),
         "{e}"
     );
     let e = opens(line.replace("\"fact\":\"stand\",", "")).unwrap_err();
@@ -331,10 +332,13 @@ fn the_rows_are_the_executograms_of_that_fact() {
 }
 
 /// A reduction of the fictional school that reads the executograms of the
-/// fact `fact`, and gives the answer `plaats`.
+/// fact `fact`, and gives the answer `plaats`. It reads them directly
+/// (`source.facts`), which schema v0.8.19 no longer allows, so it declares
+/// v0.8.17.
 fn reduction(fact: &str) -> String {
     format!(
         r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: reductie_plaats_fictief
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -380,6 +384,7 @@ fn a_reduction_reads_only_a_fact_its_article_requires() {
             name: "plaats",
             parameters: &std::collections::BTreeMap::new(),
             calculation_date: "2026-08-01",
+            trace: false,
         };
         reader.answer(&service, &request).map(|a| a.unwrap().value)
     };
@@ -468,7 +473,10 @@ articles:
                   then: $x_volgens_hoofd
               default: $antwoord
 "#;
+    // A reduction that only calls a law, which schema v0.8.19 no longer
+    // allows, so it declares v0.8.17.
     let reduction = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: reductie_kring_fictief
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'

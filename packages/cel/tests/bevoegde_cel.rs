@@ -18,9 +18,9 @@ mod common;
 
 use common::{day, object_map};
 
-use regelrecht_cel::{shape, Cell, Error, Gram};
+use regelrecht_cel::{Cell, Error, Gram, shape};
 use regelrecht_engine::{FilledBy, LawExecutionService};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 /// A procedure for a beschikking.
 const GENERAL_LAW: &str = r#"
@@ -155,6 +155,7 @@ articles:
 fn reduction(actor: &str) -> String {
     format!(
         r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_eerder_{actor}
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -430,10 +431,11 @@ fn two_competent_cells_are_an_error() {
             .contains("2 cells of the call are named by 'college van burgemeester en wethouders' or 'Landelijke uitgever': Landelijke uitgever, oostmeer"),
         "{e}"
     );
-    assert!(!rdw
-        .grams()
-        .iter()
-        .any(|g| g.outputs.contains_key("kaart_verstrekt")));
+    assert!(
+        !rdw.grams()
+            .iter()
+            .any(|g| g.outputs.contains_key("kaart_verstrekt"))
+    );
 }
 
 #[test]

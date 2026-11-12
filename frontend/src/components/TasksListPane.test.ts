@@ -30,11 +30,8 @@ vi.mock('@regelrecht/frontend-shared', async (importOriginal) => ({
   apiFetch: (...a: unknown[]) => apiFetch(...a),
 }));
 
-// De pane vertaalt law_ids naar weergavenamen via useCorpusLaws; dat is de
-// tweede netwerkpoot (zelfde mock-vorm als useCorpusLaws.test.js).
-const apiFetchJson = vi.fn();
-vi.mock('../lib/apiFetch', () => ({
-  apiFetchJson: (...a: unknown[]) => apiFetchJson(...a),
+vi.mock('../lib/apiFetch', async (importOriginal) => ({
+  ...(await importOriginal()),
   apiFetch: (...a: unknown[]) => apiFetch(...a),
 }));
 
@@ -81,7 +78,6 @@ describe('TasksListPane', () => {
   beforeEach(() => {
     vi.resetModules();
     apiFetch.mockReset();
-    apiFetchJson.mockReset();
     pushMock.mockReset();
     sheetShown = false;
   });
@@ -107,7 +103,6 @@ describe('TasksListPane', () => {
     // Geen wet in het corpus: displayName valt terug op humanizeLawId, zodat
     // deze tests op het rauwe id kunnen asserten (de naamresolutie zelf is
     // gedekt in ../lib/taskTitle.test.js).
-    apiFetchJson.mockResolvedValue([]);
     const { default: TasksListPane } = await import('./TasksListPane.vue');
     const wrapper = mount(TasksListPane, {
       props: { trajectRef: 'traject-abcd1234', ...props },

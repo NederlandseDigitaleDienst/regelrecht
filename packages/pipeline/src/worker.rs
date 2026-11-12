@@ -4,17 +4,17 @@ use std::time::Duration;
 use regelrecht_corpus::{CorpusClient, CorpusConfig};
 use reqwest::Client;
 use sqlx::PgPool;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 
 use crate::config::WorkerConfig;
 use crate::db;
 use crate::document_convert::{self, DocumentConvertPayload, LlmDocumentConverter};
 use crate::enrich::{
-    create_enrich_corpus, enrich_branch_name, execute_enrich, progress_file_path, EnrichConfig,
-    EnrichPayload, EnrichResult, RelatedLegislation,
+    EnrichConfig, EnrichPayload, EnrichResult, RelatedLegislation, create_enrich_corpus,
+    enrich_branch_name, execute_enrich, progress_file_path,
 };
 use crate::error::{PipelineError, Result};
-use crate::harvest::{execute_harvest, HarvestPayload, HarvestResult, MAX_HARVEST_DEPTH};
+use crate::harvest::{HarvestPayload, HarvestResult, MAX_HARVEST_DEPTH, execute_harvest};
 use crate::job_queue::{self, CreateJobRequest};
 use crate::law_convert::{self, LawConvertPayload, LlmLawStructurer};
 use crate::law_status;
@@ -1232,10 +1232,10 @@ async fn resolve_related_bwb_id(
     entry: &RelatedLegislation,
 ) -> RelatedResolution {
     // (a) explicit bwb_id
-    if let Some(bwb_id) = entry.bwb_id.as_deref() {
-        if is_valid_bwb_id(bwb_id) {
-            return RelatedResolution::Resolved(bwb_id.to_string());
-        }
+    if let Some(bwb_id) = entry.bwb_id.as_deref()
+        && is_valid_bwb_id(bwb_id)
+    {
+        return RelatedResolution::Resolved(bwb_id.to_string());
     }
 
     // (b) slug lookup
@@ -1326,12 +1326,12 @@ async fn harvest_related_legislation(
         resolved += 1;
 
         // Skip harvest for exhausted laws (mirror the follow-up harvest block).
-        if let Ok(law) = law_status::get_law(pool, &bwb_id).await {
-            if law.status == LawStatusValue::HarvestExhausted {
-                exhausted += 1;
-                tracing::info!(bwb_id = %bwb_id, "skipping related harvest: law is harvest_exhausted");
-                continue;
-            }
+        if let Ok(law) = law_status::get_law(pool, &bwb_id).await
+            && law.status == LawStatusValue::HarvestExhausted
+        {
+            exhausted += 1;
+            tracing::info!(bwb_id = %bwb_id, "skipping related harvest: law is harvest_exhausted");
+            continue;
         }
 
         // Related harvests always want the latest consolidation (date None). The
@@ -1530,10 +1530,10 @@ async fn process_next_document_convert_job(
             // re-reads these bytes. This deletion targets a separate
             // `document_uploads` row, not the job/task tables, so it stays
             // outside the transaction above.
-            if fail_result.is_ok() {
-                if let Err(e) = document_convert::delete_upload(pool, payload.upload_id).await {
-                    tracing::warn!(job_id = %job.id, error = %e, "failed to delete document upload after terminal failure");
-                }
+            if fail_result.is_ok()
+                && let Err(e) = document_convert::delete_upload(pool, payload.upload_id).await
+            {
+                tracing::warn!(job_id = %job.id, error = %e, "failed to delete document upload after terminal failure");
             }
             fail_result?;
 
@@ -1725,10 +1725,10 @@ async fn process_next_law_convert_job(
             .await;
             // Upload-bytes alleen weg wanneer de fail+taak echt gecommit is
             // (zelfde afweging als het document-convert-pad).
-            if fail_result.is_ok() {
-                if let Err(e) = document_convert::delete_upload(pool, payload.upload_id).await {
-                    tracing::warn!(job_id = %job.id, error = %e, "failed to delete law upload after terminal failure");
-                }
+            if fail_result.is_ok()
+                && let Err(e) = document_convert::delete_upload(pool, payload.upload_id).await
+            {
+                tracing::warn!(job_id = %job.id, error = %e, "failed to delete law upload after terminal failure");
             }
             fail_result?;
 
@@ -1848,26 +1848,24 @@ async fn process_next_traject_harvest_job(
                     .await?;
                     failed.status == crate::models::JobStatus::Failed
                 };
-                if terminal {
-                    if let Some(account_id) = payload.requested_by {
-                        crate::tasks::create_task(
-                            &mut *tx,
-                            crate::tasks::NewTask {
-                                task_type: crate::tasks::TaskType::JobFailed,
-                                assignee_account_id: Some(account_id),
-                                traject_id: Some(payload.traject_id),
-                                job_id: Some(job.id),
-                                title: format!("Wet ophalen mislukt: {}", payload.display_name()),
-                                payload: Some(serde_json::json!({
-                                    "traject_ref": payload.traject_ref,
-                                    "bwb_id": payload.bwb_id,
-                                    "law_name": payload.law_name,
-                                    "error": msg.clone(),
-                                })),
-                            },
-                        )
-                        .await?;
-                    }
+                if terminal && let Some(account_id) = payload.requested_by {
+                    crate::tasks::create_task(
+                        &mut *tx,
+                        crate::tasks::NewTask {
+                            task_type: crate::tasks::TaskType::JobFailed,
+                            assignee_account_id: Some(account_id),
+                            traject_id: Some(payload.traject_id),
+                            job_id: Some(job.id),
+                            title: format!("Wet ophalen mislukt: {}", payload.display_name()),
+                            payload: Some(serde_json::json!({
+                                "traject_ref": payload.traject_ref,
+                                "bwb_id": payload.bwb_id,
+                                "law_name": payload.law_name,
+                                "error": msg.clone(),
+                            })),
+                        },
+                    )
+                    .await?;
                 }
                 tx.commit().await?;
                 Ok(())
@@ -3576,8 +3574,9 @@ mod tests {
                 .find(|l| !l.is_empty() && !l.starts_with("//"))
                 .unwrap_or("");
             assert!(
-                next_code_line
-                    .starts_with("let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job,"),
+                next_code_line.starts_with(
+                    "let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job,"
+                ),
                 "the claim on line {} must be followed by a named heartbeat guard, found: {next_code_line}",
                 i + 1
             );

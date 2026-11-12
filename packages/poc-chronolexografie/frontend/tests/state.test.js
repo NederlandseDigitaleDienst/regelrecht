@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { api } from '../src/api.js';
+import { melding } from '../src/melding.js';
 import { hervatten, hoofdvelden, state, stap, verversen } from '../src/state.js';
 
 // The cell is not loaded here: the API hands back a fixed case and an empty
@@ -66,6 +68,24 @@ describe('saving the game of this tab', () => {
     storage.set('poc-spel', '{not json');
     expect(await hervatten('vakantieverlof')).toBe('none');
     expect(storage.has('poc-spel')).toBe(false);
+  });
+
+  it('drops a game saved in an older form and says to start again', async () => {
+    // A game saved before the decision on an objection held the new decision
+    // itself: the cell refuses its chronicle and does not convert it.
+    storage.set('poc-spel', JSON.stringify({ casus: 'vakantieverlof', spel: {}, datum: '2026-11-20' }));
+    const herstellen = api.herstellen;
+    api.herstellen = async () => {
+      throw new Error("setup: the chronicle of 'obs_de_klimop' is in an older form: chronolexogram 'x' holds 'y'");
+    };
+    try {
+      expect(await hervatten('vakantieverlof')).toBe('none');
+    } finally {
+      api.herstellen = herstellen;
+    }
+    expect(storage.has('poc-spel')).toBe(false);
+    expect(state.casus).toBeNull();
+    expect(melding(state.fout)).toBe('Dit spel is opgeslagen in een oudere vorm en kan niet verder. Begin opnieuw met een casus.');
   });
 });
 

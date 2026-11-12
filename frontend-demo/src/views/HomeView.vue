@@ -118,7 +118,7 @@ onActivated(() => {
            afstand te lezen. Op een smal scherm zakt hij onder de tekst. -->
       <div class="hero-row">
         <div class="hero-text">
-          <nldd-title size="1" color="inherit">
+          <nldd-title size="display-1" color="inherit">
             <span slot="overline">{{ t('app.demo.label') }}</span>
             <h1>RegelRecht</h1>
             <span slot="supporting-text">{{ t('home.hero.subtitle') }}</span>
@@ -136,7 +136,7 @@ onActivated(() => {
                 <!-- An explicit color: in the hero the icon would inherit its
                      white and vanish on the white card. -->
                 <nldd-icon :icon="w.icon" size="24" color="accent"></nldd-icon>
-                <nldd-title size="5">
+                <nldd-title size="display-5">
                   <h2>{{ w.title }}</h2>
                 </nldd-title>
                 <nldd-rich-text spacing="tight">
@@ -159,7 +159,7 @@ onActivated(() => {
          te kennen heeft eerder iets aan de weg naar RegelRecht zelf dan aan een
          beschrijving van tabbladen die vlak boven hem al staan. -->
     <nldd-simple-section>
-      <nldd-title slot="header" size="3">
+      <nldd-title slot="header" size="display-3">
         <h2>{{ t('home.links.title') }}</h2>
         <span slot="supporting-text">{{ t('home.links.subtitle') }}</span>
       </nldd-title>
@@ -167,7 +167,7 @@ onActivated(() => {
         <nldd-card v-for="l in links" :key="l.href" :href="l.href" target="_blank">
           <nldd-container padding="16" gap="8">
             <nldd-icon :icon="l.icon" size="24"></nldd-icon>
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h3>{{ l.title }}</h3>
             </nldd-title>
             <nldd-rich-text spacing="tight">
@@ -179,7 +179,7 @@ onActivated(() => {
     </nldd-simple-section>
 
     <nldd-simple-section background="tinted">
-      <nldd-title slot="header" size="3">
+      <nldd-title slot="header" size="display-3">
         <!-- Een kop die met "Wat ..." begint leest als een tussenkop uit een
              gegenereerde tekst; de sectie is een lijst van onderdelen, dus zij
              heet naar wat zij toont. -->
@@ -190,7 +190,7 @@ onActivated(() => {
         <nldd-card v-for="o in onderdelen" :key="o.to" button :accessible-label="o.title" @click="router.push(o.to)">
           <nldd-container padding="16" gap="8">
             <nldd-icon :icon="o.icon" size="24"></nldd-icon>
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h3>{{ o.title }}</h3>
             </nldd-title>
             <nldd-rich-text spacing="tight">

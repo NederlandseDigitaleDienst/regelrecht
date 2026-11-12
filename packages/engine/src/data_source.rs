@@ -1195,9 +1195,11 @@ mod tests {
         assert_eq!(hit.map(|m| m.value), Some(Value::Int(1000)));
         // Another law does not: its same-named input stays free for cross-law
         // resolution.
-        assert!(registry
-            .resolve_for_law("inkomen", &criteria, Some("wet_b"))
-            .is_none());
+        assert!(
+            registry
+                .resolve_for_law("inkomen", &criteria, Some("wet_b"))
+                .is_none()
+        );
         // Nor does an unscoped lookup.
         assert!(registry.resolve("inkomen", &criteria).is_none());
 

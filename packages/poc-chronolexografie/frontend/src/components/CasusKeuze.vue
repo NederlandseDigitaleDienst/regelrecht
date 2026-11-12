@@ -57,7 +57,7 @@ const kies = (c) => navigate(() => kiezen(c.id));
 
 <template>
   <nldd-simple-section>
-    <nldd-title slot="header" size="3" text="Voor de demo">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Voor de demo">
       <nldd-text slot="supporting-text">Eerst de presentatie, dan de demoscenario's.</nldd-text>
     </nldd-title>
     <nldd-container gap="16">
@@ -66,7 +66,7 @@ const kies = (c) => navigate(() => kiezen(c.id));
         <nldd-button ref="kortKnop" appearance="secondary" start-icon="link" text="In het kort" @click="emit('kort')"></nldd-button>
       </nldd-button-bar>
       <nldd-title
-        size="4"
+        size="display-4"
         heading-level="2"
         text="Demoscenario's"
         supporting-text="Van simpel naar ingewikkeld, in twee casussen."
@@ -77,7 +77,7 @@ const kies = (c) => navigate(() => kiezen(c.id));
       <nldd-collection layout="grid" item-min-width="320px">
         <nldd-card v-for="(d, i) in demo" :key="d.guide.name">
           <nldd-container slot="header" padding="16">
-            <nldd-title size="5" heading-level="3" :overline="`Demo ${i + 1} · ${d.titel}`" :text="d.guide.name"></nldd-title>
+            <nldd-title size="display-5" heading-level="3" :overline="`Demo ${i + 1} · ${d.titel}`" :text="d.guide.name"></nldd-title>
           </nldd-container>
           <nldd-container padding="16">
             <nldd-text>{{ d.guide.summary }}</nldd-text>
@@ -94,7 +94,7 @@ const kies = (c) => navigate(() => kiezen(c.id));
     </nldd-container>
   </nldd-simple-section>
   <nldd-simple-section>
-    <nldd-title slot="header" size="3" text="Kies een casus">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Kies een casus">
       <nldd-text slot="supporting-text">
         Elke casus is een aanvraag, het besluit erop en het bezwaar ertegen, bij een verzonnen
         uitvoerder. De cel legt elke stap vast in haar kroniek en leest die terug bij een volgend
@@ -116,7 +116,7 @@ const kies = (c) => navigate(() => kiezen(c.id));
       <nldd-card v-for="c in casussen" :key="c.id">
         <nldd-container slot="header" padding="16">
           <nldd-title
-            size="4"
+            size="display-4"
             heading-level="2"
             :overline="`${hoofdletter(c.cel_naam)} (fictief)`"
             :text="c.titel"

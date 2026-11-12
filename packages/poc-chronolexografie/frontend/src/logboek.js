@@ -9,7 +9,7 @@
  * `uitkomst` (een uitvoer van het artikel) of `begrip` (een open begrip, met
  * wie het invulde).
  */
-import { bezwaarBasis, hoofdletter, kort, leesbaar, neemt, state, toegewezen, waarde } from './state.js';
+import { bezwaarBasis, hoofdletter, kort, leesbaar, state, toegewezen, waarde } from './state.js';
 
 // Regelwerken die overal bij hun afkorting heten.
 const AFKORTINGEN = {
@@ -158,7 +158,3 @@ export function uitslag(g) {
   if (toegewezen(g) === false) return { tekst: 'afgewezen', kleur: 'critical' };
   return { tekst: 'besluit', kleur: 'neutral' };
 }
-
-/** De beslissing op bezwaar die `id` als nieuw besluit nam, als die er is. */
-export const genomenBij = (id, grammen) =>
-  grammen.find((g) => g.basis === bezwaarBasis() && neemt(g, id)) ?? null;

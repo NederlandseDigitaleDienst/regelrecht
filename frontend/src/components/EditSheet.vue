@@ -2,8 +2,7 @@
 import type { ExecutionField, InputSource, RawDefinition } from '../lib/lawFormat';
 import { ref, computed, watch, watchEffect, nextTick } from 'vue';
 import { collectAvailableVariables } from '../utils/operationTree';
-import { lawsListUrl } from '../composables/corpusUrls';
-import { apiFetchJson } from '../lib/apiFetch';
+import { useCorpus, type CorpusLaw, type LawOutput } from '../corpus';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import type { NLDDComboBox } from '@nldd/design-system/combo-box';
 import type { OperationSettingsArticle } from './OperationSettings.vue';
@@ -65,31 +64,15 @@ interface FormValues {
   sourceParametersOverflow?: Record<string, unknown>;
 }
 
-/** A law in the corpus list (GET laws), as far as the sheet reads it. */
-interface LawListEntry {
-  law_id: string;
-  name?: string | null;
-  display_name?: string | null;
-}
-
-/** An output of a law (GET .../outputs), as far as the sheet reads it. */
-interface LawOutput {
-  name: string;
-  output_type?: string;
-  parameters?: { name: string }[] | null;
-}
+/** A law in the corpus list, as far as the sheet reads it. */
+type LawListEntry = Pick<CorpusLaw, 'law_id' | 'name' | 'display_name'>;
 
 const props = withDefaults(defineProps<{
   item?: EditSheetItem | null;
   article?: OperationSettingsArticle | null;
-  /** Active traject ref. When set the law search dropdown is scoped to
-   *  the traject's corpus so newly-added laws in this traject can be
-   *  selected as a source. */
-  trajectRef?: string | null;
 }>(), {
   item: null,
   article: null,
-  trajectRef: null,
 });
 
 const emit = defineEmits<{
@@ -139,25 +122,17 @@ const paramValueGroups = computed(() => {
 });
 
 // --- Law search / output selection ---
-// Cache scoped per (traject, instance). Resetting on a traject change
-// keeps cross-traject content from leaking when the same sheet is
-// opened again under a different traject.
-let lawsCache: LawListEntry[] | null = null;
-let lawsCacheTrajectRef: string | null = null;
+// Both read the active traject's corpus, so a law that exists only in the
+// traject can be picked as a source and offers its outputs.
+const corpus = useCorpus();
 async function fetchLawsList(): Promise<LawListEntry[]> {
-  if (lawsCacheTrajectRef !== props.trajectRef) {
-    lawsCache = null;
-    lawsCacheTrajectRef = props.trajectRef;
-  }
-  if (lawsCache) return lawsCache;
   try {
-    lawsCache = await apiFetchJson<LawListEntry[]>(lawsListUrl(props.trajectRef, 'limit=1000'));
+    return await corpus.allLaws();
   } catch {
     // HTTP or network failure - the law combobox just offers no
     // suggestions; nothing is cached so the next open retries.
     return [];
   }
-  return lawsCache;
 }
 
 const allLaws = ref<LawListEntry[]>([]);
@@ -181,9 +156,7 @@ async function fetchOutputsForLaw(lawId: string | undefined) {
   }
   outputsLoading.value = true;
   try {
-    availableOutputs.value = await apiFetchJson<LawOutput[]>(
-      `/api/corpus/laws/${encodeURIComponent(lawId)}/outputs`,
-    );
+    availableOutputs.value = await corpus.outputs(lawId);
   } catch {
     // HTTP or network failure - no output suggestions for this law.
     availableOutputs.value = [];
@@ -263,6 +236,23 @@ const defSuffix = computed(() => (def.value ? valueSuffix(def.value) : ''));
 // The suffix sits in its own cell, so it also goes into the field's name: a
 // screen reader then hears "Waarde, %" rather than only "Waarde".
 const defLabel = computed(() => (defSuffix.value ? `Waarde (${defSuffix.value})` : 'Waarde'));
+
+/**
+ * The number field of a definition. A definition always has a number, but since
+ * design system 0.18 the field can be emptied and then reports null. The
+ * definition keeps its number while the field is empty, and the field shows it
+ * again once it commits, so what is on screen is what gets saved.
+ */
+function onDefNumber(event: Event) {
+  if (!def.value) return;
+  const value = (event as CustomEvent<{ value?: unknown } | null | undefined>).detail?.value;
+  if (value === null || value === undefined || value === '') {
+    if (event.type === 'change') (event.target as EventTarget & { value: unknown }).value = def.value.number;
+    return;
+  }
+  const n = Number(value);
+  if (Number.isFinite(n)) def.value.number = n;
+}
 
 function onDefTypeChange(event: Event) {
   if (!def.value) return;
@@ -551,11 +541,10 @@ const sectionLabels: Record<string, string> = {
                          intentional: @input gives live-as-you-type updates;
                          @change delivers the value the field normalises on
                          commit/blur. The assignment is idempotent. -->
-                    <!-- Keyed on the kind: Getal and Bedrag share this field, and
-                         the field remembers its last committed value as a
-                         fallback for a cleared input. A fresh element per kind
-                         keeps a cleared amount from falling back to the
-                         eurocent number shown before the switch. -->
+                    <!-- Keyed on the kind: Getal and Bedrag share this field,
+                         and a fresh element per kind starts from the number of
+                         that kind. A cleared field keeps the definition's
+                         number (see onDefNumber). -->
                     <nldd-number-field
                       :key="defKind ?? ''"
                       :value="def.number"
@@ -564,8 +553,8 @@ const sectionLabels: Record<string, string> = {
                       width="full"
                       hide-spin-buttons
                       data-testid="def-number"
-                      @input="def.number = Number($event.detail?.value ?? def.number)"
-                      @change="def.number = Number($event.detail?.value ?? def.number)"
+                      @input="onDefNumber"
+                      @change="onDefNumber"
                     ></nldd-number-field>
                   </nldd-cell>
                   <nldd-cell v-else-if="defKind === 'date'">
@@ -710,7 +699,7 @@ const sectionLabels: Record<string, string> = {
 
             <template v-if="values.sourceParameters?.length">
               <nldd-spacer size="12"></nldd-spacer>
-              <nldd-title size="6"><h6>Bron parameters</h6></nldd-title>
+              <nldd-title size="display-6"><h6>Bron parameters</h6></nldd-title>
               <nldd-spacer size="8"></nldd-spacer>
               <nldd-list appearance="box-tinted" class="edit-settings-list" data-testid="source-parameters-list">
                 <nldd-list-item

@@ -112,8 +112,9 @@ validate *FILES:
 
 # Validate the demo corpus (schema + type check, RFC-036/RFC-037)
 #
-# `validate` without arguments walks corpus/regulation and the corpus of the
-# chronolexografie PoC only, so the eighty demo laws would be seen by the pre-commit
+# `validate` without arguments walks corpus/regulation, the corpus of the
+# chronolexografie PoC and the fixtures of the cell's BDD suite only, so the
+# eighty demo laws would be seen by the pre-commit
 # hook and by nothing else. This recipe hands them to the same binary, so a law
 # that stops type-checking is caught by `just demo` and not first by a red
 # scenario run.
@@ -216,6 +217,13 @@ orphan-tests:
 orphan-tests-test:
     node --test script/orphan-tests.test.mjs
 
+# The gate of the rust-idioms skill reports clippy findings on changed lines
+# only. Its diff parser and test-code check decide whether a finding is shown,
+# and a mistake there reads as a green gate.
+[doc("Check the rust-idioms gate")]
+book-lints-test:
+    node --test .claude/skills/rust-idioms/book-lints.test.mjs
+
 # De Awb staat in twee corpora en moet daar hetzelfde zeggen. Het overzetten
 # ging twee keer mis op een weggevallen laatste regel — één keer de termijn in
 # artikel 6:8, waardoor de einddatum van de bezwaartermijn gelijk werd aan de
@@ -248,6 +256,13 @@ dockerfile-consistency-test:
 playwright-image-test:
     node --test script/playwright-image.test.mjs
 
+# How the docs accessibility gate gets its .debs: the fallback over the
+# sources and the SHA256 check. `curl` and `dpkg` are stubs on PATH, so
+# nothing goes over the network and nothing is installed.
+[doc("Check the .deb install for the docs accessibility gate")]
+a11y-debs-test:
+    script/install-a11y-debs.test.sh
+
 # De poort die productie op een groene CI laat wachten. Zonder deze test is een
 # poort die alles doorlaat niet te onderscheiden van een die werkt; `gh` staat
 # hier als stub op PATH, dus er gaat geen verkeer naar GitHub.
@@ -270,7 +285,7 @@ preview-environments-test:
 # container-backed suites; on a machine without a daemon, swap `test` for
 # `test-no-docker`.
 [doc("Run all quality checks, exactly what CI runs (needs Docker)")]
-check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test orphan-tests orphan-tests-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
+check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test orphan-tests orphan-tests-test book-lints-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
 
 # --- Tests ---
 

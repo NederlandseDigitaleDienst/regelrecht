@@ -418,7 +418,7 @@ function claimStatus(cl: DemoClaim) {
                 <nldd-list-item size="md">
                   <nldd-icon-cell :icon="requirementsMet ? 'check-mark-circle' : 'dismiss-circle'" :color="requirementsMet ? 'success' : 'critical'"></nldd-icon-cell>
                   <nldd-spacer-cell size="12"></nldd-spacer-cell>
-                  <nldd-title-cell size="4" :overline="requirementsMet ? t('sheet.application.meets') : t('sheet.application.meets_not')" :text="requirementsMet && outcomeRows[0] ? formatValue(outcomeRows[0][1], fieldSpec(doc, outcomeRows[0][0])) : requirementsMet ? t('sheet.application.yes') : t('sheet.application.pointless')" :supporting-text="requirementsMet && outcomeRows[0] ? humanize(outcomeRows[0][0]) : ''"></nldd-title-cell>
+                  <nldd-title-cell size="display-4" :overline="requirementsMet ? t('sheet.application.meets') : t('sheet.application.meets_not')" :text="requirementsMet && outcomeRows[0] ? formatValue(outcomeRows[0][1], fieldSpec(doc, outcomeRows[0][0])) : requirementsMet ? t('sheet.application.yes') : t('sheet.application.pointless')" :supporting-text="requirementsMet && outcomeRows[0] ? humanize(outcomeRows[0][0]) : ''"></nldd-title-cell>
                 </nldd-list-item>
               </nldd-list>
               <nldd-list v-if="outcomeRows.length > 1" appearance="simple" :accessible-label="t('sheet.application.outcome.other')">
@@ -428,7 +428,7 @@ function claimStatus(cl: DemoClaim) {
                 </nldd-list-item>
               </nldd-list>
 
-              <nldd-title size="5">
+              <nldd-title size="display-5">
                 <h3>{{ t('sheet.application.basis.title') }}</h3>
                 <span slot="supporting-text">{{ t('sheet.application.basis.subtitle', { n: usedCount }) }}</span>
               </nldd-title>
@@ -480,7 +480,7 @@ function claimStatus(cl: DemoClaim) {
               </nldd-list-item>
             </nldd-list>
             <template v-if="caseClaims.length">
-              <nldd-title size="5"><h3>{{ t('sheet.application.corrections.title') }}</h3></nldd-title>
+              <nldd-title size="display-5"><h3>{{ t('sheet.application.corrections.title') }}</h3></nldd-title>
               <nldd-list appearance="box-tinted" :accessible-label="t('sheet.application.corrections.title')">
                 <nldd-list-item v-for="cl in caseClaims" :key="cl.id" size="sm">
                   <nldd-text-cell size="sm" :text="`${humanize(cl.input)}: ${formatValue(cl.oldValue, claimSpec(cl))} → **${formatValue(cl.newValue, claimSpec(cl))}**`">
@@ -497,7 +497,7 @@ function claimStatus(cl: DemoClaim) {
                 </nldd-list-item>
               </nldd-list>
             </template>
-            <nldd-title size="5"><h3>{{ t('sheet.application.history.title') }}</h3></nldd-title>
+            <nldd-title size="display-5"><h3>{{ t('sheet.application.history.title') }}</h3></nldd-title>
             <nldd-list appearance="simple" :accessible-label="t('sheet.application.history.label')">
               <nldd-list-item v-for="(e, i) in citizenEvents" :key="i" size="sm">
                 <nldd-text-cell size="sm" :text="e.text" :supporting-text="formatDateTime(e.at)"></nldd-text-cell>

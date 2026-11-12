@@ -2,7 +2,7 @@ import { readFileSync } from 'fs';
 import { load } from 'js-yaml';
 import { nextTick } from 'vue';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { formulier, ingeklapt, scenarioWaarden } from '../src/scenarioInvoer.js';
+import { formulier, ingeklapt, scenarioVerwijzing, scenarioWaarden } from '../src/scenarioInvoer.js';
 import { state } from '../src/state.js';
 
 vi.mock('../src/api.js', () => ({ api: {} }));
@@ -75,6 +75,15 @@ describe('the record forms of the other cells', () => {
     expect(ingeklapt(cellen, 'x', 'wet#1#ander_feit')).toBe(false);
   });
 
+  it('pass the reference of the record step, for its own cell and fact only', () => {
+    expect(scenarioVerwijzing('kamer_van_koophandel', FEIT)).toBeNull();
+    metStappen([{ ...stappen(FEIT)[0], verwijst_naar: 'inschrijving_x' }]);
+    expect(scenarioVerwijzing('kamer_van_koophandel', FEIT)).toBe('inschrijving_x');
+    expect(scenarioVerwijzing('kamer_van_koophandel', 'wet#2#tweede')).toBeNull();
+    metStappen(stappen(FEIT));
+    expect(scenarioVerwijzing('kamer_van_koophandel', FEIT)).toBeNull();
+  });
+
   it('stay open at a record step whose form is not there', () => {
     metStappen(stappen('wet#9#onbekend'));
     expect(ingeklapt(cellen, 'kamer_van_koophandel', FEIT)).toBe(false);
@@ -86,8 +95,9 @@ describe('the forms while following a scenario', () => {
   // registrations the scenario recorded so far.
   const kamer = (n) => {
     const begin = casus.andere_cellen.find((c) => c.cel === 'kamer_van_koophandel').begin.executogrammen;
-    const fact = begin[0].feit.split('#').at(-1);
-    const grammen = Array.from({ length: begin.length + n }, (_, k) => ({ id: `e${k}`, kind: 'EXECUTOGRAM', fact }));
+    const feit = (e) => e.feit.split('#').at(-1);
+    const facts = [...begin.map(feit), ...Array(n).fill(feit(begin[0]))];
+    const grammen = facts.map((fact, k) => ({ id: `e${k}`, kind: 'EXECUTOGRAM', fact }));
     return [{ cel: 'kamer_van_koophandel', grammen }];
   };
   const stappen = () => casus.scenarios.find((s) => s.naam === GROEI).stappen;

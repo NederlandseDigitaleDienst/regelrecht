@@ -20,8 +20,9 @@
 </template>
 
 <!--
-  DigiD-logo + dropdown naast elkaar; het logo is 32px, de gerenderde hoogte
-  van de sm-dropdown. De inlogcontext staat in het aria-label van de select.
+  DigiD logo and dropdown side by side; the logo is as tall as the sm dropdown
+  (the design system's control size). The login context is in the select's
+  aria-label.
 -->
 
 <script setup>
@@ -79,8 +80,8 @@ function onChange(event) {
 }
 .switcher nldd-dropdown { inline-size: 300px; flex: 0 0 300px; }
 .chip {
-  block-size: 32px;
-  inline-size: 32px;
+  block-size: var(--semantics-controls-sm-min-size);
+  inline-size: var(--semantics-controls-sm-min-size);
   object-fit: contain;
   flex-shrink: 0;
 }

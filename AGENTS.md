@@ -25,8 +25,9 @@ page by its repo path; `docs/src/content/docs/operations/ci-cd.md` renders at
 `https://docs.regelrecht.rijks.app/operations/ci-cd`.
 
 When you change how the system works, update the docs page in the same pull
-request. When you find a fact here that the docs also state, move it there and
-leave a link: two copies drift.
+request, on the page of the concept the change belongs to ("One page, one
+concept" in the `docs-writing` skill). When you find a fact here that the docs
+also state, move it there and leave a link: two copies drift.
 
 ## Project Overview
 
@@ -349,17 +350,44 @@ een sleutel die maar in één bestand landt is een bug, geen halve klus.
   talen in euro's; alleen de scheidingstekens en de plaats van het symbool
   verschillen.
 
+## Rust code
+
+Before you write, change or review Rust, read the `rust-idioms` skill. It holds
+idioms from *The Rust Programming Language* that the compiler does not enforce:
+ownership in signatures, panic versus `Result`, types that carry their
+invariants, function and module size, doc sections.
+
+The skill has a gate, `.claude/skills/rust-idioms/book-lints.mjs`, which runs
+clippy with the lints that match those rules and reports only the lines you
+changed. It is a check on your own lines and comes on top of `just check`,
+which stays what the pre-commit hooks and CI run.
+
+Where the skill and this repository differ, the repository wins:
+
+- The workspace lints warn on `unwrap_used`, `expect_used` and `panic`, and
+  `just lint` turns warnings into errors. Propagate the error. An `expect`
+  that truly cannot fail carries `#[allow(clippy::expect_used)]` and a comment
+  that says why.
+- `REVIEW.md` allows no panic on a path reachable during law execution.
+- A poisoned lock is recovered or reported in the way the surrounding crate
+  already does it, not left to panic.
+
 ## Frontend code
 
 Frontends are Vue applications that follow Vue's own conventions: Vite to build,
-Vitest to test, single-file components, and composables for shared state. The
-aim is TypeScript for code that runs in the browser (`.ts`,
+Vitest to test, single-file components, and composables or Pinia stores for
+shared state. The aim is TypeScript for code that runs in the browser (`.ts`,
 `<script setup lang="ts">`). The editor, lawmaking, the demo and
 `frontend-shared` are there; the PoC frontends are still JavaScript and will be
 migrated later, so keep new code in those in JavaScript until then. Scripts
 that run in plain Node, the modules they load, and generated files stay
 JavaScript. The setup is in `docs/src/content/docs/guide/frontend-code.md`.
 
+- In the editor, state the whole app shares goes in a Pinia setup store under
+  `src/stores/`; state of one open document goes in a composable each caller
+  creates (`useOpenLaw`). Component tests mount with `testingPinia()` to set
+  store state or stub actions. Details:
+  `docs/src/content/docs/components/frontend.md#state`.
 - Import a TypeScript module without its extension (`'./values'`). Plain Node
   cannot resolve that, so a module that Node loads keeps its `.js`.
 - Prefer `unknown` and narrowing over `any`. An `any` or a non-null `!` gets a

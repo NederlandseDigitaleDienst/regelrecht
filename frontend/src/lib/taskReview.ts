@@ -150,13 +150,13 @@ function articleDiffers(current: ReviewArticle | undefined, proposedArticle: Rev
  * waar of niet er wijzigingen zijn die de (single-article-scoped) editor
  * niet zichtbaar kan maken. Dat geldt voor:
  *  - een tweede (of latere) afwijkend artikel naast `target`;
- *  - een voorgesteld artikel dat de huidige wet niet heeft (v1 kan alleen
- *    een BESTAAND artikel seeden als unsaved edit, zie applyProposedContent
- *    in EditorView.vue);
- *  - een artikel van de huidige wet dat in het voorstel ONTBREEKT (een
- *    verwijdering) - Opslaan committeert die verwijdering net zo goed als
- *    de rest van het voorstel, dus de banner moet ernaar verwijzen ook al
- *    is er geen "proposed article" om te seeden of te tonen.
+ *  - a proposed article the current law does not have (v1 can only seed an
+ *    EXISTING article as an unsaved edit; see applyProposedContent in
+ *    useProposalReview.ts);
+ *  - an article of the current law that is MISSING from the proposal (a
+ *    deletion) - saving commits that deletion like the rest of the proposal,
+ *    so the status line has to point at it even though there is no proposed
+ *    article to seed or show.
  *
  * @param {string|null} [articleNumber] Wijst de taak één artikel aan
  *   (`payload.article`), dan gaat het hier alléén daarover: dat artikel wordt
@@ -176,9 +176,9 @@ export function proposalDivergence<A extends ReviewArticle>(
     const wanted = String(articleNumber);
     const pa = proposed.find((a) => String(a.number) === wanted);
     const match = current.find((a) => String(a.number) === wanted);
-    // Zonder tegenhanger in de opgeslagen wet valt er niets te seeden: de
-    // editor kan een artikel dat de wet niet heeft niet als losse wijziging
-    // tonen. Dan geen target, en de banner meldt dat.
+    // Without a counterpart in the saved law there is nothing to seed: the
+    // editor cannot show an article the law does not have as a single
+    // change. Then there is no target, and the status line says so.
     const target = pa && match && articleDiffers(match, pa) ? pa : null;
     return { target, hiddenChanges: false };
   }

@@ -27,7 +27,7 @@ function fileName(path: string | null | undefined, fallback = 'werkdocument'): s
 /**
  * @param {object} task
  * @param {(lawId: string) => string} lawName Weergavenaam voor een law_id
- *   (useCorpusLaws' displayName; valt zelf terug op humanizeLawId).
+ *   (displayName van de corpuslezer; valt zelf terug op humanizeLawId).
  */
 export function taskTitle(
   task: Task | null | undefined,

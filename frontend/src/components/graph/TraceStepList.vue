@@ -3,6 +3,7 @@ import { computed, ref, watch, nextTick } from 'vue';
 import { formatValue } from '../../utils/outputFormat';
 import { stepHasHighlights } from '../../lib/traceEdges';
 import type { TraceStep } from '../../lib/traceEdges';
+import { scrollBehavior } from '../../lib/motion';
 
 const props = withDefaults(
   defineProps<{
@@ -44,7 +45,7 @@ watch(
       const root = listEl.value;
       if (!root) return;
       const el = root.querySelector(`[data-step-idx="${idx}"]`);
-      if (el) el.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (el) el.scrollIntoView({ block: 'nearest', behavior: scrollBehavior() });
     });
   },
 );

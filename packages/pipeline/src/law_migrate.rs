@@ -63,8 +63,7 @@ use regelrecht_shared::parse_schema_version;
 use serde_yaml_ng::{Mapping, Value};
 
 /// `$schema` URL a migrated file declares.
-pub const SCHEMA_URL: &str =
-    "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.7.1/schema/v0.7.1/schema.json";
+pub const SCHEMA_URL: &str = "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.7.1/schema/v0.7.1/schema.json";
 
 /// The schema version this module migrates to.
 pub const TARGET_VERSION: &str = "v0.7.1";
@@ -808,9 +807,10 @@ articles:
         assert!(!m.yaml.contains("untranslatables"));
         // The diagnosis has a field of its own in the new shape and carries
         // over verbatim, beside the change it yields.
-        assert!(m
-            .yaml
-            .contains("reason: de motor kent geen wettelijke afronding"));
+        assert!(
+            m.yaml
+                .contains("reason: de motor kent geen wettelijke afronding")
+        );
         assert_eq!(m.dropped, vec![]);
     }
 

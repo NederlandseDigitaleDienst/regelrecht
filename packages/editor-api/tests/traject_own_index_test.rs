@@ -23,17 +23,16 @@
 //!    traject-index op `source_priority: 0` en is de source gezond
 //!    (`index_error: null`, `law_count: 1`).
 //!
-//! GitHub wordt gespeeld door wiremock via de proces-brede
-//! `GITHUB_API_BASE`-seam — daarom staan beide scenario's in ÉÉN test
-//! (zelfde afweging als `promote_user_token_write_test.rs`).
+//! GitHub wordt gespeeld door wiremock; de `GithubSettings` die de test in de
+//! app-state zet, wijzen de clients daarheen.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod common;
 
 use common::{
-    add_central_seed, insert_traject, seed_account, session_for, state_with_user_token_mode,
-    traject_ref,
+    add_central_seed, app_state_with_github, github_settings, insert_traject, seed_account,
+    session_for, traject_ref,
 };
 
 use axum::extract::{Extension, Path, Query, State};
@@ -192,23 +191,25 @@ fn ids_query() -> Query<PaginationParams> {
         q: None,
         ids: Some(LAW_ID.to_string()),
         source: None,
+        enriched: false,
+        loaded: false,
     })
 }
 
-/// Eén test voor beide scenario's: de `GITHUB_API_BASE`-override is
-/// proces-breed, dus parallelle tests met elk een eigen mockserver zouden
-/// elkaars fetchers verhangen.
 #[tokio::test]
 async fn traject_index_shows_promoted_law_and_surfaces_failed_own_scans() {
     let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
 
     let db = TestDb::new().await;
     let central = tempfile::tempdir().unwrap();
     write_central_law(central.path());
 
     let oauth = GithubOAuth::for_tests(true); // user-token-schrijfmodus aan
-    let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
+    let state = app_state_with_github(
+        Some(db.pool.clone()),
+        Some(oauth.clone()),
+        github_settings(&server.uri(), &[]),
+    );
 
     let (owner_id, sub) = seed_account(&db.pool, "alice@test.local").await;
     let account = AccountRecord {
@@ -405,6 +406,4 @@ async fn traject_index_shows_promoted_law_and_surfaces_failed_own_scans() {
         .expect("writable-own source ontbreekt in /sources");
     assert_eq!(own.law_count, 1, "de gepromote wet telt mee in de index");
     assert_eq!(own.index_error, None, "gezonde scan → geen index_error");
-
-    std::env::remove_var("GITHUB_API_BASE");
 }

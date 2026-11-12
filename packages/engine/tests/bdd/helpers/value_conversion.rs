@@ -37,10 +37,10 @@ pub fn convert_gherkin_value(val: &str) -> Value {
     }
 
     // JSON array / object
-    if trimmed.starts_with('[') || trimmed.starts_with('{') {
-        if let Ok(json) = serde_json::from_str::<serde_json::Value>(trimmed) {
-            return Value::from(json);
-        }
+    if (trimmed.starts_with('[') || trimmed.starts_with('{'))
+        && let Ok(json) = serde_json::from_str::<serde_json::Value>(trimmed)
+    {
+        return Value::from(json);
     }
 
     // Try integer first

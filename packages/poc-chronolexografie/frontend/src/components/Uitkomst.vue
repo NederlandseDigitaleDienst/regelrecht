@@ -21,7 +21,7 @@ const uitvoer = computed(() =>
 
 <template>
   <nldd-container gap="12">
-    <nldd-title size="5" :text="titel">
+    <nldd-title heading-level="4" size="display-5" :text="titel">
       <nldd-text slot="supporting-text" size="sm" color="secondary">
         <ArtikelLink :basis="besluit.basis" :datum="besluit.recorded_on" />
       </nldd-text>

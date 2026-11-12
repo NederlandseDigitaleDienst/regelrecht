@@ -59,7 +59,8 @@ use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
-    ActionOperation, ActionValue, CompetentAuthority, MachineReadable, RegulatoryLayer,
+    ActionOperation, ActionValue, CompetentAuthority, MachineReadable, ParameterType,
+    RegulatoryLayer, names_fact,
 };
 
 /// Refuse a construct that a later schema version removed, naming what
@@ -134,17 +135,24 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
     let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
     let policy = law.regulatory_layer == RegulatoryLayer::Uitvoeringsbeleid;
     for (where_, section) in sections(law) {
-        if reduction {
-            if let Some(key) = acts_on_law(section) {
-                return refuse(format!(
-                    "{where_}: a REDUCTIE is no regulation and does not act on law ({key})"
-                ));
-            }
+        if reduction && let Some(key) = acts_on_law(section) {
+            return refuse(format!(
+                "{where_}: a REDUCTIE is no regulation and does not act on law ({key})"
+            ));
         }
         for input in inputs(section) {
             let Some(source) = input.source.as_ref() else {
                 continue;
             };
+            if let Err(why) = check_projections_read(
+                input,
+                source,
+                section,
+                reduction,
+                from_version(law, (0, 8, 19)),
+            ) {
+                return refuse(format!("{where_}: {why}"));
+            }
             if let Some(answer) = &source.reduction {
                 let beside = [
                     ("regulation", source.regulation.is_some()),
@@ -217,6 +225,27 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                     input.name
                 ));
             }
+            // From schema v0.8.17 a reduction reads no decisions: a row about
+            // a decision comes from an aggregate (`source.projections`).
+            if source.decisions.is_some() && from_version(law, (0, 8, 17)) {
+                return refuse(format!(
+                    "{where_}: input '{}' reads {read}; since schema v0.8.17 a REDUCTIE reads \
+                     the aggregates of the decisions (source.projections), not the decisions \
+                     themselves (source.decisions)",
+                    input.name
+                ));
+            }
+            // From schema v0.8.19 a reduction reads no recorded facts either:
+            // an aggregate plays them (`projection.per`), and a read model
+            // reads that aggregate.
+            if source.facts.is_some() && from_version(law, (0, 8, 19)) {
+                return refuse(format!(
+                    "{where_}: input '{}' reads {read}; since schema v0.8.19 a REDUCTIE reads \
+                     the aggregates of the facts (source.projections), not the facts \
+                     themselves (source.facts)",
+                    input.name
+                ));
+            }
             // The article whose decisions it reads may be the value of a
             // parameter (schema v0.8.11): one the article declares itself.
             if let Some(name) = source
@@ -238,6 +267,14 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
                 }
             }
         }
+        // Checked after the inputs, so that a reading of the chronicle that
+        // the version refuses names itself first.
+        if reduction
+            && from_version(law, (0, 8, 19))
+            && let Some(why) = neither_aggregate_nor_read_model(section)
+        {
+            return refuse(format!("{where_}: {why}"));
+        }
     }
     if reduction && law.competent_authority.is_some() {
         return refuse(
@@ -245,6 +282,123 @@ pub(crate) fn reject_misplaced_reduction(law: &ArticleBasedLaw) -> Result<()> {
              none (schema v0.8.12)"
                 .to_string(),
         );
+    }
+    Ok(())
+}
+
+/// Since schema v0.8.19 each article of a `REDUCTIE` with a
+/// `machine_readable` takes one of two forms: an aggregate (a projection,
+/// which plays the chronicle) or a read model, whose execution reads
+/// aggregates (`source.projections`). One file may hold both kinds. Why
+/// `section` is neither, or `None` when it is one of them; an article with
+/// only text has no `machine_readable` and is not asked. An article that is
+/// both, a projection with an execution, is refused with the projection.
+fn neither_aggregate_nor_read_model(section: &MachineReadable) -> Option<String> {
+    if section.projection.is_some() {
+        return None;
+    }
+    let reads_aggregates = inputs(section)
+        .iter()
+        .any(|i| i.source.as_ref().is_some_and(|s| s.projections.is_some()));
+    (!reads_aggregates).then(|| {
+        "reads no aggregates (source.projections) and plays none (projection); since schema \
+         v0.8.19 a REDUCTIE is an aggregate or a read model over one"
+            .to_string()
+    })
+}
+
+/// Since schema v0.8.19 an input that reads aggregates names an article that
+/// plays them (`<regulation>#<article>`): an article of the same file, or of
+/// a reduction the loader holds. A reduction the loader does not hold yet is
+/// checked when the aggregates are played, because the two load in any
+/// order.
+fn check_projections_targets<'l>(
+    law: &ArticleBasedLaw,
+    lookup: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
+) -> std::result::Result<(), String> {
+    for (where_, section) in sections(law) {
+        for input in inputs(section) {
+            let Some(reference) = input.source.as_ref().and_then(|s| s.projections.as_deref())
+            else {
+                continue;
+            };
+            let (target, article) = regelrecht_law_model::split_projections(reference);
+            // `lookup` gives this law for its own id.
+            if let Some(held) = lookup(target) {
+                crate::projection::aggregate_projection(held, article)
+                    .map_err(|why| format!("{where_}: input '{}': {why}", input.name))?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// An input that reads the aggregates of a reduction (`source.projections`,
+/// schema v0.8.17) does so in a `REDUCTIE`, and stands alone: no other way
+/// to a value beside it. `where` names the roots by values the reading
+/// article declares as parameters, and stands only beside `projections`.
+fn check_projections_read(
+    input: &regelrecht_law_model::Input,
+    source: &regelrecht_law_model::Source,
+    section: &MachineReadable,
+    reduction: bool,
+    since_v0_8_19: bool,
+) -> std::result::Result<(), String> {
+    let name = &input.name;
+    let Some(of) = &source.projections else {
+        return match source.where_ {
+            Some(_) => Err(format!(
+                "input '{name}' has where without projections; where picks the aggregates a \
+                 reduction reads"
+            )),
+            None => Ok(()),
+        };
+    };
+    let beside = [
+        ("regulation", source.regulation.is_some()),
+        ("output", source.output.is_some()),
+        ("parameters", source.parameters.is_some()),
+        ("endpoint", source.endpoint.is_some()),
+        ("decisions", source.decisions.is_some()),
+        ("facts", source.facts.is_some()),
+        ("reduction", source.reduction.is_some()),
+        ("article", source.article.is_some()),
+    ];
+    if let Some((key, _)) = beside.iter().find(|(_, present)| *present) {
+        return Err(format!(
+            "input '{name}' reads the aggregates of {of}, which no {key} can stand beside"
+        ));
+    }
+    if !reduction {
+        return Err(format!(
+            "input '{name}' reads the aggregates of {of}; only a REDUCTIE reads a chronicle \
+             (RFC-048)"
+        ));
+    }
+    let declared: Vec<&str> = section
+        .execution
+        .as_ref()
+        .and_then(|e| e.parameters.as_deref())
+        .unwrap_or_default()
+        .iter()
+        .map(|p| p.name.as_str())
+        .collect();
+    // From schema v0.8.19 the reference names the article of the aggregate,
+    // also in the reading file itself; up to v0.8.18 the reduction alone.
+    if since_v0_8_19 && !regelrecht_law_model::is_article_reference(of) {
+        return Err(format!(
+            "input '{name}' reads the aggregates of {of}; since schema v0.8.19 \
+             source.projections names the article of the aggregate, as {of}#<article>"
+        ));
+    }
+    for (field, reference) in source.where_.iter().flatten() {
+        let parameter = reference.strip_prefix('$').filter(|p| declared.contains(p));
+        if parameter.is_none() {
+            return Err(format!(
+                "input '{name}' picks the aggregates of {of} where '{field}' is {reference}, \
+                 which is no $-reference to a parameter of the article"
+            ));
+        }
     }
     Ok(())
 }
@@ -364,7 +518,7 @@ pub(crate) fn reject_misplaced_competence(law: &ArticleBasedLaw) -> Result<()> {
                 None if requirement.competent_authority.is_some() => {
                     return refuse(
                         "a requires entry has a competent_authority but no fact".to_string(),
-                    )
+                    );
                 }
                 None => {}
             }
@@ -461,6 +615,9 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
                         "lists parameters on a requirement that names no fact".to_string(),
                     );
                 }
+                if requirement.effects.is_some() {
+                    return refuse("lists effects on a requirement that names no fact".to_string());
+                }
                 continue;
             };
             if requirement.article.is_some()
@@ -490,9 +647,72 @@ pub(crate) fn reject_malformed_facts(law: &ArticleBasedLaw) -> Result<()> {
                     ));
                 }
             }
+            // An effect of a fact (schema v0.8.15) revokes the record the fact
+            // refers to (`revokes: refers_to`), so which record it is about
+            // has one source. Its `when` is a boolean the fact holds, not
+            // nullable.
+            let held = |name: &str| {
+                parameters
+                    .iter()
+                    .any(|p| p == name)
+                    .then(|| article.get_parameters().iter().find(|p| p.name == name))
+                    .flatten()
+            };
+            for effect in requirement.effects() {
+                let check = |name: &str, role: &str, types: &[ParameterType]| {
+                    let what = |why: String| {
+                        Err(format!(
+                            "requires the fact '{fact}' with an effect that names '{name}' as \
+                             {role}, which {why}"
+                        ))
+                    };
+                    match held(name) {
+                        None => what("the fact does not hold".to_string()),
+                        Some(p) if !types.contains(&p.param_type) => what(format!(
+                            "is a {:?}, not a {}",
+                            p.param_type,
+                            types
+                                .iter()
+                                .map(|t| format!("{t:?}"))
+                                .collect::<Vec<_>>()
+                                .join(" or ")
+                        )),
+                        // A record without a target or a condition is refused
+                        // when the chronicle is played; refuse it here first.
+                        Some(p) if p.is_nullable() => what("may be null".to_string()),
+                        Some(_) => Ok(()),
+                    }
+                };
+                if effect.parameter != regelrecht_law_model::RecordEffect::REFERS_TO {
+                    return refuse(format!(
+                        "requires the fact '{fact}' with an effect that revokes '{}'; a fact \
+                         revokes the record it refers to: write `revokes: {}`",
+                        effect.parameter,
+                        regelrecht_law_model::RecordEffect::REFERS_TO
+                    ));
+                }
+                let named = effect
+                    .when
+                    .as_deref()
+                    .map(|w| (w, "its condition", &[ParameterType::Boolean][..]));
+                if let Some((name, role, types)) = named
+                    && let Err(why) = check(name, role, types)
+                {
+                    return refuse(why);
+                }
+            }
         }
     }
     Ok(())
+}
+
+/// Whether `law` declares schema `version` or later, or no version at all.
+/// A rule a released version did not have applies from the version that
+/// introduces it, so a file valid under an earlier version still loads.
+pub(crate) fn from_version(law: &ArticleBasedLaw, version: (u32, u32, u32)) -> bool {
+    law.schema_version()
+        .and_then(regelrecht_law_model::parse_schema_version)
+        .is_none_or(|declared| declared >= version)
 }
 
 /// Refuse an article whose `produces` list (schema v0.8.1, RFC-045 §1) has two
@@ -561,12 +781,12 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
                 None => {
                     return refuse(format!(
                         "requests the decision of '{target}', but this law has no article {number}"
-                    ))
+                    ));
                 }
                 Some(a) if a.get_decision().is_none() => {
                     return refuse(format!(
                         "requests the decision of '{target}', which takes no decision"
-                    ))
+                    ));
                 }
                 Some(_) => {}
             }
@@ -584,8 +804,8 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
         // nothing the article produces: refused, so a forgotten or misspelt
         // output fails. Beside a decision that lists its outputs, it belongs
         // to no item (RFC-045 §1).
-        if article.get_decision().is_none() {
-            if let Some(name) = article
+        if article.get_decision().is_none()
+            && let Some(name) = article
                 .get_outputs()
                 .iter()
                 .map(|o| o.name.as_str())
@@ -594,12 +814,11 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
                         .iter()
                         .any(|&p| article.outputs_of(p).contains(name))
                 })
-            {
-                return refuse(format!(
-                    "declares output '{name}', but nothing it produces yields it; \
+        {
+            return refuse(format!(
+                "declares output '{name}', but nothing it produces yields it; \
                      a submission yields only the outputs it lists"
-                ));
-            }
+            ));
         }
         let mut listed: Vec<&str> = Vec::new();
         let named = produced
@@ -627,9 +846,33 @@ pub(crate) fn reject_ambiguous_produces(law: &ArticleBasedLaw) -> Result<()> {
             }
             for effect in item.effects() {
                 let name = &effect.parameter;
-                if !article.get_parameters().iter().any(|p| &p.name == name) {
+                let Some(parameter) = article.get_parameters().iter().find(|p| &p.name == name)
+                else {
                     return refuse(format!(
                         "names parameter '{name}' in an effect under produces, but declares no such parameter"
+                    ));
+                };
+                // The parameter names the record it revokes: a string that
+                // holds its id, or a decision, which the cell keeps by its id
+                // in the chronicle (`bestreden_besluit` in Awb 7:11). Never
+                // null: a decision without the record it revokes is refused
+                // when the chronicle is played; refuse it here first. From
+                // schema v0.8.15 on: a file valid under v0.8.14 still loads.
+                let names_a_record = matches!(
+                    parameter.param_type,
+                    ParameterType::String | ParameterType::Decision
+                );
+                if !names_a_record && from_version(law, (0, 8, 15)) {
+                    return refuse(format!(
+                        "names parameter '{name}' in an effect under produces, which is a {:?}; \
+                         the record an effect revokes is a string that holds its id, or a \
+                         decision",
+                        parameter.param_type
+                    ));
+                }
+                if parameter.is_nullable() && from_version(law, (0, 8, 15)) {
+                    return refuse(format!(
+                        "names parameter '{name}' in an effect under produces, which may be null"
                     ));
                 }
                 // `when` reads an outcome of this decision: one of its own
@@ -686,18 +929,92 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
         if projection.state.is_empty() {
             return refuse(where_, "has a projection without a state".to_string());
         }
+        // From schema v0.8.17 a projection plays one aggregate per record
+        // (`per`); up to v0.8.16 it played the records of one `key`.
+        if from_version(law, (0, 8, 17)) {
+            if let Some(key) = &projection.key {
+                return refuse(
+                    where_,
+                    format!(
+                        "plays the records of one '{key}' (key); since schema v0.8.17 a \
+                         projection plays one aggregate per record (per), read with \
+                         source.projections"
+                    ),
+                );
+            }
+            if projection.per.is_none() {
+                return refuse(
+                    where_,
+                    "has a projection without per; since schema v0.8.17 a projection plays \
+                     one aggregate per record"
+                        .to_string(),
+                );
+            }
+        }
+        // A record address may name a fact since schema v0.8.18.
+        if !from_version(law, (0, 8, 18)) {
+            let named = projection
+                .per_basis_and_kind()
+                .into_iter()
+                .chain(projection.steps.iter().map(|s| s.basis_and_kind()))
+                .find_map(|(_, segment)| segment.filter(|s| names_fact(s)));
+            if let Some(fact) = named {
+                return refuse(
+                    where_,
+                    format!(
+                        "names the fact '{fact}'; a fact name came with schema v0.8.18, \
+                         before it a record address names a kind"
+                    ),
+                );
+            }
+        }
+        if let Some(per) = &projection.per {
+            if projection.key.is_some() {
+                return refuse(
+                    where_,
+                    format!(
+                        "has a projection with a key and per {per}; it plays the records of \
+                         one key or one aggregate per record, not both"
+                    ),
+                );
+            }
+            if section.execution.is_some() {
+                return refuse(
+                    where_,
+                    format!(
+                        "has a projection per {per} and an execution; it answers no question \
+                         of its own, a reduction reads its aggregates with source.projections"
+                    ),
+                );
+            }
+            // A row of the aggregates holds the id of its root under `id`.
+            if projection
+                .state
+                .iter()
+                .any(|p| p.name == crate::projection::ROOT_ID)
+            {
+                return refuse(
+                    where_,
+                    format!(
+                        "has a projection per {per} with a state property '{}'; a row of its \
+                         aggregates holds the id of its root under that name",
+                        crate::projection::ROOT_ID
+                    ),
+                );
+            }
+        }
         let parameters = section
             .execution
             .as_ref()
             .and_then(|e| e.parameters.as_deref())
             .unwrap_or_default();
-        if let Some(key) = &projection.key {
-            if !parameters.iter().any(|p| &p.name == key) {
-                return refuse(
-                    where_,
-                    format!("plays the records of one '{key}', which is no parameter it declares"),
-                );
-            }
+        if let Some(key) = &projection.key
+            && !parameters.iter().any(|p| &p.name == key)
+        {
+            return refuse(
+                where_,
+                format!("plays the records of one '{key}', which is no parameter it declares"),
+            );
         }
         let declares_state = section
             .execution
@@ -743,18 +1060,31 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
             // Two steps for one record would leave which one applies to the
             // order they are written in.
             let (basis, kind) = step.basis_and_kind();
+            // A step on a fact (schema v0.8.18) and one on EXECUTOGRAM on
+            // the same article both apply to an instance of that fact.
+            let overlap = |a: Option<&str>, b: Option<&str>| match (a, b) {
+                (None, _) | (_, None) => true,
+                (Some(a), Some(b)) => {
+                    a == b
+                        || (names_fact(a) && b == crate::projection::EXECUTOGRAM)
+                        || (a == crate::projection::EXECUTOGRAM && names_fact(b))
+                }
+            };
             if projection.steps[..i].iter().any(|earlier| {
                 let (earlier_basis, earlier_kind) = earlier.basis_and_kind();
-                earlier_basis == basis
-                    && (earlier_kind.is_none() || kind.is_none() || earlier_kind == kind)
+                earlier_basis == basis && overlap(earlier_kind, kind)
             }) {
                 return refuse(
                     where_,
                     format!("has two steps for the same records under {basis}"),
                 );
             }
-            let question: Vec<&str> = parameters.iter().map(|p| p.name.as_str()).collect();
-            if let Err(why) = check_step_shape(step, &names, &question) {
+            // Since schema v0.8.17 a step passes no parameter of the
+            // question: the fold depends on the chronicle alone. A file
+            // under an earlier version keeps what that version allowed.
+            let question: Option<Vec<&str>> =
+                passes_question(law).then(|| parameters.iter().map(|p| p.name.as_str()).collect());
+            if let Err(why) = check_step_shape(step, &names, question.as_deref()) {
                 return refuse(
                     where_,
                     format!("the step for records under {} {why}", step.record),
@@ -763,6 +1093,13 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Whether a step of `law` may pass a parameter of the question: from schema
+/// v0.8.14 up to v0.8.16, which allowed it. A file that names no version is held to
+/// the newest.
+fn passes_question(law: &ArticleBasedLaw) -> bool {
+    !from_version(law, (0, 8, 17))
 }
 
 /// The shape of a step, apart from the laws it calls (which are in other
@@ -776,7 +1113,7 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
 fn check_step_shape(
     step: &regelrecht_law_model::ProjectionStep,
     names: &[&str],
-    question: &[&str],
+    question: Option<&[&str]>,
 ) -> std::result::Result<(), String> {
     use regelrecht_law_model::StepSource;
     let own = |source: &StepSource| match source {
@@ -829,13 +1166,22 @@ fn check_step_shape(
             match StepSource::parse(value) {
                 Some(source @ (StepSource::Record(_) | StepSource::State(_))) => own(&source)?,
                 // A parameter of the question the reduction answers.
-                Some(StepSource::Input(asked)) if question.contains(&asked.as_str()) => {}
+                Some(StepSource::Input(asked))
+                    if question.is_some_and(|q| q.contains(&asked.as_str())) => {}
+                _ if question.is_none() => {
+                    return Err(format!(
+                        "has input '{}' that passes '{name}' as '{value}'; a parameter of a step \
+                         is $record.<field> or $state.<property>, and since schema v0.8.17 no \
+                         parameter of the question",
+                        input.name
+                    ));
+                }
                 _ => {
                     return Err(format!(
                         "has input '{}' that passes '{name}' as '{value}'; a parameter of a step \
                          is $record.<field>, $state.<property> or a parameter of the question",
                         input.name
-                    ))
+                    ));
                 }
             }
         }
@@ -886,6 +1232,67 @@ fn check_step_shape(
             ));
         };
         own(&source)?;
+    }
+    Ok(())
+}
+
+/// A projection fits the laws its steps name (schema v0.8.16), in the
+/// versions `lookup` gives: the law each step's records rest on and each law
+/// an input calls ([`crate::projection::check_step`]). The reduction and the
+/// law are separate regelwerken that load in any order, so a law `lookup`
+/// does not give is not checked here. A law that arrives later loads
+/// whatever a reduction expects of it, so the law never depends on the
+/// reduction; the engine checks the versions in force when it plays the
+/// projection. The error names the article and the step.
+///
+/// The check at load came with schema v0.8.16. A reduction on v0.8.15 or
+/// earlier is held to its steps only when it plays, as the released versions
+/// were, so a law version that is not yet in force cannot refuse it at load.
+pub(crate) fn check_projection_wiring<'l>(
+    law: &ArticleBasedLaw,
+    lookup: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
+) -> std::result::Result<(), String> {
+    if !from_version(law, (0, 8, 16)) {
+        return Ok(());
+    }
+    if from_version(law, (0, 8, 19)) {
+        check_projections_targets(law, lookup)?;
+    }
+    for (where_, section) in sections(law) {
+        let Some(projection) = &section.projection else {
+            continue;
+        };
+        let question = section
+            .execution
+            .as_ref()
+            .and_then(|e| e.parameters.as_deref())
+            .unwrap_or_default();
+        crate::projection::check_per(
+            projection,
+            lookup,
+            crate::projection::Versions::Loaded,
+            from_version(law, (0, 8, 18)),
+        )
+        .map_err(|why| {
+            format!(
+                "{where_}: per {}: {why}",
+                projection.per.as_deref().unwrap_or_default()
+            )
+        })?;
+        for step in &projection.steps {
+            crate::projection::check_step(
+                projection,
+                step,
+                question,
+                lookup,
+                crate::projection::Versions::Loaded,
+                true,
+                // `$record.id` is the record's own id from v0.8.19, in a
+                // projection with `per`, as when the projection plays.
+                projection.per.is_some() && from_version(law, (0, 8, 19)),
+            )
+            .map_err(|why| format!("{where_}: the step on {}: {why}", step.record))?;
+        }
     }
     Ok(())
 }
@@ -953,13 +1360,13 @@ pub(crate) fn reject_unknown_state(law: &ArticleBasedLaw) -> Result<()> {
                     return refuse(format!(
                         "reads $state as a whole; name a property of its state: {}",
                         declared.join(", ")
-                    ))
+                    ));
                 }
                 Some(name) if !declared.contains(&name) => {
                     return refuse(format!(
                         "reads $state.{name}, which is no property of its state: {}",
                         declared.join(", ")
-                    ))
+                    ));
                 }
                 Some(_) => {}
             }
@@ -1470,9 +1877,171 @@ articles:
         );
     }
 
+    /// `law_producing` with a date parameter `vanaf`, a boolean `b`, a
+    /// decision `d`, and the nullable `q` (a string) and `c` (a boolean).
+    fn law_with_kinds(items: &str) -> String {
+        law_producing(items).replace(
+            "        parameters:\n          - name: p\n            type: string\n",
+            "        parameters:\n          - name: p\n            type: string\n          - {name: vanaf, type: date}\n          - {name: b, type: boolean}\n          - {name: d, type: decision}\n          - {name: q, type: string, nullable: true}\n          - {name: c, type: boolean, nullable: true}\n",
+        )
+    }
+
+    /// `law_with_kinds` that declares schema version `v` (`v0.8.14`).
+    fn law_with_kinds_on(items: &str, v: &str) -> String {
+        law_with_kinds(items).replacen(
+            "$id: lijst",
+            &format!(
+                "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{v}/schema/{v}/schema.json\n$id: lijst"
+            ),
+            1,
+        )
+    }
+
+    /// An effect revokes from the start; it holds for no window of days
+    /// (schema v0.8.15 has no `from` or `until`), and the record it revokes
+    /// is never null.
+    #[test]
+    fn a_decision_revokes_by_a_parameter_that_is_never_null() {
+        for (effect, why) in [
+            ("{revokes: p, from: vanaf}", "unknown field `from`"),
+            ("{revokes: p, until: vanaf}", "unknown field `until`"),
+            (
+                "{revokes: q}",
+                "names parameter 'q' in an effect under produces, which may be null",
+            ),
+        ] {
+            let err = LawExecutionService::new()
+                .load_law(&law_with_kinds(&format!(
+                    "          - type: BESCHIKKING\n            effects:\n              - {effect}"
+                )))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+    }
+    /// The refusal of a nullable `revokes` parameter came with schema
+    /// v0.8.15: a law that declares v0.8.14, which the released schema
+    /// allows, still loads.
+    #[test]
+    fn a_nullable_revokes_still_loads_on_v0_8_14() {
+        let items =
+            "          - type: BESCHIKKING\n            effects:\n              - {revokes: q}";
+        let on = |v: &str| law_with_kinds_on(items, v);
+        LawExecutionService::new()
+            .load_law(&on("v0.8.14"))
+            .expect("valid under v0.8.14");
+        let err = LawExecutionService::new()
+            .load_law(&on("v0.8.15"))
+            .expect_err("refused from v0.8.15");
+        assert!(
+            err.to_string()
+                .contains("names parameter 'q' in an effect under produces, which may be null"),
+            "{err}"
+        );
+    }
+
+    /// A decision names the record it revokes by a string that holds its
+    /// id, or by a decision, which the cell keeps by its id. From schema
+    /// v0.8.15 the loader refuses another type; a law that declares v0.8.14
+    /// still loads.
+    #[test]
+    fn a_decision_revokes_by_a_string_or_a_decision_from_v0_8_15() {
+        let items = |parameter: &str| {
+            format!(
+                "          - type: BESCHIKKING\n            effects:\n              - {{revokes: {parameter}}}"
+            )
+        };
+        for parameter in ["p", "d"] {
+            LawExecutionService::new()
+                .load_law(&law_with_kinds_on(&items(parameter), "v0.8.15"))
+                .unwrap_or_else(|e| panic!("{parameter} names a record: {e}"));
+        }
+        for (parameter, kind) in [("b", "Boolean"), ("vanaf", "Date")] {
+            LawExecutionService::new()
+                .load_law(&law_with_kinds_on(&items(parameter), "v0.8.14"))
+                .unwrap_or_else(|e| panic!("{parameter} loads on v0.8.14: {e}"));
+            let err = LawExecutionService::new()
+                .load_law(&law_with_kinds_on(&items(parameter), "v0.8.15"))
+                .expect_err(parameter);
+            assert!(
+                err.to_string().contains(&format!(
+                    "names parameter '{parameter}' in an effect under produces, which is a {kind}; \
+                     the record an effect revokes is a string that holds its id, or a decision"
+                )),
+                "{err}"
+            );
+        }
+    }
+
+    /// A fact may revoke an earlier record (schema v0.8.15): the record it
+    /// refers to, `revokes: refers_to`, so which record a fact is about has
+    /// one source. Its condition is a boolean the fact holds, not nullable.
+    #[test]
+    fn a_fact_revokes_by_what_it_holds() {
+        let fact = |parameters: &str, effect: &str| {
+            law_with_kinds("          - type: BESCHIKKING").replace(
+                "    machine_readable:\n      execution:\n",
+                &format!(
+                    "    machine_readable:\n      requires:\n        - fact: f\n          parameters: [{parameters}]\n          effects: [{{{effect}}}]\n      execution:\n"
+                ),
+            )
+        };
+        for (parameters, effect) in [
+            ("p", "revokes: refers_to"),
+            ("p, b", "revokes: refers_to, when: b"),
+        ] {
+            LawExecutionService::new()
+                .load_law(&fact(parameters, effect))
+                .unwrap_or_else(|e| panic!("{effect}: {e}"));
+        }
+        for (parameters, effect, why) in [
+            (
+                "p",
+                "revokes: p",
+                "with an effect that revokes 'p'; a fact revokes the record it refers to: write `revokes: refers_to`",
+            ),
+            (
+                "p",
+                "revokes: refers_to, when: b",
+                "with an effect that names 'b' as its condition, which the fact does not hold",
+            ),
+            (
+                "p, vanaf",
+                "revokes: refers_to, when: vanaf",
+                "with an effect that names 'vanaf' as its condition, which is a Date, not a Boolean",
+            ),
+            (
+                "p, c",
+                "revokes: refers_to, when: c",
+                "with an effect that names 'c' as its condition, which may be null",
+            ),
+        ] {
+            let err = LawExecutionService::new()
+                .load_law(&fact(parameters, effect))
+                .expect_err(why);
+            assert!(
+                err.to_string()
+                    .contains(&format!("requires the fact 'f' {why}")),
+                "{why}: {err}"
+            );
+        }
+        let err = LawExecutionService::new()
+            .load_law(&law_requiring(
+                "        - article: '2'\n          effects: [{revokes: p}]",
+            ))
+            .expect_err("effects without a fact");
+        assert!(
+            err.to_string()
+                .contains("lists effects on a requirement that names no fact"),
+            "{err}"
+        );
+    }
+
+    /// A rulework under schema v0.8.14, which allowed `key`, an `execution`
+    /// beside the projection and a parameter of the question in a step.
     fn law_with_projection(layer: &str, projection: &str) -> String {
         format!(
             r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
 $id: projectie
 regulatory_layer: {layer}
 publication_date: '2025-01-01'
@@ -1498,8 +2067,9 @@ articles:
     #[test]
     fn a_projection_keeps_to_its_own_state() {
         let state = "        state:\n          - {name: a, type: boolean}\n";
-        let ok =
-            format!("{state}        steps:\n          - {{record: wet#1, actions: [{{output: a, value: $record.v}}]}}");
+        let ok = format!(
+            "{state}        steps:\n          - {{record: wet#1, actions: [{{output: a, value: $record.v}}]}}"
+        );
         LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", &ok))
             .unwrap();
@@ -1510,16 +2080,25 @@ articles:
             .load_law(&law_with_projection("REDUCTIE", kinds))
             .unwrap();
         // A step may pass a parameter of the question the reduction answers.
-        let asks = format!("{state}        steps:\n          - {{record: wet#1, input: [{{name: x, type: boolean, source: {{regulation: wet, output: o, parameters: {{p: $peildatum}}}}}}], actions: [{{output: a, value: $x}}]}}");
+        let asks = format!(
+            "{state}        steps:\n          - {{record: wet#1, input: [{{name: x, type: boolean, source: {{regulation: wet, output: o, parameters: {{p: $peildatum}}}}}}], actions: [{{output: a, value: $x}}]}}"
+        );
         let with_question = law_with_projection("REDUCTIE", &asks).replace(
             "      execution:\n",
             "      execution:\n        parameters:\n          - {name: peildatum, type: date}\n",
         );
         LawExecutionService::new().load_law(&with_question).unwrap();
         // Without that parameter, `$peildatum` is nothing the step can pass.
-        assert!(LawExecutionService::new()
+        let err = LawExecutionService::new()
             .load_law(&law_with_projection("REDUCTIE", &asks))
-            .is_err());
+            .expect_err("no parameter peildatum");
+        assert!(
+            err.to_string().contains(
+                "has input 'x' that passes 'p' as '$peildatum'; a parameter of a step is \
+                 $record.<field>, $state.<property> or a parameter of the question"
+            ),
+            "{err}"
+        );
         let declares_state = law_with_projection("REDUCTIE", &ok).replace(
             "      execution:\n",
             "      execution:\n        parameters:\n          - {name: state, type: object}\n",
@@ -1539,7 +2118,9 @@ articles:
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, actions: [{{output: b, value: $record.v}}]}}"),
+                format!(
+                    "{state}        steps:\n          - {{record: wet#1, actions: [{{output: b, value: $record.v}}]}}"
+                ),
                 "the step for records under wet#1 sets 'b', which is no property of its state",
             ),
             (
@@ -1564,12 +2145,16 @@ articles:
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1, actions: [{{output: a, value: $record.v}}]}}\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}"),
+                format!(
+                    "{state}        steps:\n          - {{record: wet#1, actions: [{{output: a, value: $record.v}}]}}\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}"
+                ),
                 "has two steps for the same records under wet#1",
             ),
             (
                 "REDUCTIE",
-                format!("{state}        steps:\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}"),
+                format!(
+                    "{state}        steps:\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}\n          - {{record: wet#1#BESCHIKKING, actions: [{{output: a, value: $record.v}}]}}"
+                ),
                 "has two steps for the same records under wet#1",
             ),
         ] {
@@ -1609,18 +2194,344 @@ articles:
                 .expect_err(why);
             assert!(err.to_string().contains(why), "{why}: {err}");
         }
-        // A kind is in capitals, after a third `#`.
-        for record in ["wet#1#beschikking", "wet#1#"] {
+        // A kind is in capitals after a third `#`, a fact name (schema
+        // v0.8.18) in lower case.
+        for record in ["wet#1#Beschikking", "wet#1#"] {
             let projection = format!(
                 "{state}        steps:\n          - {{record: '{record}', actions: [{{output: a, value: $record.v}}]}}"
             );
+            let err = LawExecutionService::new()
+                .load_law(&law_with_projection("REDUCTIE", &projection))
+                .expect_err(record);
             assert!(
-                LawExecutionService::new()
-                    .load_law(&law_with_projection("REDUCTIE", &projection))
-                    .is_err(),
-                "{record}"
+                err.to_string().contains(&format!(
+                    "'{record}' is not <regulation>#<article>, optionally with #<KIND> or #<fact>"
+                )),
+                "{record}: {err}"
             );
         }
+        // A fact name in a file on an earlier version.
+        let projection = format!(
+            "{state}        steps:\n          - {{record: 'wet#1#beschikking', actions: [{{output: a, value: $record.v}}]}}"
+        );
+        let err = LawExecutionService::new()
+            .load_law(&law_with_projection("REDUCTIE", &projection))
+            .expect_err("a fact name before v0.8.18");
+        assert!(
+            err.to_string()
+                .contains("names the fact 'beschikking'; a fact name came with schema v0.8.18"),
+            "{err}"
+        );
+    }
+
+    /// A projection plays one aggregate per record (`per`, schema v0.8.17)
+    /// or the records of one key, not both, and answers no question of its
+    /// own.
+    #[test]
+    fn a_projection_per_record_answers_no_question() {
+        let state = "        state:\n          - {name: a, type: boolean}\n        steps:\n          - {record: wet#1, actions: [{output: a, value: $record.v}]}";
+        let per = law_with_projection(
+            "REDUCTIE",
+            &format!("        per: wet#1#BESCHIKKING\n{state}"),
+        );
+        let without_execution = |law: String| {
+            let i = law.find("      execution:\n").unwrap();
+            law[..i].to_string()
+        };
+        LawExecutionService::new()
+            .load_law(&without_execution(per.clone()))
+            .unwrap();
+        for (law, why) in [
+            (
+                per.clone(),
+                "has a projection per wet#1#BESCHIKKING and an execution; it answers no question of its own",
+            ),
+            (
+                without_execution(per.replace("        per:", "        key: x\n        per:")),
+                "has a projection with a key and per wet#1#BESCHIKKING",
+            ),
+            (
+                without_execution(
+                    per.replace("{name: a, type: boolean}", "{name: id, type: string}")
+                        .replace("value: $record.v}", "value: $record.w}")
+                        .replace("output: a,", "output: id,"),
+                ),
+                "has a projection per wet#1#BESCHIKKING with a state property 'id'; a row of its aggregates holds the id of its root under that name",
+            ),
+            (
+                without_execution(
+                    per.replace("per: wet#1#BESCHIKKING", "per: 'wet#1#Beschikking'"),
+                ),
+                "'wet#1#Beschikking' is not <regulation>#<article>, optionally with #<KIND> or #<fact>",
+            ),
+        ] {
+            let err = LawExecutionService::new().load_law(&law).expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+    }
+
+    /// Since schema v0.8.17 a step passes no parameter of the question and a
+    /// projection plays one aggregate per record (`per`), not the records of
+    /// one `key`. A file under v0.8.16 or earlier keeps both; a file that names no
+    /// version is held to the newest.
+    #[test]
+    fn since_v0_8_17_a_projection_has_per_and_its_steps_ask_no_question() {
+        const V0_8_14: &str = "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json\n";
+        const V0_8_17: &str = "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json\n";
+        let projection = "        key: peildatum\n        state:\n          - {name: a, type: boolean}\n        steps:\n          - {record: wet#1, input: [{name: x, type: boolean, source: {regulation: wet, output: o, parameters: {p: $peildatum}}}], actions: [{output: a, value: $x}]}";
+        let keyed = law_with_projection("REDUCTIE", projection).replace(
+            "      execution:\n",
+            "      execution:\n        parameters:\n          - {name: peildatum, type: date}\n",
+        );
+        LawExecutionService::new().load_law(&keyed).unwrap();
+        let without_execution = |law: &str| {
+            let i = law.find("      execution:\n").unwrap();
+            law[..i].to_string()
+        };
+        let per =
+            without_execution(&keyed.replace("        key: peildatum\n", "        per: wet#1\n"));
+        for (law, why) in [
+            (
+                keyed.replace(V0_8_14, V0_8_17),
+                "plays the records of one 'peildatum' (key); since schema v0.8.17 a projection plays one aggregate per record (per)",
+            ),
+            (
+                keyed.replace(V0_8_14, ""),
+                "plays the records of one 'peildatum' (key)",
+            ),
+            (
+                keyed
+                    .replace(V0_8_14, V0_8_17)
+                    .replace("        key: peildatum\n", ""),
+                "has a projection without per; since schema v0.8.17 a projection plays one aggregate per record",
+            ),
+            (
+                per.replace(V0_8_14, V0_8_17),
+                "has input 'x' that passes 'p' as '$peildatum'; a parameter of a step is $record.<field> or $state.<property>, and since schema v0.8.17 no parameter of the question",
+            ),
+            (
+                per.replace(V0_8_14, ""),
+                "and since schema v0.8.17 no parameter of the question",
+            ),
+        ] {
+            let err = LawExecutionService::new().load_law(&law).expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+    }
+
+    /// An input that reads the aggregates of a reduction stands alone, in a
+    /// REDUCTIE, and picks its roots by parameters of its article.
+    #[test]
+    fn the_aggregates_are_read_alone_in_a_reduction() {
+        let reader = |layer: &str, source: &str| {
+            format!(
+                r#"
+$id: lezer
+regulatory_layer: {layer}
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        parameters: [{{name: wie, type: string}}]
+        input:
+          - {{name: rijen, type: array, source: {source}}}
+        output: [{{name: n, type: number}}]
+        actions:
+          - {{output: n, value: 0}}
+"#
+            )
+        };
+        LawExecutionService::new()
+            .load_law(&reader(
+                "REDUCTIE",
+                "{projections: per_besluit#1, where: {aanvrager: $wie}}",
+            ))
+            .unwrap();
+        LawExecutionService::new()
+            .load_law(&reader("REDUCTIE", "{projections: per_besluit#1}"))
+            .unwrap();
+        for (layer, source, why) in [
+            (
+                "WET",
+                "{projections: per_besluit#1}",
+                "input 'rijen' reads the aggregates of per_besluit#1; only a REDUCTIE reads a chronicle",
+            ),
+            (
+                "REDUCTIE",
+                "{projections: per_besluit#1, regulation: wet, output: o}",
+                "input 'rijen' reads the aggregates of per_besluit#1, which no regulation can stand beside",
+            ),
+            (
+                "REDUCTIE",
+                "{projections: per_besluit#1, decisions: 'wet#1'}",
+                "input 'rijen' reads the aggregates of per_besluit#1, which no decisions can stand beside",
+            ),
+            (
+                "REDUCTIE",
+                "{projections: per_besluit#1, where: {aanvrager: $niemand}}",
+                "input 'rijen' picks the aggregates of per_besluit#1 where 'aanvrager' is $niemand, which is no $-reference to a parameter of the article",
+            ),
+            (
+                "REDUCTIE",
+                "{projections: per_besluit#1, where: {aanvrager: wie}}",
+                "where 'aanvrager' is wie, which is no $-reference",
+            ),
+            (
+                "REDUCTIE",
+                "{regulation: wet, output: o, where: {aanvrager: $wie}}",
+                "input 'rijen' has where without projections",
+            ),
+        ] {
+            let err = LawExecutionService::new()
+                .load_law(&reader(layer, source))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{why}: {err}");
+        }
+    }
+
+    /// From schema v0.8.17 a reduction reads the aggregates of decisions,
+    /// not the decisions themselves; a reduction on v0.8.16 or earlier still
+    /// reads them (`source.decisions`, schema v0.8.2).
+    #[test]
+    fn since_v0_8_17_a_reduction_reads_no_decisions() {
+        let reduction = |version: &str| {
+            let schema = if version.is_empty() {
+                String::new()
+            } else {
+                format!(
+                    "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json\n"
+                )
+            };
+            format!(
+                r#"
+{schema}$id: lezer
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        input:
+          - {{name: rijen, type: array, source: {{decisions: 'wet#1'}}}}
+        output: [{{name: n, type: number}}]
+        actions:
+          - {{output: n, value: 0}}
+"#
+            )
+        };
+        LawExecutionService::new()
+            .load_law(&reduction("v0.8.16"))
+            .unwrap();
+        let why = "input 'rijen' reads the decisions taken under wet#1; since schema v0.8.17 a REDUCTIE reads the aggregates of the decisions (source.projections), not the decisions themselves (source.decisions)";
+        for version in ["v0.8.17", ""] {
+            let err = LawExecutionService::new()
+                .load_law(&reduction(version))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{version}: {err}");
+        }
+    }
+
+    /// The `$schema` line for `version`, or none, which counts as the latest.
+    fn schema_line(version: &str) -> String {
+        if version.is_empty() {
+            String::new()
+        } else {
+            format!(
+                "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json\n"
+            )
+        }
+    }
+
+    /// From schema v0.8.19 a reduction reads the aggregates of recorded
+    /// facts, not the facts themselves (`source.facts`).
+    #[test]
+    fn since_v0_8_19_a_reduction_reads_no_facts() {
+        let reduction = |version: &str| {
+            let schema = schema_line(version);
+            format!(
+                r#"
+{schema}$id: lezer
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        input:
+          - {{name: rijen, type: array, source: {{facts: 'wet#1#feit'}}}}
+        output: [{{name: n, type: number}}]
+        actions:
+          - {{output: n, value: 0}}
+"#
+            )
+        };
+        LawExecutionService::new()
+            .load_law(&reduction("v0.8.18"))
+            .unwrap();
+        let why = "input 'rijen' reads the recorded facts wet#1#feit; since schema v0.8.19 a REDUCTIE reads the aggregates of the facts (source.projections), not the facts themselves (source.facts)";
+        for version in ["v0.8.19", ""] {
+            let err = LawExecutionService::new()
+                .load_law(&reduction(version))
+                .expect_err(why);
+            assert!(err.to_string().contains(why), "{version}: {err}");
+        }
+    }
+
+    /// From schema v0.8.19 a reduction is an aggregate (a projection) or a
+    /// read model, whose every article with an execution reads aggregates
+    /// (`source.projections`). An article without an execution is neither
+    /// and is no reason to refuse.
+    #[test]
+    fn since_v0_8_19_a_reduction_is_an_aggregate_or_a_read_model() {
+        let reduction = |version: &str, input: &str| {
+            let schema = schema_line(version);
+            format!(
+                r#"
+{schema}$id: lezer
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Alleen tekst.
+  - number: '2'
+    text: t
+    machine_readable:
+      execution:
+        parameters: [{{name: wie, type: string}}]
+        input:
+{input}        output: [{{name: n, type: number}}]
+        actions:
+          - {{output: n, value: 0}}
+"#
+            )
+        };
+        let call = "          - {name: x, type: number, source: {regulation: wet, output: x}}\n";
+        let read = "          - {name: rijen, type: array, source: {projections: aggregaat#1, where: {wie: $wie}}}\n";
+        let load = |law: String| LawExecutionService::new().load_law(&law);
+        // Up to v0.8.18 a reduction may only call other rulework.
+        load(reduction("v0.8.18", call)).unwrap();
+        // A read model may call other rulework beside the aggregates it reads.
+        load(reduction("v0.8.19", &format!("{call}{read}"))).unwrap();
+        load(reduction("", read)).unwrap();
+        let why = "article 2: reads no aggregates (source.projections) and plays none (projection); since schema v0.8.19 a REDUCTIE is an aggregate or a read model over one";
+        for version in ["v0.8.19", ""] {
+            let err = load(reduction(version, call)).expect_err(why);
+            assert!(err.to_string().contains(why), "{version}: {err}");
+        }
+        // Another layer is not held to it.
+        load(
+            reduction("v0.8.19", call)
+                .replace("REDUCTIE", "UITVOERINGSBELEID")
+                .replace(
+                    "$id: lezer",
+                    "$id: lezer\ncompetent_authority: {name: Iemand}",
+                ),
+        )
+        .unwrap();
     }
 
     /// An answer reads `$state.<property>` of a property its state declares;

@@ -9,7 +9,7 @@ use roxmltree::Node;
 use std::sync::LazyLock;
 
 use crate::config::sanitize_fragment;
-use crate::registry::handler::{extract_text_with_tail, ElementHandler, RecurseFn};
+use crate::registry::handler::{ElementHandler, RecurseFn, extract_text_with_tail};
 use crate::registry::types::{ElementType, ParseContext, ParseResult};
 use crate::types::Reference;
 

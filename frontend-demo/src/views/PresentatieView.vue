@@ -59,7 +59,7 @@ function kindLabel(s: SlideConfig) {
 <template>
   <nldd-page>
     <nldd-simple-section width="720px">
-      <nldd-title slot="header" size="2">
+      <nldd-title slot="header" size="display-2">
         <span slot="overline">{{ t('home.presentation.overline') }}</span>
         <h1>{{ t('home.presentation.title') }}</h1>
         <span slot="supporting-text">{{ t('home.presentation.subtitle') }}</span>
@@ -76,7 +76,7 @@ function kindLabel(s: SlideConfig) {
       <nldd-collection layout="grid" item-min-width="300px">
         <nldd-card>
           <nldd-container padding="16" gap="12">
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h2>{{ t('home.presentation.how.title') }}</h2>
             </nldd-title>
             <!-- De modus bepaalt of de dia's náást de demo blijven staan. In de
@@ -102,7 +102,7 @@ function kindLabel(s: SlideConfig) {
              versie, met stem. Alleen als deze build er een heeft. -->
         <nldd-card v-if="walkthrough">
           <nldd-container padding="16" gap="12">
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h2>{{ t('home.presentation.watch.title') }}</h2>
             </nldd-title>
             <nldd-rich-text spacing="tight">
@@ -113,7 +113,7 @@ function kindLabel(s: SlideConfig) {
         </nldd-card>
       </nldd-collection>
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="4">
+      <nldd-title size="display-4">
         <h2>{{ t('home.presentation.slides.label') }}</h2>
         <span slot="supporting-text">{{ t('home.presentation.slides.hint') }}</span>
       </nldd-title>

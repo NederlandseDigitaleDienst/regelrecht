@@ -2,7 +2,7 @@
 import { computed, inject } from 'vue';
 import * as yaml from 'js-yaml';
 import MachineEmptyState from './MachineEmptyState.vue';
-import type { LawArticle } from '../composables/useLaw';
+import type { LawArticle } from '../lib/lawFormat';
 
 const props = withDefaults(
   defineProps<{

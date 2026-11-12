@@ -10,7 +10,7 @@
     </nldd-banner>
 
     <nldd-form-field label="Document" supporting-label="één regeling tegelijk; oudere versies staan onderaan de lijst">
-      <nldd-dropdown :key="`pp:${docsMetVersie.length}:${gekozenPad}`" size="sm" width="100%" @change="gekozenPad = $event.detail?.value ?? gekozenPad">
+      <nldd-dropdown :key="`pp:${docsMetVersie.length}:${gekozenPad}`" size="sm" width="100%" @change="gekozenPad = $event.target.value ?? gekozenPad">
         <select :value="gekozenPad ?? ''" aria-label="Kies het document waarvan je de parameters bijstelt">
           <option v-for="doc in docsMetVersie" :key="doc.lawPath" :value="doc.lawPath">
             {{ doc.docName }} · geldig vanaf {{ datumLabel(doc.validFrom) }}{{ doc.ouder ? ' (oudere versie)' : '' }}{{ doc.bewerkt ? ' · bewerkt' : '' }}
@@ -142,8 +142,12 @@ function onderwerp(art) {
 }
 
 function onInput(def, event) {
-  const shown = event.detail?.value ?? Number(event.target?.value);
-  if (shown === null || shown === undefined || Number.isNaN(shown)) return;
+  // An emptied field reports null (design system 0.18): no answer yet, so the
+  // parameter keeps its value. Number(null) would make that 0.
+  const raw = event.detail?.value ?? event.target?.value;
+  if (raw === null || raw === undefined || raw === '') return;
+  const shown = Number(raw);
+  if (Number.isNaN(shown)) return;
   const stored = toStored(def, shown);
   const key = def.key;
   clearTimeout(timers.get(key));

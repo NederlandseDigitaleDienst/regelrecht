@@ -123,7 +123,9 @@ pub enum HarvesterError {
     },
 
     /// Invalid CVDR ID format.
-    #[error("Invalid CVDR ID format: '{0}'. Expected CVDR followed by 3 or more digits (e.g., CVDR681386)")]
+    #[error(
+        "Invalid CVDR ID format: '{0}'. Expected CVDR followed by 3 or more digits (e.g., CVDR681386)"
+    )]
     InvalidCvdrId(String),
 
     /// Invalid law ID format (neither BWB nor CVDR).

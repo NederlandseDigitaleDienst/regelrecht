@@ -91,7 +91,7 @@ watch(() => session.beoordelaar, laad);
     <!-- Niet ingelogd: SSO Rijk -->
     <template v-if="session.loaded && !session.beoordelaar">
       <nldd-simple-section width="560px">
-        <nldd-title size="2">
+        <nldd-title size="display-2">
           <span slot="overline">Voor medewerkers van de Napp</span>
           <h2>Inloggen met SSO Rijk</h2>
         </nldd-title>
@@ -142,7 +142,7 @@ watch(() => session.beoordelaar, laad);
     <!-- Ingelogd: werkvoorraad -->
     <template v-else-if="session.beoordelaar">
       <nldd-simple-section>
-        <nldd-title size="2">
+        <nldd-title size="display-2">
           <span slot="overline">Beoordelingsomgeving</span>
           <h2>Subsidieaanvragen</h2>
         </nldd-title>

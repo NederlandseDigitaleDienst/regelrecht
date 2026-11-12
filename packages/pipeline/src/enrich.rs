@@ -684,10 +684,10 @@ impl AgentSession {
     pub fn models(&self) -> Vec<String> {
         let mut models: Vec<String> = Vec::new();
         for call in self.calls() {
-            if let Some(model) = call.model {
-                if !models.contains(&model) {
-                    models.push(model);
-                }
+            if let Some(model) = call.model
+                && !models.contains(&model)
+            {
+                models.push(model);
             }
         }
         models
@@ -4339,19 +4339,17 @@ pub async fn execute_enrich_with_runner(
         .and_then(|p| p.file_name())
         .map(|n| n.to_string_lossy().to_string());
     let features_dir = repo_path.join("features");
-    if let Some(ref slug) = law_slug {
-        if features_dir.exists() {
-            if let Ok(mut entries) = tokio::fs::read_dir(&features_dir).await {
-                while let Ok(Some(entry)) = entries.next_entry().await {
-                    let path = entry.path();
-                    if path.extension().is_some_and(|e| e == "feature") {
-                        if let Some(name) = path.file_stem() {
-                            if name.to_string_lossy().contains(slug.as_str()) {
-                                written_files.push(path);
-                            }
-                        }
-                    }
-                }
+    if let Some(ref slug) = law_slug
+        && features_dir.exists()
+        && let Ok(mut entries) = tokio::fs::read_dir(&features_dir).await
+    {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "feature")
+                && let Some(name) = path.file_stem()
+                && name.to_string_lossy().contains(slug.as_str())
+            {
+                written_files.push(path);
             }
         }
     }
@@ -5613,16 +5611,20 @@ articles:
         // Both accepting sides, so the guard is not simply closed: a finding
         // fewer, or a schema error repaired while the findings stand still —
         // which is what binding an input without `source` actually does.
-        assert!(Rewrite {
-            findings_after: 2,
-            ..swap
-        }
-        .is_progress());
-        assert!(Rewrite {
-            schema_before: 1,
-            ..swap
-        }
-        .is_progress());
+        assert!(
+            Rewrite {
+                findings_after: 2,
+                ..swap
+            }
+            .is_progress()
+        );
+        assert!(
+            Rewrite {
+                schema_before: 1,
+                ..swap
+            }
+            .is_progress()
+        );
     }
 
     /// Whatever the counts say, a law the parser cannot read never replaces
@@ -5839,24 +5841,22 @@ articles:
             }
             let content = tokio::fs::read_to_string(yaml_abs).await?;
             let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
-            if let serde_yaml_ng::Value::Mapping(ref mut map) = value {
-                if let Some(serde_yaml_ng::Value::Sequence(ref mut articles)) =
-                    map.get_mut("articles")
-                {
-                    for article in articles.iter_mut() {
-                        if let serde_yaml_ng::Value::Mapping(ref mut article_map) = article {
-                            if article_map.contains_key("machine_readable") {
-                                continue;
-                            }
-                            let marking: serde_yaml_ng::Value = serde_yaml_ng::from_str(
-                                "markings:\n  - about: naar redelijkheid en billijkheid is een open norm\n    reason: het model kent alleen formules en geen oordeelsruimte\n    resolution: model\n    resolved_by: het formaat zou een oordeelsruimte moeten kunnen dragen die geen formule is\n    target: []\n    legal_text_excerpt: naar redelijkheid en billijkheid\n",
-                            )?;
-                            article_map.insert(
-                                serde_yaml_ng::Value::String("machine_readable".into()),
-                                marking,
-                            );
-                            break;
+            if let serde_yaml_ng::Value::Mapping(ref mut map) = value
+                && let Some(serde_yaml_ng::Value::Sequence(articles)) = map.get_mut("articles")
+            {
+                for article in articles.iter_mut() {
+                    if let serde_yaml_ng::Value::Mapping(article_map) = article {
+                        if article_map.contains_key("machine_readable") {
+                            continue;
                         }
+                        let marking: serde_yaml_ng::Value = serde_yaml_ng::from_str(
+                            "markings:\n  - about: naar redelijkheid en billijkheid is een open norm\n    reason: het model kent alleen formules en geen oordeelsruimte\n    resolution: model\n    resolved_by: het formaat zou een oordeelsruimte moeten kunnen dragen die geen formule is\n    target: []\n    legal_text_excerpt: naar redelijkheid en billijkheid\n",
+                        )?;
+                        article_map.insert(
+                            serde_yaml_ng::Value::String("machine_readable".into()),
+                            marking,
+                        );
+                        break;
                     }
                 }
             }
@@ -6745,26 +6745,21 @@ articles:
 
             let content = tokio::fs::read_to_string(yaml_abs).await?;
             let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
-            if let serde_yaml_ng::Value::Mapping(ref mut map) = value {
-                if let Some(serde_yaml_ng::Value::Sequence(ref mut articles)) =
-                    map.get_mut("articles")
-                {
-                    for article in articles.iter_mut() {
-                        if let serde_yaml_ng::Value::Mapping(ref mut m) = article {
-                            let mut mr = serde_yaml_ng::Mapping::new();
-                            if is_repair {
-                                // The repair round drops the invented key.
-                                mr.insert(
-                                    "markings".into(),
-                                    serde_yaml_ng::Value::Sequence(vec![]),
-                                );
-                            } else {
-                                // An invented key: `machine_readable` is
-                                // `additionalProperties: false`.
-                                mr.insert("verzonnen_sleutel".into(), "iets".into());
-                            }
-                            m.insert("machine_readable".into(), serde_yaml_ng::Value::Mapping(mr));
+            if let serde_yaml_ng::Value::Mapping(ref mut map) = value
+                && let Some(serde_yaml_ng::Value::Sequence(articles)) = map.get_mut("articles")
+            {
+                for article in articles.iter_mut() {
+                    if let serde_yaml_ng::Value::Mapping(m) = article {
+                        let mut mr = serde_yaml_ng::Mapping::new();
+                        if is_repair {
+                            // The repair round drops the invented key.
+                            mr.insert("markings".into(), serde_yaml_ng::Value::Sequence(vec![]));
+                        } else {
+                            // An invented key: `machine_readable` is
+                            // `additionalProperties: false`.
+                            mr.insert("verzonnen_sleutel".into(), "iets".into());
                         }
+                        m.insert("machine_readable".into(), serde_yaml_ng::Value::Mapping(mr));
                     }
                 }
             }
@@ -6853,17 +6848,15 @@ articles:
                 }
                 let content = tokio::fs::read_to_string(yaml_abs).await?;
                 let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
-                if let serde_yaml_ng::Value::Mapping(ref mut map) = value {
-                    if let Some(serde_yaml_ng::Value::Sequence(ref mut arts)) =
-                        map.get_mut("articles")
-                    {
-                        for a in arts.iter_mut() {
-                            if let serde_yaml_ng::Value::Mapping(ref mut m) = a {
-                                m.insert(
-                                    "machine_readable".into(),
-                                    serde_yaml_ng::Value::Mapping(Default::default()),
-                                );
-                            }
+                if let serde_yaml_ng::Value::Mapping(ref mut map) = value
+                    && let Some(serde_yaml_ng::Value::Sequence(arts)) = map.get_mut("articles")
+                {
+                    for a in arts.iter_mut() {
+                        if let serde_yaml_ng::Value::Mapping(m) = a {
+                            m.insert(
+                                "machine_readable".into(),
+                                serde_yaml_ng::Value::Mapping(Default::default()),
+                            );
                         }
                     }
                 }
@@ -7043,19 +7036,17 @@ articles:
             let content = tokio::fs::read_to_string(yaml_abs).await?;
             let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
 
-            if let serde_yaml_ng::Value::Mapping(ref mut map) = value {
-                if let Some(serde_yaml_ng::Value::Sequence(ref mut articles)) =
-                    map.get_mut("articles")
-                {
-                    for article in articles.iter_mut() {
-                        if let serde_yaml_ng::Value::Mapping(ref mut article_map) = article {
-                            if !article_map.contains_key("machine_readable") {
-                                article_map.insert(
-                                    serde_yaml_ng::Value::String("machine_readable".into()),
-                                    serde_yaml_ng::Value::Mapping(Default::default()),
-                                );
-                            }
-                        }
+            if let serde_yaml_ng::Value::Mapping(ref mut map) = value
+                && let Some(serde_yaml_ng::Value::Sequence(articles)) = map.get_mut("articles")
+            {
+                for article in articles.iter_mut() {
+                    if let serde_yaml_ng::Value::Mapping(article_map) = article
+                        && !article_map.contains_key("machine_readable")
+                    {
+                        article_map.insert(
+                            serde_yaml_ng::Value::String("machine_readable".into()),
+                            serde_yaml_ng::Value::Mapping(Default::default()),
+                        );
                     }
                 }
             }
@@ -8294,25 +8285,22 @@ chunk_report:
 
             let content = tokio::fs::read_to_string(yaml_abs).await?;
             let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
-            if let serde_yaml_ng::Value::Mapping(ref mut map) = value {
-                if let Some(serde_yaml_ng::Value::Sequence(ref mut articles)) =
-                    map.get_mut("articles")
-                {
-                    for article in articles.iter_mut() {
-                        if let serde_yaml_ng::Value::Mapping(ref mut article_map) = article {
-                            let number = article_map
-                                .get("number")
-                                .and_then(|n| n.as_str())
-                                .unwrap_or_default()
-                                .to_string();
-                            if chunk.contains(&number)
-                                && !article_map.contains_key("machine_readable")
-                            {
-                                article_map.insert(
-                                    serde_yaml_ng::Value::String("machine_readable".into()),
-                                    serde_yaml_ng::Value::Mapping(Default::default()),
-                                );
-                            }
+            if let serde_yaml_ng::Value::Mapping(ref mut map) = value
+                && let Some(serde_yaml_ng::Value::Sequence(articles)) = map.get_mut("articles")
+            {
+                for article in articles.iter_mut() {
+                    if let serde_yaml_ng::Value::Mapping(article_map) = article {
+                        let number = article_map
+                            .get("number")
+                            .and_then(|n| n.as_str())
+                            .unwrap_or_default()
+                            .to_string();
+                        if chunk.contains(&number) && !article_map.contains_key("machine_readable")
+                        {
+                            article_map.insert(
+                                serde_yaml_ng::Value::String("machine_readable".into()),
+                                serde_yaml_ng::Value::Mapping(Default::default()),
+                            );
                         }
                     }
                 }
@@ -8941,9 +8929,11 @@ articles:
         let last = runs.last().unwrap();
         assert!(last.law_complete, "the layer walk ends");
         assert!(last.feedback.iter().any(|g| g.gate == "binding-final"));
-        assert!(runs[..runs.len() - 1]
-            .iter()
-            .all(|r| !r.feedback.iter().any(|g| g.gate == "binding-final")));
+        assert!(
+            runs[..runs.len() - 1]
+                .iter()
+                .all(|r| !r.feedback.iter().any(|g| g.gate == "binding-final"))
+        );
     }
 
     /// The ceiling the worker divides the job budget by is the number of agent

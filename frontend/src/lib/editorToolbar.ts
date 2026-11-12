@@ -2,7 +2,7 @@
  * Two-way wiring between a DS toolbar and an nldd-text-editor, lifted from the
  * design system's text-editor "Mixed" story so the werkdocument editor gets the
  * exact same toolbar. The controls drive the editor's headless command API; the
- * editor's `nldd-text-editor-state` event drives the controls (active formats,
+ * editor's `state-change` event drives the controls (active formats,
  * disabled-in-code, indent/undo/redo/clipboard enablement, and the overflow-menu
  * mirrors). Framework-agnostic: it operates on the DOM, so the controls stay
  * uncontrolled and `onToolbarState` sets their properties directly.

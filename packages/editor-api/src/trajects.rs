@@ -261,8 +261,7 @@ const CENTRAL_WRITABLE_NAME: &str = "MinBZK/regelrecht-corpus";
 /// User-facing rejection for a malformed `repo_path`. Shared by `create`
 /// and `update` so both entry points describe the same rule in the same
 /// words — the UI shows this string verbatim.
-const REPO_PATH_INVALID_MSG: &str =
-    "repo_path moet een relatief pad zijn zonder '..' segmenten en \
+const REPO_PATH_INVALID_MSG: &str = "repo_path moet een relatief pad zijn zonder '..' segmenten en \
      mag alleen letters, cijfers, en '-', '_', '.' bevatten";
 
 #[derive(Debug, Deserialize)]
@@ -886,10 +885,10 @@ async fn resolve_writable_target(
                 .map(str::trim)
                 .filter(|s| !s.is_empty())
                 .map(str::to_string);
-            if let Some(ref p) = repo_path {
-                if !valid_repo_path(p) {
-                    return Err((StatusCode::BAD_REQUEST, REPO_PATH_INVALID_MSG.to_string()));
-                }
+            if let Some(ref p) = repo_path
+                && !valid_repo_path(p)
+            {
+                return Err((StatusCode::BAD_REQUEST, REPO_PATH_INVALID_MSG.to_string()));
             }
             preflight_repo(
                 state,
@@ -1016,7 +1015,8 @@ async fn preflight_repo(
 
     // Build the shared GitHub client for the pre-flight. A build
     // failure is an infrastructure problem, not a caller error → 503.
-    let mut client = regelrecht_github::GithubClient::new().map_err(|e| {
+    let github = state.corpus.read().await.github.clone();
+    let mut client = github.client().map_err(|e| {
         tracing::error!(error = %e, "failed to build GitHub client for repo preflight");
         (
             StatusCode::SERVICE_UNAVAILABLE,
@@ -1250,6 +1250,9 @@ pub async fn create(
                 .registry
                 .sources()
                 .iter()
+                // Example rulework stays in the public library, where it is
+                // labelled as an example (see `Source::library_only`).
+                .filter(|s| !s.library_only)
                 .map(SeedSource::from_source)
                 .collect()
         };
@@ -1373,10 +1376,10 @@ pub async fn update(
     }
     // Mirror `create`'s non-empty check so a PATCH can't blank-out the
     // name with whitespace.
-    if let Some(ref n) = req.name {
-        if n.trim().is_empty() {
-            return Err(bare(StatusCode::BAD_REQUEST));
-        }
+    if let Some(ref n) = req.name
+        && n.trim().is_empty()
+    {
+        return Err(bare(StatusCode::BAD_REQUEST));
     }
 
     // `Option<Option<String>>`: the outer layer is "was the field sent

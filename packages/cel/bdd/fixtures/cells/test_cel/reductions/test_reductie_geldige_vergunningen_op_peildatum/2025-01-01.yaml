@@ -1,9 +1,11 @@
 ---
 # FICTIEF. A reduction of the cell's BDD suite over test_bedrijfsvergunning:
-# how many permits of a company count on the day the question names. The
-# step passes that day, a parameter of the question, to the law, so the
-# projection depends on the question as it does through its key.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+# how many permits of a company count on the day the question names. It
+# reads the aggregates of test_reductie_vergunning_per_besluit of that
+# company and passes them with the day to article 2 of the law (schema
+# v0.8.17), so the fold depends on the chronicle alone and the day is
+# compared when the question is answered.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_reductie_geldige_vergunningen_op_peildatum
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'
@@ -18,36 +20,30 @@ articles:
       FICTIEF. Het aantal vergunningen van een bedrijf dat op de peildatum
       meetelt.
     machine_readable:
-      projection:
-        key: bedrijf
-        state:
-          - name: aantal
-            type: number
-        steps:
-          - record: test_bedrijfsvergunning#1#BESCHIKKING
-            input:
-              - name: aantal_na_besluit
-                type: number
-                source:
-                  regulation: test_bedrijfsvergunning
-                  output: aantal_na_besluit
-                  parameters:
-                    aantal: $state.aantal
-                    verleend: $record.vergunning_verleend
-                    geldig_tot: $record.geldig_tot
-                    peildatum: $peildatum
-            actions:
-              - output: aantal
-                value: $aantal_na_besluit
       execution:
         parameters:
           - name: bedrijf
             type: string
           - name: peildatum
             type: date
+        input:
+          - name: vergunningen
+            type: array
+            source:
+              projections: test_reductie_vergunning_per_besluit
+              where:
+                bedrijf: $bedrijf
+          - name: aantal
+            type: number
+            source:
+              regulation: test_bedrijfsvergunning
+              output: aantal_geldig
+              parameters:
+                vergunningen: $vergunningen
+                peildatum: $peildatum
         output:
           - name: aantal_geldige_vergunningen
             type: number
         actions:
           - output: aantal_geldige_vergunningen
-            value: $state.aantal
+            value: $aantal

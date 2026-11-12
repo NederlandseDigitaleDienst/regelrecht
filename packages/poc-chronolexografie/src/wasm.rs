@@ -105,17 +105,23 @@ impl Poc {
         antwoord(self.spel.aanvragen(&kaart("velden", velden)?, dag(datum)?))
     }
 
+    /// `verwijst_naar`: the kenmerk, in the begin of `cel`, of the record
+    /// the fact is about, or none.
     pub fn vastleggen(
         &mut self,
         cel: &str,
         feit: &str,
         velden: &str,
         datum: &str,
+        verwijst_naar: Option<String>,
     ) -> Result<String, JsError> {
-        antwoord(
-            self.spel
-                .vastleggen(cel, feit, &kaart("velden", velden)?, dag(datum)?),
-        )
+        antwoord(self.spel.vastleggen_verwijzend(
+            cel,
+            feit,
+            &kaart("velden", velden)?,
+            verwijst_naar.as_deref(),
+            dag(datum)?,
+        ))
     }
 
     pub fn besluiten(

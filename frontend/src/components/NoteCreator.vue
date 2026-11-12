@@ -495,7 +495,6 @@ const statusInfo = computed(() => {
         <nldd-form-field>
           <nldd-text-editor
             ref="commentFieldEl"
-            appearance="input-field"
             :rows="3"
             resize="auto"
             :value="commentText"

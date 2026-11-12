@@ -167,8 +167,7 @@ fn clip_line(line: &str) -> String {
 /// Closing advice on every parse diagnosis. A parse error is the only finding
 /// the file can produce, and saying so keeps a repair from wandering off into
 /// the rest of the file.
-const PARSE_TAIL: &str =
-    "Repair this line and change nothing else: while the file does not parse, \
+const PARSE_TAIL: &str = "Repair this line and change nothing else: while the file does not parse, \
      no other check has run and there is nothing else to go on. Do not delete \
      the line or shorten the sentence — the words are the record, the quoting \
      is the fix.";
@@ -295,11 +294,7 @@ fn ascending_run(candidates: &[(u32, usize, usize)]) -> Vec<(u32, usize, usize)>
     }
     // A single mark is not a numbering: one stray "30." in a citation would
     // otherwise split the article in two on a lid that does not exist.
-    if best.len() < 2 {
-        Vec::new()
-    } else {
-        best
-    }
+    if best.len() < 2 { Vec::new() } else { best }
 }
 
 /// `(lid number, byte offset of the marker, byte offset of its body)`. A
@@ -333,17 +328,16 @@ fn lid_marks(text: &str) -> Vec<(u32, usize, usize)> {
             && i < bytes.len()
             && bytes[i] == b'.'
             && bytes.get(i + 1).is_some_and(u8::is_ascii_whitespace)
+            && let Ok(n) = digits.parse::<u32>()
         {
-            if let Ok(n) = digits.parse::<u32>() {
-                // Consume the dot and the following whitespace.
-                let mut body = i + 1;
-                while body < bytes.len() && bytes[body].is_ascii_whitespace() {
-                    body += 1;
-                }
-                marks.push((n, start, body));
-                i = body;
-                continue;
+            // Consume the dot and the following whitespace.
+            let mut body = i + 1;
+            while body < bytes.len() && bytes[body].is_ascii_whitespace() {
+                body += 1;
             }
+            marks.push((n, start, body));
+            i = body;
+            continue;
         }
         // Not a marker: skip any decimal tail so `2.18` is consumed whole.
         while i < bytes.len() && (bytes[i].is_ascii_digit() || bytes[i] == b'.') {
@@ -1386,22 +1380,21 @@ fn branch_count(mr: &Value) -> usize {
         {
             n += 1;
         }
-        if key == Some("operation") {
-            if let Some(op) = node.as_str() {
-                if matches!(op, "IF" | "IF_ELSE" | "SWITCH" | "CASE") {
-                    // The operation itself is a branch only if it branches on
-                    // something. `cases`/`conditions` sit as a sibling key of
-                    // `operation`, so the parent map is what carries them.
-                    let branches = node
-                        .as_mapping()
-                        .into_iter()
-                        .flat_map(|m| [m.get("cases"), m.get("conditions")])
-                        .flatten()
-                        .any(|v| v.as_sequence().is_some_and(|seq| !seq.is_empty()));
-                    if branches {
-                        n += 1;
-                    }
-                }
+        if key == Some("operation")
+            && let Some(op) = node.as_str()
+            && matches!(op, "IF" | "IF_ELSE" | "SWITCH" | "CASE")
+        {
+            // The operation itself is a branch only if it branches on
+            // something. `cases`/`conditions` sit as a sibling key of
+            // `operation`, so the parent map is what carries them.
+            let branches = node
+                .as_mapping()
+                .into_iter()
+                .flat_map(|m| [m.get("cases"), m.get("conditions")])
+                .flatten()
+                .any(|v| v.as_sequence().is_some_and(|seq| !seq.is_empty()));
+            if branches {
+                n += 1;
             }
         }
     });
@@ -1456,10 +1449,10 @@ fn names_carry(mr: &Value, word: &str) -> bool {
             _ => {}
         }
         // A definition or variable named after the period counts too.
-        if let Some(k) = key {
-            if k.to_lowercase().contains(word) {
-                found = true;
-            }
+        if let Some(k) = key
+            && k.to_lowercase().contains(word)
+        {
+            found = true;
         }
     });
     found
@@ -1470,12 +1463,12 @@ fn names_carry(mr: &Value, word: &str) -> bool {
 fn collect_enum_values(v: &Value) -> Vec<String> {
     let mut out = Vec::new();
     walk(v, &mut |key, node| {
-        if key == Some("value") {
-            if let Some(seq) = node.as_sequence() {
-                for item in seq {
-                    if let Some(s) = item.as_str() {
-                        out.push(s.to_string());
-                    }
+        if key == Some("value")
+            && let Some(seq) = node.as_sequence()
+        {
+            for item in seq {
+                if let Some(s) = item.as_str() {
+                    out.push(s.to_string());
                 }
             }
         }
@@ -1511,12 +1504,12 @@ fn defined_names_with(doc: &Value, loop_variables: bool) -> BTreeSet<String> {
                 }
             }
         }
-        if key == Some("definitions") {
-            if let Some(map) = node.as_mapping() {
-                for k in map.keys() {
-                    if let Some(s) = k.as_str() {
-                        names.insert(s.to_string());
-                    }
+        if key == Some("definitions")
+            && let Some(map) = node.as_mapping()
+        {
+            for k in map.keys() {
+                if let Some(s) = k.as_str() {
+                    names.insert(s.to_string());
                 }
             }
         }
@@ -1599,10 +1592,11 @@ fn referenced_free_variables(v: &Value) -> BTreeSet<String> {
     fn inner(v: &Value, bound: Option<&str>, skip_bare: bool, out: &mut BTreeSet<String>) {
         match v {
             Value::String(s) => {
-                if let Some(name) = variable_name(s) {
-                    if !skip_bare && bound != Some(name) {
-                        out.insert(name.to_string());
-                    }
+                if let Some(name) = variable_name(s)
+                    && !skip_bare
+                    && bound != Some(name)
+                {
+                    out.insert(name.to_string());
                 }
             }
             Value::Mapping(map) => {
@@ -1636,21 +1630,21 @@ fn referenced_free_variables(v: &Value) -> BTreeSet<String> {
 fn cross_law_sources(v: &Value) -> Vec<(String, String, bool)> {
     let mut out = Vec::new();
     walk(v, &mut |key, node| {
-        if key == Some("source") {
-            if let Some(map) = node.as_mapping() {
-                let reg = map
-                    .get(Value::from("regulation"))
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string();
-                let output = map
-                    .get(Value::from("output"))
-                    .and_then(Value::as_str)
-                    .unwrap_or_default()
-                    .to_string();
-                let described = map.get(Value::from("description")).is_some();
-                out.push((reg, output, described));
-            }
+        if key == Some("source")
+            && let Some(map) = node.as_mapping()
+        {
+            let reg = map
+                .get(Value::from("regulation"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let output = map
+                .get(Value::from("output"))
+                .and_then(Value::as_str)
+                .unwrap_or_default()
+                .to_string();
+            let described = map.get(Value::from("description")).is_some();
+            out.push((reg, output, described));
         }
     });
     out
@@ -3077,17 +3071,17 @@ pub fn override_targets(doc: &Value, corpus_root: Option<&Path>) -> Vec<Finding>
                 }
             }
 
-            if let Some(output) = output {
-                if !doc_article_defines_output(&target_doc, target_article, output) {
-                    findings.push(Finding::new(
-                        "override",
-                        Some(&article),
-                        format!(
-                            "overrides output {output} on {law} article {target_article}, which \
+            if let Some(output) = output
+                && !doc_article_defines_output(&target_doc, target_article, output)
+            {
+                findings.push(Finding::new(
+                    "override",
+                    Some(&article),
+                    format!(
+                        "overrides output {output} on {law} article {target_article}, which \
                              that article does not produce"
-                        ),
-                    ));
-                }
+                    ),
+                ));
             }
         }
     }
@@ -3259,12 +3253,12 @@ fn prose_only(text: &str) -> String {
         // `[ref1]: <url>` is a link definition and carries no prose. The
         // target has to look like one: a statutory definition renders as
         // `[verzekerde][ref]: degene die …`, which is prose and must stay.
-        if trimmed.starts_with('[') {
-            if let Some(close) = trimmed.find("]:") {
-                let target = trimmed[close + 2..].trim_start();
-                if target.starts_with("http") || target.starts_with('/') || target.contains("://") {
-                    continue;
-                }
+        if trimmed.starts_with('[')
+            && let Some(close) = trimmed.find("]:")
+        {
+            let target = trimmed[close + 2..].trim_start();
+            if target.starts_with("http") || target.starts_with('/') || target.contains("://") {
+                continue;
             }
         }
         // `[label](target)`: keep the label, drop the target.
@@ -3380,10 +3374,10 @@ fn output_units<'a>(doc: &'a Value, output: &str) -> Vec<&'a str> {
                 if item.get("name").and_then(Value::as_str) != Some(output) {
                     continue;
                 }
-                if let Some(unit) = unit_of(item) {
-                    if !units.contains(&unit) {
-                        units.push(unit);
-                    }
+                if let Some(unit) = unit_of(item)
+                    && !units.contains(&unit)
+                {
+                    units.push(unit);
                 }
             }
         }
@@ -3704,9 +3698,11 @@ mod tests {
             })
             .collect();
         assert_eq!(reported, ["kaal", "zonder_type"]);
-        assert!(definitions_carry_a_type(&doc)
-            .iter()
-            .all(|f| f.check == "definition-type" && f.article.as_deref() == Some("2")));
+        assert!(
+            definitions_carry_a_type(&doc)
+                .iter()
+                .all(|f| f.check == "definition-type" && f.article.as_deref() == Some("2"))
+        );
     }
 
     /// The line that broke a whole law in round 5: an unquoted `explanation`
@@ -5472,12 +5468,14 @@ articles:
             "the law under enrichment is not its own companion"
         );
         // A relative spelling of the same file is the same file.
-        assert!(citations_in_companion_files(
-            dir.path(),
-            Some(&dir.path().join(".").join("2026-01-01.yaml")),
-            "niets"
-        )
-        .is_empty());
+        assert!(
+            citations_in_companion_files(
+                dir.path(),
+                Some(&dir.path().join(".").join("2026-01-01.yaml")),
+                "niets"
+            )
+            .is_empty()
+        );
         // Without the law named, nothing is excluded.
         assert_eq!(
             citations_in_companion_files(dir.path(), None, "niets").len(),
@@ -5495,12 +5493,14 @@ articles:
             "# zie Kamerstukken II 2023/24, 36000, nr. 3\n",
         )
         .expect("write");
-        assert!(citations_in_companion_files(
-            dir.path(),
-            None,
-            "De toelichting bij deze wet staat in Kamerstukken II 2023/24, 36000, nr. 3."
-        )
-        .is_empty());
+        assert!(
+            citations_in_companion_files(
+                dir.path(),
+                None,
+                "De toelichting bij deze wet staat in Kamerstukken II 2023/24, 36000, nr. 3."
+            )
+            .is_empty()
+        );
     }
 
     /// The brief is the worker's own text. Scanning it would report the

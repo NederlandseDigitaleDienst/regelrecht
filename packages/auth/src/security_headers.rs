@@ -18,8 +18,8 @@ use std::future::Future;
 use std::pin::Pin;
 
 use axum::extract::Request;
-use axum::http::header;
 use axum::http::HeaderValue;
+use axum::http::header;
 use axum::middleware::Next;
 use axum::response::Response;
 
@@ -166,10 +166,10 @@ pub fn security_headers(
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+    use axum::Router;
     use axum::body::Body;
     use axum::middleware as axum_middleware;
     use axum::routing::get;
-    use axum::Router;
     use tower::ServiceExt;
 
     async fn headers_of(app: Router, uri: &str) -> axum::http::HeaderMap {
@@ -213,9 +213,11 @@ mod tests {
             .layer(axum_middleware::from_fn(security_headers(EDITOR_CSP)))
             .fallback(|| async { "index.html" });
 
-        assert!(headers_of(uncovered.clone(), "/api/thing")
-            .await
-            .contains_key("content-security-policy"));
+        assert!(
+            headers_of(uncovered.clone(), "/api/thing")
+                .await
+                .contains_key("content-security-policy")
+        );
         assert!(
             !headers_of(uncovered, "/deep/link")
                 .await

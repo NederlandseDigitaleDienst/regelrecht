@@ -34,14 +34,17 @@ const BELEID =
   `${CORPUS}/regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal/2026-01-01.yaml`;
 const CEL = `${CORPUS}/cells/gemeente_wilgendaal/cel.yaml`;
 const REDUCTIE =
-  `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_geldige_bedrijfsparkeervergunningen/2026-01-01.yaml`;
-const AWB = `${CORPUS}/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml`;
+  `${CORPUS}/cells/gemeente_wilgendaal/reductions/reductie_bedrijfsparkeervergunning/2026-01-01.yaml`;
+const AGGREGAAT = REDUCTIE;
+const STAP =
+  `${CORPUS}/regulation/nl/uitvoeringsbeleid/beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal/2026-01-01.yaml`;
+const AWB = `${CORPUS}/regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml`;
 const KVK_CEL = `${CORPUS}/cells/kamer_van_koophandel/cel.yaml`;
 const KVK_REDUCTIE =
   `${CORPUS}/cells/kamer_van_koophandel/reductions/reductie_vestiging_in_handelsregister/2026-01-01.yaml`;
 
 /** The files the panels show, for the page that loads them (UitlegPagina.vue). */
-export const bronnen = [VERORDENING, BESLUIT, BELEID, CEL, REDUCTIE, AWB, KVK_CEL, KVK_REDUCTIE];
+export const bronnen = [VERORDENING, BESLUIT, BELEID, CEL, REDUCTIE, STAP, AWB, KVK_CEL, KVK_REDUCTIE];
 
 /**
  * The paths of a panel that start open: its own, and the article each one
@@ -183,35 +186,45 @@ export const steps = [
     overline: 'Reductie',
     title: 'Reductie telt de vergunningen',
     text: [
-      'Eerst vraagt de reductie aan de Awb-reductie uit stap 6 welke besluiten onder artikel 2 van de verordening nog gelden, met dat artikel in `basis`.',
-      'Van elk besluit leest ze `bedrijfsparkeervergunning_verleend`, de uitkomst van toen. Zo telt ze de vergunningen van dit bedrijf die op de dag van het besluit nog gelden.',
+      'De gemeente houdt elk besluit onder artikel 2 van de verordening apart bij, met alles wat ernaar verwijst, en zo ook elke schorsing door de voorzieningenrechter.',
+      'Zo\'n bundel heet een aggregaat. Een ander artikel van dezelfde reductie leest de aggregaten van het bedrijf, en het beleid van het college telt welke vergunningen op de dag van het besluit gelden.',
     ],
     panels: [
       {
-        label: 'De reductie: de besluiten die nog gelden, en de telling van de vergunningen van dit bedrijf',
+        label: 'De reductie: zij leest de aggregaten van het bedrijf en laat het beleid tellen',
         source: REDUCTIE,
         open: [
-          'articles.1.machine_readable.execution.input.geldende_besluiten.source.parameters',
-          'articles.1.machine_readable.execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.filter.conditions.*.subject',
-          'articles.1.machine_readable.execution.actions.aantal_geldige_bedrijfsparkeervergunningen.value.filter.conditions.*.value',
+          'articles.aantal_geldige_bedrijfsparkeervergunningen.machine_readable.execution.input.vergunningen.source',
+          'articles.aantal_geldige_bedrijfsparkeervergunningen.machine_readable.execution.input.aantal.source.parameters',
         ],
+      },
+      {
+        label: 'Eén aggregaat per besluit',
+        source: AGGREGAAT,
+        open: ['articles.vergunning.machine_readable.projection.per', 'articles.vergunning.machine_readable.projection.steps.0.actions'],
+      },
+      {
+        label: 'Het beleid zegt welke vergunning op de dag geldt',
+        source: STAP,
+        open: ['articles.2.machine_readable.execution.actions.aantal_geldige_vergunningen.value.filter.cases'],
       },
     ],
   },
   {
-    overline: 'Reductie zonder cel',
-    title: 'Awb-reductie: wat nog geldt',
+    overline: 'Awb',
+    title: 'Awb: welke besluiten meetellen',
     text: [
-      'De Algemene wet bestuursrecht (Awb) heeft regels voor elk besluit van de overheid, en deze reductie past die toe op de kroniek van de cel die haar aanroept.',
-      'Een besluit telt niet meer mee als de gemeente het na bezwaar zelf terugdraaide (herroepen, Awb 7:11) of als de rechter het vernietigde (Awb 8:72). Een besluit dat ervoor in de plaats kwam, telt wel.',
+      'De Algemene wet bestuursrecht (Awb) zegt welk eerder besluit een besluit of de ontvangst van een uitspraak herroept.',
+      'Een beslissing op bezwaar herroept het besluit dat de gemeente zelf terugdraait (Awb 7:11), en de ontvangst van een uitspraak het besluit dat de rechter met zijn rechtsgevolgen vernietigde (Awb 8:72 en 8:79).',
+      'Wat zo is herroepen, telt niet mee in de reductie; een besluit dat ervoor in de plaats kwam wel.',
     ],
     panels: [
       {
-        label: 'Artikel 1 leest de besluiten, het bezwaar en de uitspraken uit de kroniek; artikel 2 zegt wat geldt',
+        label: 'De effecten bij artikel 7:11 en artikel 8:79 van de Awb',
         source: AWB,
         open: [
-          'articles.1.machine_readable.execution.input.*.source',
-          'articles.2.machine_readable.execution.actions.geldende_besluiten.value.values',
+          'articles.7:11.machine_readable.execution.produces.1.effects',
+          'articles.8:79.machine_readable.requires.0.effects',
         ],
       },
     ],
@@ -228,7 +241,7 @@ export const steps = [
     },
     text: [
       'Of het bedrijf in een vergunninggebied zit, blijkt uit het handelsregister. Daarom vraagt artikel 1 van het beleid de postcode van de vestiging en het aantal mensen dat er werkt aan de cel van de Kamer van Koophandel.',
-      'Die cel leest haar eigen inschrijvingen terug.',
+      'Die cel leest haar eigen inschrijvingen terug, elk met de correcties die ernaar verwijzen.',
     ],
     panels: [
       {
@@ -244,7 +257,7 @@ export const steps = [
       {
         label: 'De reductie leest de inschrijvingen',
         source: KVK_REDUCTIE,
-        open: ['articles.1.machine_readable.execution.input.inschrijvingen.source'],
+        open: ['articles.vestiging_in_handelsregister.machine_readable.execution.input.inschrijvingen.source'],
       },
     ],
   },

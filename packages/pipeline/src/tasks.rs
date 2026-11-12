@@ -317,10 +317,10 @@ where
     for (job_id,) in rows {
         // Eén verrijking levert een taak per gewijzigd artikel op dezelfde job;
         // die job hoeft maar één keer opgeruimd te worden.
-        if let Some(id) = job_id {
-            if !job_ids.contains(&id) {
-                job_ids.push(id);
-            }
+        if let Some(id) = job_id
+            && !job_ids.contains(&id)
+        {
+            job_ids.push(id);
         }
     }
     Ok(job_ids)

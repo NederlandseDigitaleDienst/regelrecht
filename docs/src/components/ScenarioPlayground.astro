@@ -63,7 +63,7 @@ import '~/styles/scenario.css';
           containers rather than one row: a row with a full-width title in it
           squeezes the button group to nothing on the right. */}
       <nldd-container layout="stack" gap="4">
-        <nldd-title size="3"><h2>Scenario runner</h2></nldd-title>
+        <nldd-title size="display-3"><h2>Scenario runner</h2></nldd-title>
         <nldd-text size="sm" color="secondary">
           Change anything below and run it. The engine is compiled to WebAssembly and executes
           here, in this browser.
@@ -88,10 +88,9 @@ import '~/styles/scenario.css';
 
       <nldd-container layout="columns" column-count="2" sm-column-count="1" gap="24">
         <nldd-container layout="stack" gap="12">
-          <nldd-title size="4"><h3>Scenario</h3></nldd-title>
+          <nldd-title size="display-4"><h3>Scenario</h3></nldd-title>
           <nldd-code-editor
             language="gherkin"
-            appearance="input-field"
             accessible-label="Scenario"
             line-numbers
             resize="auto"
@@ -102,12 +101,12 @@ import '~/styles/scenario.css';
         </nldd-container>
 
         <nldd-container layout="stack" gap="12">
-          <nldd-title size="4"><h3>Steps</h3></nldd-title>
+          <nldd-title size="display-4"><h3>Steps</h3></nldd-title>
           {/* Empty until something has run: there is no result to stand in for,
               and a placeholder row would read as one. */}
           <nldd-list dividers="always" accessible-label="Step results" data-steps></nldd-list>
 
-          <nldd-title size="4"><h3>Outputs</h3></nldd-title>
+          <nldd-title size="display-4"><h3>Outputs</h3></nldd-title>
           <nldd-list dividers="always" accessible-label="Outputs" data-outputs></nldd-list>
         </nldd-container>
       </nldd-container>

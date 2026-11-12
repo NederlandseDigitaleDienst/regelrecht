@@ -114,10 +114,10 @@ let statePage: Element | null = null;
 onMounted(() => {
   attachOverflowSelectListener();
   statePage = editorSectionEl.value?.closest('nldd-page') ?? null;
-  statePage?.addEventListener('nldd-text-editor-state', onToolbarState);
+  statePage?.addEventListener('state-change', onToolbarState);
 });
 onUnmounted(() => {
-  statePage?.removeEventListener('nldd-text-editor-state', onToolbarState);
+  statePage?.removeEventListener('state-change', onToolbarState);
 });
 
 // --- Saving ---
@@ -296,7 +296,7 @@ function dismissDeleteNotice() {
         <nldd-banner v-if="deletedRemotely" variant="warning" :text="deletedRemotely"></nldd-banner>
         <!-- Hybrid Markdown editor: live-styled source, no separate preview. -->
         <nldd-text-editor
-          appearance="simple"
+          embedded
           :rows="12"
           resize="auto"
           :value="currentBody"

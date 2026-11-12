@@ -86,7 +86,7 @@ const option = computed(() =>
 <template>
   <nldd-card>
     <nldd-container padding="16">
-      <nldd-title size="6">
+      <nldd-title size="display-6">
         <h3>{{ title }}</h3>
       </nldd-title>
       <nldd-spacer size="12"></nldd-spacer>

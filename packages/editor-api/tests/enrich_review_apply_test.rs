@@ -17,9 +17,9 @@ mod common;
 
 use common::{empty_state, local_traject, seed_account, session_for, traject_ref};
 
+use axum::Json;
 use axum::extract::{Extension, Path, State};
 use axum::http::{HeaderMap, HeaderValue, StatusCode};
-use axum::Json;
 use pretty_assertions::assert_eq;
 use sqlx::PgPool;
 use tower_sessions::Session;

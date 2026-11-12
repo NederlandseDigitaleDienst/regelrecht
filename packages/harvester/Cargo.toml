@@ -1,7 +1,7 @@
 [package]
 name = "regelrecht-harvester"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 authors = ["MinBZK <noreply@minbzk.nl>"]
 description = "RegelRecht law harvester - Download Dutch legislation from BWB repository"
 license = "EUPL-1.2"

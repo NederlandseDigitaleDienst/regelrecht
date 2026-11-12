@@ -61,6 +61,7 @@ const ALLOW = new Map([
   ['application/wasm', 'a media type, not a path'],
   ['.walkthrough/.env', 'local and gitignored: the API key file the walkthrough pipeline reads'],
   ['corpus/demo/walkthrough/script/', 'created by `just walkthrough script` once a chapter is spoken by a generated voice; none is yet'],
+  ['corpus/cells/reductions/', 'the place schema v0.8.12 gives a reduction of no cell; since the Awb reduction left (#1919) no corpus holds one'],
   ['refs/heads/main', 'a git ref'],
   ['refs/tags/schema-vX.Y.Z', 'a git ref, with a version placeholder'],
   ['refs/pull/N/merge', 'a git ref, with a PR-number placeholder'],

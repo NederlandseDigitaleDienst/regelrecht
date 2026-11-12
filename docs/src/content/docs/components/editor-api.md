@@ -62,6 +62,10 @@ All public. These serve the corpus as loaded at startup, without any traject ove
 | GET | `/api/corpus/laws/{law_id}/annotations` |
 | POST | `/api/corpus/reload` (Admin) |
 
+At startup the global corpus loads every local source, the laws listed in `favorites.json` from the GitHub sources, and every law of a source marked `load_all`. The other laws of each GitHub source are indexed by path from one tree listing, so search finds them; their bodies are fetched from GitHub when someone opens one, and kept in a cache of at most 1024 bodies that a reload empties. Until then such a law has no name and never counts as enriched, so search matches it on its `$id` only. Anyone can open a law without an account, and each uncached body costs a call on the service token that trajecten also read with, so the global scope fetches at most 1000 bodies an hour (`GLOBAL_FETCHES_PER_HOUR`); past that an uncached law answers 503 until the hour is over. A GitHub source that fails to list is reported as `index_error` on `/api/sources`. A reload fetches again only the bodies that were loaded up front, plus any law it is asked for, and lists the sources again. The current version of a law is the one in force today among the versions loaded, across sources (see [Federated Corpus](/concepts/federated-corpus#how-it-works)).
+
+`/api/corpus/laws` (and its traject variant) filters with `q` (search: every word of the query must occur in the law's id or name, in any order, ignoring case and accents; a query without letters or digits finds nothing, and only its first 200 characters and 10 distinct words count), `ids` (exact ids), `source` (one source), `enriched=true` (only laws whose current version is enriched) and `loaded=true` (only laws whose body is loaded, the ones that carry a name; the editor asks for these to show display names). A search returns the best matches first, within each source in priority order: a law whose id or name is the query, then one that starts with it (as characters, so *wetboek* counts for *wet*), then one where every word sits at the start or end of a word (a Dutch compound such as *zorgverzekeringswet* ends in its head), then any other match. Laws whose body is loaded go before the rest of the same rank, then the shorter id. The total before the cap is in `X-Total-Count`. Each entry carries `enriched`, and, when the current version is not enriched but another version is, `enriched_version` with that version's date. A law from a source marked `enriched: false` never counts as enriched. A law from a GitHub source carries `source_url`, the folder of its current version on GitHub at the ref the source reads (inside a traject, the traject's branch for its own repository).
+
 ### Trajects
 
 Reader + account for reads, Writer + account for changes. Membership is checked in the handler.
@@ -111,6 +115,12 @@ The traject-scoped view of the corpus: the global corpus with the traject's own 
 
 `...` stands for `/api/trajects/{traject_ref}`.
 
+The first request to a traject after a restart builds its index, and every request waits for that build. After that the index is served from memory and refreshed in the background once it is a minute old. A later request waits only when the traject's own repository could not be listed and its own GitHub token can repair the index. The list of changed laws works the same way: when only a member's own GitHub token can read the traject repository, the first member past the minute lends that token to the background refresh and gets the previous list meanwhile.
+
+A build or a refresh lists the tree of each source, all sources at the same time and while the backends check their branches. A listing is kept per repository branch together with the commit it was taken at, and reused as long as the branch still points at that commit, so GitHub is only asked for the commit. The global corpus lists the central corpus at startup, which leaves a traject build only its own repository to list, and a refresh fetches a tree only after a new commit. Reusing a listing takes the commit, which GitHub shows only to someone who can read the repository.
+
+A law without notes gets an empty notes document (`annotations: []`) with status 200; a 404 means the law is not in the traject. Whether a law has notes comes from the tree listing of the index, at the repository root or at the older location under the source's subpath, so a law without notes costs no call to GitHub. A note saved through the editor counts at once; a notes file added to the repository some other way shows up with the next refresh.
+
 ### Tasks
 
 Review tasks produced by asynchronous jobs, scoped to the account that requested them. Reader + account for reads, Writer + account for resolving.
@@ -128,7 +138,7 @@ Review tasks produced by asynchronous jobs, scoped to the account that requested
 | Method | Path | Gate |
 |--------|------|------|
 | GET | `/api/favorites` | Reader |
-| PUT, DELETE | `/api/favorites/{law_id}` | Writer |
+| PUT, DELETE | `/api/favorites/{law_id}` | Reader |
 | GET | `/api/user/settings` | Reader |
 | PUT | `/api/user/settings/{key}` | Writer (4 KiB body) |
 | GET | `/api/user/notes/{law_id}` | Reader + account |

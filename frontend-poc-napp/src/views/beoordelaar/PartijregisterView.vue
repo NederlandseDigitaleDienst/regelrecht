@@ -175,7 +175,7 @@ watch(() => session.beoordelaar, alles);
 
     <template v-else-if="session.beoordelaar">
       <nldd-simple-section>
-        <nldd-title size="2">
+        <nldd-title size="display-2">
           <span slot="overline">Beoordelingsomgeving</span>
           <h2>Partijregister</h2>
         </nldd-title>
@@ -199,7 +199,7 @@ watch(() => session.beoordelaar, alles);
              claimen; bevestigen koppelt het register om naar het echte
              KvK-nummer. -->
         <template v-if="openClaims.length">
-          <nldd-title size="3"><h3>Claims</h3></nldd-title>
+          <nldd-title size="display-3"><h3>Claims</h3></nldd-title>
           <nldd-spacer size="4"></nldd-spacer>
           <nldd-rich-text>
             <p>
@@ -214,7 +214,7 @@ watch(() => session.beoordelaar, alles);
           <template v-for="claim in openClaims" :key="claim.id">
             <nldd-card :accessible-label="`Claim op ${claim.aanduiding}`">
               <nldd-container padding="24" gap="12">
-                <nldd-title size="4">
+                <nldd-title size="display-4">
                   <span slot="overline">Geclaimd door KvK {{ claim.kvk_nummer }} op {{ datum(claim.created_at) }}</span>
                   <h4>{{ claim.aanduiding }}</h4>
                 </nldd-title>
@@ -329,7 +329,7 @@ watch(() => session.beoordelaar, alles);
         @close="afwijsOpen = false"
       >
         <nldd-container padding="24" gap="16">
-          <nldd-title size="3">
+          <nldd-title size="display-3">
             <span slot="overline">{{ afwijsClaim?.aanduiding }} · KvK {{ afwijsClaim?.kvk_nummer }}</span>
             <h3>Claim afwijzen</h3>
           </nldd-title>

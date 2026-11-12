@@ -18,9 +18,9 @@ mod common;
 
 use common::{bare_cell, cell_tempdir, day, object_map};
 
-use regelrecht_cel::{reading, Cell, Error, Gram, Reference};
+use regelrecht_cel::{Cell, Error, Gram, Reference, reading};
 use regelrecht_engine::LawExecutionService;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 /// A procedure for a beschikking, a period that runs from the
 /// announcement, and whether an objection came in within it.
@@ -219,8 +219,11 @@ articles:
 
 /// The cell's reduction: a grant to the same person counts, unless a
 /// decision on objection against it found cause. It links the two by row
-/// id: `bestreden_besluit` holds the id of the contested decision.
+/// id: `bestreden_besluit` holds the id of the contested decision. A grant
+/// a decision on objection took in the place of the contested one counts
+/// too: that decision holds it as a row in turn (`nieuw_besluit`).
 const REDUCTION: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_al_verleend_fictief
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -243,6 +246,7 @@ articles:
             source: {decisions: 'wet_heroverweging_fictief#1'}
         output:
           - {name: herroepen, type: array}
+          - {name: verleend_op_bezwaar, type: boolean}
           - {name: al_verleend, type: boolean}
         actions:
           # The ids of the decisions that a decision on objection found
@@ -255,19 +259,34 @@ articles:
               as: heroverweging
               filter: {operation: EQUALS, subject: $heroverweging.aanleiding, value: true}
               body: $heroverweging.bestreden_besluit
-          - output: al_verleend
+          - output: verleend_op_bezwaar
             value:
               operation: FOREACH
-              collection: $besluiten
-              as: besluit
-              filter:
+              collection: $heroverwegingen
+              as: heroverweging
+              filter: {operation: EQUALS, subject: $heroverweging.aanleiding, value: true}
+              body:
                 operation: AND
                 conditions:
-                  - {operation: EQUALS, subject: $besluit.verleend, value: true}
-                  - {operation: EQUALS, subject: $besluit.bsn, value: $bsn}
-                  - {operation: NOT_IN, subject: $besluit.id, value: $herroepen}
-              body: true
+                  - {operation: EQUALS, subject: $heroverweging.nieuw_besluit.verleend, value: true}
+                  - {operation: EQUALS, subject: $heroverweging.nieuw_besluit.bsn, value: $bsn}
               combine: OR
+          - output: al_verleend
+            value:
+              operation: OR
+              conditions:
+                - $verleend_op_bezwaar
+                - operation: FOREACH
+                  collection: $besluiten
+                  as: besluit
+                  filter:
+                    operation: AND
+                    conditions:
+                      - {operation: EQUALS, subject: $besluit.verleend, value: true}
+                      - {operation: EQUALS, subject: $besluit.bsn, value: $bsn}
+                      - {operation: NOT_IN, subject: $besluit.id, value: $herroepen}
+                  body: true
+                  combine: OR
 "#;
 
 const ACTOR: &str = "fictieve_school";
@@ -373,6 +392,34 @@ fn grant_then_refuse(cell: &mut Cell, service: &mut LawExecutionService) -> Gran
     assert_eq!(refused.fields["al_verleend"], json!(true));
     assert_eq!(refused.outputs["verleend"], json!(false));
     Granted { granted, refused }
+}
+
+/// A deciding article that may take a decision in turn needs the
+/// submission it is taken on, so the cell does not take it ex officio.
+#[test]
+fn a_decision_that_may_replace_another_is_not_taken_ex_officio() {
+    let mut service = service();
+    let (mut cell, _dir) = cell();
+    let Granted { granted, .. } = grant_then_refuse(&mut cell, &mut service);
+    let before = cell.grams().len();
+    let err = cell
+        .decide_ex_officio(
+            &mut service,
+            &[],
+            BEZWAAR_LAW,
+            "1",
+            Some(&granted.id),
+            &Map::new(),
+            &Map::new(),
+            day("2026-03-05"),
+        )
+        .expect_err("needs its submission");
+    assert!(
+        err.to_string()
+            .contains("may take a decision in turn, which needs the submission it is taken on"),
+        "{err}"
+    );
+    assert_eq!(cell.grams().len(), before);
 }
 
 #[test]
@@ -665,17 +712,20 @@ fn with_cause_the_cell_records_the_new_decision_with_its_own_period() {
         "2026-03-11",
     )
     .unwrap();
-    assert_eq!(decided.len(), 2);
-    assert_eq!(cell.grams().len(), before + 2);
-    let (decision, new) = (&decided[0], &decided[1]);
+    // One act is one record: the new decision is part of the decision on
+    // the objection.
+    assert_eq!(decided.len(), 1);
+    assert_eq!(cell.grams().len(), before + 1);
+    let decision = &decided[0];
+    let new = common::in_turn(decision);
     assert_eq!(decision.basis, "wet_heroverweging_fictief#1");
     assert_eq!(decision.outputs["aanleiding"], json!(true));
-    // The decision holds the new one by its id.
-    assert_eq!(decision.outputs["nieuw_besluit"], json!(new.id));
-    assert_eq!(new.kind, "BESCHIKKING");
+    // The decision holds the new one as its value, taken on the objection.
+    assert_eq!(
+        decision.outputs["nieuw_besluit"]["taken_on"],
+        json!(bezwaar.basis)
+    );
     assert_eq!(new.basis, "wet_verlof_fictief#1");
-    assert_eq!(new.refers_to.as_deref(), Some(bezwaar.id.as_str()));
-    assert_eq!(new.recorded_on, day("2026-03-11"));
     assert_eq!(new.fields["dagen"], json!(20));
     assert_eq!(new.fields["bsn"], json!(BSN));
     assert_eq!(new.fields["bekendmaking_datum"], json!("2026-03-11"));
@@ -715,7 +765,7 @@ fn the_answer_of_a_reduction_reaches_the_called_article_on_the_day_of_the_decisi
         "2026-03-11",
     )
     .unwrap();
-    assert_eq!(revoked.len(), 2);
+    assert_eq!(revoked.len(), 1);
 
     let against_refusal = object_to(
         &mut cell,
@@ -733,8 +783,8 @@ fn the_answer_of_a_reduction_reaches_the_called_article_on_the_day_of_the_decisi
         "2026-03-13",
     )
     .unwrap();
-    assert_eq!(decided.len(), 2, "{decided:#?}");
-    let new = &decided[1];
+    assert_eq!(decided.len(), 1, "{decided:#?}");
+    let new = &common::in_turn(&decided[0]);
     assert_eq!(new.fields["al_verleend"], json!(false));
     assert_eq!(new.fields["dagen"], json!(2));
     assert_eq!(new.outputs["verleend"], json!(true));
@@ -742,7 +792,7 @@ fn the_answer_of_a_reduction_reaches_the_called_article_on_the_day_of_the_decisi
     assert_eq!(refused.fields["al_verleend"], json!(true));
 
     // The rows link a decision on objection to the decision it contests by
-    // id, and hold the new decision by id too.
+    // id, and hold the new decision as a row in turn.
     let rows = serde_json::to_value(
         reading::rows(
             &service,
@@ -757,7 +807,10 @@ fn the_answer_of_a_reduction_reaches_the_called_article_on_the_day_of_the_decisi
     assert_eq!(rows.len(), 2);
     assert_eq!(rows[0]["id"], json!(revoked[0].id));
     assert_eq!(rows[0]["bestreden_besluit"], json!(granted.id));
-    assert_eq!(rows[0]["nieuw_besluit"], json!(revoked[1].id));
+    assert_eq!(
+        rows[0]["nieuw_besluit"]["verleend"],
+        common::in_turn(&revoked[0]).outputs["verleend"]
+    );
     assert_eq!(rows[1]["bestreden_besluit"], json!(refused.id));
 
     // A later application counts the new grant.
@@ -828,7 +881,10 @@ fn a_decision_value_its_article_does_not_give_is_refused_and_nothing_is_appended
         "2026-03-11",
     )
     .unwrap();
-    assert_eq!(decided[1].outputs["verleend"], json!(false));
+    assert_eq!(
+        common::in_turn(&decided[0]).outputs["verleend"],
+        json!(false)
+    );
 }
 
 /// [`VERLOF`] with a finding per case: the head judges whether the
@@ -937,8 +993,9 @@ fn the_decision_value_holds_the_findings_apart() {
         if cause {
             assert_eq!(decision.fields["reden_gewichtig"], json!(true));
             // The new decision is taken with the finding given anew.
-            assert_eq!(decided[1].fields["reden_gewichtig"], json!(true));
-            assert_eq!(decided[1].outputs["verleend"], json!(true));
+            let new = common::in_turn(decision);
+            assert_eq!(new.fields["reden_gewichtig"], json!(true));
+            assert_eq!(new.outputs["verleend"], json!(true));
             break;
         }
     }
@@ -1137,11 +1194,11 @@ fn a_term_a_regulation_filled_is_no_finding_of_the_decision() {
         decided[0].outputs["oordelen"],
         json!({"al_verleend_volgens_hoofd": false})
     );
-    assert_eq!(decided.len(), 2);
-    let new = &decided[1];
+    assert_eq!(decided.len(), 1);
+    let new = &common::in_turn(&decided[0]);
     assert_eq!(new.fields["reden_gewichtig"], json!(false));
     assert_eq!(
-        cell.findings(&mut service, &[], &new.id).unwrap(),
+        found_in_turn(&decided[0]),
         ["al_verleend_volgens_hoofd", "reden_gewichtig_volgens_hoofd"]
     );
     assert_eq!(new.outputs["verleend"], json!(false));
@@ -1186,15 +1243,12 @@ fn a_regulation_in_force_at_the_call_anew_sets_the_old_finding_aside() {
         decided[0].outputs["oordelen"],
         json!({"al_verleend_volgens_hoofd": false, "reden_gewichtig": false})
     );
-    assert_eq!(decided.len(), 2);
-    let new = &decided[1];
+    assert_eq!(decided.len(), 1);
+    let new = &common::in_turn(&decided[0]);
     assert_eq!(new.outputs["verleend"], json!(true));
     assert_eq!(new.fields["reden_gewichtig"], json!(true));
     // The regulation set the old finding aside; the other stays.
-    assert_eq!(
-        cell.findings(&mut service, &[], &new.id).unwrap(),
-        ["al_verleend_volgens_hoofd"]
-    );
+    assert_eq!(found_in_turn(&decided[0]), ["al_verleend_volgens_hoofd"]);
 }
 
 /// The head's finding reaches every article in the decision that leaves
@@ -1231,9 +1285,10 @@ fn a_finding_on_a_term_both_articles_name_reaches_the_call_anew() {
         cell.findings(&mut service, &[], &decided[0].id).unwrap(),
         ["reden_gewichtig"]
     );
-    assert_eq!(decided.len(), 2, "{decided:#?}");
-    assert_eq!(decided[1].fields["reden_gewichtig"], json!(true));
-    assert_eq!(decided[1].outputs["verleend"], json!(true));
+    assert_eq!(decided.len(), 1, "{decided:#?}");
+    let new = common::in_turn(&decided[0]);
+    assert_eq!(new.fields["reden_gewichtig"], json!(true));
+    assert_eq!(new.outputs["verleend"], json!(true));
 }
 
 /// The value the deciding article gets holds the dates the stages require
@@ -1282,8 +1337,11 @@ fn a_decision_called_anew_has_the_stage_dates_of_the_day() {
         "2026-03-11",
     )
     .unwrap();
-    assert_eq!(decided.len(), 2);
-    assert_eq!(decided[1].outputs["besloten_op"], json!("2026-03-11"));
+    assert_eq!(decided.len(), 1);
+    assert_eq!(
+        common::in_turn(&decided[0]).outputs["besloten_op"],
+        json!("2026-03-11")
+    );
 }
 
 /// The head gives a finding for a call anew once the call happens: given
@@ -1400,7 +1458,7 @@ articles:
           - {output: binnen, value: $verlof}
 "#;
 
-/// The cell records a decision taken in turn, one level: a new decision
+/// The cell keeps a decision taken in turn, one level: a new decision
 /// that would take a decision in turn itself is refused, and nothing is
 /// appended.
 #[test]
@@ -1431,8 +1489,8 @@ fn a_new_decision_that_takes_a_decision_in_turn_is_refused() {
             day("2026-03-03"),
         )
         .unwrap();
-    assert_eq!(nested.len(), 2);
-    assert_eq!(nested[1].basis, "wet_verlof_fictief#1");
+    assert_eq!(nested.len(), 1);
+    assert_eq!(common::in_turn(&nested[0]).basis, "wet_verlof_fictief#1");
     let bezwaar = object_to(
         &mut cell,
         &mut service,
@@ -1685,10 +1743,11 @@ fn a_term_only_a_reduction_fills_is_no_finding_and_replays() {
     .unwrap()
     .remove(0);
     assert_eq!(granted.fields["al_verleend"], json!(false));
-    assert!(cell
-        .findings(&mut service, &[], &granted.id)
-        .unwrap()
-        .is_empty());
+    assert!(
+        cell.findings(&mut service, &[], &granted.id)
+            .unwrap()
+            .is_empty()
+    );
     let result = cell.explain(&mut service, &[], &granted.id).unwrap();
     assert!(result.open_terms.iter().any(|f| f.term == "al_verleend"
         && matches!(&f.filled_by, regelrecht_engine::FilledBy::Answer { answers, .. }
@@ -1710,4 +1769,14 @@ fn a_term_only_a_reduction_fills_is_no_finding_and_replays() {
     )
     .unwrap();
     assert_eq!(decided[0].outputs["aanleiding"], json!(false));
+}
+
+/// The findings the decision taken in turn by `decision` holds, by name.
+fn found_in_turn(decision: &Gram) -> Vec<String> {
+    decision.outputs["nieuw_besluit"]["findings"]
+        .as_object()
+        .unwrap()
+        .keys()
+        .cloned()
+        .collect()
 }

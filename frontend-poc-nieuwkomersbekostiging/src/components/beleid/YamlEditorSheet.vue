@@ -8,7 +8,7 @@
   >
     <nldd-page>
       <div class="ye-content">
-        <nldd-title :size="3">
+        <nldd-title heading-level="2" size="display-3">
           <span slot="overline">Structuur bewerken</span>
           <span>{{ docName }}</span>
         </nldd-title>

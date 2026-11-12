@@ -48,13 +48,13 @@ function volg(e, doe) {
       <nldd-button-bar>
         <nldd-button ref="terugKnop" appearance="neutral-tinted" start-icon="back" text="Naar de casuskeuze" @click="emit('terug')"></nldd-button>
       </nldd-button-bar>
-      <nldd-title size="2" heading-level="1" :overline="intro.overline" :text="intro.title">
+      <nldd-title size="display-2" heading-level="1" :overline="intro.overline" :text="intro.title">
         <nldd-text slot="supporting-text">{{ intro.lead }}</nldd-text>
       </nldd-title>
     </nldd-container>
   </nldd-simple-section>
   <nldd-simple-section v-for="lijst in [regelrecht, chronolexografie]" :key="lijst.title">
-    <nldd-title slot="header" size="3" heading-level="2" :text="lijst.title"></nldd-title>
+    <nldd-title slot="header" size="display-3" heading-level="2" :text="lijst.title"></nldd-title>
     <nldd-rich-text>
       <ul>
         <li v-for="b in lijst.bullets" :key="b">{{ b }}</li>
@@ -68,7 +68,7 @@ function volg(e, doe) {
     </nldd-container>
   </nldd-simple-section>
   <nldd-simple-section>
-    <nldd-title slot="header" size="3" heading-level="2" :overline="casusBlok.overline" :text="casusBlok.title">
+    <nldd-title slot="header" size="display-3" heading-level="2" :overline="casusBlok.overline" :text="casusBlok.title">
       <nldd-text slot="supporting-text">{{ casusBlok.lead }}</nldd-text>
     </nldd-title>
     <nldd-container gap="16">

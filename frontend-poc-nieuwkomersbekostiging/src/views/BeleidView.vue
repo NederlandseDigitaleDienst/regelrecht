@@ -4,7 +4,7 @@
     <div slot="pane-1" class="pane pane-left">
       <nldd-page landmarks="page">
         <div class="pane-inner">
-          <nldd-title :size="2">
+          <nldd-title heading-level="1" size="display-2">
             <span slot="overline">Voor beleidsmakers</span>
             <span>Nieuwkomersbekostiging: regeling en uitvoering</span>
           </nldd-title>
@@ -23,7 +23,7 @@
               <details class="geavanceerd">
                 <summary>Geavanceerd: YAML rechtstreeks bewerken</summary>
                 <div class="geav-row">
-                  <nldd-dropdown :key="`ye:${editableDocs.length}:${yamlKeuze}`" size="sm" width="420px" @change="yamlKeuze = $event.detail?.value ?? yamlKeuze">
+                  <nldd-dropdown :key="`ye:${editableDocs.length}:${yamlKeuze}`" size="sm" width="420px" @change="yamlKeuze = $event.target.value ?? yamlKeuze">
                     <select :value="yamlKeuze ?? ''" aria-label="Document om als YAML te bewerken">
                       <option v-for="d in editableDocs" :key="d.entry.path" :value="d.entry.path">{{ d.entry.name }} (geldig vanaf {{ String(d.entry.valid_from ?? '').slice(0, 4) }})</option>
                     </select>
@@ -61,7 +61,7 @@
       <nldd-page background="tinted" accessible-label="Rekeningen">
         <div class="pane-inner">
           <div class="kop-rij">
-            <nldd-title :size="3">
+            <nldd-title heading-level="2" size="display-3">
               <span>Twee rekeningen naast elkaar</span>
               <span slot="supporting-text">Wat de regeling kost (bedragen aan scholen) en wat de uitvoering kost (handelingen bij scholen en DUO, plus investering).</span>
             </nldd-title>

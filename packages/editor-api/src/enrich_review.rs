@@ -684,7 +684,7 @@ fn compose_enriched_law(current: &str, accepted: &[(&str, &str)]) -> Result<Stri
             _ => {
                 return Err(format!(
                     "De aangeleverde inhoud hoort niet bij artikel {number}"
-                ))
+                ));
             }
         }
         match articles

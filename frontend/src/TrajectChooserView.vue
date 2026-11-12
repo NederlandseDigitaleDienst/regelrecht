@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, onMounted, watchEffect } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import { singleQuery } from './lib/routeParams';
-import { useTrajects, refreshTrajects } from './composables/useTrajects';
-import type { TrajectSummary } from './composables/useTrajects';
+import { useTrajectsStore } from './stores/trajects';
+import type { TrajectSummary } from './stores/trajects';
 import { lastHomePath, homeTarget } from './composables/useLastVisitedRoute';
 
 // Trajectkeuze-pagina - de landing wanneer de editor (of een traject-scoped
@@ -15,7 +16,9 @@ import { lastHomePath, homeTarget } from './composables/useLastVisitedRoute';
 // eigen top-title-bar met terugknop naar de bibliotheek.
 const route = useRoute();
 const router = useRouter();
-const { trajects, loading, error } = useTrajects();
+const trajectsStore = useTrajectsStore();
+const { trajects, loading, error } = storeToRefs(trajectsStore);
+const { refreshTrajects } = trajectsStore;
 
 // Set when the editor (or a traject-scoped view) redirected here because the
 // requested traject is missing/inaccessible - see EditorView's trajectMissing.
@@ -90,7 +93,7 @@ function trajectSupportingText(t: TrajectSummary) {
       ></nldd-top-title-bar>
 
       <nldd-simple-section width="800px">
-        <nldd-title id="kies-traject-titel" size="3"><h3>Trajecten</h3></nldd-title>
+        <nldd-title id="kies-traject-titel" size="display-3"><h3>Trajecten</h3></nldd-title>
         <nldd-spacer size="16"></nldd-spacer>
         <template v-if="trajectMissing">
           <nldd-banner

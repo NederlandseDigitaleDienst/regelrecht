@@ -2,7 +2,7 @@
 # FICTIEF. A synthetic law for the cell's BDD suite: a permit for a company,
 # valid up to a date, and when such a permit counts on a given day. None of
 # it is the text of a law.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.14/schema/v0.8.14/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: test_bedrijfsvergunning
 name: Testwet bedrijfsvergunning
 regulatory_layer: WET
@@ -48,36 +48,29 @@ articles:
     machine_readable:
       execution:
         parameters:
-          - name: aantal
-            type: number
-          - name: verleend
-            type: boolean
-          - name: geldig_tot
-            type: date
+          - name: vergunningen
+            type: array
           - name: peildatum
             type: date
         output:
-          - name: aantal_na_besluit
+          - name: aantal_geldig
             type: number
         actions:
-          - output: aantal_na_besluit
+          - output: aantal_geldig
             value:
-              operation: IF
-              cases:
-                - when:
-                    operation: AND
-                    conditions:
-                      - $verleend
-                      - operation: GREATER_THAN_OR_EQUAL
-                        subject:
-                          operation: DATE_DIFF
-                          from: $peildatum
-                          to: $geldig_tot
-                          in: days
-                        value: 0
-                  then:
-                    operation: ADD
-                    values:
-                      - $aantal
-                      - 1
-              default: $aantal
+              operation: FOREACH
+              collection: $vergunningen
+              as: vergunning
+              filter:
+                operation: AND
+                conditions:
+                  - $vergunning.verleend
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $peildatum
+                      to: $vergunning.geldig_tot
+                      in: days
+                    value: 0
+              body: 1
+              combine: ADD

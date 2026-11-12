@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, nextTick, onMounted, onBeforeUnmount, provide } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
 import type { NLDDPopover } from '@nldd/design-system/popover';
@@ -11,7 +12,7 @@ import SettingsSheet from './components/SettingsSheet.vue';
 import NewMenuItems from './components/NewMenuItems.vue';
 import AccountMenuItems from './components/AccountMenuItems.vue';
 import { useAuth } from './composables/useAuth';
-import { useTrajects } from './composables/useTrajects';
+import { useTrajectsStore } from './stores/trajects';
 import {
   lastHomePath,
   lastEditorPath,
@@ -19,8 +20,9 @@ import {
   homeTabTarget,
   isHomeSection,
 } from './composables/useLastVisitedRoute';
-import { useAppChrome, openSearch, openSearchAt, onBarSearchKeydown } from './composables/useAppChrome';
+import { useAppChromeStore } from './stores/appChrome';
 import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from './constants';
+import type { OpenTab } from './lib/openTabsStorage';
 
 // Persistent shell that owns the shared chrome (tab-bar, search trigger,
 // TrajectMenu, settings menu) and a nested <router-view> for the editor /
@@ -29,7 +31,7 @@ import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from './constants';
 // instance is reused, so the chrome never rebuilds (no refresh flash).
 
 const { authenticated, loading: authLoading, oidcConfigured, person, login } = useAuth();
-const { activeTrajectRef } = useTrajects();
+const { activeTrajectRef } = storeToRefs(useTrajectsStore());
 
 // "Over RegelRecht" about sheet, opened from the account menu.
 const aboutSheet = ref<InstanceType<typeof AboutSheet> | null>(null);
@@ -174,7 +176,9 @@ function onEditorTab(e: Event) {
 }
 
 // View-specific toolbar bits published by the active view.
-const { lastSavedPr, documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions, editorChanges, editorActions, libraryEmpty } = useAppChrome();
+const appChrome = useAppChromeStore();
+const { lastSavedPr, documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions, editorChanges, editorActions, libraryEmpty } = storeToRefs(appChrome);
+const { openSearch, openSearchAt, onBarSearchKeydown } = appChrome;
 
 // The toolbars' overflow-menu alternatives. A `select` there arrives on the
 // original menu item, which sits hidden in its collapsed toolbar item, so a
@@ -271,20 +275,42 @@ const hasDocumentTabs = computed(
 //
 // Map elements back to tabs by data-tab-key rather than by index - the bar
 // reorders its own DOM to keep the selected tab visible when tabs overflow.
-// The bar's `tabdismiss` detail: the dismissed item and the one it selected.
+// The bar's `tab-dismiss` detail: the dismissed item and the one it selected.
 interface TabDismissDetail {
   item?: HTMLElement | null;
   nextItem?: HTMLElement | null;
 }
 
-function onTabDismiss(e: Event) {
+async function onTabDismiss(e: Event) {
   const actions = tabActions.value;
   if (!actions) return;
   const detail = (e as CustomEvent<TabDismissDetail | null | undefined>).detail;
   const toTab = (el: HTMLElement | null | undefined) =>
     documentTabs.value.find((t) => actions.key(t) === el?.dataset?.tabKey) ?? null;
   const dismissed = toTab(detail?.item);
-  if (dismissed) actions.close(dismissed, toTab(detail?.nextItem));
+  if (dismissed && !(await actions.close(dismissed, toTab(detail?.nextItem)))) restoreTabSelection();
+}
+
+async function onTabClick(tab: OpenTab) {
+  const actions = tabActions.value;
+  if (actions && !(await actions.select(tab))) restoreTabSelection();
+}
+
+// The bar marks a clicked tab, or a closed tab's neighbour, as selected before
+// the editor answers. When the editor keeps the open article (the user chose
+// to keep unsaved edits), put the selection back on it. The bar keeps no
+// selection of its own beyond each item's `selected`, and Vue does not patch
+// a binding whose value did not change, so this sets it directly.
+const tabBarEl = ref<HTMLElement | null>(null);
+function restoreTabSelection() {
+  const actions = tabActions.value;
+  const active = activeDocumentTab.value;
+  const activeKey = actions && active ? actions.key(active) : null;
+  tabBarEl.value
+    ?.querySelectorAll<HTMLElement & { selected: boolean }>('nldd-document-tab-bar-item')
+    .forEach((item) => {
+      item.selected = item.dataset.tabKey === activeKey;
+    });
 }
 </script>
 
@@ -323,7 +349,7 @@ function onTabDismiss(e: Event) {
                 supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
                 :active="showSearchHintMd || undefined"
                 :dismissable="trajectActive || undefined"
-                @nldd-close="onSearchHintClose"
+                @close="onSearchHintClose"
               >
                 <nldd-button data-search-trigger size="md" start-icon="search" text="Zoeken" @click="openSearch"></nldd-button>
               </nldd-just-in-time-education>
@@ -406,7 +432,7 @@ function onTabDismiss(e: Event) {
                 supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
                 :active="showSearchHintLg || undefined"
                 :dismissable="trajectActive || undefined"
-                @nldd-close="onSearchHintClose"
+                @close="onSearchHintClose"
               >
                 <nldd-search-field
                   data-search-trigger
@@ -481,11 +507,11 @@ function onTabDismiss(e: Event) {
       <nldd-split-view-pane v-if="hasDocumentTabs" slot="document-tabs" above="md">
         <nldd-container padding-inline="8" padding-top="0" padding-bottom="8">
           <!-- Drag-reorder: the bar reorders its items visually and fires
-               nldd-reorder; without this listener that move never reaches
+               `reorder`; without this listener that move never reaches
                `openTabs`, so it was lost (reverted from localStorage) the next
                time the editor mounted. EditorView's `reorderTabs` mirrors the
                move into the array and persists it. -->
-          <!-- `tabdismiss` (the bar), not `dismiss` (the item): the bar picks
+          <!-- `tab-dismiss` (the bar), not `dismiss` (the item): the bar picks
                the replacement for a dismissed tab itself and hands it over as
                `nextItem`. See onTabDismiss. -->
           <!-- `:key` on the bar (the traject the tabs belong to, published WITH
@@ -499,10 +525,11 @@ function onTabDismiss(e: Event) {
                No has-dismiss-button (the item renders its own dismiss button in
                0.8.44); accessible-label names the navigation landmark. -->
           <nldd-document-tab-bar
+            ref="tabBarEl"
             :key="documentTabsTrajectRef ?? ''"
             accessible-label="Open artikelen"
-            @nldd-reorder="tabActions?.reorder($event.detail.fromIndex, $event.detail.toIndex)"
-            @tabdismiss="onTabDismiss"
+            @reorder="tabActions?.reorder($event.detail.fromIndex, $event.detail.toIndex)"
+            @tab-dismiss="onTabDismiss"
           >
             <nldd-document-tab-bar-item
               v-for="tab in documentTabs"
@@ -513,7 +540,7 @@ function onTabDismiss(e: Event) {
               :short-text="`Art. ${tab.articleNumber}`"
               :short-supporting-text="tabActions?.displayName(tab)"
               :selected="activeDocumentTab && tabActions?.key(activeDocumentTab) === tabActions?.key(tab) || undefined"
-              @click="tabActions?.select(tab)"
+              @click="onTabClick(tab)"
             >
             </nldd-document-tab-bar-item>
           </nldd-document-tab-bar>
@@ -542,7 +569,7 @@ function onTabDismiss(e: Event) {
 
       <!-- Wijzigingenbalk (editor only): one article-level bar with Opslaan +
            Wijzigingen-ongedaan (+ text undo/redo), replacing the per-pane save
-           footers. Published by EditorView via useAppChrome; shown only while
+           footers. Published by EditorView via the chrome store; shown only while
            the article has unsaved changes. Sits after `main` in the DOM, so on
            sm it lands above the two mobile bars and on md+ it's the bottom bar. -->
       <nldd-split-view-pane v-if="editorChanges && (editorChanges.dirty || editorChanges.review)" slot="changes-bar">
@@ -698,7 +725,7 @@ function onTabDismiss(e: Event) {
                 supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
                 :active="showSearchHintSm || undefined"
                 :dismissable="trajectActive || undefined"
-                @nldd-close="onSearchHintClose"
+                @close="onSearchHintClose"
               >
                 <nldd-icon-button data-search-trigger size="lg" icon="search" text="Zoeken" @click="openSearch"></nldd-icon-button>
               </nldd-just-in-time-education>

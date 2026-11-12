@@ -45,7 +45,7 @@ const where = computed(() =>
          line, and a scenario name is too long for the pane. -->
     <nldd-container slot="header" padding-inline="16" padding-block="8">
       <nldd-title
-        size="5"
+        size="display-5"
         heading-level="2"
         :text="scenario.naam"
         :supporting-text="p.finished ? 'Doorlopen' : `Stap ${p.current + 1} van ${total}`"
@@ -89,7 +89,7 @@ const where = computed(() =>
     <nldd-simple-section v-else padding-block="8">
       <nldd-container gap="8">
         <nldd-text v-if="seen" size="sm" color="secondary">{{ seen }}</nldd-text>
-        <nldd-title size="4" heading-level="3" :text="current.title" :supporting-text="where"></nldd-title>
+        <nldd-title size="display-4" heading-level="3" :text="current.title" :supporting-text="where"></nldd-title>
         <nldd-text v-if="current.story">{{ current.story }}</nldd-text>
         <nldd-text>{{ current.todo }}</nldd-text>
         <nldd-list v-if="current.values.length" dividers="never" accessible-label="Waarden uit het scenario">

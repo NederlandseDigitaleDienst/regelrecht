@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
+import { isNavigationFailure, useRoute, useRouter } from 'vue-router';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
-import { useTrajects } from '../composables/useTrajects';
-import type { TrajectSummary } from '../composables/useTrajects';
+import { useTrajectsStore } from '../stores/trajects';
+import type { TrajectSummary } from '../stores/trajects';
 import { useAuth } from '../composables/useAuth';
 import { useLoginToChooser } from '../composables/useLoginToChooser';
 import { homeTarget, trajectSwitchTarget } from '../composables/useLastVisitedRoute';
@@ -30,13 +31,9 @@ defineOptions({ inheritAttrs: false });
 
 const emit = defineEmits<{ switched: [trajectRef: string] }>();
 
-const {
-  trajects,
-  activeTrajectRef,
-  activeTraject,
-  loading,
-  createTraject,
-} = useTrajects();
+const trajectsStore = useTrajectsStore();
+const { trajects, activeTrajectRef, activeTraject, loading } = storeToRefs(trajectsStore);
+const { createTraject } = trajectsStore;
 // Auth gates the menu: logged-in users get the traject switcher; everyone
 // else gets a popover explaining that trajecten unlock after login.
 const { authenticated } = useAuth();
@@ -72,11 +69,12 @@ function goToTaken(): void {
 // but mutually exclusive with them, so it lives in the same switcher. Carries
 // the open law so you land on the same law, globally (homeTarget's no-traject
 // shapes). Editing from here still routes through the chooser (editorRouteFor).
-function goToCorpusJuris(): void {
-  router.push(homeTarget({
+async function goToCorpusJuris(): Promise<void> {
+  const failure = await router.push(homeTarget({
     lawId: route.params.lawId || undefined,
     articleNumber: route.params.articleNumber || undefined,
   }));
+  if (isNavigationFailure(failure)) restoreTrajectSelection();
 }
 
 /**
@@ -88,8 +86,25 @@ function goToCorpusJuris(): void {
  * shows the new traject's own saved tabs in the bar without auto-opening one.
  * Per-tab state: a switch here only affects this tab, never other open tabs.
  */
-async function goToTraject(trajectRef: string): Promise<void> {
-  await router.push(trajectSwitchTarget(route.name, trajectRef));
+// Resolves to whether the switch happened: the editor can keep the user
+// where they are when leaving would lose unsaved edits.
+async function goToTraject(trajectRef: string): Promise<boolean> {
+  const failure = await router.push(trajectSwitchTarget(route.name, trajectRef));
+  if (!isNavigationFailure(failure)) return true;
+  restoreTrajectSelection();
+  return false;
+}
+
+// The menu marks a chosen traject selected before the navigation runs. When
+// the navigation does not happen, put the mark back on the active traject;
+// Vue does not patch a binding whose value did not change.
+const trajectGroupEl = ref<HTMLElement | null>(null);
+function restoreTrajectSelection(): void {
+  trajectGroupEl.value
+    ?.querySelectorAll<HTMLElement & { selected: boolean }>('nldd-menu-item[type="radio"]')
+    .forEach((item) => {
+      item.selected = (item.dataset.trajectRef || null) === (activeTrajectRef.value ?? null);
+    });
 }
 
 
@@ -162,8 +177,7 @@ async function selectTraject(t: TrajectSummary): Promise<void> {
     return;
   }
   if (t.ref === activeTrajectRef.value) return;
-  await goToTraject(t.ref);
-  emit('switched', t.ref);
+  if (await goToTraject(t.ref)) emit('switched', t.ref);
 }
 
 async function submitCreate(): Promise<void> {
@@ -191,8 +205,7 @@ async function submitCreate(): Promise<void> {
       console.warn('TrajectMenu: created traject has no ref', created);
       return;
     }
-    await goToTraject(created.ref);
-    emit('switched', created.ref);
+    if (await goToTraject(created.ref)) emit('switched', created.ref);
   } catch (e) {
     createError.value = (e as Error).message || 'Aanmaken mislukt';
   } finally {
@@ -237,9 +250,10 @@ async function submitCreate(): Promise<void> {
           ></nldd-menu-item>
         </nldd-menu>
       </nldd-menu-item>
-      <nldd-menu-group text="Trajecten">
+      <nldd-menu-group ref="trajectGroupEl" text="Trajecten">
         <nldd-menu-item
           type="radio"
+          data-traject-ref=""
           :selected="!activeTrajectRef || undefined"
           text="Corpus juris"
           @select="goToCorpusJuris"
@@ -248,6 +262,7 @@ async function submitCreate(): Promise<void> {
           v-for="t in trajects"
           :key="t.id"
           type="radio"
+          :data-traject-ref="t.ref ?? ''"
           :selected="t.ref === activeTrajectRef || undefined"
           :text="`${t.name}${t.status === 'afgerond' ? ' (afgerond)' : ''}`"
           @select="selectTraject(t)"

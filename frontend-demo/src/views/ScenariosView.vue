@@ -410,7 +410,7 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
           <nldd-box>
             <nldd-container padding="12" layout="row" gap="12" vertical-alignment="center">
               <nldd-icon-cell icon="checklist" color="secondary"></nldd-icon-cell>
-              <nldd-title-cell size="5" :text="scenarioTitle(parsed.feature)" :overline="featureKeywords().Feature" :supporting-text="parsed.background?.length ? `${featureKeywords().Background}: ${t.plural(parsed.background.length, 'scenario.steps')}` : undefined"></nldd-title-cell>
+              <nldd-title-cell size="display-5" :text="scenarioTitle(parsed.feature)" :overline="featureKeywords().Feature" :supporting-text="parsed.background?.length ? `${featureKeywords().Background}: ${t.plural(parsed.background.length, 'scenario.steps')}` : undefined"></nldd-title-cell>
               <!-- The run summary sits with the feature, next to its title, as the result
                    tag does on each scenario card. In the toolbar it stood between 32px
                    controls; no tag or badge size reaches that height. -->
@@ -440,7 +440,7 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
                          every icon cell in it, and only the chevron should turn. -->
                     <nldd-cell><nldd-icon :icon="statusIcon(index)" :color="statusColor(index)" size="24"></nldd-icon></nldd-cell>
                     <nldd-spacer-cell size="12"></nldd-spacer-cell>
-                    <nldd-title-cell size="5" :text="scenarioTitle(scenario.name)" :supporting-text="scenario.tags.join(' ') || undefined"></nldd-title-cell>
+                    <nldd-title-cell size="display-5" :text="scenarioTitle(scenario.name)" :supporting-text="scenario.tags.join(' ') || undefined"></nldd-title-cell>
                     <!-- One height across the action row: an md tag and xs buttons are both
                          24px; no tag size matches an sm button. -->
                     <!-- `?.` only for the type checker: the v-if guarantees the tag. -->

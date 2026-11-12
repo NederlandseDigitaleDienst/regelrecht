@@ -545,12 +545,12 @@ const legalLinks = [
               <nldd-container>
                 {/* Footer-rubrieken semantisch h2 (page-level section);
                     nldd-title size kiest alleen de visuele grootte. */}
-                <nldd-title size="5"><h2>RegelRecht</h2></nldd-title>
+                <nldd-title size="display-5"><h2>RegelRecht</h2></nldd-title>
                 <nldd-spacer size="8" />
                 <nldd-rich-text><p>{t.footer.blurb}</p></nldd-rich-text>
               </nldd-container>
               <nldd-container>
-                <nldd-title size="5"><h2>{t.footer.linksTitle}</h2></nldd-title>
+                <nldd-title size="display-5"><h2>{t.footer.linksTitle}</h2></nldd-title>
                 <nldd-spacer size="8" />
                 <nldd-rich-text>
                   <p>
@@ -564,14 +564,14 @@ const legalLinks = [
                 </nldd-rich-text>
               </nldd-container>
               <nldd-container>
-                <nldd-title size="5"><h2>{t.footer.contactTitle}</h2></nldd-title>
+                <nldd-title size="display-5"><h2>{t.footer.contactTitle}</h2></nldd-title>
                 <nldd-spacer size="8" />
                 <nldd-rich-text>
                   <p><a href="mailto:regelrecht@minbzk.nl">regelrecht@minbzk.nl</a></p>
                 </nldd-rich-text>
               </nldd-container>
               <nldd-container>
-                <nldd-title size="5"><h2>{t.footer.partOfTitle}</h2></nldd-title>
+                <nldd-title size="display-5"><h2>{t.footer.partOfTitle}</h2></nldd-title>
                 <nldd-spacer size="8" />
                 <nldd-rich-text>
                   <p>
@@ -783,7 +783,7 @@ const legalLinks = [
           cell.setAttribute('width', 'full');
 
           const title = document.createElement('nldd-title');
-          title.setAttribute('size', '5');
+          title.setAttribute('size', 'display-5');
           const heading = document.createElement('h3');
           heading.textContent = titleText;
           title.appendChild(heading);

@@ -13,7 +13,7 @@ use chrono::NaiveDate;
 use regelrecht_cel::{Cell, Chronicle, Gram, Reference};
 use regelrecht_engine::{LawExecutionService, Value};
 use regelrecht_law_model::stored;
-use serde_json::{json, Map};
+use serde_json::{Map, json};
 
 mod common;
 use common::cell_tempdir;

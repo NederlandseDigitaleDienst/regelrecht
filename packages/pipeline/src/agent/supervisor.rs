@@ -170,10 +170,10 @@ pub(crate) async fn run_llm_subprocess(
     let activity = config.activity.clone();
     activity.enter();
     // A CLI that names no model: show the configured one.
-    if !capabilities.names_model {
-        if let Some(model) = configured_model {
-            activity.set_model(model);
-        }
+    if !capabilities.names_model
+        && let Some(model) = configured_model
+    {
+        activity.set_model(model);
     }
     // However this call ends, it stops counting as in flight.
     let _in_flight = ExitOnDrop(activity.clone());
@@ -538,10 +538,10 @@ async fn wait_for_silence(
     let every = (limit / 4).clamp(Duration::from_millis(50), Duration::from_secs(15));
     loop {
         tokio::time::sleep(every).await;
-        if let Some(silent) = activity.idle() {
-            if silent >= limit {
-                return silent;
-            }
+        if let Some(silent) = activity.idle()
+            && silent >= limit
+        {
+            return silent;
         }
     }
 }
@@ -630,10 +630,10 @@ async fn watch_memory(pid: Option<u32>, max_rss_mb: u64, interval: Duration) -> 
         tokio::time::sleep(interval).await;
         // A missing/unparsable status file means the process is gone; keep
         // looping (harmless) and let `child.wait()` win the select.
-        if let Some(rss_kb) = read_vmrss_kb(pid).await {
-            if let Some(rss_mb) = over_limit(rss_kb, max_rss_mb) {
-                return rss_mb;
-            }
+        if let Some(rss_kb) = read_vmrss_kb(pid).await
+            && let Some(rss_mb) = over_limit(rss_kb, max_rss_mb)
+        {
+            return rss_mb;
         }
     }
 }

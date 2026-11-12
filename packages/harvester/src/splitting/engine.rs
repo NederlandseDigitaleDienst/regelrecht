@@ -5,7 +5,7 @@ use roxmltree::Node;
 use super::registry::HierarchyRegistry;
 use super::strategy::SplitStrategy;
 use super::types::{ArticleComponent, ElementSpec, SplitContext};
-use crate::registry::{create_content_registry, ParseContext, ParseEngine, ReferenceCollector};
+use crate::registry::{ParseContext, ParseEngine, ReferenceCollector, create_content_registry};
 use crate::xml::get_tag_name;
 
 /// Engine for splitting articles using hierarchy schema.
@@ -225,10 +225,10 @@ impl<S: SplitStrategy> SplitEngine<S> {
         let mut components = Vec::new();
 
         // Extract intro text before structural children
-        if self.strategy.should_split_here(node, spec, context) {
-            if let Some(intro) = self.extract_intro_text(node, spec, context, structural_children) {
-                components.push(intro);
-            }
+        if self.strategy.should_split_here(node, spec, context)
+            && let Some(intro) = self.extract_intro_text(node, spec, context, structural_children)
+        {
+            components.push(intro);
         }
 
         // Recurse into structural children
@@ -683,25 +683,23 @@ impl<S: SplitStrategy> SplitEngine<S> {
             let mut warnings: Vec<String> = Vec::new();
 
             // For lid, include the lid number as prefix
-            if tag == "lid" {
-                if let Some(nr) = node
+            if tag == "lid"
+                && let Some(nr) = node
                     .children()
                     .find(|c| c.is_element() && get_tag_name(*c) == "lidnr")
                     .and_then(|n| n.text())
-                {
-                    parts.push(nr.trim().to_string());
-                }
+            {
+                parts.push(nr.trim().to_string());
             }
 
             // For li, include the li.nr as prefix
-            if tag == "li" {
-                if let Some(nr) = node
+            if tag == "li"
+                && let Some(nr) = node
                     .children()
                     .find(|c| c.is_element() && get_tag_name(*c) == "li.nr")
                     .and_then(|n| n.text())
-                {
-                    parts.push(nr.trim().to_string());
-                }
+            {
+                parts.push(nr.trim().to_string());
             }
 
             for child in node.children() {

@@ -375,5 +375,123 @@
     "expect": "hier hoort het besluit de aanvraag af te wijzen"
    }
   ]
+ },
+ {
+  "name": "De Kamer verbetert een inschrijving",
+  "summary": "Een drukkerij in de schil krijgt meer vergunningen nadat de Kamer van Koophandel het aantal werkzame personen in haar inschrijving verbetert.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "Een drukkerij in de schil vraagt een bedrijfsparkeervergunning.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "kvk nummer: 99990066",
+     "naam aanvrager: Drukkerij De Pers",
+     "adres aanvrager: Singel 9, 7713 AB Wilgendaal"
+    ],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "story": "Het college beslist op de eerste aanvraag.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Nog een aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2026-10-21",
+    "story": "De drukkerij vraagt een tweede vergunning.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "kvk nummer: 99990066",
+     "naam aanvrager: Drukkerij De Pers",
+     "adres aanvrager: Singel 9, 7713 AB Wilgendaal",
+     "kenteken: ZZ-002-Z"
+    ],
+    "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de tweede aanvraag",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-22",
+    "story": "Het college beslist op de tweede aanvraag.",
+    "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
+    "values": [],
+    "seen": "Toegewezen: de inschrijving noemt één werkzame persoon, maar de correctie die ernaar verwijst, maakt er twee van.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Een derde aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2026-10-23",
+    "story": "De drukkerij vraagt een derde vergunning.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "kvk nummer: 99990066",
+     "naam aanvrager: Drukkerij De Pers",
+     "adres aanvrager: Singel 9, 7713 AB Wilgendaal",
+     "kenteken: ZZ-003-Z"
+    ],
+    "seen": "De derde aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de derde aanvraag",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-26",
+    "story": "Het college beslist op de derde aanvraag.",
+    "todo": "Klik bij de derde aanvraag op Besluit nemen.",
+    "values": [],
+    "seen": "Afgewezen: er werken volgens de Kamer twee mensen, en de drukkerij heeft al twee vergunningen.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Correctie door de Kamer van Koophandel",
+    "tab": "andere",
+    "date": "2026-11-02",
+    "story": "Bij de drukkerij werkten al bij de inschrijving drie mensen, en de Kamer verbetert de inschrijving opnieuw.",
+    "todo": "Klik bij Kamer van Koophandel onder \"Vastleggen: Inschrijving gecorrigeerd\" op Vastleggen.",
+    "values": [
+     "postcode: 7713 AB",
+     "aantal werkzame personen: 3"
+    ],
+    "seen": "De correctie staat in de kroniek van de Kamer en verwijst naar de inschrijving van de drukkerij.",
+    "expect": null
+   },
+   {
+    "title": "Een vierde aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2026-11-03",
+    "story": "De drukkerij vraagt opnieuw een derde vergunning, in een vierde aanvraag.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "kvk nummer: 99990066",
+     "naam aanvrager: Drukkerij De Pers",
+     "adres aanvrager: Singel 9, 7713 AB Wilgendaal",
+     "kenteken: ZZ-003-Z"
+    ],
+    "seen": "De vierde aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de vierde aanvraag",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-05",
+    "story": "Het college beslist op de vierde aanvraag.",
+    "todo": "Klik bij de vierde aanvraag op Besluit nemen.",
+    "values": [],
+    "seen": "Toegewezen: met de tweede correctie werken er volgens de Kamer drie mensen.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   }
+  ]
  }
 ]

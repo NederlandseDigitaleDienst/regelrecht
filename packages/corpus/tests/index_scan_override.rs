@@ -10,13 +10,13 @@
 //! 3. een geconfigureerd servertoken wint van het override-token — de
 //!    scan-spiegel van de request-gebonden read-fallback uit PR #955.
 //!
-//! GitHub wordt gespeeld door wiremock via de proces-brede
-//! `GITHUB_API_BASE`-seam; alle fases staan daarom in ÉÉN test.
+//! GitHub wordt gespeeld door wiremock; de scan bereikt die via de
+//! [`GithubSettings`] die de test meegeeft, net als de servertokens.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use regelrecht_corpus::models::{GitHubSource, Scope, Source, SourceType};
-use regelrecht_corpus::{CorpusRegistry, ScanTokenOverride};
+use regelrecht_corpus::{CorpusRegistry, GithubSettings, ScanTokenOverride};
 use wiremock::matchers::{header, method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
@@ -48,6 +48,9 @@ fn github_source(
         priority,
         auth_ref: Some(auth_ref.to_string()),
         strict_auth,
+        enriched: None,
+        load_all: false,
+        library_only: false,
     }
 }
 
@@ -74,13 +77,28 @@ async fn mount_tree_requiring_token(server: &MockServer, repo: &str, branch: &st
         .await;
 }
 
+/// Settings that point at `server` and know exactly the server tokens in
+/// `tokens`, as `(variable, value)`.
+fn settings(server: &MockServer, tokens: &[(&str, &str)]) -> GithubSettings {
+    let tokens: Vec<(String, String)> = tokens
+        .iter()
+        .map(|(k, v)| ((*k).to_string(), (*v).to_string()))
+        .collect();
+    GithubSettings::new(Some(&server.uri()), None, move |key| {
+        tokens
+            .iter()
+            .find(|(k, _)| k == key)
+            .map(|(_, v)| v.clone())
+    })
+}
+
 #[tokio::test]
 async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
     let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
     // De seed heeft een servertoken; de mock matcht er exact op, dus als
     // de override daar zou lekken (Bearer user-token) faalt de seed-scan.
-    std::env::set_var("CORPUS_AUTH_EXAMPLE_SEED_REF_TOKEN", "seed-server-token");
+    const SEED_TOKEN: (&str, &str) = ("CORPUS_AUTH_EXAMPLE_SEED_REF_TOKEN", "seed-server-token");
+    let github = settings(&server, &[SEED_TOKEN]);
 
     let own = github_source(
         "traject-own",
@@ -88,7 +106,7 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
         "example-own-repo",
         OWN_BRANCH,
         0,
-        // Geen CORPUS_AUTH_*-env voor deze ref: server resolvet géén token.
+        // Geen CORPUS_AUTH_*-token voor deze ref: server resolvet géén token.
         "example-unset-own-ref",
         true,
     );
@@ -123,7 +141,7 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
     // seed scant gewoon met z'n servertoken.
     // ------------------------------------------------------------------
     let (map, failed) = registry
-        .index_all_sources_async(None, "2026-06-01")
+        .index_all_sources_async(&github, "2026-06-01")
         .await
         .unwrap();
     assert_eq!(failed.len(), 1, "alleen de token-loze own hoort te falen");
@@ -133,9 +151,10 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
         "scan-fout moet de onderliggende 404 dragen, got: {}",
         failed[0].error
     );
-    assert!(map
-        .get_law("wet_van_example_org_example_seed_repo")
-        .is_some());
+    assert!(
+        map.get_law("wet_van_example_org_example_seed_repo")
+            .is_some()
+    );
 
     // ------------------------------------------------------------------
     // Fase 2: met override scant de own via het user-token; de seed
@@ -143,7 +162,7 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
     // ------------------------------------------------------------------
     let (map, failed) = registry
         .index_all_sources_with_override(
-            None,
+            &github,
             Some(ScanTokenOverride {
                 source_id: "traject-own",
                 token: "user-token",
@@ -156,12 +175,14 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
         failed.is_empty(),
         "beide sources moeten scannen: {failed:?}"
     );
-    assert!(map
-        .get_law("wet_van_example_org_example_own_repo")
-        .is_some());
-    assert!(map
-        .get_law("wet_van_example_org_example_seed_repo")
-        .is_some());
+    assert!(
+        map.get_law("wet_van_example_org_example_own_repo")
+            .is_some()
+    );
+    assert!(
+        map.get_law("wet_van_example_org_example_seed_repo")
+            .is_some()
+    );
 
     // ------------------------------------------------------------------
     // Fase 3: zodra de own-source wél een servertoken heeft, wint dat van
@@ -183,14 +204,20 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
         })))
         .mount(&server)
         .await;
-    std::env::set_var(
-        "CORPUS_AUTH_EXAMPLE_UNSET_OWN_REF_TOKEN",
-        "own-server-token",
+    let with_own_token = settings(
+        &server,
+        &[
+            SEED_TOKEN,
+            (
+                "CORPUS_AUTH_EXAMPLE_UNSET_OWN_REF_TOKEN",
+                "own-server-token",
+            ),
+        ],
     );
 
     let (map, failed) = registry
         .index_all_sources_with_override(
-            None,
+            &with_own_token,
             Some(ScanTokenOverride {
                 source_id: "traject-own",
                 token: "user-token",
@@ -199,7 +226,6 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
         )
         .await
         .unwrap();
-    std::env::remove_var("CORPUS_AUTH_EXAMPLE_UNSET_OWN_REF_TOKEN");
     assert!(
         failed.is_empty(),
         "scan met servertoken moet slagen: {failed:?}"
@@ -213,7 +239,4 @@ async fn scan_override_reaches_only_its_source_and_loses_from_server_tokens() {
             .is_none(),
         "de user-token-listing mag niet gebruikt zijn zodra er een servertoken is"
     );
-
-    std::env::remove_var("CORPUS_AUTH_EXAMPLE_SEED_REF_TOKEN");
-    std::env::remove_var("GITHUB_API_BASE");
 }

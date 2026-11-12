@@ -17,7 +17,7 @@ use regelrecht_pipeline::tasks::{self, BlobKind};
 
 use crate::accounts::AccountRecord;
 use crate::corpus_handlers::{
-    document_etag, read_law_yaml, require_traject_corpus_from_ref, ReadScope,
+    ReadScope, document_etag, read_law_yaml, require_traject_corpus_from_ref,
 };
 use crate::state::AppState;
 use crate::trajects::resolve_traject_ref;

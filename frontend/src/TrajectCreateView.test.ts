@@ -7,6 +7,8 @@ import { defineComponent } from 'vue';
 import type { LocationQuery, RouteLocationRaw } from 'vue-router';
 import appRouter from './router';
 import TrajectCreateView from './TrajectCreateView.vue';
+import { useTrajectsStore } from './stores/trajects';
+import { mockedStore, testingPinia } from './test-utils/testingPinia';
 
 const routeState: { query: LocationQuery } = { query: {} };
 const push = vi.fn<(to: RouteLocationRaw) => Promise<void>>();
@@ -18,10 +20,6 @@ vi.mock('vue-router', async (importOriginal) => ({
 }));
 
 const REF = 'mijn-traject-1a2b3c4d';
-
-vi.mock('./composables/useTrajects', () => ({
-  createTraject: vi.fn(async () => ({ ref: 'mijn-traject-1a2b3c4d' })),
-}));
 
 // The real form validates its fields; this one always hands a payload.
 const FormStub = defineComponent({
@@ -39,7 +37,16 @@ interface CreateInternals {
 async function createWithQuery(query: LocationQuery): Promise<RouteLocationRaw> {
   routeState.query = query;
   const wrapper = shallowMount(TrajectCreateView, {
-    global: { stubs: { TrajectCreateForm: FormStub } },
+    global: { stubs: { TrajectCreateForm: FormStub }, plugins: [testingPinia()] },
+  });
+  mockedStore(useTrajectsStore).createTraject.mockResolvedValue({
+    id: '00000000-0000-0000-0000-0000001a2b3c',
+    name: 'Mijn traject',
+    description: '',
+    scope: '',
+    status: 'bezig',
+    role: 'owner',
+    ref: REF,
   });
   await (wrapper.vm as unknown as CreateInternals).submitCreate();
   await flushPromises();

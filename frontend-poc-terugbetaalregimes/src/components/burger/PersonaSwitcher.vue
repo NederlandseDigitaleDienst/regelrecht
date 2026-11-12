@@ -68,12 +68,12 @@ function onChange(event) {
   gap: var(--primitives-space-8);
 }
 .chip {
-  /* DigiD-logo als inloghint voor de demo (voorbeeldpersonen, geen echte
-     login). Bestand: public/img/digid-logo.svg. Vast op 32px: de gerenderde
-     hoogte van de sm-dropdown ernaast (stretch werkt hier niet omdat de
-     intrinsieke logomaat anders zelf de rijhoogte bepaalt). */
-  block-size: 32px;
-  inline-size: 32px;
+  /* DigiD logo as a login hint for the demo (example persons, no real
+     login). File: public/img/digid-logo.svg. As tall as the sm dropdown next
+     to it, through the design system's control size (stretch does not work
+     here: the logo's intrinsic size would set the row height itself). */
+  block-size: var(--semantics-controls-sm-min-size);
+  inline-size: var(--semantics-controls-sm-min-size);
   object-fit: contain;
   flex-shrink: 0;
 }

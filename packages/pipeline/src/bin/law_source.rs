@@ -24,7 +24,7 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 
 use regelrecht_pipeline::enrich_v2::source_gate::{
-    parse_toestand, rewrite, toestand_url, verify, write_atomic_pair, Verdict, CONTEXT_SIDECAR,
+    CONTEXT_SIDECAR, Verdict, parse_toestand, rewrite, toestand_url, verify, write_atomic_pair,
 };
 
 #[tokio::main]
@@ -215,10 +215,10 @@ async fn fetch(
     offline: bool,
 ) -> Result<String, String> {
     let cached = cache.map(|dir| dir.join(format!("{bwb_id}_{valid_from}.xml")));
-    if let Some(p) = &cached {
-        if let Ok(body) = std::fs::read_to_string(p) {
-            return Ok(body);
-        }
+    if let Some(p) = &cached
+        && let Ok(body) = std::fs::read_to_string(p)
+    {
+        return Ok(body);
     }
     if offline {
         return Err(format!("no cached toestand for {bwb_id} @ {valid_from}"));

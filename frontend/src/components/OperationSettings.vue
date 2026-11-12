@@ -621,7 +621,7 @@ function addValue() {
 <template>
   <template v-if="operation">
     <template v-if="String(operation.number).includes('.')">
-      <nldd-title size="4" class="operation-settings__title">
+      <nldd-title size="display-4" class="operation-settings__title">
         <h4>Operatie {{ operation.number }}</h4>
       </nldd-title>
       <nldd-spacer size="12"></nldd-spacer>

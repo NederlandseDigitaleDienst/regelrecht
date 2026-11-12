@@ -16,7 +16,7 @@ use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
-use regelrecht_cel::{identity, Cell, Error, Files};
+use regelrecht_cel::{Cell, Error, Files, identity};
 use regelrecht_engine::LawLoad;
 use regelrecht_law_model::{
     Article, ArticleBasedLaw, AuthorityType, CompetentAuthority, HookFilter, NamedAuthority,
@@ -79,6 +79,90 @@ pub struct Casus {
     pub scenarios: Vec<Scenario>,
 }
 
+impl Casus {
+    /// Each cell of the case by its directory under `cells/`, with what it
+    /// records before the first scenario.
+    fn begins(&self) -> impl Iterator<Item = (&str, &Begin)> {
+        std::iter::once((self.cel.as_str(), self.begin.as_ref()))
+            .chain(
+                self.andere_cellen
+                    .iter()
+                    .map(|a| (a.cel.as_str(), a.begin.as_ref())),
+            )
+            .filter_map(|(cel, begin)| Some((cel, begin?)))
+    }
+
+    /// The executogram of the begin of `cel` that carries `kenmerk`, with
+    /// its place in that begin: the place of its record in the cell's
+    /// chronicle, which starts with its begin.
+    pub fn met_kenmerk(&self, cel: &str, kenmerk: &str) -> Option<(usize, &BeginExecutogram)> {
+        self.begins()
+            .filter(|(c, _)| *c == cel)
+            .flat_map(|(_, begin)| begin.executogrammen.iter().enumerate())
+            .find(|(_, e)| e.kenmerk.as_deref() == Some(kenmerk))
+    }
+
+    /// That every reference to an earlier record names one: a kenmerk is
+    /// unique within the case, an executogram of a begin refers to an
+    /// earlier one of that begin, and a record step refers to one in the
+    /// begin of the cell that records it. Only a record step refers.
+    pub fn verwijzingen_kloppen(&self) -> Result<()> {
+        let fout = |m: String| Err(Error::Setup(format!("case '{}': {m}", self.id)));
+        let mut gezien = BTreeSet::new();
+        for (cel, begin) in self.begins() {
+            let mut eerder = BTreeSet::new();
+            for e in &begin.executogrammen {
+                if let Some(naar) = &e.verwijst_naar
+                    && !eerder.contains(naar.as_str())
+                {
+                    return fout(format!(
+                        "the begin of '{cel}' refers to '{naar}', which is the kenmerk of no \
+                         earlier executogram of that begin"
+                    ));
+                }
+                if let Some(k) = &e.kenmerk {
+                    if !gezien.insert(k.as_str()) {
+                        return fout(format!("the kenmerk '{k}' is given twice"));
+                    }
+                    eerder.insert(k.as_str());
+                }
+            }
+        }
+        for scenario in &self.scenarios {
+            for stap in &scenario.stappen {
+                let Stap::Handeling(h) = stap else { continue };
+                let Some(naar) = &h.verwijst_naar else {
+                    continue;
+                };
+                let waar = format!("a step of the scenario '{}'", scenario.naam);
+                if h.stap != Soort::Vastleggen {
+                    return fout(format!(
+                        "{waar} refers to '{naar}', but only a record step (vastleggen) refers \
+                         to an earlier record"
+                    ));
+                }
+                let Some(cel) = h
+                    .cel
+                    .as_deref()
+                    .filter(|c| self.andere_cellen.iter().any(|a| a.cel == *c))
+                else {
+                    return fout(format!(
+                        "{waar} refers to '{naar}', but names no other cell of the case that \
+                         records it"
+                    ));
+                };
+                if self.met_kenmerk(cel, naar).is_none() {
+                    return fout(format!(
+                        "{waar} refers to '{naar}', which is the kenmerk of no executogram in the \
+                         begin of '{cel}'"
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// Another cell of the case: its directory under `cells/` of the corpus, its name
 /// as the visitor reads it, and what it records before the first scenario.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -113,6 +197,18 @@ pub struct BeginExecutogram {
     pub velden: Map<String, Value>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub datum: Option<NaiveDate>,
+    /// The name the case gives this record, so that a later fact can refer
+    /// to it ([`BeginExecutogram::verwijst_naar`],
+    /// [`Handeling::verwijst_naar`]). The record's id only exists once the
+    /// cell records it, so the case file cannot name that. Unique within
+    /// the case.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kenmerk: Option<String>,
+    /// The [`BeginExecutogram::kenmerk`] of an earlier executogram of the
+    /// same [`Begin`] that this record is about (`refers_to`, schema
+    /// v0.8.17), such as the registration a correction corrects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verwijst_naar: Option<String>,
 }
 
 /// Fictional values the forms start with while the visitor follows a
@@ -156,7 +252,7 @@ pub struct Scenario {
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Stap {
-    Handeling(Handeling),
+    Handeling(Box<Handeling>),
     Tekst(String),
 }
 
@@ -168,7 +264,7 @@ impl<'de> Deserialize<'de> for Stap {
         match Value::deserialize(d)? {
             Value::String(tekst) => Ok(Self::Tekst(tekst)),
             v => serde_json::from_value(v)
-                .map(Self::Handeling)
+                .map(|h| Self::Handeling(Box::new(h)))
                 .map_err(serde::de::Error::custom),
         }
     }
@@ -202,6 +298,12 @@ pub struct Handeling {
     pub cel: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub feit: Option<String>,
+    /// For [`Soort::Vastleggen`]: the [`BeginExecutogram::kenmerk`] of the
+    /// record in the recording cell's [`Begin`] that this fact is about
+    /// (`refers_to`, schema v0.8.17), such as the registration a correction
+    /// corrects.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub verwijst_naar: Option<String>,
     /// The values the step fills in, under the names the law gives the
     /// fields and findings. A form starts from the case's
     /// [`Voorbeeld`] for its kind and takes these over it.
@@ -646,7 +748,8 @@ pub struct Beroep {
 /// The regelwerken are those the article's law reaches, and the reductions
 /// the catalogues of the cells name (`cel.yaml`, `answers`, RFC-048), with
 /// what they reach. A regelwerk reaches another when it reads from it
-/// (`source.regulation`, `source.article`, `source.decisions`), and when the
+/// (`source.regulation`, `source.article`, `source.decisions`,
+/// `source.projections`), and when the
 /// other is in the corpus to act on it: it implements one of its open terms,
 /// such as the policy that binds a term to an answer of a cell, or has a
 /// hook or a procedure that applies to what it produces (the Awb on every
@@ -679,7 +782,6 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
             ))
         })?;
         let mut erbij: Vec<String> = leest(werk.artikelen()).into_iter().collect();
-        erbij.extend(leest_via_parameter(regelwerken, werk));
         for ander in &regelwerken.werken {
             if handelt_op(ander, werk) {
                 erbij.push(ander.id().to_string());
@@ -764,7 +866,7 @@ fn beroep(
                 "case '{casus}': both '{}' and '{}' are {wie}",
                 a.recording_actor(),
                 b.recording_actor()
-            )))
+            )));
         }
     };
     let ontvangst = ontvangst(regelwerken, casus, gevonden, &law, &article)?;
@@ -867,11 +969,36 @@ fn vestigend(
     }
 }
 
+/// The inputs the stages of the procedures of `law` require for the legal
+/// character of the decision of `artikelen`, such as `uitspraak_datum` for a
+/// judgment: the decision records them among its fields. It takes the union
+/// over every version and procedure of the law, not only the procedure in
+/// force as the cell does: the names only widen the set a receipt fact may
+/// match, and the Awb of the PoC has one version with one procedure per
+/// legal character.
+fn fasen<'r>(regelwerken: &'r Regelwerken, law: &str, artikelen: &[&Article]) -> Vec<&'r str> {
+    let karakters: BTreeSet<&str> = artikelen
+        .iter()
+        .filter_map(|a| a.get_decision()?.legal_character())
+        .collect();
+    regelwerken
+        .get(law)
+        .into_iter()
+        .flat_map(|w| &w.versies)
+        .flat_map(|(_, versie)| versie.procedure.iter().flatten())
+        .filter(|p| karakters.contains(p.applies_to.legal_character.as_str()))
+        .flat_map(|p| &p.stages)
+        .flat_map(|stage| stage.requires.iter().flatten())
+        .map(|r| r.name.as_str())
+        .collect()
+}
+
 /// The fact in which a cell records the receipt of a judgment under
 /// `law#article`, as `<law>#<article>#<fact>`: the one fact an article of
 /// the regelwerken `gevonden` requires whose parameters are all outputs of
-/// that decision, so a copy of the judgment holds each by name (Awb 8:79,
-/// `afschrift_van_de_uitspraak`).
+/// that decision or inputs a stage of the procedure for its legal character
+/// requires (such as the day of the judgment), so a copy of the judgment
+/// holds each by name (Awb 8:79, `afschrift_van_de_uitspraak`).
 fn ontvangst(
     regelwerken: &Regelwerken,
     casus: &str,
@@ -879,16 +1006,20 @@ fn ontvangst(
     law: &str,
     article: &str,
 ) -> Result<String> {
-    let uitvoer: BTreeSet<&str> = regelwerken
+    let artikelen: Vec<&Article> = regelwerken
         .get(law)
         .into_iter()
         .flat_map(|w| w.artikelen())
         .filter(|a| a.number == article)
+        .collect();
+    let uitvoer: BTreeSet<&str> = artikelen
+        .iter()
         .flat_map(|a| {
             a.get_decision()
                 .map(|d| a.outputs_of(d))
                 .unwrap_or_default()
         })
+        .chain(fasen(regelwerken, law, &artikelen))
         .collect();
     let mut feiten = BTreeSet::new();
     for id in gevonden {
@@ -922,84 +1053,52 @@ fn ontvangst(
 fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
     let mut uit = BTreeSet::new();
     for a in artikelen {
+        // A projection reads the records under the article each step names,
+        // and its roots (`per`), and calls the law each input of a step names.
+        let projection = a
+            .machine_readable
+            .as_ref()
+            .and_then(|m| m.projection.as_ref());
+        if let Some((id, _)) = projection
+            .and_then(|p| p.per.as_deref())
+            .and_then(|per| per.split_once('#'))
+        {
+            uit.insert(id.to_string());
+        }
+        let steps = projection.map(|p| p.steps.as_slice()).unwrap_or_default();
+        for step in steps {
+            if let Some((id, _)) = step.record.split_once('#') {
+                uit.insert(id.to_string());
+            }
+            for source in step.input.iter().filter_map(|i| i.source.as_ref()) {
+                if let Some(id) = &source.regulation {
+                    uit.insert(id.clone());
+                }
+            }
+        }
         for source in a.get_inputs().iter().filter_map(|i| i.source.as_ref()) {
             if let Some(id) = &source.regulation {
                 uit.insert(id.clone());
+            }
+            // The aggregates of another reduction (schema v0.8.17), by the
+            // reduction alone or by one of its articles (schema v0.8.19).
+            if let Some(reference) = &source.projections {
+                let (id, _) = regelrecht_law_model::split_projections(reference);
+                uit.insert(id.to_string());
             }
             for verwijzing in [&source.article, &source.decisions, &source.facts]
                 .into_iter()
                 .flatten()
             {
-                if let Some((id, _)) = verwijzing.split_once('#') {
-                    if !id.starts_with('$') {
-                        uit.insert(id.to_string());
-                    }
+                if let Some((id, _)) = verwijzing.split_once('#')
+                    && !id.starts_with('$')
+                {
+                    uit.insert(id.to_string());
                 }
             }
         }
     }
     uit
-}
-
-/// The regelwerken whose decisions `werk` has another regelwerk read by
-/// naming the article as a parameter: a call (`source.regulation`) that
-/// passes the literal `<law>#<article>` for a parameter the called
-/// regelwerk reads decisions under (`source.decisions: $<parameter>`), such
-/// as `basis` of the reduction of the Awb, or passes on to a regelwerk it
-/// calls in turn ([`leest_besluiten_onder`]). [`leest`] does not see these:
-/// the called regelwerk names the article only when it runs. A cell runs
-/// every reduction its catalogue names, whatever case it plays, and reading
-/// the decisions under an article needs that article's law.
-fn leest_via_parameter(regelwerken: &Regelwerken, werk: &Regelwerk) -> BTreeSet<String> {
-    let mut uit = BTreeSet::new();
-    for source in werk
-        .artikelen()
-        .flat_map(|a| a.get_inputs())
-        .filter_map(|i| i.source.as_ref())
-    {
-        let (Some(id), Some(parameters)) = (&source.regulation, &source.parameters) else {
-            continue;
-        };
-        for (naam, waarde) in parameters {
-            if waarde.starts_with('$') || !leest_besluiten_onder(regelwerken, id, naam, 0) {
-                continue;
-            }
-            if let Some((law, _)) = waarde.split_once('#') {
-                uit.insert(law.to_string());
-            }
-        }
-    }
-    uit
-}
-
-/// Whether the regelwerk `id` reads decisions under the article its
-/// parameter `naam` holds: itself (`source.decisions: $<naam>`), or by
-/// passing it on as `$<naam>` to a regelwerk it calls. `diepte` stops a
-/// chain of calls that comes back to where it began.
-fn leest_besluiten_onder(regelwerken: &Regelwerken, id: &str, naam: &str, diepte: usize) -> bool {
-    const MAX_DIEPTE: usize = 8;
-    let Some(werk) = regelwerken.get(id) else {
-        return false;
-    };
-    if diepte > MAX_DIEPTE {
-        return false;
-    }
-    let verwijzing = format!("${naam}");
-    werk.artikelen()
-        .flat_map(|a| a.get_inputs())
-        .filter_map(|i| i.source.as_ref())
-        .any(|source| {
-            if source.decisions.as_deref() == Some(verwijzing.as_str()) {
-                return true;
-            }
-            let (Some(verder), Some(parameters)) = (&source.regulation, &source.parameters) else {
-                return false;
-            };
-            parameters.iter().any(|(doorgegeven, waarde)| {
-                *waarde == verwijzing
-                    && leest_besluiten_onder(regelwerken, verder, doorgegeven, diepte + 1)
-            })
-        })
 }
 
 /// Whether `ander` acts on `werk`: it implements one of its open terms, or
@@ -1089,4 +1188,115 @@ fn rol(law: &ArticleBasedLaw, article: &str) -> Option<String> {
     } else {
         one.name
     })
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    const FEIT: &str = "beleid_x#1#ingeschreven";
+    const CORRECTIE: &str = "beleid_x#2#gecorrigeerd";
+
+    /// A case whose other cell `register` begins with `begin` (executograms
+    /// as YAML) and plays `stappen` (steps as YAML).
+    fn casus(begin: &str, stappen: &str) -> Casus {
+        let yaml = format!(
+            "cel: gemeente\nartikel: wet#1\ncorpus: []\nuitkomst: verleend\ntitel: T\n\
+             cel_naam: G\nspeeldatum: 2026-01-01\nvoorbeeld: {{}}\n\
+             andere_cellen:\n  - cel: register\n    cel_naam: R\n    begin:\n      \
+             datum: 2026-01-01\n      executogrammen: {begin}\n\
+             scenarios:\n  - naam: S\n    eind: E\n    stappen: {stappen}\n"
+        );
+        let mut c: Casus = serde_yaml_ng::from_str(&yaml).unwrap();
+        c.id = "test".into();
+        c
+    }
+
+    fn inschrijving(kenmerk: &str) -> String {
+        format!("{{feit: '{FEIT}', velden: {{}}, kenmerk: {kenmerk}}}")
+    }
+
+    fn correctie(naar: &str) -> String {
+        format!("{{feit: '{CORRECTIE}', velden: {{}}, verwijst_naar: {naar}}}")
+    }
+
+    fn vastleggen(cel: &str, naar: &str) -> String {
+        format!("[{{stap: vastleggen, cel: {cel}, feit: '{CORRECTIE}', verwijst_naar: {naar}}}]")
+    }
+
+    fn fout(c: &Casus) -> String {
+        c.verwijzingen_kloppen().unwrap_err().to_string()
+    }
+
+    #[test]
+    fn a_reference_to_an_earlier_kenmerk_holds() {
+        let c = casus(
+            &format!("[{}, {}]", inschrijving("a"), correctie("a")),
+            &vastleggen("register", "a"),
+        );
+        c.verwijzingen_kloppen().unwrap();
+        let (i, e) = c.met_kenmerk("register", "a").unwrap();
+        assert_eq!((i, e.feit.as_str()), (0, FEIT));
+        assert!(c.met_kenmerk("gemeente", "a").is_none());
+    }
+
+    #[test]
+    fn a_begin_that_refers_to_an_unknown_kenmerk_is_refused() {
+        let c = casus(
+            &format!("[{}, {}]", inschrijving("a"), correctie("b")),
+            "[]",
+        );
+        assert!(fout(&c).contains("refers to 'b', which is the kenmerk of no earlier"));
+    }
+
+    #[test]
+    fn a_begin_that_refers_to_a_later_executogram_is_refused() {
+        let c = casus(
+            &format!("[{}, {}]", correctie("a"), inschrijving("a")),
+            "[]",
+        );
+        assert!(fout(&c).contains("refers to 'a', which is the kenmerk of no earlier"));
+    }
+
+    #[test]
+    fn a_kenmerk_given_twice_is_refused() {
+        let c = casus(
+            &format!("[{}, {}]", inschrijving("a"), inschrijving("a")),
+            "[]",
+        );
+        assert!(fout(&c).contains("the kenmerk 'a' is given twice"));
+    }
+
+    #[test]
+    fn a_step_that_refers_to_an_unknown_kenmerk_is_refused() {
+        let c = casus(
+            &format!("[{}]", inschrijving("a")),
+            &vastleggen("register", "b"),
+        );
+        assert!(fout(&c).contains("refers to 'b', which is the kenmerk of no executogram"));
+    }
+
+    #[test]
+    fn a_step_that_refers_from_a_cell_that_does_not_record_is_refused() {
+        let c = casus(
+            &format!("[{}]", inschrijving("a")),
+            &vastleggen("gemeente", "a"),
+        );
+        assert!(fout(&c).contains("names no other cell of the case"));
+        let c = casus(
+            &format!("[{}]", inschrijving("a")),
+            "[{stap: vastleggen, verwijst_naar: a}]",
+        );
+        assert!(fout(&c).contains("names no other cell of the case"));
+    }
+
+    #[test]
+    fn only_a_record_step_refers() {
+        let c = casus(
+            &format!("[{}]", inschrijving("a")),
+            "[{stap: aanvraag, verwijst_naar: a}]",
+        );
+        assert!(fout(&c).contains("only a record step (vastleggen) refers"));
+    }
 }

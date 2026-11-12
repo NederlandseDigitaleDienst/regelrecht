@@ -13,8 +13,8 @@ use hmac::{Hmac, Mac};
 use sha2::Sha256;
 use subtle::ConstantTimeEq;
 
-use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use base64::Engine as _;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 
 type HmacSha256 = Hmac<Sha256>;
 

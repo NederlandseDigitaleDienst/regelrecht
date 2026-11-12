@@ -26,6 +26,8 @@ The editor is a Vue 3 single-page app in `frontend/`. It browses the corpus, hol
 - **Traject menu** (`TrajectMenu.vue`, `MobileTrajectSheet.vue` on small screens): switch traject or go to the traject chooser.
 - **Account menu**: log in or out, *Account aanvragen*, the color scheme (*Weergave*), *Instellingen*, *Harvester* for users with a harvester role, *Over RegelRecht* and *Help*.
 
+**Search** (`SearchPopover.vue`) goes through the sources in order: the traject's own repository, the example rulework, then the central corpus. It shows the matches of the first source that has any, and a line under the search field names that source. Every other source with matches gets a row (*Ook 3 resultaten in …*) that switches the list to that source; the backend caps a search at 60 matches, ordered by source, so the count of the last source can be short and is then shown with a plus. The matches are ranked by the backend, and when the cap cut the list short the heading says so (*De beste 60 van 1.646 resultaten*). Only when no source matches does it search wetten.overheid.nl, after login; each match there is a link to the official text, and opening it does not fetch the law into the library. A match whose current version has a machine version carries a *Machine* tag, as an article does in the article list. With an empty field and no login, the popover suggests five laws picked at random from `public/favorites.json`, which the build reads in (`vite.config.ts`); they are links in an `nldd-link-group` under the search field, not rows of the result list.
+
 The editor tab requires a login. Every route marked `requiresAuth` waits for `/auth/status` before it mounts; a user without a session goes to `/uitgelogd`, which keeps the intended destination in `return_url` for the log-in button.
 
 ### Home
@@ -34,8 +36,8 @@ Every Home route renders `LibraryView.vue`, which uses a navigation split view: 
 
 | Route | What it shows |
 |-------|---------------|
-| `/` | The public corpus (*Corpus juris*). The sidebar lists *Favorieten* and *Recent bekeken*. |
-| `/corpus-juris/{lawId}/{article?}` | A law from the public corpus: articles in the secondary sidebar, the article in main with *Tekst*, *Machine* and *YAML* tabs. |
+| `/` | The public corpus (*Corpus juris*). The sidebar lists *Favorieten* and *Recent bekeken*. Without a login, favorites are kept in this browser (`useLocalFavorites`); the section says so, warns that clearing the browser data loses them, and links to *Account aanvragen*. At the first load after login they move to the account and leave the browser; one that fails to save stays for the next try. In a traject favorites need a login. |
+| `/corpus-juris/{lawId}/{article?}` | A law from the public corpus: articles in the secondary sidebar, the article in main. Above the articles sit two entries, also on the traject route below: *Algemeen* (`article` = `algemeen`), the law's details with links to its published text (its `url` when that is a web address, else its BWB id) and its folder on GitHub, and *YAML* (`article` = `yaml`), the whole file. A law whose current version is enriched gets *Tekst*, *Machine* and *YAML* tabs under a banner that says the machine version is an example and not established; any other law shows its text only, with a note when another version does have a machine version. |
 | `/trajecten/{ref}` | The traject landing. The sidebar adds *Instellingen*, *Werkdocumenten* and *Taken*, and the section *In dit traject*. |
 | `/trajecten/{ref}/corpus/{lawId}/{article?}` | A law as the traject has it, read through `/api/trajects/{ref}/corpus/...`. |
 | `/trajecten/{ref}/werkdocumenten/{docPath?}` | The traject's werkdocumenten: the document list in the secondary sidebar, the Markdown editor in main. |
@@ -53,6 +55,8 @@ A traject ref has the form `{slug}-{8 hex}`. The router pins that pattern in eve
 
 **Members** have one of two roles, *Beheerder* (owner) or *Bijdrager* (contributor). An owner changes roles and removes members; the last owner cannot be demoted. Invites go through `InviteMembersSheet.vue`, reachable from the members pane and the "+" menu.
 
+**Long article lists.** A law with more than 200 articles shows only the rows of its article list that are in view, plus a margin (`useVirtualRows`); padding above and below stands in for the rest. The largest laws in the corpus have over six thousand articles, and an `nldd-list` that renders every row then takes minutes before it responds ([design-system#408](https://github.com/NederlandseDigitaleDienst/design-system/issues/408)). Each row carries `aria-setsize` and `aria-posinset`, so a screen reader still reports its place in the whole list. The arrow keys continue past the rendered rows, and focus on a row that scrolls out of the window moves to the first row in view. Home and End, and the wrap from the last row to the first, stay within the rendered rows, and the browser's find-in-page only finds rendered articles; the list's own search field finds them all. The design system has no such list yet ([design-system#409](https://github.com/NederlandseDigitaleDienst/design-system/issues/409)); once it does, this goes.
+
 ### Editor
 
 `/trajecten/{ref}/editor/{lawId?}/{article?}` renders `EditorView.vue`. There is no editor outside a traject: `/editor`, the old `/editor/{lawId}` links and `/editor.html` all redirect to the traject chooser, carrying the law along so it opens after the choice.
@@ -68,6 +72,10 @@ The editor is a side-by-side split view with one pane per view. Each pane has a 
 | *Notities* | All notes on the article, and the drafts that have not been saved yet. |
 
 A law without a `machine_readable` section shows an empty state in *Machine* and *YAML*, with the option to request enrichment or start writing by hand.
+
+The rulework on screen and the unsaved edits to it live in `src/composables/useOpenLaw.ts`, which also loads and saves it. The panes edit the article in three forms: its text, its `machine_readable` as a structure, and the same section as YAML. The module keeps those in step and resets them from the saved article whenever the article, rulework or traject changes. The action sheet edits a copy of the action, which joins the article only when the sheet saves.
+
+Only the selected article's edits are kept, so leaving it loses them. The editor asks first: switching tabs, articles, ruleworks or trajecten, closing the article's tab, browser back and forward, and leaving the editor all open a dialog with *Blijf hier* and *Wijzigingen weggooien*. Reloading or closing the browser tab gets the browser's own prompt instead. A review proposal that nobody has edited is not counted, because the editor places it again when the reviewer returns.
 
 ### Top-level pages
 
@@ -90,7 +98,7 @@ The settings sheet (`SettingsSheet.vue`, from the account menu) has two sections
 
 ## Feature flags
 
-Flags are deployment-wide, stored in the `feature_flags` table and served by `GET /api/feature-flags`. `PUT /api/feature-flags/{key}` is behind the `editor-admin` role. The frontend keeps its own defaults in `src/composables/useFeatureFlags.ts` so it can render before the API answers.
+Flags are deployment-wide, stored in the `feature_flags` table and served by `GET /api/feature-flags`. `PUT /api/feature-flags/{key}` is behind the `editor-admin` role. The frontend keeps its own defaults in the feature-flag store, `src/stores/featureFlags.ts`, so it can render before the API answers.
 
 The list in `packages/editor-api/src/feature_flags.rs` is also the allow-list: the backend rejects a PUT for a key it does not know with 400, and the frontend then reverts the switch. The two lists therefore have to name the same keys.
 
@@ -110,7 +118,13 @@ When the backend has no database, the PUT returns 503 and the frontend keeps the
 
 ## Data loading
 
-Law content comes from the editor-api. `src/composables/corpusUrls.ts` builds every corpus URL in one of two shapes: `/api/corpus/...` for the public corpus (read-only) and `/api/trajects/{ref}/corpus/...` inside a traject (read and write). `useLaw.ts` loads a law with a `GET` on that URL and saves it with a `PUT`. A save in a traject is written back to the traject's repository; the response carries the pull request it went to, which is where the "PR #N" link comes from.
+Law content comes from the editor-api, and every read of a rulework or the law list goes through one module, `src/corpus`. `useCorpus()` returns the reader that `src/main.ts` installs. It reads from the traject the route names, or from the public corpus outside a traject, so no caller picks between `/api/corpus/...` and `/api/trajects/{ref}/corpus/...` itself. It caches rulework bodies, their versions and the full law list per traject, so content from one traject never shows up in another; searches, outputs and implementors are read fresh each time. Opening a rulework to edit it asks for a fresh copy, because the save needs the current ETag.
+
+`useOpenLaw.ts` is the one caller that names its traject (`forTraject`). During a navigation to another traject it loads the new rulework before the route has changed, so the route cannot tell it which traject to read.
+
+Writes stay outside the reader, and so do scenarios, notes, documents and favorites, which have their own modules. `src/composables/corpusUrls.ts` builds their URLs. `useOpenLaw.ts` saves a rulework with a `PUT` and hands the saved body to the reader, so the next read needs no request. A save in a traject is written back to the traject's repository; the response carries the pull request it went to, which is where the "PR #N" link comes from.
+
+Tests read the corpus from memory. `src/test-utils/corpusSetup.ts` installs an empty in-memory corpus before every test, and `installTestCorpus` fills one per traject with ruleworks, outputs, implementors and failures. A test does not fake corpus URLs.
 
 Scenarios run on the engine compiled to WASM, loaded by `useEngine.ts` from the WASM package that `just wasm-build` writes into the app's public directory.
 
@@ -149,7 +163,17 @@ Besides the views in `src/` (`AppShell.vue`, `LibraryView.vue`, `EditorView.vue`
 | `TrajectDetailsPane.vue` / `TrajectMembersPane.vue` / `TrajectIntegrityPane.vue` | Traject settings and the structure report |
 | `SearchPopover.vue` / `AddLawSheet.vue` | Finding a law, and adding one to a traject: copied from the central corpus, harvested by BWB id, or converted from an uploaded PDF or DOCX |
 
-Shared state and API calls live in composables under `src/composables/`, most of them module-level singletons (`useTrajects.ts`, `useTasks.ts`, `useFeatureFlags.ts` and others).
+## State
+
+Where state lives depends on who shares it.
+
+- State the whole app shares lives in a Pinia setup store under `src/stores/`. So far these are the feature flags (`featureFlags.ts`), the user's trajecten with the active one (`trajects.ts`), what the views publish to the shell (`appChrome.ts`), and the verdicts on an enrichment under review, which have to outlive moving from article to article (`enrichVerdicts.ts`). `main.ts` installs Pinia and starts loading the flags and the traject list; a store does nothing on import.
+- State of one open document lives in a composable each caller creates, such as `useOpenLaw` for the rulework open in the editor and `useProposalReview` for deciding on a generated proposal for it. Every open document has its own, so it is not a store.
+- Rulework content goes through the corpus reader (see [Data loading](#data-loading)).
+
+Other shared state still sits in module-level singletons under `src/composables/`, such as `useTasks.ts` and `useAddActions.ts`. Each moves to a store when someone changes it; there is no separate conversion.
+
+Tests follow Pinia's testing guide. Every test starts with a fresh Pinia. A component test that needs stubbed store actions or a given starting state mounts with `testingPinia()` from `src/test-utils/testingPinia.ts` (a `createTestingPinia` with `vi.fn` spies) instead of mocking the store's module.
 
 ## Corpusinwinning (harvester dashboard)
 

@@ -10,7 +10,7 @@
 // surface.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount } from '@vue/test-utils';
-import { ref, nextTick } from 'vue';
+import { ref, nextTick, reactive } from 'vue';
 import type { DocumentEntry } from './composables/useTrajectDocuments';
 import type { DocumentJob } from './composables/useTrajectDocumentJobs';
 import * as harness from './test-utils/libraryViewHarness';
@@ -19,17 +19,15 @@ import * as harness from './test-utils/libraryViewHarness';
 type JobStub = Pick<DocumentJob, 'id' | 'target_path' | 'status'>;
 type UploadedCallback = (...args: unknown[]) => void;
 
-const routeState = {
+const routeState = reactive({
   name: 'werkdocumenten-traject',
   params: { trajectRef: 'traject-abcd1234', docPath: '' },
   query: {},
   fullPath: '/traject/traject-abcd1234/werkdocumenten',
-};
+});
 vi.mock('vue-router', () => harness.vueRouter(() => routeState));
 vi.mock('./composables/useAuth', () => harness.auth());
-vi.mock('./composables/useTrajects', () => harness.trajectsModule());
 vi.mock('./lib/apiFetch', () => harness.apiFetchModule());
-vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 
 // Module-level so each test can drive the exact state the watcher reacts to.
 const documents = ref<DocumentEntry[]>([]);
@@ -70,7 +68,7 @@ const JOB_PATH = 'upload.md';
 // viewingJobPath.
 async function mountViewingJob() {
   routeState.params = { trajectRef: 'traject-abcd1234', docPath: JOB_PATH };
-  const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true } } });
+  const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true }, plugins: [harness.pinia()] } });
   await nextTick();
   jobs.value = [{ id: 'job-1', target_path: JOB_PATH, status: 'processing' }];
   await nextTick();
@@ -127,7 +125,7 @@ describe('LibraryView conversion-jobs watcher', () => {
   });
 
   it('selects a fresh upload so the main pane shows its conversion', async () => {
-    const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true } } });
+    const wrapper = shallowMount(LibraryView, { global: { stubs: { teleport: true }, plugins: [harness.pinia()] } });
     await nextTick();
     // Only the upload response knows where the conversion will land.
     onUploaded({ ok: true, targetPath: JOB_PATH });
