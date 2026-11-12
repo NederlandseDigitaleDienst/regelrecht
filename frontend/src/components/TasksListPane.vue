@@ -1,25 +1,29 @@
 <script setup lang="ts">
 /**
- * TasksListPane - de takenlijst zelf, in de main-pane van Home. Toont de
- * categorie die in het panel (TasksCategoriesPane) gekozen is; de route draagt
- * die keuze, dit component leest 'm als props.
+ * TasksListPane - the task list itself, in the main pane of Home. It shows the
+ * category chosen in the panel (TasksCategoriesPane); the route carries that
+ * choice and this component reads it as props.
  *
- * Lopende jobs staan onderaan elke lijst waar ze in thuishoren - onder je eigen
- * taken, want daar kun jij wél iets mee. Ze zijn technisch geen taak, maar ze
- * liggen wel op je bord: "alle" hoort niet selectief te zijn, en een conversie
- * ván een werkdocument hoort net zo goed bij die context.
+ * The list is grouped by what the work is about (a law, or Werkdocumenten) and
+ * sorted within each group in the order of the regelwerk; see
+ * `lib/taskGroups.ts`. Running jobs sit at the bottom of the group they belong
+ * to. They are not tasks, but they are on your plate: "alle" should not be
+ * selective, and a conversion of a werkdocument belongs to that context too.
  *
- * Elke rij heeft één Acties-menu in plaats van losse knoppen: op mobiel vreten
- * knoppen per rij de breedte op, en zo blijft elke rij even breed ongeacht
- * hoeveel acties eronder zitten.
+ * Every row does its main thing when you click it: a review opens the article
+ * in the editor, a failure opens its details, a running job opens what it is
+ * working on. Whatever else a row offers sits in a separate "more" segment
+ * next to it, so the one thing you came to do is never behind a menu. The two
+ * are segments of the row (nldd-list-item-segment), because a row that is
+ * itself a link cannot hold a second control.
  *
- * De acties die neveneffecten hebben met eigen foutafhandeling (de
- * bestandskiezer, een conversie annuleren) worden geëmit; LibraryView bezit die
- * bedrading al, inclusief de foutmodals. De rest - navigeren, afhandelen,
- * opnieuw aanvragen - gebeurt hier.
+ * The actions with side effects that carry their own error handling (the file
+ * picker, cancelling a conversion, opening a running conversion) are emitted;
+ * LibraryView already owns that wiring, including the error modals. The rest
+ * (navigating, dismissing, requesting again) happens here.
  *
- * Mounten start via `useTasks()` de gedeelde 30s-poll; de route erachter vereist
- * login, dus anonieme bezoekers pollen nooit.
+ * Mounting starts the shared 30s poll through `useTasks()`; the route behind it
+ * requires login, so anonymous visitors never poll.
  */
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -29,17 +33,18 @@ import type { RunningTaskJob, TaskRecord, TaskRecordPayload } from '../composabl
 import { useCorpus } from '../corpus';
 import { homeTarget } from '../composables/useLastVisitedRoute';
 import { reviewTarget, taskNamesTraject } from '../lib/taskReview';
-import { taskTitle, runningTitle } from '../lib/taskTitle';
+import { taskTitle, taskRowTitle, taskRowLabel, runningTitle, runningRowTitle } from '../lib/taskTitle';
+import { groupTasks } from '../lib/taskGroups';
 import {
   filterTasks,
   filterRunning,
-  isPrioriteit,
   taskContext,
   taskLawId,
   jobContext,
   jobLawId,
   WACHTEN,
   WERKDOCUMENTEN,
+  WET,
 } from '../lib/taskCategories';
 
 const props = withDefaults(
@@ -51,9 +56,9 @@ const props = withDefaults(
   { trajectRef: null, categorie: null, lawId: null },
 );
 
-// `upload` opent de bestandskiezer, `cancel-job` annuleert een lopende
-// conversie, `view-job` opent de job-weergave van een lopende conversie -
-// alle drie van LibraryView, die viewingJobPath + de foutmodals bezit.
+// `upload` opens the file picker, `cancel-job` cancels a running conversion,
+// `view-job` opens the job view of a running conversion - all three belong to
+// LibraryView, which owns viewingJobPath and the error modals.
 const emit = defineEmits<{
   upload: [];
   'cancel-job': [job: RunningTaskJob];
@@ -75,42 +80,50 @@ function jobLawName(lawId: string | null | undefined): string {
   return displayName(lawId ?? '');
 }
 
-// De gedeelde lijst loopt al op zijn 30s-poll, maar die is elders gestart en zit
-// midden in een interval zodra jij hier binnenkomt. Wie een lijst opent, wil hem
-// actueel zien: het openen zelf is het moment om te verversen.
+// The shared list already runs its 30s poll, but that was started elsewhere
+// and is halfway through an interval when you arrive. Whoever opens a list
+// wants to see it current, so opening it is the moment to refresh.
 onMounted(refresh);
 
-// Mislukt bovenaan, de rest op de servervolgorde (nieuwste eerst). Voorlopig:
-// een mislukte taak is de enige die echt vastzit, dus die hoort niet onder een
-// scroll. Een echte prioritering (deadline, ouderdom) komt later.
-const shownTasks = computed(() => {
-  const list = filterTasks(tasks.value, props.categorie, props.lawId);
-  const failed = list.filter(isPrioriteit);
-  return failed.length ? [...failed, ...list.filter((t) => !isPrioriteit(t))] : list;
-});
+const groups = computed(() =>
+  groupTasks(
+    filterTasks(tasks.value, props.categorie, props.lawId),
+    filterRunning(running.value, props.categorie, props.lawId),
+    displayName,
+  ),
+);
 
-const shownRunning = computed(() => filterRunning(running.value, props.categorie, props.lawId));
+// A heading per group, unless the page title already names the one context
+// the list can hold: a single law, or Werkdocumenten.
+const showHeadings = computed(
+  () => !(props.categorie === WET && props.lawId) && props.categorie !== WERKDOCUMENTEN,
+);
 
-const isEmpty = computed(() => shownTasks.value.length === 0 && shownRunning.value.length === 0);
+const isEmpty = computed(() => groups.value.length === 0);
 
-// Menu-ids: een taak-id is een UUID en kan met een cijfer beginnen, wat een
-// ongeldige CSS-selector oplevert voor de anchor-lookup. Het prefix houdt 'm
-// geldig.
+// Menu ids: the prefix keeps the id spaces of tasks and jobs apart, and from
+// any other id on the page.
+function taskMenuId(task: TaskRecord): string {
+  return `task-menu-${task.id}`;
+}
+function jobMenuId(job: RunningTaskJob): string {
+  return `job-menu-${job.job_id}`;
+}
 
 function dismiss(task: TaskRecord): void {
+  closeDetails();
   resolveTask(task.id, 'dismissed');
 }
 
-// --- Taakdetails-sheet ---
-// De rauwe foutmelding hoort niet in de rij: het is een technische string van
-// soms tweehonderd tekens ("no push token for traject source '…' (expected env
-// CORPUS_AUTH_…)"), en de app toont 'm nergens anders - de job-weergave heeft er
-// een mensentekst voor. Achter "Toon details" staat hij wel, want dat is de plek
-// waar je 'm komt halen.
+// --- Task details sheet ---
+// The raw error does not belong in the row: it is a technical string of
+// sometimes two hundred characters ("no push token for traject source '…'
+// (expected env CORPUS_AUTH_…)"). Clicking a failed task opens it here,
+// together with what you can do about it.
 //
-// Eén sheet voor de hele lijst, niet één per rij; `detailTask` bepaalt de
-// inhoud. nldd-sheet heeft imperatieve show()/hide(), dus die spiegelen we
-// vanuit een watcher (zelfde patroon als TrajectMenu).
+// One sheet for the whole list, not one per row; `detailTask` decides what it
+// shows. nldd-sheet has imperative show()/hide(), mirrored from a watcher (same
+// pattern as TrajectMenu).
 const detailSheetEl = ref<NLDDSheet | null>(null);
 const detailTask = ref<TaskWithError | null>(null);
 watch(detailTask, async (task) => {
@@ -125,11 +138,12 @@ function closeDetails(): void {
   detailTask.value = null;
 }
 
-// "Probeer opnieuw" op een mislukte taak. Twee mechanieken achter één
-// bedoeling: een conversie kan alleen opnieuw via een nieuwe upload (de job
-// draait met max_attempts=1, bewust - zie corpus_handlers.rs), een verrijking
-// vraag je gewoon opnieuw aan.
+// "Probeer opnieuw" on a failed task. Two mechanisms behind one intent: a
+// conversion can only run again through a new upload (the job runs with
+// max_attempts=1 on purpose, see corpus_handlers.rs), an enrichment you simply
+// request again.
 async function retry(task: TaskRecord): Promise<void> {
+  closeDetails();
   if (taskContext(task) === WERKDOCUMENTEN) {
     emit('upload');
     return;
@@ -140,199 +154,212 @@ async function retry(task: TaskRecord): Promise<void> {
   await refresh();
 }
 
-// Twee iconen, om de actie: een gevulde uitroep-cirkel = er ging iets stuk
-// (zelfde cirkel-familie als de Prioriteit-ingang, die de open variant draagt),
-// 'eyeglasses' = hier moet jij naar kijken en beoordelen. Het onderwerp
-// (werkdocument vs wet) zegt de rij zelf al - via de titel en via de context
-// waar hij onder staat - dus het icoon hoeft dat niet te herhalen.
+// Two icons, by action: a filled exclamation circle means something broke
+// (same circle family as the Prioriteit entry, which carries the open variant),
+// 'eyeglasses' means this is for you to look at and judge.
 function taskIcon(task: TaskRecord): string {
   return task.task_type === 'job_failed' ? 'exclamation-circle-filled' : 'eyeglasses';
 }
 
-// "Beoordelen" navigeert naar het artikel in de editor (met de taak-id als
-// query). Taken zonder traject_ref/law_id in de payload tonen een disabled
-// menu-item (zie :disabled hieronder) in plaats van te crashen op een
-// onvolledige route.
-function review(task: TaskRecord): void {
-  const target = reviewTarget(task);
-  if (!target) return;
-  router.push(target);
-}
-
-// Beoordelen is een echte link en geen knop: de bestemming is volledig
-// deep-linkbaar (alle review-logica hangt aan de URL - EditorView leest
-// `?task=` bij binnenkomst - en de klik zelf doet niets anders dan navigeren),
-// dus hoort hij ook te doen wat een link doet: middenklik, ctrl/cmd-klik,
-// "open in nieuw tabblad", "kopieer linkadres". nldd-menu-item rendert met een
-// `href` een <a> met dezelfde role="menuitem", dus de ARIA van het menu blijft
-// gelijk. Een taak zonder bruikbare bestemming krijgt geen href: `disabled`
-// houdt het item dan op de <button>-tak, dus er is geen kapotte link.
-// `router.resolve` bouwt de url, zodat de route-definitie de enige bron van
-// waarheid blijft (geen handgemaakte url-strings).
+// A review row is a real link: the destination is fully deep-linkable (the
+// review hangs off the URL - EditorView reads `?task=` on entry), so it should
+// do what a link does: middle click, ctrl/cmd click, "open in new tab", "copy
+// link address". `router.resolve` builds the URL, so the route definitions stay
+// the single source of truth. A task without a usable destination gets no href
+// and a disabled button instead of a broken link.
 function reviewHref(task: TaskRecord): string | undefined {
   const target = reviewTarget(task);
   return target ? router.resolve(target).href : undefined;
 }
 
-// Een gewone klik moet SPA-navigatie blijven; het menu-item doet zelf geen
-// preventDefault, dus zonder deze guard herlaadt de browser de hele pagina.
-// Hetzelfde patroon als router-link: alleen een onbewerkte primaire klik
-// afvangen, de rest aan de browser laten (nieuw tabblad/venster).
-//
-// The guard sits in the capture phase on the host element, so it runs before
-// the click handler inside the item's shadow root. That handler fires
-// `select`, and that path navigates too (see below): on a ctrl-click you would
-// otherwise end up both in the new tab and in the current one.
-// `pendingClick` remembers the click; while it is still being dispatched
-// (eventPhase is not NONE) a `select` belongs to that click and is skipped.
-//
-// Deliberately no flag that a second, bubble-phase listener resets. Vue skips
-// a handler when the event carries the same millisecond as the moment that
-// handler was attached (`e._vts <= invoker.attached`), and only the first Vue
-// handler an event reaches is exempt from that check. A click in the same
-// millisecond as the render left the flag set, and every later select stopped
-// navigating. The dispatch state of the event itself depends on no clock.
-let pendingClick: MouseEvent | null = null;
-function onReviewClickCapture(event: MouseEvent, task: TaskRecord): void {
-  pendingClick = event;
+// A plain click stays SPA navigation; the segment's <a> does no
+// preventDefault, so without this the browser reloads the whole page. Same
+// rule as router-link: only an unmodified primary click is taken over, the
+// rest (new tab, new window) is left to the browser. Enter on the focused link
+// fires a click too, so the keyboard takes the same path.
+function onReviewClick(event: MouseEvent, task: TaskRecord): void {
   if (event.defaultPrevented || event.button !== 0) return;
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const target = reviewTarget(task);
+  if (!target) return;
   event.preventDefault();
-  review(task);
+  router.push(target);
 }
 
-// `select` zonder klik erachter is een programmatische activatie door het menu
-// zelf - pointerdown op het ene item en loslaten op het andere, of een
-// aanroep van item.select(). Er is dan geen link-navigatie die het overneemt,
-// dus doen we het hier. Enter op een gefocust item loopt wél via een echte
-// click (het menu heeft geen eigen Enter-afhandeling), en dus via de guard
-// hierboven. Spatie niet: dat activeert een <a> nergens op het web, terwijl de
-// <button>-takken van de andere items er wél op reageren. Dat verschil hoort
-// bij het ontwerpsysteem (het rendert de href-tak), niet bij dit component -
-// hier het gedrag van één item nabouwen zou het juist uit de pas laten lopen
-// met elk ander link-menu-item.
-function onReviewSelect(task: TaskRecord): void {
-  if (pendingClick && pendingClick.eventPhase !== Event.NONE) return;
-  pendingClick = null;
-  review(task);
-}
-
-// "Bekijk document" op een lopende conversie: de .md bestaat nog niet, dus we
-// willen de job-weergave ("Aan het converteren…"), niet het document. Via een
-// emit i.p.v. router.push, zodat LibraryView viewingJobPath vóór de navigatie
-// zet - anders opent hij het pad eerst als gewoon document (de jobs-lijst is
-// bij binnenkomst nog niet gepolld) en flitst de 404/‘mislukt’-staat op. Zo
-// landt het deterministisch op de job-weergave, net als de zijbalk.
+// A running conversion: the .md does not exist yet, so we want the job view
+// ("Aan het converteren…"), not the document. Through an emit rather than
+// router.push, so LibraryView sets viewingJobPath before navigating -
+// otherwise it first opens the path as a plain document (the jobs list has not
+// been polled yet on entry) and the 404/"failed" state flashes.
 function viewDocument(job: RunningTaskJob): void {
   if (!job.target_path) return;
   emit('view-job', job.target_path);
 }
 
-// "Bekijk wet" op een lopende verrijking: annuleren kan niet (die endpoint
-// bestaat alleen voor conversies), maar de wet zelf bestaat wel - dus open 'm
-// in de bibliotheek. Zonder dit zou een lopende verrijking een leeg menu
-// hebben.
+// A running enrichment cannot be cancelled (that endpoint exists only for
+// conversions), but the law itself exists, so the row opens it in the library.
 function viewLaw(job: RunningTaskJob): void {
   const lawId = jobLawId(job);
   if (!lawId) return;
   router.push(homeTarget({ trajectRef: props.trajectRef || undefined, lawId }));
 }
+
+// Whether a running job has something to open: the document a conversion
+// writes, or the law an enrichment works on.
+function jobDestination(job: RunningTaskJob): boolean {
+  return jobContext(job) === WERKDOCUMENTEN ? Boolean(job.target_path) : Boolean(jobLawId(job));
+}
+
+function openJob(job: RunningTaskJob): void {
+  if (!jobDestination(job)) return;
+  if (jobContext(job) === WERKDOCUMENTEN) viewDocument(job);
+  else viewLaw(job);
+}
 </script>
 
 <template>
-  <nldd-list v-if="!isEmpty" appearance="simple">
-    <nldd-list-item v-for="task in shownTasks" :key="task.id" size="md">
-      <nldd-icon-cell
-        size="20"
-        :icon="taskIcon(task)"
-        :color="task.task_type === 'job_failed' ? 'critical' : undefined"
-      ></nldd-icon-cell>
-      <nldd-spacer-cell size="8"></nldd-spacer-cell>
-      <!-- Geen supporting-text met de foutmelding: die is technisch en lang, en
-           duwt de rij uit z'n voegen. Hij staat achter "Toon details". -->
-      <nldd-text-cell
-        :text="taskTitle(task, displayName)"
-        :color="task.task_type === 'job_failed' ? 'critical' : undefined"
-      ></nldd-text-cell>
-      <nldd-spacer-cell size="8"></nldd-spacer-cell>
-      <nldd-cell>
-        <!-- Bewust géén `expandable`: die zet nog een chevron náást het icoon,
-             en een overflow-knop die al "meer" zegt heeft geen tweede
-             open-signaal nodig. De aria-haspopup/-expanded komen van het menu
-             in de popup-slot, dat de knop zelf ankert en togglet. -->
-        <nldd-icon-button size="sm" icon="more" text="Acties" tooltip-timing="never">
-          <nldd-menu slot="popup">
-              <!-- Details bovenaan: bij een mislukking wil je eerst weten wát er
-                   misging voordat je 'm opnieuw probeert of wegzet. Kijken staat
-                   dus los van de twee acties die er iets mee doen. -->
-              <template v-if="task.task_type === 'job_failed'">
-                <nldd-menu-item text="Toon details" @select="showDetails(task)"></nldd-menu-item>
-                <nldd-menu-divider></nldd-menu-divider>
-                <nldd-menu-item
-                  v-if="taskNamesTraject(task)"
-                  text="Probeer opnieuw"
-                  @select="retry(task)"
-                ></nldd-menu-item>
-              </template>
-              <template v-else>
-                <!-- Echte link: zie reviewHref/onReviewClickCapture hierboven. -->
-                <nldd-menu-item
-                  text="Beoordelen"
-                  :href="reviewHref(task)"
-                  :disabled="!reviewTarget(task) || undefined"
-                  @click.capture="onReviewClickCapture($event, task)"
-                  @select="onReviewSelect(task)"
-                ></nldd-menu-item>
-              </template>
-              <nldd-menu-divider></nldd-menu-divider>
-              <!-- "Markeer als gedaan" is `dismissed`: van je lijst af, zonder
-                   oordeel. `rejected` (het voorstel deugt niet) hoort in de
-                   review-UI - daar zie je wat je verwerpt. -->
-              <nldd-menu-item text="Markeer als gedaan" @select="dismiss(task)"></nldd-menu-item>
-          </nldd-menu>
-        </nldd-icon-button>
-      </nldd-cell>
-    </nldd-list-item>
+  <template v-if="!isEmpty">
+    <template v-for="(group, index) in groups" :key="group.key">
+      <template v-if="showHeadings">
+        <nldd-spacer v-if="index > 0" size="24"></nldd-spacer>
+        <nldd-title size="display-5"><h4>{{ group.name }}</h4></nldd-title>
+        <nldd-spacer size="8"></nldd-spacer>
+      </template>
 
-    <nldd-list-item v-for="job in shownRunning" :key="job.job_id" size="md">
-      <!-- Een gewone cell, geen icon-cell: een activity-indicator is geen icoon
-           en heeft de icon-schaal van die cell niet nodig.
-           timing="instant": de anti-flash-vertraging van 1000ms is bedoeld voor
-           laadjes die zo weer weg zijn. Deze staan er minutenlang, dus die
-           vertraging levert alleen een gat op waar de rij al zichtbaar is. -->
-      <nldd-cell vertical-alignment="center">
-        <nldd-activity-indicator
-          size="20"
-          timing="instant"
-          :text="runningTitle(job, jobLawName)"
-        ></nldd-activity-indicator>
-      </nldd-cell>
-      <nldd-spacer-cell size="8"></nldd-spacer-cell>
-      <nldd-text-cell :text="runningTitle(job, jobLawName)"></nldd-text-cell>
-      <nldd-spacer-cell size="8"></nldd-spacer-cell>
-      <nldd-cell>
-        <nldd-icon-button size="sm" icon="more" text="Acties" tooltip-timing="never">
-          <nldd-menu slot="popup">
-          <template v-if="jobContext(job) === WERKDOCUMENTEN">
-            <nldd-menu-item text="Bekijk document" @select="viewDocument(job)"></nldd-menu-item>
-            <!-- Annuleren gooit de job én de bron-upload weg, dus het staat los
-                 van het onschuldige kijken erboven, en het is destructive. -->
-            <nldd-menu-divider></nldd-menu-divider>
-            <nldd-menu-item
-              destructive
-              text="Annuleer conversie"
-              @select="emit('cancel-job', job)"
-            ></nldd-menu-item>
-          </template>
-          <nldd-menu-item v-else text="Bekijk regelwerk" @select="viewLaw(job)"></nldd-menu-item>
-          </nldd-menu>
-        </nldd-icon-button>
-      </nldd-cell>
-    </nldd-list-item>
-  </nldd-list>
+      <nldd-list appearance="simple">
+        <nldd-list-item v-for="task in group.tasks" :key="task.id" size="md">
+          <!-- Main segment: what you came to do. A failure opens its details
+               (what went wrong comes before retrying or dismissing it); a
+               review is a link to the article in the editor. -->
+          <nldd-list-item-segment
+            v-if="task.task_type === 'job_failed'"
+            width="full"
+            button
+            :accessible-label="`${taskRowLabel(task, displayName)}, toon details`"
+            @click="showDetails(task)"
+          >
+            <nldd-icon-cell size="20" :icon="taskIcon(task)" color="critical"></nldd-icon-cell>
+            <nldd-spacer-cell size="8"></nldd-spacer-cell>
+            <nldd-text-cell :text="taskRowTitle(task)" color="critical"></nldd-text-cell>
+            <nldd-spacer-cell size="8"></nldd-spacer-cell>
+            <nldd-icon-cell size="20" icon="chevron-right"></nldd-icon-cell>
+          </nldd-list-item-segment>
+          <nldd-list-item-segment
+            v-else
+            width="full"
+            :href="reviewHref(task)"
+            :button="!reviewHref(task) || undefined"
+            :disabled="!reviewTarget(task) || undefined"
+            :accessible-label="taskRowLabel(task, displayName)"
+            @click="onReviewClick($event, task)"
+          >
+            <nldd-icon-cell size="20" :icon="taskIcon(task)"></nldd-icon-cell>
+            <nldd-spacer-cell size="8"></nldd-spacer-cell>
+            <nldd-text-cell :text="taskRowTitle(task)"></nldd-text-cell>
+            <nldd-spacer-cell size="8"></nldd-spacer-cell>
+            <nldd-icon-cell size="20" icon="chevron-right"></nldd-icon-cell>
+          </nldd-list-item-segment>
 
-  <!-- De lege staat verschilt per categorie: bij "Wachten op" loopt er niets,
-       elders ligt er niets. -->
+          <!-- More segment: the rest, in a menu. "Markeer als gedaan" stays
+               here rather than on the row: it cannot be undone, and resolving
+               a task deletes the proposal it carries. -->
+          <nldd-list-item-segment
+            button
+            :popovertarget="taskMenuId(task)"
+            :accessible-label="`Acties voor ${taskRowLabel(task, displayName)}`"
+          >
+            <nldd-icon-cell size="20" icon="more"></nldd-icon-cell>
+          </nldd-list-item-segment>
+        </nldd-list-item>
+
+        <!-- A running job has at most one thing to open. With only that, the
+             row itself is the control (the design system's rule for a single
+             action); a conversion can also be cancelled, so it gets segments.
+             A job with nothing to open (a law conversion, a harvest) is a
+             plain row: a chevron there would promise a destination. -->
+        <template v-for="job in group.running" :key="job.job_id">
+          <nldd-list-item v-if="jobContext(job) === WERKDOCUMENTEN" size="md">
+            <nldd-list-item-segment
+              width="full"
+              button
+              :disabled="!jobDestination(job) || undefined"
+              :accessible-label="runningTitle(job, jobLawName)"
+              @click="openJob(job)"
+            >
+              <nldd-cell vertical-alignment="center">
+                <nldd-activity-indicator size="20" timing="instant" :text="runningTitle(job, jobLawName)"></nldd-activity-indicator>
+              </nldd-cell>
+              <nldd-spacer-cell size="8"></nldd-spacer-cell>
+              <nldd-text-cell :text="runningRowTitle(job, jobLawName)"></nldd-text-cell>
+              <nldd-spacer-cell size="8"></nldd-spacer-cell>
+              <nldd-icon-cell size="20" icon="chevron-right"></nldd-icon-cell>
+            </nldd-list-item-segment>
+            <nldd-list-item-segment
+              button
+              :popovertarget="jobMenuId(job)"
+              :accessible-label="`Acties voor ${runningTitle(job, jobLawName)}`"
+            >
+              <nldd-icon-cell size="20" icon="more"></nldd-icon-cell>
+            </nldd-list-item-segment>
+          </nldd-list-item>
+          <nldd-list-item
+            v-else
+            size="md"
+            :button="jobDestination(job) || undefined"
+            @click="openJob(job)"
+          >
+            <!-- A plain cell, not an icon cell: an activity indicator is not an
+                 icon and does not need that cell's icon scale.
+                 timing="instant": the 1000ms anti-flash delay is meant for
+                 loaders that are gone again quickly. These stay for minutes,
+                 so the delay only leaves a gap where the row is already shown. -->
+            <nldd-cell vertical-alignment="center">
+              <nldd-activity-indicator size="20" timing="instant" :text="runningTitle(job, jobLawName)"></nldd-activity-indicator>
+            </nldd-cell>
+            <nldd-spacer-cell size="8"></nldd-spacer-cell>
+            <nldd-text-cell :text="runningRowTitle(job, jobLawName)"></nldd-text-cell>
+            <template v-if="jobDestination(job)">
+              <nldd-spacer-cell size="8"></nldd-spacer-cell>
+              <nldd-icon-cell size="20" icon="chevron-right"></nldd-icon-cell>
+            </template>
+          </nldd-list-item>
+        </template>
+      </nldd-list>
+    </template>
+
+    <!-- The menus live outside the list: a list item's slot only takes cells
+         and segments. Each segment above points at its menu through
+         popovertarget, which also positions the menu against it. -->
+    <template v-for="group in groups" :key="`menus-${group.key}`">
+      <nldd-menu v-for="task in group.tasks" :id="taskMenuId(task)" :key="task.id">
+        <template v-if="task.task_type === 'job_failed'">
+          <nldd-menu-item
+            v-if="taskNamesTraject(task)"
+            text="Probeer opnieuw"
+            @select="retry(task)"
+          ></nldd-menu-item>
+          <nldd-menu-divider v-if="taskNamesTraject(task)"></nldd-menu-divider>
+        </template>
+        <!-- "Markeer als gedaan" is `dismissed`: off your list, without a
+             verdict. `rejected` (the proposal is wrong) belongs in the review
+             UI, where you see what you reject. -->
+        <nldd-menu-item text="Markeer als gedaan" @select="dismiss(task)"></nldd-menu-item>
+      </nldd-menu>
+      <template v-for="job in group.running" :key="job.job_id">
+        <nldd-menu v-if="jobContext(job) === WERKDOCUMENTEN" :id="jobMenuId(job)">
+          <!-- Cancelling throws away the job and the uploaded source. -->
+          <nldd-menu-item
+            destructive
+            text="Annuleer conversie"
+            @select="emit('cancel-job', job)"
+          ></nldd-menu-item>
+        </nldd-menu>
+      </template>
+    </template>
+  </template>
+
+  <!-- The empty state differs per category: under "Wachten op" nothing is
+       running, elsewhere there is nothing to do. -->
   <nldd-inline-dialog
     v-else-if="categorie === WACHTEN"
     text="Niets loopt op dit moment."
@@ -340,9 +367,9 @@ function viewLaw(job: RunningTaskJob): void {
   ></nldd-inline-dialog>
   <nldd-inline-dialog v-else text="Geen taken"></nldd-inline-dialog>
 
-  <!-- Teleport naar body: deze lijst hangt in een split-view-pane, en een sheet
-       die daar als broer blijft staan pikt via ::slotted flex-grow de
-       pane-hoogte in. Zelfde reden als de create-sheet in TrajectMenu. -->
+  <!-- Teleported to body: this list hangs in a split-view pane, and a sheet
+       left there as a sibling takes the pane height through ::slotted
+       flex-grow. Same reason as the create sheet in TrajectMenu. -->
   <Teleport to="body">
     <nldd-sheet
       ref="detailSheetEl"
@@ -350,7 +377,7 @@ function viewLaw(job: RunningTaskJob): void {
       width="520px"
       @close="closeDetails"
     >
-      <nldd-page sticky-header>
+      <nldd-page sticky-header sticky-footer>
         <nldd-top-title-bar
           slot="header"
           text="Taakdetails"
@@ -365,6 +392,26 @@ function viewLaw(job: RunningTaskJob): void {
             <p>{{ detailTask.payload.error }}</p>
           </nldd-rich-text>
         </nldd-simple-section>
+        <!-- What you can do about it, right under what went wrong. -->
+        <nldd-container v-if="detailTask" slot="footer" padding="16">
+          <template v-if="taskNamesTraject(detailTask)">
+            <nldd-button
+              appearance="primary"
+              size="md"
+              width="full"
+              text="Probeer opnieuw"
+              @click="retry(detailTask)"
+            ></nldd-button>
+            <nldd-spacer size="8"></nldd-spacer>
+          </template>
+          <nldd-button
+            appearance="secondary"
+            size="md"
+            width="full"
+            text="Markeer als gedaan"
+            @click="dismiss(detailTask)"
+          ></nldd-button>
+        </nldd-container>
       </nldd-page>
     </nldd-sheet>
   </Teleport>

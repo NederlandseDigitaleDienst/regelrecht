@@ -117,46 +117,51 @@ describe('TasksListPane', () => {
     return wrapper;
   }
 
-  it('toont een lege staat zonder open taken', async () => {
+
+  it('shows an empty state without open tasks', async () => {
     const wrapper = await mountPane([]);
     expect(wrapper.get('nldd-inline-dialog').attributes('text')).toBe('Geen taken');
   });
 
-  // De acties zitten achter één Acties-menu per rij; `select` is het event dat
-  // nldd-menu-item vuurt.
-  function menuItems(wrapper: VueWrapper) {
-    return wrapper.findAll('nldd-menu-item');
-  }
-  function itemLabels(wrapper: VueWrapper) {
-    return menuItems(wrapper).map((i) => i.attributes('text'));
-  }
-  function findItem(wrapper: VueWrapper, text: string) {
-    const item = menuItems(wrapper).find((i) => i.attributes('text') === text);
-    if (!item) throw new Error(`Geen menu-item "${text}" - wel: ${itemLabels(wrapper).join(', ')}`);
-    return item;
-  }
-  async function selectItem(wrapper: VueWrapper, text: string) {
-    await findItem(wrapper, text).trigger('select');
-  }
+  // --- Helpers: rows are segmented, menus live next to the list ---
 
-  // Een echte klik op een nldd-menu-item loopt in deze volgorde: capture-fase
-  // op het host-element, dan de click-handler ín het item (die `select` vuurt,
-  // composed + bubbles), dan de bubble-fase op het host-element. Hier is het
-  // item een onbekend element zonder shadow root (het ontwerpsysteem wordt in
-  // deze test niet geladen), dus staat dat "binnenwerk" als tijdelijke
-  // kindnode die het select-event vuurt - alleen zo loopt het select-pad écht
-  // tussen beide click-fases door.
-  function clickItem(item: DOMWrapper<Element>, init: MouseEventInit = {}) {
-    const inner = document.createElement('span');
-    item.element.appendChild(inner);
-    inner.addEventListener('click', () => {
-      inner.dispatchEvent(new CustomEvent('select', { bubbles: true, composed: true }));
-    });
+  function rowTitles(wrapper: VueWrapper) {
+    return wrapper.findAll('nldd-list-item nldd-text-cell').map((c) => c.attributes('text'));
+  }
+  function headings(wrapper: VueWrapper) {
+    return wrapper.findAll('nldd-title h4').map((h) => h.text());
+  }
+  // The segment that does the row's main thing: the first one, full width.
+  function mainSegment(wrapper: VueWrapper, row = 0) {
+    return at(wrapper.findAll('nldd-list-item'), row).get('nldd-list-item-segment[width="full"]');
+  }
+  // The "more" segment of a row and the menu it points at.
+  function moreSegment(wrapper: VueWrapper, row = 0) {
+    return at(wrapper.findAll('nldd-list-item'), row).find('nldd-list-item-segment[popovertarget]');
+  }
+  function menuOf(wrapper: VueWrapper, row = 0) {
+    const id = moreSegment(wrapper, row).attributes('popovertarget');
+    return wrapper.get(`nldd-menu[id="${id}"]`);
+  }
+  function itemLabels(wrapper: VueWrapper, row = 0) {
+    return menuOf(wrapper, row).findAll('nldd-menu-item').map((i) => i.attributes('text'));
+  }
+  async function selectItem(wrapper: VueWrapper, text: string, row = 0) {
+    const item = menuOf(wrapper, row).findAll('nldd-menu-item').find((i) => i.attributes('text') === text);
+    if (!item) throw new Error(`no menu item "${text}" - only: ${itemLabels(wrapper, row).join(', ')}`);
+    await item.trigger('select');
+  }
+  // A click as the browser dispatches it from the segment's inner <a>.
+  function click(segment: Pick<DOMWrapper<Element>, 'element'>, init: MouseEventInit = {}) {
     const event = new MouseEvent('click', { bubbles: true, cancelable: true, ...init });
-    inner.dispatchEvent(event);
-    inner.remove();
+    segment.element.dispatchEvent(event);
     return event;
   }
+  const sheet = () => {
+    const el = document.body.querySelector('nldd-sheet');
+    if (!el) throw new Error('nldd-sheet not in the document');
+    return el;
+  };
 
   it('lists only the work of this traject, also for a law enriched in two', async () => {
     const here = { ...LAW_TASK, id: 'h1', traject_id: 'abcd1234-0000-4000-8000-000000000000' };
@@ -181,22 +186,87 @@ describe('TasksListPane', () => {
       lawId: 'test_wet',
     });
     expect(wrapper.findAll('nldd-list-item')).toHaveLength(1);
-    expect(itemLabels(wrapper)).not.toContain('Probeer opnieuw');
+    expect(wrapper.findAll('nldd-menu-item').map((i) => i.attributes('text'))).not.toContain('Probeer opnieuw');
   });
 
-  it('geeft elke rij één Acties-knop in plaats van losse knoppen', async () => {
-    const wrapper = await mountPane([LAW_TASK, DOC_TASK]);
-    expect(wrapper.findAll('nldd-button')).toHaveLength(0);
-    const btns = wrapper.findAll('nldd-icon-button');
-    expect(btns).toHaveLength(2);
-    expect(at(btns, 0).attributes('text')).toBe('Acties');
-    // Geen `expandable`: dat zou nog een chevron naast het more-icoon zetten.
-    expect(at(btns, 0).attributes('icon')).toBe('more');
-    // Het menu zit in de popup-slot van de knop, die het daarmee zelf ankert
-    // en togglet. Sinds design-system 0.8.76 volgt aria-haspopup daaruit, dus
-    // die staat niet meer als popup-type in de markup.
-    expect(at(btns, 0).find('nldd-menu[slot="popup"]').exists()).toBe(true);
+  // --- The main action is the row itself ---
+
+  it('makes a review row a link, with the other actions in a separate more segment', async () => {
+    const wrapper = await mountPane([LAW_TASK]);
+    // No overflow button inside a cell any more: the row's own segments carry it.
+    expect(wrapper.findAll('nldd-icon-button')).toHaveLength(0);
+    expect(mainSegment(wrapper).attributes('href')).toBe('/trajecten/traject-abcd1234/editor/test_wet?task=t2');
+    // The row shows the short title; the accessible name keeps the law, which
+    // the heading carries visually.
+    expect(mainSegment(wrapper).attributes('accessible-label')).toBe('Beoordeel het hele regelwerk van Test Wet');
+    expect(moreSegment(wrapper).attributes('popovertarget')).toBe('task-menu-t2');
+    expect(moreSegment(wrapper).attributes('accessible-label')).toBe(
+      'Acties voor Beoordeel het hele regelwerk van Test Wet',
+    );
+    expect(itemLabels(wrapper)).toEqual(['Markeer als gedaan']);
   });
+
+  it('links a review to the article it names', async () => {
+    const wrapper = await mountPane([{ ...LAW_TASK, id: 't2a', payload: { ...LAW_TASK.payload, article: '2' } }]);
+    expect(mainSegment(wrapper).attributes('href')).toBe('/trajecten/traject-abcd1234/editor/test_wet/2?task=t2a');
+    expect(rowTitles(wrapper)).toEqual(['Beoordeel artikel 2']);
+    // The accessible name starts with the words on screen (voice control).
+    expect(mainSegment(wrapper).attributes('accessible-label')).toBe('Beoordeel artikel 2 van Test Wet');
+  });
+
+  it('links a document review to the werkdocumenten route', async () => {
+    const wrapper = await mountPane([DOC_TASK]);
+    // Review tasks carry the eyeglasses icon (the action: look at it).
+    expect(wrapper.get('nldd-icon-cell').attributes('icon')).toBe('eyeglasses');
+    expect(mainSegment(wrapper).attributes('href')).toBe(
+      '/trajecten/traject-abcd1234/werkdocumenten/bijv-rapport.md?task=t5',
+    );
+  });
+
+  it('keeps a plain click on a review row in the router - no page load', async () => {
+    const wrapper = await mountPane([LAW_TASK]);
+    const event = click(mainSegment(wrapper));
+    // preventDefault: otherwise the browser follows the href and reloads the app.
+    expect(event.defaultPrevented).toBe(true);
+    expect(pushMock).toHaveBeenCalledTimes(1);
+    expect(pushMock).toHaveBeenCalledWith({
+      name: 'editor-traject',
+      params: { trajectRef: 'traject-abcd1234', lawId: 'test_wet' },
+      query: { task: 't2' },
+    });
+  });
+
+  it('leaves a modified click and a middle click to the browser', async () => {
+    const wrapper = await mountPane([LAW_TASK]);
+    for (const init of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) {
+      expect(click(mainSegment(wrapper), init).defaultPrevented).toBe(false);
+    }
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it('disables the row of a task without traject_ref/law_id instead of linking nowhere', async () => {
+    const wrapper = await mountPane([
+      { id: 't3', task_type: 'job_review', title: 'Verrijking beoordelen: ???', payload: {} },
+    ]);
+    const segment = mainSegment(wrapper);
+    expect(segment.attributes('disabled')).toBeDefined();
+    expect(segment.attributes('button')).toBeDefined();
+    expect(segment.attributes('href')).toBeFalsy();
+    click(segment);
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it('dismisses a task through "Markeer als gedaan" - dismissed, no verdict', async () => {
+    const wrapper = await mountPane([LAW_TASK]);
+    apiFetch.mockResolvedValue({ status: 200, json: async () => ({ tasks: [], open_count: 0 }) });
+    await selectItem(wrapper, 'Markeer als gedaan');
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/tasks/t2/resolve',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'dismissed' }) }),
+    );
+  });
+
+  // --- A failure opens its details, with what you can do about it ---
 
   const FAILED_TASK = {
     id: 't1',
@@ -210,189 +280,80 @@ describe('TasksListPane', () => {
     },
   };
 
-  it('toont een job_failed-taak als alert-rij, zonder de foutmelding in de rij', async () => {
+  it('shows a failed task as an alert row, without the error in the row', async () => {
     const wrapper = await mountPane([FAILED_TASK]);
     expect(wrapper.get('nldd-icon-cell').attributes('icon')).toBe('exclamation-circle-filled');
     expect(wrapper.get('nldd-icon-cell').attributes('color')).toBe('critical');
     const cell = wrapper.get('nldd-text-cell');
     expect(cell.attributes('color')).toBe('critical');
-    expect(cell.attributes('text')).toBe('Verrijking van Test Wet is mislukt');
-    // De technische string van ~200 tekens hoort niet in de rij maar in de sheet.
+    expect(cell.attributes('text')).toBe('Verrijking is mislukt');
+    // The technical string of ~200 characters belongs in the sheet.
     expect(cell.attributes('supporting-text')).toBeUndefined();
-    expect(itemLabels(wrapper)).toEqual(['Toon details', 'Probeer opnieuw', 'Markeer als gedaan']);
+    expect(itemLabels(wrapper)).toEqual(['Probeer opnieuw', 'Markeer als gedaan']);
+    // Every failed enrichment reads the same on screen; the name says which law.
+    expect(mainSegment(wrapper).attributes('accessible-label')).toBe(
+      'Verrijking is mislukt: Test Wet, toon details',
+    );
   });
 
-  it('zet de foutmelding in de details-sheet, geopend via "Toon details"', async () => {
+  it('offers no retry in the sheet for a failure that names no traject', async () => {
+    const wrapper = await mountPane([{ ...FAILED_TASK, payload: { law_id: 'test_wet', error: 'boom' } }]);
+    await mainSegment(wrapper).trigger('click');
+    await wrapper.vm.$nextTick();
+    const buttons = [...sheet().querySelectorAll('nldd-button')].map((b) => b.getAttribute('text'));
+    expect(buttons).toEqual(['Markeer als gedaan']);
+    expect(itemLabels(wrapper)).toEqual(['Markeer als gedaan']);
+  });
+
+  it('opens the details sheet with the error when the failed row is clicked', async () => {
     const wrapper = await mountPane([FAILED_TASK]);
-    // De sheet is naar body geteleporteerd, dus buiten de wrapper zoeken.
-    const sheet = () => {
-      const el = document.body.querySelector('nldd-sheet');
-      if (!el) throw new Error('nldd-sheet not in the document');
-      return el;
-    };
     expect(sheet().textContent).not.toContain('Foutmelding');
     expect(sheetShown).toBe(false);
 
-    await selectItem(wrapper, 'Toon details');
+    await mainSegment(wrapper).trigger('click');
     await wrapper.vm.$nextTick();
 
     expect(sheetShown).toBe(true);
     const text = sheet().textContent;
     expect(text).toContain('Foutmelding');
     expect(text).toContain('CORPUS_AUTH_MINBZK_REGELRECHT_CORPUS_TOKEN');
-    // De sheet draagt de leesbare titel, niet de rauwe servertitel.
+    // The sheet has no heading above it, so it carries the full title.
     expect(text).toContain('Verrijking van Test Wet is mislukt');
+    const buttons = [...sheet().querySelectorAll('nldd-button')].map((b) => b.getAttribute('text'));
+    expect(buttons).toEqual(['Probeer opnieuw', 'Markeer als gedaan']);
   });
 
-  it('geeft een review-taak geen details-ingang - daar valt niets technisch te tonen', async () => {
-    const wrapper = await mountPane([LAW_TASK]);
-    expect(itemLabels(wrapper)).not.toContain('Toon details');
-  });
-
-  it('handelt een taak af via "Markeer als gedaan" - dismissed, geen oordeel', async () => {
-    const wrapper = await mountPane([LAW_TASK]);
-    apiFetch.mockResolvedValue({ status: 200, json: async () => ({ tasks: [], open_count: 0 }) });
-    await selectItem(wrapper, 'Markeer als gedaan');
+  it('retries from the details sheet and closes it', async () => {
+    const wrapper = await mountPane([FAILED_TASK]);
+    await mainSegment(wrapper).trigger('click');
+    await wrapper.vm.$nextTick();
+    const retry = found([...sheet().querySelectorAll('nldd-button')].find((b) => b.getAttribute('text') === 'Probeer opnieuw'));
+    retry.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
     expect(apiFetch).toHaveBeenCalledWith(
-      '/api/tasks/t2/resolve',
-      expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'dismissed' }) }),
+      '/api/trajects/traject-abcd1234/corpus/laws/test_wet/enrich',
+      expect.objectContaining({ method: 'POST' }),
     );
+    expect(sheetShown).toBe(false);
   });
 
-  it('navigeert naar de editor-route met ?task= voor een job_review-taak', async () => {
-    const wrapper = await mountPane([LAW_TASK]);
-    // Beoordeel-taken dragen het eyeglasses-icoon (de actie: bekijken), niet
-    // een onderwerp-icoon.
-    expect(wrapper.get('nldd-icon-cell').attributes('icon')).toBe('eyeglasses');
-    expect(wrapper.get('nldd-text-cell').attributes('color')).toBeUndefined();
-    expect(itemLabels(wrapper)).toEqual(['Beoordelen', 'Markeer als gedaan']);
-    await selectItem(wrapper, 'Beoordelen');
-
-    expect(pushMock).toHaveBeenCalledWith({
-      name: 'editor-traject',
-      params: { trajectRef: 'traject-abcd1234', lawId: 'test_wet' },
-      query: { task: 't2' },
-    });
-  });
-
-  it('navigeert naar de werkdocumenten-route met ?task= voor een document-review-taak', async () => {
-    const wrapper = await mountPane([DOC_TASK]);
-    // Ook een document-review draagt eyeglasses: het icoon zegt "beoordelen",
-    // het onderwerp staat in de titel.
-    expect(wrapper.get('nldd-icon-cell').attributes('icon')).toBe('eyeglasses');
-    await selectItem(wrapper, 'Beoordelen');
-    expect(pushMock).toHaveBeenCalledWith({
-      name: 'werkdocumenten-traject',
-      params: { trajectRef: 'traject-abcd1234', docPath: 'bijv-rapport.md' },
-      query: { task: 't5' },
-    });
-  });
-
-  it('toont een disabled Beoordelen-item voor een taak zonder traject_ref/law_id', async () => {
-    const wrapper = await mountPane([
-      { id: 't3', task_type: 'job_review', title: 'Verrijking beoordelen: ???', payload: {} },
-    ]);
-    const item = findItem(wrapper, 'Beoordelen');
-    expect(item.attributes('disabled')).toBeDefined();
-    // Geen bruikbare href: zonder bestemming is er niets om naartoe te linken,
-    // dus houdt het ontwerpsysteem het item op de <button>-tak en ontstaat er
-    // geen kapotte link. Niet `toBeUndefined()`: in deze test is het item een
-    // onbekend element en verdwijnt het attribuut, maar in de app reflecteert
-    // een opgewaardeerde nldd-menu-item zijn lege standaardwaarde terug als
-    // `href=""`. Leeg óf afwezig is wat telt - beide vallen op de button-tak.
-    expect(item.attributes('href')).toBeFalsy();
-    await item.trigger('select');
-    expect(pushMock).not.toHaveBeenCalled();
-  });
-
-  // --- Beoordelen is een echte link ---
-
-  it('geeft Beoordelen de href van de editor-route, met het artikel als de taak er een noemt', async () => {
-    const wrapper = await mountPane([LAW_TASK]);
-    expect(findItem(wrapper, 'Beoordelen').attributes('href')).toBe(
-      '/trajecten/traject-abcd1234/editor/test_wet?task=t2',
+  it('dismisses from the details sheet', async () => {
+    const wrapper = await mountPane([FAILED_TASK]);
+    await mainSegment(wrapper).trigger('click');
+    await wrapper.vm.$nextTick();
+    const done = found([...sheet().querySelectorAll('nldd-button')].find((b) => b.getAttribute('text') === 'Markeer als gedaan'));
+    done.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await wrapper.vm.$nextTick();
+    await wrapper.vm.$nextTick();
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/tasks/t1/resolve',
+      expect.objectContaining({ body: JSON.stringify({ action: 'dismissed' }) }),
     );
-
-    const withArticle = await mountPane([
-      { ...LAW_TASK, id: 't2a', payload: { ...LAW_TASK.payload, article: '2' } },
-    ]);
-    expect(findItem(withArticle, 'Beoordelen').attributes('href')).toBe(
-      '/trajecten/traject-abcd1234/editor/test_wet/2?task=t2a',
-    );
+    expect(sheetShown).toBe(false);
   });
 
-  it('geeft Beoordelen op een document-review de href van de werkdocumenten-route', async () => {
-    const wrapper = await mountPane([DOC_TASK]);
-    expect(findItem(wrapper, 'Beoordelen').attributes('href')).toBe(
-      '/trajecten/traject-abcd1234/werkdocumenten/bijv-rapport.md?task=t5',
-    );
-  });
-
-  it('houdt een gewone klik op Beoordelen bij de router - geen page load', async () => {
-    const wrapper = await mountPane([LAW_TASK]);
-    const event = clickItem(findItem(wrapper, 'Beoordelen'));
-    // preventDefault: anders volgt de browser de href en herlaadt de hele app.
-    expect(event.defaultPrevented).toBe(true);
-    expect(pushMock).toHaveBeenCalledTimes(1);
-    expect(pushMock).toHaveBeenCalledWith({
-      name: 'editor-traject',
-      params: { trajectRef: 'traject-abcd1234', lawId: 'test_wet' },
-      query: { task: 't2' },
-    });
-  });
-
-  it('laat een ctrl/cmd/shift-klik en een middenklik aan de browser - navigeert niet zelf', async () => {
-    const wrapper = await mountPane([LAW_TASK]);
-    for (const init of [
-      { ctrlKey: true },
-      { metaKey: true },
-      { shiftKey: true },
-      { altKey: true },
-      // Middenklik vuurt in de praktijk auxclick, maar een click met button=1
-      // hoort net zo goed niet door ons afgevangen te worden.
-      { button: 1 },
-    ]) {
-      const event = clickItem(findItem(wrapper, 'Beoordelen'), init);
-      expect(event.defaultPrevented).toBe(false);
-    }
-    // Ook het select-event dat het menu-item bij zo'n klik meestuurt mag niet
-    // alsnog het huidige tabblad meenemen.
-    expect(pushMock).not.toHaveBeenCalled();
-
-    // En het overslaan geldt alleen voor die klik: een select zónder klik
-    // erachter (het menu activeert een item programmatisch als je op het ene
-    // item indrukt en op het andere loslaat) moet daarna gewoon weer
-    // navigeren. Bleef het overslaan hangen, dan was dat pad hierna dood.
-    await selectItem(wrapper, 'Beoordelen');
-    expect(pushMock).toHaveBeenCalledTimes(1);
-  });
-
-  // Vue's event invoker skips a handler when the event's timestamp is not
-  // later than the moment that handler was attached (`e._vts <=
-  // invoker.attached`, millisecond resolution). The first Vue handler an event
-  // reaches stamps it and always runs; every later one is subject to the
-  // check. So when a click lands in the same millisecond as the render that
-  // attached the listeners, only the first of two Vue handlers on that click
-  // runs. Pinning Date.now forces that ordering; without the pin it happened
-  // in about one run in four, and it failed a merge-queue run.
-  it('laat een select na een ctrl-klik ook navigeren als de klik in dezelfde milliseconde valt als de render', async () => {
-    const now = vi.spyOn(Date, 'now').mockReturnValue(Date.now());
-    try {
-      const wrapper = await mountPane([LAW_TASK]);
-      const event = clickItem(findItem(wrapper, 'Beoordelen'), { ctrlKey: true });
-      expect(event.defaultPrevented).toBe(false);
-      expect(pushMock).not.toHaveBeenCalled();
-
-      await selectItem(wrapper, 'Beoordelen');
-      expect(pushMock).toHaveBeenCalledTimes(1);
-    } finally {
-      now.mockRestore();
-    }
-  });
-
-  // --- Probeer opnieuw: één bedoeling, twee mechanieken ---
-
-  it('opent voor een mislukte conversie de bestandskiezer via de ouder', async () => {
+  it('opens the file picker through the parent for a failed conversion', async () => {
     const wrapper = await mountPane([
       {
         id: 't8',
@@ -402,19 +363,12 @@ describe('TasksListPane', () => {
       },
     ]);
     await selectItem(wrapper, 'Probeer opnieuw');
-    // De picker + foutmodal wonen in LibraryView, dus dit is een emit.
+    // The picker and its error modal live in LibraryView, so this is an emit.
     expect(wrapper.emitted('upload')).toHaveLength(1);
   });
 
-  it('vraagt voor een mislukte verrijking de verrijking opnieuw aan', async () => {
-    const wrapper = await mountPane([
-      {
-        id: 't9',
-        task_type: 'job_failed',
-        title: 'x',
-        payload: { law_id: 'test_wet', error: 'boom', traject_ref: 'traject-abcd1234' },
-      },
-    ]);
+  it('requests a failed enrichment again', async () => {
+    const wrapper = await mountPane([FAILED_TASK]);
     await selectItem(wrapper, 'Probeer opnieuw');
     expect(apiFetch).toHaveBeenCalledWith(
       '/api/trajects/traject-abcd1234/corpus/laws/test_wet/enrich',
@@ -423,82 +377,108 @@ describe('TasksListPane', () => {
     expect(wrapper.emitted('upload')).toBeUndefined();
   });
 
-  // --- Categorie-filtering: de lijst toont alleen wat het panel belooft ---
+  // --- Order: grouped by context, in the order of the regelwerk ---
 
-  it('filtert op de werkdocumenten-context', async () => {
-    const wrapper = await mountPane([DOC_TASK, LAW_TASK], [], { categorie: 'werkdocumenten' });
-    const cells = wrapper.findAll('nldd-text-cell');
-    expect(cells).toHaveLength(1);
-    expect(at(cells, 0).attributes('text')).toBe('Beoordeel werkdocument bijv-rapport.md');
+  const article = (id: string, lawId: string, nr: string) => ({
+    id,
+    task_type: 'job_review',
+    title: 'x',
+    payload: { law_id: lawId, traject_ref: 'traject-abcd1234', article: nr },
   });
 
-  it('filtert op de wet-context', async () => {
-    const wrapper = await mountPane([DOC_TASK, LAW_TASK], [], { categorie: 'wet' });
-    const cells = wrapper.findAll('nldd-text-cell');
-    expect(cells).toHaveLength(1);
-    expect(at(cells, 0).attributes('text')).toBe('Beoordeel verrijking van Test Wet');
-  });
-
-  it('filtert op een individuele wet', async () => {
-    const andere = { ...LAW_TASK, id: 't9', payload: { ...LAW_TASK.payload, law_id: 'andere_wet' } };
-    const wrapper = await mountPane([LAW_TASK, andere], [], {
-      categorie: 'wet',
-      lawId: 'andere_wet',
-    });
-    expect(wrapper.findAll('nldd-list-item')).toHaveLength(1);
-  });
-
-  it('zet mislukte taken bovenaan, ongeacht hun plek in de serverlijst', async () => {
-    const failed = {
-      id: 't7',
-      task_type: 'job_failed',
-      title: 'Conversie mislukt: bijlage.md',
-      payload: { traject_ref: 't-1', target_path: 'bijlage.md', error: 'boom' },
-    };
-    // De server levert nieuwste eerst; de mislukte staat hier als laatste.
-    const wrapper = await mountPane([DOC_TASK, LAW_TASK, failed]);
-    const titles = wrapper.findAll('nldd-text-cell').map((c) => c.attributes('text'));
-    expect(titles[0]).toBe('Conversie van bijlage.md is mislukt');
-  });
-
-  it('laat de onderlinge volgorde van de overige taken staan', async () => {
-    const failed = {
-      id: 't7',
-      task_type: 'job_failed',
-      title: 'Conversie mislukt: bijlage.md',
-      payload: { traject_ref: 't-1', target_path: 'bijlage.md', error: 'boom' },
-    };
-    const wrapper = await mountPane([DOC_TASK, failed, LAW_TASK]);
-    const titles = wrapper.findAll('nldd-text-cell').map((c) => c.attributes('text'));
-    expect(titles).toEqual([
-      'Conversie van bijlage.md is mislukt',
-      'Beoordeel werkdocument bijv-rapport.md',
-      'Beoordeel verrijking van Test Wet',
+  it('groups all tasks under a heading per context and sorts the articles', async () => {
+    // Server order: newest first, two enrichments interleaved.
+    const wrapper = await mountPane([
+      article('a10', 'wet_b', '10'),
+      article('x3', 'wet_a', '3'),
+      article('a2', 'wet_b', '2'),
+      DOC_TASK,
+      article('a1a', 'wet_b', '1a'),
+      article('x1', 'wet_a', '1'),
+    ]);
+    expect(headings(wrapper)).toEqual(['Werkdocumenten', 'Wet A', 'Wet B']);
+    expect(rowTitles(wrapper)).toEqual([
+      'Beoordeel bijv-rapport.md',
+      'Beoordeel artikel 1',
+      'Beoordeel artikel 3',
+      'Beoordeel artikel 1a',
+      'Beoordeel artikel 2',
+      'Beoordeel artikel 10',
     ]);
   });
 
-  // --- Wachten op: lopende jobs, geen taken ---
+  it('puts a failure on top, in the first group', async () => {
+    const failed = {
+      id: 't7',
+      task_type: 'job_failed',
+      title: 'x',
+      payload: { traject_ref: 'traject-abcd1234', law_id: 'wet_z', error: 'boom' },
+    };
+    // Last in the server list, and its law sorts last by name.
+    const wrapper = await mountPane([DOC_TASK, article('x1', 'wet_a', '1'), article('z1', 'wet_z', '1'), failed]);
+    expect(headings(wrapper)).toEqual(['Wet Z', 'Werkdocumenten', 'Wet A']);
+    expect(at(rowTitles(wrapper), 0)).toBe('Verrijking is mislukt');
+  });
 
-  it('toont onder wachten een activity-indicator per lopende job', async () => {
+  it('puts a failure first within its group, also when it would sort later', async () => {
+    const failedConversion = {
+      id: 'f1',
+      task_type: 'job_failed',
+      title: 'x',
+      payload: { traject_ref: 'traject-abcd1234', target_path: 'zeta.md', error: 'boom' },
+    };
+    const review = { ...DOC_TASK, id: 'r1', payload: { ...DOC_TASK.payload, target_path: 'alfa.md' } };
+    const wrapper = await mountPane([review, failedConversion], [], { categorie: 'werkdocumenten' });
+    expect(rowTitles(wrapper)).toEqual(['Conversie van zeta.md is mislukt', 'Beoordeel alfa.md']);
+  });
+
+  it('leaves out the heading when the page title already names the law', async () => {
+    const wrapper = await mountPane([LAW_TASK], [], { categorie: 'wet', lawId: 'test_wet' });
+    expect(headings(wrapper)).toEqual([]);
+    expect(rowTitles(wrapper)).toEqual(['Beoordeel het hele regelwerk']);
+  });
+
+  it('filters on the werkdocumenten context, without a heading', async () => {
+    const wrapper = await mountPane([DOC_TASK, LAW_TASK], [], { categorie: 'werkdocumenten' });
+    expect(headings(wrapper)).toEqual([]);
+    expect(rowTitles(wrapper)).toEqual(['Beoordeel bijv-rapport.md']);
+  });
+
+  it('filters on the law context', async () => {
+    const wrapper = await mountPane([DOC_TASK, LAW_TASK], [], { categorie: 'wet' });
+    expect(headings(wrapper)).toEqual(['Test Wet']);
+    expect(rowTitles(wrapper)).toEqual(['Beoordeel het hele regelwerk']);
+  });
+
+  it('filters on a single law', async () => {
+    const andere = { ...LAW_TASK, id: 't9', payload: { ...LAW_TASK.payload, law_id: 'andere_wet' } };
+    const wrapper = await mountPane([LAW_TASK, andere], [], { categorie: 'wet', lawId: 'andere_wet' });
+    expect(wrapper.findAll('nldd-list-item')).toHaveLength(1);
+  });
+
+  // --- Wachten op: running jobs, not tasks ---
+
+  it('shows an activity indicator per running job under wachten', async () => {
     const wrapper = await mountPane([], [{ job_id: 'j1', law_id: 'test_wet', status: 'pending' }], {
       categorie: 'wachten',
     });
     const indicators = wrapper.findAll('nldd-activity-indicator');
     expect(indicators).toHaveLength(1);
+    // The indicator's label stands alone, so it names the law.
     expect(at(indicators, 0).attributes('text')).toBe('Wachten op verrijking van Test Wet');
+    expect(headings(wrapper)).toEqual(['Test Wet']);
+    expect(rowTitles(wrapper)).toEqual(['Wachten op verrijking']);
     expect(wrapper.find('nldd-inline-dialog').exists()).toBe(false);
   });
 
-  // Zonder timing="instant" wacht de indicator 1000ms (anti-flash) voordat hij
-  // verschijnt - een gat in een rij die er toch al staat.
-  it('toont de indicator direct, zonder anti-flash-vertraging', async () => {
-    const wrapper = await mountPane([], [{ job_id: 'j1', law_id: 'test_wet' }], {
-      categorie: 'wachten',
-    });
+  // Without timing="instant" the indicator waits 1000ms (anti-flash) before it
+  // shows - a gap in a row that is already there.
+  it('shows the indicator at once, without the anti-flash delay', async () => {
+    const wrapper = await mountPane([], [{ job_id: 'j1', law_id: 'test_wet' }], { categorie: 'wachten' });
     expect(wrapper.get('nldd-activity-indicator').attributes('timing')).toBe('instant');
   });
 
-  it('toont een lopende documentconversie met de bestandsnaam uit target_path', async () => {
+  it('names a running document conversion by the file name from target_path', async () => {
     const wrapper = await mountPane(
       [],
       [{
@@ -510,53 +490,34 @@ describe('TasksListPane', () => {
       }],
       { categorie: 'wachten' },
     );
-    const indicators = wrapper.findAll('nldd-activity-indicator');
-    expect(indicators).toHaveLength(1);
-    expect(at(indicators, 0).attributes('text')).toBe('Wachten op conversie van rapport.md');
+    expect(wrapper.get('nldd-activity-indicator').attributes('text')).toBe('Wachten op conversie van rapport.md');
+    expect(rowTitles(wrapper)).toEqual(['Wachten op conversie van rapport.md']);
   });
 
-  it('toont onder wachten een eigen lege staat, niet die van de takenlijst', async () => {
+  it('has its own empty state under wachten', async () => {
     const wrapper = await mountPane([], [], { categorie: 'wachten' });
     expect(wrapper.get('nldd-inline-dialog').attributes('text')).toBe('Niets loopt op dit moment.');
   });
 
-  it('toont onder wachten geen taken, alleen lopende jobs', async () => {
-    const wrapper = await mountPane([LAW_TASK], [{ job_id: 'j1', law_id: 'test_wet' }], {
-      categorie: 'wachten',
-    });
-    // Alleen de running-rij; de taak hoort onder 'alle', niet hier.
+  it('shows no tasks under wachten, only running jobs', async () => {
+    const wrapper = await mountPane([LAW_TASK], [{ job_id: 'j1', law_id: 'test_wet' }], { categorie: 'wachten' });
     expect(wrapper.findAll('nldd-list-item')).toHaveLength(1);
-    expect(wrapper.findAll('nldd-button')).toHaveLength(0);
   });
 
-  // --- "Alle taken" is letterlijk alles: taken én waar je op wacht ---
+  // --- "Alle taken" is everything: tasks and what you are waiting for ---
 
-  it('toont onder alle ook de lopende jobs, onderaan', async () => {
+  it('shows running jobs under alle too, at the bottom of their group', async () => {
     const wrapper = await mountPane([LAW_TASK], [{ job_id: 'j1', law_id: 'test_wet' }]);
     expect(wrapper.findAll('nldd-list-item')).toHaveLength(2);
-    const titles = wrapper.findAll('nldd-text-cell').map((c) => c.attributes('text'));
-    expect(titles).toEqual([
-      'Beoordeel verrijking van Test Wet',
-      'Wachten op verrijking van Test Wet',
-    ]);
+    expect(rowTitles(wrapper)).toEqual(['Beoordeel het hele regelwerk', 'Wachten op verrijking']);
   });
 
-  it('geeft een lopende job onder alle een indicator en alleen het menu van de job', async () => {
-    const wrapper = await mountPane([], [{ job_id: 'j1', law_id: 'test_wet' }]);
-    expect(wrapper.findAll('nldd-activity-indicator')).toHaveLength(1);
-    // Wachten is geen taak: geen taakactie, alleen kijken naar wat er loopt.
-    expect(wrapper.findAll('nldd-icon-button')).toHaveLength(1);
-    expect(itemLabels(wrapper)).toEqual(['Bekijk regelwerk']);
-  });
-
-  it('toont niet de lege staat onder alle wanneer er alleen iets loopt', async () => {
+  it('does not show the empty state under alle when only something is running', async () => {
     const wrapper = await mountPane([], [{ job_id: 'j1', law_id: 'test_wet' }]);
     expect(wrapper.find('nldd-inline-dialog').exists()).toBe(false);
   });
 
-  // --- Lopende jobs horen in hun eigen context, onder je eigen taken ---
-
-  it('toont een lopende conversie onder Werkdocumenten, na de taken', async () => {
+  it('shows a running conversion under Werkdocumenten, after the tasks', async () => {
     const convertJob = {
       job_id: 'j2',
       job_type: 'document_convert',
@@ -564,48 +525,36 @@ describe('TasksListPane', () => {
       target_path: 'nota.md',
     };
     const wrapper = await mountPane([DOC_TASK], [convertJob], { categorie: 'werkdocumenten' });
-    const titles = wrapper.findAll('nldd-text-cell').map((c) => c.attributes('text'));
-    expect(titles).toEqual([
-      'Beoordeel werkdocument bijv-rapport.md',
-      'Wachten op conversie van nota.md',
-    ]);
+    expect(rowTitles(wrapper)).toEqual(['Beoordeel bijv-rapport.md', 'Wachten op conversie van nota.md']);
   });
 
-  it('houdt een lopende verrijking buiten Werkdocumenten', async () => {
-    const wrapper = await mountPane(
-      [DOC_TASK],
-      [{ job_id: 'j1', job_type: 'enrich', law_id: 'test_wet' }],
-      { categorie: 'werkdocumenten' },
-    );
+  it('keeps a running enrichment out of Werkdocumenten', async () => {
+    const wrapper = await mountPane([DOC_TASK], [{ job_id: 'j1', job_type: 'enrich', law_id: 'test_wet' }], {
+      categorie: 'werkdocumenten',
+    });
     expect(wrapper.findAll('nldd-activity-indicator')).toHaveLength(0);
     expect(wrapper.findAll('nldd-list-item')).toHaveLength(1);
   });
 
-  it('toont een lopende verrijking onder de wet waar hij over gaat', async () => {
-    const wrapper = await mountPane(
-      [LAW_TASK],
-      [{ job_id: 'j1', job_type: 'enrich', law_id: 'test_wet' }],
-      { categorie: 'wet', lawId: 'test_wet' },
-    );
-    const titles = wrapper.findAll('nldd-text-cell').map((c) => c.attributes('text'));
-    expect(titles).toEqual([
-      'Beoordeel verrijking van Test Wet',
-      'Wachten op verrijking van Test Wet',
-    ]);
+  it('shows a running enrichment under the law it is about', async () => {
+    const wrapper = await mountPane([LAW_TASK], [{ job_id: 'j1', job_type: 'enrich', law_id: 'test_wet' }], {
+      categorie: 'wet',
+      lawId: 'test_wet',
+    });
+    expect(rowTitles(wrapper)).toEqual(['Beoordeel het hele regelwerk', 'Wachten op verrijking']);
   });
 
-  it('houdt een lopende verrijking buiten een andere wet', async () => {
-    const wrapper = await mountPane(
-      [],
-      [{ job_id: 'j1', job_type: 'enrich', law_id: 'test_wet' }],
-      { categorie: 'wet', lawId: 'andere_wet' },
-    );
+  it('keeps a running enrichment out of another law', async () => {
+    const wrapper = await mountPane([], [{ job_id: 'j1', job_type: 'enrich', law_id: 'test_wet' }], {
+      categorie: 'wet',
+      lawId: 'andere_wet',
+    });
     expect(wrapper.findAll('nldd-activity-indicator')).toHaveLength(0);
   });
 
-  // --- Acties op een lopende job ---
+  // --- Actions on a running job ---
 
-  it('biedt bij een lopende conversie Bekijk document en Annuleer conversie', async () => {
+  it('opens a running conversion from its row and cancels it from its menu', async () => {
     const convertJob = {
       job_id: 'j2',
       job_type: 'document_convert',
@@ -613,35 +562,64 @@ describe('TasksListPane', () => {
       target_path: 'nota.md',
     };
     const wrapper = await mountPane([], [convertJob], { categorie: 'wachten' });
-    expect(itemLabels(wrapper)).toEqual(['Bekijk document', 'Annuleer conversie']);
 
-    await selectItem(wrapper, 'Bekijk document');
-    // Emit i.p.v. navigeren: LibraryView zet viewingJobPath vóór de navigatie,
-    // zodat de job-weergave deterministisch verschijnt (geen 404/mislukt-race).
+    await mainSegment(wrapper).trigger('click');
+    // An emit rather than navigating: LibraryView sets viewingJobPath before
+    // the navigation, so the job view appears deterministically.
     expect(wrapper.emitted('view-job')?.[0]).toEqual(['nota.md']);
     expect(pushMock).not.toHaveBeenCalled();
 
-    // Annuleren gooit de job én de bron-upload weg - dat mag niet lezen als een
-    // gewone actie naast "Bekijk document".
-    const annuleer = found(menuItems(wrapper).find((i) => i.attributes('text') === 'Annuleer conversie'));
-    expect(annuleer.attributes('destructive')).toBeDefined();
-
+    expect(itemLabels(wrapper)).toEqual(['Annuleer conversie']);
+    // Cancelling throws away the job and the uploaded source.
+    const cancel = menuOf(wrapper).get('nldd-menu-item');
+    expect(cancel.attributes('destructive')).toBeDefined();
     await selectItem(wrapper, 'Annuleer conversie');
     expect(wrapper.emitted('cancel-job')?.[0]).toEqual([convertJob]);
   });
 
-  // Annuleren bestaat alleen voor conversies, dus zonder dit zou een lopende
-  // verrijking een leeg menu openen.
-  it('biedt bij een lopende verrijking Bekijk regelwerk, en geen annuleren', async () => {
+  // Cancelling exists only for conversions, so a running enrichment has one
+  // action, and the row itself is the control.
+  it('opens the law from a running enrichment, with the row as the control', async () => {
     const wrapper = await mountPane([], [{ job_id: 'j1', job_type: 'enrich', law_id: 'test_wet' }], {
       categorie: 'wachten',
     });
-    expect(itemLabels(wrapper)).toEqual(['Bekijk regelwerk']);
-    await selectItem(wrapper, 'Bekijk regelwerk');
-    expect(pushMock).toHaveBeenCalled();
+    expect(wrapper.find('nldd-list-item-segment').exists()).toBe(false);
+    expect(wrapper.find('nldd-menu').exists()).toBe(false);
+    const row = wrapper.get('nldd-list-item');
+    expect(row.attributes('button')).toBeDefined();
+    await row.trigger('click');
+    expect(pushMock).toHaveBeenCalledTimes(1);
+    expect(appRouter.resolve(pushMock.mock.calls[0]![0]).params).toMatchObject({
+      trajectRef: 'traject-abcd1234',
+      lawId: 'test_wet',
+    });
   });
 
-  it('houdt lopende jobs buiten Prioriteit - er valt niets te doen', async () => {
+  // Both carry a law_id that names no law in the corpus: a synthetic key for a
+  // law conversion, a BWB id for a harvest.
+  it('files a law conversion and a harvest under Overig, as rows without a destination', async () => {
+    const wrapper = await mountPane(
+      [],
+      [
+        { job_id: 'j3', job_type: 'law_convert', law_id: 'lawdoc:traject-abcd1234/voorstel.pdf', target_path: 'voorstel.pdf' },
+        { job_id: 'j4', job_type: 'traject_harvest', law_id: 'BWBR0002399' },
+      ],
+    );
+    expect(headings(wrapper)).toEqual(['Overig']);
+    // No law heading above them, so they keep their full title.
+    expect(rowTitles(wrapper)).toEqual([
+      'Wachten op conversie van voorstel.pdf naar een regelwerk',
+      'Wachten op wet ophalen van BWBR0002399',
+    ]);
+    for (const row of wrapper.findAll('nldd-list-item')) {
+      expect(row.attributes('button')).toBeUndefined();
+      expect(row.find('nldd-icon-cell[icon="chevron-right"]').exists()).toBe(false);
+      await row.trigger('click');
+    }
+    expect(pushMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps running jobs out of Prioriteit - there is nothing to do', async () => {
     const failed = {
       id: 't7',
       task_type: 'job_failed',

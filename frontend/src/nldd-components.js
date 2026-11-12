@@ -42,6 +42,7 @@ import '@nldd/design-system/link';
 import '@nldd/design-system/link-group';
 import '@nldd/design-system/list';
 import '@nldd/design-system/list-item';
+import '@nldd/design-system/list-item-segment';
 import '@nldd/design-system/menu';
 import '@nldd/design-system/menu-divider';
 import '@nldd/design-system/menu-group';
