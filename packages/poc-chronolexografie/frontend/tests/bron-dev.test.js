@@ -24,7 +24,7 @@ describe('bronAntwoord', () => {
     };
     schrijf(
       'werk/m/bron.yaml',
-      'wortel: ../..\nmappen:\n  regulation/nl/w: regulation/nl/w\n  cells/c: werk/m/cellen/c\n  cells/c/reductions: werk/m/cellen/c/reducties\n',
+      'repo_root: ../..\ndirectories:\n  regulation/nl/w: regulation/nl/w\n  cells/c: werk/m/cellen/c\n  cells/c/reductions: werk/m/cellen/c/reducties\n',
     );
     schrijf('regulation/nl/w/2026-01-01.yaml', '$id: w');
     schrijf('werk/m/cellen/c/cel.yaml', 'name: C');
@@ -40,9 +40,9 @@ describe('bronAntwoord', () => {
     ]);
   });
 
-  it('weigert een manifest met een map boven de wortel, zoals het portaal', () => {
+  it('weigert een manifest met een map boven de repository-root, zoals het portaal', () => {
     const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
-    writeFileSync(join(dir, 'bron.yaml'), 'mappen:\n  cells/c: ../elders\n');
+    writeFileSync(join(dir, 'bron.yaml'), 'directories:\n  cells/c: ../elders\n');
     const [status, , tekst] = bronAntwoord('napp', { [lokaleEnv('napp')]: join(dir, 'bron.yaml') });
     rmSync(dir, { recursive: true });
     expect(status).toBe(502);
@@ -51,11 +51,22 @@ describe('bronAntwoord', () => {
 
   it('weigert een manifest dat een map twee keer noemt, zoals het portaal', () => {
     const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
-    writeFileSync(join(dir, 'bron.yaml'), 'mappen:\n  a: b\n  c: b/\n');
+    writeFileSync(join(dir, 'bron.yaml'), 'directories:\n  a: b\n  c: b/\n');
     const [status, , tekst] = bronAntwoord('napp', { [lokaleEnv('napp')]: join(dir, 'bron.yaml') });
     rmSync(dir, { recursive: true });
     expect(status).toBe(502);
     expect(tekst).toContain('named twice');
+  });
+
+  it('leest ook de oude Nederlandse veldnamen wortel en mappen', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
+    mkdirSync(join(dir, 'werk', 'w'), { recursive: true });
+    writeFileSync(join(dir, 'werk', 'bron.yaml'), 'wortel: ..\nmappen:\n  regulation/nl/w: werk/w\n');
+    writeFileSync(join(dir, 'werk', 'w', '2026-01-01.yaml'), '$id: w');
+    const [status, , tekst] = bronAntwoord('napp', { [lokaleEnv('napp')]: join(dir, 'werk', 'bron.yaml') });
+    rmSync(dir, { recursive: true });
+    expect(status).toBe(200);
+    expect(Object.keys(JSON.parse(tekst).bestanden)).toEqual(['regulation/nl/w/2026-01-01.yaml']);
   });
 
   it('zegt zonder POC_BRON_<NAAM> dat de bron niet beschikbaar is', () => {

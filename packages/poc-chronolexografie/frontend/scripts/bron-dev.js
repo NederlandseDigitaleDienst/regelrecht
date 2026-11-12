@@ -33,16 +33,23 @@ export function bestandenUitMap(dir) {
 const zonderSlash = (pad) => pad.replace(/^\/+|\/+$/g, '');
 
 /**
- * De bron die het manifest in `bestand` maakt: per map van de bron de map
- * van de repository onder `wortel` (vanaf de map van het manifest). Een
- * bestand hoort bij de langste map die het bevat. Een map zonder YAML is een
- * fout met de naam, zoals in het portaal.
+ * The source the manifest in `bestand` makes: under `directories`, per
+ * directory of the source, the directory of the repository it is, and under
+ * `repo_root` the path from the manifest's directory to the repository root.
+ * A file belongs to the longest directory that holds it. A directory without
+ * YAML is an error that names it, as in the portal.
  */
-export function bestandenUitManifest(bestand) {
-  const { wortel = '', mappen } = leesYaml(readFileSync(bestand, 'utf8'));
-  const basis = resolve(dirname(bestand), wortel);
-  const paren = Object.entries(mappen).map(([doel, van]) => [zonderSlash(doel), zonderSlash(van)]);
-  // Elke map ligt onder de wortel, zoals `Manifest::lees` in het portaal eist.
+export function filesFromManifest(bestand) {
+  const manifest = leesYaml(readFileSync(bestand, 'utf8')) ?? {};
+  // The Dutch names (`wortel`, `mappen`) are the ones the first manifests
+  // used, accepted like the serde aliases in the portal. They go once the
+  // NAPP manifests are renamed.
+  const repoRoot = manifest.repo_root ?? manifest.wortel ?? '';
+  const directories = manifest.directories ?? manifest.mappen;
+  if (directories == null) throw new Error(`the manifest ${bestand}: missing field \`directories\``);
+  const rootDir = resolve(dirname(bestand), repoRoot);
+  const paren = Object.entries(directories).map(([doel, van]) => [zonderSlash(doel), zonderSlash(van)]);
+  // Every directory lies below the repository root, as `Manifest::lees` in the portal demands.
   for (const pad of paren.flat()) {
     if (!pad || pad.split('/').some((d) => d === '..' || d === '.' || d === '')) {
       throw new Error(`the manifest ${bestand}: '${pad}' is no directory below the root`);
@@ -52,7 +59,7 @@ export function bestandenUitManifest(bestand) {
   if (dubbel !== undefined) throw new Error(`the manifest ${bestand}: '${dubbel}' is named twice`);
   const alle = {};
   for (const [, van] of paren) {
-    const dir = join(basis, van);
+    const dir = join(rootDir, van);
     if (!existsSync(dir)) continue;
     for (const [pad, tekst] of Object.entries(bestandenUitMap(dir))) alle[`${van}/${pad}`] = tekst;
   }
@@ -89,7 +96,7 @@ export function bronAntwoord(naam, env = process.env) {
   }
   let bestanden;
   try {
-    bestanden = manifest ? bestandenUitManifest(dir) : bestandenUitMap(dir);
+    bestanden = manifest ? filesFromManifest(dir) : bestandenUitMap(dir);
   } catch (e) {
     return [502, 'text/plain; charset=utf-8', `bron kon niet worden opgehaald: ${e.message}`];
   }

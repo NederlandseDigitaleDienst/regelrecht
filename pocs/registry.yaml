@@ -196,7 +196,7 @@ pocs:
           owner: NederlandseDigitaleDienst
           repo: regelrecht-corpus-NAPP
           branch: integratie/analistenportaal
-          path: werkbank/chronolex/napp/bron.yaml
+          path: chronolex/napp/bron.yaml
         token_env: NAPP_CORPUS_TOKEN
     assistent: false
     tags: [Leerplichtwet, BABW, parkeerverordening, zorgtoeslag, AWB, chronolexografie]
