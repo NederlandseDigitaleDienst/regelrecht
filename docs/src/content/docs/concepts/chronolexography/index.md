@@ -53,11 +53,16 @@ A chronicle holds three kinds of entry. An executogram is a fact that an article
   "recorded_on": "2026-10-20",
   "refers_to": "019a1b2c-…",
   "fields": { "bsn_aanvrager": "999993653", "medische_beoordeling": true },
-  "outputs": { "vergunning_verleend": true, "bezwaartermijn_einddatum": "2026-12-01" }
+  "outputs": { "vergunning_verleend": true, "bezwaartermijn_einddatum": "2026-12-01" },
+  "law_versions": [
+    { "law_id": "wet_voorbeeld", "valid_from": "2026-01-01", "hash": "sha256:4f1c…" }
+  ]
 }
 ```
 
 A chronolexogram does not copy anything the law already says. The law in force on `recorded_on` tells where each field came from and on what legal basis. To see which fields were the authority's findings, the cell takes the decision again (a replay). The chronicle only grows: entries are added in date order and never changed.
+
+A submission and a decision do say which law that was. `law_versions` lists each rulework version whose articles ran when the cell recorded the entry, once per version. For each it keeps the `$id`, the `valid_from` and the hash of the content as the engine loaded it (`ArticleResult::regulations_read`). A reduction whose answer the decision took is listed too, by its own version; what that reduction reads in turn is not listed yet. This is a reference to the law, not a copy of it, in the way a decision letter cites the article it rests on. An executogram and a receipt run no article and list nothing. An entry stored without `law_versions` reads as one with an empty list.
 
 A cell in `packages/cel` keeps one chronicle. The position paper lets a cell keep several chronicles (chronolexokronieken), and building that is on [the open questions page](/concepts/chronolexography/open-questions).
 
@@ -248,10 +253,13 @@ Synthesis is what the asking article does with those answers. It takes answers f
 
 The cell stores no reasons. It explains a decision by taking it again.
 
-- `Cell::explain` takes the decision again on its original day, with the law and the chronicle as they were then. It fails if the outcome differs.
+- `Cell::explain` takes the decision again on its original day, with the chronicle as it was then and the law the corpus now holds in force on that day. It fails if the outcome differs.
+- `Cell::law_since` compares the `law_versions` of an entry with the corpus. It reports each version that is gone or has other content, and each rulework that since has a later version in force on the day of the entry. A version that was not in force that day, such as the newest Awb whose hooks the engine reads, is no change by itself. This needs no replay. An entry without `law_versions` reports that the versions were not recorded.
 - `Cell::findings` reads from that replay which findings counted.
 - In the trace of the decision, the node of a cell's answer holds the run of the cell's reduction. That run includes the `PROJECTION` node and, under each record that counted, the law calls of its step. The engine asks the cell for this run only in a traced execution.
 - `Cell::explain_answer` runs a reduction again on its own, for one answer of a decision.
+
+These are two findings, and the cell keeps them apart. A rulework can change without changing the outcome: a correction of a typo in an explanation changes the hash, and the replay still gives what was recorded. The replay then succeeds, and `law_since` still names the change. When the outcome does differ, the replay fails as before, and its error also names every rulework that changed since, or says that the decision kept no versions. A replay that cannot run at all, for instance because a rulework it needs is gone, fails with the engine's error and names nothing; `law_since` then says what changed. A changed version does not stop a replay. That is how the replay worked before entries kept versions. A refusal would also make every decision unexplainable after any edit of a rulework it ran, including one that leaves the outcome alone. Taking the decision under the version it recorded needs a corpus that keeps the content of each version by its hash; that is an [open question](/concepts/chronolexography/open-questions).
 
 ## Try it
 

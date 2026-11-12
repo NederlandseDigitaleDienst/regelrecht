@@ -550,6 +550,7 @@ fn a_gram_that_would_not_open_again_is_not_appended() {
     let path = dir.path().join("kroniek.jsonl");
     let mut chronicle = Chronicle::open(&path).unwrap();
     let gram = Gram {
+        law_versions: Vec::new(),
         id: "g".into(),
         kind: "AANVRAAG".into(),
         basis: format!("{ID}#1"),

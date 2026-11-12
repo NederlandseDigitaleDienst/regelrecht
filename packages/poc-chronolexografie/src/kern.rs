@@ -5931,6 +5931,7 @@ mod tests {
                     on: &str,
                     fields: Value,
                     outputs: Value| Gram {
+            law_versions: Vec::new(),
             id: id.to_string(),
             kind: kind.to_string(),
             basis: basis.to_string(),

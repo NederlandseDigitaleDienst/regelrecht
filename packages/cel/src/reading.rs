@@ -710,6 +710,7 @@ mod tests {
 
     fn gram(kind: &str, basis: &str, refers_to: Option<&str>) -> Gram {
         Gram {
+            law_versions: Vec::new(),
             id: format!("{kind}-{basis}"),
             kind: kind.into(),
             basis: basis.into(),

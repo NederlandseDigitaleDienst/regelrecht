@@ -35,7 +35,9 @@ use crate::article::{
 use crate::config;
 use crate::context::{LazyInputs, RuleContext};
 use crate::data_source::{DataSource, DataSourceRegistry, DictDataSource};
-use crate::engine::{ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputProvenance};
+use crate::engine::{
+    ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputProvenance, RegulationRead,
+};
 use crate::error::{EngineError, Result};
 use crate::operations::ValueResolver;
 use crate::priority;
@@ -160,6 +162,9 @@ struct ResolutionContext<'a> {
     /// The open terms a finding, a regulation or a binding filled in this
     /// execution ([`ArticleResult::open_terms`]).
     open_terms: Vec<OpenTermFilled>,
+    /// The regulation versions whose articles ran in this execution
+    /// ([`ArticleResult::regulations_read`]).
+    regulations_read: Vec<RegulationRead>,
     /// The cell that runs the execution, asked for the answers a binding
     /// takes (`source.reduction`, RFC-048).
     answerer: Option<&'a dyn OpenTermAnswerer>,
@@ -300,6 +305,7 @@ impl<'a> ResolutionContext<'a> {
             findings_asked: BTreeSet::new(),
             findings_noted: BTreeSet::new(),
             open_terms: Vec::new(),
+            regulations_read: Vec::new(),
             answerer: None,
             sphere: Vec::new(),
             chronicle: None,
@@ -1675,6 +1681,8 @@ pub struct StageReport {
     pub declarations_not_in_force: Vec<DeclarationNotInForce>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub open_terms: Vec<OpenTermFilled>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub regulations_read: Vec<RegulationRead>,
 }
 
 impl StageReport {
@@ -1697,6 +1705,7 @@ impl StageReport {
             &res_ctx.declarations_not_in_force,
         );
         add(&mut self.open_terms, &res_ctx.open_terms);
+        add(&mut self.regulations_read, &res_ctx.regulations_read);
     }
 
     fn report_into(&self, result: &mut ArticleResult) {
@@ -1710,6 +1719,7 @@ impl StageReport {
             .declarations_not_in_force
             .clone_from(&self.declarations_not_in_force);
         result.open_terms.clone_from(&self.open_terms);
+        result.regulations_read.clone_from(&self.regulations_read);
     }
 }
 
@@ -3246,6 +3256,7 @@ impl LawExecutionService {
                     declaration_version_notes: Vec::new(),
                     declarations_not_in_force: Vec::new(),
                     open_terms: Vec::new(),
+                    regulations_read: Vec::new(),
                 });
             }
         }
@@ -4202,6 +4213,10 @@ impl LawExecutionService {
         res_ctx: &mut ResolutionContext<'_>,
     ) -> Result<ArticleResult> {
         let parameters = with_played_state(article, &law.id, parameters, res_ctx)?;
+        let read = RegulationRead::of(law);
+        if !res_ctx.regulations_read.contains(&read) {
+            res_ctx.regulations_read.push(read);
+        }
         let outer_anchor = res_ctx.enter_anchor(Some(LegalAnchor::from_article(law, article)));
         let result =
             self.evaluate_article_body(article, law, parameters, requested_outputs, stage, res_ctx);

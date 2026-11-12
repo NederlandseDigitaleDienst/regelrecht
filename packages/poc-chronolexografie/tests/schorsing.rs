@@ -241,6 +241,7 @@ fn met(mut grams: Vec<Gram>, extra: impl IntoIterator<Item = Gram>) -> Vec<Gram>
 fn ontvangst(article: &str, fact: &str, besluit: &str, on: &str, velden: Value) -> Gram {
     let fields: BTreeMap<String, Value> = map(&velden).into_iter().collect();
     Gram {
+        law_versions: Vec::new(),
         id: format!("{fact}-{on}"),
         kind: EXECUTOGRAM.to_string(),
         basis: format!("{AWB}#{article}"),

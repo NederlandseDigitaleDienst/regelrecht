@@ -102,6 +102,30 @@ pub struct OpenTermFilled {
     pub filled_by: FilledBy,
 }
 
+/// One version of a regulation whose article ran in an execution: its
+/// `$id`, its `valid_from` and the hash of its content, as the engine
+/// loaded it. A record that keeps these refers to the law it rests on
+/// without copying it.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+pub struct RegulationRead {
+    pub law_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash: Option<String>,
+}
+
+impl RegulationRead {
+    /// The version `law` is.
+    pub fn of(law: &ArticleBasedLaw) -> Self {
+        Self {
+            law_id: law.id.clone(),
+            valid_from: law.valid_from.clone(),
+            hash: law.content_hash.clone(),
+        }
+    }
+}
+
 /// Result of article execution
 #[derive(Debug, Clone)]
 pub struct ArticleResult {
@@ -147,6 +171,11 @@ pub struct ArticleResult {
     /// be listed twice, once per filler: an implementing article that reads
     /// the output it fills in reads it with the finding in its place.
     pub open_terms: Vec<OpenTermFilled>,
+    /// Every regulation version whose articles ran in this execution,
+    /// nested calls included, once each, in the order they first ran.
+    /// Populated by the service layer, independently of tracing. A cached
+    /// result was read earlier in the same execution and is listed then.
+    pub regulations_read: Vec<RegulationRead>,
 }
 
 /// Executes a single article's machine_readable.execution section.
@@ -374,6 +403,7 @@ impl<'a> ArticleEngine<'a> {
             declaration_version_notes: Vec::new(),
             declarations_not_in_force: Vec::new(),
             open_terms: Vec::new(),
+            regulations_read: Vec::new(),
         };
 
         tracing::debug!(
