@@ -125,7 +125,7 @@ const kies = (c) => navigate(() => kiezen(c.id));
     <nldd-collection layout="grid" item-min-width="320px">
       <nldd-card v-for="c in getoond" :key="c.id">
         <nldd-container slot="header" padding="16" gap="8">
-          <nldd-tag v-if="isVerborgen(c)" size="sm" color="warning" text="Verborgen voor anderen"></nldd-tag>
+          <nldd-tag v-if="isVerborgen(c)" size="sm" color="warning" text="Verborgen casus"></nldd-tag>
           <nldd-title
             size="display-4"
             heading-level="2"

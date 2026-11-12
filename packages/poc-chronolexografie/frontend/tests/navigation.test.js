@@ -33,9 +33,10 @@ vi.mock('../src/state.js', () => ({
   },
 }));
 vi.mock('../src/api.js', () => ({
-  // `uit-bron` comes from a hidden source: the choice screen leaves it out,
-  // the address does not (verborgen.js).
+  // `uit-bron` stands for a case from a hidden source (verborgen.js): the
+  // address must not consult the hidden list, and opens any case the cell has.
   api: { casussen: async () => ({ casussen: [{ id: 'vakantieverlof' }, { id: 'uit-bron', bron: 'voorbeeld' }] }) },
+  bronLijst: async () => [{ naam: 'voorbeeld', verborgen: true }],
 }));
 
 // The address bar and the history of one tab.

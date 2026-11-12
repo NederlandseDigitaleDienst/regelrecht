@@ -54,6 +54,12 @@ describe('leesBronLijst', () => {
     expect(await leesBronLijst('/bronnen.json', async () => antwoord(404, ''))).toEqual([]);
   });
 
+  it('slaat een onleesbare regel over in plaats van te stoppen', async () => {
+    expect(await leesBronLijst('/bronnen.json', async () => antwoord(200, [null, 3, { naam: 'open' }]))).toEqual([
+      { naam: 'open', verborgen: false },
+    ]);
+  });
+
   it('neemt een kale naam van een oudere build als een bron die niet verborgen is', async () => {
     expect(await leesBronLijst('/bronnen.json', async () => antwoord(200, ['voorbeeld']))).toEqual([
       { naam: 'voorbeeld', verborgen: false },

@@ -46,7 +46,9 @@ export async function leesBronLijst(lijstUrl, haal = fetch) {
     lijst = [];
   }
   if (!Array.isArray(lijst)) return [];
-  return lijst.map((b) => (typeof b === 'string' ? { naam: b, verborgen: false } : { naam: b.naam, verborgen: !!b.verborgen }));
+  return lijst
+    .filter((b) => typeof b === 'string' || typeof b?.naam === 'string')
+    .map((b) => (typeof b === 'string' ? { naam: b, verborgen: false } : { naam: b.naam, verborgen: !!b.verborgen }));
 }
 
 /** Elke bron uit `lijst` (`leesBronLijst`), elk op `url(naam)`, tegelijk opgehaald. */
