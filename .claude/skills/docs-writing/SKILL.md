@@ -44,6 +44,11 @@ The regex catches surface tells. These are the ones you read for:
 - **Manufactured balance.** Perfectly symmetric bullet lists, every bullet ending in a neat summary clause, adjacent bullets starting with the same verb. Humans trail off and vary.
 - **Hedge-stacking.** "I think", "perhaps", "it seems" on every sentence. One or two load-bearing hedges are fine; the pattern-frequency is the tell.
 
+The script is also blind to scope, which is a question of content rather than style:
+
+- **One page, one concept.** Before you write, name in one sentence the concept the page is about. Material belongs on it only if that concept cannot be explained without it. Material that belongs first to something else (another statute such as the Awb, storage, a PoC or harness, the engine, another component) goes on the page for that concept, and this page gets one sentence and a link at most. An example from another domain may illustrate a principle; the explanation of that domain stays on its own page. A list of open questions follows the same rule: only questions about this page's concept. The chronolexography pages show what happens otherwise: successive PRs each added a section on objection and appeal under the Awb, while `concepts/administrative-procedures.md` already covered them.
+- **Length.** Before you add to a long page, look for what can go or what belongs elsewhere. A PR that changes behavior documents it on the page of the concept that behavior belongs to, which is not automatically the page where the previous work landed.
+
 ## Register for these docs
 
 - **English docs are government-technical, not marketing.** State what a thing does and how. No "powerful", "seamless", "elegant", "robust" unless substantiated on the same line. The landing page sells; the docs explain.
@@ -73,7 +78,8 @@ These hold even without opening the checklist:
 2. Read each `warn` and decide: real contrast → rewrite; incidental → leave it.
 3. Read your headings and ledes aloud. Rule-of-three? Rewrite.
 4. Scan for uniform rhythm — vary it.
-5. If you edited `landing-content.ts`, confirm NL and EN both changed and match register.
-6. Build still passes: `just docs-build` (or `npm run build` in `docs/`).
+5. Name the page's concept in one sentence and check that everything you added belongs to it. Move the rest to the page of the concept it does belong to, and link it.
+6. If you edited `landing-content.ts`, confirm NL and EN both changed and match register.
+7. Build still passes: `just docs-build` (or `npm run build` in `docs/`).
 
 Then, if the prose is going to Anne to paste somewhere, pipe it through `pbcopy`.
