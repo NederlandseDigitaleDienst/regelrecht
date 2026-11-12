@@ -1450,8 +1450,8 @@ jobs:
       # Two packages the image lacks: `unzip` for Puppeteer's Chrome download,
       # and the DejaVu fonts the runner image renders code blocks in. The
       # script installs the exact .debs apt would pick, pinned by checksum,
-      # without going through the image's apt mirror; why, and how to refresh
-      # them, is in the script.
+      # without going through the image's apt mirror; why, which sources it
+      # tries, and how to refresh them, is in the script.
       - name: Install unzip and fonts
         if: needs.changes.outputs.docs == 'true'
         run: script/install-a11y-debs.sh

@@ -256,6 +256,13 @@ dockerfile-consistency-test:
 playwright-image-test:
     node --test script/playwright-image.test.mjs
 
+# How the docs accessibility gate gets its .debs: the fallback over the
+# sources and the SHA256 check. `curl` and `dpkg` are stubs on PATH, so
+# nothing goes over the network and nothing is installed.
+[doc("Check the .deb install for the docs accessibility gate")]
+a11y-debs-test:
+    script/install-a11y-debs.test.sh
+
 # De poort die productie op een groene CI laat wachten. Zonder deze test is een
 # poort die alles doorlaat niet te onderscheiden van een die werkt; `gh` staat
 # hier als stub op PATH, dus er gaat geen verkeer naar GitHub.

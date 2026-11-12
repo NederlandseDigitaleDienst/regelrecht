@@ -140,15 +140,33 @@ font with wider glyphs. Code blocks then overflow, and axe reports them as
 scrollable regions without keyboard access.
 
 It installs them without apt, to stay off the mirror described above.
-`script/install-a11y-debs.sh` downloads the three `.deb` files apt would pick
-(`unzip`, `fonts-dejavu-core` and its dependency `fonts-dejavu-mono`) from
-Launchpad, which keeps every published version. When Launchpad does not answer,
-it takes them from the Ubuntu archive pool, which holds a version until a newer
-one replaces it. It checks each file against a SHA-256 in the script, whichever
-source it came from, stops on a mismatch, and installs them with `dpkg -i`.
-The result is the same files as `apt-get install`, fontconfig configuration
+`script/install-a11y-debs.sh` installs the three `.deb` files apt would pick
+(`unzip`, `fonts-dejavu-core` and its dependency `fonts-dejavu-mono`) with
+`dpkg -i`. Each file is checked against a SHA-256 in the script, wherever it
+came from, and the script stops when no source delivers the right bytes. The
+result is the same files as `apt-get install`, fontconfig configuration
 included, in about two seconds. A newer Playwright image may need newer
 versions; the script says how to look them up.
+
+The script tries five sources in turn:
+
+1. Launchpad, which keeps every version that was ever published.
+2. The Ubuntu archive pool on `archive.ubuntu.com`, which holds a version only
+   until a newer one replaces it. Sources 3 to 5 mirror that pool and drop old
+   versions the same way.
+3. The Azure mirror under `azure.archive.ubuntu.com`, the host in the image's
+   apt sources.
+4. The same Azure mirror under its Azure name,
+   `ubuntu-archive-asm.trafficmanager.net`.
+5. The kernel.org mirror, `mirrors.edge.kernel.org`.
+
+The last two are there because their names do not depend on Canonical's DNS
+for `ubuntu.com` and `launchpad.net`, which failed on 2026-11-11 and took the
+first three sources down with it. A host that does not answer at all is
+skipped for the remaining files, so it costs its timeout once (at most ten
+seconds to connect). A host that answers with an HTTP error, or with the wrong
+bytes, still gets the next file. `script/install-a11y-debs.test.sh` covers
+these paths with `curl` and `dpkg` as stubs.
 
 The preview server that pa11y reads from binds to `127.0.0.1` (`npm run a11y`
 in `docs/package.json`), and the gate's page list uses the same address. Left
