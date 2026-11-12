@@ -561,16 +561,16 @@ fn an_unknown_state_type_is_refused() {
 
 /// A fact holds only its parameters, so the loader compares the columns of
 /// the fact's parameter even when its article also gives an output of the
-/// same name.
+/// same name. Both facts get such an output, so neither step escapes the
+/// comparison.
 #[test]
 fn a_fact_field_is_its_parameter_even_beside_an_output_of_that_name() {
     let parameter = format!("          - {{name: lijsten, type: array, columns: {COLUMNS}}}\n");
-    let shadowed = law(COLUMNS).replacen(
+    let shadowed = law(COLUMNS).replace(
         &parameter,
         &format!(
             "{parameter}        output: [{{name: lijsten, type: array}}]\n        actions: [{{output: lijsten, value: $lijsten}}]\n"
         ),
-        1,
     );
     assert_ne!(shadowed, law(COLUMNS));
     let mut service = LawExecutionService::new();
@@ -585,4 +585,33 @@ fn a_fact_field_is_its_parameter_even_beside_an_output_of_that_name() {
         ),
         "{err}"
     );
+}
+
+/// A decision holds its outputs besides its parameters, and an output wins
+/// over a parameter of the same name when the step plays. The output declares
+/// no columns, so the loader has nothing to compare, whatever the parameter
+/// declares.
+#[test]
+fn an_output_of_a_decision_hides_the_columns_of_its_parameter() {
+    let decision = r#"  - number: '3'
+    text: De burgemeester stelt de uitslag opnieuw vast.
+    machine_readable:
+      execution:
+        produces: [{type: BESCHIKKING, outputs: [lijsten]}]
+        parameters:
+          - {name: lijsten, type: array, columns: [{name: andere_kolom, type: string}]}
+        output: [{name: lijsten, type: array}]
+        actions: [{output: lijsten, value: $lijsten}]
+"#;
+    let step = "          - record: test_uitslagen#3\n            actions:\n              - {output: lijsten, value: $record.lijsten}\n";
+    let reduction_text = reduction("v0.8.20", COLUMNS).replace(
+        "  - number: stemmen_op_lijst\n",
+        &format!("{step}  - number: stemmen_op_lijst\n"),
+    );
+    assert_ne!(reduction_text, reduction("v0.8.20", COLUMNS));
+    let mut service = LawExecutionService::new();
+    service
+        .load_law(&format!("{}{decision}", law(COLUMNS)))
+        .unwrap();
+    service.load_law(&reduction_text).unwrap();
 }
