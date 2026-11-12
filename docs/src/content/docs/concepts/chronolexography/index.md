@@ -59,6 +59,8 @@ A chronicle holds three kinds of entry. An executogram is a fact that an article
 
 A chronolexogram does not copy anything the law already says. The law in force on `recorded_on` tells where each field came from and on what legal basis. To see which fields were the authority's findings, the cell takes the decision again (a replay). The chronicle only grows: entries are added in date order and never changed.
 
+A cell in `packages/cel` keeps one chronicle. The position paper lets a cell keep several chronicles (chronolexokronieken), and building that is on [the open questions page](/concepts/chronolexography/open-questions).
+
 ## Recording and deciding
 
 - `Cell::record_submission` runs the article that establishes the submission. It runs that article at the stage named after the kind of submission, so the hooks on the submission run too. A required field that is missing goes under `missing`, because an incomplete application is still an application (Awb 4:5). The moment the law counts from is the day the cell records the submission. A submission may refer to a decision (`refers_to`), as an objection does. The cell does not store what the article and its hooks give. `Cell::submission_outputs` computes it again from the fields, under the law in force on `recorded_on`. A decision on the submission computes it the same way, for example whether an objection came in time (Awb 6:9).
