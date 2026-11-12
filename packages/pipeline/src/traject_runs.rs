@@ -102,6 +102,9 @@ pub async fn list_traject_runs(
     traject_id: Uuid,
     viewer: Uuid,
 ) -> Result<Vec<TrajectRun>> {
+    // The traject match is written exactly as idx_jobs_traject_key (migration
+    // 0038) indexes it: `right(traject_ref, 9)` with `traject_ref IS NOT NULL`.
+    // Rephrase it and the planner falls back to scanning every traject's jobs.
     let runs = sqlx::query_as::<_, TrajectRun>(
         "SELECT j.id AS job_id, j.job_type, j.law_id, \
                 COALESCE(j.payload->>'target_path', j.payload->>'filename') AS target_path, \
