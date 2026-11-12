@@ -20,7 +20,7 @@
   "dependencies": {
     "@cucumber/gherkin": "^42.0.1",
     "@cucumber/messages": "^34.2.1",
-    "@nldd/design-system": "^0.16.0",
+    "@nldd/design-system": "^0.22.0",
     "@regelrecht/frontend-shared": "*",
     "@vue-flow/background": "^1.3.2",
     "@vue-flow/controls": "^1.1.3",
