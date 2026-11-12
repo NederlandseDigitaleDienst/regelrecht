@@ -5,7 +5,7 @@
       <!-- Eigen varianten apart gegroepeerd: ze zien er in een uitkomst net zo
            stellig uit als een variant uit het dossier, terwijl ze van de
            gebruiker zelf komen en alleen in deze browser staan. -->
-      <nldd-dropdown :key="`wv:${werkversie}:${variants.length}:${herteken}`" size="sm" width="360px" @change="kies($event.detail?.value ?? '')">
+      <nldd-dropdown :key="`wv:${werkversie}:${variants.length}:${herteken}`" size="sm" width="360px" @change="kies($event.target.value ?? '')">
         <select :value="werkversie ?? ''" aria-label="Kies de werkversie: wat je bewerkt">
           <option value="">Huidig recht (basis)</option>
           <option v-for="v in dossierVarianten" :key="v.id" :value="v.id">{{ variantMetSoort(kortTitel(v)) }}</option>

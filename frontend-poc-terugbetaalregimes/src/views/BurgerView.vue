@@ -2,7 +2,7 @@
   <nldd-page>
     <nldd-simple-section>
       <div class="intro-kop">
-        <nldd-title :size="1">
+        <nldd-title heading-level="1" size="display-1">
           <span slot="overline">Voor burgers</span>
           <span>Jouw studieschuld</span>
         </nldd-title>
@@ -61,7 +61,7 @@
 
       <!-- Wat je zou kunnen aanpassen; niets doen is er altijd één van -->
       <nldd-simple-section background="tinted">
-        <nldd-title :size="3">
+        <nldd-title heading-level="2" size="display-3">
           <span>Dit zou je kunnen aanpassen</span>
           <span slot="supporting-text">
             Je hoeft niets te doen. Laat je alles staan, dan blijft het bedrag hierboven gelden. Zet hieronder iets
@@ -156,7 +156,7 @@
 
       <!-- De uitkomst staat niet op zichzelf -->
       <nldd-simple-section>
-        <nldd-title :size="3">
+        <nldd-title heading-level="2" size="display-3">
           <span>Wat dit nog meer raakt</span>
           <span slot="supporting-text">Andere regelingen kijken naar hetzelfde inkomen.</span>
         </nldd-title>

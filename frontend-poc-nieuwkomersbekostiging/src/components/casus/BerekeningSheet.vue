@@ -8,7 +8,7 @@
   >
     <nldd-page>
       <nldd-container padding="24" gap="24">
-        <nldd-title :size="3">
+        <nldd-title heading-level="2" size="display-3">
           <span slot="overline">Dit komt letterlijk uit de regeling</span>
           <span>{{ titel }}</span>
         </nldd-title>
@@ -20,14 +20,14 @@
 
         <div class="bs-controls">
           <nldd-form-field label="Peildatum">
-            <nldd-dropdown :key="`k1:${peildatum}`" size="sm" @change="emit('update:peildatum', $event.detail?.value)">
+            <nldd-dropdown :key="`k1:${peildatum}`" size="sm" @change="emit('update:peildatum', $event.target.value)">
               <select :value="peildatum">
                 <option v-for="pd in peildata" :key="pd" :value="pd">{{ datumLabel(pd) }}</option>
               </select>
             </nldd-dropdown>
           </nldd-form-field>
           <nldd-form-field label="Uitkomst">
-            <nldd-dropdown :key="`k2:${output}`" size="sm" @change="emit('update:output', $event.detail?.value)">
+            <nldd-dropdown :key="`k2:${output}`" size="sm" @change="emit('update:output', $event.target.value)">
               <select :value="output">
                 <option v-for="o in outputs" :key="o" :value="o">{{ o }}</option>
               </select>

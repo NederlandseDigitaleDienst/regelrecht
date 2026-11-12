@@ -27,7 +27,7 @@
             :min="0"
             :step="5"
             size="sm"
-            @input="debounced(`m:${h.id}`, () => setMinuten(h.id, num($event)))"
+            @input="debounced(`m:${h.id}`, $event, (value) => setMinuten(h.id, value))"
           ></nldd-number-field>
         </nldd-form-field>
       </div>
@@ -42,7 +42,7 @@
             :min="0"
             :step="5"
             size="sm"
-            @input="debounced(`t:${naam}`, () => setTarief(naam, Math.round(num($event) * 100)))"
+            @input="debounced(`t:${naam}`, $event, (value) => setTarief(naam, Math.round(value * 100)))"
           ></nldd-number-field>
         </nldd-form-field>
         <nldd-form-field
@@ -57,7 +57,7 @@
             :max="100"
             :step="0.5"
             size="sm"
-            @input="debounced(`f:${naam}`, () => setFractie(naam, num($event) / 100))"
+            @input="debounced(`f:${naam}`, $event, (value) => setFractie(naam, value / 100))"
           ></nldd-number-field>
         </nldd-form-field>
       </div>
@@ -78,7 +78,7 @@
               :min="0"
               :step="100000"
               size="sm"
-              @input="debounced(`i:${inv.id}:b`, () => setInvestering(inv.id, { bedrag: Math.round(num($event) * 100) }))"
+              @input="debounced(`i:${inv.id}:b`, $event, (value) => setInvestering(inv.id, { bedrag: Math.round(value * 100) }))"
             ></nldd-number-field>
           </nldd-form-field>
           <div class="hp-row">
@@ -88,7 +88,7 @@
                 :min="1"
                 :max="20"
                 size="sm"
-                @input="debounced(`i:${inv.id}:a`, () => setInvestering(inv.id, { afschrijving_jaren: num($event) }))"
+                @input="debounced(`i:${inv.id}:a`, $event, (value) => setInvestering(inv.id, { afschrijving_jaren: value }))"
               ></nldd-number-field>
             </nldd-form-field>
             <nldd-form-field label="Vanaf jaar" supporting-label="invoeringsjaar">
@@ -97,7 +97,7 @@
                 :min="2025"
                 :max="2035"
                 size="sm"
-                @input="debounced(`i:${inv.id}:v`, () => setInvestering(inv.id, { vanaf_jaar: num($event) }))"
+                @input="debounced(`i:${inv.id}:v`, $event, (value) => setInvestering(inv.id, { vanaf_jaar: value }))"
               ></nldd-number-field>
             </nldd-form-field>
           </div>
@@ -115,7 +115,7 @@
             :min="0"
             :step="1"
             size="sm"
-            @input="debounced(`b:${post.key}`, () => setBudget(post.key, Math.round(num($event) * 1e8)))"
+            @input="debounced(`b:${post.key}`, $event, (value) => setBudget(post.key, Math.round(value * 1e8)))"
           ></nldd-number-field>
         </nldd-form-field>
       </div>
@@ -158,15 +158,24 @@ function grondslag(h) {
   return ` · grondslag${art}`;
 }
 
+/**
+ * The number in a number field, or null while the field is empty. Since design
+ * system 0.18 an emptied field reports null; Number(null) would read that as 0.
+ */
 function num(event) {
-  const v = event.detail?.value ?? Number(event.target?.value);
-  return v === null || v === undefined || Number.isNaN(v) ? 0 : Number(v);
+  const v = event.detail?.value ?? event.target?.value;
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
 }
 
 const timers = new Map();
-function debounced(key, fn) {
+// An empty field is no answer yet: the value it had stays until a number is typed.
+function debounced(key, event, apply) {
+  const n = num(event);
+  if (n === null) return;
   clearTimeout(timers.get(key));
-  timers.set(key, setTimeout(fn, 250));
+  timers.set(key, setTimeout(() => apply(n), 250));
 }
 </script>
 

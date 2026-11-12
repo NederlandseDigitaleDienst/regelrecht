@@ -11,6 +11,8 @@ const props = defineProps({
   gram: { type: Object, required: true },
   // Its place in its chronicle, from 1, when the list around it counts.
   nummer: { type: Number, default: null },
+  // The title's level in the outline around it (see UitklapCode.vue).
+  headingLevel: { type: Number, default: 3 },
 });
 
 const labels = computed(() => hoofdvelden(props.gram));
@@ -29,6 +31,7 @@ const boven = computed(() =>
     :naam="naam"
     language="json"
     :code="alsJson(gram)"
+    :heading-level="headingLevel"
   >
     <nldd-container v-if="labels.length" layout="wrap" gap="4">
       <nldd-tag v-for="w in labels" :key="w" size="sm" :text="w"></nldd-tag>

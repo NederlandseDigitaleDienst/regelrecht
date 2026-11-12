@@ -8,7 +8,7 @@
   >
     <nldd-page>
       <div class="ds-content">
-        <nldd-title :size="3">
+        <nldd-title heading-level="2" size="display-3">
           <span slot="overline">Wetswijziging</span>
           <span>{{ heading }}</span>
         </nldd-title>
@@ -19,7 +19,7 @@
 
         <template v-else>
           <section v-if="defChanges.length" class="ds-block">
-            <nldd-title :size="5"><span>Gewijzigde parameters</span></nldd-title>
+            <nldd-title heading-level="3" size="display-5"><span>Gewijzigde parameters</span></nldd-title>
             <ul class="ds-defs">
               <li v-for="(c, i) in defChanges" :key="i">
                 <span class="ds-art">artikel {{ c.article }}</span>
@@ -32,7 +32,7 @@
           </section>
 
           <section v-if="tekstChanges.length" class="ds-block">
-            <nldd-title :size="5"><span>Gewijzigde wettekst</span></nldd-title>
+            <nldd-title heading-level="3" size="display-5"><span>Gewijzigde wettekst</span></nldd-title>
             <div v-for="(c, i) in tekstChanges" :key="i" class="ds-tekst">
               <span class="ds-art">artikel {{ c.article }}</span>
               <p class="ds-tekst-oud">{{ c.before }}</p>
@@ -41,7 +41,7 @@
           </section>
 
           <section v-for="d in fileDiffs" :key="d.lawPath" class="ds-block">
-            <nldd-title :size="5"><span>{{ d.docName }}</span></nldd-title>
+            <nldd-title heading-level="3" size="display-5"><span>{{ d.docName }}</span></nldd-title>
             <div class="ds-diff">
               <div
                 v-for="(line, i) in d.lines"

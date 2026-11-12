@@ -29,9 +29,9 @@ async function begin(s) {
 
 <template>
   <nldd-simple-section>
-    <nldd-title
+    <nldd-title heading-level="2"
       slot="header"
-      size="3"
+      size="display-3"
       text="Scenario's"
       :supporting-text="`Elk scenario begint op ${eerste}, ${
         vooraf ? `met ${vooraf === 1 ? 'één chronolexogram' : `${vooraf} chronolexogrammen`} in de kroniek` : 'met een lege kroniek'
@@ -57,7 +57,7 @@ async function begin(s) {
       </nldd-list>
       <nldd-card v-for="s in zonderGids" :key="s.naam">
         <nldd-container padding="16" gap="12">
-          <nldd-title size="5" :text="s.naam">
+          <nldd-title heading-level="3" size="display-5" :text="s.naam">
             <nldd-tag v-if="state.scenario === s.naam" slot="end" color="accent" text="Bezig"></nldd-tag>
           </nldd-title>
           <nldd-rich-text>

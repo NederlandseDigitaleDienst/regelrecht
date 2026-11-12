@@ -122,7 +122,7 @@ function regels(h) {
     ></nldd-inline-dialog>
   </nldd-simple-section>
   <nldd-simple-section v-else-if="handelingen.length">
-    <nldd-title slot="header" size="3" text="Logboek">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Logboek">
       <nldd-text slot="supporting-text">
         Wat er gebeurde, de nieuwste stap bovenaan. Elke stap is een chronolexogram uit de
         kroniek. Ook een feit dat een andere cel vastlegde, zoals een inschrijving bij de Kamer

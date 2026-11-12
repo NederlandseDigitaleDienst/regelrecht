@@ -104,8 +104,8 @@ const regels = (g) =>
 <template>
   <nldd-card background="tinted" accessible-label="Voorlopige uitkomst">
     <nldd-container padding="16" gap="12">
-      <nldd-title
-        size="5"
+      <nldd-title heading-level="4"
+        size="display-5"
         text="Voorlopige uitkomst · nog niet vastgelegd"
         :supporting-text="bezig && stand !== null ? 'Wordt bijgewerkt…' : `Zo zou ${soort === 'uitspraak' ? 'de uitspraak' : 'het besluit'} uitvallen met de bevindingen zoals ze nu staan. Het loopt mee met elke wijziging; pas de knop legt het vast.`"
       ></nldd-title>
@@ -128,15 +128,15 @@ const regels = (g) =>
         :supporting-text="reden(geweigerd)"
       ></nldd-inline-dialog>
       <template v-else-if="voorlopig">
-        <nldd-title v-if="uitspraak" size="6" text="Uitspraak" :supporting-text="regels(uitspraak)">
+        <nldd-title heading-level="5" v-if="uitspraak" size="display-6" text="Uitspraak" :supporting-text="regels(uitspraak)">
           <nldd-badge slot="end" size="sm" color="neutral" :text="hoofdletter(toon(uitspraak.outputs.uitspraak_strekt_tot))"></nldd-badge>
         </nldd-title>
-        <nldd-title v-if="opBezwaar" size="6" text="Beslissing op bezwaar" :supporting-text="regels(beslissing)">
+        <nldd-title heading-level="5" v-if="opBezwaar" size="display-6" text="Beslissing op bezwaar" :supporting-text="regels(beslissing)">
           <nldd-badge slot="end" size="sm" :color="opBezwaar.kleur" :text="opBezwaar.tekst"></nldd-badge>
         </nldd-title>
-        <nldd-title
+        <nldd-title heading-level="5"
           v-if="besluit"
-          size="6"
+          size="display-6"
           :text="opBezwaarSoort ? 'Nieuw besluit' : 'Besluit'"
         >
           <nldd-text slot="supporting-text" size="sm" color="secondary">
