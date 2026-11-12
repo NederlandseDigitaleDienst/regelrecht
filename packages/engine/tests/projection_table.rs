@@ -558,3 +558,31 @@ fn an_unknown_state_type_is_refused() {
         "{err}"
     );
 }
+
+/// A fact holds only its parameters, so the loader compares the columns of
+/// the fact's parameter even when its article also gives an output of the
+/// same name.
+#[test]
+fn a_fact_field_is_its_parameter_even_beside_an_output_of_that_name() {
+    let parameter = format!("          - {{name: lijsten, type: array, columns: {COLUMNS}}}\n");
+    let shadowed = law(COLUMNS).replacen(
+        &parameter,
+        &format!(
+            "{parameter}        output: [{{name: lijsten, type: array}}]\n        actions: [{{output: lijsten, value: $lijsten}}]\n"
+        ),
+        1,
+    );
+    assert_ne!(shadowed, law(COLUMNS));
+    let mut service = LawExecutionService::new();
+    service.load_law(&shadowed).unwrap();
+    let err = service
+        .load_law(&reduction("v0.8.20", "[{name: aanduiding, type: string}]"))
+        .unwrap_err()
+        .to_string();
+    assert!(
+        err.contains(
+            "fills table 'lijsten' from $record.lijsten, which has a column 'aantal_stemmen'"
+        ),
+        "{err}"
+    );
+}

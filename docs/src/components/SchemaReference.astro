@@ -24,6 +24,7 @@ import {
   enumBlocks,
   schemaStats,
   legalBasisFields,
+  tableColumn,
   stringDefinition,
   operandForms,
   articleFields,
@@ -333,6 +334,12 @@ const others = otherSubStructures();
 </p>
 
 <SchemaFieldTable fields={legalBasisFields()} label="Fields of a legal basis citation" />
+
+<h3 id="table-column">Table column</h3>
+
+<p set:html={tableColumn().description} />
+
+<SchemaFieldTable fields={tableColumn().fields} label="Fields of a table column" />
 
 <h3 id="article-reference">Article reference</h3>
 

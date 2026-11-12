@@ -1495,7 +1495,12 @@ pub(crate) fn check_step<'l>(
             .iter()
             .find(|p| &p.name == property && p.property_type == StateType::Table)
             .and_then(|p| p.columns.as_deref());
-        let given = source_columns(projection, record.as_ref().map(|(a, _)| *a), &source);
+        // A fact holds only its parameters; another record also its outputs.
+        // A step that names a fact has the kind EXECUTOGRAM too.
+        let holder = record
+            .as_ref()
+            .map(|(article, kind)| (*article, kind.as_deref() == Some(EXECUTOGRAM)));
+        let given = source_columns(projection, holder, &source);
         if let (Some(table), Some(given)) = (table, given) {
             same_columns(table, given)
                 .map_err(|why| format!("fills table '{property}' from {source}, {why}"))?;
@@ -1734,19 +1739,21 @@ fn state_type(projection: &Projection, name: &str) -> Option<ParameterType> {
 }
 
 /// The columns of what `source` reads, where they are declared: a field of
-/// the record whose parameter declares them, or a table of the state. A
-/// field the record holds as an output (an output wins over a parameter of
-/// the same name when the step plays) declares none, and neither does an
-/// input of the step, which takes an output of a law.
+/// the record whose parameter declares them, or a table of the state.
+/// `record` is the article of the record and whether the record is a fact.
+/// A fact holds only parameters. Another record may hold the field as an
+/// output, which wins over a parameter of the same name when the step plays
+/// and declares no columns. An input of the step takes an output of a law,
+/// which declares none either.
 fn source_columns<'a>(
     projection: &'a Projection,
-    record: Option<&'a Article>,
+    record: Option<(&'a Article, bool)>,
     source: &StepSource,
 ) -> Option<&'a [Column]> {
     match source {
         StepSource::Record(field) => {
-            let article = record?;
-            if article.get_outputs().iter().any(|o| &o.name == field) {
+            let (article, of_fact) = record?;
+            if !of_fact && article.get_outputs().iter().any(|o| &o.name == field) {
                 return None;
             }
             article
