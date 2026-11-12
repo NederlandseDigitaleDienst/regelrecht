@@ -125,7 +125,7 @@ impl Herkomst {
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
     // The aliases accept the Dutch names the first manifests used
-    // (`wortel`, `mappen`). They go once the NAPP manifests are renamed.
+    // (`wortel`, `mappen`). They go once the existing manifests use the new names.
     #[serde(default, alias = "wortel")]
     pub repo_root: String,
     #[serde(alias = "mappen")]

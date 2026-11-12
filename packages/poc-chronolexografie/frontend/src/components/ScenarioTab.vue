@@ -2,7 +2,7 @@
 // The scenarios of the case (packages/poc-chronolexografie/corpus/casussen/). A
 // scenario with a guide (scenarioGuides.js) is one row here, by its name; its
 // steps follow in the guide beside the page once it begins. One without (a
-// case from a source, such as NAPP) shows the steps from the YAML in order and
+// case from a source) shows the steps from the YAML in order and
 // what you see at the end. The button puts the chronicle back on what the
 // cell records before the first scenario (empty, or what the case names under
 // `begin`) and the play date on the first day; then you go to the tab

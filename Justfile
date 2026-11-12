@@ -1084,8 +1084,9 @@ poc-chronolexografie-wasm:
 # Start de chronolexografie-poc los, op de vite-dev-server (http://localhost:5410)
 #
 # Alles draait in de browser: elk tabblad speelt zijn eigen casus. Achter het
-# portaal komt hij uit `just poc`. De NAPP-casus komt uit een bron; lokaal
-# zonder token met POC_BRON_NAPP=<map met casussen/, regulation/ en cells/>.
+# portaal komt hij uit `just poc`. Een casus uit een bron (`sources` in
+# pocs/registry.yaml) laadt lokaal zonder token met
+# POC_BRON_<NAAM>=<map met casussen/, regulation/ en cells/, of een manifest>.
 poc-chronolexografie: poc-chronolexografie-wasm
     npm run dev -w poc-chronolexografie
 

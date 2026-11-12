@@ -5,14 +5,14 @@ regulatory_layer: UITVOERINGSBELEID
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
 # FICTIEF. Dit is geen beleid van de Kamer van Koophandel, maar een eigen
-# keuze in de modellering, naar het voorbeeldbeleid voor de bevraging van het
-# handelsregister in de NAPP-PoC. De url wijst naar artikel 11 van de
+# keuze in de modellering, naar een voorbeeldbeleid voor de bevraging van het
+# handelsregister. De url wijst naar artikel 11 van de
 # Handelsregisterwet 2007, dat zegt wat het register over een vestiging van
 # een onderneming opneemt.
 # Waarom beleid en geen artikel van de wet: de Handelsregisterwet 2007 staat
-# niet in dit corpus. Zij staat wel in de NAPP-bron, met uitvoerbare artikelen
-# van die casus; een tweede versie onder dezelfde $id hier zou die
-# overschaduwen, want het regelrecht-corpus gaat voor een bron. Zolang de wet
+# niet in dit corpus. Een bron kan wel een eigen versie dragen, en een tweede
+# versie onder dezelfde $id hier zou die overschaduwen, want het
+# regelrecht-corpus gaat voor een bron. Zolang de wet
 # niet in het centrale corpus staat, vereist dit beleid het feit van de
 # inschrijving en zegt het wat zij bevat (RFC-051), zoals het fictieve beleid
 # van OBS De Klimop haar vestiging.

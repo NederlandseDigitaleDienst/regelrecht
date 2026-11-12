@@ -11,7 +11,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'fs';
 import { dirname, join, relative, resolve } from 'path';
 import { load as leesYaml } from 'js-yaml';
 
-/** De env-var met de lokale map van bron `naam`: napp -> POC_BRON_NAPP. */
+/** De env-var met de lokale map van bron `naam`: mijn-bron -> POC_BRON_MIJN_BRON. */
 export const lokaleEnv = (naam) => `POC_BRON_${naam.toUpperCase().replace(/-/g, '_')}`;
 
 /** Elk YAML-bestand onder `dir`, per pad onder `dir`. */
@@ -43,7 +43,7 @@ export function filesFromManifest(manifestPath) {
   const manifest = leesYaml(readFileSync(manifestPath, 'utf8')) ?? {};
   // The Dutch names (`wortel`, `mappen`) are the ones the first manifests
   // used, accepted like the serde aliases in the portal. They go once the
-  // NAPP manifests are renamed.
+  // existing manifests use the new names.
   for (const [name, alias] of [['repo_root', 'wortel'], ['directories', 'mappen']]) {
     if (name in manifest && alias in manifest) {
       throw new Error(`the manifest ${manifestPath}: duplicate field \`${name}\``);

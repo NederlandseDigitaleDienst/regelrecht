@@ -143,7 +143,7 @@ pub struct GithubSource {
 
 impl Source {
     /// The environment variable naming a local folder that replaces the
-    /// GitHub fetch: `napp` -> `POC_BRON_NAPP`.
+    /// GitHub fetch: `mijn-bron` -> `POC_BRON_MIJN_BRON`.
     pub fn local_env(&self) -> String {
         format!("POC_BRON_{}", self.name.to_uppercase().replace('-', "_"))
     }
