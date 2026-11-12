@@ -204,7 +204,7 @@ const kerngegevens = [
     md-padding-bottom="64"
     lg-padding-bottom="96"
   >
-    <nldd-title slot="header" size="1">
+    <nldd-title slot="header" size="display-1">
       <h1>{wp.titel}</h1>
       <p slot="supporting-text">
         {[
@@ -277,7 +277,7 @@ const kerngegevens = [
 
     <nldd-container gap="32" data-edit-base={editBase}>
       <nldd-container gap="12">
-        <nldd-title size="4"><h2>Onderzoeksvragen</h2></nldd-title>
+        <nldd-title size="display-4"><h2>Onderzoeksvragen</h2></nldd-title>
         {
           vragen.length ? (
             <nldd-rich-text>
@@ -311,7 +311,7 @@ const kerngegevens = [
       </nldd-container>
 
       <nldd-container gap="12">
-        <nldd-title size="4"><h2>Toelichting</h2></nldd-title>
+        <nldd-title size="display-4"><h2>Toelichting</h2></nldd-title>
         {
           toelichting ? (
             <nldd-rich-text>
@@ -328,7 +328,7 @@ const kerngegevens = [
       {
         rfcs.length > 0 && (
           <nldd-container gap="12">
-            <nldd-title size="4">
+            <nldd-title size="display-4">
               <h2>Ontwerp en implementatie</h2>
             </nldd-title>
             <nldd-list type="navigation" appearance="box-tinted">
@@ -356,7 +356,7 @@ const kerngegevens = [
       {
         (wachtOp.length > 0 || blokkeert.length > 0) && (
           <nldd-container gap="12">
-            <nldd-title size="4"><h2>Afhankelijkheden</h2></nldd-title>
+            <nldd-title size="display-4"><h2>Afhankelijkheden</h2></nldd-title>
             {wachtOp.length > 0 && (
               <nldd-container gap="8">
                 <nldd-text size="sm" weight="medium" color="secondary">
@@ -412,7 +412,7 @@ const kerngegevens = [
       }
 
       <nldd-container gap="12">
-        <nldd-title size="4"><h2>Samenhang</h2></nldd-title>
+        <nldd-title size="display-4"><h2>Samenhang</h2></nldd-title>
         {
           samenhang.length ? (
             <nldd-list type="navigation" appearance="box-tinted">
