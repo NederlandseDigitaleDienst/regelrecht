@@ -36,7 +36,10 @@
   --nu: light-dark(var(--primitives-color-geel-100), var(--primitives-color-donkergeel-850));
   --merk: light-dark(var(--primitives-color-geel-200), var(--primitives-color-donkergeel-700));
 }
-html, body { height: 100%; margin: 0; overflow-x: hidden; }
+/* nldd-page scrolt zelf; de pagina eromheen niet. clip en niet hidden: een
+   element met overflow hidden kan nog steeds door code gescrold worden, en
+   scrollIntoView schuift dan de hele pagina, kop en al, een stuk omhoog. */
+html, body { height: 100%; margin: 0; overflow: clip; }
 body {
   background: var(--vlak); color: var(--tekst);
   font-family: var(--primitives-font-family-body);
@@ -46,9 +49,17 @@ body {
 /* De pagina vult de ruimte onder wat er boven haar staat: achter het
    poc-portaal is dat een strook met het voorbehoud. */
 body { display: flex; flex-direction: column; }
-.app { display: grid; flex: 1 1 auto; min-height: 0; grid-template-rows: auto auto 1fr; grid-template-columns: minmax(0, 1fr); overflow: hidden; }
-.app > *, .werk > * { min-width: 0; }
+/* De pagina is een nldd-page met sticky-header: hij vult de ruimte onder wat
+   erboven staat (achter het poc-portaal de strook met het voorbehoud). */
+.app { flex: 1 1 auto; min-height: 0; height: auto; overflow: clip; }
+.werk > * { min-width: 0; }
 .kop { border-bottom: 1px solid var(--lijn); padding: 8px var(--ruimte) 0; }
+/* Naast de titel: dit is een proof of concept. */
+.voorbehoud { display: inline-flex; align-items: center; gap: 10px; margin-inline: 16px 24px; white-space: nowrap; font: var(--primitives-font-body-xs-regular-snug); color: var(--tekst-zacht); }
+
+/* De kop van nldd-page: de toolbar en daaronder de kalender. */
+.paginakop .toolbar { padding: 8px var(--ruimte); background: var(--vlak); border-bottom: 1px solid var(--lijn); }
+.kalenderbalk { background: var(--vlak-getint); padding: 2px var(--ruimte) 12px; border-bottom: 1px solid var(--lijn); }
 .speler { border-bottom: 1px solid var(--lijn); padding: 8px var(--ruimte) 10px; display: grid; gap: 6px; background: var(--vlak-getint); }
 .speler-regel { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .speler-regel nldd-button-bar { flex: none; }
@@ -83,14 +94,31 @@ body { display: flex; flex-direction: column; }
 .legenda i.rond { border-radius: 50%; }
 
 .werk { display: grid; grid-template-columns: 260px minmax(0, 1fr) 440px; min-height: 0; }
-.zij, .rail { overflow: auto; min-height: 0; }
+/* Zijlijst en rail staan onder de kop van de pagina vast en scrollen zelf.
+   top: 0, want de scroller van nldd-page heeft al een padding-top ter hoogte
+   van de kop en die telt de browser mee; --context-inset-top erbij telde hem
+   dubbel. --context-scroller-height en --context-inset-top komen van nldd-page. */
+.zij, .rail { overflow: auto; min-height: 0; position: sticky; top: 0; align-self: start;
+  max-height: calc(var(--context-scroller-height, 100dvh) - var(--context-inset-top, 0px)); }
 .zij { border-right: 1px solid var(--lijn); background: var(--vlak-getint); }
 .rail { border-left: 1px solid var(--lijn); background: var(--vlak-getint); }
-.document { overflow: auto; min-height: 0; padding: 24px 32px 160px; }
+.document { min-height: 0; padding: 24px 32px 160px; }
 .zij h3, .rail h3 { font: var(--primitives-font-body-xs-semi-bold-snug); text-transform: uppercase; letter-spacing: .04em; color: var(--tekst-zacht); margin: 16px 0 6px; }
 .zij .blok { padding: 0 12px 12px; }
+/* Kop van de artikelkolom: titel links, inklapknop rechts, met lucht eromheen. */
+.zijkop { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 12px 0 12px; }
+.zij .zijkop h3 { margin: 0; }
+.zij nldd-search-field { display: block; margin-bottom: 8px; }
+/* Ingeschoven: een smalle strook met alleen de uitklapknop. */
+.werk.zij-in { grid-template-columns: 52px minmax(0, 1fr) 440px; }
+.werk.zij-in .zij .blok { padding: 0 4px; }
+.werk.zij-in .zij .blok > :not(.zijkop), .werk.zij-in .zijkop h3 { display: none; }
+.werk.zij-in .zijkop { justify-content: center; }
 .stukken { list-style: none; margin: 0; padding: 0; }
-.stukken li { display: grid; grid-template-columns: 12px 26px 1fr; gap: 6px; align-items: start; padding: 4px 6px; border-radius: 6px; font: var(--primitives-font-body-sm-regular-snug); cursor: pointer; }
+/* Het dossier als lijst hoort bij de tijdlijn: dezelfde stukken, in tekst.
+   In kolommen, zodat de speler niet een scherm hoog wordt. */
+.dossier .stukken { columns: 260px; column-gap: 16px; max-height: 40vh; overflow: auto; }
+.stukken li { break-inside: avoid; display: grid; grid-template-columns: 12px 26px 1fr; gap: 6px; align-items: start; padding: 4px 6px; border-radius: 6px; font: var(--primitives-font-body-sm-regular-snug); cursor: pointer; }
 .stukken li:hover { background: var(--vlak); }
 .stukken li.later { color: var(--tekst-zacht); }
 .stukken li.later .punt { opacity: .4; }
@@ -99,20 +127,10 @@ body { display: flex; flex-direction: column; }
 .stukken .nr { font: var(--primitives-font-body-sm-semi-bold-snug); text-align: right; }
 .stukken .soort { display: block; }
 .stukken .datum { display: block; font: var(--primitives-font-body-xs-regular-snug); color: var(--tekst-zacht); }
-.artlijst { list-style: none; margin: 0; padding: 0; }
-.artlijst li { display: flex; gap: 6px; align-items: baseline; padding: 3px 6px; border-radius: 6px; cursor: pointer; font: var(--primitives-font-body-sm-regular-snug); }
-.artlijst li:hover { background: var(--vlak); }
-.artlijst li.nu { background: var(--nu); }
-.artlijst li.focus { box-shadow: inset 3px 0 0 var(--accent); background: var(--vlak); }
-.artlijst li.kopregel { cursor: default; font: var(--primitives-font-body-xs-semi-bold-snug); color: var(--tekst-zacht); margin-top: 6px; }
-.artlijst li.kopregel:hover { background: none; }
-.artlijst .anr { min-width: 46px; font-weight: 600; }
-.artlijst .atitel { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--tekst-zacht); }
-.artlijst .teller { font: var(--primitives-font-body-xs-medium-snug); color: var(--tekst-zacht); }
 .punt { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
 .filter { display: flex; align-items: center; gap: 6px; margin: 6px 0; font: var(--primitives-font-body-sm-regular-snug); }
 
-.artikel { max-width: 860px; margin: 0 auto 18px; border: 1px solid var(--lijn); border-radius: 10px; background: var(--vlak); padding: 10px 18px 12px; scroll-margin-top: 16px; position: relative; transition: border-color .3s, box-shadow .3s; }
+.artikel { max-width: 860px; margin: 0 auto 18px; border: 1px solid var(--lijn); border-radius: 10px; background: var(--vlak); padding: 10px 18px 12px; scroll-margin-top: 64px; position: relative; transition: border-color .3s, box-shadow .3s; }
 .artikel.geraakt { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); animation: oplicht 1s ease-out; }
 .artikel.focus { box-shadow: inset 4px 0 0 var(--accent); }
 .artikel.geraakt.focus { box-shadow: inset 4px 0 0 var(--accent), 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
@@ -122,9 +140,13 @@ body { display: flex; flex-direction: column; }
 .toelknop { font: var(--primitives-font-body-xs-medium-snug); border: 1px solid var(--lijn); background: var(--vlak); color: var(--tekst-zacht); border-radius: 999px; padding: 1px 8px; cursor: pointer; display: inline-flex; gap: 5px; align-items: center; }
 .toelknop:hover, .toelknop.aan { border-color: var(--accent); color: var(--accent); }
 .toelknop .nieuw { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
-.structuurkop { max-width: 860px; margin: 26px auto 10px; font: var(--primitives-font-body-lg-semi-bold-snug); scroll-margin-top: 16px; }
+.structuurkop { max-width: 860px; margin: 26px auto 10px; font: var(--primitives-font-body-lg-semi-bold-snug); scroll-margin-top: 64px; }
 .structuurkop.paragraaf { font: var(--primitives-font-body-md-semi-bold-snug); }
 .structuurkop.geraakt { color: var(--accent); }
+/* Een hoofdstukkop blijft onder de toolbar staan tot de volgende hem
+   overneemt: die staat later in het document en tekent er dus overheen. */
+.structuurkop.hoofdstuk { position: sticky; top: 0; z-index: 2; background: var(--vlak);
+  padding-block: 8px; border-bottom: 1px solid var(--lijn); }
 .regel { display: grid; grid-template-columns: 6px 1fr; gap: 10px; padding: 3px 4px; border-radius: 4px; cursor: pointer; line-height: 1.55; }
 .regel:hover { background: var(--vlak-getint); }
 .regel.gekozen { background: var(--nu); }
@@ -240,13 +262,12 @@ kbd { font: var(--primitives-font-body-xs-medium-snug); border: 1px solid var(--
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 @media (max-width: 1200px) {
   .werk { grid-template-columns: 220px minmax(0, 1fr); }
-  .rail { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--lijn); max-height: 50vh; }
-  body { height: auto; min-height: 100%; }
-  .app { flex: none; }
+  .werk.zij-in { grid-template-columns: 52px minmax(0, 1fr); }
+  .rail { grid-column: 1 / -1; border-left: 0; border-top: 1px solid var(--lijn); max-height: 50vh; position: static; }
 }
 @media (max-width: 720px) {
-  .werk { grid-template-columns: 1fr; }
-  .zij { max-height: 30vh; border-right: 0; border-bottom: 1px solid var(--lijn); }
+  .werk, .werk.zij-in { grid-template-columns: 1fr; }
+  .zij { max-height: 30vh; position: static; border-right: 0; border-bottom: 1px solid var(--lijn); }
   .document { padding: 16px 16px 80px; }
   .regel.kop .inhoud { margin-right: 0; }
   .artikel .knoppen { position: static; margin-bottom: 4px; }

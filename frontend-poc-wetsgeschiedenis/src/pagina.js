@@ -281,7 +281,19 @@ function bouwKalender() {
   }
   h += `<div class="kalnaald" id="kalnaald"></div>`;
   $("kalender").innerHTML = h;
-  $("kalender").addEventListener("click", (e) => { const b = e.target.closest(".stip"); if (b) { stop(); ga(+b.dataset.pos); } });
+  $("kalender").addEventListener("click", (e) => {
+    const b = e.target.closest(".stip"); if (!b) return;
+    stop(); ga(+b.dataset.pos);
+    // Een klik op een stip opent het dossier als lijst op dat stuk. Alleen de
+    // lijst scrolt, niet de pagina.
+    const d = document.querySelector("details.dossier"); if (!d) return;
+    d.open = true;
+    requestAnimationFrame(() => {
+      const lijst = $("stukken"), li = lijst.querySelector("li.actief"); if (!li) return;
+      const r = li.getBoundingClientRect(), c = lijst.getBoundingClientRect();
+      lijst.scrollBy({ top: r.top - c.top - (c.height - r.height) / 2, left: r.left - c.left - (c.width - r.width) / 2, behavior: "smooth" });
+    });
+  });
   bouwKalender.x = x;
 }
 function bouwStrook() {
@@ -355,29 +367,82 @@ $("stukken").addEventListener("click", (e) => {
   stop(); ga(+li.dataset.pos);
 });
 
+// De artikelen als een boom uit het ontwerpsysteem (nldd-list type="tree"):
+// een hoofdstuk is een rij die inklapt, met eronder zijn artikelen. Een
+// artikel staat er alleen met zijn nummer; de titel is de tooltip. Wat deze
+// stap raakt is `selected`, het gekozen artikel `current`.
+const HFD_OPEN = new Map(); // sleutel van een hoofdstuk -> open of dicht, zoals de gebruiker het zette
+let laatstGetoond = null; // het artikel dat de zijlijst het laatst in beeld bracht
 function bouwArtikellijst(S) {
   const s = huidigeStap();
   const nu = new Set(s ? STAPART[s.i - 1] : (PERSTUK.get(huidig().stuk) || []).flatMap((b) => b.ids || []));
   const zoek = Z.zoek.toLowerCase();
-  let h = "";
+  const filtert = !!zoek || Z.alleenGewijzigd;
+  const groepen = [];
+  let g = { kop: null, sleutel: null, rijen: [], nu: false, focus: false, gewijzigd: 0, aantal: 0 };
   for (const k of S.v) {
     const b = S.b[k];
     if (b.soort !== "artikel") {
-      if (!zoek && !Z.alleenGewijzigd && (b.soort === "hoofdstuk" || b.soort === "deel")) h += `<li class="kopregel">${esc(b.regels[0][0])}</li>`;
+      if (b.soort === "hoofdstuk" || b.soort === "deel") {
+        groepen.push(g);
+        g = { kop: b.regels[0][0], sleutel: k, rijen: [], nu: false, focus: false, gewijzigd: 0, aantal: 0 };
+      }
       continue;
     }
     const id = idVan(k);
     const keer = (RAAK.get(id) || []).filter((i) => i <= Z.stap).length;
     if (Z.alleenGewijzigd && !keer) continue;
     if (zoek && !(`artikel ${b.nr} ` + b.regels.map((r) => r[0]).join(" ")).toLowerCase().includes(zoek)) continue;
-    const titel = b.regels[0][0].replace(/^Artikel \S+\.?\s*/, "");
-    h += `<li data-art="${esc(id)}" class="${nu.has(id) ? "nu" : ""}${Z.art === id ? " focus" : ""}"><span class="anr">Art. ${esc(b.nr)}</span><span class="atitel">${esc(titel)}</span>${keer ? `<span class="teller" title="${keer} keer gewijzigd tot hier">${keer}×</span>` : ""}</li>`;
+    g.aantal++;
+    if (keer) g.gewijzigd++;
+    if (nu.has(id)) g.nu = true;
+    if (Z.art === id) g.focus = true;
+    const tip = `${b.regels[0][0]}${keer ? ` · ${keer} keer gewijzigd tot hier` : ""}`;
+    g.rijen.push({ id, nr: b.nr, keer, tip });
   }
-  $("artlijst").innerHTML = h || `<li class="kopregel">Niets gevonden</li>`;
+  groepen.push(g);
+
+  const rij = (a, genest) => `<nldd-list-item${genest ? ' slot="children"' : ""} size="sm" button data-art="${esc(a.id)}" title="${esc(a.tip)}"${nu.has(a.id) ? " selected" : ""}${Z.art === a.id ? " current" : ""}>`
+    + `${genest ? '<nldd-spacer-cell size="12"></nldd-spacer-cell>' : ""}<nldd-text-cell size="sm" text="Artikel ${esc(a.nr)}"></nldd-text-cell>`
+    + `${a.keer ? `<nldd-cell><nldd-badge size="sm" color="neutral" number="${a.keer}"></nldd-badge></nldd-cell>` : ""}</nldd-list-item>`;
+  let h = "";
+  for (const gr of groepen) {
+    if (!gr.rijen.length) continue;
+    if (!gr.kop) { h += gr.rijen.map((a) => rij(a, false)).join(""); continue; }
+    const open = filtert || (HFD_OPEN.has(gr.sleutel) ? HFD_OPEN.get(gr.sleutel) : gr.nu || gr.focus);
+    const onder = `${gr.aantal} ${gr.aantal === 1 ? "artikel" : "artikelen"}${gr.gewijzigd ? ` · ${gr.gewijzigd} gewijzigd` : ""}`;
+    h += `<nldd-list-item size="sm" button data-hfd="${esc(gr.sleutel)}"${open ? " expanded" : ""}>`
+      + `<nldd-text-cell size="sm" text="${esc(gr.kop)}" supporting-text="${esc(onder)}"></nldd-text-cell>`
+      + `<nldd-icon-cell disclosure icon="chevron-right" size="16" color="secondary"></nldd-icon-cell>`
+      + gr.rijen.map((a) => rij(a, true)).join("") + `</nldd-list-item>`;
+  }
+  $("artlijst").innerHTML = h || `<nldd-list-item size="sm"><nldd-text-cell size="sm" text="Niets gevonden"></nldd-text-cell></nldd-list-item>`;
+  // Kies je een ander artikel, dan schuift de zijlijst het in beeld. Alleen de
+  // zijlijst scrolt, en alleen bij een wissel: wie door de lijst bladert terwijl
+  // de speler loopt, wordt niet steeds teruggezet.
+  if (Z.art && Z.art !== laatstGetoond) {
+    laatstGetoond = Z.art;
+    requestAnimationFrame(() => {
+      const rij = $("artlijst").querySelector(`nldd-list-item[data-art="${CSS.escape(Z.art)}"]`);
+      if (rij && rij.offsetParent) inBeeld(rij, { blok: "center", zacht: true });
+    });
+  }
 }
+// De artikelkolom schuift in tot een smalle strook met alleen deze knop.
+$("zij-knop").addEventListener("click", () => {
+  const werk = document.querySelector(".werk");
+  const dicht = werk.classList.toggle("zij-in");
+  // Ingeklapt is de inhoud ook voor toetsenbord en schermlezer weg.
+  document.querySelectorAll(".zij .blok > :not(.zijkop)").forEach((el) => el.toggleAttribute("inert", dicht));
+  $("zij-knop").setAttribute("aria-expanded", String(!dicht));
+  $("zij-knop").setAttribute("icon", dicht ? "sidebar-right" : "sidebar-left");
+  $("zij-knop").setAttribute("text", dicht ? "Artikelen uitklappen" : "Artikelen inklappen");
+});
 $("artlijst").addEventListener("click", (e) => {
-  const li = e.target.closest("li[data-art]"); if (!li) return;
-  kiesArtikel(li.dataset.art, true);
+  const art = e.target.closest("nldd-list-item[data-art]");
+  if (art) { kiesArtikel(art.dataset.art, true); return; }
+  const hfd = e.target.closest("nldd-list-item[data-hfd]"); if (!hfd) return;
+  HFD_OPEN.set(hfd.dataset.hfd, hfd.toggleAttribute("expanded"));
 });
 
 // ------------------------------------------------------------- het document
@@ -432,9 +497,35 @@ function tekenTekst() {
   $("document").innerHTML = h;
   bouwArtikellijst(S);
 }
+// Breng een element verticaal in beeld binnen zijn eigen scroller, en alleen
+// daar. scrollIntoView beweegt elke voorouder die kan scrollen, ook een met
+// overflow hidden en ook zijwaarts; daardoor schoof de pagina weg.
+// blok: "start" (bovenaan, rekening houdend met scroll-padding en
+// scroll-margin), "nearest" (alleen als het er buiten valt) of "center".
+// boven: extra ruimte bovenaan, voor een vaste kop binnen de scroller.
+function scrollerVan(el) {
+  let n = el.assignedSlot || el.parentElement || el.getRootNode().host;
+  while (n) {
+    if (/auto|scroll/.test(getComputedStyle(n).overflowY) && n.scrollHeight > n.clientHeight) return n;
+    n = n.assignedSlot || n.parentElement || (n.getRootNode() instanceof ShadowRoot ? n.getRootNode().host : null);
+  }
+  return null;
+}
+function inBeeld(el, { blok = "start", zacht = false, boven = 0 } = {}) {
+  const sc = scrollerVan(el); if (!sc) return;
+  const r = el.getBoundingClientRect(), c = sc.getBoundingClientRect();
+  const top = c.top + (parseFloat(getComputedStyle(sc).scrollPaddingTop) || 0) + boven;
+  const marge = parseFloat(getComputedStyle(el).scrollMarginTop) || 0;
+  let dy = 0;
+  if (blok === "start") dy = r.top - top - marge;
+  else if (blok === "center") dy = r.top - top - (c.bottom - top - r.height) / 2;
+  else if (r.top < top) dy = r.top - top;
+  else if (r.bottom > c.bottom) dy = r.bottom - c.bottom;
+  if (Math.abs(dy) >= 1) sc.scrollBy({ top: dy, behavior: zacht ? "smooth" : "auto" });
+}
 function scrollNaar(id, zacht) {
   const el = id && document.getElementById("art-" + id);
-  if (el) el.scrollIntoView({ block: "start", inline: "nearest", behavior: zacht ? "smooth" : "auto" });
+  if (el) inBeeld(el, { zacht });
 }
 
 // ---- twee momenten naast elkaar, of een moment naast een ijkpunt
@@ -777,7 +868,7 @@ function tekenRail() {
   const t = $("toekomst"); if (t) t.onchange = (e) => { Z.toekomst = e.target.checked; tekenRail(); };
   const w = $("regel-weg"); if (w) w.onclick = () => { Z.regel = null; document.querySelectorAll(".regel.gekozen").forEach((x) => x.classList.remove("gekozen")); tekenRail(); };
   const nuEl = $("rail").querySelector(".gebeurtenis.nu");
-  if (nuEl && Z.speelt) nuEl.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+  if (nuEl && Z.speelt) inBeeld(nuEl, { blok: "nearest", zacht: true, boven: $("rail").querySelector(".railkop")?.offsetHeight || 0 });
 }
 
 // ------------------------------------------------------------- kiezen en volgen
@@ -841,7 +932,7 @@ function teken(scroll) {
   if (scroll && Z.modus === "tekst") {
     const s = huidigeStap();
     const doel = s ? (Object.keys(s.wijzig).map((k) => document.querySelector(`#document [data-sleutel="${k}"]`)).find(Boolean)) : null;
-    if (doel) doel.scrollIntoView({ block: "start", inline: "nearest", behavior: Z.speelt ? "smooth" : "auto" });
+    if (doel) inBeeld(doel, { zacht: !!Z.speelt });
     else if (Z.art) scrollNaar(Z.art, !!Z.speelt);
   }
   bewaarHash();

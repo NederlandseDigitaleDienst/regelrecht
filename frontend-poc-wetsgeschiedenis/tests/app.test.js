@@ -20,14 +20,14 @@ test('de bekijker tekent een dossier binnen de Vue-app', async () => {
   }));
   location.hash = 'd=35968&t=0';
   const w = mount(App, { attachTo: document.body });
-  for (let i = 0; i < 100 && !document.querySelector('#artlijst li[data-art]'); i++) {
+  for (let i = 0; i < 100 && !document.querySelector('#artlijst [data-art]'); i++) {
     await flushPromises();
     await new Promise((r) => setTimeout(r, 20));
   }
   expect(gevraagd).toContain('/gegevens/dossiers.json');
   expect(gevraagd).toContain('/gegevens/35968.json');
   expect(document.querySelectorAll('#dossierkeuze option').length).toBeGreaterThan(0);
-  expect(document.querySelectorAll('#artlijst li[data-art]').length).toBeGreaterThan(50);
+  expect(document.querySelectorAll('#artlijst [data-art]').length).toBeGreaterThan(50);
   // Zonder dienst (api/status geeft 404) blijft de knop 'Wet ophalen' weg.
   expect(document.getElementById('ophalen-plek').classList.contains('verborgen')).toBe(true);
   w.unmount();
