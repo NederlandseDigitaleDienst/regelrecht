@@ -473,7 +473,7 @@ const dateControlId = useId();
     <template v-if="!drilledIn">
       <!-- Expected outputs -->
       <template v-if="hasExpectations">
-        <nldd-title size="5"><h2>Verwachte uitkomsten</h2></nldd-title>
+        <nldd-title size="display-5"><h2>Verwachte uitkomsten</h2></nldd-title>
         <nldd-spacer size="8"></nldd-spacer>
         <nldd-list appearance="box-tinted">
           <nldd-list-item v-for="(exp, name) in expectations" :key="name" size="md">
@@ -506,7 +506,7 @@ const dateControlId = useId();
 
       <!-- Input: date + parameters -->
       <nldd-spacer v-if="hasExpectations" size="16"></nldd-spacer>
-      <nldd-title size="5"><h2>Invoer</h2></nldd-title>
+      <nldd-title size="display-5"><h2>Invoer</h2></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item size="md">
@@ -580,7 +580,7 @@ const dateControlId = useId();
       <!-- Data sources: a row per source, drill in one level deeper -->
       <template v-if="dataSources.length">
         <nldd-spacer size="16"></nldd-spacer>
-        <nldd-title size="5"><h2>Bronnen</h2></nldd-title>
+        <nldd-title size="display-5"><h2>Bronnen</h2></nldd-title>
         <nldd-spacer size="8"></nldd-spacer>
         <nldd-list appearance="box-tinted">
           <nldd-list-item

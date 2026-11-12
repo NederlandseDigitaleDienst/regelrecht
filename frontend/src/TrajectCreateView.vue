@@ -80,7 +80,7 @@ async function submitCreate() {
       ></nldd-top-title-bar>
 
       <nldd-simple-section width="800px">
-        <nldd-title id="nieuw-traject-titel" size="3"><h3>Nieuw traject</h3></nldd-title>
+        <nldd-title id="nieuw-traject-titel" size="display-3"><h3>Nieuw traject</h3></nldd-title>
         <nldd-spacer size="16"></nldd-spacer>
         <TrajectCreateForm ref="formEl"
           :busy="createBusy"

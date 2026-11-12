@@ -93,7 +93,7 @@ function trajectSupportingText(t: TrajectSummary) {
       ></nldd-top-title-bar>
 
       <nldd-simple-section width="800px">
-        <nldd-title id="kies-traject-titel" size="3"><h3>Trajecten</h3></nldd-title>
+        <nldd-title id="kies-traject-titel" size="display-3"><h3>Trajecten</h3></nldd-title>
         <nldd-spacer size="16"></nldd-spacer>
         <template v-if="trajectMissing">
           <nldd-banner

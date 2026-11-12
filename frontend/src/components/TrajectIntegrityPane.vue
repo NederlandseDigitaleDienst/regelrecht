@@ -51,7 +51,7 @@ function errorMessage(e: unknown): string | undefined {
 
 <template>
   <nldd-simple-section>
-    <nldd-title v-if="paneChromeVisible(loading)" id="structuur-controle-titel" size="3"><h3>Traject-structuur controleren</h3></nldd-title>
+    <nldd-title v-if="paneChromeVisible(loading)" id="structuur-controle-titel" size="display-3"><h3>Traject-structuur controleren</h3></nldd-title>
     <nldd-spacer v-if="paneChromeVisible(loading)" size="8"></nldd-spacer>
     <nldd-rich-text v-if="paneChromeVisible(loading)">
       <p>
@@ -115,7 +115,7 @@ function errorMessage(e: unknown): string | undefined {
         <!-- Per wet, zwaarst getroffen eerst; het severity-icoon staat per
              bevinding, want binnen één wet mengen fouten en waarschuwingen. -->
         <template v-for="group in groups" :key="group.key">
-          <nldd-title size="5"><h4>{{ group.title }} ({{ group.counts }})</h4></nldd-title>
+          <nldd-title size="display-5"><h4>{{ group.title }} ({{ group.counts }})</h4></nldd-title>
           <nldd-spacer size="8"></nldd-spacer>
           <nldd-list appearance="box-tinted">
             <nldd-list-item

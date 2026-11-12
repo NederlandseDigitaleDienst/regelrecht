@@ -32,7 +32,7 @@ function editorElement(wrapper: ReturnType<typeof mountEditor>): TextEditorStub 
 
 /** A state event as nldd-text-editor dispatches it, with every flag off except those given. */
 function stateEvent(overrides: { canUndo?: boolean } = {}) {
-  return new CustomEvent('nldd-text-editor-state', {
+  return new CustomEvent('state-change', {
     detail: {
       active: { bold: false, italic: false, bulletList: false, orderedList: false },
       canIndent: false,

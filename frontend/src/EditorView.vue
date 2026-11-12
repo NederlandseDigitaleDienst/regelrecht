@@ -1285,7 +1285,7 @@ watch(
   },
 );
 
-// `next` is the tab bar's own replacement pick, handed over by its tabdismiss
+// `next` is the tab bar's own replacement pick, handed over by its tab-dismiss
 // event (see AppShell's onTabDismiss). Follow it: the bar has already marked
 // that item selected, so choosing differently here leaves both lit. Callers
 // without a bar (no pick to follow) get the same rule the bar applies: the
@@ -1319,7 +1319,7 @@ function tabDisplayName(tab: OpenTab) {
 // registered once; the values stay in sync reactively while mounted and are
 // cleared on unmount so the library never shows a stale PR badge or tab bar.
 // Drag/keyboard reorder from the mobile tabs sheet. The nldd-list dispatches
-// nldd-reorder with array indices; mirror the move into openTabs so the new
+// `reorder` with array indices; mirror the move into openTabs so the new
 // order persists (and the md+ document-tab-bar follows it).
 function reorderTabs(fromIndex: number, toIndex: number) {
   reorderTabsIn(activeTrajectRef.value, fromIndex, toIndex);
@@ -2503,6 +2503,7 @@ async function handleActionSave() {
                 ></MachineEmptyState>
                 <template v-else>
                   <nldd-code-editor
+                    embedded
                     resize="auto"
                     language="yaml"
                     accessible-label="YAML"
@@ -2681,7 +2682,7 @@ async function handleActionSave() {
     <nldd-page sticky-header>
       <nldd-top-title-bar slot="header" :text="lastScenarioName ? `Resultaat: ${lastScenarioName}` : 'Resultaat'" collapse-anchor="result-scenario-title" dismiss-text="Sluit" @dismiss="resultSheetOpen = false"></nldd-top-title-bar>
       <nldd-simple-section width="full">
-        <nldd-title id="result-scenario-title" size="4"><h3>{{ lastScenarioName ? `Resultaat: ${lastScenarioName}` : 'Resultaat' }}</h3></nldd-title>
+        <nldd-title id="result-scenario-title" size="display-4"><h3>{{ lastScenarioName ? `Resultaat: ${lastScenarioName}` : 'Resultaat' }}</h3></nldd-title>
         <nldd-spacer size="16"></nldd-spacer>
         <ExecutionTraceView
           :result="lastResult"

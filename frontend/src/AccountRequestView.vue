@@ -39,7 +39,7 @@ function goBack() {
       ></nldd-top-title-bar>
 
       <nldd-simple-section width="720px">
-        <nldd-title id="account-aanvragen-titel" size="2"><h1>Account aanvragen</h1></nldd-title>
+        <nldd-title id="account-aanvragen-titel" size="display-2"><h1>Account aanvragen</h1></nldd-title>
         <nldd-spacer size="8"></nldd-spacer>
 
         <nldd-rich-text>

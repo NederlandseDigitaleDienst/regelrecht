@@ -613,11 +613,11 @@ defineExpose({ save: onSave });
         <nldd-collection layout="grid" item-min-width="320px">
           <nldd-card v-for="(scenario, i) in formState.scenarios" :key="i">
             <nldd-container slot="header" padding-top="16" padding-inline="16">
-              <nldd-title size="4"><h3>{{ scenario.name }}</h3></nldd-title>
+              <nldd-title size="display-4"><h3>{{ scenario.name }}</h3></nldd-title>
             </nldd-container>
             <nldd-container padding="16">
               <template v-if="scenarioExpectations(i).length">
-                <nldd-title size="6"><h4>Verwachte uitkomsten</h4></nldd-title>
+                <nldd-title size="display-6"><h4>Verwachte uitkomsten</h4></nldd-title>
                 <nldd-spacer size="4"></nldd-spacer>
                 <nldd-list appearance="simple">
                   <nldd-list-item v-for="(exp, j) in scenarioExpectations(i)" :key="j" size="sm">
@@ -711,7 +711,7 @@ defineExpose({ save: onSave });
         ></nldd-top-title-bar>
         <nldd-simple-section>
           <template v-if="!drilledSourceName">
-            <nldd-title id="scenario-title-anchor" size="3"><h2>{{ currentScenarioName }}</h2></nldd-title>
+            <nldd-title id="scenario-title-anchor" size="display-3"><h2>{{ currentScenarioName }}</h2></nldd-title>
             <nldd-spacer size="16"></nldd-spacer>
           </template>
           <!-- scenarioSetups maps formState.scenarios one to one, so entry i

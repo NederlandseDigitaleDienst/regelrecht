@@ -472,7 +472,7 @@ function addOutput() {
     <!-- Definities -->
     <template v-if="definitions.length || editable">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-definitions"><h5>Definities</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-definitions"><h5>Definities</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="def in definitions" :key="def.name" size="md">
@@ -518,7 +518,7 @@ function addOutput() {
     <!-- Parameters -->
     <template v-if="parameters.length || editable">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-parameters"><h5>Parameters</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-parameters"><h5>Parameters</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="(param, index) in parameters" :key="param.name" size="md">
@@ -544,7 +544,7 @@ function addOutput() {
     <!-- Inputs -->
     <template v-if="inputs.length || editable">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-inputs"><h5>Inputs</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-inputs"><h5>Inputs</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="(input, index) in inputs" :key="input.name" :data-testid="`input-row-${input.name}`" size="md">
@@ -573,7 +573,7 @@ function addOutput() {
     <!-- Outputs -->
     <template v-if="outputs.length || editable">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-outputs"><h5>Outputs</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-outputs"><h5>Outputs</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="(output, index) in outputs" :key="output.name" size="md">
@@ -599,7 +599,7 @@ function addOutput() {
     <!-- Acties (with the flag panel.regelrijm: first, as readings) -->
     <template v-if="!regelrijm && (actions.length || editable)">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-actions"><h5>Acties</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-actions"><h5>Acties</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item

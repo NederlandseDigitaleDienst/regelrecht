@@ -27,6 +27,7 @@ interface EditSheetVm {
   values: TestFormValues;
   save(): void;
   onDefTypeChange(event: { target: { value: string } }): void;
+  onDefNumber(event: Event): void;
   allLaws: { law_id: string }[];
   availableOutputs: unknown[];
   onLawComboChange(event: { detail: { value: string } }): Promise<void>;
@@ -183,6 +184,29 @@ describe('EditSheet', () => {
         type: 'amount',
         type_spec: { unit: 'eurocent' },
       });
+    });
+
+    // Since design system 0.18 a number field can be emptied, and reports null.
+    it('keeps the number of a definition whose field is emptied, and shows it again', async () => {
+      const wrapper = mountSheet();
+      await setItem(wrapper, { section: 'definition', key: 'aandeel', rawDef: 0.04273 });
+
+      const field = { value: null as unknown };
+      const emptied = (type: string) => {
+        const event = new CustomEvent(type, { detail: { value: null } });
+        Object.defineProperty(event, 'target', { value: field });
+        return event;
+      };
+      wrapper.vm.onDefNumber(emptied('input'));
+      expect(defOf(wrapper).number).toBe(0.04273);
+      expect(field.value).toBeNull();
+
+      wrapper.vm.onDefNumber(emptied('change'));
+      expect(defOf(wrapper).number).toBe(0.04273);
+      expect(field.value).toBe(0.04273);
+
+      wrapper.vm.onDefNumber(new CustomEvent('input', { detail: { value: 0.05 } }));
+      expect(defOf(wrapper).number).toBe(0.05);
     });
 
     it('keeps a bare value bare while it has no type', async () => {

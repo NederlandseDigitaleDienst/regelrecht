@@ -279,7 +279,7 @@ function errorMessage(e: unknown): string | undefined {
 
 <template>
   <nldd-simple-section>
-    <nldd-title v-if="paneChromeVisible(loading)" id="instellingen-pane-titel" size="3"><h3>Algemeen</h3></nldd-title>
+    <nldd-title v-if="paneChromeVisible(loading)" id="instellingen-pane-titel" size="display-3"><h3>Algemeen</h3></nldd-title>
     <nldd-spacer v-if="paneChromeVisible(loading)" size="16"></nldd-spacer>
 
     <nldd-activity-indicator v-if="loading" text="Trajectgegevens laden" show-text></nldd-activity-indicator>
@@ -426,7 +426,7 @@ function errorMessage(e: unknown): string | undefined {
       <nldd-spacer size="24"></nldd-spacer>
       <nldd-box>
         <nldd-container padding="16">
-          <nldd-title size="5"><h4>Traject-structuur controleren</h4></nldd-title>
+          <nldd-title size="display-5"><h4>Traject-structuur controleren</h4></nldd-title>
           <nldd-spacer size="4"></nldd-spacer>
           <nldd-rich-text>
             <p>
@@ -449,7 +449,7 @@ function errorMessage(e: unknown): string | undefined {
       <nldd-spacer size="24"></nldd-spacer>
       <nldd-box background="critical">
         <nldd-container padding="16">
-          <nldd-title size="5"><h4>Traject {{ detail.name }} verwijderen</h4></nldd-title>
+          <nldd-title size="display-5"><h4>Traject {{ detail.name }} verwijderen</h4></nldd-title>
           <nldd-spacer size="4"></nldd-spacer>
           <nldd-rich-text>
             <p>
@@ -466,7 +466,7 @@ function errorMessage(e: unknown): string | undefined {
       <nldd-spacer size="24"></nldd-spacer>
       <nldd-box>
         <nldd-container padding="16">
-          <nldd-title size="5"><h4>Traject verlaten</h4></nldd-title>
+          <nldd-title size="display-5"><h4>Traject verlaten</h4></nldd-title>
           <nldd-spacer size="4"></nldd-spacer>
           <nldd-rich-text>
             <p>

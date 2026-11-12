@@ -3,10 +3,12 @@
  * them), so a list of thousands of rows costs what a list of a few dozen
  * does. Below `threshold` rows every row renders, exactly as without it.
  *
- * Built for the article list in the library until the design system offers
- * this itself (design-system#409). Every row of an `nldd-list` is several
- * custom elements, and with six thousand of them each change to the list
- * costs a layout of all of them (design-system#408).
+ * Built for the article list in the library. Every row of an `nldd-list` is
+ * several custom elements: since design system 0.22 a long list no longer
+ * costs a layout per row (design-system#408), but six thousand of them still
+ * take over a second to render, and each change to the list touches all of
+ * them. The design system has no virtual list and none is planned soon
+ * (design-system#409), so this one stays.
  *
  * The list scrolls with an `nldd-page`: inside the page on a wide screen,
  * with the document when the split view collapses to one column. Its

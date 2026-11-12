@@ -221,13 +221,12 @@ const showBody = computed(() => props.drilledIn || expanded.value);
     <!-- Header: accordion toggle, or a plain heading when drilled in -->
     <button v-if="!drilledIn" class="ds-block-toggle" :aria-expanded="expanded" @click="toggleExpand" type="button">
       <span class="ds-block-chevron" :class="{ 'ds-block-chevron--open': expanded }">&#9656;</span>
-      <nldd-title size="5" style="flex: 1; text-align: left;">
-        <span>{{ title }}</span>
-      </nldd-title>
+      <!-- Text, not a heading: a heading cannot sit inside a button. -->
+      <nldd-text size="display-5" style="flex: 1; text-align: left;">{{ title }}</nldd-text>
       <span class="ds-block-badge" v-if="rowCount > 0">{{ rowCount }}</span>
     </button>
     <template v-else>
-      <nldd-title size="3">
+      <nldd-title size="display-3">
         <h2>{{ title }}</h2>
       </nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
