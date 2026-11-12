@@ -829,7 +829,9 @@ impl Cell {
     /// what is no decision or that this cell made, a `refers_to` that is no
     /// decision of this cell, a copy that does not concern it (its `about`
     /// names another decision), a receipt dated before the copied decision,
-    /// and a copy that lacks a field the fact cannot do without.
+    /// a copy that lacks a field the fact cannot do without, and a copy of a
+    /// decision this cell already received a copy of: receiving the same
+    /// copy twice records it once.
     pub fn record_receipt(
         &mut self,
         service: &LawExecutionService,
@@ -839,6 +841,17 @@ impl Cell {
         on: NaiveDate,
     ) -> Result<Gram> {
         let received = self.received_decision(service, copy)?;
+        if let Some(earlier) = self.chronicle.grams().iter().find(|g| {
+            g.kind == EXECUTOGRAM
+                && g.received
+                    .as_ref()
+                    .is_some_and(|r| r.from == copy.from && r.id == received.id)
+        }) {
+            return Err(refused(format!(
+                "the copy of '{}' of '{}' is already received, as '{}': a copy is received once",
+                received.id, copy.from, earlier.id
+            )));
+        }
         self.decision_gram(service, refers_to)?;
         let concerns = Received {
             from: self.recording_actor.clone(),

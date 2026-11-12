@@ -214,6 +214,32 @@ fn the_receipt_revokes_the_decision_it_refers_to() {
 }
 
 #[test]
+fn a_copy_received_twice_is_recorded_once() {
+    // The same copy sent again, as by a second delivery: the cell refuses
+    // it and its chronicle holds one receipt.
+    let copy = copy("verlening_x", "verlening_x", true);
+    let (mut cell, receipt) = received(grants(&["x"]), &copy, "verlening_x");
+    let before = cell.grams().len();
+    let e = cell
+        .record_receipt(
+            &service(),
+            "test_chronicle_effects#11#afschrift_uitspraak_ontvangen",
+            &copy,
+            "verlening_x",
+            day("2025-05-11"),
+        )
+        .unwrap_err();
+    assert!(
+        e.to_string().contains(&format!(
+            "the copy of '{}' of '{}' is already received, as '{}'",
+            copy.gram.id, copy.from, receipt.id
+        )),
+        "{e}"
+    );
+    assert_eq!(cell.grams().len(), before);
+}
+
+#[test]
 fn the_revoked_record_is_always_the_one_the_receipt_refers_to() {
     // The copy concerns X's grant, while the ruling names Y's grant in a
     // field of its own. The receipt refers to X's grant and revokes that

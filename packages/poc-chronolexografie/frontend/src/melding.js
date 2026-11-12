@@ -59,6 +59,12 @@ const vertalingen = [
     /the chronicle of '[^']+' is in an older form/,
     () => 'Dit spel is opgeslagen in een oudere vorm en kan niet verder. Begin opnieuw met een casus.',
   ],
+  // Hetzelfde afschrift van een uitspraak voor de tweede keer toegezonden
+  // (de cel, Cell::record_receipt).
+  [
+    /the copy of '([^']+)' of '[^']+' is already received/,
+    (uitspraak) => `Het afschrift van uitspraak ${kort(uitspraak)} is al ontvangen. Er is niets vastgelegd.`,
+  ],
   // Een stap voordat er een casus gekozen is.
   [/no case is chosen/, () => 'Er is geen casus gekozen. Kies een casus.'],
   // De cel laadt niet in deze browser (api.js): de WASM of de bundel kwam
