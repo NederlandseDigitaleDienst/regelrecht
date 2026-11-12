@@ -33,11 +33,28 @@ describe('trajectSwitchTarget', () => {
   });
 
   it('treats every Home-section route name as Home', () => {
-    for (const name of ['traject-home', 'corpus-juris', 'werkdocumenten-traject', 'taken-traject']) {
+    for (const name of ['traject-home', 'corpus-juris', 'werkdocumenten-traject', 'taken-traject', 'verwerkingen-traject']) {
       const target = trajectSwitchTarget(name, REF);
       expect(target.name).toBe('traject-home');
       expect(target.params).toEqual({ trajectRef: REF });
     }
+  });
+});
+
+describe('sectionTarget (Home tab)', () => {
+  it('keeps Verwerkingen across a traject switch, without the other traject\'s run', () => {
+    const stored = `/trajecten/${REF}/verwerkingen/0b0c0d0e-0000-4000-8000-000000000000`;
+    const router = fakeRouter({
+      [stored]: {
+        name: 'verwerkingen-traject',
+        params: { trajectRef: REF, jobId: '0b0c0d0e-0000-4000-8000-000000000000' },
+        query: {},
+      },
+    });
+    expect(sectionTarget(router, stored, ACTIVE)).toEqual({
+      name: 'verwerkingen-traject',
+      params: { trajectRef: ACTIVE },
+    });
   });
 });
 

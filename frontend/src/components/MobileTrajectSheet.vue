@@ -122,6 +122,13 @@ function openTaken(): void {
   }
 }
 
+function openVerwerkingen(): void {
+  closeSheet();
+  if (activeTrajectRef.value) {
+    router.push({ name: 'verwerkingen-traject', params: { trajectRef: activeTrajectRef.value } });
+  }
+}
+
 // Open the active traject's settings (details / leden) in Home.
 // The template calls it without a tab, which opens the settings' default tab.
 function goToInstellingen(tab?: string): void {
@@ -269,6 +276,11 @@ onBeforeUnmount(() => {
               <nldd-icon-cell size="20"><nldd-icon icon="tasks"></nldd-icon></nldd-icon-cell>
               <nldd-spacer-cell size="8"></nldd-spacer-cell>
               <nldd-text-cell text="Taken"></nldd-text-cell>
+            </nldd-list-item>
+            <nldd-list-item size="md" button @click="openVerwerkingen">
+              <nldd-icon-cell size="20"><nldd-icon icon="history"></nldd-icon></nldd-icon-cell>
+              <nldd-spacer-cell size="8"></nldd-spacer-cell>
+              <nldd-text-cell text="Verwerkingen"></nldd-text-cell>
             </nldd-list-item>
             <!-- Eén rij naar Instellingen, net als in de zijbalk: Algemeen en
                  Leden staan daarbinnen, niet ernaast. -->

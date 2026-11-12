@@ -69,6 +69,7 @@ export const HOME_ROUTE_NAMES = [
   'werkdocumenten-traject',
   'instellingen-traject',
   'taken-traject',
+  'verwerkingen-traject',
 ];
 export function isHomeSection(routeName: RouteRecordNameGeneric | null | undefined): boolean {
   return (HOME_ROUTE_NAMES as readonly unknown[]).includes(routeName);
@@ -228,6 +229,15 @@ export function sectionTarget(
     || (name == null && /\/taken($|[/?#])/.test(storedPath));
   if (isTaken && activeRef) {
     return { name: 'taken-traject', params: { trajectRef: activeRef } };
+  }
+
+  // Verwerkingen sub-mode of Home: re-stamp the active traject, without the
+  // open run. A run belongs to the traject it was stored under, and a stored
+  // path of the active traject never gets here (it is returned as is above).
+  const isVerwerkingen = name === 'verwerkingen-traject'
+    || (name == null && /\/verwerkingen($|[/?#])/.test(storedPath));
+  if (isVerwerkingen && activeRef) {
+    return { name: 'verwerkingen-traject', params: { trajectRef: activeRef } };
   }
 
   // Instellingen sub-mode of Home: same preservation as werkdocumenten
