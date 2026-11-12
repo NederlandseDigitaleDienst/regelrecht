@@ -143,6 +143,8 @@ produces:
 
 A party records the receipt of the copy of the judgment (8:79) as a fact (`Cell::record_receipt`). In the Awb of the PoC that fact revokes the decision it refers to when the court annulled it with its legal effects (`rechtsgevolgen_vernietigd`). A judgment that keeps the legal effects revokes nothing. When the court decides the case itself, the copy holds the decision in its place (`uitspraak_in_de_plaats`) as an `object`, not a `decision`: the receiving cell reads it and does not take it anew.
 
+A provisional measure of the voorzieningenrechter lapses as soon as the objection, or the appeal against the decision on it, is withdrawn (8:85 lid 2 onder b). The PoC records the withdrawal as a fact of 6:21 that refers to the objection or to the decision on it, so a reduction finds it beside the decision. Under a, where the period for appeal passes unused, the measure does not lapse yet in the PoC ([open questions](/concepts/chronolexography/open-questions)).
+
 [RFC-053](/rfcs/rfc-053) gives the design. `packages/poc-chronolexografie/corpus/regulation/nl/wet/algemene_wet_bestuursrecht/scenarios/beroep.feature` plays these cases.
 
 ## Open questions
