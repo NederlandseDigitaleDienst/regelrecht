@@ -46,10 +46,12 @@ jobs:
         with:
           fetch-depth: 2
 
-      # The scripts come from the base branch, as for the werkpakket link: they
-      # write on the pull request with the workflow token, so the pull request
-      # itself must not decide what they do. When they are not there yet, this
-      # pull request introduces them and there is nothing to show.
+      # The scripts come from the base branch, as for the werkpakket link, so a
+      # pull request that changes them does not decide what its own comment
+      # says. This is consistency, not a security boundary: on `pull_request`
+      # the workflow file itself comes from the pull request. When the scripts
+      # are not on the base yet, this pull request introduces them and there is
+      # nothing to show.
       - name: Take the scripts from the base branch
         id: base
         run: |

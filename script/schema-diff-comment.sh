@@ -9,7 +9,9 @@
 #
 # An empty BODY_FILE means the pull request adds no schema version (any more):
 # an earlier comment is then deleted, because a diff of a version the pull
-# request no longer adds says something that is not true.
+# request no longer adds says something that is not true. That only happens
+# while the pull request still touches `schema/`; otherwise the `paths` filter
+# keeps the workflow from starting at all.
 #
 # A GitHub error turns the job red with the error in the log. The job is not a
 # required check, so that blocks nothing; it only makes a missing or stale
@@ -43,7 +45,8 @@ if ! existing=$(gh api "repos/${REPO}/issues/${PR_NUMBER}/comments?per_page=100"
     fail "The comments of pull request ${PR_NUMBER} could not be read, so the schema diff is not posted. Error: $(gh_error)"
 fi
 
-# Keep the first one; a later copy (from two runs racing) is deleted.
+# Keep the first one; any later copy (should two runs ever both post) is
+# deleted.
 comment_id=$(head -n1 <<<"$existing")
 for id in $(tail -n +2 <<<"$existing"); do
     gh api -X DELETE "repos/${REPO}/issues/comments/${id}" >/dev/null 2>"$stderr_file" ||

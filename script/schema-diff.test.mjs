@@ -111,6 +111,37 @@ test('a path reads as the schema reader names it', () => {
   assert.equal(formatPath(['$id']), '$id');
   // `properties` as the last segment is a key in its own right, not a container.
   assert.equal(formatPath(['definitions', 'x', 'properties']), 'x.properties');
+  // Directly under `properties` a key is a name, also `items` or `properties`.
+  assert.equal(
+    formatPath(['definitions', 'listOperation', 'properties', 'items', 'description']),
+    'listOperation.items.description',
+  );
+  assert.equal(formatPath(['definitions', 'x', 'properties', 'properties', 'type']), 'x.properties.type');
+});
+
+test('a property named like an Object method is compared as any other', () => {
+  const oldDoc = schema('v0.1.0');
+  const newDoc = schema('v0.2.0');
+  oldDoc.definitions.field.properties.constructor = { type: 'string' };
+  newDoc.definitions.field.properties.toString = { type: 'string' };
+  const result = compare(oldDoc, newDoc);
+  assert.deepEqual(result.summary.properties.removed, ['field.constructor']);
+  assert.deepEqual(result.summary.properties.added, ['field.toString']);
+});
+
+test('a property named items counts as a property', () => {
+  const oldDoc = schema('v0.1.0');
+  const newDoc = schema('v0.2.0');
+  newDoc.definitions.field.properties.items = { type: 'array' };
+  assert.deepEqual(compare(oldDoc, newDoc).summary.properties.added, ['field.items']);
+});
+
+test('a reordered enum says so', () => {
+  const oldDoc = schema('v0.1.0');
+  const newDoc = schema('v0.2.0');
+  newDoc.definitions.field.properties.type.enum.reverse();
+  const md = renderComment([section(compare(oldDoc, newDoc))]);
+  assert.match(md, /- gewijzigd: `field\.type\.enum` \(alleen de volgorde\)/);
 });
 
 // --- A new version with a few changes ------------------------------------------
@@ -175,6 +206,16 @@ test('a URL deeper in the schema that only changes its version is noise', () => 
   assert.ok(result.noise.map(formatPath).includes('name.$comment'));
 });
 
+test('a top-level description that only changes its version is noise', () => {
+  // Top-level strings describe the document itself, so a version number
+  // there names this version.
+  const oldDoc = { ...schema('v0.1.0'), description: 'Example schema, version 0.1.0.' };
+  const newDoc = { ...schema('v0.2.0'), description: 'Example schema, version 0.2.0.' };
+  const result = compare(oldDoc, newDoc);
+  assert.deepEqual(result.changes, []);
+  assert.ok(result.noise.map(formatPath).includes('description'));
+});
+
 test('a longer version number is not mistaken for the old one', () => {
   const oldDoc = schema('v0.1.0');
   const newDoc = schema('v0.2.0');
@@ -202,6 +243,30 @@ test('a diff that is too large is cut at a line, with a note', () => {
   assert.ok(md.trimEnd().endsWith('</details>'));
   // The path list is capped as well.
   assert.match(md, /- en nog \d+ paden; zie de diff/);
+});
+
+test('two diffs share the room, and the comment stays within any limit', () => {
+  const big = (version) => {
+    const doc = schema(version);
+    for (let i = 0; i < 400; i++) doc.definitions[`def${i}`] = { type: 'string' };
+    return doc;
+  };
+  const small = compare(schema('v0.1.0'), changedSchema());
+  const large = compare(schema('v0.2.0'), big('v0.3.0'), 'v0.2.0', 'v0.3.0');
+  const sections = [section(small), section(large, 'v0.3.0', 'v0.2.0')];
+
+  const md = renderComment(sections, { maxChars: 12000 });
+  assert.ok(md.length <= 12000, `comment is ${md.length} characters`);
+  // The small diff is shown whole, the large one is cut.
+  assert.equal(md.match(/\*\*Afgekapt:\*\*/g)?.length, 1);
+  assert.match(md, /^\+\s+"array"$/m);
+
+  // Down to the point where only the summaries fit, the limit holds exactly.
+  const heads = renderComment(sections, { maxChars: 1 }).length;
+  for (let max = heads; max < heads + 3000; max += 7) {
+    const out = renderComment(sections, { maxChars: max });
+    assert.ok(out.length <= max, `maxChars ${max} gave ${out.length}`);
+  }
 });
 
 test('the default limit stays under the GitHub comment limit', () => {

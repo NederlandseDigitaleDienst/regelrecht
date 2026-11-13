@@ -108,7 +108,7 @@ export function neutraliseVersionNoise(oldDoc, newDoc, oldVersion, newVersion) {
     if (isObject(a) && isObject(b)) {
       const out = {};
       for (const key of Object.keys(a)) {
-        out[key] = key in b ? walk(a[key], b[key], [...path, key]) : a[key];
+        out[key] = Object.hasOwn(b, key) ? walk(a[key], b[key], [...path, key]) : a[key];
       }
       return out;
     }
@@ -133,11 +133,11 @@ export function semanticDiff(a, b, path = [], out = []) {
 
   if (isObject(a) && isObject(b)) {
     for (const key of Object.keys(a)) {
-      if (!(key in b)) out.push({ kind: 'removed', path: [...path, key] });
+      if (!Object.hasOwn(b, key)) out.push({ kind: 'removed', path: [...path, key] });
       else semanticDiff(a[key], b[key], [...path, key], out);
     }
     for (const key of Object.keys(b)) {
-      if (!(key in a)) out.push({ kind: 'added', path: [...path, key] });
+      if (!Object.hasOwn(a, key)) out.push({ kind: 'added', path: [...path, key] });
     }
     return out;
   }
@@ -146,7 +146,7 @@ export function semanticDiff(a, b, path = [], out = []) {
     if (a.every(isScalar) && b.every(isScalar)) {
       const added = b.filter((x) => !a.some((y) => y === x));
       const removed = a.filter((x) => !b.some((y) => y === x));
-      out.push({ kind: 'changed', path, added, removed });
+      out.push({ kind: 'changed', path, added, removed, reordered: added.length + removed.length === 0 });
       return out;
     }
     for (let i = 0; i < Math.max(a.length, b.length); i++) {
@@ -162,6 +162,15 @@ export function semanticDiff(a, b, path = [], out = []) {
 }
 
 /**
+ * Whether the segment at `i` is a JSON Schema keyword rather than a property
+ * name. Directly under a `properties` keyword every key is a name, also one
+ * called `items` or `properties` (the schema has both).
+ */
+function isKeyword(path, i) {
+  return i === 0 || path[i - 1] !== 'properties' || !isKeyword(path, i - 1);
+}
+
+/**
  * A path as a reader of the schema names it: without the `definitions.` in
  * front, with `.properties.` dropped and `items` written as `[]`. So
  * `definitions.machineReadableSection.properties.projection.properties.state.items`
@@ -171,8 +180,8 @@ export function formatPath(path) {
   let out = '';
   path.forEach((seg, i) => {
     if (i === 0 && seg === 'definitions' && path.length > 1) return;
-    if (seg === 'properties' && i < path.length - 1) return;
-    if (seg === 'items' && i > 0) {
+    if (seg === 'properties' && isKeyword(path, i) && i < path.length - 1) return;
+    if (seg === 'items' && isKeyword(path, i) && i > 0) {
       out += '[]';
       return;
     }
@@ -201,18 +210,19 @@ export function summarise(changes) {
     const { kind, path } = change;
     if (path[0] === 'definitions' && path.length >= 2) {
       const name = path[1];
-      if (path.length === 2) defs[kind === 'changed' ? 'changed' : kind].add(name);
+      if (path.length === 2) defs[kind].add(name);
       else defs.changed.add(name);
     }
     if (path.length === 2 && path[0] === 'definitions') continue;
 
-    const parent = path.length >= 2 ? path[path.length - 2] : null;
-    if (parent === 'properties' && kind !== 'changed') {
+    const isProperties = (j) => path[j] === 'properties' && isKeyword(path, j);
+    if (path.length >= 2 && isProperties(path.length - 2) && kind !== 'changed') {
       props[kind].add(formatPath(path));
       continue;
     }
     // The innermost property this change lies inside, if any.
-    const last = path.lastIndexOf('properties', path.length - 2);
+    let last = path.length - 2;
+    while (last >= 0 && !isProperties(last)) last--;
     if (last >= 0) props.changed.add(formatPath(path.slice(0, last + 2)));
   }
   for (const name of [...defs.added, ...defs.removed]) defs.changed.delete(name);
@@ -315,8 +325,10 @@ function pathLines(changes) {
   const lines = changes.slice(0, MAX_PATHS).map((c) => {
     let line = `- ${KIND_LABEL[c.kind]}: ${code(formatPath(c.path))}`;
     const extra = [];
-    if (c.added?.length) extra.push(`+ ${c.added.map((x) => code(JSON.stringify(x))).join(', ')}`);
-    if (c.removed?.length) extra.push(`- ${c.removed.map((x) => code(JSON.stringify(x))).join(', ')}`);
+    const values = (xs) => nameList(xs.map((x) => JSON.stringify(x)), 10);
+    if (c.added?.length) extra.push(`+ ${values(c.added)}`);
+    if (c.removed?.length) extra.push(`- ${values(c.removed)}`);
+    if (c.reordered) extra.push('alleen de volgorde');
     if (extra.length) line += ` (${extra.join('; ')})`;
     return line;
   });
@@ -398,8 +410,14 @@ function diffBlock(diff, budget, label) {
   const note = (shown) =>
     `**Afgekapt:** ${shown} van ${all.length} regels getoond, omdat een comment op GitHub ` +
     'een maximale lengte heeft. De volledige diff: `node script/schema-diff.mjs --base origin/main`.';
+  // Not even an empty block fits: name the diff and leave it out.
+  const empty = wrap('', note(all.length)).length;
+  if (empty > budget) {
+    return `Diff van ${code(label)} (${all.length} regels) past niet meer in deze comment. ` +
+      'De volledige diff: `node script/schema-diff.mjs --base origin/main`.';
+  }
   let shown = 0;
-  let used = wrap('', note(all.length)).length;
+  let used = empty;
   while (shown < all.length && used + all[shown].length + 1 <= budget) {
     used += all[shown].length + 1;
     shown++;
@@ -408,8 +426,9 @@ function diffBlock(diff, budget, label) {
 }
 
 /**
- * The whole comment for a list of sections, at most `maxChars` long. The
- * summaries always fit; the line diffs share what room is left, a short diff
+ * The whole comment for a list of sections, at most `maxChars` long as long
+ * as the summaries fit; they are never cut, and the default limit leaves them
+ * ample room. The line diffs share what room is left, a short diff
  * giving its unused share to the longer ones.
  */
 export function renderComment(sections, { maxChars = DEFAULT_MAX_CHARS } = {}) {
@@ -429,7 +448,8 @@ export function renderComment(sections, { maxChars = DEFAULT_MAX_CHARS } = {}) {
     .map((s, i) => ({ i, diff: s.result.diff, label: s.label }))
     .filter((s) => s.diff !== '');
 
-  const fixed = header.length + heads.reduce((n, h) => n + h.length + 2, 0) + withDiff.length * 2;
+  // Joins: two newlines before each section and its diff, one at the end.
+  const fixed = header.length + heads.reduce((n, h) => n + h.length + 2, 0) + withDiff.length * 2 + 1;
   let room = Math.max(0, maxChars - fixed);
 
   // Smallest first, so a short diff is shown whole and its leftover share
