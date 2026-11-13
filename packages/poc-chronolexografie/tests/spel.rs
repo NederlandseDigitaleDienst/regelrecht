@@ -1453,6 +1453,21 @@ fn a_prefill_takes_the_value_from_the_cell_that_answers_and_records_nothing() {
 #[test]
 fn a_prefill_reads_the_chronicle_as_the_cell_knows_it_on_the_day() {
     let mut spel = spel_met("bedrijfsparkeervergunning");
+    let vult_voor = [(
+        "werkzame_personen",
+        "aantal_werkzame_personen_volgens_handelsregister",
+    )];
+    // The printer was registered on 23 February, but the Kamer recorded it
+    // only on 2 March: on 25 February its cell does not know it yet.
+    let eerder = voorinvullen(&mut spel, &vult_voor, "99990066", "2026-02-25");
+    assert_eq!(eerder["werkzame_personen"]["waarde"], Value::Null);
+    let later = voorinvullen(&mut spel, &vult_voor, "99990066", "2026-03-02");
+    assert_eq!(later["werkzame_personen"]["waarde"], json!(2));
+}
+
+#[test]
+fn a_prefill_takes_a_correction_the_cell_recorded() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
     // The Kamer corrected this registration from one to two persons.
     let gecorrigeerd = voorinvullen(
         &mut spel,
@@ -1464,17 +1479,26 @@ fn a_prefill_reads_the_chronicle_as_the_cell_knows_it_on_the_day() {
         "2026-10-13",
     );
     assert_eq!(gecorrigeerd["werkzame_personen"]["waarde"], json!(2));
-    // Before the Kamer recorded anything, its cell is silent.
-    let eerder = voorinvullen(
-        &mut spel,
-        &[(
-            "werkzame_personen",
-            "aantal_werkzame_personen_volgens_handelsregister",
-        )],
-        "99990011",
-        "2026-01-02",
+}
+
+#[test]
+fn a_prefill_without_what_a_source_needs_leaves_that_field_empty() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let bronnen = map(&json!({
+        "postcode": format!("{HANDELSREGISTER}#postcode_vestiging_volgens_handelsregister"),
+    }));
+    // No number yet: the applicant has not logged in.
+    let leeg = spel
+        .voorinvullen(&bronnen, &Map::new(), dag("2026-10-13"))
+        .unwrap();
+    assert_eq!(leeg["postcode"]["waarde"], Value::Null);
+    assert_eq!(leeg["postcode"]["herkomst"], json!([]));
+    assert!(
+        leeg["postcode"]["fout"]
+            .as_str()
+            .unwrap()
+            .contains("kvk_nummer")
     );
-    assert_eq!(eerder["werkzame_personen"]["waarde"], Value::Null);
 }
 
 #[test]
@@ -1497,16 +1521,25 @@ fn a_prefill_for_a_number_the_register_does_not_know_is_empty_without_origin() {
 fn a_prefill_from_a_source_that_is_no_output_of_its_article_is_refused() {
     let mut spel = spel_met("bedrijfsparkeervergunning");
     let velden = map(&json!({ "kvk_nummer": "99990011" }));
-    for bron in [
-        "geen_bron",
-        "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#1#bestaat_niet",
-        "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#9#postcode_vestiging_volgens_handelsregister",
+    for (bron, waarom) in [
+        ("geen_bron", "is no <regulation>#<article>#<fact>"),
+        ("a#1", "is no <regulation>#<article>#<fact>"),
+        ("a##x", "is no <regulation>#<article>#<fact>"),
+        ("a#1#x#y", "is no <regulation>#<article>#<fact>"),
+        (
+            "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#1#bestaat_niet",
+            "has no output 'bestaat_niet'",
+        ),
+        (
+            "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#9#postcode_vestiging_volgens_handelsregister",
+            "has no article 9 in force",
+        ),
     ] {
         let bronnen = map(&json!({ "postcode": bron }));
         let e = spel
             .voorinvullen(&bronnen, &velden, dag("2026-10-13"))
             .unwrap_err();
         assert!(matches!(e, Fout::Cel(_)), "{bron}: {e}");
-        assert!(e.to_string().contains("refused"), "{bron}: {e}");
+        assert!(e.to_string().contains(waarom), "{bron}: {e}");
     }
 }

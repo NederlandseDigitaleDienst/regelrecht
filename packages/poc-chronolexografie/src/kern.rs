@@ -15,8 +15,8 @@ use regelrecht_cel::{
     Cell, Disk, EXECUTOGRAM, Error, Files, Gram, Reference, Source, decision, reading, shape,
 };
 use regelrecht_engine::{
-    ArticleResult, Authority, EngineError, FilledBy, LawExecutionService, OpenTermFilled,
-    ParameterType, PathNode, PathNodeType,
+    AnswerProvenance, ArticleResult, Authority, EngineError, FilledBy, LawExecutionService,
+    OpenTermFilled, ParameterType, PathNode, PathNodeType,
 };
 use regelrecht_law_model::stored;
 use serde_json::{Map, Value, json};
@@ -1039,10 +1039,14 @@ pub fn aanvragen(
 /// Nothing is recorded: what the applicant submits is what the application
 /// holds, prefilled or not.
 ///
+/// A source the engine cannot run on what the form holds so far, such as
+/// one that needs a number the applicant has not given yet, leaves its field
+/// empty with the engine's message (`fout`); the other fields are filled.
+///
 /// # Errors
 ///
 /// Refused when a source is not `<regelwerk>#<article>#<output>` or names no
-/// output of an article in force on `on`; and as [`Cell::consult`].
+/// output of an article in force on `on`, and as [`Cell::consult`] refuses.
 pub fn voorinvullen(
     corpus: &Corpus,
     cellen: &Cellen,
@@ -1054,54 +1058,62 @@ pub fn voorinvullen(
     let sfeer = cellen.sfeer();
     let mut uit = Map::new();
     for (veld, bron) in bronnen {
-        let Some((law_id, article, output)) = bron.as_str().and_then(bron_delen) else {
+        let Some(bron) = bron.as_str() else {
             return Err(Error::Refused(format!(
                 "the source of '{veld}' is {bron}, not '<regelwerk>#<article>#<output>'"
             )));
         };
-        let result = cellen
-            .eigen
-            .consult(&service, &sfeer, law_id, article, output, velden, on)?;
-        let waarde = result
-            .outputs
-            .get(output)
-            .map(stored::to_stored)
-            .transpose()?
-            .unwrap_or(Value::Null);
-        let herkomst: Vec<Value> = result
-            .trace
-            .as_ref()
-            .map(beantwoord)
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|node| node.result.as_ref().is_some_and(|r| !r.is_null()))
-            .filter_map(|node| node.answer.as_ref())
-            .map(|answer| {
-                json!({
-                    "door": answer.answerer,
-                    "antwoord": answer.answer,
-                    "reductie": answer.law_id,
-                    "artikel": answer.article,
-                    "geldig_vanaf": answer.valid_from,
-                    "gelezen": answer.records_read,
-                    "tot_en_met": answer.last_record,
-                })
-            })
-            .collect();
-        uit.insert(
-            veld.clone(),
-            json!({ "bron": bron, "waarde": waarde, "herkomst": herkomst }),
-        );
+        let ingevuld = match cellen.eigen.consult(&service, &sfeer, bron, velden, on) {
+            Ok(result) => uit_bron(&result, bron)?,
+            // What the form does not hold yet, such as the number the
+            // applicant has not logged in with: this field stays empty, the
+            // others are filled.
+            Err(Error::Engine(e)) => {
+                json!({ "bron": bron, "waarde": null, "herkomst": [], "fout": e.to_string() })
+            }
+            Err(e) => return Err(e),
+        };
+        uit.insert(veld.clone(), ingevuld);
     }
     Ok(Value::Object(uit))
 }
 
-/// A source `<regelwerk>#<article>#<output>` in its three parts, none empty.
-fn bron_delen(bron: &str) -> Option<(&str, &str, &str)> {
-    let mut delen = bron.split('#');
-    let (law_id, article, output) = (delen.next()?, delen.next()?, delen.next()?);
-    let heel = delen.next().is_none() && [law_id, article, output].iter().all(|d| !d.is_empty());
-    heel.then_some((law_id, article, output))
+/// What `result`, the output `bron` consulted ([`Cell::consult`]), gives a
+/// field: the value, and each cell that answered with something.
+fn uit_bron(result: &ArticleResult, bron: &str) -> Result<Value> {
+    let (_, output) = shape::split_fact(bron)?;
+    let waarde = result
+        .outputs
+        .get(output)
+        .map(stored::to_stored)
+        .transpose()?
+        .unwrap_or(Value::Null);
+    let herkomst: Vec<Value> = result
+        .trace
+        .as_ref()
+        .map(beantwoord)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|node| node.result.as_ref().is_some_and(|r| !r.is_null()))
+        .filter_map(|node| node.answer.as_ref())
+        .map(herkomst)
+        .collect();
+    Ok(json!({ "bron": bron, "waarde": waarde, "herkomst": herkomst }))
+}
+
+/// Where a cell's answer comes from, as the app shows it: the cell, the
+/// answer, the reduction with its article and version, and how far the cell
+/// read its chronicle.
+fn herkomst(answer: &AnswerProvenance) -> Value {
+    json!({
+        "door": answer.answerer,
+        "antwoord": answer.answer,
+        "reductie": answer.law_id,
+        "artikel": answer.article,
+        "geldig_vanaf": answer.valid_from,
+        "gelezen": answer.records_read,
+        "tot_en_met": answer.last_record,
+    })
 }
 
 /// Why a decision came out as it did, as the cell explains it
@@ -1234,17 +1246,11 @@ fn waarom_in(corpus: &Corpus, cell: &Cell, sfeer: &[&Cell], id: &str) -> Result<
             // The case's cell explains its own answers; another cell's
             // reasoning is its own (RFC-048).
             let keer = keer(&gevraagd, node).filter(|_| answer.answerer == cell.recording_actor());
-            antwoorden.push(json!({
-                "begrip": begrip,
-                "antwoord": answer.answer,
-                "keer": keer,
-                "waarde": waarde,
-                "door": answer.answerer,
-                "reductie": answer.law_id,
-                "geldig_vanaf": answer.valid_from,
-                "gelezen": answer.records_read,
-                "tot_en_met": answer.last_record,
-            }));
+            let mut antwoord = herkomst(answer);
+            antwoord["begrip"] = json!(begrip);
+            antwoord["keer"] = json!(keer);
+            antwoord["waarde"] = json!(waarde);
+            antwoorden.push(antwoord);
         }
     }
     Ok(Waarom {
