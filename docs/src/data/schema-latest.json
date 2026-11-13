@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.19",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.20",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -1229,10 +1229,62 @@
             "required": {
               "type": "boolean",
               "description": "Whether the caller must pass this parameter. Defaults to true: an omitted required parameter is an error. A parameter declared `required: false` that the caller omits resolves to an unknown value that names the parameter (RFC-036), so a law can declare application-form fields another law never passes. A step of a projection (since v0.8.16) need pass only the required parameters that the output it takes reads, directly or through another output of its article."
+            },
+            "columns": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/definitions/arrayColumn"
+              },
+              "description": "Since v0.8.20, only on a parameter of type `array`: the columns of each row, so the parameter holds a table. A property of the state of a projection that a step fills from such a parameter (an array with columns) must declare the same columns, each with the same type; the loader checks it. Only that comparison and the rows a step puts in the state are checked; the engine does not hold a value passed for the parameter to its columns otherwise. Without `columns` the rows of the array are not declared, and the loader checks nothing about them."
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "columns"
+            ]
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "const": "array"
+              }
             }
           }
         }
       ]
+    },
+    "arrayColumn": {
+      "type": "object",
+      "description": "Since v0.8.20: one column of an array of rows, in which each element is an object with a value per column. The column has a name and a scalar type. A row lacking a column holds null there; a row with a column not declared is refused.",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "type"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z_][a-z0-9_]*$",
+          "description": "The name of the column, read as `$<row>.<name>` in the body of a FOREACH over the array."
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "boolean",
+            "number",
+            "string",
+            "amount",
+            "date"
+          ],
+          "description": "The type of the values in the column. Every column may hold null, as a field declared `nullable`."
+        },
+        "description": {
+          "type": "string"
+        }
+      }
     },
     "inputField": {
       "allOf": [
@@ -2854,7 +2906,7 @@
             "state": {
               "type": "array",
               "minItems": 1,
-              "description": "The properties of the state, each with its type. Before the first record a property holds the start value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date. Not `id`, under which a row of the aggregates holds its root.",
+              "description": "The properties of the state, each with its type. Before the first record a property holds the start value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date, and since v0.8.20 an empty list for an array and null for a property that is `nullable`. Not `id`, under which a row of the aggregates holds its root.",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
@@ -2878,14 +2930,77 @@
                       "number",
                       "string",
                       "amount",
-                      "date"
+                      "date",
+                      "array"
                     ],
-                    "description": "The type of the property, which also gives its start value. A string or a date starts as null and may be set to null again."
+                    "description": "The type of the property, which also gives its start value. A string or a date starts as null and may be set to null again. Since v0.8.20 a property may be an `array`, only with its `columns`, so it holds a table: it starts as an empty list, and a step replaces it whole, for example with an array of rows a fact holds (`$record.<field>`). Such an array is never null. A read model reads it as a field of the row of its aggregate and can iterate over it with a FOREACH."
+                  },
+                  "nullable": {
+                    "type": "boolean",
+                    "description": "Since v0.8.20: whether the property may hold null (absence: the record says there is none), as `nullable` on a field (RFC-036). A nullable boolean, number or amount starts as null, and a step may set it to null; without it such a property starts as false or 0, and a null that reaches it fails the step. A string or a date may hold null either way and starts as null, so the flag changes nothing for it. An array is never null: it starts as an empty list, and `nullable: true` is refused. Each cell of an array with columns may hold null, as a nullable field does. The loader refuses a step that fills a property that is not nullable from a source that may be null: a nullable field of the record, a nullable property of the state, or an input the step declares nullable."
+                  },
+                  "columns": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "$ref": "#/definitions/arrayColumn"
+                    },
+                    "description": "Since v0.8.20, only and always with type `array`: the columns of each row, each with a scalar type. A step fills the array from a source with the same columns: a field of the record whose parameter declares them (`columns`), or another array of the state. A row the step gives that lacks a column holds null there; a row with another column, or with a value that is not of its column's type, is refused when the step is played."
                   },
                   "description": {
                     "type": "string"
                   }
-                }
+                },
+                "allOf": [
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "array"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "required": [
+                        "columns"
+                      ]
+                    },
+                    "else": {
+                      "not": {
+                        "required": [
+                          "columns"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "array"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "not": {
+                        "properties": {
+                          "nullable": {
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "nullable"
+                        ]
+                      }
+                    }
+                  }
+                ]
               }
             },
             "steps": {
@@ -2994,7 +3109,7 @@
                         }
                       ]
                     },
-                    "description": "What the step gives each property of the state, as the actions of an article: `output` names a property of the state, `value` is an input of the step (`$<input>`), a field of the record (`$record.<field>`) or a property of the state before it (`$state.<property>`). Only a bare reference: a step computes nothing itself, so what a record does stays in the law. A property no action names keeps its value, and a step gives a property one action at most. Every value must be of the property's type; a null fits only a string or a date. `$record.refers_to` is the id of the record this record refers to, or null, such as the decision a copy of a ruling concerns. Since v0.8.19 `$record.id` is the id of the record itself, so the state can keep which record set a property; in a projection with `per` it hides a field of the record named `id`."
+                    "description": "What the step gives each property of the state, as the actions of an article: `output` names a property of the state, `value` is an input of the step (`$<input>`), a field of the record (`$record.<field>`) or a property of the state before it (`$state.<property>`). Only a bare reference: a step computes nothing itself, so what a record does stays in the law. A property no action names keeps its value, and a step gives a property one action at most. Every value must be of the property's type; a null fits only a string, a date or (since v0.8.20) a property declared `nullable`. From that version an array with columns takes a whole list of rows: the action replaces the array, it does not add rows to it. `$record.refers_to` is the id of the record this record refers to, or null, such as the decision a copy of a ruling concerns. Since v0.8.19 `$record.id` is the id of the record itself, so the state can keep which record set a property; in a projection with `per` it hides a field of the record named `id`."
                   }
                 }
               }

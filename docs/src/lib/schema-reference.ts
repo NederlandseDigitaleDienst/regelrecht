@@ -1038,6 +1038,19 @@ export function legalBasisFields(): Field[] {
 }
 
 /**
+ * `arrayColumn` (v0.8.20): one column of an array of rows, its description
+ * and its fields. It has its own section because the `columns` of a parameter
+ * and of a property of a projection's state link to it.
+ */
+export function arrayColumn(): { description: string; fields: Field[] } {
+  const node = defs.arrayColumn ?? {};
+  return {
+    description: renderDescription(node.description ?? ''),
+    fields: fieldsOf(node),
+  };
+}
+
+/**
  * A string definition (`articleReference`, `variableReference`): no field
  * table, only the description and the pattern. Each has its own section
  * because a field links to it (`established_by`, `parameters_from`).

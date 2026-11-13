@@ -1,0 +1,70 @@
+---
+# Tier C: an array with columns in the state of a projection (schema
+# v0.8.20), filled from the array of rows a fact holds, and a read model
+# that iterates over the array of each aggregate with a nested FOREACH.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json
+$id: test_conformance_array_columns_state
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-12'
+valid_from: '2026-11-12'
+url: https://example.invalid/array-columns-state
+name: Testreductie met een array met kolommen in de staat
+articles:
+  - number: uitslag
+    url: https://example.invalid/array-columns-state/uitslag
+    text: Per uitslag het stembureau en de lijsten met hun stemmen.
+    machine_readable:
+      projection:
+        per: test_conformance_parameter_columns#1
+        state:
+          - name: stembureau
+            type: string
+          - name: lijsten
+            type: array
+            description: Per lijst het aantal stemmen.
+            columns:
+              - name: aanduiding
+                type: string
+              - name: aantal_stemmen
+                type: number
+                description: Het aantal stemmen op de lijst.
+        steps:
+          - record: test_conformance_parameter_columns#1
+            actions:
+              - output: stembureau
+                value: $record.stembureau
+              - output: lijsten
+                value: $record.lijsten
+  - number: stemmen_op_lijst
+    url: https://example.invalid/array-columns-state/stemmen_op_lijst
+    text: Het aantal stemmen op een lijst over alle stembureaus.
+    machine_readable:
+      execution:
+        parameters:
+          - name: aanduiding
+            type: string
+        input:
+          - name: uitslagen
+            type: array
+            source:
+              projections: test_conformance_array_columns_state#uitslag
+        output:
+          - name: stemmen_op_lijst
+            type: number
+        actions:
+          - output: stemmen_op_lijst
+            value:
+              operation: FOREACH
+              collection: $uitslagen
+              as: u
+              combine: ADD
+              body:
+                operation: FOREACH
+                collection: $u.lijsten
+                as: l
+                filter:
+                  operation: EQUALS
+                  subject: $l.aanduiding
+                  value: $aanduiding
+                body: $l.aantal_stemmen
+                combine: ADD
