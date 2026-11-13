@@ -117,6 +117,8 @@ test('a path reads as the schema reader names it', () => {
     'listOperation.items.description',
   );
   assert.equal(formatPath(['definitions', 'x', 'properties', 'properties', 'type']), 'x.properties.type');
+  // So is a key directly under `definitions`.
+  assert.equal(formatPath(['definitions', 'items', 'type']), 'items.type');
 });
 
 test('a property named like an Object method is compared as any other', () => {
@@ -134,6 +136,49 @@ test('a property named items counts as a property', () => {
   const newDoc = schema('v0.2.0');
   newDoc.definitions.field.properties.items = { type: 'array' };
   assert.deepEqual(compare(oldDoc, newDoc).summary.properties.added, ['field.items']);
+});
+
+test('one branch inserted in a oneOf is one change, not a shift', () => {
+  const oldDoc = schema('v0.1.0');
+  oldDoc.definitions.operation = { oneOf: [{ const: 'ADD' }, { const: 'MAX' }, { const: 'MIN' }] };
+  const newDoc = schema('v0.2.0');
+  newDoc.definitions.operation = { oneOf: [{ const: 'ADD' }, { const: 'DIV' }, { const: 'MAX' }, { const: 'MIN' }] };
+  assert.deepEqual(
+    compare(oldDoc, newDoc).changes.map((c) => [c.kind, formatPath(c.path)]),
+    [['added', 'operation.oneOf[1]']],
+  );
+  // At the end, and into an empty array.
+  const atEnd = structuredClone(oldDoc);
+  atEnd.definitions.operation.oneOf.push({ const: 'SUB' });
+  assert.deepEqual(
+    compare(oldDoc, { ...atEnd, $id: newDoc.$id, title: newDoc.title }).changes.map((c) => [c.kind, formatPath(c.path)]),
+    [['added', 'operation.oneOf[3]']],
+  );
+  const fromEmpty = structuredClone(oldDoc);
+  fromEmpty.definitions.operation.oneOf = [];
+  const one = structuredClone(newDoc);
+  one.definitions.operation.oneOf = [{ const: 'ADD' }];
+  assert.deepEqual(
+    compare(fromEmpty, one).changes.map((c) => [c.kind, formatPath(c.path)]),
+    [['added', 'operation.oneOf[0]']],
+  );
+  // An insert plus another edit is no single insert: compared by position.
+  const both = structuredClone(newDoc);
+  both.definitions.operation.oneOf[3] = { const: 'MINIMUM' };
+  assert.ok(compare(oldDoc, both).changes.length > 1);
+  assert.deepEqual(
+    compare(newDoc, oldDoc, 'v0.2.0', 'v0.1.0').changes.map((c) => [c.kind, formatPath(c.path)]),
+    [['removed', 'operation.oneOf[1]']],
+  );
+});
+
+test('a duplicate that comes or goes in an enum is a change', () => {
+  const oldDoc = schema('v0.1.0');
+  const newDoc = schema('v0.2.0');
+  newDoc.definitions.field.properties.type.enum = ['boolean', 'boolean', 'number'];
+  const change = compare(oldDoc, newDoc).changes[0];
+  assert.deepEqual(change.added, ['boolean']);
+  assert.equal(change.reordered, false);
 });
 
 test('a reordered enum says so', () => {
@@ -262,7 +307,8 @@ test('two diffs share the room, and the comment stays within any limit', () => {
   assert.match(md, /^\+\s+"array"$/m);
 
   // Down to the point where only the summaries fit, the limit holds exactly.
-  const heads = renderComment(sections, { maxChars: 1 }).length;
+  const summariesOnly = sections.map((s) => ({ ...s, result: { ...s.result, diff: '' } }));
+  const heads = renderComment(summariesOnly).length;
   for (let max = heads; max < heads + 3000; max += 7) {
     const out = renderComment(sections, { maxChars: max });
     assert.ok(out.length <= max, `maxChars ${max} gave ${out.length}`);
@@ -374,6 +420,24 @@ test('an edited released version is compared to its own copy on the base', () =>
   assert.equal(s.oldVersion, 'v0.2.0');
   assert.deepEqual(s.result.changes.map((c) => formatPath(c.path)), ['type']);
   assert.match(renderComment([s]), /\(gewijzigd\).*\n\n`v0\.2\.0` staat al op de base-branch/);
+});
+
+test('the command the truncation note names gives the whole diff', () => {
+  const repo = gitRepo();
+  repo.write('schema/v0.1.0/schema.json', schema('v0.1.0'));
+  const base = repo.commit('base');
+  const big = schema('v0.2.0');
+  for (let i = 0; i < 4000; i++) big.definitions[`def${i}`] = { type: 'string', description: `Definition ${i}.` };
+  repo.write('schema/v0.2.0/schema.json', big);
+  const head = repo.commit('head');
+
+  const cut = execFileSync('node', [SCRIPT, '--base', base, '--head', head, '--max-chars', '60000'], {
+    cwd: repo.dir,
+    encoding: 'utf8',
+  });
+  assert.match(cut, /\*\*Afgekapt:\*\*/);
+  assert.ok(cut.length <= 60000);
+  assert.doesNotMatch(runCli(repo.dir, base, head), /Afgekapt/);
 });
 
 test('the first schema version has nothing to compare to', () => {

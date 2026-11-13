@@ -76,12 +76,14 @@ jobs:
         with:
           node-version: '24'
 
+      # 60000 is DEFAULT_MAX_CHARS in the script, below GitHub's comment limit;
+      # the CLI cuts nothing unless asked.
       - name: Compare the schema versions
         if: steps.base.outputs.skip != 'true'
         env:
           BASE_SHA: ${{ steps.base.outputs.sha }}
         run: |
-          node script/schema-diff.mjs --base "$BASE_SHA" --head HEAD >"$RUNNER_TEMP/schema-diff.md"
+          node script/schema-diff.mjs --base "$BASE_SHA" --head HEAD --max-chars 60000 >"$RUNNER_TEMP/schema-diff.md"
           cat "$RUNNER_TEMP/schema-diff.md" >>"$GITHUB_STEP_SUMMARY"
 
       - name: Post or update the comment

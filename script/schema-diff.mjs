@@ -2,7 +2,7 @@
 // as markdown for a pull request comment.
 //
 // A new schema version is a full copy: `schema/vX.Y.Z/schema.json` in a new
-// directory. The pull request diff therefore shows a new file of some 3,700
+// directory. The pull request diff therefore shows a new file of some 3,600
 // lines, while the change to the language is often a hundred or two. This
 // script finds that change and writes it out twice:
 //
@@ -25,6 +25,8 @@
 // Usage:
 //   node script/schema-diff.mjs --base <ref> [--head <ref>] [--max-chars <n>]
 //
+// Without --max-chars nothing is cut; the workflow passes the comment limit.
+//
 // Prints the comment to stdout, or nothing when the head adds or changes no
 // schema version. `.github/workflows/schema-diff.yml` posts it.
 
@@ -37,7 +39,10 @@ import { fileURLToPath } from 'node:url';
 /** The line that identifies the comment, so a new push updates it. */
 export const MARKER = '<!-- schema-diff -->';
 
-/** GitHub refuses a comment over 65,536 characters; stay well below it. */
+/**
+ * GitHub refuses a comment over 65,536 characters; stay well below it.
+ * `.github/workflows/schema-diff.yml` passes the same number to the CLI.
+ */
 export const DEFAULT_MAX_CHARS = 60000;
 
 /** At most this many paths are listed per version; the rest are counted. */
@@ -144,9 +149,26 @@ export function semanticDiff(a, b, path = [], out = []) {
 
   if (Array.isArray(a) && Array.isArray(b)) {
     if (a.every(isScalar) && b.every(isScalar)) {
-      const added = b.filter((x) => !a.some((y) => y === x));
-      const removed = a.filter((x) => !b.some((y) => y === x));
+      // As multisets, so a duplicate that comes or goes is a change too.
+      const minus = (xs, ys) => {
+        const left = [...ys];
+        return xs.filter((x) => {
+          const i = left.indexOf(x);
+          if (i === -1) return true;
+          left.splice(i, 1);
+          return false;
+        });
+      };
+      const added = minus(b, a);
+      const removed = minus(a, b);
       out.push({ kind: 'changed', path, added, removed, reordered: added.length + removed.length === 0 });
+      return out;
+    }
+    // One item inserted or removed (a new branch in a `oneOf`, say) is one
+    // change. Compared by position it would read as every later item changed.
+    const single = singleSplice(a, b);
+    if (single) {
+      out.push({ kind: single.kind, path: [...path, single.index] });
       return out;
     }
     for (let i = 0; i < Math.max(a.length, b.length); i++) {
@@ -167,7 +189,27 @@ export function semanticDiff(a, b, path = [], out = []) {
  * called `items` or `properties` (the schema has both).
  */
 function isKeyword(path, i) {
-  return i === 0 || path[i - 1] !== 'properties' || !isKeyword(path, i - 1);
+  if (i === 0) return true;
+  // A key directly under the root `definitions` is the name of a definition.
+  if (i === 1 && path[0] === 'definitions') return false;
+  return path[i - 1] !== 'properties' || !isKeyword(path, i - 1);
+}
+
+/**
+ * When `b` is `a` with exactly one item inserted, or `a` is `b` with exactly
+ * one item removed, which one and where; otherwise null.
+ */
+function singleSplice(a, b) {
+  const [longer, shorter, kind] = b.length === a.length + 1
+    ? [b, a, 'added']
+    : a.length === b.length + 1 ? [a, b, 'removed'] : [];
+  if (!longer) return null;
+  let k = 0;
+  while (k < shorter.length && deepEqual(longer[k], shorter[k])) k++;
+  for (let i = k; i < shorter.length; i++) {
+    if (!deepEqual(longer[i + 1], shorter[i])) return null;
+  }
+  return { kind, index: k };
 }
 
 /**
@@ -410,18 +452,18 @@ function diffBlock(diff, budget, label) {
   const note = (shown) =>
     `**Afgekapt:** ${shown} van ${all.length} regels getoond, omdat een comment op GitHub ` +
     'een maximale lengte heeft. De volledige diff: `node script/schema-diff.mjs --base origin/main`.';
-  // Not even an empty block fits: name the diff and leave it out.
-  const empty = wrap('', note(all.length)).length;
-  if (empty > budget) {
-    return `Diff van ${code(label)} (${all.length} regels) past niet meer in deze comment. ` +
-      'De volledige diff: `node script/schema-diff.mjs --base origin/main`.';
-  }
+  // Not a single line fits: name the diff and leave it out, or leave out even
+  // that when it does not fit either.
+  const omitted =
+    `Diff van ${code(label)} (${all.length} regels) past niet meer in deze comment. ` +
+    'De volledige diff: `node script/schema-diff.mjs --base origin/main`.';
   let shown = 0;
-  let used = empty;
+  let used = wrap('', note(all.length)).length;
   while (shown < all.length && used + all[shown].length + 1 <= budget) {
     used += all[shown].length + 1;
     shown++;
   }
+  if (shown === 0) return omitted.length <= budget ? omitted : '';
   return wrap(all.slice(0, shown).join('\n'), note(shown));
 }
 
@@ -459,7 +501,7 @@ export function renderComment(sections, { maxChars = DEFAULT_MAX_CHARS } = {}) {
   bySize.forEach((s, n) => {
     const share = Math.floor(room / (bySize.length - n));
     const block = diffBlock(s.diff, share, s.label);
-    blocks.set(s.i, block);
+    if (block !== '') blocks.set(s.i, block);
     room -= block.length;
   });
 
@@ -542,7 +584,9 @@ export function collectSections({ base, head, cwd }) {
 // --- CLI ----------------------------------------------------------------------
 
 function parseArgs(argv) {
-  const args = { head: 'HEAD', maxChars: DEFAULT_MAX_CHARS };
+  // No limit by default, so the command the truncation note points to gives
+  // the whole diff; the workflow passes the comment limit.
+  const args = { head: 'HEAD', maxChars: Infinity };
   for (let i = 0; i < argv.length; i++) {
     const flag = argv[i];
     const value = argv[i + 1];
@@ -553,7 +597,7 @@ function parseArgs(argv) {
     i++;
   }
   if (!args.base) throw new Error('--base <ref> is required');
-  if (!Number.isInteger(args.maxChars) || args.maxChars <= 0) {
+  if (args.maxChars !== Infinity && (!Number.isInteger(args.maxChars) || args.maxChars <= 0)) {
     throw new Error('--max-chars must be a positive integer');
   }
   return args;
