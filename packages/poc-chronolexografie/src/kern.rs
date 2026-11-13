@@ -47,9 +47,9 @@ pub struct Corpus {
     /// browser holds.
     files: Arc<dyn Files>,
     /// Per field of an application, the source the form prefills it from
-    /// (`<regelwerk>#<article>#<output>`): what the UI policy of the case's
-    /// source says ([`crate::ui_beleid`]). Empty without one.
-    pub vult_voor: BTreeMap<String, String>,
+    /// (`<regelwerk>#<article>#<output>`): what the UI spec of the case's
+    /// source says ([`crate::ui_spec`]). Empty without one.
+    pub prefill: BTreeMap<String, String>,
 }
 
 /// The cell of the case and the other cells of its sphere (RFC-048). It
@@ -194,7 +194,7 @@ impl Corpus {
             cell_dir,
             andere_dirs,
             files,
-            vult_voor: BTreeMap::new(),
+            prefill: BTreeMap::new(),
         })
     }
 
@@ -624,10 +624,10 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "basis": aanvraag.basis(),
             "velden": in_te_vullen(&aanvraag),
             "moment": moment(&aanvraag),
-            // The fields of this form that the UI policy prefills, each
+            // The fields of this form that the UI spec prefills, each
             // with its source ([`voorinvullen`]).
-            "vult_voor": corpus
-                .vult_voor
+            "prefill": corpus
+                .prefill
                 .iter()
                 .filter(|(veld, _)| {
                     aanvraag
@@ -1060,7 +1060,7 @@ pub fn aanvragen(
 /// with the reason (`fout`), and the other fields are filled: one the engine
 /// cannot run yet, such as without the number the applicant has not logged
 /// in with, and one the cell refuses ([`Cell::consult`]), such as an output
-/// its article does not have. The sources come from a UI policy the poc does
+/// its article does not have. The sources come from a UI spec the poc does
 /// not keep, so one wrong source does not take the form down.
 ///
 /// # Errors

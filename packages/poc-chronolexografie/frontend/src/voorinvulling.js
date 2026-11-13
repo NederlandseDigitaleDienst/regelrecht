@@ -1,6 +1,6 @@
 /**
- * The application prefilled from the sources. The UI policy of the case's
- * source says per field which source fills it (`state.vormen.aanvraag.vult_voor`,
+ * The application prefilled from the sources. The UI spec of the case's
+ * source says per field which source fills it (`state.vormen.aanvraag.prefill`,
  * `<regelwerk>#<article>#<output>`); the cell computes that source with the
  * cells of the case as they know things on the play date (`api.voorinvullen`).
  * A prefilled value is a proposal: the applicant can change it, and what they

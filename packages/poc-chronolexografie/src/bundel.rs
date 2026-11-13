@@ -34,11 +34,11 @@ use serde::{Deserialize, Serialize};
 use crate::casus::Casus;
 use crate::casus::{Regelwerken, casussen as lees_casussen};
 use crate::kern::{Corpus, Result};
-use crate::ui_beleid;
+use crate::ui_spec;
 
-/// Where a source holds its UI policy: at its root, where the portal puts
-/// the file its manifest names (`UI_BELEID` in poc-portal, `bron.rs`).
-pub const UI_BELEID: &str = "ui_beleid.yaml";
+/// Where a source holds its UI spec: at its root, where the portal puts
+/// the file its manifest names (`UI_SPEC` in poc-portal, `bron.rs`).
+pub const UI_SPEC: &str = "ui_spec.yaml";
 
 /// This crate's corpus, under the repository root: the cases under
 /// `casussen`, the regelwerken under `regulation/nl` and the cells under
@@ -164,18 +164,14 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         Bundle::new(alles).map_err(|e| Error::Setup(format!("source '{}': {e}", bron.naam)))?,
     );
     let roots = [wortel.clone()];
-    // A UI policy that does not read costs the prefill, not the cases: they
+    // A UI spec that does not read costs the prefill, not the cases: they
     // play with empty forms, and the source says why.
-    let vult_voor = match bron
-        .bestanden
-        .get(UI_BELEID)
-        .map(|t| ui_beleid::vult_voor(t))
-    {
-        Some(Ok(vult_voor)) => vult_voor,
+    let prefill = match bron.bestanden.get(UI_SPEC).map(|t| ui_spec::prefill(t)) {
+        Some(Ok(prefill)) => prefill,
         Some(Err(e)) => {
             stand
                 .meldingen
-                .push(format!("{UI_BELEID}: {e}; the forms are not prefilled"));
+                .push(format!("{UI_SPEC}: {e}; the forms are not prefilled"));
             BTreeMap::new()
         }
         None => BTreeMap::new(),
@@ -190,7 +186,7 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         let id = casus.id.clone();
         match Corpus::load(bundle.clone(), &roots, &regelwerken, casus) {
             Ok(mut c) => {
-                c.vult_voor = vult_voor.clone();
+                c.prefill = prefill.clone();
                 uit.push(c);
             }
             Err(e) => stand.fouten.push(format!("case '{id}': {e}")),
@@ -464,7 +460,7 @@ mod tests {
     }
 
     /// The test source in `tests/bron-voorinvullen`, with a copy of the Awb:
-    /// a register cell answers the name at a number, and its UI policy
+    /// a register cell answers the name at a number, and its UI spec
     /// prefills the application's name from it.
     fn voorinvullen_bron() -> Bron {
         let mut bestanden =
@@ -481,7 +477,7 @@ mod tests {
     const NAAM_UIT_REGISTER: &str = "voorbeeld_inschrijving#2#naam_volgens_register";
 
     #[test]
-    fn the_form_of_a_case_from_a_source_names_what_its_ui_policy_prefills() {
+    fn the_form_of_a_case_from_a_source_names_what_its_ui_spec_prefills() {
         let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
         assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
@@ -489,11 +485,11 @@ mod tests {
         let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
         let vormen = spel.vormen(dag).unwrap();
         assert_eq!(
-            vormen["aanvraag"]["vult_voor"],
+            vormen["aanvraag"]["prefill"],
             serde_json::json!({ "naam_opgegeven": NAAM_UIT_REGISTER })
         );
         // What the form then asks: the name from the register cell.
-        let bronnen = vormen["aanvraag"]["vult_voor"].as_object().unwrap().clone();
+        let bronnen = vormen["aanvraag"]["prefill"].as_object().unwrap().clone();
         let velden = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
         let ingevuld = spel.voorinvullen(&bronnen, &velden, dag).unwrap();
         assert_eq!(ingevuld["naam_opgegeven"]["waarde"], "Vereniging Voorbeeld");
@@ -504,49 +500,49 @@ mod tests {
     }
 
     #[test]
-    fn a_case_without_a_ui_policy_prefills_nothing() {
+    fn a_case_without_a_ui_spec_prefills_nothing() {
         let (alle, standen) = met_bronnen(gebundeld(), vec![voorbeeld()]).unwrap();
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
         spel.kiezen("voorbeeld_subsidie").unwrap();
         let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
-        assert_eq!(vormen["aanvraag"]["vult_voor"], serde_json::json!({}));
+        assert_eq!(vormen["aanvraag"]["prefill"], serde_json::json!({}));
     }
 
     #[test]
-    fn a_ui_policy_that_prefills_a_field_twice_costs_the_prefill_not_the_cases() {
+    fn a_ui_spec_that_prefills_a_field_twice_costs_the_prefill_not_the_cases() {
         let mut bron = voorinvullen_bron();
         bron.bestanden.insert(
-            "ui_beleid.yaml".into(),
-            "elementen:\n  - {id: UI1, vult_voor: {naam_opgegeven: 'a#1#x'}}\n  - {id: UI5, vult_voor: {naam_opgegeven: 'a#1#y'}}\n".into(),
+            "ui_spec.yaml".into(),
+            "elementen:\n  - {id: UI1, prefill: {naam_opgegeven: 'a#1#x'}}\n  - {id: UI5, prefill: {naam_opgegeven: 'a#1#y'}}\n".into(),
         );
         let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
         assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
         let melding = standen[0].meldingen.join("\n");
         assert!(
-            melding.contains("ui_beleid.yaml") && melding.contains("UI5"),
+            melding.contains("ui_spec.yaml") && melding.contains("UI5"),
             "{melding}"
         );
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
         spel.kiezen("voorbeeld_inschrijving").unwrap();
         let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
-        assert_eq!(vormen["aanvraag"]["vult_voor"], serde_json::json!({}));
+        assert_eq!(vormen["aanvraag"]["prefill"], serde_json::json!({}));
     }
 
-    /// A field the UI policy prefills that the form of this case does not
+    /// A field the UI spec prefills that the form of this case does not
     /// ask is no field of its form: another case of the source may ask it.
     #[test]
     fn a_field_the_form_does_not_ask_is_left_out() {
         let mut bron = voorinvullen_bron();
         bron.bestanden.insert(
-            "ui_beleid.yaml".into(),
-            format!("elementen:\n  - vult_voor: {{naam_opgegeven: '{NAAM_UIT_REGISTER}', elders: 'a#1#x'}}\n"),
+            "ui_spec.yaml".into(),
+            format!("elementen:\n  - prefill: {{naam_opgegeven: '{NAAM_UIT_REGISTER}', elders: 'a#1#x'}}\n"),
         );
         let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
         spel.kiezen("voorbeeld_inschrijving").unwrap();
         let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
         assert_eq!(
-            vormen["aanvraag"]["vult_voor"],
+            vormen["aanvraag"]["prefill"],
             serde_json::json!({ "naam_opgegeven": NAAM_UIT_REGISTER })
         );
     }
