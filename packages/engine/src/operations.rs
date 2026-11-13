@@ -577,8 +577,9 @@ fn equal_by_value(a: &Value, b: &Value, op_name: &str) -> Result<bool> {
     // canonical date strings are equal structurally exactly when they are equal
     // chronologically, and object↔object stays structural so arbitrary objects
     // sharing an `iso` field do not become equal (RFC-021). A side that fails to
-    // parse as a date leaves the structural verdict untouched. Scoped to EQUALS so
-    // membership and other structural comparisons keep their existing semantics.
+    // parse as a date leaves the structural verdict untouched. Scoped to EQUALS and
+    // FOREACH combine DISTINCT; membership and other structural comparisons keep
+    // their existing semantics.
     if !equal
         && is_mixed_date_pair(a, b)
         && let (Ok(a_date), Ok(b_date)) = (parse_date(a), parse_date(b))
@@ -1761,13 +1762,22 @@ fn combine_only(mut results: Vec<Value>) -> Result<Value> {
 /// whole result unknown, because whether it equals another cannot be said.
 /// An empty collection gives an empty array.
 ///
-/// The comparison is pairwise, so the cost is quadratic in the number of
-/// unique results. [`execute_foreach`] bounds one collection by
+/// Every result is compared with every unique one kept so far, so the cost
+/// is the number of results times the number of unique ones, at worst
+/// quadratic in the size of the collection. [`execute_foreach`] bounds one collection by
 /// `MAX_ARRAY_SIZE`; a DISTINCT inside a nested FOREACH runs once per outer
 /// element, so the bound multiplies, as it does for every nested operation.
 ///
 /// [`execute_foreach`] already returns on an untranslatable element, so the
 /// check below is defensive: it keeps this function sound on its own.
+///
+/// Two limits come with the equality of `EQUALS`. Rows that hold `12` and
+/// `12.0` in one field are an error even when another field tells them
+/// apart, because [`compound_equal`] checks the whole row. And the date
+/// fallback takes any object with a string `iso` as a date, so two such
+/// objects that differ elsewhere can both equal one date string; the count
+/// of unique results can then depend on the order. Reference dates the
+/// engine builds are canonical, so this only reaches hand-written objects.
 fn combine_distinct(results: Vec<Value>) -> Result<Value> {
     if let Some(tainted) = find_untranslatable(&results) {
         return Ok(tainted);
@@ -3883,6 +3893,18 @@ mod tests {
             let e = distinct_of(vec![
                 obj(vec![("n", Value::Int(12))]),
                 obj(vec![("n", Value::Decimal(dec!(12.0)))]),
+            ])
+            .unwrap_err();
+            assert!(matches!(e, EngineError::TypeMismatch { .. }), "{e}");
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_refuses_unlike_numbers_even_in_rows_that_differ() {
+            // As EQUALS does: the whole row is compared, so another field that
+            // tells the rows apart does not settle 12 against 12.0.
+            let e = distinct_of(vec![
+                obj(vec![("naam", s("Noord")), ("n", Value::Int(12))]),
+                obj(vec![("naam", s("Zuid")), ("n", Value::Decimal(dec!(12.0)))]),
             ])
             .unwrap_err();
             assert!(matches!(e, EngineError::TypeMismatch { .. }), "{e}");

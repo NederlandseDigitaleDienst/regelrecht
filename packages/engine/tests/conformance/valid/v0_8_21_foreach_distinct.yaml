@@ -26,6 +26,7 @@ articles:
             type: array
           - name: aanduiding
             type: string
+            nullable: true
         actions:
           - output: unieke_aanduidingen
             value:

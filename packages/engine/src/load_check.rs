@@ -1618,6 +1618,48 @@ articles:
         reject_combine_before_its_version(&law).unwrap();
     }
 
+    #[test]
+    fn distinct_in_a_projection_step_is_refused_before_v0_8_21() {
+        // The loader allows only bare references in a step, but this gate
+        // stands on its own and walks the steps too.
+        let law = |version: &str| {
+            format!(
+                r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json
+$id: distinct_in_step
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+articles:
+  - number: aggregaat
+    text: t
+    machine_readable:
+      projection:
+        per: elders#1
+        state:
+          - name: soorten
+            type: string
+        steps:
+          - record: elders#1
+            actions:
+              - output: soorten
+                value:
+                  operation: FOREACH
+                  collection: $record.soorten
+                  body: $item
+                  combine: DISTINCT
+"#
+            )
+        };
+        let old: ArticleBasedLaw = serde_yaml_ng::from_str(&law("v0.8.20")).unwrap();
+        let err = reject_combine_before_its_version(&old).unwrap_err();
+        assert!(
+            err.to_string().contains("combine DISTINCT") && err.to_string().contains("v0.8.21"),
+            "{err}"
+        );
+        let new: ArticleBasedLaw = serde_yaml_ng::from_str(&law("v0.8.21")).unwrap();
+        reject_combine_before_its_version(&new).unwrap();
+    }
+
     /// The review's `literal-unknown.json` law: an Unknown sentinel written
     /// straight into an `AND`.
     const LITERAL_IN_ACTION: &str = r#"
