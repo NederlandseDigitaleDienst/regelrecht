@@ -1440,11 +1440,13 @@ fn a_prefill_takes_the_value_from_the_cell_that_answers_and_records_nothing() {
     assert_eq!(herkomst.as_array().unwrap().len(), 1);
     assert_eq!(herkomst[0]["door"], json!("kamer_van_koophandel"));
     assert_eq!(herkomst[0]["antwoord"], json!("aantal_werkzame_personen"));
-    assert!(
-        herkomst[0]["reductie"]
-            .as_str()
-            .unwrap()
-            .starts_with("reductie_")
+    assert_eq!(
+        herkomst[0]["reductie"],
+        json!("reductie_vestiging_in_handelsregister")
+    );
+    assert_eq!(
+        herkomst[0]["artikel"],
+        json!("vestiging_in_handelsregister")
     );
     // Asking records nothing, in any cell.
     assert_eq!(spel.kroniek().unwrap(), voor);
@@ -1461,24 +1463,10 @@ fn a_prefill_reads_the_chronicle_as_the_cell_knows_it_on_the_day() {
     // only on 2 March: on 25 February its cell does not know it yet.
     let eerder = voorinvullen(&mut spel, &vult_voor, "99990066", "2026-02-25");
     assert_eq!(eerder["werkzame_personen"]["waarde"], Value::Null);
+    // From 2 March it knows the registration, with the correction to two
+    // persons it recorded the same day.
     let later = voorinvullen(&mut spel, &vult_voor, "99990066", "2026-03-02");
     assert_eq!(later["werkzame_personen"]["waarde"], json!(2));
-}
-
-#[test]
-fn a_prefill_takes_a_correction_the_cell_recorded() {
-    let mut spel = spel_met("bedrijfsparkeervergunning");
-    // The Kamer corrected this registration from one to two persons.
-    let gecorrigeerd = voorinvullen(
-        &mut spel,
-        &[(
-            "werkzame_personen",
-            "aantal_werkzame_personen_volgens_handelsregister",
-        )],
-        "99990066",
-        "2026-10-13",
-    );
-    assert_eq!(gecorrigeerd["werkzame_personen"]["waarde"], json!(2));
 }
 
 #[test]
@@ -1521,6 +1509,15 @@ fn a_prefill_for_a_number_the_register_does_not_know_is_empty_without_origin() {
 fn a_prefill_from_a_source_that_is_no_output_of_its_article_is_refused() {
     let mut spel = spel_met("bedrijfsparkeervergunning");
     let velden = map(&json!({ "kvk_nummer": "99990011" }));
+    let bronnen = map(&json!({ "postcode": 42 }));
+    let e = spel
+        .voorinvullen(&bronnen, &velden, dag("2026-10-13"))
+        .unwrap_err();
+    assert!(
+        e.to_string()
+            .contains("not '<regelwerk>#<article>#<output>'"),
+        "{e}"
+    );
     for (bron, waarom) in [
         ("geen_bron", "is no <regulation>#<article>#<fact>"),
         ("a#1", "is no <regulation>#<article>#<fact>"),

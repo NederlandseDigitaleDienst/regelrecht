@@ -1039,9 +1039,11 @@ pub fn aanvragen(
 /// Nothing is recorded: what the applicant submits is what the application
 /// holds, prefilled or not.
 ///
-/// A source the engine cannot run on what the form holds so far, such as
-/// one that needs a number the applicant has not given yet, leaves its field
-/// empty with the engine's message (`fout`); the other fields are filled.
+/// A source on which the engine fails leaves its field empty with the
+/// engine's message (`fout`), and the other fields are filled. The usual case
+/// is a parameter the form does not hold yet, such as the number the
+/// applicant has not logged in with; a cell that fails to answer shows the
+/// same way, with its own message.
 ///
 /// # Errors
 ///
@@ -1081,7 +1083,8 @@ pub fn voorinvullen(
 /// What `result`, the output `bron` consulted ([`Cell::consult`]), gives a
 /// field: the value, and each cell that answered with something.
 fn uit_bron(result: &ArticleResult, bron: &str) -> Result<Value> {
-    let (_, output) = shape::split_fact(bron)?;
+    // `consult` checked the source, so its last part is the output.
+    let output = bron.rsplit_once('#').map_or(bron, |(_, o)| o);
     let waarde = result
         .outputs
         .get(output)

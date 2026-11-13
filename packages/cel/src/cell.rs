@@ -1359,21 +1359,21 @@ impl Cell {
     /// is a node with who gave it from what.
     ///
     /// `given` are values by name; the article gets those that are among its
-    /// parameters. Where the article has one date parameter that `given`
-    /// leaves out, such as the day a policy reads its source on, it is the day
-    /// `on`, as the cell fills a date a stage requires with the day of
+    /// parameters. Where the article has one required date parameter that
+    /// `given` leaves out, such as the day a policy reads its source on, it is
+    /// the day `on`, as the cell fills a date a stage requires with the day of
     /// recording. With more than one left out, which is that day is not
-    /// clear, and the cell refuses.
+    /// clear, and the cell refuses. An optional date left out stays out.
     ///
     /// The engine is asked for the output by its law, as every execution is;
-    /// the check against the article holds because an output has one article
-    /// in its law.
+    /// where it ran another article of that law for it, the cell refuses.
     ///
     /// # Errors
     ///
     /// Refused when `source` is no `<regulation>#<article>#<output>`, the
     /// regulation has no such article in force on `on`, the article has no
-    /// such output, or more than one of its date parameters is left out. An
+    /// such output, more than one of its required date parameters is left
+    /// out, or the engine ran another article for the output. An
     /// error of the engine, such as a required parameter that is missing,
     /// ends it as well.
     pub fn consult(
@@ -1401,7 +1401,9 @@ impl Cell {
         for parameter in found.get_parameters() {
             if let Some(value) = given.get(&parameter.name) {
                 parameters.insert(parameter.name.clone(), stored::from_stored(value)?);
-            } else if parameter.param_type == ParameterType::Date {
+            } else if parameter.param_type == ParameterType::Date
+                && parameter.required != Some(false)
+            {
                 days.push(&parameter.name);
             }
         }
@@ -1422,7 +1424,15 @@ impl Cell {
         let others = known_on(sphere, on);
         let call = Answerers::new(&reader, &others).call(BTreeMap::new());
         let date = on.to_string();
-        Ok(service.evaluate_law_with_trace_in(law_id, &[output], parameters, call, &date)?)
+        let result =
+            service.evaluate_law_with_trace_in(law_id, &[output], parameters, call, &date)?;
+        if result.article_number != article {
+            return Err(refused(format!(
+                "{law_id} gives '{output}' from article {}, not from article {article}",
+                result.article_number
+            )));
+        }
+        Ok(result)
     }
 
     /// Whether the regulation versions the chronolexogram `id` was recorded
