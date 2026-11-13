@@ -2120,8 +2120,11 @@ fn ontvankelijkheid(
 /// heroverweging there is nothing to find anew. The answer is that of
 /// [`beslissen_op_bezwaar`], with the test under `toets`.
 ///
-/// The scenario test plays a step `beslissing_op_bezwaar` through this one
-/// function, so a change in either step is made here and nowhere else.
+/// This mirrors `toets` and `beslisOpBezwaar` in
+/// `frontend/src/components/BestuursorgaanTab.vue`, which make the same two
+/// calls through the WASM API; a change to one is a change to the other.
+/// The scenario test plays a step `beslissing_op_bezwaar` through this
+/// function only, so a source that plays its scenarios needs no copy of it.
 ///
 /// # Errors
 ///

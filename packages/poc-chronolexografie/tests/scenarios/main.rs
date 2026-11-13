@@ -72,11 +72,10 @@ fn bestanden(pad: &Path) -> BTreeMap<String, String> {
 }
 
 /// The number of scenarios of the case `casus_id`.
-fn aantal(spel: &mut Spel, casus_id: &str) -> usize {
-    spel.kiezen(casus_id).unwrap();
-    spel.casus().unwrap()["scenarios"]
-        .as_array()
-        .map_or(0, Vec::len)
+fn aantal(spel: &mut Spel, casus_id: &str) -> Result<usize, String> {
+    spel.kiezen(casus_id).map_err(|e| e.to_string())?;
+    let casus = spel.casus().map_err(|e| e.to_string())?;
+    Ok(casus["scenarios"].as_array().map_or(0, Vec::len))
 }
 
 /// Every scenario of every case of the source `stand`, played on `spel`.
@@ -100,7 +99,14 @@ fn speel_bron(spel: &mut Spel, stand: &BronStand, uit: Option<&Path>) -> Vec<Str
     let mut verslagen = Vec::new();
     for casus_id in &stand.casussen {
         laden.push(laden_van(spel, casus_id));
-        for i in 0..aantal(spel, casus_id) {
+        let n = match aantal(spel, casus_id) {
+            Ok(n) => n,
+            Err(e) => {
+                fouten.push(format!("{casus_id}: {e}"));
+                continue;
+            }
+        };
+        for i in 0..n {
             match speler::speel(spel, casus_id, i, uit.is_some()) {
                 Ok(verslag) => {
                     fouten.extend(verslag.fouten());
@@ -130,7 +136,10 @@ fn laden_van(spel: &mut Spel, casus_id: &str) -> Value {
         return uit;
     }
     let casus = spel.casus().unwrap();
-    let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+    let Some(dag) = casus["speeldatum"].as_str().and_then(|d| d.parse().ok()) else {
+        uit["vormen_fout"] = json!("the case has no playing date");
+        return uit;
+    };
     match spel.vormen(dag) {
         Ok(v) => {
             let andere: Vec<Value> = v["andere_cellen"]
@@ -232,7 +241,7 @@ fn every_scenario_of_a_source_plays_from_its_manifest() {
         serde_json::from_str(&std::fs::read_to_string(uit.join("laden.json")).unwrap()).unwrap();
     assert_eq!(laden["bron"]["casussen"], json!(["voorbeeld_subsidie"]));
     assert_eq!(laden["casussen"][0]["gekozen"], json!(true));
-    assert_eq!(laden["casussen"][0]["scenarios"], json!(3));
+    assert_eq!(laden["casussen"][0]["scenarios"], json!(4));
     let bezwaar: Value = serde_json::from_str(
         &std::fs::read_to_string(uit.join("scenario-voorbeeld_subsidie-02.json")).unwrap(),
     )
@@ -292,6 +301,21 @@ fn a_wrong_expected_outcome_fails_with_the_step_and_both_outcomes() {
         [
             "voorbeeld_subsidie, 'Niet geregistreerd: afgewezen', step 2: expected toegewezen, got afgewezen"
         ]
+    );
+}
+
+#[test]
+fn an_expectation_on_a_step_that_checks_none_fails() {
+    let mut bestanden = testbron();
+    let pad = "casussen/voorbeeld_subsidie.yaml";
+    let mut casus: Value = serde_yaml_ng::from_str(&bestanden[pad]).unwrap();
+    casus["scenarios"][2]["stappen"][3]["uitkomst"] = json!("gegrond");
+    bestanden.insert(pad.into(), serde_yaml_ng::to_string(&casus).unwrap());
+    let (mut spel, stand) = spel_met_bron(bestanden);
+    let fouten = speel_bron(&mut spel, &stand, None);
+    assert_eq!(
+        fouten,
+        ["voorbeeld_subsidie, 'Bezwaar: gegrond', step 4: a step 'bezwaar' checks no 'uitkomst'"]
     );
 }
 
@@ -376,7 +400,7 @@ fn één_aanvrager(spel: &mut Spel, vooraf: &HashSet<Value>, waar: &str) {
 /// One test per case of this crate; each plays all of its scenarios.
 fn alle(casus_id: &str) {
     let mut spel = spel();
-    let n = aantal(&mut spel, casus_id);
+    let n = aantal(&mut spel, casus_id).unwrap();
     assert!(n > 0, "{casus_id} has no scenarios");
     for i in 0..n {
         let verslag = speler::speel(&mut spel, casus_id, i, false).unwrap();

@@ -104,7 +104,7 @@ andere_cellen:
 # example values above) and what it comes to (`uitkomst`), with the text of
 # the guide (`tekst`, `gezien`). The guide beside the page and the forms read
 # them from here (frontend/src/scenarioGuides.js, scenarioInvoer.js), and
-# tests/scenarios.rs plays every scenario with exactly these values.
+# tests/scenarios/ plays every scenario with exactly these values.
 scenarios:
   - naam: Aanvraag wordt verleend
     samenvatting: >-

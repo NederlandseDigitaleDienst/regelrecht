@@ -174,7 +174,7 @@ impl Speler<'_> {
             None => n - 1,
         };
         let vormen = self.spel.vormen(datum).map_err(|e| e.to_string())?;
-        match soort {
+        let gespeeld = match soort {
             "aanvraag" => self.aanvraag(stap, &vormen, datum, rij),
             "besluit" => self.besluit(stap, &vormen, doel, datum, rij),
             "bezwaar" => self.bezwaar(stap, &vormen, datum, rij),
@@ -185,7 +185,9 @@ impl Speler<'_> {
             "toezenden" => self.toezenden(stap, datum),
             "opnieuw_beslissen" => self.opnieuw_beslissen(stap, datum, rij),
             andere => Err(format!("unknown step '{andere}'")),
-        }
+        };
+        gespeeld?;
+        ongetoetst(stap, soort, rij)
     }
 
     fn aanvraag(
@@ -513,6 +515,20 @@ fn geweigerd_of_genomen(
         }
         Err(e) => Err(e.to_string()),
     }
+}
+
+/// An expectation the step writes that its kind does not check: a step
+/// that passes without its `uitkomst` or `uitvoer` having been compared
+/// would read as checked.
+fn ongetoetst(stap: &Value, soort: &str, rij: &Value) -> Result<(), String> {
+    let uitkomst = rij.get("kreeg").is_some() || rij.get("geweigerd").is_some();
+    if stap.get("uitkomst").is_some() && !uitkomst {
+        return Err(format!("a step '{soort}' checks no 'uitkomst'"));
+    }
+    if stap.get("uitvoer").is_some() && rij.get("uitvoer").is_none() {
+        return Err(format!("a step '{soort}' checks no 'uitvoer'"));
+    }
+    Ok(())
 }
 
 /// Note what a step `kreeg`, and whether that is the `uitkomst` it expects.

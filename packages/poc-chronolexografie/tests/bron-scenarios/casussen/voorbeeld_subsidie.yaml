@@ -63,3 +63,21 @@ scenarios:
         uitvoer:
           subsidie_verleend: true
     eind: Gegrond, en de subsidie is alsnog verleend.
+  - naam: 'Bezwaar: niet-ontvankelijk zonder oordeel over belanghebbende'
+    stappen:
+      - stap: aanvraag
+      - stap: besluit
+        invoer:
+          partij_geregistreerd: false
+        uitkomst: afgewezen
+      - stap: bezwaar
+        datum: 2026-11-01
+      # Zonder oordeel telt het als nee, zoals een schakelaar die uit staat;
+      # de bevinding gaat dan niet mee, want er is geen heroverweging.
+      - stap: beslissing_op_bezwaar
+        datum: 2026-11-15
+        invoer:
+          indiener_bezwaarschrift_is_belanghebbende: null
+          partij_geregistreerd: true
+        uitkomst: niet_ontvankelijk
+    eind: Niet-ontvankelijk, en de weigering blijft staan.
