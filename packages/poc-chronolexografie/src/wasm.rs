@@ -136,6 +136,23 @@ impl Poc {
         )
     }
 
+    /// What the sources give for fields of the application before it is
+    /// submitted: `bronnen` is the JSON object `{ "<field>":
+    /// "<regelwerk>#<article>#<output>" }`, `velden` what the form holds so
+    /// far.
+    pub fn voorinvullen(
+        &mut self,
+        bronnen: &str,
+        velden: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.voorinvullen(
+            &kaart("bronnen", bronnen)?,
+            &kaart("velden", velden)?,
+            dag(datum)?,
+        ))
+    }
+
     #[wasm_bindgen(js_name = voorvertoningBesluit)]
     pub fn voorvertoning_besluit(
         &mut self,

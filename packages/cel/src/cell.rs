@@ -1350,6 +1350,91 @@ impl Cell {
         Ok(explained)
     }
 
+    /// What the output `source` (`<regulation>#<article>#<output>`) comes to
+    /// on `on`, as the cell and the cells of `sphere` know things on that
+    /// day, before anything is recorded: for a form that shows what the
+    /// sources give before the applicant submits it. The engine asks the
+    /// cells for the answers a binding takes (`source.reduction`, RFC-048) as
+    /// in a decision, and the result carries the trace, in which each answer
+    /// is a node with who gave it from what.
+    ///
+    /// `given` are values by name; the article gets those that are among its
+    /// parameters. Where the article has one required date parameter that
+    /// `given` leaves out, such as the day a policy reads its source on, it is
+    /// the day `on`, as the cell fills a date a stage requires with the day of
+    /// recording. With more than one left out, which is that day is not
+    /// clear, and the cell refuses. An optional date left out stays out.
+    ///
+    /// The engine is asked for the output by its law, as every execution is;
+    /// where it ran another article of that law for it, the cell refuses.
+    ///
+    /// # Errors
+    ///
+    /// Refused when `source` is no `<regulation>#<article>#<output>`, the
+    /// regulation has no such article in force on `on`, the article has no
+    /// such output, more than one of its required date parameters is left
+    /// out, or the engine ran another article for the output. An
+    /// error of the engine, such as a required parameter that is missing,
+    /// ends it as well.
+    pub fn consult(
+        &self,
+        service: &LawExecutionService,
+        sphere: &[&Cell],
+        source: &str,
+        given: &Map<String, serde_json::Value>,
+        on: NaiveDate,
+    ) -> Result<ArticleResult> {
+        let (basis, output) = shape::split_fact(source)?;
+        let (law_id, article) = basis
+            .split_once('#')
+            .ok_or_else(|| refused(format!("'{basis}' is no <regulation>#<article>")))?;
+        let Some(found) = shape::article_on(service, law_id, article, on) else {
+            return Err(refused(format!(
+                "{law_id} has no article {article} in force on {on}"
+            )));
+        };
+        if !found.get_output_names().contains(&output) {
+            return Err(refused(format!("{basis} has no output '{output}'")));
+        }
+        let mut parameters = BTreeMap::new();
+        let mut days: Vec<&str> = Vec::new();
+        for parameter in found.get_parameters() {
+            if let Some(value) = given.get(&parameter.name) {
+                parameters.insert(parameter.name.clone(), stored::from_stored(value)?);
+            } else if parameter.param_type == ParameterType::Date
+                && parameter.required != Some(false)
+            {
+                days.push(&parameter.name);
+            }
+        }
+        match days.as_slice() {
+            [] => {}
+            [day] => {
+                parameters.insert((*day).to_string(), json_date(on));
+            }
+            more => {
+                return Err(refused(format!(
+                    "{basis} takes the dates {} and none is given; which is the day {on} is \
+                     not clear",
+                    more.join(", ")
+                )));
+            }
+        }
+        let reader = self.known_on(on);
+        let others = known_on(sphere, on);
+        let call = Answerers::new(&reader, &others).call(BTreeMap::new());
+        let date = on.to_string();
+        let result =
+            service.evaluate_law_with_trace_in(law_id, &[output], parameters, call, &date)?;
+        if result.article_number != article {
+            return Err(refused(format!(
+                "{law_id} gives '{output}' from article {}, not from article {article}",
+                result.article_number
+            )));
+        }
+        Ok(result)
+    }
+
     /// Whether the regulation versions the chronolexogram `id` was recorded
     /// under are still those the corpus of `service` holds in force on the
     /// day it was recorded ([`versions::since`]). This needs no replay: a

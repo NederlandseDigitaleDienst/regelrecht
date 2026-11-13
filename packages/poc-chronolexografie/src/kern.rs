@@ -15,8 +15,8 @@ use regelrecht_cel::{
     Cell, Disk, EXECUTOGRAM, Error, Files, Gram, Reference, Source, decision, reading, shape,
 };
 use regelrecht_engine::{
-    ArticleResult, Authority, EngineError, FilledBy, LawExecutionService, OpenTermFilled,
-    ParameterType, PathNode, PathNodeType,
+    AnswerProvenance, ArticleResult, Authority, EngineError, FilledBy, LawExecutionService,
+    OpenTermFilled, ParameterType, PathNode, PathNodeType,
 };
 use regelrecht_law_model::stored;
 use serde_json::{Map, Value, json};
@@ -1027,6 +1027,98 @@ pub fn aanvragen(
     )
 }
 
+/// What the sources give for fields of the application before it is
+/// submitted, as the case's cell and the other cells of the case know things
+/// on `on`. `bronnen` names per field its source, an output of an article as
+/// `<regelwerk>#<article>#<output>`; `velden` are what the form holds so far,
+/// such as the number the applicant logged in with, and the source gets those
+/// that are among its parameters ([`Cell::consult`]). Per field the value and
+/// where it comes from: the source, and each cell that answered with the
+/// answer, the reduction and its version, and how far it read its chronicle.
+/// A cell that gives nothing leaves the value empty and the origin too.
+/// Nothing is recorded: what the applicant submits is what the application
+/// holds, prefilled or not.
+///
+/// A source on which the engine fails leaves its field empty with the
+/// engine's message (`fout`), and the other fields are filled. The usual case
+/// is a parameter the form does not hold yet, such as the number the
+/// applicant has not logged in with; a cell that fails to answer shows the
+/// same way, with its own message.
+///
+/// # Errors
+///
+/// Refused when a source is not `<regelwerk>#<article>#<output>` or names no
+/// output of an article in force on `on`, and as [`Cell::consult`] refuses.
+pub fn voorinvullen(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    bronnen: &Map<String, Value>,
+    velden: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Value> {
+    let service = corpus.service()?;
+    let sfeer = cellen.sfeer();
+    let mut uit = Map::new();
+    for (veld, bron) in bronnen {
+        let Some(bron) = bron.as_str() else {
+            return Err(Error::Refused(format!(
+                "the source of '{veld}' is {bron}, not '<regelwerk>#<article>#<output>'"
+            )));
+        };
+        let ingevuld = match cellen.eigen.consult(&service, &sfeer, bron, velden, on) {
+            Ok(result) => uit_bron(&result, bron)?,
+            // What the form does not hold yet, such as the number the
+            // applicant has not logged in with: this field stays empty, the
+            // others are filled.
+            Err(Error::Engine(e)) => {
+                json!({ "bron": bron, "waarde": null, "herkomst": [], "fout": e.to_string() })
+            }
+            Err(e) => return Err(e),
+        };
+        uit.insert(veld.clone(), ingevuld);
+    }
+    Ok(Value::Object(uit))
+}
+
+/// What `result`, the output `bron` consulted ([`Cell::consult`]), gives a
+/// field: the value, and each cell that answered with something.
+fn uit_bron(result: &ArticleResult, bron: &str) -> Result<Value> {
+    // `consult` checked the source, so its last part is the output.
+    let output = bron.rsplit_once('#').map_or(bron, |(_, o)| o);
+    let waarde = result
+        .outputs
+        .get(output)
+        .map(stored::to_stored)
+        .transpose()?
+        .unwrap_or(Value::Null);
+    let herkomst: Vec<Value> = result
+        .trace
+        .as_ref()
+        .map(beantwoord)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|node| node.result.as_ref().is_some_and(|r| !r.is_null()))
+        .filter_map(|node| node.answer.as_ref())
+        .map(herkomst)
+        .collect();
+    Ok(json!({ "bron": bron, "waarde": waarde, "herkomst": herkomst }))
+}
+
+/// Where a cell's answer comes from, as the app shows it: the cell, the
+/// answer, the reduction with its article and version, and how far the cell
+/// read its chronicle.
+fn herkomst(answer: &AnswerProvenance) -> Value {
+    json!({
+        "door": answer.answerer,
+        "antwoord": answer.answer,
+        "reductie": answer.law_id,
+        "artikel": answer.article,
+        "geldig_vanaf": answer.valid_from,
+        "gelezen": answer.records_read,
+        "tot_en_met": answer.last_record,
+    })
+}
+
 /// Why a decision came out as it did, as the cell explains it
 /// ([`Cell::explain`]): the engine's trace, in full and condensed to its
 /// steps, every open term with who filled it, the terms the cell answered
@@ -1157,17 +1249,11 @@ fn waarom_in(corpus: &Corpus, cell: &Cell, sfeer: &[&Cell], id: &str) -> Result<
             // The case's cell explains its own answers; another cell's
             // reasoning is its own (RFC-048).
             let keer = keer(&gevraagd, node).filter(|_| answer.answerer == cell.recording_actor());
-            antwoorden.push(json!({
-                "begrip": begrip,
-                "antwoord": answer.answer,
-                "keer": keer,
-                "waarde": waarde,
-                "door": answer.answerer,
-                "reductie": answer.law_id,
-                "geldig_vanaf": answer.valid_from,
-                "gelezen": answer.records_read,
-                "tot_en_met": answer.last_record,
-            }));
+            let mut antwoord = herkomst(answer);
+            antwoord["begrip"] = json!(begrip);
+            antwoord["keer"] = json!(keer);
+            antwoord["waarde"] = json!(waarde);
+            antwoorden.push(antwoord);
         }
     }
     Ok(Waarom {
