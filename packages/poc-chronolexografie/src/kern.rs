@@ -626,6 +626,7 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "moment": moment(&aanvraag),
             // The fields of this form that the UI spec prefills, each
             // with its source ([`voorinvullen`]).
+            "inloggen": inloggen(corpus, cell, &service, &aanvraag, on)?,
             "prefill": corpus
                 .prefill
                 .iter()
@@ -693,6 +694,63 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
         });
     }
     Ok(vormen)
+}
+
+/// Who the applicant can log in as on `on`, where the case has a login
+/// ([`crate::casus::Inloggen`]): the field of the application the login
+/// fills, and per record of the login fact in a cell of the case, as that cell
+/// knows it on `on`, the value for that field, the name it shows, the cell
+/// and the day it was recorded. `null` without a login.
+fn inloggen(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    service: &LawExecutionService,
+    aanvraag: &shape::Shape,
+    on: NaiveDate,
+) -> Result<Value> {
+    let Some(login) = &corpus.casus.inloggen else {
+        return Ok(Value::Null);
+    };
+    if !aanvraag
+        .fields
+        .iter()
+        .any(|f| f.name == login.veld && f.type_ != ParameterType::Decision)
+    {
+        return Err(Error::Refused(format!(
+            "the case logs in on '{}', which is no field of the application",
+            login.veld
+        )));
+    }
+    let velden = shape::fact_fields(service, &login.feit, on, None)?;
+    for naam in std::iter::once(&login.sleutel).chain(&login.naam) {
+        if !velden.iter().any(|f| &f.name == naam) {
+            return Err(Error::Refused(format!(
+                "the login fact {} holds no '{naam}'",
+                login.feit
+            )));
+        }
+    }
+    let (basis, feit) = shape::split_fact(&login.feit)?;
+    let keuzes: Vec<Value> = std::iter::once(&cellen.eigen)
+        .chain(&cellen.andere)
+        .flat_map(|cel| cel.grams().iter().map(move |g| (cel, g)))
+        .filter(|(_, g)| {
+            g.kind == EXECUTOGRAM
+                && g.basis == basis
+                && g.fact.as_deref() == Some(feit)
+                && g.recorded_on <= on
+        })
+        .map(|(cel, g)| {
+            json!({
+                "waarde": g.fields.get(&login.sleutel),
+                "naam": login.naam.as_ref().and_then(|n| g.fields.get(n)),
+                "cel": cel.recording_actor(),
+                "vastgelegd_op": g.recorded_on,
+                "velden": g.fields,
+            })
+        })
+        .collect();
+    Ok(json!({ "veld": login.veld, "feit": login.feit, "keuzes": keuzes }))
 }
 
 /// What the court judges when it decides the case itself (Awb 8:72 lid 3

@@ -28,6 +28,7 @@ import {
 import { formulier, huidigeStap, scenarioWaarden } from '../scenarioInvoer.js';
 import { celNaam } from '../logboek.js';
 import { beginWaarden, bronInvoer, herkomstTekst } from '../voorinvulling.js';
+import { gekozen, inlogTekst, keuzeLabel } from '../inloggen.js';
 import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
@@ -99,6 +100,14 @@ watch(
   { immediate: true },
 );
 const herkomst = (naam) => herkomstTekst(voorgevuld.value[naam], aanvraag.value[naam], celNaam);
+
+// Who the applicant is logged in as (inloggen.js): the record whose key the
+// login field holds.
+const inloggen = computed(() => state.vormen?.aanvraag?.inloggen ?? null);
+const ingelogd = computed(() => gekozen(inloggen.value, aanvraag.value[inloggen.value?.veld]));
+function inlog(waarde) {
+  aanvraagVorm.zet('aanvraag', inloggen.value.veld, waarde === '' ? undefined : waarde);
+}
 
 async function indienen() {
   if (await stap(() => api.aanvragen(zonderLeeg(aanvraag.value), state.datum))) {
@@ -187,6 +196,21 @@ async function indienenTegen() {
         </nldd-text>
       </nldd-title>
       <nldd-container gap="16" max-width="560px">
+        <nldd-form-field
+          v-if="inloggen"
+          label="Ingelogd als"
+          :supporting-label="inloggen.feit"
+        >
+          <nldd-dropdown>
+            <select :value="ingelogd?.waarde ?? ''" @change="inlog($event.target.value)">
+              <option value="">Niet ingelogd</option>
+              <option v-for="k in inloggen.keuzes" :key="k.waarde" :value="k.waarde">
+                {{ keuzeLabel(k) }}
+              </option>
+            </select>
+          </nldd-dropdown>
+          <nldd-form-field-help-text v-if="ingelogd">{{ inlogTekst(ingelogd, celNaam) }}</nldd-form-field-help-text>
+        </nldd-form-field>
         <VeldInvoer
           v-for="veld in state.vormen.aanvraag.velden"
           :key="veld.naam"

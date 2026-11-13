@@ -13,6 +13,13 @@ uitkomst: ingeschreven
 titel: Voorbeeldinschrijving
 cel_naam: Voorbeeldloket
 speeldatum: 2026-10-21
+# Wie inlogt: de aanvrager kiest een inschrijving uit de kroniek van het
+# register, en het nummer daarvan gaat in het veld nummer van de aanvraag.
+inloggen:
+  feit: voorbeeld_register#1#vereniging_ingeschreven
+  sleutel: nummer
+  veld: nummer
+  naam: naam
 voorbeeld:
   aanvraag:
     nummer: '00000001'
@@ -27,4 +34,9 @@ andere_cellen:
           velden:
             nummer: '00000001'
             naam: Vereniging Voorbeeld
+        - feit: voorbeeld_register#1#vereniging_ingeschreven
+          datum: 2026-11-02
+          velden:
+            nummer: '00000002'
+            naam: Vereniging Later
 scenarios: []
