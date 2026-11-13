@@ -65,6 +65,8 @@ describe('bronAntwoord', () => {
     for (const [regel, verwacht] of [
       ['ui_spec: werk/u.json', 'no YAML file'],
       ['ui_spec: werk/m/casussen/u.yaml', "lies in 'werk/m/casussen'"],
+      // The old name of the key is unknown, as in the portal.
+      ['ui_beleid: werk/u.yaml', 'unknown field `ui_beleid`'],
     ]) {
       schrijf('werk/m/bron.yaml', `repo_root: ../..\ndirectories:\n  casussen: werk/m/casussen\n${regel}\n`);
       const [status, , fout] = bronAntwoord('voorbeeld', env);

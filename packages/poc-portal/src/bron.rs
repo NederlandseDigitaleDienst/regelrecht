@@ -706,7 +706,7 @@ mod tests {
     }
 
     #[test]
-    fn a_manifest_places_its_ui_policy_at_the_root_of_the_source() {
+    fn a_manifest_places_its_ui_spec_at_the_root_of_the_source() {
         let manifest = format!("{MANIFEST}ui_spec: werk/ui-spec.yaml\n");
         let files = [
             ("werk/m/bron.yaml", manifest.as_str()),

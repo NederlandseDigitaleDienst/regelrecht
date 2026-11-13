@@ -43,6 +43,14 @@ const zonderSlash = (pad) => pad.replace(/^\/+|\/+$/g, '');
  */
 export function filesFromManifest(manifestPath) {
   const manifest = leesYaml(readFileSync(manifestPath, 'utf8')) ?? {};
+  // A field the portal does not know is refused there (serde
+  // `deny_unknown_fields`), so here too: a key that is ignored here would load
+  // a source the portal refuses.
+  const bekend = ['repo_root', 'wortel', 'directories', 'mappen', 'ui_spec'];
+  const onbekend = Object.keys(manifest).find((k) => !bekend.includes(k));
+  if (onbekend !== undefined) {
+    throw new Error(`the manifest ${manifestPath}: unknown field \`${onbekend}\``);
+  }
   // The Dutch names (`wortel`, `mappen`) are the ones the first manifests
   // used, accepted like the serde aliases in the portal. They go once the
   // existing manifests use the new names.
