@@ -59,8 +59,8 @@ use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
-    ActionOperation, ActionValue, Column, CompetentAuthority, MachineReadable, ParameterType,
-    RegulatoryLayer, StateProperty, names_fact,
+    ActionOperation, ActionValue, Column, CombineOp, CompetentAuthority, MachineReadable,
+    ParameterType, RegulatoryLayer, StateProperty, names_fact,
 };
 
 /// Refuse a construct that a later schema version removed, naming what
@@ -122,6 +122,59 @@ pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Refuse a FOREACH `combine` that the declared schema version does not
+/// know yet: `DISTINCT` arrived with v0.8.21. The schema refuses it there
+/// too, and the loader repeats that because a document can reach the engine
+/// without passing schema validation, and would otherwise run a construct
+/// its version does not have. The walk reaches every action of the
+/// preamble and the articles, the default actions of their open terms and
+/// the steps of a projection, and descends into every operand.
+pub(crate) fn reject_combine_before_its_version(law: &ArticleBasedLaw) -> Result<()> {
+    if from_version(law, (0, 8, 21)) {
+        return Ok(());
+    }
+    for (where_, section) in sections(law) {
+        let execution = section
+            .execution
+            .iter()
+            .flat_map(|e| e.actions.iter().flatten());
+        let defaults = section
+            .open_terms
+            .iter()
+            .flatten()
+            .flat_map(|term| term.default.iter().flat_map(|d| d.actions.iter().flatten()));
+        let steps = section
+            .projection
+            .iter()
+            .flat_map(|p| p.steps.iter().flat_map(|step| step.actions.iter()));
+        for action in execution.chain(defaults).chain(steps) {
+            if action.operands().any(contains_distinct) {
+                return Err(EngineError::LoadError(format!(
+                    "law '{}' {where_}: action for output '{}' has a FOREACH with combine \
+                     DISTINCT, which schema v0.8.21 introduced; declare v0.8.21 or later",
+                    law.id,
+                    action.output.as_deref().unwrap_or("(unnamed)")
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Whether a FOREACH with `combine: DISTINCT` sits anywhere in `value`.
+fn contains_distinct(value: &ActionValue) -> bool {
+    let ActionValue::Operation(op) = value else {
+        return false;
+    };
+    matches!(
+        op.as_ref(),
+        ActionOperation::Foreach {
+            combine: Some(CombineOp::Distinct),
+            ..
+        }
+    ) || op.operands().into_iter().any(contains_distinct)
 }
 
 /// Refuse a reading of a chronicle (`source.decisions`, `source.facts`)
@@ -1510,6 +1563,58 @@ mod tests {
     use super::*;
     use crate::service::LawExecutionService;
     use crate::types::Value;
+
+    /// A law under `version` whose open term defaults to the one unique
+    /// value of a list, with the DISTINCT nested in an IF.
+    fn distinct_in_open_term_default(version: &str) -> String {
+        format!(
+            r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json
+$id: distinct_gate
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      open_terms:
+        - id: kleur
+          type: string
+          required: false
+          default:
+            actions:
+              - output: kleur
+                value:
+                  operation: IF
+                  cases:
+                    - when: true
+                      then:
+                        operation: FOREACH
+                        collection:
+                          operation: FOREACH
+                          collection: ["rood", "rood"]
+                          body: $item
+                          combine: DISTINCT
+                        body: $item
+                        combine: ONLY
+                  default: null
+"#
+        )
+    }
+
+    #[test]
+    fn distinct_is_refused_before_v0_8_21_wherever_it_sits() {
+        let old = distinct_in_open_term_default("v0.8.20");
+        let law: ArticleBasedLaw = serde_yaml_ng::from_str(&old).unwrap();
+        let err = reject_combine_before_its_version(&law).unwrap_err();
+        assert!(
+            err.to_string().contains("combine DISTINCT") && err.to_string().contains("v0.8.21"),
+            "{err}"
+        );
+        let new = distinct_in_open_term_default("v0.8.21");
+        let law: ArticleBasedLaw = serde_yaml_ng::from_str(&new).unwrap();
+        reject_combine_before_its_version(&law).unwrap();
+    }
 
     /// The review's `literal-unknown.json` law: an Unknown sentinel written
     /// straight into an `AND`.

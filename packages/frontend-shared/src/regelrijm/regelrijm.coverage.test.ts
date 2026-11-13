@@ -122,6 +122,11 @@ describe('RegelRijm covers the schema', () => {
     expect(renderAction({ output: 'u', value }, { ctx }).text).toBe('[u] wordt: de enige waarde van [x] over elke [x] in [m] waarvoor ( [b] van [x] [c] is )');
   });
 
+  it('reads the unique values of a collection as such', () => {
+    const value = { operation: 'FOREACH', collection: '$m', as: 'x', body: '$x', combine: 'DISTINCT' };
+    expect(renderAction({ output: 'u', value }, { ctx }).text).toBe('[u] wordt: de unieke waarden van [x] over elke [x] in [m]');
+  });
+
   it('reads an action without its output as a hole', () => {
     expect(renderAction({ value: '$a' }, { ctx }).text).toBe('⟨ontbreekt: output⟩ wordt: [a]');
   });

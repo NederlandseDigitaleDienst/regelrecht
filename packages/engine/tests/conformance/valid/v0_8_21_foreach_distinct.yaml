@@ -1,0 +1,43 @@
+---
+# Tier C: FOREACH with combine DISTINCT, and the one value of several equal
+# ones as ONLY over its result (schema v0.8.21).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
+$id: test_conformance_foreach_distinct
+regulatory_layer: WET
+bwb_id: BWBR9999971
+publication_date: '2026-11-13'
+valid_from: '2026-11-13'
+url: https://example.invalid/foreach-distinct
+articles:
+  - number: '1'
+    url: https://example.invalid/foreach-distinct/1
+    text: Elke inschrijving van de vereniging vermeldt haar aanduiding.
+    machine_readable:
+      execution:
+        parameters:
+          - name: inschrijvingen
+            type: array
+            columns:
+              - name: aanduiding
+                type: string
+                description: De aanduiding op de inschrijving.
+        output:
+          - name: unieke_aanduidingen
+            type: array
+          - name: aanduiding
+            type: string
+        actions:
+          - output: unieke_aanduidingen
+            value:
+              operation: FOREACH
+              collection: $inschrijvingen
+              as: inschrijving
+              body: $inschrijving.aanduiding
+              combine: DISTINCT
+          - output: aanduiding
+            value:
+              operation: FOREACH
+              collection: $unieke_aanduidingen
+              as: kandidaat
+              body: $kandidaat
+              combine: ONLY

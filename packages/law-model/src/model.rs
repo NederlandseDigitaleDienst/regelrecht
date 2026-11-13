@@ -932,6 +932,12 @@ pub enum CombineOp {
     /// as the record in force on a day, where a lowest or highest of a
     /// string or a date is not defined.
     Only,
+    /// The unique results, in the order each first occurs (schema v0.8.21).
+    /// Two results are the same when `EQUALS` says so: a number, string,
+    /// date or boolean by value, a row or list deeply. Null is a value and
+    /// stays once. An empty collection gives an empty array. One value from
+    /// several equal ones is `ONLY` over this result.
+    Distinct,
 }
 
 impl CombineOp {
@@ -944,6 +950,7 @@ impl CombineOp {
             CombineOp::Min => "MIN",
             CombineOp::Max => "MAX",
             CombineOp::Only => "ONLY",
+            CombineOp::Distinct => "DISTINCT",
         }
     }
 }

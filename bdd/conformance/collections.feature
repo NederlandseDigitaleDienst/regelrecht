@@ -129,3 +129,41 @@ Feature: Collection operations
     # FOREACH: the highest contribution of the members, not a threshold.
     When I evaluate "hoogste_eigen_bijdrage" of "test_collections"
     Then output "hoogste_eigen_bijdrage" equals 200
+
+  # DISTINCT (schema v0.8.21) keeps each result once, in the order of its
+  # first occurrence; ONLY over that array gives the one value of several
+  # equal ones. Driven against the test law test_unieke_waarden.
+
+  Scenario: DISTINCT then ONLY gives the one value that every row holds
+    Given the calculation date is "2025-01-01"
+    Given parameter "inschrijvingen" is the collection:
+      | aanduiding |
+      | Noord      |
+      | Noord      |
+      | Noord      |
+    When I evaluate "aantal_unieke_aanduidingen" of "test_unieke_waarden"
+    Then output "aantal_unieke_aanduidingen" equals 1
+    When I evaluate "aanduiding" of "test_unieke_waarden"
+    Then output "aanduiding" equals "Noord"
+
+  Scenario: DISTINCT then ONLY refuses two different values
+    Given the calculation date is "2025-01-01"
+    Given parameter "inschrijvingen" is the collection:
+      | aanduiding |
+      | Noord      |
+      | Zuid       |
+      | Noord      |
+    When I evaluate "aantal_unieke_aanduidingen" of "test_unieke_waarden"
+    Then output "aantal_unieke_aanduidingen" equals 2
+    # ONLY stays strict: two different values are not one.
+    When I evaluate "aanduiding" of "test_unieke_waarden"
+    Then the execution fails with "ONLY takes at most one"
+
+  Scenario: DISTINCT over no rows is empty, and ONLY over that is absent
+    Given the calculation date is "2025-01-01"
+    Given parameter "inschrijvingen" is the collection:
+      | aanduiding |
+    When I evaluate "aantal_unieke_aanduidingen" of "test_unieke_waarden"
+    Then output "aantal_unieke_aanduidingen" equals 0
+    When I evaluate "aanduiding" of "test_unieke_waarden"
+    Then output "aanduiding" is absent

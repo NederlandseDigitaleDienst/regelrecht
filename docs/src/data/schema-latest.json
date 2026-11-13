@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.20",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.21",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -1925,9 +1925,10 @@
             "AND",
             "MIN",
             "MAX",
-            "ONLY"
+            "ONLY",
+            "DISTINCT"
           ],
-          "description": "Aggregation over the collected results. Omitted, the results are returned as an array. `ONLY` (since v0.8.6) gives the one result the filter leaves, of any type, such as the record in force on a day: null when it leaves none, an error at run time when it leaves more than one."
+          "description": "Aggregation over the collected results. Omitted, the results are returned as an array. `ONLY` (since v0.8.6) gives the one result the filter leaves, of any type, such as the record in force on a day: null when it leaves none, an error at run time when it leaves more than one. `DISTINCT` (since v0.8.21) gives the unique results as an array, in the order of their first occurrence; two results are the same when `EQUALS` says so, a number, amount, string, date or boolean by value and a row or list field by field. Null is a value and stays once; an empty collection gives an empty array. One value from several equal ones is `ONLY` over the result of `DISTINCT`."
         },
         "legal_basis": {
           "$ref": "#/definitions/legalBasis",

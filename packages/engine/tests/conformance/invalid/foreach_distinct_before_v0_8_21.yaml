@@ -1,0 +1,43 @@
+---
+# FOREACH may combine with DISTINCT only since schema v0.8.21; under
+# v0.8.20 both the schema and the loader refuse it.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json
+$id: test_conformance_distinct_before_v0_8_21
+regulatory_layer: WET
+bwb_id: BWBR9999972
+publication_date: '2026-11-13'
+valid_from: '2026-11-13'
+url: https://example.invalid/foreach-distinct
+articles:
+  - number: '1'
+    url: https://example.invalid/foreach-distinct/1
+    text: Elke inschrijving van de vereniging vermeldt haar aanduiding.
+    machine_readable:
+      execution:
+        parameters:
+          - name: inschrijvingen
+            type: array
+            columns:
+              - name: aanduiding
+                type: string
+                description: De aanduiding op de inschrijving.
+        output:
+          - name: unieke_aanduidingen
+            type: array
+          - name: aanduiding
+            type: string
+        actions:
+          - output: unieke_aanduidingen
+            value:
+              operation: FOREACH
+              collection: $inschrijvingen
+              as: inschrijving
+              body: $inschrijving.aanduiding
+              combine: DISTINCT
+          - output: aanduiding
+            value:
+              operation: FOREACH
+              collection: $unieke_aanduidingen
+              as: kandidaat
+              body: $kandidaat
+              combine: ONLY
