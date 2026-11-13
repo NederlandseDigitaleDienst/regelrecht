@@ -528,6 +528,81 @@ mod tests {
         assert_eq!(vormen["aanvraag"]["prefill"], serde_json::json!({}));
     }
 
+    /// The case names who logs in: the applicant picks a record of the fact
+    /// in a cell of the case, as the cell knows it on the day, and its key
+    /// goes into the field of the application.
+    #[test]
+    fn the_form_offers_the_records_of_the_login_fact_known_on_the_day() {
+        let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
+        let inloggen = &vormen["aanvraag"]["inloggen"];
+        assert_eq!(inloggen["veld"], "nummer");
+        assert_eq!(inloggen["sleutel"], "nummer");
+        assert_eq!(inloggen["naam"], "naam");
+        assert_eq!(
+            inloggen["keuzes"],
+            serde_json::json!([{
+                "waarde": "00000001",
+                "naam": "Vereniging Voorbeeld",
+                "cel": "voorbeeld_register",
+                "vastgelegd_op": "2026-02-02",
+                "velden": { "nummer": "00000001", "naam": "Vereniging Voorbeeld" },
+            }])
+        );
+        // Later the register knows the second one too.
+        let later = spel.vormen("2026-11-02".parse().unwrap()).unwrap();
+        let keuzes = later["aanvraag"]["inloggen"]["keuzes"].as_array().unwrap();
+        assert_eq!(keuzes.len(), 2);
+        assert_eq!(keuzes[1]["naam"], "Vereniging Later");
+        // A key recorded again offers one choice, with what was recorded last.
+        let daarna = spel.vormen("2026-11-03".parse().unwrap()).unwrap();
+        let keuzes = daarna["aanvraag"]["inloggen"]["keuzes"].as_array().unwrap();
+        let namen: Vec<&str> = keuzes.iter().map(|k| k["naam"].as_str().unwrap()).collect();
+        assert_eq!(namen, ["Vereniging Later", "Vereniging Voorbeeld Hernoemd"]);
+    }
+
+    #[test]
+    fn a_case_without_a_login_offers_none() {
+        let (alle, standen) = met_bronnen(gebundeld(), vec![voorbeeld()]).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_subsidie").unwrap();
+        let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
+        assert_eq!(vormen["aanvraag"]["inloggen"], serde_json::Value::Null);
+    }
+
+    #[test]
+    fn a_login_on_a_field_the_form_does_not_ask_or_a_key_the_fact_does_not_hold_is_refused() {
+        for (was, wat, verwacht) in [
+            (
+                "veld: nummer",
+                "veld: elders",
+                "'elders', which is no field of the application",
+            ),
+            (
+                "sleutel: nummer",
+                "sleutel: bestaat_niet",
+                "holds no 'bestaat_niet'",
+            ),
+            (
+                "naam: naam",
+                "naam: bestaat_niet",
+                "holds no 'bestaat_niet'",
+            ),
+        ] {
+            let mut bron = voorinvullen_bron();
+            let pad = "casussen/voorbeeld_inschrijving.yaml";
+            let tekst = bron.bestanden[pad].replace(&format!("  {was}\n"), &format!("  {wat}\n"));
+            bron.bestanden.insert(pad.into(), tekst);
+            let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+            let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+            spel.kiezen("voorbeeld_inschrijving").unwrap();
+            let e = spel.vormen("2026-10-21".parse().unwrap()).unwrap_err();
+            assert!(e.to_string().contains(verwacht), "{wat}: {e}");
+        }
+    }
+
     /// A field the UI spec prefills that the form of this case does not
     /// ask is no field of its form: another case of the source may ask it.
     #[test]

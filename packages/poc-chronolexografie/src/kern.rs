@@ -624,17 +624,14 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "basis": aanvraag.basis(),
             "velden": in_te_vullen(&aanvraag),
             "moment": moment(&aanvraag),
+            // Who the applicant can log in as ([`inloggen`]).
+            "inloggen": inloggen(corpus, cell, &service, &aanvraag, on)?,
             // The fields of this form that the UI spec prefills, each
             // with its source ([`voorinvullen`]).
             "prefill": corpus
                 .prefill
                 .iter()
-                .filter(|(veld, _)| {
-                    aanvraag
-                        .fields
-                        .iter()
-                        .any(|f| &f.name == *veld && f.type_ != ParameterType::Decision)
-                })
+                .filter(|(veld, _)| vraagt(&aanvraag, veld))
                 .collect::<BTreeMap<_, _>>(),
         },
         "besluit": {
@@ -693,6 +690,97 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
         });
     }
     Ok(vormen)
+}
+
+/// Whether the application form of `aanvraag` asks the field `naam`: a
+/// field of the application, and not a decision it refers to.
+fn vraagt(aanvraag: &shape::Shape, naam: &str) -> bool {
+    aanvraag
+        .fields
+        .iter()
+        .any(|f| f.name == naam && f.type_ != ParameterType::Decision)
+}
+
+/// Who the applicant can log in as on `on`, where the case has a login
+/// ([`crate::casus::Inloggen`]): the field of the application the login
+/// fills, the fields of the fact that hold the key and the name, and per key
+/// the latest record of the login fact in a cell of the case, as that cell
+/// knows it on `on`: the key as text, the name it shows, the cell, the day it
+/// was recorded and what it holds. In the order they were recorded. A record
+/// without the key offers nothing. `null` without a login.
+fn inloggen(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    service: &LawExecutionService,
+    aanvraag: &shape::Shape,
+    on: NaiveDate,
+) -> Result<Value> {
+    let Some(login) = &corpus.casus.inloggen else {
+        return Ok(Value::Null);
+    };
+    if !vraagt(aanvraag, &login.veld) {
+        return Err(Error::Refused(format!(
+            "the case logs in on '{}', which is no field of the application",
+            login.veld
+        )));
+    }
+    let velden = shape::fact_fields(service, &login.feit, on, None)?;
+    for naam in std::iter::once(&login.sleutel).chain(&login.naam) {
+        if !velden.iter().any(|f| &f.name == naam) {
+            return Err(Error::Refused(format!(
+                "the login fact {} holds no '{naam}'",
+                login.feit
+            )));
+        }
+    }
+    let (basis, feit) = shape::split_fact(&login.feit)?;
+    let mut vastleggingen: Vec<(&Cell, &Gram, String)> = std::iter::once(&cellen.eigen)
+        .chain(&cellen.andere)
+        .flat_map(|cel| cel.grams().iter().map(move |g| (cel, g)))
+        .filter(|(_, g)| {
+            g.kind == EXECUTOGRAM
+                && g.basis == basis
+                && g.fact.as_deref() == Some(feit)
+                && g.recorded_on <= on
+        })
+        .filter_map(|(cel, g)| {
+            let sleutel = match g.fields.get(&login.sleutel)? {
+                Value::Null => return None,
+                Value::String(s) => s.clone(),
+                ander => ander.to_string(),
+            };
+            Some((cel, g, sleutel))
+        })
+        .collect();
+    // The latest record per key: a key that logs in again shows what was
+    // recorded then.
+    vastleggingen.sort_by_key(|(_, g, _)| g.recorded_on);
+    let mut laatste: BTreeMap<&str, usize> = BTreeMap::new();
+    for (i, (_, _, sleutel)) in vastleggingen.iter().enumerate() {
+        laatste.insert(sleutel, i);
+    }
+    let mut gekozen: Vec<usize> = laatste.into_values().collect();
+    gekozen.sort_unstable();
+    let keuzes: Vec<Value> = gekozen
+        .into_iter()
+        .map(|i| {
+            let (cel, g, sleutel) = &vastleggingen[i];
+            json!({
+                "waarde": sleutel,
+                "naam": login.naam.as_ref().and_then(|n| g.fields.get(n)),
+                "cel": cel.recording_actor(),
+                "vastgelegd_op": g.recorded_on,
+                "velden": g.fields,
+            })
+        })
+        .collect();
+    Ok(json!({
+        "veld": login.veld,
+        "feit": login.feit,
+        "sleutel": login.sleutel,
+        "naam": login.naam,
+        "keuzes": keuzes,
+    }))
 }
 
 /// What the court judges when it decides the case itself (Awb 8:72 lid 3

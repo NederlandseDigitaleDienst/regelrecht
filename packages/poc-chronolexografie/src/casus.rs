@@ -76,7 +76,25 @@ pub struct Casus {
     /// ([`Beroep::rechter`]); without one the case ends at the objection.
     #[serde(default)]
     pub andere_cellen: Vec<AndereCel>,
+    /// Who logs in to apply, where the case has a login ([`Inloggen`]).
+    #[serde(default)]
+    pub inloggen: Option<Inloggen>,
     pub scenarios: Vec<Scenario>,
+}
+
+/// Logging in to apply, without a real means of login: the applicant picks a
+/// record of the fact `feit` (`<regelwerk>#<article>#<fact>`) that a cell of
+/// the case keeps, such as the authentication an accredited service recorded,
+/// and the value of its field `sleutel` goes into the field `veld` of the
+/// application. `naam` is the field of the record the choice shows.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Inloggen {
+    pub feit: String,
+    pub sleutel: String,
+    pub veld: String,
+    #[serde(default)]
+    pub naam: Option<String>,
 }
 
 impl Casus {
