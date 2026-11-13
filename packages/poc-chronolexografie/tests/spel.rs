@@ -1379,3 +1379,134 @@ fn a_reference_into_a_chronicle_of_another_begin_is_refused() {
         "{e}"
     );
 }
+
+/// The policy article of the fictional parking permit that reads the trade
+/// register through the answer of the cell of the Kamer van Koophandel.
+const HANDELSREGISTER: &str = "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#1";
+
+/// What the sources give for the application fields of `vult_voor`
+/// (`<field>` to `<output>` of [`HANDELSREGISTER`]), for the company
+/// `kvk_nummer`, as known on `datum`.
+fn voorinvullen(
+    spel: &mut Spel,
+    vult_voor: &[(&str, &str)],
+    kvk_nummer: &str,
+    datum: &str,
+) -> Value {
+    let bronnen: Map<String, Value> = vult_voor
+        .iter()
+        .map(|(veld, uitvoer)| {
+            (
+                (*veld).to_string(),
+                json!(format!("{HANDELSREGISTER}#{uitvoer}")),
+            )
+        })
+        .collect();
+    spel.voorinvullen(
+        &bronnen,
+        &map(&json!({ "kvk_nummer": kvk_nummer })),
+        dag(datum),
+    )
+    .unwrap()
+}
+
+#[test]
+fn a_prefill_takes_the_value_from_the_cell_that_answers_and_records_nothing() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let voor = spel.kroniek().unwrap();
+    let ingevuld = voorinvullen(
+        &mut spel,
+        &[
+            ("postcode", "postcode_vestiging_volgens_handelsregister"),
+            (
+                "werkzame_personen",
+                "aantal_werkzame_personen_volgens_handelsregister",
+            ),
+        ],
+        "99990011",
+        "2026-10-13",
+    );
+    assert_eq!(ingevuld["postcode"]["waarde"], json!("7711 AB"));
+    assert_eq!(ingevuld["werkzame_personen"]["waarde"], json!(4));
+    assert_eq!(
+        ingevuld["werkzame_personen"]["bron"],
+        json!(format!(
+            "{HANDELSREGISTER}#aantal_werkzame_personen_volgens_handelsregister"
+        ))
+    );
+    // Where the value comes from: the cell that answered, with its answer
+    // and the reduction it answered from.
+    let herkomst = &ingevuld["werkzame_personen"]["herkomst"];
+    assert_eq!(herkomst.as_array().unwrap().len(), 1);
+    assert_eq!(herkomst[0]["door"], json!("kamer_van_koophandel"));
+    assert_eq!(herkomst[0]["antwoord"], json!("aantal_werkzame_personen"));
+    assert!(
+        herkomst[0]["reductie"]
+            .as_str()
+            .unwrap()
+            .starts_with("reductie_")
+    );
+    // Asking records nothing, in any cell.
+    assert_eq!(spel.kroniek().unwrap(), voor);
+}
+
+#[test]
+fn a_prefill_reads_the_chronicle_as_the_cell_knows_it_on_the_day() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    // The Kamer corrected this registration from one to two persons.
+    let gecorrigeerd = voorinvullen(
+        &mut spel,
+        &[(
+            "werkzame_personen",
+            "aantal_werkzame_personen_volgens_handelsregister",
+        )],
+        "99990066",
+        "2026-10-13",
+    );
+    assert_eq!(gecorrigeerd["werkzame_personen"]["waarde"], json!(2));
+    // Before the Kamer recorded anything, its cell is silent.
+    let eerder = voorinvullen(
+        &mut spel,
+        &[(
+            "werkzame_personen",
+            "aantal_werkzame_personen_volgens_handelsregister",
+        )],
+        "99990011",
+        "2026-01-02",
+    );
+    assert_eq!(eerder["werkzame_personen"]["waarde"], Value::Null);
+}
+
+#[test]
+fn a_prefill_for_a_number_the_register_does_not_know_is_empty_without_origin() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let leeg = voorinvullen(
+        &mut spel,
+        &[(
+            "werkzame_personen",
+            "aantal_werkzame_personen_volgens_handelsregister",
+        )],
+        "12345678",
+        "2026-10-13",
+    );
+    assert_eq!(leeg["werkzame_personen"]["waarde"], Value::Null);
+    assert_eq!(leeg["werkzame_personen"]["herkomst"], json!([]));
+}
+
+#[test]
+fn a_prefill_from_a_source_that_is_no_output_of_its_article_is_refused() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let velden = map(&json!({ "kvk_nummer": "99990011" }));
+    for bron in [
+        "geen_bron",
+        "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#1#bestaat_niet",
+        "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#9#postcode_vestiging_volgens_handelsregister",
+    ] {
+        let bronnen = map(&json!({ "postcode": bron }));
+        let e = spel
+            .voorinvullen(&bronnen, &velden, dag("2026-10-13"))
+            .unwrap_err();
+        assert!(matches!(e, Fout::Cel(_)), "{bron}: {e}");
+        assert!(e.to_string().contains("refused"), "{bron}: {e}");
+    }
+}

@@ -1027,6 +1027,83 @@ pub fn aanvragen(
     )
 }
 
+/// What the sources give for fields of the application before it is
+/// submitted, as the case's cell and the other cells of the case know things
+/// on `on`. `bronnen` names per field its source, an output of an article as
+/// `<regelwerk>#<article>#<output>`; `velden` are what the form holds so far,
+/// such as the number the applicant logged in with, and the source gets those
+/// that are among its parameters ([`Cell::consult`]). Per field the value and
+/// where it comes from: the source, and each cell that answered with the
+/// answer, the reduction and its version, and how far it read its chronicle.
+/// A cell that gives nothing leaves the value empty and the origin too.
+/// Nothing is recorded: what the applicant submits is what the application
+/// holds, prefilled or not.
+///
+/// # Errors
+///
+/// Refused when a source is not `<regelwerk>#<article>#<output>` or names no
+/// output of an article in force on `on`; and as [`Cell::consult`].
+pub fn voorinvullen(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    bronnen: &Map<String, Value>,
+    velden: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Value> {
+    let service = corpus.service()?;
+    let sfeer = cellen.sfeer();
+    let mut uit = Map::new();
+    for (veld, bron) in bronnen {
+        let Some((law_id, article, output)) = bron.as_str().and_then(bron_delen) else {
+            return Err(Error::Refused(format!(
+                "the source of '{veld}' is {bron}, not '<regelwerk>#<article>#<output>'"
+            )));
+        };
+        let result = cellen
+            .eigen
+            .consult(&service, &sfeer, law_id, article, output, velden, on)?;
+        let waarde = result
+            .outputs
+            .get(output)
+            .map(stored::to_stored)
+            .transpose()?
+            .unwrap_or(Value::Null);
+        let herkomst: Vec<Value> = result
+            .trace
+            .as_ref()
+            .map(beantwoord)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|node| node.result.as_ref().is_some_and(|r| !r.is_null()))
+            .filter_map(|node| node.answer.as_ref())
+            .map(|answer| {
+                json!({
+                    "door": answer.answerer,
+                    "antwoord": answer.answer,
+                    "reductie": answer.law_id,
+                    "artikel": answer.article,
+                    "geldig_vanaf": answer.valid_from,
+                    "gelezen": answer.records_read,
+                    "tot_en_met": answer.last_record,
+                })
+            })
+            .collect();
+        uit.insert(
+            veld.clone(),
+            json!({ "bron": bron, "waarde": waarde, "herkomst": herkomst }),
+        );
+    }
+    Ok(Value::Object(uit))
+}
+
+/// A source `<regelwerk>#<article>#<output>` in its three parts, none empty.
+fn bron_delen(bron: &str) -> Option<(&str, &str, &str)> {
+    let mut delen = bron.split('#');
+    let (law_id, article, output) = (delen.next()?, delen.next()?, delen.next()?);
+    let heel = delen.next().is_none() && [law_id, article, output].iter().all(|d| !d.is_empty());
+    heel.then_some((law_id, article, output))
+}
+
 /// Why a decision came out as it did, as the cell explains it
 /// ([`Cell::explain`]): the engine's trace, in full and condensed to its
 /// steps, every open term with who filled it, the terms the cell answered

@@ -166,6 +166,22 @@ impl Spel {
         })?)
     }
 
+    /// What the sources give for fields of the application before it is
+    /// submitted ([`kern::voorinvullen`]): per field in `bronnen` its value
+    /// and where it comes from. Nothing is recorded.
+    ///
+    /// # Errors
+    ///
+    /// As [`kern::voorinvullen`], and when no case is chosen.
+    pub fn voorinvullen(
+        &mut self,
+        bronnen: &Map<String, Value>,
+        velden: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::voorinvullen(c, cell, bronnen, velden, datum))?)
+    }
+
     pub fn aanvragen(&mut self, velden: &Map<String, Value>, datum: NaiveDate) -> Antwoord {
         ok(self.met(|c, cell| kern::aanvragen(c, cell, velden, datum))?)
     }

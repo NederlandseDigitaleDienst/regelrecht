@@ -1350,6 +1350,60 @@ impl Cell {
         Ok(explained)
     }
 
+    /// What the output `output` of `law_id#article` comes to on `on`, as the
+    /// cell and the cells of `sphere` know things on that day, before
+    /// anything is recorded: for a form that shows what the sources give
+    /// before the applicant submits it. The engine asks the cells for the
+    /// answers a binding takes (`source.reduction`, RFC-048) as in a
+    /// decision, and the result carries the trace, in which each answer is a
+    /// node with who gave it from what. Nothing is recorded, in any cell.
+    ///
+    /// `given` are values by name; the article gets those that are among its
+    /// parameters. A date parameter that `given` leaves out is the day `on`,
+    /// as the cell fills a date a stage requires with the day of recording.
+    ///
+    /// # Errors
+    ///
+    /// Refused when the regulation has no article `article` in force on
+    /// `on`, or the article has no output `output`. An error of the engine,
+    /// such as a required parameter that is missing, ends it as well.
+    #[allow(clippy::too_many_arguments)]
+    pub fn consult(
+        &self,
+        service: &LawExecutionService,
+        sphere: &[&Cell],
+        law_id: &str,
+        article: &str,
+        output: &str,
+        given: &Map<String, serde_json::Value>,
+        on: NaiveDate,
+    ) -> Result<ArticleResult> {
+        let Some(found) = shape::article_on(service, law_id, article, on) else {
+            return Err(refused(format!(
+                "{law_id} has no article {article} in force on {on}"
+            )));
+        };
+        if !found.get_output_names().contains(&output) {
+            return Err(refused(format!(
+                "{law_id}#{article} has no output '{output}'"
+            )));
+        }
+        let mut parameters = BTreeMap::new();
+        for parameter in found.get_parameters() {
+            let value = match given.get(&parameter.name) {
+                Some(value) => stored::from_stored(value)?,
+                None if parameter.param_type == ParameterType::Date => json_date(on),
+                None => continue,
+            };
+            parameters.insert(parameter.name.clone(), value);
+        }
+        let reader = self.known_on(on);
+        let others = known_on(sphere, on);
+        let call = Answerers::new(&reader, &others).call(BTreeMap::new());
+        let date = on.to_string();
+        Ok(service.evaluate_law_with_trace_in(law_id, &[output], parameters, call, &date)?)
+    }
+
     /// Whether the regulation versions the chronolexogram `id` was recorded
     /// under are still those the corpus of `service` holds in force on the
     /// day it was recorded ([`versions::since`]). This needs no replay: a
