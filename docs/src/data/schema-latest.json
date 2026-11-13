@@ -1279,7 +1279,7 @@
             "amount",
             "date"
           ],
-          "description": "The type of the values in the column. Every column may hold null."
+          "description": "The type of the values in the column. Every column may hold null, as a field declared `nullable`."
         },
         "description": {
           "type": "string"
@@ -2906,7 +2906,7 @@
             "state": {
               "type": "array",
               "minItems": 1,
-              "description": "The properties of the state, each with its type. Before the first record a property holds the start value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date, and since v0.8.20 an empty list for an array. Not `id`, under which a row of the aggregates holds its root.",
+              "description": "The properties of the state, each with its type. Before the first record a property holds the start value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date, and since v0.8.20 an empty list for an array and null for a property that is `nullable`. Not `id`, under which a row of the aggregates holds its root.",
               "items": {
                 "type": "object",
                 "additionalProperties": false,
@@ -2934,6 +2934,10 @@
                       "array"
                     ],
                     "description": "The type of the property, which also gives its start value. A string or a date starts as null and may be set to null again. Since v0.8.20 a property may be an `array`, only with its `columns`, so it holds a table: it starts as an empty list, and a step replaces it whole, for example with an array of rows a fact holds (`$record.<field>`). Such an array is never null. A read model reads it as a field of the row of its aggregate and can iterate over it with a FOREACH."
+                  },
+                  "nullable": {
+                    "type": "boolean",
+                    "description": "Since v0.8.20: whether the property may hold null (absence: the record says there is none), as `nullable` on a field (RFC-036). A nullable boolean, number or amount starts as null, and a step may set it to null; without it such a property starts as false or 0, and a null that reaches it fails the step. A string or a date may hold null either way and starts as null, so the flag changes nothing for it. An array is never null: it starts as an empty list, and `nullable: true` is refused. Each cell of an array with columns may hold null, as a nullable field does. The loader refuses a step that fills a property that is not nullable from a source that may be null: a nullable field of the record, a nullable property of the state, or an input the step declares nullable."
                   },
                   "columns": {
                     "type": "array",
@@ -2968,6 +2972,30 @@
                       "not": {
                         "required": [
                           "columns"
+                        ]
+                      }
+                    }
+                  },
+                  {
+                    "if": {
+                      "properties": {
+                        "type": {
+                          "const": "array"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ]
+                    },
+                    "then": {
+                      "not": {
+                        "properties": {
+                          "nullable": {
+                            "const": true
+                          }
+                        },
+                        "required": [
+                          "nullable"
                         ]
                       }
                     }
@@ -3081,7 +3109,7 @@
                         }
                       ]
                     },
-                    "description": "What the step gives each property of the state, as the actions of an article: `output` names a property of the state, `value` is an input of the step (`$<input>`), a field of the record (`$record.<field>`) or a property of the state before it (`$state.<property>`). Only a bare reference: a step computes nothing itself, so what a record does stays in the law. A property no action names keeps its value, and a step gives a property one action at most. Every value must be of the property's type; a null fits only a string or a date. Since v0.8.20 an array with columns takes a whole list of rows: the action replaces the array, it does not add rows to it. `$record.refers_to` is the id of the record this record refers to, or null, such as the decision a copy of a ruling concerns. Since v0.8.19 `$record.id` is the id of the record itself, so the state can keep which record set a property; in a projection with `per` it hides a field of the record named `id`."
+                    "description": "What the step gives each property of the state, as the actions of an article: `output` names a property of the state, `value` is an input of the step (`$<input>`), a field of the record (`$record.<field>`) or a property of the state before it (`$state.<property>`). Only a bare reference: a step computes nothing itself, so what a record does stays in the law. A property no action names keeps its value, and a step gives a property one action at most. Every value must be of the property's type; a null fits only a string, a date or (since v0.8.20) a property declared `nullable`. From that version an array with columns takes a whole list of rows: the action replaces the array, it does not add rows to it. `$record.refers_to` is the id of the record this record refers to, or null, such as the decision a copy of a ruling concerns. Since v0.8.19 `$record.id` is the id of the record itself, so the state can keep which record set a property; in a projection with `per` it hides a field of the record named `id`."
                   }
                 }
               }

@@ -1923,6 +1923,12 @@ pub struct StateProperty {
     pub name: String,
     #[serde(rename = "type")]
     pub property_type: ParameterType,
+    /// Since schema v0.8.20: whether the property may hold null, as
+    /// `nullable` on a parameter, input or output (RFC-036). A nullable
+    /// boolean, number or amount starts as null. A string or a date may hold
+    /// null whatever this says, as before; an array never does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nullable: Option<bool>,
     /// Only and always with type `array` (schema v0.8.20): the columns of
     /// each row, so the property holds a table.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -1932,14 +1938,26 @@ pub struct StateProperty {
 }
 
 impl StateProperty {
-    /// The value before the first record: false for a boolean, 0 for a
-    /// number or an amount, an empty list for an array, null for a string
-    /// or a date.
+    /// Whether the property may hold null: when it says so (`nullable`,
+    /// schema v0.8.20), and always for a string or a date, whose start value
+    /// is null.
+    pub fn is_nullable(&self) -> bool {
+        self.nullable == Some(true)
+            || matches!(
+                self.property_type,
+                ParameterType::String | ParameterType::Date
+            )
+    }
+
+    /// The value before the first record: an empty list for an array, null
+    /// for a nullable property ([`Self::is_nullable`]), and otherwise false
+    /// for a boolean and 0 for a number or an amount.
     pub fn start(&self) -> Value {
         match self.property_type {
+            ParameterType::Array => Value::Array(Vec::new()),
+            _ if self.is_nullable() => Value::Null,
             ParameterType::Boolean => Value::Bool(false),
             ParameterType::Number | ParameterType::Amount => Value::Int(0),
-            ParameterType::Array => Value::Array(Vec::new()),
             _ => Value::Null,
         }
     }

@@ -132,7 +132,16 @@ This policy article is called a binding: it binds the open term to the answer.
 
 ### Playing the chronicle forward (experimental)
 
-A reduction with a `projection` declares a state, a few named properties each with a type, and says per article what a record under it does with that state. A property starts from the value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date, and an empty list for an array. The engine plays the chronicle forward, record by record, one aggregate per record of a kind (`per`, see [One aggregate per decision](#one-aggregate-per-decision-experimental)). A read model answers from their last states.
+A reduction with a `projection` declares a state, a few named properties each with a type, and says per article what a record under it does with that state. A property starts from the value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date, and an empty list for an array.
+
+A property may be empty, such as the number of inhabitants of a district that has none on record. It then declares `nullable: true`, as a parameter or an output does, and starts as null instead of false or 0. A step may set it to null, and a read model skips or counts the empty ones with an `EQUALS` against null. A string or a date may hold null without it. An array is never null; each cell of an array with columns may be. Without `nullable`, a null that reaches a boolean, number or amount fails the step, and the loader refuses a step that fills such a property from a source that may be null.
+
+```yaml
+state:
+  - {name: inwonertal, type: number, nullable: true}
+```
+
+The engine plays the chronicle forward, record by record, one aggregate per record of a kind (`per`, see [One aggregate per decision](#one-aggregate-per-decision-experimental)). A read model answers from their last states.
 
 A step names the article its records rest on, such as `test_chronicle_effects#3`. Where the article gives more than one kind of record, a third segment names the kind (`#BESCHIKKING`). Where it requires more than one fact, the third segment is the name of the fact in lower case (`#plaats_gehuurd`). `per` takes the same notation. The loader refuses a step that could apply to more than one of them. The rules per schema version are in the [version history](/reference/schema#version-history).
 

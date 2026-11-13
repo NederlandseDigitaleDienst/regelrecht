@@ -458,6 +458,14 @@ fn the_loader_refuses_a_malformed_table() {
         "declares columns for state property 'stembureau', which is no array",
     );
     refused(
+        law(COLUMNS),
+        reduction("v0.8.20", COLUMNS).replace(
+            "{name: stembureau, type: string}",
+            "{name: stembureau, type: object}",
+        ),
+        "gives state property 'stembureau' the type Object, which a state cannot have",
+    );
+    refused(
         law(COLUMNS).replace(
             "{name: stembureau, type: string}",
             "{name: stembureau, type: string, columns: [{name: a, type: string}]}",

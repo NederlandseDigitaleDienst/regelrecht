@@ -656,8 +656,11 @@ impl LawExecutionService {
                 question,
                 &law_of,
                 Versions::InForce(day),
-                since_v0_8_16,
-                own_id,
+                StepRules {
+                    since_v0_8_16,
+                    own_id,
+                    since_v0_8_20: since((0, 8, 20)),
+                },
             )
             .map_err(|why| {
                 EngineError::InvalidOperation(format!(
@@ -1326,9 +1329,13 @@ pub(crate) fn check_step<'l>(
     question: &[regelrecht_law_model::Parameter],
     law_of: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
     versions: Versions,
-    since_v0_8_16: bool,
-    own_id: bool,
+    rules: StepRules,
 ) -> std::result::Result<(), String> {
+    let StepRules {
+        since_v0_8_16,
+        own_id,
+        since_v0_8_20,
+    } = rules;
     // The article of `law_id` that `pick` finds: `Ok(None)` when the loader
     // does not hold that law yet, so there is nothing to check against.
     let article = |law_id: &str,
@@ -1488,25 +1495,62 @@ pub(crate) fn check_step<'l>(
             }
             _ => {}
         }
-        // An array with columns (schema v0.8.20) and the array it is filled
-        // from declare the same columns, as far as the source declares them.
-        let declared = projection
-            .state
-            .iter()
-            .find(|p| &p.name == property)
-            .and_then(|p| p.columns.as_deref());
         // A fact holds only its parameters; another record also its outputs.
         // A step that names a fact has the kind EXECUTOGRAM too.
         let holder = record
             .as_ref()
             .map(|(article, kind)| (*article, kind.as_deref() == Some(EXECUTOGRAM)));
-        let given = source_columns(projection, holder, &source);
-        if let (Some(declared), Some(given)) = (declared, given) {
-            same_columns(declared, given)
-                .map_err(|why| format!("fills array '{property}' from {source}, {why}"))?;
-        }
+        check_filling(projection, step, holder, property, &source, since_v0_8_20)?;
     }
     Ok(())
+}
+
+/// What a step may fill `property` from, beyond its type (schema
+/// v0.8.20): a property that is not nullable is not filled from a source
+/// that may be null, because the step would fail on the first record
+/// without a value, and an array with columns is filled from a source with
+/// the same columns, as far as the source declares them. `record` is the
+/// article of the record and whether the record is a fact.
+fn check_filling(
+    projection: &Projection,
+    step: &ProjectionStep,
+    record: Option<(&Article, bool)>,
+    property: &str,
+    source: &StepSource,
+    since_v0_8_20: bool,
+) -> std::result::Result<(), String> {
+    let declared = projection.state.iter().find(|p| p.name == property);
+    if since_v0_8_20
+        && declared.is_some_and(|p| !p.is_nullable())
+        && source_nullable(projection, step, record, source)
+    {
+        return Err(format!(
+            "sets '{property}' from {source}, which may be null, but '{property}' is not \
+             nullable; declare it nullable (schema v0.8.20)"
+        ));
+    }
+    let declared = declared.and_then(|p| p.columns.as_deref());
+    let given = source_columns(projection, record, source);
+    if let (Some(declared), Some(given)) = (declared, given) {
+        same_columns(declared, given)
+            .map_err(|why| format!("fills array '{property}' from {source}, {why}"))?;
+    }
+    Ok(())
+}
+
+/// Which rules of the schema [`check_step`] holds a step to, by the version
+/// of its reduction.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct StepRules {
+    /// Schema v0.8.16: the article must give a record, `$record` reads only
+    /// the fields of its kind, and every required parameter the output reads
+    /// is passed.
+    pub(crate) since_v0_8_16: bool,
+    /// `$record.id` is the record's own id: schema v0.8.19, with `per`.
+    pub(crate) own_id: bool,
+    /// Schema v0.8.20: no source that may be null fills a property that is
+    /// not nullable.
+    pub(crate) since_v0_8_20: bool,
 }
 
 /// `per` held to the law it names, as a step is ([`record_kind`]): the
@@ -1738,31 +1782,73 @@ fn state_type(projection: &Projection, name: &str) -> Option<ParameterType> {
         .map(|p| p.property_type)
 }
 
+/// How the record declares a field a step reads: as an output or as a
+/// parameter of its article. `record` is that article and whether the
+/// record is a fact. A fact holds only parameters; another record may hold
+/// the field as an output, which wins over a parameter of the same name when
+/// the step plays.
+enum RecordField<'a> {
+    Output(&'a regelrecht_law_model::Output),
+    Parameter(&'a regelrecht_law_model::Parameter),
+}
+
+fn record_field<'a>(record: Option<(&'a Article, bool)>, field: &str) -> Option<RecordField<'a>> {
+    let (article, of_fact) = record?;
+    let output = article.get_outputs().iter().find(|o| o.name == field);
+    match output {
+        Some(output) if !of_fact => Some(RecordField::Output(output)),
+        _ => article
+            .get_parameters()
+            .iter()
+            .find(|p| p.name == field)
+            .map(RecordField::Parameter),
+    }
+}
+
+/// Whether what `source` reads may be null, as far as the loader can tell:
+/// a field of the record whose output or parameter is nullable
+/// ([`record_field`]), a nullable property of the state, or an input the
+/// step declares nullable. A field of a law that is not loaded yet counts
+/// as not nullable; the engine refuses a null when the step plays.
+fn source_nullable(
+    projection: &Projection,
+    step: &ProjectionStep,
+    record: Option<(&Article, bool)>,
+    source: &StepSource,
+) -> bool {
+    match source {
+        StepSource::Record(field) => match record_field(record, field) {
+            Some(RecordField::Output(output)) => output.is_nullable(),
+            Some(RecordField::Parameter(parameter)) => parameter.is_nullable(),
+            None => false,
+        },
+        StepSource::State(property) => projection
+            .state
+            .iter()
+            .find(|p| &p.name == property)
+            .is_some_and(StateProperty::is_nullable),
+        StepSource::Input(name) => step
+            .input
+            .iter()
+            .find(|i| &i.name == name)
+            .is_some_and(regelrecht_law_model::Input::is_nullable),
+    }
+}
+
 /// The columns of what `source` reads, where they are declared: a field of
-/// the record whose parameter declares them, or an array of the state.
-/// `record` is the article of the record and whether the record is a fact.
-/// A fact holds only parameters. Another record may hold the field as an
-/// output, which wins over a parameter of the same name when the step plays
-/// and declares no columns. An input of the step takes an output of a law,
-/// which declares none either.
+/// the record whose parameter declares them ([`record_field`]), or an array
+/// of the state. An output declares no columns, and neither does an input of
+/// the step, which takes an output of a law.
 fn source_columns<'a>(
     projection: &'a Projection,
     record: Option<(&'a Article, bool)>,
     source: &StepSource,
 ) -> Option<&'a [Column]> {
     match source {
-        StepSource::Record(field) => {
-            let (article, of_fact) = record?;
-            if !of_fact && article.get_outputs().iter().any(|o| &o.name == field) {
-                return None;
-            }
-            article
-                .get_parameters()
-                .iter()
-                .find(|p| &p.name == field)?
-                .columns
-                .as_deref()
-        }
+        StepSource::Record(field) => match record_field(record, field)? {
+            RecordField::Parameter(parameter) => parameter.columns.as_deref(),
+            RecordField::Output(_) => None,
+        },
         StepSource::State(property) => projection
             .state
             .iter()
@@ -1927,7 +2013,7 @@ struct AppliedStep {
 }
 
 /// The value a step gives `property`, as the state holds it: one of its
-/// type, or null for a string or a date, whose start value is null. An
+/// type, or null for a nullable property ([`StateProperty::is_nullable`]). An
 /// array with columns (schema v0.8.20) takes a list of rows, each an object
 /// that holds no column the array does not declare, and in each column null
 /// or a value of the column's type. A row lacking a column gets null there,
@@ -1938,7 +2024,7 @@ pub(crate) fn conform(
     value: Value,
 ) -> std::result::Result<Value, String> {
     match (property.property_type, value) {
-        (_, Value::Null) if property.start().is_null() => Ok(Value::Null),
+        (_, Value::Null) if property.is_nullable() => Ok(Value::Null),
         (ParameterType::Array, Value::Array(rows)) => {
             let columns = property.columns.as_deref().unwrap_or_default();
             rows.into_iter()
@@ -3178,6 +3264,13 @@ articles:
         assert_eq!(property("amount").start(), Value::Int(0));
         assert_eq!(property("string").start(), Value::Null);
         assert_eq!(property("date").start(), Value::Null);
+        // A nullable boolean, number or amount starts as null (schema
+        // v0.8.20) and takes null.
+        for ty in ["boolean", "number", "amount"] {
+            let nullable = property(&format!("{ty}, nullable: true"));
+            assert_eq!(nullable.start(), Value::Null, "{ty}");
+            assert!(conform(&nullable, Value::Null).is_ok(), "{ty}");
+        }
         // A string or a date may be set to null again; a boolean may not.
         let fits = |ty: &str, value: Value| conform(&property(ty), value).is_ok();
         assert!(fits("string", Value::Null));
@@ -3766,8 +3859,11 @@ articles:
                         article.get_parameters(),
                         &law_of,
                         Versions::Loaded,
-                        true,
-                        true,
+                        StepRules {
+                            since_v0_8_16: true,
+                            own_id: true,
+                            since_v0_8_20: true,
+                        },
                     )
                 })
                 .find_map(std::result::Result::err)

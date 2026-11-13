@@ -1031,9 +1031,9 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
             );
         }
         let mut names: Vec<&str> = Vec::new();
-        let with_columns = from_version(law, (0, 8, 20));
+        let since_v0_8_20 = from_version(law, (0, 8, 20));
         for property in &projection.state {
-            if let Err(why) = check_state_property(property, with_columns) {
+            if let Err(why) = check_state_property(property, since_v0_8_20) {
                 return refuse(where_, why);
             }
             if names.contains(&property.name.as_str()) {
@@ -1097,25 +1097,37 @@ fn is_scalar(ty: ParameterType) -> bool {
 }
 
 /// A property of a projection's state is a scalar without columns, or since
-/// schema v0.8.20 (`with_columns`) an array with its columns
-/// ([`check_columns`]). Before v0.8.20 an array in the state is refused as
+/// schema v0.8.20 (`since_v0_8_20`) an array with its columns
+/// ([`check_columns`]). `nullable` also came with v0.8.20, and an array in
+/// the state is never null. Before v0.8.20 an array in the state is refused as
 /// any other type a state cannot have, unless it declares columns, which
 /// the message then names.
 fn check_state_property(
     property: &StateProperty,
-    with_columns: bool,
+    since_v0_8_20: bool,
 ) -> std::result::Result<(), String> {
     let name = &property.name;
     let ty = property.property_type;
+    if property.nullable.is_some() && !since_v0_8_20 {
+        return Err(format!(
+            "declares state property '{name}' nullable, which came with schema v0.8.20"
+        ));
+    }
+    if property.nullable == Some(true) && ty == ParameterType::Array {
+        return Err(format!(
+            "declares state property '{name}' nullable; an array in the state is never null, \
+             it starts as an empty list"
+        ));
+    }
     match property.columns.as_deref() {
-        Some(_) if ty == ParameterType::Array && !with_columns => Err(format!(
+        Some(_) if ty == ParameterType::Array && !since_v0_8_20 => Err(format!(
             "gives state property '{name}' the type array with columns, which came with \
              schema v0.8.20"
         )),
         Some(columns) if ty == ParameterType::Array => {
             check_columns(columns).map_err(|why| format!("state property '{name}' {why}"))
         }
-        None if ty == ParameterType::Array && with_columns => Err(format!(
+        None if ty == ParameterType::Array && since_v0_8_20 => Err(format!(
             "gives state property '{name}' the type array without columns; a state holds an \
              array only with its columns"
         )),
@@ -1376,10 +1388,13 @@ pub(crate) fn check_projection_wiring<'l>(
                 question,
                 lookup,
                 crate::projection::Versions::Loaded,
-                true,
-                // `$record.id` is the record's own id from v0.8.19, in a
-                // projection with `per`, as when the projection plays.
-                projection.per.is_some() && from_version(law, (0, 8, 19)),
+                crate::projection::StepRules {
+                    since_v0_8_16: true,
+                    // `$record.id` is the record's own id from v0.8.19, in a
+                    // projection with `per`, as when the projection plays.
+                    own_id: projection.per.is_some() && from_version(law, (0, 8, 19)),
+                    since_v0_8_20: from_version(law, (0, 8, 20)),
+                },
             )
             .map_err(|why| format!("{where_}: the step on {}: {why}", step.record))?;
         }

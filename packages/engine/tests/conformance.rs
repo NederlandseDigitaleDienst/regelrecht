@@ -94,6 +94,8 @@ const KNOWN_GAPS: &[&str] = &[
     "projection_state_columns_on_scalar.yaml", // schema v0.8.20 allows `columns` only with type `array`; the model reads them on any state property, and the loader refuses them on a scalar (`reject_malformed_projection`)
     "parameter_columns_not_array.yaml", // schema v0.8.20 allows `columns` only on a parameter of type `array`; the model reads them on any parameter, and the loader refuses them elsewhere (`reject_malformed_columns`)
     "parameter_column_type_array.yaml", // schema v0.8.20 gives a column a scalar type; the model reads any ParameterType, and the loader refuses the others (`reject_malformed_columns`)
+    "projection_state_nullable_before_v0_8_20.yaml", // schema v0.8.19 has no `nullable` on a state property; the model reads it for any version, and the loader refuses it in a file under v0.8.19 or earlier (`reject_malformed_projection`)
+    "projection_state_array_nullable.yaml", // schema v0.8.20 refuses `nullable: true` on an array in the state; the model reads it on any state property, and the loader refuses it on an array (`reject_malformed_projection`)
     "requires_effects_without_fact.yaml", // schema v0.8.15 allows `effects` on a `requires` entry only with `fact` (`if`/`else`); the model has all fields on one entry, and the loader refuses it (`reject_malformed_facts`)
     "requires_fact_effect_revokes_field.yaml", // schema v0.8.15 pins `revokes` on a fact to `refers_to`; the model reads any string, and the loader refuses another (`reject_malformed_facts`)
     "produces_list_decision_type_on_submission.yaml", // schema v0.8.1 allows `decision_type` and `procedure_id` only on a decision; the model has them on every item, and a submission's are never read
