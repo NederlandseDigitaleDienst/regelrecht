@@ -3913,6 +3913,34 @@ actions:
       combine: ONLY
 "#,
         );
+        // DISTINCT over numbers gives an array, not a number, so ADD refuses
+        // it where MAX over the same body gives a number.
+        let add_over = |combine: &str| {
+            format!(
+                r#"
+input:
+  - name: bedragen
+    type: array
+    source: {{}}
+output:
+  - name: totaal
+    type: number
+actions:
+  - output: totaal
+    value:
+      operation: ADD
+      values:
+        - 1
+        - operation: FOREACH
+          collection: $bedragen
+          as: b
+          body: 5
+          combine: {combine}
+"#
+            )
+        };
+        assert!(!check(&add_over("DISTINCT")).is_empty());
+        assert!(check(&add_over("MAX")).is_empty());
     }
 
     #[test]

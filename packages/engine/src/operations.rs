@@ -1762,8 +1762,12 @@ fn combine_only(mut results: Vec<Value>) -> Result<Value> {
 /// An empty collection gives an empty array.
 ///
 /// The comparison is pairwise, so the cost is quadratic in the number of
-/// unique results; [`execute_foreach`] bounds the collection by
-/// `MAX_ARRAY_SIZE`.
+/// unique results. [`execute_foreach`] bounds one collection by
+/// `MAX_ARRAY_SIZE`; a DISTINCT inside a nested FOREACH runs once per outer
+/// element, so the bound multiplies, as it does for every nested operation.
+///
+/// [`execute_foreach`] already returns on an untranslatable element, so the
+/// check below is defensive: it keeps this function sound on its own.
 fn combine_distinct(results: Vec<Value>) -> Result<Value> {
     if let Some(tainted) = find_untranslatable(&results) {
         return Ok(tainted);

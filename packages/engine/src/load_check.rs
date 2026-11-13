@@ -130,7 +130,9 @@ pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
 /// without passing schema validation, and would otherwise run a construct
 /// its version does not have. The walk reaches every action of the
 /// preamble and the articles, the default actions of their open terms and
-/// the steps of a projection, and descends into every operand.
+/// the steps of a projection, and descends into every operand. A step takes
+/// only bare references (`reject_malformed_projection`), so it is walked for
+/// completeness; the conformance fixture covers an execution action.
 pub(crate) fn reject_combine_before_its_version(law: &ArticleBasedLaw) -> Result<()> {
     if from_version(law, (0, 8, 21)) {
         return Ok(());
@@ -1603,7 +1605,7 @@ articles:
     }
 
     #[test]
-    fn distinct_is_refused_before_v0_8_21_wherever_it_sits() {
+    fn distinct_nested_in_an_open_term_default_is_refused_before_v0_8_21() {
         let old = distinct_in_open_term_default("v0.8.20");
         let law: ArticleBasedLaw = serde_yaml_ng::from_str(&old).unwrap();
         let err = reject_combine_before_its_version(&law).unwrap_err();
