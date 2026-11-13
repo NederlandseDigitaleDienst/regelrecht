@@ -1,0 +1,92 @@
+---
+name: Schema Diff
+
+# A new schema version is a full copy in a new directory, so the pull request
+# diff shows a new file of thousands of lines. This workflow puts what changed
+# compared to the previous version in one comment: a summary, the changed paths
+# and a `diff -u` without the lines where only the version number differs. Each
+# push updates that comment. The diff is script/schema-diff.mjs; posting it is
+# script/schema-diff-comment.sh.
+#
+# No `merge_group`: this is not a required check and guards nothing in the
+# queue. Do not make it a required check either. A workflow that a `paths`
+# filter keeps from starting reports nothing, and a required check that reports
+# nothing stays on "Expected": on every pull request without a schema change,
+# and on every entry in the merge queue.
+
+on:
+  pull_request:
+    paths:
+      - "schema/**"
+
+permissions: {}
+
+concurrency:
+  group: schema-diff-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # Fork pull requests are skipped: their `GITHUB_TOKEN` can only read, so it
+  # cannot write a comment. The werkpakket link does the same.
+  schema-diff:
+    name: Schemadiff als comment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      # The test merge of the pull request, with its first parent: the base
+      # branch as GitHub took it for this merge. The difference between the two
+      # is exactly what the pull request adds, also when its branch is behind.
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          fetch-depth: 2
+
+      # The scripts come from the base branch, as for the werkpakket link: they
+      # write on the pull request with the workflow token, so the pull request
+      # itself must not decide what they do. When they are not there yet, this
+      # pull request introduces them and there is nothing to show.
+      - name: Take the scripts from the base branch
+        id: base
+        run: |
+          set -uo pipefail
+          base=$(git rev-parse HEAD^1) || {
+            echo "::error title=Schema-diff::The base commit of the test merge is not in the checkout."
+            exit 1
+          }
+          echo "sha=${base}" >>"$GITHUB_OUTPUT"
+          for f in script/schema-diff.mjs script/schema-diff-comment.sh; do
+            if ! git cat-file -e "${base}:${f}" 2>/dev/null; then
+              echo "::notice title=Schema-diff::${f} is not on the base branch yet; this pull request introduces it."
+              echo "skip=true" >>"$GITHUB_OUTPUT"
+              exit 0
+            fi
+            git checkout "$base" -- "$f"
+          done
+
+      - name: Setup Node.js
+        if: steps.base.outputs.skip != 'true'
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1  # v6
+        with:
+          node-version: '24'
+
+      - name: Compare the schema versions
+        if: steps.base.outputs.skip != 'true'
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+        run: |
+          node script/schema-diff.mjs --base "$BASE_SHA" --head HEAD >"$RUNNER_TEMP/schema-diff.md"
+          cat "$RUNNER_TEMP/schema-diff.md" >>"$GITHUB_STEP_SUMMARY"
+
+      - name: Post or update the comment
+        if: steps.base.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          BODY_FILE: ${{ runner.temp }}/schema-diff.md
+        run: script/schema-diff-comment.sh

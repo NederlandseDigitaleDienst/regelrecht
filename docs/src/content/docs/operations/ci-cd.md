@@ -205,6 +205,14 @@ Neither scans for known vulnerabilities. That is `just audit-advisories` (RustSe
 
 Released schema versions in `schema/v*.*.*` are immutable. CI fails if a PR tries to modify or delete a released schema. `schema/latest` is a symlink to the highest released version (currently `v0.8.19`), not a directory to edit; a schema change goes into a new version directory.
 
+### Schema diff comment (on PRs that touch `schema/`)
+
+Because a new version directory is a full copy, the pull request diff shows a `schema.json` of some 3,700 new lines even when the language changed in a hundred. `schema-diff.yml` compares each version a pull request adds with the highest version below it and posts the result as a comment: how many definitions and properties were added, removed or changed, the JSON paths involved, and a `diff -u` of the two files in a collapsible block. A value that differs only in the version number (`$id`, `title`, or a URL) is left out of the diff and named as such, so a version that changes nothing else says so.
+
+Each push updates the same comment. The job finds it by the marker line `<!-- schema-diff -->` written by `github-actions[bot]`, and deletes it once the pull request no longer adds a version. A diff too long for a GitHub comment is cut at a line, with a note on how to produce the whole diff locally: `node script/schema-diff.mjs --base origin/main`.
+
+The comment is a reading aid. What the new version means for someone writing a rulework belongs in plain language in the pull request description. The job is not a required check and does not run on `merge_group`. It is skipped on pull requests from a fork, whose token cannot write comments, and it runs the scripts from the base branch, so a pull request that changes `script/schema-diff.mjs` sees its effect only after it merges.
+
 ### Provenance checks (on corpus/engine changes)
 
 Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the corpus of the chronolexografie PoC (`packages/poc-chronolexografie/corpus/`, its reductions included) names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.19`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
