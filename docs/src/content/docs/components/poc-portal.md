@@ -126,6 +126,26 @@ POC_BRON_<NAME>=<checkout-of-the-source>/path/to/bron.yaml just poc-chronolexogr
 
 The Vite dev server then answers the route of the source from that folder (`frontend/scripts/bron-dev.js`), and so does the portal under `just poc`. The folder is read again on every request, so an edit shows after a reload. With the same variable, `cargo test -p regelrecht-poc-chronolexografie` loads every case in the folder and plays its example to a decision. Without it, a case from that source shows "bron niet beschikbaar" and the test skips the folder.
 
+### Playing the scenarios of a source
+
+The scenario test of chronolexografie (`packages/poc-chronolexografie/tests/scenarios/`) plays the scenarios of a source the way it plays the PoC's own cases. A source needs no test runner of its own:
+
+```bash
+just poc-chronolexografie-scenarios <checkout-of-the-source>/path/to/bron.yaml <report-folder>
+```
+
+The recipe sets two variables and runs `cargo test --test scenarios` with them. `POC_BRON` names the manifest or folder of the source. `POC_SCENARIOS_UIT` is optional and names a folder for the reports. A relative path in either counts from the repository root. Without `POC_BRON` the test plays only the PoC's own cases.
+
+Every case of the source is chosen and every scenario played step by step, with the step's `invoer` over the case's `voorbeeld`. Each step is checked against its `uitkomst` and every output in its `uitvoer`. For an application those outputs are what its receipt computes (`wat_volgt`); for a decision on objection they include the outputs of the new decision it holds. A step written as text is skipped. A field the form asks and the step leaves out is noted; on the form of a submission or a record it is sent empty, and from the findings of a decision it is left out, as the page does. A decision on objection first tests admissibility and then decides, through `kern::toetsen_en_beslissen_op_bezwaar`, the same two steps the page takes. A judgement on admissibility that the step does not give counts as `false`, as an unchecked switch does on the page.
+
+The player does not stop at the first wrong step. The test fails at the end with one line per wrong step, such as:
+
+```
+voorbeeld_subsidie, 'Geregistreerd: verleend', step 2: output 'subsidie_verleend': expected false, got true
+```
+
+The report folder gets `laden.json` and one `scenario-<case>-<nn>.json` per scenario, written before the test fails. `laden.json` holds `bron`, what became of the source (`fout`, `fouten`, `meldingen`, `casussen`), and under `casussen` per case `casus`, `gekozen`, `kies_fout`, `scenarios` and `vormen`, the forms on the case's playing date (or `vormen_fout` when the cell refuses them). A scenario report holds `casus`, `scenario`, `index`, `fouten` (the number of wrong steps), `stappen` and `metingen`. A step as text has `nr`, `soort` (`tekst`) and `tekst`. Any other step has `nr`, `soort`, `datum`, `verhaal` and `verwacht`, and where they apply `kreeg`, `uitvoer` (per output `uitkomst`, `verwacht`, `kreeg` and `klopt`), `leeg_gelaten`, `geweigerd` and `fout`. A measurement in `metingen` is one record a step added to a chronicle: `na_stap`, `cel`, `gram`, `waarom` for a decision and `wat_volgt` for a submission.
+
 `just poc` does not start napp or an assistant. The napp card then answers `503` until `POC_UPSTREAM_NAPP` points at a running napp backend. For the assistant, run `just poc-assistent <case>` in a second terminal (it needs `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`) and start the portal with the matching variable, for example `POC_ASSISTENT_TERUGBETAALREGIMES=http://127.0.0.1:3600 just poc`.
 
 ## Configuration
