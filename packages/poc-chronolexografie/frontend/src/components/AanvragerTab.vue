@@ -25,32 +25,51 @@ import {
   toegewezen,
   zonderLeeg,
 } from '../state.js';
-import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
+import { formulier, huidigeStap, scenarioWaarden } from '../scenarioInvoer.js';
 import { celNaam } from '../logboek.js';
-import { bronInvoer, herkomstTekst, voorgevuldeWaarden } from '../voorinvulling.js';
+import { beginWaarden, bronInvoer, herkomstTekst } from '../voorinvulling.js';
 import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
 // What the sources give for the fields the UI policy prefills
 // (voorinvulling.js), per field `{ bron, waarde, herkomst, fout }`. The form
-// starts from it; a scenario's values and the applicant's own go over it.
+// starts from it over the case's example; the values of a scenario step and
+// the applicant's own go over it.
 const voorgevuld = ref({});
-const aanvraagVorm = formulier(() => ({
-  ...voorgevuldeWaarden(voorgevuld.value),
-  ...(scenarioWaarden('aanvraag') ?? {}),
-}));
+const aanvraagVorm = formulier(() => {
+  const scenario = scenarioWaarden('aanvraag');
+  return beginWaarden(scenario, scenario && huidigeStap()?.step.stap.invoer, voorgevuld.value);
+});
 const aanvraag = computed(() => aanvraagVorm.waarden('aanvraag'));
 const vultVoor = computed(() => state.vormen?.aanvraag?.vult_voor ?? {});
 
-// Ask the sources again when what they read changes: the fields of the form
-// or the day. Only the answer to the last question counts.
+// Ask the sources again when what they read changes: the fields of the form,
+// the day, or a chronicle (a register that recorded something new). Only the
+// answer to the last question counts.
 let vraag = 0;
+// A source may read another prefilled field, so an answer can change what is
+// asked next. Answers that keep changing each other without anything from
+// outside (the applicant, the day, a chronicle) mean two sources read each
+// other: the form stops asking and says so.
+const MAX_OP_ELKAAR = 5;
+let buiten = '';
+let opElkaar = 0;
+const kroniekStand = () =>
+  [state.grammen.length, ...(state.andere ?? []).map((a) => a.grammen.length)].join(',');
 watch(
-  () => JSON.stringify([vultVoor.value, bronInvoer(aanvraag.value), state.datum]),
+  () =>
+    JSON.stringify([vultVoor.value, bronInvoer(aanvraag.value), state.datum, kroniekStand()]),
   async () => {
     const nr = ++vraag;
     if (!Object.keys(vultVoor.value).length) {
       voorgevuld.value = {};
+      return;
+    }
+    const nu = JSON.stringify([aanvraagVorm.eigen.aanvraag, state.datum, kroniekStand(), vultVoor.value]);
+    opElkaar = nu === buiten ? opElkaar + 1 : 0;
+    buiten = nu;
+    if (opElkaar > MAX_OP_ELKAAR) {
+      state.fout = 'de bronnen van het voorinvullen lezen elkaar en blijven elkaar wijzigen';
       return;
     }
     try {

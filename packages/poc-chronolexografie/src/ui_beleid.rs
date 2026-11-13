@@ -14,17 +14,18 @@ use std::collections::BTreeMap;
 use serde::Deserialize;
 
 /// The part of a UI policy the poc reads.
-#[derive(Debug, Default, Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Register {
     #[serde(default)]
     elementen: Vec<Element>,
 }
 
-/// The part of an element the poc reads.
-#[derive(Debug, Default, Deserialize)]
+/// The part of an element the poc reads. The id names the element in a
+/// message; the register decides its form, so any value will do.
+#[derive(Debug, Deserialize)]
 struct Element {
     #[serde(default)]
-    id: Option<String>,
+    id: Option<serde_yaml_ng::Value>,
     #[serde(default)]
     vult_voor: BTreeMap<String, String>,
 }
@@ -43,10 +44,13 @@ pub fn vult_voor(tekst: &str) -> Result<BTreeMap<String, String>, String> {
         serde_yaml_ng::from_str(tekst).map_err(|e| format!("the UI policy: {e}"))?;
     let mut uit: BTreeMap<String, (String, String)> = BTreeMap::new();
     for (i, element) in register.elementen.iter().enumerate() {
-        let naam = element
-            .id
-            .clone()
-            .unwrap_or_else(|| format!("element {}", i + 1));
+        let naam = match &element.id {
+            Some(serde_yaml_ng::Value::String(id)) => id.clone(),
+            Some(id) => serde_yaml_ng::to_string(id)
+                .map(|t| t.trim().to_string())
+                .unwrap_or_else(|_| format!("element {}", i + 1)),
+            None => format!("element {}", i + 1),
+        };
         for (veld, bron) in &element.vult_voor {
             if !regelrecht_law_model::is_fact_reference(bron) {
                 return Err(format!(
@@ -104,6 +108,12 @@ elementen:
                 ("zetels".to_string(), "r#5g#zetels".to_string()),
             ])
         );
+    }
+
+    #[test]
+    fn an_element_with_a_number_for_its_id_is_named_by_it() {
+        let e = vult_voor("elementen: [{id: 5, vult_voor: {naam: 'r#5h'}}]").unwrap_err();
+        assert!(e.contains("5 prefills 'naam'"), "{e}");
     }
 
     #[test]

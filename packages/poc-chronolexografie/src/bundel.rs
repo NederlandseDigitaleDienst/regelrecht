@@ -164,9 +164,20 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         Bundle::new(alles).map_err(|e| Error::Setup(format!("source '{}': {e}", bron.naam)))?,
     );
     let roots = [wortel.clone()];
-    let vult_voor = match bron.bestanden.get(UI_BELEID) {
-        Some(tekst) => ui_beleid::vult_voor(tekst)
-            .map_err(|e| Error::Setup(format!("source '{}', {UI_BELEID}: {e}", bron.naam)))?,
+    // A UI policy that does not read costs the prefill, not the cases: they
+    // play with empty forms, and the source says why.
+    let vult_voor = match bron
+        .bestanden
+        .get(UI_BELEID)
+        .map(|t| ui_beleid::vult_voor(t))
+    {
+        Some(Ok(vult_voor)) => vult_voor,
+        Some(Err(e)) => {
+            stand
+                .meldingen
+                .push(format!("{UI_BELEID}: {e}; the forms are not prefilled"));
+            BTreeMap::new()
+        }
         None => BTreeMap::new(),
     };
     let regelwerken = Regelwerken::load(&*bundle, &roots)?;
@@ -502,18 +513,23 @@ mod tests {
     }
 
     #[test]
-    fn a_ui_policy_that_prefills_a_field_twice_breaks_its_source() {
+    fn a_ui_policy_that_prefills_a_field_twice_costs_the_prefill_not_the_cases() {
         let mut bron = voorinvullen_bron();
         bron.bestanden.insert(
             "ui_beleid.yaml".into(),
             "elementen:\n  - {id: UI1, vult_voor: {naam_opgegeven: 'a#1#x'}}\n  - {id: UI5, vult_voor: {naam_opgegeven: 'a#1#y'}}\n".into(),
         );
-        let (_, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
-        let fout = standen[0].fout.as_deref().unwrap_or_default();
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
+        let melding = standen[0].meldingen.join("\n");
         assert!(
-            fout.contains("ui_beleid.yaml") && fout.contains("UI5"),
-            "{fout}"
+            melding.contains("ui_beleid.yaml") && melding.contains("UI5"),
+            "{melding}"
         );
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
+        assert_eq!(vormen["aanvraag"]["vult_voor"], serde_json::json!({}));
     }
 
     /// A field the UI policy prefills that the form of this case does not

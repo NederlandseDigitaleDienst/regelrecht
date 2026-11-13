@@ -7,7 +7,24 @@
  * wat hij indient is wat de aanvraag bevat. Bij het veld staat waar het
  * vandaan komt, of dat hij het wijzigde.
  */
+import { toon } from './logboek.js';
 import { leesbaar } from './state.js';
+
+/**
+ * What the application form starts from. `scenario` is what a scenario gives
+ * the form (the case's example with the step's own values over it), `invoer`
+ * the step's own values alone, and `voorgevuld` what the sources gave. A
+ * prefilled field takes the source over the example, since the example is no
+ * choice of the applicant; a value the step sets is, and wins.
+ */
+export function beginWaarden(scenario, invoer, voorgevuld) {
+  const eigen = Object.fromEntries(
+    Object.keys(invoer ?? {})
+      .filter((naam) => naam in (scenario ?? {}))
+      .map((naam) => [naam, scenario[naam]]),
+  );
+  return { ...(scenario ?? {}), ...voorgevuldeWaarden(voorgevuld), ...eigen };
+}
 
 /**
  * What the sources get from the form `waarden`: every field with a value,
@@ -45,5 +62,5 @@ export function herkomstTekst(voorgevuld, waarde, celNaam) {
   }
   const wat = waarde === undefined ? 'leeggemaakt' : 'gewijzigd';
   const hoofd = wie.charAt(0).toUpperCase() + wie.slice(1);
-  return `Door u ${wat}. ${hoofd} geeft: ${voorgevuld.waarde}.`;
+  return `Door u ${wat}. ${hoofd} geeft: ${toon(voorgevuld.waarde)}.`;
 }

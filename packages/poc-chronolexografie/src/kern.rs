@@ -629,7 +629,12 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "vult_voor": corpus
                 .vult_voor
                 .iter()
-                .filter(|(veld, _)| aanvraag.fields.iter().any(|f| &f.name == *veld))
+                .filter(|(veld, _)| {
+                    aanvraag
+                        .fields
+                        .iter()
+                        .any(|f| &f.name == *veld && f.type_ != ParameterType::Decision)
+                })
                 .collect::<BTreeMap<_, _>>(),
         },
         "besluit": {
@@ -1060,7 +1065,8 @@ pub fn aanvragen(
 ///
 /// # Errors
 ///
-/// Refused when a source is no text.
+/// Refused when a source is no text; and when the corpus does not load or a
+/// value a source gave cannot be stored.
 pub fn voorinvullen(
     corpus: &Corpus,
     cellen: &Cellen,

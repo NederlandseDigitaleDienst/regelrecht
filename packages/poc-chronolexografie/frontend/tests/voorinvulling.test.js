@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { bronInvoer, herkomstTekst, voorgevuldeWaarden } from '../src/voorinvulling.js';
+import { beginWaarden, bronInvoer, herkomstTekst, voorgevuldeWaarden } from '../src/voorinvulling.js';
 
 const celNaam = (cel) => ({ voorbeeld_register: 'Voorbeeldregister' })[cel] ?? `cel ${cel}`;
 
@@ -8,6 +8,21 @@ describe('bronInvoer', () => {
     // The seats read the designation, which is prefilled itself.
     const invoer = bronInvoer({ nummer: '1', naam_opgegeven: 'X', leeg: undefined });
     expect(invoer).toEqual({ nummer: '1', naam_opgegeven: 'X' });
+  });
+});
+
+describe('beginWaarden', () => {
+  const voorgevuld = { naam: { waarde: 'Uit de bron', herkomst: [] } };
+
+  it('takes the source over the example, and the step over the source', () => {
+    const scenario = { naam: 'Uit het voorbeeld', jaar: 2028 };
+    expect(beginWaarden(scenario, {}, voorgevuld)).toEqual({ naam: 'Uit de bron', jaar: 2028 });
+    const stap = { ...scenario, naam: 'Uit de stap' };
+    expect(beginWaarden(stap, { naam: 'Uit de stap' }, voorgevuld)).toEqual({ naam: 'Uit de stap', jaar: 2028 });
+  });
+
+  it('starts from the sources alone in free play', () => {
+    expect(beginWaarden(null, null, voorgevuld)).toEqual({ naam: 'Uit de bron' });
   });
 });
 
@@ -47,6 +62,12 @@ describe('herkomstTekst', () => {
   it('says why a source gave nothing', () => {
     expect(herkomstTekst({ ...voorgevuld, waarde: null, herkomst: [], fout: 'refused: no output' }, undefined, celNaam)).toBe(
       'Niet vooringevuld: refused: no output',
+    );
+  });
+
+  it('shows the value the source gives as the app shows values', () => {
+    expect(herkomstTekst({ ...voorgevuld, waarde: true }, false, celNaam)).toBe(
+      'Door u gewijzigd. Voorbeeldregister geeft: ja.',
     );
   });
 

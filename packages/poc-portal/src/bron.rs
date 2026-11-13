@@ -171,6 +171,27 @@ impl Manifest {
                 ));
             }
         }
+        // The UI policy is one YAML file, as the portal reads only YAML from
+        // a branch, and lies outside every directory the source is made of:
+        // there it would also be read as a case or a regelwerk.
+        if let Some(pad) = &m.ui_beleid {
+            let pad = pad.trim_matches('/');
+            if !Self::is_manifest(pad) {
+                return Err(format!(
+                    "the manifest {waar}: the UI policy '{pad}' is no YAML file (.yaml or .yml)"
+                ));
+            }
+            if let Some(van) = m
+                .directories
+                .values()
+                .map(|v| v.trim_matches('/'))
+                .find(|van| pad.starts_with(&format!("{van}/")))
+            {
+                return Err(format!(
+                    "the manifest {waar}: the UI policy '{pad}' lies in '{van}', a directory of the source"
+                ));
+            }
+        }
         // One directory of the repository lands in one place: two that name
         // the same would leave the choice to the order of reading.
         let mut gezien = std::collections::BTreeSet::new();
@@ -704,8 +725,13 @@ mod tests {
         let zonder = &files[..files.len() - 1];
         let e = uit_tarball(&tarball("o-r-abc", zonder), "werk/m/bron.yaml").unwrap_err();
         assert!(e.contains("'werk/ui-beleid.yaml' for its UI policy"), "{e}");
-        // It lies below the root, as every directory does.
+        // It lies below the root, as every directory does; it is a YAML file;
+        // and it lies outside the directories of the source.
         assert!(Manifest::lees("directories: {a: b}\nui_beleid: ../u.yaml", "m").is_err());
+        let e = Manifest::lees("directories: {a: b}\nui_beleid: u.json", "m").unwrap_err();
+        assert!(e.contains("no YAML file"), "{e}");
+        let e = Manifest::lees("directories: {a: b}\nui_beleid: b/u.yaml", "m").unwrap_err();
+        assert!(e.contains("lies in 'b'"), "{e}");
     }
 
     #[test]

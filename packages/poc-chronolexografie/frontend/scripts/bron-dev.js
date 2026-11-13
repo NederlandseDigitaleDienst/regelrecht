@@ -57,12 +57,19 @@ export function filesFromManifest(manifestPath) {
   const rootDir = resolve(dirname(manifestPath), repoRoot);
   const pairs = Object.entries(directories).map(([doel, van]) => [zonderSlash(doel), zonderSlash(van)]);
   const uiBeleid = manifest.ui_beleid == null ? null : zonderSlash(String(manifest.ui_beleid));
+  if (uiBeleid !== null && !/\.ya?ml$/.test(uiBeleid)) {
+    throw new Error(`the manifest ${manifestPath}: the UI policy '${uiBeleid}' is no YAML file (.yaml or .yml)`);
+  }
   // Every directory, and the UI policy, lies below the repository root, as
   // `Manifest::lees` in the portal demands.
   for (const pad of [...pairs.flat(), ...(uiBeleid === null ? [] : [uiBeleid])]) {
     if (!pad || pad.split('/').some((d) => d === '..' || d === '.' || d === '')) {
       throw new Error(`the manifest ${manifestPath}: '${pad}' is no directory below the root`);
     }
+  }
+  const binnen = uiBeleid === null ? undefined : pairs.find(([, van]) => uiBeleid.startsWith(`${van}/`));
+  if (binnen) {
+    throw new Error(`the manifest ${manifestPath}: the UI policy '${uiBeleid}' lies in '${binnen[1]}', a directory of the source`);
   }
   const dubbel = pairs.map(([, van]) => van).find((van, i, alle) => alle.indexOf(van) !== i);
   if (dubbel !== undefined) throw new Error(`the manifest ${manifestPath}: '${dubbel}' is named twice`);
@@ -88,7 +95,7 @@ export function filesFromManifest(manifestPath) {
   // (`UI_BELEID` in the portal).
   if (uiBeleid !== null) {
     const pad = join(rootDir, uiBeleid);
-    if (!existsSync(pad)) {
+    if (!existsSync(pad) || !statSync(pad).isFile()) {
       throw new Error(`the manifest names '${uiBeleid}' for its UI policy, which is no YAML file`);
     }
     uit['ui_beleid.yaml'] = readFileSync(pad, 'utf8');
