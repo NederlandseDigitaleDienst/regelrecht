@@ -36,8 +36,8 @@ const zonderSlash = (pad) => pad.replace(/^\/+|\/+$/g, '');
  * The source the manifest in `manifestPath` makes: under `directories`, per
  * directory of the source, the directory of the repository it is, and under
  * `repo_root` the path from the manifest's directory to the repository root.
- * `ui_beleid` names one file of the repository that lands at the root of the
- * source as `ui_beleid.yaml`.
+ * `ui_spec` names one file of the repository that lands at the root of the
+ * source as `ui_spec.yaml`.
  * A file belongs to the longest directory that holds it. A directory without
  * YAML is an error that names it, as in the portal.
  */
@@ -56,20 +56,20 @@ export function filesFromManifest(manifestPath) {
   if (directories == null) throw new Error(`the manifest ${manifestPath}: missing field \`directories\``);
   const rootDir = resolve(dirname(manifestPath), repoRoot);
   const pairs = Object.entries(directories).map(([doel, van]) => [zonderSlash(doel), zonderSlash(van)]);
-  const uiBeleid = manifest.ui_beleid == null ? null : zonderSlash(String(manifest.ui_beleid));
-  if (uiBeleid !== null && !/\.ya?ml$/.test(uiBeleid)) {
-    throw new Error(`the manifest ${manifestPath}: the UI policy '${uiBeleid}' is no YAML file (.yaml or .yml)`);
+  const uiSpec = manifest.ui_spec == null ? null : zonderSlash(String(manifest.ui_spec));
+  if (uiSpec !== null && !/\.ya?ml$/.test(uiSpec)) {
+    throw new Error(`the manifest ${manifestPath}: the UI spec '${uiSpec}' is no YAML file (.yaml or .yml)`);
   }
-  // Every directory, and the UI policy, lies below the repository root, as
+  // Every directory, and the UI spec, lies below the repository root, as
   // `Manifest::lees` in the portal demands.
-  for (const pad of [...pairs.flat(), ...(uiBeleid === null ? [] : [uiBeleid])]) {
+  for (const pad of [...pairs.flat(), ...(uiSpec === null ? [] : [uiSpec])]) {
     if (!pad || pad.split('/').some((d) => d === '..' || d === '.' || d === '')) {
       throw new Error(`the manifest ${manifestPath}: '${pad}' is no directory below the root`);
     }
   }
-  const binnen = uiBeleid === null ? undefined : pairs.find(([, van]) => uiBeleid.startsWith(`${van}/`));
+  const binnen = uiSpec === null ? undefined : pairs.find(([, van]) => uiSpec.startsWith(`${van}/`));
   if (binnen) {
-    throw new Error(`the manifest ${manifestPath}: the UI policy '${uiBeleid}' lies in '${binnen[1]}', a directory of the source`);
+    throw new Error(`the manifest ${manifestPath}: the UI spec '${uiSpec}' lies in '${binnen[1]}', a directory of the source`);
   }
   const dubbel = pairs.map(([, van]) => van).find((van, i, alle) => alle.indexOf(van) !== i);
   if (dubbel !== undefined) throw new Error(`the manifest ${manifestPath}: '${dubbel}' is named twice`);
@@ -91,14 +91,14 @@ export function filesFromManifest(manifestPath) {
       throw new Error(`the manifest names '${van}' for '${doel}', which holds no YAML file`);
     }
   }
-  // The UI policy lands at the root of the source as `ui_beleid.yaml`
-  // (`UI_BELEID` in the portal).
-  if (uiBeleid !== null) {
-    const pad = join(rootDir, uiBeleid);
+  // The UI spec lands at the root of the source as `ui_spec.yaml`
+  // (`UI_SPEC` in the portal).
+  if (uiSpec !== null) {
+    const pad = join(rootDir, uiSpec);
     if (!existsSync(pad) || !statSync(pad).isFile()) {
-      throw new Error(`the manifest names '${uiBeleid}' for its UI policy, which the branch does not hold`);
+      throw new Error(`the manifest names '${uiSpec}' for its UI spec, which the branch does not hold`);
     }
-    uit['ui_beleid.yaml'] = readFileSync(pad, 'utf8');
+    uit['ui_spec.yaml'] = readFileSync(pad, 'utf8');
   }
   return uit;
 }

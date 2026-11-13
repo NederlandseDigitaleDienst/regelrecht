@@ -2,7 +2,7 @@
 # Testcasus van de testbron voor voorinvullen (src/bundel.rs, tests/spel.rs).
 # FICTIEF: een loket schrijft een vereniging in op het nummer dat een register
 # haar gaf; de aanvraag noemt de naam, die het formulier voorinvult uit dat
-# register (ui_beleid.yaml).
+# register (ui_spec.yaml).
 cel: voorbeeld_loket
 artikel: voorbeeld_inschrijving#1
 corpus:

@@ -31,7 +31,7 @@ import { beginWaarden, bronInvoer, herkomstTekst } from '../voorinvulling.js';
 import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
-// What the sources give for the fields the UI policy prefills
+// What the sources give for the fields the UI spec prefills
 // (voorinvulling.js), per field `{ bron, waarde, herkomst, fout }`. The form
 // starts from it over the case's example; the values of a scenario step and
 // the applicant's own go over it.
@@ -41,7 +41,7 @@ const aanvraagVorm = formulier(() => {
   return beginWaarden(scenario, scenario && huidigeStap()?.step.stap.invoer, voorgevuld.value);
 });
 const aanvraag = computed(() => aanvraagVorm.waarden('aanvraag'));
-const vultVoor = computed(() => state.vormen?.aanvraag?.vult_voor ?? {});
+const prefill = computed(() => state.vormen?.aanvraag?.prefill ?? {});
 
 // Ask the sources again when what they read changes: the fields of the form,
 // the day, or a chronicle (a register that recorded something new). Only the
@@ -58,10 +58,10 @@ const kroniekStand = () =>
   [state.grammen.length, ...(state.andere ?? []).map((a) => a.grammen.length)].join(',');
 watch(
   () =>
-    JSON.stringify([vultVoor.value, bronInvoer(aanvraag.value), state.datum, kroniekStand()]),
+    JSON.stringify([prefill.value, bronInvoer(aanvraag.value), state.datum, kroniekStand()]),
   async () => {
     const nr = ++vraag;
-    if (!Object.keys(vultVoor.value).length) {
+    if (!Object.keys(prefill.value).length) {
       voorgevuld.value = {};
       return;
     }
@@ -69,7 +69,7 @@ watch(
       aanvraagVorm.eigen.aanvraag,
       state.datum,
       kroniekStand(),
-      vultVoor.value,
+      prefill.value,
       state.scenario,
       state.begonnen,
       huidigeStap()?.index,
@@ -82,7 +82,7 @@ watch(
     }
     try {
       const antwoord = await api.voorinvullen(
-        vultVoor.value,
+        prefill.value,
         bronInvoer(aanvraag.value),
         state.datum,
       );

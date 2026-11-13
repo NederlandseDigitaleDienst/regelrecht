@@ -1,10 +1,10 @@
-//! What the poc reads from the UI policy of a source (`ui_beleid.yaml` at the
+//! What the poc reads from the UI spec of a source (`ui_spec.yaml` at the
 //! root of the source, the file its manifest names): per field of the
-//! application, the source the form prefills it from (`vult_voor`).
+//! application, the source the form prefills it from (`prefill`).
 //!
-//! A UI policy is a register of elements (`elementen`), each with what a
+//! A UI spec is a register of elements (`elementen`), each with what a
 //! screen shows, asks and fills, and on what grounds. The poc reads only
-//! `vult_voor` of each element and leaves every other key to the register
+//! `prefill` of each element and leaves every other key to the register
 //! and its own checks, so a register that grows a key does not stop a case
 //! from loading. A source is `<regelwerk>#<article>#<output>`; what it gives
 //! the cell computes when the form opens ([`crate::kern::voorinvullen`]).
@@ -13,7 +13,7 @@ use std::collections::BTreeMap;
 
 use serde::Deserialize;
 
-/// The part of a UI policy the poc reads.
+/// The part of a UI spec the poc reads.
 #[derive(Debug, Deserialize)]
 struct Register {
     #[serde(default)]
@@ -26,21 +26,21 @@ struct Register {
 struct Element {
     id: Option<serde_yaml_ng::Value>,
     #[serde(default)]
-    vult_voor: BTreeMap<String, String>,
+    prefill: BTreeMap<String, String>,
 }
 
 /// Per field the source the form prefills it from, over every element of the
-/// UI policy `tekst`. Two elements may name the same source for a field, as
+/// UI spec `tekst`. Two elements may name the same source for a field, as
 /// the form and the sheet that edits a field do.
 ///
 /// # Errors
 ///
-/// The text when it is no UI policy, a source that is no
+/// The text when it is no UI spec, a source that is no
 /// `<regelwerk>#<article>#<output>`, and a field two elements prefill from
 /// different sources.
-pub fn vult_voor(tekst: &str) -> Result<BTreeMap<String, String>, String> {
+pub fn prefill(tekst: &str) -> Result<BTreeMap<String, String>, String> {
     let register: Register =
-        serde_yaml_ng::from_str(tekst).map_err(|e| format!("the UI policy: {e}"))?;
+        serde_yaml_ng::from_str(tekst).map_err(|e| format!("the UI spec: {e}"))?;
     let mut uit: BTreeMap<String, (String, String)> = BTreeMap::new();
     for (i, element) in register.elementen.iter().enumerate() {
         let naam = match &element.id {
@@ -50,17 +50,17 @@ pub fn vult_voor(tekst: &str) -> Result<BTreeMap<String, String>, String> {
                 .unwrap_or_else(|_| format!("element {}", i + 1)),
             None => format!("element {}", i + 1),
         };
-        for (veld, bron) in &element.vult_voor {
+        for (veld, bron) in &element.prefill {
             if !regelrecht_law_model::is_fact_reference(bron) {
                 return Err(format!(
-                    "the UI policy: {naam} prefills '{veld}' from '{bron}', which is no \
+                    "the UI spec: {naam} prefills '{veld}' from '{bron}', which is no \
                      <regelwerk>#<article>#<output>"
                 ));
             }
             match uit.get(veld) {
                 Some((eerder, door)) if eerder != bron => {
                     return Err(format!(
-                        "the UI policy: {door} prefills '{veld}' from '{eerder}', {naam} from \
+                        "the UI spec: {door} prefills '{veld}' from '{eerder}', {naam} from \
                          '{bron}'"
                     ));
                 }
@@ -89,17 +89,17 @@ status: concept
 elementen:
   - id: UI1
     regel: {beleid: [{artikel: '6'}]}
-    vult_voor:
+    prefill:
       naam: 'r#5h#naam'
       zetels: 'r#5g#zetels'
     nog_te_bouwen:
       - {naam: x, soort: parameter, artikel: 'r#6', reden: later}
   - id: UI5
-    vult_voor:
+    prefill:
       naam: 'r#5h#naam'
   - id: UI2
 ";
-        let uit = vult_voor(tekst).unwrap();
+        let uit = prefill(tekst).unwrap();
         assert_eq!(
             uit,
             BTreeMap::from([
@@ -111,23 +111,23 @@ elementen:
 
     #[test]
     fn an_element_with_a_number_for_its_id_is_named_by_it() {
-        let e = vult_voor("elementen: [{id: 5, vult_voor: {naam: 'r#5h'}}]").unwrap_err();
+        let e = prefill("elementen: [{id: 5, prefill: {naam: 'r#5h'}}]").unwrap_err();
         assert!(e.contains("5 prefills 'naam'"), "{e}");
     }
 
     #[test]
-    fn a_policy_without_elements_prefills_nothing() {
-        assert!(vult_voor("status: concept").unwrap().is_empty());
+    fn a_spec_without_elements_prefills_nothing() {
+        assert!(prefill("status: concept").unwrap().is_empty());
     }
 
     #[test]
     fn two_sources_for_one_field_are_refused() {
         let tekst = "
 elementen:
-  - {id: UI1, vult_voor: {naam: 'r#5h#naam'}}
-  - {id: UI5, vult_voor: {naam: 'r#5#naam'}}
+  - {id: UI1, prefill: {naam: 'r#5h#naam'}}
+  - {id: UI5, prefill: {naam: 'r#5#naam'}}
 ";
-        let e = vult_voor(tekst).unwrap_err();
+        let e = prefill(tekst).unwrap_err();
         assert!(
             e.contains("UI1 prefills 'naam' from 'r#5h#naam', UI5 from 'r#5#naam'"),
             "{e}"
@@ -136,8 +136,8 @@ elementen:
 
     #[test]
     fn a_source_that_is_no_output_reference_is_refused() {
-        let e = vult_voor("elementen: [{vult_voor: {naam: 'r#5h'}}]").unwrap_err();
+        let e = prefill("elementen: [{prefill: {naam: 'r#5h'}}]").unwrap_err();
         assert!(e.contains("element 1 prefills 'naam' from 'r#5h'"), "{e}");
-        assert!(vult_voor("elementen: 3").is_err());
+        assert!(prefill("elementen: 3").is_err());
     }
 }

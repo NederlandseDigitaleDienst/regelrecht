@@ -1384,16 +1384,11 @@ fn a_reference_into_a_chronicle_of_another_begin_is_refused() {
 /// register through the answer of the cell of the Kamer van Koophandel.
 const HANDELSREGISTER: &str = "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#1";
 
-/// What the sources give for the application fields of `vult_voor`
+/// What the sources give for the application fields of `prefill`
 /// (`<field>` to `<output>` of [`HANDELSREGISTER`]), for the company
 /// `kvk_nummer`, as known on `datum`.
-fn voorinvullen(
-    spel: &mut Spel,
-    vult_voor: &[(&str, &str)],
-    kvk_nummer: &str,
-    datum: &str,
-) -> Value {
-    let bronnen: Map<String, Value> = vult_voor
+fn voorinvullen(spel: &mut Spel, prefill: &[(&str, &str)], kvk_nummer: &str, datum: &str) -> Value {
+    let bronnen: Map<String, Value> = prefill
         .iter()
         .map(|(veld, uitvoer)| {
             (
@@ -1455,17 +1450,17 @@ fn a_prefill_takes_the_value_from_the_cell_that_answers_and_records_nothing() {
 #[test]
 fn a_prefill_reads_the_chronicle_as_the_cell_knows_it_on_the_day() {
     let mut spel = spel_met("bedrijfsparkeervergunning");
-    let vult_voor = [(
+    let prefill = [(
         "werkzame_personen",
         "aantal_werkzame_personen_volgens_handelsregister",
     )];
     // The printer was registered on 23 February, but the Kamer recorded it
     // only on 2 March: on 25 February its cell does not know it yet.
-    let eerder = voorinvullen(&mut spel, &vult_voor, "99990066", "2026-02-25");
+    let eerder = voorinvullen(&mut spel, &prefill, "99990066", "2026-02-25");
     assert_eq!(eerder["werkzame_personen"]["waarde"], Value::Null);
     // From 2 March it knows the registration, with the correction to two
     // persons it recorded the same day.
-    let later = voorinvullen(&mut spel, &vult_voor, "99990066", "2026-03-02");
+    let later = voorinvullen(&mut spel, &prefill, "99990066", "2026-03-02");
     assert_eq!(later["werkzame_personen"]["waarde"], json!(2));
 }
 
