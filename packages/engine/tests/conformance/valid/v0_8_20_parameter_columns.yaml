@@ -1,16 +1,16 @@
 ---
-# Tier C: a fact that holds a table, a parameter of type array that
-# declares its columns (schema v0.8.20).
+# Tier C: a fact that holds an array of rows, a parameter of type array
+# that declares its columns (schema v0.8.20).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json
-$id: test_conformance_fact_table
+$id: test_conformance_parameter_columns
 regulatory_layer: WET
 bwb_id: BWBR9999960
 publication_date: '2026-11-12'
 valid_from: '2026-11-12'
-url: https://example.invalid/fact-table
+url: https://example.invalid/parameter-columns
 articles:
   - number: '1'
-    url: https://example.invalid/fact-table/1
+    url: https://example.invalid/parameter-columns/1
     text: Het stembureau stelt de uitslag vast, met per lijst het aantal stemmen.
     machine_readable:
       requires:

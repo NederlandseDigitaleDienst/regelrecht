@@ -6,10 +6,10 @@ regulatory_layer: WET
 bwb_id: BWBR9999961
 publication_date: '2026-11-12'
 valid_from: '2026-11-12'
-url: https://example.invalid/fact-table
+url: https://example.invalid/parameter-columns
 articles:
   - number: '1'
-    url: https://example.invalid/fact-table/1
+    url: https://example.invalid/parameter-columns/1
     text: Het stembureau stelt de uitslag vast, met per lijst het aantal stemmen.
     machine_readable:
       requires:

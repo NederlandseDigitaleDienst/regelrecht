@@ -60,7 +60,7 @@ use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
     ActionOperation, ActionValue, Column, CompetentAuthority, MachineReadable, ParameterType,
-    RegulatoryLayer, StateProperty, StateType, names_fact,
+    RegulatoryLayer, StateProperty, names_fact,
 };
 
 /// Refuse a construct that a later schema version removed, naming what
@@ -1031,9 +1031,9 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
             );
         }
         let mut names: Vec<&str> = Vec::new();
-        let tables = from_version(law, (0, 8, 20));
+        let with_columns = from_version(law, (0, 8, 20));
         for property in &projection.state {
-            if let Err(why) = check_state_property(property, tables) {
+            if let Err(why) = check_state_property(property, with_columns) {
                 return refuse(where_, why);
             }
             if names.contains(&property.name.as_str()) {
@@ -1083,8 +1083,8 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
-/// Whether `ty` is a scalar: the type of a column of a table, and of every
-/// property of a projection's state but a table.
+/// Whether `ty` is a scalar: the type of a column of an array of rows, and
+/// of every property of a projection's state but such an array.
 fn is_scalar(ty: ParameterType) -> bool {
     matches!(
         ty,
@@ -1097,31 +1097,40 @@ fn is_scalar(ty: ParameterType) -> bool {
 }
 
 /// A property of a projection's state is a scalar without columns, or since
-/// schema v0.8.20 (`tables`) a table with its columns ([`check_columns`]).
-fn check_state_property(property: &StateProperty, tables: bool) -> std::result::Result<(), String> {
+/// schema v0.8.20 (`with_columns`) an array with its columns
+/// ([`check_columns`]). Before v0.8.20 an array in the state is refused as
+/// any other type a state cannot have, unless it declares columns, which
+/// the message then names.
+fn check_state_property(
+    property: &StateProperty,
+    with_columns: bool,
+) -> std::result::Result<(), String> {
     let name = &property.name;
-    match (property.property_type, property.columns.as_deref()) {
-        (StateType::Table, _) if !tables => Err(format!(
-            "gives state property '{name}' the type table, which came with schema v0.8.20"
+    let ty = property.property_type;
+    match property.columns.as_deref() {
+        Some(_) if ty == ParameterType::Array && !with_columns => Err(format!(
+            "gives state property '{name}' the type array with columns, which came with \
+             schema v0.8.20"
         )),
-        (StateType::Table, None) => Err(format!(
-            "gives state property '{name}' the type table without its columns"
-        )),
-        (StateType::Table, Some(columns)) => {
+        Some(columns) if ty == ParameterType::Array => {
             check_columns(columns).map_err(|why| format!("state property '{name}' {why}"))
         }
-        (StateType::Field(ty), _) if !is_scalar(ty) => Err(format!(
+        None if ty == ParameterType::Array && with_columns => Err(format!(
+            "gives state property '{name}' the type array without columns; a state holds an \
+             array only with its columns"
+        )),
+        _ if !is_scalar(ty) => Err(format!(
             "gives state property '{name}' the type {ty:?}, which a state cannot have"
         )),
-        (StateType::Field(_), Some(_)) => Err(format!(
-            "declares columns for state property '{name}', which is no table"
+        Some(_) => Err(format!(
+            "declares columns for state property '{name}', which is no array"
         )),
-        (StateType::Field(_), None) => Ok(()),
+        None => Ok(()),
     }
 }
 
-/// The columns of a table (schema v0.8.20): at least one, each named once
-/// and of a scalar type.
+/// The columns of an array of rows (schema v0.8.20): at least one, each
+/// named once and of a scalar type.
 fn check_columns(columns: &[Column]) -> std::result::Result<(), String> {
     if columns.is_empty() {
         return Err("declares no columns".to_string());
@@ -1161,7 +1170,7 @@ pub(crate) fn reject_malformed_columns(law: &ArticleBasedLaw) -> Result<()> {
                 check_columns(columns).err()
             } else {
                 Some(format!(
-                    "declares columns, but is a {:?}; only an array is a table",
+                    "declares columns, but is a {:?}; only an array has columns",
                     parameter.param_type
                 ))
             };

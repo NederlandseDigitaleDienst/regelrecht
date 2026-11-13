@@ -1,15 +1,16 @@
-Feature: A table in the state of an aggregate
+Feature: An array with columns in the state of an aggregate
   As a cell that records facts holding a table
-  I want an aggregate that keeps the table in its state
+  I want an aggregate that keeps that table in its state
   So that a read model can iterate over the rows of each aggregate
 
-  # Exercises a table in `projection.state` (schema v0.8.20) against the
-  # synthetic law test_uitslagen. Article 1 records the result of a polling
-  # station with a table of lists and their votes; article 2 records a
-  # correction that refers to a result, with a new table. The reduction
-  # test_reductie_uitslagen (fixtures/cells/test_cel) plays one aggregate per
-  # result, whose state holds the table, and its read model sums the votes of
-  # one list over the tables of every aggregate with a nested FOREACH.
+  # Exercises an array with columns in `projection.state` (schema v0.8.20)
+  # against the synthetic law test_uitslagen. Article 1 records the result of
+  # a polling station with an array of lists and their votes; article 2
+  # records a correction that refers to a result, with a new array. The
+  # reduction test_reductie_uitslagen (fixtures/cells/test_cel) plays one
+  # aggregate per result, whose state holds the array, and its read model sums
+  # the votes of one list over the arrays of every aggregate with a nested
+  # FOREACH.
 
   Background:
     Given the calculation date is "2025-03-01"
@@ -21,11 +22,11 @@ Feature: A table in the state of an aggregate
       | stembureau | zuid                                          |
       | lijsten    | [{"aanduiding": "L1", "aantal_stemmen": 30}] |
 
-  Scenario: A read model sums a column over the table of each aggregate
+  Scenario: A read model sums a column over the array of each aggregate
     When I evaluate "stemmen_op_lijst" of "test_reductie_uitslagen" over the chronicle
     Then output "stemmen_op_lijst" equals 150
 
-  Scenario: A correction replaces the table of the result it refers to
+  Scenario: A correction replaces the array of the result it refers to
     When the cell records fact "correctie" as "correctie_noord" about "uitslag_noord" under article "2" of "test_uitslagen" with:
       | lijsten | [{"aanduiding": "L1", "aantal_stemmen": 102}, {"aanduiding": "L2", "aantal_stemmen": 98}] |
     And I evaluate "stemmen_op_lijst" of "test_reductie_uitslagen" over the chronicle

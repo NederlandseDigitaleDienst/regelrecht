@@ -132,7 +132,7 @@ This policy article is called a binding: it binds the open term to the answer.
 
 ### Playing the chronicle forward (experimental)
 
-A reduction with a `projection` declares a state, a few named properties each with a type, and says per article what a record under it does with that state. A property starts from the value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date, and an empty table for a table. The engine plays the chronicle forward, record by record, one aggregate per record of a kind (`per`, see [One aggregate per decision](#one-aggregate-per-decision-experimental)). A read model answers from their last states.
+A reduction with a `projection` declares a state, a few named properties each with a type, and says per article what a record under it does with that state. A property starts from the value of its type: false for a boolean, 0 for a number or an amount, null for a string or a date, and an empty list for an array. The engine plays the chronicle forward, record by record, one aggregate per record of a kind (`per`, see [One aggregate per decision](#one-aggregate-per-decision-experimental)). A read model answers from their last states.
 
 A step names the article its records rest on, such as `test_chronicle_effects#3`. Where the article gives more than one kind of record, a third segment names the kind (`#BESCHIKKING`). Where it requires more than one fact, the third segment is the name of the fact in lower case (`#plaats_gehuurd`). `per` takes the same notation. The loader refuses a step that could apply to more than one of them. The rules per schema version are in the [version history](/reference/schema#version-history).
 
@@ -219,7 +219,7 @@ A row does not say whether its root counts. A root that does not count applies n
 
 A recorded fact is played the same way, one aggregate per recorded instance, with `per` naming the fact where its article requires more than one. Real legislation often lays down two acts in one article, so the article stays whole rather than being split to suit the reductions. The step on the root copies the fields of the fact into the state, and the read model gets one row per instance. A revoked root keeps its row, with the start values of its state, so a read model that counts rows has to skip it.
 
-A fact may hold a table, such as the result of a polling station with the number of votes per list. The law declares it as a parameter of type `array` with its `columns`. The state then has a property of type `table` with the same columns, and the step on the root copies the table whole:
+A fact may hold a table, such as the result of a polling station with the number of votes per list. The law declares it as a parameter of type `array` with its `columns`: one row per element, one value per column. The state then has a property of type `array` with the same columns, and the step on the root copies the whole array. A list of rows has one type everywhere, `array`, whether it is a parameter, an output or a property of the state. A parameter may declare its columns, and in the state an array always does:
 
 ```yaml
 # test_reductie_uitslagen (fictional), article uitslag
@@ -228,7 +228,7 @@ projection:
   state:
     - {name: stembureau, type: string}
     - name: lijsten
-      type: table
+      type: array
       columns:
         - {name: aanduiding, type: string}
         - {name: aantal_stemmen, type: number}
@@ -242,7 +242,7 @@ projection:
         - {output: lijsten, value: $record.lijsten}
 ```
 
-The loader checks that the columns of the state match those of the fact, where the fact declares them. The cell does not check a recorded fact against those columns, and a column of type `amount` declares no unit. The rows are checked once a step puts them in the table. A row lacking a column holds null there. A row with a column the table does not declare, or with a value that is not of its column's type, fails the step. A step replaces the table and never adds rows to it, so a correction that refers to the result gives the whole new table. The read model reads the table as a field of each row, `$uitslag.lijsten`, and iterates over it with a `FOREACH` inside the `FOREACH` over the rows. The inner one sees the element of the outer one. The tests are in `packages/cel/bdd/features/tables.feature` and `packages/engine/tests/projection_table.rs`.
+The loader checks that the columns of the state match those of the fact, where the fact declares them. The cell does not check a recorded fact against those columns, and a column of type `amount` declares no unit. The rows are checked once a step puts them in the state. A row lacking a column holds null there. A row with a column the array does not declare, or with a value that is not of its column's type, fails the step. A step replaces the array and never adds rows to it, so a correction that refers to the result gives the whole new array. The read model reads the array as a field of each row, `$uitslag.lijsten`, and iterates over it with a `FOREACH` inside the `FOREACH` over the rows. The inner one sees the element of the outer one. The tests are in `packages/cel/bdd/features/tables.feature` and `packages/engine/tests/projection_table.rs`.
 
 The engine plays each aggregate on every question, in the version of the reduction in force on the calculation date. The trace of the reading input holds a `PROJECTION` node per aggregate, with its `COUNTS` and `FOLD`. The cell gives the records of its chronicle for it (`Chronicle::records`); `evaluate_projection` plays a read model on the records it is given.
 

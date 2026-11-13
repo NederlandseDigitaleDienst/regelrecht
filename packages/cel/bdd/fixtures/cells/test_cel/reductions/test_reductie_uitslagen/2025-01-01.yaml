@@ -1,8 +1,8 @@
 ---
 # FICTIEF. A reduction of the cell's BDD suite (schema v0.8.20): one
-# aggregate per result of test_uitslagen, with the table of lists in its
-# state, and a read model that sums the votes of one list over the tables
-# of every aggregate with a nested FOREACH.
+# aggregate per result of test_uitslagen, with the lists in its state as an
+# array with columns, and a read model that sums the votes of one list over
+# the arrays of every aggregate with a nested FOREACH.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json
 $id: test_reductie_uitslagen
 regulatory_layer: REDUCTIE
@@ -24,7 +24,7 @@ articles:
           - name: stembureau
             type: string
           - name: lijsten
-            type: table
+            type: array
             columns:
               - name: aanduiding
                 type: string

@@ -1038,12 +1038,12 @@ export function legalBasisFields(): Field[] {
 }
 
 /**
- * `tableColumn` (v0.8.20): one column of a table, its description and its
- * fields. It has its own section because the `columns` of a parameter and of
- * a property of a projection's state link to it.
+ * `arrayColumn` (v0.8.20): one column of an array of rows, its description
+ * and its fields. It has its own section because the `columns` of a parameter
+ * and of a property of a projection's state link to it.
  */
-export function tableColumn(): { description: string; fields: Field[] } {
-  const node = defs.tableColumn ?? {};
+export function arrayColumn(): { description: string; fields: Field[] } {
+  const node = defs.arrayColumn ?? {};
   return {
     description: renderDescription(node.description ?? ''),
     fields: fieldsOf(node),

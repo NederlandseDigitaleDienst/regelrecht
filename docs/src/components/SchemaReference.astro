@@ -24,7 +24,7 @@ import {
   enumBlocks,
   schemaStats,
   legalBasisFields,
-  tableColumn,
+  arrayColumn,
   stringDefinition,
   operandForms,
   articleFields,
@@ -335,11 +335,11 @@ const others = otherSubStructures();
 
 <SchemaFieldTable fields={legalBasisFields()} label="Fields of a legal basis citation" />
 
-<h3 id="table-column">Table column</h3>
+<h3 id="array-column">Array column</h3>
 
-<p set:html={tableColumn().description} />
+<p set:html={arrayColumn().description} />
 
-<SchemaFieldTable fields={tableColumn().fields} label="Fields of a table column" />
+<SchemaFieldTable fields={arrayColumn().fields} label="Fields of an array column" />
 
 <h3 id="article-reference">Article reference</h3>
 

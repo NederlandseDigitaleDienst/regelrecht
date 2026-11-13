@@ -297,15 +297,15 @@ pub struct Parameter {
     pub temporal: Option<Temporal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legal_basis: Option<ProvisionReference>,
-    /// Only on a parameter of type `array` (schema v0.8.20): the parameter is
-    /// a table, and these are the columns of each row. A projection that
-    /// fills a table of its state from it declares the same columns.
+    /// Only on a parameter of type `array` (schema v0.8.20): the columns of
+    /// each row. A projection that fills an array of its state from it
+    /// declares the same columns.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub columns: Option<Vec<Column>>,
 }
 
-/// One column of a table (schema v0.8.20): its name and the scalar type of
-/// its values. A row lacking the column holds null there.
+/// One column of an array of rows (schema v0.8.20): its name and the scalar
+/// type of its values. A row lacking the column holds null there.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Column {
@@ -1922,69 +1922,25 @@ pub struct Projection {
 pub struct StateProperty {
     pub name: String,
     #[serde(rename = "type")]
-    pub property_type: StateType,
-    /// Only and always with [`StateType::Table`] (schema v0.8.20): the
-    /// columns of each row.
+    pub property_type: ParameterType,
+    /// Only and always with type `array` (schema v0.8.20): the columns of
+    /// each row, so the property holds a table.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub columns: Option<Vec<Column>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
-/// The type of a property of a projection's state: a table (schema
-/// v0.8.20), or the type of a field. The schema allows a boolean, number,
-/// string, amount or date as a field type; the model reads any, and the
-/// loader refuses the others.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "lowercase")]
-pub enum StateType {
-    /// A list of rows, each with the declared columns.
-    Table,
-    #[serde(untagged)]
-    Field(ParameterType),
-}
-
-/// Read by hand rather than derived: an untagged variant would answer a type
-/// it does not know with "did not match any variant", where this names the
-/// type and the ones it may be.
-impl<'de> Deserialize<'de> for StateType {
-    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let name = String::deserialize(deserializer)?;
-        if name == "table" {
-            return Ok(StateType::Table);
-        }
-        ParameterType::deserialize(serde::de::value::StrDeserializer::<D::Error>::new(&name))
-            .map(StateType::Field)
-            .map_err(|_| {
-                serde::de::Error::custom(format!(
-                    "unknown state type `{name}`, expected table, boolean, number, string, \
-                     amount or date"
-                ))
-            })
-    }
-}
-
-impl StateType {
-    /// The type of the value the property holds, as a field declares it: a
-    /// table is an array.
-    pub fn value_type(self) -> ParameterType {
-        match self {
-            StateType::Table => ParameterType::Array,
-            StateType::Field(ty) => ty,
-        }
-    }
-}
-
 impl StateProperty {
     /// The value before the first record: false for a boolean, 0 for a
-    /// number or an amount, an empty table for a table, null for a string
+    /// number or an amount, an empty list for an array, null for a string
     /// or a date.
     pub fn start(&self) -> Value {
         match self.property_type {
-            StateType::Field(ParameterType::Boolean) => Value::Bool(false),
-            StateType::Field(ParameterType::Number | ParameterType::Amount) => Value::Int(0),
-            StateType::Table => Value::Array(Vec::new()),
-            StateType::Field(_) => Value::Null,
+            ParameterType::Boolean => Value::Bool(false),
+            ParameterType::Number | ParameterType::Amount => Value::Int(0),
+            ParameterType::Array => Value::Array(Vec::new()),
+            _ => Value::Null,
         }
     }
 }

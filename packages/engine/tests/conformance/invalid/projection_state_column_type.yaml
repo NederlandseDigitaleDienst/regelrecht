@@ -1,42 +1,41 @@
 ---
-# A property of the state of a projection is a table only since schema
-# v0.8.20; under v0.8.19 its type is a boolean, number, string, amount or
-# date.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
-$id: test_conformance_table_before_v0_8_20
+# A column of an array of rows holds a boolean, number, string, amount or date
+# (schema v0.8.20); euro is no type of a column.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json
+$id: test_conformance_state_column_type
 regulatory_layer: REDUCTIE
 publication_date: '2026-11-12'
 valid_from: '2026-11-12'
-url: https://example.invalid/table-state
-name: Testreductie met een tabel in de staat
+url: https://example.invalid/array-columns-state
+name: Testreductie met een array met kolommen in de staat
 articles:
   - number: uitslag
-    url: https://example.invalid/table-state/uitslag
+    url: https://example.invalid/array-columns-state/uitslag
     text: Per uitslag het stembureau en de lijsten met hun stemmen.
     machine_readable:
       projection:
-        per: test_conformance_fact_table#1
+        per: test_conformance_parameter_columns#1
         state:
           - name: stembureau
             type: string
           - name: lijsten
-            type: table
+            type: array
             description: Per lijst het aantal stemmen.
             columns:
               - name: aanduiding
                 type: string
               - name: aantal_stemmen
-                type: number
+                type: euro
                 description: Het aantal stemmen op de lijst.
         steps:
-          - record: test_conformance_fact_table#1
+          - record: test_conformance_parameter_columns#1
             actions:
               - output: stembureau
                 value: $record.stembureau
               - output: lijsten
                 value: $record.lijsten
   - number: stemmen_op_lijst
-    url: https://example.invalid/table-state/stemmen_op_lijst
+    url: https://example.invalid/array-columns-state/stemmen_op_lijst
     text: Het aantal stemmen op een lijst over alle stembureaus.
     machine_readable:
       execution:
@@ -47,7 +46,7 @@ articles:
           - name: uitslagen
             type: array
             source:
-              projections: test_conformance_table_before_v0_8_20#uitslag
+              projections: test_conformance_state_column_type#uitslag
         output:
           - name: stemmen_op_lijst
             type: number

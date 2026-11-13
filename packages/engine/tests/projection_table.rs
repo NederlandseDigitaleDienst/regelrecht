@@ -1,4 +1,5 @@
-//! A table in the state of a projection (schema v0.8.20).
+//! An array with columns in the state of a projection (schema v0.8.20): a
+//! table, one row per element.
 //!
 //! A fictional law records one fact per polling station: the result, with a
 //! table of the lists and the votes each received. A later fact corrects a
@@ -72,7 +73,7 @@ articles:
         per: test_uitslagen#1
         state:
           - {{name: stembureau, type: string}}
-          - {{name: lijsten, type: table, columns: {state_columns}}}
+          - {{name: lijsten, type: array, columns: {state_columns}}}
         steps:
           - record: test_uitslagen#1
             actions:
@@ -369,7 +370,7 @@ fn a_row_with_an_undeclared_column_is_refused_when_played() {
         .unwrap_err()
         .to_string();
     assert!(
-        err.contains("it sets 'lijsten' from $record.lijsten but row 1: it holds 'zetels', which is no column of the table"),
+        err.contains("it sets 'lijsten' from $record.lijsten but row 1: it holds 'zetels', which is no column of the array"),
         "{err}"
     );
 }
@@ -381,15 +382,15 @@ fn the_loader_holds_the_columns_to_the_fact() {
     for (state_columns, why) in [
         (
             "[{name: aanduiding, type: string}, {name: aantal_stemmen, type: amount}]",
-            "fills table 'lijsten' from $record.lijsten, whose column 'aantal_stemmen' is a Number, not a Amount",
+            "fills array 'lijsten' from $record.lijsten, whose column 'aantal_stemmen' is a Number, not a Amount",
         ),
         (
             "[{name: aanduiding, type: string}]",
-            "fills table 'lijsten' from $record.lijsten, which has a column 'aantal_stemmen' the table does not declare",
+            "fills array 'lijsten' from $record.lijsten, which has a column 'aantal_stemmen' the array does not declare",
         ),
         (
             "[{name: aanduiding, type: string}, {name: aantal_stemmen, type: number}, {name: zetels, type: number}]",
-            "fills table 'lijsten' from $record.lijsten, which has no column 'zetels'",
+            "fills array 'lijsten' from $record.lijsten, which has no column 'zetels'",
         ),
     ] {
         let mut service = LawExecutionService::new();
@@ -410,9 +411,10 @@ fn the_loader_holds_the_columns_to_the_fact() {
         .unwrap();
 }
 
-/// A table in the state came with schema v0.8.20; a file on v0.8.19 that
-/// has one is refused. The table declares its columns, each once and of a
-/// scalar type, and only a parameter of type array declares columns.
+/// An array with columns in the state came with schema v0.8.20; a file on
+/// v0.8.19 that has one is refused. An array in the state declares its
+/// columns, each once and of a scalar type, and only a parameter of type
+/// array declares columns.
 #[test]
 fn the_loader_refuses_a_malformed_table() {
     let load = |law_text: &str, reduction_text: &str| {
@@ -427,12 +429,12 @@ fn the_loader_refuses_a_malformed_table() {
     refused(
         law(COLUMNS),
         reduction("v0.8.19", COLUMNS),
-        "gives state property 'lijsten' the type table, which came with schema v0.8.20",
+        "gives state property 'lijsten' the type array with columns, which came with schema v0.8.20",
     );
     refused(
         law(COLUMNS),
         reduction("v0.8.20", COLUMNS).replace(&format!(", columns: {COLUMNS}}}"), "}"),
-        "gives state property 'lijsten' the type table without its columns",
+        "gives state property 'lijsten' the type array without columns; a state holds an array only with its columns",
     );
     refused(
         law(COLUMNS),
@@ -453,7 +455,7 @@ fn the_loader_refuses_a_malformed_table() {
             "{name: stembureau, type: string}",
             "{name: stembureau, type: string, columns: [{name: a, type: string}]}",
         ),
-        "declares columns for state property 'stembureau', which is no table",
+        "declares columns for state property 'stembureau', which is no array",
     );
     refused(
         law(COLUMNS).replace(
@@ -461,7 +463,7 @@ fn the_loader_refuses_a_malformed_table() {
             "{name: stembureau, type: string, columns: [{name: a, type: string}]}",
         ),
         reduction("v0.8.20", COLUMNS),
-        "parameter 'stembureau' declares columns, but is a String; only an array is a table",
+        "parameter 'stembureau' declares columns, but is a String; only an array has columns",
     );
 }
 
@@ -474,7 +476,7 @@ fn a_table_filled_from_another_table_of_the_state_has_its_columns() {
             .replace(
                 "          - {name: stembureau, type: string}\n",
                 &format!(
-                    "          - {{name: stembureau, type: string}}\n          - {{name: vorige, type: table, columns: {columns}}}\n"
+                    "          - {{name: stembureau, type: string}}\n          - {{name: vorige, type: array, columns: {columns}}}\n"
                 ),
             )
             .replace(
@@ -509,7 +511,7 @@ fn a_table_filled_from_another_table_of_the_state_has_its_columns() {
         .unwrap_err()
         .to_string();
     assert!(
-        err.contains("fills table 'vorige' from $state.lijsten, which has a column 'aantal_stemmen' the table does not declare"),
+        err.contains("fills array 'vorige' from $state.lijsten, which has a column 'aantal_stemmen' the array does not declare"),
         "{err}"
     );
 }
@@ -551,12 +553,7 @@ fn an_unknown_state_type_is_refused() {
         ))
         .unwrap_err()
         .to_string();
-    assert!(
-        err.contains(
-            "unknown state type `euro`, expected table, boolean, number, string, amount or date"
-        ),
-        "{err}"
-    );
+    assert!(err.contains("unknown variant `euro`"), "{err}");
 }
 
 /// A fact holds only its parameters, so the loader compares the columns of
@@ -581,7 +578,7 @@ fn a_fact_field_is_its_parameter_even_beside_an_output_of_that_name() {
         .to_string();
     assert!(
         err.contains(
-            "fills table 'lijsten' from $record.lijsten, which has a column 'aantal_stemmen'"
+            "fills array 'lijsten' from $record.lijsten, which has a column 'aantal_stemmen'"
         ),
         "{err}"
     );
