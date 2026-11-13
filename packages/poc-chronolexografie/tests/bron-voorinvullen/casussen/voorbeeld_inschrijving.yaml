@@ -39,4 +39,9 @@ andere_cellen:
           velden:
             nummer: '00000002'
             naam: Vereniging Later
+        - feit: voorbeeld_register#1#vereniging_ingeschreven
+          datum: 2026-11-03
+          velden:
+            nummer: '00000001'
+            naam: Vereniging Voorbeeld Hernoemd
 scenarios: []

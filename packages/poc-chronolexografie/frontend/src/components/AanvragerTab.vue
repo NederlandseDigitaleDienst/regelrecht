@@ -209,7 +209,7 @@ async function indienenTegen() {
               </option>
             </select>
           </nldd-dropdown>
-          <nldd-form-field-help-text v-if="ingelogd">{{ inlogTekst(ingelogd, celNaam) }}</nldd-form-field-help-text>
+          <nldd-form-field-help-text v-if="ingelogd">{{ inlogTekst(ingelogd, inloggen, celNaam) }}</nldd-form-field-help-text>
         </nldd-form-field>
         <VeldInvoer
           v-for="veld in state.vormen.aanvraag.velden"

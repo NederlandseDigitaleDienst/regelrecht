@@ -13,19 +13,25 @@ import { leesbaar } from './state.js';
 export const keuzeLabel = (keuze) =>
   keuze.naam ? `${keuze.naam} (${keuze.waarde})` : String(keuze.waarde);
 
-/** The record of `inloggen` whose key is `waarde`, if any. */
+/**
+ * The record of `inloggen` whose key is `waarde`, if any. The key comes as
+ * text; the field may hold it as the form wrote it.
+ */
 export const gekozen = (inloggen, waarde) =>
-  (inloggen?.keuzes ?? []).find((k) => k.waarde === waarde);
+  waarde === undefined || waarde === null
+    ? undefined
+    : (inloggen?.keuzes ?? []).find((k) => k.waarde === String(waarde));
 
 /**
  * The line under the choice: which cell recorded the login, on what day,
- * and what else it recorded then. Empty without a choice.
+ * and what else it recorded then, besides the fields of the key and the
+ * name (`inloggen.sleutel`, `inloggen.naam`). Empty without a choice.
  */
-export function inlogTekst(keuze, celNaam) {
+export function inlogTekst(keuze, inloggen, celNaam) {
   if (!keuze) return '';
-  const bekend = new Set([keuze.waarde, keuze.naam]);
+  const getoond = new Set([inloggen?.sleutel, inloggen?.naam]);
   const rest = Object.entries(keuze.velden ?? {})
-    .filter(([, v]) => !bekend.has(v))
+    .filter(([naam]) => !getoond.has(naam))
     .map(([naam, v]) => `${leesbaar(naam)} ${toon(v)}`);
   const wat = rest.length ? `: ${rest.join(', ')}` : '';
   return `Volgens ${celNaam(keuze.cel)} (${keuze.vastgelegd_op})${wat}.`;

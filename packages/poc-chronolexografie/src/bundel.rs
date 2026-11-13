@@ -539,6 +539,8 @@ mod tests {
         let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
         let inloggen = &vormen["aanvraag"]["inloggen"];
         assert_eq!(inloggen["veld"], "nummer");
+        assert_eq!(inloggen["sleutel"], "nummer");
+        assert_eq!(inloggen["naam"], "naam");
         assert_eq!(
             inloggen["keuzes"],
             serde_json::json!([{
@@ -554,6 +556,11 @@ mod tests {
         let keuzes = later["aanvraag"]["inloggen"]["keuzes"].as_array().unwrap();
         assert_eq!(keuzes.len(), 2);
         assert_eq!(keuzes[1]["naam"], "Vereniging Later");
+        // A key recorded again offers one choice, with what was recorded last.
+        let daarna = spel.vormen("2026-11-03".parse().unwrap()).unwrap();
+        let keuzes = daarna["aanvraag"]["inloggen"]["keuzes"].as_array().unwrap();
+        let namen: Vec<&str> = keuzes.iter().map(|k| k["naam"].as_str().unwrap()).collect();
+        assert_eq!(namen, ["Vereniging Later", "Vereniging Voorbeeld Hernoemd"]);
     }
 
     #[test]
@@ -567,20 +574,26 @@ mod tests {
 
     #[test]
     fn a_login_on_a_field_the_form_does_not_ask_or_a_key_the_fact_does_not_hold_is_refused() {
-        for (wat, verwacht) in [
+        for (was, wat, verwacht) in [
             (
+                "veld: nummer",
                 "veld: elders",
                 "'elders', which is no field of the application",
             ),
-            ("sleutel: bestaat_niet", "holds no 'bestaat_niet'"),
+            (
+                "sleutel: nummer",
+                "sleutel: bestaat_niet",
+                "holds no 'bestaat_niet'",
+            ),
+            (
+                "naam: naam",
+                "naam: bestaat_niet",
+                "holds no 'bestaat_niet'",
+            ),
         ] {
             let mut bron = voorinvullen_bron();
             let pad = "casussen/voorbeeld_inschrijving.yaml";
-            let (sleutel, waarde) = wat.split_once(": ").unwrap();
-            let tekst = bron.bestanden[pad].replace(
-                &format!("  {sleutel}: nummer\n"),
-                &format!("  {sleutel}: {waarde}\n"),
-            );
+            let tekst = bron.bestanden[pad].replace(&format!("  {was}\n"), &format!("  {wat}\n"));
             bron.bestanden.insert(pad.into(), tekst);
             let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
             let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
