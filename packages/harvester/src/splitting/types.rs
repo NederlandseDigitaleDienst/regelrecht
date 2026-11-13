@@ -1,6 +1,6 @@
 //! Types for the article splitting system.
 
-use crate::types::{Article, Reference, format_reference_definitions};
+use crate::types::{Article, Placement, Reference, format_reference_definitions};
 
 /// Declarative specification of an element in the hierarchy.
 ///
@@ -239,6 +239,7 @@ impl ArticleComponent {
             text,
             url: self.base_url.clone(),
             references: self.references.clone(),
+            placement: Placement::default(),
         }
     }
 }

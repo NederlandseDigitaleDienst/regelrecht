@@ -150,8 +150,9 @@ async fn check_one(
         }
     }
 
-    // The placement the harvester drops on the floor. Printed even when the
-    // gate passes, because it is what the enricher is missing.
+    // The placement a version harvested before the harvester recorded it
+    // lacks. Printed even when the gate passes, because it is what the
+    // enricher is missing.
     let placed: Vec<_> = report
         .placements
         .iter()
