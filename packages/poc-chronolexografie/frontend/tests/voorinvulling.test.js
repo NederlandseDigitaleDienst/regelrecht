@@ -1,14 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { bronInvoer, herkomstTekst, voorgevuldeWaarden } from '../src/voorinvulling.js';
 
-const VULT_VOOR = { naam_opgegeven: 'r#2#naam_volgens_register' };
 const celNaam = (cel) => ({ voorbeeld_register: 'Voorbeeldregister' })[cel] ?? `cel ${cel}`;
 
 describe('bronInvoer', () => {
-  it('gives a source what the form holds, but not a field it prefills', () => {
-    // A prefilled field feeds no source: what fills it does not depend on it.
-    const invoer = bronInvoer(VULT_VOOR, { nummer: '1', naam_opgegeven: 'X', leeg: undefined });
-    expect(invoer).toEqual({ nummer: '1' });
+  it('gives a source every field with a value, a prefilled one too', () => {
+    // The seats read the designation, which is prefilled itself.
+    const invoer = bronInvoer({ nummer: '1', naam_opgegeven: 'X', leeg: undefined });
+    expect(invoer).toEqual({ nummer: '1', naam_opgegeven: 'X' });
   });
 });
 

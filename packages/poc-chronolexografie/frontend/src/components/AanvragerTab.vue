@@ -42,11 +42,11 @@ const aanvraagVorm = formulier(() => ({
 const aanvraag = computed(() => aanvraagVorm.waarden('aanvraag'));
 const vultVoor = computed(() => state.vormen?.aanvraag?.vult_voor ?? {});
 
-// Ask the sources again when what they read changes: the fields that are not
-// prefilled, or the day. Only the answer to the last question counts.
+// Ask the sources again when what they read changes: the fields of the form
+// or the day. Only the answer to the last question counts.
 let vraag = 0;
 watch(
-  () => JSON.stringify([vultVoor.value, bronInvoer(vultVoor.value, aanvraag.value), state.datum]),
+  () => JSON.stringify([vultVoor.value, bronInvoer(aanvraag.value), state.datum]),
   async () => {
     const nr = ++vraag;
     if (!Object.keys(vultVoor.value).length) {
@@ -56,7 +56,7 @@ watch(
     try {
       const antwoord = await api.voorinvullen(
         vultVoor.value,
-        bronInvoer(vultVoor.value, aanvraag.value),
+        bronInvoer(aanvraag.value),
         state.datum,
       );
       if (nr === vraag) voorgevuld.value = antwoord;

@@ -11,13 +11,12 @@ import { leesbaar } from './state.js';
 
 /**
  * What the sources get from the form `waarden`: every field with a value,
- * except the fields `vultVoor` prefills. Those feed no source, so filling
- * them cannot change what fills them.
+ * prefilled ones too. A source may read another prefilled field, as the
+ * seats read the designation; a value the applicant changes then reaches it.
+ * Asking again with what a source gave changes nothing, so the form settles.
  */
-export function bronInvoer(vultVoor, waarden) {
-  return Object.fromEntries(
-    Object.entries(waarden ?? {}).filter(([naam, w]) => w !== undefined && !(naam in (vultVoor ?? {}))),
-  );
+export function bronInvoer(waarden) {
+  return Object.fromEntries(Object.entries(waarden ?? {}).filter(([, w]) => w !== undefined));
 }
 
 /** Per prefilled field the value a source gave, without the empty ones. */
