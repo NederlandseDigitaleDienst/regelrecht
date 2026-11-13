@@ -1,0 +1,18 @@
+---
+# Het UI-beleid van de testbron voor voorinvullen. FICTIEF. De poc leest
+# alleen `vult_voor`: per veld van de aanvraag de bron waaruit het formulier
+# het voorinvult. De andere sleutels staan er zoals een register ze draagt en
+# leest de poc niet.
+status: concept
+elementen:
+  - id: UI1
+    element: aanvraagformulier
+    voor: partij
+    vult_voor:
+      naam_opgegeven: voorbeeld_inschrijving#2#naam_volgens_register
+  - id: UI2
+    element: gegeven_aanpassen
+    vult_voor:
+      naam_opgegeven: voorbeeld_inschrijving#2#naam_volgens_register
+    nog_te_bouwen:
+      - {naam: iets, soort: parameter, artikel: voorbeeld_inschrijving#1, reden: een test}

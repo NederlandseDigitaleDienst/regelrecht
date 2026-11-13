@@ -7,7 +7,7 @@
 // beroep een indiening bij de rechtbank met een afschrift ervan (RFC-053).
 // Of ze ontvankelijk zijn, beslist de wet, niet deze pagina. Een formulier
 // staat ingevuld zolang je een scenario volgt (scenarioInvoer.js).
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { api } from '../api.js';
 import { beroepApi } from '../beroep.js';
 import { melding } from '../melding.js';
@@ -26,11 +26,52 @@ import {
   zonderLeeg,
 } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
+import { celNaam } from '../logboek.js';
+import { bronInvoer, herkomstTekst, voorgevuldeWaarden } from '../voorinvulling.js';
 import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
-const aanvraagVorm = formulier(() => scenarioWaarden('aanvraag'));
+// What the sources give for the fields the UI policy prefills
+// (voorinvulling.js), per field `{ bron, waarde, herkomst, fout }`. The form
+// starts from it; a scenario's values and the applicant's own go over it.
+const voorgevuld = ref({});
+const aanvraagVorm = formulier(() => ({
+  ...voorgevuldeWaarden(voorgevuld.value),
+  ...(scenarioWaarden('aanvraag') ?? {}),
+}));
 const aanvraag = computed(() => aanvraagVorm.waarden('aanvraag'));
+const vultVoor = computed(() => state.vormen?.aanvraag?.vult_voor ?? {});
+
+// Ask the sources again when what they read changes: the fields that are not
+// prefilled, or the day. Only the answer to the last question counts.
+let vraag = 0;
+watch(
+  () => JSON.stringify([vultVoor.value, bronInvoer(vultVoor.value, aanvraag.value), state.datum]),
+  async () => {
+    const nr = ++vraag;
+    if (!Object.keys(vultVoor.value).length) {
+      voorgevuld.value = {};
+      return;
+    }
+    try {
+      const antwoord = await api.voorinvullen(
+        vultVoor.value,
+        bronInvoer(vultVoor.value, aanvraag.value),
+        state.datum,
+      );
+      if (nr === vraag) voorgevuld.value = antwoord;
+    } catch (e) {
+      // A source the cell refuses leaves the form as the applicant fills it;
+      // the message says why, as for every refusal.
+      if (nr === vraag) {
+        voorgevuld.value = {};
+        state.fout = e.message;
+      }
+    }
+  },
+  { immediate: true },
+);
+const herkomst = (naam) => herkomstTekst(voorgevuld.value[naam], aanvraag.value[naam], celNaam);
 
 async function indienen() {
   if (await stap(() => api.aanvragen(zonderLeeg(aanvraag.value), state.datum))) {
@@ -124,6 +165,7 @@ async function indienenTegen() {
           :key="veld.naam"
           :model-value="aanvraag[veld.naam]"
           :veld="veld"
+          :herkomst="herkomst(veld.naam)"
           @update:model-value="aanvraagVorm.zet('aanvraag', veld.naam, $event)"
         />
         <nldd-button appearance="primary" text="Aanvraag indienen" @click="indienen"></nldd-button>

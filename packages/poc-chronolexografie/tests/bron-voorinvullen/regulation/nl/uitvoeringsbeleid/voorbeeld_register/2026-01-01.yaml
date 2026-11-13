@@ -1,0 +1,33 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: voorbeeld_register
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+# FICTIEF. Een testregeling: het register schrijft een vereniging in met een
+# nummer en een naam.
+url: https://example.invalid/voorbeeld_register
+name: Voorbeeldregister (fictieve testbron)
+competent_authority:
+  name: Voorbeeldregister
+articles:
+  - number: '1'
+    text: FICTIEF. Het register schrijft een vereniging in onder een nummer, met haar naam.
+    url: https://example.invalid/voorbeeld_register#1
+    machine_readable:
+      requires:
+        - fact: vereniging_ingeschreven
+          description: Dat het register een vereniging inschreef, met haar nummer en naam.
+          competent_authority:
+            - name: Voorbeeldregister
+          parameters:
+            - nummer
+            - naam
+      execution:
+        parameters:
+          - name: nummer
+            type: string
+            description: Het nummer dat het register de vereniging gaf.
+          - name: naam
+            type: string
+            description: De naam van de vereniging.

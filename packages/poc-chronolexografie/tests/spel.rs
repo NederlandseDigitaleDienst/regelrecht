@@ -1506,9 +1506,10 @@ fn a_prefill_for_a_number_the_register_does_not_know_is_empty_without_origin() {
 }
 
 #[test]
-fn a_prefill_from_a_source_that_is_no_output_of_its_article_is_refused() {
+fn a_prefill_from_a_source_that_is_no_output_of_its_article_leaves_its_field_empty() {
     let mut spel = spel_met("bedrijfsparkeervergunning");
     let velden = map(&json!({ "kvk_nummer": "99990011" }));
+    // A source that is no text is the caller's mistake: refused.
     let bronnen = map(&json!({ "postcode": 42 }));
     let e = spel
         .voorinvullen(&bronnen, &velden, dag("2026-10-13"))
@@ -1518,6 +1519,8 @@ fn a_prefill_from_a_source_that_is_no_output_of_its_article_is_refused() {
             .contains("not '<regelwerk>#<article>#<output>'"),
         "{e}"
     );
+    // A source the cell refuses leaves its own field empty, with the reason,
+    // and the other fields filled.
     for (bron, waarom) in [
         ("geen_bron", "is no <regulation>#<article>#<fact>"),
         ("a#1", "is no <regulation>#<article>#<fact>"),
@@ -1532,11 +1535,16 @@ fn a_prefill_from_a_source_that_is_no_output_of_its_article_is_refused() {
             "has no article 9 in force",
         ),
     ] {
-        let bronnen = map(&json!({ "postcode": bron }));
-        let e = spel
+        let bronnen = map(&json!({
+            "postcode": bron,
+            "werkzame_personen": format!("{HANDELSREGISTER}#aantal_werkzame_personen_volgens_handelsregister"),
+        }));
+        let ingevuld = spel
             .voorinvullen(&bronnen, &velden, dag("2026-10-13"))
-            .unwrap_err();
-        assert!(matches!(e, Fout::Cel(_)), "{bron}: {e}");
-        assert!(e.to_string().contains(waarom), "{bron}: {e}");
+            .unwrap();
+        assert_eq!(ingevuld["postcode"]["waarde"], Value::Null, "{bron}");
+        let fout = ingevuld["postcode"]["fout"].as_str().unwrap();
+        assert!(fout.contains(waarom), "{bron}: {fout}");
+        assert_eq!(ingevuld["werkzame_personen"]["waarde"], json!(4), "{bron}");
     }
 }

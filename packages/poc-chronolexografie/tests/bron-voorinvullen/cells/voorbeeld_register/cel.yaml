@@ -1,0 +1,6 @@
+---
+# Testcel van de testbron voor voorinvullen. FICTIEF: het register antwoordt de
+# naam bij een nummer uit zijn eigen kroniek.
+name: Voorbeeldregister
+answers:
+  naam_bij_nummer: reductie_voorbeeld_register

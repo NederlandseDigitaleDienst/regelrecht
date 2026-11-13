@@ -100,6 +100,11 @@ export const api = {
   vormen: (datum) => roep((p) => p.vormen(datum)),
   kroniek: () => roep((p) => p.kroniek()),
   aanvragen: (velden, datum) => roep((p) => p.aanvragen(json(velden), datum)),
+  // Wat de bronnen per veld van de aanvraag geven, vóór er iets is ingediend
+  // (voorinvulling.js): `bronnen` per veld `<regelwerk>#<artikel>#<uitvoer>`.
+  // Er wordt niets vastgelegd.
+  voorinvullen: (bronnen, velden, datum) =>
+    roep((p) => p.voorinvullen(json(bronnen), json(velden), datum)),
   // Een andere cel van de casus legt een handeling vast, zoals de GGD een
   // geneeskundig onderzoek (RFC-048). `verwijstNaar` is het kenmerk van een
   // eerder record in het begin van die cel waarover het feit gaat, of null.

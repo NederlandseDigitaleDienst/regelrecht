@@ -36,6 +36,8 @@ const zonderSlash = (pad) => pad.replace(/^\/+|\/+$/g, '');
  * The source the manifest in `manifestPath` makes: under `directories`, per
  * directory of the source, the directory of the repository it is, and under
  * `repo_root` the path from the manifest's directory to the repository root.
+ * `ui_beleid` names one file of the repository that lands at the root of the
+ * source as `ui_beleid.yaml`.
  * A file belongs to the longest directory that holds it. A directory without
  * YAML is an error that names it, as in the portal.
  */
@@ -54,8 +56,10 @@ export function filesFromManifest(manifestPath) {
   if (directories == null) throw new Error(`the manifest ${manifestPath}: missing field \`directories\``);
   const rootDir = resolve(dirname(manifestPath), repoRoot);
   const pairs = Object.entries(directories).map(([doel, van]) => [zonderSlash(doel), zonderSlash(van)]);
-  // Every directory lies below the repository root, as `Manifest::lees` in the portal demands.
-  for (const pad of pairs.flat()) {
+  const uiBeleid = manifest.ui_beleid == null ? null : zonderSlash(String(manifest.ui_beleid));
+  // Every directory, and the UI policy, lies below the repository root, as
+  // `Manifest::lees` in the portal demands.
+  for (const pad of [...pairs.flat(), ...(uiBeleid === null ? [] : [uiBeleid])]) {
     if (!pad || pad.split('/').some((d) => d === '..' || d === '.' || d === '')) {
       throw new Error(`the manifest ${manifestPath}: '${pad}' is no directory below the root`);
     }
@@ -79,6 +83,15 @@ export function filesFromManifest(manifestPath) {
     if (!Object.keys(alle).some((p) => p.startsWith(`${van}/`))) {
       throw new Error(`the manifest names '${van}' for '${doel}', which holds no YAML file`);
     }
+  }
+  // The UI policy lands at the root of the source as `ui_beleid.yaml`
+  // (`UI_BELEID` in the portal).
+  if (uiBeleid !== null) {
+    const pad = join(rootDir, uiBeleid);
+    if (!existsSync(pad)) {
+      throw new Error(`the manifest names '${uiBeleid}' for its UI policy, which is no YAML file`);
+    }
+    uit['ui_beleid.yaml'] = readFileSync(pad, 'utf8');
   }
   return uit;
 }

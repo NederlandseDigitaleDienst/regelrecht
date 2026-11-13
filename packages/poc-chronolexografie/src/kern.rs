@@ -46,6 +46,10 @@ pub struct Corpus {
     /// Where the cell directories are read from: the disk, or the bundle a
     /// browser holds.
     files: Arc<dyn Files>,
+    /// Per field of an application, the source the form prefills it from
+    /// (`<regelwerk>#<article>#<output>`): what the UI policy of the case's
+    /// source says ([`crate::ui_beleid`]). Empty without one.
+    pub vult_voor: BTreeMap<String, String>,
 }
 
 /// The cell of the case and the other cells of its sphere (RFC-048). It
@@ -190,6 +194,7 @@ impl Corpus {
             cell_dir,
             andere_dirs,
             files,
+            vult_voor: BTreeMap::new(),
         })
     }
 
@@ -619,6 +624,13 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "basis": aanvraag.basis(),
             "velden": in_te_vullen(&aanvraag),
             "moment": moment(&aanvraag),
+            // The fields of this form that the UI policy prefills, each
+            // with its source ([`voorinvullen`]).
+            "vult_voor": corpus
+                .vult_voor
+                .iter()
+                .filter(|(veld, _)| aanvraag.fields.iter().any(|f| &f.name == *veld))
+                .collect::<BTreeMap<_, _>>(),
         },
         "besluit": {
             "soort": besluit.kind,
@@ -1039,16 +1051,16 @@ pub fn aanvragen(
 /// Nothing is recorded: what the applicant submits is what the application
 /// holds, prefilled or not.
 ///
-/// A source on which the engine fails leaves its field empty with the
-/// engine's message (`fout`), and the other fields are filled. The usual case
-/// is a parameter the form does not hold yet, such as the number the
-/// applicant has not logged in with; a cell that fails to answer shows the
-/// same way, with its own message.
+/// A source that gives nothing on what the form holds leaves its field empty
+/// with the reason (`fout`), and the other fields are filled: one the engine
+/// cannot run yet, such as without the number the applicant has not logged
+/// in with, and one the cell refuses ([`Cell::consult`]), such as an output
+/// its article does not have. The sources come from a UI policy the poc does
+/// not keep, so one wrong source does not take the form down.
 ///
 /// # Errors
 ///
-/// Refused when a source is not `<regelwerk>#<article>#<output>` or names no
-/// output of an article in force on `on`, and as [`Cell::consult`] refuses.
+/// Refused when a source is no text.
 pub fn voorinvullen(
     corpus: &Corpus,
     cellen: &Cellen,
@@ -1067,13 +1079,10 @@ pub fn voorinvullen(
         };
         let ingevuld = match cellen.eigen.consult(&service, &sfeer, bron, velden, on) {
             Ok(result) => uit_bron(&result, bron)?,
-            // What the form does not hold yet, such as the number the
-            // applicant has not logged in with: this field stays empty, the
-            // others are filled.
-            Err(Error::Engine(e)) => {
+            // This field stays empty, with the reason; the others are filled.
+            Err(e) => {
                 json!({ "bron": bron, "waarde": null, "herkomst": [], "fout": e.to_string() })
             }
-            Err(e) => return Err(e),
         };
         uit.insert(veld.clone(), ingevuld);
     }
