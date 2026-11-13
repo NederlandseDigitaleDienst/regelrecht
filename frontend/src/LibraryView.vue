@@ -21,6 +21,10 @@ import TrajectMembersPane from './components/TrajectMembersPane.vue';
 import InviteMembersSheet from './components/InviteMembersSheet.vue';
 import TasksCategoriesPane from './components/TasksCategoriesPane.vue';
 import TasksListPane from './components/TasksListPane.vue';
+import RunsListPane from './components/RunsListPane.vue';
+import RunDetailPane from './components/RunDetailPane.vue';
+import { useTrajectRunsStore } from './stores/trajectRuns';
+import { runTitle } from './lib/trajectRuns';
 import TasksSidebarItem from './components/TasksSidebarItem.vue';
 import UploadConfirmDialog from './components/UploadConfirmDialog.vue';
 import { useAuth, ensureAuthReady } from './composables/useAuth';
@@ -556,6 +560,32 @@ const takenTitle = computed(() => {
   return TAKEN_TITELS[takenCategorie.value];
 });
 
+// --- Verwerkingen (the traject's runs, folded into Home) --------------------
+// Same shape as Taken: the runs in the secondary sidebar, the chosen run in
+// main. RunsListPane loads and polls the shared runs store; main reads from it.
+const isVerwerkingenMode = computed(() => route.name === 'verwerkingen-traject');
+const verwerkingenJobId = computed(() => singleParam(route.params.jobId) || null);
+const runsStore = useTrajectRunsStore();
+const selectedRunTitle = computed(() => {
+  const run = runsStore.byId(verwerkingenJobId.value);
+  return run ? runTitle(run, corpusLawName) : undefined;
+});
+function goToVerwerkingen(jobId?: string) {
+  if (!activeTrajectRef.value) return;
+  router.push({ name: 'verwerkingen-traject', params: { trajectRef: activeTrajectRef.value, jobId } });
+}
+// From a run to what is left to do: the open review tasks of its law.
+function goToRunTasks(lawId: string) {
+  if (!activeTrajectRef.value) return;
+  router.push({
+    name: 'taken-traject',
+    params: { trajectRef: activeTrajectRef.value, categorie: 'wet', contextLawId: lawId },
+  });
+}
+function goToRunLaw(lawId: string) {
+  router.push(libraryRouteFor({ lawId }));
+}
+
 // --- Instellingen (traject details + leden, folded into Home) ---------------
 // De structuurcontrole is dezelfde Instellingen-plek met een sheet erover, dus
 // hij telt hier als Instellingen > Algemeen: die pane hoort onder de sheet te
@@ -575,7 +605,11 @@ const instellingenTab = computed(
 // a failed corpus index must only take over the library itself, never /taken,
 // /instellingen or /werkdocumenten, which don't read the wettenindex at all.
 const isLibraryMode = computed(
-  () => !isWerkdocMode.value && !isInstellingenMode.value && !isTakenMode.value,
+  () =>
+    !isWerkdocMode.value &&
+    !isInstellingenMode.value &&
+    !isTakenMode.value &&
+    !isVerwerkingenMode.value,
 );
 function goToInstellingen(tab?: string) {
   if (!activeTrajectRef.value) return;
@@ -1537,6 +1571,8 @@ watchEffect(() => {
     } else {
       detail.push('Werkdocumenten');
     }
+  } else if (isVerwerkingenMode.value) {
+    detail.push(selectedRunTitle.value ?? 'Verwerkingen');
   } else if (isInstellingenMode.value) {
     detail.push(
       instellingenTab.value === 'leden' ? 'Leden'
@@ -2113,6 +2149,8 @@ function onPaneBack(e: Event) {
     // Without this the shared fallback below ran, and that routes on a law id
     // that taken mode does not have, so the button did nothing at all.
     if (isTakenMode.value) return goToTaken();
+    // Verwerkingen: back from a run returns to the list of runs.
+    if (isVerwerkingenMode.value) return goToVerwerkingen();
     return (lawError.value || indexError.value) ? goToLibraryRoot() : goToLawRoot();
   }
   if (slot === 'secondary-sidebar') return goToLibraryRoot();
@@ -2375,6 +2413,13 @@ watch(activeTrajectRef, () => {
                         <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
                       </nldd-list-item>
                       <TasksSidebarItem :current="isTakenMode" :traject-ref="activeTrajectRef" @click="goToTaken" />
+                      <nldd-list-item size="md" button :current="isVerwerkingenMode || undefined" @click="goToVerwerkingen()">
+                        <nldd-icon-cell size="20"><nldd-icon icon="history"></nldd-icon></nldd-icon-cell>
+                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                        <nldd-text-cell text="Verwerkingen"></nldd-text-cell>
+                        <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                        <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+                      </nldd-list-item>
                     </nldd-list>
                     <nldd-spacer size="24"></nldd-spacer>
                   </template>
@@ -2536,6 +2581,22 @@ watch(activeTrajectRef, () => {
                   :law-id="takenLawId"
                   @select="goToTakenCategorie"
                 ></TasksCategoriesPane>
+              </nldd-simple-section>
+            </nldd-page>
+          </nldd-split-view-pane>
+
+          <!-- Secondary Sidebar (verwerkingen mode): the traject's runs. -->
+          <nldd-split-view-pane v-else-if="isVerwerkingenMode" slot="secondary-sidebar" has-content>
+            <nldd-page sticky-header>
+              <nldd-top-title-bar slot="header" text="Verwerkingen" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="verwerkingen-titel"></nldd-top-title-bar>
+              <nldd-simple-section width="full">
+                <nldd-title id="verwerkingen-titel" size="display-3"><h3>Verwerkingen</h3></nldd-title>
+                <nldd-spacer size="16"></nldd-spacer>
+                <RunsListPane
+                  :traject-ref="activeTrajectRef"
+                  :job-id="verwerkingenJobId"
+                  @select="goToVerwerkingen"
+                ></RunsListPane>
               </nldd-simple-section>
             </nldd-page>
           </nldd-split-view-pane>
@@ -2802,6 +2863,30 @@ watch(activeTrajectRef, () => {
               </nldd-simple-section>
               <nldd-simple-section v-else width="full">
                 <nldd-inline-dialog text="Kies een categorie"></nldd-inline-dialog>
+              </nldd-simple-section>
+            </nldd-page>
+          </nldd-split-view-pane>
+
+          <!-- Main (verwerkingen mode): the chosen run, or a placeholder. -->
+          <nldd-split-view-pane v-else-if="isVerwerkingenMode" slot="main" :has-content="verwerkingenJobId || undefined">
+            <nldd-page landmarks="page" sticky-header>
+              <nldd-top-title-bar
+                slot="header"
+                :text="selectedRunTitle"
+                back-text="Verwerkingen"
+                :collapse-anchor="verwerkingenJobId ? 'verwerking-titel' : undefined"
+              ></nldd-top-title-bar>
+              <nldd-simple-section v-if="verwerkingenJobId">
+                <nldd-title v-if="selectedRunTitle" id="verwerking-titel" size="display-3"><h3>{{ selectedRunTitle }}</h3></nldd-title>
+                <nldd-spacer v-if="selectedRunTitle" size="16"></nldd-spacer>
+                <RunDetailPane
+                  :job-id="verwerkingenJobId"
+                  @open-tasks="goToRunTasks"
+                  @open-law="goToRunLaw"
+                ></RunDetailPane>
+              </nldd-simple-section>
+              <nldd-simple-section v-else width="full">
+                <nldd-inline-dialog text="Kies een verwerking"></nldd-inline-dialog>
               </nldd-simple-section>
             </nldd-page>
           </nldd-split-view-pane>

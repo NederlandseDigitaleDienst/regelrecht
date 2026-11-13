@@ -71,6 +71,15 @@ describe('route disambiguation (traject vs no-traject)', () => {
     expect(r.params.categorie).toBeUndefined();
   });
 
+  it('routes a traject verwerkingen URL to verwerkingen-traject, with the run as jobId', () => {
+    expect(router.resolve(`/trajecten/${REF}/verwerkingen`).name).toBe('verwerkingen-traject');
+    const r = router.resolve(`/trajecten/${REF}/verwerkingen/0b0c0d0e-0000-4000-8000-000000000000`);
+    expect(r.name).toBe('verwerkingen-traject');
+    expect(r.params.jobId).toBe('0b0c0d0e-0000-4000-8000-000000000000');
+    // jobId, never lawId: LibraryView would open a law named after the run.
+    expect(r.params.lawId).toBeUndefined();
+  });
+
   it('routes a taken categorie URL to taken-traject', () => {
     const r = router.resolve(`/trajecten/${REF}/taken/werkdocumenten`);
     expect(r.name).toBe('taken-traject');

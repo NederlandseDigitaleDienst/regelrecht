@@ -82,10 +82,13 @@ Reader + account for reads, Writer + account for changes. Membership is checked 
 | DELETE | `/api/trajects/{id}/invites/{email}` | Owner only |
 | GET | `/api/trajects/{traject_ref}/integrity` | Integrity report over the traject's corpus repo |
 | GET | `/api/trajects/{traject_ref}/sources` | |
+| GET | `/api/trajects/{traject_ref}/runs` | The traject's harvests, enrichments and conversions, running or finished, newest first (at most 200), from every member. See below |
 | GET | `/api/trajects/{traject_ref}/favorites` | |
 | PUT, DELETE | `/api/trajects/{traject_ref}/favorites/{law_id}` | |
 
 Member roles are `owner` and `contributor`.
+
+A run belongs to a traject through the ref it was requested under, matched on the id part at its end, so the runs of a renamed traject stay with it. Each run carries its state, its timestamps, the name of the member who requested it, the last error, and for an enrichment the provider, the article counts from its result and how its review tasks were resolved, with a separate count of the open ones assigned to the member asking. The worker's progress note comes along only while a run is processing.
 
 ### Traject corpus
 

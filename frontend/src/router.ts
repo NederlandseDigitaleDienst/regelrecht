@@ -120,6 +120,16 @@ const router = createRouter({
           component: LibraryView,
           meta: { title: 'Taken', requiresAuth: true },
         },
+        {
+          // The traject's runs: every harvest, enrichment and conversion
+          // requested in it, running or finished. Same LibraryView shape as
+          // Taken: the secondary sidebar lists the runs, `:jobId` opens one
+          // in main.
+          path: 'trajecten/:trajectRef([a-z0-9-]+-[0-9a-f]{8})/verwerkingen/:jobId?',
+          name: 'verwerkingen-traject',
+          component: LibraryView,
+          meta: { title: 'Verwerkingen', requiresAuth: true },
+        },
         // Back-compat: the old public library URLs redirect to the new paths.
         // Declared AFTER library-traject so a {slug}-{8hex} ref still matches
         // the traject route rather than these plain-law redirects.
