@@ -24,7 +24,6 @@ struct Register {
 /// message; the register decides its form, so any value will do.
 #[derive(Debug, Deserialize)]
 struct Element {
-    #[serde(default)]
     id: Option<serde_yaml_ng::Value>,
     #[serde(default)]
     vult_voor: BTreeMap<String, String>,

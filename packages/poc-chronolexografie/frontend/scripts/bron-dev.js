@@ -96,7 +96,7 @@ export function filesFromManifest(manifestPath) {
   if (uiBeleid !== null) {
     const pad = join(rootDir, uiBeleid);
     if (!existsSync(pad) || !statSync(pad).isFile()) {
-      throw new Error(`the manifest names '${uiBeleid}' for its UI policy, which is no YAML file`);
+      throw new Error(`the manifest names '${uiBeleid}' for its UI policy, which the branch does not hold`);
     }
     uit['ui_beleid.yaml'] = readFileSync(pad, 'utf8');
   }

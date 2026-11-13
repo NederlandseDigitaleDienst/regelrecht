@@ -65,7 +65,15 @@ watch(
       voorgevuld.value = {};
       return;
     }
-    const nu = JSON.stringify([aanvraagVorm.eigen.aanvraag, state.datum, kroniekStand(), vultVoor.value]);
+    const nu = JSON.stringify([
+      aanvraagVorm.eigen.aanvraag,
+      state.datum,
+      kroniekStand(),
+      vultVoor.value,
+      state.scenario,
+      state.begonnen,
+      huidigeStap()?.index,
+    ]);
     opElkaar = nu === buiten ? opElkaar + 1 : 0;
     buiten = nu;
     if (opElkaar > MAX_OP_ELKAAR) {
@@ -80,8 +88,8 @@ watch(
       );
       if (nr === vraag) voorgevuld.value = antwoord;
     } catch (e) {
-      // A source the cell refuses leaves the form as the applicant fills it;
-      // the message says why, as for every refusal.
+      // A source that is no text, or a corpus that does not load: the form
+      // keeps what the applicant fills, and the message says why.
       if (nr === vraag) {
         voorgevuld.value = {};
         state.fout = e.message;

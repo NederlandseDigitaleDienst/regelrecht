@@ -3,9 +3,9 @@
 // basis staat eronder. Een bedrag (`amount`) is een getal in de eenheid die
 // de wet ervoor rekent, zoals eurocent. Een leeg tekst- of datumveld is `undefined`: dan
 // laat de aanvraag het weg, en de cel noemt het in `missing` (Awb 4:5).
-// `herkomst` is de regel onder een voorgevuld veld: uit welke cel het komt,
-// of dat de aanvrager het wijzigde (voorinvulling.js). Een schakelaar (ja of
-// nee) toont haar niet: nldd-switch-field staat buiten een nldd-form-field.
+// `herkomst` is the line under a prefilled field: which cell it comes from, or
+// that the applicant changed it (voorinvulling.js). A switch (yes or no) does
+// not show it: nldd-switch-field stands outside an nldd-form-field.
 import { leesbaar } from '../state.js';
 
 const props = defineProps({

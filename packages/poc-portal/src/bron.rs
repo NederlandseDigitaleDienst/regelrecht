@@ -257,7 +257,9 @@ impl Manifest {
         if let Some(pad) = &self.ui_beleid {
             let pad = pad.trim_matches('/');
             let tekst = alle.get(pad).ok_or_else(|| {
-                format!("the manifest names '{pad}' for its UI policy, which is no YAML file")
+                format!(
+                    "the manifest names '{pad}' for its UI policy, which the branch does not hold"
+                )
             })?;
             uit.insert(UI_BELEID.to_string(), tekst.clone());
         }
@@ -338,8 +340,14 @@ pub fn lokaal(pad: &Path) -> Result<BTreeMap<String, String>, String> {
     }
     if let Some(pad) = &m.ui_beleid {
         let pad = pad.trim_matches('/');
-        if let Ok(tekst) = std::fs::read_to_string(repo_root.join(pad)) {
-            alle.insert(pad.to_string(), tekst);
+        let bestand = repo_root.join(pad);
+        match std::fs::read_to_string(&bestand) {
+            Ok(tekst) => {
+                alle.insert(pad.to_string(), tekst);
+            }
+            // Not there: `bron` names it, as on a branch.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("{}: {e}", bestand.display())),
         }
     }
     m.bron(&alle)

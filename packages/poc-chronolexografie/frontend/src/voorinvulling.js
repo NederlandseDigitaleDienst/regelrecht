@@ -1,11 +1,11 @@
 /**
- * De aanvraag vooringevuld uit de bronnen. Het UI-beleid van de bron van een
- * casus zegt per veld uit welke bron het komt (`state.vormen.aanvraag.vult_voor`,
- * `<regelwerk>#<artikel>#<uitvoer>`); de cel rekent die bron uit met de
- * cellen van de casus zoals ze het op de speeldatum weten (`api.voorinvullen`).
- * Het voorgevulde gegeven is een voorstel: de aanvrager kan het wijzigen, en
- * wat hij indient is wat de aanvraag bevat. Bij het veld staat waar het
- * vandaan komt, of dat hij het wijzigde.
+ * The application prefilled from the sources. The UI policy of the case's
+ * source says per field which source fills it (`state.vormen.aanvraag.vult_voor`,
+ * `<regelwerk>#<article>#<output>`); the cell computes that source with the
+ * cells of the case as they know things on the play date (`api.voorinvullen`).
+ * A prefilled value is a proposal: the applicant can change it, and what they
+ * submit is what the application holds. The field says where the value comes
+ * from, or that the applicant changed it.
  */
 import { toon } from './logboek.js';
 import { leesbaar } from './state.js';
