@@ -151,6 +151,13 @@ deploy-filters-test:
 ghcr-cleanup-test:
     node --test script/ghcr-cleanup.test.mjs
 
+# Pins the schema diff that .github/workflows/schema-diff.yml posts on a pull
+# request with a new schema version. Same reasoning as deploy-filters-test:
+# node's built-in runner, no dependency.
+[doc("Check the schema diff comment for a new schema version")]
+schema-diff-test:
+    node --test script/schema-diff.test.mjs
+
 # Pins the build-time asset precompression the editor image relies on. Same
 # reasoning as deploy-filters-test: node's built-in runner, no dependency.
 [doc("Check the editor's build-time asset precompression")]

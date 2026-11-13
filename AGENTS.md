@@ -263,6 +263,9 @@ both: `corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml`.
   error instead of fixing it (PR #1579 replaced such an overlay with v0.7.1).
   The same holds more broadly: when a source of truth is wrong, fix the
   source, not a layer on top of it.
+- Een PR met een nieuwe schemaversie beschrijft de wijziging in gewone taal in
+  de PR-beschrijving; de schema-diff-comment toont de diff
+  (`docs/src/content/docs/operations/ci-cd.md#schema-diff-comment-on-prs-that-touch-schema`).
 
 ## De demo is meertalig
 

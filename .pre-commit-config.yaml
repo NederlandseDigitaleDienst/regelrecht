@@ -132,6 +132,20 @@ repos:
         pass_filenames: false
         files: ^(script/(linkify|require)-werkpakket(\.test)?\.sh|\.github/workflows/werkpakket-gate\.yml)$
 
+      - id: schema-diff-tests
+        name: Schemadiff toont wat een nieuwe schemaversie verandert
+        entry: just schema-diff-test
+        language: system
+        pass_filenames: false
+        files: ^(script/schema-diff(\.test)?\.mjs|\.github/workflows/schema-diff\.yml)$
+
+      - id: schema-diff-comment-tests
+        name: Schemadiff-comment wordt bijgewerkt, niet verdubbeld
+        entry: script/schema-diff-comment.test.sh
+        language: system
+        pass_filenames: false
+        files: ^(script/schema-diff-comment(\.test)?\.sh|\.github/workflows/schema-diff\.yml)$
+
       - id: private-repo-guard-tests
         name: Push-guard van de stelselanalyse laat alleen een privérepo door
         entry: .claude/skills/regelrecht-stelselanalyse/scripts/test-assert-private-repo.sh
