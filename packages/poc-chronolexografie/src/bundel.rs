@@ -34,6 +34,11 @@ use serde::{Deserialize, Serialize};
 use crate::casus::Casus;
 use crate::casus::{Regelwerken, casussen as lees_casussen};
 use crate::kern::{Corpus, Result};
+use crate::ui_beleid;
+
+/// Where a source holds its UI policy: at its root, where the portal puts
+/// the file its manifest names (`UI_BELEID` in poc-portal, `bron.rs`).
+pub const UI_BELEID: &str = "ui_beleid.yaml";
 
 /// This crate's corpus, under the repository root: the cases under
 /// `casussen`, the regelwerken under `regulation/nl` and the cells under
@@ -159,6 +164,22 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         Bundle::new(alles).map_err(|e| Error::Setup(format!("source '{}': {e}", bron.naam)))?,
     );
     let roots = [wortel.clone()];
+    // A UI policy that does not read costs the prefill, not the cases: they
+    // play with empty forms, and the source says why.
+    let vult_voor = match bron
+        .bestanden
+        .get(UI_BELEID)
+        .map(|t| ui_beleid::vult_voor(t))
+    {
+        Some(Ok(vult_voor)) => vult_voor,
+        Some(Err(e)) => {
+            stand
+                .meldingen
+                .push(format!("{UI_BELEID}: {e}; the forms are not prefilled"));
+            BTreeMap::new()
+        }
+        None => BTreeMap::new(),
+    };
     let regelwerken = Regelwerken::load(&*bundle, &roots)?;
     stand
         .meldingen
@@ -168,7 +189,10 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         casus.bron = Some(bron.naam.clone());
         let id = casus.id.clone();
         match Corpus::load(bundle.clone(), &roots, &regelwerken, casus) {
-            Ok(c) => uit.push(c),
+            Ok(mut c) => {
+                c.vult_voor = vult_voor.clone();
+                uit.push(c);
+            }
             Err(e) => stand.fouten.push(format!("case '{id}': {e}")),
         }
     }
@@ -437,6 +461,94 @@ mod tests {
         assert_eq!(lijst["bronnen"][0]["naam"], "voorbeeld");
         let outputs = speel(&mut spel, "voorbeeld_subsidie");
         assert_eq!(outputs["subsidie_verleend"], serde_json::json!(true));
+    }
+
+    /// The test source in `tests/bron-voorinvullen`, with a copy of the Awb:
+    /// a register cell answers the name at a number, and its UI policy
+    /// prefills the application's name from it.
+    fn voorinvullen_bron() -> Bron {
+        let mut bestanden =
+            uit_map(&repo().join("packages/poc-chronolexografie/tests/bron-voorinvullen"));
+        bestanden.extend(awb());
+        Bron {
+            naam: "voorinvullen".into(),
+            versie: Some("abc1234".into()),
+            bestanden,
+            ..Bron::default()
+        }
+    }
+
+    const NAAM_UIT_REGISTER: &str = "voorbeeld_inschrijving#2#naam_volgens_register";
+
+    #[test]
+    fn the_form_of_a_case_from_a_source_names_what_its_ui_policy_prefills() {
+        let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
+        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let casus = spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let vormen = spel.vormen(dag).unwrap();
+        assert_eq!(
+            vormen["aanvraag"]["vult_voor"],
+            serde_json::json!({ "naam_opgegeven": NAAM_UIT_REGISTER })
+        );
+        // What the form then asks: the name from the register cell.
+        let bronnen = vormen["aanvraag"]["vult_voor"].as_object().unwrap().clone();
+        let velden = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+        let ingevuld = spel.voorinvullen(&bronnen, &velden, dag).unwrap();
+        assert_eq!(ingevuld["naam_opgegeven"]["waarde"], "Vereniging Voorbeeld");
+        assert_eq!(
+            ingevuld["naam_opgegeven"]["herkomst"][0]["door"],
+            "voorbeeld_register"
+        );
+    }
+
+    #[test]
+    fn a_case_without_a_ui_policy_prefills_nothing() {
+        let (alle, standen) = met_bronnen(gebundeld(), vec![voorbeeld()]).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_subsidie").unwrap();
+        let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
+        assert_eq!(vormen["aanvraag"]["vult_voor"], serde_json::json!({}));
+    }
+
+    #[test]
+    fn a_ui_policy_that_prefills_a_field_twice_costs_the_prefill_not_the_cases() {
+        let mut bron = voorinvullen_bron();
+        bron.bestanden.insert(
+            "ui_beleid.yaml".into(),
+            "elementen:\n  - {id: UI1, vult_voor: {naam_opgegeven: 'a#1#x'}}\n  - {id: UI5, vult_voor: {naam_opgegeven: 'a#1#y'}}\n".into(),
+        );
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
+        let melding = standen[0].meldingen.join("\n");
+        assert!(
+            melding.contains("ui_beleid.yaml") && melding.contains("UI5"),
+            "{melding}"
+        );
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
+        assert_eq!(vormen["aanvraag"]["vult_voor"], serde_json::json!({}));
+    }
+
+    /// A field the UI policy prefills that the form of this case does not
+    /// ask is no field of its form: another case of the source may ask it.
+    #[test]
+    fn a_field_the_form_does_not_ask_is_left_out() {
+        let mut bron = voorinvullen_bron();
+        bron.bestanden.insert(
+            "ui_beleid.yaml".into(),
+            format!("elementen:\n  - vult_voor: {{naam_opgegeven: '{NAAM_UIT_REGISTER}', elders: 'a#1#x'}}\n"),
+        );
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
+        assert_eq!(
+            vormen["aanvraag"]["vult_voor"],
+            serde_json::json!({ "naam_opgegeven": NAAM_UIT_REGISTER })
+        );
     }
 
     /// With `POC_BRON_NAPP` set to a local source folder or manifest (as for `just

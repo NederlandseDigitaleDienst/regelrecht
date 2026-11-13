@@ -1,0 +1,58 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: reductie_voorbeeld_register
+regulatory_layer: REDUCTIE
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+# FICTIEF. Een testreductie: de naam bij een nummer, uit de inschrijvingen in
+# de kroniek van het register.
+url: https://example.invalid/reductie_voorbeeld_register
+name: Naam bij een nummer (fictieve testreductie)
+articles:
+  - number: inschrijving
+    text: Geen regelgeving. Per inschrijving het nummer en de naam.
+    url: https://example.invalid/reductie_voorbeeld_register#inschrijving
+    machine_readable:
+      projection:
+        per: voorbeeld_register#1#vereniging_ingeschreven
+        state:
+          - name: nummer
+            type: string
+          - name: naam
+            type: string
+        steps:
+          - record: voorbeeld_register#1#vereniging_ingeschreven
+            actions:
+              - output: nummer
+                value: $record.nummer
+              - output: naam
+                value: $record.naam
+  - number: naam_bij_nummer
+    text: Geen regelgeving. De naam van de inschrijving met dit nummer; zonder inschrijving zwijgt het register.
+    url: https://example.invalid/reductie_voorbeeld_register#naam_bij_nummer
+    machine_readable:
+      execution:
+        parameters:
+          - name: nummer
+            type: string
+            required: false
+            nullable: true
+        input:
+          - name: inschrijvingen
+            type: array
+            source:
+              projections: reductie_voorbeeld_register#inschrijving
+              where:
+                nummer: $nummer
+        output:
+          - name: naam_bij_nummer
+            type: string
+            nullable: true
+        actions:
+          - output: naam_bij_nummer
+            value:
+              operation: FOREACH
+              collection: $inschrijvingen
+              as: i
+              body: $i.naam
+              combine: ONLY

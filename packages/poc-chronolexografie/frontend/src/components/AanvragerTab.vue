@@ -7,7 +7,7 @@
 // beroep een indiening bij de rechtbank met een afschrift ervan (RFC-053).
 // Of ze ontvankelijk zijn, beslist de wet, niet deze pagina. Een formulier
 // staat ingevuld zolang je een scenario volgt (scenarioInvoer.js).
-import { computed, ref } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { api } from '../api.js';
 import { beroepApi } from '../beroep.js';
 import { melding } from '../melding.js';
@@ -25,12 +25,80 @@ import {
   toegewezen,
   zonderLeeg,
 } from '../state.js';
-import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
+import { formulier, huidigeStap, scenarioWaarden } from '../scenarioInvoer.js';
+import { celNaam } from '../logboek.js';
+import { beginWaarden, bronInvoer, herkomstTekst } from '../voorinvulling.js';
 import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
-const aanvraagVorm = formulier(() => scenarioWaarden('aanvraag'));
+// What the sources give for the fields the UI policy prefills
+// (voorinvulling.js), per field `{ bron, waarde, herkomst, fout }`. The form
+// starts from it over the case's example; the values of a scenario step and
+// the applicant's own go over it.
+const voorgevuld = ref({});
+const aanvraagVorm = formulier(() => {
+  const scenario = scenarioWaarden('aanvraag');
+  return beginWaarden(scenario, scenario && huidigeStap()?.step.stap.invoer, voorgevuld.value);
+});
 const aanvraag = computed(() => aanvraagVorm.waarden('aanvraag'));
+const vultVoor = computed(() => state.vormen?.aanvraag?.vult_voor ?? {});
+
+// Ask the sources again when what they read changes: the fields of the form,
+// the day, or a chronicle (a register that recorded something new). Only the
+// answer to the last question counts.
+let vraag = 0;
+// A source may read another prefilled field, so an answer can change what is
+// asked next. Answers that keep changing each other without anything from
+// outside (the applicant, the day, a chronicle) mean two sources read each
+// other: the form stops asking and says so.
+const MAX_OP_ELKAAR = 5;
+let buiten = '';
+let opElkaar = 0;
+const kroniekStand = () =>
+  [state.grammen.length, ...(state.andere ?? []).map((a) => a.grammen.length)].join(',');
+watch(
+  () =>
+    JSON.stringify([vultVoor.value, bronInvoer(aanvraag.value), state.datum, kroniekStand()]),
+  async () => {
+    const nr = ++vraag;
+    if (!Object.keys(vultVoor.value).length) {
+      voorgevuld.value = {};
+      return;
+    }
+    const nu = JSON.stringify([
+      aanvraagVorm.eigen.aanvraag,
+      state.datum,
+      kroniekStand(),
+      vultVoor.value,
+      state.scenario,
+      state.begonnen,
+      huidigeStap()?.index,
+    ]);
+    opElkaar = nu === buiten ? opElkaar + 1 : 0;
+    buiten = nu;
+    if (opElkaar > MAX_OP_ELKAAR) {
+      state.fout = 'de bronnen van het voorinvullen lezen elkaar en blijven elkaar wijzigen';
+      return;
+    }
+    try {
+      const antwoord = await api.voorinvullen(
+        vultVoor.value,
+        bronInvoer(aanvraag.value),
+        state.datum,
+      );
+      if (nr === vraag) voorgevuld.value = antwoord;
+    } catch (e) {
+      // A source that is no text, or a corpus that does not load: the form
+      // keeps what the applicant fills, and the message says why.
+      if (nr === vraag) {
+        voorgevuld.value = {};
+        state.fout = e.message;
+      }
+    }
+  },
+  { immediate: true },
+);
+const herkomst = (naam) => herkomstTekst(voorgevuld.value[naam], aanvraag.value[naam], celNaam);
 
 async function indienen() {
   if (await stap(() => api.aanvragen(zonderLeeg(aanvraag.value), state.datum))) {
@@ -124,6 +192,7 @@ async function indienenTegen() {
           :key="veld.naam"
           :model-value="aanvraag[veld.naam]"
           :veld="veld"
+          :herkomst="herkomst(veld.naam)"
           @update:model-value="aanvraagVorm.zet('aanvraag', veld.naam, $event)"
         />
         <nldd-button appearance="primary" text="Aanvraag indienen" @click="indienen"></nldd-button>

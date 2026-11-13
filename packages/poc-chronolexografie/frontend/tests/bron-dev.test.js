@@ -40,6 +40,40 @@ describe('bronAntwoord', () => {
     ]);
   });
 
+  it('places the UI policy the manifest names at the root of the source, as the portal does', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
+    const schrijf = (pad, tekst) => {
+      mkdirSync(join(dir, pad, '..'), { recursive: true });
+      writeFileSync(join(dir, pad), tekst);
+    };
+    schrijf('werk/m/bron.yaml', 'repo_root: ../..\ndirectories:\n  casussen: werk/m/casussen\nui_beleid: werk/ui-beleid.yaml\n');
+    schrijf('werk/m/casussen/k.yaml', 'cel: c');
+    schrijf('werk/ui-beleid.yaml', 'elementen: []');
+    const env = { [lokaleEnv('voorbeeld')]: join(dir, 'werk/m/bron.yaml') };
+    const [status, , tekst] = bronAntwoord('voorbeeld', env);
+    expect(status).toBe(200);
+    expect(JSON.parse(tekst).bestanden['ui_beleid.yaml']).toBe('elementen: []');
+    // A UI policy that is not there is named; one above the root is refused.
+    rmSync(join(dir, 'werk/ui-beleid.yaml'));
+    const [zonder, , fout] = bronAntwoord('voorbeeld', env);
+    expect(zonder).toBe(502);
+    expect(fout).toContain("'werk/ui-beleid.yaml' for its UI policy");
+    schrijf('werk/m/bron.yaml', 'directories:\n  casussen: werk/m/casussen\nui_beleid: ../u.yaml\n');
+    const [boven, , waarom] = bronAntwoord('voorbeeld', env);
+    expect(boven).toBe(502);
+    expect(waarom).toContain('below the root');
+    for (const [regel, verwacht] of [
+      ['ui_beleid: werk/u.json', 'no YAML file'],
+      ['ui_beleid: werk/m/casussen/u.yaml', "lies in 'werk/m/casussen'"],
+    ]) {
+      schrijf('werk/m/bron.yaml', `repo_root: ../..\ndirectories:\n  casussen: werk/m/casussen\n${regel}\n`);
+      const [status, , fout] = bronAntwoord('voorbeeld', env);
+      expect(status).toBe(502);
+      expect(fout).toContain(verwacht);
+    }
+    rmSync(dir, { recursive: true });
+  });
+
   it('rejects a manifest with a directory above the repository root, as the portal does', () => {
     const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
     writeFileSync(join(dir, 'bron.yaml'), 'directories:\n  cells/c: ../elders\n');

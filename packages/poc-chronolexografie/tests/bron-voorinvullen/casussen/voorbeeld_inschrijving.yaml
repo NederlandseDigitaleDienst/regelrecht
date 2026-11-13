@@ -1,0 +1,30 @@
+---
+# Testcasus van de testbron voor voorinvullen (src/bundel.rs, tests/spel.rs).
+# FICTIEF: een loket schrijft een vereniging in op het nummer dat een register
+# haar gaf; de aanvraag noemt de naam, die het formulier voorinvult uit dat
+# register (ui_beleid.yaml).
+cel: voorbeeld_loket
+artikel: voorbeeld_inschrijving#1
+corpus:
+  - regulation/nl/uitvoeringsbeleid/voorbeeld_inschrijving
+  - regulation/nl/uitvoeringsbeleid/voorbeeld_register
+  - regulation/nl/wet/algemene_wet_bestuursrecht
+uitkomst: ingeschreven
+titel: Voorbeeldinschrijving
+cel_naam: Voorbeeldloket
+speeldatum: 2026-10-21
+voorbeeld:
+  aanvraag:
+    nummer: '00000001'
+  bevindingen: {}
+andere_cellen:
+  - cel: voorbeeld_register
+    cel_naam: Voorbeeldregister
+    begin:
+      datum: 2026-02-02
+      executogrammen:
+        - feit: voorbeeld_register#1#vereniging_ingeschreven
+          velden:
+            nummer: '00000001'
+            naam: Vereniging Voorbeeld
+scenarios: []

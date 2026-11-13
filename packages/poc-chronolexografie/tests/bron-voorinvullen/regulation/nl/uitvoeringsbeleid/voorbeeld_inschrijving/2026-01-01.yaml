@@ -1,0 +1,91 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: voorbeeld_inschrijving
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+# FICTIEF. Een testregeling voor voorinvullen: de aanvraag noemt het nummer en
+# de naam; het loket schrijft in als de naam dezelfde is als die het register
+# bij het nummer noemt (artikel 2).
+url: https://example.invalid/voorbeeld_inschrijving
+name: Voorbeeldinschrijving (fictieve testbron)
+competent_authority:
+  name: Voorbeeldloket
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF. Het loket schrijft op aanvraag een vereniging in, als de naam in
+      de aanvraag de naam is die het register bij haar nummer noemt.
+    url: https://example.invalid/voorbeeld_inschrijving#1
+    machine_readable:
+      open_terms:
+        - id: naam_volgens_register
+          type: string
+          required: false
+          competent_authority:
+            - name: Voorbeeldregister
+              type: INSTANCE
+          description: De naam die het register bij het nummer noemt.
+          default:
+            actions:
+              - output: naam_volgens_register
+                value: null
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: voorbeeld_inschrijving#1
+            parameters:
+              - nummer
+              - naam_opgegeven
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - ingeschreven
+        parameters:
+          - name: nummer
+            type: string
+            description: Het nummer dat het register de vereniging gaf.
+          - name: naam_opgegeven
+            type: string
+            required: false
+            nullable: true
+            description: De naam van de vereniging zoals de aanvraag haar noemt.
+        output:
+          - name: ingeschreven
+            type: boolean
+            description: Of het loket de vereniging inschrijft.
+        actions:
+          - output: ingeschreven
+            value:
+              operation: EQUALS
+              subject: $naam_opgegeven
+              value: $naam_volgens_register
+  - number: '2'
+    text: FICTIEF. De naam volgens het register ontleent het loket aan het antwoord van de cel van het register.
+    url: https://example.invalid/voorbeeld_inschrijving#2
+    machine_readable:
+      implements:
+        - law: voorbeeld_inschrijving
+          article: '1'
+          open_term: naam_volgens_register
+      execution:
+        parameters:
+          - name: nummer
+            type: string
+            required: false
+            nullable: true
+        input:
+          - name: antwoord_naam
+            type: string
+            nullable: true
+            source:
+              reduction: naam_bij_nummer
+              parameters:
+                nummer: $nummer
+        output:
+          - name: naam_volgens_register
+            type: string
+            nullable: true
+        actions:
+          - output: naam_volgens_register
+            value: $antwoord_naam

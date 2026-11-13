@@ -3,11 +3,15 @@
 // basis staat eronder. Een bedrag (`amount`) is een getal in de eenheid die
 // de wet ervoor rekent, zoals eurocent. Een leeg tekst- of datumveld is `undefined`: dan
 // laat de aanvraag het weg, en de cel noemt het in `missing` (Awb 4:5).
+// `herkomst` is the line under a prefilled field: which cell it comes from, or
+// that the applicant changed it (voorinvulling.js). A switch (yes or no) does
+// not show it: nldd-switch-field stands outside an nldd-form-field.
 import { leesbaar } from '../state.js';
 
 const props = defineProps({
   veld: { type: Object, required: true },
   modelValue: { type: [String, Number, Boolean], default: undefined },
+  herkomst: { type: String, default: '' },
 });
 const emit = defineEmits(['update:modelValue']);
 
@@ -47,5 +51,6 @@ const getal = (tekst) => {
       :value="modelValue ?? ''"
       @input="zet($event.target.value)"
     ></nldd-text-field>
+    <nldd-form-field-help-text v-if="herkomst">{{ herkomst }}</nldd-form-field-help-text>
   </nldd-form-field>
 </template>

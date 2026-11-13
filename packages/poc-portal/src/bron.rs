@@ -121,6 +121,11 @@ impl Herkomst {
 /// checkout. A file lies under the longest directory of the
 /// repository that holds it, so a subdirectory may land elsewhere than its
 /// parent, such as a cell's `reducties` under `reductions`.
+///
+/// `ui_beleid` names one file of the repository, under `repo_root`, that the
+/// source holds at its root as [`UI_BELEID`]: the UI policy of the source,
+/// from which the poc reads which field of an application is prefilled from
+/// which source (poc-chronolexografie, `src/ui_beleid.rs`).
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
@@ -130,7 +135,12 @@ pub struct Manifest {
     pub repo_root: String,
     #[serde(alias = "mappen")]
     pub directories: BTreeMap<String, String>,
+    #[serde(default)]
+    pub ui_beleid: Option<String>,
 }
+
+/// Where the source holds the file `ui_beleid` of a manifest names.
+pub const UI_BELEID: &str = "ui_beleid.yaml";
 
 impl Manifest {
     /// Whether `path` names a manifest rather than a folder.
@@ -144,7 +154,12 @@ impl Manifest {
     pub fn lees(tekst: &str, waar: &str) -> Result<Self, String> {
         let m: Self =
             serde_yaml_ng::from_str(tekst).map_err(|e| format!("the manifest {waar}: {e}"))?;
-        for pad in m.directories.keys().chain(m.directories.values()) {
+        for pad in m
+            .directories
+            .keys()
+            .chain(m.directories.values())
+            .chain(&m.ui_beleid)
+        {
             let pad = pad.trim_matches('/');
             if pad.is_empty()
                 || pad
@@ -153,6 +168,27 @@ impl Manifest {
             {
                 return Err(format!(
                     "the manifest {waar}: '{pad}' is no directory below the root"
+                ));
+            }
+        }
+        // The UI policy is one YAML file, as the portal reads only YAML from
+        // a branch, and lies outside every directory the source is made of:
+        // there it would also be read as a case or a regelwerk.
+        if let Some(pad) = &m.ui_beleid {
+            let pad = pad.trim_matches('/');
+            if !Self::is_manifest(pad) {
+                return Err(format!(
+                    "the manifest {waar}: the UI policy '{pad}' is no YAML file (.yaml or .yml)"
+                ));
+            }
+            if let Some(van) = m
+                .directories
+                .values()
+                .map(|v| v.trim_matches('/'))
+                .find(|van| pad.starts_with(&format!("{van}/")))
+            {
+                return Err(format!(
+                    "the manifest {waar}: the UI policy '{pad}' lies in '{van}', a directory of the source"
                 ));
             }
         }
@@ -217,6 +253,15 @@ impl Manifest {
                     "the manifest names '{van}' for '{doel}', which holds no YAML file"
                 ));
             }
+        }
+        if let Some(pad) = &self.ui_beleid {
+            let pad = pad.trim_matches('/');
+            let tekst = alle.get(pad).ok_or_else(|| {
+                format!(
+                    "the manifest names '{pad}' for its UI policy, which the branch does not hold"
+                )
+            })?;
+            uit.insert(UI_BELEID.to_string(), tekst.clone());
         }
         Ok(uit)
     }
@@ -291,6 +336,18 @@ pub fn lokaal(pad: &Path) -> Result<BTreeMap<String, String>, String> {
         }
         for (onder, tekst) in uit_map(&dir)? {
             alle.insert(format!("{van}/{onder}"), tekst);
+        }
+    }
+    if let Some(pad) = &m.ui_beleid {
+        let pad = pad.trim_matches('/');
+        let bestand = repo_root.join(pad);
+        match std::fs::read_to_string(&bestand) {
+            Ok(tekst) => {
+                alle.insert(pad.to_string(), tekst);
+            }
+            // Not there: `bron` names it, as on a branch.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("{}: {e}", bestand.display())),
         }
     }
     m.bron(&alle)
@@ -646,6 +703,43 @@ mod tests {
         assert!(Manifest::lees("directories: {a: ../b}", "m").is_err());
         let e = Manifest::lees("directories: {a: b, c: b/}", "m").unwrap_err();
         assert!(e.contains("named twice"), "{e}");
+    }
+
+    #[test]
+    fn a_manifest_places_its_ui_policy_at_the_root_of_the_source() {
+        let manifest = format!("{MANIFEST}ui_beleid: werk/ui-beleid.yaml\n");
+        let files = [
+            ("werk/m/bron.yaml", manifest.as_str()),
+            ("regulation/nl/w/2026-01-01.yaml", "$id: w"),
+            ("werk/eigen/regulation/nl/v/2026-01-01.yaml", "$id: v"),
+            ("werk/m/cellen/c/cel.yaml", "name: C"),
+            ("werk/m/cellen/c/reducties/r/2026-01-01.yaml", "$id: r"),
+            ("werk/m/casussen/k.yaml", "cel: c"),
+            ("werk/ui-beleid.yaml", "elementen: []"),
+        ];
+        let (_, bestanden) = uit_tarball(&tarball("o-r-abc", &files), "werk/m/bron.yaml").unwrap();
+        assert_eq!(bestanden[UI_BELEID], "elementen: []");
+        // Read locally, the same.
+        let dir = std::env::temp_dir().join(format!("poc-bron-ui-{}", std::process::id()));
+        for (pad, tekst) in files {
+            let pad = dir.join(pad);
+            std::fs::create_dir_all(pad.parent().unwrap()).unwrap();
+            std::fs::write(pad, tekst).unwrap();
+        }
+        let lokaal = lokaal(&dir.join("werk/m/bron.yaml"));
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(lokaal.unwrap(), bestanden);
+        // A UI policy the branch does not hold is named.
+        let zonder = &files[..files.len() - 1];
+        let e = uit_tarball(&tarball("o-r-abc", zonder), "werk/m/bron.yaml").unwrap_err();
+        assert!(e.contains("'werk/ui-beleid.yaml' for its UI policy"), "{e}");
+        // It lies below the root, as every directory does; it is a YAML file;
+        // and it lies outside the directories of the source.
+        assert!(Manifest::lees("directories: {a: b}\nui_beleid: ../u.yaml", "m").is_err());
+        let e = Manifest::lees("directories: {a: b}\nui_beleid: u.json", "m").unwrap_err();
+        assert!(e.contains("no YAML file"), "{e}");
+        let e = Manifest::lees("directories: {a: b}\nui_beleid: b/u.yaml", "m").unwrap_err();
+        assert!(e.contains("lies in 'b'"), "{e}");
     }
 
     #[test]

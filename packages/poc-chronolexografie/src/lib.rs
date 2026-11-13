@@ -19,5 +19,6 @@ pub mod bundel;
 pub mod casus;
 pub mod kern;
 pub mod spel;
+pub mod ui_beleid;
 #[cfg(feature = "wasm")]
 pub mod wasm;
