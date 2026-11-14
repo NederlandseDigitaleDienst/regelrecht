@@ -13,6 +13,7 @@
  * het besluit valt en onder welk de beslissing op bezwaar, zegt de casus
  * (`api.casus`); het spel leidt het af uit de wet.
  */
+import { isUnknown, missingFacts } from '@regelrecht/frontend-shared';
 import { reactive } from 'vue';
 import { api } from './api.js';
 import { beroepenTegen, ontvangstenBij, uitspraakOp } from './beroep.js';
@@ -384,10 +385,15 @@ export const isBesluitwaarde = (v) =>
 /**
  * Een waarde leesbaar: een decimaal als het getal, een besluitwaarde als
  * haar basis met haar uitvoer (een besluit daarin net zo, tussen
- * haakjes), de rest als JSON.
+ * haakjes), een onbekende waarde (RFC-036) als onbekend met wat ontbreekt,
+ * de rest als JSON.
  */
 export function waarde(v) {
   if (isDecimaal(v)) return v.__decimal;
+  if (isUnknown(v)) {
+    const ontbreekt = missingFacts(v).map((f) => leesbaar(f.name));
+    return ontbreekt.length ? `onbekend (ontbreekt: ${ontbreekt.join(', ')})` : 'onbekend';
+  }
   if (isBesluitwaarde(v)) {
     const uitvoer = Object.entries(v.outputs).map(([naam, w]) => {
       const tekst = waarde(w);
