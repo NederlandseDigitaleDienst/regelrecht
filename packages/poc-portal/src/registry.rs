@@ -126,6 +126,11 @@ pub struct Source {
     pub github: GithubSource,
     /// The environment variable holding the token; its name, never its value.
     pub token_env: String,
+    /// Whether the PoC leaves this source's cases off its choice screen. Not
+    /// access control: the portal serves the source to anyone past the
+    /// password; only the PoC's own listing hides it.
+    #[serde(default)]
+    pub verborgen: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -429,6 +434,15 @@ mod tests {
         let source = &registry.pocs[0].sources[0];
         assert_eq!(source.github.branch, "poc/x");
         assert_eq!(source.local_env(), "POC_BRON_VOORBEELD");
+        assert!(
+            !source.verborgen,
+            "a source is listed unless it says otherwise"
+        );
+        let verborgen = yaml.replace(
+            "token_env: EXAMPLE_TOKEN\n",
+            "token_env: EXAMPLE_TOKEN\n        verborgen: true\n",
+        );
+        assert!(Registry::from_yaml(&verborgen).expect("valid").pocs[0].sources[0].verborgen);
         let twice = yaml.replace(
             "    sources:\n",
             "    sources:\n      - name: voorbeeld\n        github: {owner: o, repo: r, branch: b, path: p}\n        token_env: T\n",

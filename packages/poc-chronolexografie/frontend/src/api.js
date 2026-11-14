@@ -16,7 +16,7 @@
  * binnen, omdat Vite geen imports uit public/ toestaat (zoals useEngine.js in
  * frontend-poc-terugbetaalregimes).
  */
-import { haalBronnen } from './bronnen.js';
+import { haalBronnen, leesBronLijst } from './bronnen.js';
 
 const b = (pad) => import.meta.env.BASE_URL + String(pad).replace(/^\//, '');
 
@@ -33,14 +33,24 @@ async function tekst(url) {
  */
 export const bestanden = async () => JSON.parse(await tekst(b('/bundel.json')));
 
+let lijst = null;
 let bronnen = null;
+
+/**
+ * The sources the build names, `{ naam, verborgen }`, read once per tab: the
+ * choice screen leaves out the cases of a hidden one (verborgen.js).
+ */
+export function bronLijst() {
+  lijst ??= leesBronLijst(b('/bronnen.json'));
+  return lijst;
+}
 
 /**
  * The sources, fetched once per tab: the cell gets them when it loads, and
  * the sheet of an article reads its text from them for a case from a source.
  */
 export function opgehaaldeBronnen() {
-  bronnen ??= haalBronnen(b('/bronnen.json'), (naam) => b(`/bron/${encodeURIComponent(naam)}`));
+  bronnen ??= bronLijst().then((l) => haalBronnen(l, (naam) => b(`/bron/${encodeURIComponent(naam)}`)));
   return bronnen;
 }
 
@@ -63,6 +73,7 @@ function poc() {
     } catch (e) {
       // A next step tries again, the sources included.
       laden = null;
+      lijst = null;
       bronnen = null;
       throw new Error(`the cell did not load: ${e?.message ?? e}`);
     }

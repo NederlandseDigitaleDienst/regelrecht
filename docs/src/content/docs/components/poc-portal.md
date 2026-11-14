@@ -86,6 +86,8 @@ A static PoC can also load cases from another repository, as a source. The regis
 
 A source holds the same directories as the corpus: `casussen/`, `regulation/nl/` and `cells/`. A case from a source runs on that source alone. It brings its own Awb and every other rulework it needs, and nothing of the regelrecht corpus takes their place. A case id that is already taken is set aside, and the app says so.
 
+A source with `verborgen: true` in the register keeps its cases off the PoC's choice screen, and its notices too. The address of such a case still opens it. Opening the PoC with `?alle-casussen` shows the hidden cases in that browser and marks their cards, and `?alle-casussen=uit` hides them again; the browser remembers the choice in `localStorage`. Hiding is not access control. Anyone with the PoC's password can still open the case's address or fetch `/<slug>/bron/<name>`.
+
 When GitHub fails, the portal serves its last good copy. Without a copy it answers `502`, and without a token `503`. A source that is not available never stops the app: a banner gives the reason, and the other cases play as before. Errors in the source show only when the page loads, because the CI of regelrecht never sees the source. To work on one locally without a token, set `POC_BRON_<NAME>` to a folder or a manifest (see [Running locally](#running-locally)).
 
 ### The gate
