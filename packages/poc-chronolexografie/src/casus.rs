@@ -267,10 +267,12 @@ pub struct Scenario {
     pub eind: String,
 }
 
-/// A step of a scenario. A case of this crate gives each step as an action
-/// with its values and text ([`Handeling`]), and the guide beside the page
-/// (frontend/src/scenarioGuides.js) shows it. A case from a source gives its
-/// steps as instruction text, and has no guide.
+/// A step of a scenario: an action with its values and text ([`Handeling`]),
+/// or a line of text. The guide beside the page
+/// (frontend/src/scenarioGuides.js) shows the actions as its steps, for a
+/// case of this crate and a case from a source alike, and a line of text as
+/// an instruction with the next action, or, after the last action, with the
+/// end of the scenario. A scenario of text alone has no guide.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Stap {

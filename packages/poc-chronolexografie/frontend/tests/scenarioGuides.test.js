@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 import { bouwGids, guideFor, invoerRegels } from '../src/scenarioGuides.js';
+import { progress } from '../src/scenarioProgress.js';
 
 // The guides are built from the scenarios of the case YAML; these tests
 // check that every scenario of every case gives a guide the panel can show.
@@ -21,6 +22,12 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
 
   it('has a guide for every scenario, by its name', () => {
     expect(list.map((g) => g?.name)).toEqual(c.scenarios.map((s) => s.naam));
+  });
+
+  it('gives every action a step of its own', () => {
+    c.scenarios.forEach((s, i) =>
+      expect(list[i].steps, s.naam).toHaveLength(s.stappen.filter((x) => typeof x === 'object').length),
+    );
   });
 
   it('sums up each scenario in one sentence', () => {
@@ -130,10 +137,64 @@ describe('guideFor', () => {
     expect(guideFor(c, naam)).toBe(guideFor(c, naam));
   });
 
-  it('has none for a case from a source, plain-text steps, an unknown scenario or no case', () => {
-    expect(guideFor({ ...c, bron: 'voorbeeld' }, naam)).toBeNull();
+  it('has none for a scenario of text alone, an unknown scenario or no case', () => {
     expect(guideFor({ id: 'x', scenarios: [{ naam, stappen: ['Klik op Aanvraag indienen.'] }] }, naam)).toBeNull();
     expect(guideFor(c, 'Bestaat niet')).toBeNull();
     expect(guideFor(null, naam)).toBeNull();
+  });
+});
+
+// A case from a source (FICTIEF), the fixtures of the scenario test and of
+// the prefill, as the app gets it: with the name of its source.
+const bronCasus = (map, id) => ({
+  id,
+  bron: 'voorbeeld',
+  ...load(readFileSync(new URL(`../../tests/${map}/casussen/${id}.yaml`, import.meta.url), 'utf8')),
+});
+
+describe('the guide of a case from a source', () => {
+  const c = bronCasus('bron-scenarios', 'voorbeeld_subsidie');
+
+  it('has a guide for every scenario, with a step per action', () => {
+    for (const s of c.scenarios) {
+      const g = guideFor(c, s.naam);
+      expect(g?.name, s.naam).toBe(s.naam);
+      expect(g.steps.map((x) => x.stap), s.naam).toEqual(s.stappen.filter((x) => typeof x === 'object'));
+      for (const x of g.steps) {
+        expect(TABS, s.naam).toContain(x.tab);
+        expect(x.title, s.naam).toBeTruthy();
+        expect(x.todo, s.naam).toBeTruthy();
+      }
+    }
+  });
+
+  it('checks what the scenario expects of its steps', () => {
+    const g = guideFor(c, 'Bezwaar: gegrond');
+    expect(g.steps.map((x) => x.expect?.text ?? null)).toEqual([
+      null,
+      'hier hoort het besluit de aanvraag af te wijzen',
+      null,
+      'hier hoort het bezwaar gegrond te zijn',
+    ]);
+    expect(g.steps[1].values).toEqual(['partij geregistreerd: Nee']);
+  });
+
+  it('keeps a step of text readable, as an instruction with the next action and no check of its own', () => {
+    const g = guideFor(c, 'Bezwaar: gegrond');
+    expect(g.steps).toHaveLength(4);
+    expect(g.steps[0].notes).toEqual(['Een stap als tekst; de speler slaat haar over.']);
+    expect(g.steps.slice(1).every((x) => x.notes.length === 0)).toBe(true);
+    // The step of text does not hold the scenario up: one application is the first step done.
+    expect(progress(g, { aanvragen: 1, decided: [] }).current).toBe(1);
+  });
+
+  it('gives a line of text after the last action to the end', () => {
+    const g = bouwGids({ naam: 'x', stappen: [{ stap: 'aanvraag' }, 'Kijk in de kroniek.'] });
+    expect(g.steps).toHaveLength(1);
+    expect(g.after).toEqual(['Kijk in de kroniek.']);
+  });
+
+  it('refuses a step of a kind it does not know, rather than skip it', () => {
+    expect(() => bouwGids({ naam: 'x', stappen: [{ stap: 'onbekend' }] })).toThrow(/unknown step 'onbekend'/);
   });
 });

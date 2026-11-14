@@ -27,6 +27,7 @@ import {
   stap,
   zonderLeeg,
 } from '../state.js';
+import { guideFor } from '../scenarioGuides.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import ArtikelLink from './ArtikelLink.vue';
 import Uitkomst from './Uitkomst.vue';
@@ -46,13 +47,14 @@ const openBezwaren = computed(() =>
 // Per aanvraag de oordelen van het bestuursorgaan. Een schakelaar die uit
 // staat, zegt nee, behalve bij een bevinding die leeg mag: daar zegt een
 // onaangeraakte schakelaar niets. Een begrip dat de cel niet weet, blijft leeg
-// tot het bestuursorgaan oordeelt. Een casus uit een bron speelt haar
-// scenario's als tekst: daar zegt een bevinding zonder voorbeeldwaarde ja,
-// zoals de voorbeeldwaarden altijd deden.
+// tot het bestuursorgaan oordeelt.
+// A scenario with a guide plays this way whatever the case's origin. Only
+// a scenario without a guide (text alone) of a case from a source treats a
+// finding without an example value as yes, as such sources always did.
 const besluitVorm = formulier((id) => scenarioWaarden('besluit', { aanvraag: id }));
 const oordeel = besluitVorm.eigen;
 const uit = () => {
-  const standaard = !!(state.casus.bron && state.scenario);
+  const standaard = !!(state.casus.bron && state.scenario && !guideFor(state.casus, state.scenario));
   return Object.fromEntries(
     oordelen()
       .filter((o) => o.type === 'boolean' && !o.mag_leeg)

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gekozen, inlogTekst, keuzeLabel } from '../src/inloggen.js';
+import { NOT_LOGGED_IN, gekozen, loginHint, inlogTekst, keuzeLabel } from '../src/inloggen.js';
 
 const celNaam = (cel) => ({ voorbeeld_register: 'Voorbeeldregister' })[cel] ?? `cel ${cel}`;
 const INLOGGEN = {
@@ -48,5 +48,25 @@ describe('inlogTekst', () => {
 
   it('says nothing without a choice', () => {
     expect(inlogTekst(undefined, INLOGGEN, celNaam)).toBe('');
+  });
+});
+
+describe('loginHint', () => {
+  it('names the record the values log in as, as the choice shows it', () => {
+    expect(loginHint(INLOGGEN, { nummer: '1' })).toBe('Laat Ingelogd als op Vereniging Voorbeeld (1) staan.');
+    expect(loginHint(INLOGGEN, { nummer: 2 })).toBe('Laat Ingelogd als op 2 staan.');
+  });
+
+  it('keeps an empty field on no login', () => {
+    expect(loginHint(INLOGGEN, { nummer: null })).toBe(`Laat Ingelogd als op ${NOT_LOGGED_IN} staan.`);
+  });
+
+  it('says so when the cell offers no record with the key', () => {
+    expect(loginHint(INLOGGEN, { nummer: '9' })).toMatch(/^Bij Ingelogd als staat niemand met 9;/);
+  });
+
+  it('says nothing without a login or without its field', () => {
+    expect(loginHint(null, { nummer: '1' })).toBeNull();
+    expect(loginHint(INLOGGEN, { naam: 'x' })).toBeNull();
   });
 });

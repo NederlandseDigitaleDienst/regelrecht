@@ -1,11 +1,14 @@
 <script setup>
 // The guide beside the page, short enough to read at a glance: how far the
 // visitor is in the scenario, what the last step left behind, what happens
-// in the case now, and the one thing to do, with the values it takes. How far they are comes from the
+// in the case now, the instructions the scenario gives as text before it,
+// and the one thing to do, with the values it takes. How far they are comes from the
 // chronicles (scenarioProgress.js), so free play in between counts too; a
 // step that departs from the scenario gives a warning, not a block. On a
 // narrow screen the split view shows this as a sheet.
 import { computed } from 'vue';
+import { loginHint } from '../inloggen.js';
+import { scenarioWaarden } from '../scenarioInvoer.js';
 import { counts, progress } from '../scenarioProgress.js';
 import { hoofdletter, longDate, state } from '../state.js';
 
@@ -27,6 +30,10 @@ const current = computed(() => props.guide.steps[p.value.current] ?? null);
 const seen = computed(() => (p.value.current > 0 ? props.guide.steps[p.value.current - 1].seen : null));
 
 const tabText = (id) => props.tabs.find((t) => t.id === id)?.tekst ?? id;
+// Who to log in as, for an application of a case with a login: from the
+// choices the cell offers on the play date, as the form shows them.
+// Null at any other step, where the form of the application starts empty.
+const login = computed(() => loginHint(state.vormen?.aanvraag?.inloggen, scenarioWaarden('aanvraag')));
 // The play date only moves forward: offer the step's date when it is later.
 const laterDate = computed(() => {
   const d = current.value?.date;
@@ -78,6 +85,7 @@ const where = computed(() =>
 
     <nldd-simple-section v-if="p.finished">
       <nldd-container gap="16">
+        <nldd-text v-for="(n, i) in guide.after" :key="i">{{ n }}</nldd-text>
         <nldd-text>{{ scenario.eind }}</nldd-text>
         <nldd-button-group size="sm">
           <nldd-button appearance="secondary" text="Opnieuw spelen" @click="emit('restart')"></nldd-button>
@@ -91,6 +99,8 @@ const where = computed(() =>
         <nldd-text v-if="seen" size="sm" color="secondary">{{ seen }}</nldd-text>
         <nldd-title size="display-4" heading-level="3" :text="current.title" :supporting-text="where"></nldd-title>
         <nldd-text v-if="current.story">{{ current.story }}</nldd-text>
+        <nldd-text v-for="(n, i) in current.notes" :key="i">{{ n }}</nldd-text>
+        <nldd-text v-if="login">{{ login }}</nldd-text>
         <nldd-text>{{ current.todo }}</nldd-text>
         <nldd-list v-if="current.values.length" dividers="never" accessible-label="Waarden uit het scenario">
           <nldd-list-item v-for="v in current.values" :key="v" size="sm">
