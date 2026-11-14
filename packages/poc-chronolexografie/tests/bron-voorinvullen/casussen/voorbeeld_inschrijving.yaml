@@ -2,7 +2,8 @@
 # Testcasus van de testbron voor voorinvullen (src/bundel.rs, tests/spel.rs).
 # FICTIEF: een loket schrijft een vereniging in op het nummer dat een register
 # haar gaf; de aanvraag noemt de naam, die het formulier voorinvult uit dat
-# register (ui_spec.yaml).
+# register (ui_spec.yaml), en het bestuur, een tabel die het formulier op
+# dezelfde manier voorinvult.
 cel: voorbeeld_loket
 artikel: voorbeeld_inschrijving#1
 corpus:
@@ -34,6 +35,12 @@ andere_cellen:
           velden:
             nummer: '00000001'
             naam: Vereniging Voorbeeld
+        - feit: voorbeeld_register#2#bestuur_vastgesteld
+          velden:
+            nummer: '00000001'
+            bestuur:
+              - {naam: Lid Een, functie: voorzitter, sinds: '2026-01-01', vergoeding: 12500}
+              - {naam: Lid Twee, functie: penningmeester, sinds: '2026-01-15', vergoeding: null}
         - feit: voorbeeld_register#1#vereniging_ingeschreven
           datum: 2026-11-02
           velden:

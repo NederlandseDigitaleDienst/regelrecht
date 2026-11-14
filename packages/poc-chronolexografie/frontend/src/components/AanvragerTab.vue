@@ -100,7 +100,8 @@ watch(
   },
   { immediate: true },
 );
-const herkomst = (naam) => herkomstTekst(voorgevuld.value[naam], aanvraag.value[naam], celNaam);
+const herkomst = (veld) =>
+  herkomstTekst(voorgevuld.value[veld.naam], aanvraag.value[veld.naam], celNaam, veld.kolommen);
 
 // Who the applicant is logged in as (inloggen.js): the record whose key the
 // login field holds.
@@ -217,7 +218,7 @@ async function indienenTegen() {
           :key="veld.naam"
           :model-value="aanvraag[veld.naam]"
           :veld="veld"
-          :herkomst="herkomst(veld.naam)"
+          :herkomst="herkomst(veld)"
           @update:model-value="aanvraagVorm.zet('aanvraag', veld.naam, $event)"
         />
         <nldd-button appearance="primary" text="Aanvraag indienen" @click="indienen"></nldd-button>

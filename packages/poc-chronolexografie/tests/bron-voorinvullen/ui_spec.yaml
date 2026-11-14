@@ -10,6 +10,7 @@ elementen:
     voor: partij
     prefill:
       naam_opgegeven: voorbeeld_inschrijving#2#naam_volgens_register
+      bestuur: voorbeeld_inschrijving#3#bestuur_volgens_register
   - id: UI2
     element: gegeven_aanpassen
     prefill:

@@ -149,6 +149,7 @@ pub fn finding_field(term: &DecisionTerm) -> Field {
         type_: term.term_type,
         nullable: !term.required && !term.has_default,
         declared_by: vec![term.declared_by()],
+        columns: None,
     }
 }
 
@@ -261,13 +262,7 @@ fn derive_shape(
                 if part.hook_point.is_some() && computed.contains(&p.name.as_str()) {
                     continue;
                 }
-                let field = Field {
-                    name: p.name.clone(),
-                    type_: p.param_type,
-                    nullable: p.is_nullable(),
-                    declared_by: vec![declared_by.clone()],
-                };
-                add_field(&mut fields, field, &reference)?;
+                add_field(&mut fields, Field::of(p, declared_by.clone()), &reference)?;
                 let source = if application.as_ref().is_some_and(|(_, a)| {
                     a.field(&p.name).is_some() || a.given.contains(&p.name) || a.is_moment(&p.name)
                 }) {
@@ -292,6 +287,7 @@ fn derive_shape(
                 type_: ParameterType::Date,
                 nullable: false,
                 declared_by: vec![required_by.clone()],
+                columns: None,
             };
             add_field(&mut fields, field, &reference)?;
             // A date the stage requires is the day of the decision, also

@@ -516,14 +516,22 @@ fn object(v: Value) -> Result<Map<String, Value>> {
     }
 }
 
-/// A field as the forms show it.
+/// A field as the forms show it. A table (schema v0.8.20) also names its
+/// columns, each with its name and type; a row may leave any of them empty.
 fn veld(field: &shape::Field) -> Value {
-    json!({
-        "naam": field.name,
-        "type": field.type_,
-        "mag_leeg": field.nullable,
-        "basis": field.first_declared_by(),
-    })
+    let mut veld = Map::new();
+    veld.insert("naam".into(), json!(field.name));
+    veld.insert("type".into(), json!(field.type_));
+    veld.insert("mag_leeg".into(), json!(field.nullable));
+    veld.insert("basis".into(), json!(field.first_declared_by()));
+    if let Some(columns) = &field.columns {
+        let kolommen = columns
+            .iter()
+            .map(|c| json!({ "naam": c.name, "type": c.column_type }))
+            .collect();
+        veld.insert("kolommen".into(), Value::Array(kolommen));
+    }
+    Value::Object(veld)
 }
 
 /// The fields of a submission that its submitter fills: not a field of
