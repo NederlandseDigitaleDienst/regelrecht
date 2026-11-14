@@ -8,11 +8,12 @@
  * scenario expects of it. Nothing here knows a case by name: a case from
  * a source gets its guide the same way as one of the PoC's own.
  *
- * A step may also be a line of text, or an action of a kind this file does
- * not know. Neither has a check, so neither can be a step of its own that
- * the chronicles mark as done: it goes along as an instruction (`notes`)
- * with the next action, or, after the last action, with the end of the
- * scenario (`after`). A scenario without a single action has no guide; the
+ * A step may also be a line of text. It has no check, so it cannot be a
+ * step of its own that the chronicles mark as done: it goes along as an
+ * instruction (`notes`) with the next action, or, after the last action,
+ * with the end of the scenario (`after`). A step of a kind this file does
+ * not know is an error: the guide would skip a step the visitor
+ * has to take. A scenario without a single action has no guide; the
  * tab Scenario's shows its lines instead. Who to log in as, for a case with
  * a login, the panel reads from the form's choices (inloggen.js).
  *
@@ -147,16 +148,10 @@ export function invoerRegels(invoer) {
   return Object.entries(invoer ?? {}).map(([naam, v]) => `${leesbaar(naam)}: ${waarde(v)}`);
 }
 
-/** The text of a step that is no action of a known kind, as an instruction. */
-const instructie = (stap) =>
-  typeof stap === 'object' && stap !== null
-    ? [stap.titel, stap.verhaal, stap.tekst].filter(Boolean).join(' ') || `Stap ${leesbaar(String(stap.stap))}.`
-    : String(stap);
-
 /**
  * The guide of `scenario` (a scenario of a case, as `api.casus` gives it),
  * with `casus` for what its other cells record before a scenario. Null
- * when the scenario has no action of a known kind.
+ * when the scenario has no action.
  */
 export function bouwGids(scenario, casus = null) {
   const geteld = {};
@@ -168,11 +163,12 @@ export function bouwGids(scenario, casus = null) {
   // The instructions not yet given to an action.
   let notes = [];
   const steps = scenario.stappen.flatMap((stap) => {
-    const kind = typeof stap === 'object' && stap !== null ? KINDS[stap.stap] : undefined;
-    if (!kind) {
-      notes.push(instructie(stap));
+    if (typeof stap !== 'object' || stap === null) {
+      notes.push(String(stap));
       return [];
     }
+    const kind = KINDS[stap.stap];
+    if (!kind) throw new Error(`unknown step '${stap.stap}' in "${scenario.naam}"`);
     const n = (geteld[stap.stap] = (geteld[stap.stap] ?? 0) + 1);
     // What the step acts on, counted from 1; a decision and a decision on
     // objection count the application and the objection it decides on.

@@ -10,7 +10,7 @@ import { toon } from './logboek.js';
 import { leesbaar } from './state.js';
 
 /** The choice of no record, as the select names it. */
-export const NIET_INGELOGD = 'Niet ingelogd';
+export const NOT_LOGGED_IN = 'Niet ingelogd';
 
 /** How the choice names a record: its name with its key, or its key alone. */
 export const keuzeLabel = (keuze) =>
@@ -28,18 +28,18 @@ export const gekozen = (inloggen, waarde) =>
 /**
  * What the guide says about logging in for an application with `waarden`
  * (the values its form starts from), given the choices the cell offers now
- * (`inloggen`, `state.vormen.aanvraag.inloggen`): which one to pick, in one
- * sentence. Null without a login, or when the values leave its field out.
+ * (`inloggen`, `state.vormen.aanvraag.inloggen`): which one the form holds,
+ * in one sentence; the form already chose it from the same values. Null without a login, or when the values leave its field out.
  */
-export function inlogHint(inloggen, waarden) {
+export function loginHint(inloggen, waarden) {
   if (!inloggen || !waarden || !(inloggen.veld in waarden)) return null;
   const waarde = waarden[inloggen.veld];
   if (waarde === null || waarde === undefined || waarde === '') {
-    return `Laat Ingelogd als op ${NIET_INGELOGD} staan.`;
+    return `Laat Ingelogd als op ${NOT_LOGGED_IN} staan.`;
   }
   const keuze = gekozen(inloggen, waarde);
   return keuze
-    ? `Kies bij Ingelogd als ${keuzeLabel(keuze)}.`
+    ? `Laat Ingelogd als op ${keuzeLabel(keuze)} staan.`
     : `Bij Ingelogd als staat niemand met ${waarde}; de cel kent die inlog op deze speeldatum niet.`;
 }
 

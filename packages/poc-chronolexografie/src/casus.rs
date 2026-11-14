@@ -271,8 +271,8 @@ pub struct Scenario {
 /// or a line of text. The guide beside the page
 /// (frontend/src/scenarioGuides.js) shows the actions as its steps, for a
 /// case of this crate and a case from a source alike, and a line of text as
-/// an instruction with the next action. A scenario of text alone has no
-/// guide.
+/// an instruction with the next action, or, after the last action, with the
+/// end of the scenario. A scenario of text alone has no guide.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Stap {

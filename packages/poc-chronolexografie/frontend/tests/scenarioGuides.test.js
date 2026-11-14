@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 import { bouwGids, guideFor, invoerRegels } from '../src/scenarioGuides.js';
+import { progress } from '../src/scenarioProgress.js';
 
 // The guides are built from the scenarios of the case YAML; these tests
 // check that every scenario of every case gives a guide the panel can show.
@@ -23,8 +24,10 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
     expect(list.map((g) => g?.name)).toEqual(c.scenarios.map((s) => s.naam));
   });
 
-  it('knows every kind of step, so none becomes a mere instruction', () => {
-    c.scenarios.forEach((s, i) => expect(list[i].steps, s.naam).toHaveLength(s.stappen.length));
+  it('gives every action a step of its own', () => {
+    c.scenarios.forEach((s, i) =>
+      expect(list[i].steps, s.naam).toHaveLength(s.stappen.filter((x) => typeof x === 'object').length),
+    );
   });
 
   it('sums up each scenario in one sentence', () => {
@@ -181,16 +184,17 @@ describe('the guide of a case from a source', () => {
     expect(g.steps).toHaveLength(4);
     expect(g.steps[0].notes).toEqual(['Een stap als tekst; de speler slaat haar over.']);
     expect(g.steps.slice(1).every((x) => x.notes.length === 0)).toBe(true);
-    // The step of text does not hold the application up.
-    expect(g.steps[0].done({ aanvragen: 1 })).toBe(true);
+    // The step of text does not hold the scenario up: one application is the first step done.
+    expect(progress(g, { aanvragen: 1, decided: [] }).current).toBe(1);
   });
 
-  it('gives a line of text after the last action to the end, and an unknown kind as text', () => {
-    const g = bouwGids({
-      naam: 'x',
-      stappen: [{ stap: 'aanvraag' }, { stap: 'onbekend', verhaal: 'Iets wat de gids niet kent.' }, 'Kijk in de kroniek.'],
-    });
+  it('gives a line of text after the last action to the end', () => {
+    const g = bouwGids({ naam: 'x', stappen: [{ stap: 'aanvraag' }, 'Kijk in de kroniek.'] });
     expect(g.steps).toHaveLength(1);
-    expect(g.after).toEqual(['Iets wat de gids niet kent.', 'Kijk in de kroniek.']);
+    expect(g.after).toEqual(['Kijk in de kroniek.']);
+  });
+
+  it('refuses a step of a kind it does not know, rather than skip it', () => {
+    expect(() => bouwGids({ naam: 'x', stappen: [{ stap: 'onbekend' }] })).toThrow(/unknown step 'onbekend'/);
   });
 });
