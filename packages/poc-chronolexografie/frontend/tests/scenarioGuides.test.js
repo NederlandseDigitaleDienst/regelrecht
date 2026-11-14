@@ -130,10 +130,90 @@ describe('guideFor', () => {
     expect(guideFor(c, naam)).toBe(guideFor(c, naam));
   });
 
-  it('has none for a case from a source, plain-text steps, an unknown scenario or no case', () => {
-    expect(guideFor({ ...c, bron: 'voorbeeld' }, naam)).toBeNull();
+  it('has none for a scenario of text alone, an unknown scenario or no case', () => {
     expect(guideFor({ id: 'x', scenarios: [{ naam, stappen: ['Klik op Aanvraag indienen.'] }] }, naam)).toBeNull();
     expect(guideFor(c, 'Bestaat niet')).toBeNull();
     expect(guideFor(null, naam)).toBeNull();
+  });
+});
+
+// A case from a source (FICTIEF), the fixtures of the scenario test and of
+// the prefill, as the app gets it: with the name of its source.
+const bronCasus = (map, id) => ({
+  id,
+  bron: 'voorbeeld',
+  ...load(readFileSync(new URL(`../../tests/${map}/casussen/${id}.yaml`, import.meta.url), 'utf8')),
+});
+
+describe('the guide of a case from a source', () => {
+  const c = bronCasus('bron-scenarios', 'voorbeeld_subsidie');
+
+  it('has a guide for every scenario, with a step per action', () => {
+    for (const s of c.scenarios) {
+      const g = guideFor(c, s.naam);
+      expect(g?.name, s.naam).toBe(s.naam);
+      expect(g.steps.map((x) => x.stap), s.naam).toEqual(s.stappen.filter((x) => typeof x === 'object'));
+      for (const x of g.steps) {
+        expect(TABS, s.naam).toContain(x.tab);
+        expect(x.title, s.naam).toBeTruthy();
+        expect(x.todo, s.naam).toBeTruthy();
+      }
+    }
+  });
+
+  it('checks what the scenario expects of its steps', () => {
+    const g = guideFor(c, 'Bezwaar: gegrond');
+    expect(g.steps.map((x) => x.expect?.text ?? null)).toEqual([
+      null,
+      'hier hoort het besluit de aanvraag af te wijzen',
+      null,
+      'hier hoort het bezwaar gegrond te zijn',
+    ]);
+    expect(g.steps[1].values).toEqual(['partij geregistreerd: Nee']);
+  });
+
+  it('keeps a step of text readable, as an instruction with the next action and no check of its own', () => {
+    const g = guideFor(c, 'Bezwaar: gegrond');
+    expect(g.steps).toHaveLength(4);
+    expect(g.steps[0].notes).toEqual(['Een stap als tekst; de speler slaat haar over.']);
+    expect(g.steps.slice(1).every((x) => x.notes.length === 0)).toBe(true);
+    // The step of text does not hold the application up.
+    expect(g.steps[0].done({ aanvragen: 1 })).toBe(true);
+  });
+
+  it('gives a line of text after the last action to the end, and an unknown kind as text', () => {
+    const g = bouwGids({
+      naam: 'x',
+      stappen: [{ stap: 'aanvraag' }, { stap: 'onbekend', verhaal: 'Iets wat de gids niet kent.' }, 'Kijk in de kroniek.'],
+    });
+    expect(g.steps).toHaveLength(1);
+    expect(g.after).toEqual(['Iets wat de gids niet kent.', 'Kijk in de kroniek.']);
+  });
+});
+
+describe('the guide of a case with a login', () => {
+  const c = bronCasus('bron-voorinvullen', 'voorbeeld_inschrijving');
+  const met = (stappen) => ({ ...c, scenarios: [{ naam: 'x', stappen, eind: 'Klaar.' }] });
+
+  it('names the party to choose under Ingelogd als, as the cell offers it on the play date', () => {
+    const op = (datum, nummer) =>
+      guideFor(met([{ stap: 'aanvraag', datum, invoer: { nummer } }]), 'x').steps[0].todo;
+    expect(op(undefined, '00000001')).toBe(
+      'Kies bij Ingelogd als: Vereniging Voorbeeld (00000001). Klik op Aanvraag indienen.',
+    );
+    // After the rename the cell offers the new name.
+    expect(op('2026-11-04', '00000001')).toMatch(/^Kies bij Ingelogd als: Vereniging Voorbeeld Hernoemd \(00000001\)\./);
+    // A key without a record still names the key.
+    expect(op(undefined, '99999999')).toMatch(/^Kies bij Ingelogd als: 99999999\./);
+    expect(op(undefined, null)).toMatch(/^Kies bij Ingelogd als: Niet ingelogd\./);
+  });
+
+  it('takes the key from the example values when the step gives none', () => {
+    expect(guideFor(met([{ stap: 'aanvraag' }]), 'x').steps[0].todo).toMatch(/Vereniging Voorbeeld \(00000001\)/);
+  });
+
+  it('says nothing about logging in on any other step', () => {
+    const g = guideFor(met([{ stap: 'aanvraag' }, { stap: 'besluit' }]), 'x');
+    expect(g.steps[1].todo).toBe('Klik onder Open aanvragen op Besluit nemen.');
   });
 });

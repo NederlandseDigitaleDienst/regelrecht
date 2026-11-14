@@ -3,8 +3,9 @@
  * the form of the step they are at starts from the case's example values
  * for its kind (`voorbeeld`) with the step's own values over them
  * (`invoer`, casussen/<id>.yaml); the guide names the same values
- * (scenarioGuides.js). In free play every form starts empty. A case from a
- * source has no guide: there a form starts from the example values alone.
+ * (scenarioGuides.js). In free play every form starts empty. A scenario
+ * without a guide (its steps are all text) starts every form from the
+ * example values alone.
  *
  * The visitor can change every value. What they change is theirs until the
  * scenario moves on to its next step; then the form starts again from that

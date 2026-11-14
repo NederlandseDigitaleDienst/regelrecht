@@ -5,8 +5,15 @@
  * (`invoer`), what the step comes to (`uitkomst`) and its text. This file
  * only turns that into what the panel shows: the tab of each kind, a title
  * and text where the step gives none, when a step is done and what the
- * scenario expects of it. A case from a source gives its steps as
- * plain text and has no guide; the tab Scenario's shows those instead.
+ * scenario expects of it. Nothing here knows a case by name: a case from
+ * a source gets its guide the same way as one of the PoC's own.
+ *
+ * A step may also be a line of text, or an action of a kind this file does
+ * not know. Neither has a check, so neither can be a step of its own that
+ * the chronicles mark as done: it goes along as an instruction (`notes`)
+ * with the next action, or, after the last action, with the end of the
+ * scenario (`after`). A scenario without a single action has no guide; the
+ * tab Scenario's shows its lines instead.
  *
  * A built step: `title`, the `tab` it happens on, the play date it wants
  * (`date`, optional), what happens in the case (`story`, from `verhaal`),
@@ -14,12 +21,14 @@
  * form takes from the scenario (`values`, one line each), what the visitor
  * sees once it is done (`seen`), when it is done (`done`, a test on
  * scenarioProgress.counts()), optionally what the scenario expects of it
- * (`expect`: a test and the text of the warning when it fails), the step of
- * the YAML (`stap`) and, counted from 1, what it acts on (`doel`).
+ * (`expect`: a test and the text of the warning when it fails), the
+ * instructions before it (`notes`), the step of the YAML (`stap`) and,
+ * counted from 1, what it acts on (`doel`).
  *
  * The texts name the buttons and fields as the components label them;
  * change them together.
  */
+import { keuzeLabel } from './inloggen.js';
 import { hoofdletter, jaNee, leesbaar, longDate } from './state.js';
 
 // What the scenario expects of a step, as warning text.
@@ -138,9 +147,52 @@ export function invoerRegels(invoer) {
   return Object.entries(invoer ?? {}).map(([naam, v]) => `${leesbaar(naam)}: ${waarde(v)}`);
 }
 
+// A date as `YYYY-MM-DD`, whether the YAML gave it as text or as a date.
+const dag = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d));
+
+/** The records every cell of `casus` holds before a scenario, with their date. */
+const beginRecords = (casus) =>
+  [casus?.begin, ...(casus?.andere_cellen ?? []).map((c) => c.begin)]
+    .filter(Boolean)
+    .flatMap((b) => (b.executogrammen ?? []).map((e) => ({ ...e, datum: dag(e.datum ?? b.datum ?? '') })));
+
+/**
+ * Who the visitor logs in as for an application on `datum`, as the choice
+ * Ingelogd als names it (AanvragerTab.vue), when the case has a login
+ * (`casus.inloggen`, inloggen.js) and the application's values hold its
+ * field: the latest record of the login fact with that key, as the cell
+ * offers it. An empty field is not logged in. Null when the step says
+ * nothing about the login.
+ */
+function inlogKeuze(casus, invoer, datum) {
+  const inloggen = casus?.inloggen;
+  const waarden = { ...(casus?.voorbeeld?.aanvraag ?? {}), ...(invoer ?? {}) };
+  if (!inloggen || !(inloggen.veld in waarden)) return null;
+  const waarde = waarden[inloggen.veld];
+  if (waarde === null || waarde === '') return 'Niet ingelogd';
+  const record = beginRecords(casus)
+    .filter(
+      (e) =>
+        feitNaam(e.feit) === feitNaam(inloggen.feit) &&
+        String(e.velden?.[inloggen.sleutel]) === String(waarde) &&
+        e.datum <= datum,
+    )
+    .sort((a, b) => a.datum.localeCompare(b.datum))
+    .at(-1);
+  const naam = inloggen.naam ? record?.velden?.[inloggen.naam] : undefined;
+  return keuzeLabel({ naam, waarde: String(waarde) });
+}
+
+/** The text of a step that is no action of a known kind, as an instruction. */
+const instructie = (stap) =>
+  typeof stap === 'object' && stap !== null
+    ? [stap.titel, stap.verhaal, stap.tekst].filter(Boolean).join(' ') || `Stap ${leesbaar(String(stap.stap))}.`
+    : String(stap);
+
 /**
  * The guide of `scenario` (a scenario of a case, as `api.casus` gives it),
- * with `casus` for what its other cells record before a scenario.
+ * with `casus` for what its other cells record before a scenario and who
+ * logs in. Null when the scenario has no action of a known kind.
  */
 export function bouwGids(scenario, casus = null) {
   const geteld = {};
@@ -149,9 +201,16 @@ export function bouwGids(scenario, casus = null) {
   const besloten = {};
   const geweigerd = {};
   const uitkomsten = {};
-  const steps = scenario.stappen.map((stap) => {
-    const kind = KINDS[stap.stap];
-    if (!kind) throw new Error(`unknown step '${stap.stap}' in "${scenario.naam}"`);
+  // The instructions not yet given to an action, and the play date so far.
+  let notes = [];
+  let datum = casus?.speeldatum ? dag(casus.speeldatum) : '';
+  const steps = scenario.stappen.flatMap((stap) => {
+    const kind = typeof stap === 'object' && stap !== null ? KINDS[stap.stap] : undefined;
+    if (!kind) {
+      notes.push(instructie(stap));
+      return [];
+    }
+    if (stap.datum) datum = dag(stap.datum);
     const n = (geteld[stap.stap] = (geteld[stap.stap] ?? 0) + 1);
     // What the step acts on, counted from 1; a decision and a decision on
     // objection count the application and the objection it decides on.
@@ -198,36 +257,42 @@ export function bouwGids(scenario, casus = null) {
         break;
       }
     }
-    return {
+    const todo = stap.tekst ?? kind.todo;
+    const login = stap.stap === 'aanvraag' ? inlogKeuze(casus, stap.invoer, datum) : null;
+    const step = {
       title: stap.titel ?? kind.title(stap.stap === 'besluit' ? doel : n),
       tab: kind.tab,
       date: stap.datum ?? undefined,
       story: stap.verhaal ?? '',
-      todo: stap.tekst ?? kind.todo,
+      todo: login ? `Kies bij Ingelogd als: ${login}. ${todo}` : todo,
       values: invoerRegels(stap.invoer),
       seen: stap.gezien ?? kind.seen(stap.stap === 'besluit' ? doel : n),
+      notes,
       done,
       expect,
       stap,
       doel,
     };
+    notes = [];
+    return [step];
   });
-  return { name: scenario.naam, summary: scenario.samenvatting ?? '', steps };
+  if (!steps.length) return null;
+  return { name: scenario.naam, summary: scenario.samenvatting ?? '', steps, after: notes };
 }
 
 // One guide per scenario object, so the panel and the forms share it.
 const gebouwd = new WeakMap();
 
 /**
- * The guide for scenario `naam` of `casus`, or null: a case from a source
- * (`casus.bron`) has none, and neither has a scenario whose
- * steps are plain text or a name the case does not know. Those show the
- * steps from the YAML instead.
+ * The guide for scenario `naam` of `casus`, from the PoC's own cases or
+ * from a source alike, or null: a scenario without a single action, and a
+ * name the case does not know, have none. The tab Scenario's shows the
+ * lines of such a scenario instead.
  */
 export function guideFor(casus, naam) {
-  if (!casus || casus.bron) return null;
+  if (!casus) return null;
   const scenario = casus.scenarios?.find((s) => s.naam === naam);
-  if (!scenario?.stappen?.length || scenario.stappen.some((s) => typeof s !== 'object')) return null;
+  if (!scenario?.stappen?.length) return null;
   if (!gebouwd.has(scenario)) gebouwd.set(scenario, bouwGids(scenario, casus));
   return gebouwd.get(scenario);
 }

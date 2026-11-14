@@ -535,7 +535,9 @@ mod tests {
     fn the_form_offers_the_records_of_the_login_fact_known_on_the_day() {
         let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
-        spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let casus = spel.kiezen("voorbeeld_inschrijving").unwrap();
+        // The case tells the page who logs in, for the guide.
+        assert_eq!(casus["inloggen"]["veld"], "nummer");
         let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
         let inloggen = &vormen["aanvraag"]["inloggen"];
         assert_eq!(inloggen["veld"], "nummer");
