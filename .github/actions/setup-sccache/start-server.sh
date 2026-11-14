@@ -12,12 +12,17 @@
 #
 # SCCACHE_IGNORE_SERVER_IO_ERROR does not cover it: sccache 0.19 reads that
 # variable only when a running server drops a compile response, not when the
-# server fails to start. So the decision is made here, once per job: start the
-# server, and only on success export RUSTC_WRAPPER. On failure the job builds
-# with plain rustc and says so in a warning.
+# server fails to start. SCCACHE_SKIP_CACHE_CHECK would let the server start,
+# but then every compile waits on a storage that answers each request with an
+# error, and nothing on the run says the cache is gone. So the decision is
+# made here, once per job: start the server, and only on success export
+# RUSTC_WRAPPER. On failure the job builds with plain rustc and says so in a
+# warning.
 #
-# The action runs it with SCCACHE_GHA_ENABLED and SCCACHE_IDLE_TIMEOUT set; it
-# writes to GITHUB_ENV. SCCACHE_BIN overrides the sccache binary, for testing.
+# action.yml runs this with SCCACHE_GHA_ENABLED=true and SCCACHE_IDLE_TIMEOUT=0
+# in the step environment, so the server started here keeps those. The script
+# writes to GITHUB_ENV. SCCACHE_BIN overrides the sccache binary for
+# start-server.test.sh.
 set -uo pipefail
 
 : "${GITHUB_ENV:?GITHUB_ENV must point at the step environment file}"
@@ -31,19 +36,17 @@ if output=$("$sccache_bin" --start-server 2>&1); then
   echo "$output"
   {
     echo "RUSTC_WRAPPER=sccache"
+    # Only matters if the server dies and a compile restarts it: the new
+    # server then uses the same backend and also never stops on idle.
     echo "SCCACHE_GHA_ENABLED=true"
-    # Keep the server for the whole job. A server that stops after the default
-    # 600 s idle timeout restarts on the next compile and runs the storage
-    # check again, which would undo the decision made here.
     echo "SCCACHE_IDLE_TIMEOUT=0"
   } >>"$GITHUB_ENV"
   exit 0
 fi
 
+# RUSTC_WRAPPER stays unset, so cargo calls rustc directly. The post step of
+# sccache-action runs `sccache --show-stats`, which finds no server and prints
+# empty stats without touching the storage.
 echo "$output" >&2
 echo "::warning title=sccache::build cache unreachable, building without sccache"
-# RUSTC_WRAPPER stays unset. The action's post step still runs
-# `sccache --show-stats`, which starts a server of its own; with the GHA
-# backend off it uses the local disk and cannot fail on the same storage.
-echo "SCCACHE_GHA_ENABLED=false" >>"$GITHUB_ENV"
 exit 0

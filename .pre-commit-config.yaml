@@ -116,6 +116,13 @@ repos:
         pass_filenames: false
         files: ^(script/dev-lib(\.test)?\.sh|packages/\.cargo/config\.toml)$
 
+      - id: setup-sccache-tests
+        name: Een onbereikbare build-cache zet sccache uit in plaats van de job te laten falen
+        entry: .github/actions/setup-sccache/start-server.test.sh
+        language: system
+        pass_filenames: false
+        files: ^\.github/actions/setup-sccache/
+
       - id: werkpakket-gate-tests
         name: Merge-poort op een genoemd werkpakket doet wat hij belooft
         entry: script/require-werkpakket.test.sh
