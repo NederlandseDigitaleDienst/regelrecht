@@ -710,8 +710,8 @@ scenarios:
   # erkende dienst legt een authenticatie vast, en de aanvrager logt in als
   # die vastlegging. Bij het begin is de kapsalon alleen gemachtigd voor een
   # andere dienst; in het eerste scenario komt er een machtiging voor deze
-  # dienst bij, in het tweede niet. Het KvK-nummer gaat in de aanvraag; de naam en het adres
-  # komen uit het handelsregister.
+  # dienst bij, in het tweede niet. Het KvK-nummer gaat in de aanvraag; de
+  # naam en het adres komen uit het handelsregister.
   - naam: Een kapsalon krijgt een machtiging voor deze dienst
     samenvatting: >-
       Een medewerker van een kapsalon in de binnenstad logt in met een

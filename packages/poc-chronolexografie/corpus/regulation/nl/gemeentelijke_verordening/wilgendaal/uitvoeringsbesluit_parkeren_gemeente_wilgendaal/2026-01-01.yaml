@@ -288,7 +288,9 @@ articles:
       de laatste authenticatie voor de dienst bedrijfsparkeervergunning op of
       vóór de dag van ontvangst verklaarde dat wie inlogde, gemachtigd is
       namens het bedrijf op te treden voor die dienst, op ten minste het
-      betrouwbaarheidsniveau van het tweede lid.
+      betrouwbaarheidsniveau van het tweede lid. Vonden op die dag meer
+      authenticaties voor de dienst plaats, dan geldt het laagste
+      betrouwbaarheidsniveau daarvan.
     url: https://lokaleregelgeving.overheid.nl/CVDR733452
     machine_readable:
       # Vult het begrip van artikel 2, vijfde lid, van de verordening
@@ -327,8 +329,9 @@ articles:
           required: false
           decided_per_case_by: de erkende dienst, bij de authenticatie
           description: >-
-            Het betrouwbaarheidsniveau van die authenticatie: laag, substantieel
-            of hoog.
+            Het laagste betrouwbaarheidsniveau van de authenticaties voor de
+            dienst op de laatste dag op of vóór de dag van ontvangst waarop er
+            een plaatsvond: laag, substantieel of hoog.
       implements:
         - law: parkeerverordening_gemeente_wilgendaal
           article: '2'

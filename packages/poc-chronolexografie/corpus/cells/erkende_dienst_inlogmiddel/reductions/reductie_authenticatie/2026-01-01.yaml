@@ -70,7 +70,9 @@ articles:
             description: De dag waarop de authenticatie moet hebben plaatsgevonden, of eerder.
         input:
           # De authenticaties namens de onderneming voor de dienst, één rij
-          # per aggregaat. Zonder machtiging voor die dienst bestaat er geen.
+          # per aggregaat. `where` kiest op de velden van het vastgelegde
+          # feit, niet op de state. Zonder machtiging voor die dienst bestaat
+          # er geen.
           - name: authenticaties
             type: array
             source:
@@ -101,8 +103,9 @@ articles:
             type: string
             nullable: true
             description: >-
-              Het betrouwbaarheidsniveau van de laatste authenticatie: laag,
-              substantieel of hoog; afwezig zonder authenticatie.
+              Het laagste betrouwbaarheidsniveau van de authenticaties op de
+              laatste dag op of vóór de peildatum: laag, substantieel of hoog;
+              afwezig zonder authenticatie.
         actions:
           # Als in de reductie van de Kamer van Koophandel: eerst de laatste
           # dag op of vóór de peildatum, dan de authenticaties van die dag.
