@@ -168,6 +168,9 @@ struct ResolutionContext<'a> {
     /// The cell that runs the execution, asked for the answers a binding
     /// takes (`source.reduction`, RFC-048).
     answerer: Option<&'a dyn OpenTermAnswerer>,
+    /// The authority the running cell decides for, where it takes the
+    /// decision of another ([`Call::decides_for`], RFC-057).
+    decides_for: Option<&'a Authority>,
     /// The other cells of the call (RFC-048), asked instead of
     /// [`Self::answerer`] where a binding names them.
     sphere: Vec<&'a dyn OpenTermAnswerer>,
@@ -307,6 +310,7 @@ impl<'a> ResolutionContext<'a> {
             open_terms: Vec::new(),
             regulations_read: Vec::new(),
             answerer: None,
+            decides_for: None,
             sphere: Vec::new(),
             chronicle: None,
             bound: Vec::new(),
@@ -317,6 +321,7 @@ impl<'a> ResolutionContext<'a> {
     fn take_call(&mut self, call: Call<'a>) {
         self.findings = call.findings;
         self.answerer = call.answerer;
+        self.decides_for = call.decides_for;
         self.sphere = call.sphere;
         self.chronicle = call.chronicle;
     }
@@ -576,6 +581,84 @@ impl Drop for TraceGuard {
 }
 
 /// The authorities `named`, for a message: "'a' or 'b'".
+/// Why the cell that runs an execution has no ground to use the answer a
+/// binding of the policy `law` takes (RFC-057), or `None` when it has one.
+///
+/// A binding gives a cell's answer to the cell that runs the execution: the
+/// receiver. The caller asks this only for an answer of another cell than
+/// the receiver. The receiver has a ground for it in two cases.
+///
+/// - The policy is its own: the policy's holder names the receiver, or the
+///   authority the receiver decides for ([`Call::decides_for`]), such as a
+///   court that takes the decision of an administrative body in its place.
+/// - A law gives the term to the policy's holder: a term the binding fills
+///   names the holder in its `competent_authority` (`competent`). The
+///   holder then fills the term by law, and the receiver applies the law.
+///   A holder names one authority by name. Where the term names a category,
+///   the holder belongs to it when the cell of the call with the holder's
+///   name does.
+///
+/// Without a receiver no cell runs the execution, and none has a ground.
+fn ungrounded(
+    law: &ArticleBasedLaw,
+    competent: Option<&[crate::article::NamedAuthority]>,
+    res_ctx: &ResolutionContext<'_>,
+) -> Option<String> {
+    let holder = law
+        .competent_authority
+        .as_ref()
+        .and_then(|authority| authority.named())
+        .unwrap_or_default();
+    let Some(receiver) = res_ctx.answerer.map(|answerer| answerer.authority()) else {
+        return Some("no cell runs this execution, so none has a ground to use it".to_string());
+    };
+    let own = std::iter::once(receiver)
+        .chain(res_ctx.decides_for)
+        .any(|authority| authority.is_named_by(holder));
+    if own || competent.is_some_and(|term| names_holder(term, holder, receiver, res_ctx)) {
+        return None;
+    }
+    let deciding = res_ctx
+        .decides_for
+        .map(|authority| format!(" (deciding for {})", authority.name))
+        .unwrap_or_default();
+    Some(format!(
+        "{} is the policy of {}, not of {}{deciding}, and no term it fills names its holder \
+         as competent: {} has no ground in a law or in its own policy to use the answer",
+        law.id,
+        authorities(holder),
+        receiver.name,
+        receiver.name
+    ))
+}
+
+/// Whether the authorities `term` names include one of `holder`: by name,
+/// or by the category of the cell of the call with that name.
+fn names_holder(
+    term: &[crate::article::NamedAuthority],
+    holder: &[crate::article::NamedAuthority],
+    receiver: &Authority,
+    res_ctx: &ResolutionContext<'_>,
+) -> bool {
+    let cells = || {
+        res_ctx
+            .sphere
+            .iter()
+            .map(|answerer| answerer.authority())
+            .chain(std::iter::once(receiver))
+    };
+    holder.iter().any(|named| {
+        let by_name = Authority {
+            name: named.name.clone(),
+            category: None,
+        };
+        by_name.is_named_by(term)
+            || cells()
+                .filter(|cell| cell.name == named.name)
+                .any(|cell| cell.is_named_by(term))
+    })
+}
+
 fn authorities(named: &[crate::article::NamedAuthority]) -> String {
     named
         .iter()
@@ -4627,6 +4710,20 @@ impl LawExecutionService {
             );
             return Self::no_answer(article, law, input, message, Vec::new(), res_ctx);
         };
+        // An answer from the receiver's own chronicle crosses no cell and
+        // needs no ground; one from another cell does (RFC-057).
+        let own_cell = res_ctx
+            .answerer
+            .is_some_and(|own| own.authority() == askee.authority());
+        if !own_cell && let Some(message) = ungrounded(law, competent, res_ctx) {
+            return refuse(
+                res_ctx,
+                format!(
+                    "input '{}' of {} takes the answer '{answer}', but {message} (RFC-057)",
+                    input.name, law.id
+                ),
+            );
+        }
         let parameters = self.build_target_parameters(source.parameters.as_ref(), context)?;
         let request = AnswerRequest {
             name: answer,

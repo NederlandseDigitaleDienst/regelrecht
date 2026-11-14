@@ -10,6 +10,12 @@
 //! name is silent. The article's `competent_authority` says who decides
 //! (RFC-002) and routes nothing.
 //!
+//! The cell that runs the execution needs a ground to use the answer of
+//! another cell (RFC-057): the binding is in its own policy or in that of the
+//! authority it decides for, or the term names the policy's holder as
+//! competent. Most tests here run the cell of wilgendaal, the policy's
+//! holder.
+//!
 //! Synthesis is an article that takes the answers of different cells, to
 //! different questions, and makes one outcome of them
 //! (`synthesis_makes_one_outcome_of_answers_of_different_cells`).
@@ -586,6 +592,7 @@ fn read(
     let call = Call {
         findings,
         answerer: Some(answerer),
+        decides_for: None,
         chronicle: None,
         sphere,
     };
@@ -645,12 +652,13 @@ fn bound(article: &str, answer: &str, answerers: &[&str]) -> FilledBy {
 
 #[test]
 fn only_the_answerer_the_term_names_is_asked() {
-    let running = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"))
-        .answering("eerder_verstrekt", Value::Bool(false));
+    // The policy is of the running cell; the term names a category it does
+    // not belong to.
+    let running = Fake::new("wilgendaal", None).answering("eerder_verstrekt", Value::Bool(false));
     let other = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true));
     let result = read("eerder_gelezen", &running, vec![&other], BTreeMap::new()).unwrap();
     assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
-    // CATEGORY by category; the GGD is not asked.
+    // CATEGORY by category; the running cell is not asked.
     assert_eq!(other.asked(), ["eerder_verstrekt"]);
     assert!(running.asked().is_empty());
     assert_eq!(
@@ -669,7 +677,7 @@ fn only_the_answerer_the_term_names_is_asked() {
 
 #[test]
 fn an_instance_is_asked_by_name() {
-    let running = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"));
+    let running = Fake::new("wilgendaal", None);
     let national =
         Fake::new("Landelijke uitgever", None).answering("eerder_verstrekt", Value::Bool(true));
     let result = read("eerder_gelezen", &running, vec![&national], BTreeMap::new()).unwrap();
@@ -710,11 +718,12 @@ fn a_running_answerer_the_term_does_not_name_is_not_asked() {
 fn the_binding_routes_wherever_it_runs() {
     // Also where the article is evaluated at the top: the binding asks the
     // cells the term names, and the running one only where it is named.
-    let running = Fake::new("ggd", None).answering("eerder_verstrekt", Value::Bool(true));
+    let running = Fake::new("wilgendaal", None).answering("eerder_verstrekt", Value::Bool(true));
     let other = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(false));
     let call = Call {
         findings: BTreeMap::new(),
         answerer: Some(&running),
+        decides_for: None,
         chronicle: None,
         sphere: vec![&other],
     };
@@ -735,15 +744,17 @@ fn the_binding_routes_wherever_it_runs() {
 #[test]
 fn a_term_without_competent_authority_asks_the_holder_of_the_policy() {
     // The policy is of wilgendaal: its cell is asked, wherever in the call
-    // it is, and no other.
-    let running = Fake::new("ggd", None).answering("ander_feit", Value::Bool(false));
+    // it is, and no other. The running cell decides for wilgendaal, which
+    // gives it the ground to use the answer (RFC-057).
+    let running = Fake::new("rechtbank", None).answering("ander_feit", Value::Bool(false));
     let holder = Fake::college("wilgendaal").answering("ander_feit", Value::Bool(true));
     let other = Fake::college("oostmeer").answering("ander_feit", Value::Bool(false));
-    let result = read(
+    let result = read_with(
+        BINDING,
         "ander_gelezen",
         &running,
+        Some(holder.authority()),
         vec![&other, &holder],
-        BTreeMap::new(),
     )
     .unwrap();
     assert_eq!(result.outputs["ander_gelezen"], Value::Bool(true));
@@ -913,6 +924,7 @@ fn a_term_is_filled_only_by_the_answers_of_its_own_binding() {
     let call = Call {
         findings: BTreeMap::new(),
         answerer: Some(&running),
+        decides_for: None,
         chronicle: None,
         sphere: Vec::new(),
     };
@@ -1012,6 +1024,7 @@ fn a_binding_that_passes_a_value_it_does_not_have_fails() {
     let call = Call {
         findings: BTreeMap::new(),
         answerer: Some(&running),
+        decides_for: None,
         chronicle: None,
         sphere: vec![],
     };
@@ -1050,6 +1063,7 @@ fn an_answer_a_binding_declares_never_absent_must_be_given() {
                 Value::Bool(true),
             )]),
             answerer: Some(&running),
+            decides_for: None,
             chronicle: None,
             sphere: vec![],
         };
@@ -1259,6 +1273,7 @@ articles:
     let call = Call {
         findings: BTreeMap::new(),
         answerer: Some(answerer),
+        decides_for: None,
         chronicle: None,
         sphere,
     };
@@ -1269,7 +1284,7 @@ articles:
 
 #[test]
 fn an_output_beside_the_decision_is_asked_only_when_read() {
-    let running = Fake::new("ggd", Some("Gemeentelijke Gezondheidsdienst"));
+    let running = Fake::new("wilgendaal", None);
     let other = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true));
     // The decision reads nothing of it: no cell is asked.
     let result = read_deciding("kaart_verstrekt", &running, vec![&other]);
@@ -1373,6 +1388,7 @@ fn a_binding_passes_another_input_of_its_article_to_the_cell() {
     let call = Call {
         findings: BTreeMap::new(),
         answerer: Some(&running),
+        decides_for: None,
         chronicle: None,
         sphere: vec![],
     };
@@ -1419,7 +1435,7 @@ impl OpenTermAnswerer for Explaining {
 #[test]
 fn a_traced_execution_nests_how_the_answerer_came_to_its_answer() {
     let cell =
-        Explaining(Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true)));
+        Explaining(Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(true)));
     let result = read("eerder_gelezen", &cell, vec![], BTreeMap::new()).unwrap();
     let input = node(result.trace.as_ref().unwrap(), "eerder_verstrekt").unwrap();
     let answer = input
@@ -1436,4 +1452,128 @@ fn a_traced_execution_nests_how_the_answerer_came_to_its_answer() {
     assert_eq!(how.node_id, Some(format!("{id}.0")));
     assert_eq!(how.children[0].name, "PROJECTION");
     assert_eq!(how.children[0].node_id, Some(format!("{id}.0.0")));
+}
+
+/// `output` of the reading law with `policy` as the binding, `answerer`
+/// running, deciding for `decides_for`, and `sphere` as the other cells.
+fn read_with(
+    policy: &str,
+    output: &str,
+    answerer: &dyn OpenTermAnswerer,
+    decides_for: Option<&Authority>,
+    sphere: Vec<&dyn OpenTermAnswerer>,
+) -> regelrecht_engine::Result<regelrecht_engine::ArticleResult> {
+    let mut service = LawExecutionService::new();
+    for law in [ESTABLISHING, READING, policy] {
+        service.load_law(law).unwrap();
+    }
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(answerer),
+        decides_for,
+        chronicle: None,
+        sphere,
+    };
+    service.evaluate_law_with_trace_in("wet_lezer", &[output], parameters(), call, DATE)
+}
+
+#[test]
+fn the_policy_of_another_authority_is_no_ground_to_use_an_answer() {
+    // The RDW runs the execution; the binding is in the policy of
+    // wilgendaal, and the term names no one. The RDW has no ground in a law
+    // or in a policy of its own to use what the cell of wilgendaal holds
+    // (RFC-057): the engine refuses before it asks that cell.
+    let running = Fake::new("RDW", None);
+    let holder = Fake::college("wilgendaal").answering("ander_feit", Value::Bool(true));
+    let e = read_with(BINDING, "ander_gelezen", &running, None, vec![&holder]).unwrap_err();
+    let message = e.to_string();
+    assert!(
+        message.contains(
+            "beleid_verstrekking is the policy of 'wilgendaal', not of RDW, and no term it \
+             fills names its holder as competent"
+        ),
+        "{message}"
+    );
+    assert!(message.contains("RFC-057"), "{message}");
+    assert!(holder.asked().is_empty());
+}
+
+#[test]
+fn a_law_that_gives_the_term_to_the_holder_is_the_ground() {
+    // The term names the national issuer by name, and the binding is in the
+    // national issuer's own policy: the law gives it the term, so the RDW
+    // applies the law when it uses the answer.
+    let policy = BINDING.replacen("  name: wilgendaal\n", "  name: Landelijke uitgever\n", 1);
+    assert_ne!(policy, BINDING);
+    let running = Fake::new("RDW", None);
+    let national =
+        Fake::new("Landelijke uitgever", None).answering("eerder_verstrekt", Value::Bool(true));
+    let result = read_with(&policy, "eerder_gelezen", &running, None, vec![&national]).unwrap();
+    assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
+    assert_eq!(national.asked(), ["eerder_verstrekt"]);
+}
+
+#[test]
+fn a_law_that_gives_the_term_to_the_category_of_the_holder_is_the_ground() {
+    // The term names a category; the holder belongs to it, as its cell in
+    // the call says.
+    let running = Fake::new("RDW", None);
+    let holder = Fake::college("wilgendaal").answering("eerder_verstrekt", Value::Bool(true));
+    let result = read_with(BINDING, "eerder_gelezen", &running, None, vec![&holder]).unwrap();
+    assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
+    assert_eq!(holder.asked(), ["eerder_verstrekt"]);
+    // Without a cell to ask, no answer reaches the RDW and nothing is
+    // refused: the policy's own term then has no finding.
+    let e = read_with(BINDING, "eerder_gelezen", &running, None, vec![]).unwrap_err();
+    assert!(!e.to_string().contains("RFC-057"), "{e}");
+    assert!(
+        e.to_string().contains("eerder_verstrekt_volgens_college"),
+        "{e}"
+    );
+}
+
+#[test]
+fn deciding_in_the_place_of_the_holder_is_the_ground() {
+    // A court that decides the case itself (Awb 8:72 lid 3 onder b) takes
+    // the decision of wilgendaal, with the policy of wilgendaal: it decides
+    // for that college, and has the ground the college has.
+    let court = Fake::new("rechtbank", Some("de bestuursrechter"));
+    let college = Fake::college("wilgendaal").answering("ander_feit", Value::Bool(true));
+    let result = read_with(
+        BINDING,
+        "ander_gelezen",
+        &court,
+        Some(college.authority()),
+        vec![&college],
+    )
+    .unwrap();
+    assert_eq!(result.outputs["ander_gelezen"], Value::Bool(true));
+    assert_eq!(college.asked(), ["ander_feit"]);
+    // Deciding for another authority gives no ground.
+    let other = Authority {
+        name: "oostmeer".to_string(),
+        category: None,
+    };
+    let college = Fake::college("wilgendaal").answering("ander_feit", Value::Bool(true));
+    let e = read_with(
+        BINDING,
+        "ander_gelezen",
+        &court,
+        Some(&other),
+        vec![&college],
+    )
+    .unwrap_err();
+    assert!(e.to_string().contains("RFC-057"), "{e}");
+    assert!(college.asked().is_empty());
+}
+
+#[test]
+fn an_answer_from_the_receivers_own_cell_needs_no_ground() {
+    // Oostmeer decides under the policy of wilgendaal; the term names every
+    // college, so Oostmeer's own cell is asked. Nothing crosses to another
+    // cell, so no ground is needed (RFC-057).
+    let running = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true));
+    let result = read_with(BINDING, "eerder_gelezen", &running, None, vec![]).unwrap();
+    assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
+    assert_eq!(running.asked(), ["eerder_verstrekt"]);
 }

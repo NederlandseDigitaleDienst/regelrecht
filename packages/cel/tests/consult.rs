@@ -1,6 +1,8 @@
 //! Consulting an output before anything is recorded ([`Cell::consult`]),
 //! under a small fictional regulation: which parameters the article gets,
-//! the day a date parameter left out takes, and what the cell refuses.
+//! the day a date parameter left out takes, and what the cell refuses. The
+//! regulations are the cell's own policy: a cell consults only a law or its
+//! own policy (RFC-057).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -18,6 +20,9 @@ $id: regeling_peildatum_fictief
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
+url: https://example.org/peildatum
+competent_authority:
+  name: Testcel
 articles:
   - number: '1'
     text: Het register wordt gelezen op de peildatum.
@@ -155,6 +160,9 @@ $id: regeling_dubbel_fictief
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
+url: https://example.org/dubbel
+competent_authority:
+  name: Testcel
 articles:
   - number: '1'
     text: Eerste.
@@ -194,4 +202,99 @@ articles:
             .to_string()
             .contains("gives 'uitkomst' from article")
     );
+}
+
+/// A regulation of `layer` with `holder`, one article that gives a number.
+fn regulation(id: &str, layer: &str, holder: Option<&str>) -> String {
+    let holder = holder
+        .map(|name| format!("competent_authority:\n  name: {name}\n"))
+        .unwrap_or_default();
+    format!(
+        r#"
+$id: {id}
+regulatory_layer: {layer}
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.org/{id}
+{holder}articles:
+  - number: '1'
+    text: Een getal.
+    machine_readable:
+      execution:
+        output:
+          - {{name: getal, type: number}}
+        actions:
+          - {{output: getal, value: 7}}
+"#
+    )
+}
+
+fn consulted(law: &str, id: &str) -> regelrecht_cel::Result<regelrecht_engine::ArticleResult> {
+    let service = service_of(&[law]);
+    bare_cell("register").consult(
+        &service,
+        &[],
+        &format!("{id}#1#getal"),
+        &Map::new(),
+        day("2026-05-04"),
+    )
+}
+
+#[test]
+fn a_law_and_the_cells_own_policy_may_be_consulted() {
+    for law in [
+        regulation("wet_getal_fictief", "WET", None),
+        regulation(
+            "verordening_getal_fictief",
+            "GEMEENTELIJKE_VERORDENING",
+            None,
+        ),
+        regulation("beleid_getal_fictief", "UITVOERINGSBELEID", Some("Testcel")),
+    ] {
+        let id = law
+            .lines()
+            .find_map(|l| l.strip_prefix("$id: "))
+            .unwrap()
+            .to_string();
+        let result = consulted(&law, &id).unwrap();
+        assert_eq!(result.outputs["getal"], Value::Int(7), "{id}");
+    }
+}
+
+#[test]
+fn the_policy_of_another_authority_is_no_source_to_consult() {
+    // A form prefills only from what the cell has a ground for: a law, or
+    // its own policy. The policy of the register's keeper is neither
+    // (RFC-057), not even where it only gives a number.
+    let law = regulation(
+        "beleid_register_fictief",
+        "UITVOERINGSBELEID",
+        Some("Registerhouder"),
+    );
+    let e = consulted(&law, "beleid_register_fictief").unwrap_err();
+    let message = e.to_string();
+    assert!(
+        message
+            .contains("beleid_register_fictief is the policy of 'Registerhouder', not of Testcel"),
+        "{message}"
+    );
+    assert!(message.contains("RFC-057"), "{message}");
+    // A policy that names no holder is no one's own.
+    let law = regulation("beleid_zonder_houder_fictief", "UITVOERINGSBELEID", None);
+    let e = consulted(&law, "beleid_zonder_houder_fictief").unwrap_err();
+    assert!(e.to_string().contains("RFC-057"), "{e}");
+}
+
+#[test]
+fn a_reduction_is_no_source_to_consult() {
+    // A reduction reads a chronicle; a form takes what it gives only through
+    // a binding in a law or the cell's own policy.
+    // Before schema v0.8.19 a reduction could compute without a chronicle.
+    let law = format!(
+        "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json\n{}",
+        regulation("reductie_getal_fictief", "REDUCTIE", None).trim_start()
+    );
+    let e = consulted(&law, "reductie_getal_fictief").unwrap_err();
+    assert!(e.to_string().contains("is a reduction"), "{e}");
+    assert!(e.to_string().contains("RFC-057"), "{e}");
 }

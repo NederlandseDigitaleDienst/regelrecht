@@ -17,7 +17,7 @@ use std::path::Path;
 use chrono::NaiveDate;
 use regelrecht_engine::{
     ArticleResult, Authority, Call, FilledBy, LawExecutionService, OpenTermAnswerer,
-    OutputProvenance, ParameterType, RegulationRead, Value,
+    OutputProvenance, ParameterType, RegulationRead, RegulatoryLayer, Value,
 };
 use serde_json::Map;
 
@@ -1172,7 +1172,8 @@ impl Cell {
         let grams = self.grams_but(except.as_deref());
         let reader = self.reader(grams, None);
         let others = known_on(sphere, on);
-        let answerers = Answerers::new(&reader, &others);
+        let answerers = Answerers::new(&reader, &others)
+            .deciding_for(applied.as_ref().and_then(|a| decides_for(a, sphere)));
         if let Some(name) = supplied
             .keys()
             .find(|name| is_finding(&shape, name, &self.authority))
@@ -1386,7 +1387,8 @@ impl Cell {
     /// # Errors
     ///
     /// Refused when `source` is no `<regulation>#<article>#<output>`, the
-    /// regulation has no such article in force on `on`, the article has no
+    /// regulation is a reduction or the policy of another authority than the
+    /// cell's (RFC-057), the regulation has no such article in force on `on`, the article has no
     /// such output, more than one of its required date parameters is left
     /// out, or the engine ran another article for the output. An
     /// error of the engine, such as a required parameter that is missing,
@@ -1403,6 +1405,7 @@ impl Cell {
         let (law_id, article) = basis
             .split_once('#')
             .ok_or_else(|| refused(format!("'{basis}' is no <regulation>#<article>")))?;
+        self.refuse_source_without_ground(service, law_id, on)?;
         let Some(found) = shape::article_on(service, law_id, article, on) else {
             return Err(refused(format!(
                 "{law_id} has no article {article} in force on {on}"
@@ -1448,6 +1451,51 @@ impl Cell {
             )));
         }
         Ok(result)
+    }
+
+    /// Refuse to consult `law_id` when the cell has no ground to use what it
+    /// gives (RFC-057): a reduction, which reads a chronicle, or the policy
+    /// of another authority. A law or regulation is a ground, and so is the
+    /// cell's own policy, whose holder names the cell. What a binding in
+    /// either takes from another cell, the engine checks on its own.
+    fn refuse_source_without_ground(
+        &self,
+        service: &LawExecutionService,
+        law_id: &str,
+        on: NaiveDate,
+    ) -> Result<()> {
+        let Some(law) = service.resolver().get_law_for_date(law_id, Some(on)) else {
+            // No version in force: the article lookup refuses it.
+            return Ok(());
+        };
+        match law.regulatory_layer {
+            RegulatoryLayer::Reductie => Err(refused(format!(
+                "{law_id} is a reduction: a cell takes what a reduction gives only through a \
+                 binding in a law or in its own policy (RFC-057)"
+            ))),
+            RegulatoryLayer::Uitvoeringsbeleid => {
+                let holder = law
+                    .competent_authority
+                    .as_ref()
+                    .and_then(|authority| authority.named())
+                    .unwrap_or_default();
+                if self.authority.is_named_by(holder) {
+                    return Ok(());
+                }
+                let names: Vec<String> = holder.iter().map(|n| format!("'{}'", n.name)).collect();
+                let of = if names.is_empty() {
+                    "no one".to_string()
+                } else {
+                    names.join(" or ")
+                };
+                Err(refused(format!(
+                    "{law_id} is the policy of {of}, not of {}: the cell has no ground in a law \
+                     or in its own policy to use what it gives (RFC-057)",
+                    self.authority.name
+                )))
+            }
+            _ => Ok(()),
+        }
     }
 
     /// Whether the regulation versions the chronolexogram `id` was recorded
@@ -1635,7 +1683,9 @@ impl Cell {
         }
         let outputs: Vec<&str> = shape.outputs.iter().map(String::as_str).collect();
         let date = on.to_string();
-        let call = Answerers::new(&reader, &others).call(findings);
+        let call = Answerers::new(&reader, &others)
+            .deciding_for(decides_for(&submission, sphere))
+            .call(findings);
         let result =
             service.evaluate_law_with_trace_in(law_id, &outputs, parameters, call, &date)?;
         for name in &shape.outputs {
@@ -2111,6 +2161,7 @@ fn decisions_on<'g>(grams: &'g [Gram], id: &str) -> Vec<&'g Gram> {
 struct Answerers<'r> {
     own: &'r dyn OpenTermAnswerer,
     sphere: Vec<&'r dyn OpenTermAnswerer>,
+    decides_for: Option<&'r Authority>,
 }
 
 impl<'r> Answerers<'r> {
@@ -2118,6 +2169,16 @@ impl<'r> Answerers<'r> {
         Self {
             own,
             sphere: others.iter().map(|r| r as &dyn OpenTermAnswerer).collect(),
+            decides_for: None,
+        }
+    }
+
+    /// These answerers, for a decision the cell takes for `authority`
+    /// ([`decides_for`]).
+    fn deciding_for(self, authority: Option<&'r Authority>) -> Self {
+        Self {
+            decides_for: authority,
+            ..self
         }
     }
 
@@ -2126,10 +2187,26 @@ impl<'r> Answerers<'r> {
         Call {
             findings,
             answerer: Some(self.own),
+            decides_for: self.decides_for,
             chronicle: None,
             sphere: self.sphere.clone(),
         }
     }
+}
+
+/// The authority a decision on `submission` is taken for (RFC-057): where
+/// the submission contests a decision of another cell of `sphere`, as an
+/// appeal does (RFC-053), the authority of that cell. A court that decides
+/// the case itself takes that authority's decision in its place (Awb 8:72
+/// lid 3 onder b), with that authority's policy, and so with its ground to
+/// use what other cells answer. `None` for any other submission, and where
+/// the cell that took the contested decision is not in `sphere`.
+fn decides_for<'c>(submission: &Gram, sphere: &[&'c Cell]) -> Option<&'c Authority> {
+    let from = &submission.received.as_ref()?.from;
+    sphere
+        .iter()
+        .find(|cell| &cell.recording_actor == from)
+        .map(|cell| &cell.authority)
 }
 
 /// The cells of `sphere` as they answer a decision on `on`.

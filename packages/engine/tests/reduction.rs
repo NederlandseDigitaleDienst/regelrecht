@@ -807,6 +807,7 @@ fn granted_13a_with(
     let call = Call {
         findings,
         answerer: Some(answerer),
+        decides_for: None,
         chronicle: None,
         sphere: Vec::new(),
     };
@@ -1004,6 +1005,7 @@ fn an_answerer_that_fails_ends_the_execution() {
     let call = Call {
         findings,
         answerer: Some(&Failing(cell_authority())),
+        decides_for: None,
         chronicle: None,
         sphere: Vec::new(),
     };
@@ -1096,6 +1098,7 @@ fn revoked_on_objection_with(
     let call = Call {
         findings: BTreeMap::new(),
         answerer: Some(answerer),
+        decides_for: None,
         chronicle: None,
         sphere: Vec::new(),
     };

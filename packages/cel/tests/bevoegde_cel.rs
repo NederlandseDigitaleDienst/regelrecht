@@ -104,10 +104,12 @@ articles:
             value: $eerder_verstrekt
 "#;
 
-/// The policy that binds the term of art. 2 to the answer of the competent
-/// cells (RFC-048). Its holder is one college; since the term names who is
-/// competent, the engine asks those and not the holder, so the fiction lets
-/// every college of these tests decide under it.
+/// The policy of the RDW that binds the term of art. 2 to the answer of the
+/// competent cells (RFC-048). It is the RDW's ground to use what a college
+/// or the national issuer holds (RFC-057). Since the term names who is
+/// competent, the engine asks those and not the holder. A college that
+/// decides under it asks only its own cell, which needs no ground, so the
+/// fiction lets every college of these tests decide under it too.
 const BINDING: &str = r#"
 $id: beleid_eerder_fictief
 regulatory_layer: UITVOERINGSBELEID
@@ -115,7 +117,7 @@ publication_date: '2026-01-01'
 valid_from: '2026-01-01'
 url: https://example.org/beleid
 competent_authority:
-  name: wilgendaal
+  name: RDW
 articles:
   - number: '1'
     text: Of eerder een kaart is verstrekt, zeggen de verstrekkende instanties.

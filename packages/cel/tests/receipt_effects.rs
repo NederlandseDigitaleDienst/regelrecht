@@ -477,6 +477,7 @@ fn the_trace_of_a_decision_holds_the_projection_under_the_answer() {
     let call = Call {
         findings: BTreeMap::new(),
         answerer: Some(&reader),
+        decides_for: None,
         chronicle: Some(&reader),
         sphere: Vec::new(),
     };
