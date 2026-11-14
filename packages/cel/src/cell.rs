@@ -526,6 +526,7 @@ impl Cell {
             &fields,
             moment.as_ref(),
             on,
+            self.grams().to_vec(),
             &mut law_versions,
         )?;
 
@@ -553,6 +554,13 @@ impl Cell {
     /// own outputs and those of the hooks on the submission, such as the
     /// last day of the decision period (Awb 4:13). Adds the regulation
     /// versions it ran to `law_versions`.
+    ///
+    /// The cells answer the engine as they did when the submission came in
+    /// (RFC-048): this cell from `own`, its chronicle up to the submission,
+    /// and every other cell of `sphere` from what it recorded up to and
+    /// including `on` ([`Cell::known_on`]). A record made on a later day does
+    /// not change what the submission gives; one another cell makes later on
+    /// the same day does, which RFC-048 §6 leaves open.
     #[allow(clippy::too_many_arguments)]
     fn given(
         &self,
@@ -562,6 +570,7 @@ impl Cell {
         fields: &BTreeMap<String, serde_json::Value>,
         moment: Option<&GramMoment>,
         on: NaiveDate,
+        own: Vec<Gram>,
         law_versions: &mut Vec<RegulationRead>,
     ) -> Result<BTreeMap<String, serde_json::Value>> {
         let law_id = shape.law_id.as_str();
@@ -589,6 +598,9 @@ impl Cell {
             }
         }
         let date = on.to_string();
+        let reader = self.reader(own, None);
+        let others = known_on(sphere, on);
+        let call = Answerers::new(&reader, &others).call(BTreeMap::new());
         let result = match &shape.stage {
             // In a procedure, the application is recorded at its own stage,
             // with the outputs that belong to it and the hooks on it; the
@@ -608,11 +620,11 @@ impl Cell {
                     }
                     parameters.entry(req.name).or_insert_with(|| day.clone());
                 }
-                service.execute_stage_at(law_id, article, stage, None, parameters, &date)?
+                service.execute_stage_in(law_id, article, stage, None, parameters, call, &date)?
             }
             None => {
                 let outputs: Vec<&str> = shape.outputs.iter().map(String::as_str).collect();
-                service.evaluate_law(law_id, &outputs, parameters, &date)?
+                service.evaluate_law_in(law_id, &outputs, parameters, call, &date)?
             }
         };
         note_versions(service, &result, law_versions)?;
@@ -623,7 +635,9 @@ impl Cell {
 
     /// What the article that established the submission `id` gives on it,
     /// with the hooks on it: executed again on what the submission holds, in
-    /// the law in force on the day it was recorded. The chronolexogram holds
+    /// the law in force on the day it was recorded, with the answers this
+    /// cell gave from its chronicle up to the submission and those of the
+    /// cells of `sphere` as they knew them that day. The chronolexogram holds
     /// what was submitted and not what follows from it (RFC-045); a decision
     /// on the submission takes these the same way.
     pub fn submission_outputs(
@@ -668,6 +682,7 @@ impl Cell {
             &gram.fields,
             gram.moment.as_ref(),
             gram.recorded_on,
+            self.grams_before(&gram.id),
             &mut Vec::new(),
         )
     }
@@ -1707,6 +1722,19 @@ impl Cell {
             values.insert(input.field.name.clone(), (id.clone(), value));
         }
         Ok(values)
+    }
+
+    /// The chronicle up to the chronolexogram `id`, without it: what the
+    /// cell held when it recorded `id`. `id` is a chronolexogram of this
+    /// chronicle: both callers of [`Cell::outputs_of_submission`] take it
+    /// from [`Cell::grams`]. An id outside the chronicle would yield the
+    /// whole of it.
+    fn grams_before(&self, id: &str) -> Vec<Gram> {
+        self.grams()
+            .iter()
+            .take_while(|g| g.id != id)
+            .cloned()
+            .collect()
     }
 
     /// The chronicle without the decision `except`, if one is given.
