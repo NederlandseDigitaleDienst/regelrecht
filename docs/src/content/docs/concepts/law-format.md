@@ -65,7 +65,7 @@ competent_authority: '#bevoegd_gezag'
 
 ### Articles
 
-Each entry under `articles` mirrors one article of the published law. It carries the article's `number`, its `text` verbatim, and the `url` of that article on wetten.overheid.nl. The text is not a paraphrase: it is what the logic below it will be checked against, by people and by [reverse validation](/concepts/validation-methodology).
+Each entry under `articles` mirrors one article of the published law. It carries the article's `number`, its `text` verbatim, and the `url` of that article on wetten.overheid.nl. The text is not a paraphrase: it is what the logic below it will be checked against, by people and by [reverse validation](/concepts/methodology#one-law-the-interpretation-loop).
 
 An article may have a `machine_readable` section. Most do not. Article 6 of this law obliges the minister to send parliament a report every four years, which decides nothing about any citizen, and it is carried as text only. [Articles](/reference/schema#articles) in the reference lists the fields.
 
@@ -241,52 +241,13 @@ Every output of an article belongs to at most one item, under `outputs` or `deri
 - `derived` names outputs of the article, and never sits on a submission.
 - `requests` sits on a submission only. Within the same law it must name an article that takes a decision; one to another law is checked when it is used, since that law may load later.
 
-## Type Specifications
+## Values
 
-A field's `type` says what kind of value it is; `type_spec.unit` says what an amount is counted in. Units exist because a law mixes euros, eurocent, fractions, percentages and durations, and adding a number of days to an amount of money is a mistake a type system can catch ([RFC-023](/rfcs/rfc-023)).
+Every field has a type, and an amount can carry a unit such as `eurocent` or `percentage`. A unit is a label that never changes the value, and the engine refuses to add values of different units. Rounding happens only where the law says so, with `ROUND`, `CEIL` or `FLOOR`. [Values](/concepts/values) covers all of this, with the checks `just validate` runs.
 
-A unit is a **label, never a computational constraint**: tagging a value never changes it. In particular, a `percentage` is not silently divided by 100; any `… / 100` is an explicit operation written where the value is applied. `ratio` and `percentage` are distinct labels for the same dimension, and the corpus keeps both so that a law saying "1,896" and a law saying "30 procent" are each transcribed as written. The available units are listed under [unit](/reference/schema#unit).
+### Absent and unknown values
 
-The engine uses the labels to reject combinations that make no sense: adding `eurocent` to `days`, or `euro` to `eurocent`, is a unit mismatch. A dimensionless `ratio` or `percentage` multiplied by an amount keeps the amount's unit. Units are opt-in per law. An unannotated value has unit `unknown` and is never checked, so a law is unaffected until someone annotates it. Once it declares units anywhere, `just validate` also flags `amount` outputs that lack one.
-
-`type_spec` also accepts `precision`, `min` and `max`. The engine parses these as metadata and does not enforce them, so `type_spec.precision` rounds nothing. A law that rounds says so with an operation, described next.
-
-## Rounding and precision
-
-Rounding is an explicit instruction written where the law gives it. The engine never rounds a value implicitly, not even money, and intermediate values keep full precision ([RFC-024](/rfcs/rfc-024)). Three operations cover the ways Dutch law phrases it:
-
-| Operation | Direction | Dutch |
-|-----------|-----------|-------|
-| `ROUND` | nearest, half-up (ties away from zero) | *rekenkundig afronden* |
-| `CEIL` | up (toward +∞) | *naar boven afronden* |
-| `FLOOR` | down (toward −∞) | *naar beneden afronden / afkappen* |
-
-Half-up is the default because the Hoge Raad applies it where a law says "afronden" without a direction. Each takes one `value` and a `precision` in the value's own unit: `0` rounds to whole units, and `-2` rounds an amount in eurocent to whole euros.
-
-```yaml
-# Round the result of a SUBTRACT to whole eurocent, half-up
-- output: tegemoetkoming
-  value:
-    operation: ROUND
-    precision: 0
-    value:
-      operation: SUBTRACT
-      values:
-        - $normbedrag
-        - $eigen_bijdrage
-```
-
-The operand rules are in [Rounding](/reference/schema#rounding) in the reference.
-
-## Absent and unknown values
-
-A register does not hold a value for everyone, and the engine keeps two cases apart ([RFC-036](/rfcs/rfc-036)).
-
-An **absent** value, `null`, is a fact: the register says there is none (no partner, no rent). A field may hold it only when its declaration says `nullable: true`. A law tests it with `EQUALS … null` and may branch on it, but calculating, ordering or deciding on it is an error, because a legal text never treats "geen" as an amount or a verdict without saying so. `just validate` checks this before the law runs ([RFC-037](/rfcs/rfc-037)): a `null` test on a non-nullable field, a `null` reaching a sum without an absence test, or an `IF` without `default` on a non-nullable output is refused.
-
-An **unknown** value is a fact nobody has yet: a `source: {}` input no data source could supply, or an optional parameter the caller did not pass. A law cannot write an unknown. It propagates through every operation (a definite `false` still decides an `AND`, a definite `true` an `OR`) and reaches the output carrying the names of the missing facts, so a portal can ask for them.
-
-In a scenario's data table an empty cell is unknown and the word `null` is absence; the assertions read `is absent` and `is unknown`. This is the reverse of SQL, where `null` stands for the unknown. The RFC explains why the literal was kept for absence.
+An absent value (`null`, allowed only on a field with `nullable: true`) means the register says there is none. An unknown value means nobody knows yet, and it carries the names of the missing facts to the output. [Values](/concepts/values#absent-and-unknown-values) explains how each behaves in an operation and in a scenario.
 
 ## Between laws
 
@@ -308,7 +269,7 @@ The Regeling standaardpremie then declares under `implements` that it fills this
 
 A `machine_readable` section can hold more than a calculation. `hooks` let an article react to a decision another law produces, `overrides` let a special provision set aside a general one, and `markings` record where the logic could not follow the text exactly. Each has its own concept page: [Hooks and Reactive Execution](/concepts/hooks-and-reactive-execution) and [Markings](/concepts/markings).
 
-The examples on this page are written to schema v0.5.x, because the corpus is. Schema v0.7.0 added `markings` (the new name for `untranslatables`), `declares`, `placement` and `voids`, and no corpus law uses any of them yet: the real laws are all on v0.5.x and still carry `untranslatables`, and the one file on v0.7.0 is the synthetic `test_date_operations`, which needs its date operations. Read the [Schema Reference](/reference/schema) for the v0.7.0 fields; do not look for them in the corpus.
+The example on this page is written to schema v0.5.x, like most of the corpus. Ruleworks built or reworked since, such as the Awb and the Leerplichtwet 1969, declare a v0.8 schema. Each version validates against the schema it declares. Schema v0.7.0 renamed `untranslatables` to `markings` and added `declares`, `placement` and `voids`, so a v0.5.x rulework that records such a construct still calls it `untranslatables`. The [Schema Reference](/reference/schema) shows the current fields.
 
 ## Corpus contents
 

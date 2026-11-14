@@ -197,9 +197,9 @@ const CONCEPTS: Record<string, ConceptLink> = {
     href: '/concepts/temporal-and-dates#which-version-is-in-force',
     label: 'Temporal Validity',
   },
-  type_spec: { href: '/concepts/law-format#type-specifications', label: 'Type Specifications' },
+  type_spec: { href: '/concepts/values#amounts-and-units', label: 'Amounts and Units' },
   nullable: {
-    href: '/concepts/law-format#absent-and-unknown-values',
+    href: '/concepts/values#absent-and-unknown-values',
     label: 'Absent and Unknown Values',
   },
   definitions: { href: '/concepts/law-format#definitions', label: 'Definitions' },
@@ -213,8 +213,8 @@ const OPERATION_CONCEPTS: Record<string, ConceptLink> = {
   listOperation: { href: '/concepts/collections#counting', label: 'Collections' },
   inOperation: { href: '/concepts/collections#counting', label: 'Collections' },
   roundingOperation: {
-    href: '/concepts/law-format#rounding-and-precision',
-    label: 'Rounding and Precision',
+    href: '/concepts/values#rounding',
+    label: 'Rounding',
   },
   ageOperation: {
     href: '/concepts/temporal-and-dates#comparing-and-subtracting-dates',
