@@ -1047,7 +1047,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 self.report(
                     Rule::T4,
                     format!(
-                        "column '{}' is declared {} but is given a {}",
+                        "column '{}' is declared {} but is given a value of type {}",
                         column.name,
                         declared.name(),
                         actual.name()
@@ -4193,28 +4193,28 @@ actions:
         assert_only(
             &table_law("gebied: $u.gebied\nzetels: veel"),
             Rule::T4,
-            "column 'zetels' is declared number but is given a string",
+            "column 'zetels' is declared number but is given a value of type string",
         );
         assert_only(
             &table_law("gebied: $u.gebied\nzetels: $actief"),
             Rule::T4,
-            "column 'zetels' is declared number but is given a boolean",
+            "column 'zetels' is declared number but is given a value of type boolean",
         );
         // An operation whose result type does not depend on its operands.
         assert_only(
             &table_law("gebied: $u.gebied\nzetels: {operation: EQUALS, subject: $extra, value: 1}"),
             Rule::T4,
-            "column 'zetels' is declared number but is given a boolean",
+            "column 'zetels' is declared number but is given a value of type boolean",
         );
         assert_only(
             &table_law("gebied: {operation: LIST, items: [$u.gebied]}\nzetels: 1"),
             Rule::T4,
-            "column 'gebied' is declared string but is given a array",
+            "column 'gebied' is declared string but is given a value of type array",
         );
         assert_only(
             &table_law(&format!("gebied: {}\nzetels: 1", rec("{a: 1}"))),
             Rule::T4,
-            "column 'gebied' is declared string but is given a object",
+            "column 'gebied' is declared string but is given a value of type object",
         );
         // A field of the element is untyped: no claim.
         assert_clean(&table_law("gebied: $u.zetels\nzetels: $u.gebied"));
@@ -4250,7 +4250,7 @@ actions:
                 rec("{gebied: $u.gebied, zetels: '1'}")
             )),
             Rule::T4,
-            "column 'zetels' is declared number but is given a string",
+            "column 'zetels' is declared number but is given a value of type string",
         );
         // An IF that is the output's value, with a table in each branch.
         assert_only(

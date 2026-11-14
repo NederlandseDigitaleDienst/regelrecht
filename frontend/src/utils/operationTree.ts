@@ -389,7 +389,7 @@ export function describeSubtitle(node: OperationNode): string {
 
   if (op === 'RECORD') {
     const columns = node.fields && typeof node.fields === 'object' ? Object.keys(node.fields) : [];
-    return `rij met ${columns.join(', ')}`;
+    return columns.length ? `rij met ${columns.join(', ')}` : 'rij';
   }
 
   // FOREACH: name what it iterates and how it reduces. The body is usually a
