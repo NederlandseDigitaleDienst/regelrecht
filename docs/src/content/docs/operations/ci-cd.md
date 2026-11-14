@@ -266,6 +266,10 @@ CI uses path filters to determine which checks to run:
 
 The `ci` group includes `frontend/`, so frontend changes also trigger the Rust checks (the editor is shipped as one image built from `frontend/` plus the `editor-api` Rust binary that serves it). Docs-only changes skip the Rust checks and run the docs accessibility gate (`just docs-a11y`), the docs source checks and the design-system import check.
 
+## The build cache
+
+The jobs that compile Rust share compiled crates through sccache, which stores them in the GitHub Actions cache. Every such job sets it up with `.github/actions/setup-sccache`, and that action is the only place that sets `RUSTC_WRAPPER`. When the job starts, the action starts the sccache server, and sccache reads its storage before it accepts work. If that read fails (in November 2026 the cache answered `503 ServerBusy`, "Egress is over the account limit"), the server refuses to start. With `RUSTC_WRAPPER` already set, cargo would then fail on its first call to `rustc`, before any test ran. The action leaves `RUSTC_WRAPPER` unset in that case and writes the warning "build cache unreachable, building without sccache". The job compiles from scratch and passes or fails on its own merits; it is slower, and the warning on the run says why. `SCCACHE_IGNORE_SERVER_IO_ERROR` does not help here: sccache reads it only when a running server drops a compile response, not when the server fails to start.
+
 ## Merge gates
 
 Passing the checks above is not enough on its own. Four gates weigh in on whether a pull request can merge. Only **Claude review completed** is a required status check on `main`; the other three report and are read by a human.
