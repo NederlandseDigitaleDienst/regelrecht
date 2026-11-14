@@ -2,7 +2,7 @@
 # Tier C: a projection that plays one aggregate per record (schema v0.8.17).
 # Each grant is the root of its own aggregate, with the records that refer
 # to it. It answers no question of its own.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
 $id: test_conformance_per_record
 regulatory_layer: REDUCTIE
 publication_date: '2026-11-08'

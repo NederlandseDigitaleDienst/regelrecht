@@ -1,0 +1,61 @@
+---
+# Tier C: a row built from expressions as the body of a FOREACH and as the
+# item of a LIST, for an output of type array with columns (schema v0.8.22).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_conformance_row_columns
+regulatory_layer: WET
+bwb_id: BWBR9999973
+publication_date: '2026-11-14'
+valid_from: '2026-11-14'
+url: https://example.invalid/row-columns
+articles:
+  - number: '1'
+    url: https://example.invalid/row-columns/1
+    text: Per afdeling worden de naam en het aantal leden vermeld.
+    machine_readable:
+      execution:
+        parameters:
+          - name: afdelingen
+            type: array
+            columns:
+              - name: naam
+                type: string
+              - name: leden
+                type: number
+        output:
+          - name: overzicht
+            type: array
+            columns:
+              - name: afdeling
+                type: string
+                description: De naam van de afdeling.
+              - name: leden_na_toetreding
+                type: number
+          - name: vaste_regels
+            type: array
+            columns:
+              - name: afdeling
+                type: string
+              - name: leden_na_toetreding
+                type: number
+        actions:
+          - output: overzicht
+            value:
+              operation: FOREACH
+              collection: $afdelingen
+              as: afdeling
+              body:
+                afdeling: $afdeling.naam
+                leden_na_toetreding:
+                  operation: ADD
+                  values:
+                    - $afdeling.leden
+                    - 1
+          - output: vaste_regels
+            value:
+              operation: LIST
+              items:
+                - afdeling: bestuur
+                  leden_na_toetreding: 3
+                - afdeling: kascommissie
+                  leden_na_toetreding: null

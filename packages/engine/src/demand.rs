@@ -196,6 +196,10 @@ pub(crate) fn referenced_paths(action: &Action) -> BTreeSet<String> {
 fn visit_value(value: &ActionValue, bound: &BTreeSet<&str>, names: &mut BTreeSet<String>) {
     match value {
         ActionValue::Literal(literal) => visit_literal(literal, bound, names),
+        ActionValue::Row(row) => row
+            .fields()
+            .values()
+            .for_each(|field| visit_value(field, bound, names)),
         ActionValue::Operation(op) => match op.as_ref() {
             ActionOperation::Foreach {
                 collection,

@@ -233,6 +233,13 @@ impl SymbolUnits {
 pub fn infer_unit(expr: &ActionValue, symbols: &SymbolUnits) -> Result<Unit, EngineError> {
     match expr {
         ActionValue::Literal(v) => Ok(literal_unit(v, symbols)),
+        // A row is measured in nothing, but its columns are checked.
+        ActionValue::Row(row) => {
+            for field in row.fields().values() {
+                infer_unit(field, symbols)?;
+            }
+            Ok(Unit::Unknown)
+        }
         ActionValue::Operation(op) => infer_operation_unit(op, symbols),
     }
 }

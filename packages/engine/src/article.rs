@@ -121,6 +121,7 @@ impl LawLoad for ArticleBasedLaw {
         reject_literal_operations(&law)?;
         crate::load_check::reject_removed_constructs(&law)?;
         crate::load_check::reject_combine_before_its_version(&law)?;
+        crate::load_check::reject_malformed_rows(&law)?;
         crate::load_check::reject_misplaced_reduction(&law)?;
         crate::load_check::reject_misplaced_article_call(&law)?;
         crate::load_check::reject_misplaced_competence(&law)?;
@@ -198,6 +199,10 @@ fn reject_literal_operations(law: &ArticleBasedLaw) -> Result<()> {
     fn walk_action_value(v: &ActionValue, where_: &str) -> Result<()> {
         match v {
             ActionValue::Literal(lit) => walk(lit, where_),
+            ActionValue::Row(row) => row
+                .fields()
+                .values()
+                .try_for_each(|field| walk_action_value(field, where_)),
             ActionValue::Operation(op) => walk_operation(op, where_),
         }
     }

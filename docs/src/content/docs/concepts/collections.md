@@ -113,6 +113,40 @@ The first five are the aggregations legal text performs: *het totaal van*, *indi
 
 Two of the empty cases deserve attention. `MIN` and `MAX` return `null` rather than a number, because there is no lowest value of nothing; the law has to handle that. `AND` returns `true` by vacuous truth, so a law that must not read "no items" as "all conditions met" has to check for emptiness itself.
 
+## Building a table
+
+Sometimes the result has to keep its elements apart: one row per element, with a few named values each. A decision that lists, per school, the school and the number of pupils it is funded for is such a table. Since schema v0.8.22 an object written where an operand goes is a row. Each key names a column, and each value is an operand like any other, so a `$`-reference is resolved and an operation is executed. As the body of a `FOREACH` without `combine`, the row gives an array of rows:
+
+```yaml
+output:
+  - name: leerlingen_per_school
+    type: array
+    columns:
+      - name: school
+        type: string
+      - name: leerlingen
+        type: number
+actions:
+  - output: leerlingen_per_school
+    value:
+      operation: FOREACH
+      collection: $scholen
+      as: s
+      body:
+        school: $s.naam
+        leerlingen:
+          operation: ADD
+          values: [$s.leerlingen, $s.nieuwkomers]
+```
+
+An output of type `array` may declare `columns`, as a parameter can since v0.8.20. The loader then checks every row the article writes for that output against these columns. Such a row is the body of a `FOREACH` without `combine` or with `DISTINCT`, or an item of a `LIST`. An `IF` counts too, both where it gives a row and where it gives such a table. A row names exactly the declared columns. Write `null` for a column that has no value. Where the type check knows the type of a value (a literal, a declared name, a comparison) it has to match its column. A field of the element, such as `$s.naam`, is not typed, so nothing is claimed there. A table put together another way, such as an `ADD` of two lists or an array taken whole from a reference, is not checked.
+
+A row is a container, like a `LIST`. An unknown value stays in its column, and whatever reads the row meets it there ([RFC-036](/rfcs/rfc-036)); the other columns stay readable. A [marked construct](./markings) in any column makes the whole row untranslatable, because a row with a gap in it would look complete.
+
+An object with the key `operation` is an operation, never a row, so `operation` cannot name a column. Column names follow the pattern of a column declaration: lowercase letters, digits and underscores. A name may not start with two underscores, which the engine keeps for its own markers.
+
+The engine read such an object as plain data before v0.8.22, with a `$`-string in it kept as text. No schema version allowed it in that place, and no rulework in the repository has one. A file that declares v0.8.21 or earlier and holds an object where an operand goes is refused at load rather than read the new way, so a file changes meaning only when its own `$schema` does.
+
 ## Counting
 
 Article 22a Participatiewet computes the kostendelersnorm from *A*, which the text defines as "het aantal kostendelende medebewoners plus de belanghebbende en zijn echtgenoot van 21 jaar of ouder indien hij gehuwd is". Counting is `body: 1` with `combine: ADD`:

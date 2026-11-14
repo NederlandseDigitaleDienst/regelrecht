@@ -461,6 +461,21 @@ class Parser {
       if (q >= 0) for (const [vals, r] of this.parenList(q)) out.push([{ operation: op, values: vals }, r]);
     }
     out.push(...this.seq(pos, ['het deel van', C, 'boven', C], (a, b) => ({ operation: 'MAX', values: [0, { operation: 'SUBTRACT', values: [a, b] }] })));
+    // A row (schema v0.8.22): `de rij ( kolom: waarde; … )`.
+    const column: Rule<[string, unknown]> = (p) => {
+      const tk = this.t[p];
+      const m = tk && tk.t === 'w' ? /^([a-z_][a-z0-9_]*):$/.exec(tk.m[0]) : null;
+      if (!m) return [];
+      return this.expr(p + 1).map(([v, r]): Result<[string, unknown]> => [[m[1]!, v], r]);
+    };
+    const rowStart = this.word(pos, 'de rij');
+    const rowOpen = rowStart >= 0 ? this.word(rowStart, '(') : -1;
+    if (rowOpen >= 0) {
+      for (const [cols, p] of this.sepBy(rowOpen, column, ';', 1)) {
+        const r = this.word(p, ')');
+        if (r >= 0) out.push([Object.fromEntries(cols as [string, unknown][]), r]);
+      }
+    }
     let q = this.word(pos, 'de lijst');
     if (q >= 0 && this.word(q, 'van') < 0) for (const [vals, r] of this.parenList(q)) out.push([{ operation: 'LIST', items: vals }, r]);
     // FOREACH

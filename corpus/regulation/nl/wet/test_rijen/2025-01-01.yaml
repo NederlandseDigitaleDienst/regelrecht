@@ -1,0 +1,84 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_rijen
+name: Testwet rijen
+regulatory_layer: WET
+bwb_id: BWBR9999921
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_rijen
+
+articles:
+  - number: '1'
+    url: https://example.com/test_rijen/1
+    text: >-
+      Het overzicht vermeldt per afdeling de naam en het aantal leden, vermeerderd
+      met het aantal nieuwe leden.
+    machine_readable:
+      # Een object op de plek van een operand bouwt een rij (schema v0.8.22):
+      # de verwijzingen worden opgelost en de operatie uitgevoerd. De tabel
+      # wordt teruggelezen tot een getal, zodat de bestaande BDD-woordenschat
+      # volstaat.
+      execution:
+        parameters:
+          - name: afdelingen
+            type: array
+            required: true
+            columns:
+              - name: naam
+                type: string
+              - name: leden
+                type: number
+            description: De afdelingen met hun aantal leden.
+          - name: nieuwe_leden
+            type: number
+            required: false
+            description: Het aantal nieuwe leden per afdeling.
+          - name: afdeling
+            type: string
+            required: true
+            description: De afdeling waarvan het aantal wordt gevraagd.
+        output:
+          - name: overzicht
+            type: array
+            columns:
+              - name: afdeling
+                type: string
+              - name: leden
+                type: number
+          - name: aantal_rijen
+            type: number
+          - name: leden_van_afdeling
+            type: number
+            nullable: true
+        actions:
+          - output: overzicht
+            value:
+              operation: FOREACH
+              collection: $afdelingen
+              as: rij
+              body:
+                afdeling: $rij.naam
+                leden:
+                  operation: ADD
+                  values:
+                    - $rij.leden
+                    - $nieuwe_leden
+          - output: aantal_rijen
+            value:
+              operation: FOREACH
+              collection: $overzicht
+              as: regel
+              body: 1
+              combine: ADD
+          - output: leden_van_afdeling
+            value:
+              operation: FOREACH
+              collection: $overzicht
+              as: regel
+              filter:
+                operation: EQUALS
+                subject: $regel.afdeling
+                value: $afdeling
+              body: $regel.leden
+              combine: ONLY

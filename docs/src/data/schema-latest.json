@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.21",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.22",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -1509,6 +1509,32 @@
       "allOf": [
         {
           "$ref": "#/definitions/baseField"
+        },
+        {
+          "properties": {
+            "columns": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/definitions/arrayColumn"
+              },
+              "description": "Since v0.8.22, only on an output of type `array`: the columns of each row, so the output holds a table. A row the article builds for the output (the body of a FOREACH without `combine` or with `DISTINCT`, an item of a LIST, or a branch of an IF that gives one of those) must name exactly these columns, and a value whose type the type check knows must have the type of its column; the loader checks it. A value the article does not build as a row, such as a reference to an array, is not checked against the columns."
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "columns"
+            ]
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "const": "array"
+              }
+            }
+          }
         }
       ]
     },
@@ -2262,6 +2288,37 @@
         },
         {
           "$ref": "#/definitions/operation"
+        },
+        {
+          "$ref": "#/definitions/rowValue"
+        }
+      ]
+    },
+    "rowValue": {
+      "type": "object",
+      "description": "Since v0.8.22: a row built from expressions. Each key is the name of a column and each value an operand like any other: a `$`-reference is resolved and an operation is executed, so the row holds the values of this calculation. As the body of a FOREACH without `combine` it gives an array of rows, one per element, which an output of type `array` with `columns` holds as a table. An unknown value stays in its column (RFC-036), as in a LIST; an untranslatable value makes the whole row untranslatable (RFC-012). An object with the key `operation` is an operation, never a row, so `operation` cannot be the name of a column here, and neither can a name that starts with two underscores, which the engine keeps for its own markers. A file on v0.8.21 or earlier knows no row: the loader refuses an object in the place of an operand there, as every earlier schema did.",
+      "minProperties": 1,
+      "propertyNames": {
+        "pattern": "^(?!__)[a-z_][a-z0-9_]*$"
+      },
+      "not": {
+        "required": [
+          "operation"
+        ]
+      },
+      "additionalProperties": {
+        "$ref": "#/definitions/operationValue"
+      },
+      "examples": [
+        {
+          "naam": "$item.naam",
+          "aantal": {
+            "operation": "ADD",
+            "values": [
+              "$item.aantal",
+              1
+            ]
+          }
         }
       ]
     },

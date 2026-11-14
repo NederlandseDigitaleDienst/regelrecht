@@ -87,6 +87,14 @@ describe('RegelRijm covers the schema', () => {
     expect(r.text).toBe(`[u] wordt: ${EXPECTED[op]}`);
   });
 
+  it('reads a row (schema v0.8.22) as its columns, with the operations in them', () => {
+    const value = { operation: 'FOREACH', collection: '$m', as: 'x', body: { naam: '$x.n', som: { operation: 'ADD', values: ['$x.a', 1] } } };
+    const r = renderAction({ output: 'u', value }, { ctx });
+    const problems = r.segments.filter((s) => typeof s !== 'string' && (s.tk === 'error' || s.tk === 'hole'));
+    expect(problems).toEqual([]);
+    expect(r.text).toBe('[u] wordt: de lijst van de rij ( naam: [n] van [x]; som: [a] van [x] plus 1 ) over elke [x] in [m]');
+  });
+
   it('shows an unknown operation as an error, not as something else', () => {
     const r = renderAction({ output: 'u', value: { operation: 'SWITCH', cases: [] } }, { ctx });
     expect(r.text).toContain('⟨onbekende operatie SWITCH⟩');

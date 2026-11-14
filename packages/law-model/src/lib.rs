@@ -30,8 +30,8 @@ pub use model::{
     MarkingResolution, Moment, NamedAuthority, OpenTerm, OpenTermDefault, Output,
     OverrideDeclaration, Parameter, Placement, PlacementContainer, Preamble, ProcedureAppliesTo,
     ProcedureDefinition, Produced, ProducedItem, Produces, ProducesList, Projection,
-    ProjectionStep, ProvisionReference, RecordEffect, ResolveSpec, SUBMISSION_KINDS, Source, Stage,
-    StageRequirement, StateProperty, StepSource, Submission, Temporal, TypeSpec,
+    ProjectionStep, ProvisionReference, RecordEffect, ResolveSpec, Row, SUBMISSION_KINDS, Source,
+    Stage, StageRequirement, StateProperty, StepSource, Submission, Temporal, TypeSpec,
     UntranslatableEntry, foreach_binding, is_article_reference, is_fact_reference,
     is_variable_reference, names_fact, split_projections,
 };
