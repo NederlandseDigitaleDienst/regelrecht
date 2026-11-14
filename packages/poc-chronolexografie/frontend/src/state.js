@@ -348,6 +348,9 @@ export const zonderLeeg = (velden) =>
 
 export const kort = (id) => String(id).slice(-8);
 
+/** Een waarde van een aanvraag kort: een tabel als het aantal rijen. */
+const inEenWoord = (w) => (Array.isArray(w) ? `${w.length} ${w.length === 1 ? 'rij' : 'rijen'}` : jaNee(w));
+
 /**
  * Een aanvraag in één regel: de gegevens die het artikel van de casus zelf
  * vraagt (niet die van de Awb), en de dag van ontvangst.
@@ -356,7 +359,7 @@ export function samenvatting(aanvraag) {
   const eigen = (state.vormen?.aanvraag.velden ?? []).filter(
     (v) => v.basis === besluitBasis() && v.naam in (aanvraag.fields ?? {}),
   );
-  const delen = eigen.map((v) => `${leesbaar(v.naam)}: ${jaNee(aanvraag.fields[v.naam])}`);
+  const delen = eigen.map((v) => `${leesbaar(v.naam)}: ${inEenWoord(aanvraag.fields[v.naam])}`);
   return [...delen, `ontvangen ${aanvraag.recorded_on}`].join(' · ');
 }
 
@@ -369,7 +372,7 @@ export const isBesluit = (g) =>
   !!g.refers_to && !['AANVRAAG', 'BEZWAAR', 'EXECUTOGRAM'].includes(g.kind);
 
 /** Een decimaal staat in een chronolexogram als `{"__decimal": "…"}`. */
-const isDecimaal = (v) =>
+export const isDecimaal = (v) =>
   v !== null && typeof v === 'object' && Object.keys(v).length === 1 && '__decimal' in v;
 
 /**

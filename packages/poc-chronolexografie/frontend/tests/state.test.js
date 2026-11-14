@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../src/api.js';
 import { melding } from '../src/melding.js';
-import { hervatten, hoofdvelden, state, stap, verversen } from '../src/state.js';
+import { hervatten, hoofdvelden, samenvatting, state, stap, verversen } from '../src/state.js';
 
 // The cell is not loaded here: the API hands back a fixed case and an empty
 // chronicle, and the saved game is an opaque value.
@@ -141,5 +141,22 @@ describe('hoofdvelden', () => {
   it('gives nothing for a gram the law gives no fields', () => {
     met({});
     expect(hoofdvelden({ id: 'g', fields: { a: 1 } })).toEqual([]);
+  });
+});
+
+describe('samenvatting', () => {
+  it('names a table the application holds by its number of rows', () => {
+    state.casus = { ...casus, besluit: 'r#1' };
+    state.vormen = {
+      aanvraag: {
+        velden: [
+          { naam: 'bestuur', type: 'array', basis: 'r#1', kolommen: [{ naam: 'naam', type: 'string' }] },
+          { naam: 'actief', type: 'boolean', basis: 'r#1' },
+        ],
+      },
+    };
+    const aanvraag = { fields: { bestuur: [{ naam: 'A' }, { naam: 'B' }], actief: true }, recorded_on: '2026-10-14' };
+    expect(samenvatting(aanvraag)).toBe('bestuur: 2 rijen · actief: ja · ontvangen 2026-10-14');
+    state.vormen = null;
   });
 });

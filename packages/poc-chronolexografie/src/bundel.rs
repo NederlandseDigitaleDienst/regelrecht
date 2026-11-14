@@ -487,6 +487,64 @@ mod tests {
     }
 
     const NAAM_UIT_REGISTER: &str = "voorbeeld_inschrijving#2#naam_volgens_register";
+    const BESTUUR_UIT_REGISTER: &str = "voorbeeld_inschrijving#3#bestuur_volgens_register";
+
+    /// A field that holds a table (schema v0.8.20) gives the form its
+    /// columns, and the register prefills it with the rows it recorded.
+    #[test]
+    fn a_table_field_gives_the_form_its_columns_and_is_prefilled() {
+        let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
+        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let casus = spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let vormen = aanvraagvorm(&mut spel, dag);
+        let velden = vormen["velden"].as_array().unwrap();
+        let bestuur = velden.iter().find(|v| v["naam"] == "bestuur").unwrap();
+        assert_eq!(bestuur["type"], "array");
+        assert_eq!(bestuur["mag_leeg"], true);
+        assert_eq!(
+            bestuur["kolommen"],
+            serde_json::json!([
+                { "naam": "naam", "type": "string" },
+                { "naam": "functie", "type": "string" },
+                { "naam": "sinds", "type": "date" },
+                { "naam": "vergoeding", "type": "amount" },
+            ])
+        );
+        // A field without columns names none.
+        let nummer = velden.iter().find(|v| v["naam"] == "nummer").unwrap();
+        assert!(nummer.get("kolommen").is_none(), "{nummer}");
+
+        let bronnen = vormen["prefill"].as_object().unwrap().clone();
+        let invoer = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+        let ingevuld = spel.voorinvullen(&bronnen, &invoer, dag).unwrap();
+        assert_eq!(
+            ingevuld["bestuur"]["waarde"],
+            serde_json::json!([
+                { "naam": "Lid Een", "functie": "voorzitter", "sinds": "2026-01-01", "vergoeding": 12500 },
+                { "naam": "Lid Twee", "functie": "penningmeester", "sinds": "2026-01-15", "vergoeding": null },
+            ])
+        );
+        assert_eq!(
+            ingevuld["bestuur"]["herkomst"][0]["door"],
+            "voorbeeld_register"
+        );
+
+        // What the form submits with that table is an application the cell
+        // records: the rows fit the columns.
+        let mut aanvraag = invoer.clone();
+        aanvraag.insert("bestuur".into(), ingevuld["bestuur"]["waarde"].clone());
+        let artikel = casus["artikel"].as_str().unwrap().to_string();
+        spel.indienen(&artikel, None, &aanvraag, dag).unwrap();
+        // A row with a column the law does not declare is refused.
+        aanvraag.insert("bestuur".into(), serde_json::json!([{ "onbekend": 1 }]));
+        let e = spel.indienen(&artikel, None, &aanvraag, dag).unwrap_err();
+        assert!(
+            e.to_string().contains("bestuur") && e.to_string().contains("onbekend"),
+            "{e}"
+        );
+    }
 
     #[test]
     fn the_form_of_a_case_from_a_source_names_what_its_ui_spec_prefills() {
@@ -498,7 +556,10 @@ mod tests {
         let vormen = aanvraagvorm(&mut spel, dag);
         assert_eq!(
             vormen["prefill"],
-            serde_json::json!({ "naam_opgegeven": NAAM_UIT_REGISTER })
+            serde_json::json!({
+                "naam_opgegeven": NAAM_UIT_REGISTER,
+                "bestuur": BESTUUR_UIT_REGISTER,
+            })
         );
         // What the form then asks: the name from the register cell.
         let bronnen = vormen["prefill"].as_object().unwrap().clone();
