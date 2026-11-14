@@ -57,7 +57,13 @@
 //! - **T3** `EQUALS` compares values of one type; `number` and `amount` are
 //!   one type here, and so are `date` and `string`, since dates arrive as ISO
 //!   strings.
-//! - **T4** A literal assigned to an output has the output's type.
+//! - **T4** A literal assigned to an output has the output's type, and so
+//!   does a row (schema v0.8.22), which is an object. A row the article
+//!   builds for an output with `columns` (the body of a `FOREACH` without
+//!   `combine` or with `DISTINCT`, an item of a `LIST`, a branch of an `IF`
+//!   among those) names exactly those columns, and a value whose type the
+//!   checker knows (a literal, a declared name, a comparison) has the type
+//!   of its column.
 //! - **T5** A call to an article (`source.article`, RFC-045 §6) without
 //!   `output` yields a decision value, so the input is of type `decision`.
 //!   What it merges (`parameters_from`) is an object, and a `$`-reference
@@ -73,6 +79,7 @@ use crate::article::{
     foreach_binding,
 };
 use crate::types::{ParameterType, Value};
+use regelrecht_law_model::{Column, Row};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -884,11 +891,14 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             self.report(
                 Rule::T4,
                 format!(
-                    "output is declared {} but is assigned a {} literal",
+                    "output is declared {} but is assigned {}",
                     declared.name(),
-                    actual.name()
+                    literal_kind(&expression, actual)
                 ),
             );
+        }
+        if let Some(columns) = output.and_then(|o| o.columns.as_deref()) {
+            self.check_table_rows(&expression, columns);
         }
         // A literal in a branch of an IF that is the output's value is an
         // assignment to the output as well (T4).
@@ -932,8 +942,145 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                         );
                     }
                 }
+                ActionValue::Row(_) => {
+                    if !declared.compatible(Ty::Object) {
+                        self.report(
+                            Rule::T4,
+                            format!(
+                                "output is declared {} but a branch assigns a row",
+                                declared.name()
+                            ),
+                        );
+                    }
+                }
                 ActionValue::Operation(nested) => self.check_branch_literals(nested, declared),
             }
+        }
+    }
+
+    /// T4 for an output with `columns`: the rows `expr` builds as the
+    /// elements of the table. Only rows written out in the article are
+    /// checked; a table taken from a reference is not.
+    fn check_table_rows(&mut self, expr: &ActionValue, columns: &[Column]) {
+        let ActionValue::Operation(op) = expr else {
+            return;
+        };
+        match op.as_ref() {
+            ActionOperation::Foreach {
+                as_name,
+                body,
+                combine: None | Some(CombineOp::Distinct),
+                ..
+            } => {
+                // The binding shadows the declarations in the body, as in
+                // `check_operation`, so a field of the element makes no claim.
+                self.bound.push(Binding {
+                    name: foreach_binding(as_name.as_deref()).to_string(),
+                    fields: as_name.is_none(),
+                });
+                self.check_element_rows(body, columns);
+                self.bound.pop();
+            }
+            ActionOperation::List { items } => {
+                for item in items {
+                    self.check_element_rows(item, columns);
+                }
+            }
+            ActionOperation::If { cases, default } => {
+                for branch in cases.iter().map(|case| &case.then).chain(default.iter()) {
+                    self.check_table_rows(branch, columns);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// T4 for one element of a table: a row, or an `IF` whose branches are.
+    fn check_element_rows(&mut self, expr: &ActionValue, columns: &[Column]) {
+        match expr {
+            ActionValue::Row(row) => self.check_row(row, columns),
+            ActionValue::Operation(op) => {
+                if let ActionOperation::If { cases, default } = op.as_ref() {
+                    for branch in cases.iter().map(|case| &case.then).chain(default.iter()) {
+                        self.check_element_rows(branch, columns);
+                    }
+                }
+            }
+            ActionValue::Literal(_) => {}
+        }
+    }
+
+    /// T4 for one row against the columns of its table.
+    fn check_row(&mut self, row: &Row, columns: &[Column]) {
+        let output = self.output.clone().unwrap_or_default();
+        for name in row.fields().keys() {
+            if !columns.iter().any(|column| &column.name == name) {
+                self.report(
+                    Rule::T4,
+                    format!("a row has the column '{name}', which '{output}' does not declare"),
+                );
+            }
+        }
+        for column in columns {
+            let Some(expr) = row.fields().get(&column.name) else {
+                self.report(
+                    Rule::T4,
+                    format!(
+                        "a row lacks the column '{}' of '{output}'; write null for a \
+                         column without a value",
+                        column.name
+                    ),
+                );
+                continue;
+            };
+            let declared = Ty::of(column.column_type);
+            if let Some(actual) = self.static_type(expr)
+                && !declared.compatible(actual)
+            {
+                self.report(
+                    Rule::T4,
+                    format!(
+                        "column '{}' is declared {} but is given a {}",
+                        column.name,
+                        declared.name(),
+                        actual.name()
+                    ),
+                );
+            }
+        }
+    }
+
+    /// The type of `expr` as far as it is known without following the
+    /// path: a literal, a declared name, a row, or an operation whose
+    /// result type does not depend on its operands. `None` claims nothing.
+    fn static_type(&self, expr: &ActionValue) -> Option<Ty> {
+        match expr {
+            ActionValue::Literal(Value::String(s)) if is_reference(s) => {
+                self.reference(s, &Facts::default()).ty
+            }
+            ActionValue::Literal(value) => Ty::of_literal(value),
+            ActionValue::Row(_) => Some(Ty::Object),
+            ActionValue::Operation(op) => match op.as_ref() {
+                ActionOperation::Equals { .. }
+                | ActionOperation::NotEquals { .. }
+                | ActionOperation::GreaterThan { .. }
+                | ActionOperation::LessThan { .. }
+                | ActionOperation::GreaterThanOrEqual { .. }
+                | ActionOperation::LessThanOrEqual { .. }
+                | ActionOperation::And { .. }
+                | ActionOperation::Or { .. }
+                | ActionOperation::Not { .. }
+                | ActionOperation::In { .. }
+                | ActionOperation::NotIn { .. }
+                | ActionOperation::IsNull { .. }
+                | ActionOperation::NotNull { .. } => Some(Ty::Boolean),
+                ActionOperation::List { .. }
+                | ActionOperation::Foreach {
+                    combine: None | Some(CombineOp::Distinct),
+                    ..
+                } => Some(Ty::Array),
+                _ => None,
+            },
         }
     }
 
@@ -965,6 +1112,14 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 info
             }
             ActionValue::Literal(value) => Info::present(Ty::of_literal(value), "the literal"),
+            ActionValue::Row(row) => {
+                // A container like a LIST: a column may hold null
+                // (`arrayColumn`), and a row is never itself absent.
+                for field in row.fields().values() {
+                    self.check_expr(field, facts, ABSENCE_ALLOWED);
+                }
+                Info::present(Some(Ty::Object), "the row")
+            }
             ActionValue::Operation(op) => self.check_operation(op, facts, slot),
         }
     }
@@ -1632,7 +1787,19 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
 /// Whether an expression is a literal in the sense of T4: a bare literal
 /// (not a reference), assigned directly to an output.
 fn is_literal_shaped(expr: &ActionValue) -> bool {
-    matches!(expr, ActionValue::Literal(value) if Ty::of_literal(value).is_some())
+    match expr {
+        ActionValue::Literal(value) => Ty::of_literal(value).is_some(),
+        ActionValue::Row(_) => true,
+        ActionValue::Operation(_) => false,
+    }
+}
+
+/// How T4 names a literal-shaped expression of type `ty`.
+fn literal_kind(expr: &ActionValue, ty: Ty) -> String {
+    match expr {
+        ActionValue::Row(_) => "a row".to_string(),
+        _ => format!("a {} literal", ty.name()),
+    }
 }
 
 /// The reference an `EQUALS`/`NOT_EQUALS` tests against a literal `null`.
@@ -3941,6 +4108,139 @@ actions:
         };
         assert!(!check(&add_over("DISTINCT")).is_empty());
         assert!(check(&add_over("MAX")).is_empty());
+    }
+
+    /// An article whose output `tabel` has the columns `gebied` (string) and
+    /// `zetels` (number) and gets `value`, a YAML block.
+    fn table_law_with_value(value: &str) -> String {
+        let value: String = value.lines().map(|l| format!("      {l}\n")).collect();
+        format!(
+            r#"
+parameters:
+  - name: uitslagen
+    type: array
+  - name: extra
+    type: number
+  - name: actief
+    type: boolean
+output:
+  - name: tabel
+    type: array
+    columns:
+      - name: gebied
+        type: string
+      - name: zetels
+        type: number
+actions:
+  - output: tabel
+    value:
+{value}"#
+        )
+    }
+
+    /// [`table_law_with_value`] with a FOREACH over `$uitslagen` as `u`
+    /// whose body is `body`.
+    fn table_law(body: &str) -> String {
+        let body: String = body.lines().map(|l| format!("  {l}\n")).collect();
+        table_law_with_value(&format!(
+            "operation: FOREACH\ncollection: $uitslagen\nas: u\nbody:\n{body}"
+        ))
+    }
+
+    #[test]
+    fn t4_a_row_built_for_a_table_names_its_columns() {
+        assert_clean(&table_law(
+            "gebied: $u.gebied\nzetels:\n  operation: ADD\n  values: [$u.zetels, $extra]",
+        ));
+        // A column may hold null.
+        assert_clean(&table_law("gebied: $u.gebied\nzetels: null"));
+        assert_only(
+            &table_law("gebied: $u.gebied\nzetels: $u.zetels\nkleur: rood"),
+            Rule::T4,
+            "column 'kleur'",
+        );
+        assert_only(
+            &table_law("gebied: $u.gebied"),
+            Rule::T4,
+            "lacks the column 'zetels'",
+        );
+    }
+
+    #[test]
+    fn t4_a_value_in_a_row_has_the_type_of_its_column_where_the_checker_knows_it() {
+        assert_only(
+            &table_law("gebied: $u.gebied\nzetels: veel"),
+            Rule::T4,
+            "column 'zetels' is declared number but is given a string",
+        );
+        assert_only(
+            &table_law("gebied: $u.gebied\nzetels: $actief"),
+            Rule::T4,
+            "column 'zetels' is declared number but is given a boolean",
+        );
+        // A field of the element is untyped: no claim.
+        assert_clean(&table_law("gebied: $u.zetels\nzetels: $u.gebied"));
+    }
+
+    #[test]
+    fn t4_a_row_is_checked_in_a_list_and_in_the_branches_of_an_if() {
+        let list = table_law_with_value(
+            "operation: LIST\nitems:\n  - {gebied: noord, zetels: 1}\n  - {gebied: zuid, zetels: 2, aantal: 2}",
+        );
+        assert_only(&list, Rule::T4, "column 'aantal'");
+        assert_only(
+            &table_law(
+                "operation: IF\ncases:\n  - when: $actief\n    then: {gebied: $u.gebied, zetels: 1}\ndefault: {gebied: $u.gebied, zetels: '1'}",
+            ),
+            Rule::T4,
+            "column 'zetels' is declared number but is given a string",
+        );
+    }
+
+    #[test]
+    fn t4_a_row_assigned_to_an_output_that_is_no_object_is_an_error() {
+        assert_only(
+            r#"
+output:
+  - name: x
+    type: number
+actions:
+  - output: x
+    value: {a: 1}
+"#,
+            Rule::T4,
+            "output is declared number but is assigned a row",
+        );
+        assert_only(
+            r#"
+output:
+  - name: x
+    type: number
+actions:
+  - output: x
+    value:
+      operation: IF
+      cases:
+        - when: true
+          then: {a: 1}
+      default: 2
+"#,
+            Rule::T4,
+            "output is declared number but a branch assigns a row",
+        );
+        assert_clean(
+            r#"
+parameters:
+  - name: n
+    type: number
+output:
+  - name: x
+    type: object
+actions:
+  - output: x
+    value: {a: $n, b: null}
+"#,
+        );
     }
 
     #[test]

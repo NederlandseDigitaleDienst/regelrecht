@@ -3,7 +3,7 @@
 # receipt of a copy of a ruling; the receipt revokes the decision it refers
 # to, the one the copy concerns, when the ruling annuls it. Article 2
 # takes a decision that revokes a record by its id. Fictional throughout.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
 $id: test_conformance_record_effects
 regulatory_layer: WET
 publication_date: '2026-11-07'

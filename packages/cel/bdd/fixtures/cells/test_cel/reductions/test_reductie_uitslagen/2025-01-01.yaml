@@ -2,8 +2,10 @@
 # FICTIEF. A reduction of the cell's BDD suite (schema v0.8.20): one
 # aggregate per result of test_uitslagen, with the lists in its state as an
 # array with columns, and a read model that sums the votes of one list over
-# the arrays of every aggregate with a nested FOREACH.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json
+# the arrays of every aggregate with a nested FOREACH. Since schema v0.8.22 a
+# second read model builds a row per aggregate (the polling station and the
+# votes of one list there) and reads that table back.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
 $id: test_reductie_uitslagen
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'
@@ -72,3 +74,64 @@ articles:
                 filter: {operation: EQUALS, subject: $lijst.aanduiding, value: $aanduiding}
                 body: $lijst.aantal_stemmen
                 combine: ADD
+
+  - number: stemmen_per_stembureau
+    url: https://example.com/test_reductie_uitslagen/stemmen_per_stembureau
+    text: >-
+      FICTIEF. Per stembureau het aantal stemmen op een lijst, als tabel, en
+      het aantal op één stembureau uit die tabel.
+    machine_readable:
+      execution:
+        parameters:
+          - name: aanduiding
+            type: string
+          - name: stembureau
+            type: string
+        input:
+          - name: uitslagen
+            type: array
+            source:
+              projections: test_reductie_uitslagen#uitslag
+        output:
+          - name: stemmen_per_stembureau
+            type: array
+            columns:
+              - name: stembureau
+                type: string
+              - name: stemmen
+                type: number
+          - name: stemmen_op_stembureau
+            type: number
+            nullable: true
+          - name: aantal_rijen
+            type: number
+        actions:
+          - output: stemmen_per_stembureau
+            value:
+              operation: FOREACH
+              collection: $uitslagen
+              as: uitslag
+              body:
+                stembureau: $uitslag.stembureau
+                stemmen:
+                  operation: FOREACH
+                  collection: $uitslag.lijsten
+                  as: lijst
+                  filter: {operation: EQUALS, subject: $lijst.aanduiding, value: $aanduiding}
+                  body: $lijst.aantal_stemmen
+                  combine: ADD
+          - output: stemmen_op_stembureau
+            value:
+              operation: FOREACH
+              collection: $stemmen_per_stembureau
+              as: rij
+              filter: {operation: EQUALS, subject: $rij.stembureau, value: $stembureau}
+              body: $rij.stemmen
+              combine: ONLY
+          - output: aantal_rijen
+            value:
+              operation: FOREACH
+              collection: $stemmen_per_stembureau
+              as: rij
+              body: 1
+              combine: ADD

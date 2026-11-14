@@ -1,0 +1,31 @@
+---
+# A row built from expressions came with schema v0.8.22. Under v0.8.21 the
+# schema has no object in the place of an operand, and the loader refuses it
+# rather than read the `$`-reference in it as text, as the engine did before.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
+$id: test_conformance_row_before_v0_8_22
+regulatory_layer: WET
+bwb_id: BWBR9999974
+publication_date: '2026-11-14'
+valid_from: '2026-11-14'
+url: https://example.invalid/row-before
+articles:
+  - number: '1'
+    url: https://example.invalid/row-before/1
+    text: Per afdeling wordt de naam vermeld.
+    machine_readable:
+      execution:
+        parameters:
+          - name: afdelingen
+            type: array
+        output:
+          - name: overzicht
+            type: array
+        actions:
+          - output: overzicht
+            value:
+              operation: FOREACH
+              collection: $afdelingen
+              as: afdeling
+              body:
+                afdeling: $afdeling.naam

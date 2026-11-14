@@ -377,6 +377,11 @@ pub struct Output {
     pub temporal: Option<Temporal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legal_basis: Option<ProvisionReference>,
+    /// Only on an output of type `array` (schema v0.8.22): the columns of
+    /// each row. The type check holds a row the article builds for this
+    /// output ([`ActionValue::Row`]) to them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<Column>>,
 }
 
 impl Output {
@@ -716,13 +721,66 @@ pub struct Case {
 /// but this is safe because `ActionOperation` is an internally-tagged enum keyed on `"operation"` -
 /// any YAML object lacking an `operation` key will fail to deserialize as ActionOperation and
 /// fall through to the Literal variant.
+///
+/// A map without an `operation` key is a [`Row`] (tried second), whose
+/// values are action values in turn. A map that is neither stays a literal
+/// value: one with an `operation` key that failed to read as an operation,
+/// which the engine refuses at load, and the serialized sentinels of an
+/// unknown or untranslatable value.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum ActionValue {
     /// Nested operation (tried first; requires `operation` field to match)
     Operation(Box<ActionOperation>),
+    /// A row built from expressions (schema v0.8.22).
+    Row(Row),
     /// Literal value (number, string, boolean, variable reference like "$var", etc.)
     Literal(Value),
+}
+
+/// A row built from expressions (schema v0.8.22): an object whose keys name
+/// columns and whose values are evaluated like any operand, so a
+/// `$`-reference in it is resolved and an operation in it is executed.
+///
+/// Never holds the key `operation` (an object with it is an operation), nor
+/// the key of a serialized unknown or untranslatable value: reading such a
+/// map as a row fails, and the untagged [`ActionValue`] falls through to a
+/// literal.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[serde(transparent)]
+pub struct Row(BTreeMap<String, ActionValue>);
+
+/// The keys that keep a map from being a [`Row`].
+const NOT_ROW_KEYS: [&str; 3] = [
+    "operation",
+    crate::value::UNTRANSLATABLE_KEY,
+    crate::value::UNKNOWN_KEY,
+];
+
+impl Row {
+    /// The columns of the row with the expression for each, by name.
+    pub fn fields(&self) -> &BTreeMap<String, ActionValue> {
+        &self.0
+    }
+}
+
+impl TryFrom<BTreeMap<String, ActionValue>> for Row {
+    type Error = String;
+
+    /// A row of `fields`, or the key that makes them no row.
+    fn try_from(fields: BTreeMap<String, ActionValue>) -> Result<Self, Self::Error> {
+        match NOT_ROW_KEYS.iter().find(|key| fields.contains_key(**key)) {
+            Some(key) => Err(format!("a map with the key '{key}' is not a row")),
+            None => Ok(Row(fields)),
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for Row {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let fields = BTreeMap::<String, ActionValue>::deserialize(deserializer)?;
+        Row::try_from(fields).map_err(serde::de::Error::custom)
+    }
 }
 
 /// Represents an operation within an action.
@@ -2547,5 +2605,61 @@ impl ArticleBasedLaw {
     /// Get all publicly callable articles
     pub fn get_public_articles(&self) -> Vec<&Article> {
         self.articles.iter().filter(|art| art.is_public()).collect()
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod row_tests {
+    use super::*;
+
+    fn read(yaml: &str) -> ActionValue {
+        serde_yaml_ng::from_str(yaml).expect("valid action value")
+    }
+
+    #[test]
+    fn a_map_without_operation_is_a_row_of_action_values() {
+        let ActionValue::Row(row) = read("{naam: $naam, som: {operation: ADD, values: [1, 2]}}")
+        else {
+            panic!("expected a row");
+        };
+        assert_eq!(
+            row.fields()["naam"],
+            ActionValue::Literal(Value::String("$naam".into()))
+        );
+        assert!(matches!(row.fields()["som"], ActionValue::Operation(_)));
+    }
+
+    #[test]
+    fn a_map_with_operation_is_never_a_row() {
+        assert!(matches!(
+            read("{operation: ADD, values: [1, 2]}"),
+            ActionValue::Operation(_)
+        ));
+        // A broken operation stays a literal, which the engine refuses at
+        // load; it does not become a row with a column named `operation`.
+        assert!(matches!(
+            read("{operation: GREATER_THAN, subject: $x}"),
+            ActionValue::Literal(Value::Object(_))
+        ));
+    }
+
+    #[test]
+    fn a_serialized_unknown_or_untranslatable_stays_a_literal() {
+        assert!(matches!(
+            read("{__unknown: true, missing: [{law: w, name: x, kind: no_data}]}"),
+            ActionValue::Literal(Value::Unknown(_))
+        ));
+        assert!(matches!(
+            read("{__untranslatable: true, article: '1', construct: c}"),
+            ActionValue::Literal(Value::Untranslatable { .. })
+        ));
+    }
+
+    #[test]
+    fn a_row_serializes_as_the_map_it_was_read_from() {
+        let value = read("{naam: $naam, aantal: 3}");
+        let yaml = serde_yaml_ng::to_string(&value).unwrap();
+        assert_eq!(read(&yaml), value);
     }
 }

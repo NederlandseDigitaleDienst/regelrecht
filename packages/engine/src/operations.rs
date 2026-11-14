@@ -38,10 +38,11 @@ use crate::context::RuleContext;
 use crate::error::{EngineError, Result};
 use crate::types::{PathNodeType, Value};
 use chrono::{Datelike, NaiveDate};
-use regelrecht_law_model::stored;
+use regelrecht_law_model::{Row, stored};
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::{Decimal, MathematicalOps, RoundingStrategy};
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
 
 /// Maximum nesting depth for operations to prevent stack overflow
 const MAX_OPERATION_DEPTH: usize = 100;
@@ -236,8 +237,28 @@ pub fn evaluate_value<R: ValueResolver>(
             }
             Ok(v.clone())
         }
+        ActionValue::Row(row) => build_row(row, resolver, depth + 1),
         ActionValue::Operation(op) => execute_operation(op, resolver, depth + 1),
     }
+}
+
+/// Build a row (schema v0.8.22): evaluate the expression of every column.
+///
+/// An unknown value stays in its column, where every operation that reads
+/// the row meets it (RFC-036: an unknown inside a record counts as much as a
+/// bare one), as an unknown item does in a LIST. An untranslatable value
+/// makes the whole row untranslatable (RFC-012): a row with a gap in one
+/// column would otherwise look complete.
+fn build_row<R: ValueResolver>(row: &Row, resolver: &R, depth: usize) -> Result<Value> {
+    let mut fields = BTreeMap::new();
+    for (name, expression) in row.fields() {
+        let value = evaluate_value(expression, resolver, depth)?;
+        if value.is_untranslatable() {
+            return Ok(value);
+        }
+        fields.insert(name.clone(), value);
+    }
+    Ok(Value::Object(fields))
 }
 
 /// Execute an operation and return the result.
@@ -5037,6 +5058,122 @@ mod tests {
             assert!(
                 matches!(&err, EngineError::InvalidOperation(m) if m.contains("child scopes")),
                 "got {err:?}"
+            );
+        }
+    }
+
+    /// A row built from expressions (schema v0.8.22).
+    mod row {
+        use super::*;
+        use crate::context::RuleContext;
+
+        fn expr(yaml: &str) -> ActionValue {
+            serde_yaml_ng::from_str(yaml).expect("valid action value")
+        }
+
+        fn obj(pairs: Vec<(&str, Value)>) -> Value {
+            Value::Object(pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+        }
+
+        #[test]
+        fn a_row_resolves_its_references_and_executes_its_operations() {
+            let resolver = TestResolver::new()
+                .with_var("naam", "noord")
+                .with_var("aantal", 4);
+            let row = expr(
+                "{naam: $naam, dubbel: {operation: MULTIPLY, values: [$aantal, 2]}, vast: tekst, leeg: null}",
+            );
+            assert_eq!(
+                evaluate_value(&row, &resolver, 0).unwrap(),
+                obj(vec![
+                    ("naam", Value::String("noord".into())),
+                    ("dubbel", Value::Int(8)),
+                    ("vast", Value::String("tekst".into())),
+                    ("leeg", Value::Null),
+                ])
+            );
+        }
+
+        #[test]
+        fn a_row_inside_a_row_is_built_too() {
+            let resolver = TestResolver::new().with_var("x", 1);
+            let row = expr("{buiten: {binnen: $x}}");
+            assert_eq!(
+                evaluate_value(&row, &resolver, 0).unwrap(),
+                obj(vec![("buiten", obj(vec![("binnen", Value::Int(1))]))])
+            );
+        }
+
+        #[test]
+        fn an_unknown_value_stays_in_its_column() {
+            // RFC-036: an unknown inside a record counts as much as a bare
+            // one, and the other columns stay readable, as in a LIST.
+            let resolver = TestResolver::new()
+                .with_var("naam", "noord")
+                .with_var("aantal", unknown_fact("aantal"));
+            let value =
+                evaluate_value(&expr("{naam: $naam, aantal: $aantal}"), &resolver, 0).unwrap();
+            let Value::Object(fields) = &value else {
+                panic!("expected a row, got {value:?}");
+            };
+            assert_eq!(fields["naam"], Value::String("noord".into()));
+            assert_eq!(missing_names(&fields["aantal"]), vec!["aantal"]);
+            assert!(value.contains_unknown());
+        }
+
+        #[test]
+        fn an_untranslatable_value_makes_the_whole_row_untranslatable() {
+            let gap = Value::Untranslatable {
+                article: "3".into(),
+                construct: "redelijkheid".into(),
+            };
+            let resolver = TestResolver::new()
+                .with_var("naam", "noord")
+                .with_var("aantal", gap);
+            let value =
+                evaluate_value(&expr("{naam: $naam, aantal: $aantal}"), &resolver, 0).unwrap();
+            assert!(value.is_untranslatable(), "{value:?}");
+        }
+
+        #[test]
+        fn a_row_as_the_body_of_a_foreach_without_combine_gives_an_array_of_rows() {
+            let context = RuleContext::new(
+                [(
+                    "uitslagen".to_string(),
+                    Value::Array(vec![
+                        obj(vec![
+                            ("gebied", "noord".into()),
+                            ("stemmen", Value::Int(30)),
+                        ]),
+                        obj(vec![("gebied", "zuid".into()), ("stemmen", Value::Int(12))]),
+                    ]),
+                )]
+                .into_iter()
+                .collect(),
+                "2025-06-15",
+            )
+            .expect("valid date");
+            let foreach = expr(
+                r#"
+operation: FOREACH
+collection: $uitslagen
+as: u
+body:
+  gebied: $u.gebied
+  stemmen:
+    operation: ADD
+    values: [$u.stemmen, 1]
+"#,
+            );
+            assert_eq!(
+                evaluate_value(&foreach, &context, 0).unwrap(),
+                Value::Array(vec![
+                    obj(vec![
+                        ("gebied", "noord".into()),
+                        ("stemmen", Value::Int(31))
+                    ]),
+                    obj(vec![("gebied", "zuid".into()), ("stemmen", Value::Int(13))]),
+                ])
             );
         }
     }

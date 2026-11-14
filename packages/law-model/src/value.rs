@@ -93,10 +93,10 @@ pub enum MissingKind {
 }
 
 /// Sentinel key used to identify serialized Untranslatable values.
-const UNTRANSLATABLE_KEY: &str = "__untranslatable";
+pub(crate) const UNTRANSLATABLE_KEY: &str = "__untranslatable";
 
 /// Sentinel key used to identify serialized Unknown values (RFC-036).
-const UNKNOWN_KEY: &str = "__unknown";
+pub(crate) const UNKNOWN_KEY: &str = "__unknown";
 
 /// Key under which an Unknown carries its missing facts.
 const MISSING_KEY: &str = "missing";

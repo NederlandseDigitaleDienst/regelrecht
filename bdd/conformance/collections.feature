@@ -167,3 +167,34 @@ Feature: Collection operations
     Then output "aantal_unieke_aanduidingen" equals 0
     When I evaluate "aanduiding" of "test_unieke_waarden"
     Then output "aanduiding" is absent
+
+  # An object in the place of an operand builds a row (schema v0.8.22): its
+  # references are resolved and its operations executed. As the body of a
+  # FOREACH without combine it gives an array of rows, read back here to a
+  # number. Driven against the test law test_rijen.
+
+  Scenario: A row resolves its references and runs its operations
+    Given the calculation date is "2025-01-01"
+    Given parameter "afdelingen" is the collection:
+      | naam  | leden |
+      | Noord | 12    |
+      | Zuid  | 7     |
+    And parameter "nieuwe_leden" is 2
+    And parameter "afdeling" is "Zuid"
+    When I evaluate "aantal_rijen" of "test_rijen"
+    Then output "aantal_rijen" equals 2
+    When I evaluate "leden_van_afdeling" of "test_rijen"
+    Then output "leden_van_afdeling" equals 9
+
+  Scenario: An unknown value stays in its column of the row
+    Given the calculation date is "2025-01-01"
+    Given parameter "afdelingen" is the collection:
+      | naam  | leden |
+      | Noord | 12    |
+    And parameter "afdeling" is "Noord"
+    # The rows are there; only the column that needs the missing fact is
+    # unknown, and reading it gives an unknown that names that fact.
+    When I evaluate "aantal_rijen" of "test_rijen"
+    Then output "aantal_rijen" equals 1
+    When I evaluate "leden_van_afdeling" of "test_rijen"
+    Then output "leden_van_afdeling" is unknown for lack of "nieuwe_leden"
