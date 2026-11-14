@@ -635,7 +635,8 @@ mod tests {
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
         let casus = spel.kiezen("bedrijfsparkeervergunning").unwrap();
         let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
-        for niveau in ["hoog", "laag"] {
+        // Low first: taking the last recorded login would grant.
+        for niveau in ["laag", "hoog"] {
             let velden = serde_json::json!({
                 "kvk_nummer": "99990011",
                 "pseudoniem": "ps-a71c0e",
@@ -659,6 +660,13 @@ mod tests {
         assert_eq!(
             besluit["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"], false,
             "{besluit}"
+        );
+        // Refused for the level, not on another ground.
+        let id = besluit["besluit"]["id"].as_str().unwrap();
+        let waarom = spel.waarom(id).unwrap().to_string();
+        assert!(
+            waarom.contains("betrouwbaarheidsniveau_authenticatie") && waarom.contains("\"laag\""),
+            "{waarom}"
         );
     }
 
