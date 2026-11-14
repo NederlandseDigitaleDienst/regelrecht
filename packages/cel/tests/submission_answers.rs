@@ -3,9 +3,11 @@
 //! small fictional law. Art. 2 establishes an application with a count the
 //! applicant states, and gives the count of a register next to it and whether
 //! the two differ. Art. 3 leaves that count to the register keeper, whose
-//! cell answers it from its own records through a policy (RFC-048). The
-//! application is recorded in the cell of the deciding body, which takes the
-//! register's cell along.
+//! cell answers it from its own records (RFC-048). A cell that uses what
+//! another cell holds needs a ground for it, in a law or in its own policy:
+//! here the deciding body's policy binds the term to the register's answer.
+//! The application is recorded in the cell of the deciding body, which takes
+//! the register's cell along.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -104,19 +106,21 @@ articles:
           - {output: aantal_geregistreerd, value: $aantal_geregistreerd}
 "#;
 
-/// The policy that binds the term of art. 3 to the answer of the register's
-/// cell (RFC-048), and counts none where that cell is silent.
+/// The deciding body's policy, its ground for using the register: it binds
+/// the term of art. 3 to the answer of the register's cell (RFC-048), and
+/// counts none where that cell is silent. The term names the register keeper
+/// as competent, so the engine asks the register's cell and not the body's.
 const BINDING: &str = r#"
-$id: beleid_register_fictief
+$id: beleid_opgave_bestuur_fictief
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
 url: https://example.org/beleid
 competent_authority:
-  name: Registerhouder
+  name: Bestuur
 articles:
   - number: '1'
-    text: Het aantal is wat het register zegt.
+    text: Het bestuur gaat uit van het aantal dat het register zegt.
     machine_readable:
       implements:
         - {law: wet_opgave_fictief, article: '3', open_term: aantal_geregistreerd}
