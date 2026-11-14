@@ -1,11 +1,11 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
 $id: reductie_voorbeeld_register
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
 # FICTIEF. Een testreductie: de naam bij een nummer, uit de inschrijvingen in
-# de kroniek van het register.
+# de kroniek van het register, en het bestuur bij een nummer, als tabel.
 url: https://example.invalid/reductie_voorbeeld_register
 name: Naam bij een nummer (fictieve testreductie)
 articles:
@@ -55,4 +55,62 @@ articles:
               collection: $inschrijvingen
               as: i
               body: $i.naam
+              combine: ONLY
+  - number: bestuur
+    text: Geen regelgeving. Per vastgesteld bestuur het nummer en de leden.
+    url: https://example.invalid/reductie_voorbeeld_register#bestuur
+    machine_readable:
+      projection:
+        per: voorbeeld_register#2#bestuur_vastgesteld
+        state:
+          - name: nummer
+            type: string
+          - name: bestuur
+            type: array
+            columns:
+              - name: naam
+                type: string
+              - name: functie
+                type: string
+              - name: sinds
+                type: date
+              - name: vergoeding
+                type: amount
+        steps:
+          - record: voorbeeld_register#2#bestuur_vastgesteld
+            actions:
+              - output: nummer
+                value: $record.nummer
+              - output: bestuur
+                value: $record.bestuur
+  - number: bestuur_bij_nummer
+    text: >-
+      Geen regelgeving. Het bestuur dat het register bij dit nummer vastlegde;
+      zonder vastgesteld bestuur zwijgt het register.
+    url: https://example.invalid/reductie_voorbeeld_register#bestuur_bij_nummer
+    machine_readable:
+      execution:
+        parameters:
+          - name: nummer
+            type: string
+            required: false
+            nullable: true
+        input:
+          - name: besturen
+            type: array
+            source:
+              projections: reductie_voorbeeld_register#bestuur
+              where:
+                nummer: $nummer
+        output:
+          - name: bestuur_bij_nummer
+            type: array
+            nullable: true
+        actions:
+          - output: bestuur_bij_nummer
+            value:
+              operation: FOREACH
+              collection: $besturen
+              as: b
+              body: $b.bestuur
               combine: ONLY

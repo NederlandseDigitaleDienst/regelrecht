@@ -1,11 +1,11 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
 $id: voorbeeld_register
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
 # FICTIEF. Een testregeling: het register schrijft een vereniging in met een
-# nummer en een naam.
+# nummer en een naam, en legt het bestuur van een vereniging vast als tabel.
 url: https://example.invalid/voorbeeld_register
 name: Voorbeeldregister (fictieve testbron)
 competent_authority:
@@ -31,3 +31,35 @@ articles:
           - name: naam
             type: string
             description: De naam van de vereniging.
+  - number: '2'
+    text: >-
+      FICTIEF. Het register legt bij het nummer van een vereniging haar bestuur
+      vast, per lid de naam, de functie, de dag waarop het lid aantrad en de
+      vergoeding.
+    url: https://example.invalid/voorbeeld_register#2
+    machine_readable:
+      requires:
+        - fact: bestuur_vastgesteld
+          description: Het bestuur van de vereniging met dit nummer, per lid een rij.
+          competent_authority:
+            - name: Voorbeeldregister
+          parameters:
+            - nummer
+            - bestuur
+      execution:
+        parameters:
+          - name: nummer
+            type: string
+            description: Het nummer dat het register de vereniging gaf.
+          - name: bestuur
+            type: array
+            description: Het bestuur, per lid een rij.
+            columns:
+              - name: naam
+                type: string
+              - name: functie
+                type: string
+              - name: sinds
+                type: date
+              - name: vergoeding
+                type: amount

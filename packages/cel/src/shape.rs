@@ -15,7 +15,7 @@
 
 use chrono::NaiveDate;
 use regelrecht_engine::{Article, Authority, LawExecutionService, ParameterType};
-use regelrecht_law_model::{ArticleRequirement, stored};
+use regelrecht_law_model::{ArticleRequirement, Column, Parameter, stored};
 use serde::Serialize;
 
 use crate::error::{Result, refused, setup};
@@ -33,9 +33,25 @@ pub struct Field {
     /// take part. Two articles that ask the same datum with the same type
     /// make one field, resting on both.
     pub declared_by: Vec<String>,
+    /// The columns of each row of a table (schema v0.8.20): only on a field
+    /// of type `array` that declares them. Two articles that ask the same
+    /// table ask it with the same columns.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<Column>>,
 }
 
 impl Field {
+    /// The field parameter `p` of article `declared_by` asks for.
+    pub fn of(p: &Parameter, declared_by: String) -> Self {
+        Field {
+            name: p.name.clone(),
+            type_: p.param_type,
+            nullable: p.is_nullable(),
+            declared_by: vec![declared_by],
+            columns: p.columns.clone(),
+        }
+    }
+
     /// The article that asks it first.
     pub fn first_declared_by(&self) -> &str {
         self.declared_by.first().map_or("", String::as_str)
@@ -165,13 +181,11 @@ pub fn derive(
             {
                 continue;
             }
-            let field = Field {
-                name: p.name.clone(),
-                type_: p.param_type,
-                nullable: p.is_nullable(),
-                declared_by: vec![declared_by.clone()],
-            };
-            add_field(&mut shape.fields, field, &reference)?;
+            add_field(
+                &mut shape.fields,
+                Field::of(p, declared_by.clone()),
+                &reference,
+            )?;
         }
         if let Some(m) = found.get_produced().into_iter().find_map(|p| p.moment()) {
             if let Some(other) = &shape.moment {
@@ -225,10 +239,20 @@ pub fn derive(
 
 /// Add `field` to `fields`. Two articles that ask the same datum make one
 /// field, resting on both; it can be absent only if both say so. A different
-/// type is an error in the law: one chronolexogram cannot hold both.
+/// type, or a table with other columns, is an error in the law: one
+/// chronolexogram cannot hold both.
 pub(crate) fn add_field(fields: &mut Vec<Field>, field: Field, reference: &str) -> Result<()> {
     match fields.iter_mut().find(|f| f.name == field.name) {
         None => fields.push(field),
+        Some(f) if f.type_ == field.type_ && f.columns != field.columns => {
+            return Err(setup(format!(
+                "{reference}: '{}' is declared by {} and by {} with other columns; \
+                 one chronolexogram cannot hold both",
+                field.name,
+                f.first_declared_by(),
+                field.first_declared_by()
+            )));
+        }
         Some(f) if f.type_ == field.type_ => {
             f.nullable &= field.nullable;
             for by in field.declared_by {
@@ -310,12 +334,7 @@ pub fn fact_fields(
                         "{fact}: the fact holds '{field}', which is no parameter"
                     ))
                 })?;
-            Ok(Field {
-                name: field.clone(),
-                type_: p.param_type,
-                nullable: p.is_nullable(),
-                declared_by: vec![basis.to_string()],
-            })
+            Ok(Field::of(p, basis.to_string()))
         })
         .collect()
 }
@@ -436,11 +455,25 @@ pub(crate) fn article_on<'s>(
 /// eurocents. A date is written `YYYY-MM-DD`, and only so. A decision is a
 /// decision value `{basis, fields, findings, outputs}` (schema
 /// v0.8.4): an article reference and three objects, with `taken_on` where
-/// the cell gave it ([`is_decision_value`]), and nothing else.
+/// the cell gave it ([`is_decision_value`]), and nothing else. A table is an
+/// array of rows that each fit its columns ([`fits_columns`]).
 pub fn fits(field: &Field, value: &serde_json::Value) -> bool {
     use serde_json::Value as J;
     match (field.type_, value) {
         (_, J::Null) => field.nullable,
+        (ParameterType::Array, J::Array(rows)) => field
+            .columns
+            .as_deref()
+            .is_none_or(|columns| rows.iter().all(|row| fits_columns(columns, row))),
+        (type_, value) => fits_type(type_, value),
+    }
+}
+
+/// Whether `value`, which is not null, is a value of type `type_`; an array
+/// of any rows fits an array.
+fn fits_type(type_: ParameterType, value: &serde_json::Value) -> bool {
+    use serde_json::Value as J;
+    match (type_, value) {
         (ParameterType::String, J::String(_)) => true,
         (ParameterType::Number, J::Number(_)) => true,
         // A decimal as the chronicle holds it ([`stored`]): only a
@@ -459,6 +492,21 @@ pub fn fits(field: &Field, value: &serde_json::Value) -> bool {
         (ParameterType::Decision, J::Object(o)) => is_decision_value(o),
         _ => false,
     }
+}
+
+/// Whether `row` is a row of a table with `columns` (schema v0.8.20): an
+/// object that holds no other key than a column, each value of the column's
+/// type or null. A row lacking a column holds null there.
+fn fits_columns(columns: &[Column], row: &serde_json::Value) -> bool {
+    let Some(row) = row.as_object() else {
+        return false;
+    };
+    row.iter().all(|(name, value)| {
+        columns
+            .iter()
+            .find(|c| &c.name == name)
+            .is_some_and(|c| value.is_null() || fits_type(c.column_type, value))
+    })
 }
 
 /// Whether `value` is a decision value `{basis, fields, findings,

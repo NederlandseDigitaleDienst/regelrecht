@@ -1,12 +1,13 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
 $id: voorbeeld_inschrijving
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2026-01-01'
 valid_from: '2026-01-01'
 # FICTIEF. Een testregeling voor voorinvullen: de aanvraag noemt het nummer en
 # de naam; het loket schrijft in als de naam dezelfde is als die het register
-# bij het nummer noemt (artikel 2).
+# bij het nummer noemt (artikel 2). Ze noemt ook het bestuur, als tabel, dat het
+# formulier voorinvult uit wat het register bij het nummer vastlegde (artikel 3).
 url: https://example.invalid/voorbeeld_inschrijving
 name: Voorbeeldinschrijving (fictieve testbron)
 competent_authority:
@@ -30,6 +31,17 @@ articles:
             actions:
               - output: naam_volgens_register
                 value: null
+        - id: bestuur_volgens_register
+          type: array
+          required: false
+          competent_authority:
+            - name: Voorbeeldregister
+              type: INSTANCE
+          description: Het bestuur dat het register bij het nummer vastlegde.
+          default:
+            actions:
+              - output: bestuur_volgens_register
+                value: null
       execution:
         produces:
           - type: AANVRAAG
@@ -37,6 +49,7 @@ articles:
             parameters:
               - nummer
               - naam_opgegeven
+              - bestuur
           - type: BESCHIKKING
             decision_type: TOEKENNING
             outputs:
@@ -50,6 +63,20 @@ articles:
             required: false
             nullable: true
             description: De naam van de vereniging zoals de aanvraag haar noemt.
+          - name: bestuur
+            type: array
+            required: false
+            nullable: true
+            description: Het bestuur van de vereniging zoals de aanvraag het noemt, per lid een rij.
+            columns:
+              - name: naam
+                type: string
+              - name: functie
+                type: string
+              - name: sinds
+                type: date
+              - name: vergoeding
+                type: amount
         output:
           - name: ingeschreven
             type: boolean
@@ -89,3 +116,32 @@ articles:
         actions:
           - output: naam_volgens_register
             value: $antwoord_naam
+  - number: '3'
+    text: FICTIEF. Het bestuur volgens het register ontleent het loket aan het antwoord van de cel van het register.
+    url: https://example.invalid/voorbeeld_inschrijving#3
+    machine_readable:
+      implements:
+        - law: voorbeeld_inschrijving
+          article: '1'
+          open_term: bestuur_volgens_register
+      execution:
+        parameters:
+          - name: nummer
+            type: string
+            required: false
+            nullable: true
+        input:
+          - name: antwoord_bestuur
+            type: array
+            nullable: true
+            source:
+              reduction: bestuur_bij_nummer
+              parameters:
+                nummer: $nummer
+        output:
+          - name: bestuur_volgens_register
+            type: array
+            nullable: true
+        actions:
+          - output: bestuur_volgens_register
+            value: $antwoord_bestuur

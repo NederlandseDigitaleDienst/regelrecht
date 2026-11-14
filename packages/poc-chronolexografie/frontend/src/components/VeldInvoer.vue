@@ -5,12 +5,14 @@
 // laat de aanvraag het weg, en de cel noemt het in `missing` (Awb 4:5).
 // `herkomst` is the line under a prefilled field: which cell it comes from, or
 // that the applicant changed it (voorinvulling.js). A switch (yes or no) does
-// not show it: nldd-switch-field stands outside an nldd-form-field.
+// not show it: nldd-switch-field stands outside an nldd-form-field. A table
+// (an array with `kolommen`, schema v0.8.20) is a TabelInvoer.
 import { leesbaar } from '../state.js';
+import TabelInvoer from './TabelInvoer.vue';
 
 const props = defineProps({
   veld: { type: Object, required: true },
-  modelValue: { type: [String, Number, Boolean], default: undefined },
+  modelValue: { type: [String, Number, Boolean, Array], default: undefined },
   herkomst: { type: String, default: '' },
 });
 const emit = defineEmits(['update:modelValue']);
@@ -23,8 +25,15 @@ const getal = (tekst) => {
 </script>
 
 <template>
+  <TabelInvoer
+    v-if="veld.type === 'array' && veld.kolommen"
+    :veld="veld"
+    :model-value="modelValue"
+    :herkomst="herkomst"
+    @update:model-value="emit('update:modelValue', $event)"
+  />
   <nldd-switch-field
-    v-if="veld.type === 'boolean'"
+    v-else-if="veld.type === 'boolean'"
     :label="leesbaar(veld.naam)"
     :checked="modelValue === true"
     @change="zet($event.detail.checked)"

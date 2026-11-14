@@ -9,6 +9,7 @@
  */
 import { toon } from './logboek.js';
 import { leesbaar } from './state.js';
+import { bronRij, verschilTekst, zelfdeTabel } from './tabel.js';
 
 /**
  * What the application form starts from. `scenario` is what a scenario gives
@@ -49,18 +50,25 @@ export function voorgevuldeWaarden(voorgevuld) {
  * The line under a prefilled field: which cell the value comes from, or that
  * the applicant changed or emptied it and what the source gives, or why the
  * source gave nothing (`fout`). Empty when no cell gave a value.
- * `celNaam` names a cell by its id.
+ * `celNaam` names a cell by its id. A table (a field with `kolommen`) counts
+ * as the source's when it holds the same rows, in any order (tabel.js); a
+ * changed one says per row what the source gives.
  */
-export function herkomstTekst(voorgevuld, waarde, celNaam) {
+export function herkomstTekst(voorgevuld, waarde, celNaam, kolommen) {
   if (voorgevuld?.fout) return `Niet vooringevuld: ${voorgevuld.fout}`;
   if (!voorgevuld || voorgevuld.waarde === null || voorgevuld.waarde === undefined) return '';
   const cellen = [...new Set((voorgevuld.herkomst ?? []).map((h) => celNaam(h.door)))];
   const wie = cellen.join(' en ') || 'de bron';
-  if (waarde === voorgevuld.waarde) {
+  const tabel = Array.isArray(kolommen) && Array.isArray(voorgevuld.waarde);
+  if (tabel ? zelfdeTabel(voorgevuld.waarde, waarde, kolommen) : waarde === voorgevuld.waarde) {
     const antwoorden = [...new Set((voorgevuld.herkomst ?? []).map((h) => leesbaar(h.antwoord)))];
     return `Ingevuld uit ${wie}${antwoorden.length ? ` (${antwoorden.join(', ')})` : ''}.`;
   }
-  const wat = waarde === undefined ? 'leeggemaakt' : 'gewijzigd';
   const hoofd = wie.charAt(0).toUpperCase() + wie.slice(1);
-  return `Door u ${wat}. ${hoofd} geeft: ${toon(voorgevuld.waarde)}.`;
+  if (waarde === undefined) {
+    const bron = tabel ? voorgevuld.waarde.map((rij) => bronRij(rij, kolommen)).join('; ') : toon(voorgevuld.waarde);
+    return `Door u leeggemaakt. ${hoofd} geeft: ${bron}.`;
+  }
+  if (tabel) return `Door u gewijzigd. ${hoofd} geeft ${verschilTekst(voorgevuld.waarde, waarde, kolommen)}.`;
+  return `Door u gewijzigd. ${hoofd} geeft: ${toon(voorgevuld.waarde)}.`;
 }
