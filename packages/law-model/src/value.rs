@@ -799,6 +799,8 @@ pub enum Operation {
     // Collection operations (3)
     In,
     List,
+    /// A row with its own columns (schema v0.8.22). Nested-only, like List.
+    Record,
     /// Iterate over a collection (RFC-016). Nested-only, like If and List.
     ForEach,
 
@@ -851,6 +853,7 @@ impl Operation {
         Operation::If,
         Operation::In,
         Operation::List,
+        Operation::Record,
         Operation::ForEach,
         Operation::Age,
         Operation::DateAdd,
@@ -898,6 +901,7 @@ impl Operation {
         Operation::If,
         Operation::In,
         Operation::List,
+        Operation::Record,
         Operation::ForEach,
         Operation::Age,
         Operation::DateAdd,
@@ -983,6 +987,7 @@ impl Operation {
             Operation::If => "IF",
             Operation::In => "IN",
             Operation::List => "LIST",
+            Operation::Record => "RECORD",
             Operation::ForEach => "FOREACH",
             Operation::Age => "AGE",
             Operation::DateAdd => "DATE_ADD",

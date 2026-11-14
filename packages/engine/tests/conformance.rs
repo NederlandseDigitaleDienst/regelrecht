@@ -513,6 +513,7 @@ const UNCOVERED_SCHEMA_KEYS: &[(&str, &str)] = &[
     ("ifOperation.legal_basis", "model drops it"),
     ("inOperation.legal_basis", "model drops it"),
     ("listOperation.legal_basis", "model drops it"),
+    ("recordOperation.legal_basis", "model drops it"),
     ("logicalOperation.legal_basis", "model drops it"),
     ("notOperation.legal_basis", "model drops it"),
     ("roundingOperation.legal_basis", "model drops it"),

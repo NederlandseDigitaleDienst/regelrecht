@@ -377,6 +377,11 @@ pub struct Output {
     pub temporal: Option<Temporal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legal_basis: Option<ProvisionReference>,
+    /// Only on an output of type `array` (schema v0.8.22): the columns of
+    /// each row. The type check holds a row the article builds for this
+    /// output with `RECORD` to them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<Column>>,
 }
 
 impl Output {
@@ -829,6 +834,12 @@ pub enum ActionOperation {
     },
     #[serde(rename = "LIST")]
     List { items: Vec<ActionValue> },
+    /// A row with its own columns (schema v0.8.22): each key of `fields`
+    /// names a column, each value is the expression for it.
+    #[serde(rename = "RECORD")]
+    Record {
+        fields: BTreeMap<String, ActionValue>,
+    },
     /// Iterate over a collection, evaluating `body` per element (RFC-016).
     ///
     /// The only operation that *defines* a variable rather than reading one:
@@ -1016,6 +1027,7 @@ impl ActionOperation {
                 .chain(values.iter().flatten())
                 .collect(),
             ActionOperation::List { items } => items.iter().collect(),
+            ActionOperation::Record { fields } => fields.values().collect(),
             ActionOperation::Foreach {
                 collection,
                 body,
@@ -1070,6 +1082,7 @@ impl ActionOperation {
             ActionOperation::In { .. } => "IN",
             ActionOperation::NotIn { .. } => "NOT_IN",
             ActionOperation::List { .. } => "LIST",
+            ActionOperation::Record { .. } => "RECORD",
             ActionOperation::Foreach { .. } => "FOREACH",
             ActionOperation::Age { .. } => "AGE",
             ActionOperation::DateAdd { .. } => "DATE_ADD",

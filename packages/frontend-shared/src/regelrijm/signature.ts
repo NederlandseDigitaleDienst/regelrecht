@@ -38,6 +38,7 @@ export function valueKind(node: unknown, unit: Unit | null, declared: ReadonlyMa
     case 'DATE_PART': return PART_KINDS[String(node.in)] ?? 'datumdeel';
     case 'DATE_DIFF': return DIFF_KINDS[String(node.in)] ?? 'tijdsduur';
     case 'LIST': return 'lijst';
+    case 'RECORD': return 'rij';
     case 'FOREACH':
       if (node.combine === 'AND' || node.combine === 'OR') return 'voorwaarde';
       // Without a combine, and with DISTINCT, the rows stay rows: a list.
@@ -80,6 +81,8 @@ export function freeInputs(node: unknown, constants: ReadonlySet<string> = new S
       if (v[f] === undefined) continue;
       if (v.operation === 'FOREACH' && (f === 'filter' || f === 'body') && typeof v.as === 'string') {
         visit(v[f], new Set([...bound, v.as]));
+      } else if (v.operation === 'RECORD' && f === 'fields') {
+        if (v.fields !== null && typeof v.fields === 'object') Object.values(v.fields).forEach((x: unknown) => visit(x, bound));
       } else if (v.operation === 'IF' && f === 'cases') {
         for (const c of ifCases(v)) {
           if (c.when !== undefined) visit(c.when, bound);

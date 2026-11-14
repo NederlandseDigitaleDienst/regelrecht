@@ -1,7 +1,7 @@
 ---
 # Tier C: FOREACH with combine DISTINCT, and the one value of several equal
 # ones as ONLY over its result (schema v0.8.21).
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
 $id: test_conformance_foreach_distinct
 regulatory_layer: WET
 bwb_id: BWBR9999971

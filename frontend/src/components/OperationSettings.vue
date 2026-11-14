@@ -68,8 +68,12 @@ const emit = defineEmits<{
 
 const availableVariables = computed(() => collectAvailableVariables(props.article));
 
+// RECORD keeps its operands in `fields`, which this panel cannot edit yet, so
+// it is offered only to show the type of a RECORD that is already there.
 const typeOptions = computed(() =>
-  Object.entries(OPERATION_LABELS).map(([key, label]) => ({ value: key, label }))
+  Object.entries(OPERATION_LABELS)
+    .filter(([key]) => key !== 'RECORD' || props.operation?.operation === 'RECORD')
+    .map(([key, label]) => ({ value: key, label }))
 );
 
 // Group variables by category with alphabetical sorting within each group,

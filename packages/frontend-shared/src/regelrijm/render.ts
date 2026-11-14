@@ -483,6 +483,18 @@ export class Renderer {
       case 'LIST':
         if (!Array.isArray(n.items)) return { doc: sp(K('de lijst'), this.hole('items', [...path, 'items']).doc), level: LEVEL.CLOSED };
         return { doc: sp(K('de lijst'), listDoc(list('items'))), level: LEVEL.CLOSED };
+      case 'RECORD': {
+        // `de rij ( kolom: waarde; … )`, the columns in the order written.
+        const fields = n.fields;
+        if (fields === null || typeof fields !== 'object' || Array.isArray(fields)) {
+          return { doc: sp(K('de rij'), this.hole('fields', [...path, 'fields']).doc), level: LEVEL.CLOSED };
+        }
+        const columns = Object.keys(fields).map((key) => [
+          kw(`${key}:`, [...path, 'fields', key]), ' ',
+          at(LEVEL.CHOICE, child((fields as Record<string, unknown>)[key], ['fields', key])),
+        ]);
+        return { doc: sp(K('de rij'), listDoc(columns)), level: LEVEL.CLOSED };
+      }
       case 'FOREACH': {
         // Operands are rendered in reading order, so fold numbers follow the text.
         const x = this.localName(String(n.as ?? 'item'), [...path, 'as']);
