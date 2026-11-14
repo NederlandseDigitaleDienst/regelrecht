@@ -1,0 +1,12 @@
+---
+# De UI-beschrijving van de casus bedrijfsparkeervergunning, in de vorm van
+# de UI-beschrijving van een bron (src/ui_spec.rs). De poc leest alleen
+# `prefill`: per veld van de aanvraag de uitvoer waaruit het formulier het
+# voorinvult. Beide lezen op het KvK-nummer van de aanvraag, dus het
+# formulier volgt wie er inlogt.
+elementen:
+  - id: UI1
+    element: aanvraagformulier
+    prefill:
+      naam_aanvrager: beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#4#naam_volgens_handelsregister
+      adres_aanvrager: beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#4#adres_volgens_handelsregister

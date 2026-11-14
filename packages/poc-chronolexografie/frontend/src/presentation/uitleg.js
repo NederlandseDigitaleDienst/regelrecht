@@ -106,7 +106,7 @@ export const steps = [
         open: [
           'articles.2.machine_readable.execution.produces.0.parameters',
           'articles.2.machine_readable.execution.produces.1.outputs',
-          'articles.2.machine_readable.execution.actions.bedrijfsparkeervergunning_verleend.value.conditions.1.conditions.0',
+          'articles.2.machine_readable.execution.actions.bedrijfsparkeervergunning_verleend.value.conditions.2.conditions.0',
         ],
       },
     ],

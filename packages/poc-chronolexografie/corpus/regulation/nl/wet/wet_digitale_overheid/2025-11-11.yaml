@@ -1,0 +1,174 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: wet_digitale_overheid
+regulatory_layer: WET
+publication_date: '2025-11-06'
+valid_from: '2025-11-11'
+bwb_id: BWBR0048156
+url: https://wetten.overheid.nl/BWBR0048156/2025-11-11
+name: Wet digitale overheid
+# Alleen artikel 6 en 15 staan hier, in de tekst van de toestand van 11
+# november 2025 op wetten.overheid.nl, de laatste toestand op het moment van
+# opnemen. Artikel 6 laat het bestuursorgaan bepalen op welk
+# betrouwbaarheidsniveau het toegang geeft tot een elektronische dienst.
+# Artikel 15 zegt dat het de verklaringen van erkende diensten aanvaardt
+# waaruit blijkt dat iemand namens een onderneming mag optreden.
+# Artikel 15 is in die toestand nog niet in werking getreden (status "nog
+# niet" in het BWB), net als artikel 9 en 11, die de erkenning regelen. Eigen
+# keuze: de poc hangt de authenticatie toch aan artikel 15 (het feit
+# authenticatie_verricht), omdat dat het artikel is dat haar gaat regelen. Tot
+# dan geeft eHerkenning de gegevens door volgens het Afsprakenstelsel
+# Elektronische Toegangsdiensten, zoals de cel van de erkende dienst ze
+# vastlegt (cells/erkende_dienst_inlogmiddel).
+articles:
+  - number: '6'
+    text: |-
+      1 Bij elektronische dienstverlening waarvoor authenticatie op betrouwbaarheidsniveau
+      substantieel of hoog vereist is, verlenen bestuursorganen en aangewezen organisaties
+      uitsluitend toegang tot de dienstverlening indien gebruik wordt gemaakt van
+      identificatiemiddelen die ten minste het voor de betreffende dienstverlening vereiste
+      betrouwbaarheidsniveau hebben.
+
+      2 Bestuursorganen en aangewezen organisaties bepalen volgens bij ministeriële regeling
+      te stellen regels voor welke door hen te verlenen elektronische diensten authenticatie
+      op een bepaald betrouwbaarheidsniveau vereist is en doen daarvan op bij die regeling
+      gestelde wijze mededeling.
+
+      3 Bestuursorganen en aangewezen organisaties bepalen volgens bij ministeriële regeling
+      te stellen regels voor welke door hen te verlenen elektronische diensten machtiging op
+      een bepaald betrouwbaarheidsniveau vereist is.
+
+      4 Bij ministeriële regeling kunnen regels worden gesteld over het gedurende een bepaalde
+      periode toestaan van toegang tot diensten, waarvoor volgens de krachtens het tweede lid
+      gestelde regels authenticatie op betrouwbaarheidsniveau substantieel of hoog vereist is,
+      met gebruikmaking van door Onze Minister aangewezen identificatiemiddelen die het
+      betrouwbaarheidsniveau laag respectievelijk substantieel hebben. Voor een
+      identificatiemiddel op betrouwbaarheidsniveau laag geldt dat sprake moet zijn van ten
+      minste twee authenticatiefactoren zoals bedoeld in de eIDAS-verordening.
+    url: https://wetten.overheid.nl/BWBR0048156/2025-11-11#Artikel6
+  - number: '15'
+    text: |-
+      1 Dit artikel is van toepassing op elektronische dienstverlening, waarvoor ingevolge de
+      regels, bedoeld in artikel 6, tweede lid, authenticatie op het betrouwbaarheidsniveau
+      substantieel of hoog is vereist, aan ondernemingen of rechtspersonen die ingevolge de
+      Handelsregisterwet 2007 worden of kunnen worden ingeschreven in het handelsregister.
+
+      2 Onverminderd het bepaalde in artikel 7, accepteren bestuursorganen en aangewezen
+      organisaties bij de toegang tot hun elektronische dienstverlening alle en uitsluitend
+      erkende bedrijfs- en organisatiemiddelen en door erkende machtigingsdiensten afgegeven
+      elektronische verklaringen waaruit blijkt dat een natuurlijke persoon, onderneming of
+      rechtspersoon gemachtigd is namens de onderneming of rechtspersoon op te treden bij de
+      toegang tot elektronische dienstverlening aan die onderneming of rechtspersoon.
+      Bestuursorganen en aangewezen organisaties accepteren in elk geval een van de op grond
+      van artikel 11, derde lid, erkende ontsluitende diensten.
+
+      3 De plicht om uitsluitend de in het tweede lid bedoelde identificatiemiddelen en
+      verklaringen te accepteren, is niet van toepassing ten aanzien van:
+
+      a. het aanmaken van en de toegang tot een beveiligde elektronische postbus die deel
+      uitmaakt van de elektronische omgeving van het centraal loket, bedoeld in artikel 1 van
+      de Dienstenwet, voor een dienstenverrichter als bedoeld in artikel 1 van de Dienstenwet,
+      die niet in Nederland gevestigd is;
+
+      b. elektronische dienstverlening die plaatsvindt via het centraal loket, bedoeld in
+      artikel 1 van de Dienstenwet, aan een dienstenverrichter als bedoeld in artikel 1 van de
+      Dienstenwet, die niet in Nederland gevestigd is.
+
+      4 Een bestuursorgaan of aangewezen organisatie kan, in afwijking van artikel 7, eerste
+      lid, onderdeel a, onderscheidenlijk tweede lid, onderdeel a, een natuurlijk persoon die
+      een onderneming drijft en bij de toegang tot elektronische dienstverlening gebruik maakt
+      van een toegelaten identificatiemiddel, de toegang tot elektronische dienstverlening
+      weigeren, indien aan dat middel het voor de dienstverlening noodzakelijke nummer ter
+      identificatie van de onderneming niet is verbonden.
+
+      5 In geval ten behoeve van elektronische dienstverlening door een bestuursorgaan of
+      aangewezen organisatie aan een specifieke doelgroep het gebruik van een ander bedrijfs-
+      of organisatiemiddel dan een erkend bedrijfs- of organisatiemiddel gewenst is, gelet op
+      de aard van de dienstverlening of de aard van het door de doelgroep uitgeoefende bedrijf
+      of beroep, kan Onze Minister een bedrijfs- of organisatiemiddel aanwijzen dat voor een
+      bij dat besluit te bepalen periode tevens voor de toegang tot die dienstverlening
+      gebruikt mag worden.
+
+      6 Bij het besluit, bedoeld in het vijfde lid, wordt bepaald op welke dienstverlening,
+      beroepsgroep en bestuursorganen of aangewezen organisaties de aanwijzing betrekking
+      heeft. Aan het besluit kunnen voorschriften worden verbonden.
+
+      7 Een besluit als bedoeld in het vijfde lid wordt niet genomen ten aanzien van een
+      bedrijfs- of organisatiemiddel dat niet voldoet aan de voor het betrouwbaarheidsniveau
+      substantieel of hoog gestelde eisen ten aanzien van veiligheid en betrouwbaarheid.
+
+      8 Dit artikel laat onverlet de plicht, bedoeld in artikel 6 van de eIDAS-verordening,
+      tot wederzijdse erkenning van een identificatiemiddel dat behoort tot een door een
+      andere lidstaat van de Europese Unie ingevolge de eIDAS-verordening bij de Europese
+      Commissie aangemeld stelsel, voor zover een bestuursorgaan of aangewezen organisatie is
+      aan te merken als openbare instantie als bedoeld in artikel 3, onderdeel 7, van de
+      eIDAS-verordening.
+    url: https://wetten.overheid.nl/BWBR0048156/2025-11-11#Artikel15
+    machine_readable:
+      # Lid 2: het bestuursorgaan aanvaardt de verklaring van een erkende
+      # dienst dat iemand namens de onderneming mag optreden. Het feit is die
+      # verklaring, zoals de erkende dienst haar bij een authenticatie afgeeft
+      # (requires, fact, RFC-051). Wie het vastlegt, noemt het feit
+      # (competent_authority).
+      # De velden zijn wat een dienstverlener volgens het Afsprakenstelsel
+      # Elektronische Toegangsdiensten (versie AS1.24e,
+      # afsprakenstelsel.etoegang.nl, "Interface specifications DV-HM") van
+      # eHerkenning ontvangt, en niets meer:
+      # - kvk_nummer: de onderneming namens wie iemand optreedt
+      #   (LegalSubjectID, van het type EntityConcernedID:KvKnr).
+      # - pseudoniem: wie handelt, als pseudoniem dat per dienstverlener
+      #   verschilt (ActingSubjectID). Geen naam en geen BSN.
+      # - dienst: de dienst waarvoor het machtigingenregister de machtiging
+      #   bevestigde (ServiceID). Zonder machtiging antwoordt het register
+      #   Deny en komt er geen verklaring; een vastlegging van dit feit
+      #   betekent dus altijd een bevestigde machtiging, voor deze dienst.
+      # - betrouwbaarheidsniveau: laag, substantieel of hoog (EH2+, EH3 of
+      #   EH4). Het geldende niveau is het laagste van de authenticatie en de
+      #   machtiging (AuthnContextClassRef).
+      # - datum_authenticatie: de dag van de authenticatie.
+      # Weggelaten: het vestigingsnummer (ServiceRestriction:Vestigingsnr),
+      # dat alleen meekomt als de machtiging tot een vestiging is beperkt, en
+      # de intermediair bij een ketenmachtiging (IntermediateEntityID). De
+      # verklaring zegt niet of iemand wettelijk vertegenwoordiger of
+      # gemachtigde is: zo'n gegeven geeft eHerkenning niet door.
+      requires:
+        - fact: authenticatie_verricht
+          description: >-
+            Dat een erkende dienst een authenticatie met een bedrijfs- en
+            organisatiemiddel verrichtte en verklaarde dat wie handelde,
+            gemachtigd is namens de onderneming op te treden bij de toegang
+            tot een dienst: namens welke onderneming, met welk pseudoniem,
+            voor welke dienst, op welk betrouwbaarheidsniveau en op welke dag.
+          competent_authority:
+            - name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+          parameters:
+            - kvk_nummer
+            - pseudoniem
+            - dienst
+            - betrouwbaarheidsniveau
+            - datum_authenticatie
+      execution:
+        parameters:
+          - name: kvk_nummer
+            type: string
+            description: >-
+              Het nummer dat de Kamer van Koophandel de onderneming toekende,
+              namens wie werd opgetreden.
+          - name: pseudoniem
+            type: string
+            description: >-
+              Het pseudoniem van wie handelde, zoals de erkende dienst het
+              voor deze dienstverlener afleidt.
+          - name: dienst
+            type: string
+            description: >-
+              De dienst waarvoor de machtiging is bevestigd, met haar nummer
+              in de dienstencatalogus.
+          - name: betrouwbaarheidsniveau
+            type: string
+            description: >-
+              Het betrouwbaarheidsniveau van de authenticatie met de
+              machtiging: laag, substantieel of hoog.
+          - name: datum_authenticatie
+            type: date
+            description: De dag waarop de erkende dienst de authenticatie verrichtte.

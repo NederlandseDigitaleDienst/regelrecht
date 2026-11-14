@@ -22,6 +22,7 @@ corpus:
   - regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
   - regulation/nl/uitvoeringsbeleid/beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+  - regulation/nl/wet/wet_digitale_overheid
 # De uitvoer die zegt of het besluit het gevraagde toewijst. De verordening
 # merkt die niet aan: decision_type TOEKENNING zegt wat voor besluit het is,
 # niet welke van zijn uitvoer de toewijzing is.
@@ -32,13 +33,24 @@ titel: Bedrijfsparkeervergunning
 cel_naam: gemeente Wilgendaal
 speeldatum: 2026-10-13
 
+# Wie inlogt: de aanvrager kiest een authenticatie die de erkende dienst
+# voor bedrijfs- en organisatiemiddelen vastlegde, zoals eHerkenning er een
+# doorgeeft, en het KvK-nummer daarvan gaat in de aanvraag. Geen naam: die
+# geeft eHerkenning niet door. Een gesimuleerde login, geen echt inlogmiddel.
+inloggen:
+  feit: wet_digitale_overheid#15#authenticatie_verricht
+  sleutel: kvk_nummer
+  veld: kvk_nummer
+
 # Fictieve voorbeeldgegevens. Volg je een scenario, dan begint elk formulier
 # hiermee, met de waarden van de stap erover; bij vrij spelen blijft het leeg.
 # Het KvK-nummer is dat van een verzonnen bakkerij in de binnenstad; de
 # KvK-nummers en het kenteken zijn verzonnen. Alleen bij een bedrijf op het
 # maximum vraagt het formulier een bevinding: het oordeel over de
 # hardheidsclausule. Het voorbeeld past die niet toe. De rest geven de Kamer
-# van Koophandel en de cel van de gemeente.
+# van Koophandel en de cel van de gemeente. De naam en het adres vult het
+# formulier vooraf in uit het handelsregister (ui_spec.yaml in
+# casussen/bedrijfsparkeervergunning), bij het KvK-nummer van wie inlogt.
 voorbeeld:
   aanvraag:
     kvk_nummer: '99990011'
@@ -77,16 +89,18 @@ voorbeeld:
 
 # De andere cellen van de sfeer (RFC-048). Het open begrip zegt wie bevoegd
 # is: de Kamer van Koophandel voor wat het handelsregister vermeldt (artikel 2
-# en 3 van het fictieve uitvoeringsbesluit parkeren van Wilgendaal). Elke cel
-# legt bij elke start en reset opnieuw vast wat zij vóór het eerste scenario
-# wist, via de cel zoals elke stap.
+# en 3 van het fictieve uitvoeringsbesluit parkeren van Wilgendaal), de
+# erkende dienst voor wat zij bij een authenticatie verklaarde (artikel 4).
+# Elke cel legt bij elke start en reset opnieuw vast wat zij vóór het eerste
+# scenario wist, via de cel zoals elke stap.
 #
 # - De Kamer schreef vier verzonnen bedrijven in, elk met een vestiging: een
 #   bakkerij in de binnenstad (vier werkzame personen), een fietsenmakerij in
 #   de schil (één werkzame persoon), een thuiszorgbedrijf in de binnenstad
 #   (twaalf werkzame personen) en een adviesbureau buiten de
-#   vergunninggebieden. Executogrammen van het feit dat artikel 1 van het
-#   fictieve beleid van de Kamer vereist; dat artikel zegt ook wat het bevat.
+#   vergunninggebieden; verderop staan er nog drie. Executogrammen van het
+#   feit dat artikel 1 van het fictieve beleid van de Kamer vereist; dat
+#   artikel zegt ook wat het bevat.
 #   Elk draagt de dag waarop de Kamer de gegevens opnam.
 # - De gemeente zelf kent nog geen vergunning. Haar eigen cel begint vóór de
 #   andere cellen, dus een vergunning die ze al verleende, kan dit bestand
@@ -102,6 +116,8 @@ andere_cellen:
           datum: 2026-01-05
           velden:
             kvk_nummer: '99990011'
+            handelsnaam: Bakkerij De Wilg
+            bezoekadres: Kerkstraat 1, 7711 AB Wilgendaal
             postcode: 7711 AB
             aantal_werkzame_personen: 4
             datum_inschrijving: '2026-01-05'
@@ -109,6 +125,8 @@ andere_cellen:
           datum: 2026-02-02
           velden:
             kvk_nummer: '99990022'
+            handelsnaam: Fietsenmakerij Kade
+            bezoekadres: Kade 3, 7713 AA Wilgendaal
             postcode: 7713 AA
             aantal_werkzame_personen: 1
             datum_inschrijving: '2026-02-02'
@@ -116,6 +134,8 @@ andere_cellen:
           datum: 2026-02-16
           velden:
             kvk_nummer: '99990044'
+            handelsnaam: Thuiszorg De Linde
+            bezoekadres: Lindelaan 2, 7711 AA Wilgendaal
             postcode: 7711 AA
             aantal_werkzame_personen: 12
             datum_inschrijving: '2026-02-16'
@@ -123,6 +143,8 @@ andere_cellen:
           datum: 2026-03-02
           velden:
             kvk_nummer: '99990033'
+            handelsnaam: Adviesbureau Buitenweg
+            bezoekadres: Buitenweg 4, 7720 BC Wilgendaal
             postcode: 7720 BC
             aantal_werkzame_personen: 3
             datum_inschrijving: '2026-03-02'
@@ -134,6 +156,8 @@ andere_cellen:
           datum: 2026-03-02
           velden:
             kvk_nummer: '99990066'
+            handelsnaam: Drukkerij De Pers
+            bezoekadres: Singel 9, 7713 AB Wilgendaal
             postcode: 7713 AB
             aantal_werkzame_personen: 1
             datum_inschrijving: '2026-02-23'
@@ -146,6 +170,97 @@ andere_cellen:
           velden:
             postcode: 7713 AB
             aantal_werkzame_personen: 2
+        # Twee bedrijven in de binnenstad voor de scenario's over inloggen:
+        # een kapsalon en een bloemist.
+        - feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+          datum: 2026-03-02
+          velden:
+            kvk_nummer: '99990077'
+            handelsnaam: Kapsalon De Krul
+            bezoekadres: Kerkstraat 5, 7711 AB Wilgendaal
+            postcode: 7711 AB
+            aantal_werkzame_personen: 2
+            datum_inschrijving: '2026-03-02'
+        - feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
+          datum: 2026-03-02
+          velden:
+            kvk_nummer: '99990088'
+            handelsnaam: Bloemist Het Veld
+            bezoekadres: Markt 3, 7711 AC Wilgendaal
+            postcode: 7711 AC
+            aantal_werkzame_personen: 1
+            datum_inschrijving: '2026-03-02'
+  # De erkende dienst voor bedrijfs- en organisatiemiddelen (artikel 15 van
+  # de Wet digitale overheid). Zij is bevoegd voor de begrippen van artikel 4
+  # van het fictieve uitvoeringsbesluit parkeren: of de machtiging voor de
+  # dienst bedrijfsparkeervergunning is bevestigd, en op welk niveau. Haar
+  # kroniek begint met een authenticatie voor elk bedrijf van de casus, voor
+  # die dienst op niveau substantieel of hoog, zodat de scenario's van vóór
+  # het inloggen uitkomen als zonder inloggen. Twee uitzonderingen,
+  # voor de scenario's over inloggen: de kapsalon is alleen gemachtigd voor
+  # een andere dienst van de gemeente (services:2), en de bloemist logde in
+  # op niveau laag (EH2+). De pseudoniemen zijn verzonnen.
+  - cel: erkende_dienst_inlogmiddel
+    cel_naam: Erkende dienst voor bedrijfs- en organisatiemiddelen
+    begin:
+      datum: 2026-10-12
+      executogrammen:
+        - feit: wet_digitale_overheid#15#authenticatie_verricht
+          velden:
+            kvk_nummer: '99990011'
+            pseudoniem: ps-a71c0e
+            dienst: urn:etoegang:DV:00000009999999999000:services:1
+            betrouwbaarheidsniveau: substantieel
+            datum_authenticatie: '2026-10-12'
+        - feit: wet_digitale_overheid#15#authenticatie_verricht
+          velden:
+            kvk_nummer: '99990022'
+            pseudoniem: ps-2b61d8
+            dienst: urn:etoegang:DV:00000009999999999000:services:1
+            betrouwbaarheidsniveau: substantieel
+            datum_authenticatie: '2026-10-12'
+        - feit: wet_digitale_overheid#15#authenticatie_verricht
+          velden:
+            kvk_nummer: '99990033'
+            pseudoniem: ps-3b9d42
+            dienst: urn:etoegang:DV:00000009999999999000:services:1
+            betrouwbaarheidsniveau: substantieel
+            datum_authenticatie: '2026-10-12'
+        - feit: wet_digitale_overheid#15#authenticatie_verricht
+          velden:
+            kvk_nummer: '99990044'
+            pseudoniem: ps-c2e815
+            dienst: urn:etoegang:DV:00000009999999999000:services:1
+            betrouwbaarheidsniveau: hoog
+            datum_authenticatie: '2026-10-12'
+        - feit: wet_digitale_overheid#15#authenticatie_verricht
+          velden:
+            kvk_nummer: '99990055'
+            pseudoniem: ps-55f0a3
+            dienst: urn:etoegang:DV:00000009999999999000:services:1
+            betrouwbaarheidsniveau: substantieel
+            datum_authenticatie: '2026-10-12'
+        - feit: wet_digitale_overheid#15#authenticatie_verricht
+          velden:
+            kvk_nummer: '99990066'
+            pseudoniem: ps-e6d197
+            dienst: urn:etoegang:DV:00000009999999999000:services:1
+            betrouwbaarheidsniveau: substantieel
+            datum_authenticatie: '2026-10-12'
+        - feit: wet_digitale_overheid#15#authenticatie_verricht
+          velden:
+            kvk_nummer: '99990077'
+            pseudoniem: ps-77d4b0
+            dienst: urn:etoegang:DV:00000009999999999000:services:2
+            betrouwbaarheidsniveau: substantieel
+            datum_authenticatie: '2026-10-12'
+        - feit: wet_digitale_overheid#15#authenticatie_verricht
+          velden:
+            kvk_nummer: '99990088'
+            pseudoniem: ps-8a2f6c
+            dienst: urn:etoegang:DV:00000009999999999000:services:1
+            betrouwbaarheidsniveau: laag
+            datum_authenticatie: '2026-10-12'
   # De bestuursrechter (RFC-053): ook een andere cel, met een eigen kroniek.
   - cel: rechtbank_wilgendaal
     cel_naam: Rechtbank Wilgendaal
@@ -193,6 +308,8 @@ scenarios:
         feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
         invoer:
           kvk_nummer: '99990055'
+          handelsnaam: Koeriersbedrijf De Singel
+          bezoekadres: Singel 5, 7713 AB Wilgendaal
           postcode: 7713 AB
           aantal_werkzame_personen: 1
           datum_inschrijving: '2026-10-01'
@@ -243,6 +360,8 @@ scenarios:
         feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
         invoer:
           kvk_nummer: '99990055'
+          handelsnaam: Koeriersbedrijf De Singel
+          bezoekadres: Singel 5, 7713 AB Wilgendaal
           postcode: 7713 AB
           aantal_werkzame_personen: 2
           datum_inschrijving: '2026-11-02'
@@ -351,6 +470,8 @@ scenarios:
         feit: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
         invoer:
           kvk_nummer: '99990033'
+          handelsnaam: Adviesbureau Buitenweg
+          bezoekadres: Kerkstraat 9, 7711 AC Wilgendaal
           postcode: 7711 AC
           aantal_werkzame_personen: 3
           datum_inschrijving: '2026-11-01'
@@ -585,3 +706,150 @@ scenarios:
     eind: >-
       Toegewezen: de vergunningen volgen het aantal werkzame personen zoals de
       correcties het verbeterden, niet de oorspronkelijke inschrijving.
+  # Inloggen (artikel 4 van het fictieve uitvoeringsbesluit parkeren): de
+  # erkende dienst legt een authenticatie vast, en de aanvrager logt in als
+  # die vastlegging. Bij het begin is de kapsalon alleen gemachtigd voor een
+  # andere dienst; in het eerste scenario komt er een machtiging voor deze
+  # dienst bij, in het tweede niet. Het KvK-nummer gaat in de aanvraag; de naam en het adres
+  # komen uit het handelsregister.
+  - naam: Een kapsalon krijgt een machtiging voor deze dienst
+    samenvatting: >-
+      Een medewerker van een kapsalon in de binnenstad logt in met een
+      machtiging voor de bedrijfsparkeervergunning, en het college verleent
+      de vergunning.
+    stappen:
+      - stap: vastleggen
+        verhaal: >-
+          Een medewerker van de kapsalon logt in met eHerkenning, op niveau
+          substantieel, nu met een machtiging voor de dienst
+          bedrijfsparkeervergunning.
+        titel: Authenticatie bij de erkende dienst
+        cel: erkende_dienst_inlogmiddel
+        feit: wet_digitale_overheid#15#authenticatie_verricht
+        invoer:
+          kvk_nummer: '99990077'
+          pseudoniem: ps-77d4b0
+          dienst: urn:etoegang:DV:00000009999999999000:services:1
+          betrouwbaarheidsniveau: substantieel
+          datum_authenticatie: '2026-10-13'
+        tekst: >-
+          Klik bij Erkende dienst voor bedrijfs- en organisatiemiddelen onder
+          "Vastleggen: Authenticatie verricht" op Vastleggen.
+        gezien: >-
+          De authenticatie staat in de kroniek van de erkende dienst.
+      - stap: aanvraag
+        verhaal: >-
+          De kapsalon vraagt een bedrijfsparkeervergunning.
+        invoer:
+          kvk_nummer: '99990077'
+          naam_aanvrager: Kapsalon De Krul
+          adres_aanvrager: Kerkstraat 5, 7711 AB Wilgendaal
+        tekst: >-
+          Kies bij "Ingelogd als" 99990077 en klik op Aanvraag indienen.
+        gezien: >-
+          Het formulier nam de naam en het adres over uit het handelsregister.
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag van de kapsalon.
+        datum: 2026-10-20
+        uitkomst: toegewezen
+        gezien: >-
+          Toegewezen: de erkende dienst bevestigde de machtiging voor deze
+          dienst, op niveau substantieel.
+    eind: >-
+      Toegewezen: de aanvraag is namens het bedrijf ingediend, en het bedrijf
+      is in de binnenstad gevestigd.
+  - naam: Een kapsalon zonder machtiging voor deze dienst
+    samenvatting: >-
+      Een medewerker van een kapsalon logt in met een machtiging voor een
+      andere dienst van de gemeente, en het college weigert de vergunning.
+    stappen:
+      - stap: aanvraag
+        verhaal: >-
+          De kapsalon vraagt een bedrijfsparkeervergunning, maar wie inlogt,
+          is alleen gemachtigd voor een andere dienst van de gemeente.
+        invoer:
+          kvk_nummer: '99990077'
+          naam_aanvrager: Kapsalon De Krul
+          adres_aanvrager: Kerkstraat 5, 7711 AB Wilgendaal
+        tekst: >-
+          Kies bij "Ingelogd als" 99990077 en klik op Aanvraag indienen.
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de aanvraag van de kapsalon.
+        datum: 2026-10-20
+        uitkomst: afgewezen
+        gezien: >-
+          Afgewezen: de erkende dienst bevestigde geen machtiging voor de dienst
+          bedrijfsparkeervergunning.
+    eind: >-
+      Afgewezen: niet blijkt dat de aanvraag namens het bedrijf is ingediend,
+      al is de kapsalon in de binnenstad gevestigd.
+  # De kroniek leest wat de erkende dienst wist op de dag van ontvangst. Een
+  # authenticatie die daarna komt, raakt die aanvraag niet, ook als het
+  # besluit later valt; een nieuwe aanvraag leest haar wel.
+  - naam: Een bloemist logt opnieuw in, op een hoger niveau
+    samenvatting: >-
+      Een bloemist vraagt een vergunning na een inlog op niveau laag, en een
+      latere inlog op niveau substantieel verandert dat besluit niet, maar
+      een nieuwe aanvraag slaagt wel.
+    stappen:
+      - stap: aanvraag
+        verhaal: >-
+          De bloemist vraagt een bedrijfsparkeervergunning, ingelogd op
+          niveau laag (EH2+).
+        invoer:
+          kvk_nummer: '99990088'
+          naam_aanvrager: Bloemist Het Veld
+          adres_aanvrager: Markt 3, 7711 AC Wilgendaal
+        tekst: >-
+          Kies bij "Ingelogd als" 99990088 en klik op Aanvraag indienen.
+      - stap: vastleggen
+        verhaal: >-
+          De volgende dag logt de bloemist opnieuw in, nu op niveau
+          substantieel.
+        titel: Nieuwe authenticatie bij de erkende dienst
+        datum: 2026-10-14
+        cel: erkende_dienst_inlogmiddel
+        feit: wet_digitale_overheid#15#authenticatie_verricht
+        invoer:
+          kvk_nummer: '99990088'
+          pseudoniem: ps-8a2f6c
+          dienst: urn:etoegang:DV:00000009999999999000:services:1
+          betrouwbaarheidsniveau: substantieel
+          datum_authenticatie: '2026-10-14'
+        tekst: >-
+          Klik bij Erkende dienst voor bedrijfs- en organisatiemiddelen onder
+          "Vastleggen: Authenticatie verricht" op Vastleggen.
+        gezien: >-
+          De nieuwe authenticatie staat in de kroniek van de erkende dienst,
+          naast de oude.
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de eerste aanvraag.
+        datum: 2026-10-20
+        uitkomst: afgewezen
+        gezien: >-
+          Afgewezen: de aanvraag kwam binnen op 13 oktober, toen de erkende
+          dienst alleen de inlog op niveau laag kende.
+      - stap: aanvraag
+        verhaal: >-
+          De bloemist vraagt opnieuw een vergunning.
+        datum: 2026-10-21
+        invoer:
+          kvk_nummer: '99990088'
+          naam_aanvrager: Bloemist Het Veld
+          adres_aanvrager: Markt 3, 7711 AC Wilgendaal
+      - stap: besluit
+        verhaal: >-
+          Het college beslist op de tweede aanvraag.
+        datum: 2026-10-22
+        uitkomst: toegewezen
+        tekst: >-
+          Klik bij de tweede aanvraag op Besluit nemen.
+        gezien: >-
+          Toegewezen: bij de tweede aanvraag kende de erkende dienst de inlog
+          op niveau substantieel.
+    eind: >-
+      Toegewezen: de tweede aanvraag slaagt, en de eerste blijft een
+      weigering.
