@@ -50,6 +50,7 @@ jobs:
       demo: ${{ steps.filter.outputs.demo }}
       poc: ${{ steps.filter.outputs.poc }}
       poc-napp: ${{ steps.filter.outputs.poc-napp }}
+      poc-wetsgeschiedenis: ${{ steps.filter.outputs.poc-wetsgeschiedenis }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
@@ -256,6 +257,18 @@ jobs:
       cache-scope: poc-napp
       deps-cache-scope: poc-napp
 
+  build-poc-wetsgeschiedenis:
+    needs: [changes, ci-green]
+    if: github.event.action != 'closed' && needs.changes.outputs.poc-wetsgeschiedenis == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-image.yml
+    with:
+      image-name: regelrecht-poc-wetsgeschiedenis
+      dockerfile: packages/poc-wetsgeschiedenis/Dockerfile
+      cache-scope: poc-wetsgeschiedenis
+
   build-poc:
     needs: [changes, ci-green]
     if: github.event.action != 'closed' && needs.changes.outputs.poc == 'true'
@@ -301,7 +314,7 @@ jobs:
   deploy-preview:
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    needs: [build, build-admin, build-harvester-worker, build-enrich-worker, build-pipeline-api, build-lawmaking, build-docs, build-demo, build-poc, build-poc-napp, changes]
+    needs: [build, build-admin, build-harvester-worker, build-enrich-worker, build-pipeline-api, build-lawmaking, build-docs, build-demo, build-poc, build-poc-napp, build-poc-wetsgeschiedenis, changes]
     if: >-
       always() &&
       github.event_name == 'pull_request' && github.event.action != 'closed' &&
@@ -316,7 +329,8 @@ jobs:
         needs.build-demo.result == 'success' ||
         needs.build-docs.result == 'success' ||
         needs.build-poc.result == 'success' ||
-        needs.build-poc-napp.result == 'success'
+        needs.build-poc-napp.result == 'success' ||
+        needs.build-poc-wetsgeschiedenis.result == 'success'
       )
     permissions:
       pull-requests: write
@@ -347,6 +361,7 @@ jobs:
           DOCS: ${{ needs.build-docs.result }}
           POC: ${{ needs.build-poc.result }}
           POC_NAPP: ${{ needs.build-poc-napp.result }}
+          POC_WETSGESCHIEDENIS: ${{ needs.build-poc-wetsgeschiedenis.result }}
         run: |
           set -euo pipefail
           COMPONENTS='[]'
@@ -367,6 +382,7 @@ jobs:
           if [ "$DOCS" = success ]; then add docs regelrecht-docs; fi
           if [ "$POC" = success ]; then add poc regelrecht-poc; fi
           if [ "$POC_NAPP" = success ]; then add napp regelrecht-poc-napp; fi
+          if [ "$POC_WETSGESCHIEDENIS" = success ]; then add wetsgeschiedenis regelrecht-poc-wetsgeschiedenis; fi
 
           jq -r '.[] | "  \(.name): \(.image)"' <<<"$COMPONENTS"
           echo "components=$COMPONENTS" >> "$GITHUB_OUTPUT"
@@ -438,7 +454,7 @@ jobs:
     concurrency:
       group: deploy-production
       cancel-in-progress: false
-    needs: [build, build-admin, build-harvester-worker, build-enrich-worker, build-pipeline-api, build-grafana, build-lawmaking, build-docs, build-demo, build-poc, build-poc-napp]
+    needs: [build, build-admin, build-harvester-worker, build-enrich-worker, build-pipeline-api, build-grafana, build-lawmaking, build-docs, build-demo, build-poc, build-poc-napp, build-poc-wetsgeschiedenis]
     if: >-
       always() &&
       github.ref == 'refs/heads/main' && github.event_name == 'push' &&
@@ -454,7 +470,8 @@ jobs:
         needs.build-demo.result == 'success' ||
         needs.build-docs.result == 'success' ||
         needs.build-poc.result == 'success' ||
-        needs.build-poc-napp.result == 'success'
+        needs.build-poc-napp.result == 'success' ||
+        needs.build-poc-wetsgeschiedenis.result == 'success'
       )
     permissions:
       # Voor script/check-deployed-urls.sh onderaan.
@@ -514,6 +531,7 @@ jobs:
           DOCS: ${{ needs.build-docs.result }}
           POC: ${{ needs.build-poc.result }}
           POC_NAPP: ${{ needs.build-poc-napp.result }}
+          POC_WETSGESCHIEDENIS: ${{ needs.build-poc-wetsgeschiedenis.result }}
         run: |
           set -euo pipefail
           COMPONENTS='[]'
@@ -536,6 +554,7 @@ jobs:
           if [ "$DOCS" = success ]; then add docs regelrecht-docs; fi
           if [ "$POC" = success ]; then add poc regelrecht-poc; fi
           if [ "$POC_NAPP" = success ]; then add napp regelrecht-poc-napp; fi
+          if [ "$POC_WETSGESCHIEDENIS" = success ]; then add wetsgeschiedenis regelrecht-poc-wetsgeschiedenis; fi
 
           jq -r '.[] | "  \(.name): \(.image)"' <<<"$COMPONENTS"
           echo "components=$COMPONENTS" >> "$GITHUB_OUTPUT"
@@ -621,7 +640,8 @@ jobs:
               {"org": "${{ github.repository_owner }}", "name": "regelrecht-demo", "tag": "pr-${{ github.event.pull_request.number }}"},
               {"org": "${{ github.repository_owner }}", "name": "regelrecht-docs", "tag": "pr-${{ github.event.pull_request.number }}"},
               {"org": "${{ github.repository_owner }}", "name": "regelrecht-poc", "tag": "pr-${{ github.event.pull_request.number }}"},
-              {"org": "${{ github.repository_owner }}", "name": "regelrecht-poc-napp", "tag": "pr-${{ github.event.pull_request.number }}"}
+              {"org": "${{ github.repository_owner }}", "name": "regelrecht-poc-napp", "tag": "pr-${{ github.event.pull_request.number }}"},
+              {"org": "${{ github.repository_owner }}", "name": "regelrecht-poc-wetsgeschiedenis", "tag": "pr-${{ github.event.pull_request.number }}"}
             ]
           github-token: ${{ secrets.GITHUB_TOKEN }}
           github-admin-token: ${{ secrets.ADMIN_TOKEN }}

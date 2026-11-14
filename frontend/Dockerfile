@@ -52,7 +52,7 @@ RUN set -eu; \
 # When adding a new workspace member that this image does NOT build, add it
 # to this exclusion list as well; otherwise chef will fail to find its source.
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"poc-chronolexografie"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"poc-chronolexografie"/d; /"tui"/d; /"poc-wetsgeschiedenis"/d' Cargo.toml
 COPY packages/engine/ engine/
 COPY packages/law-model/ law-model/
 COPY packages/shared/ shared/
@@ -117,7 +117,7 @@ COPY packages/Cargo.lock packages/Cargo.toml ./
 # When adding a new workspace member that this image does NOT build, add it
 # to this exclusion list as well; otherwise chef will fail to find its source.
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"poc-napp"/d; /"poc-portal"/d; /"poc-chronolexografie"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"poc-napp"/d; /"poc-portal"/d; /"poc-chronolexografie"/d; /"tui"/d; /"poc-wetsgeschiedenis"/d' Cargo.toml
 COPY packages/auth/ auth/
 COPY packages/editor-api/ editor-api/
 COPY packages/corpus/ corpus/
