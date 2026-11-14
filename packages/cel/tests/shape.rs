@@ -342,6 +342,25 @@ fn a_table_two_articles_ask_with_other_columns_is_an_error() {
 }
 
 #[test]
+fn a_table_whose_columns_differ_in_one_name_or_one_type_is_another_table() {
+    // As many columns each time, so only the name or the type tells them apart.
+    for columns in [
+        "[{name: naam, type: string}, {name: sinds, type: string}, \
+          {name: bijdrage, type: amount}, {name: aantal, type: number}, \
+          {name: actief, type: boolean}]",
+        "[{name: naam, type: string}, {name: datum, type: date}, \
+          {name: bijdrage, type: amount}, {name: aantal, type: number}, \
+          {name: actief, type: boolean}]",
+    ] {
+        let e = table(Some(columns)).unwrap_err();
+        assert!(
+            matches!(&e, Error::Setup(m) if m.contains("with other columns")),
+            "{columns}: {e}"
+        );
+    }
+}
+
+#[test]
 fn a_table_one_article_asks_with_columns_and_another_without_is_an_error() {
     // A bare array says nothing of its rows; one chronolexogram cannot hold
     // a table that one article reads by its columns and another does not.
