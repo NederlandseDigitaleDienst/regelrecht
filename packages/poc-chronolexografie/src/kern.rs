@@ -2272,6 +2272,72 @@ pub fn beslissen_op_bezwaar(
     op_bezwaar(corpus, cell, genomen)
 }
 
+/// What the authority judges itself on the admissibility of an objection on
+/// `on`, as the page asks it: every judgement of Awb 7:11 itself (the
+/// `bevindingen` of `beslissing_op_bezwaar` in [`vormen`]) with its value
+/// in `gegeven`, and `false` where `gegeven` has none or `null`. A switch left off
+/// says no, so a late objection never turns excused by silence.
+///
+/// # Errors
+///
+/// When the engine cannot derive the decision on objection on `on`.
+fn ontvankelijkheid(
+    corpus: &Corpus,
+    cell: &Cellen,
+    gegeven: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Map<String, Value>> {
+    let service = corpus.service()?;
+    let op_bezwaar = decision::derive(&service, corpus.awb(), corpus.objection(), on)?;
+    Ok(eigen_oordelen(&op_bezwaar, cell.eigen.authority())
+        .map(|t| {
+            let waarde = gegeven
+                .get(&t.id)
+                .filter(|v| !v.is_null())
+                .cloned()
+                .unwrap_or(json!(false));
+            (t.id.clone(), waarde)
+        })
+        .collect())
+}
+
+/// The authority decides on the objection `bezwaar` in the two steps the
+/// page takes: it tests admissibility ([`heroverweging`], with
+/// [`ontvankelijkheid`] of `gegeven`), then decides
+/// ([`beslissen_op_bezwaar`]) on those judgements, together with the rest
+/// of `gegeven` only when the objection is admissible: without a
+/// heroverweging there is nothing to find anew. The answer is that of
+/// [`beslissen_op_bezwaar`], with the test under `toets`.
+///
+/// This mirrors `toets` and `beslisOpBezwaar` in
+/// `frontend/src/components/BestuursorgaanTab.vue`, which make the same two
+/// calls through the WASM API; a change to one is a change to the other.
+/// The scenario test plays a step `beslissing_op_bezwaar` through this
+/// function only, so a source that plays its scenarios needs no copy of it.
+///
+/// # Errors
+///
+/// As [`heroverweging`] and [`beslissen_op_bezwaar`].
+pub fn toetsen_en_beslissen_op_bezwaar(
+    corpus: &Corpus,
+    cell: &mut Cellen,
+    bezwaar: &str,
+    gegeven: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Value> {
+    let oordelen = ontvankelijkheid(corpus, cell, gegeven, on)?;
+    let toets = heroverweging(corpus, cell, bezwaar, &oordelen, on)?;
+    let mut bevindingen = if toets["ontvankelijk"] == json!(true) {
+        gegeven.clone()
+    } else {
+        Map::new()
+    };
+    bevindingen.extend(oordelen);
+    let mut genomen = beslissen_op_bezwaar(corpus, cell, bezwaar, &bevindingen, on)?;
+    genomen["toets"] = toets;
+    Ok(genomen)
+}
+
 /// The answer to a decision on objection that `genomen` took: the decision,
 /// the new decision it took in the place of the revoked one if any, and
 /// why. The new decision is part of the decision on the objection, which

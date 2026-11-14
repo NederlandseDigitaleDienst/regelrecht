@@ -1097,6 +1097,15 @@ poc-chronolexografie-wasm:
 poc-chronolexografie: poc-chronolexografie-wasm
     npm run dev -w poc-chronolexografie
 
+# Speel de scenario's van een bron op de chronolexografie-poc
+#
+# `bron` is het manifest of de map van de bron (POC_BRON), vanaf de wortel van
+# de repo; `uit` een map voor laden.json en een JSON per scenario
+# (POC_SCENARIOS_UIT). De test faalt met één regel per stap die afwijkt van
+# `uitkomst` of `uitvoer`. Vorm van de verslagen: docs, components/poc-portal.
+poc-chronolexografie-scenarios bron uit="":
+    POC_BRON="{{bron}}" POC_SCENARIOS_UIT="{{uit}}" cargo test --manifest-path packages/Cargo.toml --package regelrecht-poc-chronolexografie --test scenarios -- the_scenarios_of_the_source_in_poc_bron_play --nocapture
+
 # Start de beleidsassistent van één casus, naast `just poc` in een tweede terminal
 #
 # In het image doet start.sh dit met een poort per casus; lokaal is één casus

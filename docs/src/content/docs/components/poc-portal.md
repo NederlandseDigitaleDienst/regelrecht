@@ -56,7 +56,7 @@ Chronolexografie lives in one directory, `packages/poc-chronolexografie/`: the R
 
 The PoC has a corpus of its own, `packages/poc-chronolexografie/corpus/`, with the layout of a source: the cases in `casussen/`, the rulework in `regulation/nl/` and the cells in `cells/`. It holds copies of the laws the cases run, the Awb among them, so work on a case never changes the regelrecht corpus and a change there never breaks a case. The regelrecht corpus keeps its own version of those laws.
 
-Each case is one file in `casussen/`, and this repository holds four. The file names the cell (a directory under `cells/`), the article that establishes the application, and the output of the decision that grants what was asked. The law does not mark that output, so the case file does. The file also lists the case's own corpus under `corpus` and holds the scenarios, with the values each step fills in. A step can name outputs of its decision under `uitvoer`, with the value it expects, such as an amount; `tests/scenarios.rs` checks them. The app derives everything else from the law when it loads the case (`src/casus.rs`).
+Each case is one file in `casussen/`, and this repository holds four. The file names the cell (a directory under `cells/`), the article that establishes the application, and the output of the decision that grants what was asked. The law does not mark that output, so the case file does. The file also lists the case's own corpus under `corpus` and holds the scenarios, with the values each step fills in. A step can name outputs of its decision under `uitvoer`, with the value it expects, such as an amount; `tests/scenarios/` checks them. The app derives everything else from the law when it loads the case (`src/casus.rs`).
 
 What another cell knew before the first scenario sits under its `begin`, as executograms with their fields. A later fact can be about one of those records, such as a correction of a registration in the trade register. The case file cannot name the record by its id, because the cell assigns that only when it records it. So the earlier executogram carries a `kenmerk`, a name unique within the case, and the later fact names it under `verwijst_naar`:
 
@@ -127,6 +127,44 @@ POC_BRON_<NAME>=<checkout-of-the-source>/path/to/bron.yaml just poc-chronolexogr
 The Vite dev server then answers the route of the source from that folder (`frontend/scripts/bron-dev.js`), and so does the portal under `just poc`. The folder is read again on every request, so an edit shows after a reload. With the same variable, `cargo test -p regelrecht-poc-chronolexografie` loads every case in the folder and plays its example to a decision. Without it, a case from that source shows "bron niet beschikbaar" and the test skips the folder.
 
 `just poc` does not start napp or an assistant. The napp card then answers `503` until `POC_UPSTREAM_NAPP` points at a running napp backend. For the assistant, run `just poc-assistent <case>` in a second terminal (it needs `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`) and start the portal with the matching variable, for example `POC_ASSISTENT_TERUGBETAALREGIMES=http://127.0.0.1:3600 just poc`.
+
+### Playing the scenarios of a source
+
+The scenario test of chronolexografie (`packages/poc-chronolexografie/tests/scenarios/`) plays the scenarios of a source the way it plays the PoC's own cases. A source needs no test runner of its own:
+
+```bash
+just poc-chronolexografie-scenarios <checkout-of-the-source>/path/to/bron.yaml <report-folder>
+```
+
+The recipe runs `cargo test --test scenarios` with two variables. `POC_BRON` names the manifest or folder of the source. `POC_SCENARIOS_UIT` is optional and names a folder for the reports. A relative path in either counts from the repository root. Without `POC_BRON` the test plays only the PoC's own cases.
+
+The test chooses every case of the source and plays each scenario step by step, with the step's `invoer` over the case's `voorbeeld`. It compares `uitkomst` on a decision, a decision on objection, and a new decision after a court ruling (`opnieuw_beslissen`). It compares `uitvoer` on three kinds of step. On an application, the outputs are what its receipt computes (`wat_volgt`). On a decision, they are its own outputs. On a decision on objection, they are its outputs together with those of the new decision it holds. An `uitkomst` or `uitvoer` on any other kind of step is an error, so nothing passes unchecked.
+
+A step written as text is skipped. When a step leaves out a field the form asks, the report notes it. On a submission or a record the field is sent empty; from the findings of a decision it is left out, as on the page.
+
+A decision on objection goes through `kern::toetsen_en_beslissen_op_bezwaar`: first the test of admissibility, then the decision, the two calls the page makes. A judgement on admissibility that the step does not give counts as `false`, like an unchecked switch on the page.
+
+The test does not stop at the first wrong step. It fails at the end with one line per wrong step, such as:
+
+```
+voorbeeld_subsidie, 'Geregistreerd: verleend', step 2: output 'subsidie_verleend': expected false, got true
+```
+
+The report folder gets `laden.json` and one `scenario-<case>-<nn>.json` per scenario, written before the test fails. `laden.json` has two keys:
+
+| Key | Holds |
+|-----|-------|
+| `bron` | What became of the source: `naam`, `versie`, `fout`, `fouten`, `meldingen` and the ids under `casussen` |
+| `casussen` | Per case: `casus`, `gekozen`, `kies_fout`, `scenarios` (their number), and `vormen`, the forms on the playing date, or `vormen_fout` |
+
+A scenario report:
+
+| Key | Holds |
+|-----|-------|
+| `casus`, `scenario`, `index` | The case, the name of the scenario and its place in the case |
+| `fouten` | The number of wrong steps |
+| `stappen` | Per step `nr` and `soort`. A step as text has `tekst`. An action has `datum`, `verhaal` and `verwacht`, and where they apply `kreeg`, `uitvoer` (per output `uitkomst`, `verwacht`, `kreeg`, `klopt`), `leeg_gelaten`, `geweigerd` and `fout` |
+| `metingen` | Per record a step added to a chronicle: `na_stap`, `cel`, `gram`, `waarom` for a decision, `wat_volgt` for a submission |
 
 ## Configuration
 

@@ -1,0 +1,83 @@
+---
+# FICTIEF. De casus van de testbron voor tests/scenarios, met scenario's die
+# de scenariotest speelt en toetst aan `uitkomst` en `uitvoer`.
+cel: voorbeeld_autoriteit
+artikel: voorbeeld_bron_subsidie#1
+corpus:
+  - regulation/nl/uitvoeringsbeleid/voorbeeld_bron_subsidie
+  - regulation/nl/wet/algemene_wet_bestuursrecht
+uitkomst: subsidie_verleend
+titel: Voorbeeldsubsidie
+cel_naam: Voorbeeldautoriteit
+speeldatum: 2026-10-21
+voorbeeld:
+  aanvraag:
+    naam_partij: Voorbeeldvereniging
+    subsidiejaar: 2027
+  bevindingen:
+    partij_geregistreerd: true
+  bezwaar:
+    bezwaar_of_beroepschrift_ondertekend: true
+    naam_indiener: Voorbeeldvereniging
+    adres_indiener: Voorbeeldstraat 1
+    omschrijving_bestreden_besluit: weigering voorbeeldsubsidie
+    gronden_bezwaar_of_beroep: de vereniging is wel geregistreerd
+  beslissing_op_bezwaar:
+    indiener_bezwaarschrift_is_belanghebbende: true
+    indiener_bezwaarschrift_niet_in_verzuim: false
+scenarios:
+  - naam: 'Geregistreerd: verleend'
+    stappen:
+      - stap: aanvraag
+      - stap: besluit
+        datum: 2026-10-23
+        uitkomst: toegewezen
+        uitvoer:
+          subsidie_verleend: true
+    eind: Verleend.
+  - naam: 'Niet geregistreerd: afgewezen'
+    stappen:
+      - stap: aanvraag
+      - stap: besluit
+        invoer:
+          partij_geregistreerd: false
+        uitkomst: afgewezen
+        uitvoer:
+          subsidie_verleend: false
+    eind: Afgewezen.
+  - naam: 'Bezwaar: gegrond'
+    stappen:
+      - Een stap als tekst; de speler slaat haar over.
+      - stap: aanvraag
+      - stap: besluit
+        invoer:
+          partij_geregistreerd: false
+        uitkomst: afgewezen
+      - stap: bezwaar
+        datum: 2026-11-01
+      - stap: beslissing_op_bezwaar
+        datum: 2026-11-15
+        invoer:
+          partij_geregistreerd: true
+        uitkomst: gegrond
+        uitvoer:
+          subsidie_verleend: true
+    eind: Gegrond, en de subsidie is alsnog verleend.
+  - naam: 'Bezwaar: niet-ontvankelijk zonder oordeel over belanghebbende'
+    stappen:
+      - stap: aanvraag
+      - stap: besluit
+        invoer:
+          partij_geregistreerd: false
+        uitkomst: afgewezen
+      - stap: bezwaar
+        datum: 2026-11-01
+      # Zonder oordeel telt het als nee, zoals een schakelaar die uit staat;
+      # de bevinding gaat dan niet mee, want er is geen heroverweging.
+      - stap: beslissing_op_bezwaar
+        datum: 2026-11-15
+        invoer:
+          indiener_bezwaarschrift_is_belanghebbende: null
+          partij_geregistreerd: true
+        uitkomst: niet_ontvankelijk
+    eind: Niet-ontvankelijk, en de weigering blijft staan.

@@ -40,7 +40,7 @@ const inadmissible = (n) =>
  * decision: the application it decides on), and the refusal a step of this
  * kind can expect (`weigering`, as the cell words it): a decision that
  * misses a judgement, a decision on objection against a decision already
- * replaced. tests/scenarios.rs checks the same.
+ * replaced. tests/scenarios/ checks the same.
  */
 const KINDS = {
   aanvraag: {

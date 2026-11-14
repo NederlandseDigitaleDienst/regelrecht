@@ -1,0 +1,11 @@
+---
+# FICTIEF. Het manifest van een testbron voor tests/scenarios: een bron zoals
+# een andere repository haar levert, met een manifest dat de bron uit mappen
+# elders samenstelt (packages/poc-portal/src/bron.rs). Links de plek in de
+# bron, rechts de map vanaf `repo_root`, hier de map van deze crate.
+repo_root: ../..
+directories:
+  regulation/nl/wet/algemene_wet_bestuursrecht: corpus/regulation/nl/wet/algemene_wet_bestuursrecht
+  regulation/nl/uitvoeringsbeleid/voorbeeld_bron_subsidie: tests/bron-voorbeeld/regulation/nl/uitvoeringsbeleid/voorbeeld_bron_subsidie
+  cells/voorbeeld_autoriteit: tests/bron-voorbeeld/cells/voorbeeld_autoriteit
+  casussen: tests/bron-scenarios/casussen

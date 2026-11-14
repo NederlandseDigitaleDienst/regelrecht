@@ -271,6 +271,22 @@ impl Spel {
         ok(self.met(|c, cell| kern::beslissen_op_bezwaar(c, cell, op, bevindingen, datum))?)
     }
 
+    /// Test the admissibility of the objection `op` and decide on it, as
+    /// the page does ([`kern::toetsen_en_beslissen_op_bezwaar`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`kern::toetsen_en_beslissen_op_bezwaar`], and when no case is
+    /// chosen.
+    pub fn toetsen_en_beslissen_op_bezwaar(
+        &mut self,
+        op: &str,
+        gegeven: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::toetsen_en_beslissen_op_bezwaar(c, cell, op, gegeven, datum))?)
+    }
+
     /// A preview ([`kern::voorvertoning_besluit`]): `{ voorlopig }` or, when
     /// the cell refuses (a finding not given yet), `{ geweigerd }`, and in
     /// both the terms the authority judges because a policy leaves them to
