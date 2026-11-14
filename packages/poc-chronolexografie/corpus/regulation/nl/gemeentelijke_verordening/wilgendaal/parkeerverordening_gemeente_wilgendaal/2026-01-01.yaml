@@ -59,6 +59,10 @@ articles:
 
       4 Het college stelt het maximum aantal bedrijfsparkeervergunningen per
       bedrijf vast, per vergunninggebied.
+
+      5 Het college weigert de bedrijfsparkeervergunning als niet blijkt dat
+      de aanvraag namens het bedrijf is ingediend, op de wijze die het
+      college bij regeling vaststelt.
     url: https://lokaleregelgeving.overheid.nl/CVDR642699
     machine_readable:
       # Bevoegd gezag (RFC-002), wie op de aanvraag beslist: het college.
@@ -76,7 +80,10 @@ articles:
       # en 4). Het fictieve uitvoeringsbesluit van Wilgendaal vult ze
       # (uitvoeringsbesluit_parkeren_gemeente_wilgendaal, artikel 2
       # en 3). Of het college lid 2 buiten toepassing laat, volgt uit de
-      # hardheidsclausule (artikel 6), die het derde begrip vult.
+      # hardheidsclausule (artikel 6), die het derde begrip vult. Lid 5 is
+      # een eigen keuze, zonder voorbeeld in het Delftse model: hoe een
+      # aanvraag namens het bedrijf wordt ingediend, zegt artikel 4 van het
+      # uitvoeringsbesluit, dat het vierde begrip vult.
       open_terms:
         - id: bedrijf_gevestigd_in_vergunninggebied
           type: boolean
@@ -101,6 +108,13 @@ articles:
           description: >-
             Of het college het tweede lid buiten toepassing laat op grond van
             de hardheidsclausule (artikel 6).
+        - id: aanvraag_namens_bedrijf_ingediend
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders, volgens zijn regels (vijfde lid)
+          description: >-
+            Of blijkt dat de aanvraag namens het bedrijf is ingediend, op de
+            wijze die het college vaststelt (vijfde lid).
       execution:
         # Lid 1: de vergunning wordt verleend op aanvraag van het bedrijf. Dit
         # artikel brengt twee dingen voort, zoals artikel 49 van het BABW
@@ -142,6 +156,13 @@ articles:
           - name: besluit_datum
             type: date
             description: De dag waarop het college op de aanvraag besluit.
+          # De dag van ontvangst (Awb 4:13, eerste lid): de cel vult haar met
+          # de dag waarop zij de aanvraag vastlegde. Lid 5 leest op die dag
+          # hoe de aanvraag is ingediend, zodat wat later gebeurt, zoals een
+          # nieuwe authenticatie, de aanvraag niet raakt.
+          - name: datum_ontvangst
+            type: date
+            description: De dag waarop het college de aanvraag ontving.
         input:
           - name: einde_geldigheidsduur_bij_verlening
             type: date
@@ -161,16 +182,19 @@ articles:
               De laatste dag waarop de verleende vergunning geldig is (artikel
               3); leeg als geen vergunning wordt verleend.
         actions:
-          # Lid 1 en 2, met artikel 6. Eerst de vestiging: AND stopt bij de
-          # eerste onwaar, dus voor een bedrijf buiten de vergunninggebieden
-          # vraagt het besluit het maximum niet. Dan het maximum: OR stopt bij
-          # de eerste waar, dus alleen een bedrijf dat het maximum heeft
-          # bereikt, komt bij de hardheidsclausule. Bij een gewone aanvraag
-          # vraagt het besluit het oordeel van het college daarom niet.
+          # Lid 1, 2 en 5, met artikel 6. Eerst lid 5: een aanvraag die niet
+          # namens het bedrijf is ingediend, komt niet verder. AND stopt bij
+          # de eerste onwaar. Dan de vestiging: voor een bedrijf buiten de
+          # vergunninggebieden vraagt het besluit het maximum niet. Dan het
+          # maximum: OR stopt bij de eerste waar, dus alleen een bedrijf dat
+          # het maximum heeft bereikt, komt bij de hardheidsclausule. Bij een
+          # gewone aanvraag vraagt het besluit het oordeel van het college
+          # daarom niet.
           - output: bedrijfsparkeervergunning_verleend
             value:
               operation: AND
               conditions:
+                - $aanvraag_namens_bedrijf_ingediend
                 - $bedrijf_gevestigd_in_vergunninggebied
                 - operation: OR
                   conditions:

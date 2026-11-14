@@ -37,6 +37,8 @@
     "todo": "Klik bij Kamer van Koophandel onder \"Vastleggen: Vestiging ingeschreven\" op Vastleggen.",
     "values": [
      "kvk nummer: 99990055",
+     "handelsnaam: Koeriersbedrijf De Singel",
+     "bezoekadres: Singel 5, 7713 AB Wilgendaal",
      "postcode: 7713 AB",
      "aantal werkzame personen: 1",
      "datum inschrijving: 1 oktober 2026"
@@ -101,6 +103,8 @@
     "todo": "Klik bij Kamer van Koophandel onder \"Vastleggen: Vestiging ingeschreven\" op Vastleggen.",
     "values": [
      "kvk nummer: 99990055",
+     "handelsnaam: Koeriersbedrijf De Singel",
+     "bezoekadres: Singel 5, 7713 AB Wilgendaal",
      "postcode: 7713 AB",
      "aantal werkzame personen: 2",
      "datum inschrijving: 2 november 2026"
@@ -220,6 +224,8 @@
     "todo": "Klik bij Kamer van Koophandel onder \"Vastleggen: Vestiging ingeschreven\" op Vastleggen.",
     "values": [
      "kvk nummer: 99990033",
+     "handelsnaam: Adviesbureau Buitenweg",
+     "bezoekadres: Kerkstraat 9, 7711 AC Wilgendaal",
      "postcode: 7711 AC",
      "aantal werkzame personen: 3",
      "datum inschrijving: 1 november 2026"
@@ -490,6 +496,152 @@
     "todo": "Klik bij de vierde aanvraag op Besluit nemen.",
     "values": [],
     "seen": "Toegewezen: met de tweede correctie werken er volgens de Kamer drie mensen.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Een kapsalon krijgt een machtiging voor deze dienst",
+  "summary": "Een medewerker van een kapsalon in de binnenstad logt in met een machtiging voor de bedrijfsparkeervergunning, en het college verleent de vergunning.",
+  "steps": [
+   {
+    "title": "Authenticatie bij de erkende dienst",
+    "tab": "andere",
+    "date": null,
+    "story": "Een medewerker van de kapsalon logt in met eHerkenning, op niveau substantieel, nu met een machtiging voor de dienst bedrijfsparkeervergunning.",
+    "todo": "Klik bij Erkende dienst voor bedrijfs- en organisatiemiddelen onder \"Vastleggen: Authenticatie verricht\" op Vastleggen.",
+    "values": [
+     "kvk nummer: 99990077",
+     "pseudoniem: ps-77d4b0",
+     "dienst: urn:etoegang:DV:00000009999999999000:services:1",
+     "betrouwbaarheidsniveau: substantieel",
+     "datum authenticatie: 13 oktober 2026"
+    ],
+    "seen": "De authenticatie staat in de kroniek van de erkende dienst.",
+    "expect": null
+   },
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "De kapsalon vraagt een bedrijfsparkeervergunning.",
+    "todo": "Kies bij \"Ingelogd als\" 99990077 en klik op Aanvraag indienen.",
+    "values": [
+     "kvk nummer: 99990077",
+     "naam aanvrager: Kapsalon De Krul",
+     "adres aanvrager: Kerkstraat 5, 7711 AB Wilgendaal"
+    ],
+    "seen": "Het formulier nam de naam en het adres over uit het handelsregister.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "story": "Het college beslist op de aanvraag van de kapsalon.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Toegewezen: de erkende dienst bevestigde de machtiging voor deze dienst, op niveau substantieel.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Een kapsalon zonder machtiging voor deze dienst",
+  "summary": "Een medewerker van een kapsalon logt in met een machtiging voor een andere dienst van de gemeente, en het college weigert de vergunning.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "De kapsalon vraagt een bedrijfsparkeervergunning, maar wie inlogt, is alleen gemachtigd voor een andere dienst van de gemeente.",
+    "todo": "Kies bij \"Ingelogd als\" 99990077 en klik op Aanvraag indienen.",
+    "values": [
+     "kvk nummer: 99990077",
+     "naam aanvrager: Kapsalon De Krul",
+     "adres aanvrager: Kerkstraat 5, 7711 AB Wilgendaal"
+    ],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "story": "Het college beslist op de aanvraag van de kapsalon.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Afgewezen: de erkende dienst bevestigde geen machtiging voor de dienst bedrijfsparkeervergunning.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Een bloemist logt opnieuw in, op een hoger niveau",
+  "summary": "Een bloemist vraagt een vergunning na een inlog op niveau laag, en een latere inlog op niveau substantieel verandert dat besluit niet, maar een nieuwe aanvraag slaagt wel.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "De bloemist vraagt een bedrijfsparkeervergunning, ingelogd op niveau laag (EH2+).",
+    "todo": "Kies bij \"Ingelogd als\" 99990088 en klik op Aanvraag indienen.",
+    "values": [
+     "kvk nummer: 99990088",
+     "naam aanvrager: Bloemist Het Veld",
+     "adres aanvrager: Markt 3, 7711 AC Wilgendaal"
+    ],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Nieuwe authenticatie bij de erkende dienst",
+    "tab": "andere",
+    "date": "2026-10-14",
+    "story": "De volgende dag logt de bloemist opnieuw in, nu op niveau substantieel.",
+    "todo": "Klik bij Erkende dienst voor bedrijfs- en organisatiemiddelen onder \"Vastleggen: Authenticatie verricht\" op Vastleggen.",
+    "values": [
+     "kvk nummer: 99990088",
+     "pseudoniem: ps-8a2f6c",
+     "dienst: urn:etoegang:DV:00000009999999999000:services:1",
+     "betrouwbaarheidsniveau: substantieel",
+     "datum authenticatie: 14 oktober 2026"
+    ],
+    "seen": "De nieuwe authenticatie staat in de kroniek van de erkende dienst, naast de oude.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-20",
+    "story": "Het college beslist op de eerste aanvraag.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Afgewezen: de aanvraag kwam binnen op 13 oktober, toen de erkende dienst alleen de inlog op niveau laag kende.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Nog een aanvraag indienen",
+    "tab": "aanvrager",
+    "date": "2026-10-21",
+    "story": "De bloemist vraagt opnieuw een vergunning.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "kvk nummer: 99990088",
+     "naam aanvrager: Bloemist Het Veld",
+     "adres aanvrager: Markt 3, 7711 AC Wilgendaal"
+    ],
+    "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de tweede aanvraag",
+    "tab": "bestuursorgaan",
+    "date": "2026-10-22",
+    "story": "Het college beslist op de tweede aanvraag.",
+    "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
+    "values": [],
+    "seen": "Toegewezen: bij de tweede aanvraag kende de erkende dienst de inlog op niveau substantieel.",
     "expect": "hier hoort het besluit de aanvraag toe te wijzen"
    }
   ]

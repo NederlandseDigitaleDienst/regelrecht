@@ -26,8 +26,9 @@ articles:
       FICTIEF, eigen keuze in de modellering: geen beleid van de Kamer van
       Koophandel. De Kamer legt bij de inschrijving van een vestiging van een
       onderneming vast: het nummer dat zij de onderneming toekende (artikel 9,
-      onder a, van de Handelsregisterwet 2007), de postcode van het
-      bezoekadres van de vestiging (artikel 11, eerste lid, onder c), het
+      onder a, van de Handelsregisterwet 2007), de handelsnaam van de
+      vestiging (artikel 11, eerste lid, onder b), het bezoekadres van de
+      vestiging en de postcode daarvan (artikel 11, eerste lid, onder c), het
       aantal personen dat in de onderneming werkzaam is, en de dag van de
       inschrijving. Wijzigt een gegeven, dan legt zij de vestiging opnieuw
       vast; de oude inschrijving blijft vastgelegd.
@@ -45,12 +46,15 @@ articles:
         - fact: vestiging_ingeschreven
           description: >-
             Dat de Kamer een vestiging van een onderneming inschreef of haar
-            gegevens wijzigde: van welke onderneming, met welke postcode van het
-            bezoekadres, met hoeveel werkzame personen, en op welke dag.
+            gegevens wijzigde: van welke onderneming, met welke handelsnaam,
+            met welk bezoekadres en welke postcode daarvan, met hoeveel
+            werkzame personen, en op welke dag.
           competent_authority:
             - name: Kamer van Koophandel
           parameters:
             - kvk_nummer
+            - handelsnaam
+            - bezoekadres
             - postcode
             - aantal_werkzame_personen
             - datum_inschrijving
@@ -61,6 +65,16 @@ articles:
             description: >-
               Het nummer dat de Kamer de onderneming toekende (artikel 9, onder
               a, van de wet).
+          - name: handelsnaam
+            type: string
+            description: >-
+              De handelsnaam van de vestiging (artikel 11, eerste lid, onder
+              b, van de wet).
+          - name: bezoekadres
+            type: string
+            description: >-
+              Het bezoekadres van de vestiging (artikel 11, eerste lid, onder
+              c, van de wet).
           - name: postcode
             type: string
             description: >-

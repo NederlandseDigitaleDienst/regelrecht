@@ -1,0 +1,173 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: reductie_authenticatie
+regulatory_layer: REDUCTIE
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van de erkende dienst over haar eigen
+# kroniek (RFC-022 §4.1, RFC-048, RFC-051), met twee artikelen, zoals de
+# reductie van de Kamer van Koophandel. Artikel authenticatie is een
+# aggregaat per authenticatie (artikel 15 van de Wet digitale overheid).
+# Artikel authenticatie_op_peildatum leest die aggregaten (source.projections)
+# en zegt of de dienst op de peildatum een machtiging voor een dienst
+# bevestigde, en op welk betrouwbaarheidsniveau. De cel geeft die uitvoer als
+# de antwoorden vertegenwoordiging_bevestigd en
+# betrouwbaarheidsniveau_authenticatie (cel.yaml, answers). Artikel 3 van het
+# fictieve beleid bedrijfsparkeervergunning van Wilgendaal koppelt ze aan de
+# open begrippen van artikel 4 van het fictieve uitvoeringsbesluit parkeren;
+# daarvoor is de erkende dienst bevoegd (competent_authority, RFC-051 §2).
+url: https://wetten.overheid.nl/BWBR0048156/2025-11-11#Artikel15
+name: Authenticatie met een bedrijfs- en organisatiemiddel (reductie)
+articles:
+  - number: authenticatie
+    text: >-
+      Geen regelgeving. Het systeem van de erkende dienst houdt door middel
+      van een chronolexografische reductie op zijn eigen kroniek per
+      authenticatie bij op welk betrouwbaarheidsniveau en op welke dag zij
+      plaatsvond.
+    url: https://wetten.overheid.nl/BWBR0048156/2025-11-11#Artikel15
+    machine_readable:
+      projection:
+        per: wet_digitale_overheid#15#authenticatie_verricht
+        state:
+          - name: betrouwbaarheidsniveau
+            type: string
+          - name: datum_authenticatie
+            type: date
+        steps:
+          - record: wet_digitale_overheid#15#authenticatie_verricht
+            actions:
+              - output: betrouwbaarheidsniveau
+                value: $record.betrouwbaarheidsniveau
+              - output: datum_authenticatie
+                value: $record.datum_authenticatie
+  - number: authenticatie_op_peildatum
+    text: >-
+      Geen regelgeving. Het systeem van de erkende dienst kijkt door middel
+      van een chronolexografische reductie op zijn eigen kroniek naar de
+      laatste dag op of vóór de peildatum waarop het een authenticatie namens
+      de onderneming voor de dienst verrichtte. Vindt het er een, dan
+      bevestigt het de machtiging voor die dienst en geeft het het
+      betrouwbaarheidsniveau. Verrichtte het die dag meer authenticaties, dan
+      geeft het het laagste niveau ervan. Vindt het er geen, dan bevestigt
+      het de machtiging niet.
+    url: https://wetten.overheid.nl/BWBR0048156/2025-11-11#Artikel15
+    machine_readable:
+      # Iemand kan op een dag vaker inloggen. Welke inlog een aanvraag
+      # droeg, weet de dienst niet, dus telt van die dag het laagste niveau:
+      # een hoger niveau op dezelfde dag maakt een aanvraag op een lager
+      # niveau niet beter.
+      execution:
+        parameters:
+          - name: kvk_nummer
+            type: string
+            description: Het nummer dat de Kamer van Koophandel de onderneming toekende.
+          - name: dienst
+            type: string
+            description: De dienst, met haar nummer in de dienstencatalogus.
+          - name: peildatum
+            type: date
+            description: De dag waarop de authenticatie moet hebben plaatsgevonden, of eerder.
+        input:
+          # De authenticaties namens de onderneming voor de dienst, één rij
+          # per aggregaat. Zonder machtiging voor die dienst bestaat er geen.
+          - name: authenticaties
+            type: array
+            source:
+              projections: reductie_authenticatie#authenticatie
+              where:
+                kvk_nummer: $kvk_nummer
+                dienst: $dienst
+        output:
+          - name: dagen_sinds_authenticatie
+            type: number
+            nullable: true
+            description: >-
+              Hoeveel dagen de laatste authenticatie op de peildatum geleden
+              is; afwezig zonder authenticatie op of vóór die dag.
+          - name: laagste_niveau_op_die_dag
+            type: number
+            nullable: true
+            description: >-
+              Het laagste betrouwbaarheidsniveau van de authenticaties van die
+              dag, als getal: 1 voor laag, 2 voor substantieel, 3 voor hoog.
+          - name: vertegenwoordiging_bevestigd
+            type: boolean
+            description: >-
+              Of de erkende dienst op of vóór de peildatum verklaarde dat wie
+              inlogde, gemachtigd is namens de onderneming op te treden voor
+              de dienst.
+          - name: betrouwbaarheidsniveau_authenticatie
+            type: string
+            nullable: true
+            description: >-
+              Het betrouwbaarheidsniveau van de laatste authenticatie: laag,
+              substantieel of hoog; afwezig zonder authenticatie.
+        actions:
+          # Als in de reductie van de Kamer van Koophandel: eerst de laatste
+          # dag op of vóór de peildatum, dan de authenticaties van die dag.
+          - output: dagen_sinds_authenticatie
+            value:
+              operation: FOREACH
+              collection: $authenticaties
+              as: a
+              filter:
+                operation: AND
+                conditions:
+                  - operation: NOT
+                    value: {operation: EQUALS, subject: $a.datum_authenticatie, value: null}
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject:
+                      operation: DATE_DIFF
+                      from: $a.datum_authenticatie
+                      to: $peildatum
+                      in: days
+                    value: 0
+              body:
+                operation: DATE_DIFF
+                from: $a.datum_authenticatie
+                to: $peildatum
+                in: days
+              combine: MIN
+          - output: laagste_niveau_op_die_dag
+            value:
+              operation: FOREACH
+              collection: $authenticaties
+              as: a
+              filter:
+                operation: AND
+                conditions:
+                  - operation: NOT
+                    value: {operation: EQUALS, subject: $a.datum_authenticatie, value: null}
+                  - operation: EQUALS
+                    subject:
+                      operation: DATE_DIFF
+                      from: $a.datum_authenticatie
+                      to: $peildatum
+                      in: days
+                    value: $dagen_sinds_authenticatie
+              body:
+                operation: IF
+                cases:
+                  - when: {operation: EQUALS, subject: $a.betrouwbaarheidsniveau, value: hoog}
+                    then: 3
+                  - when: {operation: EQUALS, subject: $a.betrouwbaarheidsniveau, value: substantieel}
+                    then: 2
+                default: 1
+              combine: MIN
+          # Geen authenticatie is een antwoord: de dienst verklaarde niets.
+          - output: vertegenwoordiging_bevestigd
+            value:
+              operation: NOT
+              value: {operation: EQUALS, subject: $dagen_sinds_authenticatie, value: null}
+          - output: betrouwbaarheidsniveau_authenticatie
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $laagste_niveau_op_die_dag, value: 3}
+                  then: hoog
+                - when: {operation: EQUALS, subject: $laagste_niveau_op_die_dag, value: 2}
+                  then: substantieel
+                - when: {operation: EQUALS, subject: $laagste_niveau_op_die_dag, value: 1}
+                  then: laag
+              default: null

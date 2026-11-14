@@ -1,0 +1,24 @@
+---
+# Wie deze cel is (RFC-046). Een erkende dienst voor bedrijfs- en
+# organisatiemiddelen (artikel 1 en 15 van de Wet digitale overheid), zoals
+# eHerkenning er een is. De cel legt elke authenticatie vast als het feit dat
+# artikel 15 van die wet vereist, met wat een dienstverlener volgens het
+# Afsprakenstelsel Elektronische Toegangsdiensten ontvangt (versie AS1.24e,
+# afsprakenstelsel.etoegang.nl): het KvK-nummer van de onderneming
+# (LegalSubjectID), een pseudoniem van wie handelt (ActingSubjectID), de
+# dienst waarvoor de machtiging is bevestigd (ServiceID), het geldende
+# betrouwbaarheidsniveau en de dag. Geen naam, geen BSN en geen rol: die geeft
+# eHerkenning niet door. Een gesimuleerde dienst, geen echt inlogmiddel; de
+# authenticaties zijn verzonnen.
+# Eigen keuze: één cel voor wat in het stelsel meer rollen zijn. De Wet
+# digitale overheid onderscheidt de authenticatiedienst en de
+# machtigingsdienst (artikel 1), en de verklaring over de machtiging komt van
+# een erkende machtigingsdienst (artikel 15, tweede lid). Bij eHerkenning
+# bundelt de herkenningsmakelaar beide in één verklaring aan de
+# dienstverlener, en zo legt deze cel haar vast.
+name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+# Welke antwoorden de cel geeft, en uit welke eigen reductie
+# (reductions/, RFC-048).
+answers:
+  vertegenwoordiging_bevestigd: reductie_authenticatie
+  betrouwbaarheidsniveau_authenticatie: reductie_authenticatie

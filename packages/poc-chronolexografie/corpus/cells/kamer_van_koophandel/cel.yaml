@@ -8,5 +8,7 @@ name: Kamer van Koophandel
 # Welke antwoorden de cel geeft, en uit welke eigen reductie
 # (reductions/, RFC-048).
 answers:
+  handelsnaam_vestiging: reductie_vestiging_in_handelsregister
+  bezoekadres_vestiging: reductie_vestiging_in_handelsregister
   postcode_vestiging: reductie_vestiging_in_handelsregister
   aantal_werkzame_personen: reductie_vestiging_in_handelsregister

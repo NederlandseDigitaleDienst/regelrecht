@@ -11,17 +11,21 @@ valid_from: '2026-01-01'
 # beleid_handelsregister_kamer_van_koophandel), met de correcties die ernaar
 # verwijzen (artikel 2). Elke stap noemt het feit dat hij leest bij naam
 # (schema v0.8.18). Een correctie zet de postcode en het aantal werkzame
-# personen van de inschrijving; de dag van inschrijving en het nummer
-# blijven. Een nieuwe inschrijving is een eigen aggregaat. Artikel
+# personen van de inschrijving; de dag van inschrijving, het nummer, de
+# handelsnaam en het bezoekadres blijven. Een correctie van de postcode
+# laat het bezoekadres dus staan; in deze casus verbetert geen correctie de
+# postcode. Een nieuwe inschrijving is een eigen aggregaat. Artikel
 # vestiging_in_handelsregister leest die aggregaten
 # (source.projections) en geeft de inschrijving die op de peildatum geldt.
 # Het aggregaat staat in dit bestand omdat alleen dit artikel het leest. De
 # cel van de Kamer geeft de uitvoer van dat artikel als de antwoorden
-# postcode_vestiging en aantal_werkzame_personen (cel.yaml, answers).
-# Artikel 1 van het fictieve beleid bedrijfsparkeervergunning van Wilgendaal
-# koppelt ze aan de open begrippen van artikel 2 en 3 van het fictieve
-# uitvoeringsbesluit parkeren; daarvoor is de Kamer bevoegd
-# (competent_authority van die begrippen, RFC-051 §2). De url wijst naar
+# postcode_vestiging, aantal_werkzame_personen, handelsnaam_vestiging en
+# bezoekadres_vestiging (cel.yaml, answers). Artikel 1 van het fictieve
+# beleid bedrijfsparkeervergunning van Wilgendaal koppelt de eerste twee aan
+# de open begrippen van artikel 2 en 3 van het fictieve uitvoeringsbesluit
+# parkeren; daarvoor is de Kamer bevoegd (competent_authority van die
+# begrippen, RFC-051 §2). Artikel 4 van dat beleid vult met de andere twee
+# het aanvraagformulier vooraf in. De url wijst naar
 # artikel 11 van de Handelsregisterwet 2007.
 url: https://wetten.overheid.nl/BWBR0021777/2025-07-16#Artikel11
 name: Vestiging in het handelsregister (reductie)
@@ -30,7 +34,8 @@ articles:
     text: >-
       Geen regelgeving. Het systeem van de Kamer van Koophandel houdt door
       middel van een chronolexografische reductie op zijn eigen kroniek per
-      inschrijving van een vestiging bij met welke postcode, met hoeveel
+      inschrijving van een vestiging bij met welke handelsnaam, met welk
+      bezoekadres en welke postcode, met hoeveel
       werkzame personen en vanaf welke dag zij geldt, met de correcties
       erop.
     url: https://wetten.overheid.nl/BWBR0021777/2025-07-16#Artikel11
@@ -38,6 +43,10 @@ articles:
       projection:
         per: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
         state:
+          - name: handelsnaam
+            type: string
+          - name: bezoekadres
+            type: string
           - name: postcode
             type: string
           - name: aantal_werkzame_personen
@@ -50,6 +59,10 @@ articles:
         steps:
           - record: beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven
             actions:
+              - output: handelsnaam
+                value: $record.handelsnaam
+              - output: bezoekadres
+                value: $record.bezoekadres
               - output: postcode
                 value: $record.postcode
               - output: aantal_werkzame_personen
@@ -82,8 +95,8 @@ articles:
             description: De dag waarop het gevraagde gegeven moet gelden.
         input:
           # De inschrijvingen van het bedrijf, één rij per aggregaat, met
-          # postcode, aantal_werkzame_personen en datum_inschrijving zoals de
-          # correcties ze laten.
+          # handelsnaam, bezoekadres, postcode, aantal_werkzame_personen en
+          # datum_inschrijving zoals de correcties ze laten.
           - name: inschrijvingen
             type: array
             source:
@@ -102,6 +115,14 @@ articles:
             type: object
             nullable: true
             description: De inschrijving die op de peildatum geldt.
+          - name: handelsnaam_vestiging
+            type: string
+            nullable: true
+            description: De handelsnaam van de vestiging op de peildatum.
+          - name: bezoekadres_vestiging
+            type: string
+            nullable: true
+            description: Het bezoekadres van de vestiging op de peildatum.
           - name: postcode_vestiging
             type: string
             nullable: true
@@ -158,6 +179,10 @@ articles:
                     value: $dagen_sinds_inschrijving
               body: $i
               combine: ONLY
+          - output: handelsnaam_vestiging
+            value: $inschrijving.handelsnaam
+          - output: bezoekadres_vestiging
+            value: $inschrijving.bezoekadres
           - output: postcode_vestiging
             value: $inschrijving.postcode
           - output: aantal_werkzame_personen
