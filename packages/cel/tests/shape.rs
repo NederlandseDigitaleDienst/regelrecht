@@ -324,6 +324,15 @@ fn a_table_two_articles_ask_with_the_same_columns_is_one_field() {
 }
 
 #[test]
+fn a_table_two_articles_describe_differently_is_still_one_field() {
+    let described = "[{name: naam, type: string, description: De naam van het lid.}, \
+                     {name: sinds, type: date}, {name: bijdrage, type: amount}, \
+                     {name: aantal, type: number}, {name: actief, type: boolean}]";
+    let shape = table(Some(described)).unwrap();
+    assert_eq!(shape.field("leden").unwrap().declared_by.len(), 2);
+}
+
+#[test]
 fn a_table_two_articles_ask_with_other_columns_is_an_error() {
     let e = table(Some("[{name: naam, type: string}]")).unwrap_err();
     assert!(
@@ -375,7 +384,18 @@ fn a_table_fits_only_rows_of_its_columns() {
         json!([{"actief": "ja"}]),
         json!([row, {"naam": []}]),
         json!({"naam": "Lid Een"}),
+        json!("Lid Een"),
+        json!(null),
     ] {
         assert!(!shape::fits(field, &odd), "{odd}");
     }
+}
+
+#[test]
+fn a_nullable_table_may_be_absent() {
+    let shape = table(None).unwrap();
+    let mut field = shape.field("leden").unwrap().clone();
+    field.nullable = true;
+    assert!(shape::fits(&field, &json!(null)));
+    assert!(!shape::fits(&field, &json!("Lid Een")));
 }

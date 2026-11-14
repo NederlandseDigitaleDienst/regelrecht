@@ -206,3 +206,20 @@ describe('a yes-or-no column', () => {
     expect(uit[0]).toEqual([{ actief: null }]);
   });
 });
+
+describe('an empty table', () => {
+  it('is what is left when the last row goes', async () => {
+    const uit = await mount([RIJEN[0]]);
+    await klik(knop(rijen()[0], 'Verwijder'));
+    expect(uit[0]).toBeUndefined();
+    expect(uit).toHaveLength(1);
+  });
+
+  it('gets no row from a new row left empty', async () => {
+    const uit = await mount(RIJEN);
+    await klik(knop(el, 'Rij toevoegen'));
+    await bewaar();
+    expect(uit).toEqual([]);
+    expect(sheet().hasAttribute('open')).toBe(false);
+  });
+});

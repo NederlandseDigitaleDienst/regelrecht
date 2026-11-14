@@ -244,7 +244,10 @@ pub fn derive(
 pub(crate) fn add_field(fields: &mut Vec<Field>, field: Field, reference: &str) -> Result<()> {
     match fields.iter_mut().find(|f| f.name == field.name) {
         None => fields.push(field),
-        Some(f) if f.type_ == field.type_ && f.columns != field.columns => {
+        Some(f)
+            if f.type_ == field.type_
+                && !same_columns(f.columns.as_deref(), field.columns.as_deref()) =>
+        {
             return Err(setup(format!(
                 "{reference}: '{}' is declared by {} and by {} with other columns; \
                  one chronolexogram cannot hold both",
@@ -272,6 +275,21 @@ pub(crate) fn add_field(fields: &mut Vec<Field>, field: Field, reference: &str) 
         }
     }
     Ok(())
+}
+
+/// Whether two fields hold the same table: the same column names with the
+/// same types, in the same order. A column's description is no part of it.
+fn same_columns(a: Option<&[Column]>, b: Option<&[Column]>) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => {
+            a.len() == b.len()
+                && a.iter()
+                    .zip(b)
+                    .all(|(x, y)| x.name == y.name && x.column_type == y.column_type)
+        }
+        _ => false,
+    }
 }
 
 /// The article and the fact name of a fact reference

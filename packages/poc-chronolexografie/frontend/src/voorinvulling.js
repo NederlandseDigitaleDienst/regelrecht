@@ -9,7 +9,7 @@
  */
 import { toon } from './logboek.js';
 import { leesbaar } from './state.js';
-import { bronRij, verschilTekst, zelfdeTabel } from './tabel.js';
+import { alsInvoer, bronRij, verschilTekst, zelfdeTabel } from './tabel.js';
 
 /**
  * What the application form starts from. `scenario` is what a scenario gives
@@ -37,12 +37,15 @@ export function bronInvoer(waarden) {
   return Object.fromEntries(Object.entries(waarden ?? {}).filter(([, w]) => w !== undefined));
 }
 
-/** Per prefilled field the value a source gave, without the empty ones. */
+/**
+ * Per prefilled field the value a source gave, without the empty ones. A
+ * table holds its decimal cells as numbers (tabel.js `alsInvoer`).
+ */
 export function voorgevuldeWaarden(voorgevuld) {
   return Object.fromEntries(
     Object.entries(voorgevuld ?? {})
       .filter(([, v]) => v.waarde !== null && v.waarde !== undefined)
-      .map(([naam, v]) => [naam, v.waarde]),
+      .map(([naam, v]) => [naam, alsInvoer(v.waarde)]),
   );
 }
 

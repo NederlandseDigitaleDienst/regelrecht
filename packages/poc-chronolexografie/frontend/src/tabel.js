@@ -67,6 +67,18 @@ export function zelfdeTabel(a, b, kolommen) {
   return gewijzigd.length + ontbreekt.length + extra.length === 0;
 }
 
+/**
+ * A table as the form holds it: a decimal cell (`{"__decimal": "2.5"}`, as a
+ * source gives it from a chronicle) as its number, so the sheet can edit it
+ * and the application can be submitted; a value that is no table as it is.
+ */
+export const alsInvoer = (tabel) =>
+  Array.isArray(tabel)
+    ? tabel.map((rij) =>
+        Object.fromEntries(Object.entries(rij ?? {}).map(([k, v]) => [k, isDecimaal(v) ? Number(v.__decimal) : v])),
+      )
+    : tabel;
+
 /** A cell as the table shows it: as the app shows values, an empty one as nothing. */
 export const celTekst = (v) => (v === null || v === undefined ? '' : toon(v));
 
@@ -93,10 +105,10 @@ export function verschilTekst(bron, eigen, kolommen) {
       const anders = kolommen
         .filter((k) => JSON.stringify(celWaarde(b[k.naam])) !== JSON.stringify(celWaarde(e[k.naam])))
         .map((k) => `${leesbaar(k.naam)} ${toon(celWaarde(b[k.naam]))}`);
-      return `bij ${rijTekst(b, sleutels)}: ${anders.join(', ')}`;
+      return `bij ${rijTekst(b, sleutels) || bronRij(b, kolommen)}: ${anders.join(', ')}`;
     }),
     ...ontbreekt.map((rij) => `ook ${bronRij(rij, kolommen)}`),
-    ...extra.map((rij) => `niet ${rijTekst(rij, sleutels.length ? sleutels : kolommen.map((k) => k.naam))}`),
+    ...extra.map((rij) => `niet ${rijTekst(rij, sleutels) || bronRij(rij, kolommen)}`),
   ];
   return delen.join('; ');
 }

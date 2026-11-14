@@ -6,7 +6,8 @@
 // column may stay empty; an empty cell is null. A yes-or-no column therefore
 // asks ja, nee or leeg in a dropdown, not with a switch, which knows only on
 // and off. A row added or removed, or a row saved, gives the form the whole
-// table anew.
+// table anew; removing the last row empties the field, and saving a new row
+// with nothing filled in adds nothing.
 import { computed, ref } from 'vue';
 import { leesbaar } from '../state.js';
 import { bronRij, celTekst, kolomVeld, sleutelKolommen } from '../tabel.js';
@@ -54,10 +55,11 @@ function nieuw() {
 function bewaar() {
   const { index, rij } = concept.value;
   const volledig = Object.fromEntries(kolommen.value.map((k) => [k.naam, rij[k.naam] ?? null]));
+  open.value = false;
+  if (index === null && Object.values(volledig).every((v) => v === null)) return;
   const uit = [...rijen.value];
   if (index === null) uit.push(volledig);
   else uit[index] = volledig;
-  open.value = false;
   emit('update:modelValue', uit);
 }
 
@@ -65,10 +67,8 @@ function bewaar() {
 const jaNeeKeuze = (v) => (v === true ? 'ja' : v === false ? 'nee' : '');
 const jaNeeWaarde = (k) => (k === 'ja' ? true : k === 'nee' ? false : null);
 function verwijder(index) {
-  emit(
-    'update:modelValue',
-    rijen.value.filter((_, i) => i !== index),
-  );
+  const uit = rijen.value.filter((_, i) => i !== index);
+  emit('update:modelValue', uit.length ? uit : undefined);
 }
 </script>
 
@@ -108,7 +108,7 @@ function verwijder(index) {
         </nldd-table-row>
         <nldd-inline-dialog slot="empty" icon="info" text="Nog geen rijen"></nldd-inline-dialog>
       </nldd-table>
-      <nldd-button-group>
+      <nldd-button-group orientation="horizontal">
         <nldd-button appearance="secondary" start-icon="add" text="Rij toevoegen" @click="nieuw"></nldd-button>
       </nldd-button-group>
       <nldd-text v-if="herkomst" size="sm" color="secondary">{{ herkomst }}</nldd-text>
@@ -149,7 +149,7 @@ function verwijder(index) {
               />
             </template>
             <nldd-form-actions>
-              <nldd-button-group>
+              <nldd-button-group orientation="horizontal">
                 <nldd-button appearance="primary" type="submit" text="Bewaar"></nldd-button>
               </nldd-button-group>
             </nldd-form-actions>

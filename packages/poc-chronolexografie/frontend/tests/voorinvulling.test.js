@@ -35,6 +35,9 @@ describe('voorgevuldeWaarden', () => {
     };
     expect(voorgevuldeWaarden(voorgevuld)).toEqual({ naam_opgegeven: 'Vereniging Voorbeeld' });
     expect(voorgevuldeWaarden(undefined)).toEqual({});
+    // A table from a chronicle holds a decimal cell as its number.
+    const tabel = { bestuur: { waarde: [{ aantal: { __decimal: '1.5' } }], herkomst: [] } };
+    expect(voorgevuldeWaarden(tabel)).toEqual({ bestuur: [{ aantal: 1.5 }] });
   });
 });
 
@@ -101,6 +104,28 @@ describe('herkomstTekst of a table', () => {
     expect(tekst([een, nieuw])).toBe(
       'Door u gewijzigd. Voorbeeldregister geeft ook Lid Twee, penningmeester, 2026-01-15; ' +
         'niet Lid Drie, secretaris, 2026-03-01.',
+    );
+  });
+
+  it('names a changed row by its other cells when its key cells are empty', () => {
+    const k = [
+      { naam: 'code', type: 'string' },
+      { naam: 'aantal', type: 'number' },
+    ];
+    const bron = { ...voorgevuld, waarde: [{ code: null, aantal: 1 }] };
+    expect(herkomstTekst(bron, [{ aantal: 2 }], celNaam, k)).toBe(
+      'Door u gewijzigd. Voorbeeldregister geeft bij 1: aantal 1.',
+    );
+  });
+
+  it('names an added row by its other cells when its key cells are empty', () => {
+    const k = [
+      { naam: 'code', type: 'string' },
+      { naam: 'aantal', type: 'number' },
+    ];
+    const bron = { ...voorgevuld, waarde: [{ code: 'A', aantal: 1 }] };
+    expect(herkomstTekst(bron, [{ code: 'A', aantal: 1 }, { code: null, aantal: 3 }], celNaam, k)).toBe(
+      'Door u gewijzigd. Voorbeeldregister geeft niet 3.',
     );
   });
 

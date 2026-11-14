@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { celTekst, kolomVeld, sleutelKolommen, tabelVerschil, zelfdeTabel } from '../src/tabel.js';
+import { alsInvoer, celTekst, kolomVeld, sleutelKolommen, tabelVerschil, zelfdeTabel } from '../src/tabel.js';
 import { BESTUUR, RIJEN } from './fixtureTabel.js';
 
 const { kolommen } = BESTUUR;
@@ -137,5 +137,13 @@ describe('the edge cases of the comparison', () => {
   it('holds no table equal to a value that is none', () => {
     expect(zelfdeTabel(RIJEN, undefined, kolommen)).toBe(false);
     expect(zelfdeTabel(RIJEN, 'tekst', kolommen)).toBe(false);
+  });
+});
+
+describe('alsInvoer', () => {
+  it('holds a decimal cell as its number, and leaves a value that is no table', () => {
+    expect(alsInvoer([{ aantal: { __decimal: '2.5' }, naam: 'A' }])).toEqual([{ aantal: 2.5, naam: 'A' }]);
+    expect(alsInvoer('tekst')).toBe('tekst');
+    expect(alsInvoer(undefined)).toBeUndefined();
   });
 });

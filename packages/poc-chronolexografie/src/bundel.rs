@@ -539,7 +539,11 @@ mod tests {
         spel.indienen(&artikel, None, &aanvraag, dag).unwrap();
         // A row with a column the law does not declare is refused.
         aanvraag.insert("bestuur".into(), serde_json::json!([{ "onbekend": 1 }]));
-        assert!(spel.indienen(&artikel, None, &aanvraag, dag).is_err());
+        let e = spel.indienen(&artikel, None, &aanvraag, dag).unwrap_err();
+        assert!(
+            e.to_string().contains("bestuur") && e.to_string().contains("onbekend"),
+            "{e}"
+        );
     }
 
     #[test]
