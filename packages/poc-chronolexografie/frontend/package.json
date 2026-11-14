@@ -16,12 +16,12 @@
     "@nldd/design-system": "^0.22.0",
     "@regelrecht/frontend-shared": "*",
     "js-yaml": "^5.4.3",
-    "vue": "^3.5.43"
+    "vue": "^3.5.45"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^6.0.9",
     "happy-dom": "^21.0.4",
-    "vite": "^8.3.2",
-    "vitest": "^5.0.3"
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
   }
 }

@@ -21,19 +21,19 @@
     "echarts": "^6.1.0",
     "js-yaml": "^5.4.3",
     "qrcode-generator": "^2.0.4",
-    "vue": "^3.5.43",
+    "vue": "^3.5.45",
     "vue-echarts": "^8.3.2",
     "vue-router": "^5.4.0"
   },
   "devDependencies": {
     "@tsconfig/node24": "^24.0.5",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@vitejs/plugin-vue": "^6.0.10",
     "@vue/tsconfig": "^0.9.1",
     "happy-dom": "^21.0.4",
     "typescript": "~6.0.3",
-    "vite": "^8.3.4",
-    "vitest": "^5.0.3",
-    "vue-tsc": "^3.3.13"
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0",
+    "vue-tsc": "^3.3.14"
   }
 }
