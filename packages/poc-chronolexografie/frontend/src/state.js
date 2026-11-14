@@ -9,12 +9,14 @@
  *
  * Wat in welke stap zit (aanvraag, besluit, bezwaar, beslissing op bezwaar)
  * leest dit bestand uit de kroniek af aan `kind`, `basis` en `refers_to`,
- * zoals de cel ze vastlegt (RFC-045, RFC-046). Onder welk artikel
- * het besluit valt en onder welk de beslissing op bezwaar, zegt de casus
- * (`api.casus`); het spel leidt het af uit de wet.
+ * zoals de cel ze vastlegt (RFC-045, RFC-046). Welke indieningen er zijn en
+ * onder welk artikel op elk wordt beslist, zegt de casus (`api.casus`); het
+ * spel leidt het af uit de wet. awb.js geeft die de namen van de Awb-stappen
+ * waaronder dit bestand ze nog als vaste keten leest.
  */
 import { reactive } from 'vue';
 import { api } from './api.js';
+import { metAwbNamen, vormenMetAwbNamen } from './awb.js';
 import { beroepenTegen, ontvangstenBij, uitspraakOp } from './beroep.js';
 
 export const state = reactive({
@@ -147,7 +149,7 @@ async function openen(casus, datum = casus.speeldatum, { scenario = null, refusa
   state.vormen = null;
   state.grammen = [];
   state.rechter = [];
-  state.casus = casus;
+  state.casus = metAwbNamen(casus);
   state.datum = datum;
   await verversen();
 }
@@ -185,7 +187,7 @@ export async function verversen() {
     state.grammen = kroniek.grammen;
     state.andere = kroniek.andere ?? [];
     state.rechter = state.andere.find((a) => a.cel === state.casus.rechter?.cel)?.grammen ?? [];
-    state.vormen = vormen;
+    state.vormen = vormenMetAwbNamen(vormen, state.casus);
     await bewaar();
   } catch (e) {
     state.fout = e.message;

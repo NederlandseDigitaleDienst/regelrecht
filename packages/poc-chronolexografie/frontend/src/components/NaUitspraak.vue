@@ -9,21 +9,39 @@
 // formulier en de voorvertoning zijn die van een heroverweging onder
 // Bestuursorgaan (OordeelKeuze.vue, Voorvertoning.vue), ook voor een begrip
 // dat de cel voor dit geval niet weet (stil.js): daarover oordeelt het
-// bestuursorgaan zelf.
+// bestuursorgaan zelf. De nieuwe beslissing legt haar eigen oordelen over de
+// ontvankelijkheid vast; het formulier begint met wat de vernietigde
+// beslissing vastlegde, en het bestuursorgaan kan dat wijzigen.
 import { reactive } from 'vue';
 import { beroepApi, binnenTermijn, openOntvangsten } from '../beroep.js';
 import { alsJson, jaNee, kort, leesbaar, state, stap, waarde, zonderLeeg } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import { stilBegrippen } from '../stil.js';
+import { eerdereOordelen, eigenOordelen } from '../oordelen.js';
+import EigenOordelen from './EigenOordelen.vue';
 import OordeelKeuze from './OordeelKeuze.vue';
-import VeldInvoer from './VeldInvoer.vue';
 import StilOordeel from './StilOordeel.vue';
 import Uitkomst from './Uitkomst.vue';
 import Voorvertoning from './Voorvertoning.vue';
 import Waarom from './Waarom.vue';
 
 const toetsen = reactive({});
-const vorm = formulier(() => scenarioWaarden('opnieuw_beslissen'));
+// Wat het bestuursorgaan over de ontvankelijkheid van het bezwaar oordeelt
+// (Awb 7:11 met 6:11 en 8:1): de open begrippen van het artikel van de
+// beslissing op bezwaar (`vormen`).
+const ontvankelijkheidsOordelen = () => state.vormen?.beslissing_op_bezwaar?.bevindingen ?? [];
+// De beslissing op bezwaar die de rechter vernietigde: daar verwijst de
+// ontvangst van de uitspraak naar.
+const vernietigd = (ontvangstId) => {
+  const ontvangst = state.grammen.find((g) => g.id === ontvangstId);
+  return state.grammen.find((g) => g.id === ontvangst?.refers_to);
+};
+// Het formulier begint met de oordelen van de vernietigde beslissing; volg
+// je een scenario, dan met de waarden van de stap.
+const vorm = formulier((id) => ({
+  ...eerdereOordelen(vernietigd(id), ontvankelijkheidsOordelen()),
+  ...(scenarioWaarden('opnieuw_beslissen') ?? {}),
+}));
 const opnieuw = vorm.eigen;
 const beslissingen = reactive({});
 const { stil, meldStil } = stilBegrippen(opnieuw);
@@ -32,29 +50,24 @@ const { stil, meldStil } = stilBegrippen(opnieuw);
 const stilNa = (o) =>
   (stil[o.id] ?? []).filter((v) => !toetsen[o.id].bevindingen.some((b) => b.naam === v.naam));
 
+// De oordelen over de ontvankelijkheid blijven bij de heroverweging staan,
+// zoals bij een eerste beslissing op bezwaar: de beslissing berust op
+// dezelfde oordelen als de toets.
 async function toon(o) {
-  const antwoord = await stap(() => beroepApi.heroverweging(o.id));
+  const oordeel = eigenOordelen(ontvankelijkheidsOordelen(), zonderLeeg(vorm.waarden(o.id)));
+  const antwoord = await stap(() => beroepApi.heroverweging(o.id, oordeel));
   if (antwoord) {
-    toetsen[o.id] = antwoord;
+    toetsen[o.id] = { ...antwoord, ontvankelijkheid: oordeel };
     vorm.wis(o.id);
   }
 }
 
-// Wat het bestuursorgaan over de ontvankelijkheid van het bezwaar oordeelt
-// (Awb 7:11 met 6:11 en 8:1): de nieuwe beslissing op bezwaar toetst die
-// opnieuw. Een schakelaar die uit staat, zegt nee.
-const ontvankelijkheidsOordelen = () => state.vormen?.beslissing_op_bezwaar?.bevindingen ?? [];
-
-// Wat het bestuursorgaan opnieuw vindt; 'Laat staan' geeft niets.
-const gegeven = (o) => {
-  const waarden = zonderLeeg(vorm.waarden(o.id));
-  return {
-    ...waarden,
-    ...Object.fromEntries(
-      ontvankelijkheidsOordelen().map((v) => [v.naam, waarden[v.naam] ?? false]),
-    ),
-  };
-};
+// Wat het bestuursorgaan opnieuw vindt ('Laat staan' geeft niets), met zijn
+// oordelen over de ontvankelijkheid.
+const gegeven = (o) => ({
+  ...zonderLeeg(vorm.waarden(o.id)),
+  ...(toetsen[o.id]?.ontvankelijkheid ?? {}),
+});
 
 async function beslis(o) {
   const antwoord = await stap(() => beroepApi.opnieuwBeslissen(o.id, gegeven(o), state.datum));
@@ -97,22 +110,18 @@ const termijn = (o) => {
             </nldd-list-item>
           </nldd-list>
           <nldd-text size="sm" color="secondary">{{ termijn(o) }}</nldd-text>
-          <nldd-button
-            v-if="!toetsen[o.id]"
-            appearance="primary"
-            text="Heroverwegen"
-            @click="toon(o)"
-          ></nldd-button>
+          <template v-if="!toetsen[o.id]">
+            <nldd-text size="sm" color="secondary">Is het bezwaar ontvankelijk? De nieuwe beslissing legt de oordelen van het bestuursorgaan zelf vast. Ze staan hieronder zoals de vernietigde beslissing ze vastlegde; wijzig ze waar het bestuursorgaan nu anders oordeelt.</nldd-text>
+            <EigenOordelen
+              :velden="ontvankelijkheidsOordelen()"
+              :waarden="vorm.waarden(o.id)"
+              @zet="(naam, w) => vorm.zet(o.id, naam, w)"
+            />
+            <nldd-button appearance="primary" text="Heroverwegen" @click="toon(o)"></nldd-button>
+          </template>
           <template v-else>
             <nldd-container layout="grid" gap="16">
               <nldd-container gap="12">
-                <VeldInvoer
-                  v-for="v in ontvankelijkheidsOordelen()"
-                  :key="v.naam"
-                  :model-value="vorm.waarden(o.id)[v.naam]"
-                  :veld="v"
-                  @update:model-value="vorm.zet(o.id, v.naam, $event)"
-                />
                 <OordeelKeuze
                   v-for="b in toetsen[o.id].bevindingen"
                   :key="b.naam"

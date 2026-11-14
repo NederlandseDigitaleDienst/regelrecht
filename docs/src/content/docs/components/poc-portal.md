@@ -74,6 +74,25 @@ begin:
 
 The cell records that fact with `refers_to` set to the id of the named record (schema v0.8.17). A reduction with `projection.per` reads it as a step in the aggregate of that record. An executogram in a `begin` may refer only to an earlier one in the same `begin`. A `vastleggen` step of a scenario takes `verwijst_naar` too, and refers to a record in the `begin` of the cell named in its `cel`. Without `verwijst_naar` a fact refers to nothing, as before, so a correction recorded that way counts in no aggregate. In free play the form has no field for the reference yet. The app checks every reference when it loads the case and refuses one that names no kenmerk.
 
+The harness names no step of a procedure. It submits under an article, decides on a submission, decides ex officio and sends a copy of a decision; the law says what each does. When a case loads, `src/casus.rs` lists the submissions its rulework establishes (`produces` with `requests`), each with the cell that the `competent_authority` of the requested article names, and the decisions a cell takes ex officio. An appeal is therefore played only in a case with a court among its cells, and rulework without the Awb loads and plays. Which output holds a decision taken in another's place follows from its type (`decision`), not from its name.
+
+A scenario can use these steps directly. A step gives its record a `kenmerk`, and a later step acts on it through `verwijst_naar`:
+
+```yaml
+- stap: indienen
+  artikel: fictieve_vergunningwet#1
+  kenmerk: aanvraag
+  invoer: {aanvrager: A. Voorbeeld, meerderjarig: true}
+- stap: beslissen
+  verwijst_naar: aanvraag
+  kenmerk: vergunning
+- stap: ambtshalve
+  artikel: fictieve_vergunningwet#3
+  verwijst_naar: vergunning
+```
+
+`tests/procedure-zonder-awb/` plays a fictional law this way, with no objection and a withdrawal ex officio. The four cases of this repository still write their scenarios in Awb steps (`aanvraag`, `bezwaar`, `beroep`), and the frontend reads the Awb by name in one module, `frontend/src/awb.js`.
+
 Everything runs in the visitor's browser. The cell, the engine and the app's core (`kern.rs`, `casus.rs`) compile to WebAssembly in this crate, with the feature `wasm`. No server holds state. Each browser tab holds its own session with a case: the chosen case, its cells and their chronicles. This is not the login to the portal, which the cookie keeps. The tab saves the session in `sessionStorage` after every step, so a reload goes on where it was and two tabs never touch each other's session.
 
 Rulework that more than one case runs is shared and sits in `regulation/nl/`. Rulework of one case sits beside its case file, in `casussen/<id>/regulation/nl/`. The vakantieverlof case keeps the Leerplichtwet, the Regeling vaststelling schoolvakanties and the school's policies there. A case runs on the shared rulework its file lists under `corpus`, on the rulework in its own directory, which counts without being listed, and on the reductions of its cells. Other rulework neither runs nor acts on the case, even with a hook on every decision. A case file may not list anything under `casussen/`, and rulework under `casussen/<id>/` needs the case file `<id>.yaml` beside it.
@@ -140,11 +159,11 @@ just poc-chronolexografie-scenarios <checkout-of-the-source>/path/to/bron.yaml <
 
 The recipe runs `cargo test --test scenarios` with two variables. `POC_BRON` names the manifest or folder of the source. `POC_SCENARIOS_UIT` is optional and names a folder for the reports. A relative path in either counts from the repository root. Without `POC_BRON` the test plays only the PoC's own cases.
 
-The test chooses every case of the source and plays each scenario step by step, with the step's `invoer` over the case's `voorbeeld`. It compares `uitkomst` on a decision, a decision on objection, and a new decision after a court ruling (`opnieuw_beslissen`). It compares `uitvoer` on three kinds of step. On an application, the outputs are what its receipt computes (`wat_volgt`). On a decision, they are its own outputs. On a decision on objection, they are its outputs together with those of the new decision it holds. An `uitkomst` or `uitvoer` on any other kind of step is an error, so nothing passes unchecked.
+The test chooses every case of the source and plays each scenario step by step, with the step's `invoer` over the case's `voorbeeld`. It compares `uitkomst` on a decision, a decision on objection, and a new decision after a court ruling (`opnieuw_beslissen`). It compares `uitvoer` on three kinds of step. On an application, the outputs are what its receipt computes (`wat_volgt`). On a decision, they are its own outputs. On a decision on objection, they are its outputs together with those of the new decision it holds. A generic step compares the outputs of the record it makes. An `uitkomst` or `uitvoer` on any other kind of step is an error, so nothing passes unchecked.
 
 A step written as text is skipped. When a step leaves out a field the form asks, the report notes it. On a submission or a record the field is sent empty; from the findings of a decision it is left out, as on the page.
 
-A decision on objection goes through `kern::toetsen_en_beslissen_op_bezwaar`: first the test of admissibility, then the decision, the two calls the page makes. A judgement on admissibility that the step does not give counts as `false`, like an unchecked switch on the page.
+A decision on a submission goes through `kern::toetsen_en_beslissen`: first the check of what the deciding article itself asks the authority, such as the admissibility of an objection, then the decision, the two calls the page makes. Such a judgement that the step does not give counts as `false`, like an unchecked switch on the page.
 
 The test does not stop at the first wrong step. It fails at the end with one line per wrong step, such as:
 

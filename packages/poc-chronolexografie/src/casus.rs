@@ -6,11 +6,11 @@
 //! in this case ([`Casus::corpus`]). The cell is the organisation as it is;
 //! the corpus is a choice of the case. Everything else is derived from the
 //! law, within that corpus ([`Afleiding`]): which regelwerken the cell
-//! runs, which article
-//! establishes the objection, and what the deciding role is called. What the
-//! law does not say is in the case file with the reason (`uitkomst`), next to
-//! the text a visitor reads: a description, example values for the forms and
-//! the scenarios.
+//! runs, which submissions they establish and which cell decides on each,
+//! which decisions a cell takes ex officio, and what the deciding role is
+//! called. What the law does not say is in the case file with the reason
+//! (`uitkomst`), next to the text a visitor reads: a description, example
+//! values for the forms and the scenarios.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -72,8 +72,10 @@ pub struct Casus {
     /// The other cells the case takes along (RFC-048): those the engine may
     /// ask for a value another actor establishes, where the law makes them
     /// competent. Each records what it knows before the first scenario.
-    /// The court is one of them, for a case that plays the appeal
-    /// ([`Beroep::rechter`]); without one the case ends at the objection.
+    /// A cell that decides on a submission is one of them where the law
+    /// names it as who decides ([`Indiening::cel`]), as the court decides on
+    /// an appeal; without such a cell the case does not play that
+    /// submission.
     #[serde(default)]
     pub andere_cellen: Vec<AndereCel>,
     /// Who logs in to apply, where the case has a login ([`Inloggen`]).
@@ -147,16 +149,65 @@ impl Casus {
             }
         }
         for scenario in &self.scenarios {
+            let mut stappen: BTreeSet<&str> = BTreeSet::new();
             for stap in &scenario.stappen {
                 let Stap::Handeling(h) = stap else { continue };
+                let waar = format!("a step of the scenario '{}'", scenario.naam);
+                if h.stap.is_generiek() {
+                    for naar in [&h.verwijst_naar, &h.na].into_iter().flatten() {
+                        if !stappen.contains(naar.as_str()) {
+                            return fout(format!(
+                                "{waar} refers to '{naar}', which is the kenmerk of no earlier \
+                                 step of that scenario"
+                            ));
+                        }
+                    }
+                    let ontbreekt = match h.stap {
+                        Soort::Indienen | Soort::Ambtshalve if h.artikel.is_none() => {
+                            Some("the article it acts under")
+                        }
+                        Soort::Beslissen | Soort::Afschrift if h.verwijst_naar.is_none() => {
+                            Some("the record it acts on (verwijst_naar)")
+                        }
+                        _ => None,
+                    };
+                    if let Some(wat) = ontbreekt {
+                        return fout(format!("{waar} is a step {:?} without {wat}", h.stap));
+                    }
+                    let te_veel = match h.stap {
+                        Soort::Beslissen | Soort::Afschrift if h.artikel.is_some() => {
+                            Some("an article: the record it acts on says which")
+                        }
+                        Soort::Indienen | Soort::Ambtshalve | Soort::Afschrift
+                            if h.na.is_some() =>
+                        {
+                            Some("`na`: only a decision is taken again after a record")
+                        }
+                        _ => None,
+                    };
+                    if let Some(wat) = te_veel {
+                        return fout(format!("{waar} is a step {:?} with {wat}", h.stap));
+                    }
+                    if let Some(k) = &h.kenmerk
+                        && !stappen.insert(k.as_str())
+                    {
+                        return fout(format!("{waar} gives the kenmerk '{k}' twice"));
+                    }
+                    continue;
+                }
+                if h.kenmerk.is_some() || h.na.is_some() || h.artikel.is_some() {
+                    return fout(format!(
+                        "{waar} gives a kenmerk, an article or `na`; only a generic step \
+                         (indienen, beslissen, ambtshalve, afschrift) does"
+                    ));
+                }
                 let Some(naar) = &h.verwijst_naar else {
                     continue;
                 };
-                let waar = format!("a step of the scenario '{}'", scenario.naam);
                 if h.stap != Soort::Vastleggen {
                     return fout(format!(
-                        "{waar} refers to '{naar}', but only a record step (vastleggen) refers \
-                         to an earlier record"
+                        "{waar} refers to '{naar}', but only a record step (vastleggen) or a \
+                         generic step refers to an earlier record"
                     ));
                 }
                 let Some(cel) = h
@@ -298,6 +349,21 @@ impl<'de> Deserialize<'de> for Stap {
 #[serde(deny_unknown_fields)]
 pub struct Handeling {
     pub stap: Soort,
+    /// For [`Soort::Indienen`] and [`Soort::Ambtshalve`]: the article the
+    /// step acts under, `<law>#<article>`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artikel: Option<String>,
+    /// The name the scenario gives the record this step makes, so that a
+    /// later step can act on it ([`Handeling::verwijst_naar`]). Unique
+    /// within the scenario.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kenmerk: Option<String>,
+    /// For [`Soort::Beslissen`]: the [`Handeling::kenmerk`] of a later
+    /// record that refers to the last decision on the submission, such as
+    /// the receipt of a judgment that annulled it; the decision is then
+    /// taken once more, after it (`Cell::decide_after`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub na: Option<String>,
     /// The title of the step in the guide; without one, the guide names it
     /// after its kind.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -323,7 +389,11 @@ pub struct Handeling {
     /// For [`Soort::Vastleggen`]: the [`BeginExecutogram::kenmerk`] of the
     /// record in the recording cell's [`Begin`] that this fact is about
     /// (`refers_to`, schema v0.8.17), such as the registration a correction
-    /// corrects.
+    /// corrects. For a generic step ([`Soort::is_generiek`]): the
+    /// [`Handeling::kenmerk`] of an earlier step of the scenario whose
+    /// record this step acts on: the decision a submission refers to, the
+    /// submission a decision is taken on, the record an ex officio decision
+    /// is about, or the decision a copy is sent of.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verwijst_naar: Option<String>,
     /// The values the step fills in, under the names the law gives the
@@ -353,10 +423,29 @@ pub struct Handeling {
     pub gezien: Option<String>,
 }
 
-/// What a visitor does in a step, one form each.
+/// What a visitor does in a step.
+///
+/// The first four are generic: they name no step of a procedure, and the
+/// law says what each does, under the article the step names or on the
+/// record it refers to. A case whose procedure is not the Awb's writes its
+/// scenarios in these. The others are the steps of the Awb procedure as
+/// the guide beside the page (frontend/src/scenarioGuides.js) shows them;
+/// the harness plays them through the same generic steps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Soort {
+    /// A submission under [`Handeling::artikel`], referring to the decision
+    /// [`Handeling::verwijst_naar`] names, if any.
+    Indienen,
+    /// A decision on the submission [`Handeling::verwijst_naar`] names,
+    /// under the article that submission asks a decision of.
+    Beslissen,
+    /// A decision under [`Handeling::artikel`] on no submission, about the
+    /// record [`Handeling::verwijst_naar`] names, if any.
+    Ambtshalve,
+    /// The cell that took the decision [`Handeling::verwijst_naar`] names
+    /// sends a copy of it to the cell whose decision it concerns.
+    Afschrift,
     Aanvraag,
     Besluit,
     Bezwaar,
@@ -368,6 +457,16 @@ pub enum Soort {
     Toezenden,
     /// The authority decides on the objection again after a judgment.
     OpnieuwBeslissen,
+}
+
+impl Soort {
+    /// Whether this is a generic step, which names no step of a procedure.
+    pub fn is_generiek(self) -> bool {
+        matches!(
+            self,
+            Self::Indienen | Self::Beslissen | Self::Ambtshalve | Self::Afschrift
+        )
+    }
 }
 
 /// What a step comes to.
@@ -732,14 +831,17 @@ pub struct Afleiding {
     /// that its item names, which may be the application itself.
     pub decision_law: String,
     pub decision: String,
-    /// The article that establishes the objection (`type: BEZWAAR`), and
-    /// decides on it: Awb 7:11 for both cases.
-    pub objection_law: String,
-    pub objection: String,
-    /// For a case with a court: the article that establishes the appeal
-    /// (`type: BEROEP`) and decides on it, Awb 8:70, and the fact in which
-    /// the cell records the receipt of a judgment ([`Beroep`]).
-    pub beroep: Option<Beroep>,
+    /// Every submission the regelwerken of the case establish that a cell of
+    /// the case decides on ([`Indiening`]): the application first, then the
+    /// others by article. Which ones there are, and on what each refers to,
+    /// follows from the law (`produces`, `requests`, `competent_authority`),
+    /// not from the app: for the Awb that is the objection (7:11) and the
+    /// appeal (8:70), the latter only in a case with a court.
+    pub indieningen: Vec<Indiening>,
+    /// The articles whose decision no submission of the regelwerken asks
+    /// for, and that a cell of the case takes ex officio ([`Ambtshalve`]),
+    /// such as a withdrawal.
+    pub ambtshalve: Vec<Ambtshalve>,
     /// Who decides: the competent authority of the article that takes the
     /// decision, or else the holder of its rulework (RFC-002), as the app
     /// names it ("het hoofd", "het college van burgemeester en wethouders").
@@ -748,19 +850,42 @@ pub struct Afleiding {
     pub regelwerken: Vec<String>,
 }
 
-/// What follows from the law and the cell for an appeal.
+impl Afleiding {
+    /// The submission established by `artikel` (`<law>#<article>`).
+    pub fn indiening(&self, artikel: &str) -> Option<&Indiening> {
+        self.indieningen.iter().find(|i| i.artikel == artikel)
+    }
+}
+
+/// A submission a regelwerk of the case establishes, as the law makes it:
+/// under which article, of which kind, which decision it asks for, and the
+/// cell of the case that records it and decides on it.
 #[derive(Debug, Clone, Serialize)]
-pub struct Beroep {
-    pub law: String,
-    pub article: String,
-    /// The fact the law requires whose parameters are all outputs of the
-    /// judgment, `<law>#<article>#<fact>`: what the cell records when it
-    /// receives a copy of one (`Cell::record_receipt`).
-    pub ontvangst: String,
-    /// The court: the other cell of the case that the competent authority of
-    /// the article that decides on the appeal names ("de bestuursrechter",
-    /// on Awb 8:70).
-    pub rechter: String,
+pub struct Indiening {
+    /// The article that establishes it, `<law>#<article>`.
+    pub artikel: String,
+    /// Its kind, as `produces` names it (`AANVRAAG`, `BEZWAAR`, `BEROEP`).
+    pub soort: String,
+    /// The article whose decision it asks for (`requests`).
+    pub besluit: String,
+    /// The cell that records it and decides on it: the one the competent
+    /// authority of [`Indiening::besluit`] names, by its recording actor.
+    pub cel: String,
+    /// For a decision of another cell than the case's own: the fact in
+    /// which the case's cell records the receipt of a copy of it
+    /// (`<law>#<article>#<fact>`), when the law requires one whose
+    /// parameters a copy holds ([`ontvangst`]).
+    pub ontvangst: Option<String>,
+}
+
+/// An article whose decision a cell of the case takes ex officio: no
+/// submission among the regelwerken of the case asks for it.
+#[derive(Debug, Clone, Serialize)]
+pub struct Ambtshalve {
+    /// The article, `<law>#<article>`.
+    pub artikel: String,
+    /// The cell that takes it, by its recording actor.
+    pub cel: String,
 }
 
 /// Derive from the law what `casus` needs, with its `cells`: its own and the
@@ -817,13 +942,9 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
         i += 1;
     }
 
-    let (objection_law, objection) = vestigt(regelwerken, &casus.id, &gevonden, "BEZWAAR")?;
-    let beroep = beroep(
-        regelwerken,
-        &casus.id,
-        &gevonden,
-        cells.get(1..).unwrap_or_default(),
-    )?;
+    let besluit = format!("{decision_law}#{decision}");
+    let indieningen = indieningen(regelwerken, casus, &gevonden, cells, &besluit)?;
+    let ambtshalve = ambtshalve(regelwerken, &casus.id, &gevonden, cells)?;
 
     let werk = regelwerken
         .get(&decision_law)
@@ -840,64 +961,201 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
         article: article.to_string(),
         decision_law,
         decision,
-        objection_law,
-        objection,
-        beroep,
+        indieningen,
+        ambtshalve,
         rol,
         regelwerken: gevonden,
     })
 }
 
-/// The appeal, for a case with a court among its `andere` cells: the
-/// article that establishes it, the fact of its receipt, and the court, the
-/// one cell the competent authority of that article names. A case
-/// plays no appeal without other cells, without an article among its
-/// regelwerken that establishes an appeal (who the court is follows from
-/// that article), or when none of the other cells is the court.
-fn beroep(
+/// The newest version of the article `artikel` (`<law>#<article>`) among
+/// the regelwerken.
+fn artikel<'r>(regelwerken: &'r Regelwerken, artikel: &str) -> Option<&'r Article> {
+    let (law, number) = artikel.split_once('#')?;
+    regelwerken
+        .get(law)?
+        .nieuwste()
+        .articles
+        .iter()
+        .find(|a| a.number == number)
+}
+
+/// The cell of `cells` (the case's own first) that decides under
+/// `besluit` (`<law>#<article>`): the one its competent authority names
+/// ([`bevoegd`]), or the case's own where it names none. `None` when it
+/// names an authority that no cell of the case is, such as the court in a
+/// case without one; two cells it names are an error.
+fn beslissende_cel<'c>(
+    regelwerken: &Regelwerken,
+    casus: &str,
+    besluit: &str,
+    cells: &[&'c Cell],
+) -> Result<Option<&'c Cell>> {
+    let bevoegd = besluit
+        .split_once('#')
+        .and_then(|(law, article)| bevoegd(regelwerken.get(law)?.nieuwste(), article));
+    let Some(bevoegd) = bevoegd else {
+        return Ok(cells.first().copied());
+    };
+    let mut genoemd = cells
+        .iter()
+        .filter(|c| c.authority().is_named_by(std::slice::from_ref(&bevoegd)));
+    match (genoemd.next(), genoemd.next()) {
+        (None, _) => Ok(None),
+        (Some(c), None) => Ok(Some(*c)),
+        (Some(a), Some(b)) => Err(Error::Setup(format!(
+            "case '{casus}': both '{}' and '{}' are {}, who decides under {besluit}",
+            a.recording_actor(),
+            b.recording_actor(),
+            bevoegd.name
+        ))),
+    }
+}
+
+/// Every submission an article of the regelwerken `gevonden` establishes
+/// whose decision a cell of the case takes ([`Indiening`]): the case's own
+/// application first, decided by the case's cell, then the others in the
+/// order of their articles. A submission whose deciding authority is no
+/// cell of the case is not one the case plays.
+fn indieningen(
+    regelwerken: &Regelwerken,
+    casus: &Casus,
+    gevonden: &[String],
+    cells: &[&Cell],
+    besluit: &str,
+) -> Result<Vec<Indiening>> {
+    let eigen = cells
+        .first()
+        .ok_or_else(|| Error::Setup(format!("case '{}' has no cell", casus.id)))?;
+    let mut gevestigd: BTreeSet<(String, String, String)> = BTreeSet::new();
+    for id in gevonden {
+        let Some(werk) = regelwerken.get(id) else {
+            continue;
+        };
+        for a in werk.nieuwste().articles.iter() {
+            let eigen_artikel = format!("{id}#{}", a.number);
+            let (Some(soort), Some(gevraagd)) = (
+                a.get_submission().and_then(|s| s.submission_kind()),
+                a.requested_decision(&eigen_artikel),
+            ) else {
+                continue;
+            };
+            gevestigd.insert((eigen_artikel, soort.to_string(), gevraagd));
+        }
+    }
+    let aanvraag = gevestigd
+        .iter()
+        .find(|(a, _, _)| *a == casus.artikel)
+        .cloned()
+        .ok_or_else(|| {
+            Error::Setup(format!(
+                "case '{}': {} establishes no submission",
+                casus.id, casus.artikel
+            ))
+        })?;
+    let mut uit = vec![Indiening {
+        artikel: aanvraag.0.clone(),
+        soort: aanvraag.1.clone(),
+        besluit: besluit.to_string(),
+        cel: eigen.recording_actor().to_string(),
+        ontvangst: None,
+    }];
+    for (artikel, soort, gevraagd) in gevestigd.into_iter().filter(|x| *x != aanvraag) {
+        let Some(cel) = beslissende_cel(regelwerken, &casus.id, &gevraagd, cells)? else {
+            continue;
+        };
+        let ontvangst = if cel.recording_actor() == eigen.recording_actor() {
+            None
+        } else {
+            ontvangst(regelwerken, &casus.id, gevonden, &gevraagd)?
+        };
+        uit.push(Indiening {
+            artikel,
+            soort,
+            besluit: gevraagd,
+            cel: cel.recording_actor().to_string(),
+            ontvangst,
+        });
+    }
+    Ok(uit)
+}
+
+/// The articles of the regelwerken `gevonden` whose decision no submission
+/// of those regelwerken asks for, and that a cell of the case takes
+/// ([`beslissende_cel`]). An article that takes a decision in turn (an
+/// output of type `decision`) needs the submission it is taken on, so it is
+/// none; neither is an article whose decision another article reads
+/// (`source.regulation` with `output`), nor one of a legal character no
+/// procedure among those regelwerken applies to, such as a TOETS: it is
+/// taken within the decision that reads it.
+fn ambtshalve(
     regelwerken: &Regelwerken,
     casus: &str,
     gevonden: &[String],
-    andere: &[&Cell],
-) -> Result<Option<Beroep>> {
-    if andere.is_empty() {
-        return Ok(None);
-    }
-    // Without an article that establishes the appeal there is no appeal to
-    // play, whatever the other cells are.
-    let Some((law, article)) = vestigend(regelwerken, casus, gevonden, "BEROEP")? else {
-        return Ok(None);
-    };
-    let werk = regelwerken
-        .get(&law)
-        .ok_or_else(|| Error::Setup(format!("'{law}' is not in the corpus")))?;
-    let bevoegd = bevoegd(werk.nieuwste(), &article).ok_or_else(|| {
-        Error::Setup(format!(
-            "case '{casus}': {law}#{article} names no one who decides on the appeal"
-        ))
-    })?;
-    let wie = &bevoegd.name;
-    let mut rechters = andere
-        .iter()
-        .filter(|c| c.authority().is_named_by(std::slice::from_ref(&bevoegd)));
-    let rechter = match (rechters.next(), rechters.next()) {
-        (None, _) => return Ok(None),
-        (Some(r), None) => r.recording_actor().to_string(),
-        (Some(a), Some(b)) => {
-            return Err(Error::Setup(format!(
-                "case '{casus}': both '{}' and '{}' are {wie}",
-                a.recording_actor(),
-                b.recording_actor()
-            )));
+    cells: &[&Cell],
+) -> Result<Vec<Ambtshalve>> {
+    let mut gevraagd: BTreeSet<String> = BTreeSet::new();
+    let mut gelezen: BTreeSet<String> = BTreeSet::new();
+    for id in gevonden {
+        for a in regelwerken.get(id).into_iter().flat_map(|w| w.artikelen()) {
+            if let Some(g) = a.requested_decision(&format!("{id}#{}", a.number)) {
+                gevraagd.insert(g);
+            }
+            for source in a.get_inputs().iter().filter_map(|i| i.source.as_ref()) {
+                if let (Some(law), Some(output)) = (&source.regulation, &source.output)
+                    && let Some(werk) = regelwerken.get(law)
+                    && let Some(b) = werk.nieuwste().find_article_by_output(output)
+                {
+                    gelezen.insert(format!("{law}#{}", b.number));
+                }
+            }
         }
-    };
-    let ontvangst = ontvangst(regelwerken, casus, gevonden, &law, &article)?;
-    Ok(Some(Beroep {
-        law,
-        article,
-        ontvangst,
-        rechter,
-    }))
+    }
+    // A decision follows the stages of the procedure for its legal
+    // character (RFC-045 §5); one without is taken only within another.
+    let met_procedure: BTreeSet<&str> = gevonden
+        .iter()
+        .filter_map(|id| regelwerken.get(id))
+        .flat_map(|w| &w.versies)
+        .flat_map(|(_, law)| law.procedure.iter().flatten())
+        .map(|p| p.applies_to.legal_character.as_str())
+        .collect();
+    let mut uit = Vec::new();
+    for id in gevonden {
+        let Some(werk) = regelwerken.get(id) else {
+            continue;
+        };
+        if werk.is_reductie() {
+            continue;
+        }
+        for a in werk.nieuwste().articles.iter() {
+            let artikel = format!("{id}#{}", a.number);
+            let Some(besluit) = a.get_decision() else {
+                continue;
+            };
+            let neemt_in_de_plaats = a.outputs_of(besluit).iter().any(|o| {
+                a.find_output(o)
+                    .is_some_and(|o| o.output_type == regelrecht_law_model::ParameterType::Decision)
+            });
+            let zonder_procedure = besluit
+                .legal_character()
+                .is_none_or(|lc| !met_procedure.contains(lc));
+            if gevraagd.contains(&artikel)
+                || gelezen.contains(&artikel)
+                || neemt_in_de_plaats
+                || zonder_procedure
+            {
+                continue;
+            }
+            if let Some(cel) = beslissende_cel(regelwerken, casus, &artikel, cells)? {
+                uit.push(Ambtshalve {
+                    artikel,
+                    cel: cel.recording_actor().to_string(),
+                });
+            }
+        }
+    }
+    Ok(uit)
 }
 
 /// The article whose decision the application under `law#article` asks
@@ -927,68 +1185,16 @@ fn gevraagd_besluit(
             "case '{casus}': {eigen} establishes no application that asks for a decision"
         ))
     })?;
-    let neemt = doel.split_once('#').and_then(|(l, a)| {
-        let werk = regelwerken.get(l)?;
-        werk.nieuwste()
-            .articles
-            .iter()
-            .any(|x| x.number == a && x.get_decision().is_some())
-            .then(|| (l.to_string(), a.to_string()))
-    });
+    let neemt = artikel(regelwerken, &doel)
+        .filter(|a| a.get_decision().is_some())
+        .and_then(|_| doel.split_once('#'))
+        .map(|(l, a)| (l.to_string(), a.to_string()));
     neemt.ok_or_else(|| {
         Error::Setup(format!(
             "case '{casus}': {eigen} asks for the decision of {doel}, which its corpus does not \
              hold as an article that takes a decision"
         ))
     })
-}
-
-/// The one article among the regelwerken `gevonden` whose `produces` lists a
-/// submission of the kind `soort`: the objection (`BEZWAAR`) or the appeal
-/// (`BEROEP`), each established by the article that decides on it.
-fn vestigt(
-    regelwerken: &Regelwerken,
-    casus: &str,
-    gevonden: &[String],
-    soort: &str,
-) -> Result<(String, String)> {
-    vestigend(regelwerken, casus, gevonden, soort)?.ok_or_else(|| {
-        Error::Setup(format!(
-            "case '{casus}': no regelwerk it runs establishes a submission {soort}"
-        ))
-    })
-}
-
-/// The one article among the regelwerken in `gevonden` that establishes a
-/// submission of the kind `soort`, if any; two are an error.
-fn vestigend(
-    regelwerken: &Regelwerken,
-    casus: &str,
-    gevonden: &[String],
-    soort: &str,
-) -> Result<Option<(String, String)>> {
-    let mut artikelen = BTreeSet::new();
-    for id in gevonden {
-        if let Some(werk) = regelwerken.get(id) {
-            for a in werk.artikelen() {
-                if a.get_produced()
-                    .into_iter()
-                    .any(|p| p.submission_kind() == Some(soort))
-                {
-                    artikelen.insert((id.clone(), a.number.clone()));
-                }
-            }
-        }
-    }
-    let mut artikelen = artikelen.into_iter();
-    match (artikelen.next(), artikelen.next()) {
-        (Some(b), None) => Ok(Some(b)),
-        (None, _) => Ok(None),
-        (Some(a), Some(b)) => Err(Error::Setup(format!(
-            "case '{casus}': both {}#{} and {}#{} establish a submission {soort}",
-            a.0, a.1, b.0, b.1
-        ))),
-    }
 }
 
 /// The inputs the stages of the procedures of `law` require for the legal
@@ -1015,19 +1221,22 @@ fn fasen<'r>(regelwerken: &'r Regelwerken, law: &str, artikelen: &[&Article]) ->
         .collect()
 }
 
-/// The fact in which a cell records the receipt of a judgment under
-/// `law#article`, as `<law>#<article>#<fact>`: the one fact an article of
-/// the regelwerken `gevonden` requires whose parameters are all outputs of
-/// that decision or inputs a stage of the procedure for its legal character
-/// requires (such as the day of the judgment), so a copy of the judgment
-/// holds each by name (Awb 8:79, `afschrift_van_de_uitspraak`).
+/// The fact in which a cell records the receipt of a copy of a decision
+/// under `besluit` (`<law>#<article>`), as `<law>#<article>#<fact>`: the one
+/// fact an article of the regelwerken `gevonden` requires whose parameters
+/// are all outputs of that decision or inputs a stage of the procedure for
+/// its legal character requires (such as the day of a judgment), so a copy
+/// holds each by name (Awb 8:79, `afschrift_van_de_uitspraak`). None when
+/// no fact does; two are an error.
 fn ontvangst(
     regelwerken: &Regelwerken,
     casus: &str,
     gevonden: &[String],
-    law: &str,
-    article: &str,
-) -> Result<String> {
+    besluit: &str,
+) -> Result<Option<String>> {
+    let Some((law, article)) = besluit.split_once('#') else {
+        return Ok(None);
+    };
     let artikelen: Vec<&Article> = regelwerken
         .get(law)
         .into_iter()
@@ -1059,13 +1268,10 @@ fn ontvangst(
     }
     let mut feiten = feiten.into_iter();
     match (feiten.next(), feiten.next()) {
-        (Some(f), None) => Ok(f),
-        (None, _) => Err(Error::Setup(format!(
-            "case '{casus}': no regelwerk it runs requires a fact that holds the judgment of {law}#{article}"
-        ))),
         (Some(a), Some(b)) => Err(Error::Setup(format!(
-            "case '{casus}': both {a} and {b} hold the judgment of {law}#{article}"
+            "case '{casus}': both {a} and {b} hold the decision of {law}#{article}"
         ))),
+        (f, _) => Ok(f),
     }
 }
 
@@ -1319,6 +1525,6 @@ mod tests {
             &format!("[{}]", inschrijving("a")),
             "[{stap: aanvraag, verwijst_naar: a}]",
         );
-        assert!(fout(&c).contains("only a record step (vastleggen) refers"));
+        assert!(fout(&c).contains("only a record step (vastleggen) or a generic step refers"));
     }
 }

@@ -11,6 +11,7 @@ use serde_json::{Map, Value, json};
 use std::path::Path;
 
 mod common;
+use common::{Awb, indiening_van};
 
 fn spel() -> Spel {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -71,7 +72,10 @@ fn voorbeeld_bsn(casus: &Value) -> &str {
 fn the_forms_come_from_the_chosen_case() {
     let mut spel = spel_met("vakantieverlof");
     let vormen = spel.vormen(dag("2026-10-14")).unwrap();
-    assert_eq!(vormen["aanvraag"]["basis"], json!("leerplichtwet_1969#13a"));
+    assert_eq!(
+        vormen["indieningen"]["leerplichtwet_1969#13a"]["basis"],
+        json!("leerplichtwet_1969#13a")
+    );
 }
 
 #[test]
@@ -143,7 +147,7 @@ fn without_a_chosen_case_a_step_is_refused_and_choosing_one_starts_its_cell() {
     let casus = spel.kiezen("vakantieverlof").unwrap();
     assert_eq!(casus["besluit"], json!("leerplichtwet_1969#13a"));
     assert_eq!(
-        casus["beslissing_op_bezwaar"],
+        indiening_van(&casus, "BEZWAAR")["besluit"],
         json!("algemene_wet_bestuursrecht#7:11")
     );
     assert_eq!(casus["rol"], json!("het hoofd"));
@@ -232,12 +236,14 @@ fn the_appeal_from_the_objection_to_the_decision_taken_again() {
     // the case's own example values.
     let mut spel = spel_met("vakantieverlof");
     let casus = spel.casus().unwrap();
-    assert_eq!(casus["beroep"], json!("algemene_wet_bestuursrecht#8:70"));
+    let beroep = indiening_van(&casus, "BEROEP");
+    assert_eq!(beroep["artikel"], json!("algemene_wet_bestuursrecht#8:70"));
     assert_eq!(
-        casus["ontvangst"],
+        beroep["ontvangst"],
         json!("algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak")
     );
-    assert_eq!(casus["rechter"]["cel"], json!("rechtbank_wilgendaal"));
+    assert_eq!(beroep["cel"], json!("rechtbank_wilgendaal"));
+    assert_eq!(beroep["cel_naam"], json!("Rechtbank Wilgendaal"));
     let voorbeeld = &casus["voorbeeld"];
     let aanvraag = spel
         .aanvragen(&map(&voorbeeld["aanvraag"]), dag("2026-10-14"))
@@ -291,7 +297,9 @@ fn the_appeal_from_the_objection_to_the_decision_taken_again() {
     spel.waarom_uitspraak(&uitspraak).unwrap();
     let ontvangst = spel.toezenden(&uitspraak, dag("2027-01-11")).unwrap();
     let ontvangst = ontvangst["id"].as_str().unwrap().to_string();
-    let toets = spel.heroverweging_na_uitspraak(&ontvangst).unwrap();
+    let toets = spel
+        .heroverweging_na_uitspraak(&ontvangst, &common::ontvankelijk(&Map::new()))
+        .unwrap();
     assert_eq!(toets["bezwaar"], bezwaar["id"]);
     let bevindingen = map(&json!({ "specifieke_aard_beroep_ouder": true }));
     let voorlopig = spel
@@ -352,7 +360,10 @@ fn parkeerkaart_a_second_card_next_to_a_valid_one() {
         .map(|a| a["cel"].as_str().unwrap())
         .collect();
     assert_eq!(andere, ["ggd_wilgendaal", "rechtbank_wilgendaal"]);
-    assert_eq!(casus["rechter"]["cel"], json!("rechtbank_wilgendaal"));
+    assert_eq!(
+        indiening_van(&casus, "BEROEP")["cel"],
+        json!("rechtbank_wilgendaal")
+    );
     let aanvraag = map(&casus["voorbeeld"]["aanvraag"]);
     let bevindingen = map(&casus["voorbeeld"]["bevindingen"]);
     let uitkomst = casus["uitkomst"].as_str().unwrap().to_string();
@@ -667,7 +678,10 @@ fn bedrijfsparkeervergunning_a_company_in_the_city_centre_gets_a_permit() {
         casus["rol"],
         json!("het college van burgemeester en wethouders")
     );
-    assert_eq!(casus["rechter"]["cel"], json!("rechtbank_wilgendaal"));
+    assert_eq!(
+        indiening_van(&casus, "BEROEP")["cel"],
+        json!("rechtbank_wilgendaal")
+    );
     let besluit = bedrijf_vraagt(
         &mut spel,
         "99990011",

@@ -16,6 +16,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+#[path = "../common/mod.rs"]
+mod common;
 mod speler;
 
 use std::collections::{BTreeMap, BTreeSet, HashSet};
@@ -44,8 +46,19 @@ fn repo() -> PathBuf {
 }
 
 fn spel() -> Spel {
-    let dir = crate_dir();
-    Spel::new(Corpus::alle(&dir.join("corpus"), &dir.join("corpus/casussen")).unwrap())
+    spel_in("corpus")
+}
+
+/// A fictional procedure that is not the Awb's: no objection, no court, a
+/// second application that refers to the decision on the first, and a
+/// decision taken ex officio (`tests/procedure-zonder-awb`).
+const ZONDER_AWB: &str = "tests/procedure-zonder-awb";
+
+/// The game on the corpus at `root` (relative to this crate), with its
+/// cases under `casussen/`.
+fn spel_in(root: &str) -> Spel {
+    let dir = crate_dir().join(root);
+    Spel::new(Corpus::alle(&dir, &dir.join("casussen")).unwrap())
 }
 
 /// The game on this crate's corpus with the source of `bestanden` (its
@@ -430,4 +443,86 @@ fn every_scenario_of_bedrijfsparkeervergunning_plays_with_its_own_values() {
 #[test]
 fn every_scenario_of_zorgtoeslag_plays_with_its_own_values() {
     alle("zorgtoeslag");
+}
+
+/// The harness plays a procedure it has no name for, from its YAML alone:
+/// the law establishes two applications and no objection, and a decision
+/// the cell takes ex officio. Nothing in the harness asks for an objection
+/// or an appeal.
+#[test]
+fn every_scenario_of_a_procedure_without_the_awb_plays_with_its_own_values() {
+    let mut spel = spel_in(ZONDER_AWB);
+    let casus = spel.kiezen("fictieve_vergunning").unwrap();
+    let soorten: Vec<(&str, &str)> = casus["indieningen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| (i["artikel"].as_str().unwrap(), i["soort"].as_str().unwrap()))
+        .collect();
+    assert_eq!(
+        soorten,
+        [
+            ("fictieve_vergunningwet#1", "AANVRAAG"),
+            ("fictieve_vergunningwet#2", "AANVRAAG"),
+        ]
+    );
+    assert_eq!(
+        casus["ambtshalve"],
+        json!([{ "artikel": "fictieve_vergunningwet#3", "cel": "fictieve_dienst", "cel_naam": "Fictieve dienst" }])
+    );
+    let n = aantal(&mut spel, "fictieve_vergunning").unwrap();
+    assert!(n > 0);
+    for i in 0..n {
+        let verslag = speler::speel(&mut spel, "fictieve_vergunning", i, false).unwrap();
+        let fouten = verslag.fouten();
+        assert!(fouten.is_empty(), "{}", fouten.join("\n"));
+        streng(&verslag);
+    }
+    // Each record a generic step makes holds the regulation versions it ran
+    // under (`law_versions`): the application, the decision on it, and the
+    // decision taken ex officio.
+    spel.kiezen("fictieve_vergunning").unwrap();
+    let dag0 = "2026-02-02".parse().unwrap();
+    let velden = json!({ "aanvrager": "C. Voorbeeld", "meerderjarig": true });
+    let aanvraag = spel
+        .indienen(
+            "fictieve_vergunningwet#1",
+            None,
+            velden.as_object().unwrap(),
+            dag0,
+        )
+        .unwrap();
+    let id = |g: &Value| g["id"].as_str().unwrap().to_string();
+    let besluit = spel
+        .beslissen(&id(&aanvraag), None, &serde_json::Map::new(), dag0)
+        .unwrap()["besluit"]
+        .clone();
+    let intrekking = spel
+        .ambtshalve(
+            "fictieve_vergunningwet#3",
+            Some(&id(&besluit)),
+            &serde_json::Map::new(),
+            dag0,
+        )
+        .unwrap();
+    for gram in [&aanvraag, &besluit, &intrekking] {
+        let gelezen: Vec<&str> = gram["law_versions"]
+            .as_array()
+            .unwrap_or_else(|| panic!("no law_versions on {gram}"))
+            .iter()
+            .filter_map(|r| r["law_id"].as_str())
+            .collect();
+        assert!(gelezen.contains(&"fictieve_vergunningwet"), "{gram}");
+    }
+    // The refusal the second scenario expects: article 2 is taken on an
+    // application, so no cell takes it ex officio.
+    let e = spel
+        .ambtshalve(
+            "fictieve_vergunningwet#2",
+            None,
+            &serde_json::Map::new(),
+            "2026-03-02".parse().unwrap(),
+        )
+        .unwrap_err();
+    assert!(e.to_string().contains("ex officio"), "{e}");
 }
