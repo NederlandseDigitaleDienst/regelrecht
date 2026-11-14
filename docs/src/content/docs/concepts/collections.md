@@ -131,17 +131,17 @@ actions:
     value:
       operation: FOREACH
       collection: $scholen
-      as: school
+      as: s
       body:
-        school: $school.naam
+        school: $s.naam
         leerlingen:
           operation: ADD
-          values: [$school.leerlingen, $school.nieuwkomers]
+          values: [$s.leerlingen, $s.nieuwkomers]
 ```
 
-An output of type `array` may declare `columns`, as a parameter can since v0.8.20. The loader then holds every row the article writes for that output to them: the body of a `FOREACH` without `combine` or with `DISTINCT`, an item of a `LIST`, or a branch of an `IF` in either place. A table put together another way, such as an `ADD` of two lists, is not checked. A row names exactly the declared columns; a column without a value says `null`. Where the type check knows the type of a value (a literal, a declared name, a comparison) it has to match its column. A field of the element, such as `$school.naam`, is not typed, so nothing is claimed there. A table taken whole from a reference is not checked against the columns either.
+An output of type `array` may declare `columns`, as a parameter can since v0.8.20. The loader then checks every row the article writes for that output against these columns. Such a row is the body of a `FOREACH` without `combine` or with `DISTINCT`, or an item of a `LIST`. An `IF` counts too, both where it gives a row and where it gives such a table. A row names exactly the declared columns. Write `null` for a column that has no value. Where the type check knows the type of a value (a literal, a declared name, a comparison) it has to match its column. A field of the element, such as `$s.naam`, is not typed, so nothing is claimed there. A table put together another way, such as an `ADD` of two lists or an array taken whole from a reference, is not checked.
 
-A row is a container, like a `LIST`. A column may hold `null`. An unknown value stays in its column, and whatever reads the row meets it there ([RFC-036](/rfcs/rfc-036)); the other columns stay readable. A [marked construct](./markings) in any column makes the whole row untranslatable, because a row with a gap in it would look complete.
+A row is a container, like a `LIST`. An unknown value stays in its column, and whatever reads the row meets it there ([RFC-036](/rfcs/rfc-036)); the other columns stay readable. A [marked construct](./markings) in any column makes the whole row untranslatable, because a row with a gap in it would look complete.
 
 An object with the key `operation` is an operation, never a row, so `operation` cannot name a column. Column names follow the pattern of a column declaration: lowercase letters, digits and underscores. A name may not start with two underscores, which the engine keeps for its own markers.
 

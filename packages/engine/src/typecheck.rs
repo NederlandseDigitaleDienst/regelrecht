@@ -26,8 +26,10 @@
 //! - **N2** A literal `null` is written only as the value of a nullable
 //!   output (directly, or through the branches of an `IF`), or as an element
 //!   of a container literal (an item of `LIST`, the body of a `FOREACH`
-//!   without `combine`): an array holding an absence is a value, and its
-//!   elements are untyped anyway.
+//!   without `combine`, a column of a row since schema v0.8.22): an array
+//!   or a row holding an absence is a value. The elements of an array are
+//!   untyped, and a column of a row may hold null whatever its declared
+//!   type (`arrayColumn`).
 //! - **N3** An `IF` without `default` yields `null` when no case matches, so
 //!   it is allowed only as the value of a nullable output.
 //! - **N4** A value that may be absent enters arithmetic, ordering, logic, an
@@ -4194,6 +4196,14 @@ actions:
             ),
             Rule::T4,
             "column 'zetels' is declared number but is given a string",
+        );
+        // An IF that is the output's value, with a table in each branch.
+        assert_only(
+            &table_law_with_value(
+                "operation: IF\ncases:\n  - when: $actief\n    then:\n      operation: LIST\n      items: [{gebied: noord, zetels: 1}]\ndefault:\n  operation: LIST\n  items: [{gebied: zuid}]",
+            ),
+            Rule::T4,
+            "lacks the column 'zetels'",
         );
     }
 

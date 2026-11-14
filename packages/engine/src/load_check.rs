@@ -1823,7 +1823,8 @@ articles:
         // had an object in the place of an operand.
         let old = row_in_open_term_default("v0.8.21", "{naam: vast}");
         let law: ArticleBasedLaw = serde_yaml_ng::from_str(&old).unwrap();
-        assert!(reject_malformed_rows(&law).is_err());
+        let err = reject_malformed_rows(&law).unwrap_err();
+        assert!(err.to_string().contains("v0.8.22"), "{err}");
         let new = row_in_open_term_default("v0.8.22", "{naam: $naam, rij: {binnen: 1}}");
         let law: ArticleBasedLaw = serde_yaml_ng::from_str(&new).unwrap();
         reject_malformed_rows(&law).unwrap();
