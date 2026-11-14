@@ -30,8 +30,8 @@ use crate::answer::{
     authorities,
 };
 use crate::article::{
-    Article, ArticleBasedLaw, CompetentAuthority, Execution, HookPoint, Input, MachineReadable,
-    NamedAuthority, ProcedureDefinition, Stage, StageRequirement,
+    Article, ArticleBasedLaw, AuthorityType, CompetentAuthority, Execution, HookPoint, Input,
+    MachineReadable, NamedAuthority, ProcedureDefinition, Stage, StageRequirement,
 };
 use crate::config;
 use crate::context::{LazyInputs, RuleContext};
@@ -594,21 +594,18 @@ impl Drop for TraceGuard {
 ///   court that takes the decision of an administrative body in its place.
 /// - A law gives the term to the policy's holder: the term that routes the
 ///   question names its competent authorities (`competent`), and the cell
-///   asked among them is the holder's. The holder then fills the term by
-///   law, from its own cell, and the receiver applies the law.
+///   asked among them is the holder's, which the policy names by name. The
+///   holder then fills the term by law, from its own cell, and the receiver
+///   applies the law.
 ///
 /// Without a receiver no cell runs the execution, and none has a ground.
 fn ungrounded(
     law: &ArticleBasedLaw,
-    competent: Option<&[crate::article::NamedAuthority]>,
+    competent: Option<&[NamedAuthority]>,
     askee: &dyn OpenTermAnswerer,
     res_ctx: &ResolutionContext<'_>,
 ) -> Option<String> {
-    let holder = law
-        .competent_authority
-        .as_ref()
-        .and_then(|authority| authority.named())
-        .unwrap_or_default();
+    let holder = law.holder();
     let Some(receiver) = res_ctx.answerer.map(|answerer| answerer.authority()) else {
         return Some("no cell runs this execution, so none has a ground to use it".to_string());
     };
@@ -616,8 +613,13 @@ fn ungrounded(
         .chain(res_ctx.decides_for)
         .any(|authority| authority.is_named_by(holder));
     // The askee was chosen because the term names it; that it is also the
-    // holder's cell means the law gave the term to the holder.
-    let by_law = competent.is_some() && askee.authority().is_named_by(holder);
+    // holder's cell means the law gave the term to the holder. Only a holder
+    // by name counts: a policy of a category would make every member's
+    // answer the holder's own.
+    let by_law = competent.is_some()
+        && holder.iter().any(|named| {
+            named.kind() == AuthorityType::Instance && named.name == askee.authority().name
+        });
     if own || by_law {
         return None;
     }
@@ -625,15 +627,24 @@ fn ungrounded(
         .decides_for
         .map(|authority| format!(" (deciding for {})", authority.name))
         .unwrap_or_default();
+    let askee = &askee.authority().name;
+    let routing = if competent.is_none() {
+        "the term names no competent authority".to_string()
+    } else if holder
+        .iter()
+        .any(|named| named.kind() == AuthorityType::Instance)
+    {
+        format!("the term routes the question to {askee}, not to the holder")
+    } else {
+        "a policy held by a category gives none of its members the term by law".to_string()
+    };
     Some(format!(
-        "{} is the policy of {}, not of {}{deciding}, and the law gives the term to no cell \
-         of that holder: {} has no ground in a law or in its own policy to use the answer \
-         of {}",
+        "{} is the policy of {}, not of {}{deciding}, and {routing}: {} has no ground in a law \
+         or in its own policy to use the answer of {askee}",
         law.id,
         authorities(holder),
         receiver.name,
         receiver.name,
-        askee.authority().name
     ))
 }
 

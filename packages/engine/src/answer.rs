@@ -29,8 +29,8 @@
 //! ground for it (RFC-057): the binding is in its own policy, or in that of
 //! the authority it decides for ([`Call::decides_for`]), or a law gives the
 //! term to the holder of the policy (the term names the holder in its
-//! `competent_authority`). Without a ground the engine refuses the input
-//! before it asks any cell.
+//! `competent_authority`, and the cell asked is the holder's). Without a
+//! ground the engine refuses the input before it asks any cell.
 //!
 //! The engine does not judge how an answer came about. It records who gave it
 //! and from what ([`AnswerProvenance`]) in the report of the execution

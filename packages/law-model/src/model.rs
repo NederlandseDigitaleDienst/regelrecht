@@ -2485,6 +2485,16 @@ pub struct ArticleBasedLaw {
 }
 
 impl ArticleBasedLaw {
+    /// The authorities the regulation names as its holder in its root
+    /// `competent_authority`, such as the body whose policy it is. Empty
+    /// when it names none, or names a reference instead.
+    pub fn holder(&self) -> &[NamedAuthority] {
+        self.competent_authority
+            .as_ref()
+            .and_then(CompetentAuthority::named)
+            .unwrap_or_default()
+    }
+
     /// Extract schema version (e.g., "v0.5.0") from the `$schema` URL.
     ///
     /// Looks for a `/vN.N.N` pattern (semver with v prefix) in the URL,

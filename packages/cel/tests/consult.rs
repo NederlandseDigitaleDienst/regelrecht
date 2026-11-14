@@ -279,6 +279,20 @@ fn the_policy_of_another_authority_is_no_source_to_consult() {
         "{message}"
     );
     assert!(message.contains("RFC-057"), "{message}");
+    // A policy rule is as much the policy of one body.
+    let law = regulation(
+        "beleidsregel_register_fictief",
+        "BELEIDSREGEL",
+        Some("Registerhouder"),
+    );
+    let e = consulted(&law, "beleidsregel_register_fictief").unwrap_err();
+    assert!(e.to_string().contains("RFC-057"), "{e}");
+    let law = regulation(
+        "beleidsregel_eigen_fictief",
+        "BELEIDSREGEL",
+        Some("Testcel"),
+    );
+    consulted(&law, "beleidsregel_eigen_fictief").unwrap();
     // A policy that names no holder is no one's own.
     let law = regulation("beleid_zonder_houder_fictief", "UITVOERINGSBELEID", None);
     let e = consulted(&law, "beleid_zonder_houder_fictief").unwrap_err();

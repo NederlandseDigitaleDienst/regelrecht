@@ -1461,9 +1461,10 @@ impl Cell {
 
     /// Refuse to consult `law_id` when the cell has no ground to use what it
     /// gives (RFC-057): a reduction, which reads a chronicle, or the policy
-    /// of another authority. A law or regulation is a ground, and so is the
-    /// cell's own policy, whose holder names the cell. What a binding in
-    /// either takes from another cell, the engine checks on its own.
+    /// (`UITVOERINGSBELEID` or `BELEIDSREGEL`) of another authority. A law or
+    /// regulation is a ground, and so is the cell's own policy, whose holder
+    /// names the cell. What a binding in either takes from another cell, the
+    /// engine checks on its own.
     fn refuse_source_without_ground(
         &self,
         service: &LawExecutionService,
@@ -1479,12 +1480,9 @@ impl Cell {
                 "{law_id} is a reduction: a cell takes what a reduction gives only through a \
                  binding in a law or in its own policy (RFC-057)"
             ))),
-            RegulatoryLayer::Uitvoeringsbeleid => {
-                let holder = law
-                    .competent_authority
-                    .as_ref()
-                    .and_then(|authority| authority.named())
-                    .unwrap_or_default();
+            // A policy rule (Awb 4:81) is as much the policy of one body.
+            RegulatoryLayer::Uitvoeringsbeleid | RegulatoryLayer::Beleidsregel => {
+                let holder = law.holder();
                 if self.authority.is_named_by(holder) {
                     return Ok(());
                 }

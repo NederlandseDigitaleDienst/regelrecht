@@ -13,8 +13,8 @@
 //! The cell that runs the execution needs a ground to use the answer of
 //! another cell (RFC-057): the binding is in its own policy or in that of the
 //! authority it decides for, or the term names the policy's holder as
-//! competent. Most tests here run the cell of wilgendaal, the policy's
-//! holder.
+//! competent and the holder's cell gives the answer. Most tests here run
+//! the cell of wilgendaal, the policy's holder.
 //!
 //! Synthesis is an article that takes the answers of different cells, to
 //! different questions, and makes one outcome of them
@@ -1489,8 +1489,8 @@ fn the_policy_of_another_authority_is_no_ground_to_use_an_answer() {
     let message = e.to_string();
     assert!(
         message.contains(
-            "beleid_verstrekking is the policy of 'wilgendaal', not of RDW, and the law gives \
-             the term to no cell of that holder"
+            "beleid_verstrekking is the policy of 'wilgendaal', not of RDW, and the term names \
+             no competent authority"
         ),
         "{message}"
     );
@@ -1525,6 +1525,10 @@ fn a_law_that_gives_the_term_to_the_holder_does_not_cover_another_competent_cell
     let message = e.to_string();
     assert!(
         message.contains("is the policy of 'Landelijke uitgever', not of RDW"),
+        "{message}"
+    );
+    assert!(
+        message.contains("the term routes the question to oostmeer, not to the holder"),
         "{message}"
     );
     assert!(message.contains("use the answer of oostmeer"), "{message}");
@@ -1594,4 +1598,26 @@ fn an_answer_from_the_receivers_own_cell_needs_no_ground() {
     let result = read_with(BINDING, "eerder_gelezen", &running, None, vec![]).unwrap();
     assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
     assert_eq!(running.asked(), ["eerder_verstrekt"]);
+}
+
+#[test]
+fn a_policy_of_a_category_is_no_ground_by_law_for_one_of_its_members() {
+    // The policy is held by every college at once. The term routes the
+    // question to Oostmeer, a college, but that makes Oostmeer's answer no
+    // holder's own: the RDW has no ground by law to use it.
+    let policy = BINDING.replacen(
+        "competent_authority:\n  name: wilgendaal\n",
+        "competent_authority:\n  name: college van burgemeester en wethouders\n  type: CATEGORY\n",
+        1,
+    );
+    assert_ne!(policy, BINDING);
+    let running = Fake::new("RDW", None);
+    let college = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true));
+    let e = read_with(&policy, "eerder_gelezen", &running, None, vec![&college]).unwrap_err();
+    assert!(
+        e.to_string()
+            .contains("a policy held by a category gives none of its members the term by law"),
+        "{e}"
+    );
+    assert!(college.asked().is_empty());
 }
