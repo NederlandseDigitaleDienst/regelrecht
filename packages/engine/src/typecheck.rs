@@ -4180,6 +4180,17 @@ actions:
             Rule::T4,
             "column 'zetels' is declared number but is given a boolean",
         );
+        // An operation whose result type does not depend on its operands.
+        assert_only(
+            &table_law("gebied: $u.gebied\nzetels: {operation: EQUALS, subject: $extra, value: 1}"),
+            Rule::T4,
+            "column 'zetels' is declared number but is given a boolean",
+        );
+        assert_only(
+            &table_law("gebied: {operation: LIST, items: [$u.gebied]}\nzetels: 1"),
+            Rule::T4,
+            "column 'gebied' is declared string but is given a array",
+        );
         // A field of the element is untyped: no claim.
         assert_clean(&table_law("gebied: $u.zetels\nzetels: $u.gebied"));
     }

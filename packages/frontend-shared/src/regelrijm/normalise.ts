@@ -64,6 +64,14 @@ export function isOperation(node: unknown): node is Operation {
   return isRecord(node) && typeof node.operation === 'string';
 }
 
+/**
+ * A row (schema v0.8.22): an object in the place of an operand, without the
+ * key `operation`, whose values are operands in turn.
+ */
+export function isRow(node: unknown): node is Record<string, unknown> {
+  return isRecord(node) && !('operation' in node) && !(node instanceof Date);
+}
+
 export function isReference(node: unknown): node is string {
   return typeof node === 'string' && node.startsWith('$');
 }
@@ -88,8 +96,9 @@ export function normalise(node: unknown): unknown {
   if (Array.isArray(node)) return node.map(normalise);
   if (node === null || typeof node !== 'object') return node;
   if (!isOperation(node)) {
-    // Not an operation (the schema has no object literals). Keep it, so the
-    // reading can show it as an error instead of silently reading something.
+    // A row (schema v0.8.22), or an object that is no operation at all. Keep
+    // its columns, each normalised as an operand; the reading shows a broken
+    // operation as an error instead of silently reading something.
     const out: Record<string, unknown> = {};
     const rec = node as Record<string, unknown>;
     for (const k of Object.keys(rec).sort()) out[k] = normalise(rec[k]);

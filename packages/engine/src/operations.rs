@@ -5105,6 +5105,20 @@ mod tests {
         }
 
         #[test]
+        fn rows_nested_deeper_than_the_limit_are_refused() {
+            // Each row counts as a level, as an operation does, so a chain of
+            // rows cannot go past the depth limit.
+            let mut value = lit(1);
+            for _ in 0..=crate::config::MAX_OPERATION_DEPTH {
+                let fields: BTreeMap<String, ActionValue> =
+                    [("binnen".to_string(), value)].into_iter().collect();
+                value = ActionValue::Row(Row::try_from(fields).expect("no reserved key"));
+            }
+            let err = evaluate_value(&value, &TestResolver::new(), 0).unwrap_err();
+            assert!(matches!(err, EngineError::MaxDepthExceeded(_)), "{err:?}");
+        }
+
+        #[test]
         fn an_unknown_value_stays_in_its_column() {
             // RFC-036: an unknown inside a record counts as much as a bare
             // one, and the other columns stay readable, as in a LIST.

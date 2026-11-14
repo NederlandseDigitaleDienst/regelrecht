@@ -5,7 +5,7 @@
 import { brokenGroup, group, nest, line, hardline, tok, layout, segmentsToText } from './doc';
 import { formatLiteral, formatNumber, MONTHS, PERIOD_WORDS } from './literals';
 import { humanizeName, referenceSegments } from './names';
-import { isOperation, isReference, OPERATION_FIELDS } from './normalise';
+import { isOperation, isReference, isRow, OPERATION_FIELDS } from './normalise';
 import { exprUnit, pathKey } from './units';
 import { valueKind, freeInputs, SIGNATURE_MAX_INPUTS } from './signature';
 import type { Doc, FoldInput, Segment, Operation, Path, Unit, Vocabulary } from './types';
@@ -247,6 +247,7 @@ export class Renderer {
   node(v: unknown, path: Path, num: string, depth: number): Rendered {
     if (v === undefined) return this.hole(String(path[path.length - 1]), path);
     if (isReference(v)) return this.name(v, path);
+    if (isRow(v)) return this.row(v, path, num, depth);
     if (!isOperation(v)) {
       if (v !== null && typeof v === 'object' && !(v instanceof Date)) {
         return { doc: tok('error', '⟨geen operatie⟩', { path }), level: LEVEL.CLOSED };
@@ -330,12 +331,28 @@ export class Renderer {
     return this.operation(rep.v, rep.path, rep.num, rep.depth);
   }
 
+  /**
+   * A row (schema v0.8.22): `de rij ( kolom: waarde; … )`, its columns in
+   * the order written. The operations in it are numbered under the row's own
+   * number, which the operation around it gave.
+   */
+  row(n: Record<string, unknown>, path: Path, num: string, depth: number): Rendered {
+    let k = 0;
+    const items = Object.keys(n).map((key) => {
+      const v = n[key];
+      const p = [...path, key];
+      const inner = isOperation(v) || isRow(v) ? `${num}.${(k += 1)}` : num;
+      return [kw(`${key}:`, p), ' ', at(LEVEL.CHOICE, this.node(v, p, inner, depth + 1))];
+    });
+    return { doc: sp(kw('de rij', path), listDoc(items)), level: LEVEL.CLOSED };
+  }
+
   operation(n: Operation, path: Path, num: string, depth: number): Rendered {
     let k = 0;
-    // Children are numbered in reading order; only operations take a number.
+    // Children are numbered in reading order; only operations and rows take a number.
     const child = (v: unknown, sub: Path): Rendered => {
       const p = [...path, ...sub];
-      if (isOperation(v)) {
+      if (isOperation(v) || isRow(v)) {
         k += 1;
         return this.node(v, p, `${num}.${k}`, depth + 1);
       }
