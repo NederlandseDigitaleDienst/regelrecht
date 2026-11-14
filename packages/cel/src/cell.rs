@@ -1726,7 +1726,9 @@ impl Cell {
 
     /// The chronicle up to the chronolexogram `id`, without it: what the
     /// cell held when it recorded `id`. `id` is a chronolexogram of this
-    /// chronicle; both callers take it from [`Cell::grams`].
+    /// chronicle: both callers of [`Cell::outputs_of_submission`] take it
+    /// from [`Cell::grams`]. An id outside the chronicle would yield the
+    /// whole of it.
     fn grams_before(&self, id: &str) -> Vec<Gram> {
         self.grams()
             .iter()
