@@ -391,7 +391,9 @@ export const isBesluitwaarde = (v) =>
 export function waarde(v) {
   if (isDecimaal(v)) return v.__decimal;
   if (isUnknown(v)) {
-    const ontbreekt = missingFacts(v).map((f) => leesbaar(f.name));
+    // As the editor (outputFormat.ts) and the demo (format.ts) write it, each
+    // name once: the engine may report one fact from two laws.
+    const ontbreekt = [...new Set(missingFacts(v).map((f) => leesbaar(f.name)))];
     return ontbreekt.length ? `onbekend (ontbreekt: ${ontbreekt.join(', ')})` : 'onbekend';
   }
   if (isBesluitwaarde(v)) {

@@ -195,6 +195,7 @@ describe('an unknown value (RFC-036)', () => {
   it('names what is missing, not the JSON of the engine', () => {
     expect(toon(onbekend('nummer_opgegeven'))).toBe('onbekend (ontbreekt: nummer opgegeven)');
     expect(waarde(onbekend('nummer_opgegeven', 'kanaal'))).toBe('onbekend (ontbreekt: nummer opgegeven, kanaal)');
+    expect(waarde(onbekend('kanaal', 'kanaal'))).toBe('onbekend (ontbreekt: kanaal)');
   });
 
   it('says only onbekend when the engine names nothing missing', () => {
