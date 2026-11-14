@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { artikelNaam, genummerd, ingevuldDoor, opsomming, stapTekst, toon, uitslag, wetNaam } from '../src/logboek.js';
-import { nieuwBesluit, rol, state } from '../src/state.js';
+import { nieuwBesluit, rol, state, waarde } from '../src/state.js';
 
 // De casus zoals `api.casus` haar geeft, voor zover het logboek haar leest.
 beforeEach(() => {
@@ -183,6 +183,24 @@ describe('toon en artikelNaam', () => {
     expect(wetNaam('fictief_beleid_met_naam')).toBe('Beleid van de gemeente');
     expect(wetNaam('besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw')).toBe('BABW');
     expect(wetNaam('wet_met_verwijzing_als_naam')).toBe('Wet met verwijzing als naam');
+  });
+});
+
+describe('an unknown value (RFC-036)', () => {
+  const onbekend = (...namen) => ({
+    __unknown: true,
+    missing: namen.map((name) => ({ law: 'voorbeeld_beleid', name, kind: 'not_passed' })),
+  });
+
+  it('names what is missing, not the JSON of the engine', () => {
+    expect(toon(onbekend('nummer_opgegeven'))).toBe('onbekend (ontbreekt: nummer opgegeven)');
+    expect(waarde(onbekend('nummer_opgegeven', 'kanaal'))).toBe('onbekend (ontbreekt: nummer opgegeven, kanaal)');
+    expect(waarde(onbekend('kanaal', 'kanaal'))).toBe('onbekend (ontbreekt: kanaal)');
+  });
+
+  it('says only onbekend when the engine names nothing missing', () => {
+    expect(waarde({ __unknown: true })).toBe('onbekend');
+    expect(waarde({ __unknown: true, missing: [] })).toBe('onbekend');
   });
 });
 

@@ -14,6 +14,7 @@
  * spel leidt het af uit de wet. awb.js geeft die de namen van de Awb-stappen
  * waaronder dit bestand ze nog als vaste keten leest.
  */
+import { isUnknown, missingFacts } from '@regelrecht/frontend-shared';
 import { reactive } from 'vue';
 import { api } from './api.js';
 import { metAwbNamen, vormenMetAwbNamen } from './awb.js';
@@ -386,10 +387,17 @@ export const isBesluitwaarde = (v) =>
 /**
  * Een waarde leesbaar: een decimaal als het getal, een besluitwaarde als
  * haar basis met haar uitvoer (een besluit daarin net zo, tussen
- * haakjes), de rest als JSON.
+ * haakjes), een onbekende waarde (RFC-036) als onbekend met wat ontbreekt,
+ * de rest als JSON.
  */
 export function waarde(v) {
   if (isDecimaal(v)) return v.__decimal;
+  if (isUnknown(v)) {
+    // As the editor (outputFormat.ts) and the demo (format.ts) write it, each
+    // name once: the engine may report one fact from two laws.
+    const ontbreekt = [...new Set(missingFacts(v).map((f) => leesbaar(f.name)))];
+    return ontbreekt.length ? `onbekend (ontbreekt: ${ontbreekt.join(', ')})` : 'onbekend';
+  }
   if (isBesluitwaarde(v)) {
     const uitvoer = Object.entries(v.outputs).map(([naam, w]) => {
       const tekst = waarde(w);
