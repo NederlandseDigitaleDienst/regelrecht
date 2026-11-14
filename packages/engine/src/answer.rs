@@ -25,6 +25,13 @@
 //! fills nothing, so the term is what it is without a filling regulation,
 //! such as the finding of the deciding authority.
 //!
+//! The cell that runs the execution receives the answer, and needs a
+//! ground for it (RFC-056): the binding is in its own policy, or in that of
+//! the authority it decides for ([`Call::decides_for`]), or a law gives the
+//! term to the holder of the policy (the term names the holder in its
+//! `competent_authority`, and the cell asked is the holder's). Without a
+//! ground the engine refuses the input before it asks any cell.
+//!
 //! The engine does not judge how an answer came about. It records who gave it
 //! and from what ([`AnswerProvenance`]) in the report of the execution
 //! (`ArticleResult::open_terms`, with the binding article) and as one node
@@ -131,6 +138,19 @@ impl Authority {
     }
 }
 
+/// The authorities `named`, for a message: "'a' or 'b'", or "no one" when
+/// it names none.
+pub fn authorities(named: &[NamedAuthority]) -> String {
+    if named.is_empty() {
+        return "no one".to_string();
+    }
+    named
+        .iter()
+        .map(|authority| format!("'{}'", authority.name))
+        .collect::<Vec<_>>()
+        .join(" or ")
+}
+
 /// What gives named answers for the caller of an execution: a cell.
 pub trait OpenTermAnswerer {
     /// Who this answerer is, for the engine to tell whether a binding asks
@@ -210,6 +230,11 @@ pub struct Call<'a> {
     /// The cell that runs the execution: asked for the answers a binding of
     /// its policy takes (RFC-048).
     pub answerer: Option<&'a dyn OpenTermAnswerer>,
+    /// The authority whose decision the running cell takes in its place, if
+    /// any: a court that decides the case itself takes the decision of the
+    /// administrative body (Awb 8:72 lid 3 onder b). The binding of that
+    /// body's policy then gives its answer with the body's ground (RFC-056).
+    pub decides_for: Option<&'a Authority>,
     /// The chronicle of the cell that runs a reduction (RFC-048): it gives
     /// the rows every reduction in the execution reads. Only a cell that
     /// runs one of its reductions passes it; a decision is taken without.

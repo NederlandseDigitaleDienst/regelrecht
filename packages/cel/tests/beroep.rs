@@ -1176,3 +1176,40 @@ fn a_court_that_decides_itself_without_the_fact_the_school_would_give_fails() {
     );
     assert_eq!(court.grams().len(), 1);
 }
+
+#[test]
+fn a_court_that_decides_itself_asks_the_school_with_the_schools_ground() {
+    // With the school's cell along, the court that decides the case itself
+    // takes the school's answer through the school's policy. The court decides
+    // for the school (Awb 8:72 lid 3 onder b), so it has the school's ground
+    // to use that answer (RFC-056); the school's finding is then not asked.
+    let mut school = school();
+    let mut court = court();
+    let refused = refused(&mut school);
+    let (_, decided) = objected(&mut school, &refused, json!({}));
+    let copy = school
+        .afschrift(&mut service(), &[], &decided[0].id)
+        .unwrap();
+    let appeal = appealed(&mut court, &copy).unwrap();
+    let mut findings = decided_by_the_court();
+    findings.remove("verlof_al_verleend_in_schooljaar_volgens_hoofd");
+    let judgment = court
+        .decide(
+            &mut service(),
+            &[&school],
+            AWB,
+            APPEAL,
+            &appeal.id,
+            &Map::new(),
+            &common::on_appeal(&findings),
+            day("2027-01-11"),
+        )
+        .unwrap()
+        .remove(0);
+    let grant = &judgment.outputs["uitspraak_in_de_plaats"]["outputs"]["nieuw_besluit"];
+    assert_eq!(grant["outputs"]["verlof_verleend"], json!(true), "{grant}");
+    // The replay sets the same ground.
+    court
+        .explain(&mut service(), &[&school], &judgment.id)
+        .unwrap();
+}

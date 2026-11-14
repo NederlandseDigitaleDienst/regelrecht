@@ -60,7 +60,7 @@ pub use annotation::{
 };
 pub use answer::{
     Answer, AnswerProvenance, AnswerRequest, Authority, Call, Chronicle, ChronicleRead,
-    OpenTermAnswerer,
+    OpenTermAnswerer, authorities,
 };
 pub use article::{
     Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, Case, Execution,

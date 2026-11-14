@@ -517,6 +517,7 @@ impl<'c> Reader<'c> {
         let call = Call {
             findings: BTreeMap::new(),
             answerer: Some(self),
+            decides_for: None,
             chronicle: Some(self),
             sphere: Vec::new(),
         };
@@ -1099,6 +1100,7 @@ articles:
         let call = regelrecht_engine::Call {
             findings: BTreeMap::new(),
             answerer: Some(reader),
+            decides_for: None,
             chronicle: None,
             sphere: Vec::new(),
         };
@@ -1295,6 +1297,7 @@ articles:
         let call = regelrecht_engine::Call {
             findings: BTreeMap::new(),
             answerer: Some(&reader),
+            decides_for: None,
             chronicle: None,
             sphere: Vec::new(),
         };
@@ -1413,6 +1416,7 @@ articles:
         let call = regelrecht_engine::Call {
             findings,
             answerer: Some(&reader),
+            decides_for: None,
             chronicle: None,
             sphere: Vec::new(),
         };
