@@ -28,7 +28,7 @@ import {
 import { formulier, huidigeStap, scenarioWaarden } from '../scenarioInvoer.js';
 import { celNaam } from '../logboek.js';
 import { beginWaarden, bronInvoer, herkomstTekst } from '../voorinvulling.js';
-import { gekozen, inlogTekst, keuzeLabel } from '../inloggen.js';
+import { NIET_INGELOGD, gekozen, inlogTekst, keuzeLabel } from '../inloggen.js';
 import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
@@ -203,7 +203,7 @@ async function indienenTegen() {
         >
           <nldd-dropdown>
             <select :value="ingelogd?.waarde ?? ''" @change="inlog($event.target.value)">
-              <option value="">Niet ingelogd</option>
+              <option value="">{{ NIET_INGELOGD }}</option>
               <option v-for="k in inloggen.keuzes" :key="k.waarde" :value="k.waarde">
                 {{ keuzeLabel(k) }}
               </option>

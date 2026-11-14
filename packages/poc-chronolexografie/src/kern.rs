@@ -394,9 +394,6 @@ impl Corpus {
             "voorbeeld": c.voorbeeld,
             "begin": c.begin,
             "andere_cellen": c.andere_cellen,
-            // Who logs in, so the guide can name the choice under Ingelogd
-            // als (frontend/src/scenarioGuides.js).
-            "inloggen": c.inloggen,
             "scenarios": c.scenarios,
             "besluit": format!("{}#{}", a.decision_law, a.decision),
             "beslissing_op_bezwaar": format!("{}#{}", a.objection_law, a.objection),

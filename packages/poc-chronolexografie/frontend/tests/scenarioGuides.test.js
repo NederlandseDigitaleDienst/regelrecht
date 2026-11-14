@@ -23,6 +23,10 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
     expect(list.map((g) => g?.name)).toEqual(c.scenarios.map((s) => s.naam));
   });
 
+  it('knows every kind of step, so none becomes a mere instruction', () => {
+    c.scenarios.forEach((s, i) => expect(list[i].steps, s.naam).toHaveLength(s.stappen.length));
+  });
+
   it('sums up each scenario in one sentence', () => {
     for (const g of list) expect(g.summary, g.name).toMatch(ONE_SENTENCE);
   });
@@ -188,32 +192,5 @@ describe('the guide of a case from a source', () => {
     });
     expect(g.steps).toHaveLength(1);
     expect(g.after).toEqual(['Iets wat de gids niet kent.', 'Kijk in de kroniek.']);
-  });
-});
-
-describe('the guide of a case with a login', () => {
-  const c = bronCasus('bron-voorinvullen', 'voorbeeld_inschrijving');
-  const met = (stappen) => ({ ...c, scenarios: [{ naam: 'x', stappen, eind: 'Klaar.' }] });
-
-  it('names the party to choose under Ingelogd als, as the cell offers it on the play date', () => {
-    const op = (datum, nummer) =>
-      guideFor(met([{ stap: 'aanvraag', datum, invoer: { nummer } }]), 'x').steps[0].todo;
-    expect(op(undefined, '00000001')).toBe(
-      'Kies bij Ingelogd als: Vereniging Voorbeeld (00000001). Klik op Aanvraag indienen.',
-    );
-    // After the rename the cell offers the new name.
-    expect(op('2026-11-04', '00000001')).toMatch(/^Kies bij Ingelogd als: Vereniging Voorbeeld Hernoemd \(00000001\)\./);
-    // A key without a record still names the key.
-    expect(op(undefined, '99999999')).toMatch(/^Kies bij Ingelogd als: 99999999\./);
-    expect(op(undefined, null)).toMatch(/^Kies bij Ingelogd als: Niet ingelogd\./);
-  });
-
-  it('takes the key from the example values when the step gives none', () => {
-    expect(guideFor(met([{ stap: 'aanvraag' }]), 'x').steps[0].todo).toMatch(/Vereniging Voorbeeld \(00000001\)/);
-  });
-
-  it('says nothing about logging in on any other step', () => {
-    const g = guideFor(met([{ stap: 'aanvraag' }, { stap: 'besluit' }]), 'x');
-    expect(g.steps[1].todo).toBe('Klik onder Open aanvragen op Besluit nemen.');
   });
 });

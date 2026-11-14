@@ -27,6 +27,7 @@ import {
   stap,
   zonderLeeg,
 } from '../state.js';
+import { guideFor } from '../scenarioGuides.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import ArtikelLink from './ArtikelLink.vue';
 import Uitkomst from './Uitkomst.vue';
@@ -46,13 +47,14 @@ const openBezwaren = computed(() =>
 // Per aanvraag de oordelen van het bestuursorgaan. Een schakelaar die uit
 // staat, zegt nee, behalve bij een bevinding die leeg mag: daar zegt een
 // onaangeraakte schakelaar niets. Een begrip dat de cel niet weet, blijft leeg
-// tot het bestuursorgaan oordeelt. In een scenario van een casus uit een
-// bron zegt een bevinding zonder voorbeeld- of scenariowaarde ja, zoals de
-// voorbeeldwaarden van zo'n bron altijd deden.
+// tot het bestuursorgaan oordeelt. Een scenario met een gids speelt zo,
+// waar de casus ook vandaan komt. Alleen in een scenario zonder gids (alleen
+// tekst) van een casus uit een bron zegt een bevinding zonder voorbeeldwaarde
+// ja, zoals de voorbeeldwaarden van zo'n bron altijd deden.
 const besluitVorm = formulier((id) => scenarioWaarden('besluit', { aanvraag: id }));
 const oordeel = besluitVorm.eigen;
 const uit = () => {
-  const standaard = !!(state.casus.bron && state.scenario);
+  const standaard = !!(state.casus.bron && state.scenario && !guideFor(state.casus, state.scenario));
   return Object.fromEntries(
     oordelen()
       .filter((o) => o.type === 'boolean' && !o.mag_leeg)

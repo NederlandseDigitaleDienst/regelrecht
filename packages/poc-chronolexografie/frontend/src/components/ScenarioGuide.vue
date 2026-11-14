@@ -7,6 +7,7 @@
 // step that departs from the scenario gives a warning, not a block. On a
 // narrow screen the split view shows this as a sheet.
 import { computed } from 'vue';
+import { inlogHint } from '../inloggen.js';
 import { counts, progress } from '../scenarioProgress.js';
 import { hoofdletter, longDate, state } from '../state.js';
 
@@ -28,6 +29,16 @@ const current = computed(() => props.guide.steps[p.value.current] ?? null);
 const seen = computed(() => (p.value.current > 0 ? props.guide.steps[p.value.current - 1].seen : null));
 
 const tabText = (id) => props.tabs.find((t) => t.id === id)?.tekst ?? id;
+// Who to log in as, for an application of a case with a login: from the
+// choices the cell offers on the play date, as the form shows them.
+const login = computed(() =>
+  current.value?.stap.stap === 'aanvraag'
+    ? inlogHint(state.vormen?.aanvraag?.inloggen, {
+        ...(state.casus?.voorbeeld?.aanvraag ?? {}),
+        ...(current.value.stap.invoer ?? {}),
+      })
+    : null,
+);
 // The play date only moves forward: offer the step's date when it is later.
 const laterDate = computed(() => {
   const d = current.value?.date;
@@ -94,6 +105,7 @@ const where = computed(() =>
         <nldd-title size="display-4" heading-level="3" :text="current.title" :supporting-text="where"></nldd-title>
         <nldd-text v-if="current.story">{{ current.story }}</nldd-text>
         <nldd-text v-for="(n, i) in current.notes" :key="i">{{ n }}</nldd-text>
+        <nldd-text v-if="login">{{ login }}</nldd-text>
         <nldd-text>{{ current.todo }}</nldd-text>
         <nldd-list v-if="current.values.length" dividers="never" accessible-label="Waarden uit het scenario">
           <nldd-list-item v-for="v in current.values" :key="v" size="sm">

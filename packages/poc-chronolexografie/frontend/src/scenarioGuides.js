@@ -13,7 +13,8 @@
  * the chronicles mark as done: it goes along as an instruction (`notes`)
  * with the next action, or, after the last action, with the end of the
  * scenario (`after`). A scenario without a single action has no guide; the
- * tab Scenario's shows its lines instead.
+ * tab Scenario's shows its lines instead. Who to log in as, for a case with
+ * a login, the panel reads from the form's choices (inloggen.js).
  *
  * A built step: `title`, the `tab` it happens on, the play date it wants
  * (`date`, optional), what happens in the case (`story`, from `verhaal`),
@@ -28,7 +29,6 @@
  * The texts name the buttons and fields as the components label them;
  * change them together.
  */
-import { keuzeLabel } from './inloggen.js';
 import { hoofdletter, jaNee, leesbaar, longDate } from './state.js';
 
 // What the scenario expects of a step, as warning text.
@@ -147,42 +147,6 @@ export function invoerRegels(invoer) {
   return Object.entries(invoer ?? {}).map(([naam, v]) => `${leesbaar(naam)}: ${waarde(v)}`);
 }
 
-// A date as `YYYY-MM-DD`, whether the YAML gave it as text or as a date.
-const dag = (d) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d));
-
-/** The records every cell of `casus` holds before a scenario, with their date. */
-const beginRecords = (casus) =>
-  [casus?.begin, ...(casus?.andere_cellen ?? []).map((c) => c.begin)]
-    .filter(Boolean)
-    .flatMap((b) => (b.executogrammen ?? []).map((e) => ({ ...e, datum: dag(e.datum ?? b.datum ?? '') })));
-
-/**
- * Who the visitor logs in as for an application on `datum`, as the choice
- * Ingelogd als names it (AanvragerTab.vue), when the case has a login
- * (`casus.inloggen`, inloggen.js) and the application's values hold its
- * field: the latest record of the login fact with that key, as the cell
- * offers it. An empty field is not logged in. Null when the step says
- * nothing about the login.
- */
-function inlogKeuze(casus, invoer, datum) {
-  const inloggen = casus?.inloggen;
-  const waarden = { ...(casus?.voorbeeld?.aanvraag ?? {}), ...(invoer ?? {}) };
-  if (!inloggen || !(inloggen.veld in waarden)) return null;
-  const waarde = waarden[inloggen.veld];
-  if (waarde === null || waarde === '') return 'Niet ingelogd';
-  const record = beginRecords(casus)
-    .filter(
-      (e) =>
-        feitNaam(e.feit) === feitNaam(inloggen.feit) &&
-        String(e.velden?.[inloggen.sleutel]) === String(waarde) &&
-        e.datum <= datum,
-    )
-    .sort((a, b) => a.datum.localeCompare(b.datum))
-    .at(-1);
-  const naam = inloggen.naam ? record?.velden?.[inloggen.naam] : undefined;
-  return keuzeLabel({ naam, waarde: String(waarde) });
-}
-
 /** The text of a step that is no action of a known kind, as an instruction. */
 const instructie = (stap) =>
   typeof stap === 'object' && stap !== null
@@ -191,8 +155,8 @@ const instructie = (stap) =>
 
 /**
  * The guide of `scenario` (a scenario of a case, as `api.casus` gives it),
- * with `casus` for what its other cells record before a scenario and who
- * logs in. Null when the scenario has no action of a known kind.
+ * with `casus` for what its other cells record before a scenario. Null
+ * when the scenario has no action of a known kind.
  */
 export function bouwGids(scenario, casus = null) {
   const geteld = {};
@@ -201,16 +165,14 @@ export function bouwGids(scenario, casus = null) {
   const besloten = {};
   const geweigerd = {};
   const uitkomsten = {};
-  // The instructions not yet given to an action, and the play date so far.
+  // The instructions not yet given to an action.
   let notes = [];
-  let datum = casus?.speeldatum ? dag(casus.speeldatum) : '';
   const steps = scenario.stappen.flatMap((stap) => {
     const kind = typeof stap === 'object' && stap !== null ? KINDS[stap.stap] : undefined;
     if (!kind) {
       notes.push(instructie(stap));
       return [];
     }
-    if (stap.datum) datum = dag(stap.datum);
     const n = (geteld[stap.stap] = (geteld[stap.stap] ?? 0) + 1);
     // What the step acts on, counted from 1; a decision and a decision on
     // objection count the application and the objection it decides on.
@@ -257,14 +219,12 @@ export function bouwGids(scenario, casus = null) {
         break;
       }
     }
-    const todo = stap.tekst ?? kind.todo;
-    const login = stap.stap === 'aanvraag' ? inlogKeuze(casus, stap.invoer, datum) : null;
     const step = {
       title: stap.titel ?? kind.title(stap.stap === 'besluit' ? doel : n),
       tab: kind.tab,
       date: stap.datum ?? undefined,
       story: stap.verhaal ?? '',
-      todo: login ? `Kies bij Ingelogd als: ${login}. ${todo}` : todo,
+      todo: stap.tekst ?? kind.todo,
       values: invoerRegels(stap.invoer),
       seen: stap.gezien ?? kind.seen(stap.stap === 'besluit' ? doel : n),
       notes,
