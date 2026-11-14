@@ -2,7 +2,7 @@
 # Tier C: one reduction file with an aggregate and the read model over it,
 # each article named (schema v0.8.19). The read model names the article of
 # the aggregate in its own file.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
 $id: test_conformance_named_articles
 regulatory_layer: REDUCTIE
 publication_date: '2026-11-11'

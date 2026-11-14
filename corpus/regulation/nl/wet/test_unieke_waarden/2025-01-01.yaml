@@ -1,0 +1,62 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
+$id: test_unieke_waarden
+name: Testwet unieke waarden
+regulatory_layer: WET
+bwb_id: BWBR9999920
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_unieke_waarden
+
+articles:
+  - number: '1'
+    url: https://example.com/test_unieke_waarden/1
+    text: >-
+      Elke inschrijving van een vereniging vermeldt haar aanduiding. Vermelden
+      alle inschrijvingen dezelfde aanduiding, dan is dat de aanduiding van de
+      vereniging.
+    machine_readable:
+      # FOREACH met combine DISTINCT (schema v0.8.21) geeft elke aanduiding
+      # één keer; ONLY daarover geeft de ene aanduiding, en weigert er twee.
+      # Het aantal unieke aanduidingen houdt de uitkomst scalar, zodat de
+      # bestaande BDD-woordenschat volstaat.
+      execution:
+        parameters:
+          - name: inschrijvingen
+            type: array
+            required: true
+            columns:
+              - name: aanduiding
+                type: string
+                description: De aanduiding op de inschrijving.
+            description: De inschrijvingen van de vereniging.
+        output:
+          - name: unieke_aanduidingen
+            type: array
+          - name: aantal_unieke_aanduidingen
+            type: number
+          - name: aanduiding
+            type: string
+            nullable: true
+        actions:
+          - output: unieke_aanduidingen
+            value:
+              operation: FOREACH
+              collection: $inschrijvingen
+              as: inschrijving
+              body: $inschrijving.aanduiding
+              combine: DISTINCT
+          - output: aantal_unieke_aanduidingen
+            value:
+              operation: FOREACH
+              collection: $unieke_aanduidingen
+              as: kandidaat
+              body: 1
+              combine: ADD
+          - output: aanduiding
+            value:
+              operation: FOREACH
+              collection: $unieke_aanduidingen
+              as: kandidaat
+              body: $kandidaat
+              combine: ONLY

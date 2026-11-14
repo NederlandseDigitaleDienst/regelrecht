@@ -1262,18 +1262,21 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                     self.require_boolean(&info, "FOREACH filter");
                     self.facts_when_true(filter, &mut body_facts);
                 }
-                // Without `combine` the FOREACH builds an array, and its
-                // elements may be absences like the items of a LIST; with a
+                // Without `combine` or with DISTINCT the FOREACH builds an
+                // array, and its elements may be absences like the items of a
+                // LIST; ONLY hands the element on as it is. With another
                 // combine the body is calculated with or decided on.
                 let body_info = match combine {
-                    None | Some(CombineOp::Only) => {
+                    None | Some(CombineOp::Only) | Some(CombineOp::Distinct) => {
                         self.check_expr(body, &body_facts, ABSENCE_ALLOWED)
                     }
                     Some(_) => self.operand(body, &body_facts, "FOREACH body"),
                 };
                 self.bound.pop();
                 match combine {
-                    None => Info::present(Some(Ty::Array), "the FOREACH"),
+                    None | Some(CombineOp::Distinct) => {
+                        Info::present(Some(Ty::Array), "the FOREACH")
+                    }
                     Some(CombineOp::Add) => {
                         self.require_numeric(&body_info, "FOREACH combine ADD", &[]);
                         Info::present(body_info.ty.filter(|t| t.is_numeric()), "the FOREACH")
@@ -3875,6 +3878,69 @@ actions:
         };
         assert_clean(&law("ONLY"));
         assert!(!check(&law("MIN")).is_empty());
+    }
+
+    #[test]
+    fn foreach_distinct_takes_a_body_of_any_type_and_gives_an_array() {
+        // DISTINCT keeps each name once, in an array; ONLY over that array
+        // gives the one name, absent when there is none.
+        assert_clean(
+            r#"
+input:
+  - name: namen
+    type: array
+    source: {}
+output:
+  - name: unieke_namen
+    type: array
+  - name: de_naam
+    type: string
+    nullable: true
+actions:
+  - output: unieke_namen
+    value:
+      operation: FOREACH
+      collection: $namen
+      as: n
+      body: $n
+      combine: DISTINCT
+  - output: de_naam
+    value:
+      operation: FOREACH
+      collection: $unieke_namen
+      as: u
+      body: $u
+      combine: ONLY
+"#,
+        );
+        // DISTINCT over numbers gives an array, not a number, so ADD refuses
+        // it where MAX over the same body gives a number.
+        let add_over = |combine: &str| {
+            format!(
+                r#"
+input:
+  - name: bedragen
+    type: array
+    source: {{}}
+output:
+  - name: totaal
+    type: number
+actions:
+  - output: totaal
+    value:
+      operation: ADD
+      values:
+        - 1
+        - operation: FOREACH
+          collection: $bedragen
+          as: b
+          body: 5
+          combine: {combine}
+"#
+            )
+        };
+        assert!(!check(&add_over("DISTINCT")).is_empty());
+        assert!(check(&add_over("MAX")).is_empty());
     }
 
     #[test]

@@ -122,6 +122,17 @@ describe('RegelRijm covers the schema', () => {
     expect(renderAction({ output: 'u', value }, { ctx }).text).toBe('[u] wordt: de enige waarde van [x] over elke [x] in [m] waarvoor ( [b] van [x] [c] is )');
   });
 
+  it('reads the unique values of a collection as such', () => {
+    const value = { operation: 'FOREACH', collection: '$m', as: 'x', body: '$x', combine: 'DISTINCT' };
+    expect(renderAction({ output: 'u', value }, { ctx }).text).toBe('[u] wordt: de unieke waarden van [x] over elke [x] in [m]');
+  });
+
+  it('folds the unique values of amounts into a list, not an amount', () => {
+    const c: ArticleContext = { declared: new Map([['premie', 'eurocent']]), vocab: makeVocabulary(), constants: new Set() };
+    const value = { operation: 'FOREACH', collection: '$m', as: 'x', body: '$premie', combine: 'DISTINCT' };
+    expect(renderFocus({ output: 'u', value }, ['value'], { ctx: c }).signature).toMatch(/^lijst uit /);
+  });
+
   it('reads an action without its output as a hole', () => {
     expect(renderAction({ value: '$a' }, { ctx }).text).toBe('⟨ontbreekt: output⟩ wordt: [a]');
   });

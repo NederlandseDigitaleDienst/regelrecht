@@ -2,7 +2,7 @@
 # Tier C: an array with columns in the state of a projection (schema
 # v0.8.20), filled from the array of rows a fact holds, and a read model
 # that iterates over the array of each aggregate with a nested FOREACH.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
 $id: test_conformance_array_columns_state
 regulatory_layer: REDUCTIE
 publication_date: '2026-11-12'

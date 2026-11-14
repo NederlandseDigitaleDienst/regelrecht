@@ -556,29 +556,37 @@ fn execute_equality<R: ValueResolver>(
         return Ok(unknown);
     }
 
-    let mut equal = match (&subject_val, &value_val) {
-        (Value::Object(_), Value::Object(_)) | (Value::Array(_), Value::Array(_)) => {
-            compound_equal(&subject_val, &value_val, op_name)?
-        }
-        _ => values_equal(&subject_val, &value_val),
-    };
+    let equal = equal_by_value(&subject_val, &value_val, op_name)?;
+    Ok(Value::Bool(if negate { !equal } else { equal }))
+}
 
+/// Whether two known values are equal in the sense of `EQUALS`: a number,
+/// string, date or boolean by value, a list or record deeply
+/// ([`compound_equal`]). FOREACH combine DISTINCT asks the same question, so
+/// it never keeps apart two values `EQUALS` calls equal. The caller has
+/// already dealt with an Unknown or Untranslatable anywhere inside.
+fn equal_by_value(a: &Value, b: &Value, op_name: &str) -> Result<bool> {
+    let equal = match (a, b) {
+        (Value::Object(_), Value::Object(_)) | (Value::Array(_), Value::Array(_)) => {
+            compound_equal(a, b, op_name)?
+        }
+        _ => values_equal(a, b),
+    };
     // Date-aware fallback, scoped to the mixed form (a string against an `{iso}`
     // object): the one date pairing structural equality can never match. Two
     // canonical date strings are equal structurally exactly when they are equal
     // chronologically, and object↔object stays structural so arbitrary objects
     // sharing an `iso` field do not become equal (RFC-021). A side that fails to
-    // parse as a date leaves the structural verdict untouched. Scoped to EQUALS so
-    // membership and other structural comparisons keep their existing semantics.
+    // parse as a date leaves the structural verdict untouched. Scoped to EQUALS and
+    // FOREACH combine DISTINCT; membership and other structural comparisons keep
+    // their existing semantics.
     if !equal
-        && is_mixed_date_pair(&subject_val, &value_val)
-        && let (Ok(subject_date), Ok(value_date)) =
-            (parse_date(&subject_val), parse_date(&value_val))
+        && is_mixed_date_pair(a, b)
+        && let (Ok(a_date), Ok(b_date)) = (parse_date(a), parse_date(b))
     {
-        equal = subject_date == value_date;
+        return Ok(a_date == b_date);
     }
-
-    Ok(Value::Bool(if negate { !equal } else { equal }))
+    Ok(equal)
 }
 
 /// `EQUALS` on two lists or two records: structural, with the numbers inside
@@ -1577,6 +1585,7 @@ fn combine_with(op: CombineOp, results: Vec<Value>) -> Result<Value> {
         CombineOp::Min => combine_min_max(&results, true),
         CombineOp::Max => combine_min_max(&results, false),
         CombineOp::Only => combine_only(results),
+        CombineOp::Distinct => combine_distinct(results),
     }
 }
 
@@ -1740,6 +1749,56 @@ fn combine_only(mut results: Vec<Value>) -> Result<Value> {
             "FOREACH combine ONLY: the filter left {n} elements, and ONLY takes at most one"
         ))),
     }
+}
+
+/// Combine FOREACH results with DISTINCT: each result once, in the order of
+/// its first occurrence.
+///
+/// Two results are the same when `EQUALS` says so ([`equal_by_value`]), so
+/// `42` and `42.0` are one number and two rows are the same row only when
+/// every field is. Null is a value a law can test for (RFC-036) and stays
+/// once: dropping it would let a later ONLY pick the one other value and
+/// hide that a member has none. An unknown anywhere in a result makes the
+/// whole result unknown, because whether it equals another cannot be said.
+/// An empty collection gives an empty array.
+///
+/// Every result is compared with every unique one kept so far, so the cost
+/// is the number of results times the number of unique ones, at worst
+/// quadratic in the size of the collection. [`execute_foreach`] bounds one collection by
+/// `MAX_ARRAY_SIZE`; a DISTINCT inside a nested FOREACH runs once per outer
+/// element, so the bound multiplies, as it does for every nested operation.
+///
+/// [`execute_foreach`] already returns on an untranslatable element, so the
+/// check below is defensive: it keeps this function sound on its own.
+///
+/// Two limits come with the equality of `EQUALS`. Rows that hold `12` and
+/// `12.0` in one field are an error even when another field tells them
+/// apart, because [`compound_equal`] checks the whole row. And the date
+/// fallback takes any object with a string `iso` as a date, so two such
+/// objects that differ elsewhere can both equal one date string; the count
+/// of unique results can then depend on the order. Reference dates the
+/// engine builds are canonical, so this only reaches hand-written objects.
+fn combine_distinct(results: Vec<Value>) -> Result<Value> {
+    if let Some(tainted) = find_untranslatable(&results) {
+        return Ok(tainted);
+    }
+    if let Some(unknown) = Value::merge_unknown_deep(&results) {
+        return Ok(unknown);
+    }
+    let mut unique: Vec<Value> = Vec::with_capacity(results.len());
+    for result in results {
+        let mut seen = false;
+        for kept in &unique {
+            if equal_by_value(kept, &result, "FOREACH combine DISTINCT")? {
+                seen = true;
+                break;
+            }
+        }
+        if !seen {
+            unique.push(result);
+        }
+    }
+    Ok(Value::Array(unique))
 }
 
 /// Combine FOREACH results with MIN or MAX.
@@ -3732,6 +3791,221 @@ mod tests {
                 matches!(&e, EngineError::InvalidOperation(m) if m.contains("left 2 elements")),
                 "{e}"
             );
+        }
+
+        fn distinct_of(items: Vec<Value>) -> Result<Value> {
+            sum_of(items, Some(CombineOp::Distinct))
+        }
+
+        fn s(text: &str) -> Value {
+            Value::String(text.to_string())
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_keeps_the_first_of_equal_strings() {
+            let result = distinct_of(vec![s("b"), s("a"), s("b"), s("c"), s("a")]).unwrap();
+            assert_eq!(result, Value::Array(vec![s("b"), s("a"), s("c")]));
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_compares_numbers_by_value() {
+            // An integer and a decimal of the same value are one number, as
+            // EQUALS says; the first one written stays.
+            let result = distinct_of(vec![
+                Value::Int(42),
+                Value::Decimal(dec!(42.0)),
+                Value::Decimal(dec!(1.5)),
+                Value::Int(42),
+            ])
+            .unwrap();
+            assert_eq!(
+                result,
+                Value::Array(vec![Value::Int(42), Value::Decimal(dec!(1.5))])
+            );
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_compares_dates_and_booleans_by_value() {
+            let dates = distinct_of(vec![s("2025-01-01"), s("2025-01-01"), s("2026-01-01")]);
+            assert_eq!(
+                dates.unwrap(),
+                Value::Array(vec![s("2025-01-01"), s("2026-01-01")])
+            );
+            // A date written as a reference-date object is the same day as
+            // its string form, as EQUALS says (RFC-021).
+            let mixed = distinct_of(vec![s("2025-03-01"), date_obj("2025-03-01")]);
+            assert_eq!(mixed.unwrap(), Value::Array(vec![s("2025-03-01")]));
+            let flags = distinct_of(vec![
+                Value::Bool(true),
+                Value::Bool(true),
+                Value::Bool(false),
+            ]);
+            assert_eq!(
+                flags.unwrap(),
+                Value::Array(vec![Value::Bool(true), Value::Bool(false)])
+            );
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_does_not_equate_values_of_different_types() {
+            let result = distinct_of(vec![s("1"), Value::Int(1), Value::Bool(true)]).unwrap();
+            assert_eq!(
+                result,
+                Value::Array(vec![s("1"), Value::Int(1), Value::Bool(true)])
+            );
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_compares_rows_deeply() {
+            let row = |naam: &str, zetels: i64| {
+                obj(vec![("naam", s(naam)), ("zetels", Value::Int(zetels))])
+            };
+            let result = distinct_of(vec![
+                row("Noord", 3),
+                row("Zuid", 3),
+                row("Noord", 3),
+                row("Noord", 4),
+            ])
+            .unwrap();
+            assert_eq!(
+                result,
+                Value::Array(vec![row("Noord", 3), row("Zuid", 3), row("Noord", 4)])
+            );
+            let lists = distinct_of(vec![
+                Value::Array(vec![Value::Int(1), Value::Int(2)]),
+                Value::Array(vec![Value::Int(1), Value::Int(2)]),
+                Value::Array(vec![Value::Int(2), Value::Int(1)]),
+            ])
+            .unwrap();
+            assert_eq!(
+                lists,
+                Value::Array(vec![
+                    Value::Array(vec![Value::Int(1), Value::Int(2)]),
+                    Value::Array(vec![Value::Int(2), Value::Int(1)]),
+                ])
+            );
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_refuses_numbers_written_unlike_inside_rows() {
+            // Inside a row, 12 against 12.0 is the error EQUALS gives: whether
+            // they are alike depends on where they came from.
+            let e = distinct_of(vec![
+                obj(vec![("n", Value::Int(12))]),
+                obj(vec![("n", Value::Decimal(dec!(12.0)))]),
+            ])
+            .unwrap_err();
+            assert!(matches!(e, EngineError::TypeMismatch { .. }), "{e}");
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_refuses_unlike_numbers_even_in_rows_that_differ() {
+            // As EQUALS does: the whole row is compared, so another field that
+            // tells the rows apart does not settle 12 against 12.0.
+            let e = distinct_of(vec![
+                obj(vec![("naam", s("Noord")), ("n", Value::Int(12))]),
+                obj(vec![("naam", s("Zuid")), ("n", Value::Decimal(dec!(12.0)))]),
+            ])
+            .unwrap_err();
+            assert!(matches!(e, EngineError::TypeMismatch { .. }), "{e}");
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_keeps_one_null() {
+            // An absence is a value a law can test for (RFC-036), so it stays
+            // in the result once, where a later ONLY sees it.
+            let result = distinct_of(vec![Value::Null, s("a"), Value::Null]).unwrap();
+            assert_eq!(result, Value::Array(vec![Value::Null, s("a")]));
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_of_nothing_is_an_empty_array() {
+            assert_eq!(distinct_of(vec![]).unwrap(), Value::Array(vec![]));
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_is_unknown_as_soon_as_one_element_is() {
+            // Whether an unknown element equals another cannot be said, so the
+            // set of unique results cannot either; also inside a row.
+            let huur = unknown_fact("huur");
+            let bare = distinct_of(vec![s("a"), huur.clone()]).unwrap();
+            assert_eq!(missing_names(&bare), vec!["huur"]);
+            let nested = distinct_of(vec![obj(vec![("huur", huur)]), s("a")]).unwrap();
+            assert_eq!(missing_names(&nested), vec!["huur"]);
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_runs_after_the_filter() {
+            // The filter drops 1 and 2, so DISTINCT sees only 3, 4, 3.
+            let context = ctx(vec![(
+                "items",
+                Value::Array(vec![
+                    Value::Int(1),
+                    Value::Int(3),
+                    Value::Int(2),
+                    Value::Int(4),
+                    Value::Int(3),
+                ]),
+            )]);
+            let op = ActionOperation::Foreach {
+                collection: var("items"),
+                as_name: Some("x".to_string()),
+                body: var("x"),
+                filter: Some(ActionValue::Operation(Box::new(
+                    ActionOperation::GreaterThan {
+                        subject: var("x"),
+                        value: lit(2i64),
+                    },
+                ))),
+                combine: Some(CombineOp::Distinct),
+            };
+            assert_eq!(
+                execute_operation(&op, &context, 0).unwrap(),
+                Value::Array(vec![Value::Int(3), Value::Int(4)])
+            );
+        }
+
+        /// `FOREACH (FOREACH $items as x: x, DISTINCT) as y: y, ONLY`: the
+        /// one value among several equal ones, in two steps.
+        fn only_of_distinct(items: Vec<Value>) -> Result<Value> {
+            let context = ctx(vec![("items", Value::Array(items))]);
+            let distinct = ActionOperation::Foreach {
+                collection: var("items"),
+                as_name: Some("x".to_string()),
+                body: var("x"),
+                filter: None,
+                combine: Some(CombineOp::Distinct),
+            };
+            let op = ActionOperation::Foreach {
+                collection: ActionValue::Operation(Box::new(distinct)),
+                as_name: Some("y".to_string()),
+                body: var("y"),
+                filter: None,
+                combine: Some(CombineOp::Only),
+            };
+            execute_operation(&op, &context, 0)
+        }
+
+        #[test]
+        fn test_foreach_distinct_then_only_gives_the_one_value_of_equal_ones() {
+            assert_eq!(
+                only_of_distinct(vec![s("A-12"), s("A-12"), s("A-12")]).unwrap(),
+                s("A-12")
+            );
+        }
+
+        #[test]
+        fn test_foreach_distinct_then_only_refuses_two_different_values() {
+            let e = only_of_distinct(vec![s("A-12"), s("B-7"), s("A-12")]).unwrap_err();
+            assert!(
+                matches!(&e, EngineError::InvalidOperation(m) if m.contains("left 2 elements")),
+                "{e}"
+            );
+        }
+
+        #[test]
+        fn test_foreach_distinct_then_only_of_no_rows_is_absent() {
+            assert_eq!(only_of_distinct(vec![]).unwrap(), Value::Null);
         }
 
         #[test]

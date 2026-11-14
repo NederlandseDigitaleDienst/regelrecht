@@ -40,7 +40,8 @@ export function valueKind(node: unknown, unit: Unit | null, declared: ReadonlyMa
     case 'LIST': return 'lijst';
     case 'FOREACH':
       if (node.combine === 'AND' || node.combine === 'OR') return 'voorwaarde';
-      if (node.combine === undefined) return 'lijst';
+      // Without a combine, and with DISTINCT, the rows stay rows: a list.
+      if (node.combine === undefined || node.combine === 'DISTINCT') return 'lijst';
       // A sum, minimum, maximum or only value over rows gives what each row gives.
       return valueKind(node.body, unit, declared);
     default:
