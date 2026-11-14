@@ -48,7 +48,8 @@ pub struct Corpus {
     files: Arc<dyn Files>,
     /// Per field of an application, the source the form prefills it from
     /// (`<regelwerk>#<article>#<output>`): what the UI spec of the case's
-    /// source says ([`crate::ui_spec`]). Empty without one.
+    /// source says ([`crate::ui_spec`]), or for a case of this crate its own
+    /// ([`eigen_prefill`]). Empty without one.
     pub prefill: BTreeMap<String, String>,
 }
 
@@ -203,7 +204,8 @@ impl Corpus {
         Self::alle_in(Arc::new(Disk), &[root.to_path_buf()], casus_dir)
     }
 
-    /// Every case in `casus_dir` on the corpus at `roots`, all in `files`.
+    /// Every case in `casus_dir` on the corpus at `roots`, all in `files`,
+    /// each with the prefill of its own UI spec ([`eigen_prefill`]).
     pub fn alle_in(
         files: Arc<dyn Files>,
         roots: &[PathBuf],
@@ -212,7 +214,12 @@ impl Corpus {
         let regelwerken = Regelwerken::load(&*files, roots)?;
         casussen(&*files, casus_dir)?
             .into_iter()
-            .map(|c| Self::load(files.clone(), roots, &regelwerken, c))
+            .map(|c| {
+                let prefill = eigen_prefill(&*files, casus_dir, &c.id)?;
+                let mut corpus = Self::load(Arc::clone(&files), roots, &regelwerken, c)?;
+                corpus.prefill = prefill;
+                Ok(corpus)
+            })
             .collect()
     }
 
@@ -690,6 +697,30 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
         });
     }
     Ok(vormen)
+}
+
+/// The prefill of the UI spec a case of this crate keeps in its own
+/// directory, `<casus_dir>/<id>/ui_spec.yaml`, in the form of a source's
+/// ([`crate::ui_spec`]). Empty without one.
+///
+/// # Errors
+///
+/// A UI spec that does not read. Unlike a source's, it is part of this
+/// crate, so it stops the cases of this crate from loading rather than
+/// leaving the form empty, as a broken regelwerk of the crate does.
+fn eigen_prefill(
+    files: &dyn Files,
+    casus_dir: &Path,
+    id: &str,
+) -> Result<BTreeMap<String, String>> {
+    let pad = casus_dir.join(id).join(crate::bundel::UI_SPEC);
+    if !files.is_file(&pad) {
+        return Ok(BTreeMap::new());
+    }
+    let tekst = files
+        .read(&pad)
+        .map_err(|e| Error::Setup(format!("{}: {e}", pad.display())))?;
+    crate::ui_spec::prefill(&tekst).map_err(|e| Error::Setup(format!("case '{id}': {e}")))
 }
 
 /// Whether the application form of `aanvraag` asks the field `naam`: a
@@ -4350,11 +4381,12 @@ mod tests {
         // The bedrijfsparkeervergunning: art. 2 of the fictitious ordinance,
         // its implementing decision that fills its open terms, the policy
         // that binds those to the answers of the cells, and the Awb; the
-        // reductions of the catalogues of the municipality and of the Chamber
-        // of Commerce, and the policy that requires the Chamber's
-        // registrations. The municipality's reduction for the parking card
-        // plays the decisions under BABW art. 49, so that article and what
-        // acts on it are in this case too.
+        // reductions of the catalogues of the municipality, of the Chamber
+        // of Commerce and of the accredited service, the policy that
+        // requires the Chamber's registrations, and the Wet digitale
+        // overheid, which requires the authentications. The municipality's
+        // reduction for the parking card plays the decisions under BABW art.
+        // 49, so that article and what acts on it are in this case too.
         let vergunning = casus("bedrijfsparkeervergunning");
         let a = &vergunning.afleiding;
         assert_eq!(a.objection, "7:11");
@@ -4373,12 +4405,14 @@ mod tests {
                 "beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "parkeerverordening_gemeente_wilgendaal",
+                "reductie_authenticatie",
                 "reductie_bedrijfsparkeervergunning",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
                 "reductie_vestiging_in_handelsregister",
                 "regeling_gehandicaptenparkeerkaart",
                 "uitvoeringsbesluit_parkeren_gemeente_wilgendaal",
+                "wet_digitale_overheid",
             ]
         );
     }

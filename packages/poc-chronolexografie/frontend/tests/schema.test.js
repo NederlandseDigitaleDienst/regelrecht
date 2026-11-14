@@ -108,7 +108,7 @@ describe('the picture of one value', () => {
     expect(bronnen.map((l) => l.yaml).sort()).toEqual(['effects', 'projection.steps', 'projection.steps']);
     // A file with an aggregate and its read model shows the state and the
     // answers; the rows between them pass through.
-    expect(namen('reductie_vestiging_in_handelsregister').sort()).toEqual(['aantal_werkzame_personen', 'aantal_werkzame_personen', 'datum_inschrijving', 'postcode', 'postcode_vestiging']);
+    expect(namen('reductie_vestiging_in_handelsregister').sort()).toEqual(['aantal_werkzame_personen', 'aantal_werkzame_personen', 'bezoekadres', 'datum_inschrijving', 'handelsnaam', 'postcode', 'postcode_vestiging']);
     // A law keeps its steps in between.
     expect(namen('uitvoeringsbesluit_parkeren_gemeente_wilgendaal')).toContain('maximum_bedrijfsparkeervergunningen');
   });

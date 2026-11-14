@@ -572,6 +572,132 @@ mod tests {
         assert_eq!(vormen["aanvraag"]["inloggen"], serde_json::Value::Null);
     }
 
+    /// A case of this crate keeps its UI spec in its own directory. In the
+    /// business parking permit the applicant logs in as an authentication
+    /// of the accredited service, and the form prefills the name and the
+    /// address the trade register gives for the number of whoever logs in.
+    #[test]
+    fn a_case_of_this_crate_prefills_from_its_own_ui_spec_after_the_login() {
+        let (alle, standen) = met_bronnen(gebundeld(), Vec::new()).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let casus = spel.kiezen("bedrijfsparkeervergunning").unwrap();
+        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let vormen = spel.vormen(dag).unwrap();
+        let inloggen = &vormen["aanvraag"]["inloggen"];
+        assert_eq!(
+            inloggen["feit"],
+            "wet_digitale_overheid#15#authenticatie_verricht"
+        );
+        assert_eq!(inloggen["veld"], "kvk_nummer");
+        let kapsalon = inloggen["keuzes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|k| k["waarde"] == "99990077")
+            .unwrap();
+        assert_eq!(kapsalon["cel"], "erkende_dienst_inlogmiddel");
+        assert_eq!(kapsalon["velden"]["betrouwbaarheidsniveau"], "substantieel");
+        let bronnen = vormen["aanvraag"]["prefill"].as_object().unwrap().clone();
+        assert_eq!(
+            bronnen.keys().collect::<Vec<_>>(),
+            ["adres_aanvrager", "naam_aanvrager"]
+        );
+        for (kvk, naam, adres) in [
+            (
+                "99990011",
+                "Bakkerij De Wilg",
+                "Kerkstraat 1, 7711 AB Wilgendaal",
+            ),
+            (
+                "99990077",
+                "Kapsalon De Krul",
+                "Kerkstraat 5, 7711 AB Wilgendaal",
+            ),
+        ] {
+            let velden = serde_json::json!({ "kvk_nummer": kvk });
+            let ingevuld = spel
+                .voorinvullen(&bronnen, velden.as_object().unwrap(), dag)
+                .unwrap();
+            assert_eq!(ingevuld["naam_aanvrager"]["waarde"], naam);
+            assert_eq!(ingevuld["adres_aanvrager"]["waarde"], adres);
+            assert_eq!(
+                ingevuld["naam_aanvrager"]["herkomst"][0]["door"],
+                "kamer_van_koophandel"
+            );
+        }
+    }
+
+    /// Two logins on one day are no error: of that day the lowest level
+    /// counts, since which login carried the application does not show.
+    #[test]
+    fn of_two_logins_on_the_day_of_receipt_the_lowest_level_counts() {
+        let (alle, standen) = met_bronnen(gebundeld(), Vec::new()).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let casus = spel.kiezen("bedrijfsparkeervergunning").unwrap();
+        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        // Low first: taking the last recorded login would grant.
+        for niveau in ["laag", "hoog"] {
+            let velden = serde_json::json!({
+                "kvk_nummer": "99990011",
+                "pseudoniem": "ps-a71c0e",
+                "dienst": "urn:etoegang:DV:00000009999999999000:services:1",
+                "betrouwbaarheidsniveau": niveau,
+                "datum_authenticatie": casus["speeldatum"],
+            });
+            spel.vastleggen(
+                "erkende_dienst_inlogmiddel",
+                "wet_digitale_overheid#15#authenticatie_verricht",
+                velden.as_object().unwrap(),
+                dag,
+            )
+            .unwrap();
+        }
+        let aanvraag = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+        let gram = spel.aanvragen(&aanvraag, dag).unwrap();
+        let besluit = spel
+            .besluiten(gram["id"].as_str().unwrap(), &serde_json::Map::new(), dag)
+            .unwrap();
+        assert_eq!(
+            besluit["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"], false,
+            "{besluit}"
+        );
+        // Refused for the level, not on another ground.
+        let id = besluit["besluit"]["id"].as_str().unwrap();
+        let waarom = spel.waarom(id).unwrap().to_string();
+        assert!(
+            waarom.contains("betrouwbaarheidsniveau_authenticatie") && waarom.contains("\"laag\""),
+            "{waarom}"
+        );
+    }
+
+    /// The decision asks the accredited service whether it confirmed the
+    /// authorisation for this service, and the why of the decision names
+    /// the cell that answered. The hair salon is authorised for another
+    /// service only, so the college refuses.
+    #[test]
+    fn the_why_of_a_refusal_names_the_accredited_service_that_answered() {
+        let (alle, standen) = met_bronnen(gebundeld(), Vec::new()).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let casus = spel.kiezen("bedrijfsparkeervergunning").unwrap();
+        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let mut aanvraag = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+        aanvraag.insert("kvk_nummer".into(), "99990077".into());
+        let gram = spel.aanvragen(&aanvraag, dag).unwrap();
+        let id = gram["id"].as_str().unwrap().to_string();
+        let besluit = spel.besluiten(&id, &serde_json::Map::new(), dag).unwrap();
+        let id = besluit["besluit"]["id"].as_str().unwrap();
+        assert_eq!(
+            besluit["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"],
+            false
+        );
+        let waarom = spel.waarom(id).unwrap().to_string();
+        assert!(
+            waarom.contains("erkende_dienst_inlogmiddel")
+                && waarom.contains("vertegenwoordiging_bevestigd"),
+            "{waarom}"
+        );
+    }
+
     #[test]
     fn a_login_on_a_field_the_form_does_not_ask_or_a_key_the_fact_does_not_hold_is_refused() {
         for (was, wat, verwacht) in [

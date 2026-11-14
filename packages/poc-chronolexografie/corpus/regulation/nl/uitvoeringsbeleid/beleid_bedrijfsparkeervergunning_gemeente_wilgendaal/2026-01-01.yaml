@@ -11,9 +11,12 @@ valid_from: '2026-01-01'
 # De wet zegt welke regels gelden; het beleid zegt hoe ze worden uitgevoerd,
 # ook welke cel antwoordt. Daarom staat hier alleen wat het college ontleent
 # aan het antwoord van een cel (source.reduction, RFC-048): artikel 1 aan de
-# cel van de Kamer van Koophandel, artikel 2 aan zijn eigen cel. Beide vullen
-# een begrip van het Uitvoeringsbesluit Parkeren Wilgendaal 2026 (artikel 2
-# en 3).
+# cel van de Kamer van Koophandel, artikel 2 aan zijn eigen cel, artikel 3
+# aan de cel van de erkende dienst voor bedrijfs- en organisatiemiddelen.
+# Elk vult een begrip van het Uitvoeringsbesluit Parkeren Wilgendaal 2026
+# (artikel 2, 3 en 4). Artikel 4 en 5 geven het formulier de naam en het
+# adres die het handelsregister vermeldt (ui_spec.yaml van de casus
+# bedrijfsparkeervergunning).
 # Ongescoped, zoals het beleid gehandicaptenparkeerkaart van Wilgendaal: een
 # gemeente_code zou dit beleid tot één gemeente beperken, maar de cel van de
 # gemeente geeft de engine geen gemeente_code mee.
@@ -143,3 +146,181 @@ articles:
                     value: null
                   then: $aantal_geldige_bedrijfsparkeervergunningen_volgens_college
               default: $antwoord_aantal_geldig
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering. Of een erkende dienst verklaarde
+      dat wie de aanvraag indiende, gemachtigd is namens het bedrijf op te
+      treden, en op welk betrouwbaarheidsniveau (artikel 4 van het
+      Uitvoeringsbesluit Parkeren Wilgendaal 2026), ontleent het college aan
+      het antwoord van de cel van die dienst. De dienst bedrijfsparkeervergunning
+      heeft in de dienstencatalogus het nummer
+      urn:etoegang:DV:00000009999999999000:services:1. Geeft de cel geen
+      antwoord, dan blijkt het niet.
+    url: https://lokaleregelgeving.overheid.nl/CVDR733452
+    machine_readable:
+      # Het begrip noemt de erkende dienst als bevoegde
+      # (competent_authority), zoals de begrippen van artikel 1 de Kamer van
+      # Koophandel noemen. Het nummer van de dienst is verzonnen: een
+      # ServiceID van eHerkenning heeft deze vorm, met het OIN van de
+      # dienstverlener, maar dit OIN bestaat niet. Dat de machtiging voor
+      # precies deze dienst is bevestigd, is de eis van artikel 4, derde lid,
+      # van het uitvoeringsbesluit: een machtiging voor een andere dienst van
+      # het bedrijf telt niet.
+      definitions:
+        dienst_bedrijfsparkeervergunning:
+          value: urn:etoegang:DV:00000009999999999000:services:1
+      implements:
+        - law: uitvoeringsbesluit_parkeren_gemeente_wilgendaal
+          article: '4'
+          open_term: vertegenwoordiging_bevestigd
+        - law: uitvoeringsbesluit_parkeren_gemeente_wilgendaal
+          article: '4'
+          open_term: betrouwbaarheidsniveau_authenticatie
+      execution:
+        parameters:
+          - name: kvk_nummer
+            type: string
+            description: Het nummer dat de Kamer van Koophandel het bedrijf toekende.
+          - name: datum_ontvangst
+            type: date
+            description: De dag waarop het college de aanvraag ontving.
+        input:
+          - name: antwoord_vertegenwoordiging
+            type: boolean
+            nullable: true
+            source:
+              reduction: vertegenwoordiging_bevestigd
+              parameters:
+                kvk_nummer: $kvk_nummer
+                dienst: $dienst_bedrijfsparkeervergunning
+                peildatum: $datum_ontvangst
+          - name: antwoord_betrouwbaarheidsniveau
+            type: string
+            nullable: true
+            source:
+              reduction: betrouwbaarheidsniveau_authenticatie
+              parameters:
+                kvk_nummer: $kvk_nummer
+                dienst: $dienst_bedrijfsparkeervergunning
+                peildatum: $datum_ontvangst
+        output:
+          - name: vertegenwoordiging_bevestigd
+            type: boolean
+            nullable: true
+          - name: betrouwbaarheidsniveau_authenticatie
+            type: string
+            nullable: true
+        actions:
+          - output: vertegenwoordiging_bevestigd
+            value: $antwoord_vertegenwoordiging
+          - output: betrouwbaarheidsniveau_authenticatie
+            value: $antwoord_betrouwbaarheidsniveau
+  - number: '4'
+    text: >-
+      FICTIEF, eigen keuze in de modellering. Het aanvraagformulier vult de
+      naam en het adres van de aanvrager vooraf in met de handelsnaam en het
+      bezoekadres die het handelsregister op de dag van het invullen bij het
+      nummer van het bedrijf vermeldt. De aanvrager kan ze wijzigen.
+    url: https://lokaleregelgeving.overheid.nl/CVDR733452
+    machine_readable:
+      # Geen begrip van een regeling: een bron voor het voorinvullen van het
+      # formulier (ui_spec.yaml van de casus, prefill). Het nummer komt uit
+      # het formulier, dus volgt het wie er inlogt; zonder nummer blijft het
+      # leeg. Wat de aanvraag noemt, toetst artikel 4:2 van de Awb, niet
+      # dit artikel. Wat het handelsregister vermeldt, zegt de Kamer van
+      # Koophandel (competent_authority); artikel 5 koppelt het aan het
+      # antwoord van haar cel, zoals artikel 1 dat doet voor de begrippen van
+      # het uitvoeringsbesluit.
+      open_terms:
+        - id: handelsnaam_volgens_handelsregister
+          competent_authority:
+            - name: Kamer van Koophandel
+          type: string
+          required: false
+          decided_per_case_by: de Kamer van Koophandel, in het handelsregister
+          description: De handelsnaam die het handelsregister bij het nummer vermeldt.
+        - id: bezoekadres_volgens_handelsregister
+          competent_authority:
+            - name: Kamer van Koophandel
+          type: string
+          required: false
+          decided_per_case_by: de Kamer van Koophandel, in het handelsregister
+          description: Het bezoekadres dat het handelsregister bij het nummer vermeldt.
+      execution:
+        parameters:
+          - name: kvk_nummer
+            type: string
+            required: false
+            nullable: true
+            description: Het nummer dat de Kamer van Koophandel het bedrijf toekende.
+          - name: peildatum
+            type: date
+            description: De dag waarop het formulier wordt ingevuld.
+        output:
+          - name: naam_volgens_handelsregister
+            type: string
+            nullable: true
+            description: De naam waarmee het formulier de aanvrager vooraf invult.
+          - name: adres_volgens_handelsregister
+            type: string
+            nullable: true
+            description: Het adres waarmee het formulier de aanvrager vooraf invult.
+        actions:
+          - output: naam_volgens_handelsregister
+            value: $handelsnaam_volgens_handelsregister
+          - output: adres_volgens_handelsregister
+            value: $bezoekadres_volgens_handelsregister
+  - number: '5'
+    text: >-
+      FICTIEF, eigen keuze in de modellering. De handelsnaam en het
+      bezoekadres die het handelsregister vermeldt (artikel 4), ontleent het
+      college aan het antwoord van de cel van de Kamer van Koophandel. Geeft
+      die cel geen antwoord, dan vult het formulier niets in.
+    url: https://lokaleregelgeving.overheid.nl/CVDR733452
+    machine_readable:
+      implements:
+        - law: beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
+          article: '4'
+          open_term: handelsnaam_volgens_handelsregister
+        - law: beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
+          article: '4'
+          open_term: bezoekadres_volgens_handelsregister
+      execution:
+        parameters:
+          - name: kvk_nummer
+            type: string
+            required: false
+            nullable: true
+            description: Het nummer dat de Kamer van Koophandel het bedrijf toekende.
+          - name: peildatum
+            type: date
+            description: De dag waarop het formulier wordt ingevuld.
+        input:
+          - name: antwoord_handelsnaam
+            type: string
+            nullable: true
+            source:
+              reduction: handelsnaam_vestiging
+              parameters:
+                kvk_nummer: $kvk_nummer
+                peildatum: $peildatum
+          - name: antwoord_bezoekadres
+            type: string
+            nullable: true
+            source:
+              reduction: bezoekadres_vestiging
+              parameters:
+                kvk_nummer: $kvk_nummer
+                peildatum: $peildatum
+        output:
+          - name: handelsnaam_volgens_handelsregister
+            type: string
+            nullable: true
+          - name: bezoekadres_volgens_handelsregister
+            type: string
+            nullable: true
+        actions:
+          - output: handelsnaam_volgens_handelsregister
+            value: $antwoord_handelsnaam
+          - output: bezoekadres_volgens_handelsregister
+            value: $antwoord_bezoekadres

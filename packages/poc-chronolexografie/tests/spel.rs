@@ -695,19 +695,21 @@ fn bedrijfsparkeervergunning_a_company_in_the_city_centre_gets_a_permit() {
     let kroniek = spel.kroniek().unwrap();
     assert_eq!(soorten(&kroniek), ["AANVRAAG", "BESCHIKKING"]);
     assert_eq!(kroniek["andere"][0]["cel"], json!("kamer_van_koophandel"));
-    assert_eq!(soorten(&kroniek["andere"][0]), ["EXECUTOGRAM"; 6]);
+    assert_eq!(soorten(&kroniek["andere"][0]), ["EXECUTOGRAM"; 8]);
 }
 
 const INSCHRIJVING: &str = "beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven";
 
 /// The Chamber of Commerce registers the establishment of `kvk` anew on
-/// `datum`.
+/// `datum`, under a trade name and a visiting address made up from them.
 fn kvk_schrijft_in(spel: &mut Spel, kvk: &str, postcode: &str, personen: u32, datum: &str) {
     spel.vastleggen(
         "kamer_van_koophandel",
         INSCHRIJVING,
         &map(&json!({
             "kvk_nummer": kvk,
+            "handelsnaam": format!("Bedrijf {kvk}"),
+            "bezoekadres": format!("Singel 1, {postcode} Wilgendaal"),
             "postcode": postcode,
             "aantal_werkzame_personen": personen,
             "datum_inschrijving": datum,
@@ -855,7 +857,7 @@ fn bedrijfsparkeervergunning_outside_the_area_and_after_the_move_inside() {
         &json!("7711 AC")
     );
     let kvk = &spel.kroniek().unwrap()["andere"][0];
-    assert_eq!(soorten(kvk).len(), 7);
+    assert_eq!(soorten(kvk).len(), 9);
 }
 
 #[test]
@@ -1209,7 +1211,9 @@ fn every_case_shows_the_reductions_of_its_cell() {
 fn the_log_holds_the_facts_the_other_cells_recorded() {
     // The registrations of the Chamber of Commerce are facts the decisions
     // read: the log shows them beside the municipality's own steps, those
-    // from the case file and one recorded during play, merged by day.
+    // from the case file and one recorded during play, merged by day. So
+    // are the authentications of the accredited service, from the case
+    // file, recorded the day before the first scenario.
     let mut spel = spel_met("bedrijfsparkeervergunning");
     bedrijf_vraagt(
         &mut spel,
@@ -1236,20 +1240,14 @@ fn the_log_holds_the_facts_the_other_cells_recorded() {
         "EXECUTOGRAM".to_string(),
     );
     let eigen = |kind: &str| ("gemeente_wilgendaal".to_string(), kind.to_string());
-    assert_eq!(
-        stappen,
-        [
-            kvk.clone(),
-            eigen("BESCHIKKING"),
-            eigen("AANVRAAG"),
-            kvk.clone(),
-            kvk.clone(),
-            kvk.clone(),
-            kvk.clone(),
-            kvk.clone(),
-            kvk
-        ]
+    let dienst = (
+        "erkende_dienst_inlogmiddel".to_string(),
+        "EXECUTOGRAM".to_string(),
     );
+    let mut verwacht = vec![kvk.clone(), eigen("BESCHIKKING"), eigen("AANVRAAG")];
+    verwacht.extend(std::iter::repeat_n(dienst, 8));
+    verwacht.extend(std::iter::repeat_n(kvk, 8));
+    assert_eq!(stappen, verwacht);
 }
 
 const KVK: &str = "kamer_van_koophandel";

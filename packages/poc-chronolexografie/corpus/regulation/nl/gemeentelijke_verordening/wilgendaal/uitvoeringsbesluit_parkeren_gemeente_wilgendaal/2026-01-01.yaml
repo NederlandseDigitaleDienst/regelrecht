@@ -12,9 +12,11 @@ valid_from: '2026-01-01'
 # (artikel 2, derde en vierde lid), zoals het Delftse besluit "nadere regels"
 # stelt. Het schema kent geen aparte laag voor nadere regels van het college;
 # het is een algemeen verbindend voorschrift van de gemeente, dus
-# GEMEENTELIJKE_VERORDENING. Welke cel antwoordt op de begrippen van artikel 2
-# en 3, staat niet hier maar in het beleid bedrijfsparkeervergunning van
+# GEMEENTELIJKE_VERORDENING. Welke cel antwoordt op de begrippen van artikel
+# 2, 3 en 4, staat niet hier maar in het beleid bedrijfsparkeervergunning van
 # Wilgendaal (beleid_bedrijfsparkeervergunning_gemeente_wilgendaal).
+# Artikel 4, over het indienen met een bedrijfs- en organisatiemiddel, heeft
+# geen voorbeeld in het Delftse besluit; het is een eigen keuze.
 # Weggelaten uit het model: de wachtlijst (artikel 6), het maximum per gebied
 # (artikel 5), de tijden waarop een vergunning geldt (artikel 8, zevende lid)
 # en het parkeren op eigen terrein (artikel 8, tiende lid).
@@ -34,8 +36,9 @@ legal_basis:
     description: >-
       Het college stelt regels over de vergunninggebieden en over de wijze
       waarop blijkt dat een bedrijf in een vergunninggebied is gevestigd (lid
-      3), en het stelt het maximum aantal bedrijfsparkeervergunningen per
-      bedrijf vast (lid 4).
+      3), het stelt het maximum aantal bedrijfsparkeervergunningen per
+      bedrijf vast (lid 4), en het stelt regels over de wijze waarop een
+      aanvraag namens het bedrijf wordt ingediend (lid 5).
 articles:
   - number: '1'
     text: >-
@@ -269,3 +272,96 @@ articles:
               operation: GREATER_THAN_OR_EQUAL
               subject: $aantal_geldige_bedrijfsparkeervergunningen
               value: $maximum_bedrijfsparkeervergunningen
+  - number: '4'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+
+      1 Een aanvraag om een bedrijfsparkeervergunning wordt elektronisch
+      ingediend, met een erkend bedrijfs- en organisatiemiddel (artikel 15 van
+      de Wet digitale overheid).
+
+      2 Voor het elektronisch indienen van die aanvraag is authenticatie op
+      betrouwbaarheidsniveau substantieel vereist (artikel 6, tweede lid, van
+      de Wet digitale overheid).
+
+      3 De aanvraag is namens het bedrijf ingediend als een erkende dienst bij
+      de laatste authenticatie voor de dienst bedrijfsparkeervergunning op of
+      vóór de dag van ontvangst verklaarde dat wie inlogde, gemachtigd is
+      namens het bedrijf op te treden voor die dienst, op ten minste het
+      betrouwbaarheidsniveau van het tweede lid. Vonden op die dag meer
+      authenticaties voor de dienst plaats, dan geldt het laagste
+      betrouwbaarheidsniveau daarvan.
+    url: https://lokaleregelgeving.overheid.nl/CVDR733452
+    machine_readable:
+      # Vult het begrip van artikel 2, vijfde lid, van de verordening
+      # (implements, RFC-045). Wat een erkende dienst verklaarde, legt die
+      # dienst vast, dus zij antwoordt op de twee begrippen hieronder
+      # (competent_authority, RFC-051 §2), zoals de Kamer van Koophandel op
+      # die van artikel 2 en 3. Artikel 3 van het beleid
+      # bedrijfsparkeervergunning koppelt ze aan het antwoord van haar cel,
+      # met het nummer van de dienst in de dienstencatalogus.
+      # De eis aan wie indient is de machtiging voor deze dienst, niet een
+      # rol zoals wettelijk vertegenwoordiger: een erkende dienst als
+      # eHerkenning geeft geen rol door, alleen dat het machtigingenregister
+      # de machtiging voor de dienst bevestigde.
+      # De aanvraag draagt alleen het KvK-nummer, niet het pseudoniem van wie
+      # inlogde. Welke authenticatie de aanvraag droeg, blijkt er dus niet
+      # uit; het lid leest daarom de laatste authenticatie voor de dienst
+      # namens het bedrijf, op of vóór de dag van ontvangst.
+      # Niet verplicht: zwijgt de cel, dan blijkt niet dat de aanvraag namens
+      # het bedrijf is ingediend, en weigert het college.
+      open_terms:
+        - id: vertegenwoordiging_bevestigd
+          competent_authority:
+            - name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+          type: boolean
+          required: false
+          decided_per_case_by: de erkende dienst, bij de authenticatie
+          description: >-
+            Of de erkende dienst bij de laatste authenticatie voor de dienst
+            bedrijfsparkeervergunning op of vóór de dag van ontvangst
+            verklaarde dat wie inlogde, gemachtigd is namens het bedrijf op te
+            treden voor die dienst (derde lid).
+        - id: betrouwbaarheidsniveau_authenticatie
+          competent_authority:
+            - name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+          type: string
+          required: false
+          decided_per_case_by: de erkende dienst, bij de authenticatie
+          description: >-
+            Het laagste betrouwbaarheidsniveau van de authenticaties voor de
+            dienst op de laatste dag op of vóór de dag van ontvangst waarop er
+            een plaatsvond: laag, substantieel of hoog.
+      implements:
+        - law: parkeerverordening_gemeente_wilgendaal
+          article: '2'
+          open_term: aanvraag_namens_bedrijf_ingediend
+      execution:
+        # Uit artikel 2 van de verordening: welk bedrijf, en de dag van
+        # ontvangst van de aanvraag (Awb 4:13).
+        parameters:
+          - name: kvk_nummer
+            type: string
+            description: Het nummer dat de Kamer van Koophandel het bedrijf toekende.
+          - name: datum_ontvangst
+            type: date
+            description: De dag waarop het college de aanvraag ontving.
+        output:
+          - name: aanvraag_namens_bedrijf_ingediend
+            type: boolean
+            description: >-
+              Of de aanvraag namens het bedrijf is ingediend, op ten minste het
+              vereiste betrouwbaarheidsniveau (derde lid).
+        actions:
+          - output: aanvraag_namens_bedrijf_ingediend
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $vertegenwoordiging_bevestigd
+                  value: true
+                - operation: IN
+                  subject: $betrouwbaarheidsniveau_authenticatie
+                  values:
+                    - substantieel
+                    - hoog
