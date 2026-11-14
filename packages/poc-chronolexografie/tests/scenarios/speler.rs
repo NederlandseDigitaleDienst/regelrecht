@@ -20,6 +20,8 @@ use regelrecht_poc_chronolexografie::spel::Spel;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
 
+use crate::common::{Awb, met_awb_namen};
+
 /// What one scenario came to.
 #[derive(Serialize)]
 pub struct Verslag {
@@ -71,11 +73,16 @@ struct Stand {
     beroepen: Vec<String>,
     uitspraken: Vec<String>,
     ontvangsten: Vec<String>,
+    /// Per kenmerk a generic step gave, the id of the record it made.
+    kenmerken: HashMap<String, String>,
 }
 
 /// Plays one scenario on one game.
 struct Speler<'a> {
     spel: &'a mut Spel,
+    /// The case as the game describes it, for the articles of its
+    /// submissions.
+    casus: Value,
     voorbeeld: Value,
     /// The output of a decision that says the application is granted.
     uitkomst: String,
@@ -116,6 +123,7 @@ pub fn speel(
     let mut datum = dag(&casus["speeldatum"])?;
     let mut speler = Speler {
         spel,
+        casus: casus.clone(),
         voorbeeld: casus["voorbeeld"].clone(),
         uitkomst: casus["uitkomst"].as_str().unwrap_or_default().to_string(),
         stand: Stand::default(),
@@ -173,7 +181,11 @@ impl Speler<'_> {
                 .ok_or_else(|| format!("'op: {op}' counts from 1"))?,
             None => n - 1,
         };
-        let vormen = self.spel.vormen(datum).map_err(|e| e.to_string())?;
+        // The forms per article, and under the names of the Awb steps.
+        let vormen = met_awb_namen(
+            &self.casus,
+            self.spel.vormen(datum).map_err(|e| e.to_string())?,
+        );
         let gespeeld = match soort {
             "aanvraag" => self.aanvraag(stap, &vormen, datum, rij),
             "besluit" => self.besluit(stap, &vormen, doel, datum, rij),
@@ -184,6 +196,9 @@ impl Speler<'_> {
             "uitspraak" => self.uitspraak(stap, datum),
             "toezenden" => self.toezenden(stap, datum),
             "opnieuw_beslissen" => self.opnieuw_beslissen(stap, datum, rij),
+            "indienen" | "beslissen" | "ambtshalve" | "afschrift" => {
+                self.generiek(stap, soort, &vormen, datum, rij)
+            }
             andere => Err(format!("unknown step '{andere}'")),
         };
         gespeeld?;
@@ -381,15 +396,92 @@ impl Speler<'_> {
         rij: &mut Value,
     ) -> Result<(), String> {
         let ontvangst = kies(&self.stand.ontvangsten, &stap["op"])?;
-        self.spel
-            .heroverweging_na_uitspraak(&ontvangst)
-            .map_err(|e| e.to_string())?;
+        // The judgements on admissibility are given anew, as at the first
+        // decision on the objection.
         let bevindingen = met(&self.voorbeeld["beslissing_op_bezwaar"], &stap["invoer"]);
+        self.spel
+            .heroverweging_na_uitspraak(&ontvangst, &bevindingen)
+            .map_err(|e| e.to_string())?;
         let genomen = self
             .spel
             .opnieuw_beslissen_op_bezwaar(&ontvangst, &bevindingen, datum)
             .map_err(|e| e.to_string())?;
         verwacht(stap, op_bezwaar(&genomen["beslissing"]), rij)
+    }
+}
+
+impl Speler<'_> {
+    /// A generic step (`indienen`, `beslissen`, `ambtshalve`, `afschrift`),
+    /// which names no step of a procedure: what it acts on is the article it
+    /// names or the record of an earlier step by its kenmerk. A field the
+    /// form asks and the step leaves out is noted in `leeg_gelaten`.
+    fn generiek(
+        &mut self,
+        stap: &Value,
+        soort: &str,
+        vormen: &Value,
+        datum: NaiveDate,
+        rij: &mut Value,
+    ) -> Result<(), String> {
+        let mut invoer = map(&stap["invoer"]);
+        let record = |veld: &str| -> Result<Option<String>, String> {
+            stap.get(veld)
+                .and_then(Value::as_str)
+                .map(|k| {
+                    self.stand
+                        .kenmerken
+                        .get(k)
+                        .cloned()
+                        .ok_or_else(|| format!("no record '{k}'"))
+                })
+                .transpose()
+        };
+        let op = record("verwijst_naar")?;
+        let na = record("na")?;
+        let artikel = stap.get("artikel").and_then(Value::as_str);
+        let genomen = match soort {
+            "indienen" => {
+                let artikel = artikel.ok_or("a step 'indienen' without 'artikel'")?;
+                let velden = &vormen["indieningen"][artikel]["velden"];
+                let gevraagd = match &op {
+                    Some(op) => tegen(self.spel, velden, op)?,
+                    None => velden.clone(),
+                };
+                rij["leeg_gelaten"] = json!(vul_leeg(&gevraagd, &mut invoer));
+                self.spel.indienen(artikel, op.as_deref(), &invoer, datum)
+            }
+            "beslissen" => {
+                let op = op.ok_or("a step 'beslissen' without 'verwijst_naar'")?;
+                self.spel
+                    .toetsen_en_beslissen(&op, na.as_deref(), &invoer, datum)
+                    .map(|b| b["besluit"].clone())
+            }
+            "ambtshalve" => {
+                let artikel = artikel.ok_or("a step 'ambtshalve' without 'artikel'")?;
+                self.spel.ambtshalve(artikel, op.as_deref(), &invoer, datum)
+            }
+            _ => {
+                let op = op.ok_or("a step 'afschrift' without 'verwijst_naar'")?;
+                self.spel.toezenden(&op, datum)
+            }
+        };
+        if stap["uitkomst"] == json!("geweigerd") {
+            return match genomen {
+                Ok(_) => Err("expected geweigerd, the cell took the step".into()),
+                Err(e) => {
+                    rij["geweigerd"] = json!(e.to_string());
+                    Ok(())
+                }
+            };
+        }
+        let gram = genomen.map_err(|e| e.to_string())?;
+        if stap.get("uitvoer").is_some() {
+            rij["uitvoer"] = json!(uitvoer(stap, &gram["outputs"]));
+        }
+        if let Some(k) = stap.get("kenmerk").and_then(Value::as_str) {
+            self.stand.kenmerken.insert(k.to_string(), id(&gram)?);
+        }
+        Ok(())
     }
 }
 

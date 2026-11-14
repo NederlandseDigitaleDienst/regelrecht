@@ -1,0 +1,115 @@
+---
+# FICTIEF. A synthetic law for tests/scenarios/: a procedure that is not
+# the Awb's, to show that the harness plays what the law declares and names
+# no step of a procedure itself. None of it is the text of a law. It has its
+# own procedure for a decision, no objection and no court; a second
+# application refers to the decision on the first, and the service takes a
+# withdrawal ex officio.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$id: fictieve_vergunningwet
+name: Fictieve vergunningwet
+regulatory_layer: WET
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.invalid/fictieve_vergunningwet
+competent_authority: Fictieve dienst
+
+procedure:
+  - id: vergunning
+    default: true
+    applies_to:
+      legal_character: BESCHIKKING
+    stages:
+      - name: AANVRAAG
+        description: De aanvrager dient een aanvraag in.
+        requires:
+          - name: aanvraag_datum
+            type: date
+      - name: BESLUIT
+        description: De dienst beslist.
+        requires:
+          - name: besluit_datum
+            type: date
+      - name: BEKENDMAKING
+        description: De dienst maakt het besluit bekend.
+        requires:
+          - name: bekendmaking_datum
+            type: date
+
+articles:
+  - number: '1'
+    url: https://example.invalid/fictieve_vergunningwet#1
+    text: >-
+      FICTIEF. Op aanvraag verleent de dienst een vergunning aan wie
+      meerderjarig is.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: fictieve_vergunningwet#1
+            parameters:
+              - aanvrager
+              - meerderjarig
+          - type: BESCHIKKING
+            outputs:
+              - vergunning_verleend
+        parameters:
+          - name: aanvrager
+            type: string
+          - name: meerderjarig
+            type: boolean
+        output:
+          - name: vergunning_verleend
+            type: boolean
+        actions:
+          - output: vergunning_verleend
+            value: $meerderjarig
+
+  - number: '2'
+    url: https://example.invalid/fictieve_vergunningwet#2
+    text: >-
+      FICTIEF. Op aanvraag van de houder verlengt de dienst een verleende
+      vergunning.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: fictieve_vergunningwet#2
+            parameters:
+              - te_verlengen_vergunning
+          - type: BESCHIKKING
+            outputs:
+              - verlenging_verleend
+        parameters:
+          - name: te_verlengen_vergunning
+            type: decision
+            description: De vergunning waarvan de houder verlenging vraagt.
+        output:
+          - name: verlenging_verleend
+            type: boolean
+        actions:
+          - output: verlenging_verleend
+            value: $te_verlengen_vergunning.outputs.vergunning_verleend
+
+  - number: '3'
+    url: https://example.invalid/fictieve_vergunningwet#3
+    text: >-
+      FICTIEF. De dienst kan een verleende vergunning intrekken.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - ingetrokken
+            effects:
+              - revokes: ingetrokken_besluit
+        parameters:
+          - name: ingetrokken_besluit
+            type: string
+            description: Het besluit dat de dienst intrekt.
+        output:
+          - name: ingetrokken
+            type: boolean
+        actions:
+          - output: ingetrokken
+            value: true

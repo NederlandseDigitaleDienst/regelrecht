@@ -9,6 +9,7 @@
 // staat ingevuld zolang je een scenario volgt (scenarioInvoer.js).
 import { computed, ref, watch } from 'vue';
 import { api } from '../api.js';
+import { awb } from '../awb.js';
 import { beroepApi } from '../beroep.js';
 import { melding } from '../melding.js';
 import {
@@ -110,7 +111,7 @@ function inlog(waarde) {
 }
 
 async function indienen() {
-  if (await stap(() => api.aanvragen(zonderLeeg(aanvraag.value), state.datum))) {
+  if (await stap(() => awb.aanvragen(zonderLeeg(aanvraag.value), state.datum))) {
     aanvraagVorm.wis('aanvraag');
   }
 }
@@ -171,7 +172,7 @@ async function indienenTegen() {
   const ok = await stap(() =>
     soort === 'beroep'
       ? beroepApi.instellen(besluit.id, velden, state.datum)
-      : api.bezwaren(besluit.id, velden, state.datum),
+      : awb.bezwaren(besluit.id, velden, state.datum),
   );
   if (ok) {
     indieningVorm.wis(besluit.id);

@@ -110,45 +110,43 @@ export const api = {
   kies: (casus) => roep((p) => p.kies(casus)),
   vormen: (datum) => roep((p) => p.vormen(datum)),
   kroniek: () => roep((p) => p.kroniek()),
-  aanvragen: (velden, datum) => roep((p) => p.aanvragen(json(velden), datum)),
   // What the sources give per field of the application before anything is
   // submitted (voorinvulling.js): `bronnen` per field
   // `<regelwerk>#<article>#<output>`. Nothing is recorded.
   voorinvullen: (bronnen, velden, datum) =>
     roep((p) => p.voorinvullen(json(bronnen), json(velden), datum)),
+  // De generieke stappen: het spel noemt geen stap van een procedure. Welke
+  // indieningen er zijn en wie erop beslist, leidt het af uit de wet
+  // (`casus.indieningen`, `casus.ambtshalve`); awb.js speelt er de stappen
+  // van de Awb mee zoals de pagina ze toont.
+  // Een indiening onder `artikel`, die verwijst naar besluit `op`, of geen.
+  indienen: (artikel, velden, datum, op = null) =>
+    roep((p) => p.indienen(artikel, json(velden), datum, op ?? undefined)),
   // Een andere cel van de casus legt een handeling vast, zoals de GGD een
   // geneeskundig onderzoek (RFC-048). `verwijstNaar` is het kenmerk van een
   // eerder record in het begin van die cel waarover het feit gaat, of null.
   vastleggen: (cel, feit, velden, datum, verwijstNaar = null) =>
     roep((p) => p.vastleggen(cel, feit, json(velden), datum, verwijstNaar ?? undefined)),
-  besluiten: (op, bevindingen, datum) => roep((p) => p.besluiten(op, json(bevindingen), datum)),
+  // Beslissen op indiening `op`; `na` is een later record waarna opnieuw
+  // wordt beslist, zoals de ontvangst van een uitspraak.
+  beslissen: (op, bevindingen, datum, na = null) =>
+    roep((p) => p.beslissen(op, json(bevindingen), datum, na ?? undefined)),
+  // Wat beslissen op `op` zou geven met wat het bestuursorgaan over het
+  // beslissende artikel zelf oordeelt (`oordeel`) en zonder nieuwe
+  // bevindingen, en wat het opnieuw kan vinden.
+  voorBeslissen: (op, oordeel, datum, na = null) =>
+    roep((p) => p.voorBeslissen(op, json(oordeel), datum, na ?? undefined)),
   // Wat het besluit zou worden, op een kopie van de cel: er wordt niets
   // vastgelegd. Een weigering van de cel komt terug als `{ geweigerd }`.
-  voorvertoningBesluit: (op, bevindingen, datum) =>
-    roep((p) => p.voorvertoningBesluit(op, json(bevindingen), datum)),
-  bezwaren: (besluit, velden, datum) => roep((p) => p.bezwaren(besluit, json(velden), datum)),
-  // Of het bezwaar ontvankelijk is, met wat het bestuursorgaan daarover
-  // oordeelt (Awb 7:11 met 6:11 en 8:1), en wat het opnieuw kan vinden.
-  heroverweging: (bezwaar, ontvankelijkheid, datum) =>
-    roep((p) => p.heroverweging(bezwaar, json(ontvankelijkheid), datum)),
-  beslissenOpBezwaar: (op, bevindingen, datum) =>
-    roep((p) => p.beslissenOpBezwaar(op, json(bevindingen), datum)),
-  voorvertoningOpBezwaar: (op, bevindingen, datum) =>
-    roep((p) => p.voorvertoningOpBezwaar(op, json(bevindingen), datum)),
-  // Het beroep bij de bestuursrechter (RFC-053): de aanvrager stelt het in,
-  // de rechtbank doet uitspraak en zendt die toe, en het bestuursorgaan
-  // beslist opnieuw op het bezwaar.
-  beroepInstellen: (besluit, velden, datum) =>
-    roep((p) => p.beroepInstellen(besluit, json(velden), datum)),
-  uitspraakDoen: (op, bevindingen, datum) => roep((p) => p.uitspraakDoen(op, json(bevindingen), datum)),
-  voorvertoningUitspraak: (op, bevindingen, datum) =>
-    roep((p) => p.voorvertoningUitspraak(op, json(bevindingen), datum)),
-  toezenden: (uitspraak, datum) => roep((p) => p.toezenden(uitspraak, datum)),
-  heroverwegingNaUitspraak: (ontvangst) => roep((p) => p.heroverwegingNaUitspraak(ontvangst)),
-  opnieuwBeslissenOpBezwaar: (ontvangst, bevindingen, datum) =>
-    roep((p) => p.opnieuwBeslissenOpBezwaar(ontvangst, json(bevindingen), datum)),
-  voorvertoningNaUitspraak: (ontvangst, bevindingen, datum) =>
-    roep((p) => p.voorvertoningNaUitspraak(ontvangst, json(bevindingen), datum)),
+  voorvertoning: (op, bevindingen, datum, na = null) =>
+    roep((p) => p.voorvertoning(op, json(bevindingen), datum, na ?? undefined)),
+  // Een besluit dat een cel ambtshalve neemt onder `artikel`, over record
+  // `over` of geen.
+  ambtshalve: (artikel, gegeven, datum, over = null) =>
+    roep((p) => p.ambtshalve(artikel, json(gegeven), datum, over ?? undefined)),
+  // De cel die besluit `besluit` nam, zendt er een afschrift van naar de cel
+  // over wier besluit het gaat.
+  toezenden: (besluit, datum) => roep((p) => p.toezenden(besluit, datum)),
   logboek: () => roep((p) => p.logboek()),
   reset: () => roep((p) => p.reset()),
   // Het spel tot nu toe (de casus en de kroniek van elke cel), om een

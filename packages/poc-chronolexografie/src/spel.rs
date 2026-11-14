@@ -182,8 +182,16 @@ impl Spel {
         ok(self.met(|c, cell| kern::voorinvullen(c, cell, bronnen, velden, datum))?)
     }
 
-    pub fn aanvragen(&mut self, velden: &Map<String, Value>, datum: NaiveDate) -> Antwoord {
-        ok(self.met(|c, cell| kern::aanvragen(c, cell, velden, datum))?)
+    /// A submission under `artikel`, referring to the decision `op` if
+    /// given ([`kern::indienen`]).
+    pub fn indienen(
+        &mut self,
+        artikel: &str,
+        op: Option<&str>,
+        velden: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::indienen(c, cell, artikel, op, velden, datum))?)
     }
 
     /// The other cell `cel` of the sphere records the fact `feit`
@@ -213,15 +221,78 @@ impl Spel {
         })?)
     }
 
-    /// Decide on the application `op`, with the deciding authority's
-    /// findings for this case (RFC-045 §5).
-    pub fn besluiten(
+    /// Decide on the submission `op`, after the record `na` if given, with
+    /// the deciding authority's findings for this case (RFC-045 §5,
+    /// [`kern::beslissen`]).
+    pub fn beslissen(
         &mut self,
         op: &str,
+        na: Option<&str>,
         bevindingen: &Map<String, Value>,
         datum: NaiveDate,
     ) -> Antwoord {
-        ok(self.met(|c, cell| kern::besluiten(c, cell, op, bevindingen, datum))?)
+        ok(self.met(|c, cell| kern::beslissen(c, cell, op, na, bevindingen, datum))?)
+    }
+
+    /// What deciding on the submission `op` would come to with what the
+    /// authority judges on the deciding article itself (`oordeel`) and no
+    /// finding anew, and what it can find anew ([`kern::voor_beslissen`]).
+    pub fn voor_beslissen(
+        &mut self,
+        op: &str,
+        na: Option<&str>,
+        oordeel: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::voor_beslissen(c, cell, op, na, oordeel, datum))?)
+    }
+
+    /// Decide on the submission `op` in the two steps the page takes
+    /// ([`kern::toetsen_en_beslissen`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`kern::toetsen_en_beslissen`], and when no case is chosen.
+    pub fn toetsen_en_beslissen(
+        &mut self,
+        op: &str,
+        na: Option<&str>,
+        gegeven: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::toetsen_en_beslissen(c, cell, op, na, gegeven, datum))?)
+    }
+
+    /// A preview ([`kern::voorvertoning`]): `{ voorlopig }` or, when the
+    /// cell refuses (a finding not given yet), `{ geweigerd }`, and in both
+    /// the terms the authority judges because a policy leaves them to it
+    /// for this case (`stil`). Any other error fails as in any step.
+    pub fn voorvertoning(
+        &mut self,
+        op: &str,
+        na: Option<&str>,
+        bevindingen: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::voorvertoning(c, cell, op, na, bevindingen, datum))?)
+    }
+
+    /// A decision under `artikel` taken ex officio, about the record `over`
+    /// if given ([`kern::ambtshalve`]).
+    pub fn ambtshalve(
+        &mut self,
+        artikel: &str,
+        over: Option<&str>,
+        gegeven: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::ambtshalve(c, cell, artikel, over, gegeven, datum))?)
+    }
+
+    /// The cell that holds the decision `besluit` sends a copy of it to the
+    /// cell whose decision it concerns ([`kern::toezenden`]).
+    pub fn toezenden(&mut self, besluit: &str, datum: NaiveDate) -> Antwoord {
+        ok(self.met(|c, cell| kern::toezenden(c, cell, besluit, datum))?)
     }
 
     pub fn waarom(&mut self, id: &str) -> Antwoord {
@@ -235,151 +306,6 @@ impl Spel {
 
     pub fn hoe_beantwoord(&mut self, id: &str, naam: &str) -> Antwoord {
         ok(self.met(|c, cell| kern::hoe_beantwoord(c, cell, id, naam))?)
-    }
-
-    pub fn bezwaren(
-        &mut self,
-        besluit: &str,
-        velden: &Map<String, Value>,
-        datum: NaiveDate,
-    ) -> Antwoord {
-        ok(self.met(|c, cell| kern::bezwaren(c, cell, besluit, velden, datum))?)
-    }
-
-    /// Whether the objection `id` is admissible with what the authority
-    /// judges on that (`ontvankelijkheid`), and what it can find anew
-    /// ([`kern::heroverweging`]).
-    ///
-    /// # Errors
-    ///
-    /// As [`kern::heroverweging`], and when no case is chosen.
-    pub fn heroverweging(
-        &mut self,
-        id: &str,
-        ontvankelijkheid: &Map<String, Value>,
-        datum: NaiveDate,
-    ) -> Antwoord {
-        ok(self.met(|c, cell| kern::heroverweging(c, cell, id, ontvankelijkheid, datum))?)
-    }
-
-    pub fn beslissen_op_bezwaar(
-        &mut self,
-        op: &str,
-        bevindingen: &Map<String, Value>,
-        datum: NaiveDate,
-    ) -> Antwoord {
-        ok(self.met(|c, cell| kern::beslissen_op_bezwaar(c, cell, op, bevindingen, datum))?)
-    }
-
-    /// Test the admissibility of the objection `op` and decide on it, as
-    /// the page does ([`kern::toetsen_en_beslissen_op_bezwaar`]).
-    ///
-    /// # Errors
-    ///
-    /// As [`kern::toetsen_en_beslissen_op_bezwaar`], and when no case is
-    /// chosen.
-    pub fn toetsen_en_beslissen_op_bezwaar(
-        &mut self,
-        op: &str,
-        gegeven: &Map<String, Value>,
-        datum: NaiveDate,
-    ) -> Antwoord {
-        ok(self.met(|c, cell| kern::toetsen_en_beslissen_op_bezwaar(c, cell, op, gegeven, datum))?)
-    }
-
-    /// A preview ([`kern::voorvertoning_besluit`]): `{ voorlopig }` or, when
-    /// the cell refuses (a finding not given yet), `{ geweigerd }`, and in
-    /// both the terms the authority judges because a policy leaves them to
-    /// it for this case (`stil`). Any other error fails as in any step.
-    pub fn voorvertoning_besluit(
-        &mut self,
-        op: &str,
-        bevindingen: &Map<String, Value>,
-        datum: NaiveDate,
-    ) -> Antwoord {
-        ok(self.met(|c, cell| kern::voorvertoning_besluit(c, cell, op, bevindingen, datum))?)
-    }
-
-    pub fn voorvertoning_op_bezwaar(
-        &mut self,
-        op: &str,
-        bevindingen: &Map<String, Value>,
-        datum: NaiveDate,
-    ) -> Antwoord {
-        ok(self.met(|c, cell| kern::voorvertoning_op_bezwaar(c, cell, op, bevindingen, datum))?)
-    }
-
-    /// The applicant appeals against the decision on objection `besluit`
-    /// to the court of the case (RFC-053, [`kern::beroep_instellen`]).
-    pub fn beroep_instellen(
-        &mut self,
-        besluit: &str,
-        velden: &Map<String, Value>,
-        datum: NaiveDate,
-    ) -> Antwoord {
-        ok(self.met(|c, cell| kern::beroep_instellen(c, cell, besluit, velden, datum))?)
-    }
-
-    /// The court gives judgment on the appeal `op` with its findings.
-    pub fn uitspraak_doen(
-        &mut self,
-        op: &str,
-        bevindingen: &Map<String, Value>,
-        datum: NaiveDate,
-    ) -> Antwoord {
-        ok(self.met(|c, cell| kern::uitspraak_doen(c, cell, op, bevindingen, datum))?)
-    }
-
-    /// A preview of a judgment, as [`Spel::voorvertoning_besluit`].
-    pub fn voorvertoning_uitspraak(
-        &mut self,
-        op: &str,
-        bevindingen: &Map<String, Value>,
-        datum: NaiveDate,
-    ) -> Antwoord {
-        ok(self.met(|c, cell| kern::voorvertoning_uitspraak(c, cell, op, bevindingen, datum))?)
-    }
-
-    /// The court sends a copy of its judgment `uitspraak` to the case's
-    /// cell, which records the receipt.
-    pub fn toezenden(&mut self, uitspraak: &str, datum: NaiveDate) -> Antwoord {
-        ok(self.met(|c, cell| kern::toezenden(c, cell, uitspraak, datum))?)
-    }
-
-    pub fn waarom_uitspraak(&mut self, id: &str) -> Antwoord {
-        ok(self.met(|c, cell| kern::waarom_uitspraak(c, cell, id))?)
-    }
-
-    /// What the authority finds anew after the judgment received in
-    /// `ontvangst`.
-    pub fn heroverweging_na_uitspraak(&mut self, ontvangst: &str) -> Antwoord {
-        ok(self.met(|c, cell| kern::heroverweging_na_uitspraak(c, cell, ontvangst))?)
-    }
-
-    /// The authority decides on the objection again after the judgment
-    /// received in `ontvangst`.
-    pub fn opnieuw_beslissen_op_bezwaar(
-        &mut self,
-        ontvangst: &str,
-        bevindingen: &Map<String, Value>,
-        datum: NaiveDate,
-    ) -> Antwoord {
-        ok(self.met(|c, cell| {
-            kern::opnieuw_beslissen_op_bezwaar(c, cell, ontvangst, bevindingen, datum)
-        })?)
-    }
-
-    /// A preview of deciding on the objection again, as
-    /// [`Spel::voorvertoning_besluit`].
-    pub fn voorvertoning_na_uitspraak(
-        &mut self,
-        ontvangst: &str,
-        bevindingen: &Map<String, Value>,
-        datum: NaiveDate,
-    ) -> Antwoord {
-        ok(self.met(|c, cell| {
-            kern::voorvertoning_na_uitspraak(c, cell, ontvangst, bevindingen, datum)
-        })?)
     }
 
     pub fn reducties(&mut self, datum: NaiveDate) -> Antwoord {

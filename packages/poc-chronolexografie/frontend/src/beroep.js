@@ -10,19 +10,19 @@
  * (`<wet>#<artikel>#<feit>`, Awb 8:79), zegt de casus (`api.casus`); het spel
  * leidt het af uit de wet.
  */
-import { api } from './api.js';
+import { awb } from './awb.js';
 import { state } from './state.js';
 
 export const beroepApi = {
-  instellen: api.beroepInstellen,
-  uitspraakDoen: api.uitspraakDoen,
+  instellen: awb.beroepInstellen,
+  uitspraakDoen: awb.uitspraakDoen,
   // Wat de uitspraak, of het opnieuw beslissen op bezwaar, zou worden, op een
-  // kopie van de cel: er wordt niets vastgelegd (zoals api.voorvertoningBesluit).
-  voorvertoningUitspraak: api.voorvertoningUitspraak,
-  toezenden: api.toezenden,
-  heroverweging: api.heroverwegingNaUitspraak,
-  opnieuwBeslissen: api.opnieuwBeslissenOpBezwaar,
-  voorvertoningNaUitspraak: api.voorvertoningNaUitspraak,
+  // kopie van de cel: er wordt niets vastgelegd (zoals awb.voorvertoningBesluit).
+  voorvertoningUitspraak: awb.voorvertoningUitspraak,
+  toezenden: awb.toezenden,
+  heroverweging: awb.heroverwegingNaUitspraak,
+  opnieuwBeslissen: awb.opnieuwBeslissenOpBezwaar,
+  voorvertoningNaUitspraak: awb.voorvertoningNaUitspraak,
 };
 
 /** De beroepen bij de rechtbank tegen besluit `id` van de cel van de casus. */

@@ -35,6 +35,8 @@ use regelrecht_poc_chronolexografie::spel::Spel;
 use serde_json::{Map, Value, json};
 
 mod common;
+use common::Awb;
+
 const CASUS: &str = "bedrijfsparkeervergunning";
 const BAKKERIJ: &str = "99990011";
 const EERSTE: &str = "ZZ-001-Z";

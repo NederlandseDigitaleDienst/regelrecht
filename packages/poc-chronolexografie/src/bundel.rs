@@ -430,18 +430,30 @@ mod tests {
         }
     }
 
+    /// The form of the application of the chosen case on `dag`: the form of
+    /// the submission its article establishes (`vormen.indieningen`).
+    fn aanvraagvorm(spel: &mut crate::spel::Spel, dag: chrono::NaiveDate) -> serde_json::Value {
+        let artikel = spel.casus().unwrap()["artikel"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        spel.vormen(dag).unwrap()["indieningen"][&artikel].clone()
+    }
+
     /// Play the case `id` as its example says: apply, and decide with the
     /// example findings; the decision's outputs.
     fn speel(spel: &mut crate::spel::Spel, id: &str) -> serde_json::Value {
         let casus = spel.kiezen(id).unwrap();
         let map = |v: &serde_json::Value| v.as_object().cloned().unwrap_or_default();
         let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let artikel = casus["artikel"].as_str().unwrap();
         let gram = spel
-            .aanvragen(&map(&casus["voorbeeld"]["aanvraag"]), dag)
+            .indienen(artikel, None, &map(&casus["voorbeeld"]["aanvraag"]), dag)
             .unwrap();
         let besluit = spel
-            .besluiten(
+            .beslissen(
                 gram["id"].as_str().unwrap(),
+                None,
                 &map(&casus["voorbeeld"]["bevindingen"]),
                 dag,
             )
@@ -483,13 +495,13 @@ mod tests {
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
         let casus = spel.kiezen("voorbeeld_inschrijving").unwrap();
         let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
-        let vormen = spel.vormen(dag).unwrap();
+        let vormen = aanvraagvorm(&mut spel, dag);
         assert_eq!(
-            vormen["aanvraag"]["prefill"],
+            vormen["prefill"],
             serde_json::json!({ "naam_opgegeven": NAAM_UIT_REGISTER })
         );
         // What the form then asks: the name from the register cell.
-        let bronnen = vormen["aanvraag"]["prefill"].as_object().unwrap().clone();
+        let bronnen = vormen["prefill"].as_object().unwrap().clone();
         let velden = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
         let ingevuld = spel.voorinvullen(&bronnen, &velden, dag).unwrap();
         assert_eq!(ingevuld["naam_opgegeven"]["waarde"], "Vereniging Voorbeeld");
@@ -504,8 +516,8 @@ mod tests {
         let (alle, standen) = met_bronnen(gebundeld(), vec![voorbeeld()]).unwrap();
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
         spel.kiezen("voorbeeld_subsidie").unwrap();
-        let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
-        assert_eq!(vormen["aanvraag"]["prefill"], serde_json::json!({}));
+        let vormen = aanvraagvorm(&mut spel, "2026-10-21".parse().unwrap());
+        assert_eq!(vormen["prefill"], serde_json::json!({}));
     }
 
     #[test]
@@ -524,8 +536,8 @@ mod tests {
         );
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
         spel.kiezen("voorbeeld_inschrijving").unwrap();
-        let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
-        assert_eq!(vormen["aanvraag"]["prefill"], serde_json::json!({}));
+        let vormen = aanvraagvorm(&mut spel, "2026-10-21".parse().unwrap());
+        assert_eq!(vormen["prefill"], serde_json::json!({}));
     }
 
     /// The case names who logs in: the applicant picks a record of the fact
@@ -536,8 +548,8 @@ mod tests {
         let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
         spel.kiezen("voorbeeld_inschrijving").unwrap();
-        let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
-        let inloggen = &vormen["aanvraag"]["inloggen"];
+        let vormen = aanvraagvorm(&mut spel, "2026-10-21".parse().unwrap());
+        let inloggen = &vormen["inloggen"];
         assert_eq!(inloggen["veld"], "nummer");
         assert_eq!(inloggen["sleutel"], "nummer");
         assert_eq!(inloggen["naam"], "naam");
@@ -552,13 +564,13 @@ mod tests {
             }])
         );
         // Later the register knows the second one too.
-        let later = spel.vormen("2026-11-02".parse().unwrap()).unwrap();
-        let keuzes = later["aanvraag"]["inloggen"]["keuzes"].as_array().unwrap();
+        let later = aanvraagvorm(&mut spel, "2026-11-02".parse().unwrap());
+        let keuzes = later["inloggen"]["keuzes"].as_array().unwrap();
         assert_eq!(keuzes.len(), 2);
         assert_eq!(keuzes[1]["naam"], "Vereniging Later");
         // A key recorded again offers one choice, with what was recorded last.
-        let daarna = spel.vormen("2026-11-03".parse().unwrap()).unwrap();
-        let keuzes = daarna["aanvraag"]["inloggen"]["keuzes"].as_array().unwrap();
+        let daarna = aanvraagvorm(&mut spel, "2026-11-03".parse().unwrap());
+        let keuzes = daarna["inloggen"]["keuzes"].as_array().unwrap();
         let namen: Vec<&str> = keuzes.iter().map(|k| k["naam"].as_str().unwrap()).collect();
         assert_eq!(namen, ["Vereniging Later", "Vereniging Voorbeeld Hernoemd"]);
     }
@@ -568,8 +580,8 @@ mod tests {
         let (alle, standen) = met_bronnen(gebundeld(), vec![voorbeeld()]).unwrap();
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
         spel.kiezen("voorbeeld_subsidie").unwrap();
-        let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
-        assert_eq!(vormen["aanvraag"]["inloggen"], serde_json::Value::Null);
+        let vormen = aanvraagvorm(&mut spel, "2026-10-21".parse().unwrap());
+        assert_eq!(vormen["inloggen"], serde_json::Value::Null);
     }
 
     #[test]
@@ -615,9 +627,9 @@ mod tests {
         let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
         spel.kiezen("voorbeeld_inschrijving").unwrap();
-        let vormen = spel.vormen("2026-10-21".parse().unwrap()).unwrap();
+        let vormen = aanvraagvorm(&mut spel, "2026-10-21".parse().unwrap());
         assert_eq!(
-            vormen["aanvraag"]["prefill"],
+            vormen["prefill"],
             serde_json::json!({ "naam_opgegeven": NAAM_UIT_REGISTER })
         );
     }
@@ -659,7 +671,11 @@ mod tests {
         assert_eq!(c.casus.bron.as_deref(), Some("voorbeeld"));
         // The regulation, the cell and the objection from the source.
         assert_eq!(c.afleiding.regelwerken[0], "voorbeeld_bron_subsidie");
-        assert_eq!(c.afleiding.objection_law, "algemene_wet_bestuursrecht");
+        assert!(
+            c.afleiding
+                .indiening("algemene_wet_bestuursrecht#7:11")
+                .is_some()
+        );
         assert_eq!(c.afleiding.rol, "Voorbeeldautoriteit");
         assert!(c.cell().is_ok());
         assert_eq!(
@@ -864,20 +880,23 @@ articles:
         let casus = spel.kiezen("voorbeeld_subsidie").unwrap();
         let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
         let vormen = spel.vormen(dag).unwrap();
-        let gevraagd: Vec<&str> = vormen["besluit"]["bevindingen"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| v["naam"].as_str().unwrap())
-            .collect();
+        let gevraagd: Vec<&str> =
+            vormen["besluiten"][casus["besluit"].as_str().unwrap()]["bevindingen"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v["naam"].as_str().unwrap())
+                .collect();
         assert_eq!(gevraagd, ["partij_geregistreerd", "motivering"]);
         let aanvraag = casus["voorbeeld"]["aanvraag"].as_object().cloned().unwrap();
-        let gram = spel.aanvragen(&aanvraag, dag).unwrap();
+        let artikel = casus["artikel"].as_str().unwrap();
+        let gram = spel.indienen(artikel, None, &aanvraag, dag).unwrap();
         let gegeven =
             serde_json::json!({"partij_geregistreerd": true, "motivering": "geregistreerd"});
         let besluit = spel
-            .besluiten(
+            .beslissen(
                 gram["id"].as_str().unwrap(),
+                None,
                 gegeven.as_object().unwrap(),
                 dag,
             )
@@ -1000,11 +1019,33 @@ articles:
 
     #[test]
     fn a_regelwerk_outside_the_corpus_of_a_case_does_not_count() {
-        // The Awb is in the source, but not in the corpus of the case.
-        let fout = fout_van_voorbeeld(|t| {
-            t.replace("  - regulation/nl/wet/algemene_wet_bestuursrecht\n", "")
-        });
-        assert!(fout.contains("BEZWAAR"), "{fout}");
+        // The Awb is in the source, but not in the corpus of the case: the
+        // case loads, and its law establishes no objection, so it has none.
+        // No rule of the harness asks for one.
+        let mut bron = voorbeeld();
+        let casus = "casussen/voorbeeld_subsidie.yaml";
+        let tekst =
+            bron.bestanden[casus].replace("  - regulation/nl/wet/algemene_wet_bestuursrecht\n", "");
+        assert_ne!(tekst, bron.bestanden[casus]);
+        bron.bestanden.insert(casus.into(), tekst);
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fouten.is_empty(), "{:?}", standen[0]);
+        let c = alle
+            .iter()
+            .find(|c| c.casus.id == "voorbeeld_subsidie")
+            .expect("the case of the source");
+        assert!(
+            !c.afleiding
+                .regelwerken
+                .contains(&"algemene_wet_bestuursrecht".to_string())
+        );
+        let soorten: Vec<&str> = c
+            .afleiding
+            .indieningen
+            .iter()
+            .map(|i| i.soort.as_str())
+            .collect();
+        assert_eq!(soorten, ["AANVRAAG"]);
     }
 
     #[test]

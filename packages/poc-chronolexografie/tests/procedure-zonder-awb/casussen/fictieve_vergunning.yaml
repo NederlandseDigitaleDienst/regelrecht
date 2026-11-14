@@ -1,0 +1,66 @@
+---
+# FICTIEF. A case whose procedure is not the Awb's (tests/scenarios/). Its
+# scenarios name no step of a procedure: each step is a submission under an
+# article, a decision on a submission, or a decision ex officio, and refers to
+# the record of an earlier step by its kenmerk.
+cel: fictieve_dienst
+artikel: fictieve_vergunningwet#1
+corpus:
+  - regulation/nl/wet/fictieve_vergunningwet
+uitkomst: vergunning_verleend
+titel: Fictieve vergunning
+cel_naam: Fictieve dienst
+speeldatum: 2026-02-02
+voorbeeld: {}
+scenarios:
+  - naam: Verleend, verlengd en ambtshalve ingetrokken
+    eind: De vergunning is verlengd en daarna ingetrokken.
+    stappen:
+      - stap: indienen
+        artikel: fictieve_vergunningwet#1
+        kenmerk: aanvraag
+        invoer:
+          aanvrager: A. Voorbeeld
+          meerderjarig: true
+      - stap: beslissen
+        verwijst_naar: aanvraag
+        kenmerk: vergunning
+        datum: 2026-02-09
+        uitvoer:
+          vergunning_verleend: true
+      - stap: indienen
+        artikel: fictieve_vergunningwet#2
+        verwijst_naar: vergunning
+        kenmerk: verlenging
+        datum: 2026-02-16
+      - stap: beslissen
+        verwijst_naar: verlenging
+        datum: 2026-02-23
+        uitvoer:
+          verlenging_verleend: true
+      - stap: ambtshalve
+        artikel: fictieve_vergunningwet#3
+        verwijst_naar: vergunning
+        datum: 2026-03-02
+        uitvoer:
+          ingetrokken: true
+  - naam: Geweigerd, en geen verlenging ambtshalve
+    eind: >-
+      De vergunning is geweigerd. Artikel 2 neemt de dienst op aanvraag, dus
+      een ambtshalve besluit onder dat artikel weigert het harnas.
+    stappen:
+      - stap: indienen
+        artikel: fictieve_vergunningwet#1
+        kenmerk: aanvraag
+        invoer:
+          aanvrager: B. Voorbeeld
+          meerderjarig: false
+      - stap: beslissen
+        verwijst_naar: aanvraag
+        kenmerk: weigering
+        uitvoer:
+          vergunning_verleend: false
+      - stap: ambtshalve
+        artikel: fictieve_vergunningwet#2
+        verwijst_naar: weigering
+        uitkomst: geweigerd

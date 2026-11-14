@@ -12,7 +12,7 @@
 // gebruikte, met wat het bestuursorgaan toen vond. Volg je een scenario, dan
 // staan de bevindingen ingevuld zoals de stap ze geeft (scenarioInvoer.js).
 import { computed, reactive } from 'vue';
-import { api } from '../api.js';
+import { awb } from '../awb.js';
 import { stilBegrippen } from '../stil.js';
 import {
   aanvragen,
@@ -29,8 +29,10 @@ import {
 } from '../state.js';
 import { guideFor } from '../scenarioGuides.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
+import { eigenOordelen } from '../oordelen.js';
 import ArtikelLink from './ArtikelLink.vue';
 import Uitkomst from './Uitkomst.vue';
+import EigenOordelen from './EigenOordelen.vue';
 import OordeelKeuze from './OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
 import Voorvertoning from './Voorvertoning.vue';
@@ -65,7 +67,7 @@ const oordeelVoor = (id) => ({ ...uit(), ...zonderLeeg(besluitVorm.waarden(id)) 
 const zetOordeel = (id, naam, waarde) => besluitVorm.zet(id, naam, waarde);
 
 async function besluit(a) {
-  const antwoord = await stap(() => api.besluiten(a.id, oordeelVoor(a.id), state.datum));
+  const antwoord = await stap(() => awb.besluiten(a.id, oordeelVoor(a.id), state.datum));
   if (antwoord) besluitVorm.wis(a.id);
 }
 
@@ -83,15 +85,10 @@ const toetsen = reactive({});
 const opnieuwVorm = formulier((id) => scenarioWaarden('beslissing_op_bezwaar', { bezwaar: id }));
 const opnieuw = opnieuwVorm.eigen;
 const ontvankelijkheidsOordelen = () => state.vormen?.beslissing_op_bezwaar?.bevindingen ?? [];
-// Wat het bestuursorgaan over de ontvankelijkheid oordeelt. Een schakelaar
-// die uit staat, zegt nee, zoals bij een besluit (`uit`); ook bij een casus
-// uit een bron, zodat een te laat bezwaar niet stil verschoonbaar wordt.
-const ontvankelijkheid = (bz) => {
-  const gegeven = zonderLeeg(opnieuwVorm.waarden(bz.id));
-  return Object.fromEntries(
-    ontvankelijkheidsOordelen().map((o) => [o.naam, gegeven[o.naam] ?? false]),
-  );
-};
+// Wat het bestuursorgaan over de ontvankelijkheid oordeelt (oordelen.js);
+// ook bij een casus uit een bron zegt een schakelaar die uit staat nee.
+const ontvankelijkheid = (bz) =>
+  eigenOordelen(ontvankelijkheidsOordelen(), zonderLeeg(opnieuwVorm.waarden(bz.id)));
 // Wat het bestuursorgaan oordeelt over begrippen die de cel niet weet (stil.js).
 const { stil, meldStil } = stilBegrippen(oordeel, opnieuw);
 const beslissingen = reactive({});
@@ -101,7 +98,7 @@ const beslissingen = reactive({});
 // op dezelfde oordelen berusten als de toets.
 async function toets(bz) {
   const oordeel = ontvankelijkheid(bz);
-  const antwoord = await stap(() => api.heroverweging(bz.id, oordeel, state.datum));
+  const antwoord = await stap(() => awb.heroverweging(bz.id, oordeel, state.datum));
   if (antwoord) {
     toetsen[bz.id] = { ...antwoord, ontvankelijkheid: oordeel };
     opnieuwVorm.wis(bz.id);
@@ -116,7 +113,7 @@ const gegevenOpBezwaar = (bz) => ({
 });
 
 // Waarom een bezwaar niet-ontvankelijk is, in de volgorde waarin Awb 7:11
-// het toetst (kern::heroverweging, `reden`).
+// het toetst (awb.js, `reden`).
 const NIET_ONTVANKELIJK = {
   te_laat:
     'Het bezwaar kwam te laat (Awb 6:9), en het bestuursorgaan oordeelde dat de indiener in verzuim was (Awb 6:11). Er is geen heroverweging, dus het bestuursorgaan geeft geen bevindingen.',
@@ -132,7 +129,7 @@ const stilBijBezwaar = (bz) =>
 
 async function beslisOpBezwaar(bz) {
   const gegeven = gegevenOpBezwaar(bz);
-  const antwoord = await stap(() => api.beslissenOpBezwaar(bz.id, gegeven, state.datum));
+  const antwoord = await stap(() => awb.beslissenOpBezwaar(bz.id, gegeven, state.datum));
   if (antwoord) {
     beslissingen[bz.id] = antwoord;
     delete toetsen[bz.id];
@@ -226,12 +223,10 @@ const uitkomstOpBezwaar = (uit) =>
         ></nldd-title>
         <template v-if="!toetsen[bz.id]">
           <nldd-text size="sm" color="secondary">Stap 1: is het bezwaar ontvankelijk? Het bestuursorgaan oordeelt of de indiener belanghebbende is, en of hij bij een te laat bezwaarschrift in verzuim was. Daarmee beslist Awb 7:11 op de speeldatum.</nldd-text>
-          <VeldInvoer
-            v-for="o in ontvankelijkheidsOordelen()"
-            :key="o.naam"
-            :model-value="opnieuwVorm.waarden(bz.id)[o.naam]"
-            :veld="o"
-            @update:model-value="opnieuwVorm.zet(bz.id, o.naam, $event)"
+          <EigenOordelen
+            :velden="ontvankelijkheidsOordelen()"
+            :waarden="opnieuwVorm.waarden(bz.id)"
+            @zet="(naam, w) => opnieuwVorm.zet(bz.id, naam, w)"
           />
           <nldd-button appearance="primary" text="Ontvankelijkheid toetsen" @click="toets(bz)"></nldd-button>
         </template>
