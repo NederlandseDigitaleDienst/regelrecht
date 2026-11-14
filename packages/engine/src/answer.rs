@@ -26,7 +26,7 @@
 //! such as the finding of the deciding authority.
 //!
 //! The cell that runs the execution receives the answer, and needs a
-//! ground for it (RFC-057): the binding is in its own policy, or in that of
+//! ground for it (RFC-056): the binding is in its own policy, or in that of
 //! the authority it decides for ([`Call::decides_for`]), or a law gives the
 //! term to the holder of the policy (the term names the holder in its
 //! `competent_authority`, and the cell asked is the holder's). Without a
@@ -233,7 +233,7 @@ pub struct Call<'a> {
     /// The authority whose decision the running cell takes in its place, if
     /// any: a court that decides the case itself takes the decision of the
     /// administrative body (Awb 8:72 lid 3 onder b). The binding of that
-    /// body's policy then gives its answer with the body's ground (RFC-057).
+    /// body's policy then gives its answer with the body's ground (RFC-056).
     pub decides_for: Option<&'a Authority>,
     /// The chronicle of the cell that runs a reduction (RFC-048): it gives
     /// the rows every reduction in the execution reads. Only a cell that

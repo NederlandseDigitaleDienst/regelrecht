@@ -1182,7 +1182,7 @@ fn a_court_that_decides_itself_asks_the_school_with_the_schools_ground() {
     // With the school's cell along, the court that decides the case itself
     // takes the school's answer through the school's policy. The court decides
     // for the school (Awb 8:72 lid 3 onder b), so it has the school's ground
-    // to use that answer (RFC-057); the school's finding is then not asked.
+    // to use that answer (RFC-056); the school's finding is then not asked.
     let mut school = school();
     let mut court = court();
     let refused = refused(&mut school);

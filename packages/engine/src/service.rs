@@ -170,7 +170,7 @@ struct ResolutionContext<'a> {
     /// takes (`source.reduction`, RFC-048).
     answerer: Option<&'a dyn OpenTermAnswerer>,
     /// The authority the running cell decides for, where it takes the
-    /// decision of another ([`Call::decides_for`], RFC-057).
+    /// decision of another ([`Call::decides_for`], RFC-056).
     decides_for: Option<&'a Authority>,
     /// The other cells of the call (RFC-048), asked instead of
     /// [`Self::answerer`] where a binding names them.
@@ -582,7 +582,7 @@ impl Drop for TraceGuard {
 }
 
 /// Why the cell that runs an execution has no ground to use the answer
-/// that `askee` gives a binding of the policy `law` (RFC-057), or `None`
+/// that `askee` gives a binding of the policy `law` (RFC-056), or `None`
 /// when it has one.
 ///
 /// A binding gives a cell's answer to the cell that runs the execution: the
@@ -4692,7 +4692,7 @@ impl LawExecutionService {
             return Self::no_answer(article, law, input, message, Vec::new(), res_ctx);
         };
         // An answer from the receiver's own chronicle crosses no cell and
-        // needs no ground; one from another cell does (RFC-057).
+        // needs no ground; one from another cell does (RFC-056).
         let own_cell = res_ctx
             .answerer
             .is_some_and(|own| own.authority() == askee.authority());
@@ -4700,7 +4700,7 @@ impl LawExecutionService {
             return refuse(
                 res_ctx,
                 format!(
-                    "input '{}' of {} takes the answer '{answer}', but {message} (RFC-057)",
+                    "input '{}' of {} takes the answer '{answer}', but {message} (RFC-056)",
                     input.name, law.id
                 ),
             );

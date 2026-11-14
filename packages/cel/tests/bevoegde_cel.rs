@@ -106,7 +106,7 @@ articles:
 
 /// The policy of the RDW that binds the term of art. 2 to the answer of the
 /// competent cells (RFC-048). It is the RDW's ground to use what a college
-/// or the national issuer holds (RFC-057). Since the term names who is
+/// or the national issuer holds (RFC-056). Since the term names who is
 /// competent, the engine asks those and not the holder. A college that
 /// decides under it asks only its own cell, which needs no ground, so the
 /// fiction lets every college of these tests decide under it too.

@@ -2,7 +2,7 @@
 //! under a small fictional regulation: which parameters the article gets,
 //! the day a date parameter left out takes, and what the cell refuses. The
 //! regulations are the cell's own policy: a cell consults only a law or its
-//! own policy (RFC-057).
+//! own policy (RFC-056).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -265,7 +265,7 @@ fn a_law_and_the_cells_own_policy_may_be_consulted() {
 fn the_policy_of_another_authority_is_no_source_to_consult() {
     // A form prefills only from what the cell has a ground for: a law, or
     // its own policy. The policy of the register's keeper is neither
-    // (RFC-057), not even where it only gives a number.
+    // (RFC-056), not even where it only gives a number.
     let law = regulation(
         "beleid_register_fictief",
         "UITVOERINGSBELEID",
@@ -278,7 +278,7 @@ fn the_policy_of_another_authority_is_no_source_to_consult() {
             .contains("beleid_register_fictief is the policy of 'Registerhouder', not of Testcel"),
         "{message}"
     );
-    assert!(message.contains("RFC-057"), "{message}");
+    assert!(message.contains("RFC-056"), "{message}");
     // A policy rule is as much the policy of one body.
     let law = regulation(
         "beleidsregel_register_fictief",
@@ -286,7 +286,7 @@ fn the_policy_of_another_authority_is_no_source_to_consult() {
         Some("Registerhouder"),
     );
     let e = consulted(&law, "beleidsregel_register_fictief").unwrap_err();
-    assert!(e.to_string().contains("RFC-057"), "{e}");
+    assert!(e.to_string().contains("RFC-056"), "{e}");
     let law = regulation(
         "beleidsregel_eigen_fictief",
         "BELEIDSREGEL",
@@ -314,5 +314,5 @@ fn a_reduction_is_no_source_to_consult() {
     );
     let e = consulted(&law, "reductie_getal_fictief").unwrap_err();
     assert!(e.to_string().contains("is a reduction"), "{e}");
-    assert!(e.to_string().contains("RFC-057"), "{e}");
+    assert!(e.to_string().contains("RFC-056"), "{e}");
 }

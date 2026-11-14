@@ -1394,7 +1394,7 @@ impl Cell {
     ///
     /// Refused when `source` is no `<regulation>#<article>#<output>`, the
     /// regulation is a reduction or the policy of another authority than the
-    /// cell's (RFC-057), the regulation has no such article in force on `on`,
+    /// cell's (RFC-056), the regulation has no such article in force on `on`,
     /// the article has no such output, more than one of its required date
     /// parameters is left out, or the engine ran another article for the
     /// output. An error of the engine, such as a required parameter that is
@@ -1460,7 +1460,7 @@ impl Cell {
     }
 
     /// Refuse to consult `law_id` when the cell has no ground to use what it
-    /// gives (RFC-057): a reduction, which reads a chronicle, or the policy
+    /// gives (RFC-056): a reduction, which reads a chronicle, or the policy
     /// (`UITVOERINGSBELEID` or `BELEIDSREGEL`) of another authority. A law or
     /// regulation is a ground, and so is the cell's own policy, whose holder
     /// names the cell. What a binding in either takes from another cell, the
@@ -1478,7 +1478,7 @@ impl Cell {
         match law.regulatory_layer {
             RegulatoryLayer::Reductie => Err(refused(format!(
                 "{law_id} is a reduction: a cell takes what a reduction gives only through a \
-                 binding in a law or in its own policy (RFC-057)"
+                 binding in a law or in its own policy (RFC-056)"
             ))),
             // A policy rule (Awb 4:81) is as much the policy of one body.
             RegulatoryLayer::Uitvoeringsbeleid | RegulatoryLayer::Beleidsregel => {
@@ -1488,7 +1488,7 @@ impl Cell {
                 }
                 Err(refused(format!(
                     "{law_id} is the policy of {}, not of {}: the cell has no ground in a law \
-                     or in its own policy to use what it gives (RFC-057)",
+                     or in its own policy to use what it gives (RFC-056)",
                     authorities(holder),
                     self.authority.name
                 )))
@@ -2197,7 +2197,7 @@ impl<'r> Answerers<'r> {
     }
 }
 
-/// The authority a decision on `submission` is taken for (RFC-057): where
+/// The authority a decision on `submission` is taken for (RFC-056): where
 /// the submission contests a decision of another cell of `sphere`, as an
 /// appeal does (RFC-053), the authority of that cell. A court that decides
 /// the case itself takes that authority's decision in its place (Awb 8:72

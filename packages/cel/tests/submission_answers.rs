@@ -359,7 +359,7 @@ fn service_with_binding_of(holder: &str) -> LawExecutionService {
 }
 
 /// A binding in the policy of a third body is no ground for the deciding
-/// body to use the register (RFC-057): the application is refused when it
+/// body to use the register (RFC-056): the application is refused when it
 /// comes in, before the register's cell is asked.
 #[test]
 fn a_submission_refuses_an_answer_without_a_ground() {
@@ -383,13 +383,13 @@ fn a_submission_refuses_an_answer_without_a_ground() {
         message.contains("is the policy of 'Derde', not of Bestuur"),
         "{message}"
     );
-    assert!(message.contains("RFC-057"), "{message}");
+    assert!(message.contains("RFC-056"), "{message}");
     assert!(body.grams().is_empty());
 }
 
 /// The law gives the term to the register keeper (its `competent_authority`),
 /// so the keeper's own policy may fill it, and the deciding body uses the
-/// answer by law (RFC-057).
+/// answer by law (RFC-056).
 #[test]
 fn a_submission_uses_an_answer_the_law_gives_to_the_holder_of_the_binding() {
     let mut service = service_with_binding_of("Registerhouder");
