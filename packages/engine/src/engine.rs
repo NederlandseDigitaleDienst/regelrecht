@@ -839,6 +839,7 @@ pub(crate) fn action_to_operation(
         // Operations not supported at action level
         Operation::If
         | Operation::List
+        | Operation::Record
         | Operation::ForEach
         | Operation::Age
         | Operation::DateAdd

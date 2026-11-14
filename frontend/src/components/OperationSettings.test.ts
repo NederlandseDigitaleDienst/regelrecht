@@ -18,6 +18,7 @@ interface OperationSettingsVm {
   applyValueMutation(row: TestRow, newVal: unknown): void;
   canRemoveValue(row: TestRow): boolean;
   canChangeValueKind(row: TestRow): boolean;
+  typeOptions: { value: string; label: string }[];
 }
 
 // `nldd-*` tags are configured as custom elements in vite.config.js, so
@@ -441,5 +442,15 @@ describe('OperationSettings - FOREACH op', () => {
       expect(wrapper.vm.canChangeValueKind({ _kind: 'as' })).toBe(false);
       expect(wrapper.vm.canChangeValueKind({ _kind: 'combine' })).toBe(false);
     });
+  });
+});
+
+describe('OperationSettings - RECORD', () => {
+  // The panel cannot edit `fields` yet, so it never turns another operation
+  // into a RECORD; a RECORD that is there still shows its own type.
+  it('offers RECORD only on a RECORD', () => {
+    const values = (node: TestNode) => mountOp(node).vm.typeOptions.map((o) => o.value);
+    expect(values({ operation: 'ADD', values: [1, 2] })).not.toContain('RECORD');
+    expect(values({ operation: 'RECORD', fields: { naam: '$n' } })).toContain('RECORD');
   });
 });

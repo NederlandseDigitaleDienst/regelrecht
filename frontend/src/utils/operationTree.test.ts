@@ -39,9 +39,26 @@ describe('operationTree', () => {
 
       expect(tree).toHaveLength(3);
     });
+
+    it('walks into the columns of a RECORD', () => {
+      const tree = buildOperationTree({
+        output: 'rij',
+        value: {
+          operation: 'RECORD',
+          fields: { naam: '$naam', som: { operation: 'ADD', values: ['$a', 1] } },
+        },
+      });
+
+      expect(tree.map(n => n.operation)).toEqual(['RECORD', 'ADD']);
+    });
   });
 
   describe('describeSubtitle', () => {
+    it('names the columns of a RECORD', () => {
+      expect(describeSubtitle({ operation: 'RECORD', fields: { naam: '$n', aantal: 1 } }))
+        .toBe('rij met naam, aantal');
+    });
+
     it('names the component DATE_PART reads', () => {
       expect(describeSubtitle({ operation: 'DATE_PART', date: '$peildatum', in: 'year' }))
         .toBe('jaar uit $peildatum');

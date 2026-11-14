@@ -27,6 +27,7 @@ const SAMPLES: Record<string, Operation> = {
   IF: { operation: 'IF', cases: [{ when: '$a', then: 1 }], default: 0 },
   IN: { operation: 'IN', subject: '$a', values: [1, 2] },
   LIST: { operation: 'LIST', items: ['$a', '$b'] },
+  RECORD: { operation: 'RECORD', fields: { naam: '$a', som: { operation: 'ADD', values: ['$b', 1] } } },
   FOREACH: { operation: 'FOREACH', collection: '$m', as: 'x', body: '$x.b', combine: 'ADD' },
   AGE: { operation: 'AGE', date_of_birth: '$g', reference_date: '$p' },
   DATE_ADD: { operation: 'DATE_ADD', date: '$d', months: 1, days: 3 },
@@ -58,6 +59,7 @@ const EXPECTED: Record<string, string> = {
   IF: '1 als [a], anders 0',
   IN: '[a] is een van ( 1; 2 )',
   LIST: 'de lijst ( [a]; [b] )',
+  RECORD: 'de rij ( naam: [a]; som: [b] plus 1 )',
   FOREACH: 'de som van [b] van [x] over elke [x] in [m]',
   AGE: 'het aantal volle jaren tussen [g] en [p]',
   DATE_ADD: '1 maand en 3 dagen na [d]',
@@ -85,6 +87,14 @@ describe('RegelRijm covers the schema', () => {
     const problems = r.segments.filter((s) => typeof s !== 'string' && (s.tk === 'error' || s.tk === 'hole'));
     expect(problems).toEqual([]);
     expect(r.text).toBe(`[u] wordt: ${EXPECTED[op]}`);
+  });
+
+  it('reads a RECORD as the body of a FOREACH, with the operations in its columns', () => {
+    const value = { operation: 'FOREACH', collection: '$m', as: 'x', body: { operation: 'RECORD', fields: { naam: '$x.n', som: { operation: 'ADD', values: ['$x.a', 1] } } } };
+    const r = renderAction({ output: 'u', value }, { ctx });
+    const problems = r.segments.filter((s) => typeof s !== 'string' && (s.tk === 'error' || s.tk === 'hole'));
+    expect(problems).toEqual([]);
+    expect(r.text).toBe('[u] wordt: de lijst van de rij ( naam: [n] van [x]; som: [a] van [x] plus 1 ) over elke [x] in [m]');
   });
 
   it('shows an unknown operation as an error, not as something else', () => {

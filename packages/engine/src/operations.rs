@@ -42,6 +42,7 @@ use regelrecht_law_model::stored;
 use rust_decimal::prelude::ToPrimitive;
 use rust_decimal::{Decimal, MathematicalOps, RoundingStrategy};
 use std::cmp::Ordering;
+use std::collections::BTreeMap;
 
 /// Maximum nesting depth for operations to prevent stack overflow
 const MAX_OPERATION_DEPTH: usize = 100;
@@ -240,6 +241,30 @@ pub fn evaluate_value<R: ValueResolver>(
     }
 }
 
+/// Execute RECORD (schema v0.8.22): evaluate the expression of every column
+/// into one row.
+///
+/// An unknown value stays in its column, where every operation that reads
+/// the row meets it (RFC-036: an unknown inside a record counts as much as a
+/// bare one), as an unknown item does in a LIST. An untranslatable value
+/// makes the whole row untranslatable (RFC-012): a row with a gap in one
+/// column would otherwise look complete.
+fn execute_record<R: ValueResolver>(
+    fields: &BTreeMap<String, ActionValue>,
+    resolver: &R,
+    depth: usize,
+) -> Result<Value> {
+    let mut row = BTreeMap::new();
+    for (name, expression) in fields {
+        let value = evaluate_value(expression, resolver, depth)?;
+        if value.is_untranslatable() {
+            return Ok(value);
+        }
+        row.insert(name.clone(), value);
+    }
+    Ok(Value::Object(row))
+}
+
 /// Execute an operation and return the result.
 ///
 /// Dispatches to the appropriate operation handler based on the operation type.
@@ -433,6 +458,7 @@ fn execute_operation_internal<R: ValueResolver>(
             true,
         ),
         ActionOperation::List { items } => execute_list(items, resolver, depth),
+        ActionOperation::Record { fields } => execute_record(fields, resolver, depth),
 
         // FOREACH needs a child scope to bind its element in, which the
         // `ValueResolver` contract does not provide. Resolvers that can create
@@ -5037,6 +5063,148 @@ mod tests {
             assert!(
                 matches!(&err, EngineError::InvalidOperation(m) if m.contains("child scopes")),
                 "got {err:?}"
+            );
+        }
+    }
+
+    /// RECORD, a row with its own columns (schema v0.8.22).
+    mod record {
+        use super::*;
+        use crate::context::RuleContext;
+
+        fn expr(yaml: &str) -> ActionValue {
+            serde_yaml_ng::from_str(yaml).expect("valid action value")
+        }
+
+        fn obj(pairs: Vec<(&str, Value)>) -> Value {
+            Value::Object(pairs.into_iter().map(|(k, v)| (k.to_string(), v)).collect())
+        }
+
+        #[test]
+        fn a_record_resolves_its_references_and_executes_its_operations() {
+            let resolver = TestResolver::new()
+                .with_var("naam", "noord")
+                .with_var("aantal", 4);
+            let row = expr(
+                "{operation: RECORD, fields: {naam: $naam, dubbel: {operation: MULTIPLY, values: [$aantal, 2]}, vast: tekst, leeg: null}}",
+            );
+            assert_eq!(
+                evaluate_value(&row, &resolver, 0).unwrap(),
+                obj(vec![
+                    ("naam", Value::String("noord".into())),
+                    ("dubbel", Value::Int(8)),
+                    ("vast", Value::String("tekst".into())),
+                    ("leeg", Value::Null),
+                ])
+            );
+        }
+
+        #[test]
+        fn a_record_inside_a_record_is_built_too() {
+            let resolver = TestResolver::new().with_var("x", 1);
+            let row = expr(
+                "{operation: RECORD, fields: {buiten: {operation: RECORD, fields: {binnen: $x}}}}",
+            );
+            assert_eq!(
+                evaluate_value(&row, &resolver, 0).unwrap(),
+                obj(vec![("buiten", obj(vec![("binnen", Value::Int(1))]))])
+            );
+        }
+
+        #[test]
+        fn records_nested_deeper_than_the_limit_are_refused() {
+            // A RECORD counts as a level like any operation, so a chain of
+            // them cannot go past the depth limit.
+            let mut value = lit(1);
+            for _ in 0..=crate::config::MAX_OPERATION_DEPTH {
+                let fields: BTreeMap<String, ActionValue> =
+                    [("binnen".to_string(), value)].into_iter().collect();
+                value = ActionValue::Operation(Box::new(ActionOperation::Record { fields }));
+            }
+            let err = evaluate_value(&value, &TestResolver::new(), 0).unwrap_err();
+            assert!(matches!(err, EngineError::MaxDepthExceeded(_)), "{err:?}");
+        }
+
+        #[test]
+        fn an_unknown_value_stays_in_its_column() {
+            // RFC-036: an unknown inside a record counts as much as a bare
+            // one, and the other columns stay readable, as in a LIST.
+            let resolver = TestResolver::new()
+                .with_var("naam", "noord")
+                .with_var("aantal", unknown_fact("aantal"));
+            let value = evaluate_value(
+                &expr("{operation: RECORD, fields: {naam: $naam, aantal: $aantal}}"),
+                &resolver,
+                0,
+            )
+            .unwrap();
+            let Value::Object(fields) = &value else {
+                panic!("expected a row, got {value:?}");
+            };
+            assert_eq!(fields["naam"], Value::String("noord".into()));
+            assert_eq!(missing_names(&fields["aantal"]), vec!["aantal"]);
+            assert!(value.contains_unknown());
+        }
+
+        #[test]
+        fn an_untranslatable_value_makes_the_whole_row_untranslatable() {
+            let gap = Value::Untranslatable {
+                article: "3".into(),
+                construct: "redelijkheid".into(),
+            };
+            let resolver = TestResolver::new()
+                .with_var("naam", "noord")
+                .with_var("aantal", gap);
+            let value = evaluate_value(
+                &expr("{operation: RECORD, fields: {naam: $naam, aantal: $aantal}}"),
+                &resolver,
+                0,
+            )
+            .unwrap();
+            assert!(value.is_untranslatable(), "{value:?}");
+        }
+
+        #[test]
+        fn a_record_as_the_body_of_a_foreach_without_combine_gives_an_array_of_rows() {
+            let context = RuleContext::new(
+                [(
+                    "uitslagen".to_string(),
+                    Value::Array(vec![
+                        obj(vec![
+                            ("gebied", "noord".into()),
+                            ("stemmen", Value::Int(30)),
+                        ]),
+                        obj(vec![("gebied", "zuid".into()), ("stemmen", Value::Int(12))]),
+                    ]),
+                )]
+                .into_iter()
+                .collect(),
+                "2025-06-15",
+            )
+            .expect("valid date");
+            let foreach = expr(
+                r#"
+operation: FOREACH
+collection: $uitslagen
+as: u
+body:
+  operation: RECORD
+  fields:
+    gebied: $u.gebied
+    stemmen:
+      operation: ADD
+      values: [$u.stemmen, 1]
+"#,
+            );
+            assert_eq!(
+                evaluate_value(&foreach, &context, 0).unwrap(),
+                Value::Array(vec![
+                    obj(vec![
+                        ("gebied", "noord".into()),
+                        ("stemmen", Value::Int(31))
+                    ]),
+                    obj(vec![("gebied", "zuid".into()), ("stemmen", Value::Int(13))]),
+                ])
             );
         }
     }

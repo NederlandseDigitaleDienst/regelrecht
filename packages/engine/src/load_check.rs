@@ -55,11 +55,13 @@
 //! fact (`competent_authority`, schema v0.8.8, RFC-051); on an article the
 //! field keeps its meaning of RFC-002, who decides, and names one authority.
 
+use std::collections::BTreeMap;
+
 use crate::answer::ChronicleRead;
 use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
-    ActionOperation, ActionValue, Column, CombineOp, CompetentAuthority, MachineReadable,
+    Action, ActionOperation, ActionValue, Column, CombineOp, CompetentAuthority, MachineReadable,
     ParameterType, RegulatoryLayer, StateProperty, names_fact,
 };
 
@@ -138,20 +140,7 @@ pub(crate) fn reject_combine_before_its_version(law: &ArticleBasedLaw) -> Result
         return Ok(());
     }
     for (where_, section) in sections(law) {
-        let execution = section
-            .execution
-            .iter()
-            .flat_map(|e| e.actions.iter().flatten());
-        let defaults = section
-            .open_terms
-            .iter()
-            .flatten()
-            .flat_map(|term| term.default.iter().flat_map(|d| d.actions.iter().flatten()));
-        let steps = section
-            .projection
-            .iter()
-            .flat_map(|p| p.steps.iter().flat_map(|step| step.actions.iter()));
-        for action in execution.chain(defaults).chain(steps) {
+        for action in all_actions(section) {
             if action.operands().any(contains_distinct) {
                 return Err(EngineError::LoadError(format!(
                     "law '{}' {where_}: action for output '{}' has a FOREACH with combine \
@@ -163,6 +152,97 @@ pub(crate) fn reject_combine_before_its_version(law: &ArticleBasedLaw) -> Result
         }
     }
     Ok(())
+}
+
+/// Every action of a section: those of its execution, the default actions
+/// of its open terms and the actions of the steps of its projection.
+fn all_actions(section: &MachineReadable) -> impl Iterator<Item = &Action> {
+    let execution = section
+        .execution
+        .iter()
+        .flat_map(|e| e.actions.iter().flatten());
+    let defaults = section
+        .open_terms
+        .iter()
+        .flatten()
+        .flat_map(|term| term.default.iter().flat_map(|d| d.actions.iter().flatten()));
+    let steps = section
+        .projection
+        .iter()
+        .flat_map(|p| p.steps.iter().flat_map(|step| step.actions.iter()));
+    execution.chain(defaults).chain(steps)
+}
+
+/// Refuse a `RECORD` in a file on schema v0.8.21 or earlier, which does not
+/// know the operation, and a `RECORD` that names no column or a column whose
+/// name is not a lowercase identifier (the pattern of `arrayColumn`) or
+/// starts with two underscores. The schema refuses the same; the loader
+/// repeats it because a document can reach the engine without passing schema
+/// validation. The walk reaches the actions [`all_actions`] lists and
+/// descends into every operand, a `RECORD` inside a `RECORD` included.
+pub(crate) fn reject_malformed_records(law: &ArticleBasedLaw) -> Result<()> {
+    let records_allowed = from_version(law, (0, 8, 22));
+    for (where_, section) in sections(law) {
+        for action in all_actions(section) {
+            let mut records = Vec::new();
+            action
+                .operands()
+                .for_each(|v| collect_records(v, &mut records));
+            let refuse = |why: String| {
+                Err(EngineError::LoadError(format!(
+                    "law '{}' {where_}: action for output '{}' {why}",
+                    law.id,
+                    action.output.as_deref().unwrap_or("(unnamed)")
+                )))
+            };
+            for fields in records {
+                if !records_allowed {
+                    return refuse(
+                        "has a RECORD, which schema v0.8.22 introduced; declare v0.8.22 or later"
+                            .to_string(),
+                    );
+                }
+                if fields.is_empty() {
+                    return refuse("has a RECORD without columns".to_string());
+                }
+                if let Some(name) = fields.keys().find(|n| !is_column_name(n)) {
+                    return refuse(format!(
+                        "has a RECORD with the column '{name}'; a column name is a lowercase \
+                         identifier that does not start with two underscores"
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// The fields of every `RECORD` in `value`, nested ones included.
+fn collect_records<'v>(value: &'v ActionValue, into: &mut Vec<&'v BTreeMap<String, ActionValue>>) {
+    let ActionValue::Operation(op) = value else {
+        return;
+    };
+    if let ActionOperation::Record { fields } = op.as_ref() {
+        into.push(fields);
+    }
+    op.operands()
+        .into_iter()
+        .for_each(|v| collect_records(v, into));
+}
+
+/// Whether `name` fits the pattern of a column name of a `RECORD`,
+/// `^(?!__)[a-z_][a-z0-9_]*$`: a lowercase identifier that does not start
+/// with two underscores, which the engine keeps for its own markers
+/// (`__unknown`, `__untranslatable`).
+fn is_column_name(name: &str) -> bool {
+    if name.starts_with("__") {
+        return false;
+    }
+    let mut chars = name.chars();
+    chars
+        .next()
+        .is_some_and(|c| c.is_ascii_lowercase() || c == '_')
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
 /// Whether a FOREACH with `combine: DISTINCT` sits anywhere in `value`.
@@ -1221,7 +1301,8 @@ fn check_columns(columns: &[Column]) -> std::result::Result<(), String> {
 /// array, or whose columns [`check_columns`] refuses. This holds for a file
 /// under any version: a projection compares the columns of the fact it reads
 /// whatever version that fact's law declares, and no file before v0.8.20
-/// has `columns` on a parameter.
+/// has `columns` on a parameter. The same holds for an output (schema
+/// v0.8.22), which a file on an earlier version may not give columns.
 pub(crate) fn reject_malformed_columns(law: &ArticleBasedLaw) -> Result<()> {
     for (where_, section) in sections(law) {
         let parameters = section
@@ -1245,6 +1326,36 @@ pub(crate) fn reject_malformed_columns(law: &ArticleBasedLaw) -> Result<()> {
                 return Err(EngineError::LoadError(format!(
                     "law '{}' {where_}: parameter '{}' {why}",
                     law.id, parameter.name
+                )));
+            }
+        }
+        let outputs = section
+            .execution
+            .as_ref()
+            .and_then(|e| e.output.as_deref())
+            .unwrap_or_default();
+        for output in outputs {
+            let Some(columns) = output.columns.as_deref() else {
+                continue;
+            };
+            let why = if !from_version(law, (0, 8, 22)) {
+                Some(
+                    "declares columns, which an output has since schema v0.8.22; declare \
+                     v0.8.22 or later"
+                        .to_string(),
+                )
+            } else if output.output_type == ParameterType::Array {
+                check_columns(columns).err()
+            } else {
+                Some(format!(
+                    "declares columns, but is a {:?}; only an array has columns",
+                    output.output_type
+                ))
+            };
+            if let Some(why) = why {
+                return Err(EngineError::LoadError(format!(
+                    "law '{}' {where_}: output '{}' {why}",
+                    law.id, output.name
                 )));
             }
         }
@@ -1658,6 +1769,109 @@ articles:
         );
         let new: ArticleBasedLaw = serde_yaml_ng::from_str(&law("v0.8.21")).unwrap();
         reject_combine_before_its_version(&new).unwrap();
+    }
+
+    /// A law under `version` whose open term defaults to a RECORD with
+    /// `fields` (a YAML flow map), nested in an IF.
+    fn record_in_open_term_default(version: &str, fields: &str) -> String {
+        format!(
+            r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json
+$id: record_gate
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      open_terms:
+        - id: regel
+          type: object
+          required: false
+          default:
+            actions:
+              - output: regel
+                value:
+                  operation: IF
+                  cases:
+                    - when: true
+                      then: {{operation: RECORD, fields: {fields}}}
+                  default: null
+"#
+        )
+    }
+
+    #[test]
+    fn a_record_is_refused_before_v0_8_22() {
+        let old = record_in_open_term_default("v0.8.21", "{naam: $naam}");
+        let law: ArticleBasedLaw = serde_yaml_ng::from_str(&old).unwrap();
+        let err = reject_malformed_records(&law).unwrap_err();
+        assert!(
+            err.to_string().contains("RECORD") && err.to_string().contains("v0.8.22"),
+            "{err}"
+        );
+        let new = record_in_open_term_default(
+            "v0.8.22",
+            "{naam: $naam, rij: {operation: RECORD, fields: {binnen: 1}}}",
+        );
+        let law: ArticleBasedLaw = serde_yaml_ng::from_str(&new).unwrap();
+        reject_malformed_records(&law).unwrap();
+    }
+
+    #[test]
+    fn a_record_names_its_columns_as_lowercase_identifiers() {
+        for (fields, needle) in [
+            ("{Naam: 1}", "'Naam'"),
+            ("{rij: {operation: RECORD, fields: {'2e': 1}}}", "'2e'"),
+            ("{}", "without columns"),
+            ("{__eigen: 1}", "'__eigen'"),
+            ("{naAm: 1}", "'naAm'"),
+        ] {
+            let law: ArticleBasedLaw =
+                serde_yaml_ng::from_str(&record_in_open_term_default("v0.8.22", fields)).unwrap();
+            let err = reject_malformed_records(&law).unwrap_err();
+            assert!(err.to_string().contains(needle), "{fields}: {err}");
+        }
+    }
+
+    /// A law under `version` with an output of type `ty` that declares one
+    /// column.
+    fn output_with_columns(version: &str, ty: &str) -> ArticleBasedLaw {
+        serde_yaml_ng::from_str(&format!(
+            r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json
+$id: output_columns
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        output:
+          - name: tabel
+            type: {ty}
+            columns:
+              - name: gebied
+                type: string
+        actions:
+          - output: tabel
+            value: null
+"#
+        ))
+        .unwrap()
+    }
+
+    #[test]
+    fn an_output_has_columns_from_v0_8_22_and_only_as_an_array() {
+        reject_malformed_columns(&output_with_columns("v0.8.22", "array")).unwrap();
+        let err = reject_malformed_columns(&output_with_columns("v0.8.21", "array")).unwrap_err();
+        assert!(err.to_string().contains("since schema v0.8.22"), "{err}");
+        let err = reject_malformed_columns(&output_with_columns("v0.8.22", "string")).unwrap_err();
+        assert!(
+            err.to_string().contains("only an array has columns"),
+            "{err}"
+        );
     }
 
     /// The review's `literal-unknown.json` law: an Unknown sentinel written

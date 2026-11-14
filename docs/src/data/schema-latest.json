@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.21",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.22",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -1509,6 +1509,32 @@
       "allOf": [
         {
           "$ref": "#/definitions/baseField"
+        },
+        {
+          "properties": {
+            "columns": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/definitions/arrayColumn"
+              },
+              "description": "Since v0.8.22, only on an output of type `array`: the columns of each row, so the output holds a table. A RECORD the article builds for the output (the body of a FOREACH without `combine` or with `DISTINCT`, an item of a LIST, or a branch of an IF that gives one of those) must name exactly these columns, and a value whose type the type check knows must have the type of its column; the loader checks it. A value the article does not build with RECORD, such as a reference to an array, is not checked against the columns."
+            }
+          }
+        },
+        {
+          "if": {
+            "required": [
+              "columns"
+            ]
+          },
+          "then": {
+            "properties": {
+              "type": {
+                "const": "array"
+              }
+            }
+          }
         }
       ]
     },
@@ -1886,6 +1912,52 @@
         }
       ]
     },
+    "recordOperation": {
+      "type": "object",
+      "description": "Since v0.8.22: build one row with its own columns. Each key of `fields` names a column and each value is an operand: a `$`-reference is resolved and an operation is executed. As the body of a FOREACH without `combine` it gives an array of rows, one per element, which an output of type `array` with `columns` holds as a table. An unknown value stays in its column (RFC-036), as in a LIST; an untranslatable value makes the whole row untranslatable (RFC-012). A file on v0.8.21 or earlier knows no RECORD.",
+      "required": [
+        "operation",
+        "fields"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "RECORD",
+          "description": "Operation discriminator. Pins this object to the RECORD form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "fields": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {
+            "pattern": "^(?!__)[a-z_][a-z0-9_]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/definitions/operationValue"
+          },
+          "description": "The columns of the row, each with the operand that gives its value. A column name follows the pattern of `arrayColumn` and does not start with two underscores, which the engine keeps for its own markers."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "RECORD",
+          "fields": {
+            "naam": "$item.naam",
+            "aantal": {
+              "operation": "ADD",
+              "values": [
+                "$item.aantal",
+                1
+              ]
+            }
+          }
+        }
+      ]
+    },
     "foreachOperation": {
       "type": "object",
       "description": "Iterate over a collection, evaluating an expression per element (RFC-016).",
@@ -2176,6 +2248,7 @@
         "IF",
         "IN",
         "LIST",
+        "RECORD",
         "FOREACH",
         "AGE",
         "DATE_ADD",
@@ -2215,6 +2288,9 @@
         },
         {
           "$ref": "#/definitions/listOperation"
+        },
+        {
+          "$ref": "#/definitions/recordOperation"
         },
         {
           "$ref": "#/definitions/foreachOperation"
