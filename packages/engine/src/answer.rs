@@ -138,6 +138,19 @@ impl Authority {
     }
 }
 
+/// The authorities `named`, for a message: "'a' or 'b'", or "no one" when
+/// it names none.
+pub fn authorities(named: &[NamedAuthority]) -> String {
+    if named.is_empty() {
+        return "no one".to_string();
+    }
+    named
+        .iter()
+        .map(|authority| format!("'{}'", authority.name))
+        .collect::<Vec<_>>()
+        .join(" or ")
+}
+
 /// What gives named answers for the caller of an execution: a cell.
 pub trait OpenTermAnswerer {
     /// Who this answerer is, for the engine to tell whether a binding asks

@@ -17,7 +17,7 @@ use std::path::Path;
 use chrono::NaiveDate;
 use regelrecht_engine::{
     ArticleResult, Authority, Call, FilledBy, LawExecutionService, OpenTermAnswerer,
-    OutputProvenance, ParameterType, RegulationRead, RegulatoryLayer, Value,
+    OutputProvenance, ParameterType, RegulationRead, RegulatoryLayer, Value, authorities,
 };
 use serde_json::Map;
 
@@ -1172,8 +1172,14 @@ impl Cell {
         let grams = self.grams_but(except.as_deref());
         let reader = self.reader(grams, None);
         let others = known_on(sphere, on);
-        let answerers = Answerers::new(&reader, &others)
-            .deciding_for(applied.as_ref().and_then(|a| decides_for(a, sphere)));
+        // Only a decision that may take one in the place of the contested
+        // one is taken for another authority.
+        let answerers = Answerers::new(&reader, &others).deciding_for(
+            applied
+                .as_ref()
+                .filter(|_| !replaces.is_empty())
+                .and_then(|a| decides_for(a, sphere)),
+        );
         if let Some(name) = supplied
             .keys()
             .find(|name| is_finding(&shape, name, &self.authority))
@@ -1388,11 +1394,11 @@ impl Cell {
     ///
     /// Refused when `source` is no `<regulation>#<article>#<output>`, the
     /// regulation is a reduction or the policy of another authority than the
-    /// cell's (RFC-057), the regulation has no such article in force on `on`, the article has no
-    /// such output, more than one of its required date parameters is left
-    /// out, or the engine ran another article for the output. An
-    /// error of the engine, such as a required parameter that is missing,
-    /// ends it as well.
+    /// cell's (RFC-057), the regulation has no such article in force on `on`,
+    /// the article has no such output, more than one of its required date
+    /// parameters is left out, or the engine ran another article for the
+    /// output. An error of the engine, such as a required parameter that is
+    /// missing, ends it as well.
     pub fn consult(
         &self,
         service: &LawExecutionService,
@@ -1482,15 +1488,10 @@ impl Cell {
                 if self.authority.is_named_by(holder) {
                     return Ok(());
                 }
-                let names: Vec<String> = holder.iter().map(|n| format!("'{}'", n.name)).collect();
-                let of = if names.is_empty() {
-                    "no one".to_string()
-                } else {
-                    names.join(" or ")
-                };
                 Err(refused(format!(
-                    "{law_id} is the policy of {of}, not of {}: the cell has no ground in a law \
+                    "{law_id} is the policy of {}, not of {}: the cell has no ground in a law \
                      or in its own policy to use what it gives (RFC-057)",
+                    authorities(holder),
                     self.authority.name
                 )))
             }
@@ -1684,7 +1685,11 @@ impl Cell {
         let outputs: Vec<&str> = shape.outputs.iter().map(String::as_str).collect();
         let date = on.to_string();
         let call = Answerers::new(&reader, &others)
-            .deciding_for(decides_for(&submission, sphere))
+            .deciding_for(
+                Some(&submission)
+                    .filter(|_| !replaces.is_empty())
+                    .and_then(|s| decides_for(s, sphere)),
+            )
             .call(findings);
         let result =
             service.evaluate_law_with_trace_in(law_id, &outputs, parameters, call, &date)?;
@@ -2199,8 +2204,9 @@ impl<'r> Answerers<'r> {
 /// appeal does (RFC-053), the authority of that cell. A court that decides
 /// the case itself takes that authority's decision in its place (Awb 8:72
 /// lid 3 onder b), with that authority's policy, and so with its ground to
-/// use what other cells answer. `None` for any other submission, and where
-/// the cell that took the contested decision is not in `sphere`.
+/// use what other cells answer. The caller asks it only for a decision that
+/// may take one in the place of another. `None` for any other submission,
+/// and where the cell that took the contested decision is not in `sphere`.
 fn decides_for<'c>(submission: &Gram, sphere: &[&'c Cell]) -> Option<&'c Authority> {
     let from = &submission.received.as_ref()?.from;
     sphere

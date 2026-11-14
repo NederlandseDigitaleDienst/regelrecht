@@ -350,3 +350,52 @@ fn a_submission_with_no_cell_along_falls_back_on_the_term_left_unanswered() {
     assert_eq!(outputs["volgens_register"], json!(0));
     assert_eq!(outputs["wijkt_af"], json!(true));
 }
+
+/// A service whose binding is held by `holder` instead of the deciding body.
+fn service_with_binding_of(holder: &str) -> LawExecutionService {
+    let binding = BINDING.replacen("  name: Bestuur\n", &format!("  name: {holder}\n"), 1);
+    assert_ne!(binding, BINDING);
+    common::service_of(&[GENERAL_LAW, LAW, &binding, REGISTER_LAW, REDUCTION])
+}
+
+/// A binding in the policy of a third body is no ground for the deciding
+/// body to use the register (RFC-057): the application is refused when it
+/// comes in, before the register's cell is asked.
+#[test]
+fn a_submission_refuses_an_answer_without_a_ground() {
+    let mut service = service_with_binding_of("Derde");
+    let mut register = register();
+    let mut body = body();
+    register_count(&mut service, &mut register, 7, "2026-03-01");
+    let e = body
+        .record_submission(
+            &mut service,
+            &[&register],
+            "wet_opgave_fictief",
+            "2",
+            None,
+            &object_map(json!({"nummer": NUMMER, "opgegeven": 7})),
+            day("2026-03-10"),
+        )
+        .unwrap_err();
+    let message = e.to_string();
+    assert!(
+        message.contains("is the policy of 'Derde', not of Bestuur"),
+        "{message}"
+    );
+    assert!(message.contains("RFC-057"), "{message}");
+    assert!(body.grams().is_empty());
+}
+
+/// The law gives the term to the register keeper (its `competent_authority`),
+/// so the keeper's own policy may fill it, and the deciding body uses the
+/// answer by law (RFC-057).
+#[test]
+fn a_submission_uses_an_answer_the_law_gives_to_the_holder_of_the_binding() {
+    let mut service = service_with_binding_of("Registerhouder");
+    let mut register = register();
+    let mut body = body();
+    register_count(&mut service, &mut register, 7, "2026-03-01");
+    let (_, outputs) = apply(&mut service, &mut body, &register, 7, "2026-03-10");
+    assert_eq!(outputs["volgens_register"], json!(7));
+}

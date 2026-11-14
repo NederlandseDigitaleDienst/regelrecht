@@ -27,6 +27,7 @@
 
 use crate::answer::{
     AnswerProvenance, AnswerRequest, Authority, Call, Chronicle, ChronicleRead, OpenTermAnswerer,
+    authorities,
 };
 use crate::article::{
     Article, ArticleBasedLaw, CompetentAuthority, Execution, HookPoint, Input, MachineReadable,
@@ -580,9 +581,9 @@ impl Drop for TraceGuard {
     }
 }
 
-/// The authorities `named`, for a message: "'a' or 'b'".
-/// Why the cell that runs an execution has no ground to use the answer a
-/// binding of the policy `law` takes (RFC-057), or `None` when it has one.
+/// Why the cell that runs an execution has no ground to use the answer
+/// that `askee` gives a binding of the policy `law` (RFC-057), or `None`
+/// when it has one.
 ///
 /// A binding gives a cell's answer to the cell that runs the execution: the
 /// receiver. The caller asks this only for an answer of another cell than
@@ -591,17 +592,16 @@ impl Drop for TraceGuard {
 /// - The policy is its own: the policy's holder names the receiver, or the
 ///   authority the receiver decides for ([`Call::decides_for`]), such as a
 ///   court that takes the decision of an administrative body in its place.
-/// - A law gives the term to the policy's holder: a term the binding fills
-///   names the holder in its `competent_authority` (`competent`). The
-///   holder then fills the term by law, and the receiver applies the law.
-///   A holder names one authority by name. Where the term names a category,
-///   the holder belongs to it when the cell of the call with the holder's
-///   name does.
+/// - A law gives the term to the policy's holder: the term that routes the
+///   question names its competent authorities (`competent`), and the cell
+///   asked among them is the holder's. The holder then fills the term by
+///   law, from its own cell, and the receiver applies the law.
 ///
 /// Without a receiver no cell runs the execution, and none has a ground.
 fn ungrounded(
     law: &ArticleBasedLaw,
     competent: Option<&[crate::article::NamedAuthority]>,
+    askee: &dyn OpenTermAnswerer,
     res_ctx: &ResolutionContext<'_>,
 ) -> Option<String> {
     let holder = law
@@ -615,7 +615,10 @@ fn ungrounded(
     let own = std::iter::once(receiver)
         .chain(res_ctx.decides_for)
         .any(|authority| authority.is_named_by(holder));
-    if own || competent.is_some_and(|term| names_holder(term, holder, receiver, res_ctx)) {
+    // The askee was chosen because the term names it; that it is also the
+    // holder's cell means the law gave the term to the holder.
+    let by_law = competent.is_some() && askee.authority().is_named_by(holder);
+    if own || by_law {
         return None;
     }
     let deciding = res_ctx
@@ -623,48 +626,15 @@ fn ungrounded(
         .map(|authority| format!(" (deciding for {})", authority.name))
         .unwrap_or_default();
     Some(format!(
-        "{} is the policy of {}, not of {}{deciding}, and no term it fills names its holder \
-         as competent: {} has no ground in a law or in its own policy to use the answer",
+        "{} is the policy of {}, not of {}{deciding}, and the law gives the term to no cell \
+         of that holder: {} has no ground in a law or in its own policy to use the answer \
+         of {}",
         law.id,
         authorities(holder),
         receiver.name,
-        receiver.name
+        receiver.name,
+        askee.authority().name
     ))
-}
-
-/// Whether the authorities `term` names include one of `holder`: by name,
-/// or by the category of the cell of the call with that name.
-fn names_holder(
-    term: &[crate::article::NamedAuthority],
-    holder: &[crate::article::NamedAuthority],
-    receiver: &Authority,
-    res_ctx: &ResolutionContext<'_>,
-) -> bool {
-    let cells = || {
-        res_ctx
-            .sphere
-            .iter()
-            .map(|answerer| answerer.authority())
-            .chain(std::iter::once(receiver))
-    };
-    holder.iter().any(|named| {
-        let by_name = Authority {
-            name: named.name.clone(),
-            category: None,
-        };
-        by_name.is_named_by(term)
-            || cells()
-                .filter(|cell| cell.name == named.name)
-                .any(|cell| cell.is_named_by(term))
-    })
-}
-
-fn authorities(named: &[crate::article::NamedAuthority]) -> String {
-    named
-        .iter()
-        .map(|authority| format!("'{}'", authority.name))
-        .collect::<Vec<_>>()
-        .join(" or ")
 }
 
 /// The parameters of `article` of `law` with the state a projection played
@@ -4715,7 +4685,7 @@ impl LawExecutionService {
         let own_cell = res_ctx
             .answerer
             .is_some_and(|own| own.authority() == askee.authority());
-        if !own_cell && let Some(message) = ungrounded(law, competent, res_ctx) {
+        if !own_cell && let Some(message) = ungrounded(law, competent, askee, res_ctx) {
             return refuse(
                 res_ctx,
                 format!(

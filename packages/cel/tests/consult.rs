@@ -282,7 +282,11 @@ fn the_policy_of_another_authority_is_no_source_to_consult() {
     // A policy that names no holder is no one's own.
     let law = regulation("beleid_zonder_houder_fictief", "UITVOERINGSBELEID", None);
     let e = consulted(&law, "beleid_zonder_houder_fictief").unwrap_err();
-    assert!(e.to_string().contains("RFC-057"), "{e}");
+    assert!(
+        e.to_string()
+            .contains("beleid_zonder_houder_fictief is the policy of no one, not of Testcel"),
+        "{e}"
+    );
 }
 
 #[test]

@@ -1489,8 +1489,8 @@ fn the_policy_of_another_authority_is_no_ground_to_use_an_answer() {
     let message = e.to_string();
     assert!(
         message.contains(
-            "beleid_verstrekking is the policy of 'wilgendaal', not of RDW, and no term it \
-             fills names its holder as competent"
+            "beleid_verstrekking is the policy of 'wilgendaal', not of RDW, and the law gives \
+             the term to no cell of that holder"
         ),
         "{message}"
     );
@@ -1511,6 +1511,24 @@ fn a_law_that_gives_the_term_to_the_holder_is_the_ground() {
     let result = read_with(&policy, "eerder_gelezen", &running, None, vec![&national]).unwrap();
     assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
     assert_eq!(national.asked(), ["eerder_verstrekt"]);
+}
+
+#[test]
+fn a_law_that_gives_the_term_to_the_holder_does_not_cover_another_competent_cell() {
+    // The term names the national issuer and every college. The policy is
+    // the national issuer's, but the cell the term routes to is a college:
+    // the law gives the national issuer no say over that college's answer.
+    let policy = BINDING.replacen("  name: wilgendaal\n", "  name: Landelijke uitgever\n", 1);
+    let running = Fake::new("RDW", None);
+    let college = Fake::college("oostmeer").answering("eerder_verstrekt", Value::Bool(true));
+    let e = read_with(&policy, "eerder_gelezen", &running, None, vec![&college]).unwrap_err();
+    let message = e.to_string();
+    assert!(
+        message.contains("is the policy of 'Landelijke uitgever', not of RDW"),
+        "{message}"
+    );
+    assert!(message.contains("use the answer of oostmeer"), "{message}");
+    assert!(college.asked().is_empty());
 }
 
 #[test]
