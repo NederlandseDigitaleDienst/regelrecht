@@ -492,15 +492,17 @@ impl<'c> Reader<'c> {
             )));
         }
         let mut parameters = BTreeMap::new();
+        // A null for a parameter the reduction needs and cannot do without
+        // names nobody to answer about, such as a number an application left
+        // empty. As for a call to another law (RFC-036), the reduction is not
+        // run for nobody: the cell is silent, and the binding says what then
+        // holds. Every parameter is checked first, so a binding that leaves
+        // one out is refused whatever the case holds.
+        let mut for_nobody = false;
         for p in declared {
             match request.parameters.get(&p.name) {
-                // A null for a parameter the reduction needs and cannot do
-                // without names nobody to answer about, such as a number an
-                // application left empty. As for a call to another law
-                // (RFC-036), the reduction is not run for nobody: the cell
-                // is silent, and the binding says what then holds.
                 Some(Value::Null) if p.required != Some(false) && !p.is_nullable() => {
-                    return Ok(None);
+                    for_nobody = true;
                 }
                 Some(value) => {
                     parameters.insert(p.name.clone(), value.clone());
@@ -514,6 +516,9 @@ impl<'c> Reader<'c> {
                     )));
                 }
             }
+        }
+        if for_nobody {
+            return Ok(None);
         }
         // The reduction may call rulework that binds a term to an answer of
         // this cell too, such as a regulation that asks where the school is
@@ -1542,6 +1547,25 @@ articles:
             trace: false,
         };
         assert!(reader.answer(&service, &request).unwrap().is_some());
+
+        // A binding that leaves out a parameter the reduction needs is
+        // refused, also when another one it passes is null.
+        let two = reduction("reductie_a", "2026-01-01").replace(
+            "          - name: bsn\n            type: string\n        input:",
+            "          - name: bsn\n            type: string\n          - name: peildatum\n            type: date\n        input:",
+        );
+        assert_ne!(two, reduction("reductie_a", "2026-01-01"));
+        let service = service_with(&two);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let e = reader.answer(&service, &request).unwrap_err();
+        assert!(e.to_string().contains("takes 'peildatum'"), "{e}");
     }
 
     #[test]

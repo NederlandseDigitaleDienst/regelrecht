@@ -4707,17 +4707,27 @@ impl LawExecutionService {
         }
         let parameters = self.build_target_parameters(source.parameters.as_ref(), context)?;
         // A parameter that is unknown means nobody knows yet whom to ask
-        // about, as in a call to another law (RFC-036). The cell is not
-        // asked, and the input is unknown for the same facts: asked about
-        // an unknown key, the cell's reduction would refuse to run for
-        // nobody and fail the whole execution, also where this input does
-        // not decide it.
+        // about (RFC-036). The cell is not asked, and the input is unknown
+        // for the same facts: asked about an unknown key, the cell's
+        // reduction would refuse to run for nobody and fail the whole
+        // execution, also where this input does not decide it. This is
+        // stricter than a call to another law, which passes an unknown on
+        // to a parameter the target declares optional: the engine does not
+        // see how the cell's reduction declares its parameters, and an
+        // unknown key is no question to put to a cell.
         if let Some(unknown) = Value::merge_unknown(parameters.values()) {
             res_ctx.trace_set_message(format!(
                 "A parameter of the answer '{answer}' is unknown, so no cell is asked; input is \
                  unknown for the same reason"
             ));
             res_ctx.trace_set_result(unknown.clone());
+            // Where no cell answered, the binding records none, as for a
+            // cell that gives no answer.
+            res_ctx.bound.push(Bound {
+                law_id: law.id.clone(),
+                article: article.number.clone(),
+                answers: Vec::new(),
+            });
             return Ok(Some(unknown));
         }
         let request = AnswerRequest {
