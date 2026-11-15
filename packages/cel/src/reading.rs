@@ -494,6 +494,14 @@ impl<'c> Reader<'c> {
         let mut parameters = BTreeMap::new();
         for p in declared {
             match request.parameters.get(&p.name) {
+                // A null for a parameter the reduction needs and cannot do
+                // without names nobody to answer about, such as a number an
+                // application left empty. As for a call to another law
+                // (RFC-036), the reduction is not run for nobody: the cell
+                // is silent, and the binding says what then holds.
+                Some(Value::Null) if p.required != Some(false) && !p.is_nullable() => {
+                    return Ok(None);
+                }
                 Some(value) => {
                     parameters.insert(p.name.clone(), value.clone());
                 }
@@ -1486,6 +1494,54 @@ articles:
         };
         let answer = reader.answer(&service, &request).unwrap().unwrap();
         assert_eq!(answer.value, Value::Bool(true));
+    }
+
+    #[test]
+    fn a_null_for_a_parameter_the_reduction_needs_leaves_the_cell_silent() {
+        // The binding asks about nobody: the reduction is not run for nobody
+        // and fails nothing; the cell gives no answer (RFC-036).
+        let service = service();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let parameters = [("bsn".to_string(), Value::Null)].into();
+        let request = AnswerRequest {
+            name: "al_verleend",
+            parameters: &parameters,
+            calculation_date: "2026-10-20",
+            trace: false,
+        };
+        assert!(reader.answer(&service, &request).unwrap().is_none());
+        assert!(reader.asked().is_empty());
+
+        // A reduction that declares the parameter nullable is run with the
+        // null, as it said it can decide on nobody.
+        let nullable = reduction("reductie_a", "2026-01-01").replace(
+            "          - name: bsn\n            type: string\n        input:",
+            "          - name: bsn\n            type: string\n            nullable: true\n        input:",
+        );
+        assert_ne!(nullable, reduction("reductie_a", "2026-01-01"));
+        let service = service_with(&nullable);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let request = AnswerRequest {
+            name: "al_verleend",
+            parameters: &parameters,
+            calculation_date: "2026-10-20",
+            trace: false,
+        };
+        assert!(reader.answer(&service, &request).unwrap().is_some());
     }
 
     #[test]
