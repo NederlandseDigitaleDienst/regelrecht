@@ -1621,3 +1621,127 @@ fn a_policy_of_a_category_is_no_ground_by_law_for_one_of_its_members() {
     );
     assert!(college.asked().is_empty());
 }
+
+/// A law whose article 2 reads article 1 without passing the number that
+/// article 1 takes, for
+/// `an_answer_whose_parameter_is_unknown_asks_no_cell_and_is_unknown`.
+const SLEUTEL: &str = r#"
+$id: wet_sleutel
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Of het nummer is bevestigd.
+    machine_readable:
+      open_terms:
+        - id: bevestigd
+          type: boolean
+          required: false
+          decided_per_case_by: het college
+      execution:
+        parameters:
+          - {name: nummer, type: string, required: false, nullable: true}
+        output:
+          - {name: bevestigd_uit, type: boolean, nullable: true}
+        actions:
+          - output: bevestigd_uit
+            value: $bevestigd
+  - number: '2'
+    text: Wat artikel 1 zegt, zonder het nummer door te geven.
+    machine_readable:
+      execution:
+        input:
+          - name: gelezen
+            type: boolean
+            nullable: true
+            source:
+              output: bevestigd_uit
+        output:
+          - {name: gelezen_uit, type: boolean, nullable: true}
+        actions:
+          - output: gelezen_uit
+            value: $gelezen
+"#;
+
+/// The policy that binds the term to the answer `bevestigd`, asked with the
+/// number.
+const SLEUTEL_BELEID: &str = r#"
+$id: beleid_sleutel
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-01-01'
+url: https://example.org/beleid_sleutel
+competent_authority:
+  name: wilgendaal
+articles:
+  - number: '1'
+    text: Wat het beleid ontleent aan het antwoord bevestigd.
+    machine_readable:
+      implements:
+        - {law: wet_sleutel, article: '1', open_term: bevestigd}
+      execution:
+        parameters:
+          - {name: nummer, type: string, required: false, nullable: true}
+        input:
+          - name: antwoord
+            type: boolean
+            nullable: true
+            source:
+              reduction: bevestigd
+              parameters: {nummer: $nummer}
+        output:
+          - {name: bevestigd, type: boolean, nullable: true}
+        actions:
+          - output: bevestigd
+            value: $antwoord
+"#;
+
+fn sleutel(
+    output: &str,
+    parameters: BTreeMap<String, Value>,
+    running: &Fake,
+) -> regelrecht_engine::ArticleResult {
+    let mut service = LawExecutionService::new();
+    service.load_law(SLEUTEL).unwrap();
+    service.load_law(SLEUTEL_BELEID).unwrap();
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(running),
+        decides_for: None,
+        chronicle: None,
+        sphere: vec![],
+    };
+    service
+        .evaluate_law_in("wet_sleutel", &[output], parameters, call, DATE)
+        .unwrap()
+}
+
+#[test]
+fn an_answer_whose_parameter_is_unknown_asks_no_cell_and_is_unknown() {
+    // Article 2 reads article 1 without the number, so the binding would ask
+    // the cell about nobody. A cell's reduction refuses that and fails the
+    // whole execution, also where this read decides nothing. As for a call
+    // to another law (RFC-036), the cell is not asked, and the input is
+    // unknown for the missing number.
+    let running = Fake::college("wilgendaal").answering("bevestigd", Value::Bool(true));
+    let result = sleutel("gelezen_uit", BTreeMap::new(), &running);
+    assert!(running.asked().is_empty(), "{:?}", running.asked());
+    let gelezen = &result.outputs["gelezen_uit"];
+    assert!(gelezen.is_unknown(), "{gelezen:?}");
+    assert!(
+        gelezen
+            .missing_facts()
+            .iter()
+            .any(|fact| fact.name == "nummer"),
+        "{gelezen:?}"
+    );
+
+    // With the number, the cell is asked and its answer counts.
+    let running = Fake::college("wilgendaal").answering("bevestigd", Value::Bool(true));
+    let result = sleutel(
+        "bevestigd_uit",
+        BTreeMap::from([("nummer".to_string(), Value::String("12345678".into()))]),
+        &running,
+    );
+    assert_eq!(result.outputs["bevestigd_uit"], Value::Bool(true));
+    assert_eq!(running.asked(), ["bevestigd"]);
+}
