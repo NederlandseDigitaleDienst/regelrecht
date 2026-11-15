@@ -310,6 +310,10 @@ articles:
       # namens het bedrijf, op of vóór de dag van ontvangst.
       # Niet verplicht: zwijgt de cel, dan blijkt niet dat de aanvraag namens
       # het bedrijf is ingediend, en weigert het college.
+      # Het derde lid kent geen termijn: een oude authenticatie blijft tellen.
+      # Een ingetrokken machtiging ziet de cel niet, want een weigering van
+      # het machtigingenregister wordt geen vastlegging. Dat is een grens van
+      # deze casus, geen keuze over hoe lang een machtiging geldt.
       open_terms:
         - id: vertegenwoordiging_bevestigd
           competent_authority:

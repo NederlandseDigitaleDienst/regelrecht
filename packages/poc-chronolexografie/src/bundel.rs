@@ -704,49 +704,53 @@ mod tests {
     /// counts, since which login carried the application does not show.
     #[test]
     fn of_two_logins_on_the_day_of_receipt_the_lowest_level_counts() {
-        let (alle, standen) = met_bronnen(gebundeld(), Vec::new()).unwrap();
-        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
-        let casus = spel.kiezen("bedrijfsparkeervergunning").unwrap();
-        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
-        // Low first: taking the last recorded login would grant.
-        for niveau in ["laag", "hoog"] {
-            let velden = serde_json::json!({
-                "kvk_nummer": "99990011",
-                "pseudoniem": "ps-a71c0e",
-                "dienst": "urn:etoegang:DV:00000009999999999000:services:1",
-                "betrouwbaarheidsniveau": niveau,
-                "datum_authenticatie": casus["speeldatum"],
-            });
-            spel.vastleggen(
-                "erkende_dienst_inlogmiddel",
-                "wet_digitale_overheid#15#authenticatie_verricht",
-                velden.as_object().unwrap(),
-                dag,
-            )
-            .unwrap();
+        // Both orders: low first catches a rule that takes the last login of
+        // the day, high first one that takes the first.
+        for volgorde in [["laag", "hoog"], ["hoog", "laag"]] {
+            let (alle, standen) = met_bronnen(gebundeld(), Vec::new()).unwrap();
+            let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+            let casus = spel.kiezen("bedrijfsparkeervergunning").unwrap();
+            let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+            for niveau in volgorde {
+                let velden = serde_json::json!({
+                    "kvk_nummer": "99990011",
+                    "pseudoniem": "ps-a71c0e",
+                    "dienst": "urn:etoegang:DV:00000009999999999000:services:1",
+                    "betrouwbaarheidsniveau": niveau,
+                    "datum_authenticatie": casus["speeldatum"],
+                });
+                spel.vastleggen(
+                    "erkende_dienst_inlogmiddel",
+                    "wet_digitale_overheid#15#authenticatie_verricht",
+                    velden.as_object().unwrap(),
+                    dag,
+                )
+                .unwrap();
+            }
+            let aanvraag = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+            let artikel = casus["artikel"].as_str().unwrap();
+            let gram = spel.indienen(artikel, None, &aanvraag, dag).unwrap();
+            let besluit = spel
+                .beslissen(
+                    gram["id"].as_str().unwrap(),
+                    None,
+                    &serde_json::Map::new(),
+                    dag,
+                )
+                .unwrap();
+            assert_eq!(
+                besluit["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"], false,
+                "{volgorde:?}: {besluit}"
+            );
+            // Refused for the level, not on another ground.
+            let id = besluit["besluit"]["id"].as_str().unwrap();
+            let waarom = spel.waarom(id).unwrap().to_string();
+            assert!(
+                waarom.contains("betrouwbaarheidsniveau_authenticatie")
+                    && waarom.contains("\"laag\""),
+                "{volgorde:?}: {waarom}"
+            );
         }
-        let aanvraag = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
-        let artikel = casus["artikel"].as_str().unwrap();
-        let gram = spel.indienen(artikel, None, &aanvraag, dag).unwrap();
-        let besluit = spel
-            .beslissen(
-                gram["id"].as_str().unwrap(),
-                None,
-                &serde_json::Map::new(),
-                dag,
-            )
-            .unwrap();
-        assert_eq!(
-            besluit["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"], false,
-            "{besluit}"
-        );
-        // Refused for the level, not on another ground.
-        let id = besluit["besluit"]["id"].as_str().unwrap();
-        let waarom = spel.waarom(id).unwrap().to_string();
-        assert!(
-            waarom.contains("betrouwbaarheidsniveau_authenticatie") && waarom.contains("\"laag\""),
-            "{waarom}"
-        );
     }
 
     /// The decision asks the accredited service whether it confirmed the

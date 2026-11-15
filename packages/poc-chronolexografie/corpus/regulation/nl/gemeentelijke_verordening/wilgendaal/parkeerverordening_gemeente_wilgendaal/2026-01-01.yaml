@@ -83,7 +83,10 @@ articles:
       # hardheidsclausule (artikel 6), die het derde begrip vult. Lid 5 is
       # een eigen keuze, zonder voorbeeld in het Delftse model: hoe een
       # aanvraag namens het bedrijf wordt ingediend, zegt artikel 4 van het
-      # uitvoeringsbesluit, dat het vierde begrip vult.
+      # uitvoeringsbesluit, dat het vierde begrip vult. Lid 5 maakt het een
+      # weigeringsgrond. De gewone Awb-weg zou artikel 4:5 zijn: een
+      # hersteltermijn en daarna buiten behandeling. Deze casus kiest de
+      # weigering, zodat het waarom van het besluit de erkende dienst noemt.
       open_terms:
         - id: bedrijf_gevestigd_in_vergunninggebied
           type: boolean

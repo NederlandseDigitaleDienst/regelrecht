@@ -837,10 +837,10 @@ fn eigen_prefill(
     if !files.is_file(&pad) {
         return Ok(BTreeMap::new());
     }
-    let tekst = files
-        .read(&pad)
-        .map_err(|e| Error::Setup(format!("{}: {e}", pad.display())))?;
-    crate::ui_spec::prefill(&tekst).map_err(|e| Error::Setup(format!("case '{id}': {e}")))
+    let fout =
+        |e: &dyn std::fmt::Display| Error::Setup(format!("case '{id}', {}: {e}", pad.display()));
+    let tekst = files.read(&pad).map_err(|e| fout(&e))?;
+    crate::ui_spec::prefill(&tekst).map_err(|e| fout(&e))
 }
 
 /// Whether the application form of `aanvraag` asks the field `naam`: a
