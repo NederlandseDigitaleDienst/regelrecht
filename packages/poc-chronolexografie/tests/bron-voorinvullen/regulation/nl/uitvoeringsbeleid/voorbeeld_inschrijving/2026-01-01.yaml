@@ -8,6 +8,9 @@ valid_from: '2026-01-01'
 # de naam; het loket schrijft in als de naam dezelfde is als die het register
 # bij het nummer noemt (artikel 2). Ze noemt ook het bestuur, als tabel, dat het
 # formulier voorinvult uit wat het register bij het nummer vastlegde (artikel 3).
+# De aanhef en de referentie van de brief vult het formulier voor uit wat de
+# aanvraag zelf noemt (artikel 4): een lege afkorting is "geen afkorting", een
+# leeg kenmerk is onbekend.
 url: https://example.invalid/voorbeeld_inschrijving
 name: Voorbeeldinschrijving (fictieve testbron)
 competent_authority:
@@ -50,6 +53,10 @@ articles:
               - nummer
               - naam_opgegeven
               - bestuur
+              - afkorting
+              - kenmerk
+              - aanhef
+              - referentie
           - type: BESCHIKKING
             decision_type: TOEKENNING
             outputs:
@@ -77,6 +84,25 @@ articles:
                 type: date
               - name: vergoeding
                 type: amount
+          - name: afkorting
+            type: string
+            required: false
+            nullable: true
+            description: De afkorting van de naam van de vereniging; leeg als zij er geen heeft.
+          - name: kenmerk
+            type: string
+            required: false
+            description: Het kenmerk dat de vereniging aan haar aanvraag geeft.
+          - name: aanhef
+            type: string
+            required: false
+            nullable: true
+            description: De aanhef van de brief van het loket.
+          - name: referentie
+            type: string
+            required: false
+            nullable: true
+            description: De referentie van de brief van het loket.
         output:
           - name: ingeschreven
             type: boolean
@@ -145,3 +171,37 @@ articles:
         actions:
           - output: bestuur_volgens_register
             value: $antwoord_bestuur
+  - number: '4'
+    text: >-
+      FICTIEF. Het loket spreekt het bestuur in zijn brief aan, met de afkorting
+      als de vereniging er een heeft, en noemt als referentie het kenmerk van de
+      aanvraag.
+    url: https://example.invalid/voorbeeld_inschrijving#4
+    machine_readable:
+      execution:
+        parameters:
+          - name: afkorting
+            type: string
+            required: false
+            nullable: true
+          - name: kenmerk
+            type: string
+            required: false
+        output:
+          - name: aanhef
+            type: string
+          - name: referentie
+            type: string
+        actions:
+          - output: aanhef
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $afkorting
+                    value: null
+                  then: Geacht bestuur
+              default: Geacht bestuur, met afkorting
+          - output: referentie
+            value: $kenmerk

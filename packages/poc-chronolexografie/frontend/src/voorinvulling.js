@@ -7,8 +7,9 @@
  * submit is what the application holds. The field says where the value comes
  * from, or that the applicant changed it.
  */
+import { isUnknown } from '@regelrecht/frontend-shared';
 import { toon } from './logboek.js';
-import { leesbaar } from './state.js';
+import { leesbaar, waarde as leesbareWaarde } from './state.js';
 import { alsInvoer, bronRij, verschilTekst, zelfdeTabel } from './tabel.js';
 
 /**
@@ -37,14 +38,19 @@ export function bronInvoer(waarden) {
   return Object.fromEntries(Object.entries(waarden ?? {}).filter(([, w]) => w !== undefined));
 }
 
+/** Whether a source gave the field a value: not empty, and not unknown (RFC-036). */
+const gegeven = (v) => v?.waarde !== null && v?.waarde !== undefined && !isUnknown(v.waarde);
+
 /**
- * Per prefilled field the value a source gave, without the empty ones. A
- * table holds its decimal cells as numbers (tabel.js `alsInvoer`).
+ * Per prefilled field the value a source gave, without the empty and the
+ * unknown ones: an unknown value is no proposal, so the field stays as the
+ * applicant left it. A table holds its decimal cells as numbers (tabel.js
+ * `alsInvoer`).
  */
 export function voorgevuldeWaarden(voorgevuld) {
   return Object.fromEntries(
     Object.entries(voorgevuld ?? {})
-      .filter(([, v]) => v.waarde !== null && v.waarde !== undefined)
+      .filter(([, v]) => gegeven(v))
       .map(([naam, v]) => [naam, alsInvoer(v.waarde)]),
   );
 }
@@ -52,7 +58,8 @@ export function voorgevuldeWaarden(voorgevuld) {
 /**
  * The line under a prefilled field: which cell the value comes from, or that
  * the applicant changed or emptied it and what the source gives, or why the
- * source gave nothing (`fout`). Empty when no cell gave a value.
+ * source gave nothing (`fout`, or an unknown value and what it misses).
+ * Empty when no cell gave a value.
  * `celNaam` names a cell by its id. A table (a field with `kolommen`) counts
  * as the source's when it holds the same rows, in any order (tabel.js); a
  * changed one says per row what the source gives.
@@ -62,6 +69,7 @@ export function herkomstTekst(voorgevuld, waarde, celNaam, kolommen) {
   if (!voorgevuld || voorgevuld.waarde === null || voorgevuld.waarde === undefined) return '';
   const cellen = [...new Set((voorgevuld.herkomst ?? []).map((h) => celNaam(h.door)))];
   const wie = cellen.join(' en ') || 'de bron';
+  if (isUnknown(voorgevuld.waarde)) return `Niet vooringevuld: ${wie} geeft ${leesbareWaarde(voorgevuld.waarde)}.`;
   const tabel = Array.isArray(kolommen) && Array.isArray(voorgevuld.waarde);
   if (tabel ? zelfdeTabel(voorgevuld.waarde, waarde, kolommen) : waarde === voorgevuld.waarde) {
     const antwoorden = [...new Set((voorgevuld.herkomst ?? []).map((h) => leesbaar(h.antwoord)))];

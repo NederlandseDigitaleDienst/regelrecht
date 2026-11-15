@@ -62,6 +62,16 @@ afterEach(() => {
   document.body.innerHTML = '';
 });
 
+describe('a value that is no table', () => {
+  it('shows no rows, not the keys of an unknown value', async () => {
+    // An unknown value (RFC-036) is an object; its keys are no rows.
+    const onbekend = { __unknown: true, missing: [{ kind: 'not_passed', law: 'x', name: 'kenmerk' }] };
+    await mount(onbekend, 'Niet vooringevuld: de bron geeft onbekend (ontbreekt: kenmerk).');
+    expect(rijen()).toEqual([]);
+    expect(el.innerHTML).not.toMatch(/__unknown|missing/);
+  });
+});
+
 describe('a table field', () => {
   it('shows its columns as headers and each row as a row of the table', async () => {
     await mount(RIJEN);

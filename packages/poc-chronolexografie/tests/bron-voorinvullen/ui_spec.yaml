@@ -11,6 +11,8 @@ elementen:
     prefill:
       naam_opgegeven: voorbeeld_inschrijving#2#naam_volgens_register
       bestuur: voorbeeld_inschrijving#3#bestuur_volgens_register
+      aanhef: voorbeeld_inschrijving#4#aanhef
+      referentie: voorbeeld_inschrijving#4#referentie
   - id: UI2
     element: gegeven_aanpassen
     prefill:

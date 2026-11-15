@@ -20,7 +20,8 @@ const props = defineProps({
 });
 const emit = defineEmits(['update:modelValue']);
 
-const rijen = computed(() => props.modelValue ?? []);
+// Only an array holds rows: an unknown value (RFC-036) is an object, and its keys are no rows.
+const rijen = computed(() => (Array.isArray(props.modelValue) ? props.modelValue : []));
 const kolommen = computed(() => props.veld.kolommen);
 // Every column takes an equal share, the buttons what they need.
 const sporen = computed(() => [...kolommen.value.map(() => 'minmax(120px, 1fr)'), 'auto'].join(' '));

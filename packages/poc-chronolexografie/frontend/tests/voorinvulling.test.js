@@ -41,6 +41,37 @@ describe('voorgevuldeWaarden', () => {
   });
 });
 
+// An unknown value (RFC-036), as the engine gives an output that reads a
+// parameter the form did not pass (kern.rs `voorinvullen`).
+const ONBEKEND = { __unknown: true, missing: [{ kind: 'not_passed', law: 'voorbeeld_inschrijving', name: 'kenmerk' }] };
+
+describe('an unknown value from a source', () => {
+  const voorgevuld = {
+    bron: 'voorbeeld_inschrijving#5#leden',
+    waarde: ONBEKEND,
+    herkomst: [{ door: 'voorbeeld_register', antwoord: 'naam_bij_nummer' }],
+  };
+
+  it('fills no field, a table neither', () => {
+    expect(voorgevuldeWaarden({ aanhef: voorgevuld, leden: voorgevuld })).toEqual({});
+  });
+
+  it('says the source gives an unknown value, and what it misses', () => {
+    expect(herkomstTekst(voorgevuld, undefined, celNaam)).toBe(
+      'Niet vooringevuld: Voorbeeldregister geeft onbekend (ontbreekt: kenmerk).',
+    );
+    expect(herkomstTekst(voorgevuld, undefined, celNaam, BESTUUR.kolommen)).toBe(
+      'Niet vooringevuld: Voorbeeldregister geeft onbekend (ontbreekt: kenmerk).',
+    );
+  });
+
+  it('names the source when no cell answered', () => {
+    expect(herkomstTekst({ ...voorgevuld, herkomst: [] }, undefined, celNaam)).toBe(
+      'Niet vooringevuld: de bron geeft onbekend (ontbreekt: kenmerk).',
+    );
+  });
+});
+
 describe('herkomstTekst', () => {
   const voorgevuld = {
     bron: 'r#2#naam_volgens_register',
