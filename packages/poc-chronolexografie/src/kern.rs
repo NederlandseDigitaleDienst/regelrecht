@@ -1296,6 +1296,12 @@ pub fn indienen(
 /// Nothing is recorded: what the applicant submits is what the application
 /// holds, prefilled or not.
 ///
+/// A field the form leaves empty and the law lets be absent reaches the
+/// sources as `null`, as the cell records it in the application
+/// ([`met_lege_velden`]): an empty abbreviation is no abbreviation, not an
+/// unknown value. A field that cannot be absent stays out, and a source that
+/// reads it gives an unknown value (RFC-036).
+///
 /// A source that gives nothing on what the form holds leaves its field empty
 /// with the reason (`fout`), and the other fields are filled: one the engine
 /// cannot run yet, such as without the number the applicant has not logged
@@ -1315,6 +1321,7 @@ pub fn voorinvullen(
     on: NaiveDate,
 ) -> Result<Value> {
     let service = corpus.service()?;
+    let velden = met_lege_velden(&service, &corpus.casus.artikel, velden, on)?;
     let sfeer = cellen.sfeer();
     let mut uit = Map::new();
     for (veld, bron) in bronnen {
@@ -1323,7 +1330,7 @@ pub fn voorinvullen(
                 "the source of '{veld}' is {bron}, not '<regelwerk>#<article>#<output>'"
             )));
         };
-        let ingevuld = match cellen.eigen.consult(&service, &sfeer, bron, velden, on) {
+        let ingevuld = match cellen.eigen.consult(&service, &sfeer, bron, &velden, on) {
             Ok(result) => uit_bron(&result, bron)?,
             // This field stays empty, with the reason; the others are filled.
             Err(e) => {
@@ -1333,6 +1340,30 @@ pub fn voorinvullen(
         uit.insert(veld.clone(), ingevuld);
     }
     Ok(Value::Object(uit))
+}
+
+/// `velden` with each field of the form of the application under `artikel`
+/// that it leaves out and that the law lets be absent, as `null`: what the cell
+/// records for such a field when the application comes in
+/// ([`Cell::record_submission`]). A field that cannot be absent stays out.
+fn met_lege_velden(
+    service: &LawExecutionService,
+    artikel: &str,
+    velden: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Map<String, Value>> {
+    let (law, article) = basis(artikel)?;
+    let vorm = shape::derive(service, law, article, on)?;
+    let mut uit = velden.clone();
+    // A field of type `decision` is no field of the form (`in_te_vullen`).
+    for veld in vorm
+        .fields
+        .iter()
+        .filter(|f| f.nullable && f.type_ != ParameterType::Decision)
+    {
+        uit.entry(veld.name.clone()).or_insert(Value::Null);
+    }
+    Ok(uit)
 }
 
 /// What `result`, the output `bron` consulted ([`Cell::consult`]), gives a

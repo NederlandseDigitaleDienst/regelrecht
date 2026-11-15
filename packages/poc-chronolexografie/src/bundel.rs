@@ -559,6 +559,8 @@ mod tests {
             serde_json::json!({
                 "naam_opgegeven": NAAM_UIT_REGISTER,
                 "bestuur": BESTUUR_UIT_REGISTER,
+                "aanhef": "voorbeeld_inschrijving#4#aanhef",
+                "referentie": "voorbeeld_inschrijving#4#referentie",
             })
         );
         // What the form then asks: the name from the register cell.
@@ -569,6 +571,64 @@ mod tests {
         assert_eq!(
             ingevuld["naam_opgegeven"]["herkomst"][0]["door"],
             "voorbeeld_register"
+        );
+    }
+
+    /// A field the form leaves empty and the law lets be null reaches a
+    /// source as null, as the scenarios pass it: "no abbreviation", not an
+    /// unknown value. A field the law does not let be null stays out, and a
+    /// source that reads it gives an unknown value (RFC-036).
+    #[test]
+    fn an_empty_field_the_law_lets_be_null_reaches_a_source_as_null() {
+        let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let casus = spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let vormen = aanvraagvorm(&mut spel, dag);
+        let bronnen = vormen["prefill"].as_object().unwrap().clone();
+        let invoer = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+        assert!(!invoer.contains_key("afkorting"), "{invoer:?}");
+        let ingevuld = spel.voorinvullen(&bronnen, &invoer, dag).unwrap();
+        assert_eq!(ingevuld["aanhef"]["waarde"], "Geacht bestuur");
+        assert_eq!(ingevuld["referentie"]["waarde"]["__unknown"], true);
+        assert_eq!(
+            ingevuld["referentie"]["waarde"]["missing"][0]["name"],
+            "kenmerk"
+        );
+        // A value the applicant gives still counts.
+        let mut met_afkorting = invoer.clone();
+        met_afkorting.insert("afkorting".into(), serde_json::json!("VV"));
+        let ingevuld = spel.voorinvullen(&bronnen, &met_afkorting, dag).unwrap();
+        assert_eq!(
+            ingevuld["aanhef"]["waarde"],
+            "Geacht bestuur, met afkorting"
+        );
+    }
+
+    /// The application the form submits holds an empty field the law lets
+    /// be null as null, as a scenario's step does, so free play and a
+    /// scenario record the same application.
+    #[test]
+    fn an_application_holds_an_empty_field_the_law_lets_be_null_as_null() {
+        let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let casus = spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let invoer = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+        let artikel = casus["artikel"].as_str().unwrap().to_string();
+        let gram =
+            serde_json::to_value(spel.indienen(&artikel, None, &invoer, dag).unwrap()).unwrap();
+        assert_eq!(gram["fields"]["afkorting"], serde_json::Value::Null);
+        assert!(
+            gram["fields"]
+                .as_object()
+                .unwrap()
+                .contains_key("afkorting"),
+            "{gram}"
+        );
+        assert!(
+            !gram["fields"].as_object().unwrap().contains_key("kenmerk"),
+            "{gram}"
         );
     }
 
