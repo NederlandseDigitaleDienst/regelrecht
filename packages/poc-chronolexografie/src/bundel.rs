@@ -655,8 +655,8 @@ mod tests {
         let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
         let casus = spel.kiezen("bedrijfsparkeervergunning").unwrap();
         let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
-        let vormen = spel.vormen(dag).unwrap();
-        let inloggen = &vormen["aanvraag"]["inloggen"];
+        let vormen = aanvraagvorm(&mut spel, dag);
+        let inloggen = &vormen["inloggen"];
         assert_eq!(
             inloggen["feit"],
             "wet_digitale_overheid#15#authenticatie_verricht"
@@ -670,7 +670,7 @@ mod tests {
             .unwrap();
         assert_eq!(kapsalon["cel"], "erkende_dienst_inlogmiddel");
         assert_eq!(kapsalon["velden"]["betrouwbaarheidsniveau"], "substantieel");
-        let bronnen = vormen["aanvraag"]["prefill"].as_object().unwrap().clone();
+        let bronnen = vormen["prefill"].as_object().unwrap().clone();
         assert_eq!(
             bronnen.keys().collect::<Vec<_>>(),
             ["adres_aanvrager", "naam_aanvrager"]
@@ -726,9 +726,15 @@ mod tests {
             .unwrap();
         }
         let aanvraag = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
-        let gram = spel.aanvragen(&aanvraag, dag).unwrap();
+        let artikel = casus["artikel"].as_str().unwrap();
+        let gram = spel.indienen(artikel, None, &aanvraag, dag).unwrap();
         let besluit = spel
-            .besluiten(gram["id"].as_str().unwrap(), &serde_json::Map::new(), dag)
+            .beslissen(
+                gram["id"].as_str().unwrap(),
+                None,
+                &serde_json::Map::new(),
+                dag,
+            )
             .unwrap();
         assert_eq!(
             besluit["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"], false,
@@ -755,9 +761,12 @@ mod tests {
         let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
         let mut aanvraag = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
         aanvraag.insert("kvk_nummer".into(), "99990077".into());
-        let gram = spel.aanvragen(&aanvraag, dag).unwrap();
+        let artikel = casus["artikel"].as_str().unwrap();
+        let gram = spel.indienen(artikel, None, &aanvraag, dag).unwrap();
         let id = gram["id"].as_str().unwrap().to_string();
-        let besluit = spel.besluiten(&id, &serde_json::Map::new(), dag).unwrap();
+        let besluit = spel
+            .beslissen(&id, None, &serde_json::Map::new(), dag)
+            .unwrap();
         let id = besluit["besluit"]["id"].as_str().unwrap();
         assert_eq!(
             besluit["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"],
