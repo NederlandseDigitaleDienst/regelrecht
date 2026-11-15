@@ -68,10 +68,9 @@ describe('a value that is no table', () => {
     const onbekend = { __unknown: true, missing: [{ kind: 'not_passed', law: 'x', name: 'kenmerk' }] };
     await mount(onbekend, 'Niet vooringevuld: de bron geeft onbekend (ontbreekt: kenmerk).');
     expect(rijen()).toEqual([]);
-    expect(el.textContent).toContain('Niet vooringevuld');
+    expect(el.innerHTML).not.toMatch(/__unknown|missing/);
   });
 });
-
 
 describe('a table field', () => {
   it('shows its columns as headers and each row as a row of the table', async () => {

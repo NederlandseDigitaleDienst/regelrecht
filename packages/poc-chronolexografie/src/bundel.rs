@@ -486,6 +486,17 @@ mod tests {
         }
     }
 
+    /// The game on `bron` with its case `voorbeeld_inschrijving` chosen: the
+    /// game, the case and its playing date.
+    fn voorinvullen_spel(bron: Bron) -> (crate::spel::Spel, serde_json::Value, chrono::NaiveDate) {
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let casus = spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        (spel, casus, dag)
+    }
+
     const NAAM_UIT_REGISTER: &str = "voorbeeld_inschrijving#2#naam_volgens_register";
     const BESTUUR_UIT_REGISTER: &str = "voorbeeld_inschrijving#3#bestuur_volgens_register";
 
@@ -493,11 +504,7 @@ mod tests {
     /// columns, and the register prefills it with the rows it recorded.
     #[test]
     fn a_table_field_gives_the_form_its_columns_and_is_prefilled() {
-        let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
-        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
-        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
-        let casus = spel.kiezen("voorbeeld_inschrijving").unwrap();
-        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let (mut spel, casus, dag) = voorinvullen_spel(voorinvullen_bron());
         let vormen = aanvraagvorm(&mut spel, dag);
         let velden = vormen["velden"].as_array().unwrap();
         let bestuur = velden.iter().find(|v| v["naam"] == "bestuur").unwrap();
@@ -548,11 +555,7 @@ mod tests {
 
     #[test]
     fn the_form_of_a_case_from_a_source_names_what_its_ui_spec_prefills() {
-        let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
-        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
-        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
-        let casus = spel.kiezen("voorbeeld_inschrijving").unwrap();
-        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let (mut spel, casus, dag) = voorinvullen_spel(voorinvullen_bron());
         let vormen = aanvraagvorm(&mut spel, dag);
         assert_eq!(
             vormen["prefill"],
@@ -580,10 +583,7 @@ mod tests {
     /// source that reads it gives an unknown value (RFC-036).
     #[test]
     fn an_empty_field_the_law_lets_be_null_reaches_a_source_as_null() {
-        let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
-        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
-        let casus = spel.kiezen("voorbeeld_inschrijving").unwrap();
-        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let (mut spel, casus, dag) = voorinvullen_spel(voorinvullen_bron());
         let vormen = aanvraagvorm(&mut spel, dag);
         let bronnen = vormen["prefill"].as_object().unwrap().clone();
         let invoer = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
@@ -605,15 +605,58 @@ mod tests {
         );
     }
 
+    /// The login field stays out when it is empty, even when the law lets it
+    /// be absent: a source that reads it gives an unknown value, rather than
+    /// answering for an applicant without a number.
+    #[test]
+    fn an_empty_login_field_stays_out_of_the_sources() {
+        let mut bron = voorinvullen_bron();
+        let pad = "regulation/nl/uitvoeringsbeleid/voorbeeld_inschrijving/2026-01-01.yaml";
+        // The login field `nummer` may be absent here, and the reference of
+        // article 4 reads it instead of the case's own mark.
+        let mut tekst = bron.bestanden[pad].clone();
+        for (was, wordt) in [
+            (
+                "          - name: nummer\n            type: string\n            description: Het nummer",
+                "          - name: nummer\n            type: string\n            required: false\n            nullable: true\n            description: Het nummer",
+            ),
+            (
+                "          - name: kenmerk\n            type: string\n            required: false\n        output:",
+                "          - name: nummer\n            type: string\n            required: false\n            nullable: true\n        output:",
+            ),
+            (
+                "            value: $kenmerk\n",
+                "            value: $nummer\n",
+            ),
+            (
+                "          - name: referentie\n            type: string\n        actions:",
+                "          - name: referentie\n            type: string\n            nullable: true\n        actions:",
+            ),
+        ] {
+            assert!(tekst.contains(was), "{was}");
+            tekst = tekst.replace(was, wordt);
+        }
+        bron.bestanden.insert(pad.into(), tekst);
+        let (mut spel, _, dag) = voorinvullen_spel(bron);
+        let vormen = aanvraagvorm(&mut spel, dag);
+        let bronnen = vormen["prefill"].as_object().unwrap().clone();
+        let ingevuld = spel
+            .voorinvullen(&bronnen, &serde_json::Map::new(), dag)
+            .unwrap();
+        // Not null, as for an applicant without a number: unknown.
+        assert_eq!(
+            ingevuld["referentie"]["waarde"]["missing"][0]["name"], "nummer",
+            "{}",
+            ingevuld["referentie"]
+        );
+    }
+
     /// The application the form submits holds an empty field the law lets
     /// be null as null, as a scenario's step does, so free play and a
     /// scenario record the same application.
     #[test]
     fn an_application_holds_an_empty_field_the_law_lets_be_null_as_null() {
-        let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
-        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
-        let casus = spel.kiezen("voorbeeld_inschrijving").unwrap();
-        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let (mut spel, casus, dag) = voorinvullen_spel(voorinvullen_bron());
         let invoer = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
         let artikel = casus["artikel"].as_str().unwrap().to_string();
         let gram =

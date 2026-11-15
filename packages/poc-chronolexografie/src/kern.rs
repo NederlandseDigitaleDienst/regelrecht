@@ -1300,7 +1300,8 @@ pub fn indienen(
 /// sources as `null`, as the cell records it in the application
 /// ([`met_lege_velden`]): an empty abbreviation is no abbreviation, not an
 /// unknown value. A field that cannot be absent stays out, and a source that
-/// reads it gives an unknown value (RFC-036).
+/// reads it gives an unknown value (RFC-036). So does the login field: an
+/// applicant who has not logged in is no applicant without a number.
 ///
 /// A source that gives nothing on what the form holds leaves its field empty
 /// with the reason (`fout`), and the other fields are filled: one the engine
@@ -1311,8 +1312,9 @@ pub fn indienen(
 ///
 /// # Errors
 ///
-/// Refused when a source is no text; and when the corpus does not load or a
-/// value a source gave cannot be stored.
+/// Refused when a source is no text; when the article of the case
+/// establishes no submission on `on`; and when the corpus does not load or
+/// a value a source gave cannot be stored.
 pub fn voorinvullen(
     corpus: &Corpus,
     cellen: &Cellen,
@@ -1321,7 +1323,8 @@ pub fn voorinvullen(
     on: NaiveDate,
 ) -> Result<Value> {
     let service = corpus.service()?;
-    let velden = met_lege_velden(&service, &corpus.casus.artikel, velden, on)?;
+    let inloggen = corpus.casus.inloggen.as_ref().map(|i| i.veld.as_str());
+    let velden = met_lege_velden(&service, &corpus.casus.artikel, inloggen, velden, on)?;
     let sfeer = cellen.sfeer();
     let mut uit = Map::new();
     for (veld, bron) in bronnen {
@@ -1346,21 +1349,22 @@ pub fn voorinvullen(
 /// that it leaves out and that the law lets be absent, as `null`: what the cell
 /// records for such a field when the application comes in
 /// ([`Cell::record_submission`]). A field that cannot be absent stays out.
+/// Two fields stay out as well: one of type `decision`, which the form does
+/// not ask (`in_te_vullen`), and the login field `inloggen`, which is empty
+/// until the applicant logs in.
 fn met_lege_velden(
     service: &LawExecutionService,
     artikel: &str,
+    inloggen: Option<&str>,
     velden: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Map<String, Value>> {
     let (law, article) = basis(artikel)?;
     let vorm = shape::derive(service, law, article, on)?;
     let mut uit = velden.clone();
-    // A field of type `decision` is no field of the form (`in_te_vullen`).
-    for veld in vorm
-        .fields
-        .iter()
-        .filter(|f| f.nullable && f.type_ != ParameterType::Decision)
-    {
+    for veld in vorm.fields.iter().filter(|f| {
+        f.nullable && f.type_ != ParameterType::Decision && Some(f.name.as_str()) != inloggen
+    }) {
         uit.entry(veld.name.clone()).or_insert(Value::Null);
     }
     Ok(uit)
