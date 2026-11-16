@@ -1522,6 +1522,32 @@ pub fn voorinvullen(
     Ok(Value::Object(uit))
 }
 
+/// What the cell `cel` of the case answers on `on` for the output `bron`
+/// (`<regelwerk>#<article>#<output>`) with the parameters `invoer`, as a
+/// form is prefilled ([`Cell::consult`]): the value, and each cell that
+/// answered with something. A scenario checks such an answer, such as what
+/// a payment leaves outstanding, where no decision holds it.
+///
+/// # Errors
+///
+/// Refused when `cel` is no cell of the case, and whatever
+/// [`Cell::consult`] refuses: a reduction or the policy of another
+/// authority as the source (RFC-056), an output or article that does not
+/// exist on `on`, or a parameter the engine misses.
+pub fn antwoord(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    cel: &str,
+    bron: &str,
+    invoer: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Value> {
+    let service = corpus.service()?;
+    let (cell, sfeer) = cellen.voor(cel)?;
+    let result = cell.consult(&service, &sfeer, bron, invoer, on)?;
+    uit_bron(&result, bron)
+}
+
 /// `velden` with each field of the form of the application under `artikel`
 /// that it leaves out and that the law lets be absent, as `null`: what the cell
 /// records for such a field when the application comes in

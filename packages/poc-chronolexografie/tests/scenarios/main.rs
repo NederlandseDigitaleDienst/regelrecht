@@ -619,3 +619,92 @@ fn the_case_s_own_cell_records_a_fact_about_its_decision() {
         "{e}"
     );
 }
+
+/// The fictional procedure of `ZONDER_AWB` as a source, with the expected
+/// answer of the first `antwoorden` in its fees scenario set to `waarde`.
+fn leges_met_antwoord(waarde: Value) -> BTreeMap<String, String> {
+    let mut bestanden = bestanden(&crate_dir().join(ZONDER_AWB));
+    let pad = "casussen/fictieve_vergunning.yaml";
+    let mut casus: Value = serde_yaml_ng::from_str(&bestanden[pad]).unwrap();
+    let stap = casus["scenarios"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|s| s["naam"] == "Verleend, leges betaald en terugbetaald")
+        .unwrap()["stappen"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|s| s.get("antwoorden").is_some())
+        .unwrap();
+    stap["antwoorden"][0]["verwacht"] = waarde;
+    bestanden.insert(pad.into(), serde_yaml_ng::to_string(&casus).unwrap());
+    bestanden
+}
+
+/// A step checks an answer of a cell, such as the fees it received and did
+/// not refund: the report holds what the cell answered, and a different
+/// answer fails with the step and both values.
+#[test]
+fn a_step_checks_an_answer_of_a_cell() {
+    let (mut spel, stand) = spel_met_bron(leges_met_antwoord(json!(5000)));
+    let uit = tempdir();
+    let fouten = speel_bron(&mut spel, &stand, Some(&uit));
+    assert!(fouten.is_empty(), "{}", fouten.join("\n"));
+    let verslag: Value = serde_json::from_str(
+        &std::fs::read_to_string(uit.join("scenario-fictieve_vergunning-02.json")).unwrap(),
+    )
+    .unwrap();
+    let antwoorden: Vec<&Value> = verslag["stappen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|s| s.get("antwoorden"))
+        .collect();
+    assert_eq!(
+        antwoorden,
+        [
+            &json!([{"bron": "fictief_beleid_leges#1#betaalde_leges", "cel": "fictieve_dienst",
+                     "verwacht": 5000, "kreeg": 5000, "klopt": true}]),
+            &json!([{"bron": "fictief_beleid_leges#1#betaalde_leges", "cel": "fictieve_dienst",
+                     "verwacht": 0, "kreeg": 0, "klopt": true}]),
+        ]
+    );
+    std::fs::remove_dir_all(&uit).unwrap();
+
+    let (mut spel, stand) = spel_met_bron(leges_met_antwoord(json!(4000)));
+    let fouten = speel_bron(&mut spel, &stand, None);
+    assert_eq!(
+        fouten,
+        [
+            "fictieve_vergunning, 'Verleend, leges betaald en terugbetaald', step 3: answer \
+          'fictief_beleid_leges#1#betaalde_leges' of 'fictieve_dienst': expected 4000, got 5000"
+        ]
+    );
+}
+
+/// An answer comes from a law or the cell's own policy, as `Cell::consult`
+/// computes it; a reduction is no ground (RFC-056), and the step fails.
+#[test]
+fn an_answer_straight_from_a_reduction_is_refused() {
+    let mut spel = spel_in(ZONDER_AWB);
+    spel.kiezen("fictieve_vergunning").unwrap();
+    let e = spel
+        .antwoord(
+            None,
+            "reductie_leges#betaalde_leges#betaalde_leges",
+            &serde_json::Map::new(),
+            "2026-03-02".parse().unwrap(),
+        )
+        .unwrap_err();
+    assert!(e.to_string().contains("RFC-056"), "{e}");
+    let e = spel
+        .antwoord(
+            Some("elders"),
+            "fictief_beleid_leges#1#betaalde_leges",
+            &serde_json::Map::new(),
+            "2026-03-02".parse().unwrap(),
+        )
+        .unwrap_err();
+    assert!(e.to_string().contains("no other cell"), "{e}");
+}

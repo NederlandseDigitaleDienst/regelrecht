@@ -1,6 +1,7 @@
 //! The player: one scenario of a case, played as the guide plays it, step by
 //! step, with the values of its step (`invoer`) over the case's `voorbeeld`,
-//! and checked against what the step expects (`uitkomst`, `uitvoer`).
+//! and checked against what the step expects (`uitkomst`, `uitvoer`,
+//! `antwoorden`).
 //!
 //! The player does not stop at the first step that goes wrong: it writes
 //! what happened in a [`Verslag`], and [`Verslag::fouten`] says per step what
@@ -202,7 +203,46 @@ impl Speler<'_> {
             andere => Err(format!("unknown step '{andere}'")),
         };
         gespeeld?;
+        self.antwoorden(stap, datum, rij)?;
         ongetoetst(stap, soort, rij)
+    }
+
+    /// Per answer the step expects of a cell (`antwoorden`): what the cell
+    /// answers on `datum`, and whether it is the value expected. An answer
+    /// the cell refuses counts as `null`, with the reason.
+    fn antwoorden(
+        &mut self,
+        stap: &Value,
+        datum: NaiveDate,
+        rij: &mut Value,
+    ) -> Result<(), String> {
+        let Some(verwacht) = stap.get("antwoorden").and_then(Value::as_array) else {
+            return Ok(());
+        };
+        let mut uit = Vec::new();
+        for a in verwacht {
+            let bron = a["bron"].as_str().ok_or("an answer without 'bron'")?;
+            let cel = a["cel"].as_str();
+            let gegeven = self.spel.antwoord(cel, bron, &map(&a["invoer"]), datum);
+            let (kreeg, fout) = match gegeven {
+                Ok(g) => (g["waarde"].clone(), None),
+                Err(e) => (Value::Null, Some(e.to_string())),
+            };
+            let klopt = fout.is_none() && kreeg == a["verwacht"];
+            let mut regel = json!({
+                "bron": bron,
+                "cel": cel.or_else(|| self.casus["cel"].as_str()),
+                "verwacht": a["verwacht"],
+                "kreeg": kreeg,
+                "klopt": klopt,
+            });
+            if let Some(f) = fout {
+                regel["fout"] = json!(f);
+            }
+            uit.push(regel);
+        }
+        rij["antwoorden"] = json!(uit);
+        Ok(())
     }
 
     fn aanvraag(
@@ -663,12 +703,11 @@ fn uitvoer(stap: &Value, outputs: &Value) -> Vec<Value> {
         .collect()
 }
 
-/// Every output of the row that is not the one the step expects, as one
-/// message.
+/// Every output and every answer of the row that is not the one the step
+/// expects, as one message.
 fn uitvoer_wijkt_af(rij: &Value) -> Option<String> {
-    let afwijkingen: Vec<String> = rij["uitvoer"]
-        .as_array()?
-        .iter()
+    let lijst = |naam: &str| rij[naam].as_array().into_iter().flatten();
+    let uitvoer = lijst("uitvoer")
         .filter(|u| u["klopt"] == json!(false))
         .map(|u| {
             format!(
@@ -677,8 +716,23 @@ fn uitvoer_wijkt_af(rij: &Value) -> Option<String> {
                 u["verwacht"],
                 u["kreeg"]
             )
-        })
-        .collect();
+        });
+    let antwoorden = lijst("antwoorden")
+        .filter(|a| a["klopt"] == json!(false))
+        .map(|a| {
+            let waarom = a["fout"]
+                .as_str()
+                .map(|f| format!(" ({f})"))
+                .unwrap_or_default();
+            format!(
+                "answer '{}' of '{}': expected {}, got {}{waarom}",
+                a["bron"].as_str().unwrap_or_default(),
+                a["cel"].as_str().unwrap_or_default(),
+                a["verwacht"],
+                a["kreeg"]
+            )
+        });
+    let afwijkingen: Vec<String> = uitvoer.chain(antwoorden).collect();
     let eerder = rij["fout"].as_str().map(str::to_string);
     if afwijkingen.is_empty() {
         return None;

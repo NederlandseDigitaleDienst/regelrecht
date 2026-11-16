@@ -99,6 +99,20 @@ A `vastleggen` step of a scenario records a fact in the cell its `cel` names. Wi
 
 In free play the form has no field for the reference yet. When it loads the case, the app refuses a reference that names no earlier kenmerk or that names a submission or a record of another cell, and a step kenmerk that a `begin` already gives.
 
+What a cell answers is often no output of a decision. A payment or a balance is the answer of a reduction. A step can therefore list under `antwoorden` what a cell of the case should answer once the step is done, on the step's play date. Each entry names an output as `<regelwerk>#<article>#<output>` under `bron`, the parameters under `invoer`, and the value under `verwacht`. Without `cel` the case's own cell answers. The cell computes the answer as it prefills a form (`Cell::consult`), so `bron` is an article of a law or of the cell's own policy that binds the reduction's answer, never the reduction itself ([RFC-056](/rfcs/rfc-056)):
+
+```yaml
+- stap: vastleggen
+  feit: fictieve_vergunningwet#4#leges_betaald
+  verwijst_naar: vergunning
+  invoer: {bedrag: 5000}
+  antwoorden:
+    - bron: fictief_beleid_leges#1#betaalde_leges
+      verwacht: 5000
+```
+
+The guide beside the page asks the cell for these answers after the step and shows each one beside the value the scenario expects.
+
 The harness names no step of a procedure. It submits under an article, decides on a submission, decides ex officio and sends a copy of a decision; the law says what each does. When a case loads, `src/casus.rs` lists the submissions its rulework establishes (`produces` with `requests`), each with the cell that the `competent_authority` of the requested article names, and the decisions a cell takes ex officio. An appeal is therefore played only in a case with a court among its cells, and rulework without the Awb loads and plays. Which output holds a decision taken in another's place follows from its type (`decision`), not from its name.
 
 A scenario can use these steps directly. A step gives its record a `kenmerk`, and a later step acts on it through `verwijst_naar`:
@@ -184,7 +198,7 @@ just poc-chronolexografie-scenarios <checkout-of-the-source>/path/to/bron.yaml <
 
 The recipe runs `cargo test --test scenarios` with two variables. `POC_BRON` names the manifest or folder of the source. `POC_SCENARIOS_UIT` is optional and names a folder for the reports. A relative path in either counts from the repository root. Without `POC_BRON` the test plays only the PoC's own cases.
 
-The test chooses every case of the source and plays each scenario step by step, with the step's `invoer` over the case's `voorbeeld`. It compares `uitkomst` on a decision, a decision on objection, and a new decision after a court ruling (`opnieuw_beslissen`). It compares `uitvoer` on three kinds of step. On an application, the outputs are what its receipt computes (`wat_volgt`). On a decision, they are its own outputs. On a decision on objection, they are its outputs together with those of the new decision it holds. A generic step compares the outputs of the record it makes. An `uitkomst` or `uitvoer` on any other kind of step is an error, so nothing passes unchecked.
+The test chooses every case of the source and plays each scenario step by step, with the step's `invoer` over the case's `voorbeeld`. It compares `uitkomst` on a decision, a decision on objection, and a new decision after a court ruling (`opnieuw_beslissen`). It compares `uitvoer` on three kinds of step. On an application, the outputs are what its receipt computes (`wat_volgt`). On a decision, they are its own outputs. On a decision on objection, they are its outputs together with those of the new decision it holds. A generic step compares the outputs of the record it makes. An `uitkomst` or `uitvoer` on any other kind of step is an error, so nothing passes unchecked. On any step the test asks the answers under `antwoorden` once the step is done; an answer that differs, or that the cell refuses, makes the step wrong.
 
 A step written as text is skipped. When a step leaves out a field the form asks, the report notes it. On a submission or a record the field is sent empty; from the findings of a decision it is left out, as on the page.
 
@@ -209,7 +223,7 @@ A scenario report:
 |-----|-------|
 | `casus`, `scenario`, `index` | The case, the name of the scenario and its place in the case |
 | `fouten` | The number of wrong steps |
-| `stappen` | Per step `nr` and `soort`. A step as text has `tekst`. An action has `datum`, `verhaal` and `verwacht`, and where they apply `kreeg`, `uitvoer` (per output `uitkomst`, `verwacht`, `kreeg`, `klopt`), `leeg_gelaten`, `geweigerd` and `fout` |
+| `stappen` | Per step `nr` and `soort`. A step as text has `tekst`. An action has `datum`, `verhaal` and `verwacht`, and where they apply `kreeg`, `uitvoer` (per output `uitkomst`, `verwacht`, `kreeg`, `klopt`), `antwoorden` (per answer `bron`, `cel`, `verwacht`, `kreeg`, `klopt`, and `fout` when the cell refused), `leeg_gelaten`, `geweigerd` and `fout` |
 | `metingen` | Per record a step added to a chronicle: `na_stap`, `cel`, `gram`, `waarom` for a decision, `wat_volgt` for a submission |
 
 ## Configuration

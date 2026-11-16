@@ -124,6 +124,13 @@ articles:
       # The service records both facts in its own chronicle, while it
       # handles the case: the payment refers to the decision it is made on,
       # the refund to the payment (refers_to, schema v0.8.17).
+      # How much of the fees the service received and did not refund, the
+      # service's policy says (fictief_beleid_leges).
+      open_terms:
+        - id: betaalde_leges
+          type: amount
+          required: true
+          description: De leges die de dienst ontving en niet terugbetaalde, in eurocent.
       requires:
         - fact: leges_betaald
           description: Dat de leges voor de vergunning waarnaar het feit verwijst, zijn betaald.

@@ -148,6 +148,11 @@ export const api = {
   // De cel die besluit `besluit` nam, zendt er een afschrift van naar de cel
   // over wier besluit het gaat.
   toezenden: (besluit, datum) => roep((p) => p.toezenden(besluit, datum)),
+  // Wat cel `cel` (of de eigen cel, bij null) op `datum` antwoordt voor
+  // `bron` (`<regelwerk>#<artikel>#<uitvoer>`), met de parameters `invoer`,
+  // zoals een formulier wordt voorgevuld: `{ bron, waarde, herkomst }`. Er
+  // wordt niets vastgelegd.
+  antwoord: (cel, bron, invoer, datum) => roep((p) => p.antwoord(cel ?? undefined, bron, json(invoer), datum)),
   logboek: () => roep((p) => p.logboek()),
   reset: () => roep((p) => p.reset()),
   // Het spel tot nu toe (de casus en de kroniek van elke cel), om een
