@@ -174,8 +174,8 @@ onMounted(run);
           Deze scenario's laten zien hoe de Wet op de politieke partijen werkt:
           een landelijke en een decentrale toekenning, een afwijzing, de
           Algemene wet bestuursrecht bij het besluit en een bezwaar. Ze worden
-          live uitgevoerd door dezelfde wet-engine die de besluiten neemt — in
-          uw browser. Klik op een scenario voor de stappen;
+          live in uw browser uitgevoerd door dezelfde wet-engine die de
+          besluiten neemt. Klik op een scenario voor de stappen;
           u kunt de gegevens aanpassen en het scenario opnieuw uitvoeren om te
           zien wat de wet dan doet.
         </p>

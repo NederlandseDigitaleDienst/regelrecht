@@ -22,7 +22,7 @@ dat de rest verandert.
 | `packages/poc-napp/scripts/` | De generatoren achter die snapshot en de demowereld |
 | `frontend-poc-napp/` | Drie gescheiden ingangen (Vue 3 + NLDD): publiek (landing + register), subsidieportaal (mock-eHerkenning), beoordelingsomgeving (incl. scenario-runner op de WASM-engine) |
 | `corpus-poc/napp/law/` | De wetten: Wpp (twee subsidietracks + betaalopdracht-hook), regeling met bedragen (IoC), AWB-subset (procedure + hooks 3:46/6:7/6:8), Algemene termijnenwet (weekend-verlenging), Kieswet |
-| `corpus-poc/napp/scenarios/` | 48 Gherkin-scenario's die vastleggen hoe de wet hoort te werken: vijf in `getoond/` die de beoordelingsomgeving laat zien, de randgevallen in `randgevallen/`. Alle 48 draaien als test, in Rust (`tests/bdd`) en in JS (`frontend-poc-napp/tests`) |
+| `corpus-poc/napp/scenarios/` | 48 Gherkin-scenario's die vastleggen hoe de wet hoort te werken: vijf in `getoond/` die de beoordelingsomgeving laat zien, de randgevallen in `randgevallen/`. Alle 48 draaien als test, in Rust (`packages/poc-napp/tests/bdd`) en in JS (`frontend-poc-napp/tests`) |
 
 De registry-entry staat in `pocs/registry.yaml` (`slug: napp`, `soort: proxy`).
 

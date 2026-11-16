@@ -1,23 +1,24 @@
-// Draait elk Gherkin-scenario uit corpus-poc/napp/scenarios/ (de getoonde én
-// de randgevallen) door de JS-runner die de beoordelaarsview gebruikt, tegen
-// de WASM-engine met de napp-wetten. Een mislukte of onbekende stap maakt de
-// test rood.
+// Runs every Gherkin scenario under corpus-poc/napp/scenarios/ (the shown
+// ones and the edge cases) through the JS runner the beoordelaar view uses,
+// against the WASM engine with the napp laws. A failed or undefined step
+// turns the test red.
 //
-// De Rust-runner in packages/poc-napp/tests/bdd leest dezelfde map. Deze test
-// bewaakt iets anders: de JS-stapdefinities in src/gherkin/steps.js, die de
-// view in de browser draait en die verder door niets getoetst worden.
+// The Rust runner in packages/poc-napp/tests/bdd reads the same directory.
+// This test guards something else: the JS step definitions in
+// src/gherkin/steps.js, which the view runs in the browser and nothing else
+// exercises.
 import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'fs';
 import { resolve, dirname, relative } from 'path';
 import { fileURLToPath } from 'url';
 import { parseFeature } from '../src/gherkin/parser.js';
 import { runSteps } from '../src/gherkin/runner.js';
-import { laadWetten } from '../src/engine.js';
+import { loadLaws } from '../src/engine.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..', '..');
 const scenariosDir = resolve(repoRoot, 'corpus-poc', 'napp', 'scenarios');
-// Waar `just wasm-build` de engine neerzet; CI downloadt hem naar dezelfde plek.
+// Where `just wasm-build` puts the engine; CI downloads it to the same place.
 const pkgDir = resolve(repoRoot, 'frontend', 'public', 'wasm', 'pkg');
 
 function findFeatureFiles(dir) {
@@ -37,23 +38,25 @@ let engine;
 beforeAll(async () => {
   const wasm = await import(resolve(pkgDir, 'regelrecht_engine.js'));
   await wasm.default({ module_or_path: readFileSync(resolve(pkgDir, 'regelrecht_engine_bg.wasm')) });
-  // Eén engine voor alle scenario's, zoals in de view: de stappen roepen
-  // alleen executeMultiple aan en laten geen toestand achter.
-  engine = laadWetten(new wasm.WasmEngine());
+  // One engine for every scenario, as in the view: the steps only call
+  // executeMultiple and leave no state behind.
+  engine = loadLaws(new wasm.WasmEngine());
 });
 
-it('vindt de getoonde scenario\'s en de randgevallen', () => {
-  const mappen = new Set(featureFiles.map((f) => relative(scenariosDir, dirname(f))));
-  expect([...mappen].sort()).toEqual(['getoond', 'randgevallen']);
+// The view globs getoond/; renaming that directory would leave it empty
+// without an error, so pin both directories here.
+it('finds the shown scenarios and the edge cases', () => {
+  const dirs = new Set(featureFiles.map((f) => relative(scenariosDir, dirname(f))));
+  expect([...dirs].sort()).toEqual(['getoond', 'randgevallen']);
 });
 
 describe.each(featureFiles.map((f) => [relative(scenariosDir, f), f]))('%s', (_label, file) => {
   const { background, scenarios } = parseFeature(readFileSync(file, 'utf-8'));
 
   it.each(scenarios.map((s) => [s.name, s]))('%s', async (_name, scenario) => {
-    const uitkomst = await runSteps([...(background ?? []), ...scenario.steps], engine);
-    const mislukt = uitkomst.steps.find((s) => s.status === 'mislukt');
-    expect(mislukt ? `${mislukt.text}: ${mislukt.error}` : null).toBeNull();
-    expect(uitkomst.passed).toBe(true);
+    const outcome = await runSteps([...(background ?? []), ...scenario.steps], engine);
+    const failed = outcome.steps.find((s) => s.status === 'mislukt');
+    expect(failed ? `${failed.text}: ${failed.error}` : null).toBeNull();
+    expect(outcome.passed).toBe(true);
   });
 });
