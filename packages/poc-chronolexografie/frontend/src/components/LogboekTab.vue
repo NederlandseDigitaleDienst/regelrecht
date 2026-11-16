@@ -7,10 +7,11 @@
 // de reden is waarnaar een chronolexogram verwijst (`refers_to`); de keten van
 // een besluit komt uit het besluit opnieuw genomen (`api.logboek`). Een stap
 // die de cel weigerde, legde niets vast en staat er dus niet in.
-import { nextTick, ref, watch } from 'vue';
+import { ref, watch } from 'vue';
 import { api } from '../api.js';
 import { celNaam, genummerd, toon, uitslag } from '../logboek.js';
 import { herroepen, kort, leesbaar, nieuwBesluit, rol, state, toegewezen } from '../state.js';
+import { inBeeld, zoekGram } from '../verwijzingen.js';
 import KetenStap from './KetenStap.vue';
 
 const emit = defineEmits(['kroniek']);
@@ -59,13 +60,11 @@ function toggle(id) {
 // Naar een andere handeling: open haar en breng haar in beeld.
 async function ga(id) {
   if (!isOpen(id)) toggle(id);
-  await nextTick();
-  document.getElementById(`stap-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  await inBeeld(`stap-${id}`);
 }
 
-const gram = (id) => handelingen.value.find((h) => h.gram.id === id)?.gram;
 const naam = (id) => {
-  const g = gram(id);
+  const g = zoekGram(id)?.gram;
   return g ? `${rol(g).toLowerCase()} ${kort(id)}` : kort(id);
 };
 const dag = (g) => g.recorded_on.split('-').reverse().join('-');
