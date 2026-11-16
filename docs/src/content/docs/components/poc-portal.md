@@ -113,6 +113,19 @@ What a cell answers is often no output of a decision. A payment or a balance is 
 
 The guide beside the page asks the cell for these answers after the step and shows each one beside the value the scenario expects.
 
+Some answers matter on a day when nobody acts, such as what has been paid two weeks after a decision. A `toetsen` step does nothing: it carries a `datum` and `antwoorden`, and no cell, fact, values or outcome. The guide marks it done once the play date reaches its day. A parameter of an answer can name the record of a step by that step's `kenmerk`, written as `{kenmerk: <naam>}`. The app replaces it with the id of that record. The step must be the same step or an earlier one. A kenmerk that no step gives, or that only a later step gives, makes the case fail to load. The voorschot zorgtoeslag case uses both:
+
+```yaml
+- stap: besluit
+  kenmerk: voorschot
+- stap: toetsen
+  datum: 2025-01-20
+  antwoorden:
+    - bron: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#2#betaald_op_voorschot
+      invoer: {voorschotbesluit: {kenmerk: voorschot}}
+      verwacht: 0
+```
+
 The harness names no step of a procedure. It submits under an article, decides on a submission, decides ex officio and sends a copy of a decision; the law says what each does. When a case loads, `src/casus.rs` lists the submissions its rulework establishes (`produces` with `requests`), each with the cell that the `competent_authority` of the requested article names, and the decisions a cell takes ex officio. An appeal is therefore played only in a case with a court among its cells, and rulework without the Awb loads and plays. Which output holds a decision taken in another's place follows from its type (`decision`), not from its name.
 
 A scenario can use these steps directly. A step gives its record a `kenmerk`, and a later step acts on it through `verwijst_naar`:

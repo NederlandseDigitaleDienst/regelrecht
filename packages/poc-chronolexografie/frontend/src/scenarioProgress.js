@@ -55,6 +55,8 @@ export function counts() {
           Object.entries(velden).every(([k, v]) => g.fields?.[k] === v),
       ).length,
     refusals: state.refusals,
+    // The play date: a check step (toetsen) is done once it is reached.
+    datum: state.datum,
   };
 }
 

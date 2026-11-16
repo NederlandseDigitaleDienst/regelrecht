@@ -30,9 +30,10 @@ uitkomst: voorschot_verleend
 # waarop de zorgtoeslag vermoedelijk wordt vastgesteld (Awir artikel 16). Per
 # aanvraag schat de Dienst in wat hij daarvoor verwacht, zoals het
 # toetsingsinkomen. Het bedrag zelf volgt uit de Wet op de zorgtoeslag en de
-# standaardpremie voor 2025. Tegen het voorschot staat bezwaar open. De
-# betaling in termijnen en de toekenning na de aanslag inkomstenbelasting
-# speelt deze casus nog niet na.
+# standaardpremie voor 2025. Tegen het voorschot staat bezwaar open. Het
+# laatste scenario betaalt een eerste termijn uit, volgens een fictief beleid
+# van de Dienst. De toekenning na de aanslag inkomstenbelasting speelt deze
+# casus nog niet na.
 
 # Wat de bezoeker leest.
 titel: Voorschot zorgtoeslag
@@ -157,3 +158,47 @@ scenarios:
         datum: 2025-02-03
         uitkomst: ongegrond
     eind: 'Ongegrond: het voorschot blijft € 1.577.'
+  # De Dienst betaalt het voorschot zelf uit en legt dat vast in zijn eigen
+  # kroniek (het fictieve beleid over de betaling van het voorschot). Een
+  # toetsstap vraagt op een dag zonder handeling wat er op het voorschot is
+  # betaald; de parameter noemt het besluit bij zijn kenmerk.
+  - naam: Het voorschot wordt in termijnen betaald
+    samenvatting: >-
+      De Dienst Toeslagen verleent een voorschot, betaalt de eerste termijn en
+      legt die betaling vast bij het voorschot.
+    stappen:
+      - stap: aanvraag
+        verhaal: Een alleenstaande vraagt zorgtoeslag aan voor 2025.
+      - stap: besluit
+        kenmerk: voorschot
+        verhaal: De Dienst verleent een voorschot.
+        uitkomst: toegewezen
+        uitvoer:
+          voorschotbedrag: 157700
+      - stap: toetsen
+        titel: Nog niets betaald
+        datum: 2025-01-20
+        verhaal: Twee weken later is er op het voorschot nog niets betaald.
+        antwoorden:
+          - bron: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#2#betaald_op_voorschot
+            invoer:
+              voorschotbesluit: {kenmerk: voorschot}
+            verwacht: 0
+      - stap: vastleggen
+        titel: Eerste termijn betalen
+        feit: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#1#termijn_voorschot_betaald
+        verwijst_naar: voorschot
+        datum: 2025-01-24
+        verhaal: De Dienst betaalt de eerste termijn, een twaalfde van het voorschot, en legt die vast.
+        invoer:
+          bedrag: 13142
+      - stap: toetsen
+        titel: De eerste termijn is betaald
+        datum: 2025-02-03
+        verhaal: Op het voorschot is nu de eerste termijn betaald.
+        antwoorden:
+          - bron: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#2#betaald_op_voorschot
+            invoer:
+              voorschotbesluit: {kenmerk: voorschot}
+            verwacht: 13142
+    eind: Op het voorschot van € 1.577 is de eerste termijn van € 131,42 betaald.

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { klopt, toetsAntwoorden } from '../src/antwoorden.js';
+import { klopt, metRecords, toetsAntwoorden } from '../src/antwoorden.js';
 
 vi.mock('../src/api.js', () => ({ api: {} }));
 
@@ -52,5 +52,31 @@ describe('klopt', () => {
     expect(klopt({ a: 1, b: 2 }, { b: 2, a: 1 })).toBe(true);
     expect(klopt({ __decimal: '12.50' }, { __decimal: '12.5' })).toBe(true);
     expect(klopt({ __decimal: '5' }, 5)).toBe(false);
+  });
+});
+
+describe('metRecords', () => {
+  it('replaces a kenmerk by the id of the record of its step', () => {
+    const record = (k) => ({ voorschot: 'b1' })[k] ?? null;
+    expect(metRecords({ voorschotbesluit: { kenmerk: 'voorschot' }, jaar: 2025 }, record)).toEqual({
+      voorschotbesluit: 'b1',
+      jaar: 2025,
+    });
+  });
+
+  it('refuses a kenmerk whose record is not there', () => {
+    expect(() => metRecords({ besluit: { kenmerk: 'later' } }, () => null)).toThrow("names 'later'");
+  });
+
+  it('asks nothing when a kenmerk has no record, and says why', async () => {
+    const vraag = vi.fn();
+    const [a] = await toetsAntwoorden(
+      { antwoordDatum: '2026-02-16', antwoorden: [{ bron: 'b#1#x', invoer: { besluit: { kenmerk: 'k' } }, verwacht: 0 }] },
+      null,
+      vraag,
+      () => null,
+    );
+    expect(vraag).not.toHaveBeenCalled();
+    expect(a).toMatchObject({ klopt: false, fout: expect.stringContaining("names 'k'") });
   });
 });
