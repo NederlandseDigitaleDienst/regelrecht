@@ -684,6 +684,46 @@ mod tests {
         assert_eq!(vormen["prefill"], serde_json::json!({}));
     }
 
+    /// A UI spec whose list of elements has a name the poc does not know
+    /// prefills nothing, and the source says so instead of keeping quiet.
+    #[test]
+    fn a_ui_spec_without_elements_is_reported_on_the_source() {
+        let mut bron = voorinvullen_bron();
+        bron.bestanden.insert(
+            "ui_spec.yaml".into(),
+            "element:\n  - {id: UI1, fields: [{name: naam_opgegeven}]}\n".into(),
+        );
+        let (_, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
+        let melding = standen[0].meldingen.join("\n");
+        assert!(
+            melding.contains("ui_spec.yaml") && melding.contains("no `elements`"),
+            "{melding}"
+        );
+    }
+
+    #[test]
+    fn a_source_prefills_from_a_ui_spec_per_field() {
+        let mut bron = voorinvullen_bron();
+        bron.bestanden.insert(
+            "ui_spec.yaml".into(),
+            format!(
+                "elements:\n  - id: UI1\n    fields:\n      - {{name: naam_opgegeven, fill: {{from: '{NAAM_UIT_REGISTER}'}}}}\n      - {{name: kanaal, fill: {{by: system}}}}\n"
+            ),
+        );
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].meldingen.is_empty(), "{:?}", standen[0]);
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let vormen = aanvraagvorm(&mut spel, "2026-10-21".parse().unwrap());
+        assert_eq!(
+            vormen["prefill"]
+                .as_object()
+                .map(|m| m.keys().cloned().collect::<Vec<_>>()),
+            Some(vec!["naam_opgegeven".to_string()])
+        );
+    }
+
     #[test]
     fn a_ui_spec_that_prefills_a_field_twice_costs_the_prefill_not_the_cases() {
         let mut bron = voorinvullen_bron();

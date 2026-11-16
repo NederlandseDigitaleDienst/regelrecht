@@ -3,6 +3,10 @@
 # alleen `prefill`: per veld van de aanvraag de bron waaruit het formulier
 # het voorinvult. De andere sleutels staan er zoals een register ze draagt en
 # leest de poc niet.
+#
+# Bewust in de oudere vorm (`elementen` met `prefill`), zodat de tests die
+# vorm blijven lezen zolang de poc haar naast de vorm per veld leest; de casus
+# bedrijfsparkeervergunning in corpus/ staat in de vorm per veld.
 status: concept
 elementen:
   - id: UI1
