@@ -19,6 +19,7 @@ import { reactive } from 'vue';
 import { api } from './api.js';
 import { metAwbNamen, vormenMetAwbNamen } from './awb.js';
 import { beroepenTegen, ontvangstenBij, uitspraakOp } from './beroep.js';
+import { LOGIN_REFUSED, wisSessie } from './sessie.js';
 
 export const state = reactive({
   // De gekozen casus, zoals `api.casus` haar geeft; null op het keuzescherm.
@@ -132,9 +133,13 @@ export async function hervatten(casusId) {
   }
 }
 
-/** Kies een casus: het spel begint haar cel opnieuw. */
+/**
+ * Kies een casus: het spel begint haar cel opnieuw, en wie bij een inlogstap
+ * was ingelogd, is dat niet meer (sessie.js).
+ */
 export async function kiezen(id) {
   state.fout = '';
+  wisSessie(id);
   try {
     await openen(await api.kies(id));
     return true;
@@ -171,6 +176,7 @@ export function naarKeuze() {
 export async function beginScenario(naam) {
   const ok = await stap(() => api.reset());
   if (!ok) return false;
+  wisSessie(state.casus.id);
   state.datum = state.casus.speeldatum;
   state.scenario = naam;
   state.refusals = [];
@@ -219,6 +225,18 @@ export async function stap(actie) {
     await bewaar().catch(() => {});
     return null;
   }
+}
+
+/**
+ * The service refused a login at a step of the scenario that expects it
+ * (InlogScherm.vue). The cell records nothing, so the refusal is kept as
+ * one of a step the cell refused, for the guide (scenarioGuides.js), and
+ * saved.
+ */
+export async function loginGeweigerd(reden) {
+  if (!state.scenario) return;
+  state.refusals.push(`${LOGIN_REFUSED}: ${reden}`);
+  await bewaar().catch(() => {});
 }
 
 export const verwijstNaar = (id) => state.grammen.filter((g) => g.refers_to === id);

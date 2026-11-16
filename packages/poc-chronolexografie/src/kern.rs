@@ -394,7 +394,7 @@ impl Corpus {
     }
 
     /// The name of the cell `cel` as the visitor reads it.
-    fn cel_naam<'a>(&'a self, cel: &'a str) -> &'a str {
+    pub fn cel_naam<'a>(&'a self, cel: &'a str) -> &'a str {
         if cel == self.casus.cel {
             return &self.casus.cel_naam;
         }
@@ -467,6 +467,7 @@ impl Corpus {
             "voorbeeld": c.voorbeeld,
             "begin": c.begin,
             "andere_cellen": c.andere_cellen,
+            "inloggen": c.inloggen,
             "scenarios": c.scenarios,
             "artikel": c.artikel,
             "besluit": format!("{}#{}", a.decision_law, a.decision),
@@ -884,6 +885,16 @@ fn inloggen(
                 login.feit
             )));
         }
+    }
+    // With a login step, the form reads who is logged in from the session
+    // the browser keeps; the chronicle offers no choice.
+    if login.inlogstap.is_some() {
+        return Ok(json!({
+            "veld": login.veld,
+            "feit": login.feit,
+            "sleutel": login.sleutel,
+            "inlogstap": crate::inlogstap::aanbod(corpus, cellen, on)?,
+        }));
     }
     let (basis, feit) = shape::split_fact(&login.feit)?;
     let mut vastleggingen: Vec<(&Cell, &Gram, String)> = std::iter::once(&cellen.eigen)

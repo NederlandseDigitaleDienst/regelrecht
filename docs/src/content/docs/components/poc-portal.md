@@ -61,9 +61,27 @@ Each case is one file in `casussen/`, and this repository holds four. The file n
 
 A case can let the applicant log in (`inloggen`): the form offers the records of a fact that a cell of the case keeps, and the key of the chosen record goes into a field of the application. In the business parking permit, that fact is an authentication by an accredited service under article 15 of the Wet digitale overheid (not yet in force), and the key is the company's KvK number.
 
+A case can instead send the applicant through a simulated login step, in the manner of eHerkenning, by adding `inlogstap` under `inloggen`:
+
+```yaml
+inloggen:
+  feit: wet_digitale_overheid#15#authenticatie_verricht
+  sleutel: kvk_nummer
+  veld: kvk_nummer
+  inlogstap:
+    cel: voorbeeld_erkende_dienst
+    toegang: voorbeeld_register_erkende_dienst#4#toegang_verleend
+    dienst: urn:etoegang:DV:00000009999999997000:services:1
+    middel: voorbeeld_register_erkende_dienst#1#middel_uitgegeven
+```
+
+The applicant leaves the app for a login screen marked as simulated, and enters a user name and the one password all test accounts share. The screen lists the user names from the records of the fact `middel`, the means of login the cell issued. The cell `cel` answers the boolean output `toegang` of an article in its own policy, with the parameters `gebruikersnaam` and `dienst` and the day of the login. In the test source, its register decides that answer: a means of login it issued, and an authorization for the service that has not been revoked. When access is granted, the cell records `feit`, filling each of its fields from the output of the same name, and the article's other outputs return to the browser as the claims of an assertion. Without access the login is refused, and the screen says why. An article that lacks a field of `feit` is an error in the case. Neither records anything.
+
+Who is logged in is session state in the browser (`sessionStorage`), never something read back from a chronicle. A chronicle records that an authentication took place, and one chronicle could serve several sessions at once. The form takes the claim `sleutel` into the field `veld`, and a claim named after another field of the application fills that field too. Logging out clears only the session. A case without `inlogstap` keeps the choice from the chronicle. The test source in `tests/bron-inlogstap` shows the facts and the reduction a cell needs for this.
+
 A case can also keep a UI spec in its own directory (`casussen/<id>/ui_spec.yaml`), in the form a source uses (see below). The business parking permit uses it to prefill the applicant's name and address from the trade register, looked up by the KvK number of whoever logged in.
 
-A step of a scenario is an action, such as `aanvraag` or `besluit`, or a line of text. Beside the page, the app shows a guide that walks through the actions of every scenario, whether the case is the PoC's own or comes from a source (`frontend/src/scenarioGuides.js`). A line of text goes with the next action as an instruction, without a check of its own; a line after the last action shows at the end of the scenario. Where the case has a login (`inloggen`), the guide names the party to choose in the field *Ingelogd als*. A scenario of text alone gets no guide, and the tab Scenario's lists its lines.
+A step of a scenario is an action, such as `aanvraag` or `besluit`, or a line of text. Beside the page, the app shows a guide that walks through the actions of every scenario, whether the case is the PoC's own or comes from a source (`frontend/src/scenarioGuides.js`). A line of text goes with the next action as an instruction, without a check of its own; a line after the last action shows at the end of the scenario. Where the case has a login (`inloggen`), the guide names the party to choose in the field *Ingelogd als*. With a login step, a scenario has steps `inloggen` instead, which name the user name under `invoer` and may expect `uitkomst: geweigerd`; the scenario player in `tests/scenarios` keeps what a login asserts as the session for the steps after it. An application step without a session may name the login field itself, as a submission on paper does; after a login it may not. A scenario of text alone gets no guide, and the tab Scenario's lists its lines.
 
 What another cell knew before the first scenario sits under its `begin`, as executograms with their fields. A later fact can be about one of those records, such as a correction of a registration in the trade register. The case file cannot name the record by its id, because the cell assigns that only when it records it. So the earlier executogram carries a `kenmerk`, a name unique within the case, and the later fact names it under `verwijst_naar`:
 

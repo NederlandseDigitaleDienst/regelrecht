@@ -19,6 +19,7 @@ use std::collections::{HashMap, HashSet};
 use chrono::NaiveDate;
 use regelrecht_law_model::stored;
 use regelrecht_poc_chronolexografie::casus::kenmerk_van;
+use regelrecht_poc_chronolexografie::inlogstap::WACHTWOORD;
 use regelrecht_poc_chronolexografie::spel::Spel;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
@@ -93,6 +94,10 @@ struct Speler<'a> {
     /// Per kind of step, how many came so far: without `op`, the n-th
     /// decision acts on the n-th application, as the guide counts.
     geteld: HashMap<String, usize>,
+    /// The claims of the last login step that got in, as the browser keeps
+    /// them in its session; none before a login step, or after one the
+    /// service refused.
+    sessie: Option<Map<String, Value>>,
 }
 
 /// The scenario `index` of the case `casus_id`, played on `spel` from the
@@ -131,6 +136,7 @@ pub fn speel(
         uitkomst: casus["uitkomst"].as_str().unwrap_or_default().to_string(),
         stand: Stand::default(),
         geteld: HashMap::new(),
+        sessie: None,
     };
     let stappen = scenario["stappen"].as_array().cloned().unwrap_or_default();
     for (i, stap) in stappen.iter().enumerate() {
@@ -195,6 +201,7 @@ impl Speler<'_> {
             "bezwaar" => self.bezwaar(stap, &vormen, datum, rij),
             "beslissing_op_bezwaar" => self.beslissing_op_bezwaar(stap, doel, datum, rij),
             "vastleggen" => self.vastleggen(stap, &vormen, datum, rij),
+            "inloggen" => self.inloggen(stap, datum, rij),
             "beroep" => self.beroep(stap, &vormen, datum, rij),
             "uitspraak" => self.uitspraak(stap, datum),
             "toezenden" => self.toezenden(stap, datum),
@@ -264,6 +271,7 @@ impl Speler<'_> {
         rij: &mut Value,
     ) -> Result<(), String> {
         let mut velden = met(&self.voorbeeld["aanvraag"], &stap["invoer"]);
+        self.uit_sessie(&vormen["aanvraag"], stap, &mut velden)?;
         rij["leeg_gelaten"] = json!(vul_leeg(&vormen["aanvraag"]["velden"], &mut velden));
         let gram = self
             .spel
@@ -276,6 +284,86 @@ impl Speler<'_> {
             rij["uitvoer"] = json!(uitvoer(stap, &volgt));
         }
         self.stand.aanvragen.push((id, None));
+        Ok(())
+    }
+
+    /// A login step: log in through the case's login step with the user
+    /// name of the step, and keep what it asserts as the session. A refused
+    /// login leaves no session.
+    fn inloggen(&mut self, stap: &Value, datum: NaiveDate, rij: &mut Value) -> Result<(), String> {
+        let invoer = &stap["invoer"];
+        let gebruikersnaam = invoer["gebruikersnaam"]
+            .as_str()
+            .ok_or("a login step without 'gebruikersnaam'")?;
+        let wachtwoord = invoer["wachtwoord"].as_str().unwrap_or(WACHTWOORD);
+        let inlog = self
+            .spel
+            .inloggen(gebruikersnaam, wachtwoord, invoer["dienst"].as_str(), datum)
+            .map_err(|e| e.to_string())?;
+        self.sessie = None;
+        let kreeg = match inlog["uitkomst"].as_str() {
+            Some("ingelogd") => {
+                self.sessie = Some(map(&inlog["claims"]));
+                "ingelogd"
+            }
+            Some("geweigerd") => {
+                rij["geweigerd"] = inlog["reden"].clone();
+                "geweigerd"
+            }
+            _ => return Err(format!("a login came to {inlog}")),
+        };
+        rij["kreeg"] = json!(kreeg);
+        match stap["uitkomst"].as_str() {
+            Some(v) if v != kreeg => Err(format!("expected {v}, got {kreeg}")),
+            None if kreeg == "geweigerd" => Err(format!(
+                "the login of '{gebruikersnaam}' was refused ({}), where the step expects it to \
+                 get in",
+                inlog["reden"]
+            )),
+            _ => Ok(()),
+        }
+    }
+
+    /// With a login step in the case, the application takes who is logged
+    /// in from the session, as the form does: the claim `sleutel` goes into
+    /// the login field, and a claim named after a field of the application
+    /// fills that field. The example values never fill the login field. A
+    /// step without a session may name it itself: a submission that did not
+    /// come through the login, such as one on paper. A step with a session
+    /// may not: the session says who submits.
+    fn uit_sessie(
+        &self,
+        aanvraag: &Value,
+        stap: &Value,
+        velden: &mut Map<String, Value>,
+    ) -> Result<(), String> {
+        let inloggen = &aanvraag["inloggen"];
+        if inloggen["inlogstap"].is_null() {
+            return Ok(());
+        }
+        let veld = inloggen["veld"].as_str().ok_or("a login without 'veld'")?;
+        let uit_stap = stap["invoer"].get(veld).cloned();
+        velden.remove(veld);
+        let Some(claims) = &self.sessie else {
+            if let Some(waarde) = uit_stap {
+                velden.insert(veld.to_string(), waarde);
+            }
+            return Ok(());
+        };
+        if uit_stap.is_some() {
+            return Err(format!(
+                "the step fills '{veld}', which the session of the login before it fills"
+            ));
+        }
+        let gevraagd = namen(&aanvraag["velden"]);
+        for (naam, waarde) in claims {
+            if gevraagd.contains(naam) {
+                velden.insert(naam.clone(), waarde.clone());
+            }
+        }
+        if let Some(sleutel) = inloggen["sleutel"].as_str().and_then(|s| claims.get(s)) {
+            velden.insert(veld.to_string(), sleutel.clone());
+        }
         Ok(())
     }
 

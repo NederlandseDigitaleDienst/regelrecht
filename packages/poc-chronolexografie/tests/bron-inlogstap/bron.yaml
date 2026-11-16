@@ -1,0 +1,16 @@
+---
+# FICTIEF. Het manifest van de testbron voor de inlogstap (tests/scenarios):
+# een casus die de aanvrager laat inloggen via een gesimuleerde erkende
+# dienst. Links de plek in de bron, rechts de map vanaf `repo_root`, hier de
+# map van deze crate. De Awb, de Wet digitale overheid en de reductie van de
+# authenticaties komen uit het corpus van de poc.
+repo_root: ../..
+directories:
+  regulation/nl/wet/algemene_wet_bestuursrecht: corpus/regulation/nl/wet/algemene_wet_bestuursrecht
+  regulation/nl/wet/wet_digitale_overheid: corpus/regulation/nl/wet/wet_digitale_overheid
+  regulation/nl/uitvoeringsbeleid/voorbeeld_vergunning_inlogstap: tests/bron-inlogstap/regulation/nl/uitvoeringsbeleid/voorbeeld_vergunning_inlogstap
+  regulation/nl/uitvoeringsbeleid/voorbeeld_register_erkende_dienst: tests/bron-inlogstap/regulation/nl/uitvoeringsbeleid/voorbeeld_register_erkende_dienst
+  cells/voorbeeld_vergunningloket: tests/bron-inlogstap/cells/voorbeeld_vergunningloket
+  cells/voorbeeld_erkende_dienst: tests/bron-inlogstap/cells/voorbeeld_erkende_dienst
+  cells/voorbeeld_erkende_dienst/reductions/reductie_authenticatie: corpus/cells/erkende_dienst_inlogmiddel/reductions/reductie_authenticatie
+  casussen: tests/bron-inlogstap/casussen

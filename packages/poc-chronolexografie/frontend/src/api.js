@@ -153,6 +153,11 @@ export const api = {
   // zoals een formulier wordt voorgevuld: `{ bron, waarde, herkomst }`. Er
   // wordt niets vastgelegd.
   antwoord: (cel, bron, invoer, datum) => roep((p) => p.antwoord(cel ?? undefined, bron, json(invoer), datum)),
+  // Log in through the login step of the case (inlogstap.js): the assertion
+  // (`uitkomst: 'ingelogd'`) or why the service refused (`'geweigerd'`).
+  // The page keeps who is logged in; the cell does not (sessie.js).
+  inloggen: (gebruikersnaam, wachtwoord, datum, dienst = null) =>
+    roep((p) => p.inloggen(gebruikersnaam, wachtwoord, datum, dienst ?? undefined)),
   logboek: () => roep((p) => p.logboek()),
   reset: () => roep((p) => p.reset()),
   // Het spel tot nu toe (de casus en de kroniek van elke cel), om een

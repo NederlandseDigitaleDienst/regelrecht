@@ -239,6 +239,22 @@ impl Poc {
         )
     }
 
+    /// Log in through the case's login step as `gebruikersnaam`; `dienst`:
+    /// another service than the case's, or none. Nothing about the session
+    /// stays here.
+    pub fn inloggen(
+        &mut self,
+        gebruikersnaam: &str,
+        wachtwoord: &str,
+        datum: &str,
+        dienst: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(
+            self.spel
+                .inloggen(gebruikersnaam, wachtwoord, dienst.as_deref(), dag(datum)?),
+        )
+    }
+
     pub fn waarom(&mut self, id: &str) -> Result<String, JsError> {
         antwoord(self.spel.waarom(id))
     }
