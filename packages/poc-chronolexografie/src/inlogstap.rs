@@ -201,17 +201,27 @@ fn claims(
         .toegang
         .rsplit_once('#')
         .ok_or_else(|| Error::Refused(format!("'{}' names no output", stap.toegang)))?;
-    if uitvoer(&result, toegang)? != Value::Bool(true) {
-        return Ok(None);
+    match uitvoer(&result, toegang)? {
+        Value::Bool(true) => {}
+        Value::Bool(false) | Value::Null => return Ok(None),
+        ander => {
+            return Err(Error::Refused(format!(
+                "the access output {} is {ander}, not a boolean",
+                stap.toegang
+            )));
+        }
     }
-    // `consult` found the article, so it is in force on `on`.
-    let (law, article) = basis.split_once('#').unwrap_or((basis, ""));
+    let (law, article) = basis
+        .split_once('#')
+        .ok_or_else(|| Error::Refused(format!("'{basis}' is no <regelwerk>#<article>")))?;
     let namen: Vec<String> = service
         .resolver()
         .get_law_for_date(law, Some(on))
         .and_then(|l| l.find_article_by_number(article))
         .map(|a| a.get_output_names().into_iter().map(String::from).collect())
-        .unwrap_or_default();
+        .ok_or_else(|| {
+            Error::Refused(format!("{law} has no article {article} in force on {on}"))
+        })?;
     let mut claims = Map::new();
     for naam in namen.into_iter().filter(|n| n != toegang) {
         // The engine computes the outputs it was asked for; another is

@@ -239,7 +239,7 @@ async function indienenTegen() {
               heading-level="3"
               size="display-5"
               text="Niet ingelogd"
-              :supporting-text="`Log in bij ${inlogstap.cel_naam} om namens een onderneming aan te vragen. Het inloggen is gesimuleerd.`"
+              :supporting-text="`Log in bij ${inlogstap.cel_naam} om aan te vragen. Het inloggen is gesimuleerd.`"
             >
               <nldd-button slot="end" appearance="primary" size="sm" text="Inloggen" @click="naarInloggen"></nldd-button>
             </nldd-title>

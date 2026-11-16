@@ -80,8 +80,8 @@ articles:
             description: Het niveau van de machtiging, laag, substantieel of hoog.
   - number: '3'
     text: >-
-      FICTIEF. De dienst trekt een machtiging in. Vanaf die dag geeft zij er
-      geen toegang meer mee.
+      FICTIEF. De dienst trekt een machtiging in. Vanaf de dag waarop zij dat
+      vastlegt, geeft zij er geen toegang meer mee.
     url: https://example.invalid/voorbeeld_register_erkende_dienst#3
     machine_readable:
       # Het feit verwijst naar de registratie die het intrekt (refers_to).

@@ -385,9 +385,9 @@ fn a_step_after_a_login_that_names_the_login_field_itself_is_wrong() {
     let (mut spel, stand) = spel_met_bron(bestanden);
     let fouten = speel_bron(&mut spel, &stand, None);
     assert!(
-        fouten[0].contains(
+        fouten.iter().any(|f| f.contains(
             "step 2: the step fills 'kvk_nummer', which the session of the login before it fills"
-        ),
+        )),
         "{fouten:?}"
     );
 }

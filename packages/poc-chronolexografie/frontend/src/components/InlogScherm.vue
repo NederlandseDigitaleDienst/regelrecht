@@ -9,9 +9,9 @@
 import { computed, ref } from 'vue';
 import { api } from '../api.js';
 import { melding } from '../melding.js';
-import { accountTekst, weigerTekst } from '../inlogstap.js';
+import { accountTekst, weigerTekst, weigeringTelt } from '../inlogstap.js';
 import { inlogScherm, zetSessie } from '../sessie.js';
-import { scenarioWaarden } from '../scenarioInvoer.js';
+import { huidigeStap, scenarioWaarden } from '../scenarioInvoer.js';
 import { loginGeweigerd, state, stap } from '../state.js';
 
 const aanbod = computed(() => state.vormen?.aanvraag?.inloggen?.inlogstap ?? null);
@@ -42,7 +42,7 @@ async function inloggen() {
     return;
   }
   weigering.value = antwoord;
-  await loginGeweigerd(antwoord.reden);
+  if (weigeringTelt(huidigeStap()?.step.stap)) await loginGeweigerd(antwoord.reden);
 }
 </script>
 
@@ -68,7 +68,7 @@ async function inloggen() {
             <nldd-title
               heading-level="2"
               size="display-4"
-              text="Inloggen namens een onderneming"
+              text="Inloggen voor je aanvraag"
               :supporting-text="`Je logt in voor de dienst ${aanbod.dienst} van ${state.casus.cel_naam}. Daarna ga je terug naar je aanvraag.`"
             ></nldd-title>
             <nldd-form-field label="Gebruikersnaam">

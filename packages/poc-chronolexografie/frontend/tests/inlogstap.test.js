@@ -6,6 +6,7 @@ import {
   ingevuldDoorInloggen,
   metSessie,
   weigerTekst,
+  weigeringTelt,
 } from '../src/inlogstap.js';
 
 // FICTIEF: the login of the test source tests/bron-inlogstap.
@@ -65,6 +66,16 @@ describe('ingevuldDoorInloggen', () => {
     ]);
     expect([...ingevuldDoorInloggen(INLOGGEN, null, VELDEN)]).toEqual(['kvk_nummer']);
     expect(ingevuldDoorInloggen({ veld: 'kvk_nummer' }, SESSIE, VELDEN).size).toBe(0);
+  });
+});
+
+describe('weigeringTelt', () => {
+  it('counts a refusal only at a login step that expects one', () => {
+    expect(weigeringTelt({ stap: 'inloggen', uitkomst: 'geweigerd' })).toBe(true);
+    // A mistyped name at a login that should get in.
+    expect(weigeringTelt({ stap: 'inloggen' })).toBe(false);
+    expect(weigeringTelt({ stap: 'aanvraag', uitkomst: 'geweigerd' })).toBe(false);
+    expect(weigeringTelt(undefined)).toBe(false);
   });
 });
 

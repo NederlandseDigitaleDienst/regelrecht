@@ -43,6 +43,14 @@ export function metSessie(inloggen, sessie, waarden, gevraagd, uitStap = undefin
   return uit;
 }
 
+/**
+ * Whether a refused login counts for the guide: only at a login step of the
+ * scenario that expects the refusal (`stap`, the step of the YAML the
+ * scenario is at). A mistyped name at a login that should succeed is no
+ * step the guide can tick off.
+ */
+export const weigeringTelt = (stap) => stap?.stap === 'inloggen' && stap.uitkomst === 'geweigerd';
+
 /** `Ingelogd als bakker`, for the bar above the form. */
 export const ingelogdAls = (sessie) => `Ingelogd als ${sessie.gebruikersnaam}`;
 

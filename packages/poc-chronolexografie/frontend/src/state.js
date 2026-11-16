@@ -228,9 +228,10 @@ export async function stap(actie) {
 }
 
 /**
- * The service refused a login (InlogScherm.vue). The cell records nothing,
- * so in a scenario the refusal is kept as one of a step the cell refused,
- * for the guide (scenarioGuides.js), and saved.
+ * The service refused a login at a step of the scenario that expects it
+ * (InlogScherm.vue). The cell records nothing, so the refusal is kept as
+ * one of a step the cell refused, for the guide (scenarioGuides.js), and
+ * saved.
  */
 export async function loginGeweigerd(reden) {
   if (!state.scenario) return;

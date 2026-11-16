@@ -133,8 +133,9 @@ const KINDS = {
   inloggen: {
     tab: 'aanvrager',
     title: (n) => (n === 1 ? 'Inloggen' : 'Opnieuw inloggen'),
-    todo: 'Klik boven het formulier op Inloggen, vul de gebruikersnaam en het wachtwoord in en klik op Inloggen.',
-    seen: () => 'Boven het formulier staat wie er is ingelogd, namens welke onderneming.',
+    todo:
+      'Klik boven het formulier op Inloggen (is er al iemand ingelogd, dan eerst op Uitloggen), vul de gebruikersnaam en het wachtwoord in en klik op Inloggen.',
+    seen: () => 'Boven het formulier staat wie er is ingelogd, met wat de erkende dienst verklaarde.',
     done: (n, stap, vooraf) => (k) => k.executogrammen(feitNaam(stap.feit)) >= vooraf + n,
     weigering: new RegExp(`^${LOGIN_REFUSED}`),
   },

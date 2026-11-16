@@ -160,6 +160,7 @@ impl Casus {
     /// step, a decision step and a generic step give their record a
     /// kenmerk.
     pub fn verwijzingen_kloppen(&self) -> Result<()> {
+        self.inlogstap_instelling_klopt()?;
         let begin = self.begin_verwijzingen_kloppen()?;
         for scenario in &self.scenarios {
             self.stappen_verwijzingen_kloppen(scenario, &begin)?;
@@ -283,6 +284,33 @@ impl Casus {
                 "{waar} is a check step (toetsen) that names a cell, a fact, a record, values \
                  or an outcome; a check step only checks answers (antwoorden)"
             ));
+        }
+        Ok(())
+    }
+
+    /// The login step of the case, if it has one, names another cell of the
+    /// case, and its access output and means of login have the form
+    /// `<regelwerk>#<article>#<name>`. Whether they exist, the cell says when
+    /// it answers.
+    fn inlogstap_instelling_klopt(&self) -> Result<()> {
+        let Some(stap) = self.inloggen.as_ref().and_then(|i| i.inlogstap.as_ref()) else {
+            return Ok(());
+        };
+        if !self.andere_cellen.iter().any(|a| a.cel == stap.cel) {
+            return self.fout(&format!(
+                "the login step names the cell '{}', which is no other cell of the case",
+                stap.cel
+            ));
+        }
+        for (wat, bron) in std::iter::once(("toegang", &stap.toegang))
+            .chain(stap.middel.iter().map(|m| ("middel", m)))
+        {
+            if bron.split('#').count() != 3 || bron.split('#').any(str::is_empty) {
+                return self.fout(&format!(
+                    "the login step gives as {wat} '{bron}', which is no \
+                     <regelwerk>#<article>#<name>"
+                ));
+            }
         }
         Ok(())
     }
@@ -2115,6 +2143,86 @@ mod tests {
         );
         assert!(
             fout(&c).contains("'b', which is the kenmerk of no step"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    /// A case with a login step through the cell `register` (`toegang`
+    /// as given), playing `stappen`.
+    fn met_inlogstap(toegang: &str, cel: &str, stappen: &str) -> Casus {
+        let mut c = casus("[]", stappen);
+        c.inloggen = Some(Inloggen {
+            feit: "wdo#15#authenticatie_verricht".into(),
+            sleutel: "kvk_nummer".into(),
+            veld: "kvk_nummer".into(),
+            naam: None,
+            inlogstap: Some(Inlogstap {
+                cel: cel.into(),
+                toegang: toegang.into(),
+                dienst: "dienst-1".into(),
+                middel: None,
+            }),
+        });
+        c
+    }
+
+    const TOEGANG: &str = "register_beleid#4#toegang_verleend";
+
+    #[test]
+    fn a_login_step_with_a_user_name_holds() {
+        let stap = "[{stap: inloggen, invoer: {gebruikersnaam: a, wachtwoord: b, dienst: c}}, \
+                    {stap: inloggen, invoer: {gebruikersnaam: a}, uitkomst: geweigerd}]";
+        met_inlogstap(TOEGANG, "register", stap)
+            .verwijzingen_kloppen()
+            .unwrap();
+    }
+
+    #[test]
+    fn a_login_step_that_does_more_than_log_in_is_refused() {
+        for (stap, verwacht) in [
+            ("{stap: inloggen}", "without the user name"),
+            (
+                "{stap: inloggen, invoer: {gebruikersnaam: 1}}",
+                "without the user name",
+            ),
+            (
+                "{stap: inloggen, invoer: {gebruikersnaam: a, kvk_nummer: '1'}}",
+                "with 'kvk_nummer'",
+            ),
+            (
+                "{stap: inloggen, cel: register, invoer: {gebruikersnaam: a}}",
+                "names a cell, a fact",
+            ),
+            (
+                "{stap: inloggen, op: 1, invoer: {gebruikersnaam: a}}",
+                "names a cell, a fact",
+            ),
+            (
+                "{stap: inloggen, invoer: {gebruikersnaam: a}, uitvoer: {x: 1}}",
+                "names a cell, a fact",
+            ),
+            (
+                "{stap: inloggen, invoer: {gebruikersnaam: a}, uitkomst: toegewezen}",
+                "an outcome other than geweigerd",
+            ),
+        ] {
+            let c = met_inlogstap(TOEGANG, "register", &format!("[{stap}]"));
+            assert!(fout(&c).contains(verwacht), "{stap}: {}", fout(&c));
+        }
+    }
+
+    #[test]
+    fn a_login_step_names_another_cell_and_an_output() {
+        let c = met_inlogstap(TOEGANG, "gemeente", "[]");
+        assert!(
+            fout(&c).contains("no other cell of the case"),
+            "{}",
+            fout(&c)
+        );
+        let c = met_inlogstap("register_beleid#toegang", "register", "[]");
+        assert!(
+            fout(&c).contains("no <regelwerk>#<article>#<name>"),
             "{}",
             fout(&c)
         );
