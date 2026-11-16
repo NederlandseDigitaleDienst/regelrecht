@@ -132,6 +132,8 @@ const subtitle = computed(
 
 // A link to a chronolexogram, from the log or from a reference of another
 // one (verwijzingen.js), opens it in the Kroniek tab, also from the sheet.
+// Synchronous, because KroniekTab.vue clears the request once it shows the
+// gram, and a watcher that ran after that would see nothing to do.
 watch(
   () => state.inKroniek,
   (id) => {
@@ -139,6 +141,7 @@ watch(
     getoond.value = null;
     tab.value = 'kroniek';
   },
+  { flush: 'sync' },
 );
 
 // In a scenario, starting over begins that scenario again, as the guide's

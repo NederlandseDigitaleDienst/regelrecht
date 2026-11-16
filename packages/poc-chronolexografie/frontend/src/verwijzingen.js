@@ -40,7 +40,7 @@ export function doel(id, vanCel) {
   return {
     id,
     gevonden: true,
-    tekst: `${gramKop(gram)} · ${gram.fact ?? gram.basis}`,
+    tekst: [gramKop(gram), gram.fact ?? gram.basis].filter(Boolean).join(' · '),
     kroniek: cel === vanCel ? null : celNaam(cel),
   };
 }
@@ -58,7 +58,7 @@ function genoemd(g) {
   voeg('Verwijst naar', g.refers_to);
   voeg('Genomen na', g.after);
   if (g.received) voeg(`Ontvangen van ${celNaam(g.received.from)}`, g.received.id);
-  for (const [veld, w] of Object.entries({ ...g.fields, ...g.outputs })) {
+  for (const [veld, w] of [...Object.entries(g.fields ?? {}), ...Object.entries(g.outputs ?? {})]) {
     if (isGramId(w)) voeg(hoofdletter(leesbaar(veld)), w);
   }
   return uit;
@@ -85,11 +85,33 @@ export const toonInKroniek = (id) => {
 };
 
 /**
+ * Wait until no sheet is closing. A link in the sheet (HerkomstSheet.vue)
+ * closes it, but the sheet's modal dialog stays open during its closing
+ * animation: the page behind it is inert and takes no focus, and on closing
+ * the dialog returns focus to what opened it. The dialog sits in the
+ * sheet's shadow DOM, and the sheet marks it `is-closing` while it animates
+ * (sheet.js of @nldd/design-system). A sheet that stays open is no reason to
+ * wait. Without a closing sheet the wait ends at once; it ends in any case
+ * after 1.2 s, just after the sheet's own fallback of one second closes it.
+ */
+function sheetDicht() {
+  const dialog = [...document.querySelectorAll('nldd-sheet')]
+    .map((s) => s.shadowRoot?.querySelector('dialog'))
+    .find((d) => d?.open && d.classList.contains('is-closing'));
+  if (!dialog) return Promise.resolve();
+  return new Promise((klaar) => {
+    dialog.addEventListener('close', klaar, { once: true });
+    setTimeout(klaar, 1200);
+  });
+}
+
+/**
  * Bring the element `elementId` into view and give it focus, so a keyboard
  * user continues from there. The element needs `tabindex="-1"` to take it.
  */
 export async function inBeeld(elementId) {
   await nextTick();
+  await sheetDicht();
   const el = document.getElementById(elementId);
   if (!el) return;
   el.scrollIntoView({ behavior: 'smooth', block: 'start' });

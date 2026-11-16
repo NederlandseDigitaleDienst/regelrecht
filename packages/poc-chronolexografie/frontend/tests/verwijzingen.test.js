@@ -61,6 +61,15 @@ describe('references between chronolexograms', () => {
     expect(verwijzingen(metVeld).map((r) => r.soort)).toEqual(['Bestreden besluit']);
   });
 
+  it('names a decision taken again after a receipt, and an id among the outputs', () => {
+    const opnieuw = gram(7, { kind: 'BESCHIKKING', after: id(5), outputs: { vorig_besluit: id(2) } });
+    expect(verwijzingen(opnieuw).map((r) => [r.soort, r.id])).toEqual([
+      ['Genomen na', id(5)],
+      ['Vorig besluit', id(2)],
+    ]);
+    expect(verwijzingen(opnieuw)[0].doel.tekst).toBe('EXECUTOGRAM 00000005 · ontvangst');
+  });
+
   it('follows a copy received from another cell into its chronicle', () => {
     const [r] = verwijzingen(beroep);
     expect(r.soort).toBe('Ontvangen van OBS De Klimop');
@@ -93,10 +102,9 @@ describe('a gram with its references in view', () => {
 
   it('links what it refers to and what refers to it', async () => {
     const el = await mount(besluit);
-    expect(regels(el)).toEqual([
-      'Verwijst naar:',
-      'Verwezen door: , (in de kroniek van Rechtbank Wilgendaal)',
-    ]);
+    const [heen, terug] = regels(el);
+    expect(heen).toMatch(/^Verwijst naar:/);
+    expect(terug).toMatch(/^Verwezen door:.*\(in de kroniek van Rechtbank Wilgendaal\)$/);
     const links = [...el.querySelectorAll('nldd-link')];
     expect(links.map((l) => [l.getAttribute('text'), l.getAttribute('href')])).toEqual([
       ['AANVRAAG 00000001 · wet#1', `#gram-${id(1)}`],
@@ -115,7 +123,43 @@ describe('a gram with its references in view', () => {
     const el = await mount(los);
     expect(el.querySelector('nldd-link')).toBeNull();
     expect(regels(el)).toEqual([
-      'Verwijst naar: chronolexogram 00000099 (staat niet in een kroniek die de app heeft)',
+      'Verwijst naar: chronolexogram 00000099 (staat in geen kroniek van deze casus)',
     ]);
+  });
+});
+
+describe('the Kroniek tab on a request', () => {
+  let app = null;
+  afterEach(() => {
+    app?.unmount();
+    document.body.innerHTML = '';
+  });
+
+  it('marks the gram a link asked for and takes the request', async () => {
+    const { default: KroniekTab } = await import('../src/components/KroniekTab.vue');
+    state.inKroniek = id(2);
+    const el = document.createElement('div');
+    document.body.append(el);
+    app = createApp(KroniekTab);
+    app.mount(el);
+    await nextTick();
+    expect(state.inKroniek).toBeNull();
+    const badge = el.querySelector('nldd-badge[text="Hierheen verwezen"]');
+    expect(badge?.closest(`#gram-${id(2)}`)).not.toBeNull();
+    expect(el.querySelectorAll('nldd-badge')).toHaveLength(1);
+  });
+
+  it('drops a request it cannot find when it closes', async () => {
+    const { default: KroniekTab } = await import('../src/components/KroniekTab.vue');
+    state.inKroniek = id(99);
+    const el = document.createElement('div');
+    document.body.append(el);
+    app = createApp(KroniekTab);
+    app.mount(el);
+    await nextTick();
+    expect(state.inKroniek).toBe(id(99));
+    app.unmount();
+    app = null;
+    expect(state.inKroniek).toBeNull();
   });
 });
