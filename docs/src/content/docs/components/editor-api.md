@@ -14,7 +14,7 @@ The editor API is the HTTP server behind the law editor. It serves the compiled 
 
 ## Authorization model
 
-Every route sits in one router group, and each group carries one role gate. The roles are Keycloak realm roles: `editor-reader`, `editor-writer`, `editor-admin`, plus `harvester-reader` for the harvester proxy. Keycloak composite roles make a writer also a reader. See [Auth and roles](/auth-and-roles/) for the role model.
+Every route sits in one router group, and each group carries one role gate. The groups and their gates are put together in one place, `router()` in `packages/editor-api/src/router.rs`; the binary serves that router behind its session layer, and tests send requests through the same function. The roles are Keycloak realm roles: `editor-reader`, `editor-writer`, `editor-admin`, plus `harvester-reader` for the harvester proxy. Keycloak composite roles make a writer also a reader. See [Auth and roles](/auth-and-roles/) for the role model.
 
 | Gate | What it checks |
 |------|----------------|
@@ -29,9 +29,11 @@ A missing session answers 401, a missing role 403. When OIDC is not configured, 
 
 The login itself has a separate gate: `OIDC_REQUIRED_ROLE` is the minimum role needed to complete a login at all.
 
+`tests/router_gates_test.rs` holds the gate of every route as a table and checks it through the router, with a memory session store and no database: 401 without a session, 403 with every role except the required one, and past the gate with that role. A second test compares the routes registered in `router.rs` and `github_oauth.rs` with the table, so a new route fails the tests until it has a row.
+
 ## Endpoints
 
-Derived from the router in `packages/editor-api/src/main.rs` (and `github_oauth.rs` for `/auth/github/*`). That file is the authority; this list is a map of it.
+Derived from the router in `packages/editor-api/src/router.rs` (and `github_oauth.rs` for `/auth/github/*`). That file is the authority, and `tests/router_gates_test.rs` holds its gates as a table; this list is a map of it.
 
 ### Service and session
 
