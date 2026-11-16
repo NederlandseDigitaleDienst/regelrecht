@@ -26,6 +26,12 @@ export interface ScenarioRun {
   /** The output the run asked for, so the graph can mark where it starts. */
   outputName: string | null;
   expectations: Record<string, Expectation>;
+  /**
+   * The regelwerk it executes was not in the engine yet, so there is no
+   * outcome to judge. The editor loads the open regelwerk on its own
+   * schedule; a run made before that is waiting, not failing.
+   */
+  pending?: boolean;
 }
 
 /** How a run compares with what the scenario expects. */
@@ -34,7 +40,7 @@ export type ScenarioStatus = 'passed' | 'failed' | 'no-expectations';
 /** The engine calls a run makes. */
 export type RunEngine = Pick<
   EditorEngine,
-  'clearDataSources' | 'registerDataSource' | 'registerDataSourceForLaw' | 'executeWithTrace'
+  'hasLaw' | 'clearDataSources' | 'registerDataSource' | 'registerDataSourceForLaw' | 'executeWithTrace'
 >;
 
 // The WASM boundary throws either `{ error, trace_text }`, an Error, a string,
@@ -57,11 +63,20 @@ export function runScenario(
   engine: RunEngine,
   inputs: EngineInputs,
   assertions: readonly FormAssertion[],
+  /** Why the regelwerk it executes is not in the engine, when that is known. */
+  loadError: string | null = null,
 ): ScenarioRun {
   const expectations = expectationsFromAssertions([...assertions]);
   const base = { outputName: inputs.outputName, expectations };
   if (!inputs.outputName) {
     return { ...base, result: null, traceText: null, error: 'Dit scenario noemt geen uitkomst om te berekenen.' };
+  }
+  if (!engine.hasLaw(inputs.lawId)) {
+    // Not there yet is waiting; not there for a known reason is a failure.
+    if (loadError) {
+      return { ...base, result: null, traceText: null, error: `Regelwerk '${inputs.lawId}' is niet geladen: ${loadError}` };
+    }
+    return { ...base, result: null, traceText: null, error: null, pending: true };
   }
   try {
     engine.clearDataSources();
@@ -87,7 +102,7 @@ export function runScenario(
 
 /** Whether a run meets the scenario's expectations; null before a run. */
 export function runStatus(run: ScenarioRun | null | undefined): ScenarioStatus | null {
-  if (!run) return null;
+  if (!run || run.pending) return null;
   if (run.error) return 'failed';
   const names = Object.keys(run.expectations);
   if (names.length === 0) return 'no-expectations';

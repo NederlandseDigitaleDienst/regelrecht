@@ -1,6 +1,7 @@
 /**
  * Shared output formatting and comparison utilities used by
- * ScenarioForm, ScenarioBuilder, ExecutionTraceView and the graph trace panes.
+ * ScenarioForm, the scenario runs (scenario/run.ts), ExecutionTraceView and the
+ * graph trace panes.
  */
 
 import { isUnknown, missingFacts } from '@regelrecht/frontend-shared';

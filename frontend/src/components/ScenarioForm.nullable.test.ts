@@ -1,11 +1,11 @@
-import { mount } from '@vue/test-utils';
 import { describe, it, expect } from 'vitest';
-import ScenarioForm from './ScenarioForm.vue';
 import DataSourceTable from './DataSourceTable.vue';
 import ScenarioParameterInput from './ScenarioParameterInput.vue';
 import AbsenceToggle from './AbsenceToggle.vue';
 import { NOT_NULLABLE_MESSAGE } from '../utils/nullability';
 import type { FormParameter } from '../gherkin/formMapper';
+import { mountScenarioForm, type ScenarioFormWrapper } from '../test-utils/scenarioForm';
+import { valuesFromSetup } from '../scenario/inputs';
 
 // RFC-036 / schema v0.5.8: a scenario parameter takes the word `null` (a
 // stated absence) only when the law declares the parameter `nullable: true`.
@@ -13,13 +13,9 @@ import type { FormParameter } from '../gherkin/formMapper';
 // articles (buildTypeMap); data-source columns get theirs through the
 // externalFieldTypeMap and are checked in DataSourceTable.
 
-const setupWith = (parameters: FormParameter[]) => ({
-  calculationDate: '2025-01-01',
-  parameters,
-  dataSources: [
-    { sourceName: 'insurance', keyField: 'bsn', headers: ['bsn', 'huur', 'spaargeld'], rows: [['1', '', '']] },
-  ],
-});
+const insurance = () => [
+  { sourceName: 'insurance', keyField: 'bsn', headers: ['bsn', 'huur', 'spaargeld'], rows: [['1', '', '']] },
+];
 
 type FieldMetaMap = Map<string, { type: string; unit: string | null; nullable?: boolean }>;
 
@@ -32,11 +28,9 @@ const typeMap: FieldMetaMap = new Map([
 ]);
 
 const mountForm = (parameters: FormParameter[], externalFieldTypeMap: FieldMetaMap | null = null) =>
-  mount(ScenarioForm, {
-    props: { scenario: { assertions: [] }, setup: setupWith(parameters), lawId: 'l', typeMap, externalFieldTypeMap },
-  });
+  mountScenarioForm({ parameters, dataSources: insurance(), typeMap, externalFieldTypeMap });
 
-type FormWrapper = ReturnType<typeof mountForm>;
+type FormWrapper = ScenarioFormWrapper;
 // The parameter control named `name`; fails the test when there is none.
 const inputFor = (w: FormWrapper, name: string) => {
   const input = w.findAllComponents(ScenarioParameterInput).find((c) => c.props('name') === name);
@@ -44,7 +38,7 @@ const inputFor = (w: FormWrapper, name: string) => {
   return input;
 };
 const errorTexts = (w: FormWrapper) => w.findAll('nldd-validation-item').map((e) => e.text());
-const values = (w: FormWrapper) => w.vm.getFormValues().parameterValues;
+const values = (w: FormWrapper) => w.values().parameterValues;
 
 describe('ScenarioForm parameter nullability', () => {
   it('accepts null for a nullable parameter', async () => {
@@ -54,7 +48,7 @@ describe('ScenarioForm parameter nullability', () => {
     expect(values(w).huur).toBe('null');
     expect(inputFor(w, 'huur').props('invalid')).toBe(false);
     expect(errorTexts(w)).toEqual([]);
-    expect(w.emitted('change')).toHaveLength(1);
+    expect(w.emitted('update:values')).toHaveLength(1);
   });
 
   it('refuses null for a non-nullable parameter: blank stored, field invalid with the message', async () => {
@@ -94,12 +88,13 @@ describe('ScenarioForm parameter nullability', () => {
   });
 
   it('forgets a refusal when the edits are discarded', async () => {
-    const w = mountForm([{ name: 'inkomen', value: '500' }]);
+    const parameters = [{ name: 'inkomen', value: '500' }];
+    const w = mountForm(parameters);
     inputFor(w, 'inkomen').vm.$emit('update', 'null');
     await w.vm.$nextTick();
     expect(errorTexts(w)).toHaveLength(1);
-    w.vm.discardEdits();
-    await w.vm.$nextTick();
+    // A discard hands the form the saved values again.
+    await w.replaceValues(valuesFromSetup({ calculationDate: '2025-01-01', dependencies: [], parameters, dataSources: insurance() }));
     expect(values(w).inkomen).toBe('500');
     expect(errorTexts(w)).toEqual([]);
   });
@@ -151,7 +146,7 @@ describe('ScenarioForm parameter nullability', () => {
       expect(field.props('invalid')).toBe(false);
       expect(requireToggle(w, 'spaargeld').find('nldd-checkbox-field').attributes('checked')).toBeDefined();
       expect(errorTexts(w)).toEqual([]);
-      expect(w.emitted('change')).toHaveLength(1);
+      expect(w.emitted('update:values')).toHaveLength(1);
     });
 
     it('checking it on a boolean parameter replaces the switch with the word null', async () => {

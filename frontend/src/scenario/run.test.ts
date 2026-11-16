@@ -1,14 +1,18 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import { runScenario, runStatus, type RunEngine } from './run';
 import type { EngineInputs } from './inputs';
 import type { FormAssertion } from '../gherkin/formMapper';
 
-function engine(execute: RunEngine['executeWithTrace']): RunEngine & Record<string, ReturnType<typeof vi.fn>> {
+// Each engine call as a mock, so a test can read and steer it.
+type MockEngine = { [K in keyof RunEngine]: Mock<RunEngine[K]> };
+
+function engine(execute: RunEngine['executeWithTrace']): MockEngine {
   return {
-    clearDataSources: vi.fn(),
-    registerDataSource: vi.fn(),
-    registerDataSourceForLaw: vi.fn(),
-    executeWithTrace: vi.fn(execute),
+    hasLaw: vi.fn<RunEngine['hasLaw']>(() => true),
+    clearDataSources: vi.fn<RunEngine['clearDataSources']>(),
+    registerDataSource: vi.fn<RunEngine['registerDataSource']>(),
+    registerDataSourceForLaw: vi.fn<RunEngine['registerDataSourceForLaw']>(),
+    executeWithTrace: vi.fn<RunEngine['executeWithTrace']>(execute),
   };
 }
 
@@ -59,6 +63,28 @@ describe('runScenario', () => {
     const run = runScenario(e, { ...INPUTS, outputName: null }, []);
     expect(e.executeWithTrace).not.toHaveBeenCalled();
     expect(run.error).toBeTruthy();
+  });
+});
+
+describe('a run before its regelwerk is in the engine', () => {
+  it('waits instead of failing, and has no status', () => {
+    const e = engine(() => ({ outputs: {} }));
+    e.hasLaw.mockReturnValue(false);
+    const run = runScenario(e, INPUTS, EXPECTS_TRUE);
+    expect(e.executeWithTrace).not.toHaveBeenCalled();
+    expect(run.pending).toBe(true);
+    expect(run.error).toBeNull();
+    expect(runStatus(run)).toBeNull();
+  });
+
+  it('fails, with the reason, once it is known the regelwerk will not arrive', () => {
+    const e = engine(() => ({ outputs: {} }));
+    e.hasLaw.mockReturnValue(false);
+    const run = runScenario(e, INPUTS, EXPECTS_TRUE, 'invalid YAML');
+    expect(e.executeWithTrace).not.toHaveBeenCalled();
+    expect(run.pending).toBeFalsy();
+    expect(run.error).toBe("Regelwerk 'wet_a' is niet geladen: invalid YAML");
+    expect(runStatus(run)).toBe('failed');
   });
 });
 

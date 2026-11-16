@@ -133,6 +133,12 @@ Feature: Collecties
       collections: [{ name: 'medebewoners', columns: [{ name: 'leeftijd' }], rows: [] }],
     };
     expect(defined(engineInputs(state, 0, emptied, 'folder_law')).parameters.medebewoners).toEqual([]);
+    // RFC-036: a blank cell is no value stated; the record has no such key.
+    const blankCell: ScenarioValues = {
+      ...values[0]!,
+      collections: [{ name: 'medebewoners', columns: [{ name: 'leeftijd' }], rows: [{ _id: 7, leeftijd: '' }] }],
+    };
+    expect(defined(engineInputs(state, 0, blankCell, 'folder_law')).parameters.medebewoners).toEqual([{}]);
   });
 
   it('names the regelwerk the scenario executes, not the folder it lives in', () => {
