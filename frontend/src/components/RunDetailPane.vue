@@ -1,18 +1,19 @@
 <script setup lang="ts">
 /**
- * RunDetailPane - one run of the traject in main of Verwerkingen: its state,
- * who started it and when, and what came of it. Reads the run from the shared
- * runs store, which RunsListPane keeps current, so a running run updates here
- * without its own poll.
+ * RunDetailPane - one run of a law, in the details sheet of its Verwerkingen
+ * page: its state, who started it and when, and what came of it. Reads the run
+ * from the shared runs store, which RunsListPane keeps current, so a running
+ * run updates here without its own poll.
  *
  * Where there is something left to do, the pane points at it: an enrichment
- * with open review tasks links to those tasks, and a run about a law opens that
- * law. The error of a failed run is shown in full here; the list only says it
- * failed.
+ * with open review tasks links to those tasks. The error of a failed run is
+ * shown in full here; the list only says it failed.
+ *
+ * The rows look like the table on the law's Algemeen page: label left, value
+ * right, in a tinted box.
  */
-import { computed, ref, watch } from 'vue';
+import { computed } from 'vue';
 import { useTrajectRunsStore } from '../stores/trajectRuns';
-import { useCorpus } from '../corpus';
 import {
   coverageText,
   durationText,
@@ -32,7 +33,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'open-tasks': [lawId: string];
-  'open-law': [lawId: string];
 }>();
 
 const store = useTrajectRunsStore();
@@ -82,26 +82,9 @@ const showError = computed(
   () => !!run.value?.error && (run.value.status === 'failed' || run.value.status === 'pending'),
 );
 
-// Only an enrichment names a law, and only one that is in the traject's corpus
-// can be opened: an enrichment chained after a harvest or a law conversion
-// names a regelwerk that lands there only once its review is approved. A
-// harvest carries a BWB id and a conversion a synthetic key.
-const corpus = useCorpus();
-const corpusLawIds = ref<Set<string>>(new Set());
-watch(
-  () => run.value?.job_type === 'enrich',
-  async (isEnrich) => {
-    if (!isEnrich || corpusLawIds.value.size > 0) return;
-    try {
-      corpusLawIds.value = new Set((await corpus.allLaws()).map((law) => law.law_id));
-    } catch {
-      // Without the list there is no knowing; leave the button out.
-    }
-  },
-  { immediate: true },
-);
+// Only an enrichment leaves review tasks, and it names its law by `$id`; a
+// harvest carries a BWB id.
 const lawId = computed(() => (run.value?.job_type === 'enrich' ? run.value.law_id : null));
-const canOpenLaw = computed(() => !!lawId.value && corpusLawIds.value.has(lawId.value));
 
 // Review tasks go to whoever requested the run, and Taken shows a member only
 // their own. Someone else's open proposals get a line saying whose they are,
@@ -113,15 +96,15 @@ const othersOpen = computed(() => (run.value ? run.value.tasks_open - run.value.
   <nldd-inline-dialog
     v-if="!run && store.loaded"
     text="Deze verwerking staat niet (meer) in de lijst"
-    supporting-text="De lijst toont de laatste 200 verwerkingen van dit traject."
+    supporting-text="De lijst toont de laatste 200 verwerkingen van dit regelwerk."
   ></nldd-inline-dialog>
   <nldd-activity-indicator v-else-if="!run" text="Verwerking laden" show-text></nldd-activity-indicator>
   <template v-else>
-    <nldd-list appearance="box-tinted">
-      <nldd-list-item v-for="row in rows" :key="row.label" size="md">
-        <nldd-text-cell :text="row.label" max-width="180px"></nldd-text-cell>
-        <nldd-spacer-cell size="8"></nldd-spacer-cell>
-        <nldd-text-cell :text="row.value"></nldd-text-cell>
+    <nldd-list appearance="box-tinted" accessible-label="Gegevens van de verwerking">
+      <nldd-list-item v-for="row in rows" :key="row.label">
+        <nldd-text-cell :text="row.label" width="200px"></nldd-text-cell>
+        <nldd-spacer-cell size="16"></nldd-spacer-cell>
+        <nldd-text-cell :text="row.value" horizontal-alignment="right"></nldd-text-cell>
       </nldd-list-item>
     </nldd-list>
 
@@ -144,22 +127,13 @@ const othersOpen = computed(() => (run.value ? run.value.tasks_open - run.value.
       </nldd-rich-text>
     </template>
 
-    <template v-if="lawId && (run.tasks_open_mine > 0 || canOpenLaw)">
+    <template v-if="lawId && run.tasks_open_mine > 0">
       <nldd-spacer size="24"></nldd-spacer>
-      <nldd-button-group>
-        <nldd-button
-          v-if="run.tasks_open_mine > 0"
-          appearance="primary"
-          :text="run.tasks_open_mine === 1 ? 'Beoordeel het open voorstel' : `Beoordeel ${run.tasks_open_mine} open voorstellen`"
-          @click="emit('open-tasks', lawId)"
-        ></nldd-button>
-        <nldd-button
-          v-if="canOpenLaw"
-          appearance="secondary"
-          text="Open regelwerk"
-          @click="emit('open-law', lawId)"
-        ></nldd-button>
-      </nldd-button-group>
+      <nldd-button
+        appearance="primary"
+        :text="run.tasks_open_mine === 1 ? 'Beoordeel het open voorstel' : `Beoordeel ${run.tasks_open_mine} open voorstellen`"
+        @click="emit('open-tasks', lawId)"
+      ></nldd-button>
     </template>
   </template>
 </template>

@@ -1,37 +1,39 @@
 <script setup lang="ts">
 /**
- * RunsListPane - the runs of the traject in the secondary sidebar of
- * Verwerkingen: what is still going on top, what is done below, each newest
- * first. A run opens its details in main (RunDetailPane); the route carries
- * which one.
+ * RunsListPane - the runs of one law in the traject, on the law's Verwerkingen
+ * page: what is still going on top, what is done below, each newest first. A
+ * run opens its details in a sheet (RunDetailSheet), the way a task in the
+ * task list and a job in the harvester open theirs.
  *
  * This pane drives the shared runs store (see stores/trajectRuns.ts): it loads
- * the runs and polls while it is mounted, and the details read from the same
- * store.
+ * the law's runs and polls while it is mounted, and the details read from the
+ * same store.
  */
 import { computed, onBeforeUnmount, watch } from 'vue';
 import { useTrajectRunsStore } from '../stores/trajectRuns';
-import { useCorpus } from '../corpus';
-import { isActive, runTitle, runSupportingText, splitRuns } from '../lib/trajectRuns';
+import { isActive, runLawTitle, runSupportingText, splitRuns } from '../lib/trajectRuns';
 import type { TrajectRun } from '../lib/trajectRuns';
 
 const props = withDefaults(
   defineProps<{
     trajectRef?: string | null;
-    jobId?: string | null;
+    lawId?: string | null;
+    /** The law's BWB id, so the harvest that fetched it is listed too. */
+    bwbId?: string | null;
   }>(),
-  { trajectRef: null, jobId: null },
+  { trajectRef: null, lawId: null, bwbId: null },
 );
 
 const emit = defineEmits<{ select: [jobId: string] }>();
 
 const store = useTrajectRunsStore();
-const { displayName } = useCorpus();
 
 watch(
-  () => props.trajectRef,
-  (ref_) => {
-    store.follow(ref_);
+  () => [props.trajectRef, props.lawId, props.bwbId] as const,
+  ([trajectRef, lawId, bwbId]) => {
+    // Without a law there is nothing this page should list: an unfiltered
+    // load would show the runs of every law under this one.
+    store.follow(trajectRef && lawId ? { trajectRef, lawId, bwbId } : null);
   },
   { immediate: true },
 );
@@ -62,7 +64,7 @@ function runIcon(run: TrajectRun): string {
   <nldd-inline-dialog
     v-else-if="store.runs.length === 0"
     text="Nog geen verwerkingen"
-    supporting-text="Wat iemand in dit traject laat ophalen, verrijken of converteren, staat hier met de uitkomst."
+    supporting-text="Wanneer iemand in dit traject dit regelwerk laat ophalen of verrijken, staat dat hier met de uitkomst."
   ></nldd-inline-dialog>
   <template v-else>
     <template v-for="(group, index) in groups" :key="group.key">
@@ -75,7 +77,6 @@ function runIcon(run: TrajectRun): string {
           :key="run.job_id"
           size="md"
           button
-          :current="run.job_id === jobId || undefined"
           @click="emit('select', run.job_id)"
         >
           <nldd-cell v-if="isActive(run)" vertical-alignment="center">
@@ -90,10 +91,7 @@ function runIcon(run: TrajectRun): string {
             :color="run.status === 'failed' ? 'critical' : undefined"
           ></nldd-icon-cell>
           <nldd-spacer-cell size="8"></nldd-spacer-cell>
-          <nldd-text-cell
-            :text="runTitle(run, displayName)"
-            :supporting-text="runSupportingText(run)"
-          ></nldd-text-cell>
+          <nldd-text-cell :text="runLawTitle(run)" :supporting-text="runSupportingText(run)"></nldd-text-cell>
           <nldd-spacer-cell size="8"></nldd-spacer-cell>
           <nldd-icon-cell size="20" icon="chevron-right"></nldd-icon-cell>
         </nldd-list-item>

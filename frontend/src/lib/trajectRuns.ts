@@ -74,6 +74,16 @@ export function runTitle(run: TrajectRun, lawName: LawName = (id) => id): string
 }
 
 /**
+ * What the run is, on the page of the law it is about: the page names the law,
+ * so the title does not. A run of another kind keeps its full title.
+ */
+export function runLawTitle(run: TrajectRun): string {
+  if (run.job_type === 'enrich') return 'Verrijking';
+  if (run.job_type === 'traject_harvest') return 'Ophalen van wetten.overheid.nl';
+  return runTitle(run);
+}
+
+/**
  * The state of the run in words. A run that failed once and waits for its next
  * attempt is pending again, but saying "In de wachtrij" would hide that
  * something went wrong.

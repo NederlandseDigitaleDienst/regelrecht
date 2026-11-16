@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
+  runLawTitle,
   coverageText,
   durationText,
   isActive,
@@ -13,6 +14,21 @@ import {
 import { makeRun } from '../test-utils/runFixtures';
 
 const lawName = (id: string) => (id === 'wet_op_de_zorgtoeslag' ? 'Wet op de zorgtoeslag' : id);
+
+describe('runLawTitle', () => {
+  it('leaves out the law the page already names', () => {
+    expect(runLawTitle(makeRun())).toBe('Verrijking');
+    expect(runLawTitle(makeRun({ job_type: 'traject_harvest', law_id: 'BWBR0018451' }))).toBe(
+      'Ophalen van wetten.overheid.nl',
+    );
+  });
+
+  it('keeps the full title of a run of another kind', () => {
+    expect(runLawTitle(makeRun({ job_type: 'document_convert', target_path: 'mvt/nota.md' }))).toBe(
+      'Conversie van nota.md',
+    );
+  });
+});
 
 describe('runTitle', () => {
   it('names an enrichment by its law', () => {
