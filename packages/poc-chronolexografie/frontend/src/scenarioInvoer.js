@@ -12,7 +12,7 @@
  * step ([`formulier`]).
  */
 import { computed, reactive, watch } from 'vue';
-import { feitNaam, guideFor, vastleggendeCel } from './scenarioGuides.js';
+import { guideFor, vastleggendeCel } from './scenarioGuides.js';
 import { counts, progress } from './scenarioProgress.js';
 import { aanvragen, besluitOp, bezwaarBasis, isBesluit, state } from './state.js';
 
@@ -128,7 +128,7 @@ function recordVan(step) {
   if (step.stap.stap !== 'vastleggen') return null;
   const cel = vastleggendeCel(step.stap, state.casus);
   const grammen = cel === state.casus.cel ? state.grammen : (state.andere.find((a) => a.cel === cel)?.grammen ?? []);
-  const vanFeit = grammen.filter((g) => g.kind === 'EXECUTOGRAM' && g.fact === feitNaam(step.stap.feit));
+  const vanFeit = grammen.filter((g) => g.kind === 'EXECUTOGRAM' && `${g.basis}#${g.fact}` === step.stap.feit);
   return vanFeit[step.vooraf + step.keer - 1]?.id ?? null;
 }
 

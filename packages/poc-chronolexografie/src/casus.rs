@@ -174,8 +174,8 @@ impl Casus {
         scenario: &Scenario,
         begin: &BTreeSet<&str>,
     ) -> Result<()> {
-        // Per kenmerk of an earlier step, the kind of that step.
-        let mut stappen: BTreeMap<&str, Soort> = BTreeMap::new();
+        // Per kenmerk of an earlier step, that step's kind and cell.
+        let mut stappen: BTreeMap<&str, EerdereStap<'_>> = BTreeMap::new();
         for stap in &scenario.stappen {
             let Stap::Handeling(h) = stap else { continue };
             let waar = format!("a step of the scenario '{}'", scenario.naam);
@@ -190,7 +190,13 @@ impl Casus {
                         "{waar} gives the kenmerk '{k}', which an executogram of a begin gives"
                     ));
                 }
-                if stappen.insert(k.as_str(), h.stap).is_some() {
+                let cel = match h.stap {
+                    Soort::Vastleggen => self.vastleggende_cel(h),
+                    Soort::Besluit => Some(self.cel.as_str()),
+                    _ => None,
+                };
+                let eerder = EerdereStap { soort: h.stap, cel };
+                if stappen.insert(k.as_str(), eerder).is_some() {
                     return self.fout(&format!("{waar} gives the kenmerk '{k}' twice"));
                 }
             }
@@ -203,7 +209,7 @@ impl Casus {
     fn generieke_stap_klopt(
         &self,
         h: &Handeling,
-        stappen: &BTreeMap<&str, Soort>,
+        stappen: &BTreeMap<&str, EerdereStap<'_>>,
         waar: &str,
     ) -> Result<()> {
         for naar in [&h.verwijst_naar, &h.na].into_iter().flatten() {
@@ -245,7 +251,12 @@ impl Casus {
     /// a kenmerk, and only a record step refers, to the record of an
     /// earlier step of `stappen` that is no submission, or to one in the
     /// begin of the cell that records it.
-    fn stap_klopt(&self, h: &Handeling, stappen: &BTreeMap<&str, Soort>, waar: &str) -> Result<()> {
+    fn stap_klopt(
+        &self,
+        h: &Handeling,
+        stappen: &BTreeMap<&str, EerdereStap<'_>>,
+        waar: &str,
+    ) -> Result<()> {
         if h.na.is_some() || h.artikel.is_some() {
             return self.fout(&format!(
                 "{waar} gives an article or `na`; only a generic step (indienen, beslissen, \
@@ -273,10 +284,22 @@ impl Casus {
             ));
         };
         match stappen.get(naar.as_str()) {
-            Some(Soort::Indienen) => self.fout(&format!(
+            Some(EerdereStap {
+                soort: Soort::Indienen,
+                ..
+            }) => self.fout(&format!(
                 "{waar} refers to '{naar}', the kenmerk of a submission; a fact refers to a \
                  decision or to another record, since one that refers to a submission would \
                  read as a decision on it"
+            )),
+            // A decision of the case's cell or a record of a known cell is in
+            // that cell's chronicle; which cell a generic step acts in, the
+            // law says, and the cell checks it when the step plays.
+            Some(EerdereStap {
+                cel: Some(ander), ..
+            }) if *ander != cel => self.fout(&format!(
+                "{waar} refers to '{naar}', a record in the chronicle of '{ander}'; a fact \
+                 refers to a record in the chronicle of the cell that records it, '{cel}'"
             )),
             Some(_) => Ok(()),
             None if self.met_kenmerk(cel, naar).is_some() => Ok(()),
@@ -297,6 +320,15 @@ impl Casus {
             Some(_) => None,
         }
     }
+}
+
+/// A step of a scenario that gave its record a kenmerk: its kind, and the
+/// cell whose chronicle holds that record where the case file says so (a
+/// record step, a decision of the case's cell).
+#[derive(Debug, Clone, Copy)]
+struct EerdereStap<'c> {
+    soort: Soort,
+    cel: Option<&'c str>,
 }
 
 /// Another cell of the case: its directory under `cells/` of the corpus, its name
@@ -1651,6 +1683,34 @@ mod tests {
         );
         assert!(
             fout(&c).contains("the kenmerk of a submission"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    #[test]
+    fn a_record_step_that_refers_to_a_record_of_another_cell_is_refused() {
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: aanvraag}}, {{stap: besluit, kenmerk: besluit}}, \
+                 {{stap: vastleggen, cel: register, feit: '{FEIT}', verwijst_naar: besluit}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("a record in the chronicle of 'gemeente'"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: vastleggen, cel: register, feit: '{FEIT}', kenmerk: r}}, \
+                 {{stap: vastleggen, feit: '{CORRECTIE}', verwijst_naar: r}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("a record in the chronicle of 'register'"),
             "{}",
             fout(&c)
         );

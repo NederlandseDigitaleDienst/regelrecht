@@ -152,6 +152,32 @@ describe('bouwGids', () => {
       [1, 2],
     ]);
   });
+
+  it('counts the records of a fact per cell and per article', () => {
+    const casus = {
+      cel: 'dienst',
+      begin: { executogrammen: [{ feit: 'wet#4#melding' }] },
+      andere_cellen: [{ cel: 'bank', begin: { executogrammen: [{ feit: 'wet#4#melding' }, { feit: 'wet#4#melding' }] } }],
+    };
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [
+          { stap: 'vastleggen', cel: 'bank', feit: 'wet#4#melding' },
+          { stap: 'vastleggen', feit: 'wet#4#melding' },
+          { stap: 'vastleggen', feit: 'wet#5#melding' },
+          { stap: 'vastleggen', feit: 'wet#4#melding' },
+        ],
+      },
+      casus,
+    );
+    expect(g.steps.map((s) => [s.vooraf, s.keer])).toEqual([
+      [2, 1],
+      [1, 1],
+      [0, 1],
+      [1, 2],
+    ]);
+  });
 });
 
 describe('guideFor', () => {

@@ -1038,7 +1038,7 @@ fn handelingen(
     let mut uit = Vec::new();
     for (cell, andere) in cellen.andere.iter().zip(&corpus.casus.andere_cellen) {
         let mut feiten = gelezen_feiten(service, cell, on);
-        for f in benoemde_feiten(service, corpus, cell) {
+        for f in benoemde_feiten(service, corpus, cell, on) {
             if !feiten.contains(&f) {
                 feiten.push(f);
             }
@@ -1055,10 +1055,10 @@ fn handelingen(
 /// What the case's own cell records by hand while it handles the case, such
 /// as a payment on its decision: the facts of the regelwerken of the case
 /// that name it as who establishes them, without those it records as the
-/// receipt of a fact of another cell ([`afleveren`]). A fact that names no
-/// one, the case's cell does not record during the case, unlike another
-/// cell: the law has to give it that task. Each fact comes with its fields,
-/// as for another cell ([`handelingen`]).
+/// receipt of a fact of another cell ([`afleveren`]) or of a copy of a
+/// decision. A fact that names no one, the case's cell does not record
+/// during the case, unlike another cell: the law has to give it that task.
+/// Each fact comes with its fields, as for another cell ([`handelingen`]).
 fn eigen_handelingen(
     service: &LawExecutionService,
     corpus: &Corpus,
@@ -1066,9 +1066,20 @@ fn eigen_handelingen(
     on: NaiveDate,
 ) -> Result<Value> {
     let eigen = &cellen.eigen;
+    // The receipt of a copy of a decision of another cell arrives with the
+    // copy (`Indiening::ontvangst`). No such fact in this crate's corpus names
+    // an authority, so this guards a regelwerk that does.
+    let afschriften: Vec<&str> = corpus
+        .afleiding
+        .indieningen
+        .iter()
+        .filter_map(|i| i.ontvangst.as_deref())
+        .collect();
     let mut feiten = Vec::new();
-    for feit in benoemde_feiten(service, corpus, eigen) {
-        if !is_ontvangst(service, &feit, eigen.authority(), on)? {
+    for feit in benoemde_feiten(service, corpus, eigen, on) {
+        if !afschriften.contains(&feit.as_str())
+            && !is_ontvangst(service, &feit, eigen.authority(), on)?
+        {
             feiten.push(feit);
         }
     }
@@ -1119,14 +1130,19 @@ fn gelezen_feiten(service: &LawExecutionService, cell: &Cell, on: NaiveDate) -> 
     feiten
 }
 
-/// The facts of the regelwerken of the case that name `cell` as who
-/// establishes them (`competent_authority`).
-fn benoemde_feiten(service: &LawExecutionService, corpus: &Corpus, cell: &Cell) -> Vec<String> {
+/// The facts of the regelwerken of the case in force on `on` that name
+/// `cell` as who establishes them (`competent_authority`).
+fn benoemde_feiten(
+    service: &LawExecutionService,
+    corpus: &Corpus,
+    cell: &Cell,
+    on: NaiveDate,
+) -> Vec<String> {
     let mut feiten: Vec<String> = Vec::new();
     for (id, _, _) in &corpus.regelwerken {
         for article in service
             .resolver()
-            .get_law(id)
+            .get_law_for_date(id, Some(on))
             .iter()
             .flat_map(|w| &w.articles)
         {

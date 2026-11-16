@@ -177,7 +177,17 @@ describe("a record of the case's own cell", () => {
   });
 
   it('refers to an earlier record of the own cell by its id', () => {
-    state.grammen = [aanvraag, besluit, { id: 'e1', kind: 'EXECUTOGRAM', fact: 'leges_betaald', refers_to: 'b1' }];
+    state.grammen = [aanvraag, besluit, { id: 'e1', kind: 'EXECUTOGRAM', basis: 'wet#4', fact: 'leges_betaald', refers_to: 'b1' }];
+    expect(scenarioVerwijzing('dienst', 'wet#4#leges_terugbetaald')).toBe('e1');
+  });
+
+  it('picks the record of the same fact in the same article', () => {
+    state.grammen = [
+      aanvraag,
+      besluit,
+      { id: 'x1', kind: 'EXECUTOGRAM', basis: 'wet#5', fact: 'leges_betaald' },
+      { id: 'e1', kind: 'EXECUTOGRAM', basis: 'wet#4', fact: 'leges_betaald', refers_to: 'b1' },
+    ];
     expect(scenarioVerwijzing('dienst', 'wet#4#leges_terugbetaald')).toBe('e1');
   });
 });

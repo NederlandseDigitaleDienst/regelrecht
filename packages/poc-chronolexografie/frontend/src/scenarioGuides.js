@@ -142,14 +142,15 @@ export const feitNaam = (feit) => String(feit).split('#').at(-1);
 export const vastleggendeCel = (stap, casus) => stap.cel ?? casus?.cel ?? null;
 
 /**
- * How many records of `feit` the cells of `casus` hold before a scenario,
- * in the cell `cel` only when one is given.
+ * How many records of `feit` the cells of `casus` hold before a scenario, by
+ * the name of the fact. Given a cell, only those of that cell, and only of
+ * that very fact (`<regelwerk>#<article>#<fact>`).
  */
 const vooraf = (casus, feit, cel = null) =>
   [{ cel: casus?.cel, begin: casus?.begin }, ...(casus?.andere_cellen ?? [])]
     .filter((c) => cel === null || c.cel === cel)
     .flatMap((c) => c.begin?.executogrammen ?? [])
-    .filter((e) => feitNaam(e.feit) === feitNaam(feit)).length;
+    .filter((e) => (cel === null ? feitNaam(e.feit) === feitNaam(feit) : e.feit === feit)).length;
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 const waarde = (v) =>
@@ -172,6 +173,8 @@ export function invoerRegels(invoer) {
 export function bouwGids(scenario, casus = null) {
   const geteld = {};
   const feiten = {};
+  // Per recording cell and fact, how many records of it the scenario made.
+  const inCel = {};
   // Per kind, the steps the cell decided on and the steps it refused.
   const besloten = {};
   const geweigerd = {};
@@ -247,10 +250,14 @@ export function bouwGids(scenario, casus = null) {
       expect,
       stap,
       doel,
-      // For a record step: the how-many-th record of its fact it is in the
-      // scenario, and how many its cell held before (scenarioInvoer.js finds
+      // For a record step: the how-many-th record of its fact in its cell
+      // it is in the scenario, and how many that cell held before (scenarioInvoer.js finds
       // the record a later step refers to with these).
-      keer: keerFeit,
+      keer:
+        stap.stap === 'vastleggen'
+          ? (inCel[`${vastleggendeCel(stap, casus)} ${stap.feit}`] =
+              (inCel[`${vastleggendeCel(stap, casus)} ${stap.feit}`] ?? 0) + 1)
+          : 0,
       vooraf: stap.stap === 'vastleggen' ? vooraf(casus, stap.feit, vastleggendeCel(stap, casus)) : 0,
     };
     notes = [];

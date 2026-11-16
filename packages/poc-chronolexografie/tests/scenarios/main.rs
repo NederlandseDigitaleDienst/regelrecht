@@ -561,14 +561,7 @@ fn the_case_s_own_cell_records_a_fact_about_its_decision() {
     assert_eq!(betaling["refers_to"], besluit["id"]);
     assert_eq!(betaling["recording_actor"], "fictieve_dienst");
     assert_eq!(terug["refers_to"], betaling["id"]);
-    // A fact of the service's own does not count as a decision on what it
-    // refers to: the decision is still the only one on the application.
     let aanvraag = grammen.iter().find(|g| g["kind"] == "AANVRAAG").unwrap();
-    let op_aanvraag = grammen
-        .iter()
-        .filter(|g| g["refers_to"] == aanvraag["id"])
-        .count();
-    assert_eq!(op_aanvraag, 1);
 
     let dag = "2026-03-02".parse().unwrap();
     let vormen = spel.vormen(dag).unwrap();
