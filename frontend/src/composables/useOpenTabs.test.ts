@@ -8,9 +8,10 @@ import { useOpenTabs } from './useOpenTabs';
 
 const A = 'traject-a-00000001';
 const B = 'traject-b-00000002';
-const TAB_A1 = { lawId: 'law_a', articleNumber: '1' };
-const TAB_A2 = { lawId: 'law_a', articleNumber: '2' };
-const TAB_C1 = { lawId: 'law_c', articleNumber: '1' };
+const TAB_A1 = { kind: 'article', lawId: 'law_a', articleNumber: '1' } as const;
+const TAB_A2 = { kind: 'article', lawId: 'law_a', articleNumber: '2' } as const;
+const TAB_C1 = { kind: 'article', lawId: 'law_c', articleNumber: '1' } as const;
+const SCENARIO_A = { kind: 'scenario', lawId: 'law_a', filename: 'basis.feature' } as const;
 
 const tabsKey = (ref_: string) => `regelrecht-open-tabs:${ref_}`;
 const activeKey = (ref_: string) => `regelrecht-active-tab:${ref_}`;
@@ -62,15 +63,15 @@ describe('useOpenTabs', () => {
     const store = useOpenTabs(active);
     for (let i = 0; i < 25; i++) store.openTab(A, { lawId: `law_${i}`, articleNumber: '1' });
     expect(store.tabs.value).toHaveLength(20);
-    expect(store.tabs.value[0]).toEqual({ lawId: 'law_5', articleNumber: '1' });
-    expect(store.tabs.value[19]).toEqual({ lawId: 'law_24', articleNumber: '1' });
+    expect(store.tabs.value[0]).toEqual({ kind: 'article', lawId: 'law_5', articleNumber: '1' });
+    expect(store.tabs.value[19]).toEqual({ kind: 'article', lawId: 'law_24', articleNumber: '1' });
   });
 
   it('normalises a numeric articleNumber on openTab', () => {
     const active = ref(A);
     const store = useOpenTabs(active);
-    store.openTab(A, { lawId: 'law_a', articleNumber: 5 });
-    expect(store.tabs.value).toEqual([{ lawId: 'law_a', articleNumber: '5' }]);
+    store.openTab(A, { kind: 'article', lawId: 'law_a', articleNumber: 5 });
+    expect(store.tabs.value).toEqual([{ kind: 'article', lawId: 'law_a', articleNumber: '5' }]);
   });
 
   it('openTab activates the newly opened tab', () => {
@@ -161,5 +162,25 @@ describe('useOpenTabs', () => {
     expect(store.publishedTrajectRef.value).toBe(A);
     active.value = B;
     expect(store.publishedTrajectRef.value).toBe(B);
+  });
+  it('opens a scenario tab next to the law\'s article tabs and finds it', () => {
+    const store = useOpenTabs(ref(A));
+    store.openTab(A, TAB_A1);
+    store.openTab(A, SCENARIO_A);
+    store.openTab(A, SCENARIO_A);
+    expect(store.tabs.value).toEqual([TAB_A1, SCENARIO_A]);
+    expect(store.activeTab.value).toEqual(SCENARIO_A);
+    expect(store.findTab(A, SCENARIO_A)).toEqual(SCENARIO_A);
+    expect(store.findTab(A, { lawId: 'law_a', articleNumber: 1 })).toEqual(TAB_A1);
+  });
+
+  it('dropLaw also closes the law\'s scenario tabs', () => {
+    const store = useOpenTabs(ref(A));
+    store.openTab(A, TAB_A1);
+    store.openTab(A, TAB_C1);
+    store.openTab(A, SCENARIO_A);
+    store.dropLaw(A, 'law_a');
+    expect(store.tabs.value).toEqual([TAB_C1]);
+    expect(store.activeTab.value).toBeNull();
   });
 });
