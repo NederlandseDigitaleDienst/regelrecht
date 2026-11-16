@@ -10,7 +10,7 @@ use regelrecht_pipeline::job_queue::{self, CreateJobRequest};
 use regelrecht_pipeline::models::{JobStatus, JobType};
 use regelrecht_pipeline::tasks::{self, NewTask, TaskType};
 use regelrecht_pipeline::test_utils::TestDb;
-use regelrecht_pipeline::traject_runs::list_traject_runs;
+use regelrecht_pipeline::traject_runs::{LawFilter, list_traject_runs};
 
 const TRAJECT_REF: &str = "zorgtoeslag-abcd1234";
 
@@ -207,7 +207,7 @@ async fn lists_only_this_trajects_runs_newest_first_also_after_a_rename() {
     let db = TestDb::new().await;
     let seeded = seed_runs(&db).await;
     // The harvest was requested under the traject's old name; it still belongs.
-    let runs = list_traject_runs(&db.pool, traject_id(), seeded.alice)
+    let runs = list_traject_runs(&db.pool, traject_id(), seeded.alice, None)
         .await
         .unwrap();
     let ids: Vec<Uuid> = runs.iter().map(|r| r.job_id).collect();
@@ -224,7 +224,7 @@ async fn lists_only_this_trajects_runs_newest_first_also_after_a_rename() {
 async fn gives_an_enrichment_its_outcome_and_review() {
     let db = TestDb::new().await;
     let seeded = seed_runs(&db).await;
-    let runs = list_traject_runs(&db.pool, traject_id(), seeded.alice)
+    let runs = list_traject_runs(&db.pool, traject_id(), seeded.alice, None)
         .await
         .unwrap();
     let enrich = runs.iter().find(|r| r.job_id == seeded.enrich).unwrap();
@@ -250,7 +250,7 @@ async fn gives_an_enrichment_its_outcome_and_review() {
 async fn counts_the_open_tasks_of_the_member_asking() {
     let db = TestDb::new().await;
     let seeded = seed_runs(&db).await;
-    let runs = list_traject_runs(&db.pool, traject_id(), seeded.bob)
+    let runs = list_traject_runs(&db.pool, traject_id(), seeded.bob, None)
         .await
         .unwrap();
     let enrich = runs.iter().find(|r| r.job_id == seeded.enrich).unwrap();
@@ -261,7 +261,7 @@ async fn counts_the_open_tasks_of_the_member_asking() {
 async fn gives_a_failed_run_its_error_and_a_running_one_its_progress() {
     let db = TestDb::new().await;
     let seeded = seed_runs(&db).await;
-    let runs = list_traject_runs(&db.pool, traject_id(), seeded.alice)
+    let runs = list_traject_runs(&db.pool, traject_id(), seeded.alice, None)
         .await
         .unwrap();
 
@@ -287,10 +287,77 @@ async fn falls_back_to_the_requested_provider_while_an_enrichment_runs() {
         json!({ "provider": "requested-provider" }),
     )
     .await;
-    let runs = list_traject_runs(&db.pool, traject_id(), Uuid::new_v4())
+    let runs = list_traject_runs(&db.pool, traject_id(), Uuid::new_v4(), None)
         .await
         .unwrap();
     assert_eq!(runs.len(), 1);
     assert_eq!(runs[0].provider.as_deref(), Some("requested-provider"));
     assert_eq!(runs[0].requested_by_name, None);
+}
+
+#[tokio::test]
+async fn narrows_to_one_law_with_the_harvest_that_fetched_it() {
+    let db = TestDb::new().await;
+    let seeded = seed_runs(&db).await;
+    // The same law and BWB id in another traject: the law filter must not
+    // reach past the traject match.
+    let other = "ander-ffff0000";
+    create_run(
+        &db,
+        JobType::Enrich,
+        "wet_op_de_zorgtoeslag",
+        Some(other),
+        json!({}),
+    )
+    .await;
+    create_run(
+        &db,
+        JobType::TrajectHarvest,
+        "BWBR0018451",
+        Some(other),
+        json!({}),
+    )
+    .await;
+    let law = LawFilter {
+        law_id: "wet_op_de_zorgtoeslag",
+        bwb_id: Some("BWBR0018451"),
+    };
+    let runs = list_traject_runs(&db.pool, traject_id(), seeded.alice, Some(law))
+        .await
+        .unwrap();
+    let ids: Vec<Uuid> = runs.iter().map(|r| r.job_id).collect();
+    assert_eq!(ids, vec![seeded.enrich, seeded.harvest]);
+
+    // Without a BWB id there is no harvest to match.
+    let law = LawFilter {
+        law_id: "wet_op_de_zorgtoeslag",
+        bwb_id: None,
+    };
+    let runs = list_traject_runs(&db.pool, traject_id(), seeded.alice, Some(law))
+        .await
+        .unwrap();
+    let ids: Vec<Uuid> = runs.iter().map(|r| r.job_id).collect();
+    assert_eq!(ids, vec![seeded.enrich]);
+}
+
+#[tokio::test]
+async fn matches_a_bwb_id_only_on_a_harvest() {
+    let db = TestDb::new().await;
+    // An enrichment whose law_id happens to be the BWB id is not the harvest.
+    create_run(
+        &db,
+        JobType::Enrich,
+        "BWBR0018451",
+        Some(TRAJECT_REF),
+        json!({}),
+    )
+    .await;
+    let law = LawFilter {
+        law_id: "wet_op_de_zorgtoeslag",
+        bwb_id: Some("BWBR0018451"),
+    };
+    let runs = list_traject_runs(&db.pool, traject_id(), Uuid::new_v4(), Some(law))
+        .await
+        .unwrap();
+    assert!(runs.is_empty());
 }

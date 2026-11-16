@@ -90,9 +90,22 @@ fn traject_key(traject_id: Uuid) -> String {
     simple.chars().take(8).collect()
 }
 
+/// Narrows the runs to those about one law: its enrichments, and the traject
+/// harvest that fetched it into the traject.
+#[derive(Debug, Clone, Copy)]
+pub struct LawFilter<'a> {
+    /// The law's `$id`, which an enrichment carries as its `law_id`.
+    pub law_id: &'a str,
+    /// The law's BWB id, which a traject harvest carries as its `law_id`
+    /// (the law has no `$id` yet when it is requested). `None` for a law
+    /// without one, such as a regelwerk made from a document.
+    pub bwb_id: Option<&'a str>,
+}
+
 /// The runs requested in the traject `traject_id`, newest first, at most
-/// [`MAX_RUNS`]. Every member sees every run of the traject; the caller checks
-/// membership. `viewer` is the member asking, for `tasks_open_mine`.
+/// [`MAX_RUNS`]; with `law`, only the runs about that law. Every member sees
+/// every run of the traject; the caller checks membership. `viewer` is the
+/// member asking, for `tasks_open_mine`.
 ///
 /// # Errors
 ///
@@ -101,6 +114,7 @@ pub async fn list_traject_runs(
     pool: &PgPool,
     traject_id: Uuid,
     viewer: Uuid,
+    law: Option<LawFilter<'_>>,
 ) -> Result<Vec<TrajectRun>> {
     // The traject match is written exactly as idx_jobs_traject_key (migration
     // 0038) indexes it: `right(traject_ref, 9)` with `traject_ref IS NOT NULL`.
@@ -137,12 +151,17 @@ pub async fn list_traject_runs(
          WHERE j.traject_ref IS NOT NULL \
            AND right(j.traject_ref, 9) = '-' || $1 \
            AND j.job_type IN ('enrich', 'document_convert', 'law_convert', 'traject_harvest') \
+           AND ($4::text IS NULL \
+                OR j.law_id = $4 \
+                OR (j.job_type = 'traject_harvest' AND j.law_id = $5::text)) \
          ORDER BY j.created_at DESC, j.id \
          LIMIT $2",
     )
     .bind(traject_key(traject_id))
     .bind(MAX_RUNS)
     .bind(viewer)
+    .bind(law.map(|l| l.law_id))
+    .bind(law.and_then(|l| l.bwb_id))
     .fetch_all(pool)
     .await?;
     Ok(runs)
