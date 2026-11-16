@@ -101,10 +101,6 @@ test.describe('Edit → re-execute loop via the structured operation editor', ()
     // Red: a minor passes age >= 0, so the AND is still true and the scenario
     // (which expects no entitlement) fails.
     await expectScenarioResult(page, MINOR, 'Mislukt');
-    // Close the (bottom-placed) result sheet before opening the ActionSheet so
-    // only one sheet is visible.
-    await openSheet(page).getByRole('button', { name: 'Sluit' }).click();
-    await expect(openSheet(page)).toHaveCount(0);
 
     // --- Structured edit: open the action and tighten the age threshold ---
     await openActionEditor(page, 'heeft_recht_op_zorgtoeslag');

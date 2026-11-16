@@ -428,37 +428,31 @@ export async function selectSheetDropdown(page, labelText, value) {
 }
 
 /**
- * Poll a scenario card's result sheet until it reports the wanted status
- * ("Mislukt" / "Geslaagd"). Scenarios auto-execute sequentially once their
- * dependency laws finish loading, and the overview cards carry no pass/fail
- * badge, so we (re)open the result sheet and read its outcome, retrying until
- * execution has produced one. The result sheet reads fresh data from the
- * scenario form on every open, so re-clicking picks up a later run. Throws with
- * the last-seen sheet text if the status never appears within `timeout`.
+ * Wait until a scenario in the read-only scenario pane reports the wanted
+ * status ("Mislukt" / "Geslaagd"). The pane runs every scenario once its
+ * dependency laws are loaded, and again after each edit to the regelwerk, and
+ * shows the outcome as a tag on the scenario's row. Throws with the row's last
+ * tag if the status never appears within `timeout`.
  * @param {import('@playwright/test').Page} page
- * @param {string} title - substring of the scenario card's name
+ * @param {string} title - substring of the scenario's name
  * @param {string} want - 'Mislukt' or 'Geslaagd'
  * @param {number} [timeout]
  */
 export async function expectScenarioResult(page, title, want, timeout = 60_000) {
-  const card = page.locator('nldd-card').filter({ hasText: title });
-  await card.waitFor({ state: 'visible', timeout: 30_000 });
+  const row = page
+    .locator('[data-testid="scenario-status-pane"] nldd-list-item')
+    .filter({ hasText: title })
+    .first();
+  await row.waitFor({ state: 'visible', timeout: 30_000 });
+  const tag = row.locator('nldd-tag');
   const deadline = Date.now() + timeout;
-  let lastText = '';
+  let last = '';
   while (Date.now() < deadline) {
-    await card.getByRole('button', { name: 'Resultaat' }).click();
-    const sheet = openSheet(page);
-    await sheet.waitFor({ state: 'visible', timeout: 10_000 });
+    last = (await tag.getAttribute('text', { timeout: 1000 }).catch(() => null)) ?? '';
+    if (last === want) return;
     await page.waitForTimeout(500);
-    if ((await sheet.getByText(want, { exact: false }).count()) > 0) {
-      return;
-    }
-    lastText = (await sheet.innerText().catch(() => '')) || lastText;
-    // Close and retry - a later auto-execute pass may have produced a result.
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(1000);
   }
-  throw new Error(`scenario "${title}" never reported "${want}". Last sheet text:\n${lastText}`);
+  throw new Error(`scenario "${title}" never reported "${want}". Last status: "${last}"`);
 }
 
 /**
