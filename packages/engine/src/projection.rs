@@ -490,14 +490,28 @@ impl LawExecutionService {
         self.check_steps(law_id, &projection, &[], day, true)?;
         if !filter.is_empty() {
             // A root rests on its article as in force on the day it was
-            // recorded; a name any of those versions declares may match.
+            // recorded, and a reader is written against the article in
+            // force on the day asked; a name any of those versions declares
+            // may match. Without roots there is nothing to match and nothing
+            // to check here: the loader checks `where` when it holds the
+            // root's law.
             let mut roots: Vec<&Article> = Vec::new();
+            let mut present = false;
             for root in known.iter().filter(|r| is_root(per, r)) {
-                if let Ok(article) = self.article_of(root)
-                    && !roots.iter().any(|a| std::ptr::eq(*a, article))
-                {
+                present = true;
+                let article = self.article_of(root)?;
+                if !roots.iter().any(|a| std::ptr::eq(*a, article)) {
                     roots.push(article);
                 }
+            }
+            if present
+                && let Some((law, number)) = per.0.split_once('#')
+                && let Some(article) = self
+                    .resolver()
+                    .get_law_for_date(law, Some(day))
+                    .and_then(|l| l.find_article_by_number(number))
+            {
+                roots.push(article);
             }
             check_where(&projection, &roots, filter.keys().map(String::as_str))
                 .map_err(|why| EngineError::InvalidOperation(format!("{reference}: {why}")))?;
@@ -1237,6 +1251,8 @@ pub(crate) fn aggregate_projection<'l>(
 /// `refers_to` or `id`: a name only the state holds would match no root and
 /// leave the read model with no rows, without saying why. A `per` the
 /// article cannot resolve is left to the step checks, which report it.
+/// The loader runs this from schema v0.8.19; a reader on an earlier
+/// version is checked only when the cell plays it, with roots present.
 pub(crate) fn check_where<'n>(
     projection: &Projection,
     roots: &[&Article],
@@ -1245,19 +1261,23 @@ pub(crate) fn check_where<'n>(
     let Some(per) = projection.per_basis_and_kind() else {
         return Ok(());
     };
+    if roots.is_empty() {
+        return Ok(());
+    }
     let (basis, selector) = per;
     let fact = selector.filter(|k| names_fact(k));
     let declares = |root: &Article, name: &str| match fact {
-        Some(fact) => executogram_field_type(root, Some(fact), name).is_some(),
+        // A fact the article does not require is the step checks' to report.
+        Some(fact) => {
+            !facts_of(root).contains(&fact)
+                || executogram_field_type(root, Some(fact), name).is_some()
+        }
         None => match record_kind(root, basis, selector) {
             Ok(kind) => field_type(root, kind.as_deref(), name).is_some(),
             // Not this check's to report; the step checks do.
             Err(_) => true,
         },
     };
-    if roots.is_empty() {
-        return Ok(());
-    }
     let Some(name) = names
         .into_iter()
         .find(|name| !roots.iter().any(|root| declares(root, name)))
@@ -4629,6 +4649,27 @@ articles:
         );
     }
 
+    /// [`LAW`] with article 1 taking a number, `nummer`, besides the
+    /// applicant.
+    fn law_with_number() -> String {
+        LAW.replace(
+            "parameters: [{name: aanvrager, type: string, required: false}]",
+            "parameters: [{name: aanvrager, type: string, required: false}, \
+             {name: nummer, type: number, required: false}]",
+        )
+    }
+
+    /// The versions of the law in `laws`, [`REDUCTION`] and [`PER_GRANT`].
+    fn per_grant_over(laws: &[&str]) -> LawExecutionService {
+        let mut service = LawExecutionService::new();
+        for law in laws {
+            service.load_law(law).unwrap();
+        }
+        service.load_law(REDUCTION).unwrap();
+        service.load_law(PER_GRANT).unwrap();
+        service
+    }
+
     /// `where` compares numbers by value, as EQUALS does: a number matches
     /// the same number written as a decimal.
     #[test]
@@ -4636,16 +4677,7 @@ articles:
         let mut root = granted_to("a", "x");
         root.fields.insert("nummer".to_string(), Value::Int(2));
         // `where` names only what the root's article declares.
-        let mut service = LawExecutionService::new();
-        service
-            .load_law(&LAW.replace(
-                "parameters: [{name: aanvrager, type: string, required: false}]",
-                "parameters: [{name: aanvrager, type: string, required: false}, \
-                 {name: nummer, type: number, required: false}]",
-            ))
-            .unwrap();
-        service.load_law(REDUCTION).unwrap();
-        service.load_law(PER_GRANT).unwrap();
+        let service = per_grant_over(&[&law_with_number()]);
         let rows = |value: Value| {
             service
                 .projection_rows(
@@ -4668,18 +4700,10 @@ articles:
     /// dropped.
     #[test]
     fn where_names_a_field_of_the_version_a_root_rests_on() {
-        let with_number = LAW.replace(
-            "parameters: [{name: aanvrager, type: string, required: false}]",
-            "parameters: [{name: aanvrager, type: string, required: false}, \
-             {name: nummer, type: number, required: false}]",
-        );
-        let mut service = LawExecutionService::new();
-        service.load_law(&with_number).unwrap();
-        service
-            .load_law(&LAW.replace("valid_from: '2025-01-01'", "valid_from: '2025-04-01'"))
-            .unwrap();
-        service.load_law(REDUCTION).unwrap();
-        service.load_law(PER_GRANT).unwrap();
+        let service = per_grant_over(&[
+            &law_with_number(),
+            &LAW.replace("valid_from: '2025-01-01'", "valid_from: '2025-04-01'"),
+        ]);
         let mut root = granted_to("a", "x");
         root.fields.insert("nummer".to_string(), Value::Int(2));
         let rows = service
@@ -4691,6 +4715,36 @@ articles:
             )
             .unwrap();
         assert_eq!(rows, Value::Array(vec![row("a", true, "x")]));
+        // A name no version declares is still refused.
+        let err = service
+            .projection_rows(
+                "per_verlening",
+                std::slice::from_ref(&root),
+                &BTreeMap::from([("onbekend".to_string(), Value::Int(2))]),
+                "2025-05-01",
+            )
+            .expect_err("no version declares it")
+            .to_string();
+        assert!(err.contains("where names 'onbekend'"), "{err}");
+    }
+
+    /// A reader written against a newer version may name a field that
+    /// version adds before any root rests on it: no root matches yet.
+    #[test]
+    fn where_names_a_field_of_the_version_in_force_on_the_day_asked() {
+        let service = per_grant_over(&[
+            LAW,
+            &law_with_number().replace("valid_from: '2025-01-01'", "valid_from: '2025-04-01'"),
+        ]);
+        let rows = service
+            .projection_rows(
+                "per_verlening",
+                &[granted_to("a", "x")],
+                &BTreeMap::from([("nummer".to_string(), Value::Int(2))]),
+                "2025-05-01",
+            )
+            .unwrap();
+        assert_eq!(rows, Value::Array(Vec::new()));
     }
 
     /// [`LAW`] with article 4 requiring two facts: a card handed in
