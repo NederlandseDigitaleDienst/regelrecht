@@ -63,6 +63,12 @@ fn gated(
 /// (`state.config.oidc` unset, local development only) every role gate
 /// passes, there is no token to refresh, and the GitHub OAuth routes are not
 /// mounted, since linking an account needs a logged-in user.
+///
+/// # Panics
+///
+/// When two groups register the same method on the same path: axum refuses
+/// to merge overlapping routes. That is a bug in this file, met at startup
+/// and in `tests/router_gates_test.rs`.
 pub fn router(state: AppState) -> Router {
     let auth_enabled = state.config.is_auth_enabled();
 
@@ -180,7 +186,8 @@ const MAX_UPLOAD_BODY: usize = 25 * 1024 * 1024;
 /// Public API routes — accessible without authentication. The corpus
 /// reads under `/api/corpus/...` here serve the **global** view (no
 /// per-traject overlay). Edits and traject-scoped reads live under
-/// `/api/trajects/{tid}/corpus/...` (writer-tier, see `traject_routes`).
+/// `/api/trajects/{tid}/corpus/...` (see `traject_reader_routes` and
+/// `traject_writer_routes`).
 fn public_api_routes() -> Router<AppState> {
     Router::new()
         .route("/api/sources", get(corpus_handlers::list_sources))
@@ -214,10 +221,10 @@ fn public_api_routes() -> Router<AppState> {
             get(corpus_handlers::get_annotations),
         )
         .route("/api/feature-flags", get(feature_flags::list_feature_flags))
-        // Welke uploadformaten zonder taalmodel omgezet kunnen worden. De
-        // upload-bevestiging in de editor leest dit zodat er geen tweede
-        // formaatlijst in de frontend ontstaat; de inhoud is statisch en
-        // niet-gevoelig, vandaar publiek.
+        // The upload formats that convert without a language model. The
+        // editor's upload confirmation reads this, so the frontend keeps no
+        // second list of formats; the content is static and not sensitive,
+        // hence public.
         .route(
             "/api/document-upload-formats",
             get(corpus_handlers::list_document_upload_formats),
@@ -246,7 +253,7 @@ fn reader_routes() -> Router<AppState> {
 }
 
 /// Writer routes — `editor-writer` covers user-scoped writes. Corpus
-/// edits live under `/api/trajects/{tid}/corpus/...` in `traject_routes`
+/// edits live under `/api/trajects/{tid}/corpus/...` in `traject_writer_routes`
 /// (membership + traject path on every request, making "no traject = no
 /// write" an URL-level invariant rather than a runtime check). Harvest
 /// POSTs (which trigger outbound requests) sit here so anonymous callers
@@ -270,7 +277,7 @@ fn writer_routes() -> Router<AppState> {
         )
 }
 
-/// Persoonlijke notities — private per-user notes on a law (Postgres,
+/// Personal notes: private per-user notes on a law (Postgres,
 /// never git). Handlers extract `Extension<AccountRecord>`, so
 /// `account_middleware` must run per request, same as traject routes.
 /// Reads at reader tier, mutations at writer tier, mirroring how
@@ -296,11 +303,11 @@ fn user_notes_writer_routes() -> Router<AppState> {
         )
 }
 
-/// Persoonlijke taken (taken-mechanisme) — review-taken van async jobs,
-/// gekoppeld aan het aanvragende account. Zelfde split als user_notes:
-/// reads at reader tier, de afhandeling (mutatie + audit-stempel) at
-/// writer tier, allebei achter `account_middleware` omdat de handlers
-/// `Extension<AccountRecord>` extracten.
+/// Personal tasks: review tasks of async jobs, tied to the account that
+/// asked for the job. The same split as the user notes: reads at reader
+/// tier, resolving one (the change plus its audit stamp) at writer tier,
+/// both behind `account_middleware` because the handlers extract
+/// `Extension<AccountRecord>`.
 fn tasks_reader_routes() -> Router<AppState> {
     Router::new()
         .route("/api/tasks", get(tasks_api::list))
@@ -348,25 +355,18 @@ fn harvest_admin_routes() -> Router<AppState> {
     )
 }
 
-/// Traject routes — user-scoped CRUD on shared editing sessions plus
-/// the traject-scoped corpus endpoints (read + write). Handlers extract
-/// `Extension<AccountRecord>`, so `account_middleware` must run before
-/// each request to load the account row from the DB. Writer-tier
-/// because users manage their own trajects; the per-traject membership
-/// model handles finer-grained access within each handler.
+/// Traject-scoped reads (editor-reader tier): the trajects you are a member
+/// of and their corpus. Reading needs no write privilege: a Keycloak
+/// `editor-reader` invited to a traject must see its edits in progress.
+/// Handlers extract `Extension<AccountRecord>`, so the account row is loaded
+/// per request, and each handler re-checks traject membership; the role here
+/// is the broader "an authenticated reader at all" gate. Writes are in
+/// `traject_writer_routes`.
 ///
-/// Why the corpus routes live here too: writes against a traject's
-/// branch require the traject id to be in the URL (per RFC discussion
-/// — the active traject is per-tab via the SPA route, not a server
-/// session). All `/api/trajects/{id}/corpus/...` routes go through the
-/// same membership re-check that `traject_routes` already use.
-/// Traject-scoped reads (editor-reader tier). Listing/viewing the
-/// trajects you're a member of and reading the per-traject corpus
-/// overlay don't require write privilege — a Keycloak `editor-reader`
-/// who has been invited to a traject must be able to see in-progress
-/// edits. Membership is re-checked per request inside the handlers,
-/// so the role here is the broader "is this an authenticated reader
-/// at all" gate. Writes live in `traject_writer_routes` below.
+/// The corpus routes sit under the traject because a traject is per tab (the
+/// SPA route names it), not a server session: the traject id is in every URL,
+/// and every `/api/trajects/{id}/corpus/...` route goes through the same
+/// membership check.
 fn traject_reader_routes() -> Router<AppState> {
     Router::new()
         .route("/api/trajects", get(trajects::list))
@@ -519,14 +519,15 @@ fn traject_writer_routes() -> Router<AppState> {
             axum::routing::post(task_requests::request_enrich),
         )
         .route(
-            // Promote: kopieer een wet uit het centrale corpus naar de
-            // traject-repo (zelfde schrijfpad/autorisatie als save_law).
+            // Promote: copy a law from the central corpus into the traject's
+            // repository (the same write path and authorization as save_law).
             "/api/trajects/{traject_ref}/corpus/laws/{law_id}/promote",
             axum::routing::post(corpus_handlers::promote_corpus_law),
         )
         .route(
-            // Traject-scoped harvest via het taken-mechanisme: BWB-download
-            // op de worker + geketende taak-flow-enrich (law_convert-patroon).
+            // Traject-scoped harvest through the task mechanism: the BWB
+            // download on the worker plus a chained enrich task (the
+            // law_convert pattern).
             "/api/trajects/{traject_ref}/corpus/harvest",
             axum::routing::post(task_requests::request_traject_harvest),
         )

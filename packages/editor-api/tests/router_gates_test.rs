@@ -4,11 +4,17 @@
 //! The table is the routes' contract: which role each route needs, and whether
 //! it loads the caller's account. Requests go through `router()` itself, behind
 //! a memory session store, so a route put in the wrong group fails here. A
-//! second test compares the routes registered in the source with the table, so
-//! a route added without a row fails too.
+//! second test reads the methods each `.route(..)` call mounts from the source
+//! and compares them with the table, so a route or a method added without a
+//! row fails too. (Over HTTP that cannot be told: a gate, and the account
+//! loading, run before the method is matched, so an unmounted method answers
+//! like a mounted one.)
 //!
 //! No database: a gate answers before any handler runs, and a route that gets
-//! past its gate and needs an account answers 503 without a pool.
+//! past its gate and needs an account answers 503 without a pool. That proves
+//! an account route loads the account. The reverse is not proven: a
+//! session-only route that also answers 503 without a pool (favorites,
+//! settings) would not show that it started loading the account.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
@@ -71,6 +77,11 @@ const HARVESTER: &str = "harvester-reader";
 /// Every route the editor-api mounts (with OIDC configured), and its gate.
 const ROUTES: &[Route] = &[
     route(Method::GET, "/health", Public),
+    // Login and logout (regelrecht_auth::auth_routes).
+    route(Method::GET, "/auth/login", Public),
+    route(Method::GET, "/auth/callback", Public),
+    route(Method::GET, "/auth/logout", Public),
+    route(Method::GET, "/auth/status", Public),
     // Global corpus reads.
     route(Method::GET, "/api/sources", Public),
     route(Method::GET, "/api/corpus/laws", Public),
@@ -144,6 +155,13 @@ const ROUTES: &[Route] = &[
     route(Method::PUT, "/api/feature-flags/{key}", Role(ADMIN)),
     route(Method::GET, "/api/harvest-admin/{*rest}", Role(HARVESTER)),
     route(Method::POST, "/api/harvest-admin/{*rest}", Role(HARVESTER)),
+    route(Method::PUT, "/api/harvest-admin/{*rest}", Role(HARVESTER)),
+    route(Method::PATCH, "/api/harvest-admin/{*rest}", Role(HARVESTER)),
+    route(
+        Method::DELETE,
+        "/api/harvest-admin/{*rest}",
+        Role(HARVESTER),
+    ),
     // Traject reads.
     route(Method::GET, "/api/trajects", RoleAndAccount(READER)),
     route(Method::GET, "/api/trajects/{id}", RoleAndAccount(READER)),
@@ -527,9 +545,10 @@ async fn every_route_sits_behind_its_gate() {
 async fn without_oidc_the_gates_pass_and_github_linking_is_not_mounted() {
     let app = app(common::app_state(None, None));
     // A writer route answers without a session: local development only.
-    assert_ne!(
-        status(&app, &Method::POST, "/api/harvest", None).await,
-        StatusCode::UNAUTHORIZED
+    let harvest = status(&app, &Method::POST, "/api/harvest", None).await;
+    assert!(
+        !matches!(harvest, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN),
+        "a writer route without OIDC answered {harvest}"
     );
     assert_eq!(
         status(&app, &Method::GET, "/auth/github/status", None).await,
@@ -541,27 +560,97 @@ async fn without_oidc_the_gates_pass_and_github_linking_is_not_mounted() {
     );
 }
 
-/// The route paths registered in a source file: the first string literal
-/// after each `.route(`.
-fn registered_paths(source: &str) -> BTreeSet<String> {
-    source
-        .split(".route(")
-        .skip(1)
-        .filter_map(|after| after.split('"').nth(1))
-        .map(str::to_string)
-        .collect()
+/// The methods each `.route(path, ...)` call in `source` mounts, as
+/// `(METHOD, path)`: `get(..).put(..)` mounts GET and PUT, `any(..)` every
+/// method the table knows. Comments are dropped first, so a word in one is
+/// not read as a method.
+fn registered_routes(source: &str) -> BTreeSet<(String, String)> {
+    let code: String = source
+        .lines()
+        .map(|line| line.split("//").next().unwrap_or(""))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut found = BTreeSet::new();
+    for call in code.split(".route(").skip(1) {
+        let Some(path) = call.split('"').nth(1) else {
+            continue;
+        };
+        // The call ends where its parentheses close.
+        let mut depth = 1;
+        let end = call
+            .char_indices()
+            .find(|&(_, c)| {
+                match c {
+                    '(' => depth += 1,
+                    ')' => depth -= 1,
+                    _ => {}
+                }
+                depth == 0
+            })
+            .map_or(call.len(), |(i, _)| i);
+        let handlers = &call[..end];
+        for (word, methods) in [
+            ("get(", &["GET"][..]),
+            ("post(", &["POST"][..]),
+            ("put(", &["PUT"][..]),
+            ("patch(", &["PATCH"][..]),
+            ("delete(", &["DELETE"][..]),
+            ("any(", &["GET", "POST", "PUT", "PATCH", "DELETE"][..]),
+        ] {
+            let mounted = handlers.match_indices(word).any(|(at, _)| {
+                // A whole word: `.put(`, `routing::put(` or `(get(`, not
+                // `budget(`.
+                !handlers[..at].ends_with(|c: char| c.is_alphanumeric() || c == '_')
+            });
+            if mounted {
+                for method in methods {
+                    found.insert(((*method).to_string(), path.to_string()));
+                }
+            }
+        }
+    }
+    found
 }
 
 #[test]
 fn the_table_lists_every_route_in_the_source() {
-    let mut in_source = registered_paths(include_str!("../src/router.rs"));
-    in_source.extend(registered_paths(include_str!("../src/github_oauth.rs")));
-    let in_table: BTreeSet<String> = ROUTES.iter().map(|r| r.path.to_string()).collect();
+    let mut in_source = registered_routes(include_str!("../src/router.rs"));
+    in_source.extend(registered_routes(include_str!("../src/github_oauth.rs")));
+    // The login routes come from regelrecht_auth, outside this source.
+    let in_table: BTreeSet<(String, String)> = ROUTES
+        .iter()
+        .filter(|r| !r.path.starts_with("/auth/") || r.path.starts_with("/auth/github/"))
+        .map(|r| (r.method.to_string(), r.path.to_string()))
+        .collect();
 
     let missing: Vec<_> = in_source.difference(&in_table).collect();
     let stale: Vec<_> = in_table.difference(&in_source).collect();
     assert!(
         missing.is_empty() && stale.is_empty(),
-        "routes without a row in the table: {missing:?}\nrows for routes that no longer exist: {stale:?}"
+        "routes without a row in the table: {missing:?}\nrows for routes that are not mounted: {stale:?}"
     );
+}
+
+#[tokio::test]
+async fn every_response_carries_its_server_timing() {
+    // `server_timing` wraps the routed handlers, so even a request a gate
+    // refuses goes through it.
+    let app = app(auth_state());
+    for (method, path) in [(Method::GET, "/health"), (Method::POST, "/api/harvest")] {
+        let response = app
+            .clone()
+            .oneshot(
+                Request::builder()
+                    .method(method.clone())
+                    .uri(path)
+                    .body(Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert!(
+            response.headers().contains_key("server-timing"),
+            "{method} {path} answered without a Server-Timing header"
+        );
+    }
 }

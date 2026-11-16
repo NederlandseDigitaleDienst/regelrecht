@@ -29,7 +29,7 @@ A missing session answers 401, a missing role 403. When OIDC is not configured, 
 
 The login itself has a separate gate: `OIDC_REQUIRED_ROLE` is the minimum role needed to complete a login at all.
 
-`tests/router_gates_test.rs` holds the gate of every route as a table and checks it through the router, with a memory session store and no database: 401 without a session, 403 with every role except the required one, and past the gate with that role. A second test compares the routes registered in `router.rs` and `github_oauth.rs` with the table, so a new route fails the tests until it has a row.
+`tests/router_gates_test.rs` holds the gate of every route as a table and checks it through the router, with a memory session store and no database: 401 without a session, 403 with every role except the required one, and past the gate with that role. A second test reads the methods each `.route(..)` call in `router.rs` and `github_oauth.rs` mounts and compares them with the table, so a new route, or a new method on an existing path, fails the tests until it has a row. That check reads the source because HTTP cannot tell: a gate runs before the method is matched, so an unmounted method answers like a mounted one.
 
 ## Endpoints
 

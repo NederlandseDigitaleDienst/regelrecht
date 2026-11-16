@@ -86,10 +86,11 @@ async fn main() {
         ),
     }
 
-    // The pool has to be created BEFORE `app_state` is built, because the
-    // `route_layer(from_fn_with_state(app_state.clone(), …))` below captures
-    // a snapshot of `app_state` at call time — anything we mutate on the
-    // outer binding after that point is invisible to the middleware.
+    // The pool has to be created BEFORE `app_state` is built, because
+    // `router()` hands each gate a snapshot of `app_state` (the
+    // `route_layer(from_fn_with_state(state.clone(), …))` calls in
+    // router.rs) — anything we mutate on the outer binding after that point
+    // is invisible to the middleware.
     // Migrations + session-store setup still live in the auth-enabled
     // branch further down; here we only spin up the connection.
     let pool: Option<sqlx::PgPool> = if app_config.is_auth_enabled() {
