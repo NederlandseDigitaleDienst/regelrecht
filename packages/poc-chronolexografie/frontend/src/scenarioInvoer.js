@@ -12,7 +12,7 @@
  * step ([`formulier`]).
  */
 import { computed, reactive, watch } from 'vue';
-import { guideFor } from './scenarioGuides.js';
+import { feitNaam, guideFor, vastleggendeCel } from './scenarioGuides.js';
 import { counts, progress } from './scenarioProgress.js';
 import { aanvragen, besluitOp, bezwaarBasis, isBesluit, state } from './state.js';
 
@@ -63,7 +63,7 @@ function past(step, doel) {
     case 'beroep':
       return !doel.besluit || beslissingen()[step.doel - 1]?.id === doel.besluit;
     case 'vastleggen':
-      return step.stap.cel === doel.cel && step.stap.feit === doel.feit;
+      return vastleggendeCel(step.stap, state.casus) === doel.cel && step.stap.feit === doel.feit;
     default:
       return true;
   }
@@ -101,13 +101,35 @@ export function scenarioWaarden(soort, doel = {}) {
 }
 
 /**
- * The kenmerk of the earlier record that the record step the scenario is at
- * refers to (`verwijst_naar`), when that step records `feit` in cell `cel`;
- * null otherwise, and always in free play.
+ * The earlier record that the record step the scenario is at refers to
+ * (`verwijst_naar`), when that step records `feit` in cell `cel`: the id of
+ * the record of an earlier step with that kenmerk, or else the kenmerk as it
+ * is, for a record in the begin of the cell. Null otherwise, and always in
+ * free play.
  */
 export function scenarioVerwijzing(cel, feit) {
   if (!isHuidigeStap('vastleggen', { cel, feit })) return null;
-  return huidigeStap().step.stap.verwijst_naar ?? null;
+  const naar = huidigeStap().step.stap.verwijst_naar;
+  if (!naar) return null;
+  const eerder = guideFor(state.casus, state.scenario).steps.find((s) => s.stap.kenmerk === naar);
+  return (eerder && recordVan(eerder)) ?? naar;
+}
+
+/**
+ * The id of the record that the done step `step` made, or null: the decision
+ * on its application, or the executogram it recorded, counted among the
+ * records of its fact in the chronicle of its cell.
+ */
+function recordVan(step) {
+  if (step.stap.stap === 'besluit') {
+    const a = aanvragen()[step.doel - 1];
+    return (a && besluitOp(a.id)?.id) ?? null;
+  }
+  if (step.stap.stap !== 'vastleggen') return null;
+  const cel = vastleggendeCel(step.stap, state.casus);
+  const grammen = cel === state.casus.cel ? state.grammen : (state.andere.find((a) => a.cel === cel)?.grammen ?? []);
+  const vanFeit = grammen.filter((g) => g.kind === 'EXECUTOGRAM' && g.fact === feitNaam(step.stap.feit));
+  return vanFeit[step.vooraf + step.keer - 1]?.id ?? null;
 }
 
 /**

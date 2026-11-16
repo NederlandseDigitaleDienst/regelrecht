@@ -91,6 +91,12 @@ const KINDS = {
     title: () => 'Vastleggen',
     todo: 'Klik op Vastleggen.',
     seen: () => 'Het feit staat in de kroniek van de andere cel.',
+    // The case's own cell records on the tab of the authority.
+    eigen: {
+      tab: 'bestuursorgaan',
+      todo: 'Klik onder Vastleggen op Vastleggen.',
+      seen: () => 'Het feit staat in de kroniek van het bestuursorgaan.',
+    },
     // Done once the cell holds one more record of the fact than it knew
     // before this step, whatever the visitor changed in it.
     done: (n, stap, vooraf) => (k) => k.executogrammen(feitNaam(stap.feit)) >= vooraf + n,
@@ -127,11 +133,21 @@ const KINDS = {
 };
 
 // `beleid#5#geneeskundig_advies_uitgebracht` → `geneeskundig_advies_uitgebracht`.
-const feitNaam = (feit) => String(feit).split('#').at(-1);
+export const feitNaam = (feit) => String(feit).split('#').at(-1);
 
-/** How many records of `feit` the other cells of `casus` hold before a scenario. */
-const vooraf = (casus, feit) =>
-  (casus?.andere_cellen ?? [])
+/**
+ * The cell a record step records in: the one it names, or without one the
+ * case's own cell (src/casus.rs, `vastleggende_cel`).
+ */
+export const vastleggendeCel = (stap, casus) => stap.cel ?? casus?.cel ?? null;
+
+/**
+ * How many records of `feit` the cells of `casus` hold before a scenario,
+ * in the cell `cel` only when one is given.
+ */
+const vooraf = (casus, feit, cel = null) =>
+  [{ cel: casus?.cel, begin: casus?.begin }, ...(casus?.andere_cellen ?? [])]
+    .filter((c) => cel === null || c.cel === cel)
     .flatMap((c) => c.begin?.executogrammen ?? [])
     .filter((e) => feitNaam(e.feit) === feitNaam(feit)).length;
 
@@ -183,6 +199,9 @@ export function bouwGids(scenario, casus = null) {
       stap.stap === 'vastleggen'
         ? kind.done(keerFeit, stap, vooraf(casus, stap.feit))
         : kind.done(stap.stap === 'besluit' ? doel : n, stap);
+    // A record step of the case's own cell happens on the authority's tab.
+    const soort =
+      stap.stap === 'vastleggen' && casus && vastleggendeCel(stap, casus) === casus.cel ? { ...kind, ...kind.eigen } : kind;
     let expect = null;
     switch (stap.uitkomst) {
       case 'toegewezen':
@@ -216,18 +235,23 @@ export function bouwGids(scenario, casus = null) {
       }
     }
     const step = {
-      title: stap.titel ?? kind.title(stap.stap === 'besluit' ? doel : n),
-      tab: kind.tab,
+      title: stap.titel ?? soort.title(stap.stap === 'besluit' ? doel : n),
+      tab: soort.tab,
       date: stap.datum ?? undefined,
       story: stap.verhaal ?? '',
-      todo: stap.tekst ?? kind.todo,
+      todo: stap.tekst ?? soort.todo,
       values: invoerRegels(stap.invoer),
-      seen: stap.gezien ?? kind.seen(stap.stap === 'besluit' ? doel : n),
+      seen: stap.gezien ?? soort.seen(stap.stap === 'besluit' ? doel : n),
       notes,
       done,
       expect,
       stap,
       doel,
+      // For a record step: the how-many-th record of its fact it is in the
+      // scenario, and how many its cell held before (scenarioInvoer.js finds
+      // the record a later step refers to with these).
+      keer: keerFeit,
+      vooraf: stap.stap === 'vastleggen' ? vooraf(casus, stap.feit, vastleggendeCel(stap, casus)) : 0,
     };
     notes = [];
     return [step];

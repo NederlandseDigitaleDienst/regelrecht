@@ -64,3 +64,35 @@ scenarios:
         artikel: fictieve_vergunningwet#2
         verwijst_naar: weigering
         uitkomst: geweigerd
+  - naam: Verleend, leges betaald en terugbetaald
+    eind: >-
+      De dienst legde in haar eigen kroniek vast dat de leges voor de
+      vergunning zijn betaald, en daarna dat zij die betaling terugbetaalde.
+    stappen:
+      - stap: indienen
+        artikel: fictieve_vergunningwet#1
+        kenmerk: aanvraag
+        invoer:
+          aanvrager: C. Voorbeeld
+          meerderjarig: true
+      - stap: beslissen
+        verwijst_naar: aanvraag
+        kenmerk: vergunning
+        uitvoer:
+          vergunning_verleend: true
+      # Without a cell the case's own cell records: the service, while it
+      # handles the case.
+      - stap: vastleggen
+        feit: fictieve_vergunningwet#4#leges_betaald
+        verwijst_naar: vergunning
+        kenmerk: betaling
+        datum: 2026-02-16
+        invoer:
+          bedrag: 5000
+      - stap: vastleggen
+        cel: fictieve_dienst
+        feit: fictieve_vergunningwet#4#leges_terugbetaald
+        verwijst_naar: betaling
+        datum: 2026-02-23
+        invoer:
+          bedrag: 5000

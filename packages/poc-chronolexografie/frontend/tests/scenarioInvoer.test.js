@@ -152,3 +152,32 @@ describe('the forms while following a scenario', () => {
     expect(scenarioWaarden('aanvraag')).toBeNull();
   });
 });
+
+describe("a record of the case's own cell", () => {
+  const FEIT = 'wet#4#leges_betaald';
+  const stappen = [
+    { stap: 'aanvraag' },
+    { stap: 'besluit', kenmerk: 'vergunning' },
+    { stap: 'vastleggen', feit: FEIT, verwijst_naar: 'vergunning', kenmerk: 'betaling', invoer: { bedrag: 5000 } },
+    { stap: 'vastleggen', feit: 'wet#4#leges_terugbetaald', verwijst_naar: 'betaling' },
+  ];
+  beforeEach(() => {
+    Object.assign(state, {
+      casus: { ...casus, cel: 'dienst', begin: null, scenarios: [{ naam: 'Leges', stappen, eind: 'Klaar.' }] },
+      scenario: 'Leges',
+      grammen: [aanvraag, besluit],
+      andere: [],
+    });
+  });
+
+  it('fills the form of the own cell and refers to the decision by its id', () => {
+    expect(scenarioWaarden('vastleggen', { cel: 'dienst', feit: FEIT })).toEqual({ bedrag: 5000 });
+    expect(scenarioVerwijzing('dienst', FEIT)).toBe('b1');
+    expect(scenarioVerwijzing('kamer_van_koophandel', FEIT)).toBeNull();
+  });
+
+  it('refers to an earlier record of the own cell by its id', () => {
+    state.grammen = [aanvraag, besluit, { id: 'e1', kind: 'EXECUTOGRAM', fact: 'leges_betaald', refers_to: 'b1' }];
+    expect(scenarioVerwijzing('dienst', 'wet#4#leges_terugbetaald')).toBe('e1');
+  });
+});

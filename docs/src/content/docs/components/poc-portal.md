@@ -78,7 +78,26 @@ begin:
       velden: {postcode: 7713 AB, aantal_werkzame_personen: 2}
 ```
 
-The cell records that fact with `refers_to` set to the id of the named record (schema v0.8.17). A reduction with `projection.per` reads it as a step in the aggregate of that record. An executogram in a `begin` may refer only to an earlier one in the same `begin`. A `vastleggen` step of a scenario takes `verwijst_naar` too, and refers to a record in the `begin` of the cell named in its `cel`. Without `verwijst_naar` a fact refers to nothing, as before, so a correction recorded that way counts in no aggregate. In free play the form has no field for the reference yet. The app checks every reference when it loads the case and refuses one that names no kenmerk.
+The cell records that fact with `refers_to` set to the id of the named record (schema v0.8.17). A reduction with `projection.per` reads it as a step in the aggregate of that record. An executogram in a `begin` may refer only to an earlier one in the same `begin`. Without `verwijst_naar` a fact refers to nothing, so a correction recorded that way counts in no aggregate.
+
+A `vastleggen` step of a scenario records a fact in the cell its `cel` names. Without `cel`, the case's own cell records it, on the tab of the authority: a fact the law gives that cell to record while it handles the case, such as a payment on its decision. The form offers the case's own cell only a fact whose `competent_authority` names it, and not a fact it records as the receipt of another cell's fact, since that arrives on its own. Such a step may give its record a `kenmerk`, as a `besluit` step may, and `verwijst_naar` then names the record of an earlier step of the scenario or one in the `begin` of the recording cell. It may not name a submission, because a record that refers to a submission would read as a decision on it:
+
+```yaml
+- stap: beslissen
+  verwijst_naar: aanvraag
+  kenmerk: vergunning
+- stap: vastleggen
+  feit: fictieve_vergunningwet#4#leges_betaald
+  verwijst_naar: vergunning
+  kenmerk: betaling
+  invoer: {bedrag: 5000}
+- stap: vastleggen
+  feit: fictieve_vergunningwet#4#leges_terugbetaald
+  verwijst_naar: betaling
+  invoer: {bedrag: 5000}
+```
+
+In free play the form has no field for the reference yet. The app checks every reference when it loads the case and refuses one that names no kenmerk.
 
 The harness names no step of a procedure. It submits under an article, decides on a submission, decides ex officio and sends a copy of a decision; the law says what each does. When a case loads, `src/casus.rs` lists the submissions its rulework establishes (`produces` with `requests`), each with the cell that the `competent_authority` of the requested article names, and the decisions a cell takes ex officio. An appeal is therefore played only in a case with a court among its cells, and rulework without the Awb loads and plays. Which output holds a decision taken in another's place follows from its type (`decision`), not from its name.
 

@@ -1333,7 +1333,9 @@ fn a_fact_that_refers_to_an_unknown_kenmerk_is_refused() {
         .vastleggen_verwijzend(KVK, CORRECTIE, &velden, Some("onbekend"), dag("2026-11-02"))
         .unwrap_err();
     assert!(
-        matches!(&e, Fout::Cel(_)) && e.to_string().contains("'onbekend' is the kenmerk of no"),
+        matches!(&e, Fout::Cel(_))
+            && e.to_string()
+                .contains("'onbekend' is no record in the chronicle"),
         "{e}"
     );
 }

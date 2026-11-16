@@ -12,7 +12,7 @@
 //! (`uitkomst`), next to the text a visitor reads: a description, example
 //! values for the forms and the scenarios.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
@@ -124,10 +124,26 @@ impl Casus {
 
     /// That every reference to an earlier record names one: a kenmerk is
     /// unique within the case, an executogram of a begin refers to an
-    /// earlier one of that begin, and a record step refers to one in the
-    /// begin of the cell that records it. Only a record step refers.
+    /// earlier one of that begin, and a step refers to the record of an
+    /// earlier step of its scenario or, for a record step, to one in the
+    /// begin of the cell that records it. A record step refers to a
+    /// decision or another record, never to a submission. Only a record
+    /// step, a decision step and a generic step give their record a
+    /// kenmerk.
     pub fn verwijzingen_kloppen(&self) -> Result<()> {
-        let fout = |m: String| Err(Error::Setup(format!("case '{}': {m}", self.id)));
+        let begin = self.begin_verwijzingen_kloppen()?;
+        for scenario in &self.scenarios {
+            self.stappen_verwijzingen_kloppen(scenario, &begin)?;
+        }
+        Ok(())
+    }
+
+    fn fout<T>(&self, m: &str) -> Result<T> {
+        Err(Error::Setup(format!("case '{}': {m}", self.id)))
+    }
+
+    /// The references within each begin, and the kenmerken the begins give.
+    fn begin_verwijzingen_kloppen(&self) -> Result<BTreeSet<&str>> {
         let mut gezien = BTreeSet::new();
         for (cel, begin) in self.begins() {
             let mut eerder = BTreeSet::new();
@@ -135,100 +151,151 @@ impl Casus {
                 if let Some(naar) = &e.verwijst_naar
                     && !eerder.contains(naar.as_str())
                 {
-                    return fout(format!(
+                    return self.fout(&format!(
                         "the begin of '{cel}' refers to '{naar}', which is the kenmerk of no \
                          earlier executogram of that begin"
                     ));
                 }
                 if let Some(k) = &e.kenmerk {
                     if !gezien.insert(k.as_str()) {
-                        return fout(format!("the kenmerk '{k}' is given twice"));
+                        return self.fout(&format!("the kenmerk '{k}' is given twice"));
                     }
                     eerder.insert(k.as_str());
                 }
             }
         }
-        for scenario in &self.scenarios {
-            let mut stappen: BTreeSet<&str> = BTreeSet::new();
-            for stap in &scenario.stappen {
-                let Stap::Handeling(h) = stap else { continue };
-                let waar = format!("a step of the scenario '{}'", scenario.naam);
-                if h.stap.is_generiek() {
-                    for naar in [&h.verwijst_naar, &h.na].into_iter().flatten() {
-                        if !stappen.contains(naar.as_str()) {
-                            return fout(format!(
-                                "{waar} refers to '{naar}', which is the kenmerk of no earlier \
-                                 step of that scenario"
-                            ));
-                        }
-                    }
-                    let ontbreekt = match h.stap {
-                        Soort::Indienen | Soort::Ambtshalve if h.artikel.is_none() => {
-                            Some("the article it acts under")
-                        }
-                        Soort::Beslissen | Soort::Afschrift if h.verwijst_naar.is_none() => {
-                            Some("the record it acts on (verwijst_naar)")
-                        }
-                        _ => None,
-                    };
-                    if let Some(wat) = ontbreekt {
-                        return fout(format!("{waar} is a step {:?} without {wat}", h.stap));
-                    }
-                    let te_veel = match h.stap {
-                        Soort::Beslissen | Soort::Afschrift if h.artikel.is_some() => {
-                            Some("an article: the record it acts on says which")
-                        }
-                        Soort::Indienen | Soort::Ambtshalve | Soort::Afschrift
-                            if h.na.is_some() =>
-                        {
-                            Some("`na`: only a decision is taken again after a record")
-                        }
-                        _ => None,
-                    };
-                    if let Some(wat) = te_veel {
-                        return fout(format!("{waar} is a step {:?} with {wat}", h.stap));
-                    }
-                    if let Some(k) = &h.kenmerk
-                        && !stappen.insert(k.as_str())
-                    {
-                        return fout(format!("{waar} gives the kenmerk '{k}' twice"));
-                    }
-                    continue;
-                }
-                if h.kenmerk.is_some() || h.na.is_some() || h.artikel.is_some() {
-                    return fout(format!(
-                        "{waar} gives a kenmerk, an article or `na`; only a generic step \
-                         (indienen, beslissen, ambtshalve, afschrift) does"
+        Ok(gezien)
+    }
+
+    /// The references of the steps of `scenario`, with `begin` the
+    /// kenmerken of the begins.
+    fn stappen_verwijzingen_kloppen(
+        &self,
+        scenario: &Scenario,
+        begin: &BTreeSet<&str>,
+    ) -> Result<()> {
+        // Per kenmerk of an earlier step, the kind of that step.
+        let mut stappen: BTreeMap<&str, Soort> = BTreeMap::new();
+        for stap in &scenario.stappen {
+            let Stap::Handeling(h) = stap else { continue };
+            let waar = format!("a step of the scenario '{}'", scenario.naam);
+            if h.stap.is_generiek() {
+                self.generieke_stap_klopt(h, &stappen, &waar)?;
+            } else {
+                self.stap_klopt(h, &stappen, &waar)?;
+            }
+            if let Some(k) = &h.kenmerk {
+                if begin.contains(k.as_str()) {
+                    return self.fout(&format!(
+                        "{waar} gives the kenmerk '{k}', which an executogram of a begin gives"
                     ));
                 }
-                let Some(naar) = &h.verwijst_naar else {
-                    continue;
-                };
-                if h.stap != Soort::Vastleggen {
-                    return fout(format!(
-                        "{waar} refers to '{naar}', but only a record step (vastleggen) or a \
-                         generic step refers to an earlier record"
-                    ));
-                }
-                let Some(cel) = h
-                    .cel
-                    .as_deref()
-                    .filter(|c| self.andere_cellen.iter().any(|a| a.cel == *c))
-                else {
-                    return fout(format!(
-                        "{waar} refers to '{naar}', but names no other cell of the case that \
-                         records it"
-                    ));
-                };
-                if self.met_kenmerk(cel, naar).is_none() {
-                    return fout(format!(
-                        "{waar} refers to '{naar}', which is the kenmerk of no executogram in the \
-                         begin of '{cel}'"
-                    ));
+                if stappen.insert(k.as_str(), h.stap).is_some() {
+                    return self.fout(&format!("{waar} gives the kenmerk '{k}' twice"));
                 }
             }
         }
         Ok(())
+    }
+
+    /// A generic step names what it acts on: its article, or the record of
+    /// an earlier step of `stappen`.
+    fn generieke_stap_klopt(
+        &self,
+        h: &Handeling,
+        stappen: &BTreeMap<&str, Soort>,
+        waar: &str,
+    ) -> Result<()> {
+        for naar in [&h.verwijst_naar, &h.na].into_iter().flatten() {
+            if !stappen.contains_key(naar.as_str()) {
+                return self.fout(&format!(
+                    "{waar} refers to '{naar}', which is the kenmerk of no earlier step of that \
+                     scenario"
+                ));
+            }
+        }
+        let ontbreekt = match h.stap {
+            Soort::Indienen | Soort::Ambtshalve if h.artikel.is_none() => {
+                Some("the article it acts under")
+            }
+            Soort::Beslissen | Soort::Afschrift if h.verwijst_naar.is_none() => {
+                Some("the record it acts on (verwijst_naar)")
+            }
+            _ => None,
+        };
+        if let Some(wat) = ontbreekt {
+            return self.fout(&format!("{waar} is a step {:?} without {wat}", h.stap));
+        }
+        let te_veel = match h.stap {
+            Soort::Beslissen | Soort::Afschrift if h.artikel.is_some() => {
+                Some("an article: the record it acts on says which")
+            }
+            Soort::Indienen | Soort::Ambtshalve | Soort::Afschrift if h.na.is_some() => {
+                Some("`na`: only a decision is taken again after a record")
+            }
+            _ => None,
+        };
+        if let Some(wat) = te_veel {
+            return self.fout(&format!("{waar} is a step {:?} with {wat}", h.stap));
+        }
+        Ok(())
+    }
+
+    /// A step of the Awb procedure: only a decision and a record step give
+    /// a kenmerk, and only a record step refers, to the record of an
+    /// earlier step of `stappen` that is no submission, or to one in the
+    /// begin of the cell that records it.
+    fn stap_klopt(&self, h: &Handeling, stappen: &BTreeMap<&str, Soort>, waar: &str) -> Result<()> {
+        if h.na.is_some() || h.artikel.is_some() {
+            return self.fout(&format!(
+                "{waar} gives an article or `na`; only a generic step (indienen, beslissen, \
+                 ambtshalve, afschrift) does"
+            ));
+        }
+        if h.kenmerk.is_some() && !matches!(h.stap, Soort::Besluit | Soort::Vastleggen) {
+            return self.fout(&format!(
+                "{waar} gives a kenmerk; only a generic step, a decision (besluit) or a record \
+                 step (vastleggen) does"
+            ));
+        }
+        let Some(naar) = &h.verwijst_naar else {
+            return Ok(());
+        };
+        if h.stap != Soort::Vastleggen {
+            return self.fout(&format!(
+                "{waar} refers to '{naar}', but only a record step (vastleggen) or a generic \
+                 step refers to an earlier record"
+            ));
+        }
+        let Some(cel) = self.vastleggende_cel(h) else {
+            return self.fout(&format!(
+                "{waar} refers to '{naar}', but names no cell of the case that records it"
+            ));
+        };
+        match stappen.get(naar.as_str()) {
+            Some(Soort::Indienen) => self.fout(&format!(
+                "{waar} refers to '{naar}', the kenmerk of a submission; a fact refers to a \
+                 decision or to another record, since one that refers to a submission would \
+                 read as a decision on it"
+            )),
+            Some(_) => Ok(()),
+            None if self.met_kenmerk(cel, naar).is_some() => Ok(()),
+            None => self.fout(&format!(
+                "{waar} refers to '{naar}', which is the kenmerk of no earlier step of that \
+                 scenario and of no executogram in the begin of '{cel}'"
+            )),
+        }
+    }
+
+    /// The cell that the record step `h` records in: the one it names, or
+    /// without one the case's own cell. `None` when it names a cell that is
+    /// not of the case.
+    pub fn vastleggende_cel<'c>(&'c self, h: &'c Handeling) -> Option<&'c str> {
+        match h.cel.as_deref() {
+            None => Some(&self.cel),
+            Some(c) if c == self.cel || self.andere_cellen.iter().any(|a| a.cel == c) => Some(c),
+            Some(_) => None,
+        }
     }
 }
 
@@ -357,7 +424,9 @@ pub struct Handeling {
     pub artikel: Option<String>,
     /// The name the scenario gives the record this step makes, so that a
     /// later step can act on it ([`Handeling::verwijst_naar`]). Unique
-    /// within the scenario.
+    /// within the scenario, and no kenmerk of a [`Begin`]. A generic step,
+    /// a decision ([`Soort::Besluit`]) and a record step
+    /// ([`Soort::Vastleggen`]) give one.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kenmerk: Option<String>,
     /// For [`Soort::Beslissen`]: the [`Handeling::kenmerk`] of a later
@@ -382,16 +451,22 @@ pub struct Handeling {
     /// the last application, an appeal on the last decision on objection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub op: Option<usize>,
-    /// For [`Soort::Vastleggen`]: the other cell that records, and the fact
-    /// it records (`<regulation>#<article>#<fact>`).
+    /// For [`Soort::Vastleggen`]: the cell that records, another cell of
+    /// the case or the case's own, and the fact it records
+    /// (`<regulation>#<article>#<fact>`). Without a cell, the case's own
+    /// cell records ([`Casus::vastleggende_cel`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cel: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub feit: Option<String>,
-    /// For [`Soort::Vastleggen`]: the [`BeginExecutogram::kenmerk`] of the
-    /// record in the recording cell's [`Begin`] that this fact is about
-    /// (`refers_to`, schema v0.8.17), such as the registration a correction
-    /// corrects. For a generic step ([`Soort::is_generiek`]): the
+    /// For [`Soort::Vastleggen`]: the record this fact is about
+    /// (`refers_to`, schema v0.8.17), in the chronicle of the cell that
+    /// records it. That is the record of an earlier step of the scenario
+    /// by its [`Handeling::kenmerk`], such as the decision a payment is
+    /// made on, or one in that cell's [`Begin`] by its
+    /// [`BeginExecutogram::kenmerk`], such as the registration a correction
+    /// corrects. Never a submission: a record that refers to one reads as a
+    /// decision on it. For a generic step ([`Soort::is_generiek`]): the
     /// [`Handeling::kenmerk`] of an earlier step of the scenario whose
     /// record this step acts on: the decision a submission refers to, the
     /// submission a decision is taken on, the record an ex officio decision
@@ -452,7 +527,9 @@ pub enum Soort {
     Besluit,
     Bezwaar,
     BeslissingOpBezwaar,
-    /// Another cell records a fact (RFC-051), such as the GGD an advice.
+    /// A cell of the case records a fact (RFC-051): another cell, such as
+    /// the GGD an advice, or the case's own cell, such as the authority
+    /// that records a payment on its decision.
     Vastleggen,
     Beroep,
     Uitspraak,
@@ -1504,21 +1581,124 @@ mod tests {
             &format!("[{}]", inschrijving("a")),
             &vastleggen("register", "b"),
         );
-        assert!(fout(&c).contains("refers to 'b', which is the kenmerk of no executogram"));
+        assert!(fout(&c).contains("refers to 'b', which is the kenmerk of no earlier step"));
     }
 
     #[test]
-    fn a_step_that_refers_from_a_cell_that_does_not_record_is_refused() {
+    fn a_record_step_without_a_cell_records_in_the_case_s_own_cell() {
+        let c = casus(&format!("[{}]", inschrijving("a")), "[]");
+        let h = |yaml: &str| serde_yaml_ng::from_str::<Handeling>(yaml).unwrap();
+        assert_eq!(
+            c.vastleggende_cel(&h("{stap: vastleggen}")),
+            Some("gemeente")
+        );
+        assert_eq!(
+            c.vastleggende_cel(&h("{stap: vastleggen, cel: gemeente}")),
+            Some("gemeente")
+        );
+        assert_eq!(
+            c.vastleggende_cel(&h("{stap: vastleggen, cel: register}")),
+            Some("register")
+        );
+        assert_eq!(
+            c.vastleggende_cel(&h("{stap: vastleggen, cel: elders}")),
+            None
+        );
+    }
+
+    #[test]
+    fn a_step_that_refers_to_the_begin_of_another_cell_is_refused() {
+        // 'a' is in the begin of the register, not of the case's own cell.
+        for stappen in [
+            vastleggen("gemeente", "a"),
+            "[{stap: vastleggen, verwijst_naar: a}]".to_string(),
+        ] {
+            let c = casus(&format!("[{}]", inschrijving("a")), &stappen);
+            assert!(
+                fout(&c).contains("of no executogram in the begin of 'gemeente'"),
+                "{}",
+                fout(&c)
+            );
+        }
         let c = casus(
             &format!("[{}]", inschrijving("a")),
-            &vastleggen("gemeente", "a"),
+            &vastleggen("elders", "a"),
         );
-        assert!(fout(&c).contains("names no other cell of the case"));
+        assert!(fout(&c).contains("names no cell of the case"));
+    }
+
+    #[test]
+    fn the_own_cell_records_a_fact_about_an_earlier_decision_or_record() {
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: aanvraag}}, {{stap: besluit, kenmerk: besluit}}, \
+                 {{stap: vastleggen, feit: '{FEIT}', kenmerk: betaling, verwijst_naar: besluit}}, \
+                 {{stap: vastleggen, cel: gemeente, feit: '{CORRECTIE}', verwijst_naar: betaling}}]"
+            ),
+        );
+        c.verwijzingen_kloppen().unwrap();
+    }
+
+    #[test]
+    fn a_record_step_that_refers_to_a_submission_is_refused() {
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: indienen, artikel: 'wet#1', kenmerk: aanvraag}}, \
+                 {{stap: vastleggen, feit: '{FEIT}', verwijst_naar: aanvraag}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("the kenmerk of a submission"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    #[test]
+    fn a_record_step_that_refers_to_a_later_step_is_refused() {
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: vastleggen, feit: '{FEIT}', verwijst_naar: besluit}}, \
+                 {{stap: aanvraag}}, {{stap: besluit, kenmerk: besluit}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("the kenmerk of no earlier step"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    #[test]
+    fn a_step_kenmerk_that_a_begin_gives_is_refused() {
         let c = casus(
             &format!("[{}]", inschrijving("a")),
-            "[{stap: vastleggen, verwijst_naar: a}]",
+            "[{stap: aanvraag}, {stap: besluit, kenmerk: a}]",
         );
-        assert!(fout(&c).contains("names no other cell of the case"));
+        assert!(
+            fout(&c).contains("which an executogram of a begin gives"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    #[test]
+    fn only_a_decision_a_record_step_or_a_generic_step_gives_a_kenmerk() {
+        let c = casus("[]", "[{stap: aanvraag, kenmerk: a}]");
+        assert!(
+            fout(&c).contains("gives a kenmerk; only a generic step"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus("[]", "[{stap: besluit, artikel: 'wet#1'}]");
+        assert!(
+            fout(&c).contains("gives an article or `na`"),
+            "{}",
+            fout(&c)
+        );
     }
 
     #[test]
