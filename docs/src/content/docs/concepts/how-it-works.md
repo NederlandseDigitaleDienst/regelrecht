@@ -1,152 +1,61 @@
 ---
 title: "How RegelRecht Works"
-description: "A plain-language walkthrough of the core ideas behind turning legislation into executable files."
+description: "The approach behind RegelRecht, and a map of the concept pages that explain it."
 ---
 
-RegelRecht turns Dutch legislation into structured files that a computer can execute. This page is the map. It follows a law from text to file to execution and names the concepts met on the way, each with a link to the page that covers it in full. Why this matters is on [What is RegelRecht?](/guide/what-is-regelrecht) and, at length, in the position paper [Rules as Executed](/research/rules-as-executed). Which programs do the work is in the [architecture overview](/guide/architecture). Dutch legal terms and RegelRecht's own vocabulary are defined in the [glossary](/reference/glossary).
+This page explains the approach and says which page covers each concept. What the project is and what exists today is on [What is RegelRecht?](/guide/what-is-regelrecht). Which programs do the work is on the [architecture overview](/guide/architecture); the Dutch legal terms and the project's own words are in the [glossary](/reference/glossary).
+
+## The problem
+
+Dutch law is published as text. An agency that has to carry it out translates the rules into software by hand, and each agency writes its own reading of the same law. Nobody can check whether those programs match the text Parliament adopted. A citizen cannot see how a decision about them was made.
 
 ## The approach
 
-RegelRecht encodes each regulation once, in a structured YAML format that both people and computers can read. The result is a [rulework](/reference/glossary#regelrecht-specific-terms), with one version for each date the regulation's text took effect. A single execution engine runs these ruleworks and produces answers: does this person qualify? How much do they receive? Which rules applied?
+RegelRecht records each regulation once, as a [rulework](/concepts/ruleworks): the published text, article by article, with the executable interpretation beside each article. One engine runs every rulework, and the same rulework gives the same answer in the editor, in a browser and on a server.
 
-A rulework is an interpretation of the law in executable form, not the law itself. If the two conflict, the statute prevails and the rulework is corrected; legal validity stays with the published legislation ([Rules as Executed, section 4.2](/research/rules-as-executed#sec:legalstatus)). Every article in the file corresponds to an article in the official legal text, with a link back to the original, so a reader can hold the interpretation against the text it claims to follow.
-
-A few principles hold throughout:
+A rulework is an interpretation of the law, not the law. Where the two conflict, the statute prevails and the rulework is corrected; legal validity stays with the published text ([Rules as Executed, section 4.2](/research/rules-as-executed#sec:legalstatus)). What the format adds is that the interpretation is written down where anyone can read it and run it, instead of staying inside an agency's software.
 
 | Principle | What it means |
 |-----------|---------------|
-| **Close to the text** | The file follows the structure of the law, article by article. Interpreting the text and executing it are separate steps. |
-| **Zero domain knowledge** | The engine has no hardcoded holidays, tax rates or special cases. Everything comes from the ruleworks. |
-| **Identical execution** | Browser, backend, editor: same inputs, same result. |
-| **Version control as governance** | Git history captures legislative evolution. Branches are proposals, merges are publication. |
-| **Traceability** | Every computed value points back to a specific article and paragraph. |
-| **Open by default** | Law, tooling, decisions: all publicly auditable. |
+| **Close to the text** | A rulework follows the structure of the law, article by article, and each article links to its official text. |
+| **No domain knowledge in the engine** | The engine has no holidays, tax rates or special cases of its own. Everything comes from the ruleworks. |
+| **Identical execution** | Browser, server, editor: the same inputs give the same result. |
+| **Version control as governance** | Git history records how the ruleworks changed. A branch is a proposal, a merge is publication. |
+| **Traceability** | Every computed value points back to the article and lid it came from. |
+| **Open by default** | Ruleworks, tooling and design decisions are public. |
 
-## How laws become YAML
+## An example
 
-Each Dutch law is stored as a YAML file. The file mirrors the legal structure:
+Article 2 of the Wet op de zorgtoeslag entitles an insured person to an allowance equal to the difference between the standard premium and the normative premium. In the rulework, the `machine_readable` section of that article states the calculation: derive the normative premium from the income as the Awir defines it, take the standard premium a ministerial regulation sets each year, subtract, and never go below zero.
 
-```yaml
-$id: wet_op_de_zorgtoeslag
-name: Wet op de zorgtoeslag
-regulatory_layer: WET
-valid_from: '2025-01-01'
+Ask the engine whether someone qualifies on 1 January 2025 and it loads the zorgtoeslag rulework, follows its references into the Awir, the Zorgverzekeringswet and the ministerial regulation, and returns the amount with a trace naming every article it applied. [Law Format](/concepts/law-format) walks through article 3 of the same law field by field.
 
-articles:
-  - number: '2'
-    text: |
-      1. De verzekerde heeft aanspraak op een zorgtoeslag...
-    url: https://wetten.overheid.nl/.../artikel/2
-    machine_readable:
-      definitions:
-        DREMPELINKOMEN:
-          value: 2500000   # EUR 25,000 in eurocent
-      execution:
-        input:
-          - name: toetsingsinkomen
-            type: amount
-            source:
-              regulation: algemene_wet_inkomensafhankelijke_regelingen
-              output: toetsingsinkomen
-              parameters:
-                bsn: $bsn
-        output:
-          - name: hoogte_zorgtoeslag
-            type: amount
-        actions:
-          - output: hoogte_zorgtoeslag
-            value:
-              operation: MAX
-              values:
-                - 0
-                - operation: SUBTRACT
-                  values:
-                    - $standaardpremie
-                    - $normpremie
-```
+## The parts
 
-Files are organized by legal hierarchy (`wet/`, `ministeriele_regeling/`, `gemeentelijke_verordening/`) and versioned by effective date (`2025-01-01.yaml`).
+| Part | What it is | Read more |
+|---|---|---|
+| Ruleworks and the corpus | One rulework per regulation, in YAML, with a version per date its text took effect. The corpus collects them, and can draw on repositories of other authorities. | [Ruleworks](/concepts/ruleworks), [Corpus](/components/corpus) |
+| Harvester and enrichment | The harvester writes a rulework with the legal text from the national registers (BWB, CVDR). Enrichment adds the executable interpretation, with a person checking the result. | [Harvester](/components/harvester), [Pipeline](/components/pipeline) |
+| Engine | Executes a rulework for a question, a date and a set of facts, natively or as WebAssembly. It follows references into other ruleworks and returns a trace. | [Engine](/components/engine) |
+| Scenarios | Cases in Gherkin that the engine runs against a rulework, written so that a legal expert can read them. | [Scenarios](/concepts/scenarios) |
+| Editor | A web application to read, edit, annotate and enrich ruleworks. | [Editor](/components/frontend) |
+| Cells | An organization that records what it decides and answers later questions from that record. A proof of concept for now. | [Chronolexography](/concepts/chronolexography) |
+| Demo | Runs a corpus of several dozen ruleworks end to end in the browser, on synthetic data. | [Demo](/components/demo) |
 
-For full format details, see [Law Format](./law-format).
+## The concepts
 
-## How the engine executes a law
+**The rulework.** [Ruleworks](/concepts/ruleworks) follows a rulework from harvest to execution. [Law Format](/concepts/law-format) explains how one is put together, and [Values](/concepts/values) what kinds of value it computes with: amounts, percentages, rounding, and the difference between an absent and an unknown value. [Temporal Validity and Dates](/concepts/temporal-and-dates) covers versions and date arithmetic, [Collections](/concepts/collections) groups of unknown size such as a household, and [Markings](/concepts/markings) the places where the logic cannot yet follow the text.
 
-The engine is a calculator for law. You give it a rulework, tell it which output you want, provide some facts about a person (BSN, income, age, etc.), and specify a date.
+**Between laws.** A law reads values another law establishes ([Cross-Law References](/concepts/cross-law-references)). It can leave a value open for a lower regulation or a municipality to fill ([Inversion of Control](/concepts/inversion-of-control)). General rules such as the Awb fire on every decision ([Hooks and Reactive Execution](/concepts/hooks-and-reactive-execution)). [Applications, Decisions and Objections](/concepts/administrative-procedures) shows how a procedure from application to objection is modeled. [Competent Authority](/concepts/competent-authority) says which body decides.
 
-The engine walks through the relevant articles, resolves all inputs, applies the legal logic (comparisons, arithmetic, conditions), and returns an answer with a full trace of how it got there.
+**Recording decisions.** [Chronolexography](/concepts/chronolexography) is the cell model: an organization keeps a dated chronicle of what it established and answers from it. What is still open there is listed in [Open Questions in Chronolexography](/concepts/chronolexography/open-questions).
 
-To answer "does person X qualify for healthcare allowance?", the engine:
+**Accountability.** [Traceability](/concepts/traceability) shows how to read the trace of an execution, and [Execution Provenance](/concepts/execution-provenance) the receipt that is meant to make a decision reproducible.
 
-1. Loads the *Zorgtoeslagwet*
-2. Looks at article 2, which needs: insurance status (from the Zorgverzekeringswet), allowance-partner status and income (from the Awir), and the standard premium (from a ministerial regulation)
-3. Loads and executes those other laws automatically to get their values
-4. Runs the calculation
-5. Returns `heeft_recht_op_zorgtoeslag: true` and `hoogte_zorgtoeslag: 1234`
+**Many authorities.** [Federated Corpus](/concepts/federated-corpus) describes how each authority can keep its ruleworks in its own repository. Today the registry lists only the central corpus. [Notes and Annotations](/concepts/notes-and-annotations) attach comments to the legal text without changing it.
 
-Same inputs always produce the same result. The engine runs as native code on servers and as WebAssembly in browsers, with identical behavior.
+**Method.** [Execution-First Validation](/concepts/methodology) is how an interpretation is checked by running it. [Branches of Law](/concepts/branches-of-law) surveys which areas of Dutch law fit rule-based execution.
 
-Because the engine knows nothing about any particular law, it stays small, but every law must be self-contained or reference other laws for the values it needs.
+## What is not built
 
-## Core concepts
-
-These ideas show up throughout the system. Each has a dedicated page with examples from real laws in the corpus.
-
-### Laws that reference each other
-
-Dutch laws reference each other constantly. The healthcare allowance law needs your income (defined by the Awir), your insurance status (from the Zorgverzekeringswet), and your allowance-partner status (also from the Awir). An article declares each of those as an input with a `source` block naming the other law and the output it wants, as `toetsingsinkomen` does in the example file above. The engine follows these chains automatically. See [Cross-Law References](./cross-law-references) for the full picture.
-
-### Delegation and co-government
-
-A *wet* often says "the minister determines the standard premium" or "the municipal council sets rules on reducing social assistance." The first is delegation to a lower regulation; the second is co-government (*medebewind*), where the municipality executes the act through its own ordinance, which is still bound by the act. In both cases the law leaves a blank: it names a value it needs (like `standaardpremie`) but leaves the actual number open (`open_terms`). The regulation that fills it then says "I provide that value" (`implements`). The engine discovers these connections at load time, matching the way a ministerial regulation opens with *"Gelet op artikel 4 van de Wet op de zorgtoeslag."*
-
-This also means that different authorities can each provide their own version of the same value. The Participatiewet leaves the reduction of social assistance to municipal ordinances. Each of the 342 municipalities can write its own ordinance with different percentages. When the engine runs, it uses the `gemeente_code` in the execution scope to pick the right municipality's ordinance. Amsterdam gets Amsterdam's rules, Rotterdam gets Rotterdam's.
-
-See [Inversion of Control](./inversion-of-control).
-
-### Laws that fire automatically
-
-The General Administrative Law Act (Awb) applies to every government decision without being called explicitly. When any law produces a [*beschikking*](/reference/glossary#administrative-law-bestuursrecht), Awb rules about objection periods and reasoning requirements kick in through hooks. Neither law knows about the other. See [Hooks and Reactive Execution](./hooks-and-reactive-execution).
-
-A *beschikking* is also not an instant computation. It moves through stages over time, from application and review to decision, notification and objection, and which rule applies at which stage is declared in the YAML (`applies_to.stage`), not hardcoded in the engine. See [Administrative procedure stages](./hooks-and-reactive-execution#administrative-procedure-stages).
-
-### Overrides (lex specialis)
-
-Sometimes a specific law overrides a general rule. The Aliens Act (*Vreemdelingenwet*) article 69 says: *"in afwijking van artikel 6:7 Awb bedraagt de termijn vier weken"*, departing from the Awb's standard 6-week objection period. This is modeled with `overrides`: the specific law unilaterally replaces a value from the general law. The Awb does not know it is being overridden. This only applies when the overriding law is part of the execution chain. See [Hooks and Reactive Execution](./hooks-and-reactive-execution#overrides-lex-specialis).
-
-### Markings
-
-The engine's operation set is small by design. When a legal construct cannot yet be faithfully expressed, complex table lookups or discretionary assessments for instance, the article carries a **marking** rather than an approximation. A marking means "not yet", not "never": each one is a named gap in the format and a tracked signal for what to build next. The engine can error, warn, or propagate taint through downstream outputs, depending on the mode. This prevents silent divergence between law text and machine-readable interpretation. The field was called `untranslatables` before schema v0.7.0. See [Markings](./markings).
-
-### Execution provenance
-
-Every execution produces a receipt: a sealed envelope containing the engine version, schema version, all loaded regulations (with content hashes), input parameters, outputs, and trace. This makes every decision reproducible and auditable, as the Awb and the AERIUS rulings require. The EU AI Act would require it too for a high-risk AI system, though a deterministic engine executing adopted rules is arguably not an AI system under the Act ([Rules as Executed, section 7.3](/research/rules-as-executed#sec:european)). For cross-organization decisions, the receipt also captures the provenance of accepted values from other authorities. See [Execution Provenance](./execution-provenance).
-
-### Organizational boundaries and federated corpus
-
-Different government organizations handle different parts of the law chain. The tax inspector (*inspecteur*) determines income, the Allowances Service determines healthcare allowance, municipalities handle social assistance. An article records which body may issue a binding decision in `competent_authority` (see [Competent Authority](./competent-authority)), and the engine uses that to model these boundaries. Today it runs in simulation mode (compute everything locally); the authoritative mode that exchanges signed results between organizations is the proposed end state, not yet implemented. See [Multi-Org Execution](./multi-org-execution).
-
-On the data side, 342 municipalities, 12 provinces, and 21 water boards all produce their own regulations. The [federated corpus](./federated-corpus) model lets each authority maintain their own ruleworks in their own Git repository while the engine discovers and loads them through a registry.
-
-### Groups of unknown size
-
-A household, the children a benefit is calculated for, the entries in a register: the law often reasons about a group nobody can count in advance. `FOREACH` and the other collection operations let the law iterate over such a group itself, so the legal test stays in the law instead of in the data source. See [Collections](./collections).
-
-## Traceability
-
-Every execution can produce a trace tree showing which articles applied, which inputs were fetched and from where, which operations ran, and what each step produced: the legal reasoning behind a number, in structured form. A trace makes a cross-law chain, an IoC resolution, and the Awb hooks that fired on a *beschikking* all visible in one tree. See [Traceability](./traceability) for how to read one, with a real worked example.
-
-## Temporal versioning
-
-Laws change over time. The standard premium was different in 2024 than in 2025. A calculation for January 2025 must use the rules and values in effect on that date. The engine selects the law version where `valid_from <= reference_date`.
-
-The corpus contains both `regeling_standaardpremie/2024-01-01.yaml` and `regeling_standaardpremie/2025-01-01.yaml`. A calculation with `reference_date: 2024-06-15` automatically uses the 2024 value. See [Temporal Validity and Dates](./temporal-and-dates) for how a law expires with `valid_to`, what happens to a reference into an ended law, and how dates are compared and subtracted inside the rules.
-
-## How an interpretation is checked
-
-A machine-readable article is an interpretation, and an interpretation can be wrong. RegelRecht checks it by running it. A candidate is generated, often with AI assistance, and legal experts challenge it with concrete cases, many of them taken from the Memorie van Toelichting, where the legislature gave its own worked examples. [Execution-First Validation](./methodology) describes that loop; [From Analysis-First to Execution-First](./validation-methodology) gives the research background.
-
-The cases themselves are written as [Scenarios](./scenarios): Gherkin over a fixed vocabulary, executed by the same engine that executes the law, so a legal expert and a programmer sign off on the same artifact.
-
-## Around the law text
-
-[Notes and Annotations](./notes-and-annotations) explains how comments and links attach to the legal text without being embedded in it, so they survive renumbering. [Branches of Law](./branches-of-law) surveys which areas of Dutch law map well to rule-based execution and which raise open research questions.
+Organizations do not exchange signed results: [RFC-009](/rfcs/rfc-009) proposes that, and it is not built. The execution receipt exists but is not yet signed or attested ([RFC-013](/rfcs/rfc-013)). Expert workshops that validate a rulework are designed, but none is on record. What legal status a rulework could have, and who would adopt it, is a research question on the [roadmap](/roadmap), together with publication infrastructure.

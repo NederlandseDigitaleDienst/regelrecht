@@ -29,7 +29,7 @@ CI keeps the list complete, not correct. `docs/scripts/check-rfc-coverage.mjs` f
 | RFC-019 | Law end dates | [Temporal Validity and Dates](../concepts/temporal-and-dates) |
 | RFC-021 | Date comparison | [Temporal Validity and Dates](../concepts/temporal-and-dates) |
 | RFC-039 | Addressable execution traces | [Traceability](../concepts/traceability#the-trace-document), [Engine](../components/engine) |
-| RFC-043 | Lazy evaluation | [Engine](../components/engine#how-it-works), [Which outputs come back](../components/engine#which-outputs-come-back) |
+| RFC-043 | Lazy evaluation | [Ruleworks](../concepts/ruleworks#how-the-engine-uses-a-rulework), [Engine](../components/engine#how-it-works), [Which outputs come back](../components/engine#which-outputs-come-back) |
 
 RFC-000 (the RFC process) is documented by [rfc-000](/rfcs/rfc-000) itself; the contributing guide links to it.
 
@@ -39,19 +39,19 @@ A reader meets these constructs in a rulework or a running service whatever the 
 
 | RFC | Topic | Prose coverage |
 |-----|-------|----------------|
-| RFC-023 | Quantities (money, percentages, units) | [Law Format](../concepts/law-format), [Schema](./schema) |
-| RFC-024 | Precision and rounding | [Law Format](../concepts/law-format), [Temporal Validity and Dates](../concepts/temporal-and-dates) |
-| RFC-026 | Enricher work queue (partially built) | Backlog: no prose page |
+| RFC-023 | Quantities (money, percentages, units) | [Values](../concepts/values#amounts-and-units), [Schema](./schema) |
+| RFC-024 | Precision and rounding | [Values](../concepts/values#rounding), [Temporal Validity and Dates](../concepts/temporal-and-dates) |
+| RFC-026 | Enricher work queue (partially built) | Partly: [Ruleworks](../concepts/ruleworks#how-a-rulework-comes-into-being) says what is built; the graph, the per-article status and the queue have no page |
 | RFC-027 | Enrichment a legal expert can check (partially built) | Partly: the gates in [Pipeline](../components/pipeline#enrich-worker), the marking channel in [Markings](../concepts/markings); roles, decision points and the gold set have no page |
 | RFC-031 | Markings and open norms | [Markings](../concepts/markings) |
 | RFC-032 | Date parts and truncation | [Temporal Validity and Dates](../concepts/temporal-and-dates) |
-| RFC-033 | Enrichment build plan | Partly: [Pipeline](../components/pipeline#enrich-worker) explains windows; the ordering by dependency layer is only named in the `ENRICH_WINDOW_MODE` setting |
-| RFC-036 | Absent and unknown values | [Law Format](../concepts/law-format), [Collections](../concepts/collections) |
-| RFC-037 | Type checking of laws | [Law Format](../concepts/law-format) |
-| RFC-038 | Callable is not presentable | Backlog: [Schema](./schema) lists the `RECHTSPOSITIE` value it added; the entry-point rule itself has no page |
+| RFC-033 | Enrichment build plan | [Pipeline](../components/pipeline#enrich-worker) explains windows; [Ruleworks](../concepts/ruleworks#how-a-rulework-comes-into-being) the ordering by dependency layer |
+| RFC-036 | Absent and unknown values | [Values](../concepts/values#absent-and-unknown-values), [Collections](../concepts/collections) |
+| RFC-037 | Type checking of laws | [Values](../concepts/values#types) |
+| RFC-038 | Callable is not presentable | [Values](../concepts/values#callable-and-presentable) |
 | RFC-040 | The schema documents itself | [Schema](./schema) |
 | RFC-041 | A void is not scoped like a replacement | [Voiding an output](../concepts/hooks-and-reactive-execution#voiding-an-output) |
-| RFC-044 | Rulework (regelwerk) as the name for a regulation in YAML (partially applied) | [Glossary](./glossary#regelrecht-specific-terms) |
+| RFC-044 | Rulework (regelwerk) as the name for a regulation in YAML (partially applied) | [Ruleworks](../concepts/ruleworks), [Glossary](./glossary#regelrecht-specific-terms) |
 | RFC-045 | Submissions and decisions in the law format (`produces` as a list, hooks on a submission, `moment`, stages, the type `decision`, `source.article`, the objection) | [Applications, Decisions and Objections](../concepts/administrative-procedures), [Law Format](../concepts/law-format#what-the-article-produces), [Calling the decision of an article](../concepts/cross-law-references#calling-the-decision-of-an-article), [Schema](./schema) |
 | RFC-046 | What a cell records (`packages/cel`, `cel.yaml`, submissions, decisions and executograms, replay) | [Chronolexography](../concepts/chronolexography), [Architecture](../guide/architecture) |
 | RFC-047 | Superseded: merged into RFC-045 and RFC-046 | [Applications, Decisions and Objections](../concepts/administrative-procedures) |

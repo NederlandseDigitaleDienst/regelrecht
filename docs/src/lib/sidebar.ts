@@ -47,10 +47,17 @@ export const sidebar: Record<string, SidebarGroup[]> = {
   ],
   '/concepts/': [
     {
-      text: 'Law Format',
+      text: 'Overview',
       items: [
         { text: 'How RegelRecht Works', link: '/concepts/how-it-works' },
+        { text: 'Ruleworks', link: '/concepts/ruleworks' },
+      ],
+    },
+    {
+      text: 'Law Format',
+      items: [
         { text: 'Law Format', link: '/concepts/law-format' },
+        { text: 'Values', link: '/concepts/values' },
         { text: 'Scenarios', link: '/concepts/scenarios' },
         { text: 'Collections', link: '/concepts/collections' },
         { text: 'Temporal Validity and Dates', link: '/concepts/temporal-and-dates' },
@@ -79,7 +86,6 @@ export const sidebar: Record<string, SidebarGroup[]> = {
     {
       text: 'Organizations',
       items: [
-        { text: 'Multi-Organization Execution', link: '/concepts/multi-org-execution' },
         { text: 'Federated Corpus', link: '/concepts/federated-corpus' },
         { text: 'Notes and Annotations', link: '/concepts/notes-and-annotations' },
       ],
@@ -88,9 +94,6 @@ export const sidebar: Record<string, SidebarGroup[]> = {
       text: 'Methodology',
       items: [
         { text: 'Execution-First Validation', link: '/concepts/methodology' },
-        // Short form of "RegelRecht Validation: From Analysis-First to
-        // Execution-First", which is too long for a list row.
-        { text: 'From Analysis-First to Execution-First', link: '/concepts/validation-methodology' },
         { text: 'Branches of Law', link: '/concepts/branches-of-law' },
       ],
     },

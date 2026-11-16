@@ -42,6 +42,11 @@ export default defineConfig({
     // De open punten van chronolexografie zijn een deelpagina geworden en
     // heten nu open questions.
     '/concepts/chronolexography-open-points': '/concepts/chronolexography/open-questions',
+    // De twee methodepagina's zijn één pagina geworden, en Multi-Org
+    // Execution beschreef alleen een voorstel (RFC-009) dat niet gebouwd is;
+    // wat ervan klopt staat nu bij Competent Authority.
+    '/concepts/validation-methodology': '/concepts/methodology',
+    '/concepts/multi-org-execution': '/concepts/competent-authority',
   },
   integrations: [
     mdx(),
