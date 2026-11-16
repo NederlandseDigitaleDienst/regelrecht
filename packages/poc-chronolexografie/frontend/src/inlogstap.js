@@ -22,15 +22,20 @@ export function ingevuldDoorInloggen(inloggen, sessie, gevraagd) {
 }
 
 /**
- * `waarden` of the application with what the session says: without a
- * session the login field is empty, whatever the scenario or the applicant
- * put there. Unchanged for a case without a login step.
+ * `waarden` of the application with what the session says. Without a
+ * session the login field holds only what the scenario step names itself
+ * (`uitStap`): a submission that did not come through the login, such as one
+ * on paper. The example values and the applicant never fill it. Unchanged
+ * for a case without a login step.
  */
-export function metSessie(inloggen, sessie, waarden, gevraagd) {
+export function metSessie(inloggen, sessie, waarden, gevraagd, uitStap = undefined) {
   if (!inloggen?.inlogstap) return waarden;
   const uit = { ...waarden };
   delete uit[inloggen.veld];
-  if (!sessie) return uit;
+  if (!sessie) {
+    if (uitStap !== undefined) uit[inloggen.veld] = uitStap;
+    return uit;
+  }
   for (const [naam, waarde] of Object.entries(sessie.claims ?? {})) {
     if (gevraagd.includes(naam)) uit[naam] = waarde;
   }

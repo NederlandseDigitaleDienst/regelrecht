@@ -41,6 +41,10 @@ describe('metSessie', () => {
     expect(metSessie(INLOGGEN, null, { kvk_nummer: '11111111', kenteken: 'X' }, VELDEN)).toEqual({ kenteken: 'X' });
   });
 
+  it('takes the login field from the step itself without a session, as on paper', () => {
+    expect(metSessie(INLOGGEN, null, { kvk_nummer: '11111111' }, VELDEN, '99970033')).toEqual({ kvk_nummer: '99970033' });
+  });
+
   it('changes nothing for a case without a login step', () => {
     const waarden = { kvk_nummer: '11111111' };
     const zonder = { ...INLOGGEN, inlogstap: undefined };

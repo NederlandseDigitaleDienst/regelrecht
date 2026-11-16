@@ -133,3 +133,15 @@ scenarios:
           wachtwoord: verkeerd
         uitkomst: geweigerd
     eind: Geweigerd bij het inloggen.
+  # Een aanvraag die niet via de inlogstap kwam, zoals een op papier, noemt het
+  # KvK-nummer zelf. De dienst bevestigde dan geen machtiging.
+  - naam: Een aanvraag op papier, zonder inloggen
+    stappen:
+      - stap: aanvraag
+        verhaal: De bakker stuurt de aanvraag op papier, met het KvK-nummer erop.
+        invoer:
+          kvk_nummer: '99970011'
+      - stap: besluit
+        datum: 2026-10-20
+        uitkomst: afgewezen
+    eind: Afgewezen; de erkende dienst verklaarde niets.

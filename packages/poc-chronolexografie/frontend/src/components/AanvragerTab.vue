@@ -55,9 +55,10 @@ const aanvraagVorm = formulier(() => {
 });
 // With a login step, who is logged in comes from the session, never from the
 // form or the scenario (inlogstap.js).
-const aanvraag = computed(() =>
-  metSessie(inloggen.value, sessie.value, aanvraagVorm.waarden('aanvraag'), veldnamen.value),
-);
+const aanvraag = computed(() => {
+  const uitStap = scenarioWaarden('aanvraag') ? huidigeStap()?.step.stap.invoer?.[inloggen.value?.veld] : undefined;
+  return metSessie(inloggen.value, sessie.value, aanvraagVorm.waarden('aanvraag'), veldnamen.value, uitStap);
+});
 const prefill = computed(() => state.vormen?.aanvraag?.prefill ?? {});
 
 // Ask the sources again when what they read changes: the fields of the form,

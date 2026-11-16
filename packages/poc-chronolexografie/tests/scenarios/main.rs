@@ -376,6 +376,23 @@ fn a_login_after_an_authorization_that_was_not_revoked_gets_in_and_fails_the_ste
 }
 
 #[test]
+fn a_step_after_a_login_that_names_the_login_field_itself_is_wrong() {
+    let mut bestanden = inlogbron();
+    let pad = "casussen/voorbeeld_inlogstap.yaml";
+    let mut casus: Value = serde_yaml_ng::from_str(&bestanden[pad]).unwrap();
+    casus["scenarios"][0]["stappen"][1]["invoer"] = json!({"kvk_nummer": "99970022"});
+    bestanden.insert(pad.into(), serde_yaml_ng::to_string(&casus).unwrap());
+    let (mut spel, stand) = spel_met_bron(bestanden);
+    let fouten = speel_bron(&mut spel, &stand, None);
+    assert!(
+        fouten[0].contains(
+            "step 2: the step fills 'kvk_nummer', which the session of the login before it fills"
+        ),
+        "{fouten:?}"
+    );
+}
+
+#[test]
 fn the_form_of_a_case_with_a_login_step_offers_the_step_and_no_choice() {
     let (mut spel, _) = spel_met_bron(inlogbron());
     spel.kiezen("voorbeeld_inlogstap").unwrap();

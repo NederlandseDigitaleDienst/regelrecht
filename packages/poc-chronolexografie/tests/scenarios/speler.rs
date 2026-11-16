@@ -327,8 +327,10 @@ impl Speler<'_> {
     /// With a login step in the case, the application takes who is logged
     /// in from the session, as the form does: the claim `sleutel` goes into
     /// the login field, and a claim named after a field of the application
-    /// fills that field. Without a session the login field stays empty. A
-    /// step that names the login field itself is wrong: the session says it.
+    /// fills that field. The example values never fill the login field. A
+    /// step without a session may name it itself: a submission that did not
+    /// come through the login, such as one on paper. A step with a session
+    /// may not: the session says who submits.
     fn uit_sessie(
         &self,
         aanvraag: &Value,
@@ -340,15 +342,19 @@ impl Speler<'_> {
             return Ok(());
         }
         let veld = inloggen["veld"].as_str().ok_or("a login without 'veld'")?;
-        if stap["invoer"].get(veld).is_some() {
-            return Err(format!(
-                "the step fills '{veld}', which the session of the login step fills"
-            ));
-        }
+        let uit_stap = stap["invoer"].get(veld).cloned();
         velden.remove(veld);
         let Some(claims) = &self.sessie else {
+            if let Some(waarde) = uit_stap {
+                velden.insert(veld.to_string(), waarde);
+            }
             return Ok(());
         };
+        if uit_stap.is_some() {
+            return Err(format!(
+                "the step fills '{veld}', which the session of the login before it fills"
+            ));
+        }
         let gevraagd = namen(&aanvraag["velden"]);
         for (naam, waarde) in claims {
             if gevraagd.contains(naam) {
