@@ -34,6 +34,7 @@ Every HTML page served from inside a PoC gets a strip at the top that the portal
 | `proxy.rs` | Reverse proxy to a PoC that runs as its own component |
 | `bron.rs` | Fetches and caches the sources a static PoC loads while it runs |
 | `pagina.rs` | The index and the password screen, rendered as HTML with `nldd-*` components |
+| `version.rs` | The commit the binary was built from, at `/_version` |
 
 ### The register
 
@@ -178,6 +179,14 @@ The list of cases comes from `POC_ASSISTENT_CASUSSEN` in `start.sh`, not from th
 ### Image and deployment
 
 `packages/poc-portal/Dockerfile` builds the engine and chronolexografie to WASM, the portal's design-system bundle from `frontend-poc-portal/`, each static PoC with its own base path, and the Rust binary. The portal and napp deploy as two ZAD components, `poc` and `napp`; see [Deployment](/operations/deployment). Only `poc` is published on the web. The image builds WASM from two crates the portal does not depend on: the engine and `regelrecht-poc-chronolexografie`. `script/deploy-filters.mjs` therefore ties the `poc` component to those two and to the portal binary, so a change to the engine or the cell rebuilds the image. The corpus of chronolexografie lies in that crate's directory and comes with it.
+
+### Build commit
+
+`GET /_version` answers with the regelrecht commit the image was built from, without a password: `{"commit":"<40 hex characters>"}`. A test harness reads it to run its scenarios against the commit that is live. A slug cannot contain an underscore, so no PoC can take this path.
+
+The `build-poc` job in `.github/workflows/deploy.yml` passes `github.sha` to the Dockerfile as the build argument `REGELRECHT_COMMIT`, and `version.rs` reads it when the binary is compiled. On a pull request that is the test-merge commit GitHub builds, not the head of the branch. The image is rebuilt only when `script/deploy-filters.mjs` finds a change that touches it. After a merge that leaves the portal alone, the endpoint keeps naming the older commit, and what the image holds is the same at both.
+
+The answer is fixed at compile time and nothing from outside can change it. A value that is not exactly 40 lowercase hex characters becomes `"unknown"` in the compiler, as does a missing one in a local build, so a build argument cannot put other text into the response. The handler reads nothing from the request, not the path, the query, a header or a cookie. The body is written by serde_json and sent as `application/json` with `Cache-Control: no-store`; the portal adds no CORS headers to it.
 
 ## Running locally
 

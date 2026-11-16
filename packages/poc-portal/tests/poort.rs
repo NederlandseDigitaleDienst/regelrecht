@@ -16,6 +16,7 @@ use tower::ServiceExt as _;
 use regelrecht_poc_portal::app::{AppState, router};
 use regelrecht_poc_portal::config::Config;
 use regelrecht_poc_portal::gate;
+use regelrecht_poc_portal::version;
 
 const SECRET: &str = "0123456789abcdef0123456789abcdef";
 
@@ -113,6 +114,57 @@ async fn health_is_public() {
     let (status, body) = get(&app(), "/health", None).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body, "OK");
+}
+
+#[tokio::test]
+async fn the_version_is_public_json_with_the_build_commit() {
+    let response = app()
+        .oneshot(
+            Request::builder()
+                .uri(version::VERSION_PATH)
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
+    let headers = response.headers();
+    assert_eq!(headers[header::CONTENT_TYPE], "application/json");
+    assert_eq!(headers[header::CACHE_CONTROL], "no-store");
+    assert!(!headers.contains_key(header::ACCESS_CONTROL_ALLOW_ORIGIN));
+    let bytes = axum::body::to_bytes(response.into_body(), 1 << 10)
+        .await
+        .expect("body");
+    let body: serde_json::Value = serde_json::from_slice(&bytes).expect("json");
+    assert_eq!(
+        body,
+        serde_json::json!({ "commit": version::BUILD_COMMIT.as_str() })
+    );
+}
+
+#[tokio::test]
+async fn the_version_ignores_the_request() {
+    // Nothing in the request reaches the answer: a query, a header or a cookie
+    // gets the same body as a bare GET.
+    let app = app();
+    let (_, bare) = get(&app, version::VERSION_PATH, None).await;
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .uri(format!("{}?commit=evil", version::VERSION_PATH))
+                .header("x-commit", "evil")
+                .header(header::COOKIE, cookie_voor("alfa"))
+                .body(Body::empty())
+                .expect("request"),
+        )
+        .await
+        .expect("response");
+    let bytes = axum::body::to_bytes(response.into_body(), 1 << 10)
+        .await
+        .expect("body");
+    assert_eq!(String::from_utf8_lossy(&bytes), bare);
+    assert!(!bare.contains("evil"));
 }
 
 #[tokio::test]
