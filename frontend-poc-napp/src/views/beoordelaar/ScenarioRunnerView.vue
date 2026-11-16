@@ -9,8 +9,10 @@ import { euro } from '../../format.js';
 
 const router = useRouter();
 
-// Bundel alle scenario's mee als raw tekst.
-const featureFiles = import.meta.glob('../../../../corpus-poc/napp/scenarios/*.feature', {
+// Alleen de scenario's die de wet laten zien; de randgevallen ernaast
+// (scenarios/randgevallen/) draaien als tests, niet hier. Het nummer voor
+// elke bestandsnaam bepaalt de volgorde op het scherm.
+const featureFiles = import.meta.glob('../../../../corpus-poc/napp/scenarios/getoond/*.feature', {
   query: '?raw',
   import: 'default',
   eager: true,
@@ -169,9 +171,11 @@ onMounted(run);
       <nldd-spacer size="12"></nldd-spacer>
       <nldd-rich-text>
         <p>
-          Deze scenario's beschrijven hoe de Wet op de politieke partijen hoort te
-          werken. Ze worden live uitgevoerd door dezelfde wet-engine die de
-          besluiten neemt — in uw browser. Klik op een scenario voor de stappen;
+          Deze scenario's laten zien hoe de Wet op de politieke partijen werkt:
+          een landelijke en een decentrale toekenning, een afwijzing, de
+          Algemene wet bestuursrecht bij het besluit en een bezwaar. Ze worden
+          live uitgevoerd door dezelfde wet-engine die de besluiten neemt — in
+          uw browser. Klik op een scenario voor de stappen;
           u kunt de gegevens aanpassen en het scenario opnieuw uitvoeren om te
           zien wat de wet dan doet.
         </p>

@@ -29,19 +29,6 @@ Feature: Bezwaar tegen een beschikking (AWB hoofdstuk 6 en 7)
     And the output "herstel_vereist" is true
     And the output "mag_niet_ontvankelijk_wegens_verzuim" is false
 
-  Scenario: Niet-ontvankelijk kan pas na onbenutte herstelgelegenheid
-    Given the calculation date is "2026-06-01"
-    And the following facts:
-      | naam_en_adres_vermeld           | true  |
-      | dagtekening_vermeld             | true  |
-      | besluit_omschreven              | true  |
-      | gronden_vermeld                 | false |
-      | ondertekend                     | true  |
-      | herstelgelegenheid_geboden      | true  |
-      | binnen_hersteltermijn_aangevuld | false |
-    When the AWB outputs "mag_niet_ontvankelijk_wegens_verzuim" are evaluated
-    Then the output "mag_niet_ontvankelijk_wegens_verzuim" is true
-
   Scenario: De verzendtheorie redt een per post verzonden bezwaarschrift
     Given the calculation date is "2026-06-01"
     And the following facts:

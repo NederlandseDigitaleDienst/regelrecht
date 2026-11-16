@@ -10,23 +10,6 @@ Feature: Subsidie voor decentrale politieke partijen
   Background:
     Given the calculation date is "2026-06-01"
 
-  Scenario: Lokale partij met 5 zetels in een middelgrote gemeente
-    Given an application with the following data:
-      | niveau                           | DECENTRAAL |
-      | orgaan                           | GEMEENTERAAD |
-      | aantal_kamerzetels               | 0          |
-      | aantal_betalende_leden           | 0          |
-      | aantal_raadszetels               | 5          |
-      | inwoneraantal_gemeente           | 50000      |
-      | ontvangt_anonieme_giften         | false      |
-      | ontvangt_giften_niet_ingezetenen | false      |
-      | voldoet_aan_meldplicht_giften    | true       |
-      | financien_openbaar_op_website    | true       |
-    When the subsidiebesluit is executed
-    Then the subsidie is toegekend
-    And the subsidiebedrag is "450000" eurocent
-    And a betaalopdracht of "360000" eurocent is required
-
   Scenario: Lokale partij met 3 zetels in een kleine gemeente
     Given an application with the following data:
       | niveau                           | DECENTRAAL |

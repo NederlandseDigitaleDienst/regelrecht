@@ -1,4 +1,4 @@
-# Napp — Nederlandse autoriteit politieke partijen
+# Napp: Nederlandse autoriteit politieke partijen
 
 > **Proof of concept.** Fictieve gegevens. De Napp bestaat niet en de Wet op de
 > politieke partijen is een wetsvoorstel; de wettekst hier is een uitvoerbare
@@ -22,7 +22,7 @@ dat de rest verandert.
 | `packages/poc-napp/scripts/` | De generatoren achter die snapshot en de demowereld |
 | `frontend-poc-napp/` | Drie gescheiden ingangen (Vue 3 + NLDD): publiek (landing + register), subsidieportaal (mock-eHerkenning), beoordelingsomgeving (incl. scenario-runner op de WASM-engine) |
 | `corpus-poc/napp/law/` | De wetten: Wpp (twee subsidietracks + betaalopdracht-hook), regeling met bedragen (IoC), AWB-subset (procedure + hooks 3:46/6:7/6:8), Algemene termijnenwet (weekend-verlenging), Kieswet |
-| `corpus-poc/napp/scenarios/` | 48 Gherkin-scenario's in 9 feature-files die vastleggen hoe de wet hoort te werken |
+| `corpus-poc/napp/scenarios/` | 48 Gherkin-scenario's die vastleggen hoe de wet hoort te werken: vijf in `getoond/` die de beoordelingsomgeving laat zien, de randgevallen in `randgevallen/`. Alle 48 draaien als test, in Rust (`tests/bdd`) en in JS (`frontend-poc-napp/tests`) |
 
 De registry-entry staat in `pocs/registry.yaml` (`slug: napp`, `soort: proxy`).
 
@@ -123,6 +123,8 @@ indicatieve uitkomst, live berekend door dezelfde wet-engine.
 Welke partijen decentraal georganiseerd zijn volgt uit hun statuten en is geen
 open data; de set in `bouw_register.py` is een demo-aanname.
 
-De scenario-runner in de beoordelingsomgeving draait dezelfde scenario's live
-in de browser op de naar WASM gecompileerde engine: het bewijs dat de wet doet
-wat hij moet doen, naast elke beoordeling.
+De scenario-runner in de beoordelingsomgeving draait de vijf scenario's uit
+`getoond/` live in de browser, op de naar WASM gecompileerde engine. Daar kan
+een beoordelaar zelf zien hoe de wet werkt, en de gegevens aanpassen. De
+randgevallen staan er niet bij; die bewaken als test dat de wet doet wat hij
+moet doen.

@@ -14,6 +14,16 @@ import awbYaml from '../../corpus-poc/napp/law/algemene_wet_bestuursrecht/1994-0
 import termijnenwetYaml from '../../corpus-poc/napp/law/algemene_termijnenwet/1964-04-01.yaml?raw';
 import kieswetYaml from '../../corpus-poc/napp/law/kieswet/1989-09-28.yaml?raw';
 
+// De wetten die napp uitvoert, in laadvolgorde. De scenariotests laden
+// dezelfde lijst in hun engine, zodat test en browser niet uit elkaar lopen.
+const wetten = [wppYaml, regelingYaml, besluitDecentraalYaml, awbYaml, termijnenwetYaml, kieswetYaml];
+
+/** Laad de napp-wetten in een verse engine en geef die terug. */
+export function laadWetten(engine) {
+  for (const yaml of wetten) engine.loadLaw(yaml);
+  return engine;
+}
+
 let enginePromise = null;
 
 export function getEngine() {
@@ -31,14 +41,7 @@ export function getEngine() {
     const wasm = await import(/* @vite-ignore */ blobUrl);
     URL.revokeObjectURL(blobUrl);
     await wasm.default(b('/wasm/pkg/regelrecht_engine_bg.wasm'));
-    const engine = new wasm.WasmEngine();
-    engine.loadLaw(wppYaml);
-    engine.loadLaw(regelingYaml);
-    engine.loadLaw(besluitDecentraalYaml);
-    engine.loadLaw(awbYaml);
-    engine.loadLaw(termijnenwetYaml);
-    engine.loadLaw(kieswetYaml);
-    return engine;
+    return laadWetten(new wasm.WasmEngine());
   })();
   return enginePromise;
 }

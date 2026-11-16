@@ -1204,6 +1204,7 @@ jobs:
         run: |
           npm test -w frontend-poc-terugbetaalregimes
           npm test -w frontend-poc-nieuwkomersbekostiging
+          npm test -w frontend-poc-napp
           # De assistent-backend is geen workspace-member (het is een server,
           # geen frontend), dus `npm test -w` bereikt hem niet. De vitest uit
           # de root draait zijn tests wel.

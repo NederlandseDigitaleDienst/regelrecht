@@ -869,13 +869,15 @@ function cratesOf(run, workspace) {
  * runner's code: each runner fails loudly when its directory is missing.
  */
 export const BDD_RUNNERS = [
-  // `corpus-poc/napp/scenarios`, joined in main.rs.
+  // `corpus-poc/napp/scenarios` and its subdirectories, joined in main.rs.
   { runner: 'packages/poc-napp/tests/bdd/main.rs', root: 'corpus-poc/napp/scenarios' },
   // The cell's own BDD suite: `bdd/features`, joined in main.rs.
   { runner: 'packages/cel/tests/bdd/main.rs', root: 'packages/cel/bdd/features' },
   // `corpusDir` in tests/helpers/casusPaden.js.
   { runner: 'frontend-poc-terugbetaalregimes/tests/scenarios.test.js', root: 'corpus-poc/terugbetaalregimes/corpus' },
   { runner: 'frontend-poc-nieuwkomersbekostiging/tests/scenarios.test.js', root: 'corpus-poc/nieuwkomersbekostiging/corpus' },
+  // `scenariosDir` in the test; the same directory as the Rust runner above.
+  { runner: 'frontend-poc-napp/tests/scenarios.test.js', root: 'corpus-poc/napp/scenarios' },
 ];
 
 /** The engine's own runner, configured per run by BDD_BUCKET and REGULATION_PATH. */

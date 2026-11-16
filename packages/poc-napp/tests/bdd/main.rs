@@ -21,6 +21,8 @@ async fn main() {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     // De scenario's staan bij de casus-inhoud (corpus-poc/napp/scenarios), niet
     // naast de crate: in de monorepo is packages/ de buur, niet de projectwortel.
+    // Cucumber leest de map recursief: de getoonde scenario's (getoond/) en de
+    // randgevallen (randgevallen/) draaien allebei.
     let scenarios_dir = Path::new(manifest_dir)
         .parent() // packages/
         .and_then(Path::parent) // repo-wortel

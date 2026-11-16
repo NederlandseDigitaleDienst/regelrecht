@@ -9,24 +9,6 @@ Feature: Subsidie voor landelijke politieke partijen
   Background:
     Given the calculation date is "2026-06-01"
 
-  Scenario: Middelgrote landelijke partij met 10 zetels en 5000 van 100000 leden
-    Given an application with the following data:
-      | niveau                           | LANDELIJK |
-      | orgaan                           | GEMEENTERAAD |
-      | aantal_kamerzetels               | 10        |
-      | aantal_betalende_leden           | 5000      |
-      | totaal_aantal_betalende_leden    | 100000    |
-      | aantal_raadszetels               | 0         |
-      | inwoneraantal_gemeente           | 0         |
-      | ontvangt_anonieme_giften         | false     |
-      | ontvangt_giften_niet_ingezetenen | false     |
-      | voldoet_aan_meldplicht_giften    | true      |
-      | financien_openbaar_op_website    | true      |
-    When the subsidiebesluit is executed
-    Then the subsidie is toegekend
-    And the subsidiebedrag is "106191185" eurocent
-    And a betaalopdracht of "84952948" eurocent is required
-
   Scenario: Kleine partij precies op de drempel van 1 zetel en 1000 leden
     Given an application with the following data:
       | niveau                           | LANDELIJK |

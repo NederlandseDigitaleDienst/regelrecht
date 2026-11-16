@@ -40,22 +40,6 @@ Feature: Afwijzing van subsidieaanvragen
     Then the subsidie is afgewezen
     And no betaalopdracht is required
 
-  Scenario: Partij die anonieme giften ontvangt wordt afgewezen
-    Given an application with the following data:
-      | niveau                           | LANDELIJK |
-      | orgaan                           | GEMEENTERAAD |
-      | aantal_kamerzetels               | 10        |
-      | aantal_betalende_leden           | 5000      |
-      | aantal_raadszetels               | 0         |
-      | inwoneraantal_gemeente           | 0         |
-      | ontvangt_anonieme_giften         | true      |
-      | ontvangt_giften_niet_ingezetenen | false     |
-      | voldoet_aan_meldplicht_giften    | true      |
-      | financien_openbaar_op_website    | true      |
-    When the subsidiebesluit is executed
-    Then the subsidie is afgewezen
-    And no betaalopdracht is required
-
   Scenario: Partij die giften van niet-ingezetenen ontvangt wordt afgewezen
     Given an application with the following data:
       | niveau                           | LANDELIJK |
