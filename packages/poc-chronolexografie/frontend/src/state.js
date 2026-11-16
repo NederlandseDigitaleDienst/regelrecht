@@ -414,8 +414,11 @@ export function waarde(v) {
 // The id of a chronolexogram: a UUID.
 const GRAM_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 
+/** Whether `w` is the id of a chronolexogram, such as a field that names the contested decision. */
+export const isGramId = (w) => typeof w === 'string' && GRAM_ID.test(w);
+
 // What is no value of the gram itself: empty, a reference, a copy of a decision.
-const isMetadata = (w) => w == null || isBesluitwaarde(w) || GRAM_ID.test(w);
+const isMetadata = (w) => w == null || isBesluitwaarde(w) || isGramId(w);
 
 /**
  * The main fields of a chronolexogram as `name: value`: for a decision the

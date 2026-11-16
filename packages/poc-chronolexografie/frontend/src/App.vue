@@ -29,6 +29,7 @@
 // opens a scenario and the browser's back and forward walk the choices.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { api } from './api.js';
+import { getoond } from './herkomst.js';
 import { artikelNaam } from './logboek.js';
 import { melding } from './melding.js';
 import { current, followAddress, navigate, toChoice, unknown } from './navigation.js';
@@ -52,6 +53,7 @@ import { KORT, useKort } from './presentation/useKort.js';
 import { useUitleg } from './presentation/useUitleg.js';
 import { startIndex, usePresentation } from './presentation/usePresentation.js';
 import { useAlleCasussen } from './verborgen.js';
+import { toonInKroniek } from './verwijzingen.js';
 
 // Het tabblad Andere cellen staat er alleen bij een casus met andere cellen
 // (RFC-048).
@@ -128,11 +130,16 @@ const subtitle = computed(
   () => `De cel van ${state.casus?.cel_naam} · ${artikel.value} · bestuursorgaan: ${state.casus?.rol}`,
 );
 
-// Een link in het logboek naar een chronolexogram opent het in de kroniek.
-function naarKroniek(id) {
-  state.inKroniek = id;
-  tab.value = 'kroniek';
-}
+// A link to a chronolexogram, from the log or from a reference of another
+// one (verwijzingen.js), opens it in the Kroniek tab, also from the sheet.
+watch(
+  () => state.inKroniek,
+  (id) => {
+    if (!id) return;
+    getoond.value = null;
+    tab.value = 'kroniek';
+  },
+);
 
 // In a scenario, starting over begins that scenario again, as the guide's
 // own button does: the play date back on its first day, the tab Aanvrager and
@@ -342,7 +349,7 @@ function toTab(id) {
                 </template>
                 <AndereCellenTab v-else-if="tab === 'andere'" />
                 <KroniekTab v-else-if="tab === 'kroniek'" />
-                <LogboekTab v-else @kroniek="naarKroniek" />
+                <LogboekTab v-else @kroniek="toonInKroniek" />
               </template>
             </nldd-page>
           </nldd-split-view-pane>
