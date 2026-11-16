@@ -257,6 +257,7 @@ impl Speler<'_> {
         };
         let besluit = &genomen["besluit"];
         self.stand.aanvragen[doel].1 = Some(id(besluit)?);
+        self.kenmerk(stap, besluit)?;
         rij["uitvoer"] = json!(uitvoer(stap, &besluit["outputs"]));
         let kreeg = if besluit["outputs"][&self.uitkomst] == json!(true) {
             "toegewezen"
@@ -325,12 +326,17 @@ impl Speler<'_> {
         datum: NaiveDate,
         rij: &mut Value,
     ) -> Result<(), String> {
-        let cel = stap["cel"].as_str().ok_or("a step without 'cel'")?;
+        // Without a cell, the case's own cell records.
+        let cel = stap["cel"]
+            .as_str()
+            .or_else(|| self.casus["cel"].as_str())
+            .ok_or("a step without 'cel'")?;
         let feit = stap["feit"].as_str().ok_or("a step without 'feit'")?;
         let handeling = vormen["andere_cellen"]
             .as_array()
             .into_iter()
             .flatten()
+            .chain(std::iter::once(&vormen["eigen"]))
             .find(|c| c["cel"] == json!(cel))
             .and_then(|c| {
                 c["handelingen"]
@@ -341,11 +347,17 @@ impl Speler<'_> {
             .ok_or_else(|| format!("{cel} records no {feit}"))?;
         let mut velden = map(&stap["invoer"]);
         rij["leeg_gelaten"] = json!(vul_leeg(&handeling["velden"], &mut velden));
-        let verwijst_naar = stap.get("verwijst_naar").and_then(Value::as_str);
-        self.spel
+        // The record of an earlier step by its id; a kenmerk of a begin as
+        // it is.
+        let verwijst_naar = stap
+            .get("verwijst_naar")
+            .and_then(Value::as_str)
+            .map(|k| self.stand.kenmerken.get(k).map_or(k, String::as_str));
+        let gram = self
+            .spel
             .vastleggen_verwijzend(cel, feit, &velden, verwijst_naar, datum)
             .map_err(|e| e.to_string())?;
-        Ok(())
+        self.kenmerk(stap, &gram)
     }
 
     fn beroep(
@@ -478,8 +490,14 @@ impl Speler<'_> {
         if stap.get("uitvoer").is_some() {
             rij["uitvoer"] = json!(uitvoer(stap, &gram["outputs"]));
         }
+        self.kenmerk(stap, &gram)
+    }
+
+    /// Keep the id of `gram` under the kenmerk `stap` gives it, if any, for
+    /// a later step that acts on it.
+    fn kenmerk(&mut self, stap: &Value, gram: &Value) -> Result<(), String> {
         if let Some(k) = stap.get("kenmerk").and_then(Value::as_str) {
-            self.stand.kenmerken.insert(k.to_string(), id(&gram)?);
+            self.stand.kenmerken.insert(k.to_string(), id(gram)?);
         }
         Ok(())
     }

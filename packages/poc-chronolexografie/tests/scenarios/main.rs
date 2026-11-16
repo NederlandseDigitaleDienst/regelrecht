@@ -526,3 +526,96 @@ fn every_scenario_of_a_procedure_without_the_awb_plays_with_its_own_values() {
         .unwrap_err();
     assert!(e.to_string().contains("ex officio"), "{e}");
 }
+
+/// The case's own cell records a fact while it handles the case: a payment
+/// on its decision, and a refund on that payment, each referring to the
+/// record it is about. The form offers it only the facts the law gives it:
+/// not a fact of another authority, and not a receipt, which arrives on its
+/// own.
+#[test]
+fn the_case_s_own_cell_records_a_fact_about_its_decision() {
+    let mut spel = spel_in(ZONDER_AWB);
+    let casus = spel.kiezen("fictieve_vergunning").unwrap();
+    let index = casus["scenarios"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .position(|s| s["naam"] == "Verleend, leges betaald en terugbetaald")
+        .unwrap();
+    let verslag = speler::speel(&mut spel, "fictieve_vergunning", index, false).unwrap();
+    let fouten = verslag.fouten();
+    assert!(fouten.is_empty(), "{}", fouten.join("\n"));
+    streng(&verslag);
+
+    let kroniek = spel.kroniek().unwrap();
+    let grammen: Vec<&Value> = speler::grammen(&kroniek).collect();
+    let feit = |naam: &str| {
+        *grammen
+            .iter()
+            .find(|g| g["fact"] == naam)
+            .unwrap_or_else(|| panic!("no {naam} in {kroniek}"))
+    };
+    let besluit = grammen.iter().find(|g| g["kind"] == "BESCHIKKING").unwrap();
+    let betaling = feit("leges_betaald");
+    let terug = feit("leges_terugbetaald");
+    assert_eq!(betaling["refers_to"], besluit["id"]);
+    assert_eq!(betaling["recording_actor"], "fictieve_dienst");
+    assert_eq!(terug["refers_to"], betaling["id"]);
+    let aanvraag = grammen.iter().find(|g| g["kind"] == "AANVRAAG").unwrap();
+
+    let dag = "2026-03-02".parse().unwrap();
+    let vormen = spel.vormen(dag).unwrap();
+    let eigen: Vec<&str> = vormen["eigen"]["handelingen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|h| h["feit"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        eigen,
+        [
+            "fictieve_vergunningwet#4#leges_betaald",
+            "fictieve_vergunningwet#4#leges_terugbetaald",
+        ]
+    );
+    let bedrag = json!({ "bedrag": 100 });
+    let bedrag = bedrag.as_object().unwrap();
+    for (feit, reden) in [
+        (
+            "fictieve_vergunningwet#5#betaling_gemeld",
+            "records no fact",
+        ),
+        (
+            "fictieve_vergunningwet#5#melding_ontvangen",
+            "records no fact",
+        ),
+    ] {
+        let e = spel
+            .vastleggen("fictieve_dienst", feit, bedrag, dag)
+            .unwrap_err();
+        assert!(e.to_string().contains(reden), "{feit}: {e}");
+    }
+    let e = spel
+        .vastleggen_verwijzend(
+            "fictieve_dienst",
+            "fictieve_vergunningwet#4#leges_betaald",
+            bedrag,
+            aanvraag["id"].as_str(),
+            dag,
+        )
+        .unwrap_err();
+    assert!(e.to_string().contains("is a submission"), "{e}");
+    let e = spel
+        .vastleggen_verwijzend(
+            "fictieve_dienst",
+            "fictieve_vergunningwet#4#leges_betaald",
+            bedrag,
+            Some("onbekend"),
+            dag,
+        )
+        .unwrap_err();
+    assert!(
+        e.to_string().contains("is no record in the chronicle"),
+        "{e}"
+    );
+}

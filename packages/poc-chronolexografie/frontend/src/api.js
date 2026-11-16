@@ -122,9 +122,10 @@ export const api = {
   // Een indiening onder `artikel`, die verwijst naar besluit `op`, of geen.
   indienen: (artikel, velden, datum, op = null) =>
     roep((p) => p.indienen(artikel, json(velden), datum, op ?? undefined)),
-  // Een andere cel van de casus legt een handeling vast, zoals de GGD een
-  // geneeskundig onderzoek (RFC-048). `verwijstNaar` is het kenmerk van een
-  // eerder record in het begin van die cel waarover het feit gaat, of null.
+  // Een cel van de casus legt een feit vast: een andere cel, zoals de GGD een
+  // geneeskundig onderzoek (RFC-048), of de eigen cel, zoals een betaling op
+  // haar besluit. `verwijstNaar` is het record van die cel waarover het feit
+  // gaat (zijn id, of zijn kenmerk in het begin van de cel), of null.
   vastleggen: (cel, feit, velden, datum, verwijstNaar = null) =>
     roep((p) => p.vastleggen(cel, feit, json(velden), datum, verwijstNaar ?? undefined)),
   // Beslissen op indiening `op`; `na` is een later record waarna opnieuw

@@ -113,3 +113,59 @@ articles:
         actions:
           - output: ingetrokken
             value: true
+
+  - number: '4'
+    url: https://example.invalid/fictieve_vergunningwet#4
+    text: >-
+      FICTIEF. De dienst legt vast dat de leges voor een vergunning zijn
+      betaald, en welk bedrag. Betaalt de dienst leges terug, dan legt zij dat
+      vast bij de betaling die zij terugbetaalt.
+    machine_readable:
+      # The service records both facts in its own chronicle, while it
+      # handles the case: the payment refers to the decision it is made on,
+      # the refund to the payment (refers_to, schema v0.8.17).
+      requires:
+        - fact: leges_betaald
+          description: Dat de leges voor de vergunning waarnaar het feit verwijst, zijn betaald.
+          competent_authority:
+            - name: Fictieve dienst
+          parameters:
+            - bedrag
+        - fact: leges_terugbetaald
+          description: Dat de dienst de betaling waarnaar het feit verwijst, terugbetaalde.
+          competent_authority:
+            - name: Fictieve dienst
+          parameters:
+            - bedrag
+      execution:
+        parameters:
+          - name: bedrag
+            type: amount
+            description: Het bedrag in eurocent.
+
+  - number: '5'
+    url: https://example.invalid/fictieve_vergunningwet#5
+    text: >-
+      FICTIEF. Een fictieve bank meldt de dienst dat een betaling is
+      ontvangen. De dienst legt de ontvangst van die melding vast.
+    machine_readable:
+      # The first fact is the bank's, the second the receipt the service
+      # records of it: the service does not record either itself.
+      requires:
+        - fact: betaling_gemeld
+          description: Dat de bank een betaling meldde.
+          competent_authority:
+            - name: Fictieve bank
+          parameters:
+            - bedrag
+        - fact: melding_ontvangen
+          description: Dat de dienst de melding van de bank ontving.
+          competent_authority:
+            - name: Fictieve dienst
+          parameters:
+            - bedrag
+      execution:
+        parameters:
+          - name: bedrag
+            type: amount
+            description: Het bedrag in eurocent.

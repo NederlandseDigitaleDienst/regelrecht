@@ -194,8 +194,8 @@ impl Spel {
         ok(self.met(|c, cell| kern::indienen(c, cell, artikel, op, velden, datum))?)
     }
 
-    /// The other cell `cel` of the sphere records the fact `feit`
-    /// (`<regulation>#<article>#<fact>`).
+    /// The cell `cel` of the case, another or its own, records the fact
+    /// `feit` (`<regulation>#<article>#<fact>`) ([`kern::vastleggen`]).
     pub fn vastleggen(
         &mut self,
         cel: &str,
@@ -206,8 +206,9 @@ impl Spel {
         self.vastleggen_verwijzend(cel, feit, velden, None, datum)
     }
 
-    /// [`Spel::vastleggen`], for a fact about the record that the begin of
-    /// `cel` names `verwijst_naar` ([`kern::vastleggen_verwijzend`]).
+    /// [`Spel::vastleggen`], for a fact about the record of `cel` that
+    /// `verwijst_naar` names, by its id or by its kenmerk in the begin of
+    /// `cel` ([`kern::vastleggen_verwijzend`]).
     pub fn vastleggen_verwijzend(
         &mut self,
         cel: &str,

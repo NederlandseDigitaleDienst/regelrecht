@@ -118,8 +118,9 @@ impl Poc {
         ))
     }
 
-    /// `verwijst_naar`: the kenmerk, in the begin of `cel`, of the record
-    /// the fact is about, or none.
+    /// The cell `cel` of the case, another or its own, records `feit`.
+    /// `verwijst_naar`: the record of `cel` the fact is about, by its id or
+    /// by its kenmerk in the begin of `cel`, or none.
     pub fn vastleggen(
         &mut self,
         cel: &str,

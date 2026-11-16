@@ -127,6 +127,57 @@ describe('bouwGids', () => {
     expect(g.steps[0].done(k(2))).toBe(false);
     expect(g.steps[0].done(k(3))).toBe(true);
   });
+
+  it("puts a record of the case's own cell on the authority's tab", () => {
+    const feit = 'wet#4#leges_betaald';
+    const casus = { cel: 'dienst', begin: { executogrammen: [{ feit }] }, andere_cellen: [] };
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [
+          { stap: 'vastleggen', feit, invoer: { bedrag: 5000 } },
+          { stap: 'vastleggen', cel: 'dienst', feit },
+        ],
+      },
+      casus,
+    );
+    expect(g.steps.map((s) => s.tab)).toEqual(['bestuursorgaan', 'bestuursorgaan']);
+    expect(g.steps[0].seen).toContain('bestuursorgaan');
+    // The begin of the case's own cell counts before the scenario.
+    const k = (n) => ({ executogrammen: (f) => (f === 'leges_betaald' ? n : 0) });
+    expect(g.steps[0].done(k(1))).toBe(false);
+    expect(g.steps[0].done(k(2))).toBe(true);
+    expect(g.steps.map((s) => [s.vooraf, s.keer])).toEqual([
+      [1, 1],
+      [1, 2],
+    ]);
+  });
+
+  it('counts the records of a fact per cell and per article', () => {
+    const casus = {
+      cel: 'dienst',
+      begin: { executogrammen: [{ feit: 'wet#4#melding' }] },
+      andere_cellen: [{ cel: 'bank', begin: { executogrammen: [{ feit: 'wet#4#melding' }, { feit: 'wet#4#melding' }] } }],
+    };
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [
+          { stap: 'vastleggen', cel: 'bank', feit: 'wet#4#melding' },
+          { stap: 'vastleggen', feit: 'wet#4#melding' },
+          { stap: 'vastleggen', feit: 'wet#5#melding' },
+          { stap: 'vastleggen', feit: 'wet#4#melding' },
+        ],
+      },
+      casus,
+    );
+    expect(g.steps.map((s) => [s.vooraf, s.keer])).toEqual([
+      [2, 1],
+      [1, 1],
+      [0, 1],
+      [1, 2],
+    ]);
+  });
 });
 
 describe('guideFor', () => {

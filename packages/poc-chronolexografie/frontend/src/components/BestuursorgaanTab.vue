@@ -33,6 +33,7 @@ import { eigenOordelen } from '../oordelen.js';
 import ArtikelLink from './ArtikelLink.vue';
 import Uitkomst from './Uitkomst.vue';
 import EigenOordelen from './EigenOordelen.vue';
+import FeitVastleggen from './FeitVastleggen.vue';
 import OordeelKeuze from './OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
 import Voorvertoning from './Voorvertoning.vue';
@@ -281,6 +282,18 @@ const uitkomstOpBezwaar = (uit) =>
         </template>
         </nldd-container>
       </nldd-card>
+    </nldd-container>
+  </nldd-simple-section>
+
+  <nldd-simple-section v-if="state.vormen.eigen?.handelingen?.length">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Vastleggen">
+      <nldd-text slot="supporting-text">
+        Wat het bestuursorgaan zelf vastlegt terwijl het de zaak behandelt, in de eigen kroniek: de feiten
+        die de wet het opdraagt, zoals een betaling op een besluit.
+      </nldd-text>
+    </nldd-title>
+    <nldd-container gap="16" max-width="560px">
+      <FeitVastleggen :cel="state.vormen.eigen.cel" :handelingen="state.vormen.eigen.handelingen" />
     </nldd-container>
   </nldd-simple-section>
 

@@ -708,6 +708,7 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
         "indieningen": indieningen,
         "besluiten": besluiten,
         "andere_cellen": handelingen(&service, corpus, cell, on)?,
+        "eigen": eigen_handelingen(&service, corpus, cell, on)?,
         "eigen_velden": std::iter::once(&cell.eigen)
             .chain(&cell.andere)
             .flat_map(|c| c.grams())
@@ -1036,70 +1037,176 @@ fn handelingen(
 ) -> Result<Vec<Value>> {
     let mut uit = Vec::new();
     for (cell, andere) in cellen.andere.iter().zip(&corpus.casus.andere_cellen) {
-        let mut feiten: Vec<String> = Vec::new();
-        // Only a reduction reads a chronicle (RFC-048).
-        for (_, reduction) in reducties_in(&|id: &str| service.resolver().get_law(id), &[cell]) {
-            for article in &reduction.articles {
-                let gelezen = article
-                    .get_inputs()
-                    .iter()
-                    .filter_map(|input| input.source.as_ref()?.facts.clone());
-                // The aggregates a read model reads, and a projection of the
-                // reduction itself (schema v0.8.14 to v0.8.16).
-                let gelezen_aggregaten: Vec<_> = article
-                    .get_inputs()
-                    .iter()
-                    .filter_map(|input| input.source.as_ref()?.projections.as_deref())
-                    .filter_map(|reference| aggregaat_artikelen(service, reference, on))
-                    .flat_map(|(_, artikelen)| artikelen)
-                    .collect();
-                let gespeeld = std::iter::once(article)
-                    .chain(gelezen_aggregaten)
-                    .filter_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
-                    .flat_map(|p| {
-                        p.per_basis_and_kind()
-                            .into_iter()
-                            .chain(p.steps.iter().map(|s| s.basis_and_kind()))
-                    })
-                    .flat_map(|(basis, kind)| {
-                        feiten_van_record(service, basis, kind, on).unwrap_or_default()
-                    });
-                for f in gelezen.chain(gespeeld) {
-                    if !feiten.contains(&f) {
-                        feiten.push(f);
-                    }
-                }
+        let mut feiten = gelezen_feiten(service, cell, on);
+        for f in benoemde_feiten(service, corpus, cell, on) {
+            if !feiten.contains(&f) {
+                feiten.push(f);
             }
-        }
-        for (id, _, _) in &corpus.regelwerken {
-            for article in service
-                .resolver()
-                .get_law(id)
-                .iter()
-                .flat_map(|w| &w.articles)
-            {
-                for f in shape::facts_established_by(id, article, cell.authority()) {
-                    if !feiten.contains(&f) {
-                        feiten.push(f);
-                    }
-                }
-            }
-        }
-        let mut acts = Vec::new();
-        for feit in feiten {
-            let velden: Vec<Value> = shape::fact_fields(service, &feit, on, None)?
-                .iter()
-                .map(veld)
-                .collect();
-            acts.push(json!({ "feit": feit, "velden": velden }));
         }
         uit.push(json!({
             "cel": cell.recording_actor(),
             "cel_naam": andere.cel_naam,
-            "handelingen": acts,
+            "handelingen": met_velden(service, feiten, on)?,
         }));
     }
     Ok(uit)
+}
+
+/// What the case's own cell records by hand while it handles the case, such
+/// as a payment on its decision: the facts of the regelwerken of the case
+/// that name it as who establishes them, without those it records as the
+/// receipt of a fact of another cell ([`afleveren`]) or of a copy of a
+/// decision. A fact that names no one, the case's cell does not record
+/// during the case, unlike another cell: the law has to give it that task.
+/// Each fact comes with its fields, as for another cell ([`handelingen`]).
+fn eigen_handelingen(
+    service: &LawExecutionService,
+    corpus: &Corpus,
+    cellen: &Cellen,
+    on: NaiveDate,
+) -> Result<Value> {
+    let eigen = &cellen.eigen;
+    // The receipt of a copy of a decision of another cell arrives with the
+    // copy (`Indiening::ontvangst`). No such fact in this crate's corpus names
+    // an authority, so this guards a regelwerk that does.
+    let afschriften: Vec<&str> = corpus
+        .afleiding
+        .indieningen
+        .iter()
+        .filter_map(|i| i.ontvangst.as_deref())
+        .collect();
+    let mut feiten = Vec::new();
+    for feit in benoemde_feiten(service, corpus, eigen, on) {
+        if !afschriften.contains(&feit.as_str())
+            && !is_ontvangst(service, &feit, eigen.authority(), on)?
+        {
+            feiten.push(feit);
+        }
+    }
+    Ok(json!({
+        "cel": eigen.recording_actor(),
+        "cel_naam": corpus.casus.cel_naam,
+        "handelingen": met_velden(service, feiten, on)?,
+    }))
+}
+
+/// The facts whose executograms the reductions of `cell` read: a reduction
+/// is the only regelwerk that reads a chronicle (RFC-048).
+fn gelezen_feiten(service: &LawExecutionService, cell: &Cell, on: NaiveDate) -> Vec<String> {
+    let mut feiten: Vec<String> = Vec::new();
+    for (_, reduction) in reducties_in(&|id: &str| service.resolver().get_law(id), &[cell]) {
+        for article in &reduction.articles {
+            let gelezen = article
+                .get_inputs()
+                .iter()
+                .filter_map(|input| input.source.as_ref()?.facts.clone());
+            // The aggregates a read model reads, and a projection of the
+            // reduction itself (schema v0.8.14 to v0.8.16).
+            let gelezen_aggregaten: Vec<_> = article
+                .get_inputs()
+                .iter()
+                .filter_map(|input| input.source.as_ref()?.projections.as_deref())
+                .filter_map(|reference| aggregaat_artikelen(service, reference, on))
+                .flat_map(|(_, artikelen)| artikelen)
+                .collect();
+            let gespeeld = std::iter::once(article)
+                .chain(gelezen_aggregaten)
+                .filter_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
+                .flat_map(|p| {
+                    p.per_basis_and_kind()
+                        .into_iter()
+                        .chain(p.steps.iter().map(|s| s.basis_and_kind()))
+                })
+                .flat_map(|(basis, kind)| {
+                    feiten_van_record(service, basis, kind, on).unwrap_or_default()
+                });
+            for f in gelezen.chain(gespeeld) {
+                if !feiten.contains(&f) {
+                    feiten.push(f);
+                }
+            }
+        }
+    }
+    feiten
+}
+
+/// The facts of the regelwerken of the case in force on `on` that name
+/// `cell` as who establishes them (`competent_authority`).
+fn benoemde_feiten(
+    service: &LawExecutionService,
+    corpus: &Corpus,
+    cell: &Cell,
+    on: NaiveDate,
+) -> Vec<String> {
+    let mut feiten: Vec<String> = Vec::new();
+    for (id, _, _) in &corpus.regelwerken {
+        for article in service
+            .resolver()
+            .get_law_for_date(id, Some(on))
+            .iter()
+            .flat_map(|w| &w.articles)
+        {
+            for f in shape::facts_established_by(id, article, cell.authority()) {
+                if !feiten.contains(&f) {
+                    feiten.push(f);
+                }
+            }
+        }
+    }
+    feiten
+}
+
+/// Whether the cell of `authority` records `feit` as the receipt of another
+/// fact of the same article ([`shape::receipt_of`]), as the municipality
+/// records the advice the GGD sent it. Such a fact arrives on its own.
+fn is_ontvangst(
+    service: &LawExecutionService,
+    feit: &str,
+    authority: &Authority,
+    on: NaiveDate,
+) -> Result<bool> {
+    let (basis, _) = shape::split_fact(feit)?;
+    let Some((law, nummer)) = basis.split_once('#') else {
+        return Ok(false);
+    };
+    let Some(article) = service
+        .resolver()
+        .get_law_for_date(law, Some(on))
+        .and_then(|l| l.find_article_by_number(nummer))
+    else {
+        return Ok(false);
+    };
+    for ander in article
+        .get_requires()
+        .iter()
+        .filter_map(|r| r.fact.as_deref())
+    {
+        let ander = format!("{basis}#{ander}");
+        if ander != feit
+            && shape::receipt_of(service, &ander, on, authority)?.as_deref() == Some(feit)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Each fact of `feiten` with the fields the article that requires it lists.
+fn met_velden(
+    service: &LawExecutionService,
+    feiten: Vec<String>,
+    on: NaiveDate,
+) -> Result<Vec<Value>> {
+    feiten
+        .into_iter()
+        .map(|feit| {
+            let velden: Vec<Value> = shape::fact_fields(service, &feit, on, None)?
+                .iter()
+                .map(veld)
+                .collect();
+            Ok(json!({ "feit": feit, "velden": velden }))
+        })
+        .collect()
 }
 
 /// The facts (`<regulation>#<article>#<fact>`) whose executograms a step or
@@ -1134,10 +1241,16 @@ fn feiten_van_record(
     )
 }
 
-/// Another cell of the sphere records an executogram of the fact `feit`
-/// (`<regulation>#<article>#<fact>`) on `on` (RFC-051), such as the
-/// GGD recording its advice. The case's own cell records nothing itself:
-/// what the fact sends it arrives on its own ([`afleveren`]).
+/// A cell of the case records an executogram of the fact `feit`
+/// (`<regulation>#<article>#<fact>`) on `on` (RFC-051): another cell of the
+/// sphere, such as the GGD recording its advice, or the case's own cell
+/// while it handles the case, such as a payment on its decision. What the
+/// fact of another cell sends the case's cell arrives on its own
+/// ([`afleveren`]).
+///
+/// # Errors
+///
+/// As [`vastleggen_verwijzend`].
 pub fn vastleggen(
     corpus: &Corpus,
     cellen: &mut Cellen,
@@ -1149,10 +1262,20 @@ pub fn vastleggen(
     vastleggen_verwijzend(corpus, cellen, cel, feit, velden, None, on)
 }
 
-/// [`vastleggen`], for a fact about the record in the begin of `cel` that
-/// the case names `verwijst_naar` ([`crate::casus::BeginExecutogram::kenmerk`]):
-/// the executogram refers to it (`refers_to`, schema v0.8.17), as a
-/// correction refers to the registration it corrects.
+/// [`vastleggen`], for a fact about an earlier record in the chronicle of
+/// `cel` (`refers_to`, schema v0.8.17), as a correction refers to the
+/// registration it corrects and a payment to the decision it is made on.
+/// `verwijst_naar` names that record by its id, or by the kenmerk the case
+/// gives it in the begin of `cel`
+/// ([`crate::casus::BeginExecutogram::kenmerk`]).
+///
+/// # Errors
+///
+/// Refused when the form offers `cel` no such fact ([`vormen`]): a cell
+/// not of the case, a fact that names another authority, or for the case's
+/// own cell a fact that names no one or that it records as a receipt. Also
+/// when `verwijst_naar` names no record of `cel`, or names a submission, and
+/// whatever the cell refuses ([`Cell::record_executogram_referring`]).
 pub fn vastleggen_verwijzend(
     corpus: &Corpus,
     cellen: &mut Cellen,
@@ -1164,22 +1287,26 @@ pub fn vastleggen_verwijzend(
 ) -> Result<Gram> {
     // Only a fact the form offers this cell.
     let service = corpus.service()?;
-    let mag = handelingen(&service, corpus, cellen, on)?
-        .into_iter()
-        .any(|c| {
-            c["cel"] == cel
-                && c["handelingen"]
-                    .as_array()
-                    .is_some_and(|h| h.iter().any(|h| h["feit"] == feit))
-        });
+    let eigen = cel == cellen.eigen.recording_actor();
+    let aangeboden = if eigen {
+        vec![eigen_handelingen(&service, corpus, cellen, on)?]
+    } else {
+        handelingen(&service, corpus, cellen, on)?
+    };
+    let mag = aangeboden.iter().any(|c| {
+        c["cel"] == cel
+            && c["handelingen"]
+                .as_array()
+                .is_some_and(|h| h.iter().any(|h| h["feit"] == feit))
+    });
     if !mag {
         return Err(Error::Refused(format!(
-            "'{cel}' records no fact '{feit}': it is no other cell of this case, or that cell does \
-             not record that fact"
+            "'{cel}' records no fact '{feit}': it is no cell of this case, or the law does not \
+             give that cell that fact to record"
         )));
     }
     let refers_to = match verwijst_naar {
-        Some(kenmerk) => Some(verwezen(corpus, cellen, cel, kenmerk)?),
+        Some(naar) => Some(verwezen(corpus, cellen, cel, naar)?),
         None => None,
     };
     let refers_to = refers_to.as_deref();
@@ -1197,18 +1324,37 @@ pub fn vastleggen_verwijzend(
     leg_vast(&service, cellen, cel, feit, velden, refers_to, on)
 }
 
-/// The id of the record that the other cell `cel` made of the executogram
-/// of its begin with `kenmerk`. A chronicle starts with its begin
-/// ([`Corpus::cell`]), so the record is at the executogram's place in it;
-/// a record there of another fact or with other values is a chronicle of
-/// another begin, such as a game saved before the case file changed.
-fn verwezen(corpus: &Corpus, cellen: &Cellen, cel: &str, kenmerk: &str) -> Result<String> {
-    let (i, e) = corpus.casus.met_kenmerk(cel, kenmerk).ok_or_else(|| {
+/// The id of the record of `cel` that `naar` names: a record of its
+/// chronicle by its id, or else the record that cell made of the executogram
+/// of its begin with the kenmerk `naar`. A chronicle starts with its begin
+/// ([`Corpus::cell`]), so that record is at the executogram's place in it; a
+/// record there of another fact or with other values is a chronicle of
+/// another begin, such as a game saved before the case file changed. A
+/// submission is refused: a record that refers to one reads as a decision on
+/// it.
+fn verwezen(corpus: &Corpus, cellen: &Cellen, cel: &str, naar: &str) -> Result<String> {
+    let (cell, _) = cellen.voor(cel)?;
+    if let Some(g) = cell.grams().iter().find(|g| g.id == naar) {
+        let indiening = corpus
+            .afleiding
+            .indieningen
+            .iter()
+            .any(|i| i.artikel == g.basis && i.soort == g.kind);
+        if indiening {
+            return Err(Error::Refused(format!(
+                "'{naar}' is a submission ({}); a fact refers to a decision or to another \
+                 record, since one that refers to a submission would read as a decision on it",
+                g.kind
+            )));
+        }
+        return Ok(g.id.clone());
+    }
+    let (i, e) = corpus.casus.met_kenmerk(cel, naar).ok_or_else(|| {
         Error::Refused(format!(
-            "'{kenmerk}' is the kenmerk of no executogram in the begin of '{cel}'"
+            "'{naar}' is no record in the chronicle of '{cel}' and the kenmerk of no executogram \
+             in its begin"
         ))
     })?;
-    let (cell, _) = cellen.op(cel)?;
     cell.grams()
         .get(i)
         .filter(|g| {
@@ -1221,14 +1367,15 @@ fn verwezen(corpus: &Corpus, cellen: &Cellen, cel: &str, kenmerk: &str) -> Resul
         .ok_or_else(|| {
             Error::Refused(format!(
                 "the chronicle of '{cel}' does not start with its begin: no record of '{}' for \
-                 '{kenmerk}'",
+                 '{naar}'",
                 e.feit
             ))
         })
 }
 
-/// The cell `cel` records `feit`, and what that sends the case's cell arrives
-/// ([`afleveren`]).
+/// The cell `cel` records `feit`. What the fact of another cell sends the
+/// case's cell arrives ([`afleveren`]); the case's own cell sends itself
+/// nothing.
 fn leg_vast(
     service: &LawExecutionService,
     cellen: &mut Cellen,
@@ -1238,13 +1385,12 @@ fn leg_vast(
     refers_to: Option<&str>,
     on: NaiveDate,
 ) -> Result<Gram> {
-    let cell = cellen
-        .andere
-        .iter_mut()
-        .find(|c| c.recording_actor() == cel)
-        .ok_or_else(|| Error::Refused(format!("'{cel}' is no other cell of this case")))?;
+    let eigen = cel == cellen.eigen.recording_actor();
+    let (cell, _) = cellen.splits_voor(cel)?;
     let gram = cell.record_executogram_referring(service, feit, velden, refers_to, on)?;
-    afleveren(service, &mut cellen.eigen, &gram)?;
+    if !eigen {
+        afleveren(service, &mut cellen.eigen, &gram)?;
+    }
     Ok(gram)
 }
 
