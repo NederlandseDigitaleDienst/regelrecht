@@ -38,10 +38,16 @@ const vorige = computed(() => props.guide.steps[p.value.current - 1] ?? null);
 const antwoorden = ref([]);
 let vraag = 0;
 watch(
-  [vorige, () => state.grammen.length, () => state.andere.map((a) => a.grammen.length).join()],
-  async ([step]) => {
+  [
+    vorige,
+    () => state.datum,
+    // The last record of every chronicle: a chronicle played anew to the
+    // same length is another chronicle.
+    () => [state.grammen, ...state.andere.map((a) => a.grammen)].map((g) => `${g.length}:${g.at(-1)?.id}`).join(),
+  ],
+  async ([step, datum]) => {
     const deze = ++vraag;
-    const uit = step?.antwoorden?.length ? await toetsAntwoorden(step) : [];
+    const uit = step?.antwoorden?.length ? await toetsAntwoorden(step, datum) : [];
     if (deze === vraag) antwoorden.value = uit;
   },
   { immediate: true },
@@ -110,7 +116,7 @@ const where = computed(() =>
 
     <nldd-simple-section v-if="antwoorden.length" padding-block="8">
       <nldd-list dividers="never" accessible-label="Antwoorden van de cel na de vorige stap">
-        <nldd-list-item v-for="a in antwoorden" :key="`${a.cel}|${a.bron}`" size="sm">
+        <nldd-list-item v-for="(a, i) in antwoorden" :key="i" size="sm">
           <nldd-icon-cell
             :icon="a.klopt ? 'success' : 'error'"
             :color="a.klopt ? 'success' : 'critical'"

@@ -623,6 +623,12 @@ fn the_case_s_own_cell_records_a_fact_about_its_decision() {
 /// The fictional procedure of `ZONDER_AWB` as a source, with the expected
 /// answer of the first `antwoorden` in its fees scenario set to `waarde`.
 fn leges_met_antwoord(waarde: Value) -> BTreeMap<String, String> {
+    leges_met(|a| a["verwacht"] = waarde)
+}
+
+/// The fictional procedure of `ZONDER_AWB` as a source, with `wijzig` applied
+/// to the first answer its fees scenario expects.
+fn leges_met(wijzig: impl FnOnce(&mut Value)) -> BTreeMap<String, String> {
     let mut bestanden = bestanden(&crate_dir().join(ZONDER_AWB));
     let pad = "casussen/fictieve_vergunning.yaml";
     let mut casus: Value = serde_yaml_ng::from_str(&bestanden[pad]).unwrap();
@@ -637,7 +643,7 @@ fn leges_met_antwoord(waarde: Value) -> BTreeMap<String, String> {
         .iter_mut()
         .find(|s| s.get("antwoorden").is_some())
         .unwrap();
-    stap["antwoorden"][0]["verwacht"] = waarde;
+    wijzig(&mut stap["antwoorden"][0]);
     bestanden.insert(pad.into(), serde_yaml_ng::to_string(&casus).unwrap());
     bestanden
 }
@@ -681,6 +687,36 @@ fn a_step_checks_an_answer_of_a_cell() {
           'fictief_beleid_leges#1#betaalde_leges' of 'fictieve_dienst': expected 4000, got 5000"
         ]
     );
+}
+
+/// An answer the cell refuses is no answer: the report holds the reason, and
+/// the step is wrong.
+#[test]
+fn a_refused_answer_makes_the_step_wrong() {
+    let bron = "reductie_leges#betaalde_leges#betaalde_leges";
+    let (mut spel, stand) = spel_met_bron(leges_met(|a| a["bron"] = json!(bron)));
+    let uit = tempdir();
+    let fouten = speel_bron(&mut spel, &stand, Some(&uit));
+    assert_eq!(fouten.len(), 1, "{fouten:?}");
+    assert!(
+        fouten[0].contains(&format!(
+            "step 3: answer '{bron}' of 'fictieve_dienst': expected 5000, got null ("
+        )),
+        "{}",
+        fouten[0]
+    );
+    assert!(fouten[0].contains("RFC-056"), "{}", fouten[0]);
+    let verslag: Value = serde_json::from_str(
+        &std::fs::read_to_string(uit.join("scenario-fictieve_vergunning-02.json")).unwrap(),
+    )
+    .unwrap();
+    let rij = &verslag["stappen"][2]["antwoorden"][0];
+    assert_eq!(
+        (&rij["kreeg"], &rij["klopt"]),
+        (&Value::Null, &json!(false))
+    );
+    assert!(rij["fout"].as_str().unwrap().contains("RFC-056"), "{rij}");
+    std::fs::remove_dir_all(&uit).unwrap();
 }
 
 /// An answer comes from a law or the cell's own policy, as `Cell::consult`

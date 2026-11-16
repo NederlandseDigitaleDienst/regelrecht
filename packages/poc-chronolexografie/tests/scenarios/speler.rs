@@ -17,6 +17,7 @@
 use std::collections::{HashMap, HashSet};
 
 use chrono::NaiveDate;
+use regelrecht_law_model::stored;
 use regelrecht_poc_chronolexografie::spel::Spel;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
@@ -224,11 +225,17 @@ impl Speler<'_> {
             let bron = a["bron"].as_str().ok_or("an answer without 'bron'")?;
             let cel = a["cel"].as_str();
             let gegeven = self.spel.antwoord(cel, bron, &map(&a["invoer"]), datum);
-            let (kreeg, fout) = match gegeven {
+            let (kreeg, mut fout) = match gegeven {
                 Ok(g) => (g["waarde"].clone(), None),
                 Err(e) => (Value::Null, Some(e.to_string())),
             };
-            let klopt = fout.is_none() && kreeg == a["verwacht"];
+            // As the engine's EQUALS: two decimals by their value, whatever
+            // their scale; an integer against a decimal is no match.
+            let klopt = fout.is_none()
+                && stored::same(&kreeg, &a["verwacht"]).unwrap_or_else(|e| {
+                    fout = Some(e.to_string());
+                    false
+                });
             let mut regel = json!({
                 "bron": bron,
                 "cel": cel.or_else(|| self.casus["cel"].as_str()),
