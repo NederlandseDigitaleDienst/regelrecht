@@ -1237,16 +1237,22 @@ function confirmLeave(): Promise<boolean> {
 }
 
 /**
- * Whether scenario files may lose their unsaved edits (closing a tab, leaving
- * the traject): at once when they have none, else once the user chose.
+ * Whether the open article (when `article` is set) and these scenario files
+ * may lose their unsaved edits: at once when none of them has any, else once
+ * the user chose. One question for all of them, so staying keeps all of them.
  */
-function confirmDiscardScenarios(files: readonly OpenScenario[]): Promise<boolean> {
+function confirmDiscard({ article = false, files = [] }: { article?: boolean; files?: readonly OpenScenario[] }): Promise<boolean> {
+  const articleDirty = article && openLaw.hasUnsavedWork.value;
   const dirty = files.filter((f) => f.dirty.value);
-  if (dirty.length === 0) return Promise.resolve(true);
-  const text = dirty.length === 1
-    ? `Je hebt niet-opgeslagen wijzigingen in ${dirty[0]!.file.filename}`
-    : `Je hebt niet-opgeslagen wijzigingen in ${dirty.length} scenariobestanden`;
-  return askToDiscard(text, () => dirty.forEach((f) => f.discard()));
+  if (!articleDirty && dirty.length === 0) return Promise.resolve(true);
+  const parts: string[] = [];
+  if (articleDirty) parts.push(`artikel ${selectedArticleNumber.value ?? ''}`);
+  if (dirty.length === 1) parts.push(dirty[0]!.file.filename);
+  else if (dirty.length > 1) parts.push(`${dirty.length} scenariobestanden`);
+  return askToDiscard(`Je hebt niet-opgeslagen wijzigingen in ${parts.join(' en in ')}`, () => {
+    if (articleDirty) discardArticle();
+    dirty.forEach((f) => f.discard());
+  });
 }
 
 // One question at a time; a second request while the dialog is open waits for
@@ -1294,12 +1300,12 @@ onBeforeRouteLeave(async (to) => {
 // Reloading or closing the browser tab: the browser asks with its own words.
 // Registered only while there is unsaved work, because a beforeunload
 // listener keeps some browsers from caching the page for back/forward.
-// Scenario edits live in memory only, so they count too.
+// Scenario edits outlive the editor; AppShell warns for those.
 function warnBeforeUnload(event: BeforeUnloadEvent) {
   event.preventDefault();
 }
 watch(
-  () => openLaw.hasUnsavedWork.value || openScenarios.anyDirty(),
+  () => openLaw.hasUnsavedWork.value,
   (unsaved) => {
     if (unsaved) window.addEventListener('beforeunload', warnBeforeUnload);
     else window.removeEventListener('beforeunload', warnBeforeUnload);
@@ -1369,11 +1375,12 @@ async function guardEditorNavigation(to: RouteLocationNormalized): Promise<false
     (newLawId ?? null) !== (lawId.value ?? null) ||
     (!!newArticle && String(newArticle) !== String(selectedArticleNumber.value)) ||
     leavesTraject;
-  if (leavesArticle && !(await confirmLeave())) return false;
-  // Leaving the traject leaves its scenario files too.
+  // Leaving the traject leaves its scenario files too; one question for both.
   if (leavesTraject) {
-    if (!(await confirmDiscardScenarios(openScenarios.dirtyIn(fromTraject)))) return false;
+    if (!(await confirmDiscard({ article: true, files: openScenarios.dirtyIn(fromTraject) }))) return false;
     openScenarios.closeTraject(fromTraject);
+  } else if (leavesArticle && !(await confirmLeave())) {
+    return false;
   }
   // The bare editor root is restored by the watch below, after the navigation
   // has committed.
@@ -1423,11 +1430,17 @@ watch(
 async function closeTab(tab: OpenTab, next: OpenTab | null = null): Promise<boolean> {
   const wasActive = !!activeTab.value && tabKey(activeTab.value) === tabKey(tab);
   if (tab.kind === 'scenario') {
-    // A scenario file's edits go with its tab; the open article stays.
+    // A scenario file's edits go with its tab. The open article goes too when
+    // the tab that takes over is not the same rulework's (or is another of its
+    // articles): ask about both before anything closes.
     const file = scenarioFileOf(tab);
-    if (file && !(await confirmDiscardScenarios([file]))) return false;
+    const takesOver = wasActive ? next ?? neighbourOf(tab) : null;
+    const articleStays = !wasActive || (!!takesOver && takesOver.lawId === lawId.value
+      && (takesOver.kind === 'scenario' || isOpenArticle(takesOver.lawId, takesOver.articleNumber)));
+    if (!(await confirmDiscard({ article: !articleStays, files: file ? [file] : [] }))) return false;
     openScenarios.close(scenarioFileRef(tab));
-  } else if (wasActive && !(await confirmLeave())) {
+  } else if ((wasActive || isOpenArticle(tab.lawId, tab.articleNumber)) && !(await confirmLeave())) {
+    // Closing the open article's tab drops its edits, also from another tab.
     return false;
   }
   // The store removes the tab, promotes the replacement (the bar's `next` pick,
@@ -1443,6 +1456,15 @@ async function closeTab(tab: OpenTab, next: OpenTab | null = null): Promise<bool
     router.replace(editorRouteFor(null, null));
   }
   return true;
+}
+
+// The tab that takes over when `tab` closes and the bar names none: the one to
+// its right, else to its left (the rule useOpenTabs applies).
+function neighbourOf(tab: OpenTab): OpenTab | null {
+  const tabs = openTabs.value;
+  const index = tabs.findIndex((t) => tabKey(t) === tabKey(tab));
+  if (index === -1) return null;
+  return tabs[index + 1] ?? tabs[index - 1] ?? null;
 }
 
 function tabDisplayName(tab: OpenTab) {

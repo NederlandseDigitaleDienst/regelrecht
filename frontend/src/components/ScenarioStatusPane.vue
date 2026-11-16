@@ -50,7 +50,9 @@ const files = computed<OpenScenario[]>(() => {
   if (!trajectRef) return [];
   return listed.value.map((entry) => store.open({ trajectRef, lawId: props.lawId, filename: entry.filename }));
 });
-watch(files, (list) => list.forEach((f) => void f.load()), { immediate: true });
+// Read each file when the pane shows it, so the statuses follow what others
+// saved; a file with unsaved edits in its tab is not read over.
+watch(files, (list) => list.forEach((f) => void f.load({ fresh: true })), { immediate: true });
 
 const environment = useScenarioEnvironment({
   engine: toRef(props, 'engine'),

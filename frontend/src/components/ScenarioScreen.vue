@@ -11,6 +11,7 @@ import { useCorpus } from '../corpus';
 import { buildArticleMap, buildOutputTypeMap, buildTypeMap } from '../utils/articleMapping';
 import { useEngine, type EditorEngine } from '../composables/useEngine';
 import type { ScenarioValues } from '../scenario/inputs';
+import { CONFLICT_MESSAGE } from '../scenario/openScenario';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 
 /**
@@ -52,7 +53,9 @@ const store = useOpenScenariosStore();
 const corpus = useCorpus();
 
 const file = computed(() => store.open({ trajectRef: props.trajectRef, lawId: props.lawId, filename: props.filename }));
-watch(file, (f) => void f.load(), { immediate: true });
+// Read the file each time it is shown, so it follows what others saved; an
+// open file with unsaved edits is not read over (see `load`).
+watch(file, (f) => void f.load({ fresh: true }), { immediate: true });
 
 const scenarios = computed(() => file.value.scenarios.value);
 const selected = computed(() => file.value.indexOfName(props.scenarioName));
@@ -149,6 +152,8 @@ function showResult() {
 
 const saving = computed(() => file.value.saving.value);
 const saveError = computed(() => file.value.saveError.value);
+// Someone else saved the file since it was read: the way out is its newest version.
+const saveConflict = computed(() => saveError.value?.message === CONFLICT_MESSAGE);
 const loadError = computed(() => file.value.error.value);
 const loading = computed(() => file.value.loading.value);
 const dirty = computed(() => file.value.dirty.value);
@@ -230,7 +235,16 @@ const dirty = computed(() => file.value.dirty.value);
                 variant="alert"
                 text="Opslaan mislukt"
                 :supporting-text="saveError.message"
-              ></nldd-inline-dialog>
+              >
+                <nldd-button
+                  v-if="saveConflict"
+                  slot="actions"
+                  appearance="secondary"
+                  text="Laad nieuwste versie"
+                  data-testid="scenario-reload-btn"
+                  @click="file.reload()"
+                ></nldd-button>
+              </nldd-inline-dialog>
               <nldd-inline-dialog
                 v-if="environment.error.value"
                 variant="alert"
