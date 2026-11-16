@@ -1,0 +1,135 @@
+---
+# FICTIEF. Testcasus voor de inlogstap (tests/scenarios): een bedrijf vraagt
+# een vergunning aan bij een loket, na het inloggen bij een gesimuleerde
+# erkende dienst voor bedrijfs- en organisatiemiddelen.
+cel: voorbeeld_vergunningloket
+artikel: voorbeeld_vergunning_inlogstap#1
+corpus:
+  - regulation/nl/uitvoeringsbeleid/voorbeeld_vergunning_inlogstap
+  - regulation/nl/uitvoeringsbeleid/voorbeeld_register_erkende_dienst
+  - regulation/nl/wet/wet_digitale_overheid
+  - regulation/nl/wet/algemene_wet_bestuursrecht
+uitkomst: vergunning_verleend
+titel: Voorbeeldvergunning met inloggen
+cel_naam: Voorbeeldloket vergunningen
+speeldatum: 2026-10-13
+
+# Inloggen via de inlogstap. De aanvrager logt in met een gebruikersnaam en het
+# wachtwoord van de poc. De erkende dienst kijkt in haar register of er voor
+# deze gebruikersnaam en deze dienst een machtiging geldt (`toegang`, de
+# andere uitvoer van dat artikel zijn de gegevens van de verklaring). Zo ja,
+# dan legt zij de authenticatie vast als `feit`, en het KvK-nummer uit de
+# verklaring gaat in het veld kvk_nummer van de aanvraag. Wie er is ingelogd,
+# onthoudt de browser, niet de kroniek. `middel` is het feit waaruit het
+# inlogscherm de gebruikersnamen leest.
+inloggen:
+  feit: wet_digitale_overheid#15#authenticatie_verricht
+  sleutel: kvk_nummer
+  veld: kvk_nummer
+  inlogstap:
+    cel: voorbeeld_erkende_dienst
+    toegang: voorbeeld_register_erkende_dienst#4#toegang_verleend
+    dienst: urn:etoegang:DV:00000009999999997000:services:1
+    middel: voorbeeld_register_erkende_dienst#1#middel_uitgegeven
+
+voorbeeld:
+  aanvraag: {}
+  bevindingen: {}
+
+# Het register van de dienst bij het begin: drie middelen met elk een
+# machtiging. De bakker en de bloemist zijn gemachtigd voor de dienst van
+# deze casus, de kapper alleen voor een andere dienst (services:2). De
+# KvK-nummers en pseudoniemen zijn verzonnen.
+andere_cellen:
+  - cel: voorbeeld_erkende_dienst
+    cel_naam: Erkende dienst voor bedrijfs- en organisatiemiddelen
+    begin:
+      datum: 2026-09-01
+      executogrammen:
+        - feit: voorbeeld_register_erkende_dienst#1#middel_uitgegeven
+          velden: {gebruikersnaam: bakker, pseudoniem: ps-b4k001, betrouwbaarheidsniveau: substantieel}
+        - feit: voorbeeld_register_erkende_dienst#1#middel_uitgegeven
+          velden: {gebruikersnaam: kapper, pseudoniem: ps-k4p002, betrouwbaarheidsniveau: substantieel}
+        - feit: voorbeeld_register_erkende_dienst#1#middel_uitgegeven
+          velden: {gebruikersnaam: bloemist, pseudoniem: ps-bl0003, betrouwbaarheidsniveau: hoog}
+        - feit: voorbeeld_register_erkende_dienst#2#machtiging_geregistreerd
+          velden:
+            gebruikersnaam: bakker
+            kvk_nummer: '99970011'
+            dienst: urn:etoegang:DV:00000009999999997000:services:1
+            betrouwbaarheidsniveau: substantieel
+        - feit: voorbeeld_register_erkende_dienst#2#machtiging_geregistreerd
+          velden:
+            gebruikersnaam: kapper
+            kvk_nummer: '99970022'
+            dienst: urn:etoegang:DV:00000009999999997000:services:2
+            betrouwbaarheidsniveau: substantieel
+        - feit: voorbeeld_register_erkende_dienst#2#machtiging_geregistreerd
+          kenmerk: machtiging_bloemist
+          velden:
+            gebruikersnaam: bloemist
+            kvk_nummer: '99970033'
+            dienst: urn:etoegang:DV:00000009999999997000:services:1
+            betrouwbaarheidsniveau: substantieel
+
+scenarios:
+  - naam: Inloggen lukt en de vergunning wordt verleend
+    stappen:
+      - stap: inloggen
+        verhaal: De bakker logt in, met een machtiging voor deze dienst.
+        invoer:
+          gebruikersnaam: bakker
+      - stap: aanvraag
+        verhaal: De bakker vraagt de vergunning aan.
+      - stap: besluit
+        datum: 2026-10-20
+        uitkomst: toegewezen
+    eind: Verleend.
+  - naam: Geen machtiging voor deze dienst
+    stappen:
+      - stap: inloggen
+        verhaal: >-
+          De kapper logt in, maar is alleen gemachtigd voor een andere dienst.
+          De dienst weigert, en legt niets vast.
+        invoer:
+          gebruikersnaam: kapper
+        uitkomst: geweigerd
+    eind: Geweigerd bij het inloggen.
+  - naam: Na intrekking komt de bloemist niet meer binnen
+    stappen:
+      - stap: inloggen
+        verhaal: De bloemist logt in.
+        invoer:
+          gebruikersnaam: bloemist
+      - stap: aanvraag
+        verhaal: De bloemist vraagt de vergunning aan.
+      - stap: vastleggen
+        verhaal: Een dag later trekt de dienst de machtiging van de bloemist in.
+        datum: 2026-10-14
+        cel: voorbeeld_erkende_dienst
+        feit: voorbeeld_register_erkende_dienst#3#machtiging_ingetrokken
+        verwijst_naar: machtiging_bloemist
+        invoer:
+          datum_intrekking: '2026-10-14'
+      - stap: inloggen
+        verhaal: De bloemist logt opnieuw in, en de dienst weigert.
+        datum: 2026-10-15
+        invoer:
+          gebruikersnaam: bloemist
+        uitkomst: geweigerd
+      - stap: besluit
+        verhaal: >-
+          Het loket beslist op de eerste aanvraag. Die blijft staan: de dienst
+          bevestigde de machtiging toen de aanvraag binnenkwam.
+        datum: 2026-10-20
+        uitkomst: toegewezen
+    eind: De eerdere aanvraag wordt verleend; een nieuwe inlog lukt niet.
+  - naam: Een fout wachtwoord
+    stappen:
+      - stap: inloggen
+        verhaal: De bakker typt een fout wachtwoord. De dienst weigert en legt niets vast.
+        invoer:
+          gebruikersnaam: bakker
+          wachtwoord: verkeerd
+        uitkomst: geweigerd
+    eind: Geweigerd bij het inloggen.

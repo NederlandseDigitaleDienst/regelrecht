@@ -30,8 +30,19 @@ import { formulier, huidigeStap, scenarioWaarden } from '../scenarioInvoer.js';
 import { celNaam } from '../logboek.js';
 import { beginWaarden, bronInvoer, herkomstTekst } from '../voorinvulling.js';
 import { NOT_LOGGED_IN, gekozen, inlogTekst, keuzeLabel } from '../inloggen.js';
+import { claimRegel, ingelogdAls, ingevuldDoorInloggen, metSessie } from '../inlogstap.js';
+import { inlogScherm, sessieVan, wisSessie } from '../sessie.js';
 import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
+
+// Who the applicant is logged in as. With a login step (inlogstap.js): the
+// session, with a bar above the form and the fields the login fills left
+// out of it. Otherwise (inloggen.js): the record whose key the login field
+// holds, chosen in a dropdown.
+const inloggen = computed(() => state.vormen?.aanvraag?.inloggen ?? null);
+const inlogstap = computed(() => inloggen.value?.inlogstap ?? null);
+const sessie = computed(() => (inlogstap.value ? sessieVan(state.casus.id) : null));
+const veldnamen = computed(() => (state.vormen?.aanvraag?.velden ?? []).map((v) => v.naam));
 
 // What the sources give for the fields the UI spec prefills
 // (voorinvulling.js), per field `{ bron, waarde, herkomst, fout }`. The form
@@ -42,7 +53,11 @@ const aanvraagVorm = formulier(() => {
   const scenario = scenarioWaarden('aanvraag');
   return beginWaarden(scenario, scenario && huidigeStap()?.step.stap.invoer, voorgevuld.value);
 });
-const aanvraag = computed(() => aanvraagVorm.waarden('aanvraag'));
+// With a login step, who is logged in comes from the session, never from the
+// form or the scenario (inlogstap.js).
+const aanvraag = computed(() =>
+  metSessie(inloggen.value, sessie.value, aanvraagVorm.waarden('aanvraag'), veldnamen.value),
+);
 const prefill = computed(() => state.vormen?.aanvraag?.prefill ?? {});
 
 // Ask the sources again when what they read changes: the fields of the form,
@@ -103,10 +118,19 @@ watch(
 const herkomst = (veld) =>
   herkomstTekst(voorgevuld.value[veld.naam], aanvraag.value[veld.naam], celNaam, veld.kolommen);
 
-// Who the applicant is logged in as (inloggen.js): the record whose key the
-// login field holds.
-const inloggen = computed(() => state.vormen?.aanvraag?.inloggen ?? null);
-const ingelogd = computed(() => gekozen(inloggen.value, aanvraag.value[inloggen.value?.veld]));
+const velden = computed(() => {
+  const door = ingevuldDoorInloggen(inloggen.value, sessie.value, veldnamen.value);
+  return (state.vormen?.aanvraag?.velden ?? []).filter((v) => !door.has(v.naam));
+});
+function uitloggen() {
+  wisSessie(state.casus.id);
+}
+function naarInloggen() {
+  inlogScherm.value = true;
+}
+const ingelogd = computed(() =>
+  inlogstap.value ? undefined : gekozen(inloggen.value, aanvraag.value[inloggen.value?.veld]),
+);
 function inlog(waarde) {
   aanvraagVorm.zet('aanvraag', inloggen.value.veld, waarde === '' ? undefined : waarde);
 }
@@ -198,8 +222,30 @@ async function indienenTegen() {
         </nldd-text>
       </nldd-title>
       <nldd-container gap="16" max-width="560px">
+        <nldd-card v-if="inlogstap">
+          <nldd-container padding="16">
+            <nldd-title
+              v-if="sessie"
+              heading-level="3"
+              size="display-5"
+              :text="ingelogdAls(sessie)"
+              :supporting-text="claimRegel(inloggen, sessie)"
+            >
+              <nldd-button slot="end" appearance="secondary" size="sm" text="Uitloggen" @click="uitloggen"></nldd-button>
+            </nldd-title>
+            <nldd-title
+              v-else
+              heading-level="3"
+              size="display-5"
+              text="Niet ingelogd"
+              :supporting-text="`Log in bij ${inlogstap.cel_naam} om namens een onderneming aan te vragen. Het inloggen is gesimuleerd.`"
+            >
+              <nldd-button slot="end" appearance="primary" size="sm" text="Inloggen" @click="naarInloggen"></nldd-button>
+            </nldd-title>
+          </nldd-container>
+        </nldd-card>
         <nldd-form-field
-          v-if="inloggen"
+          v-else-if="inloggen"
           label="Ingelogd als"
           :supporting-label="inloggen.feit"
         >
@@ -214,7 +260,7 @@ async function indienenTegen() {
           <nldd-form-field-help-text v-if="ingelogd">{{ inlogTekst(ingelogd, inloggen, celNaam) }}</nldd-form-field-help-text>
         </nldd-form-field>
         <VeldInvoer
-          v-for="veld in state.vormen.aanvraag.velden"
+          v-for="veld in velden"
           :key="veld.naam"
           :model-value="aanvraag[veld.naam]"
           :veld="veld"

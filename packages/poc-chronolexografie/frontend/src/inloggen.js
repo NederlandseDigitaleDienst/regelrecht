@@ -32,7 +32,8 @@ export const gekozen = (inloggen, waarde) =>
  * in one sentence; the form already chose it from the same values. Null without a login, or when the values leave its field out.
  */
 export function loginHint(inloggen, waarden) {
-  if (!inloggen || !waarden || !(inloggen.veld in waarden)) return null;
+  // A login step has steps of its own in the guide (scenarioGuides.js).
+  if (!inloggen || inloggen.inlogstap || !waarden || !(inloggen.veld in waarden)) return null;
   const waarde = waarden[inloggen.veld];
   if (waarde === null || waarde === undefined || waarde === '') {
     return `Laat Ingelogd als op ${NOT_LOGGED_IN} staan.`;

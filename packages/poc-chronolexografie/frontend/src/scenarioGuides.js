@@ -15,7 +15,9 @@
  * not know is an error: the guide would skip a step the visitor
  * has to take. A scenario without a single action has no guide; the
  * tab Scenario's shows its lines instead. Who to log in as, for a case with
- * a login, the panel reads from the form's choices (inloggen.js).
+ * a login, the panel reads from the form's choices (inloggen.js). A case
+ * with a login step (inlogstap.js) has steps `inloggen` instead: done once
+ * the service recorded one more authentication, or refused.
  *
  * A built step: `title`, the `tab` it happens on, the play date it wants
  * (`date`, optional), what happens in the case (`story`, from `verhaal`),
@@ -31,6 +33,7 @@
  * The texts name the buttons and fields as the components label them;
  * change them together.
  */
+import { LOGIN_REFUSED } from './sessie.js';
 import { hoofdletter, jaNee, leesbaar, longDate } from './state.js';
 
 // What the scenario expects of a step, as warning text.
@@ -123,6 +126,18 @@ const KINDS = {
     seen: () => 'Het bestuursorgaan legt de ontvangst vast (Awb 8:79).',
     done: (n) => (k) => k.ontvangsten >= n,
   },
+  // The login step of the case (InlogScherm.vue). Done once the service
+  // holds one more record of the fact of the login than before the scenario
+  // for each login that got in; `n` counts those. A refused login records
+  // nothing, so it is done once the screen kept its refusal (state.js).
+  inloggen: {
+    tab: 'aanvrager',
+    title: (n) => (n === 1 ? 'Inloggen' : 'Opnieuw inloggen'),
+    todo: 'Klik boven het formulier op Inloggen, vul de gebruikersnaam en het wachtwoord in en klik op Inloggen.',
+    seen: () => 'Boven het formulier staat wie er is ingelogd, namens welke onderneming.',
+    done: (n, stap, vooraf) => (k) => k.executogrammen(feitNaam(stap.feit)) >= vooraf + n,
+    weigering: new RegExp(`^${LOGIN_REFUSED}`),
+  },
   // Nothing to do but reach the step's play date: the guide then asks the
   // cell for the answers the step expects (antwoorden.js).
   // The guide itself shows the answers; the tab is where the case's own
@@ -214,10 +229,15 @@ export function bouwGids(scenario, casus = null) {
     else besloten[stap.stap] = (besloten[stap.stap] ?? 0) + 1;
     const keer = stap.uitkomst ? (uitkomsten[stap.uitkomst] = (uitkomsten[stap.uitkomst] ?? 0) + 1) : 0;
     const keerFeit = stap.feit ? (feiten[feitNaam(stap.feit)] = (feiten[feitNaam(stap.feit)] ?? 0) + 1) : 0;
-    let done =
-      stap.stap === 'vastleggen'
-        ? kind.done(keerFeit, stap, vooraf(casus, stap.feit))
-        : kind.done(stap.stap === 'besluit' ? doel : n, stap);
+    let done;
+    if (stap.stap === 'vastleggen') done = kind.done(keerFeit, stap, vooraf(casus, stap.feit));
+    else if (stap.stap === 'inloggen') {
+      // A refused login is done when one more got in than the steps before
+      // expect: that is the login the step expected to be refused.
+      const feit = casus?.inloggen?.feit;
+      const ingelogd = (besloten.inloggen ?? 0) + (stap.uitkomst === 'geweigerd' ? 1 : 0);
+      done = kind.done(ingelogd, { feit }, vooraf(casus, feit));
+    } else done = kind.done(stap.stap === 'besluit' ? doel : n, stap);
     // A record step of the case's own cell happens on the authority's tab.
     const soort =
       stap.stap === 'vastleggen' && casus && vastleggendeCel(stap, casus) === casus.cel ? { ...kind, ...kind.eigen } : kind;

@@ -1,0 +1,282 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
+$id: voorbeeld_register_erkende_dienst
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+# FICTIEF. Het register van een erkende dienst voor bedrijfs- en
+# organisatiemiddelen, voor de inlogstap (tests/bron-inlogstap). De dienst
+# legt vast welke middelen zij uitgaf (artikel 1) en welke machtigingen zij
+# registreerde (artikel 2), en trekt een machtiging in met een later feit dat
+# naar haar registratie verwijst (artikel 3). Artikel 4 zegt wat de dienst bij
+# een inlog verklaart. Naar het Afsprakenstelsel Elektronische
+# Toegangsdiensten: een middel hoort bij één persoon, een machtiging geeft die
+# persoon toegang tot een dienst namens een onderneming, en zonder geldige
+# machtiging antwoordt het machtigingenregister Deny.
+url: https://example.invalid/voorbeeld_register_erkende_dienst
+name: Register van de erkende dienst (fictieve testbron)
+competent_authority:
+  name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF. De dienst geeft een middel uit aan een persoon, met een
+      gebruikersnaam, een pseudoniem en het betrouwbaarheidsniveau van het
+      middel.
+    url: https://example.invalid/voorbeeld_register_erkende_dienst#1
+    machine_readable:
+      requires:
+        - fact: middel_uitgegeven
+          description: Dat de dienst een middel uitgaf, met de gebruikersnaam, het pseudoniem en het niveau.
+          competent_authority:
+            - name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+          parameters:
+            - gebruikersnaam
+            - pseudoniem
+            - betrouwbaarheidsniveau
+      execution:
+        parameters:
+          - name: gebruikersnaam
+            type: string
+            description: De naam waarmee de houder van het middel inlogt.
+          - name: pseudoniem
+            type: string
+            description: Het pseudoniem dat de dienst een dienstverlener van de houder doorgeeft.
+          - name: betrouwbaarheidsniveau
+            type: string
+            description: Het niveau van het middel, laag, substantieel of hoog.
+  - number: '2'
+    text: >-
+      FICTIEF. De dienst registreert een machtiging: de houder van een middel
+      mag namens een onderneming optreden voor een dienst, op een
+      betrouwbaarheidsniveau.
+    url: https://example.invalid/voorbeeld_register_erkende_dienst#2
+    machine_readable:
+      requires:
+        - fact: machtiging_geregistreerd
+          description: >-
+            Dat de dienst een machtiging registreerde, voor wie, namens welke
+            onderneming, voor welke dienst en op welk niveau.
+          competent_authority:
+            - name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+          parameters:
+            - gebruikersnaam
+            - kvk_nummer
+            - dienst
+            - betrouwbaarheidsniveau
+      execution:
+        parameters:
+          - name: gebruikersnaam
+            type: string
+            description: De gebruikersnaam van het middel van de gemachtigde.
+          - name: kvk_nummer
+            type: string
+            description: Het nummer dat de Kamer van Koophandel de onderneming toekende.
+          - name: dienst
+            type: string
+            description: De dienst, met haar nummer in de dienstencatalogus.
+          - name: betrouwbaarheidsniveau
+            type: string
+            description: Het niveau van de machtiging, laag, substantieel of hoog.
+  - number: '3'
+    text: >-
+      FICTIEF. De dienst trekt een machtiging in. Vanaf die dag geeft zij er
+      geen toegang meer mee.
+    url: https://example.invalid/voorbeeld_register_erkende_dienst#3
+    machine_readable:
+      # Het feit verwijst naar de registratie die het intrekt (refers_to).
+      requires:
+        - fact: machtiging_ingetrokken
+          description: Dat de dienst de machtiging introk waarnaar het feit verwijst.
+          competent_authority:
+            - name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+          parameters:
+            - datum_intrekking
+      execution:
+        parameters:
+          - name: datum_intrekking
+            type: date
+            description: De dag waarop de dienst de machtiging introk.
+  - number: '4'
+    text: >-
+      FICTIEF. Logt de houder van een middel in voor een dienst, dan verklaart
+      de dienst dat hij namens de onderneming mag optreden als zij een
+      machtiging voor die dienst registreerde die niet is ingetrokken. Zij
+      geeft dan het nummer van de onderneming, het pseudoniem, de dienst, het
+      laagste niveau van middel en machtiging en de dag van de inlog door.
+      Zonder zo'n machtiging verklaart zij niets.
+    url: https://example.invalid/voorbeeld_register_erkende_dienst#4
+    machine_readable:
+      # De inlogstap van de poc vraagt de dienst toegang_verleend (inloggen,
+      # inlogstap in de casus). De andere uitvoer zijn de gegevens van de
+      # verklaring; de cel legt ze bij een inlog vast als het feit
+      # authenticatie_verricht (artikel 15 van de Wet digitale overheid). Wat
+      # het register weet, vult artikel 5 in.
+      open_terms:
+        - id: machtiging_in_register
+          type: boolean
+          required: false
+          competent_authority:
+            - name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+              type: INSTANCE
+          description: Of het register een geldige machtiging voor de gebruikersnaam en de dienst kent.
+          default:
+            actions:
+              - output: machtiging_in_register
+                value: false
+        - id: kvk_nummer_in_register
+          type: string
+          required: false
+          competent_authority:
+            - name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+              type: INSTANCE
+          description: Namens welke onderneming de machtiging geldt.
+          default:
+            actions:
+              - output: kvk_nummer_in_register
+                value: null
+        - id: pseudoniem_in_register
+          type: string
+          required: false
+          competent_authority:
+            - name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+              type: INSTANCE
+          description: Het pseudoniem van de houder van het middel.
+          default:
+            actions:
+              - output: pseudoniem_in_register
+                value: null
+        - id: niveau_in_register
+          type: string
+          required: false
+          competent_authority:
+            - name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+              type: INSTANCE
+          description: Het laagste niveau van middel en machtiging.
+          default:
+            actions:
+              - output: niveau_in_register
+                value: null
+      execution:
+        parameters:
+          - name: gebruikersnaam
+            type: string
+            description: De gebruikersnaam waarmee iemand inlogt.
+          - name: dienst
+            type: string
+            description: De dienst waarvoor iemand inlogt.
+          - name: peildatum
+            type: date
+            description: De dag van de inlog.
+        output:
+          - name: toegang_verleend
+            type: boolean
+            description: Of de dienst verklaart dat wie inlogt, namens de onderneming mag optreden voor de dienst.
+          - name: kvk_nummer
+            type: string
+            nullable: true
+          - name: pseudoniem
+            type: string
+            nullable: true
+          - name: dienst
+            type: string
+            nullable: true
+          - name: betrouwbaarheidsniveau
+            type: string
+            nullable: true
+          - name: datum_authenticatie
+            type: date
+            nullable: true
+        actions:
+          - output: toegang_verleend
+            value: $machtiging_in_register
+          - output: kvk_nummer
+            value: $kvk_nummer_in_register
+          - output: pseudoniem
+            value: $pseudoniem_in_register
+          - output: dienst
+            value: $dienst
+          - output: betrouwbaarheidsniveau
+            value: $niveau_in_register
+          - output: datum_authenticatie
+            value: $peildatum
+  - number: '5'
+    text: >-
+      FICTIEF. Wat het register weet over een gebruikersnaam en een dienst,
+      ontleent de dienst aan het antwoord van haar eigen cel.
+    url: https://example.invalid/voorbeeld_register_erkende_dienst#5
+    machine_readable:
+      implements:
+        - law: voorbeeld_register_erkende_dienst
+          article: '4'
+          open_term: machtiging_in_register
+        - law: voorbeeld_register_erkende_dienst
+          article: '4'
+          open_term: kvk_nummer_in_register
+        - law: voorbeeld_register_erkende_dienst
+          article: '4'
+          open_term: pseudoniem_in_register
+        - law: voorbeeld_register_erkende_dienst
+          article: '4'
+          open_term: niveau_in_register
+      execution:
+        parameters:
+          - name: gebruikersnaam
+            type: string
+          - name: dienst
+            type: string
+        input:
+          - name: antwoord_machtiging_in_register
+            type: boolean
+            nullable: true
+            source:
+              reduction: machtiging_in_register
+              parameters:
+                gebruikersnaam: $gebruikersnaam
+                dienst: $dienst
+          - name: antwoord_kvk_nummer_in_register
+            type: string
+            nullable: true
+            source:
+              reduction: kvk_nummer_in_register
+              parameters:
+                gebruikersnaam: $gebruikersnaam
+                dienst: $dienst
+          - name: antwoord_pseudoniem_in_register
+            type: string
+            nullable: true
+            source:
+              reduction: pseudoniem_in_register
+              parameters:
+                gebruikersnaam: $gebruikersnaam
+                dienst: $dienst
+          - name: antwoord_niveau_in_register
+            type: string
+            nullable: true
+            source:
+              reduction: niveau_in_register
+              parameters:
+                gebruikersnaam: $gebruikersnaam
+                dienst: $dienst
+        output:
+          - name: machtiging_in_register
+            type: boolean
+            nullable: true
+          - name: kvk_nummer_in_register
+            type: string
+            nullable: true
+          - name: pseudoniem_in_register
+            type: string
+            nullable: true
+          - name: niveau_in_register
+            type: string
+            nullable: true
+        actions:
+          - output: machtiging_in_register
+            value: $antwoord_machtiging_in_register
+          - output: kvk_nummer_in_register
+            value: $antwoord_kvk_nummer_in_register
+          - output: pseudoniem_in_register
+            value: $antwoord_pseudoniem_in_register
+          - output: niveau_in_register
+            value: $antwoord_niveau_in_register

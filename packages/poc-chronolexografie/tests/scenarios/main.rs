@@ -24,6 +24,7 @@ use std::collections::{BTreeMap, BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 
 use regelrecht_poc_chronolexografie::bundel::{Bron, BronStand, met_bronnen};
+use regelrecht_poc_chronolexografie::inlogstap::WACHTWOORD;
 use regelrecht_poc_chronolexografie::kern::Corpus;
 use regelrecht_poc_chronolexografie::spel::Spel;
 use serde_json::{Value, json};
@@ -276,6 +277,145 @@ fn every_scenario_of_a_source_plays_from_its_manifest() {
         .unwrap();
     assert!(besluit["waarom"]["keten"].is_array(), "{besluit}");
     std::fs::remove_dir_all(&uit).unwrap();
+}
+
+/// The test source of the login step in `tests/bron-inlogstap`, by its
+/// manifest.
+fn inlogbron() -> BTreeMap<String, String> {
+    bestanden(&crate_dir().join("tests/bron-inlogstap/bron.yaml"))
+}
+
+#[test]
+fn every_scenario_of_a_case_with_a_login_step_plays() {
+    let (mut spel, stand) = spel_met_bron(inlogbron());
+    assert_eq!(stand.casussen, ["voorbeeld_inlogstap"], "{stand:?}");
+    let fouten = speel_bron(&mut spel, &stand, None);
+    assert!(fouten.is_empty(), "{}", fouten.join("\n"));
+}
+
+/// The authentications in the chronicle of the accredited service of the
+/// login test source.
+fn authenticaties(spel: &mut Spel) -> usize {
+    let kroniek = spel.kroniek().unwrap();
+    kroniek["andere"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|c| c["cel"] == "voorbeeld_erkende_dienst")
+        .flat_map(|c| c["grammen"].as_array().unwrap())
+        .filter(|g| g["fact"] == "authenticatie_verricht")
+        .count()
+}
+
+const DIENST_1: &str = "urn:etoegang:DV:00000009999999997000:services:1";
+const DIENST_2: &str = "urn:etoegang:DV:00000009999999997000:services:2";
+
+#[test]
+fn a_login_records_the_authentication_and_a_refused_one_records_nothing() {
+    let (mut spel, _) = spel_met_bron(inlogbron());
+    spel.kiezen("voorbeeld_inlogstap").unwrap();
+    let dag = "2026-10-13".parse().unwrap();
+    let vooraf = authenticaties(&mut spel);
+
+    let fout = spel.inloggen("bakker", "verkeerd", None, dag).unwrap();
+    assert_eq!(
+        fout,
+        json!({"uitkomst": "geweigerd", "gebruikersnaam": "bakker", "reden": "wachtwoord"})
+    );
+    // Authorized for another service only, and no means of login at all.
+    for naam in ["kapper", "niemand"] {
+        let geweigerd = spel.inloggen(naam, WACHTWOORD, None, dag).unwrap();
+        assert_eq!(geweigerd["reden"], "geen_machtiging", "{geweigerd}");
+    }
+    assert_eq!(authenticaties(&mut spel), vooraf);
+
+    let bakker = spel.inloggen("bakker", WACHTWOORD, None, dag).unwrap();
+    assert_eq!(bakker["uitkomst"], "ingelogd", "{bakker}");
+    assert_eq!(
+        bakker["claims"],
+        json!({
+            "kvk_nummer": "99970011",
+            "pseudoniem": "ps-b4k001",
+            "dienst": DIENST_1,
+            "betrouwbaarheidsniveau": "substantieel",
+            "datum_authenticatie": "2026-10-13",
+        })
+    );
+    assert_eq!(authenticaties(&mut spel), vooraf + 1);
+
+    // The lower of the means (hoog) and the authorization (substantieel).
+    let bloemist = spel.inloggen("bloemist", WACHTWOORD, None, dag).unwrap();
+    assert_eq!(bloemist["claims"]["betrouwbaarheidsniveau"], "substantieel");
+    // For the service it is authorized for, the hairdresser gets in.
+    let kapper = spel
+        .inloggen("kapper", WACHTWOORD, Some(DIENST_2), dag)
+        .unwrap();
+    assert_eq!(kapper["claims"]["kvk_nummer"], "99970022", "{kapper}");
+}
+
+#[test]
+fn a_login_after_an_authorization_that_was_not_revoked_gets_in_and_fails_the_step() {
+    let mut bestanden = inlogbron();
+    let pad = "casussen/voorbeeld_inlogstap.yaml";
+    let mut casus: Value = serde_yaml_ng::from_str(&bestanden[pad]).unwrap();
+    // The scenario of the revocation, without the revocation.
+    casus["scenarios"][2]["stappen"]
+        .as_array_mut()
+        .unwrap()
+        .remove(2);
+    bestanden.insert(pad.into(), serde_yaml_ng::to_string(&casus).unwrap());
+    let (mut spel, stand) = spel_met_bron(bestanden);
+    let fouten = speel_bron(&mut spel, &stand, None);
+    assert_eq!(
+        fouten,
+        [
+            "voorbeeld_inlogstap, 'Na intrekking komt de bloemist niet meer binnen', step 3: \
+             expected geweigerd, got ingelogd"
+        ]
+    );
+}
+
+#[test]
+fn the_form_of_a_case_with_a_login_step_offers_the_step_and_no_choice() {
+    let (mut spel, _) = spel_met_bron(inlogbron());
+    spel.kiezen("voorbeeld_inlogstap").unwrap();
+    let vormen = spel.vormen("2026-10-13".parse().unwrap()).unwrap();
+    let inloggen = &vormen["indieningen"]["voorbeeld_vergunning_inlogstap#1"]["inloggen"];
+    assert_eq!(inloggen["veld"], "kvk_nummer");
+    assert!(inloggen.get("keuzes").is_none(), "{inloggen}");
+    assert_eq!(
+        inloggen["inlogstap"],
+        json!({
+            "cel": "voorbeeld_erkende_dienst",
+            "cel_naam": "Erkende dienst voor bedrijfs- en organisatiemiddelen",
+            "dienst": DIENST_1,
+            "wachtwoord": WACHTWOORD,
+            "gebruikersnamen": ["bakker", "kapper", "bloemist"],
+        })
+    );
+}
+
+#[test]
+fn a_login_step_in_a_case_without_one_does_not_load() {
+    let mut bestanden = testbron();
+    let pad = "casussen/voorbeeld_subsidie.yaml";
+    let mut casus: Value = serde_yaml_ng::from_str(&bestanden[pad]).unwrap();
+    casus["scenarios"][0]["stappen"]
+        .as_array_mut()
+        .unwrap()
+        .insert(
+            0,
+            json!({"stap": "inloggen", "invoer": {"gebruikersnaam": "bakker"}}),
+        );
+    bestanden.insert(pad.into(), serde_yaml_ng::to_string(&casus).unwrap());
+    let (_, stand) = spel_met_bron(bestanden);
+    assert!(
+        stand
+            .fouten
+            .iter()
+            .any(|f| f.contains("the case has no login step")),
+        "{stand:?}"
+    );
 }
 
 /// The test source with the expected output of step 2 of its first scenario

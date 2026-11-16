@@ -84,11 +84,17 @@ pub struct Casus {
     pub scenarios: Vec<Scenario>,
 }
 
-/// Logging in to apply, without a real means of login: the applicant picks a
-/// record of the fact `feit` (`<regelwerk>#<article>#<fact>`) that a cell of
-/// the case keeps, such as the authentication an accredited service recorded,
-/// and the value of its field `sleutel` goes into the field `veld` of the
-/// application. `naam` is the field of the record the choice shows.
+/// Logging in to apply, without a real means of login. `feit`
+/// (`<regelwerk>#<article>#<fact>`) is the fact a cell of the case records at
+/// a login, such as the authentication an accredited service records, and
+/// the value of its field `sleutel` goes into the field `veld` of the
+/// application.
+///
+/// Without [`Inloggen::inlogstap`] the applicant picks a record of that fact
+/// from the chronicle; `naam` is the field of the record the choice shows.
+/// With it, the applicant logs in through a simulated login step
+/// ([`Inlogstap`]), and the form reads who is logged in from the session the
+/// browser keeps, never from a chronicle.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Inloggen {
@@ -97,6 +103,29 @@ pub struct Inloggen {
     pub veld: String,
     #[serde(default)]
     pub naam: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inlogstap: Option<Inlogstap>,
+}
+
+/// A simulated login step, as an accredited service such as eHerkenning
+/// offers one (`crate::inlogstap`). The applicant gives a user name and the
+/// password of the PoC; the cell `cel` answers the output `toegang`
+/// (`<regelwerk>#<article>#<output>`, a boolean) of an article of its own
+/// policy, with the parameters `gebruikersnaam` and `dienst` and the day of
+/// the login. The other outputs of that article are the claims of the
+/// assertion. When it grants access, the cell records [`Inloggen::feit`] with
+/// those claims; when not, it records nothing. `dienst` is the service the
+/// applicant logs in for. `middel`, the fact of a means of login the cell
+/// issued (`<regelwerk>#<article>#<fact>` with a field `gebruikersnaam`),
+/// names the user names the login screen lists.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Inlogstap {
+    pub cel: String,
+    pub toegang: String,
+    pub dienst: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub middel: Option<String>,
 }
 
 impl Casus {
@@ -185,6 +214,9 @@ impl Casus {
             if h.stap == Soort::Toetsen {
                 self.toetsstap_klopt(h, dag, &waar)?;
             }
+            if h.stap == Soort::Inloggen {
+                self.inlogstap_klopt(h, &waar)?;
+            }
             if let Some(d) = h.datum {
                 dag = d;
             }
@@ -250,6 +282,58 @@ impl Casus {
             return self.fout(&format!(
                 "{waar} is a check step (toetsen) that names a cell, a fact, a record, values \
                  or an outcome; a check step only checks answers (antwoorden)"
+            ));
+        }
+        Ok(())
+    }
+
+    /// A login step (`inloggen`) logs in through the case's login step
+    /// ([`Inlogstap`]): it names the user name under `invoer`, and at most the
+    /// password and the service besides, and acts on nothing else. It
+    /// expects no outcome, or that the login is refused.
+    fn inlogstap_klopt(&self, h: &Handeling, waar: &str) -> Result<()> {
+        if self
+            .inloggen
+            .as_ref()
+            .and_then(|i| i.inlogstap.as_ref())
+            .is_none()
+        {
+            return self.fout(&format!(
+                "{waar} is a login step (inloggen), but the case has no login step \
+                 (inloggen.inlogstap)"
+            ));
+        }
+        if !h.invoer.get("gebruikersnaam").is_some_and(Value::is_string) {
+            return self.fout(&format!(
+                "{waar} is a login step (inloggen) without the user name it logs in with \
+                 (invoer.gebruikersnaam)"
+            ));
+        }
+        if let Some(ander) = h
+            .invoer
+            .keys()
+            .find(|k| !["gebruikersnaam", "wachtwoord", "dienst"].contains(&k.as_str()))
+        {
+            return self.fout(&format!(
+                "{waar} is a login step (inloggen) with '{ander}'; it takes only \
+                 gebruikersnaam, wachtwoord and dienst"
+            ));
+        }
+        let handelt = h.cel.is_some()
+            || h.feit.is_some()
+            || h.op.is_some()
+            || h.verwijst_naar.is_some()
+            || !h.uitvoer.is_empty();
+        if handelt {
+            return self.fout(&format!(
+                "{waar} is a login step (inloggen) that names a cell, a fact, a record or \
+                 outputs; a login step only logs in"
+            ));
+        }
+        if h.uitkomst.is_some_and(|u| u != Uitkomst::Geweigerd) {
+            return self.fout(&format!(
+                "{waar} is a login step (inloggen) that expects an outcome other than \
+                 geweigerd"
             ));
         }
         Ok(())
@@ -722,6 +806,11 @@ pub enum Soort {
     Toezenden,
     /// The authority decides on the objection again after a judgment.
     OpnieuwBeslissen,
+    /// The applicant logs in through the case's login step
+    /// ([`Inlogstap`]), with the user name under [`Handeling::invoer`]. What
+    /// the login asserts holds for the steps after it, until the next login
+    /// step.
+    Inloggen,
     /// Nothing is done: on the step's play date the scenario checks the
     /// answers it expects of a cell ([`Handeling::antwoorden`]), such as the
     /// interest that is due the day after a payment came too late.

@@ -17,6 +17,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use crate::bundel::BronStand;
+use crate::inlogstap;
 use crate::kern::{self, Cellen, Corpus};
 
 /// The chosen case, its cell and the other cells of its sphere.
@@ -313,6 +314,25 @@ impl Spel {
         ok(self.met(|c, cell| {
             let cel = cel.unwrap_or(&c.casus.cel);
             kern::antwoord(c, cell, cel, bron, invoer, datum)
+        })?)
+    }
+
+    /// Log in through the case's login step ([`inlogstap::inloggen`]): the
+    /// assertion, or why the service refused. Who is logged in stays with
+    /// the caller.
+    ///
+    /// # Errors
+    ///
+    /// As [`inlogstap::inloggen`], and when no case is chosen.
+    pub fn inloggen(
+        &mut self,
+        gebruikersnaam: &str,
+        wachtwoord: &str,
+        dienst: Option<&str>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| {
+            inlogstap::inloggen(c, cell, gebruikersnaam, wachtwoord, dienst, datum)
         })?)
     }
 

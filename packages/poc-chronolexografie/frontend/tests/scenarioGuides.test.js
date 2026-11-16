@@ -281,3 +281,30 @@ describe('the guide of a case from a source', () => {
     expect(() => bouwGids({ naam: 'x', stappen: [{ stap: 'onbekend' }] })).toThrow(/unknown step 'onbekend'/);
   });
 });
+
+describe('the guide of a case with a login step', () => {
+  const c = bronCasus('bron-inlogstap', 'voorbeeld_inlogstap');
+  const feiten = (n) => ({ executogrammen: (f) => (f === 'authenticatie_verricht' ? n : 0), refusals: [] });
+
+  it('has a step on the tab Aanvrager for every login', () => {
+    const g = guideFor(c, 'Inloggen lukt en de vergunning wordt verleend');
+    expect(g.steps[0]).toMatchObject({ title: 'Inloggen', tab: 'aanvrager', values: ['gebruikersnaam: bakker'] });
+  });
+
+  it('is done with a login once the service recorded one more authentication', () => {
+    const g = guideFor(c, 'Inloggen lukt en de vergunning wordt verleend');
+    expect(g.steps[0].done(feiten(0))).toBe(false);
+    expect(g.steps[0].done(feiten(1))).toBe(true);
+  });
+
+  it('is done with a refused login once the screen kept the refusal, and warns when it got in', () => {
+    const g = guideFor(c, 'Na intrekking komt de bloemist niet meer binnen');
+    const weigering = g.steps[3];
+    expect(weigering.title).toBe('Opnieuw inloggen');
+    expect(weigering.done(feiten(1))).toBe(false);
+    expect(weigering.done({ ...feiten(1), refusals: ['login refused: geen_machtiging'] })).toBe(true);
+    // A second authentication is the login that should have been refused.
+    expect(weigering.done(feiten(2))).toBe(true);
+    expect(weigering.expect.check(feiten(2))).toBe(false);
+  });
+});
