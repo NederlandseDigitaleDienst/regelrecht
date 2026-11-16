@@ -224,7 +224,7 @@ articles:
     url: https://lokaleregelgeving.overheid.nl/CVDR733452
     machine_readable:
       # Geen begrip van een regeling: een bron voor het voorinvullen van het
-      # formulier (ui_spec.yaml van de casus, prefill). Het nummer komt uit
+      # formulier (ui_spec.yaml van de casus, fill.from). Het nummer komt uit
       # het formulier, dus volgt het wie er inlogt; zonder nummer blijft het
       # leeg. Wat de aanvraag noemt, toetst artikel 4:2 van de Awb, niet
       # dit artikel. Wat het handelsregister vermeldt, zegt de Kamer van

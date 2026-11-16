@@ -15,9 +15,9 @@
 //! a case from loading. A source is `<regelwerk>#<article>#<output>`; what it
 //! gives the cell computes when the form opens ([`crate::kern::voorinvullen`]).
 //!
-//! A UI spec that has neither list is refused rather than read as empty: a
-//! renamed key would otherwise turn every prefill off without a word. So is
-//! one that mixes the two forms.
+//! A UI spec that has neither list is refused. If it were read as empty, a
+//! renamed key would turn every prefill off without a word. A UI spec that mixes the two
+//! forms is refused too.
 
 use std::collections::BTreeMap;
 
@@ -42,10 +42,11 @@ struct Element {
     prefill: Option<IgnoredAny>,
 }
 
-/// A field of an element; the poc reads only how the form fills it.
+/// A field of an element; the poc reads only how the form fills it. A
+/// field without a name is left to the register, unless it is prefilled.
 #[derive(Debug, Deserialize)]
 struct Field {
-    name: String,
+    name: Option<String>,
     fill: Option<Fill>,
 }
 
@@ -56,7 +57,7 @@ struct Field {
 #[serde(deny_unknown_fields)]
 struct Fill {
     from: Option<String>,
-    by: Option<String>,
+    by: Option<IgnoredAny>,
 }
 
 /// An element of the older form.
@@ -120,13 +121,23 @@ fn per_field(elements: Vec<Element>) -> Result<Vec<ElementPrefill>, String> {
         let mut sources = Vec::new();
         for field in element.fields {
             let Some(fill) = field.fill else { continue };
+            let veld = field.name.unwrap_or_default();
             match (fill.from, fill.by.is_some()) {
-                (Some(from), _) => sources.push((field.name, from)),
+                (_, false) | (Some(_), true) if veld.is_empty() => {
+                    return Err(format!(
+                        "the UI spec: {name} fills a field without a `name`"
+                    ));
+                }
+                (Some(_), true) => {
+                    return Err(format!(
+                        "the UI spec: {name} fills '{veld}' both `from` a source and `by` itself"
+                    ));
+                }
+                (Some(from), false) => sources.push((veld, from)),
                 (None, true) => {}
                 (None, false) => {
                     return Err(format!(
-                        "the UI spec: {name} fills '{}' with neither `from` nor `by`",
-                        field.name
+                        "the UI spec: {name} fills '{veld}' with neither `from` nor `by`"
                     ));
                 }
             }
@@ -287,7 +298,8 @@ elements:
         let e = prefill("status: concept").unwrap_err();
         assert!(e.contains("no `elements`"), "{e}");
         // A misspelt list is no list.
-        assert!(prefill("element: [{id: UI1}]").is_err());
+        let e = prefill("element: [{id: UI1}]").unwrap_err();
+        assert!(e.contains("no `elements`"), "{e}");
     }
 
     #[test]
@@ -310,9 +322,29 @@ elements:
     fn a_fill_with_a_misspelt_or_no_key_is_refused() {
         let e = prefill("elements: [{id: UI1, fields: [{name: naam, fill: {form: 'r#5h#naam'}}]}]")
             .unwrap_err();
-        assert!(e.contains("form"), "{e}");
+        assert!(e.contains("unknown field `form`"), "{e}");
         let e = prefill("elements: [{id: UI1, fields: [{name: naam, fill: {}}]}]").unwrap_err();
         assert!(e.contains("neither `from` nor `by`"), "{e}");
+    }
+
+    #[test]
+    fn a_fill_both_from_a_source_and_by_itself_is_refused() {
+        let e = prefill(
+            "elements: [{id: UI1, fields: [{name: naam, fill: {from: 'r#5h#naam', by: system}}]}]",
+        )
+        .unwrap_err();
+        assert!(e.contains("both `from` a source and `by` itself"), "{e}");
+    }
+
+    #[test]
+    fn a_field_without_a_name_counts_only_when_it_is_prefilled() {
+        let tekst = "elements: [{id: UI1, fields: [{to_build: {kind: outcome}}, {fill: {by: {kind: system}}}]}]";
+        assert!(prefill(tekst).unwrap().is_empty());
+        let e =
+            prefill("elements: [{id: UI1, fields: [{fill: {from: 'r#5h#naam'}}]}]").unwrap_err();
+        assert!(e.contains("UI1 fills a field without a `name`"), "{e}");
+        let e = prefill("elements: [{id: UI1, fields: [{fill: {}}]}]").unwrap_err();
+        assert!(e.contains("UI1 fills a field without a `name`"), "{e}");
     }
 
     #[test]
