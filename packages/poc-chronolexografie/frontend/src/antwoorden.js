@@ -44,7 +44,7 @@ export function metRecords(invoer, record) {
       const kenmerk = v !== null && typeof v === 'object' && Object.keys(v).length === 1 ? v.kenmerk : undefined;
       if (typeof kenmerk !== 'string') return [naam, v];
       const id = record(kenmerk);
-      if (!id) throw new Error(`parameter '${naam}' names '${kenmerk}', which no step made yet`);
+      if (!id) throw new Error(`parameter ${naam} noemt het record van stap '${kenmerk}', dat er nog niet is`);
       return [naam, id];
     }),
   );

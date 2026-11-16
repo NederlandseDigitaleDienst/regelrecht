@@ -182,17 +182,17 @@
     "story": "Twee weken later is er op het voorschot nog niets betaald.",
     "todo": "Zet de speeldatum op de dag van deze stap; de gids vraagt de cel dan om haar antwoorden.",
     "values": [],
-    "seen": "De antwoorden van de cel staan hieronder.",
+    "seen": "De gids toont de antwoorden van de cel.",
     "expect": null
    },
    {
     "title": "Eerste termijn betalen",
     "tab": "bestuursorgaan",
     "date": "2025-01-24",
-    "story": "De Dienst betaalt de eerste termijn, een twaalfde van het voorschot, en legt die vast.",
+    "story": "Het besluit is van januari, dus de Dienst betaalt het voorschot in elf termijnen (Awir artikel 22, tweede lid) en legt de eerste vast.",
     "todo": "Klik onder Vastleggen op Vastleggen.",
     "values": [
-     "bedrag: 13142"
+     "bedrag: 14336"
     ],
     "seen": "Het feit staat in de kroniek van het bestuursorgaan.",
     "expect": null
@@ -204,7 +204,7 @@
     "story": "Op het voorschot is nu de eerste termijn betaald.",
     "todo": "Zet de speeldatum op de dag van deze stap; de gids vraagt de cel dan om haar antwoorden.",
     "values": [],
-    "seen": "De antwoorden van de cel staan hieronder.",
+    "seen": "De gids toont de antwoorden van de cel.",
     "expect": null
    }
   ]

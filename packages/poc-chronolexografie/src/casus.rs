@@ -176,12 +176,17 @@ impl Casus {
     ) -> Result<()> {
         // Per kenmerk of an earlier step, that step's kind and cell.
         let mut stappen: BTreeMap<&str, EerdereStap<'_>> = BTreeMap::new();
+        // The play date of the step before.
+        let mut dag = self.speeldatum;
         for stap in &scenario.stappen {
             let Stap::Handeling(h) = stap else { continue };
             let waar = format!("a step of the scenario '{}'", scenario.naam);
             self.antwoorden_kloppen(h, &waar)?;
             if h.stap == Soort::Toetsen {
-                self.toetsstap_klopt(h, &waar)?;
+                self.toetsstap_klopt(h, dag, &waar)?;
+            }
+            if let Some(d) = h.datum {
+                dag = d;
             }
             if h.stap.is_generiek() {
                 self.generieke_stap_klopt(h, &stappen, &waar)?;
@@ -211,9 +216,24 @@ impl Casus {
         Ok(())
     }
 
-    /// A check step (`toetsen`) only checks answers: it acts on nothing and
-    /// fills in nothing.
-    fn toetsstap_klopt(&self, h: &Handeling, waar: &str) -> Result<()> {
+    /// A check step (`toetsen`) only checks answers, on a day of its own: it
+    /// names its play date, no earlier than `vorige`, the play date of the
+    /// step before, and it acts on nothing and fills in nothing.
+    fn toetsstap_klopt(&self, h: &Handeling, vorige: NaiveDate, waar: &str) -> Result<()> {
+        match h.datum {
+            None => {
+                return self.fout(&format!(
+                    "{waar} is a check step (toetsen) without the day it checks on (datum)"
+                ));
+            }
+            Some(d) if d < vorige => {
+                return self.fout(&format!(
+                    "{waar} is a check step (toetsen) on {d}, before the play date {vorige} of \
+                     the step before it"
+                ));
+            }
+            Some(_) => {}
+        }
         if h.antwoorden.is_empty() {
             return self.fout(&format!(
                 "{waar} is a check step (toetsen) without answers to check (antwoorden)"
@@ -659,10 +679,11 @@ impl Antwoord {
 /// The kenmerk `waarde` names when it is written as `{kenmerk: <naam>}`, a
 /// reference to the record of a step of the scenario.
 pub fn kenmerk_van(waarde: &Value) -> Option<&str> {
-    match waarde.as_object()? {
-        o if o.len() == 1 => o.get("kenmerk")?.as_str(),
-        _ => None,
-    }
+    waarde
+        .as_object()
+        .filter(|o| o.len() == 1)?
+        .get("kenmerk")?
+        .as_str()
 }
 
 /// What a visitor does in a step.
@@ -1942,7 +1963,7 @@ mod tests {
             "[{stap: toetsen, datum: 2026-02-01, antwoorden: [{bron: 'beleid#1#saldo', verwacht: 0}]}]",
         );
         c.verwijzingen_kloppen().unwrap();
-        let c = casus("[]", "[{stap: toetsen}]");
+        let c = casus("[]", "[{stap: toetsen, datum: 2026-02-01}]");
         assert!(
             fout(&c).contains("without answers to check"),
             "{}",
@@ -1950,10 +1971,28 @@ mod tests {
         );
         let c = casus(
             "[]",
-            "[{stap: toetsen, invoer: {x: 1}, antwoorden: [{bron: 'beleid#1#saldo', verwacht: 0}]}]",
+            "[{stap: toetsen, datum: 2026-02-01, invoer: {x: 1}, antwoorden: [{bron: 'beleid#1#saldo', verwacht: 0}]}]",
         );
         assert!(
             fout(&c).contains("a check step only checks answers"),
+            "{}",
+            fout(&c)
+        );
+        let toets = "antwoorden: [{bron: 'beleid#1#saldo', verwacht: 0}]";
+        let c = casus("[]", &format!("[{{stap: toetsen, {toets}}}]"));
+        assert!(
+            fout(&c).contains("without the day it checks on"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: aanvraag, datum: 2026-03-01}}, {{stap: toetsen, datum: 2026-02-01, {toets}}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("before the play date 2026-03-01"),
             "{}",
             fout(&c)
         );
@@ -1966,14 +2005,14 @@ mod tests {
         let c = casus(
             "[]",
             &format!(
-                "[{{stap: aanvraag}}, {{stap: besluit, kenmerk: b, {antwoord}}}, {{stap: toetsen, {antwoord}}}]"
+                "[{{stap: aanvraag}}, {{stap: besluit, kenmerk: b, {antwoord}}}, {{stap: toetsen, datum: 2026-02-01, {antwoord}}}]"
             ),
         );
         c.verwijzingen_kloppen().unwrap();
         let c = casus(
             "[]",
             &format!(
-                "[{{stap: toetsen, {antwoord}}}, {{stap: aanvraag}}, {{stap: besluit, kenmerk: b}}]"
+                "[{{stap: toetsen, datum: 2026-02-01, {antwoord}}}, {{stap: aanvraag}}, {{stap: besluit, kenmerk: b}}]"
             ),
         );
         assert!(
@@ -1981,7 +2020,10 @@ mod tests {
             "{}",
             fout(&c)
         );
-        let c = casus("[]", &format!("[{{stap: toetsen, {antwoord}}}]"));
+        let c = casus(
+            "[]",
+            &format!("[{{stap: toetsen, datum: 2026-02-01, {antwoord}}}]"),
+        );
         assert!(
             fout(&c).contains("'b', which is the kenmerk of no step"),
             "{}",

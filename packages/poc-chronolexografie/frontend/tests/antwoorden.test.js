@@ -65,7 +65,7 @@ describe('metRecords', () => {
   });
 
   it('refuses a kenmerk whose record is not there', () => {
-    expect(() => metRecords({ besluit: { kenmerk: 'later' } }, () => null)).toThrow("names 'later'");
+    expect(() => metRecords({ besluit: { kenmerk: 'later' } }, () => null)).toThrow("stap 'later'");
   });
 
   it('asks nothing when a kenmerk has no record, and says why', async () => {
@@ -77,6 +77,6 @@ describe('metRecords', () => {
       () => null,
     );
     expect(vraag).not.toHaveBeenCalled();
-    expect(a).toMatchObject({ klopt: false, fout: expect.stringContaining("names 'k'") });
+    expect(a).toMatchObject({ klopt: false, fout: expect.stringContaining("stap 'k'") });
   });
 });

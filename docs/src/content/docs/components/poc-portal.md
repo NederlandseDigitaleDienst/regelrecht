@@ -113,7 +113,7 @@ What a cell answers is often no output of a decision. A payment or a balance is 
 
 The guide beside the page asks the cell for these answers after the step and shows each one beside the value the scenario expects.
 
-Some answers matter on a day when nobody acts, such as what has been paid two weeks after a decision. A `toetsen` step does nothing: it carries a `datum` and `antwoorden`, and no cell, fact, values or outcome. The guide marks it done once the play date reaches its day. A parameter of an answer can name the record of a step by that step's `kenmerk`, written as `{kenmerk: <naam>}`. The app replaces it with the id of that record. The step must be the same step or an earlier one. A kenmerk that no step gives, or that only a later step gives, makes the case fail to load. The voorschot zorgtoeslag case uses both:
+Some answers matter on a day when nobody acts, such as what has been paid two weeks after a decision. A `toetsen` step does nothing: it carries `antwoorden` and a `datum` no earlier than that of the step before, and no cell, fact, values or outcome. The guide marks it done once the play date reaches its day. A parameter of an answer can name the record of a step by that step's `kenmerk`, written as `{kenmerk: <naam>}`. The app replaces it with the id of that record. The step must be the same step or an earlier one. A kenmerk that no step gives, or that only a later step gives, makes the case fail to load. The voorschot zorgtoeslag case uses both:
 
 ```yaml
 - stap: besluit

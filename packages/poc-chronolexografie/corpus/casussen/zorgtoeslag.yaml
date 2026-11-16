@@ -31,8 +31,8 @@ uitkomst: voorschot_verleend
 # aanvraag schat de Dienst in wat hij daarvoor verwacht, zoals het
 # toetsingsinkomen. Het bedrag zelf volgt uit de Wet op de zorgtoeslag en de
 # standaardpremie voor 2025. Tegen het voorschot staat bezwaar open. Het
-# laatste scenario betaalt een eerste termijn uit, volgens een fictief beleid
-# van de Dienst. De toekenning na de aanslag inkomstenbelasting speelt deze
+# laatste scenario betaalt de eerste termijn uit (Awir artikel 22) en legt die
+# vast volgens een fictief beleid van de Dienst. De toekenning na de aanslag inkomstenbelasting speelt deze
 # casus nog niet na.
 
 # Wat de bezoeker leest.
@@ -189,9 +189,11 @@ scenarios:
         feit: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#1#termijn_voorschot_betaald
         verwijst_naar: voorschot
         datum: 2025-01-24
-        verhaal: De Dienst betaalt de eerste termijn, een twaalfde van het voorschot, en legt die vast.
+        verhaal: >-
+          Het besluit is van januari, dus de Dienst betaalt het voorschot in elf
+          termijnen (Awir artikel 22, tweede lid) en legt de eerste vast.
         invoer:
-          bedrag: 13142
+          bedrag: 14336
       - stap: toetsen
         titel: De eerste termijn is betaald
         datum: 2025-02-03
@@ -200,5 +202,5 @@ scenarios:
           - bron: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#2#betaald_op_voorschot
             invoer:
               voorschotbesluit: {kenmerk: voorschot}
-            verwacht: 13142
-    eind: Op het voorschot van € 1.577 is de eerste termijn van € 131,42 betaald.
+            verwacht: 14336
+    eind: Op het voorschot van € 1.577 is de eerste termijn van € 143,36 betaald.

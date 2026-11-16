@@ -11,9 +11,11 @@ valid_from: '2025-01-01'
 # Dienst als bevoegde: de Dienst legt het zelf vast, terwijl hij de zaak
 # behandelt, en het feit verwijst naar het voorschot waarop is betaald
 # (refers_to). Artikel 2 neemt het antwoord van de reductie van de Dienst
-# (reductie_uitbetaling_voorschot): wat er op een voorschot is betaald. Er is
-# geen bekendmaking; de url wijst naar artikel 16 van de Awir.
-url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel16
+# (reductie_uitbetaling_voorschot): wat er op een voorschot is betaald. In
+# hoeveel termijnen het voorschot wordt betaald, zegt artikel 22 van de Awir;
+# dit beleid rekent dat niet na. Er is geen bekendmaking; de url wijst naar
+# dat artikel.
+url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
 name: Betaling van het voorschot zorgtoeslag bij de Dienst Toeslagen (fictief beleid)
 competent_authority:
   name: Dienst Toeslagen
@@ -24,7 +26,7 @@ articles:
       Dienst Toeslagen legt elke termijn vast die hij op een voorschot
       betaalt, met het bedrag. Hoeveel er op een voorschot is betaald, stelt
       de Dienst vast uit die termijnen.
-    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel16
+    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
     machine_readable:
       requires:
         - fact: termijn_voorschot_betaald
@@ -48,7 +50,7 @@ articles:
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Wat
       er op een voorschot is betaald, is de som van de termijnen die de Dienst
       erop vastlegde.
-    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel16
+    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
     machine_readable:
       implements:
         - law: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen
