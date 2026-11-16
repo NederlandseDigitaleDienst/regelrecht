@@ -38,6 +38,8 @@ import { useCorpus } from './corpus';
 // taken-componenten, en anonieme bezoekers pollen nooit).
 import { useEnrichState } from './composables/useEnrichState';
 import { useTrajectsStore } from './stores/trajects';
+import { useFeatureFlagsStore } from './stores/featureFlags';
+import { useScenarios } from './composables/useScenarios';
 import { lawUploadUrl, favoritesUrl, favoriteUrl } from './composables/corpusUrls';
 import { SUPPORT_EMAIL, paneChromeVisible } from './constants';
 import { useAppChromeStore } from './stores/appChrome';
@@ -991,6 +993,22 @@ const searchPopoverRef = ref<InstanceType<typeof SearchPopover> | null>(null);
 registerSearchPopover(searchPopoverRef);
 
 const selectedLawId = ref<string | null>(null);
+
+// The selected regelwerk's scenario files, in a traject: each opens in its own
+// editor tab. Without a traject there is nothing to edit them in.
+const featureFlags = useFeatureFlagsStore();
+const scenariosShown = computed(() => !!activeTrajectRef.value && featureFlags.isEnabled('panel.scenario_form'));
+const { scenarios: scenarioFiles } = useScenarios(
+  computed(() => (scenariosShown.value ? selectedLawId.value : null)),
+  activeTrajectRef,
+);
+function openScenarioFile(filename: string) {
+  if (!activeTrajectRef.value || !selectedLawId.value) return;
+  router.push({
+    name: 'editor-scenario-traject',
+    params: { trajectRef: activeTrajectRef.value, lawId: selectedLawId.value, filename },
+  });
+}
 // Which sidebar section the law was opened from, so only that instance is
 // highlighted (a law can sit in both Favorieten and Recent bekeken). Cleared on
 // non-sidebar selects (search / deep-link); highlightSection then falls back to
@@ -2758,6 +2776,33 @@ watch(activeTrajectRef, () => {
                     </nldd-icon-cell>
                   </nldd-list-item>
                 </nldd-list>
+                <template v-if="scenariosShown && scenarioFiles.length">
+                  <nldd-spacer size="24"></nldd-spacer>
+                  <nldd-title size="display-5">
+                    <h4>Scenario's</h4>
+                  </nldd-title>
+                  <nldd-spacer size="8"></nldd-spacer>
+                  <nldd-list appearance="simple" accessible-label="Scenario's van dit regelwerk">
+                    <nldd-list-item
+                      v-for="file in scenarioFiles"
+                      :key="file.filename"
+                      size="md"
+                      button
+                      :data-testid="`law-scenario-${file.filename}`"
+                      @click="openScenarioFile(file.filename)"
+                    >
+                      <nldd-icon-cell size="20">
+                        <nldd-icon icon="checklist"></nldd-icon>
+                      </nldd-icon-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-text-cell :text="file.filename" supporting-text="Openen in de editor"></nldd-text-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-icon-cell size="20">
+                        <nldd-icon icon="chevron-right"></nldd-icon>
+                      </nldd-icon-cell>
+                    </nldd-list-item>
+                  </nldd-list>
+                </template>
                 <nldd-spacer size="24"></nldd-spacer>
                 <nldd-title size="display-5">
                   <h4>Artikelen</h4>
