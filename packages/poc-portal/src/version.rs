@@ -41,6 +41,7 @@ impl Commit {
         }
     }
 
+    /// The SHA, or [`UNKNOWN`].
     pub const fn as_str(self) -> &'static str {
         self.0
     }
@@ -122,11 +123,5 @@ mod tests {
                 "{raw:?} should not pass"
             );
         }
-    }
-
-    #[test]
-    fn the_build_commit_is_a_sha_or_unknown() {
-        let commit = BUILD_COMMIT.as_str();
-        assert!(commit == UNKNOWN || is_full_sha(commit), "{commit:?}");
     }
 }

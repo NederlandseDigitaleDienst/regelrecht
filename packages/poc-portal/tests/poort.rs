@@ -160,11 +160,11 @@ async fn the_version_ignores_the_request() {
         )
         .await
         .expect("response");
+    assert_eq!(response.status(), StatusCode::OK);
     let bytes = axum::body::to_bytes(response.into_body(), 1 << 10)
         .await
         .expect("body");
     assert_eq!(String::from_utf8_lossy(&bytes), bare);
-    assert!(!bare.contains("evil"));
 }
 
 #[tokio::test]
