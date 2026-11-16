@@ -453,15 +453,33 @@ fn check_projections_targets<'l>(
 ) -> std::result::Result<(), String> {
     for (where_, section) in sections(law) {
         for input in inputs(section) {
-            let Some(reference) = input.source.as_ref().and_then(|s| s.projections.as_deref())
-            else {
+            let Some(source) = input.source.as_ref() else {
+                continue;
+            };
+            let Some(reference) = source.projections.as_deref() else {
                 continue;
             };
             let (target, article) = regelrecht_law_model::split_projections(reference);
             // `lookup` gives this law for its own id.
-            if let Some(held) = lookup(target) {
-                crate::projection::aggregate_projection(held, article)
-                    .map_err(|why| format!("{where_}: input '{}': {why}", input.name))?;
+            let Some(held) = lookup(target) else {
+                continue;
+            };
+            let refuse = |why: String| format!("{where_}: input '{}': {why}", input.name);
+            let projection =
+                crate::projection::aggregate_projection(held, article).map_err(refuse)?;
+            // The roots' law may load later; then the cell checks `where`
+            // when it plays the aggregates.
+            let root = projection
+                .per_basis_and_kind()
+                .and_then(|(basis, _)| basis.split_once('#'))
+                .and_then(|(law_id, number)| lookup(law_id)?.find_article_by_number(number));
+            if let (Some(root), Some(names)) = (root, source.where_.as_ref()) {
+                crate::projection::check_where(
+                    projection,
+                    &[root],
+                    names.keys().map(String::as_str),
+                )
+                .map_err(refuse)?;
             }
         }
     }
