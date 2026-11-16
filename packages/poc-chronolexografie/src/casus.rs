@@ -176,10 +176,18 @@ impl Casus {
     ) -> Result<()> {
         // Per kenmerk of an earlier step, that step's kind and cell.
         let mut stappen: BTreeMap<&str, EerdereStap<'_>> = BTreeMap::new();
+        // The play date of the step before.
+        let mut dag = self.speeldatum;
         for stap in &scenario.stappen {
             let Stap::Handeling(h) = stap else { continue };
             let waar = format!("a step of the scenario '{}'", scenario.naam);
             self.antwoorden_kloppen(h, &waar)?;
+            if h.stap == Soort::Toetsen {
+                self.toetsstap_klopt(h, dag, &waar)?;
+            }
+            if let Some(d) = h.datum {
+                dag = d;
+            }
             if h.stap.is_generiek() {
                 self.generieke_stap_klopt(h, &stappen, &waar)?;
             } else {
@@ -201,6 +209,78 @@ impl Casus {
                     return self.fout(&format!("{waar} gives the kenmerk '{k}' twice"));
                 }
             }
+            // After the step's own kenmerk: an answer is asked once the step
+            // is done, so it may name the step's own record.
+            self.antwoord_kenmerken_kloppen(h, scenario, &stappen, &waar)?;
+        }
+        Ok(())
+    }
+
+    /// A check step (`toetsen`) only checks answers, on a day of its own: it
+    /// names its play date, no earlier than `vorige`, the play date of the
+    /// step before, and it acts on nothing and fills in nothing.
+    fn toetsstap_klopt(&self, h: &Handeling, vorige: NaiveDate, waar: &str) -> Result<()> {
+        match h.datum {
+            None => {
+                return self.fout(&format!(
+                    "{waar} is a check step (toetsen) without the day it checks on (datum)"
+                ));
+            }
+            Some(d) if d < vorige => {
+                return self.fout(&format!(
+                    "{waar} is a check step (toetsen) on {d}, before the play date {vorige} of \
+                     the step before it"
+                ));
+            }
+            Some(_) => {}
+        }
+        if h.antwoorden.is_empty() {
+            return self.fout(&format!(
+                "{waar} is a check step (toetsen) without answers to check (antwoorden)"
+            ));
+        }
+        let handelt = h.cel.is_some()
+            || h.feit.is_some()
+            || h.op.is_some()
+            || h.verwijst_naar.is_some()
+            || !h.invoer.is_empty()
+            || h.uitkomst.is_some()
+            || !h.uitvoer.is_empty();
+        if handelt {
+            return self.fout(&format!(
+                "{waar} is a check step (toetsen) that names a cell, a fact, a record, values \
+                 or an outcome; a check step only checks answers (antwoorden)"
+            ));
+        }
+        Ok(())
+    }
+
+    /// Each kenmerk a parameter of an answer of `h` names (`{kenmerk: ...}`,
+    /// [`Antwoord::kenmerken`]) is that of this step or an earlier step of
+    /// `scenario`, in `stappen`.
+    fn antwoord_kenmerken_kloppen(
+        &self,
+        h: &Handeling,
+        scenario: &Scenario,
+        stappen: &BTreeMap<&str, EerdereStap<'_>>,
+        waar: &str,
+    ) -> Result<()> {
+        for k in h.antwoorden.iter().flat_map(Antwoord::kenmerken) {
+            if stappen.contains_key(k) {
+                continue;
+            }
+            let later = scenario
+                .stappen
+                .iter()
+                .any(|s| matches!(s, Stap::Handeling(l) if l.kenmerk.as_deref() == Some(k)));
+            let wat = if later {
+                "the kenmerk of a later step; an answer can only name a record made by then"
+            } else {
+                "the kenmerk of no step of that scenario"
+            };
+            return self.fout(&format!(
+                "{waar} expects an answer whose parameters name '{k}', which is {wat}"
+            ));
         }
         Ok(())
     }
@@ -549,7 +629,8 @@ pub struct Handeling {
     /// Answers a cell of the case gives once the step is done, on its play
     /// date, with the value the scenario expects ([`Antwoord`]), such as
     /// what a payment leaves outstanding: an answer of a reduction, which no
-    /// decision holds.
+    /// decision holds. A check step ([`Soort::Toetsen`]) has these and
+    /// nothing else.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub antwoorden: Vec<Antwoord>,
     /// What happens in the case at this step, in one sentence, as the guide
@@ -571,7 +652,9 @@ pub struct Handeling {
 /// date of the step (`Cell::consult`), with the parameters `invoer`. The
 /// source is a law or the cell's own policy, never a reduction: a cell takes
 /// what a reduction gives only through a binding (RFC-056). Without `cel`,
-/// the case's own cell answers.
+/// the case's own cell answers. A parameter written as `{kenmerk: <naam>}`
+/// takes the id of the record of that step of the scenario
+/// ([`Antwoord::kenmerken`]).
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(deny_unknown_fields)]
 pub struct Antwoord {
@@ -581,6 +664,26 @@ pub struct Antwoord {
     #[serde(default, skip_serializing_if = "Map::is_empty")]
     pub invoer: Map<String, Value>,
     pub verwacht: Value,
+}
+
+impl Antwoord {
+    /// The kenmerken the parameters of the answer name: a parameter written
+    /// as `{kenmerk: <naam>}` takes the id of the record of the step of the
+    /// scenario with that kenmerk, such as the decision whose balance the
+    /// answer gives.
+    pub fn kenmerken(&self) -> impl Iterator<Item = &str> {
+        self.invoer.values().filter_map(kenmerk_van)
+    }
+}
+
+/// The kenmerk `waarde` names when it is written as `{kenmerk: <naam>}`, a
+/// reference to the record of a step of the scenario.
+pub fn kenmerk_van(waarde: &Value) -> Option<&str> {
+    waarde
+        .as_object()
+        .filter(|o| o.len() == 1)?
+        .get("kenmerk")?
+        .as_str()
 }
 
 /// What a visitor does in a step.
@@ -619,6 +722,10 @@ pub enum Soort {
     Toezenden,
     /// The authority decides on the objection again after a judgment.
     OpnieuwBeslissen,
+    /// Nothing is done: on the step's play date the scenario checks the
+    /// answers it expects of a cell ([`Handeling::antwoorden`]), such as the
+    /// interest that is due the day after a payment came too late.
+    Toetsen,
 }
 
 impl Soort {
@@ -1844,6 +1951,81 @@ mod tests {
         );
         assert!(
             fout(&c).contains("which is no <regelwerk>#<article>#<output>"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    #[test]
+    fn a_check_step_only_checks_answers() {
+        let c = casus(
+            "[]",
+            "[{stap: toetsen, datum: 2026-02-01, antwoorden: [{bron: 'beleid#1#saldo', verwacht: 0}]}]",
+        );
+        c.verwijzingen_kloppen().unwrap();
+        let c = casus("[]", "[{stap: toetsen, datum: 2026-02-01}]");
+        assert!(
+            fout(&c).contains("without answers to check"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus(
+            "[]",
+            "[{stap: toetsen, datum: 2026-02-01, invoer: {x: 1}, antwoorden: [{bron: 'beleid#1#saldo', verwacht: 0}]}]",
+        );
+        assert!(
+            fout(&c).contains("a check step only checks answers"),
+            "{}",
+            fout(&c)
+        );
+        let toets = "antwoorden: [{bron: 'beleid#1#saldo', verwacht: 0}]";
+        let c = casus("[]", &format!("[{{stap: toetsen, {toets}}}]"));
+        assert!(
+            fout(&c).contains("without the day it checks on"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: aanvraag, datum: 2026-03-01}}, {{stap: toetsen, datum: 2026-02-01, {toets}}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("before the play date 2026-03-01"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    #[test]
+    fn an_answer_names_a_record_by_the_kenmerk_of_this_or_an_earlier_step() {
+        let antwoord =
+            "antwoorden: [{bron: 'beleid#1#saldo', invoer: {besluit: {kenmerk: b}}, verwacht: 0}]";
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: aanvraag}}, {{stap: besluit, kenmerk: b, {antwoord}}}, {{stap: toetsen, datum: 2026-02-01, {antwoord}}}]"
+            ),
+        );
+        c.verwijzingen_kloppen().unwrap();
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: toetsen, datum: 2026-02-01, {antwoord}}}, {{stap: aanvraag}}, {{stap: besluit, kenmerk: b}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("'b', which is the kenmerk of a later step"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus(
+            "[]",
+            &format!("[{{stap: toetsen, datum: 2026-02-01, {antwoord}}}]"),
+        );
+        assert!(
+            fout(&c).contains("'b', which is the kenmerk of no step"),
             "{}",
             fout(&c)
         );

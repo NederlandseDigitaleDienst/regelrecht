@@ -18,6 +18,7 @@ use std::collections::{HashMap, HashSet};
 
 use chrono::NaiveDate;
 use regelrecht_law_model::stored;
+use regelrecht_poc_chronolexografie::casus::kenmerk_van;
 use regelrecht_poc_chronolexografie::spel::Spel;
 use serde::Serialize;
 use serde_json::{Map, Value, json};
@@ -198,6 +199,8 @@ impl Speler<'_> {
             "uitspraak" => self.uitspraak(stap, datum),
             "toezenden" => self.toezenden(stap, datum),
             "opnieuw_beslissen" => self.opnieuw_beslissen(stap, datum, rij),
+            // Nothing to do: the answers below are the step.
+            "toetsen" => Ok(()),
             "indienen" | "beslissen" | "ambtshalve" | "afschrift" => {
                 self.generiek(stap, soort, &vormen, datum, rij)
             }
@@ -224,7 +227,8 @@ impl Speler<'_> {
         for a in verwacht {
             let bron = a["bron"].as_str().ok_or("an answer without 'bron'")?;
             let cel = a["cel"].as_str();
-            let gegeven = self.spel.antwoord(cel, bron, &map(&a["invoer"]), datum);
+            let invoer = self.met_records(&a["invoer"])?;
+            let gegeven = self.spel.antwoord(cel, bron, &invoer, datum);
             let (kreeg, mut fout) = match gegeven {
                 Ok(g) => (g["waarde"].clone(), None),
                 Err(e) => (Value::Null, Some(e.to_string())),
@@ -538,6 +542,23 @@ impl Speler<'_> {
             rij["uitvoer"] = json!(uitvoer(stap, &gram["outputs"]));
         }
         self.kenmerk(stap, &gram)
+    }
+
+    /// The parameters `invoer` of an answer, with each `{kenmerk: <naam>}`
+    /// replaced by the id of the record of the step with that kenmerk.
+    fn met_records(&self, invoer: &Value) -> Result<Map<String, Value>, String> {
+        map(invoer)
+            .into_iter()
+            .map(|(naam, waarde)| match kenmerk_van(&waarde) {
+                Some(k) => self
+                    .stand
+                    .kenmerken
+                    .get(k)
+                    .map(|id| (naam.clone(), json!(id)))
+                    .ok_or_else(|| format!("parameter '{naam}' names '{k}', which no step made")),
+                None => Ok((naam, waarde)),
+            })
+            .collect()
     }
 
     /// Keep the id of `gram` under the kenmerk `stap` gives it, if any, for

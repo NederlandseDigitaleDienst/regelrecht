@@ -179,6 +179,20 @@ describe('bouwGids', () => {
     ]);
   });
 
+  it('makes a check step done once its play date is reached', () => {
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [{ stap: 'toetsen', datum: '2026-03-02', antwoorden: [{ bron: 'b#1#x', verwacht: 0 }] }],
+      },
+      { cel: 'dienst', andere_cellen: [] },
+    );
+    const [toets] = g.steps;
+    expect(toets.tab).toBe('bestuursorgaan');
+    expect(toets.done({ datum: '2026-03-01' })).toBe(false);
+    expect(toets.done({ datum: '2026-03-02' })).toBe(true);
+  });
+
   it('carries the answers a step expects, with the play date to ask them on', () => {
     const antwoorden = [{ bron: 'beleid#1#betaalde_leges', verwacht: 5000 }];
     const g = bouwGids(

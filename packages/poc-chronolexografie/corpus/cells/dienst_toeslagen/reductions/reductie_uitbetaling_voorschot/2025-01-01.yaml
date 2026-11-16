@@ -1,0 +1,73 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: reductie_uitbetaling_voorschot
+regulatory_layer: REDUCTIE
+publication_date: '2024-12-01'
+valid_from: '2025-01-01'
+# Geen regelgeving: een reductie van de Dienst Toeslagen over zijn eigen
+# kroniek (RFC-048), met twee artikelen. Artikel termijn is een aggregaat per
+# betaalde termijn (fictief_beleid_uitbetaling_voorschot_dienst_toeslagen,
+# artikel 1), met het bedrag en het voorschot waarop is betaald. Artikel
+# betaald_op_voorschot telt de termijnen op één voorschot op. De cel geeft de
+# uitvoer als het antwoord betaald_op_voorschot (cel.yaml), en artikel 2 van
+# het fictieve beleid neemt het. Het telt met een filter in FOREACH en niet
+# met where op de projectie: where op voorschotbesluit, dat uit
+# $record.refers_to komt, gaf geen rijen; de oorzaak is niet onderzocht. Er is
+# geen bekendmaking; de url wijst naar artikel 22 van de Awir.
+url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
+name: Betaald op een voorschot zorgtoeslag (reductie)
+articles:
+  - number: termijn
+    text: >-
+      Geen regelgeving. Het systeem van de Dienst Toeslagen houdt door middel
+      van een chronolexografische reductie op zijn eigen kroniek per betaalde
+      termijn bij welk bedrag is betaald, en op welk voorschot.
+    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
+    machine_readable:
+      projection:
+        per: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#1#termijn_voorschot_betaald
+        state:
+          - name: bedrag
+            type: amount
+          - name: voorschotbesluit
+            type: string
+        steps:
+          - record: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#1#termijn_voorschot_betaald
+            actions:
+              - output: bedrag
+                value: $record.bedrag
+              - output: voorschotbesluit
+                value: $record.refers_to
+  - number: betaald_op_voorschot
+    text: >-
+      Geen regelgeving. Het systeem van de Dienst Toeslagen telt door middel
+      van een chronolexografische reductie op zijn eigen kroniek de termijnen
+      op die hij op een voorschot betaalde.
+    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
+    machine_readable:
+      execution:
+        parameters:
+          - name: voorschotbesluit
+            type: string
+            description: Het besluit waarmee de Dienst het voorschot verleende.
+        input:
+          - name: termijnen
+            type: array
+            source:
+              projections: reductie_uitbetaling_voorschot#termijn
+        output:
+          - name: betaald_op_voorschot
+            type: amount
+            description: Wat de Dienst op het voorschot betaalde, in eurocent.
+        actions:
+          - output: betaald_op_voorschot
+            value:
+              operation: FOREACH
+              collection: $termijnen
+              as: termijn
+              filter:
+                operation: EQUALS
+                subject: $termijn.voorschotbesluit
+                value: $voorschotbesluit
+              body: $termijn.bedrag
+              combine: ADD

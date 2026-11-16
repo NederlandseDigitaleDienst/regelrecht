@@ -116,6 +116,18 @@ export function scenarioVerwijzing(cel, feit) {
 }
 
 /**
+ * The id of the record that the step of the scenario with `kenmerk` made, or
+ * null when no step gives it or its record is not there (yet). The guide
+ * knows the record of a decision and of a record step (`recordVan`); a
+ * scenario of generic steps has no guide (scenarioGuides.js).
+ */
+export function recordMetKenmerk(kenmerk) {
+  const guide = guideFor(state.casus, state.scenario);
+  const step = guide?.steps.find((s) => s.stap.kenmerk === kenmerk);
+  return step ? recordVan(step) : null;
+}
+
+/**
  * The id of the record that the done step `step` made, or null: the decision
  * on its application, or the executogram it recorded, counted among the
  * records of its fact in the chronicle of its cell.

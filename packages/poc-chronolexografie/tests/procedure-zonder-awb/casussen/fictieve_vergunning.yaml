@@ -107,3 +107,10 @@ scenarios:
           - bron: fictief_beleid_leges#1#betaalde_leges
             cel: fictieve_dienst
             verwacht: 0
+      # A check step: nothing is done, and on its day the scenario checks
+      # what the service's own cell answers.
+      - stap: toetsen
+        datum: 2026-03-02
+        antwoorden:
+          - bron: fictief_beleid_leges#1#betaalde_leges
+            verwacht: 0

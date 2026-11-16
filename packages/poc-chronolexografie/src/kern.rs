@@ -4975,6 +4975,8 @@ mod tests {
                 "algemene_wet_inkomensafhankelijke_regelingen",
                 "algemene_wet_inzake_rijksbelastingen",
                 "beleid_zorgtoeslag_dienst_toeslagen",
+                "fictief_beleid_uitbetaling_voorschot_dienst_toeslagen",
+                "reductie_uitbetaling_voorschot",
                 "regeling_standaardpremie",
                 "wet_inkomstenbelasting_2001",
                 "wet_op_de_zorgtoeslag",

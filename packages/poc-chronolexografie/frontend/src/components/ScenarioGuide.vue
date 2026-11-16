@@ -11,7 +11,7 @@
 import { computed, ref, watch } from 'vue';
 import { toetsAntwoorden } from '../antwoorden.js';
 import { loginHint } from '../inloggen.js';
-import { scenarioWaarden } from '../scenarioInvoer.js';
+import { recordMetKenmerk, scenarioWaarden } from '../scenarioInvoer.js';
 import { counts, progress } from '../scenarioProgress.js';
 import { hoofdletter, leesbaar, longDate, state, waarde } from '../state.js';
 
@@ -47,7 +47,7 @@ watch(
   ],
   async ([step, datum]) => {
     const deze = ++vraag;
-    const uit = step?.antwoorden?.length ? await toetsAntwoorden(step, datum) : [];
+    const uit = step?.antwoorden?.length ? await toetsAntwoorden(step, datum, undefined, recordMetKenmerk) : [];
     if (deze === vraag) antwoorden.value = uit;
   },
   { immediate: true },

@@ -123,6 +123,18 @@ const KINDS = {
     seen: () => 'Het bestuursorgaan legt de ontvangst vast (Awb 8:79).',
     done: (n) => (k) => k.ontvangsten >= n,
   },
+  // Nothing to do but reach the step's play date: the guide then asks the
+  // cell for the answers the step expects (antwoorden.js).
+  // The guide itself shows the answers; the tab is where the case's own
+  // cell is, whose answers a scenario mostly checks.
+  toetsen: {
+    tab: 'bestuursorgaan',
+    title: () => 'Toetsen',
+    todo: 'Zet de speeldatum op de dag van deze stap; de gids vraagt de cel dan om haar antwoorden.',
+    seen: () => 'De gids toont de antwoorden van de cel.',
+    // The case refuses a check step without a play date (src/casus.rs).
+    done: (n, stap) => (k) => (k.datum ?? '') >= stap.datum,
+  },
   opnieuw_beslissen: {
     tab: 'bestuursorgaan',
     title: () => 'Opnieuw beslissen',

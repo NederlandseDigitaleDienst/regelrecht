@@ -629,21 +629,30 @@ fn leges_met_antwoord(waarde: Value) -> BTreeMap<String, String> {
 /// The fictional procedure of `ZONDER_AWB` as a source, with `wijzig` applied
 /// to the first answer its fees scenario expects.
 fn leges_met(wijzig: impl FnOnce(&mut Value)) -> BTreeMap<String, String> {
+    leges_stappen(|stappen| {
+        let stap = stappen
+            .iter_mut()
+            .find(|s| s.get("antwoorden").is_some())
+            .unwrap();
+        wijzig(&mut stap["antwoorden"][0]);
+    })
+}
+
+/// The fictional procedure of `ZONDER_AWB` as a source, with `wijzig`
+/// applied to the steps of its fees scenario.
+fn leges_stappen(wijzig: impl FnOnce(&mut Vec<Value>)) -> BTreeMap<String, String> {
     let mut bestanden = bestanden(&crate_dir().join(ZONDER_AWB));
     let pad = "casussen/fictieve_vergunning.yaml";
     let mut casus: Value = serde_yaml_ng::from_str(&bestanden[pad]).unwrap();
-    let stap = casus["scenarios"]
+    let stappen = casus["scenarios"]
         .as_array_mut()
         .unwrap()
         .iter_mut()
         .find(|s| s["naam"] == "Verleend, leges betaald en terugbetaald")
         .unwrap()["stappen"]
         .as_array_mut()
-        .unwrap()
-        .iter_mut()
-        .find(|s| s.get("antwoorden").is_some())
         .unwrap();
-    wijzig(&mut stap["antwoorden"][0]);
+    wijzig(stappen);
     bestanden.insert(pad.into(), serde_yaml_ng::to_string(&casus).unwrap());
     bestanden
 }
@@ -674,8 +683,12 @@ fn a_step_checks_an_answer_of_a_cell() {
                      "verwacht": 5000, "kreeg": 5000, "klopt": true}]),
             &json!([{"bron": "fictief_beleid_leges#1#betaalde_leges", "cel": "fictieve_dienst",
                      "verwacht": 0, "kreeg": 0, "klopt": true}]),
+            &json!([{"bron": "fictief_beleid_leges#1#betaalde_leges", "cel": "fictieve_dienst",
+                     "verwacht": 0, "kreeg": 0, "klopt": true}]),
         ]
     );
+    // The check step (toetsen) did nothing but check its answers.
+    assert_eq!(verslag["stappen"][4]["soort"], json!("toetsen"));
     std::fs::remove_dir_all(&uit).unwrap();
 
     let (mut spel, stand) = spel_met_bron(leges_met_antwoord(json!(4000)));
@@ -743,4 +756,58 @@ fn an_answer_straight_from_a_reduction_is_refused() {
         )
         .unwrap_err();
     assert!(e.to_string().contains("no other cell"), "{e}");
+}
+
+/// A check step (toetsen) does nothing; on its day it checks the answers it
+/// expects, and a different answer fails on that step.
+#[test]
+fn a_check_step_fails_on_a_different_answer() {
+    let (mut spel, stand) = spel_met_bron(leges_stappen(|stappen| {
+        let toets = stappen.last_mut().unwrap();
+        assert_eq!(toets["stap"], json!("toetsen"));
+        toets["antwoorden"][0]["verwacht"] = json!(4000);
+    }));
+    let fouten = speel_bron(&mut spel, &stand, None);
+    assert_eq!(
+        fouten,
+        [
+            "fictieve_vergunning, 'Verleend, leges betaald en terugbetaald', step 5: answer \
+          'fictief_beleid_leges#1#betaalde_leges' of 'fictieve_dienst': expected 4000, got 0"
+        ]
+    );
+}
+
+/// A parameter of an answer names a record by the kenmerk of a step. A
+/// kenmerk no step gives, or one a later step gives, is an error of the case
+/// when it loads, not an empty parameter when it plays.
+#[test]
+fn an_answer_names_a_record_by_the_kenmerk_of_a_step_made_by_then() {
+    for (kenmerk, melding) in [
+        (
+            "onbekend",
+            "parameters name 'onbekend', which is the kenmerk of no step",
+        ),
+        (
+            "betaling",
+            "parameters name 'betaling', which is the kenmerk of a later step",
+        ),
+    ] {
+        let (mut spel, stand) = spel_met_bron(leges_stappen(|stappen| {
+            // The decision, before the payment that gives `betaling`.
+            let besluit = stappen
+                .iter_mut()
+                .find(|s| s["stap"] == json!("beslissen"))
+                .unwrap();
+            besluit["antwoorden"] = json!([{
+                "bron": "fictief_beleid_leges#1#betaalde_leges",
+                "invoer": {"betaling": {"kenmerk": kenmerk}},
+                "verwacht": 0,
+            }]);
+        }));
+        let fouten = speel_bron(&mut spel, &stand, None);
+        assert!(
+            fouten.iter().any(|f| f.contains(melding)),
+            "{kenmerk}: {fouten:?}"
+        );
+    }
 }

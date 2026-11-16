@@ -1,0 +1,83 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2024-12-01'
+valid_from: '2025-01-01'
+# FICTIEF uitvoeringsbeleid van de Dienst Toeslagen, eigen keuze in de
+# modellering: geen bekendgemaakt beleid. Het laat zien hoe de Dienst de
+# betaling van een voorschot in zijn eigen kroniek vastlegt en wat hij
+# daaruit weet. Artikel 1 vereist het feit van een betaalde termijn, met de
+# Dienst als bevoegde: de Dienst legt het zelf vast, terwijl hij de zaak
+# behandelt, en het feit verwijst naar het voorschot waarop is betaald
+# (refers_to). Artikel 2 neemt het antwoord van de reductie van de Dienst
+# (reductie_uitbetaling_voorschot): wat er op een voorschot is betaald. In
+# hoeveel termijnen het voorschot wordt betaald, zegt artikel 22 van de Awir;
+# dit beleid rekent dat niet na. Er is geen bekendmaking; de url wijst naar
+# dat artikel.
+url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
+name: Betaling van het voorschot zorgtoeslag bij de Dienst Toeslagen (fictief beleid)
+competent_authority:
+  name: Dienst Toeslagen
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. De
+      Dienst Toeslagen legt elke termijn vast die hij op een voorschot
+      betaalt, met het bedrag. Hoeveel er op een voorschot is betaald, stelt
+      de Dienst vast uit die termijnen.
+    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
+    machine_readable:
+      requires:
+        - fact: termijn_voorschot_betaald
+          description: Dat de Dienst een termijn betaalde op het voorschot waarnaar het feit verwijst.
+          competent_authority:
+            - name: Dienst Toeslagen
+          parameters:
+            - bedrag
+      open_terms:
+        - id: betaald_op_voorschot
+          type: amount
+          required: true
+          description: Wat de Dienst op een voorschot betaalde, in eurocent.
+      execution:
+        parameters:
+          - name: bedrag
+            type: amount
+            description: Het bedrag van de termijn, in eurocent.
+  - number: '2'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Wat
+      er op een voorschot is betaald, is de som van de termijnen die de Dienst
+      erop vastlegde.
+    url: https://wetten.overheid.nl/BWBR0018472/2025-01-01#Artikel22
+    machine_readable:
+      implements:
+        - law: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen
+          article: '1'
+          open_term: betaald_op_voorschot
+      execution:
+        parameters:
+          - name: voorschotbesluit
+            type: string
+            description: Het besluit op de aanvraag waarmee de Dienst het voorschot verleende.
+        input:
+          - name: antwoord_betaald_op_voorschot
+            type: amount
+            nullable: true
+            source:
+              reduction: betaald_op_voorschot
+              parameters:
+                voorschotbesluit: $voorschotbesluit
+        output:
+          - name: betaald_op_voorschot
+            type: amount
+            description: Wat de Dienst op het voorschot betaalde, in eurocent.
+        actions:
+          - output: betaald_op_voorschot
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_betaald_op_voorschot, value: null}
+                  then: 0
+              default: $antwoord_betaald_op_voorschot
