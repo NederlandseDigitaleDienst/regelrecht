@@ -178,6 +178,24 @@ describe('bouwGids', () => {
       [1, 2],
     ]);
   });
+
+  it('carries the answers a step expects, with the play date to ask them on', () => {
+    const antwoorden = [{ bron: 'beleid#1#betaalde_leges', verwacht: 5000 }];
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [
+          { stap: 'aanvraag', datum: '2026-02-09' },
+          { stap: 'besluit', antwoorden },
+        ],
+      },
+      { cel: 'dienst', speeldatum: '2026-02-02', andere_cellen: [] },
+    );
+    expect(g.steps.map((s) => [s.antwoordDatum, s.antwoorden])).toEqual([
+      ['2026-02-09', []],
+      ['2026-02-09', antwoorden],
+    ]);
+  });
 });
 
 describe('guideFor', () => {

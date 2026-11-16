@@ -1,0 +1,45 @@
+---
+# FICTIEF. The policy of the fictional service, for tests/scenarios/: it
+# takes the answer of the service's own cell on the fees it received and did
+# not refund (reductie_leges). A scenario checks that answer (`antwoorden`)
+# through this article, as `Cell::consult` computes it: a cell takes what a
+# reduction gives only through a binding in a law or in its own policy
+# (RFC-056).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: fictief_beleid_leges
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.invalid/fictief_beleid_leges
+name: Leges van de fictieve dienst (fictief beleid)
+competent_authority:
+  name: Fictieve dienst
+articles:
+  - number: '1'
+    url: https://example.invalid/fictief_beleid_leges#1
+    text: >-
+      FICTIEF. De betaalde leges zijn de leges die de dienst ontving en niet
+      terugbetaalde.
+    machine_readable:
+      implements:
+        - law: fictieve_vergunningwet
+          article: '4'
+          open_term: betaalde_leges
+      execution:
+        input:
+          - name: antwoord_betaalde_leges
+            type: amount
+            nullable: true
+            source:
+              reduction: betaalde_leges
+        output:
+          - name: betaalde_leges
+            type: amount
+        actions:
+          - output: betaalde_leges
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_betaalde_leges, value: null}
+                  then: 0
+              default: $antwoord_betaalde_leges

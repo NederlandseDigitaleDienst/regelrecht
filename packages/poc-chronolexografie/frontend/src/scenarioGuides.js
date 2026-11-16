@@ -25,7 +25,8 @@
  * scenarioProgress.counts()), optionally what the scenario expects of it
  * (`expect`: a test and the text of the warning when it fails), the
  * instructions before it (`notes`), the step of the YAML (`stap`) and,
- * counted from 1, what it acts on (`doel`).
+ * counted from 1, what it acts on (`doel`), and the answers it expects of a
+ * cell (`antwoorden`) with the play date to ask them on (`antwoordDatum`).
  *
  * The texts name the buttons and fields as the components label them;
  * change them together.
@@ -181,6 +182,8 @@ export function bouwGids(scenario, casus = null) {
   const uitkomsten = {};
   // The instructions not yet given to an action.
   let notes = [];
+  // The play date so far: a step without one plays on the date before it.
+  let datum = casus?.speeldatum ?? null;
   const steps = scenario.stappen.flatMap((stap) => {
     if (typeof stap !== 'object' || stap === null) {
       notes.push(String(stap));
@@ -188,6 +191,7 @@ export function bouwGids(scenario, casus = null) {
     }
     const kind = KINDS[stap.stap];
     if (!kind) throw new Error(`unknown step '${stap.stap}' in "${scenario.naam}"`);
+    if (stap.datum) datum = stap.datum;
     const n = (geteld[stap.stap] = (geteld[stap.stap] ?? 0) + 1);
     // What the step acts on, counted from 1; a decision and a decision on
     // objection count the application and the objection it decides on.
@@ -259,6 +263,10 @@ export function bouwGids(scenario, casus = null) {
               (inCel[`${vastleggendeCel(stap, casus)} ${stap.feit}`] ?? 0) + 1)
           : 0,
       vooraf: stap.stap === 'vastleggen' ? vooraf(casus, stap.feit, vastleggendeCel(stap, casus)) : 0,
+      // The answers the scenario expects of a cell once the step is done,
+      // and the play date it asks them on (antwoorden.js).
+      antwoorden: stap.antwoorden ?? [],
+      antwoordDatum: datum,
     };
     notes = [];
     return [step];

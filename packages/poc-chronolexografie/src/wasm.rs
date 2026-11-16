@@ -224,6 +224,21 @@ impl Poc {
         antwoord(self.spel.toezenden(besluit, dag(datum)?))
     }
 
+    /// What the cell `cel` (or the case's own) answers on `datum` for the
+    /// output `bron`, with the parameters `invoer`; nothing is recorded.
+    pub fn antwoord(
+        &mut self,
+        cel: Option<String>,
+        bron: &str,
+        invoer: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(
+            self.spel
+                .antwoord(cel.as_deref(), bron, &kaart("invoer", invoer)?, dag(datum)?),
+        )
+    }
+
     pub fn waarom(&mut self, id: &str) -> Result<String, JsError> {
         antwoord(self.spel.waarom(id))
     }

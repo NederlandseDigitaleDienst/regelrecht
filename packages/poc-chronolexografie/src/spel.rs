@@ -296,6 +296,26 @@ impl Spel {
         ok(self.met(|c, cell| kern::toezenden(c, cell, besluit, datum))?)
     }
 
+    /// What the cell `cel` of the case, or without one the case's own cell,
+    /// answers on `datum` for the output `bron` with the parameters `invoer`
+    /// ([`kern::antwoord`]). Nothing is recorded.
+    ///
+    /// # Errors
+    ///
+    /// As [`kern::antwoord`], and when no case is chosen.
+    pub fn antwoord(
+        &mut self,
+        cel: Option<&str>,
+        bron: &str,
+        invoer: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| {
+            let cel = cel.unwrap_or(&c.casus.cel);
+            kern::antwoord(c, cell, cel, bron, invoer, datum)
+        })?)
+    }
+
     pub fn waarom(&mut self, id: &str) -> Antwoord {
         ok(self.met(|c, cell| kern::waarom(c, cell, id))?)
     }

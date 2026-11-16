@@ -179,6 +179,7 @@ impl Casus {
         for stap in &scenario.stappen {
             let Stap::Handeling(h) = stap else { continue };
             let waar = format!("a step of the scenario '{}'", scenario.naam);
+            self.antwoorden_kloppen(h, &waar)?;
             if h.stap.is_generiek() {
                 self.generieke_stap_klopt(h, &stappen, &waar)?;
             } else {
@@ -314,11 +315,38 @@ impl Casus {
     /// without one the case's own cell. `None` when it names a cell that is
     /// not of the case.
     pub fn vastleggende_cel<'c>(&'c self, h: &'c Handeling) -> Option<&'c str> {
-        match h.cel.as_deref() {
+        self.cel_van(h.cel.as_deref())
+    }
+
+    /// The cell `cel` names, or without one the case's own cell. `None`
+    /// when it names a cell that is not of the case.
+    pub fn cel_van<'c>(&'c self, cel: Option<&'c str>) -> Option<&'c str> {
+        match cel {
             None => Some(&self.cel),
             Some(c) if c == self.cel || self.andere_cellen.iter().any(|a| a.cel == c) => Some(c),
             Some(_) => None,
         }
+    }
+
+    /// Each answer the step `h` expects names a cell of the case and an
+    /// output as `<regelwerk>#<article>#<output>`.
+    fn antwoorden_kloppen(&self, h: &Handeling, waar: &str) -> Result<()> {
+        for a in &h.antwoorden {
+            if self.cel_van(a.cel.as_deref()).is_none() {
+                return self.fout(&format!(
+                    "{waar} expects an answer of '{}', which is no cell of the case",
+                    a.cel.as_deref().unwrap_or_default()
+                ));
+            }
+            if a.bron.split('#').count() != 3 || a.bron.split('#').any(str::is_empty) {
+                return self.fout(&format!(
+                    "{waar} expects an answer of '{}', which is no \
+                     <regelwerk>#<article>#<output>",
+                    a.bron
+                ));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -518,6 +546,12 @@ pub struct Handeling {
     /// the new decision a decision on objection takes in its place.
     #[serde(default, skip_serializing_if = "Map::is_empty")]
     pub uitvoer: Map<String, Value>,
+    /// Answers a cell of the case gives once the step is done, on its play
+    /// date, with the value the scenario expects ([`Antwoord`]), such as
+    /// what a payment leaves outstanding: an answer of a reduction, which no
+    /// decision holds.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub antwoorden: Vec<Antwoord>,
     /// What happens in the case at this step, in one sentence, as the guide
     /// shows it above what the visitor does. Optional, so a source without
     /// it still loads.
@@ -530,6 +564,23 @@ pub struct Handeling {
     pub tekst: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gezien: Option<String>,
+}
+
+/// An answer a scenario expects of a cell: the output `bron`
+/// (`<regelwerk>#<article>#<output>`) as the cell computes it on the play
+/// date of the step (`Cell::consult`), with the parameters `invoer`. The
+/// source is a law or the cell's own policy, never a reduction: a cell takes
+/// what a reduction gives only through a binding (RFC-056). Without `cel`,
+/// the case's own cell answers.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Antwoord {
+    pub bron: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cel: Option<String>,
+    #[serde(default, skip_serializing_if = "Map::is_empty")]
+    pub invoer: Map<String, Value>,
+    pub verwacht: Value,
 }
 
 /// What a visitor does in a step.
@@ -1768,5 +1819,33 @@ mod tests {
             "[{stap: aanvraag, verwijst_naar: a}]",
         );
         assert!(fout(&c).contains("only a record step (vastleggen) or a generic step refers"));
+    }
+
+    #[test]
+    fn an_expected_answer_names_a_cell_of_the_case_and_an_output() {
+        let c = casus(
+            "[]",
+            "[{stap: aanvraag, antwoorden: [{bron: 'beleid#1#saldo', verwacht: 0}, \
+             {bron: 'beleid#1#saldo', cel: register, invoer: {x: 1}, verwacht: 0}]}]",
+        );
+        c.verwijzingen_kloppen().unwrap();
+        let c = casus(
+            "[]",
+            "[{stap: aanvraag, antwoorden: [{bron: 'beleid#1#saldo', cel: elders, verwacht: 0}]}]",
+        );
+        assert!(
+            fout(&c).contains("'elders', which is no cell of the case"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus(
+            "[]",
+            "[{stap: aanvraag, antwoorden: [{bron: 'beleid#saldo', verwacht: 0}]}]",
+        );
+        assert!(
+            fout(&c).contains("which is no <regelwerk>#<article>#<output>"),
+            "{}",
+            fout(&c)
+        );
     }
 }

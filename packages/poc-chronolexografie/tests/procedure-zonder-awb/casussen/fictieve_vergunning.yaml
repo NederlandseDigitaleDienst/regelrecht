@@ -7,6 +7,7 @@ cel: fictieve_dienst
 artikel: fictieve_vergunningwet#1
 corpus:
   - regulation/nl/wet/fictieve_vergunningwet
+  - regulation/nl/uitvoeringsbeleid/fictief_beleid_leges
 uitkomst: vergunning_verleend
 titel: Fictieve vergunning
 cel_naam: Fictieve dienst
@@ -89,6 +90,12 @@ scenarios:
         datum: 2026-02-16
         invoer:
           bedrag: 5000
+        # What the service's own cell answers on the day of this step, as
+        # Cell::consult computes it: the output of its policy, which takes the
+        # answer of its reduction.
+        antwoorden:
+          - bron: fictief_beleid_leges#1#betaalde_leges
+            verwacht: 5000
       - stap: vastleggen
         cel: fictieve_dienst
         feit: fictieve_vergunningwet#4#leges_terugbetaald
@@ -96,3 +103,7 @@ scenarios:
         datum: 2026-02-23
         invoer:
           bedrag: 5000
+        antwoorden:
+          - bron: fictief_beleid_leges#1#betaalde_leges
+            cel: fictieve_dienst
+            verwacht: 0

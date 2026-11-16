@@ -5,12 +5,15 @@
 // and the one thing to do, with the values it takes. How far they are comes from the
 // chronicles (scenarioProgress.js), so free play in between counts too; a
 // step that departs from the scenario gives a warning, not a block. On a
-// narrow screen the split view shows this as a sheet.
-import { computed } from 'vue';
+// narrow screen the split view shows this as a sheet. Where the last step
+// done expects answers of a cell (antwoorden.js), the guide shows what the
+// cell answers beside what the scenario expects.
+import { computed, ref, watch } from 'vue';
+import { toetsAntwoorden } from '../antwoorden.js';
 import { loginHint } from '../inloggen.js';
 import { scenarioWaarden } from '../scenarioInvoer.js';
 import { counts, progress } from '../scenarioProgress.js';
-import { hoofdletter, longDate, state } from '../state.js';
+import { hoofdletter, leesbaar, longDate, state, waarde } from '../state.js';
 
 const props = defineProps({
   // The guide (scenarioGuides.js) and the scenario of the case YAML it follows.
@@ -28,6 +31,34 @@ const total = computed(() => props.guide.steps.length);
 const current = computed(() => props.guide.steps[p.value.current] ?? null);
 // What the visitor sees now: what the last step done left behind.
 const seen = computed(() => (p.value.current > 0 ? props.guide.steps[p.value.current - 1].seen : null));
+
+// The answers of the last step done, asked again whenever a chronicle
+// changes; a later answer wins over one still on its way.
+const vorige = computed(() => props.guide.steps[p.value.current - 1] ?? null);
+const antwoorden = ref([]);
+let vraag = 0;
+watch(
+  [
+    vorige,
+    () => state.datum,
+    // The last record of every chronicle: a chronicle played anew to the
+    // same length is another chronicle.
+    () => [state.grammen, ...state.andere.map((a) => a.grammen)].map((g) => `${g.length}:${g.at(-1)?.id}`).join(),
+  ],
+  async ([step, datum]) => {
+    const deze = ++vraag;
+    const uit = step?.antwoorden?.length ? await toetsAntwoorden(step, datum) : [];
+    if (deze === vraag) antwoorden.value = uit;
+  },
+  { immediate: true },
+);
+// `beleid#1#betaalde_leges` → `Betaalde leges: 5000`, with what the scenario
+// expects where the cell answers otherwise.
+const antwoordTekst = (a) => {
+  const naam = hoofdletter(leesbaar(a.bron.split('#').at(-1)));
+  const kreeg = a.fout ? `geen antwoord (${a.fout})` : waarde(a.kreeg);
+  return a.klopt ? `${naam}: ${kreeg}` : `${naam}: ${kreeg}; het scenario verwacht ${waarde(a.verwacht)}`;
+};
 
 const tabText = (id) => props.tabs.find((t) => t.id === id)?.tekst ?? id;
 // Who to log in as, for an application of a case with a login: from the
@@ -81,6 +112,19 @@ const where = computed(() =>
           @click="emit('restart')"
         ></nldd-button>
       </nldd-banner>
+    </nldd-simple-section>
+
+    <nldd-simple-section v-if="antwoorden.length" padding-block="8">
+      <nldd-list dividers="never" accessible-label="Antwoorden van de cel na de vorige stap">
+        <nldd-list-item v-for="(a, i) in antwoorden" :key="i" size="sm">
+          <nldd-icon-cell
+            :icon="a.klopt ? 'success' : 'error'"
+            :color="a.klopt ? 'success' : 'critical'"
+            size="16"
+          ></nldd-icon-cell>
+          <nldd-text-cell :text="antwoordTekst(a)"></nldd-text-cell>
+        </nldd-list-item>
+      </nldd-list>
     </nldd-simple-section>
 
     <nldd-simple-section v-if="p.finished">
