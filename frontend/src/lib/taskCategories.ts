@@ -45,6 +45,7 @@ export interface Task {
   traject_id?: string | null;
   title?: string | null;
   payload?: TaskPayload | null;
+  created_at?: string | null;
 }
 
 // Structural view of a running job (RunningTaskJob in tasks.rs).
@@ -54,6 +55,7 @@ export interface RunningJob {
   law_id?: string | null;
   traject_ref?: string | null;
   target_path?: string | null;
+  created_at?: string | null;
 }
 
 export interface LawContext {

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { taskTitle, runningTitle, taskRowTitle, taskRowLabel, runningRowTitle } from './taskTitle';
+import { contextName, taskTitle, runningTitle, taskRowTitle, taskRowLabel, runningRowTitle } from './taskTitle';
 
 // De weergavenaam-resolver zoals de corpuslezer 'm levert.
 const lawName = (id: string | null | undefined) =>
@@ -196,5 +196,22 @@ describe('runningRowTitle without a law heading', () => {
     expect(runningRowTitle({ job_type: 'traject_harvest', law_id: 'BWBR0002399' }, (id) => String(id))).toBe(
       'Wachten op wet ophalen van BWBR0002399',
     );
+  });
+});
+
+describe('contextName', () => {
+  const lawName = (id: string) => (id === 'wet_a' ? 'Alpha-wet' : id);
+
+  it('names the law by its display name', () => {
+    expect(contextName('wet', 'wet_a', lawName)).toBe('Alpha-wet');
+  });
+
+  it('says Werkdocumenten for a werkdocument', () => {
+    expect(contextName('werkdocumenten', null, lawName)).toBe('Werkdocumenten');
+  });
+
+  it('names nothing without a context, or for a law context without a law', () => {
+    expect(contextName(null, null, lawName)).toBeUndefined();
+    expect(contextName('wet', null, lawName)).toBeUndefined();
   });
 });

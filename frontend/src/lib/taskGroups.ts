@@ -96,3 +96,29 @@ export function groupTasks<T extends Task, J extends RunningJob>(
     .map((g) => ({ ...g, tasks: [...g.tasks].sort(compareTasks) }))
     .sort((a, b) => failed(a) - failed(b) || rank(a) - rank(b) || a.name.localeCompare(b.name, 'nl'));
 }
+
+// Milliseconds since the epoch, for ordering by age. A missing or unreadable
+// timestamp sorts as the newest, so it ends up at the bottom rather than on top.
+function createdAt(item: { created_at?: string | null }): number {
+  const time = item.created_at ? Date.parse(item.created_at) : Number.NaN;
+  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+}
+
+function oldestFirst<I extends { created_at?: string | null }>(items: readonly I[]): I[] {
+  return [...items].sort((a, b) => createdAt(a) - createdAt(b));
+}
+
+/**
+ * The order of "Alle taken": one list without headings, oldest first, so what
+ * has waited longest is on top. That list spans every context, and a heading
+ * per law would split it back up; each row names its context in its supporting
+ * text instead (`taskContextName`). The tasks come first and the running jobs
+ * below them, also oldest first: a job is something you wait for, not
+ * something to do. Ties keep the server order.
+ */
+export function listByAge<T extends Task, J extends RunningJob>(
+  tasks: readonly T[],
+  running: readonly J[],
+): { tasks: T[]; running: J[] } {
+  return { tasks: oldestFirst(tasks), running: oldestFirst(running) };
+}

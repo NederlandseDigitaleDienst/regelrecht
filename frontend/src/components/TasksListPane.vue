@@ -4,18 +4,21 @@
  * category chosen in the panel (TasksCategoriesPane); the route carries that
  * choice and this component reads it as props.
  *
- * The list is grouped by what the work is about (a law, or Werkdocumenten) and
- * sorted within each group in the order of the regelwerk; see
- * `lib/taskGroups.ts`. Running jobs sit at the bottom of the group they belong
- * to. They are not tasks, but they are on your plate: "alle" should not be
- * selective, and a conversion of a werkdocument belongs to that context too.
+ * "Alle taken" is one list, oldest first, with each row's context (a law, or
+ * Werkdocumenten) as its supporting text. The other categories are grouped by
+ * that context and sorted within each group in the order of the regelwerk.
+ * Both orders are in `lib/taskGroups.ts`. Running jobs sit below the tasks, in
+ * the list or in the group they belong to. They are not tasks, but they are on
+ * your plate: "alle" should not be selective, and a conversion of a
+ * werkdocument belongs to that context too.
  *
- * Every row does its main thing when you click it: a review opens the article
- * in the editor, a failure opens its details, a running job opens what it is
- * working on. Whatever else a row offers sits in a separate "more" segment
- * next to it, so the one thing you came to do is never behind a menu. The two
- * are segments of the row (nldd-list-item-segment), because a row that is
- * itself a link cannot hold a second control.
+ * Clicking a task opens its details in a sheet: what it is about, when it
+ * arrived, what the run behind it came to, and the actions that settle it
+ * (Beoordelen and Verwerpen for a review, Probeer opnieuw and Markeer als
+ * gedaan for a failure). A running job opens what it is working on. Whatever
+ * else a row offers sits in a separate "more" segment next to it. The two are
+ * segments of the row (nldd-list-item-segment), because a row that is itself a
+ * control cannot hold a second one.
  *
  * The actions with side effects that carry their own error handling (the file
  * picker, cancelling a conversion, opening a running conversion) are emitted;
@@ -28,13 +31,24 @@
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
+import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
 import { useTrajectTasks } from '../composables/useTasks';
 import type { RunningTaskJob, TaskRecord, TaskRecordPayload } from '../composables/useTasks';
 import { useCorpus } from '../corpus';
 import { homeTarget } from '../composables/useLastVisitedRoute';
 import { reviewTarget, taskNamesTraject } from '../lib/taskReview';
-import { taskTitle, taskRowTitle, taskRowLabel, runningTitle, runningRowTitle } from '../lib/taskTitle';
-import { groupTasks } from '../lib/taskGroups';
+import {
+  contextName,
+  taskTitle,
+  taskRowTitle,
+  taskRowLabel,
+  runningTitle,
+  runningRowTitle,
+} from '../lib/taskTitle';
+import { groupTasks, listByAge } from '../lib/taskGroups';
+import { taskDetailRows } from '../lib/taskDetails';
+import { useTrajectRunsStore } from '../stores/trajectRuns';
+import type { TaskGroup } from '../lib/taskGroups';
 import {
   filterTasks,
   filterRunning,
@@ -42,6 +56,7 @@ import {
   taskLawId,
   jobContext,
   jobLawId,
+  ALLE,
   WACHTEN,
   WERKDOCUMENTEN,
   WET,
@@ -85,19 +100,33 @@ function jobLawName(lawId: string | null | undefined): string {
 // wants to see it current, so opening it is the moment to refresh.
 onMounted(refresh);
 
-const groups = computed(() =>
-  groupTasks(
-    filterTasks(tasks.value, props.categorie, props.lawId),
-    filterRunning(running.value, props.categorie, props.lawId),
-    displayName,
-  ),
+// "Alle taken" is not grouped: it is one list by age, and each row names its
+// context instead of a heading doing it.
+const byAge = computed(() => props.categorie === ALLE);
+
+const groups = computed((): TaskGroup<TaskRecord, RunningTaskJob>[] => {
+  const shown = filterTasks(tasks.value, props.categorie, props.lawId);
+  const jobs = filterRunning(running.value, props.categorie, props.lawId);
+  if (!byAge.value) return groupTasks(shown, jobs, displayName);
+  if (shown.length === 0 && jobs.length === 0) return [];
+  return [{ key: ALLE, context: null, lawId: null, name: 'Alle taken', ...listByAge(shown, jobs) }];
+});
+
+// A heading per group, unless the list is not grouped, or the page title
+// already names the one context the list can hold: a single law, or
+// Werkdocumenten.
+const showHeadings = computed(
+  () => !byAge.value && !(props.categorie === WET && props.lawId) && props.categorie !== WERKDOCUMENTEN,
 );
 
-// A heading per group, unless the page title already names the one context
-// the list can hold: a single law, or Werkdocumenten.
-const showHeadings = computed(
-  () => !(props.categorie === WET && props.lawId) && props.categorie !== WERKDOCUMENTEN,
-);
+// Without headings, the row says what it is about. Under a heading the
+// supporting text stays empty: it would repeat the heading on every row.
+function taskSupportingText(task: TaskRecord): string | undefined {
+  return byAge.value ? contextName(taskContext(task), taskLawId(task), displayName) : undefined;
+}
+function jobSupportingText(job: RunningTaskJob): string | undefined {
+  return byAge.value ? contextName(jobContext(job), jobLawId(job), displayName) : undefined;
+}
 
 const isEmpty = computed(() => groups.value.length === 0);
 
@@ -116,26 +145,58 @@ function dismiss(task: TaskRecord): void {
 }
 
 // --- Task details sheet ---
-// The raw error does not belong in the row: it is a technical string of
+// Clicking a task opens it here: what it is about and what the run behind it
+// came to, together with what you can do about it. For a failure that includes
+// the raw error, which does not belong in the row: it is a technical string of
 // sometimes two hundred characters ("no push token for traject source '…'
-// (expected env CORPUS_AUTH_…)"). Clicking a failed task opens it here,
-// together with what you can do about it.
+// (expected env CORPUS_AUTH_…)").
 //
 // One sheet for the whole list, not one per row; `detailTask` decides what it
 // shows. nldd-sheet has imperative show()/hide(), mirrored from a watcher (same
 // pattern as TrajectMenu).
 const detailSheetEl = ref<NLDDSheet | null>(null);
 const detailTask = ref<TaskWithError | null>(null);
+const detailError = ref<string | null>(null);
 watch(detailTask, async (task) => {
   await nextTick();
   if (task) detailSheetEl.value?.show();
   else detailSheetEl.value?.hide();
 });
+
+// The run behind the task, from the traject's runs. Loaded when a sheet opens,
+// once: the facts it adds (model, how far the review is) do not need to tick
+// along while you read them.
+const runs = useTrajectRunsStore();
+const detailRows = computed(() =>
+  detailTask.value ? taskDetailRows(detailTask.value, runs.byId(detailTask.value.job_id), displayName) : [],
+);
+
 function showDetails(task: TaskRecord): void {
+  detailError.value = null;
   detailTask.value = task;
+  // A law's task asks for that law's runs only: the server filters them, so the
+  // cap on the traject's whole list cannot leave the run out.
+  if (task.job_id && props.trajectRef) {
+    void runs.load({ trajectRef: props.trajectRef, lawId: taskLawId(task) });
+  }
 }
 function closeDetails(): void {
   detailTask.value = null;
+}
+
+// "Verwerpen" asks first, as it does in the editor: the proposal is gone
+// afterwards. The dialog opens over the sheet, so the task stays in view.
+const rejectConfirm = ref<NLDDModalDialog | null>(null);
+async function confirmReject(): Promise<void> {
+  rejectConfirm.value?.hide();
+  const task = detailTask.value;
+  if (!task) return;
+  try {
+    await resolveTask(task.id, 'rejected');
+    closeDetails();
+  } catch {
+    detailError.value = 'Verwerpen is mislukt. Probeer het opnieuw.';
+  }
 }
 
 // "Probeer opnieuw" on a failed task. Two mechanisms behind one intent: a
@@ -160,19 +221,22 @@ async function retry(task: TaskRecord): Promise<void> {
 function taskIcon(task: TaskRecord): string {
   return task.task_type === 'job_failed' ? 'exclamation-circle-filled' : 'eyeglasses';
 }
+function taskColor(task: TaskRecord): 'critical' | undefined {
+  return task.task_type === 'job_failed' ? 'critical' : undefined;
+}
 
-// A review row is a real link: the destination is fully deep-linkable (the
-// review hangs off the URL - EditorView reads `?task=` on entry), so it should
-// do what a link does: middle click, ctrl/cmd click, "open in new tab", "copy
-// link address". `router.resolve` builds the URL, so the route definitions stay
-// the single source of truth. A task without a usable destination gets no href
-// and a disabled button instead of a broken link.
+// "Beoordelen" in the sheet is a real link: the destination is fully
+// deep-linkable (the review hangs off the URL - EditorView reads `?task=` on
+// entry), so it should do what a link does: middle click, ctrl/cmd click, "open
+// in new tab", "copy link address". `router.resolve` builds the URL, so the
+// route definitions stay the single source of truth. A task without a usable
+// destination gets no Beoordelen at all instead of a broken link.
 function reviewHref(task: TaskRecord): string | undefined {
   const target = reviewTarget(task);
   return target ? router.resolve(target).href : undefined;
 }
 
-// A plain click stays SPA navigation; the segment's <a> does no
+// A plain click stays SPA navigation; the button's <a> does no
 // preventDefault, so without this the browser reloads the whole page. Same
 // rule as router-link: only an unmodified primary click is taken over, the
 // rest (new tab, new window) is left to the browser. Enter on the focused link
@@ -228,34 +292,21 @@ function openJob(job: RunningTaskJob): void {
 
       <nldd-list appearance="simple">
         <nldd-list-item v-for="task in group.tasks" :key="task.id" size="md">
-          <!-- Main segment: what you came to do. A failure opens its details
-               (what went wrong comes before retrying or dismissing it); a
-               review is a link to the article in the editor. -->
+          <!-- Main segment: the task's details, with what you can do about
+               it. A failure shows in the critical color. -->
           <nldd-list-item-segment
-            v-if="task.task_type === 'job_failed'"
             width="full"
             button
             :accessible-label="`${taskRowLabel(task, displayName)}, toon details`"
             @click="showDetails(task)"
           >
-            <nldd-icon-cell size="20" :icon="taskIcon(task)" color="critical"></nldd-icon-cell>
+            <nldd-icon-cell size="20" :icon="taskIcon(task)" :color="taskColor(task)"></nldd-icon-cell>
             <nldd-spacer-cell size="8"></nldd-spacer-cell>
-            <nldd-text-cell :text="taskRowTitle(task)" color="critical"></nldd-text-cell>
-            <nldd-spacer-cell size="8"></nldd-spacer-cell>
-            <nldd-icon-cell size="20" icon="chevron-right"></nldd-icon-cell>
-          </nldd-list-item-segment>
-          <nldd-list-item-segment
-            v-else
-            width="full"
-            :href="reviewHref(task)"
-            :button="!reviewHref(task) || undefined"
-            :disabled="!reviewTarget(task) || undefined"
-            :accessible-label="taskRowLabel(task, displayName)"
-            @click="onReviewClick($event, task)"
-          >
-            <nldd-icon-cell size="20" :icon="taskIcon(task)"></nldd-icon-cell>
-            <nldd-spacer-cell size="8"></nldd-spacer-cell>
-            <nldd-text-cell :text="taskRowTitle(task)"></nldd-text-cell>
+            <nldd-text-cell
+              :text="taskRowTitle(task)"
+              :supporting-text="taskSupportingText(task)"
+              :color="taskColor(task)"
+            ></nldd-text-cell>
             <nldd-spacer-cell size="8"></nldd-spacer-cell>
             <nldd-icon-cell size="20" icon="chevron-right"></nldd-icon-cell>
           </nldd-list-item-segment>
@@ -290,7 +341,10 @@ function openJob(job: RunningTaskJob): void {
                 <nldd-activity-indicator size="20" timing="instant" :text="runningTitle(job, jobLawName)"></nldd-activity-indicator>
               </nldd-cell>
               <nldd-spacer-cell size="8"></nldd-spacer-cell>
-              <nldd-text-cell :text="runningRowTitle(job, jobLawName)"></nldd-text-cell>
+              <nldd-text-cell
+              :text="runningRowTitle(job, jobLawName)"
+              :supporting-text="jobSupportingText(job)"
+            ></nldd-text-cell>
               <nldd-spacer-cell size="8"></nldd-spacer-cell>
               <nldd-icon-cell size="20" icon="chevron-right"></nldd-icon-cell>
             </nldd-list-item-segment>
@@ -317,7 +371,10 @@ function openJob(job: RunningTaskJob): void {
               <nldd-activity-indicator size="20" timing="instant" :text="runningTitle(job, jobLawName)"></nldd-activity-indicator>
             </nldd-cell>
             <nldd-spacer-cell size="8"></nldd-spacer-cell>
-            <nldd-text-cell :text="runningRowTitle(job, jobLawName)"></nldd-text-cell>
+            <nldd-text-cell
+              :text="runningRowTitle(job, jobLawName)"
+              :supporting-text="jobSupportingText(job)"
+            ></nldd-text-cell>
             <template v-if="jobDestination(job)">
               <nldd-spacer-cell size="8"></nldd-spacer-cell>
               <nldd-icon-cell size="20" icon="chevron-right"></nldd-icon-cell>
@@ -387,13 +444,49 @@ function openJob(job: RunningTaskJob): void {
         <nldd-simple-section v-if="detailTask">
           <nldd-title size="display-3"><h3>{{ taskTitle(detailTask, displayName) }}</h3></nldd-title>
           <nldd-spacer size="16"></nldd-spacer>
-          <nldd-rich-text v-if="detailTask.payload?.error">
-            <h4>Foutmelding</h4>
-            <p>{{ detailTask.payload.error }}</p>
-          </nldd-rich-text>
+          <template v-if="detailError">
+            <nldd-inline-dialog variant="alert" :text="detailError"></nldd-inline-dialog>
+            <nldd-spacer size="16"></nldd-spacer>
+          </template>
+          <!-- Laid out like the table on a law's Algemeen page. -->
+          <nldd-list v-if="detailRows.length" appearance="box-tinted" accessible-label="Gegevens van de taak">
+            <nldd-list-item v-for="row in detailRows" :key="row.label">
+              <nldd-text-cell :text="row.label" width="200px"></nldd-text-cell>
+              <nldd-spacer-cell size="16"></nldd-spacer-cell>
+              <nldd-text-cell :text="row.value" horizontal-alignment="right"></nldd-text-cell>
+            </nldd-list-item>
+          </nldd-list>
+          <template v-if="detailTask.payload?.error">
+            <nldd-spacer size="24"></nldd-spacer>
+            <nldd-rich-text>
+              <h4>Foutmelding</h4>
+              <p>{{ detailTask.payload.error }}</p>
+            </nldd-rich-text>
+          </template>
         </nldd-simple-section>
-        <!-- What you can do about it, right under what went wrong. -->
-        <nldd-container v-if="detailTask" slot="footer" padding="16">
+        <!-- A review: judge the proposal in the editor, or reject it here. -->
+        <nldd-container v-if="detailTask && detailTask.task_type !== 'job_failed'" slot="footer" padding="16">
+          <template v-if="reviewHref(detailTask)">
+            <nldd-button
+              appearance="primary"
+              size="md"
+              width="full"
+              text="Beoordelen"
+              :href="reviewHref(detailTask)"
+              @click="onReviewClick($event, detailTask)"
+            ></nldd-button>
+            <nldd-spacer size="8"></nldd-spacer>
+          </template>
+          <nldd-button
+            appearance="secondary"
+            size="md"
+            width="full"
+            text="Verwerpen"
+            @click="rejectConfirm?.show()"
+          ></nldd-button>
+        </nldd-container>
+        <!-- A failure: what you can do about it, right under what went wrong. -->
+        <nldd-container v-else-if="detailTask" slot="footer" padding="16">
           <template v-if="taskNamesTraject(detailTask)">
             <nldd-button
               appearance="primary"
@@ -414,5 +507,27 @@ function openJob(job: RunningTaskJob): void {
         </nldd-container>
       </nldd-page>
     </nldd-sheet>
+
+    <!-- Same question as Verwerp voorstel in the editor (AppShell). -->
+    <nldd-modal-dialog
+      ref="rejectConfirm"
+      variant="alert"
+      icon="exclamation-triangle"
+      text="Voorstel verwerpen?"
+      supporting-text="De taak wordt afgesloten en het voorstel gaat verloren."
+    >
+      <nldd-button
+        slot="actions"
+        appearance="primary"
+        text="Behoud voorstel"
+        @click="rejectConfirm?.hide()"
+      ></nldd-button>
+      <nldd-button
+        slot="actions"
+        appearance="destructive"
+        text="Verwerp voorstel"
+        @click="confirmReject"
+      ></nldd-button>
+    </nldd-modal-dialog>
   </Teleport>
 </template>

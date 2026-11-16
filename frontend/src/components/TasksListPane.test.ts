@@ -1,15 +1,20 @@
 import { describe, it, expect, vi, beforeAll, beforeEach, afterEach } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { flushPromises, mount } from '@vue/test-utils';
 import type { DOMWrapper, VueWrapper } from '@vue/test-utils';
 import type { RouteLocationRaw } from 'vue-router';
 // De echte app-router, alleen voor `resolve` in de router-stub verderop: de
 // href van het Beoordelen-item hoort uit de route-definities van de app te
 // komen, niet uit een handgemaakte url.
 import appRouter from '../router';
+import { testingPinia, mockedStore } from '../test-utils/testingPinia';
+import { makeRun } from '../test-utils/runFixtures';
+import type { TrajectRun } from '../lib/trajectRuns';
 
 // nldd-sheet compileert tot een kaal custom element; de details-sheet stuurt
 // het imperatief aan met show()/hide(). Zelfde stub als MobileTrajectSheet.test.js.
 let sheetShown = false;
+// The Verwerpen confirmation is an nldd-modal-dialog, driven the same way.
+let confirmShown = false;
 beforeAll(() => {
   if (typeof customElements !== 'undefined' && !customElements.get('nldd-sheet')) {
     class NddSheetTestStub extends HTMLElement {
@@ -17,6 +22,13 @@ beforeAll(() => {
       hide() { sheetShown = false; }
     }
     customElements.define('nldd-sheet', NddSheetTestStub);
+  }
+  if (typeof customElements !== 'undefined' && !customElements.get('nldd-modal-dialog')) {
+    class NddModalDialogTestStub extends HTMLElement {
+      show() { confirmShown = true; }
+      hide() { confirmShown = false; }
+    }
+    customElements.define('nldd-modal-dialog', NddModalDialogTestStub);
   }
 });
 
@@ -80,6 +92,7 @@ describe('TasksListPane', () => {
     apiFetch.mockReset();
     pushMock.mockReset();
     sheetShown = false;
+    confirmShown = false;
   });
   afterEach(() => {
     mounted.forEach((w) => w.unmount());
@@ -95,6 +108,7 @@ describe('TasksListPane', () => {
     tasks: unknown[],
     running: unknown[] = [],
     props: { categorie?: string; lawId?: string } = { categorie: 'alle' },
+    runs: unknown[] = [],
   ) {
     apiFetch.mockResolvedValue({
       status: 200,
@@ -104,10 +118,18 @@ describe('TasksListPane', () => {
     // deze tests op het rauwe id kunnen asserten (de naamresolutie zelf is
     // gedekt in ../lib/taskTitle.test.js).
     const { default: TasksListPane } = await import('./TasksListPane.vue');
+    // The runs store is stubbed: its actions are spies. byId is one of them, so
+    // it reads the runs a test passes in.
+    const pinia = testingPinia();
     const wrapper = mount(TasksListPane, {
       props: { trajectRef: 'traject-abcd1234', ...props },
       attachTo: document.body,
+      global: { plugins: [pinia] },
     });
+    const { useTrajectRunsStore } = await import('../stores/trajectRuns');
+    mockedStore(useTrajectRunsStore).byId.mockImplementation(
+      (jobId) => (runs as TrajectRun[]).find((r) => r.job_id === jobId) ?? null,
+    );
     // Flush useTasks' deferred initial load.
     await wrapper.vm.$nextTick();
     await Promise.resolve();
@@ -189,43 +211,114 @@ describe('TasksListPane', () => {
     expect(wrapper.findAll('nldd-menu-item').map((i) => i.attributes('text'))).not.toContain('Probeer opnieuw');
   });
 
-  // --- The main action is the row itself ---
+  // --- A task opens its details, with what you can do about it ---
 
-  it('makes a review row a link, with the other actions in a separate more segment', async () => {
+  async function openSheet(wrapper: VueWrapper, row = 0) {
+    await mainSegment(wrapper, row).trigger('click');
+    await wrapper.vm.$nextTick();
+  }
+  function sheetButtons() {
+    return [...sheet().querySelectorAll('nldd-container[slot="footer"] nldd-button')].map((b) => b.getAttribute('text'));
+  }
+  // Searches the whole body: the Verwerpen confirmation is teleported next to
+  // the sheet, not into it.
+  function sheetButton(text: string) {
+    return found([...document.body.querySelectorAll('nldd-button')].find((b) => b.getAttribute('text') === text));
+  }
+  // The label/value rows of the sheet, as [label, value] pairs.
+  function sheetRows() {
+    return [...sheet().querySelectorAll('nldd-list-item')].map((item) =>
+      [...item.querySelectorAll('nldd-text-cell')].map((c) => c.getAttribute('text')),
+    );
+  }
+
+  it('opens the details of a review from its row, with the other actions in a separate more segment', async () => {
     const wrapper = await mountPane([LAW_TASK]);
     // No overflow button inside a cell any more: the row's own segments carry it.
     expect(wrapper.findAll('nldd-icon-button')).toHaveLength(0);
-    expect(mainSegment(wrapper).attributes('href')).toBe('/trajecten/traject-abcd1234/editor/test_wet?task=t2');
+    // The row is a button now; the link to the editor is Beoordelen in the sheet.
+    expect(mainSegment(wrapper).attributes('href')).toBeUndefined();
+    expect(mainSegment(wrapper).attributes('button')).toBeDefined();
     // The row shows the short title; the accessible name keeps the law, which
-    // the heading carries visually.
-    expect(mainSegment(wrapper).attributes('accessible-label')).toBe('Beoordeel het hele regelwerk van Test Wet');
+    // the supporting text or the heading carries visually.
+    expect(mainSegment(wrapper).attributes('accessible-label')).toBe(
+      'Beoordeel het hele regelwerk van Test Wet, toon details',
+    );
     expect(moreSegment(wrapper).attributes('popovertarget')).toBe('task-menu-t2');
     expect(moreSegment(wrapper).attributes('accessible-label')).toBe(
       'Acties voor Beoordeel het hele regelwerk van Test Wet',
     );
     expect(itemLabels(wrapper)).toEqual(['Markeer als gedaan']);
+
+    await openSheet(wrapper);
+    expect(sheetShown).toBe(true);
+    expect(pushMock).not.toHaveBeenCalled();
+    expect(sheet().textContent).toContain('Beoordeel verrijking van Test Wet');
+    expect(sheetButtons()).toEqual(['Beoordelen', 'Verwerpen']);
   });
 
-  it('links a review to the article it names', async () => {
+  it('lists what the review is about, and what its run came to once the runs are there', async () => {
+    const task = {
+      ...LAW_TASK,
+      id: 't2a',
+      job_id: 'j1',
+      created_at: '2026-11-12T10:12:05Z',
+      payload: { ...LAW_TASK.payload, article: '2' },
+    };
+    const run = makeRun({
+      law_id: 'test_wet',
+      provider: 'claude',
+      articles_total: 12,
+      articles_with_machine_readable: 9,
+      tasks_open: 2,
+      tasks_approved: 1,
+    });
+    const wrapper = await mountPane([task], [], { categorie: 'alle' }, [run]);
+    await openSheet(wrapper);
+    const rows = sheetRows();
+    expect(rows.map((r) => r[0])).toEqual([
+      'Regelwerk',
+      'Artikel',
+      'Voorgesteld',
+      'Taalmodel',
+      'Uitvoerbare artikelen',
+      'Beoordeling',
+    ]);
+    expect(rows).toContainEqual(['Artikel', 'Artikel 2']);
+    expect(rows).toContainEqual(['Beoordeling', '1 overgenomen, 2 open']);
+    // Opening the sheet asks the store for the traject's runs, once.
+    expect(mockedStore((await import('../stores/trajectRuns')).useTrajectRunsStore).load).toHaveBeenCalledWith({
+      trajectRef: 'traject-abcd1234',
+      lawId: 'test_wet',
+    });
+  });
+
+  it('links Beoordelen to the article the review names', async () => {
     const wrapper = await mountPane([{ ...LAW_TASK, id: 't2a', payload: { ...LAW_TASK.payload, article: '2' } }]);
-    expect(mainSegment(wrapper).attributes('href')).toBe('/trajecten/traject-abcd1234/editor/test_wet/2?task=t2a');
     expect(rowTitles(wrapper)).toEqual(['Beoordeel artikel 2']);
     // The accessible name starts with the words on screen (voice control).
-    expect(mainSegment(wrapper).attributes('accessible-label')).toBe('Beoordeel artikel 2 van Test Wet');
+    expect(mainSegment(wrapper).attributes('accessible-label')).toBe('Beoordeel artikel 2 van Test Wet, toon details');
+    await openSheet(wrapper);
+    expect(sheetButton('Beoordelen').getAttribute('href')).toBe(
+      '/trajecten/traject-abcd1234/editor/test_wet/2?task=t2a',
+    );
   });
 
-  it('links a document review to the werkdocumenten route', async () => {
+  it('links Beoordelen of a document review to the werkdocumenten route', async () => {
     const wrapper = await mountPane([DOC_TASK]);
     // Review tasks carry the eyeglasses icon (the action: look at it).
     expect(wrapper.get('nldd-icon-cell').attributes('icon')).toBe('eyeglasses');
-    expect(mainSegment(wrapper).attributes('href')).toBe(
+    await openSheet(wrapper);
+    expect(sheetRows()).toContainEqual(['Werkdocument', 'bijv-rapport.md']);
+    expect(sheetButton('Beoordelen').getAttribute('href')).toBe(
       '/trajecten/traject-abcd1234/werkdocumenten/bijv-rapport.md?task=t5',
     );
   });
 
-  it('keeps a plain click on a review row in the router - no page load', async () => {
+  it('keeps a plain click on Beoordelen in the router - no page load', async () => {
     const wrapper = await mountPane([LAW_TASK]);
-    const event = click(mainSegment(wrapper));
+    await openSheet(wrapper);
+    const event = click({ element: sheetButton('Beoordelen') });
     // preventDefault: otherwise the browser follows the href and reloads the app.
     expect(event.defaultPrevented).toBe(true);
     expect(pushMock).toHaveBeenCalledTimes(1);
@@ -236,24 +329,51 @@ describe('TasksListPane', () => {
     });
   });
 
-  it('leaves a modified click and a middle click to the browser', async () => {
+  it('leaves a modified click and a middle click on Beoordelen to the browser', async () => {
     const wrapper = await mountPane([LAW_TASK]);
+    await openSheet(wrapper);
     for (const init of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) {
-      expect(click(mainSegment(wrapper), init).defaultPrevented).toBe(false);
+      expect(click({ element: sheetButton('Beoordelen') }, init).defaultPrevented).toBe(false);
     }
     expect(pushMock).not.toHaveBeenCalled();
   });
 
-  it('disables the row of a task without traject_ref/law_id instead of linking nowhere', async () => {
+  it('offers no Beoordelen for a task without traject_ref/law_id instead of linking nowhere', async () => {
     const wrapper = await mountPane([
       { id: 't3', task_type: 'job_review', title: 'Verrijking beoordelen: ???', payload: {} },
     ]);
-    const segment = mainSegment(wrapper);
-    expect(segment.attributes('disabled')).toBeDefined();
-    expect(segment.attributes('button')).toBeDefined();
-    expect(segment.attributes('href')).toBeFalsy();
-    click(segment);
-    expect(pushMock).not.toHaveBeenCalled();
+    await openSheet(wrapper);
+    expect(sheetButtons()).toEqual(['Verwerpen']);
+  });
+
+  it('rejects a review from the sheet after confirming, and closes it', async () => {
+    const wrapper = await mountPane([LAW_TASK]);
+    await openSheet(wrapper);
+    sheetButton('Verwerpen').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    // Asks first: nothing is resolved yet.
+    expect(confirmShown).toBe(true);
+    expect(apiFetch).not.toHaveBeenCalledWith('/api/tasks/t2/resolve', expect.anything());
+    apiFetch.mockResolvedValue({ status: 200, json: async () => ({ tasks: [], open_count: 0 }) });
+    sheetButton('Verwerp voorstel').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+    expect(confirmShown).toBe(false);
+    expect(apiFetch).toHaveBeenCalledWith(
+      '/api/tasks/t2/resolve',
+      expect.objectContaining({ method: 'POST', body: JSON.stringify({ action: 'rejected' }) }),
+    );
+    expect(sheetShown).toBe(false);
+  });
+
+  it('keeps the sheet open with a message when rejecting fails', async () => {
+    const wrapper = await mountPane([LAW_TASK]);
+    await openSheet(wrapper);
+    apiFetch.mockRejectedValue(new Error('500'));
+    sheetButton('Verwerp voorstel').dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await flushPromises();
+    expect(sheetShown).toBe(true);
+    expect(sheet().querySelector('nldd-inline-dialog')?.getAttribute('text')).toBe(
+      'Verwerpen is mislukt. Probeer het opnieuw.',
+    );
   });
 
   it('dismisses a task through "Markeer als gedaan" - dismissed, no verdict', async () => {
@@ -287,8 +407,9 @@ describe('TasksListPane', () => {
     const cell = wrapper.get('nldd-text-cell');
     expect(cell.attributes('color')).toBe('critical');
     expect(cell.attributes('text')).toBe('Verrijking is mislukt');
-    // The technical string of ~200 characters belongs in the sheet.
-    expect(cell.attributes('supporting-text')).toBeUndefined();
+    // The technical string of ~200 characters belongs in the sheet; the
+    // supporting text only names the law.
+    expect(cell.attributes('supporting-text')).toBe('Test Wet');
     expect(itemLabels(wrapper)).toEqual(['Probeer opnieuw', 'Markeer als gedaan']);
     // Every failed enrichment reads the same on screen; the name says which law.
     expect(mainSegment(wrapper).attributes('accessible-label')).toBe(
@@ -300,8 +421,7 @@ describe('TasksListPane', () => {
     const wrapper = await mountPane([{ ...FAILED_TASK, payload: { law_id: 'test_wet', error: 'boom' } }]);
     await mainSegment(wrapper).trigger('click');
     await wrapper.vm.$nextTick();
-    const buttons = [...sheet().querySelectorAll('nldd-button')].map((b) => b.getAttribute('text'));
-    expect(buttons).toEqual(['Markeer als gedaan']);
+    expect(sheetButtons()).toEqual(['Markeer als gedaan']);
     expect(itemLabels(wrapper)).toEqual(['Markeer als gedaan']);
   });
 
@@ -319,8 +439,7 @@ describe('TasksListPane', () => {
     expect(text).toContain('CORPUS_AUTH_MINBZK_REGELRECHT_CORPUS_TOKEN');
     // The sheet has no heading above it, so it carries the full title.
     expect(text).toContain('Verrijking van Test Wet is mislukt');
-    const buttons = [...sheet().querySelectorAll('nldd-button')].map((b) => b.getAttribute('text'));
-    expect(buttons).toEqual(['Probeer opnieuw', 'Markeer als gedaan']);
+    expect(sheetButtons()).toEqual(['Probeer opnieuw', 'Markeer als gedaan']);
   });
 
   it('retries from the details sheet and closes it', async () => {
@@ -377,7 +496,7 @@ describe('TasksListPane', () => {
     expect(wrapper.emitted('upload')).toBeUndefined();
   });
 
-  // --- Order: grouped by context, in the order of the regelwerk ---
+  // --- Order: Alle by age, the rest grouped by context ---
 
   const article = (id: string, lawId: string, nr: string) => ({
     id,
@@ -386,19 +505,68 @@ describe('TasksListPane', () => {
     payload: { law_id: lawId, traject_ref: 'traject-abcd1234', article: nr },
   });
 
-  it('groups all tasks under a heading per context and sorts the articles', async () => {
-    // Server order: newest first, two enrichments interleaved.
-    const wrapper = await mountPane([
-      article('a10', 'wet_b', '10'),
-      article('x3', 'wet_a', '3'),
-      article('a2', 'wet_b', '2'),
-      DOC_TASK,
-      article('a1a', 'wet_b', '1a'),
-      article('x1', 'wet_a', '1'),
-    ]);
-    expect(headings(wrapper)).toEqual(['Werkdocumenten', 'Wet A', 'Wet B']);
+  const createdAt = <T extends object>(task: T, created_at: string) => ({ ...task, created_at });
+
+  it('lists all tasks oldest first, without headings, with the context under each row', async () => {
+    // Server order: newest first. The failure is not the oldest, so it does
+    // not move up: "Alle taken" goes by age only.
+    const failed = {
+      id: 'f1',
+      task_type: 'job_failed',
+      title: 'x',
+      payload: { traject_ref: 'traject-abcd1234', law_id: 'wet_b', error: 'boom' },
+    };
+    const wrapper = await mountPane(
+      [
+        createdAt(article('b10', 'wet_b', '10'), '2026-11-16T10:00:00Z'),
+        createdAt(failed, '2026-11-16T09:00:00Z'),
+        createdAt(DOC_TASK, '2026-11-15T12:00:00.5Z'),
+        createdAt(article('a3', 'wet_a', '3'), '2026-11-15T12:00:00Z'),
+      ],
+      [{ job_id: 'j1', job_type: 'enrich', law_id: 'wet_a', created_at: '2026-11-01T00:00:00Z' }],
+    );
+    expect(headings(wrapper)).toEqual([]);
     expect(rowTitles(wrapper)).toEqual([
+      'Beoordeel artikel 3',
       'Beoordeel bijv-rapport.md',
+      'Verrijking is mislukt',
+      'Beoordeel artikel 10',
+      // Running jobs below the tasks, even when they are older.
+      'Wachten op verrijking',
+    ]);
+    expect(wrapper.findAll('nldd-list-item nldd-text-cell').map((c) => c.attributes('supporting-text'))).toEqual([
+      'Wet A',
+      'Werkdocumenten',
+      'Wet B',
+      'Wet B',
+      'Wet A',
+    ]);
+  });
+
+  it('gives a row without a context no supporting text under alle', async () => {
+    const wrapper = await mountPane([], [{ job_id: 'j4', job_type: 'traject_harvest', law_id: 'BWBR0002399' }]);
+    expect(rowTitles(wrapper)).toEqual(['Wachten op wet ophalen van BWBR0002399']);
+    expect(wrapper.get('nldd-list-item nldd-text-cell').attributes('supporting-text')).toBeUndefined();
+  });
+
+  it('groups the laws under a heading each and sorts the articles', async () => {
+    // Server order: newest first, two enrichments interleaved.
+    const wrapper = await mountPane(
+      [
+        article('a10', 'wet_b', '10'),
+        article('x3', 'wet_a', '3'),
+        article('a2', 'wet_b', '2'),
+        DOC_TASK,
+        article('a1a', 'wet_b', '1a'),
+        article('x1', 'wet_a', '1'),
+      ],
+      [],
+      { categorie: 'wet' },
+    );
+    expect(headings(wrapper)).toEqual(['Wet A', 'Wet B']);
+    // Under a heading the row does not repeat its context.
+    expect(wrapper.find('nldd-text-cell[supporting-text]').exists()).toBe(false);
+    expect(rowTitles(wrapper)).toEqual([
       'Beoordeel artikel 1',
       'Beoordeel artikel 3',
       'Beoordeel artikel 1a',
@@ -415,8 +583,10 @@ describe('TasksListPane', () => {
       payload: { traject_ref: 'traject-abcd1234', law_id: 'wet_z', error: 'boom' },
     };
     // Last in the server list, and its law sorts last by name.
-    const wrapper = await mountPane([DOC_TASK, article('x1', 'wet_a', '1'), article('z1', 'wet_z', '1'), failed]);
-    expect(headings(wrapper)).toEqual(['Wet Z', 'Werkdocumenten', 'Wet A']);
+    const wrapper = await mountPane([article('x1', 'wet_a', '1'), article('z1', 'wet_z', '1'), failed], [], {
+      categorie: 'wet',
+    });
+    expect(headings(wrapper)).toEqual(['Wet Z', 'Wet A']);
     expect(at(rowTitles(wrapper), 0)).toBe('Verrijking is mislukt');
   });
 
@@ -506,7 +676,7 @@ describe('TasksListPane', () => {
 
   // --- "Alle taken" is everything: tasks and what you are waiting for ---
 
-  it('shows running jobs under alle too, at the bottom of their group', async () => {
+  it('shows running jobs under alle too, below the tasks', async () => {
     const wrapper = await mountPane([LAW_TASK], [{ job_id: 'j1', law_id: 'test_wet' }]);
     expect(wrapper.findAll('nldd-list-item')).toHaveLength(2);
     expect(rowTitles(wrapper)).toEqual(['Beoordeel het hele regelwerk', 'Wachten op verrijking']);
@@ -604,6 +774,7 @@ describe('TasksListPane', () => {
         { job_id: 'j3', job_type: 'law_convert', law_id: 'lawdoc:traject-abcd1234/voorstel.pdf', target_path: 'voorstel.pdf' },
         { job_id: 'j4', job_type: 'traject_harvest', law_id: 'BWBR0002399' },
       ],
+      { categorie: 'wachten' },
     );
     expect(headings(wrapper)).toEqual(['Overig']);
     // No law heading above them, so they keep their full title.
