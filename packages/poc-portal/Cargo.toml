@@ -27,6 +27,8 @@ regelrecht-github = { path = "../github" }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tower-http = { workspace = true, features = ["fs", "trace"] }
 serde.workspace = true
+# The body of GET /_version (src/version.rs), through axum::Json.
+serde_json.workspace = true
 serde_yaml_ng.workspace = true
 thiserror.workspace = true
 tracing.workspace = true
@@ -58,7 +60,6 @@ tower.workspace = true
 flate2 = "1"
 tar = "0.4"
 wiremock.workspace = true
-serde_json.workspace = true
 http-body-util.workspace = true
 pretty_assertions.workspace = true
 

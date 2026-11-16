@@ -20,6 +20,7 @@ pub mod gate;
 pub mod pagina;
 pub mod proxy;
 pub mod registry;
+pub mod version;
 
 /// The register, baked into the binary. It describes the PoCs this image was
 /// built with, so reading it from disk at runtime would only allow the two to
