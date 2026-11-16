@@ -477,7 +477,7 @@ fn append_set_cookie(response: &mut Response, header: &str) {
 /// `http://localhost@evil.com` resolves to a non-loopback host and is rejected)
 /// and IPv6 loopback is handled via the typed `Host` enum. Exhaustive tests
 /// live in `main.rs` (`http_localhost_tests`).
-pub(crate) fn is_http_localhost(base_url: Option<&str>) -> bool {
+pub fn is_http_localhost(base_url: Option<&str>) -> bool {
     let Some(url) = base_url.and_then(|u| url::Url::parse(u).ok()) else {
         return false;
     };
