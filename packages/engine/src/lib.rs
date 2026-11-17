@@ -76,7 +76,7 @@ pub use context::RuleContext;
 pub use data_source::{DataSource, DataSourceMatch, DataSourceRegistry, DictDataSource};
 pub use engine::{
     ArticleEngine, ArticleResult, FilledBy, ImplementationAnswer, ImplementationGave,
-    OpenTermAsked, OpenTermFilled, OutputProvenance, RegulationRead,
+    OpenTermAsked, OpenTermFilled, OutputProvenance, RegulationRead, TerritoryTest,
 };
 pub use error::{EngineError, ExternalError, Result};
 pub use operations::{ValueResolver, evaluate_value, execute_operation};
@@ -87,7 +87,7 @@ pub use projection::{
 pub use receipt::ExecutionReceipt;
 pub use resolver::{
     DeclarationKind, DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal,
-    HookEntry, ImplementationLookup, ProcedureMiss, RuleResolver, TerritoryTest,
+    HookEntry, ImplementationLookup, ProcedureMiss, RuleResolver,
 };
 pub use service::{
     DecisionTerm, ExecutionOutcome, LawExecutionService, LawInfo, ProcedureStage, ServiceProvider,

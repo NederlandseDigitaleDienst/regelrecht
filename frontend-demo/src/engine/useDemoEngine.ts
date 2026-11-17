@@ -80,7 +80,6 @@ export interface DemoEngine extends GherkinEngine {
   loadLaw(yaml: string): string;
   lawCount(): number;
   clearDataSources(): void;
-  clearTerritories(): void;
   removeDataSource(name: string): boolean;
   registerDataSourceForLaw(
     lawId: string,
@@ -376,17 +375,6 @@ export function registerPersonaData(
   engine.clearDataSources();
   register(sources);
   return sources;
-}
-
-/**
- * Forget what a scenario gave the engine beside its parameters: its data
- * sources and its territories. The engine is shared between scenarios, and a
- * territory left behind would pick the regulation of a place the next
- * scenario never named.
- */
-export function forgetScenarioInputs(engine: Pick<DemoEngine, 'clearDataSources' | 'clearTerritories'>): void {
-  engine.clearDataSources();
-  engine.clearTerritories();
 }
 
 /**

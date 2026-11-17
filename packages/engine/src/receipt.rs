@@ -141,10 +141,11 @@ pub struct ReceiptResults {
     pub open_terms: Vec<OpenTermFilled>,
     /// How each open term with a `location` or `combine: OR` was asked: the
     /// place of the case, each candidate regulation's territory code with
-    /// the hash of the territory that was registered for it and whether the
-    /// location overlapped it, and what every implementation gave. The
-    /// territories are given by the caller and are in no rulework, so
-    /// without this two receipts with other territories would read alike.
+    /// where its territory was read, the hash of the territory that was
+    /// used and whether the location overlapped it, and what every
+    /// implementation gave. A territory comes from the output of another
+    /// law, usually out of a register, so without this two receipts over
+    /// another register would read alike.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub open_terms_asked: Vec<OpenTermAsked>,
 }

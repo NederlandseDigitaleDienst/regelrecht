@@ -559,8 +559,8 @@ that `implements` the open term, using lex superior / lex posterior priority rul
 **A term filled by the regulation of a place** (schema v0.8.23). Where the law
 leaves something to "het omgevingsplan", "de waterschapsverordening" or
 another regulation that holds for a territory, and the case is about a place,
-give the term a `location` and, where several articles may each state it, a
-`combine`:
+give the term a `location` with a `territory` and, where several articles may
+each state it, a `combine`:
 ```yaml
 machine_readable:
   open_terms:
@@ -570,6 +570,9 @@ machine_readable:
       delegated_to: gemeenteraad
       delegation_type: GEMEENTELIJKE_VERORDENING
       location: $locatie            # a parameter or input of type shape of this article
+      territory:                    # where the territory of an authority is read
+        regulation: kadasterwet     #   the law that gives it, usually out of a register
+        output: grens_van_gemeente  #   its output, a shape
       combine: OR                   # only on a boolean term
   execution:
     parameters:
@@ -580,9 +583,18 @@ machine_readable:
 
 - `location` picks the regulation by the place: a regulation with a
   `gemeente_code`, `provincie_code` or `waterschap_code` fills the term only
-  when the location overlaps the territory of that code. The caller of the
-  engine supplies the territories; they are not in a rulework. Without
-  `location` the regulation is picked by the code among the parameters.
+  when the location overlaps the territory of that code. Without `location`
+  the regulation is picked by the code among the parameters.
+- `territory` names the output of a law that gives that territory, and comes
+  with `location`; neither stands alone. The engine asks it with one
+  parameter, the code the candidate regulation carries, under the name of
+  the field that carries it (`gemeente_code`, `provincie_code` or
+  `waterschap_code`). So the article that gives the territory declares that
+  parameter. Where the territory is a fact in a register (the boundary of a
+  municipality, Kadasterwet art. 48), that article reads it as an input with
+  `source: {}` and gives it as its output of type `shape`, like any register
+  value. A territory that is unknown leaves the term unknown; one that is no
+  shape is an error.
 - `combine: OR` asks every implementation instead of the one that wins on
   priority, so each article of a plan that states a ban is its own
   implementation of the term. The term is true when one gives true, an error

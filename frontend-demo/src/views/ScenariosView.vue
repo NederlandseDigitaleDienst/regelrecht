@@ -6,7 +6,7 @@ import type { NLDDNavigationSplitView } from '@nldd/design-system/navigation-spl
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import { matchStep, featureKeywords, scenarioTitle } from '../data/gherkinNl';
 import { serviceInfo, type ScenarioEntry } from '../data/loadCorpus';
-import { forgetScenarioInputs, loadFailureFor, loadFailures, prepareScenarioEngine, type DemoEngine, type TraceNode } from '../engine/useDemoEngine';
+import { loadFailureFor, loadFailures, prepareScenarioEngine, type DemoEngine, type TraceNode } from '../engine/useDemoEngine';
 import { useDemo } from '../store/demoStore';
 import { useLocalePath } from '../i18n/useLocalePath';
 import { useI18n } from '../i18n/index.js';
@@ -176,7 +176,7 @@ async function run(index: number) {
     return;
   }
   startedAt = performance.now();
-  forgetScenarioInputs(e);
+  e.clearDataSources();
   lap('clearDataSources', startedAt);
   try {
     for (const step of stepsOf(scenario)) {
@@ -218,7 +218,7 @@ async function run(index: number) {
     // the card as the presenter had it.
     if (failed) open[index] = true;
   } finally {
-    forgetScenarioInputs(e);
+    e.clearDataSources();
     console.debug(`[scenario-timing] ${scenario.name}: total ${(performance.now() - t0).toFixed(1)}ms | ${timings.join(' | ')}`);
   }
 }

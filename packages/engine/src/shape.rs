@@ -10,7 +10,7 @@
 use geo::{CoordsIter, Geometry, HasDimensions, Relate, Validation};
 use sha2::{Digest, Sha256};
 use std::cell::RefCell;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::rc::Rc;
 use std::str::FromStr;
 use wkt::Wkt;
@@ -124,14 +124,6 @@ pub(crate) fn text_hash(text: &str) -> String {
     format!("sha256:{}", hex::encode(Sha256::digest(text.as_bytes())))
 }
 
-/// The territory of one authority: its shape, and the hash of the text it
-/// was given as.
-#[derive(Debug)]
-pub(crate) struct Territory {
-    pub(crate) shape: Geometry<f64>,
-    pub(crate) hash: String,
-}
-
 /// Whether the interiors of two shapes meet (DE-9IM `T********`). A polygon
 /// that lies half on another overlaps it; two polygons that share only an
 /// edge do not; a point overlaps a polygon when it lies inside it and not on
@@ -145,39 +137,6 @@ pub(crate) fn interiors_meet(a: &Geometry<f64>, b: &Geometry<f64>) -> Result<boo
     a.relate(b)
         .matches(INTERIORS_MEET)
         .map_err(|e| e.to_string())
-}
-
-/// The territories the caller of the engine gave, each under the code of the
-/// authority it belongs to (`GM0363`, `PV27`, `WS0155`). An open term with a
-/// `location` (schema v0.8.23) is filled by a regulation that carries such a
-/// code only when the location overlaps the territory registered for it.
-#[derive(Debug, Default)]
-pub(crate) struct Territories(BTreeMap<String, Territory>);
-
-impl Territories {
-    /// Register `wkt` as the territory of `code`, in place of an earlier one.
-    ///
-    /// # Errors
-    ///
-    /// When `wkt` is no shape, for the reasons [`parse`] gives.
-    pub(crate) fn register(&mut self, code: &str, wkt: &str) -> Result<(), String> {
-        let territory = Territory {
-            shape: parse(wkt)?,
-            hash: text_hash(wkt),
-        };
-        self.0.insert(code.to_string(), territory);
-        Ok(())
-    }
-
-    /// The territory registered for `code`.
-    pub(crate) fn of(&self, code: &str) -> Option<&Territory> {
-        self.0.get(code)
-    }
-
-    /// Forget every territory.
-    pub(crate) fn clear(&mut self) {
-        self.0.clear();
-    }
 }
 
 /// The start of `text`, for a message.
@@ -320,29 +279,6 @@ mod tests {
         // A bow tie: the boundary crosses itself.
         let err = parse("POLYGON((0 0, 10 10, 10 0, 0 10, 0 0))").unwrap_err();
         assert!(err.contains("not a valid geometry"), "{err}");
-    }
-
-    #[test]
-    fn a_territory_is_kept_per_code_and_replaced_by_a_later_one() {
-        let mut territories = Territories::default();
-        assert!(territories.of("GM0001").is_none());
-        territories.register("GM0001", SQUARE).unwrap();
-        let inside = parse("POINT(5 5)").unwrap();
-        assert!(interiors_meet(&inside, &territories.of("GM0001").unwrap().shape).unwrap());
-        territories
-            .register("GM0001", "POLYGON((20 20, 30 20, 30 30, 20 30, 20 20))")
-            .unwrap();
-        assert!(!interiors_meet(&inside, &territories.of("GM0001").unwrap().shape).unwrap());
-        territories.clear();
-        assert!(territories.of("GM0001").is_none());
-    }
-
-    #[test]
-    fn a_territory_that_is_no_shape_is_refused_and_not_kept() {
-        let mut territories = Territories::default();
-        let err = territories.register("GM0001", "heel Putten").unwrap_err();
-        assert!(err.contains("does not parse as WKT"), "{err}");
-        assert!(territories.of("GM0001").is_none());
     }
 
     #[test]

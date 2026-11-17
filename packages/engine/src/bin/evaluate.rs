@@ -11,9 +11,6 @@
 //!   - params: Object — key-value parameters to pass to the engine
 //!   - date: String — evaluation date (YYYY-MM-DD)
 //!   - extra_laws: Optional<Vec<String>> — additional YAML laws for cross-law resolution
-//!   - territories: Optional<Object> — the territory of an authority per code
-//!     (`{"GM0363": "POLYGON((...))"}`), as well-known text; an open term with a
-//!     `location` is filled by the regulation whose territory the location overlaps
 //!
 //! Output (JSON on stdout):
 //!   - outputs: Object — computed output values (only requested outputs)
@@ -40,9 +37,6 @@ struct EvaluateRequest {
     date: String,
     #[serde(default)]
     extra_laws: Vec<String>,
-    /// The territory of an authority per code, as well-known text.
-    #[serde(default)]
-    territories: BTreeMap<String, String>,
 }
 
 #[derive(serde::Serialize)]
@@ -149,15 +143,6 @@ fn main() {
     for extra_yaml in &request.extra_laws {
         if let Err(e) = service.load_law(extra_yaml) {
             let resp = error_response(format!("Failed to load extra law YAML: {e}"));
-            println!("{}", serde_json::to_string(&resp).unwrap_or_default());
-            std::process::exit(1);
-        }
-    }
-
-    // The territories the regulation of a place is picked by
-    for (code, wkt) in &request.territories {
-        if let Err(e) = service.register_territory(code, wkt) {
-            let resp = error_response(format!("Failed to register territory: {e}"));
             println!("{}", serde_json::to_string(&resp).unwrap_or_default());
             std::process::exit(1);
         }

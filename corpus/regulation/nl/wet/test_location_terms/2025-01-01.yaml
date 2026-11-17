@@ -18,7 +18,9 @@ articles:
     machine_readable:
       # The term has a location and a combine rule (schema v0.8.23). The
       # location decides which omgevingsplan fills the term: that of the
-      # municipality whose territory the location overlaps. With combine: OR
+      # municipality whose territory the location overlaps. The territory is
+      # the boundary the Testwet grenzenregister gives for the code the plan
+      # carries. With combine: OR
       # every article of every plan found that way is asked, and the term is
       # true as soon as one of those articles states the ban.
       open_terms:
@@ -29,6 +31,9 @@ articles:
           delegation_type: GEMEENTELIJKE_VERORDENING
           legal_basis: artikel 1 Testwet plaatsgebonden termen
           location: $location
+          territory:
+            regulation: test_grenzenregister
+            output: grens_van_gemeente
           combine: OR
       execution:
         parameters:
@@ -58,8 +63,8 @@ articles:
       gemeentelijke verordening is verboden.
     machine_readable:
       # The only verordening that fills this term is that of a municipality
-      # whose territory no scenario gives. Whether it applies at the location
-      # cannot be said then, and that is an error, not a "no".
+      # whose boundary no scenario puts in the register. Whether it applies
+      # at the location is unknown then, and so is the term: not a "no".
       open_terms:
         - id: terras_verboden
           type: boolean
@@ -68,6 +73,9 @@ articles:
           delegation_type: GEMEENTELIJKE_VERORDENING
           legal_basis: artikel 2 Testwet plaatsgebonden termen
           location: $location
+          territory:
+            regulation: test_grenzenregister
+            output: grens_van_gemeente
           combine: OR
       execution:
         parameters:
@@ -100,6 +108,9 @@ articles:
           delegation_type: GEMEENTELIJKE_VERORDENING
           legal_basis: artikel 3 Testwet plaatsgebonden termen
           location: $location
+          territory:
+            regulation: test_grenzenregister
+            output: grens_van_gemeente
       execution:
         parameters:
           - name: location
@@ -140,3 +151,71 @@ articles:
         actions:
           - output: verschuldigde_leges
             value: $legestarief
+
+  - number: '5'
+    url: https://example.com/test_location_terms/5
+    text: >-
+      Het is verboden een evenement te houden voor zover dat bij
+      gemeentelijke verordening is verboden.
+    machine_readable:
+      # The territory is asked of a law that is not in the corpus. That is an
+      # error that names the term, the code and the source: the boundary
+      # cannot be read, which is not the same as not being known.
+      open_terms:
+        - id: evenement_verboden
+          type: boolean
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 5 Testwet plaatsgebonden termen
+          location: $location
+          territory:
+            regulation: test_register_dat_niet_bestaat
+            output: grens_van_gemeente
+          combine: OR
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The location of the event, as WKT.
+        output:
+          - name: evenement_niet_toegestaan
+            type: boolean
+        actions:
+          - output: evenement_niet_toegestaan
+            value: $evenement_verboden
+
+  - number: '6'
+    url: https://example.com/test_location_terms/6
+    text: >-
+      Het is verboden handelsreclame te maken voor zover dat bij
+      gemeentelijke verordening is verboden.
+    machine_readable:
+      # The territory names an output that is a number, not a shape. An
+      # error too: a location cannot be held against an area in square
+      # kilometres.
+      open_terms:
+        - id: reclame_verboden
+          type: boolean
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 6 Testwet plaatsgebonden termen
+          location: $location
+          territory:
+            regulation: test_grenzenregister
+            output: oppervlakte_van_gemeente
+          combine: OR
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The location of the advertisement, as WKT.
+        output:
+          - name: reclame_niet_toegestaan
+            type: boolean
+        actions:
+          - output: reclame_niet_toegestaan
+            value: $reclame_verboden

@@ -76,9 +76,7 @@ human, not a broken build.
 - **`action`** links the step to a semantic action. The action set is small and
   fixed (each engine implements one handler per action):
   - setup: `set_calculation_date`, `load_law`, `set_parameter`,
-    `set_data_source`, `set_parameters_table`, `set_territory` (the
-    territory of an authority by its code, for an open term with a
-    `location`)
+    `set_data_source`, `set_parameters_table`
   - execute: `evaluate`
   - asserts (core): `assert_succeeds`, `assert_fails`, `assert_fails_with`,
     `assert_equals`, `assert_boolean`, `assert_null`, `assert_contains`

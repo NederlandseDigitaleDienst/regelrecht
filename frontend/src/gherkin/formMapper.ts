@@ -35,23 +35,11 @@ export interface StateDataSource {
   rows: string[][];
 }
 
-/**
- * The territory of an authority, by its code, as a shape in well-known text.
- * An open term with a `location` is filled by the regulation whose territory
- * the location overlaps (schema v0.8.23).
- */
-export interface FormTerritory {
-  code: string;
-  shape: string;
-}
-
 export interface FormSetup {
   calculationDate: string | null;
   dependencies: string[];
   parameters: FormParameter[];
   dataSources: StateDataSource[];
-  /** Absent when the feature gives none. The form has no fields for them; they travel with the scenario. */
-  territories?: FormTerritory[];
 }
 
 export interface FormExecution {
@@ -137,7 +125,6 @@ type GrammarId =
   | 'set_parameter_collection'
   | 'set_data_source'
   | 'set_data_source_for_law'
-  | 'set_territory'
   | 'evaluate'
   | 'assert_succeeds'
   | 'assert_fails'
@@ -165,7 +152,6 @@ type Fragment =
       headers: string[];
       rows: string[][];
     }
-  | { type: 'territory'; code: string; shape: string }
   | { type: 'execution'; outputName: string; lawId: string }
   | { type: 'assertion'; assertionType: AssertionType; outputName?: string; value?: unknown };
 
@@ -235,8 +221,6 @@ function extractFragment(entry: GrammarEntry, match: RegExpMatchArray, step: Ste
         headers: step.dataTable?.[0] || [],
         rows: step.dataTable?.slice(1) || [],
       };
-    case 'set_territory':
-      return { type: 'territory', code: m[1], shape: m[2] };
     case 'evaluate':
       return { type: 'execution', outputName: m[1], lawId: m[2] };
     case 'assert_succeeds':
@@ -393,9 +377,6 @@ function classifySteps(steps: Step[]): {
           rows: classified.rows,
         });
         break;
-      case 'territory':
-        (setup.territories ??= []).push({ code: classified.code, shape: classified.shape });
-        break;
       case 'execution':
         executions.push({ outputName: classified.outputName, lawId: classified.lawId });
         break;
@@ -434,7 +415,6 @@ export function mapFeatureToForm(parsed: ParsedFeature): FormState {
         dependencies: result.setup.dependencies,
         parameters: result.setup.parameters,
         dataSources: result.setup.dataSources,
-        ...(result.setup.territories ? { territories: result.setup.territories } : {}),
       },
       execution: result.executions[0] || null,
       assertions: result.assertions,
@@ -450,7 +430,6 @@ export function mapFeatureToForm(parsed: ParsedFeature): FormState {
           dependencies: backgroundResult.setup.dependencies,
           parameters: backgroundResult.setup.parameters,
           dataSources: backgroundResult.setup.dataSources,
-          ...(backgroundResult.setup.territories ? { territories: backgroundResult.setup.territories } : {}),
           unmatchedSteps: backgroundResult.unmatchedSteps,
         }
       : null,
@@ -475,9 +454,6 @@ export function getEffectiveSetup(formState: FormState, scenarioIndex: number): 
     dependencies: [...(bg.dependencies || []), ...scenario.setup.dependencies],
     parameters: [...(bg.parameters || []), ...scenario.setup.parameters],
     dataSources: [...(bg.dataSources || []), ...scenario.setup.dataSources],
-    // In step order: a territory the scenario gives for a code replaces the
-    // background's, as it does in the engine.
-    territories: [...(bg.territories || []), ...(scenario.setup.territories || [])],
   };
 }
 
@@ -797,14 +773,6 @@ function writeSetupSteps(lines: string[], setup: FormSetup, indent: string): voi
       const cells = row.map((cell) => formatCell(cell));
       lines.push(`${indent}  | ${cells.join(' | ')} |`);
     }
-  }
-
-  writeTerritorySteps(lines, setup.territories, indent);
-}
-
-function writeTerritorySteps(lines: string[], territories: FormTerritory[] | undefined, indent: string): void {
-  for (const territory of territories || []) {
-    lines.push(`${indent}${KW.set_territory} ${TPL.set_territory([territory.code, territory.shape])}`);
   }
 }
 

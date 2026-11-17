@@ -1,0 +1,36 @@
+---
+# A `territory` names a regulation and an output of it.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_conformance_open_term_territory_without_output
+regulatory_layer: WET
+bwb_id: BWBR9999989
+publication_date: '2026-11-17'
+valid_from: '2026-11-17'
+url: https://example.invalid/open-term-territory-without-output
+articles:
+  - number: '1'
+    url: https://example.invalid/open-term-territory-without-output/1
+    text: >-
+      Het is verboden een activiteit te verrichten voor zover dat in het
+      omgevingsplan is bepaald.
+    machine_readable:
+      open_terms:
+        - id: verboden_in_omgevingsplan
+          type: boolean
+          required: true
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          location: $locatie
+          territory:
+            regulation: test_conformance_grenzenregister
+          combine: OR
+      execution:
+        parameters:
+          - name: locatie
+            type: shape
+            required: true
+        output:
+          - name: uitkomst
+            type: boolean
+        actions:
+          - output: uitkomst
+            value: $verboden_in_omgevingsplan

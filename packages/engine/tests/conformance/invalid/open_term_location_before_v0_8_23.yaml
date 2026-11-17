@@ -1,6 +1,6 @@
 ---
-# `location` on an open term came with schema v0.8.23. Under v0.8.22 the
-# schema has no such key and the loader refuses it.
+# `location` and `territory` on an open term came with schema v0.8.23. Under
+# v0.8.22 the schema has no such keys and the loader refuses them.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
 $id: test_conformance_open_term_location_before_v0_8_23
 regulatory_layer: WET
@@ -21,6 +21,9 @@ articles:
           required: true
           delegation_type: GEMEENTELIJKE_VERORDENING
           location: $locatie
+          territory:
+            regulation: test_conformance_grenzenregister
+            output: grens_van_gemeente
       execution:
         parameters:
           - name: locatie

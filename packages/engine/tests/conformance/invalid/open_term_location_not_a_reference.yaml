@@ -21,6 +21,9 @@ articles:
           required: true
           delegation_type: GEMEENTELIJKE_VERORDENING
           location: POINT(155105 463625)
+          territory:
+            regulation: test_conformance_grenzenregister
+            output: grens_van_gemeente
       execution:
         parameters:
           - name: locatie

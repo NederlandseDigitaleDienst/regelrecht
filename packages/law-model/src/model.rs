@@ -1296,6 +1296,27 @@ pub struct OpenTerm {
     /// the term only when this shape overlaps that territory.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub location: Option<String>,
+    /// Where the territory of the authority whose regulation fills the term
+    /// comes from (schema v0.8.23): an output of a law, asked with the code
+    /// the regulation carries. It comes with [`Self::location`]: a
+    /// regulation fills the term only when the location overlaps this
+    /// territory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub territory: Option<TerritorySource>,
+}
+
+/// The output of a law that gives the territory of an authority (schema
+/// v0.8.23), as an open term with a `location` names it. The law is asked
+/// with one parameter: the code a candidate regulation carries, under the
+/// name of the field that carries it (`gemeente_code`, `provincie_code` or
+/// `waterschap_code`).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct TerritorySource {
+    /// The `$id` of the law that gives the territory.
+    pub regulation: String,
+    /// The output of that law that is the territory, a `shape`.
+    pub output: String,
 }
 
 impl OpenTerm {

@@ -159,8 +159,8 @@ pub(crate) fn reject_combine_before_its_version(law: &ArticleBasedLaw) -> Result
     Ok(())
 }
 
-/// Refuse the type `shape`, the operation `OVERLAPS` and a `location` on an
-/// open term in a file on schema v0.8.22 or earlier: all three arrived with
+/// Refuse the type `shape`, the operation `OVERLAPS` and a `location` or a
+/// `territory` on an open term in a file on schema v0.8.22 or earlier: all arrived with
 /// v0.8.23. The schema refuses them there too, and the loader repeats that
 /// because a document can reach the engine without passing schema
 /// validation. The type is looked for on every parameter, input and output;
@@ -183,9 +183,14 @@ pub(crate) fn reject_shapes_before_their_version(law: &ArticleBasedLaw) -> Resul
             .open_terms
             .iter()
             .flatten()
-            .find(|term| term.location.is_some())
+            .find(|term| term.location.is_some() || term.territory.is_some())
         {
-            return refuse(&where_, format!("open term '{}' has a location", term.id));
+            let field = if term.location.is_some() {
+                "location"
+            } else {
+                "territory"
+            };
+            return refuse(&where_, format!("open term '{}' has a {field}", term.id));
         }
         if let Some(execution) = &section.execution {
             let parameters = execution.parameters.iter().flatten();
@@ -233,7 +238,11 @@ pub(crate) fn reject_shapes_before_their_version(law: &ArticleBasedLaw) -> Resul
 /// finding or make the term false is a choice the format has not made.
 ///
 /// `location` is a bare `$`-reference to a parameter or an input of the
-/// article that declares the term, and that one is of type `shape`.
+/// article that declares the term, and that one is of type `shape`. It comes
+/// with `territory`, the output of a law that gives the territory a
+/// regulation holds for, and neither stands without the other: a place
+/// without territories picks nothing, and territories without a place are
+/// held against nothing.
 ///
 /// The term itself is no `shape`: the schema gives an open term a string,
 /// number, boolean, amount or date, and a shape that a regulation would fill
@@ -274,6 +283,23 @@ pub(crate) fn reject_malformed_term_filling(law: &ArticleBasedLaw) -> Result<()>
                             .to_string(),
                     );
                 }
+            }
+            match (&term.location, &term.territory) {
+                (Some(_), None) => {
+                    return refuse(
+                        "has a location and no territory; name the output of a law that gives \
+                         the territory a regulation holds for (territory: {regulation, output})"
+                            .to_string(),
+                    );
+                }
+                (None, Some(_)) => {
+                    return refuse(
+                        "has a territory and no location; a territory is what the location of \
+                         the case is held against"
+                            .to_string(),
+                    );
+                }
+                _ => {}
             }
             if let Some(location) = &term.location {
                 let Some(name) = location.strip_prefix('$').filter(|n| is_bare_name(n)) else {
@@ -1852,6 +1878,7 @@ fn operation_contains_unknown(op: &ActionOperation) -> bool {
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
+    use crate::article::LawLoad;
     use crate::service::LawExecutionService;
     use crate::types::Value;
 
@@ -3464,6 +3491,9 @@ articles:
         serde_yaml_ng::from_str(&yaml).unwrap()
     }
 
+    /// The lines of an open term that say where a territory is read.
+    const TERRITORY: &str = "          territory: {regulation: grenzen, output: grens}";
+
     /// The message with which every load check refuses `law`, or none.
     fn term_refusal(law: &ArticleBasedLaw) -> Option<String> {
         reject_removed_constructs(law)
@@ -3522,7 +3552,7 @@ articles:
         let law = law_with_term(
             "v0.8.22",
             "boolean",
-            "          location: $perceel",
+            &format!("          location: $perceel\n{TERRITORY}"),
             "string",
         );
         // The input of type shape is refused first under v0.8.22, so the
@@ -3530,7 +3560,7 @@ articles:
         let err = reject_shapes_before_their_version(&law_with_term(
             "v0.8.22",
             "boolean",
-            "          location: $locatie",
+            &format!("          location: $locatie\n{TERRITORY}"),
             "string",
         ))
         .unwrap_err()
@@ -3540,6 +3570,58 @@ articles:
             "{err}"
         );
         assert!(term_refusal(&law).is_some());
+        // A territory alone is as new as a location.
+        let err = reject_shapes_before_their_version(&law_with_term(
+            "v0.8.22", "boolean", TERRITORY, "string",
+        ))
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("open term 'verboden' has a territory") && err.contains("v0.8.23"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_location_and_a_territory_come_together() {
+        let refusal =
+            |term: &str| term_refusal(&law_with_term("v0.8.23", "boolean", term, "shape"));
+        assert_eq!(
+            refusal(&format!("          location: $locatie\n{TERRITORY}")),
+            None
+        );
+        let err = refusal("          location: $locatie").unwrap();
+        assert!(
+            err.contains("open term 'verboden' has a location and no territory"),
+            "{err}"
+        );
+        let err = refusal(TERRITORY).unwrap();
+        assert!(
+            err.contains("open term 'verboden' has a territory and no location"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_territory_names_a_regulation_and_an_output_and_nothing_else() {
+        let parse = |territory: &str| {
+            ArticleBasedLaw::from_yaml_str(&format!(
+                "$id: t\nregulatory_layer: WET\npublication_date: '2025-01-01'\narticles:\n  - \
+                 number: '1'\n    text: t\n    machine_readable:\n      open_terms:\n        - id: \
+                 verboden\n          type: boolean\n          location: $locatie\n          \
+                 territory: {territory}\n      execution:\n        parameters:\n          - name: \
+                 locatie\n            type: shape\n"
+            ))
+        };
+        parse("{regulation: grenzen, output: grens}").unwrap();
+        for territory in [
+            "{regulation: grenzen}",
+            "{output: grens}",
+            "{regulation: grenzen, output: grens, parameters: {jaar: 2025}}",
+            "grenzen#grens",
+        ] {
+            assert!(parse(territory).is_err(), "{territory}");
+        }
     }
 
     #[test]
@@ -3548,7 +3630,7 @@ articles:
             term_refusal(&law_with_term(
                 "v0.8.23",
                 "boolean",
-                &format!("          location: {location}"),
+                &format!("          location: {location}\n{TERRITORY}"),
                 location_type,
             ))
         };

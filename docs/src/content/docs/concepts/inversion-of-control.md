@@ -115,7 +115,7 @@ Second, a regulation with the same scope fields as the declaring one, set to the
 
 ### The regulation of a place
 
-A `gemeente_code` among the parameters works when the caller knows which municipality a case belongs to. For a rule about a place the caller knows something else: where the activity is. Since schema v0.8.23 an open term can name that place with `location`, and the place then picks the regulation.
+A `gemeente_code` among the parameters works when the caller knows which municipality a case belongs to. For a rule about a place the caller knows something else: where the activity is. Since schema v0.8.23 an open term can name that place with `location`, and say with `territory` where the territory of an authority is read. The place then picks the regulation.
 
 ```yaml
 # A law that leaves a ban to the omgevingsplan
@@ -127,6 +127,9 @@ machine_readable:
       delegated_to: gemeenteraad
       delegation_type: GEMEENTELIJKE_VERORDENING
       location: $locatie
+      territory:
+        regulation: kadasterwet
+        output: grens_van_gemeente
       combine: OR
   execution:
     parameters:
@@ -137,9 +140,35 @@ machine_readable:
 
 `location` is a `$`-reference to a parameter or an input of type `shape` in the article that declares the term. A regulation with a `gemeente_code`, `provincie_code` or `waterschap_code` fills the term only when that shape overlaps the territory of its code. The test is the one `OVERLAPS` applies: the interiors meet, so a location on the boundary of a territory lies in neither neighbor. A code among the parameters plays no part for such a term. A regulation without a territory, the declaring regulation itself and one of the declarer's own territory fill the term as described above.
 
-The engine does not know where a municipality lies. The caller gives it the territory of each code, as well-known text in the coordinate system of the locations: `register_territory` on the execution service, `registerTerritory` in WASM, `territories` in the request of the `evaluate` binary. A candidate whose code has no territory is an error that names the code. Whether that regulation applies at the location is then not known, and the engine does not read that as "it does not". The delegation gate comes first, so a regulation of a layer the term does not delegate to is refused as such and needs no territory. A location that is not known makes the term unknown for lack of it. That holds for a term an authority decides per case as well: a finding does not stand in for the plan of an unknown place.
+`territory` names the output of a law that gives the territory of an authority. The boundary of a municipality is a fact a register holds: article 48 of the Kadasterwet puts "de grens van een provincie of gemeente" on the national cadastral map. A register enters the corpus through the law that establishes it. An article of that law reads the register as an input with `source: {}` and gives the value as its output, the way the Wet basisregistratie personen gives what the BRP holds (see [Cross-Law References](./cross-law-references)). The territory is such an output:
 
-The territories are in no rulework, so two executions with the same parameters and other territories can differ. The execution therefore records, for every term with a `location`, the location and each candidate regulation that was held against it: its territory code, the hash of the text the territory was registered as, and whether the location overlapped it. The record is on the result as `open_terms_asked`, on the receipt under the same name, and in the trace under the open term.
+```yaml
+# The law of the register, article with the boundary of a municipality
+machine_readable:
+  execution:
+    parameters:
+      - name: gemeente_code
+        type: string
+        required: true
+    input:
+      - name: grens_in_register
+        type: shape
+        source: {}
+    output:
+      - name: grens_van_gemeente
+        type: shape
+    actions:
+      - output: grens_van_gemeente
+        value: $grens_in_register
+```
+
+For each candidate regulation that carries a territory code, the engine asks that output on the calculation date with one parameter: the code, under the name of the field that carries it, so `gemeente_code: GM0273` for a municipal plan. It is a call to another law like any other. It stands in the trace, it is checked for cycles, and the register reaches it as a data source bound to that law. A code is asked once per term, however many regulations carry it. `location` and `territory` come together; the schema and the loader refuse one without the other. A regulation that carries more than one territory code is an error for such a term.
+
+The value has to be a shape. A territory whose law is not loaded, whose output does not exist or whose value is no shape is an error that names the term, the code and the source. A territory that is unknown is something else. When the register has no row for a code, the input of the register's law is unknown for lack of that fact, and so is the territory. The regulation is then neither in scope nor out of it, and the engine does not read that as "it does not apply". Without `combine` the term is unknown for lack of what the territory lacks. With `combine: OR` a regulation that is in scope and gives true still makes the term true; otherwise the term is unknown.
+
+The delegation gate comes first, so the territory of a regulation at a layer the term does not delegate to is never asked. A location that is not known makes the term unknown for lack of it. That holds for a term an authority decides per case as well: a finding does not stand in for the plan of an unknown place.
+
+A term with a `location` rests on what a register held, which does not show in the term's own article. The execution therefore records, for every such term, the location and each candidate regulation that was held against it: its territory code, where the territory was read (`kadasterwet#grens_van_gemeente`), the hash of the text of the territory that was used, and whether the location overlapped it. For an unknown territory the hash and the outcome are absent. The record is on the result as `open_terms_asked`, on the receipt under the same name, and in the trace under the open term, where each territory is a step with the call to the register's law beneath it.
 
 ### Several articles that fill one term
 
@@ -150,7 +179,7 @@ A plan states its bans article by article: one article forbids building without 
 - true when one implementation gives true, whatever the others did;
 - otherwise the error of the first implementation that failed;
 - otherwise untranslatable when one of them is ([Markings](/concepts/markings));
-- otherwise unknown when one of them is unknown, for lack of what it lacks;
+- otherwise unknown when one of them is unknown, or when a candidate regulation could not be asked because its territory is unknown, for lack of what they lack;
 - otherwise false.
 
 Every implementation is asked, also after one gave true. An implementation that fails does not take the term down with it when another says so: its failure is recorded and not raised. One that gives something other than a boolean or null counts as failed.

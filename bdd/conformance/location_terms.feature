@@ -5,21 +5,31 @@ Feature: An open term filled by the regulations of a place
   So that the caller gives a location and not the code of an authority
 
   # Exercises schema v0.8.23 on an open term: `location`, a reference to a
-  # shape that decides which authority's regulation fills the term, and
-  # `combine: OR`, which asks every implementation instead of one winner.
-  # Driven against the test law corpus/regulation/nl/wet/test_location_terms
-  # and three municipal test regulations.
+  # shape that decides which authority's regulation fills the term;
+  # `territory`, the output of a law that gives the territory of an
+  # authority; and `combine: OR`, which asks every implementation instead of
+  # one winner. Driven against the test law
+  # corpus/regulation/nl/wet/test_location_terms and three municipal test
+  # regulations.
+  #
+  # The territories come from test_grenzenregister, a law that plays the
+  # register of boundaries: its article reads the boundary of a municipality
+  # as a `source: {}` input and gives it as its output. Each scenario gets
+  # the register as a data source bound to that law, as any register is
+  # given. The engine asks the law with the code a regulation carries.
   #
   # Linkerdorp (GM9901) is the square from x 0 to 10, Rechterdorp (GM9902)
-  # the square next to it, from x 10 to 20. Its plan forbids building in
-  # article 1 and felling in article 2; Rechterdorp's plan forbids
-  # demolishing a monument. No scenario gives the territory of Nergenshuizen
+  # the square next to it, from x 10 to 20. Linkerdorp's plan forbids
+  # building in article 1 and felling in article 2; Rechterdorp's plan
+  # forbids demolishing a monument. The register has no row for Nergenshuizen
   # (GM9909).
 
   Background:
     Given the calculation date is "2025-01-01"
-    And the territory of "GM9901" is "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))"
-    And the territory of "GM9902" is "POLYGON((10 0, 20 0, 20 10, 10 10, 10 0))"
+    And the following "grenzenregister" data with key "gemeente_code" for law "test_grenzenregister":
+      | gemeente_code | grens_in_register                          |
+      | GM9901        | POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))     |
+      | GM9902        | POLYGON((10 0, 20 0, 20 10, 10 10, 10 0))  |
 
   Scenario: A location in one territory asks the plan of that municipality
     Given parameter "location" is "POINT(5 5)"
@@ -71,14 +81,41 @@ Feature: An open term filled by the regulations of a place
     When I evaluate "vergunningplichtig" of "test_location_terms"
     Then the execution fails with "has no implementation and no default"
 
-  Scenario: A regulation whose territory nobody gave is an error that names the code
-    # Whether the regulation of Nergenshuizen applies here is not known.
-    # That is never read as "it does not".
+  Scenario: A regulation whose territory the register does not hold leaves the term unknown
+    # The register has no row for Nergenshuizen, so whether its regulation
+    # applies here is not known. That is never read as "it does not": the
+    # term is unknown for lack of the boundary in the register.
     Given parameter "location" is "POINT(5 5)"
     When I evaluate "terras_niet_toegestaan" of "test_location_terms"
+    Then the execution succeeds
+    Then output "terras_niet_toegestaan" is unknown for lack of "grens_in_register"
+
+  Scenario: With the boundary in the register the regulation is held against the location
+    Given the following "grenzenregister" data with key "gemeente_code" for law "test_grenzenregister":
+      | gemeente_code | grens_in_register                      |
+      | GM9909        | POLYGON((0 0, 6 0, 6 6, 0 6, 0 0))     |
+    And parameter "location" is "POINT(5 5)"
+    When I evaluate "terras_niet_toegestaan" of "test_location_terms"
+    Then output "terras_niet_toegestaan" is true
+
+  Scenario: A territory asked of a law that is not loaded is an error that names the term, the code and the source
+    # A boundary that cannot be read is not the same as one that is not known.
+    Given parameter "location" is "POINT(5 5)"
+    When I evaluate "evenement_niet_toegestaan" of "test_location_terms"
     Then the execution fails
-    Then the execution fails with "no territory is registered for 'GM9909'"
-    Then the execution fails with "test_terrasverordening_nergenshuizen"
+    Then the execution fails with "Open term 'evenement_verboden' on test_location_terms#5"
+    Then the execution fails with "the territory of 'GM9901'"
+    Then the execution fails with "from test_register_dat_niet_bestaat#grens_van_gemeente cannot be read"
+
+  Scenario: A territory that is not a shape is an error
+    # The term names the area of a municipality in square kilometres where it
+    # needs its boundary.
+    Given parameter "location" is "POINT(5 5)"
+    When I evaluate "reclame_niet_toegestaan" of "test_location_terms"
+    Then the execution fails
+    Then the execution fails with "Open term 'reclame_verboden' on test_location_terms#6"
+    Then the execution fails with "the territory of 'GM9901'"
+    Then the execution fails with "from test_grenzenregister#oppervlakte_van_gemeente is a integer, not a shape"
 
   Scenario: Of two articles of one plan, one that says so is enough
     # Article 1 of Linkerdorp's plan is silent on felling; article 2 forbids it.
@@ -134,7 +171,7 @@ Feature: An open term filled by the regulations of a place
     When I evaluate "verschuldigde_leges" of "test_location_terms"
     Then output "verschuldigde_leges" equals 250
 
-  Scenario: A term without a location does not look at the territories
+  Scenario: A term without a location does not ask for a territory
     Given parameter "gemeente_code" is "GM9903"
     When I evaluate "verschuldigde_leges" of "test_location_terms"
     Then the execution fails with "has no implementation and no default"

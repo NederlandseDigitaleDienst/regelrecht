@@ -9,8 +9,8 @@ gemeente_code: GM9902
 officiele_titel: Omgevingsplan gemeente Rechterdorp
 url: https://example.com/test_omgevingsplan_rechterdorp
 
-# A fictional municipality. Its territory is not in this file: the caller
-# gives it to the engine under the code GM9902.
+# A fictional municipality. Its territory is not in this file: it is the
+# boundary the Testwet grenzenregister gives for the code GM9902.
 
 articles:
   - number: '1'

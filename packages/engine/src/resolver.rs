@@ -25,10 +25,8 @@ use crate::article::{
 use crate::config;
 use crate::error::{EngineError, Result};
 use crate::priority::{self, Candidate};
-use crate::shape::{self, Territories};
 use crate::types::{RegulatoryLayer, Value};
 use chrono::NaiveDate;
-use geo::Geometry;
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 /// Why a law version could not be selected for a reference date.
@@ -281,80 +279,34 @@ pub struct ImplementationLookup<'a> {
     /// Candidates whose law has no version in force on the reference date, in
     /// index order. Not competent for this date, and not silent about it.
     pub not_in_force: Vec<DeclarationNotInForce>,
-    /// For a term with a `location` whose place is known: every competent
-    /// candidate regulation with a territory code that was held against the
-    /// location, once per regulation and code, with the outcome.
-    pub territory_tests: Vec<TerritoryTest>,
+    /// For a term with a `location`: the Unknown of every competent
+    /// candidate regulation whose territory is not known, once per
+    /// regulation. Such a candidate is neither in scope nor out of it, so it
+    /// is not among the implementations, and the term cannot be decided
+    /// against it.
+    pub place_unknown: Vec<Value>,
 }
 
-/// One candidate regulation held against the location of a case, for an open
-/// term with a `location` (schema v0.8.23).
-///
-/// Which regulation fills such a term depends on territories the caller of
-/// the engine gave, which are in no rulework. Two executions with the same
-/// parameters and other territories can give other outcomes, so each test is
-/// recorded: the code, the shape that was registered for it (by the hash of
-/// its text) and whether the location overlapped it.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
-pub struct TerritoryTest {
-    /// The candidate regulation.
-    pub law_id: String,
-    /// The territory code it carries (`gemeente_code`, `provincie_code` or
-    /// `waterschap_code`).
-    pub code: String,
-    /// `sha256:` and the hash of the text the territory of that code was
-    /// registered as.
-    pub territory: String,
-    /// Whether the interiors of the location and the territory meet.
-    pub overlaps: bool,
+/// How a candidate regulation lies to the place of a case, for an open term
+/// with a `location` (schema v0.8.23).
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) enum Placed {
+    /// The location overlaps the territory of the regulation.
+    Here,
+    /// It does not.
+    Elsewhere,
+    /// The territory is not known: the Unknown that says what is missing.
+    /// The regulation is then neither in scope nor out of it.
+    NotKnown(Value),
 }
 
-/// Where a case is, for an open term with a `location` (schema v0.8.23): the
-/// shape the term names and the territories the caller registered. A
-/// regulation that carries a territory code fills such a term only when the
-/// location overlaps the territory of that code.
-pub(crate) struct Place<'a> {
-    pub(crate) location: &'a Geometry<f64>,
-    pub(crate) territories: &'a Territories,
-}
-
-impl Place<'_> {
-    /// Hold the location against the territory of every code `law` carries:
-    /// one test per code, each with its outcome. A law without a code gives
-    /// none, and holds everywhere.
-    ///
-    /// # Errors
-    ///
-    /// When no territory is registered for a code of `law`: whether the law
-    /// applies here is then not known, which is not the same as "it does
-    /// not". `asked_for` names the open term, for the message.
-    fn test(&self, law: &ArticleBasedLaw, asked_for: &str) -> Result<Vec<TerritoryTest>> {
-        territory_codes(law)
-            .map(|code| {
-                let Some(territory) = self.territories.of(code) else {
-                    return Err(EngineError::ResolutionError(format!(
-                        "{asked_for} is filled by the regulation of the place, and no territory \
-                         is registered for '{code}' of {}",
-                        law.id
-                    )));
-                };
-                let overlaps =
-                    shape::interiors_meet(self.location, &territory.shape).map_err(|why| {
-                        EngineError::ResolutionError(format!(
-                            "{asked_for}: the location cannot be held against the territory of \
-                             '{code}': {why}"
-                        ))
-                    })?;
-                Ok(TerritoryTest {
-                    law_id: law.id.clone(),
-                    code: code.to_string(),
-                    territory: territory.hash.clone(),
-                    overlaps,
-                })
-            })
-            .collect()
-    }
-}
+/// Holds a candidate regulation against the place of a case. It is given the
+/// regulation, the name of the territory code it carries (`gemeente_code`,
+/// `provincie_code` or `waterschap_code`) and the code, and says how the
+/// location of the case lies to the territory of that code. The execution
+/// service supplies it: the territory is the output of a law, and only the
+/// service can run one.
+pub(crate) type PlaceTest<'a> = dyn FnMut(&ArticleBasedLaw, &str, &str) -> Result<Placed> + 'a;
 
 /// One lookup of the implementations of an open term: the term as its
 /// article declares it, and the case it is asked for.
@@ -367,8 +319,6 @@ struct TermAsked<'t> {
     reference_date: Option<NaiveDate>,
     /// The parameters of the execution, for the scope codes among them.
     scope: &'t HashMap<String, Value>,
-    /// Where the case is, when the caller knows.
-    place: Option<&'t Place<'t>>,
 }
 
 impl TermAsked<'_> {
@@ -381,16 +331,17 @@ impl TermAsked<'_> {
     }
 }
 
-/// The codes of the territory `law` holds for: its `gemeente_code`,
-/// `provincie_code` and `waterschap_code`, where it carries them.
-fn territory_codes(law: &ArticleBasedLaw) -> impl Iterator<Item = &str> {
+/// The codes of the territory `law` holds for, each with the name of the
+/// field that carries it: its `gemeente_code`, `provincie_code` and
+/// `waterschap_code`, where it carries them.
+fn territory_codes(law: &ArticleBasedLaw) -> impl Iterator<Item = (&'static str, &str)> {
     [
-        law.gemeente_code.as_deref(),
-        law.provincie_code.as_deref(),
-        law.waterschap_code.as_deref(),
+        ("gemeente_code", law.gemeente_code.as_deref()),
+        ("provincie_code", law.provincie_code.as_deref()),
+        ("waterschap_code", law.waterschap_code.as_deref()),
     ]
     .into_iter()
-    .flatten()
+    .filter_map(|(field, code)| code.map(|code| (field, code)))
 }
 
 /// Why no procedure definition was found (RFC-008).
@@ -1215,8 +1166,8 @@ impl RuleResolver {
     /// A term with a `location` (schema v0.8.23) is filled by the regulation
     /// of the place, which this lookup does not know: a regulation that
     /// carries a territory code is then out of scope, whatever codes `scope`
-    /// holds. The execution service looks such a term up with the location of
-    /// the case and the territories it was given.
+    /// holds. The execution service looks such a term up with a test that
+    /// holds each candidate against the location of the case.
     ///
     /// # Errors
     ///
@@ -1235,9 +1186,12 @@ impl RuleResolver {
 
     /// [`Self::find_implementations`] for a case whose place is known. With
     /// a `place`, a regulation that carries a territory code fills a term
-    /// with a `location` when the location overlaps the territory registered
-    /// for that code; the codes in `scope` play no part for such a term. For
-    /// a term without a `location` the `place` is not looked at.
+    /// with a `location` when `place` says the location overlaps the
+    /// territory of that code; the codes in `scope` play no part for such a
+    /// term. A regulation whose territory `place` does not know is neither
+    /// in nor out: it is left out of the implementations and its Unknown is
+    /// kept on the lookup. For a term without a `location` the `place` is
+    /// not asked.
     ///
     /// A term with `combine: OR` takes every candidate that is left, without
     /// ranking them: no winner is picked, so two of one layer and date are
@@ -1245,8 +1199,9 @@ impl RuleResolver {
     ///
     /// # Errors
     ///
-    /// As [`Self::find_implementations`], and when a candidate carries a
-    /// code that no territory is registered for.
+    /// As [`Self::find_implementations`], when `place` fails, and when a
+    /// candidate for a term with a `location` carries more than one
+    /// territory code.
     pub(crate) fn find_implementations_at(
         &self,
         law_id: &str,
@@ -1254,7 +1209,7 @@ impl RuleResolver {
         open_term: &OpenTerm,
         reference_date: Option<NaiveDate>,
         scope: &HashMap<String, Value>,
-        place: Option<&Place<'_>>,
+        mut place: Option<&mut PlaceTest<'_>>,
     ) -> Result<ImplementationLookup<'_>> {
         let asked = TermAsked {
             law_id,
@@ -1262,7 +1217,6 @@ impl RuleResolver {
             open_term,
             reference_date,
             scope,
-            place,
         };
         let key = (
             law_id.to_string(),
@@ -1286,13 +1240,13 @@ impl RuleResolver {
         let declarer = self.get_law_for_date(law_id, reference_date);
 
         // A term with a `location` is scoped by the place, and that test
-        // comes after the delegation gate: a candidate of the wrong layer is
-        // refused as such, and a code without a territory is an error only
-        // for a candidate that could have filled the term. A regulation is
-        // held against the place once, however many of its articles fill
-        // the term.
+        // comes last: after the delegation gate, so a candidate of the wrong
+        // layer is refused as such and its territory is never asked, and
+        // after the article is found, so only a candidate that could have
+        // filled the term is held against the place. A regulation is held
+        // against it once, however many of its articles fill the term.
         let located = open_term.location.is_some();
-        let mut in_place: BTreeMap<&str, bool> = BTreeMap::new();
+        let mut in_place: BTreeMap<&str, Placed> = BTreeMap::new();
 
         for entry in entries {
             let Some(law) = self.candidate_in_force(&asked, entry, &mut lookup) else {
@@ -1308,28 +1262,29 @@ impl RuleResolver {
             if !Self::candidate_is_competent(&asked, entry, law, &mut lookup)? {
                 continue;
             }
-            if located {
-                let here = match in_place.get(law.id.as_str()) {
-                    Some(here) => *here,
-                    None => {
-                        let here = Self::candidate_in_place(&asked, declarer, law, &mut lookup)?;
-                        in_place.insert(law.id.as_str(), here);
-                        here
-                    }
-                };
-                if !here {
-                    tracing::debug!(
-                        candidate = %entry.law_id,
-                        "Skipping: the candidate's territory is not the place of this case"
-                    );
-                    continue;
-                }
-            }
             let Some(implementing) =
                 Self::candidate_article(&asked, entry, law, entries, &mut lookup)
             else {
                 continue;
             };
+            if located {
+                if !in_place.contains_key(law.id.as_str()) {
+                    let placed =
+                        Self::candidate_in_place(&asked, declarer, law, place.as_deref_mut())?;
+                    if let Placed::NotKnown(unknown) = &placed {
+                        lookup.place_unknown.push(unknown.clone());
+                    }
+                    in_place.insert(law.id.as_str(), placed);
+                }
+                if in_place.get(law.id.as_str()) != Some(&Placed::Here) {
+                    tracing::debug!(
+                        candidate = %entry.law_id,
+                        "Skipping: the candidate's territory is not known to be the place of \
+                         this case"
+                    );
+                    continue;
+                }
+            }
             lookup.implementations.push((law, implementing));
         }
 
@@ -1404,42 +1359,46 @@ impl RuleResolver {
             || declarer.is_some_and(|declarer| Self::shares_territory(declarer, law))
     }
 
-    /// The scope test for a term with a `location` (schema v0.8.23): whether
-    /// the candidate `law` is a regulation of the place of this case.
+    /// The scope test for a term with a `location` (schema v0.8.23): how the
+    /// candidate `law` lies to the place of this case.
     ///
-    /// A candidate with a territory code is in when the location overlaps
-    /// the territory registered for each code it carries; the codes among
-    /// the parameters play no part. Each such test is recorded on `lookup`.
-    /// Without a place to hold it against, such a candidate is out. A
-    /// candidate without a code is in, and so is one that applies wherever
-    /// the declaring regulation does; neither is held against a territory.
+    /// A candidate with a territory code is asked of `place`, with the name
+    /// of the field that carries the code and the code; the codes among the
+    /// parameters play no part. Without a `place` such a candidate is
+    /// elsewhere. A candidate without a code is here, and so is one that
+    /// applies wherever the declaring regulation does; neither is held
+    /// against a territory.
     ///
     /// # Errors
     ///
-    /// When the place is known and no territory is registered for a code
-    /// the candidate carries.
+    /// When `place` fails, and when the candidate carries more than one
+    /// territory code: the term names one territory, and which of the codes
+    /// it is asked with is not something the format says.
     fn candidate_in_place(
         asked: &TermAsked<'_>,
         declarer: Option<&ArticleBasedLaw>,
         law: &ArticleBasedLaw,
-        lookup: &mut ImplementationLookup<'_>,
-    ) -> Result<bool> {
+        place: Option<&mut PlaceTest<'_>>,
+    ) -> Result<Placed> {
         if Self::applies_with_the_declarer(asked, declarer, law) {
-            return Ok(true);
+            return Ok(Placed::Here);
         }
-        let Some(place) = asked.place else {
-            return Ok(territory_codes(law).next().is_none());
+        let mut codes = territory_codes(law);
+        let Some((field, code)) = codes.next() else {
+            return Ok(Placed::Here);
         };
-        let tests = place.test(
-            law,
-            &format!(
-                "Open term '{}' on {}#{}",
-                asked.open_term.id, asked.law_id, asked.article
-            ),
-        )?;
-        let here = tests.iter().all(|test| test.overlaps);
-        lookup.territory_tests.extend(tests);
-        Ok(here)
+        if let Some((second, _)) = codes.next() {
+            return Err(EngineError::ResolutionError(format!(
+                "Open term '{}' on {}#{} is filled by the regulation of the place, and {} \
+                 carries more than one territory code ({field} and {second}); a regulation \
+                 that fills such a term carries one",
+                asked.open_term.id, asked.law_id, asked.article, law.id
+            )));
+        }
+        match place {
+            Some(place) => place(law, field, code),
+            None => Ok(Placed::Elsewhere),
+        }
     }
 
     /// The delegation gate: whether the candidate `law` is of the layer the
@@ -5462,77 +5421,94 @@ articles:
         )
     }
 
-    /// The territories of GM0001 (x 0 to 10) and GM0002 (x 10 to 20).
-    fn two_territories() -> Territories {
-        let mut territories = Territories::default();
-        territories
-            .register("GM0001", "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
-            .unwrap();
-        territories
-            .register("GM0002", "POLYGON((10 0, 20 0, 20 10, 10 10, 10 0))")
-            .unwrap();
-        territories
+    /// A place as a test would have it: the codes whose territory the
+    /// location overlaps, the codes whose territory is unknown, and every
+    /// question the resolver asked, as `law field code`.
+    #[derive(Default)]
+    struct TestPlace {
+        here: Vec<&'static str>,
+        unknown: Vec<&'static str>,
+        asked: Vec<String>,
     }
 
-    /// The ids of the laws that fill `verboden` at `location`, or the error.
-    fn found_at(
-        resolver: &RuleResolver,
-        territories: &Territories,
-        location: &str,
+    impl TestPlace {
+        fn at(here: &[&'static str]) -> Self {
+            TestPlace {
+                here: here.to_vec(),
+                ..TestPlace::default()
+            }
+        }
+
+        fn hold(&mut self, law: &ArticleBasedLaw, field: &str, code: &str) -> Result<Placed> {
+            self.asked.push(format!("{} {field} {code}", law.id));
+            Ok(if self.here.contains(&code) {
+                Placed::Here
+            } else if self.unknown.contains(&code) {
+                Placed::NotKnown(Value::unknown(
+                    "grenzen",
+                    code,
+                    crate::types::MissingKind::NoData,
+                ))
+            } else {
+                Placed::Elsewhere
+            })
+        }
+    }
+
+    /// The lookup of `verboden` at `place`, with the codes in `scope`.
+    fn lookup_at<'r>(
+        resolver: &'r RuleResolver,
+        place: &mut TestPlace,
         scope: &HashMap<String, Value>,
-    ) -> Result<Vec<String>> {
-        let location = shape::parse(location).unwrap();
-        let place = Place {
-            location: &location,
-            territories,
-        };
-        let lookup = resolver.find_implementations_at(
+    ) -> Result<ImplementationLookup<'r>> {
+        resolver.find_implementations_at(
             "plaatswet",
             "1",
             open_term(resolver, "plaatswet", "1", "verboden"),
             None,
             scope,
-            Some(&place),
-        )?;
-        Ok(lookup
+            Some(&mut |law, field, code| place.hold(law, field, code)),
+        )
+    }
+
+    /// The ids of the laws a lookup found.
+    fn found(lookup: &ImplementationLookup<'_>) -> Vec<String> {
+        lookup
             .implementations
             .iter()
             .map(|(law, _)| law.id.clone())
-            .collect())
+            .collect()
     }
 
-    const LOCATED: &str = "          location: $locatie";
-    const LOCATED_AND_COMBINED: &str = "          location: $locatie\n          combine: OR";
-    const ACROSS_BOTH: &str = "POLYGON((8 4, 12 4, 12 6, 8 6, 8 4))";
+    const LOCATED: &str =
+        "          location: $locatie\n          territory: {regulation: grenzen, output: grens}";
+    const LOCATED_AND_COMBINED: &str = "          location: $locatie\n          territory: {regulation: grenzen, output: grens}\n          combine: OR";
 
     #[test]
-    fn test_find_implementations_a_location_selects_by_territory() {
+    fn test_find_implementations_a_location_selects_by_the_place_test() {
         let resolver = place_resolver(LOCATED, None);
-        let territories = two_territories();
         let none = HashMap::new();
+        let mut left = TestPlace::at(&["GM0001"]);
         assert_eq!(
-            found_at(&resolver, &territories, "POINT(5 5)", &none).unwrap(),
+            found(&lookup_at(&resolver, &mut left, &none).unwrap()),
             ["plan_links"]
         );
+        // Each candidate is asked with the field that carries its code.
+        left.asked.sort();
         assert_eq!(
-            found_at(&resolver, &territories, "POINT(15 5)", &none).unwrap(),
-            ["plan_rechts"]
+            left.asked,
+            [
+                "plan_links gemeente_code GM0001",
+                "plan_rechts gemeente_code GM0002"
+            ]
         );
-        // On the shared edge, and far away: the interiors do not meet.
-        assert!(
-            found_at(&resolver, &territories, "POINT(10 5)", &none)
-                .unwrap()
-                .is_empty()
-        );
-        assert!(
-            found_at(&resolver, &territories, "POINT(50 50)", &none)
-                .unwrap()
-                .is_empty()
-        );
+        let mut nowhere = TestPlace::default();
+        assert!(found(&lookup_at(&resolver, &mut nowhere, &none).unwrap()).is_empty());
         // The code among the parameters plays no part.
         let other_code = scope_of("gemeente_code", "GM0002");
+        let mut left = TestPlace::at(&["GM0001"]);
         assert_eq!(
-            found_at(&resolver, &territories, "POINT(5 5)", &other_code).unwrap(),
+            found(&lookup_at(&resolver, &mut left, &other_code).unwrap()),
             ["plan_links"]
         );
     }
@@ -5540,7 +5516,8 @@ articles:
     #[test]
     fn test_find_implementations_without_combine_two_territories_are_ambiguous() {
         let resolver = place_resolver(LOCATED, None);
-        let err = found_at(&resolver, &two_territories(), ACROSS_BOTH, &HashMap::new())
+        let mut both = TestPlace::at(&["GM0001", "GM0002"]);
+        let err = lookup_at(&resolver, &mut both, &HashMap::new())
             .unwrap_err()
             .to_string();
         assert!(err.contains("Ambiguous priority"), "{err}");
@@ -5549,38 +5526,65 @@ articles:
     #[test]
     fn test_find_implementations_combine_or_takes_every_candidate_in_a_fixed_order() {
         let resolver = place_resolver(LOCATED_AND_COMBINED, None);
+        let mut both = TestPlace::at(&["GM0001", "GM0002"]);
         assert_eq!(
-            found_at(&resolver, &two_territories(), ACROSS_BOTH, &HashMap::new()).unwrap(),
+            found(&lookup_at(&resolver, &mut both, &HashMap::new()).unwrap()),
             ["plan_links", "plan_rechts"]
         );
     }
 
     #[test]
-    fn test_find_implementations_an_unregistered_territory_is_an_error() {
-        let extra = place_plan("plan_elders", "gemeente_code: 'GM0003'");
-        let resolver = place_resolver(LOCATED_AND_COMBINED, Some(&extra));
-        let err = found_at(&resolver, &two_territories(), "POINT(5 5)", &HashMap::new())
-            .unwrap_err()
-            .to_string();
-        assert!(
-            err.contains("no territory is registered for 'GM0003' of plan_elders"),
-            "{err}"
+    fn test_find_implementations_an_unknown_territory_is_neither_in_nor_out() {
+        // The plan of GM0001 has three articles that fill the term and its
+        // territory is unknown: it is asked once, left out of the
+        // implementations, and its Unknown is kept once.
+        let mut resolver = place_resolver(LOCATED_AND_COMBINED, None);
+        let three_articles = place_plan("plan_links", "gemeente_code: 'GM0001'").replace(
+            "articles:\n",
+            "articles:\n  - number: '2'\n    text: t\n    machine_readable:\n      implements:\n        \
+             - law: plaatswet\n          article: '1'\n          open_term: verboden\n      \
+             execution:\n        output:\n          - name: verboden\n            type: boolean\n        \
+             actions:\n          - output: verboden\n            value: true\n  - number: '3'\n    \
+             text: t\n    machine_readable:\n      implements:\n        - law: plaatswet\n          \
+             article: '1'\n          open_term: verboden\n      execution:\n        output:\n          \
+             - name: verboden\n            type: boolean\n        actions:\n          - output: \
+             verboden\n            value: true\n",
         );
+        resolver.load_from_yaml(&three_articles).unwrap();
+        let mut place = TestPlace {
+            here: vec!["GM0002"],
+            unknown: vec!["GM0001"],
+            asked: Vec::new(),
+        };
+        let lookup = lookup_at(&resolver, &mut place, &HashMap::new()).unwrap();
+        assert_eq!(found(&lookup), ["plan_rechts"]);
+        assert_eq!(lookup.place_unknown.len(), 1);
+        assert_eq!(lookup.place_unknown[0].missing_facts()[0].name, "GM0001");
+        let asked_left = place
+            .asked
+            .iter()
+            .filter(|asked| asked.starts_with("plan_links "))
+            .count();
+        assert_eq!(asked_left, 1, "{:?}", place.asked);
     }
 
     #[test]
     fn test_find_implementations_a_regulation_without_a_territory_holds_everywhere() {
         let extra = place_plan("landelijk_plan", "");
         let resolver = place_resolver(LOCATED_AND_COMBINED, Some(&extra));
+        let mut nowhere = TestPlace::default();
         assert_eq!(
-            found_at(
-                &resolver,
-                &two_territories(),
-                "POINT(50 50)",
-                &HashMap::new()
-            )
-            .unwrap(),
+            found(&lookup_at(&resolver, &mut nowhere, &HashMap::new()).unwrap()),
             ["landelijk_plan"]
+        );
+        // It has no territory to hold the location against.
+        assert!(
+            nowhere
+                .asked
+                .iter()
+                .all(|asked| !asked.starts_with("landelijk_plan")),
+            "{:?}",
+            nowhere.asked
         );
     }
 
@@ -5599,134 +5603,85 @@ articles:
                 &scope_of("gemeente_code", "GM0001"),
             )
             .unwrap();
-        let ids: Vec<&str> = lookup
-            .implementations
-            .iter()
-            .map(|(law, _)| law.id.as_str())
-            .collect();
-        assert_eq!(ids, ["landelijk_plan"]);
+        assert_eq!(found(&lookup), ["landelijk_plan"]);
     }
 
     #[test]
-    fn test_find_implementations_a_place_is_not_looked_at_without_a_location() {
+    fn test_find_implementations_a_place_is_not_asked_without_a_location() {
         // A term without `location` is matched by the code among the
-        // parameters, place or no place, and an unregistered code is no
-        // error there.
+        // parameters, place or no place.
         let extra = place_plan("plan_elders", "gemeente_code: 'GM0003'");
         let resolver = place_resolver("          combine: OR", Some(&extra));
-        assert_eq!(
-            found_at(
-                &resolver,
-                &two_territories(),
-                "POINT(5 5)",
-                &scope_of("gemeente_code", "GM0003")
-            )
-            .unwrap(),
-            ["plan_elders"]
-        );
-    }
-
-    /// The lookup of `verboden` at `location`, with its records.
-    fn lookup_at<'r>(
-        resolver: &'r RuleResolver,
-        territories: &Territories,
-        location: &str,
-    ) -> Result<ImplementationLookup<'r>> {
-        let location = shape::parse(location).unwrap();
-        let place = Place {
-            location: &location,
-            territories,
-        };
-        resolver.find_implementations_at(
-            "plaatswet",
-            "1",
-            open_term(resolver, "plaatswet", "1", "verboden"),
-            None,
-            &HashMap::new(),
-            Some(&place),
-        )
-    }
-
-    #[test]
-    fn test_find_implementations_a_regulation_is_held_against_the_place_once() {
-        // A plan with three articles that fill the term: one territory test,
-        // with the code, the outcome and the hash of the territory's text.
-        let mut resolver = place_resolver(LOCATED_AND_COMBINED, None);
-        let three_articles = place_plan("plan_links", "gemeente_code: 'GM0001'").replace(
-            "articles:\n",
-            "articles:\n  - number: '2'\n    text: t\n    machine_readable:\n      implements:\n        \
-             - law: plaatswet\n          article: '1'\n          open_term: verboden\n      \
-             execution:\n        output:\n          - name: verboden\n            type: boolean\n        \
-             actions:\n          - output: verboden\n            value: true\n  - number: '3'\n    \
-             text: t\n    machine_readable:\n      implements:\n        - law: plaatswet\n          \
-             article: '1'\n          open_term: verboden\n      execution:\n        output:\n          \
-             - name: verboden\n            type: boolean\n        actions:\n          - output: \
-             verboden\n            value: true\n",
-        );
-        resolver.load_from_yaml(&three_articles).unwrap();
-        let territories = two_territories();
-
-        let lookup = lookup_at(&resolver, &territories, "POINT(5 5)").unwrap();
-        assert_eq!(lookup.implementations.len(), 3);
-        let tests: Vec<(&str, &str, bool)> = lookup
-            .territory_tests
-            .iter()
-            .map(|t| (t.law_id.as_str(), t.code.as_str(), t.overlaps))
-            .collect();
-        assert_eq!(tests.len(), 2, "{tests:?}");
-        assert!(tests.contains(&("plan_links", "GM0001", true)), "{tests:?}");
-        assert!(
-            tests.contains(&("plan_rechts", "GM0002", false)),
-            "{tests:?}"
-        );
-        let left = lookup
-            .territory_tests
-            .iter()
-            .find(|t| t.code == "GM0001")
-            .unwrap();
-        assert_eq!(
-            left.territory,
-            shape::text_hash("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
-        );
+        let mut place = TestPlace::at(&["GM0001"]);
+        let lookup =
+            lookup_at(&resolver, &mut place, &scope_of("gemeente_code", "GM0003")).unwrap();
+        assert_eq!(found(&lookup), ["plan_elders"]);
+        assert!(place.asked.is_empty(), "{:?}", place.asked);
     }
 
     #[test]
     fn test_find_implementations_the_delegation_gate_comes_before_the_place() {
-        // A regulation of the wrong layer whose code has no territory: it is
-        // refused as incompetent and recorded as such, and its missing
-        // territory is no error. It is not held against the place either.
+        // A regulation of the wrong layer is refused as incompetent and
+        // recorded as such; its territory is never asked.
         let wrong_layer = place_plan("beleid_elders", "gemeente_code: 'GM0003'").replace(
             "regulatory_layer: GEMEENTELIJKE_VERORDENING",
             "regulatory_layer: BELEIDSREGEL",
         );
         let resolver = place_resolver(LOCATED_AND_COMBINED, Some(&wrong_layer));
-        let territories = two_territories();
-        let lookup = lookup_at(&resolver, &territories, "POINT(5 5)").unwrap();
-        let ids: Vec<&str> = lookup
-            .implementations
-            .iter()
-            .map(|(law, _)| law.id.as_str())
-            .collect();
-        assert_eq!(ids, ["plan_links"]);
+        let mut place = TestPlace::at(&["GM0001", "GM0003"]);
+        let lookup = lookup_at(&resolver, &mut place, &HashMap::new()).unwrap();
+        assert_eq!(found(&lookup), ["plan_links"]);
         assert_eq!(lookup.refusals.len(), 1);
         assert_eq!(lookup.refusals[0].refused_law, "beleid_elders");
         assert!(
-            lookup
-                .territory_tests
+            place
+                .asked
                 .iter()
-                .all(|t| t.law_id != "beleid_elders")
+                .all(|asked| !asked.starts_with("beleid_elders")),
+            "{:?}",
+            place.asked
         );
+    }
 
-        // The same code on a regulation that could have filled the term is
-        // an error.
-        let competent = place_plan("plan_elders", "gemeente_code: 'GM0003'");
-        let resolver = place_resolver(LOCATED_AND_COMBINED, Some(&competent));
-        let err = lookup_at(&resolver, &territories, "POINT(5 5)")
+    #[test]
+    fn test_find_implementations_a_candidate_with_two_codes_is_an_error_for_a_located_term() {
+        let two_codes = place_plan(
+            "plan_dubbel",
+            "gemeente_code: 'GM0003'\nwaterschap_code: 'WS0155'",
+        );
+        let resolver = place_resolver(LOCATED_AND_COMBINED, Some(&two_codes));
+        let mut place = TestPlace::at(&["GM0003"]);
+        let err = lookup_at(&resolver, &mut place, &HashMap::new())
             .unwrap_err()
             .to_string();
         assert!(
-            err.contains("no territory is registered for 'GM0003'"),
+            err.contains(
+                "Open term 'verboden' on plaatswet#1 is filled by the regulation of the place, \
+                 and plan_dubbel carries more than one territory code (gemeente_code and \
+                 waterschap_code)"
+            ),
             "{err}"
         );
+    }
+
+    #[test]
+    fn test_find_implementations_a_failing_place_test_fails_the_lookup() {
+        let resolver = place_resolver(LOCATED_AND_COMBINED, None);
+        let err = resolver
+            .find_implementations_at(
+                "plaatswet",
+                "1",
+                open_term(&resolver, "plaatswet", "1", "verboden"),
+                None,
+                &HashMap::new(),
+                Some(&mut |_, _, code| {
+                    Err(EngineError::ResolutionError(format!(
+                        "the territory of '{code}' cannot be read"
+                    )))
+                }),
+            )
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("cannot be read"), "{err}");
     }
 }

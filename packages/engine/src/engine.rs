@@ -24,9 +24,7 @@ use crate::article::{Action, ActionOperation, Article, ArticleBasedLaw};
 use crate::context::{LazyInputs, RuleContext};
 use crate::error::{EngineError, Result};
 use crate::operations::{evaluate_value, execute_operation};
-use crate::resolver::{
-    DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal, TerritoryTest,
-};
+use crate::resolver::{DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal};
 use crate::trace::{LegalAnchor, PathNode, TraceBuilder};
 use crate::types::{PathNodeType, Value};
 use std::cell::RefCell;
@@ -107,11 +105,12 @@ pub struct OpenTermFilled {
 /// How one open term with a `location` or `combine: OR` (schema v0.8.23)
 /// was asked in an execution.
 ///
-/// Such a term rests on more than the ruleworks and the parameters: on the
-/// territories the caller gave the engine, and on what every implementation
-/// said, also the ones that did not decide the outcome. This record holds
-/// both, so two executions that differ only in a territory, or a term that
-/// came out false or unknown, can be told apart and explained afterwards.
+/// Such a term rests on more than its own article shows: on the territory
+/// of each candidate regulation, read from another law, and on what every
+/// implementation said, also the ones that did not decide the outcome. This
+/// record holds both, so two executions that differ only in a territory, or
+/// a term that came out false or unknown, can be told apart and explained
+/// afterwards.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct OpenTermAsked {
     /// The law and article that declare the term.
@@ -131,6 +130,37 @@ pub struct OpenTermAsked {
     /// in the order it was asked, and what it gave.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub answers: Vec<ImplementationAnswer>,
+}
+
+/// One candidate regulation held against the location of a case, for an open
+/// term with a `location` (schema v0.8.23).
+///
+/// Which regulation fills such a term depends on the territory of each
+/// candidate, which is read from the output of a law (`territory`) and so
+/// from whatever that law reads: a register, usually. Two executions with
+/// the same parameters and another register can give other outcomes, so each
+/// test is recorded: the code, where the territory came from, the value that
+/// was used (by the hash of its text) and whether the location overlapped
+/// it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TerritoryTest {
+    /// The candidate regulation.
+    pub law_id: String,
+    /// The territory code it carries (`gemeente_code`, `provincie_code` or
+    /// `waterschap_code`).
+    pub code: String,
+    /// Where the territory of that code was read: `<regulation>#<output>`,
+    /// as the term's `territory` names it.
+    pub source: String,
+    /// `sha256:` and the hash of the text of the territory that was used.
+    /// Absent when the territory is unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub territory: Option<String>,
+    /// Whether the interiors of the location and the territory meet. Absent
+    /// when the territory is unknown: the regulation is then neither in
+    /// scope nor out of it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overlaps: Option<bool>,
 }
 
 /// What one implementation of a term with `combine: OR` gave when asked.
