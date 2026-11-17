@@ -340,6 +340,16 @@ impl Spel {
         ok(self.met(|c, cell| kern::waarom(c, cell, id))?)
     }
 
+    /// How the decision `id` is made known on `datum`
+    /// ([`kern::bekendmaking`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`kern::bekendmaking`], and when no case is chosen.
+    pub fn bekendmaking(&mut self, id: &str, datum: NaiveDate) -> Antwoord {
+        ok(self.met(|c, cell| kern::bekendmaking(c, cell, id, datum))?)
+    }
+
     /// What follows from the submission `id` ([`kern::wat_volgt`]).
     pub fn wat_volgt(&mut self, id: &str) -> Antwoord {
         ok(self.met(|c, cell| kern::wat_volgt(c, cell, id))?)

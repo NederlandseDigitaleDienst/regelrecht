@@ -417,7 +417,7 @@ impl Speler<'_> {
         let besluit = besluit.ok_or("no decision to object to")?;
         let mut velden = met(&self.voorbeeld["bezwaar"], &stap["invoer"]);
         dagtekening(&mut velden, datum);
-        let gevraagd = tegen(self.spel, &vormen["bezwaar"]["velden"], &besluit)?;
+        let gevraagd = tegen(self.spel, vormen, &vormen["bezwaar"]["velden"], &besluit)?;
         rij["leeg_gelaten"] = json!(vul_leeg(&gevraagd, &mut velden));
         let gram = self
             .spel
@@ -483,6 +483,17 @@ impl Speler<'_> {
                     .iter()
                     .find(|h| h["feit"] == json!(feit))
             })
+            // A fact that makes a decision of the cell known, recorded on
+            // that decision in the step after it.
+            .or_else(|| {
+                vormen["besluiten"]
+                    .as_object()?
+                    .values()
+                    .filter(|b| b["cel"] == json!(cel))
+                    .filter_map(|b| b["bekendmaking"]["feiten"].as_array())
+                    .flatten()
+                    .find(|h| h["feit"] == json!(feit))
+            })
             .ok_or_else(|| format!("{cel} records no {feit}"))?;
         let mut velden = map(&stap["invoer"]);
         rij["leeg_gelaten"] = json!(vul_leeg(&handeling["velden"], &mut velden));
@@ -496,6 +507,16 @@ impl Speler<'_> {
             .spel
             .vastleggen_verwijzend(cel, feit, &velden, verwijst_naar, datum)
             .map_err(|e| e.to_string())?;
+        // A fact that makes a decision known: what the announcement then
+        // gives on the step's day, such as the period for objection, is what
+        // the step's `uitvoer` checks.
+        if stap.get("uitvoer").is_some()
+            && let Some(besluit) = gram["refers_to"].as_str()
+            && let Ok(bekendmaking) = self.spel.bekendmaking(besluit, datum)
+            && !bekendmaking.is_null()
+        {
+            rij["uitvoer"] = json!(uitvoer(stap, &bekendmaking["uitvoer"]));
+        }
         self.kenmerk(stap, &gram)
     }
 
@@ -509,7 +530,7 @@ impl Speler<'_> {
         let besluit = kies(&self.stand.beslissingen, &stap["op"])?;
         let mut velden = met(&self.voorbeeld["beroep"], &stap["invoer"]);
         dagtekening(&mut velden, datum);
-        let gevraagd = tegen(self.spel, &vormen["beroep"]["velden"], &besluit)?;
+        let gevraagd = tegen(self.spel, vormen, &vormen["beroep"]["velden"], &besluit)?;
         rij["leeg_gelaten"] = json!(vul_leeg(&gevraagd, &mut velden));
         let gram = self
             .spel
@@ -595,7 +616,7 @@ impl Speler<'_> {
                 let artikel = artikel.ok_or("a step 'indienen' without 'artikel'")?;
                 let velden = &vormen["indieningen"][artikel]["velden"];
                 let gevraagd = match &op {
-                    Some(op) => tegen(self.spel, velden, op)?,
+                    Some(op) => tegen(self.spel, vormen, velden, op)?,
                     None => velden.clone(),
                 };
                 rij["leeg_gelaten"] = json!(vul_leeg(&gevraagd, &mut invoer));
@@ -716,9 +737,10 @@ fn dagtekening(velden: &mut Map<String, Value>, datum: NaiveDate) {
 
 /// The fields of the form `velden` that the submitter fills against the
 /// decision `id` of the case's own cell: not those the cell takes from that
-/// decision (its outputs and fields, such as the term of Awb 6:8), as the
-/// form on the page leaves them out.
-fn tegen(spel: &mut Spel, velden: &Value, id: &str) -> Result<Value, String> {
+/// decision (its outputs and fields, and what its stages give, such as the
+/// term of Awb 6:8 also before its announcement: `uit_besluit`), as the form
+/// on the page leaves them out.
+fn tegen(spel: &mut Spel, vormen: &Value, velden: &Value, id: &str) -> Result<Value, String> {
     let kroniek = spel.kroniek().map_err(|e| e.to_string())?;
     let besluit = kroniek["grammen"]
         .as_array()
@@ -726,8 +748,13 @@ fn tegen(spel: &mut Spel, velden: &Value, id: &str) -> Result<Value, String> {
         .flatten()
         .find(|g| g["id"] == json!(id))
         .ok_or_else(|| format!("no decision '{id}' in the chronicle"))?;
+    let geeft = &vormen["uit_besluit"][id];
     let in_besluit = |naam: &str| {
-        besluit["outputs"].get(naam).is_some() || besluit["fields"].get(naam).is_some()
+        besluit["outputs"].get(naam).is_some()
+            || besluit["fields"].get(naam).is_some()
+            || geeft
+                .as_array()
+                .is_some_and(|g| g.iter().any(|n| n == naam))
     };
     Ok(Value::Array(
         velden

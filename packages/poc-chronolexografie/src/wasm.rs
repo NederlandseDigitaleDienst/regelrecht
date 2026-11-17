@@ -259,6 +259,10 @@ impl Poc {
         antwoord(self.spel.waarom(id))
     }
 
+    pub fn bekendmaking(&mut self, id: &str, datum: &str) -> Result<String, JsError> {
+        antwoord(self.spel.bekendmaking(id, dag(datum)?))
+    }
+
     #[wasm_bindgen(js_name = watVolgt)]
     pub fn wat_volgt(&mut self, id: &str) -> Result<String, JsError> {
         antwoord(self.spel.wat_volgt(id))

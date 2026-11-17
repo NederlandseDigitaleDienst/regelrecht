@@ -14,6 +14,17 @@
 //!    application does not hold;
 //! 3. the day of the decision, for a date the stage requires.
 //!
+//! An article at the stage that makes the decision known may say that one
+//! of its parameters is held by a fact (`requires`, `fact` with
+//! `parameters`, schema v0.8.7), such as the day the decision was sent. The
+//! authority records that fact after the decision, referring to it, and the
+//! cell takes the parameter from there ([`Source::Fact`]), also a date the
+//! stage requires. Such a stage does not run when the decision is taken: what
+//! it gives, such as the period for objection (Awb 6:8), follows from the
+//! decision and the facts the chronicle holds on the day asked
+//! ([`crate::Cell::announcement`]). A stage that reads no fact runs with the
+//! decision, on its day.
+//!
 //! An open term is no input. A policy that fills it (`implements`) is the
 //! engine's to run, and its value is the term's (RFC-048 §2). A term that
 //! nothing fills and that the law or policy marks as judged per case
@@ -40,8 +51,9 @@ use crate::shape::{self, Field, add_field, article_on};
 /// (Awb 1:3) and the announcement without which it has no effect (Awb 3:40);
 /// for the judgment of an administrative court the judgment (Awb 8:70) and
 /// the copy that the clerk makes available to the parties (Awb 8:79, RFC-053).
-/// The cell announces or sends the decision on the day it takes it: that is
-/// its assumption, not the law's.
+/// Where no article at the second stage reads a fact ([`Source::Fact`]), the
+/// cell announces or sends the decision on the day it takes it: that is its
+/// assumption, not the law's.
 pub const STAGES: [[&str; 2]; 2] = [["BESLUIT", "BEKENDMAKING"], ["UITSPRAAK", "TOEZENDING"]];
 
 /// Where the cell takes the value of a parameter of a decision from.
@@ -54,6 +66,12 @@ pub enum Source {
     Supplied,
     /// The cell: the day of the decision.
     Cell,
+    /// A fact the deciding authority records after the decision, referring
+    /// to it: the field of that name in the latest executogram of `fact`
+    /// (`<regulation>#<article>#<fact>`) that refers to the decision. Only a
+    /// parameter of an article at the second stage (the announcement) is
+    /// held so; nothing about the decision can be recorded before it exists.
+    Fact { fact: String },
 }
 
 /// A parameter of the decision, with where the cell takes it from.
@@ -103,6 +121,42 @@ impl DecisionShape {
         self.inputs.iter().find(|i| i.field.name == name)
     }
 
+    /// The stage that makes the decision known, where an article at it reads
+    /// a fact ([`Source::Fact`]): it runs after the decision, on what the
+    /// chronicle holds, and not when the decision is taken.
+    pub fn announcement(&self) -> Option<&ProcedureStage> {
+        self.inputs
+            .iter()
+            .any(|i| matches!(i.source, Source::Fact { .. }))
+            .then(|| self.stages.get(1))
+            .flatten()
+    }
+
+    /// The stages that run when the decision is taken: all of them, but the
+    /// [`DecisionShape::announcement`].
+    pub fn taken_stages(&self) -> &[ProcedureStage] {
+        let end = if self.announcement().is_some() {
+            1
+        } else {
+            self.stages.len()
+        };
+        &self.stages[..end.min(self.stages.len())]
+    }
+
+    /// The facts the announcement reads, each once, in the order of the
+    /// inputs they hold.
+    pub fn announcement_facts(&self) -> Vec<&str> {
+        let mut facts: Vec<&str> = Vec::new();
+        for input in &self.inputs {
+            if let Source::Fact { fact } = &input.source
+                && !facts.contains(&fact.as_str())
+            {
+                facts.push(fact);
+            }
+        }
+        facts
+    }
+
     /// The finding `name` the decision may take from `authority`: an open
     /// term that nothing fills, of the deciding article or of a policy that
     /// fills one of its terms, judged per case and answered by `authority`
@@ -150,6 +204,27 @@ pub fn finding_field(term: &DecisionTerm) -> Field {
         nullable: !term.required && !term.has_default,
         declared_by: vec![term.declared_by()],
         columns: None,
+    }
+}
+
+/// Note that the fact `fact` holds the parameter `name` of the decision of
+/// `reference`. A parameter is one value in a decision, so two facts that
+/// each claim to hold it are refused: the law has to say which one counts.
+fn hold_by_fact(
+    sources: &mut HashMap<String, Source>,
+    name: &str,
+    fact: String,
+    reference: &str,
+) -> Result<()> {
+    match sources.get(name) {
+        Some(Source::Fact { fact: other }) if *other != fact => Err(setup(format!(
+            "'{name}' of the decision of {reference} is held by two facts, {other} and {fact}; \
+             a parameter of a decision is one value"
+        ))),
+        _ => {
+            sources.insert(name.to_string(), Source::Fact { fact });
+            Ok(())
+        }
     }
 }
 
@@ -248,11 +323,30 @@ fn derive_shape(
 
     let mut fields: Vec<Field> = Vec::new();
     let mut sources: HashMap<String, Source> = HashMap::new();
-    for stage in &stages {
+    // What the stage that takes the decision asks: a fact recorded after
+    // the decision cannot hold it.
+    let mut taken_with: Vec<String> = Vec::new();
+    for (index, stage) in stages.iter().enumerate() {
         for part in &stage.articles {
             let declared_by = format!("{}#{}", part.law_id, part.article_number);
             let found = article_on(service, &part.law_id, &part.article_number, day)
                 .ok_or_else(|| setup(format!("{declared_by} has no version in force on {day}")))?;
+            // The parameters a fact of this article holds, at the stage that
+            // makes the decision known: recorded after it, referring to it.
+            let held_by_fact = |name: &str| {
+                found
+                    .get_requires()
+                    .iter()
+                    .filter(|_| index > 0)
+                    .find_map(|r| {
+                        let fact = r.fact.as_deref()?;
+                        r.parameters
+                            .iter()
+                            .flatten()
+                            .any(|p| p == name)
+                            .then(|| format!("{declared_by}#{fact}"))
+                    })
+            };
             for p in found
                 .get_execution_spec()
                 .and_then(|e| e.parameters.as_ref())
@@ -263,6 +357,21 @@ fn derive_shape(
                     continue;
                 }
                 add_field(&mut fields, Field::of(p, declared_by.clone()), &reference)?;
+                if index == 0 {
+                    taken_with.push(p.name.clone());
+                }
+                if let Some(fact) = held_by_fact(&p.name) {
+                    if taken_with.contains(&p.name) {
+                        return Err(setup(format!(
+                            "'{}' of the decision of {reference} is held by the fact {fact}, \
+                             which is recorded after the decision, but stage {} asks it \
+                             when the decision is taken",
+                            p.name, stages[0].stage
+                        )));
+                    }
+                    hold_by_fact(&mut sources, &p.name, fact, &reference)?;
+                    continue;
+                }
                 let source = if application.as_ref().is_some_and(|(_, a)| {
                     a.field(&p.name).is_some() || a.given.contains(&p.name) || a.is_moment(&p.name)
                 }) {
@@ -291,8 +400,11 @@ fn derive_shape(
             };
             add_field(&mut fields, field, &reference)?;
             // A date the stage requires is the day of the decision, also
-            // where a hook asks it as a parameter (Awb 6:8).
-            sources.insert(req.name.clone(), Source::Cell);
+            // where a hook asks it as a parameter (Awb 6:8), unless a fact
+            // holds it: then it is the day that fact records.
+            if !matches!(sources.get(&req.name), Some(Source::Fact { .. })) {
+                sources.insert(req.name.clone(), Source::Cell);
+            }
         }
     }
     // For no instance in particular: the cell does not pass its identity to

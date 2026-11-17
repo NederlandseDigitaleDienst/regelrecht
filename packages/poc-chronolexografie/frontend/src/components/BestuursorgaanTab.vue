@@ -31,6 +31,7 @@ import { guideFor } from '../scenarioGuides.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import { eigenOordelen } from '../oordelen.js';
 import ArtikelLink from './ArtikelLink.vue';
+import Bekendmaken from './Bekendmaken.vue';
 import Uitkomst from './Uitkomst.vue';
 import EigenOordelen from './EigenOordelen.vue';
 import FeitVastleggen from './FeitVastleggen.vue';
@@ -196,6 +197,8 @@ const uitkomstOpBezwaar = (uit) =>
       </nldd-card>
     </nldd-container>
   </nldd-simple-section>
+
+  <Bekendmaken />
 
   <nldd-simple-section>
     <nldd-title heading-level="2" slot="header" size="display-3" text="Open bezwaren">

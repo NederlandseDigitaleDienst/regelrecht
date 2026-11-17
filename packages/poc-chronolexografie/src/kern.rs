@@ -688,8 +688,8 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
                 &i.cel,
                 false,
                 on,
-            )?;
-            besluiten.insert(i.besluit.clone(), vorm);
+            );
+            besluiten.insert(i.besluit.clone(), of_fout(vorm, &i.besluit, &i.cel)?);
         }
     }
     for a in &corpus.afleiding.ambtshalve {
@@ -702,20 +702,40 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             &a.cel,
             true,
             on,
-        )?;
-        besluiten.insert(a.artikel.clone(), vorm);
+        );
+        besluiten.insert(a.artikel.clone(), of_fout(vorm, &a.artikel, &a.cel)?);
     }
     Ok(json!({
         "indieningen": indieningen,
         "besluiten": besluiten,
         "andere_cellen": handelingen(&service, corpus, cell, on)?,
         "eigen": eigen_handelingen(&service, corpus, cell, on)?,
+        // Per decision of the case's cell, what a submission against it
+        // takes from it and its submitter does not fill (`Cell::decision_gives`).
+        "uit_besluit": cell
+            .eigen
+            .grams()
+            .iter()
+            .filter_map(|g| Some((g.id.clone(), json!(cell.eigen.decision_gives(&service, &g.id).ok()?))))
+            .collect::<Map<String, Value>>(),
         "eigen_velden": std::iter::once(&cell.eigen)
             .chain(&cell.andere)
             .flat_map(|c| c.grams())
             .map(|g| (g.id.clone(), json!(eigen_velden(&service, g))))
             .collect::<Map<String, Value>>(),
     }))
+}
+
+/// The form of a decision, or, where the cel refuses to shape that decision
+/// (`Error::Setup`), why: a modelling error in one decision leaves the forms
+/// of the others, even of the same law, as they are. The cel refuses that
+/// decision again when it is taken. Any other error stops the forms.
+fn of_fout(vorm: Result<Value>, artikel: &str, cel: &str) -> Result<Value> {
+    match vorm {
+        Ok(vorm) => Ok(vorm),
+        Err(Error::Setup(fout)) => Ok(json!({ "basis": artikel, "cel": cel, "fout": fout })),
+        Err(e) => Err(e),
+    }
 }
 
 /// The form of the decision under `artikel` that the cell `cel` takes, on a
@@ -790,6 +810,7 @@ fn besluit_vorm(
                     Source::Application => "aanvraag",
                     Source::Supplied => "bestuursorgaan",
                     Source::Cell => "cel",
+                    Source::Fact { .. } => "feit",
                 },
             })
         })
@@ -810,6 +831,20 @@ fn besluit_vorm(
         };
         herkomst.push(json!({ "naam": t.id, "bron": bron }));
     }
+    // The stage that makes the decision known, where it reads facts the
+    // authority records after the decision ([`decision::DecisionShape::announcement`]):
+    // a step of its own, on a decision taken ([`bekendmaking`]).
+    let bekendmaking = match besluit.announcement() {
+        Some(stage) => json!({
+            "fase": stage.stage,
+            "feiten": met_velden(
+                service,
+                besluit.announcement_facts().into_iter().map(str::to_string).collect(),
+                on,
+            )?,
+        }),
+        None => Value::Null,
+    };
     Ok(json!({
         "soort": besluit.kind,
         "basis": besluit.basis(),
@@ -818,7 +853,86 @@ fn besluit_vorm(
         "bevindingen": bevindingen,
         "invoer": herkomst,
         "uitvoer": besluit.outputs,
+        "bekendmaking": bekendmaking,
     }))
+}
+
+/// How the decision `id` of the case's own cell is made known on `on`
+/// ([`Cell::announcement`]): which records of its announcement the chronicle
+/// holds, what they hold, whether every date the stage requires and every
+/// parameter a fact holds that cannot be absent is there, and what the stage
+/// then gives, such as the period for objection. `null`
+/// for a decision announced with it, on its day.
+///
+/// # Errors
+///
+/// Refused when no cell of the case holds `id` or it is no decision, and
+/// whatever the cell refuses ([`Cell::announcement`]).
+pub fn bekendmaking(corpus: &Corpus, cellen: &Cellen, id: &str, on: NaiveDate) -> Result<Value> {
+    let mut service = corpus.service()?;
+    let (cell, sfeer) = cellen.voor(cellen.houder(id)?)?;
+    Ok(match cell.announcement(&mut service, &sfeer, id, on)? {
+        Some(a) => json!({
+            "vastgelegd": a.read,
+            "velden": a.fields,
+            "bekendgemaakt": a.made_known,
+            "uitvoer": a.outputs,
+        }),
+        None => Value::Null,
+    })
+}
+
+/// Refuse a fact that makes a decision known, `feit`, on a record that is no
+/// decision of the case's own cell whose announcement reads it.
+fn maakt_bekend(
+    service: &LawExecutionService,
+    cellen: &Cellen,
+    feit: &str,
+    refers_to: Option<&str>,
+) -> Result<()> {
+    // As the cell reads the decision: in the law of its day.
+    let leest = match refers_to {
+        Some(id) => match cellen.eigen.decision_shape(service, id) {
+            Ok(vorm) => vorm.announcement_facts().contains(&feit),
+            Err(Error::Refused(_)) => false,
+            Err(e) => return Err(e),
+        },
+        None => false,
+    };
+    if leest {
+        return Ok(());
+    }
+    Err(Error::Refused(format!(
+        "'{feit}' makes a decision known: it is recorded on a decision of '{}' whose \
+         announcement reads it, and {} is none",
+        cellen.eigen.recording_actor(),
+        refers_to.map_or_else(|| "no record".to_string(), |r| format!("'{r}'"))
+    )))
+}
+
+/// The facts the announcement of a decision of the case reads
+/// ([`bekendmaking`]): recorded on a decision taken, so no fact the own cell
+/// records on its own.
+fn bekendmakingsfeiten(
+    corpus: &Corpus,
+    service: &LawExecutionService,
+    on: NaiveDate,
+) -> Result<Vec<String>> {
+    let mut feiten = Vec::new();
+    for i in &corpus.afleiding.indieningen {
+        let (law, article) = basis(&i.besluit)?;
+        // A decision the cel refuses to shape is made known by no one; its
+        // own form says why ([`vormen`]).
+        let Ok(vorm) = decision::derive(service, law, article, on) else {
+            continue;
+        };
+        for feit in vorm.announcement_facts() {
+            if !feiten.iter().any(|f| f == feit) {
+                feiten.push(feit.to_string());
+            }
+        }
+    }
+    Ok(feiten)
 }
 
 /// The prefill of the UI spec a case of this crate keeps in its own
@@ -972,7 +1086,11 @@ fn opnieuw_te_beoordelen(
         }
         gezien.push(&i.besluit);
         let (law, article) = basis(&i.besluit)?;
-        let shape = decision::derive(service, law, article, on)?;
+        // A decision the cel refuses to shape asks nothing; its own form
+        // says why ([`vormen`]).
+        let Ok(shape) = decision::derive(service, law, article, on) else {
+            continue;
+        };
         for t in shape.terms.iter().filter(|t| t.asks_finding()) {
             if !uit.iter().any(|f| f.name == t.id) {
                 uit.push(decision::finding_field(t));
@@ -1086,9 +1204,13 @@ fn eigen_handelingen(
         .iter()
         .filter_map(|i| i.ontvangst.as_deref())
         .collect();
+    // The facts of an announcement are recorded on a decision, in the step
+    // that makes it known.
+    let bekendmaking = bekendmakingsfeiten(corpus, service, on)?;
     let mut feiten = Vec::new();
     for feit in benoemde_feiten(service, corpus, eigen, on) {
         if !afschriften.contains(&feit.as_str())
+            && !bekendmaking.contains(&feit)
             && !is_ontvangst(service, &feit, eigen.authority(), on)?
         {
             feiten.push(feit);
@@ -1284,7 +1406,9 @@ pub fn vastleggen(
 ///
 /// Refused when the form offers `cel` no such fact ([`vormen`]): a cell
 /// not of the case, a fact that names another authority, or for the case's
-/// own cell a fact that names no one or that it records as a receipt. Also
+/// own cell a fact that names no one or that it records as a receipt; a
+/// fact that makes a decision known it records only with a reference, which
+/// [`Cell::announcement`] reads only from the decision it names. Also
 /// when `verwijst_naar` names no record of `cel`, or names a submission, and
 /// whatever the cell refuses ([`Cell::record_executogram_referring`]).
 pub fn vastleggen_verwijzend(
@@ -1310,7 +1434,10 @@ pub fn vastleggen_verwijzend(
                 .as_array()
                 .is_some_and(|h| h.iter().any(|h| h["feit"] == feit))
     });
-    if !mag {
+    // A fact that makes a decision known, the case's own cell records on
+    // that decision, in the step after it ([`bekendmaking`]): which facts
+    // those are, the decision it refers to says.
+    if !(mag || eigen && verwijst_naar.is_some()) {
         return Err(Error::Refused(format!(
             "'{cel}' records no fact '{feit}': it is no cell of this case, or the law does not \
              give that cell that fact to record"
@@ -1321,6 +1448,9 @@ pub fn vastleggen_verwijzend(
         None => None,
     };
     let refers_to = refers_to.as_deref();
+    if !mag {
+        maakt_bekend(&service, cellen, feit, refers_to)?;
+    }
     // The fact and its receipt land together or not at all: the case's cell
     // can refuse the receipt after the other cell took the fact. Try it first.
     leg_vast(

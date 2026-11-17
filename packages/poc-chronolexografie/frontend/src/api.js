@@ -158,6 +158,11 @@ export const api = {
   // The page keeps who is logged in; the cell does not (sessie.js).
   inloggen: (gebruikersnaam, wachtwoord, datum, dienst = null) =>
     roep((p) => p.inloggen(gebruikersnaam, wachtwoord, datum, dienst ?? undefined)),
+  // Hoe besluit `id` op `datum` is bekendgemaakt: de vastleggingen van de
+  // bekendmaking die de kroniek dan houdt, of het besluit bekendgemaakt is,
+  // en wat de fase dan geeft, zoals de bezwaartermijn. `null` bij een besluit
+  // dat met zijn eigen dag is bekendgemaakt. Er wordt niets vastgelegd.
+  bekendmaking: (id, datum) => roep((p) => p.bekendmaking(id, datum)),
   logboek: () => roep((p) => p.logboek()),
   reset: () => roep((p) => p.reset()),
   // Het spel tot nu toe (de casus en de kroniek van elke cel), om een
