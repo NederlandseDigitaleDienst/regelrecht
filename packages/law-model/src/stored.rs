@@ -318,6 +318,16 @@ mod tests {
     }
 
     #[test]
+    fn a_value_stored_with_rounded_digits_differs_from_the_exact_one() {
+        // Before numbers became fractions, one third was stored as its first
+        // 28 digits. That is another number than one third, and comparing a
+        // decision recorded then with one computed now says so.
+        let recorded = json!({ "__decimal": "0.3333333333333333333333333333" });
+        let recomputed = to_stored(&dec("1/3")).unwrap();
+        assert!(!same(&recorded, &recomputed).unwrap());
+    }
+
+    #[test]
     fn a_fraction_that_was_never_written_is_refused() {
         for text in ["2/6", "1/2", "1/0", "+1/3", "1/-3", "1 / 3", "1/3/5", "0.5"] {
             let err = from_stored(&json!({ "__fraction": text })).unwrap_err();
