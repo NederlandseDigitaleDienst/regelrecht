@@ -17,6 +17,13 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
   is modelled, so "false" means that this one ban does not hold; the
   technical permit for building (lid 2) is not looked at.
 
+  The rulework of the plan holds part of the plan. Two facts stand for the
+  rules it does not hold: whether one of them forbids the activity without a
+  permit, and whether the activity conflicts with one of them. A scenario
+  that ends in "no permit" or "no conflict" gives those facts as false. A ban
+  or a conflict that follows from an article here needs neither. Without
+  them, "no" cannot be said.
+
   The scenarios name no municipality. The location is a shape in the Dutch RD
   system (EPSG:28992), in metres, and the plan of Putten is asked because that
   shape lies in the territory of Putten.
@@ -69,9 +76,10 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
       | woning_is_wooncomplex_kleine_woning_of_recreatiewoning                 | false          |
       | in_aan_of_op_monument                                                  | false          |
       | bij_monument                                                           | false          |
-    # What is not worked out, answered for this structure: it is none of the
-    # other kinds the articles name, and the older plans put nothing in its
-    # way. The two facts about what the plan says elsewhere are not given.
+    # What is asked and not worked out, answered for this structure: it is
+    # none of the other kinds the articles name, and the older plans put
+    # nothing in its way. The two facts about the rest of the plan are not
+    # given here; a scenario gives them where its outcome needs them.
     Given the following parameters:
       | bouwwerk_genoemd_in_artikel_2_29_onder_a_tot_en_met_q                | false |
       | vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q                | false |
@@ -79,9 +87,10 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
       | in_overeenstemming_volgens_artikel_22_36_onder_b_of_c                | false |
       | artikel_22_39_sluit_artikel_22_36_uit                                | false |
       | locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht | false |
+      | op_gebouwerf_aan_achterkant_niet_zijkant_niet_naar_openbaar_gebied   | false |
+      | locatie_is_openbaar_toegankelijk_gebied                              | false |
       | archeologische_onderzoeksregels_gelden_voor_locatie                  | false |
       | verbod_grondwerkzaamheden_met_archeologische_regels                  | false |
-      | in_strijd_met_overige_regels_van_het_bestemmingsplan                 | false |
       | maximum_oppervlakte_bijgebouwen_volgens_aanduiding_m2                | null  |
 
   # ---- The surface of bijgebouwen: bestemmingsplan 19.2.8 onder a, widened by
@@ -93,6 +102,8 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 250
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is false
 
@@ -100,6 +111,8 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 287
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 287
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is false
 
@@ -117,6 +130,8 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     Given parameter "oppervlakte_bijgebouwen_m2" is 250
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
     Given parameter "sloopmeters_eigen_terrein_m2" is 307.5
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is false
 
@@ -135,6 +150,8 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     Given parameter "oppervlakte_bijgebouwen_m2" is 250
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
     Given parameter "grootste_bijgebouw_m2" is 200
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is false
 
@@ -150,13 +167,11 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
 
   Scenario: The bestemmingsplan allows 80 m2 of bijgebouwen
     Given parameter "oppervlakte_bijgebouwen_m2" is 80
-    Given parameter "maximum_oppervlakte_bijgebouwen_volgens_aanduiding_m2" is "null"
     When I evaluate "oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a" of "bestemmingsplan_veegplan_westelijk_buitengebied"
     Then output "oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a" is true
 
   Scenario: The bestemmingsplan does not allow 81 m2 of bijgebouwen
     Given parameter "oppervlakte_bijgebouwen_m2" is 81
-    Given parameter "maximum_oppervlakte_bijgebouwen_volgens_aanduiding_m2" is "null"
     When I evaluate "oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a" of "bestemmingsplan_veegplan_westelijk_buitengebied"
     Then output "oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a" is false
 
@@ -166,7 +181,65 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     When I evaluate "oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a" of "bestemmingsplan_veegplan_westelijk_buitengebied"
     Then output "oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a" is false
 
-  # ---- What accords with the plan by law: article 22.36 onder a.
+  # ---- The other rules of the bestemmingsplan for a bijgebouw: article 19.2.8
+  # onder c, d and e. Article 21.23 widens the surface only.
+
+  Scenario: A gutter at 3,5 m - the highest the bestemmingsplan allows
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "goothoogte_m" is 3.5
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: A gutter at 3,6 m - it conflicts with the plan
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "goothoogte_m" is 3.6
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is true
+
+  Scenario: 6 m high - the plan's own permit duty, and no conflict
+    # The bestemmingsplan allows a bouwhoogte of 6 m; article 22.27 stops at 5 m.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "hoogte_m" is 6
+    Given parameter "bouwhoogte_m" is 6
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is false
+
+  Scenario: 6,1 m high - a permit, and a conflict with the plan
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "hoogte_m" is 6.1
+    Given parameter "bouwhoogte_m" is 6.1
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is true
+
+  Scenario: A bijgebouw at a kleine woning - it conflicts with the plan
+    # Bestemmingsplan article 19.2.8 onder e.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "woning_is_wooncomplex_kleine_woning_of_recreatiewoning" is "true"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is true
+
+  # ---- What accords with the plan by law: article 22.36 onder a, 3, the surface.
 
   Scenario: 120 m2 of bijgebouwen, nothing demolished - it accords with the plan by law
     # Above the 80 m2 of the bestemmingsplan and outside what article 21.23
@@ -175,6 +248,8 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     Given parameter "oppervlakte_bijgebouwen_m2" is 120
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
     Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is false
 
@@ -183,6 +258,8 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     Given parameter "oppervlakte_bijgebouwen_m2" is 150
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 150
     Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is false
 
@@ -203,6 +280,8 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
     Given parameter "sloopmeters_eigen_terrein_m2" is 0
     Given parameter "bebouwingsgebied_m2" is 600
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is false
 
@@ -224,6 +303,8 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 90
     Given parameter "sloopmeters_eigen_terrein_m2" is 0
     Given parameter "bebouwingsgebied_m2" is 300
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is false
 
@@ -238,19 +319,75 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
     Then output "buitenplanse_omgevingsplanactiviteit" is true
 
-  Scenario: Within 4 m of the house and higher than its first floor allows - it conflicts with the plan
-    # Article 22.36 onder a, 1, II: not higher than 0,3 m above the floor of the second bouwlaag.
+  Scenario: On a bebouwingsgebied of 60 m2, 30 m2 accords with the plan by law
+    # Article 22.36 onder a, 3, I: half of the bebouwingsgebied. Asked of
+    # the plan, because the bestemmingsplan allows 80 m2 anyway.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 30
+    Given parameter "bebouwingsgebied_m2" is 60
+    When I evaluate "van_rechtswege_in_overeenstemming" of "omgevingsplan_gemeente_putten"
+    Then output "van_rechtswege_in_overeenstemming" is true
+
+  Scenario: On a bebouwingsgebied of 60 m2, 31 m2 does not
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 31
+    Given parameter "bebouwingsgebied_m2" is 60
+    When I evaluate "van_rechtswege_in_overeenstemming" of "omgevingsplan_gemeente_putten"
+    Then output "van_rechtswege_in_overeenstemming" is false
+
+  # ---- Article 22.36 onder a, 1: within 4 m of the house.
+
+  Scenario: At 4 m from the house and 4 m high - too high for a structure that close
+    # Onder a, 1, II: not higher than 0,3 m above the floor of the second bouwlaag, here 3,3 m.
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 120
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
     Given parameter "sloopmeters_eigen_terrein_m2" is 0
-    Given parameter "afstand_tot_oorspronkelijk_hoofdgebouw_m" is 3
+    Given parameter "afstand_tot_oorspronkelijk_hoofdgebouw_m" is 4
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is true
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
     Then output "buitenplanse_omgevingsplanactiviteit" is true
 
-  Scenario: Within 4 m of the house and 3,2 m high - it accords with the plan
+  Scenario: At 4,1 m from the house and 4 m high - the rules for further away hold
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "afstand_tot_oorspronkelijk_hoofdgebouw_m" is 4.1
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: Within 4 m of the house and 3,3 m high - it accords with the plan
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "afstand_tot_oorspronkelijk_hoofdgebouw_m" is 3
+    Given parameter "hoogte_m" is 3.3
+    Given parameter "bouwhoogte_m" is 3.3
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: Within 4 m of the house and 3,4 m high - it conflicts with the plan
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "afstand_tot_oorspronkelijk_hoofdgebouw_m" is 3
+    Given parameter "hoogte_m" is 3.4
+    Given parameter "bouwhoogte_m" is 3.4
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is true
+
+  Scenario: Within 4 m of a house of 3 m, and 3,2 m high - higher than the house
+    # Onder a, 1, III.
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 120
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
@@ -258,115 +395,183 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     Given parameter "afstand_tot_oorspronkelijk_hoofdgebouw_m" is 3
     Given parameter "hoogte_m" is 3.2
     Given parameter "bouwhoogte_m" is 3.2
+    Given parameter "hoogte_hoofdgebouw_m" is 3
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
-    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is true
 
-  Scenario: Beyond 4 m, 4 m high and with a flat roof - it conflicts with the plan
-    # Article 22.36 onder a, 2, I: higher than 3 m needs a pitched roof.
+  # ---- Article 22.36 onder a, 2: further than 4 m from the house.
+
+  Scenario: A flat roof at 3 m - it accords with the plan
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 120
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
     Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "hoogte_m" is 3
+    Given parameter "bouwhoogte_m" is 3
+    Given parameter "heeft_schuin_dak" is "false"
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: A flat roof at 3,1 m - it conflicts with the plan
+    # Onder a, 2, I: higher than 3 m needs a pitched roof.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "hoogte_m" is 3.1
+    Given parameter "bouwhoogte_m" is 3.1
     Given parameter "heeft_schuin_dak" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is true
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
     Then output "buitenplanse_omgevingsplanactiviteit" is true
 
-  Scenario: Housing for mantelzorg accords with the plan whatever the surface of other buildings
-    # Article 22.37 lid 2 puts three requirements in the place of the surface.
+  Scenario: A dakvoet at 3 m - it accords with the plan
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
-    Given parameter "huisvesting_in_verband_met_mantelzorg" is "true"
-    Given parameter "geheel_of_in_delen_verplaatsbaar" is "true"
-    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 400
-    When I evaluate "van_rechtswege_in_overeenstemming" of "omgevingsplan_gemeente_putten"
-    Then output "van_rechtswege_in_overeenstemming" is true
-
-  Scenario: Housing for mantelzorg inside the bebouwde kom does not accord with the plan by law
-    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
-    Given parameter "huisvesting_in_verband_met_mantelzorg" is "true"
-    Given parameter "geheel_of_in_delen_verplaatsbaar" is "true"
-    Given parameter "buiten_de_bebouwde_kom" is "false"
-    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 400
-    When I evaluate "van_rechtswege_in_overeenstemming" of "omgevingsplan_gemeente_putten"
-    Then output "van_rechtswege_in_overeenstemming" is false
-
-  # ---- The permit duty of the plan: articles 22.26 to 22.28, and the heights
-  # of the bestemmingsplan.
-
-  Scenario: 250 m2 of bijgebouwen, 5,5 m high - the plan's own permit duty
-    # Article 22.27 onder a, 4: not higher than 5 m. The exception fails, so
-    # the ban of article 22.26 holds. It does not conflict with the plan: the
-    # bestemmingsplan allows 6 m.
-    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
-    Given parameter "oppervlakte_bijgebouwen_m2" is 250
-    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
-    Given parameter "hoogte_m" is 5.5
-    Given parameter "bouwhoogte_m" is 5.5
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "hoogte_dakvoet_m" is 3
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
-    Then output "vergunningplicht_omgevingsplanactiviteit" is true
-    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
-    Then output "buitenplanse_omgevingsplanactiviteit" is false
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
 
-  Scenario: 250 m2 of bijgebouwen, 6,5 m high - a permit, and a conflict with the plan
+  Scenario: A dakvoet at 3,1 m - it conflicts with the plan
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
-    Given parameter "oppervlakte_bijgebouwen_m2" is 250
-    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
-    Given parameter "hoogte_m" is 6.5
-    Given parameter "bouwhoogte_m" is 6.5
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "hoogte_dakvoet_m" is 3.1
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is true
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
     Then output "buitenplanse_omgevingsplanactiviteit" is true
 
-  Scenario: 250 m2 of bijgebouwen with a gutter at 4 m - the bestemmingsplan still holds
-    # Article 21.23 widens the surface only. The gutter height of article
-    # 19.2.8 onder c of the bestemmingsplan stays at 3,5 m.
+  Scenario: A ridge that is not formed by two roof faces - it conflicts with the plan
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
-    Given parameter "oppervlakte_bijgebouwen_m2" is 250
-    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
-    Given parameter "goothoogte_m" is 4
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "daknok_gevormd_door_twee_of_meer_schuine_dakvlakken" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is true
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
     Then output "buitenplanse_omgevingsplanactiviteit" is true
 
-  Scenario: 250 m2 of bijgebouwen, not in achtererfgebied - the exception fails
-    # Article 22.27 onder a, 2.
+  Scenario: A roof pitch of 55 degrees - it accords with the plan
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
-    Given parameter "oppervlakte_bijgebouwen_m2" is 250
-    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
-    Given parameter "gelegen_in_achtererfgebied" is "false"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "hellingshoek_graden" is 55
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: A roof pitch of 56 degrees - it conflicts with the plan
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "hellingshoek_graden" is 56
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is true
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
-    Then output "buitenplanse_omgevingsplanactiviteit" is false
+    Then output "buitenplanse_omgevingsplanactiviteit" is true
 
-  Scenario: 250 m2 of bijgebouwen, 1 m from openbaar toegankelijk gebied - the exception fails
-    # Article 22.27 onder a, 3: more than 1 m.
+  Scenario: A ridge 2,2 m from the boundary of the plot - 4 m high is allowed
+    # The formula of onder a, 2, I: 2,2 x 0,47 + 3 = 4,034 m.
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
-    Given parameter "oppervlakte_bijgebouwen_m2" is 250
-    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
-    Given parameter "afstand_tot_openbaar_toegankelijk_gebied_m" is 1
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "afstand_daknok_tot_perceelsgrens_m" is 2.2
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: A ridge 2 m from the boundary of the plot - 4 m high is too much
+    # 2 x 0,47 + 3 = 3,94 m.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "afstand_daknok_tot_perceelsgrens_m" is 2
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is true
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
-    Then output "buitenplanse_omgevingsplanactiviteit" is false
+    Then output "buitenplanse_omgevingsplanactiviteit" is true
 
-  Scenario: 250 m2 of bijgebouwen at a monument - the exception is taken away
-    # Article 22.28 lid 1.
+  Scenario: Not functionally subordinate to the house - it conflicts with the plan
+    # Onder a, 2, II.
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
-    Given parameter "oppervlakte_bijgebouwen_m2" is 250
-    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
-    Given parameter "in_aan_of_op_monument" is "true"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "functioneel_ondergeschikt_aan_hoofdgebouw" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is true
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
-    Then output "buitenplanse_omgevingsplanactiviteit" is false
+    Then output "buitenplanse_omgevingsplanactiviteit" is true
 
-  Scenario: 120 m2 near a monument, nothing demolished - a permit, and a conflict with the plan
-    # Article 22.28 lid 2 takes the exception away, and article 22.38 takes
-    # away that the structure accords with the plan by law.
+  # ---- Article 22.36 onder a, 4, and what takes the article away.
+
+  Scenario: Not at or near the main building - it conflicts with the plan
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "uitbreiding_van_of_gelegen_aan_of_bij_hoofdgebouw" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is true
+
+  Scenario: At a main building that is a woonwagen - it conflicts with the plan
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "hoofdgebouw_is_woonwagen_tijdelijk_vergund_of_recreatief_nachtverblijf" is "true"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is true
+
+  Scenario: A flat roof at 3,1 m that accords with the plan by onder b or c
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "hoogte_m" is 3.1
+    Given parameter "bouwhoogte_m" is 3.1
+    Given parameter "heeft_schuin_dak" is "false"
+    Given parameter "in_overeenstemming_volgens_artikel_22_36_onder_b_of_c" is "true"
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: Where article 22.39 takes article 22.36 away - it conflicts with the plan
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "artikel_22_39_sluit_artikel_22_36_uit" is "true"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is true
+
+  Scenario: 120 m2 near a monument, nothing demolished - it no longer accords with the plan by law
+    # Article 22.38 onder a.
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 120
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
@@ -377,24 +582,258 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
     Then output "buitenplanse_omgevingsplanactiviteit" is true
 
-  Scenario: 250 m2 where rules on archaeological research hold - the exception is taken away
-    # Article 22.28 lid 4: the structure is 60 m2.
+  Scenario: In, on or at a monument - it does not accord with the plan by law
+    # Article 22.38 onder a.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "in_aan_of_op_monument" is "true"
+    When I evaluate "van_rechtswege_in_overeenstemming" of "omgevingsplan_gemeente_putten"
+    Then output "van_rechtswege_in_overeenstemming" is false
+
+  Scenario: In a rijksbeschermd stads- of dorpsgezicht - it does not accord with the plan by law
+    # Article 22.38 onder b.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 120
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 120
+    Given parameter "sloopmeters_eigen_terrein_m2" is 0
+    Given parameter "locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht" is "true"
+    When I evaluate "van_rechtswege_in_overeenstemming" of "omgevingsplan_gemeente_putten"
+    Then output "van_rechtswege_in_overeenstemming" is false
+
+  # ---- Housing for mantelzorg: article 22.37 lid 2 puts three requirements in
+  # the place of the surface.
+
+  Scenario: Housing for mantelzorg of 100 m2 accords with the plan whatever the surface of other buildings
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "huisvesting_in_verband_met_mantelzorg" is "true"
+    Given parameter "geheel_of_in_delen_verplaatsbaar" is "true"
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 400
+    Given parameter "oppervlakte_bouwwerk_m2" is 100
+    When I evaluate "van_rechtswege_in_overeenstemming" of "omgevingsplan_gemeente_putten"
+    Then output "van_rechtswege_in_overeenstemming" is true
+
+  Scenario: Housing for mantelzorg of 101 m2 does not
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "huisvesting_in_verband_met_mantelzorg" is "true"
+    Given parameter "geheel_of_in_delen_verplaatsbaar" is "true"
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 400
+    Given parameter "oppervlakte_bouwwerk_m2" is 101
+    When I evaluate "van_rechtswege_in_overeenstemming" of "omgevingsplan_gemeente_putten"
+    Then output "van_rechtswege_in_overeenstemming" is false
+
+  Scenario: Housing for mantelzorg that cannot be moved does not
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "huisvesting_in_verband_met_mantelzorg" is "true"
+    Given parameter "geheel_of_in_delen_verplaatsbaar" is "false"
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 400
+    When I evaluate "van_rechtswege_in_overeenstemming" of "omgevingsplan_gemeente_putten"
+    Then output "van_rechtswege_in_overeenstemming" is false
+
+  Scenario: Housing for mantelzorg inside the bebouwde kom does not
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "huisvesting_in_verband_met_mantelzorg" is "true"
+    Given parameter "geheel_of_in_delen_verplaatsbaar" is "true"
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 400
+    Given parameter "buiten_de_bebouwde_kom" is "false"
+    When I evaluate "van_rechtswege_in_overeenstemming" of "omgevingsplan_gemeente_putten"
+    Then output "van_rechtswege_in_overeenstemming" is false
+
+  # ---- The permit duty of the plan: article 22.26, with the exception of
+  # article 22.27 onder a.
+
+  Scenario: 5 m high - the highest article 22.27 allows
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 250
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
-    Given parameter "archeologische_onderzoeksregels_gelden_voor_locatie" is "true"
+    Given parameter "hoogte_m" is 5
+    Given parameter "bouwhoogte_m" is 5
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: 5,1 m high - the plan's own permit duty
+    # Article 22.27 onder a, 4. The exception fails, so the ban of article
+    # 22.26 holds. It does not conflict with the plan.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "hoogte_m" is 5.1
+    Given parameter "bouwhoogte_m" is 5.1
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is true
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
     Then output "buitenplanse_omgevingsplanactiviteit" is false
 
-  Scenario: The same with a structure of 40 m2 - the exception stays
-    # Article 22.28 lid 4 onder a: less than 50 m2.
+  Scenario: No bijbehorend bouwwerk - the exception of onder a fails
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "is_bijbehorend_bouwwerk" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is false
+
+  Scenario: Not standing on the ground - the exception fails
+    # Onder a, 1.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "op_de_grond_staand" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is false
+
+  Scenario: Not in achtererfgebied - the exception fails
+    # Onder a, 2.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "gelegen_in_achtererfgebied" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is false
+
+  Scenario: 1 m from openbaar toegankelijk gebied - the exception fails
+    # Onder a, 3: more than 1 m.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "afstand_tot_openbaar_toegankelijk_gebied_m" is 1
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is false
+
+  Scenario: A verblijfsgebied on the second bouwlaag - the exception fails
+    # Onder a, 5.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "verblijfsgebied_op_tweede_bouwlaag_of_hoger" is "true"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is false
+
+  Scenario: A roof terrace - the exception fails
+    # Onder a, 6.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "heeft_dakterras_balkon_of_buitenruimte_boven_de_grond" is "true"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is false
+
+  Scenario: Not in achtererfgebied, but excepted by onder b to i - no permit
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "gelegen_in_achtererfgebied" is "false"
+    Given parameter "uitzondering_volgens_artikel_22_27_onder_b_tot_en_met_i" is "true"
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  # ---- What takes the exception away: article 22.28.
+
+  Scenario: In, on or at a monument - the exception is taken away
+    # Lid 1.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "in_aan_of_op_monument" is "true"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is false
+
+  Scenario: Near a monument - the exception is taken away
+    # Lid 2.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "bij_monument" is "true"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is false
+
+  Scenario: In a rijksbeschermd stads- of dorpsgezicht - the exception is taken away
+    # Lid 3.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht" is "true"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is false
+
+  Scenario: The same at the back of the gebouwerf - the exception stays
+    # Lid 3 onder c.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht" is "true"
+    Given parameter "op_gebouwerf_aan_achterkant_niet_zijkant_niet_naar_openbaar_gebied" is "true"
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: Where rules on archaeological research hold, a structure of 50 m2 - the exception is taken away
+    # Lid 4.
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 250
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
     Given parameter "archeologische_onderzoeksregels_gelden_voor_locatie" is "true"
-    Given parameter "oppervlakte_bouwwerk_m2" is 40
+    Given parameter "oppervlakte_bouwwerk_m2" is 50
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is false
+
+  Scenario: The same with a structure of 49 m2 - the exception stays
+    # Lid 4 onder a: less than 50 m2.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "archeologische_onderzoeksregels_gelden_voor_locatie" is "true"
+    Given parameter "oppervlakte_bouwwerk_m2" is 49
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: The same where a ban on groundwork holds with rules on archaeology - the exception stays
+    # Lid 4 onder b. The structure is 60 m2.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "archeologische_onderzoeksregels_gelden_voor_locatie" is "true"
+    Given parameter "verbod_grondwerkzaamheden_met_archeologische_regels" is "true"
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is false
 
@@ -416,20 +855,106 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is false
 
-  Scenario: The same structure 1,2 m high - no exemption
+  Scenario: The same structure 1 m high - exempt
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 20
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 20
     Given parameter "gelegen_in_achtererfgebied" is "false"
     Given parameter "gelegen_in_voorerfgebied" is "true"
-    Given parameter "hoogte_m" is 1.2
-    Given parameter "bouwhoogte_m" is 1.2
+    Given parameter "hoogte_m" is 1
+    Given parameter "bouwhoogte_m" is 1
+    Given parameter "goothoogte_m" is 0.8
+    Given parameter "oppervlakte_bouwwerk_m2" is 1.5
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: The same structure 1,1 m high - no exemption
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 20
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 20
+    Given parameter "gelegen_in_achtererfgebied" is "false"
+    Given parameter "gelegen_in_voorerfgebied" is "true"
+    Given parameter "hoogte_m" is 1.1
+    Given parameter "bouwhoogte_m" is 1.1
     Given parameter "goothoogte_m" is 0.8
     Given parameter "oppervlakte_bouwwerk_m2" is 1.5
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is true
 
-  Scenario: The same low structure at a monument - no exemption
+  Scenario: The same structure of 2 m2 - exempt
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 20
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 20
+    Given parameter "gelegen_in_achtererfgebied" is "false"
+    Given parameter "gelegen_in_voorerfgebied" is "true"
+    Given parameter "hoogte_m" is 0.9
+    Given parameter "bouwhoogte_m" is 0.9
+    Given parameter "goothoogte_m" is 0.8
+    Given parameter "oppervlakte_bouwwerk_m2" is 2
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: The same structure of 2,1 m2 - no exemption
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 20
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 20
+    Given parameter "gelegen_in_achtererfgebied" is "false"
+    Given parameter "gelegen_in_voorerfgebied" is "true"
+    Given parameter "hoogte_m" is 0.9
+    Given parameter "bouwhoogte_m" is 0.9
+    Given parameter "goothoogte_m" is 0.8
+    Given parameter "oppervlakte_bouwwerk_m2" is 2.1
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+
+  Scenario: A low structure in achtererfgebied, 1 m from openbaar toegankelijk gebied - exempt
+    # Onder r names voor- and achtererfgebied. The plan forbids it for the distance.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 20
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 20
+    Given parameter "gelegen_in_achtererfgebied" is "true"
+    Given parameter "gelegen_in_voorerfgebied" is "false"
+    Given parameter "hoogte_m" is 0.9
+    Given parameter "bouwhoogte_m" is 0.9
+    Given parameter "goothoogte_m" is 0.8
+    Given parameter "oppervlakte_bouwwerk_m2" is 1.5
+    Given parameter "afstand_tot_openbaar_toegankelijk_gebied_m" is 1
+    When I evaluate "omgevingsplanactiviteit" of "omgevingswet"
+    Then output "omgevingsplanactiviteit" is true
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: A low structure that onder a to q name - onder r does not apply
+    # Onder r is about "een ander bouwwerk".
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 20
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 20
+    Given parameter "gelegen_in_achtererfgebied" is "false"
+    Given parameter "gelegen_in_voorerfgebied" is "true"
+    Given parameter "hoogte_m" is 0.9
+    Given parameter "bouwhoogte_m" is 0.9
+    Given parameter "goothoogte_m" is 0.8
+    Given parameter "oppervlakte_bouwwerk_m2" is 1.5
+    Given parameter "bouwwerk_genoemd_in_artikel_2_29_onder_a_tot_en_met_q" is "true"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+
+  Scenario: A structure of 1,1 m that onder a to q exempt
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 20
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 20
+    Given parameter "gelegen_in_achtererfgebied" is "false"
+    Given parameter "gelegen_in_voorerfgebied" is "true"
+    Given parameter "hoogte_m" is 1.1
+    Given parameter "bouwhoogte_m" is 1.1
+    Given parameter "goothoogte_m" is 0.8
+    Given parameter "oppervlakte_bouwwerk_m2" is 1.5
+    Given parameter "bouwwerk_genoemd_in_artikel_2_29_onder_a_tot_en_met_q" is "true"
+    Given parameter "vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q" is "true"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false
+
+  Scenario: The low structure at a monument - no exemption
     # Article 2.30 lid 1.
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 20
@@ -444,7 +969,22 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is true
 
-  # ---- The place. The next scenarios move the same 300 m2 across the plot
+  Scenario: The low structure in a rijksbeschermd stads- of dorpsgezicht - no exemption
+    # Article 2.30 lid 3.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 20
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 20
+    Given parameter "gelegen_in_achtererfgebied" is "false"
+    Given parameter "gelegen_in_voorerfgebied" is "true"
+    Given parameter "hoogte_m" is 0.9
+    Given parameter "bouwhoogte_m" is 0.9
+    Given parameter "goothoogte_m" is 0.8
+    Given parameter "oppervlakte_bouwwerk_m2" is 1.5
+    Given parameter "locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht" is "true"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+
+  # ---- The place. The next scenarios move the same building across the plot
   # and beyond; only the location differs.
 
   Scenario: 300 m2 in the area Wonen - it conflicts with the plan
@@ -458,13 +998,20 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
 
   Scenario: 300 m2 across the line between the area Wonen and the agrarian part - the rules for Wonen hold
     # With OVERLAPS a building that lies partly in the area lies in it.
-    # Whether the plan means that for a building across the line is a legal
-    # question this example does not answer.
     Given parameter "location" is "POLYGON((167814 472320, 167820 472320, 167820 472330, 167814 472330, 167814 472320))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 300
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 300
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
     Then output "buitenplanse_omgevingsplanactiviteit" is true
+
+  Scenario: 250 m2 across that line - it cannot be said
+    # The rules for Wonen are met. What holds for the part in the agrarian
+    # area is not in this rulework, so it does not say that there is no conflict.
+    Given parameter "location" is "POLYGON((167814 472320, 167820 472320, 167820 472330, 167814 472330, 167814 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is unknown for lack of "in_strijd_met_regel_die_niet_is_overgenomen"
 
   Scenario: 300 m2 wholly in the agrarian part of the plot - it cannot be said
     # Article 21.22 makes the rules for Wonen apply only in the area Wonen.
@@ -474,14 +1021,14 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     Given parameter "oppervlakte_bijgebouwen_m2" is 300
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 300
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
-    Then output "buitenplanse_omgevingsplanactiviteit" is unknown for lack of "in_strijd_met_het_plan_buiten_wat_hier_is_uitgewerkt"
+    Then output "buitenplanse_omgevingsplanactiviteit" is unknown for lack of "in_strijd_met_regel_die_niet_is_overgenomen"
 
   Scenario: 300 m2 next to the plot - it cannot be said
     Given parameter "location" is "POLYGON((167900 472300, 167906 472300, 167906 472310, 167900 472310, 167900 472300))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 300
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 300
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
-    Then output "buitenplanse_omgevingsplanactiviteit" is unknown for lack of "in_strijd_met_het_plan_buiten_wat_hier_is_uitgewerkt"
+    Then output "buitenplanse_omgevingsplanactiviteit" is unknown for lack of "in_strijd_met_regel_die_niet_is_overgenomen"
 
   Scenario: The same 300 m2 outside Putten - no plan is known for that place
     # The location lies in no territory that is given, so no plan is asked.
@@ -491,6 +1038,18 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 300
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
     Then the execution fails with "has no implementation"
+
+  Scenario: 250 m2 across the boundary of Putten - no plan is known for the part outside
+    # The location lies around a corner of the boundary. The plan of Putten
+    # holds for the part inside. No territory is given for the part outside,
+    # so what the plan of Putten says does not answer for the whole location.
+    Given parameter "location" is "POLYGON((166917 468327, 166924 468327, 166924 468333, 166917 468333, 166917 468327))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then the execution fails with "lies in no territory for which a regulation is known"
 
   # ---- The two other tests on a place in the plan, asked of the plan itself.
   # Above, the area Wonen always decides, because it lies inside the area of
@@ -518,12 +1077,40 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     When I evaluate "verruiming_oppervlakte_bijgebouwen" of "omgevingsplan_gemeente_putten"
     Then output "verruiming_oppervlakte_bijgebouwen" is false
 
-  # ---- Other activities. A second article of the plan fills the same term of
-  # the Omgevingswet; what the rest of the plan says is not worked out.
+  # ---- What this rulework does not say. The plan has more rules than the
+  # articles here; where they would decide, the outcome is unknown.
+
+  Scenario: 250 m2 in the area Wonen, and nothing said about the rest of the plan - it cannot be said
+    # No article here forbids it or makes it a conflict. Another rule of the
+    # plan might; article 21.7 is one that can.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 250
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
+    When I evaluate "omgevingsplanactiviteit" of "omgevingswet"
+    Then output "omgevingsplanactiviteit" is unknown for lack of "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen"
+
+  Scenario: 300 m2 of something that is no bijgebouw - it cannot be said
+    # Article 19.2.8 of the bestemmingsplan is about bijgebouwen.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "oppervlakte_bijgebouwen_m2" is 300
+    Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 300
+    Given parameter "is_bijgebouw" is "false"
+    When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "buitenplanse_omgevingsplanactiviteit" is unknown for lack of "in_strijd_met_regel_die_niet_is_overgenomen"
+
+  Scenario: Demolition - it cannot be said
+    # No article here speaks about it.
+    Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
+    Given parameter "activiteit" is "sloopactiviteit"
+    Given parameter "aangewezen_geval_volgens_andere_algemene_maatregel_van_bestuur" is "false"
+    When I evaluate "omgevingsplanactiviteit" of "omgevingswet"
+    Then output "omgevingsplanactiviteit" is unknown for lack of "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen"
+
+  # ---- Another activity. A second article of the plan fills the same term of
+  # the Omgevingswet: with one article that says so, the term holds.
 
   Scenario: Breeding maggots at this address - another article of the plan requires a permit
-    # Article 22.264. Article 22.26 is about building and is silent here;
-    # with one article that says so, the term of the Omgevingswet holds.
+    # Article 22.264. Article 22.26 is about building and is silent here.
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "activiteit" is "kweken_van_maden_van_vliegende_insecten"
     Given parameter "afdeling_22_3_van_toepassing" is "true"
@@ -534,21 +1121,24 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
 
   Scenario: Breeding maggots where chapter 3 of the Besluit activiteiten leefomgeving requires the permit
     # Article 22.261: the paragraaf of article 22.264 does not apply then.
-    # That the activity does not conflict with the plan either is given.
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "activiteit" is "kweken_van_maden_van_vliegende_insecten"
     Given parameter "afdeling_22_3_van_toepassing" is "true"
     Given parameter "vergunningplichtig_volgens_hoofdstuk_3_besluit_activiteiten_leefomgeving" is "true"
     Given parameter "aangewezen_geval_volgens_andere_algemene_maatregel_van_bestuur" is "false"
-    Given parameter "in_strijd_met_het_plan_buiten_wat_hier_is_uitgewerkt" is "false"
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
     When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
     Then output "vergunningplicht_omgevingsplanactiviteit" is false
 
-  Scenario: An activity no article here speaks about - it cannot be said
-    # The plan has more permit duties than the two that are worked out.
-    # Whether one of them covers this activity is not known here.
+  Scenario: Breeding maggots where afdeling 22.3 does not apply
+    # Article 22.41.
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
-    Given parameter "activiteit" is "sloopactiviteit"
+    Given parameter "activiteit" is "kweken_van_maden_van_vliegende_insecten"
+    Given parameter "afdeling_22_3_van_toepassing" is "false"
+    Given parameter "vergunningplichtig_volgens_hoofdstuk_3_besluit_activiteiten_leefomgeving" is "false"
     Given parameter "aangewezen_geval_volgens_andere_algemene_maatregel_van_bestuur" is "false"
-    When I evaluate "omgevingsplanactiviteit" of "omgevingswet"
-    Then output "omgevingsplanactiviteit" is unknown for lack of "verboden_zonder_vergunning_door_ander_artikel_van_het_plan"
+    Given parameter "verboden_zonder_vergunning_door_regel_die_niet_is_overgenomen" is "false"
+    Given parameter "in_strijd_met_regel_die_niet_is_overgenomen" is "false"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false

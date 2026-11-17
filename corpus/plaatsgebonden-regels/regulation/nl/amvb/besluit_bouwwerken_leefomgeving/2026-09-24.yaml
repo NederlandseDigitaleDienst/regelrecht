@@ -168,25 +168,25 @@ articles:
                   then:
                     operation: OR
                     conditions:
-                        - $vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q
-                        # Onder r speaks of "een ander bouwwerk": one that onder a
-                        # to q do not name.
-                        - operation: AND
-                          conditions:
-                            - operation: NOT
-                              value: $bouwwerk_genoemd_in_artikel_2_29_onder_a_tot_en_met_q
-                            - operation: OR
-                              conditions:
-                                - $gelegen_in_voorerfgebied
-                                - $gelegen_in_achtererfgebied
-                            - operation: LESS_THAN_OR_EQUAL
-                              subject: $hoogte_m
-                              value: 1
-                            - operation: LESS_THAN_OR_EQUAL
-                              subject: $oppervlakte_bouwwerk_m2
-                              value: 2
-                            - operation: NOT
-                              value: $onder_r_uitgesloten_door_artikel_2_30
+                      - $vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q
+                      # Onder r speaks of "een ander bouwwerk": one that onder a
+                      # to q do not name.
+                      - operation: AND
+                        conditions:
+                          - operation: NOT
+                            value: $bouwwerk_genoemd_in_artikel_2_29_onder_a_tot_en_met_q
+                          - operation: OR
+                            conditions:
+                              - $gelegen_in_voorerfgebied
+                              - $gelegen_in_achtererfgebied
+                          - operation: LESS_THAN_OR_EQUAL
+                            subject: $hoogte_m
+                            value: 1
+                          - operation: LESS_THAN_OR_EQUAL
+                            subject: $oppervlakte_bouwwerk_m2
+                            value: 2
+                          - operation: NOT
+                            value: $onder_r_uitgesloten_door_artikel_2_30
               # Article 2.28: this paragraaf is about building. Whether another
               # algemene maatregel van bestuur exempts another activity is asked.
               default: $aangewezen_geval_volgens_andere_algemene_maatregel_van_bestuur

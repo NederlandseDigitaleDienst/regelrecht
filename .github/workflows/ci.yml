@@ -71,6 +71,9 @@ jobs:
               - corpus/regulation/**
               # De demo-wetten en -scenario's: gevalideerd en gedraaid als bucket demo.
               - corpus/demo/**
+              # De casus van plaatsgebonden regels (RFC-057): gevalideerd en
+              # gedraaid in dezelfde baan.
+              - corpus/plaatsgebonden-regels/**
               - schema/**
               - script/**
               # De npm-workspace zelf: een dependency-bump raakt alleen deze
@@ -726,7 +729,7 @@ jobs:
         env:
           RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
         run: |
-          find corpus-poc/plaatsgebonden-regels/regulation -name '*.yaml' ! -name '.*' -print0 | sort -z \
+          find corpus/plaatsgebonden-regels/regulation -name '*.yaml' ! -name '.*' -print0 | sort -z \
             | xargs -0 script/validate.sh
 
       - name: Run location-bound bucket (${{ matrix.leg }} actions)
@@ -734,7 +737,7 @@ jobs:
         env:
           BDD_BUCKET: corpus
           BDD_REVERSE_ACTIONS: ${{ matrix.reverse }}
-          REGULATION_PATH: ${{ github.workspace }}/corpus-poc/plaatsgebonden-regels/regulation
+          REGULATION_PATH: ${{ github.workspace }}/corpus/plaatsgebonden-regels/regulation
           RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
         run: cargo test --test bdd -- --nocapture
 

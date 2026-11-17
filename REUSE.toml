@@ -94,7 +94,7 @@ SPDX-License-Identifier = "EUPL-1.2"
 # van het Kadaster, afgeleid uit de Basisregistratie Kadaster en via PDOK
 # gepubliceerd onder CC BY 4.0. De scenario's eromheen vallen onder de EUPL.
 [[annotations]]
-path = "corpus-poc/plaatsgebonden-regels/regulation/nl/gemeentelijke_verordening/putten/omgevingsplan_gemeente_putten/scenarios/bijgebouw.feature"
+path = "corpus/plaatsgebonden-regels/regulation/nl/gemeentelijke_verordening/putten/omgevingsplan_gemeente_putten/scenarios/bijgebouw.feature"
 precedence = "override"
 SPDX-FileCopyrightText = [
   "Staat der Nederlanden (Ministerie van Binnenlandse Zaken en Koninkrijksrelaties)",
