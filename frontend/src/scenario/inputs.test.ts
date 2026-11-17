@@ -193,3 +193,26 @@ describe('outputNameFor', () => {
     expect(outputNameFor({ execution: null, assertions: [] })).toBeNull();
   });
 });
+
+describe('a null the file states', () => {
+  const STATED_NULL = `
+Feature: Afwezig
+
+  Scenario: Geen partner
+    Given the calculation date is "2025-01-01"
+    Given parameter "partner_bsn" is "null"
+    When I evaluate "x" of "wet_a"
+`;
+
+  it('shows as the word null, runs as null, and stays in the file on a save', () => {
+    const state = feature(STATED_NULL);
+    const values = initialValues(state);
+    expect(values[0]!.parameterValues.partner_bsn).toBe('null');
+
+    expect(defined(engineInputs(state, 0, values[0]!, 'wet_a')).parameters).toEqual({ partner_bsn: null });
+
+    // A save of another edit to the scenario keeps the stated null.
+    const edited = { ...values[0]!, calculationDate: '2026-01-01' };
+    expect(formStateToGherkin(applyValues(state, [edited]))).toContain('Given parameter "partner_bsn" is "null"');
+  });
+});
