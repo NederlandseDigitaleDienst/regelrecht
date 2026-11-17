@@ -11,21 +11,27 @@
  * scenario moves on to its next step; then the form starts again from that
  * step ([`formulier`]).
  */
-import { computed, reactive, watch } from 'vue';
-import { guideFor, vastleggendeCel } from './scenarioGuides.js';
-import { counts, progress } from './scenarioProgress.js';
-import { aanvragen, besluitOp, bezwaarBasis, isBesluit, state } from './state.js';
+import { computed, reactive, watch } from "vue";
+import { guideFor, vastleggendeCel } from "./scenarioGuides.js";
+import { counts, progress } from "./scenarioProgress.js";
+import {
+  aanvragen,
+  besluitOp,
+  bezwaarBasis,
+  isBesluit,
+  state,
+} from "./state.js";
 
 // Which example values a kind of step starts from.
 const VOORBEELD = {
-  aanvraag: 'aanvraag',
-  besluit: 'bevindingen',
-  bezwaar: 'bezwaar',
+  aanvraag: "aanvraag",
+  besluit: "bevindingen",
+  bezwaar: "bezwaar",
   // Het oordeel van het bestuursorgaan over de ontvankelijkheid (Awb 7:11).
-  beslissing_op_bezwaar: 'beslissing_op_bezwaar',
-  opnieuw_beslissen: 'beslissing_op_bezwaar',
-  beroep: 'beroep',
-  uitspraak: 'uitspraak',
+  beslissing_op_bezwaar: "beslissing_op_bezwaar",
+  opnieuw_beslissen: "beslissing_op_bezwaar",
+  beroep: "beroep",
+  uitspraak: "uitspraak",
 };
 
 // The step of the scenario the visitor is at, once for every form.
@@ -39,10 +45,12 @@ const nu = computed(() => {
 /** The step of the scenario the visitor is at, `{ index, step }`, or null. */
 export const huidigeStap = () => nu.value;
 
-const bezwaren = () => state.grammen.filter((g) => g.kind === 'BEZWAAR');
+const bezwaren = () => state.grammen.filter((g) => g.kind === "BEZWAAR");
 // The decisions on objection, without those taken again after a judgment.
 const beslissingen = () =>
-  state.grammen.filter((g) => isBesluit(g) && g.basis === bezwaarBasis() && !g.after);
+  state.grammen.filter(
+    (g) => isBesluit(g) && g.basis === bezwaarBasis() && !g.after,
+  );
 
 /**
  * Whether `step` acts on `doel`: the application a decision decides, the
@@ -52,19 +60,24 @@ const beslissingen = () =>
  */
 function past(step, doel) {
   switch (step.stap.stap) {
-    case 'besluit':
+    case "besluit":
       return !doel.aanvraag || aanvragen()[step.doel - 1]?.id === doel.aanvraag;
-    case 'bezwaar': {
+    case "bezwaar": {
       const a = aanvragen()[step.doel - 1];
       return !doel.besluit || (!!a && besluitOp(a.id)?.id === doel.besluit);
     }
-    case 'beslissing_op_bezwaar':
+    case "beslissing_op_bezwaar":
       return !doel.bezwaar || bezwaren()[step.doel - 1]?.id === doel.bezwaar;
-    case 'beroep':
-      return !doel.besluit || beslissingen()[step.doel - 1]?.id === doel.besluit;
-    case 'vastleggen':
-      return vastleggendeCel(step.stap, state.casus) === doel.cel && step.stap.feit === doel.feit;
-    case 'ambtshalve':
+    case "beroep":
+      return (
+        !doel.besluit || beslissingen()[step.doel - 1]?.id === doel.besluit
+      );
+    case "vastleggen":
+      return (
+        vastleggendeCel(step.stap, state.casus) === doel.cel &&
+        step.stap.feit === doel.feit
+      );
+    case "ambtshalve":
       return !doel.artikel || step.stap.artikel === doel.artikel;
     default:
       return true;
@@ -83,9 +96,11 @@ function isHuidigeStap(soort, doel = {}) {
  * At any other step, or in free play, every form stays open.
  */
 export function ingeklapt(cellen, cel, feit) {
-  if (isHuidigeStap('vastleggen', { cel, feit })) return false;
+  if (isHuidigeStap("vastleggen", { cel, feit })) return false;
   return cellen.some((c) =>
-    (c.handelingen ?? []).some((h) => isHuidigeStap('vastleggen', { cel: c.cel, feit: h.feit })),
+    (c.handelingen ?? []).some((h) =>
+      isHuidigeStap("vastleggen", { cel: c.cel, feit: h.feit }),
+    ),
   );
 }
 
@@ -97,7 +112,8 @@ export function ingeklapt(cellen, cel, feit) {
 export function scenarioWaarden(soort, doel = {}) {
   if (!state.casus || !state.scenario) return null;
   const voorbeeld = state.casus.voorbeeld?.[VOORBEELD[soort]] ?? {};
-  if (!guideFor(state.casus, state.scenario)) return VOORBEELD[soort] ? { ...voorbeeld } : null;
+  if (!guideFor(state.casus, state.scenario))
+    return VOORBEELD[soort] ? { ...voorbeeld } : null;
   if (!isHuidigeStap(soort, doel)) return null;
   return { ...voorbeeld, ...(huidigeStap().step.stap.invoer ?? {}) };
 }
@@ -110,7 +126,7 @@ export function scenarioWaarden(soort, doel = {}) {
  * free play.
  */
 export function scenarioVerwijzing(cel, feit) {
-  if (!isHuidigeStap('vastleggen', { cel, feit })) return null;
+  if (!isHuidigeStap("vastleggen", { cel, feit })) return null;
   return verwijzing(huidigeStap().step.stap.verwijst_naar);
 }
 
@@ -120,15 +136,36 @@ export function scenarioVerwijzing(cel, feit) {
  * step ([`scenarioVerwijzing`]). Null otherwise, and always in free play.
  */
 export function scenarioOver(artikel) {
-  if (!isHuidigeStap('ambtshalve', { artikel })) return null;
+  if (!isHuidigeStap("ambtshalve", { artikel })) return null;
   return verwijzing(huidigeStap().step.stap.verwijst_naar);
+}
+
+/**
+ * The article the form for an ex officio decision acts under: what the
+ * visitor chose (`gekozen`), or else, at an ex officio step of a scenario,
+ * the step's article when the case's cell can take it (`artikelen`). Never
+ * a default of its own: an ex officio decision nobody asked for, taken with
+ * one click, is a decision on a law the visitor did not choose. Null until
+ * there is a choice.
+ */
+export function ambtshalveArtikel(
+  gekozen,
+  artikelen,
+  stap = huidigeStap()?.step.stap,
+) {
+  if (gekozen && artikelen.includes(gekozen)) return gekozen;
+  if (stap?.stap === "ambtshalve" && artikelen.includes(stap.artikel))
+    return stap.artikel;
+  return null;
 }
 
 // The id of the record of the earlier step with kenmerk `naar`, or else the
 // kenmerk as it is (a record in the begin of the cell); null without one.
 function verwijzing(naar) {
   if (!naar) return null;
-  const eerder = guideFor(state.casus, state.scenario).steps.find((s) => s.stap.kenmerk === naar);
+  const eerder = guideFor(state.casus, state.scenario).steps.find(
+    (s) => s.stap.kenmerk === naar,
+  );
   return (eerder && recordVan(eerder)) ?? naar;
 }
 
@@ -150,14 +187,20 @@ export function recordMetKenmerk(kenmerk) {
  * records of its fact in the chronicle of its cell.
  */
 function recordVan(step) {
-  if (step.stap.stap === 'besluit') {
+  if (step.stap.stap === "besluit") {
     const a = aanvragen()[step.doel - 1];
     return (a && besluitOp(a.id)?.id) ?? null;
   }
-  if (step.stap.stap !== 'vastleggen') return null;
+  if (step.stap.stap !== "vastleggen") return null;
   const cel = vastleggendeCel(step.stap, state.casus);
-  const grammen = cel === state.casus.cel ? state.grammen : (state.andere.find((a) => a.cel === cel)?.grammen ?? []);
-  const vanFeit = grammen.filter((g) => g.kind === 'EXECUTOGRAM' && `${g.basis}#${g.fact}` === step.stap.feit);
+  const grammen =
+    cel === state.casus.cel
+      ? state.grammen
+      : (state.andere.find((a) => a.cel === cel)?.grammen ?? []);
+  const vanFeit = grammen.filter(
+    (g) =>
+      g.kind === "EXECUTOGRAM" && `${g.basis}#${g.fact}` === step.stap.feit,
+  );
   return vanFeit[step.vooraf + step.keer - 1]?.id ?? null;
 }
 
