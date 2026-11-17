@@ -1,9 +1,8 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import type { LawScenarios } from '../scenario/useLawScenarios';
-import { STATUS_TEXT } from '../scenario/statusSummary';
+import { STATUS_BADGE, STATUS_TEXT } from '../scenario/statusSummary';
 import { scenarioFileKey } from '../scenario/openScenario';
-import type { ScenarioStatus } from '../scenario/run';
 
 /**
  * The open regelwerk's scenarios next to its articles, read only: what needs
@@ -21,12 +20,6 @@ const emit = defineEmits<{
   /** Open a file in its tab, at a scenario. */
   open: [filename: string, scenarioName: string | null];
 }>();
-
-const STATUS_COLOR: Record<ScenarioStatus, string> = {
-  passed: 'success',
-  failed: 'critical',
-  'no-expectations': 'neutral',
-};
 
 // The files whose passed scenarios are shown one by one, by traject,
 // regelwerk and file: another regelwerk's file of the same name starts closed.
@@ -94,7 +87,12 @@ function toggle(key: string) {
           <nldd-text-cell :text="line.name"></nldd-text-cell>
           <nldd-spacer-cell v-if="line.status" size="8"></nldd-spacer-cell>
           <nldd-cell v-if="line.status" width="fit-content">
-            <nldd-badge size="sm" :color="STATUS_COLOR[line.status]" :text="STATUS_TEXT[line.status]"></nldd-badge>
+            <nldd-badge
+              size="sm"
+              :color="STATUS_BADGE[line.status].color"
+              :icon="STATUS_BADGE[line.status].icon"
+              :accessible-label="STATUS_TEXT[line.status]"
+            ></nldd-badge>
           </nldd-cell>
           <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
         </nldd-list-item>
@@ -125,7 +123,12 @@ function toggle(key: string) {
             <nldd-text-cell :text="line.name"></nldd-text-cell>
             <nldd-spacer-cell size="8"></nldd-spacer-cell>
             <nldd-cell width="fit-content">
-              <nldd-badge size="sm" color="success" :text="STATUS_TEXT.passed"></nldd-badge>
+              <nldd-badge
+                size="sm"
+                :color="STATUS_BADGE.passed.color"
+                :icon="STATUS_BADGE.passed.icon"
+                :accessible-label="STATUS_TEXT.passed"
+              ></nldd-badge>
             </nldd-cell>
             <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
           </nldd-list-item>

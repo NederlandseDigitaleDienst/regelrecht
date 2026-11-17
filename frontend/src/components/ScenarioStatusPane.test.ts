@@ -63,7 +63,8 @@ function mountPane(engine: EditorEngine = fakeEngine()) {
   return mount(Host);
 }
 
-const tagsOf = (w: ReturnType<typeof mountPane>) => w.findAll('nldd-badge').map((t) => t.attributes('text'));
+// A status badge is an icon; what it says is its accessible label.
+const statusesOf = (w: ReturnType<typeof mountPane>) => w.findAll('nldd-badge').map((t) => t.attributes('accessible-label'));
 const passedRow = (w: ReturnType<typeof mountPane>) => w.find('[data-testid="scenario-status-basis.feature-passed"]');
 
 beforeEach(() => {
@@ -86,7 +87,7 @@ describe('ScenarioStatusPane', () => {
     const w = mountPane();
     await vi.waitFor(async () => {
       await settle();
-      expect(tagsOf(w)).toEqual(['Mislukt']);
+      expect(statusesOf(w)).toEqual(['Mislukt']);
     });
     expect(w.text()).toContain('basis.feature');
     expect(passedRow(w).find('nldd-text-cell').attributes('text')).toBe('1 geslaagd');
@@ -95,7 +96,7 @@ describe('ScenarioStatusPane', () => {
     // The row opens up to the passed scenarios themselves.
     await passedRow(w).trigger('click');
     expect(passedRow(w).attributes('expanded')).toBeDefined();
-    expect(tagsOf(w)).toEqual(['Mislukt', 'Geslaagd']);
+    expect(statusesOf(w)).toEqual(['Mislukt', 'Geslaagd']);
     expect(w.find('[data-testid="scenario-status-basis.feature-0"] nldd-text-cell').attributes('text')).toBe('Heeft recht');
     // Read only: no form and no save in the pane.
     expect(w.find('[data-testid="save-scenarios-btn"]').exists()).toBe(false);
@@ -105,7 +106,7 @@ describe('ScenarioStatusPane', () => {
     const w = mountPane();
     await vi.waitFor(async () => {
       await settle();
-      expect(tagsOf(w)).toEqual(['Mislukt']);
+      expect(statusesOf(w)).toEqual(['Mislukt']);
     });
 
     // The tab changes the second scenario's inkomen to 1, without saving.
@@ -113,7 +114,7 @@ describe('ScenarioStatusPane', () => {
     file.setValues(1, { ...file.values.value[1]!, parameterValues: { inkomen: '1' } });
     await vi.waitFor(async () => {
       await settle();
-      expect(tagsOf(w)).toEqual([]);
+      expect(statusesOf(w)).toEqual([]);
       expect(passedRow(w).find('nldd-text-cell').attributes('text')).toBe('2 geslaagd');
     });
     const banner = w.find('nldd-banner[variant="warning"]');
@@ -138,6 +139,6 @@ describe('ScenarioStatusPane', () => {
       await settle();
       expect(w.findAll('[data-testid^="scenario-status-basis.feature-"]')).toHaveLength(2);
     });
-    expect(tagsOf(w)).toEqual([]);
+    expect(statusesOf(w)).toEqual([]);
   });
 });

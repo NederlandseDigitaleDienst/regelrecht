@@ -60,6 +60,17 @@ export const STATUS_TEXT: Record<ScenarioStatus, string> = {
   'no-expectations': 'Geen verwachting',
 };
 
+/**
+ * The badge a scenario's status gets in a list: an icon in the status color,
+ * compact next to the name. Its accessible label is the status in words
+ * (STATUS_TEXT), which is what a screen reader hears.
+ */
+export const STATUS_BADGE: Record<ScenarioStatus, { icon: string; color: 'success' | 'critical' | 'neutral' }> = {
+  passed: { icon: 'checked', color: 'success' },
+  failed: { icon: 'close', color: 'critical' },
+  'no-expectations': { icon: 'remove', color: 'neutral' },
+};
+
 /** How the editor's toolbar shows the status of a regelwerk's scenarios. */
 export interface StatusBadge {
   /**

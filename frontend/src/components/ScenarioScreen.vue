@@ -5,7 +5,8 @@ import ScenarioResult from './ScenarioResult.vue';
 import { useOpenScenariosStore } from '../stores/openScenarios';
 import { useScenarioEnvironment, type MappedArticle } from '../scenario/useScenarioEnvironment';
 import { useScenarioRuns } from '../scenario/useScenarioRuns';
-import { runStatus, type ScenarioStatus } from '../scenario/run';
+import { runStatus } from '../scenario/run';
+import { STATUS_BADGE, STATUS_TEXT } from '../scenario/statusSummary';
 import { scenarioLawsOf } from '../scenario/scenarioLaws';
 import { useCorpus } from '../corpus';
 import { buildArticleMap, buildOutputTypeMap, buildTypeMap } from '../utils/articleMapping';
@@ -85,14 +86,9 @@ const runs = computed(() => runsFor(file.value));
 const selectedRun = computed(() => runs.value[selected.value] ?? null);
 
 // --- Status per scenario --------------------------------------------------
-const STATUS_BADGE: Record<ScenarioStatus, { text: string; color: string }> = {
-  passed: { text: 'Geslaagd', color: 'success' },
-  failed: { text: 'Mislukt', color: 'critical' },
-  'no-expectations': { text: 'Geen verwachting', color: 'neutral' },
-};
 function statusBadgeFor(index: number) {
   const status = runStatus(runs.value[index]);
-  return status ? STATUS_BADGE[status] : null;
+  return status ? { ...STATUS_BADGE[status], label: STATUS_TEXT[status] } : null;
 }
 const dirtySet = computed(() => new Set(file.value.dirtyIndexes.value));
 
@@ -208,7 +204,12 @@ const dirty = computed(() => file.value.dirty.value);
               ></nldd-text-cell>
               <nldd-spacer-cell v-if="statusBadgeFor(i)" size="8"></nldd-spacer-cell>
               <nldd-cell v-if="statusBadgeFor(i)" width="fit-content">
-                <nldd-badge size="sm" :color="statusBadgeFor(i)!.color" :text="statusBadgeFor(i)!.text"></nldd-badge>
+                <nldd-badge
+                  size="sm"
+                  :color="statusBadgeFor(i)!.color"
+                  :icon="statusBadgeFor(i)!.icon"
+                  :accessible-label="statusBadgeFor(i)!.label"
+                ></nldd-badge>
               </nldd-cell>
             </nldd-list-item>
           </nldd-list>
