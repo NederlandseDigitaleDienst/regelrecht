@@ -311,6 +311,16 @@ async function onTabDismiss(e: Event) {
   if (dismissed && !(await actions.close(dismissed, toTab(detail?.nextItem)))) restoreTabSelection();
 }
 
+// The dot on a tab with unsaved edits is only seen (design-system-gaps.css):
+// the supporting text says it too, so a screen reader hears it with the tab's
+// name. The mobile tab sheet says it with a tag instead.
+function tabSupportingText(tab: OpenTab): string | undefined {
+  const label = tabActions.value?.label(tab);
+  if (!label) return undefined;
+  if (!label.unsaved) return label.supportingText;
+  return label.supportingText ? `${label.supportingText} · niet opgeslagen` : 'Niet opgeslagen';
+}
+
 async function onTabClick(tab: OpenTab) {
   const actions = tabActions.value;
   if (actions && !(await actions.select(tab))) restoreTabSelection();
@@ -557,9 +567,9 @@ function restoreTabSelection() {
               :data-tab-key="tabActions?.key(tab)"
               :data-unsaved="tabActions?.label(tab).unsaved || undefined"
               :text="tabActions?.label(tab).text"
-              :supporting-text="tabActions?.label(tab).supportingText"
+              :supporting-text="tabSupportingText(tab)"
               :short-text="tabActions?.label(tab).shortText"
-              :short-supporting-text="tabActions?.label(tab).supportingText"
+              :short-supporting-text="tabSupportingText(tab)"
               :selected="activeDocumentTab && tabActions?.key(activeDocumentTab) === tabActions?.key(tab) || undefined"
               @click="onTabClick(tab)"
             >

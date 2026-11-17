@@ -87,7 +87,7 @@ A scenario tab belongs to its rulework, so opening one opens that rulework, and 
 
 The file and its unsaved edits live in `src/scenario/openScenario.ts`, one per file, kept by the `openScenarios` store so the edits survive a switch to another tab. Next to an article the editor runs the same copy: it runs the tab's unsaved edits and says it does. A run and a save read a scenario's values through one conversion (`src/scenario/inputs.ts`): the run applies the edits the way a save writes them, so the editor runs what the saved file will say.
 
-A tab with unsaved edits, article or scenario file, has a dot in its corner. Closing a scenario tab with unsaved edits, switching traject, and reloading ask first; switching tabs does not, because nothing is lost.
+A tab with unsaved edits, article or scenario file, has a dot in its corner, and its supporting text adds *niet opgeslagen*, so a screen reader says it as well. Closing a scenario tab with unsaved edits, switching traject, and reloading ask first; switching tabs does not, because nothing is lost.
 
 ### Top-level pages
 
