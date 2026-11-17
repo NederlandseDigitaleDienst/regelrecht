@@ -1,10 +1,8 @@
 """Step bindings for the location prototype.
 
-The steps that set a date and a parameter, evaluate an output and assert its
-value are the canonical ones from `bdd/grammar.yaml`, bound here to the
-resolver. New are: the location as a shape, the question "may I do this
-here?", its answer and the articles behind it, and which decentral articles
-filled an output.
+The steps that set a date and parameters are the canonical ones from
+`bdd/grammar.yaml`. New are: the location as a shape, the question "may I do
+this here?", its answer, and the outcomes of the law behind the answer.
 """
 
 import sys
@@ -14,14 +12,25 @@ from behave import given, then, when
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from resolver import ask, evaluate_at  # noqa: E402
+from resolver import ask  # noqa: E402
+
+QUESTION = "may_i_do_this_here"
+
+
+def inferred(text: str) -> object:
+    """A table cell or quoted value read as the grammar reads it."""
+    if text in ("true", "false"):
+        return text == "true"
+    try:
+        return float(text) if "." in text else int(text)
+    except ValueError:
+        return text
 
 
 @given('the calculation date is "{date}"')
 def set_date(context, date):
     context.date = date
     context.params = {}
-    context.answers = {}
 
 
 @given("the location is the shape:")
@@ -31,17 +40,20 @@ def set_location(context):
 
 @given('parameter "{name}" is "{value}"')
 def set_parameter(context, name, value):
-    context.params[name] = value
+    context.params[name] = inferred(value)
 
 
-@given('parameter "{name}" is {value:g}')
-def set_number_parameter(context, name, value):
-    context.params[name] = value
+@given("the following parameters:")
+def set_parameters(context):
+    # A parameter table has no header row; behave reads the first row as one.
+    rows = [context.table.headings] + [row.cells for row in context.table]
+    for name, value in rows:
+        context.params[name] = inferred(value)
 
 
 @when('I ask whether I may "{activity}" at the location')
 def ask_whether(context, activity):
-    context.verdict = ask(activity, context.location, context.params, context.date)
+    context.verdict = ask(QUESTION, activity, context.location, context.params, context.date)
 
 
 @then('the answer is "{answer}"')
@@ -51,38 +63,9 @@ def assert_answer(context, answer):
 
 @then("because of:")
 def assert_because(context):
-    expected = sorted(
-        (row["rulework"], row["article"], row["qualification"], row["through"]) for row in context.table
+    expected = sorted((row["article"], row["output"], row["through"]) for row in context.table)
+    actual = sorted(
+        (r.article, r.output, ", ".join(f"{f.rulework} {f.article}" for f in r.through))
+        for r in context.verdict.because
     )
-    actual = [
-        (s.rulework, s.article, s.qualification, ", ".join(f"{f.rulework} {f.article}" for f in s.through))
-        for s in context.verdict.because
-    ]
-    assert actual == expected, f"expected {expected}, got {actual}"
-
-
-@when('I evaluate "{output}" of "{law}"')
-def evaluate(context, output, law):
-    context.answers[output] = evaluate_at(law, output, context.location, context.params, context.date)
-
-
-@then('output "{output}" is true')
-def assert_true(context, output):
-    assert context.answers[output].value is True, f"{output} is {context.answers[output].value!r}"
-
-
-@then('output "{output}" is false')
-def assert_false(context, output):
-    assert context.answers[output].value is False, f"{output} is {context.answers[output].value!r}"
-
-
-@then('output "{output}" is absent')
-def assert_absent(context, output):
-    assert context.answers[output].value is None, f"{output} is {context.answers[output].value!r}"
-
-
-@then('output "{output}" is filled by:')
-def assert_filled_by(context, output):
-    expected = sorted((row["rulework"], row["article"]) for row in context.table)
-    actual = [(f.rulework, f.article) for f in context.answers[output].filled_by]
     assert actual == expected, f"expected {expected}, got {actual}"

@@ -9,9 +9,11 @@ officiele_titel: Omgevingsplan gemeente Dijkstad
 url: https://example.org/omgevingsplan-dijkstad
 
 # FICTIONAL. Dijkstad does not exist; the text is written for this example.
+# What is real is how it hangs on the Omgevingswet: each article that requires
+# a permit fills the open term of the definition of omgevingsplanactiviteit.
 #
 # PROPOSED, not in the schema: the value type `shape` and the operation
-# OVERLAPS. Nothing else is new.
+# OVERLAPS.
 #
 # Three ways an article here relates to a place:
 #   - article 1.2 designates an area of its own;
@@ -50,19 +52,21 @@ articles:
     machine_readable:
       implements:
         - law: omgevingswet
-          article: '5.1'
+          article: Bijlage onder A
           open_term: omgevingsplan_verbiedt_zonder_vergunning
           gelet_op: Gelet op artikel 5.1, eerste lid, onder a, van de Omgevingswet
       execution:
         parameters:
+          # The plan's own word for the activity; the Omgevingswet has no
+          # term for felling one tree.
           - name: activiteit
             type: string
             required: true
-            description: What the applicant wants to do
+            description: The activity
           - name: location
             type: shape
             required: true
-            description: Where the applicant wants to do it
+            description: Where the activity takes place
         input:
           # An area of another rulework, read like any other value of it.
           - name: beperkingengebied_waterkering
@@ -72,6 +76,7 @@ articles:
               regulation: waterschapsverordening_rivierdijken
               output: beperkingengebied_waterkering
         output:
+          # Absent when the article does not speak about the case.
           - name: omgevingsplan_verbiedt_zonder_vergunning
             type: boolean
             nullable: true
@@ -96,7 +101,8 @@ articles:
 
   - number: '5.2'
     text: |
-      1. Het is verboden zonder omgevingsvergunning een bouwwerk te bouwen.
+      1. Het is verboden zonder omgevingsvergunning een bouwactiviteit te
+      verrichten.
 
       2. Het verbod geldt niet voor een bijbehorend bouwwerk, tenzij de locatie
       ligt in het beschermd stadsgezicht binnenstad.
@@ -105,7 +111,7 @@ articles:
     machine_readable:
       implements:
         - law: omgevingswet
-          article: '5.1'
+          article: Bijlage onder A
           open_term: omgevingsplan_verbiedt_zonder_vergunning
           gelet_op: Gelet op artikel 5.1, eerste lid, onder a, van de Omgevingswet
       execution:
@@ -113,11 +119,15 @@ articles:
           - name: activiteit
             type: string
             required: true
-            description: What the applicant wants to do
+            description: The activity, in the terms of the Omgevingswet
           - name: location
             type: shape
             required: true
-            description: Where the applicant wants to do it
+            description: Where the activity takes place
+          - name: is_bijbehorend_bouwwerk
+            type: boolean
+            required: false
+            description: Whether what is built is a bijbehorend bouwwerk
         input:
           - name: beschermd_stadsgezicht_binnenstad
             type: shape
@@ -134,20 +144,17 @@ articles:
             value:
               operation: IF
               cases:
-                # Lid 1, which lid 2 does not lift for a hoofdgebouw.
                 - when:
                     operation: EQUALS
                     subject: $activiteit
-                    value: hoofdgebouw_bouwen
-                  then: true
-                # Lid 2: lifted for a bijbehorend bouwwerk, except in the area.
-                - when:
-                    operation: AND
+                    value: bouwactiviteit
+                  then:
+                    # Lid 1 holds, unless lid 2 lifts it: a bijbehorend
+                    # bouwwerk outside the area.
+                    operation: OR
                     conditions:
-                      - operation: EQUALS
-                        subject: $activiteit
-                        value: bijbehorend_bouwwerk_bouwen
+                      - operation: NOT
+                        value: $is_bijbehorend_bouwwerk
                       - operation: OVERLAPS
                         subject: $location
                         value: $beschermd_stadsgezicht_binnenstad
-                  then: true

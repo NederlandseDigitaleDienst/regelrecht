@@ -9,10 +9,11 @@ officiele_titel: Waterschapsverordening waterschap Rivierdijken
 url: https://example.org/waterschapsverordening-rivierdijken
 
 # FICTIONAL. Waterschap Rivierdijken does not exist; the text is written for
-# this example.
+# this example. What is real is how it hangs on the Omgevingswet: article 3.1
+# fills the open term of article 5.3 of that law.
 #
 # PROPOSED, not in the schema: the value type `shape` and the operation
-# OVERLAPS. Nothing else is new.
+# OVERLAPS.
 #
 # An area is the output of the article that designates it. Its value is the
 # shape itself, written as WKT in RD coordinates (EPSG:28992), the same
@@ -38,8 +39,8 @@ articles:
 
   - number: '3.1'
     text: |
-      Het is verboden zonder omgevingsvergunning een bouwwerk te bouwen in het
-      beperkingengebied waterkering.
+      Het is verboden zonder omgevingsvergunning een bouwactiviteit te
+      verrichten in het beperkingengebied waterkering.
     url: https://example.org/waterschapsverordening-rivierdijken#artikel3.1
 
     machine_readable:
@@ -53,11 +54,11 @@ articles:
           - name: activiteit
             type: string
             required: true
-            description: What the applicant wants to do
+            description: The activity, in the terms of the Omgevingswet
           - name: location
             type: shape
             required: true
-            description: Where the applicant wants to do it
+            description: Where the activity takes place
         input:
           - name: beperkingengebied_waterkering
             type: shape
@@ -65,8 +66,7 @@ articles:
             source:
               output: beperkingengebied_waterkering
         output:
-          # Absent when the article does not speak about the case: it then
-          # forbids nothing, and the default of the open term holds.
+          # Absent when the article does not speak about the case.
           - name: waterschapsverordening_verbiedt_zonder_vergunning
             type: boolean
             nullable: true
@@ -79,11 +79,9 @@ articles:
                 - when:
                     operation: AND
                     conditions:
-                      - operation: IN
+                      - operation: EQUALS
                         subject: $activiteit
-                        values:
-                          - hoofdgebouw_bouwen
-                          - bijbehorend_bouwwerk_bouwen
+                        value: bouwactiviteit
                       - operation: OVERLAPS
                         subject: $location
                         value: $beperkingengebied_waterkering

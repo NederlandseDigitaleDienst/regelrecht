@@ -7,13 +7,99 @@ valid_from: '2024-01-01'
 bwb_id: BWBR0037885
 url: https://wetten.overheid.nl/BWBR0037885
 
-# The entry point of the example. The bans sit here; the decentral ruleworks
-# only say for which activities, and where. Each article leaves that to an
-# open term, and the question "is a permit required?" is asked of this law.
+# REAL. Texts as on wetten.overheid.nl, read on 2026-11-17. Modelled: article
+# 5.1 lid 1 under a, article 5.3, and three definitions from the annex.
 #
-# Only article 5.1 lid 1 under a and article 5.3 are modelled.
+# The bans sit in this law. A decentral rulework only fills what the law
+# leaves open: for which activity the plan requires a permit, and which
+# activity conflicts with the plan.
+#
+# NOT modelled, so nothing here answers for it:
+#   - article 5.1 lid 1 under b to g, and lid 2 (among them the technical
+#     bouwactiviteit);
+#   - article 5.4 (omgevingsverordening);
+#   - which cases an algemene maatregel van bestuur exempts under article 5.1
+#     lid 1. That is asked as a fact.
+#
+# PROPOSED, not in the schema: `combine` on an open term. The definition of
+# omgevingsplanactiviteit speaks of an activity "waarvoor in het omgevingsplan
+# is bepaald dat ...". A plan says such things article by article, so the term
+# holds when any article of the plan says so. Without `combine` a term takes
+# one filler, as it does today.
 
 articles:
+  - number: Bijlage onder A
+    text: |
+      bouwactiviteit: activiteit inhoudende het bouwen van een bouwwerk;
+
+      buitenplanse omgevingsplanactiviteit: activiteit, inhoudende:
+      a. een activiteit waarvoor in het omgevingsplan is bepaald dat het is
+      verboden deze zonder omgevingsvergunning te verrichten en die in strijd
+      is met het omgevingsplan, of
+      b. een andere activiteit die in strijd is met het omgevingsplan;
+
+      omgevingsplanactiviteit: activiteit, inhoudende:
+      a. een activiteit waarvoor in het omgevingsplan is bepaald dat het is
+      verboden deze zonder omgevingsvergunning te verrichten en die niet in
+      strijd is met het omgevingsplan,
+      b. een activiteit waarvoor in het omgevingsplan is bepaald dat het is
+      verboden deze zonder omgevingsvergunning te verrichten en die in strijd
+      is met het omgevingsplan, of
+      c. een andere activiteit die in strijd is met het omgevingsplan;
+    url: https://wetten.overheid.nl/BWBR0037885#Bijlage
+
+    machine_readable:
+      open_terms:
+        - id: omgevingsplan_verbiedt_zonder_vergunning
+          type: boolean
+          required: false
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          combine: OR
+          legal_basis: bijlage onder A (omgevingsplanactiviteit, onder a en b) Omgevingswet
+          default:
+            actions:
+              - output: omgevingsplan_verbiedt_zonder_vergunning
+                value: false
+        - id: activiteit_in_strijd_met_omgevingsplan
+          type: boolean
+          required: false
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          combine: OR
+          legal_basis: bijlage onder A (omgevingsplanactiviteit, onder b en c) Omgevingswet
+          default:
+            actions:
+              - output: activiteit_in_strijd_met_omgevingsplan
+                value: false
+
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+            description: The activity, in the terms of this law (such as bouwactiviteit)
+        output:
+          - name: omgevingsplanactiviteit
+            type: boolean
+            description: Whether the activity is an omgevingsplanactiviteit
+          - name: buitenplanse_omgevingsplanactiviteit
+            type: boolean
+            description: Whether the activity is a buitenplanse omgevingsplanactiviteit
+        actions:
+          # Onder a, b and c together: the plan requires a permit for it, or
+          # it conflicts with the plan.
+          - output: omgevingsplanactiviteit
+            value:
+              operation: OR
+              conditions:
+                - $omgevingsplan_verbiedt_zonder_vergunning
+                - $activiteit_in_strijd_met_omgevingsplan
+          # Onder a and b of the buitenplanse definition both require the
+          # conflict with the plan, and onder b requires nothing else.
+          - output: buitenplanse_omgevingsplanactiviteit
+            value: $activiteit_in_strijd_met_omgevingsplan
+
   - number: '5.1'
     text: |
       1. Het is verboden zonder omgevingsvergunning de volgende activiteiten te verrichten:
@@ -28,50 +114,33 @@ articles:
     url: https://wetten.overheid.nl/BWBR0037885#Hoofdstuk5_Afdeling5.1_Paragraaf5.1.1_Artikel5.1
 
     machine_readable:
-      open_terms:
-        # Bijlage onder A, begrip omgevingsplanactiviteit, onder a: "een
-        # activiteit waarvoor in het omgevingsplan is bepaald dat het is
-        # verboden deze zonder omgevingsvergunning te verrichten".
-        - id: omgevingsplan_verbiedt_zonder_vergunning
-          type: boolean
-          required: false
-          delegated_to: gemeenteraad
-          delegation_type: GEMEENTELIJKE_VERORDENING
-          legal_basis: bijlage onder A (omgevingsplanactiviteit, onder a) Omgevingswet
-          default:
-            actions:
-              - output: omgevingsplan_verbiedt_zonder_vergunning
-                value: false
-
       execution:
         parameters:
-          - name: activiteit
-            type: string
+          # "tenzij het gaat om een bij algemene maatregel van bestuur
+          # aangewezen geval". The cases are in the Omgevingsbesluit, which is
+          # not modelled; whoever asks must say whether one applies.
+          - name: bij_amvb_aangewezen_geval
+            type: boolean
             required: true
-            description: What the applicant wants to do
+            description: Whether the case is one that an algemene maatregel van bestuur exempts
+        input:
+          - name: omgevingsplanactiviteit
+            type: boolean
+            description: Whether the activity is an omgevingsplanactiviteit (annex, onder A)
+            source:
+              output: omgevingsplanactiviteit
         output:
           - name: vergunningplicht_omgevingsplanactiviteit
             type: boolean
-            description: Lid 1 under a - permit required as omgevingsplanactiviteit
-          # What this article says about the activity, in the one vocabulary
-          # every judging article uses: toegestaan, vergunningplicht or verbod.
-          # Absent when the article does not speak about the case.
-          - name: kwalificatie
-            type: string
-            nullable: true
-            description: The qualification this article gives the activity
+            description: Lid 1 under a - forbidden without an omgevingsvergunning
         actions:
           - output: vergunningplicht_omgevingsplanactiviteit
-            value: $omgevingsplan_verbiedt_zonder_vergunning
-          - output: kwalificatie
             value:
-              operation: IF
-              cases:
-                - when:
-                    operation: EQUALS
-                    subject: $omgevingsplan_verbiedt_zonder_vergunning
-                    value: true
-                  then: vergunningplicht
+              operation: AND
+              conditions:
+                - $omgevingsplanactiviteit
+                - operation: NOT
+                  value: $bij_amvb_aangewezen_geval
 
   - number: '5.3'
     text: |
@@ -86,6 +155,7 @@ articles:
           required: false
           delegated_to: algemeen bestuur van het waterschap
           delegation_type: WATERSCHAPS_VERORDENING
+          combine: OR
           legal_basis: artikel 5.3 Omgevingswet
           default:
             actions:
@@ -97,24 +167,11 @@ articles:
           - name: activiteit
             type: string
             required: true
-            description: What the applicant wants to do
+            description: The activity, in the terms of this law (such as bouwactiviteit)
         output:
           - name: vergunningplicht_waterschapsverordening
             type: boolean
-            description: Permit required under the waterschapsverordening
-          - name: kwalificatie
-            type: string
-            nullable: true
-            description: The qualification this article gives the activity
+            description: Forbidden without an omgevingsvergunning under the waterschapsverordening
         actions:
           - output: vergunningplicht_waterschapsverordening
             value: $waterschapsverordening_verbiedt_zonder_vergunning
-          - output: kwalificatie
-            value:
-              operation: IF
-              cases:
-                - when:
-                    operation: EQUALS
-                    subject: $waterschapsverordening_verbiedt_zonder_vergunning
-                    value: true
-                  then: vergunningplicht

@@ -1,19 +1,22 @@
-"""Prototype: evaluate an output of a law at a shape on the map.
+"""Prototype: answer a question about an activity at a shape on the map.
 
-Two things are proposed here that the schema does not have: the value type
-`shape` and the operation OVERLAPS. This file stands in for an engine that
-knows both, by sitting in front of the engine that does not:
+Three things are proposed here that the schema does not have: the value type
+`shape`, the operation OVERLAPS, and `combine` on an open term. This file
+stands in for an engine that knows all three, by sitting in front of the
+engine that knows none:
 
 - it works out the value of every shape an article uses: the location given
   with the question, or an area that another article designates. Both are
   written as WKT in RD coordinates;
 - it decides every OVERLAPS and writes the outcome into the action tree;
-- it takes what is left of `shape` out of the rulework, and hands the engine
-  a rulework it can read.
+- it works out every open term that combines its fillers, and writes that
+  outcome into the action tree as well;
+- it takes what is left of the three out of the rulework, and hands the
+  engine a rulework it can read.
 
-The question goes to one law. Which decentral ruleworks speak follows from the
-shape, because a rulework with a territory speaks only about locations in it,
-and from delegation (`implements`), which the engine resolves itself.
+It holds no rule of law of its own. Which outcomes answer a question is in
+`questions.yaml`; how the fillers of a term combine is on the term; what an
+article says is in the article.
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ import copy
 import json
 import os
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import yaml
@@ -34,6 +37,7 @@ ROOT = Path(__file__).parent
 REPO = ROOT.parent.parent
 REGULATION = ROOT / "regulation"
 TERRITORIES = ROOT / "territories"
+QUESTIONS = ROOT / "questions.yaml"
 
 SHAPE = "shape"
 
@@ -55,6 +59,21 @@ class Answer:
 
 
 @dataclass(frozen=True)
+class Reason:
+    """One outcome of the law that holds, and the articles it holds through."""
+
+    article: str
+    output: str
+    through: list[Filler]
+
+
+@dataclass(frozen=True)
+class Verdict:
+    answer: str
+    because: list[Reason]
+
+
+@dataclass(frozen=True)
 class Rulework:
     law: dict
     directory: Path
@@ -66,6 +85,9 @@ class Rulework:
     @property
     def articles(self) -> list[dict]:
         return self.law.get("articles", [])
+
+    def article(self, number: object) -> dict:
+        return next(a for a in self.articles if str(a["number"]) == str(number))
 
     def territory(self) -> BaseGeometry | None:
         """The territory of the rulework, or None for a national one."""
@@ -92,8 +114,16 @@ def overlaps(a: BaseGeometry, b: BaseGeometry) -> bool:
     return a.relate_pattern(b, "T********")
 
 
+def section_of(article: dict) -> dict:
+    return article.get("machine_readable", {})
+
+
 def execution_of(article: dict) -> dict:
-    return article.get("machine_readable", {}).get("execution", {})
+    return section_of(article).get("execution", {})
+
+
+def output_names(article: dict) -> set[str]:
+    return {o["name"] for o in execution_of(article).get("output", []) if o.get("type") != SHAPE}
 
 
 def designating_action(rulework: Rulework, output: str) -> object:
@@ -109,14 +139,34 @@ def designating_action(rulework: Rulework, output: str) -> object:
     raise ValueError(f"{rulework.id}: no article designates the shape {output!r}")
 
 
-class Shapes:
-    """The value of every shape an article can name."""
+@dataclass
+class Case:
+    """One question at one place on one date: everything an article may read."""
 
-    def __init__(self, ruleworks: list[Rulework], location: BaseGeometry):
-        self.ruleworks = {r.id: r for r in ruleworks}
-        self.location = location
+    ruleworks: list[Rulework]
+    location: BaseGeometry
+    params: dict
+    date: str
+    # Open terms already worked out, by (rulework, article, term).
+    terms: dict[tuple[str, str, str], object] = field(default_factory=dict)
 
-    def value(self, rulework: Rulework, article: dict, reference: object) -> BaseGeometry:
+    def rulework(self, rulework_id: str) -> Rulework:
+        return next(r for r in self.ruleworks if r.id == rulework_id)
+
+    def covers(self, rulework: Rulework) -> bool:
+        """A rulework with a territory speaks only about locations in it."""
+        bounds = rulework.territory()
+        return bounds is None or overlaps(self.location, bounds)
+
+    def scope(self) -> dict:
+        """The parameters, with the code of every territory the location lies in."""
+        scope = dict(self.params)
+        for rulework in self.ruleworks:
+            if rulework.territory() is not None and self.covers(rulework):
+                scope.update(rulework.territory_codes())
+        return scope
+
+    def shape_value(self, rulework: Rulework, article: dict, reference: object) -> BaseGeometry:
         name = str(reference).removeprefix("$")
         execution = execution_of(article)
         for parameter in execution.get("parameters", []):
@@ -125,48 +175,153 @@ class Shapes:
         for declared in execution.get("input", []):
             if declared["name"] == name and declared.get("type") == SHAPE:
                 source = declared["source"]
-                owner = self.ruleworks[source.get("regulation", rulework.id)]
+                owner = self.rulework(source.get("regulation", rulework.id))
                 return wkt.loads(str(designating_action(owner, source["output"])))
         raise ValueError(f"{rulework.id} art. {article['number']}: {name!r} is not a shape here")
 
     def decide(self, rulework: Rulework, article: dict, node: object) -> object:
-        """The action tree with every OVERLAPS replaced by its outcome."""
+        """An action tree with every OVERLAPS and every worked-out term decided."""
         if isinstance(node, list):
             return [self.decide(rulework, article, item) for item in node]
+        if isinstance(node, str) and node.startswith("$"):
+            key = (rulework.id, str(article["number"]), node.removeprefix("$"))
+            return self.terms.get(key, node)
         if not isinstance(node, dict):
             return node
         if node.get("operation") == "OVERLAPS":
-            subject = self.value(rulework, article, node["subject"])
-            area = self.value(rulework, article, node["value"])
+            subject = self.shape_value(rulework, article, node["subject"])
+            area = self.shape_value(rulework, article, node["value"])
             return overlaps(subject, area)
         return {key: self.decide(rulework, article, value) for key, value in node.items()}
 
+    def for_engine(self, rulework: Rulework, articles: list[dict]) -> str:
+        """The rulework as the engine may read it: nothing proposed left in it."""
+        prepared = []
+        for original in articles:
+            article = copy.deepcopy(original)
+            section = section_of(article)
+            for term in section.get("open_terms", []):
+                term.pop("combine", None)
+            execution = section.get("execution")
+            if execution:
+                shape_outputs = {o["name"] for o in execution.get("output", []) if o.get("type") == SHAPE}
+                for part in ("parameters", "input", "output"):
+                    kept = [f for f in execution.get(part, []) if f.get("type") != SHAPE]
+                    if kept:
+                        execution[part] = kept
+                    else:
+                        execution.pop(part, None)
+                actions = [a for a in execution.get("actions", []) if a.get("output") not in shape_outputs]
+                execution["actions"] = self.decide(rulework, original, actions)
+                if not execution.get("output"):
+                    # An article that only designates an area has nothing left to say.
+                    del section["execution"]
+                    if not section:
+                        del article["machine_readable"]
+            prepared.append(article)
+        law = dict(rulework.law)
+        law["articles"] = prepared
+        return yaml.safe_dump(law, sort_keys=False, allow_unicode=True)
 
-def without_shapes(rulework: Rulework, articles: list[dict], shapes: Shapes) -> str:
-    """The rulework as the engine may read it: no shape left anywhere."""
-    prepared = []
-    for original in articles:
-        article = copy.deepcopy(original)
+    def alongside(self, rulework: Rulework, article: dict) -> list[dict]:
+        """The article with the others of its rulework that do not clash with it.
+
+        The engine finds an article by the name of its output, so two articles
+        that give an output of the same name cannot be offered together.
+        """
+        names = output_names(article)
+        return [a for a in rulework.articles if a is article or not (output_names(a) & names)]
+
+    def fillers(self, holder: Rulework, article: dict, term: str) -> list[tuple[Rulework, dict]]:
+        """Every article in scope that fills the term."""
+        number = str(article["number"])
+        found = []
+        for rulework in self.ruleworks:
+            if rulework.id == holder.id or not self.covers(rulework):
+                continue
+            for candidate in rulework.articles:
+                for implemented in section_of(candidate).get("implements", []):
+                    same = (
+                        implemented["law"] == holder.id
+                        and str(implemented["article"]) == number
+                        and implemented["open_term"] == term
+                    )
+                    if same:
+                        found.append((rulework, candidate))
+        return found
+
+    def work_out_terms(self, holder: Rulework) -> dict[tuple[str, str], list[Filler]]:
+        """Work out every open term of a rulework that combines its fillers.
+
+        A term with `combine: OR` holds when any filler says so. A filler that
+        gives nothing does not speak about the case. Returns who spoke.
+        """
+        spoke: dict[tuple[str, str], list[Filler]] = {}
+        plain = self.for_engine(holder, holder.articles)
+        for article in holder.articles:
+            for term in section_of(article).get("open_terms", []):
+                found = self.fillers(holder, article, term["id"])
+                combine = term.get("combine")
+                if combine is None:
+                    if len(found) > 1:
+                        raise RuntimeError(
+                            f"{holder.id} art. {article['number']}: term {term['id']!r} has "
+                            f"{len(found)} fillers and no `combine`; the engine takes one"
+                        )
+                    continue
+                if combine != "OR":
+                    raise ValueError(f"{holder.id}: combine {combine!r} is not known here")
+                speakers = []
+                for rulework, filler in found:
+                    filler_yaml = self.for_engine(rulework, self.alongside(rulework, filler))
+                    if run_engine(filler_yaml, [plain], term["id"], self.scope(), self.date) is True:
+                        speakers.append(Filler(rulework.id, str(filler["number"])))
+                number = str(article["number"])
+                spoke[(number, term["id"])] = sorted(speakers, key=lambda f: (f.rulework, f.article))
+                if speakers:
+                    self.terms[(holder.id, number, term["id"])] = True
+                # With no speaker the term keeps its default, which the engine applies.
+        return spoke
+
+    def terms_read(self, rulework: Rulework, article: dict, output: str) -> set[tuple[str, str]]:
+        """The open terms an output reads, in its own article or through another."""
         execution = execution_of(article)
-        if execution:
-            shape_outputs = {o["name"] for o in execution.get("output", []) if o.get("type") == SHAPE}
-            for section in ("parameters", "input", "output"):
-                kept = [f for f in execution.get(section, []) if f.get("type") != SHAPE]
-                if kept:
-                    execution[section] = kept
-                else:
-                    execution.pop(section, None)
-            actions = [a for a in execution.get("actions", []) if a.get("output") not in shape_outputs]
-            execution["actions"] = shapes.decide(rulework, original, actions)
-            if not execution.get("output"):
-                # An article that only designates an area has nothing left to say.
-                del article["machine_readable"]["execution"]
-                if not article["machine_readable"]:
-                    del article["machine_readable"]
-        prepared.append(article)
-    law = dict(rulework.law)
-    law["articles"] = prepared
-    return yaml.safe_dump(law, sort_keys=False, allow_unicode=True)
+        names: set[str] = set()
+
+        def collect(node: object) -> None:
+            if isinstance(node, list):
+                for item in node:
+                    collect(item)
+            elif isinstance(node, dict):
+                for value in node.values():
+                    collect(value)
+            elif isinstance(node, str) and node.startswith("$"):
+                names.add(node.removeprefix("$"))
+
+        for action in execution.get("actions", []):
+            if action.get("output") == output:
+                collect(action.get("value"))
+
+        own_terms = {t["id"] for t in section_of(article).get("open_terms", [])}
+        read = {(str(article["number"]), name) for name in names & own_terms}
+        for declared in execution.get("input", []):
+            source = declared.get("source", {})
+            if declared["name"] not in names or "regulation" in source or "output" not in source:
+                continue
+            for candidate in rulework.articles:
+                if source["output"] in output_names(candidate):
+                    read |= self.terms_read(rulework, candidate, source["output"])
+        return read
+
+    def evaluate(self, rulework: Rulework, article: dict, output: str) -> Answer:
+        """One output of one article, with the articles that filled its terms."""
+        spoke = self.work_out_terms(rulework)
+        law_yaml = self.for_engine(rulework, self.alongside(rulework, article))
+        value = run_engine(law_yaml, [], output, self.scope(), self.date)
+        through: set[Filler] = set()
+        for key in self.terms_read(rulework, article, output):
+            through.update(spoke.get(key, []))
+        return Answer(value, sorted(through, key=lambda f: (f.rulework, f.article)))
 
 
 def in_force(directory: Path, date: str) -> Rulework | None:
@@ -214,126 +369,30 @@ def run_engine(law_yaml: str, extra_laws: list[str], output: str, params: dict, 
     return response["outputs"][output]
 
 
-@dataclass(frozen=True)
-class Statement:
-    """What one article says about the activity at the location."""
-
-    rulework: str
-    article: str
-    qualification: str
-    through: list[Filler]
+# The answers to "may I do this here?". They are answers to a question, not
+# values of the law, so they are here and not in a rulework.
+ONLY_WITH_A_PERMIT = "only with a permit"
+WITHOUT_A_PERMIT = "without a permit"
 
 
-@dataclass(frozen=True)
-class Verdict:
-    answer: str
-    because: list[Statement]
+def ask(question: str, activity: str, location_wkt: str, params: dict, date: str) -> Verdict:
+    """Answer a question from `questions.yaml` for an activity at a location.
 
-
-# The output every article that judges an activity gives, and its values from
-# mild to strict. The strictest one that any article gives is the answer.
-QUALIFICATION = "kwalificatie"
-STRICTNESS = ["toegestaan", "vergunningplicht", "verbod"]
-NO_RULE = "geen_regel"
-
-
-def output_names(article: dict) -> set[str]:
-    return {o["name"] for o in execution_of(article).get("output", []) if o.get("type") != SHAPE}
-
-
-def fills(filler: dict, law_id: str, article: dict) -> bool:
-    """Whether one article fills an open term of another."""
-    implements = filler.get("machine_readable", {}).get("implements", [])
-    number = str(article["number"])
-    return any(i["law"] == law_id and str(i["article"]) == number for i in implements)
-
-
-def evaluate_article(
-    asked: Rulework,
-    article: dict,
-    output: str,
-    location: BaseGeometry,
-    available: list[Rulework],
-    params: dict,
-    date: str,
-) -> Answer:
-    """One output of one article at the location, with what fills its terms."""
-    shapes = Shapes(available, location)
-    # Another article of the same rulework may give an output of the same
-    # name; the engine finds an article by its output, so those are left out.
-    names = output_names(article)
-    alongside = [a for a in asked.articles if a is article or not (output_names(a) & names)]
-    asked_yaml = without_shapes(asked, alongside, shapes)
-
-    # The ruleworks that fill a term of this article. One with a territory
-    # speaks only about locations in it.
-    fillers = [
-        r
-        for r in available
-        if r.id != asked.id and any(fills(a, asked.id, article) for a in r.articles)
-    ]
-    here = [r for r in fillers if r.territory() is None or overlaps(location, r.territory())]
-    scope = dict(params)
-    for rulework in here:
-        scope.update(rulework.territory_codes())
-
-    # The engine takes one filler per open term and refuses two articles of
-    # one rulework that fill the same term ("Ambiguous priority"). A plan fills
-    # a term article by article, each for its own cases, so the rule imitated
-    # here is: an article that does not speak about the case gives nothing,
-    # and the articles that do speak must agree.
-    without_fillers = run_engine(asked_yaml, [], output, scope, date)
-    spoken: dict[Filler, object] = {}
-    for rulework in here:
-        for filler in rulework.articles:
-            if not fills(filler, asked.id, article):
-                continue
-            alone = without_shapes(rulework, [filler], shapes)
-            answer = run_engine(asked_yaml, [alone], output, scope, date)
-            if answer != without_fillers:
-                spoken[Filler(rulework.id, str(filler["number"]))] = answer
-
-    answers = {json.dumps(a, sort_keys=True) for a in spoken.values()}
-    if len(answers) > 1:
-        raise RuntimeError(f"{asked.id}: fillers disagree about {output!r}: {spoken}")
-    value = next(iter(spoken.values())) if spoken else without_fillers
-    return Answer(value, sorted(spoken, key=lambda f: (f.rulework, f.article)))
-
-
-def evaluate_at(law_id: str, output: str, location_wkt: str, params: dict, date: str) -> Answer:
-    """A named output of a named law at the location."""
-    available = ruleworks_in_force(date)
-    asked = next(r for r in available if r.id == law_id)
-    article = next(a for a in asked.articles if output in output_names(a))
-    return evaluate_article(asked, article, output, wkt.loads(location_wkt), available, params, date)
-
-
-def ask(activity: str, location_wkt: str, params: dict, date: str) -> Verdict:
-    """May this activity be done at this location?
-
-    The question names no rulework. A rulework with a territory is asked only
-    when the location lies in it. Of what remains, every article that gives a
-    qualification is asked; one that gives nothing is silent. The answer is
-    the strictest qualification given.
+    The question names the bans of one law that answer it. Each ban stands on
+    its own, so the activity needs a permit when any of them holds.
     """
-    location = wkt.loads(location_wkt)
-    available = ruleworks_in_force(date)
-    scope = {**params, "activiteit": activity}
+    asked = yaml.safe_load(QUESTIONS.read_text())[question]
+    case = Case(ruleworks_in_force(date), wkt.loads(location_wkt), {**params, "activiteit": activity}, date)
+    law = case.rulework(asked["law"])
     because = []
-    for rulework in available:
-        bounds = rulework.territory()
-        if bounds is not None and not overlaps(location, bounds):
+    for ban in asked["bans"]:
+        article = law.article(ban["article"])
+        answer = case.evaluate(law, article, ban["output"])
+        if answer.value is not True:
             continue
-        for article in rulework.articles:
-            if QUALIFICATION not in output_names(article):
-                continue
-            answer = evaluate_article(rulework, article, QUALIFICATION, location, available, scope, date)
-            if answer.value is None:
-                continue
-            if answer.value not in STRICTNESS:
-                raise ValueError(f"{rulework.id} art. {article['number']}: unknown qualification {answer.value!r}")
-            because.append(Statement(rulework.id, str(article["number"]), answer.value, answer.filled_by))
-    because.sort(key=lambda s: (s.rulework, s.article))
-    if not because:
-        return Verdict(NO_RULE, [])
-    return Verdict(max((s.qualification for s in because), key=STRICTNESS.index), because)
+        because.append(Reason(str(ban["article"]), ban["output"], answer.filled_by))
+        for extra in ban.get("also_report", []):
+            reported = case.evaluate(law, law.article(extra["article"]), extra["output"])
+            if reported.value is True:
+                because.append(Reason(str(extra["article"]), extra["output"], reported.filled_by))
+    return Verdict(ONLY_WITH_A_PERMIT if because else WITHOUT_A_PERMIT, because)
