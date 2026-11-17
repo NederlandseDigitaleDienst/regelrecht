@@ -39,6 +39,9 @@ import MachineReadable from './components/MachineReadable.vue';
 import MachineEmptyState from './components/MachineEmptyState.vue';
 import ScenarioScreen from './components/ScenarioScreen.vue';
 import ScenarioStatusPane from './components/ScenarioStatusPane.vue';
+import ScenarioStatusMenuItems from './components/ScenarioStatusMenuItems.vue';
+import { useLawScenarios } from './scenario/useLawScenarios';
+import { statusBadge } from './scenario/statusSummary';
 import { useOpenScenariosStore } from './stores/openScenarios';
 import { singleParam } from './lib/routeParams';
 import { tabKey } from './lib/openTabsStorage';
@@ -100,8 +103,8 @@ const {
 
 // Per-pane view selection. Each pane independently picks one of the
 // available views (Tekst, Machine, Scenario's, YAML). Same view can be
-// in multiple panes (e.g. two YAML panes for diff). Layout always has
-// one pane per view; nldd-side-by-side-split-view auto-hides panes
+// in multiple panes (e.g. two YAML panes for diff). The default layout has
+// one pane per view, except the views in OFF_BY_DEFAULT; nldd-side-by-side-split-view auto-hides panes
 // from the right when the viewport is too narrow, so left = highest
 // priority. Visibility flags via panel.* feature flags filter what's
 // pickable in the menu.
@@ -120,11 +123,27 @@ function viewLabel(viewId: string) {
 }
 
 const PANE_VIEWS_KEY = 'regelrecht-pane-views';
+// Views a new layout leaves out. The scenarios' status sits in the Machine
+// pane's toolbar; the full list stays a view anyone can pick.
+const OFF_BY_DEFAULT = new Set(['scenario']);
+// Set once this browser's layout has dropped the *Scenario's* pane, so a pane
+// someone adds back afterwards stays.
+const SCENARIO_PANE_MOVED_KEY = 'regelrecht-pane-views-scenario-moved';
 const paneViews = ref<string[]>(loadPaneViews());
+
+/** The default layout out of the views on offer. */
+function defaultPaneViews(ids: readonly string[]): string[] {
+  const picked = ids.filter(id => !OFF_BY_DEFAULT.has(id));
+  return picked.length > 0 ? picked : [...ids];
+}
 
 function loadPaneViews(): string[] {
   try {
     const stored = JSON.parse(localStorage.getItem(PANE_VIEWS_KEY) ?? 'null');
+    // A layout saved before the status moved to the toolbar loses its
+    // *Scenario's* pane once, so the change reaches those who had it.
+    const firstSinceMove = !localStorage.getItem(SCENARIO_PANE_MOVED_KEY);
+    localStorage.setItem(SCENARIO_PANE_MOVED_KEY, '1');
     // Only accept entries we still recognise - a stale value left over
     // from a removed view (e.g. 'form' before scenario was renamed) or
     // an externally injected string would otherwise produce a pane with
@@ -136,12 +155,16 @@ function loadPaneViews(): string[] {
       stored.length > 0 &&
       stored.every(v => typeof v === 'string' && knownIds.has(v))
     ) {
-      return stored;
+      const kept = firstSinceMove ? stored.filter(v => v !== 'scenario') : stored;
+      if (kept.length === 0) return stored;
+      // Saved now: the watch below only saves a change made after loading.
+      if (kept.length !== stored.length) localStorage.setItem(PANE_VIEWS_KEY, JSON.stringify(kept));
+      return kept;
     }
   } catch {
     /* fall through to default */
   }
-  return VIEW_DEFINITIONS.map(v => v.id);
+  return defaultPaneViews(VIEW_DEFINITIONS.map(v => v.id));
 }
 
 // Every paneViews mutation goes through `paneViews.value = next`
@@ -161,8 +184,7 @@ watch(paneViews, (val) => {
 //   the full available set, which spuriously appended every available
 //   view a user happened not to have open whenever any unrelated flag
 //   flipped.
-// When everything is filtered out, reset to one pane per available view
-// as the safe default.
+// When everything is filtered out, reset to the default layout.
 watch(availableViews, (views, oldViews) => {
   const allowedIds = new Set(views.map(v => v.id));
   const filtered = paneViews.value.filter(v => allowedIds.has(v));
@@ -175,7 +197,7 @@ watch(availableViews, (views, oldViews) => {
     .map(v => v.id);
   const next = [...filtered, ...newlyEnabled];
   if (next.length === 0 && views.length > 0) {
-    paneViews.value = views.map(v => v.id);
+    paneViews.value = defaultPaneViews(views.map(v => v.id));
     return;
   }
   if (
@@ -1558,6 +1580,39 @@ const {
 } = useEngine();
 initEngine().catch(() => {});
 
+// --- The open regelwerk's scenarios ---
+// Run here, once, for the status in the Machine pane's toolbar and the
+// *Scenario's* pane. A scenario tab runs its own file, so nothing runs here
+// while one is shown.
+const lawScenarios = useLawScenarios({
+  trajectRef: activeTrajectRef,
+  lawId: computed(() =>
+    featureFlags.isEnabled('panel.scenario_form') && !scenarioRoute.value ? lawId.value ?? null : null,
+  ),
+  engine: computed(() => (engineReady.value ? getEngine() : null)),
+  engineReady,
+  lawYaml: currentLawYaml,
+  articles,
+  lawLoading: computed(() => loading.value || !selectedArticle.value),
+});
+const scenarioCounts = lawScenarios.counts;
+// The status as the toolbar shows it: an icon and a count, because the
+// Machine pane is narrow (a quarter of a 1280px window). See statusBadge.
+const scenarioBadge = computed(() => statusBadge(scenarioCounts.value));
+// Busy only until the first outcome: a reload after an edit keeps the count
+// on screen and the menu reachable.
+const scenarioStatusBusy = computed(() => {
+  const c = scenarioCounts.value;
+  return lawScenarios.loading.value && c.pending === c.total;
+});
+// Shown once the regelwerk has scenario files, or their list failed: a
+// regelwerk without scenarios gets no status, and no item that comes and goes.
+const showScenarioStatus = computed(
+  () =>
+    lawScenarios.files.value.length > 0 ||
+    !!lawScenarios.listError.value,
+);
+
 // The engine-loading watch lives below, next to `currentLawYaml`, so it
 // observes in-memory edits rather than only the persisted `rawYaml`.
 
@@ -2386,6 +2441,37 @@ async function handleActionSave() {
                       <nldd-menu-item icon="document" text="Regelwerk-notities als YAML" @select="exportNotes"></nldd-menu-item>
                     </nldd-menu-group>
                   </nldd-toolbar-item>
+                  <!-- The open regelwerk's scenarios: their status, and behind
+                       it the ones that need attention. Scenarios test what
+                       this pane edits, so the outcome sits next to the edit. -->
+                  <nldd-toolbar-item
+                    v-if="view === 'machine' && showScenarioStatus"
+                    slot="end"
+                    label="Scenario's"
+                    :priority="3"
+                    data-testid="scenario-status-toolbar"
+                  >
+                    <nldd-button
+                      size="md"
+                      expandable
+                      :appearance="scenarioBadge.critical ? 'critical-tinted' : 'neutral-tinted'"
+                      :start-icon="scenarioBadge.icon"
+                      :text="scenarioBadge.text"
+                      :accessible-label="scenarioBadge.label"
+                      :loading="scenarioStatusBusy || undefined"
+                      :loading-text="lawScenarios.loadingText.value"
+                      data-testid="scenario-status-btn"
+                    >
+                      <nldd-menu slot="popup" accessible-label="Scenario's">
+                        <ScenarioStatusMenuItems :scenarios="lawScenarios" @open="openScenarioTab" />
+                      </nldd-menu>
+                    </nldd-button>
+                    <nldd-menu-item slot="overflow" :text="scenarioBadge.label" :icon="scenarioBadge.icon">
+                      <nldd-menu>
+                        <ScenarioStatusMenuItems :scenarios="lawScenarios" @open="openScenarioTab" />
+                      </nldd-menu>
+                    </nldd-menu-item>
+                  </nldd-toolbar-item>
                   <!-- YAML parse-status (Machine-readable pane). -->
                   <nldd-toolbar-item v-if="view === 'yaml' && parseError" slot="end" label="YAML">
                     <nldd-badge color="critical" text="YAML parse error"></nldd-badge>
@@ -2610,17 +2696,11 @@ async function handleActionSave() {
                     :supporting-text="`${engineInitError.message} - voer 'just wasm-build' uit om de WASM module te bouwen.`"
                   ></nldd-inline-dialog>
                 </nldd-simple-section>
-                <!-- Rendered with a law id or a loaded article, and a loaded
-                     article means a loaded law: lawId is a string here. -->
+                <!-- Reads the runs the editor keeps for the open regelwerk,
+                     the ones the Machine pane's status shows too. -->
                 <ScenarioStatusPane
                   v-else
-                  :law-id="(lawId as string)"
-                  :law-yaml="currentLawYaml"
-                  :engine="getEngine()"
-                  :engine-ready="engineReady"
-                  :law-loading="loading || !selectedArticle"
-                  :articles="articles"
-                  :traject-ref="activeTrajectRef"
+                  :scenarios="lawScenarios"
                   @open="openScenarioTab"
                 />
               </template>

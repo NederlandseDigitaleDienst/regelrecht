@@ -1,125 +1,74 @@
 <script setup lang="ts">
-import { computed, toRef, watch } from 'vue';
-import { useScenarios, isScenarioMismatch } from '../composables/useScenarios';
-import { useOpenScenariosStore } from '../stores/openScenarios';
-import { useScenarioEnvironment, type MappedArticle } from '../scenario/useScenarioEnvironment';
-import { useScenarioRuns } from '../scenario/useScenarioRuns';
-import { runStatus, type ScenarioStatus } from '../scenario/run';
-import { scenarioLawsOf } from '../scenario/scenarioLaws';
-import { useEngine, type EditorEngine } from '../composables/useEngine';
-import type { OpenScenario } from '../scenario/openScenario';
+import { ref } from 'vue';
+import type { LawScenarios } from '../scenario/useLawScenarios';
+import { STATUS_TEXT } from '../scenario/statusSummary';
+import { scenarioFileKey } from '../scenario/openScenario';
+import type { ScenarioStatus } from '../scenario/run';
 
 /**
- * The open regelwerk's scenarios next to its articles, read only: each
- * scenario with the status of a run against the regelwerk as it is being
- * edited, unsaved edits included. Changing a scenario happens in its own tab;
- * a click opens it there.
+ * The open regelwerk's scenarios next to its articles, read only: what needs
+ * attention one by one, the passed scenarios as one row that opens up.
+ * Changing a scenario happens in its own tab; a click opens it there.
  *
- * A file whose tab holds unsaved edits runs as the tab has it, and says so:
- * the pane and the tab read the same open file (stores/openScenarios).
+ * The runs come from the editor (`useLawScenarios`), which the status in the
+ * Machine pane's toolbar reads too.
  */
-const props = withDefaults(defineProps<{
-  trajectRef: string | null;
-  lawId: string;
-  engine: EditorEngine | null;
-  engineReady: boolean;
-  /** The open regelwerk's YAML, unsaved edits included. */
-  lawYaml: string | null;
-  articles: readonly MappedArticle[];
-  /** The open regelwerk is still loading. */
-  lawLoading?: boolean;
-}>(), {
-  lawLoading: false,
-});
+const props = defineProps<{
+  scenarios: LawScenarios;
+}>();
 
 const emit = defineEmits<{
   /** Open a file in its tab, at a scenario. */
   open: [filename: string, scenarioName: string | null];
 }>();
 
-const store = useOpenScenariosStore();
-const { scenarios: listed, loading: listLoading, error: listError } = useScenarios(
-  toRef(props, 'lawId'),
-  toRef(props, 'trajectRef'),
-);
-
-// The pane reads through the open files, so a tab's edits show here. Without
-// a traject there is nothing to edit, and no open files either.
-const files = computed<OpenScenario[]>(() => {
-  const trajectRef = props.trajectRef;
-  if (!trajectRef) return [];
-  return listed.value.map((entry) => store.open({ trajectRef, lawId: props.lawId, filename: entry.filename }));
-});
-// Read each file when the pane shows it, so the statuses follow what others
-// saved; a file with unsaved edits in its tab is not read over.
-watch(files, (list) => list.forEach((f) => void f.load({ fresh: true })), { immediate: true });
-
-const environment = useScenarioEnvironment({
-  engine: toRef(props, 'engine'),
-  ready: toRef(props, 'engineReady'),
-  lawYaml: toRef(props, 'lawYaml'),
-  articles: toRef(props, 'articles'),
-  scenarioLaws: computed(() => [...new Set(files.value.flatMap((f) => scenarioLawsOf(f.state.value)))]),
-});
-const { runsFor } = useScenarioRuns({
-  files,
-  engine: toRef(props, 'engine'),
-  environmentReady: environment.ready,
-  environmentRevision: environment.revision,
-  engineRevision: useEngine().lawsRevision,
-});
-
-const STATUS_TAG: Record<ScenarioStatus, { text: string; color: string }> = {
-  passed: { text: 'Geslaagd', color: 'success' },
-  failed: { text: 'Mislukt', color: 'critical' },
-  'no-expectations': { text: 'Geen verwachting', color: 'neutral' },
+const STATUS_COLOR: Record<ScenarioStatus, string> = {
+  passed: 'success',
+  failed: 'critical',
+  'no-expectations': 'neutral',
 };
-function statusTag(file: OpenScenario, index: number) {
-  const status = runStatus(runsFor(file)[index]);
-  return status ? STATUS_TAG[status] : null;
-}
 
-function mismatch(file: OpenScenario) {
-  return isScenarioMismatch(listed.value.find((e) => e.filename === file.file.filename), props.lawId);
+// The files whose passed scenarios are shown one by one, by traject,
+// regelwerk and file: another regelwerk's file of the same name starts closed.
+const expanded = ref(new Set<string>());
+function toggle(key: string) {
+  const next = new Set(expanded.value);
+  if (!next.delete(key)) next.add(key);
+  expanded.value = next;
 }
-
-const loading = computed(
-  () => props.lawLoading || listLoading.value || files.value.some((f) => f.loading.value) || environment.loading.value,
-);
-const loadingText = computed(() => (environment.loading.value && environment.progress.value) || "Scenario's laden");
 </script>
 
 <template>
   <nldd-simple-section data-testid="scenario-status-pane">
     <nldd-inline-dialog
-      v-if="listError"
+      v-if="props.scenarios.listError.value"
       variant="alert"
       text="Scenario's konden niet worden geladen"
-      :supporting-text="listError.message"
+      :supporting-text="props.scenarios.listError.value.message"
     ></nldd-inline-dialog>
     <nldd-inline-dialog
-      v-if="environment.error.value"
+      v-if="props.scenarios.environmentError.value"
       variant="alert"
       text="Afhankelijkheden konden niet worden geladen"
-      :supporting-text="String(environment.error.value)"
+      :supporting-text="String(props.scenarios.environmentError.value)"
     ></nldd-inline-dialog>
 
-    <template v-for="file in files" :key="file.file.filename">
+    <template v-for="status in props.scenarios.files.value" :key="status.file.file.filename">
       <nldd-title size="display-5">
-        <h2>{{ file.featureName.value || file.file.filename }}</h2>
+        <h2>{{ status.file.featureName.value || status.file.file.filename }}</h2>
       </nldd-title>
-      <nldd-text v-if="file.featureName.value" size="sm" color="secondary">{{ file.file.filename }}</nldd-text>
+      <nldd-text v-if="status.file.featureName.value" size="sm" color="secondary">{{ status.file.file.filename }}</nldd-text>
       <nldd-spacer size="8"></nldd-spacer>
-      <template v-if="file.dirty.value">
+      <template v-if="status.file.dirty.value">
         <nldd-banner
           size="sm"
           variant="warning"
-          :text="`Niet-opgeslagen wijzigingen in het tabblad ${file.file.filename}`"
+          :text="`Niet-opgeslagen wijzigingen in het tabblad ${status.file.file.filename}`"
           supporting-text="De status hieronder rekent met die wijzigingen."
         ></nldd-banner>
         <nldd-spacer size="8"></nldd-spacer>
       </template>
-      <template v-if="mismatch(file)">
+      <template v-if="status.mismatch">
         <nldd-banner
           size="sm"
           variant="neutral"
@@ -128,33 +77,68 @@ const loadingText = computed(() => (environment.loading.value && environment.pro
         <nldd-spacer size="8"></nldd-spacer>
       </template>
       <nldd-inline-dialog
-        v-if="file.error.value"
+        v-if="status.file.error.value"
         variant="alert"
         text="Dit bestand kon niet worden geladen"
-        :supporting-text="file.error.value.message"
+        :supporting-text="status.file.error.value.message"
       ></nldd-inline-dialog>
-      <nldd-list v-else appearance="box-tinted" :accessible-label="`Scenario's in ${file.file.filename}`">
+      <nldd-list v-else appearance="box-tinted" :accessible-label="`Scenario's in ${status.file.file.filename}`">
         <nldd-list-item
-          v-for="(scenario, i) in file.scenarios.value"
-          :key="i"
+          v-for="line in status.attention"
+          :key="line.index"
           size="md"
           button
-          :data-testid="`scenario-status-${file.file.filename}-${i}`"
-          @click="emit('open', file.file.filename, scenario.name)"
+          :data-testid="`scenario-status-${status.file.file.filename}-${line.index}`"
+          @click="emit('open', status.file.file.filename, line.name)"
         >
-          <nldd-text-cell :text="scenario.name"></nldd-text-cell>
-          <nldd-cell v-if="statusTag(file, i)" width="fit-content">
-            <nldd-tag size="sm" :color="statusTag(file, i)!.color" :text="statusTag(file, i)!.text"></nldd-tag>
+          <nldd-text-cell :text="line.name"></nldd-text-cell>
+          <nldd-cell v-if="line.status" width="fit-content">
+            <nldd-tag size="sm" :color="STATUS_COLOR[line.status]" :text="STATUS_TEXT[line.status]"></nldd-tag>
           </nldd-cell>
           <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
         </nldd-list-item>
+        <!-- The passed scenarios: one row, opened up on a click. -->
+        <nldd-list-item
+          v-if="status.passed.length"
+          size="md"
+          button
+          expandable
+          :expanded="expanded.has(scenarioFileKey(status.file.file)) || undefined"
+          :data-testid="`scenario-status-${status.file.file.filename}-passed`"
+          @click="toggle(scenarioFileKey(status.file.file))"
+        >
+          <nldd-icon-cell size="20"><nldd-icon icon="success"></nldd-icon></nldd-icon-cell>
+          <nldd-spacer-cell size="8"></nldd-spacer-cell>
+          <nldd-text-cell :text="`${status.passed.length} geslaagd`"></nldd-text-cell>
+          <nldd-icon-cell size="20" icon="chevron-down" disclosure></nldd-icon-cell>
+        </nldd-list-item>
+        <template v-if="expanded.has(scenarioFileKey(status.file.file))">
+          <nldd-list-item
+            v-for="line in status.passed"
+            :key="line.index"
+            size="md"
+            button
+            :data-testid="`scenario-status-${status.file.file.filename}-${line.index}`"
+            @click="emit('open', status.file.file.filename, line.name)"
+          >
+            <nldd-text-cell :text="line.name"></nldd-text-cell>
+            <nldd-cell width="fit-content">
+              <nldd-tag size="sm" color="success" :text="STATUS_TEXT.passed"></nldd-tag>
+            </nldd-cell>
+            <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+          </nldd-list-item>
+        </template>
       </nldd-list>
       <nldd-spacer size="24"></nldd-spacer>
     </template>
 
-    <nldd-activity-indicator v-if="loading" show-text :text="loadingText"></nldd-activity-indicator>
+    <nldd-activity-indicator
+      v-if="props.scenarios.loading.value"
+      show-text
+      :text="props.scenarios.loadingText.value"
+    ></nldd-activity-indicator>
     <nldd-inline-dialog
-      v-else-if="!listError && !files.length"
+      v-else-if="!props.scenarios.listError.value && !props.scenarios.files.value.length"
       text="Geen scenario's voor dit regelwerk."
     ></nldd-inline-dialog>
   </nldd-simple-section>

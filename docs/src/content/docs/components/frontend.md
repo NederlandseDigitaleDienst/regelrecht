@@ -63,13 +63,13 @@ A traject ref has the form `{slug}-{8 hex}`. The router pins that pattern in eve
 
 `/trajecten/{ref}/editor/{lawId?}/{article?}` renders `EditorView.vue`, and so does `/trajecten/{ref}/editor/{lawId}/scenarios/{file}`, a scenario file in its own tab (see [Scenario tabs](#scenario-tabs)). There is no editor outside a traject: `/editor`, the old `/editor/{lawId}` links and `/editor.html` all redirect to the traject chooser, carrying the law along so it opens after the choice.
 
-The editor is a side-by-side split view with one pane per view. Each pane has a menu to switch its view and to move it left or right. The pane layout is kept in `localStorage`.
+The editor is a side-by-side split view with one pane per view. Each pane has a menu to switch its view and to move it left or right. The pane layout is kept in `localStorage`. A new layout has every pane except *Scenario's*, whose status sits in the *Machine* toolbar. A layout saved before that change loses the *Scenario's* pane once; a pane added back afterwards stays.
 
 | View | Content |
 |------|---------|
 | *Tekst* | The article text, editable for users with write access, with a formatting toolbar (bold, italic, list type). Selecting text starts a note. |
-| *Machine* | The `machine_readable` section as a structured view. `EditSheet.vue` and `ActionSheet.vue` edit definitions, inputs, outputs and actions. Behind `panel.regelrijm` the article's actions come first, each as Dutch text ([RFC-054](/rfcs/rfc-054)) with the article text that linking notes tie to it; a name leads to the rule that computes it, *Actie openen* opens `ActionSheet.vue`. |
-| *Scenario's* | `ScenarioStatusPane.vue`: the rulework's Gherkin scenarios, read only, each with the status of a run in the browser against the rulework as it is being edited, unsaved edits included. Clicking a scenario opens its file in a scenario tab. |
+| *Machine* | The `machine_readable` section as a structured view. `EditSheet.vue` and `ActionSheet.vue` edit definitions, inputs, outputs and actions. Behind `panel.regelrijm` the article's actions come first, each as Dutch text ([RFC-054](/rfcs/rfc-054)) with the article text that linking notes tie to it; a name leads to the rule that computes it, *Actie openen* opens `ActionSheet.vue`. Its toolbar shows the status of the rulework's scenarios as an icon and a count: failed, or else passed. The menu behind it lists the scenarios that need attention, with the passed ones in a submenu, and opens a scenario in its tab. `src/scenario/useLawScenarios.ts` runs them, once for the editor; the *Scenario's* pane reads the same runs. |
+| *Scenario's* | `ScenarioStatusPane.vue`: the rulework's Gherkin scenarios, read only, with the status of a run in the browser against the rulework as it is being edited, unsaved edits included. The scenarios that failed, expect nothing or have not run are listed one by one; the passed ones sit behind one row that opens up. Clicking a scenario opens its file in a scenario tab. |
 | *YAML* | The raw YAML in a code editor. A parse error shows under it; if the engine refuses the YAML, a banner says so above the panes. |
 | *Notities* | All notes on the article, and the drafts that have not been saved yet. |
 
@@ -85,7 +85,7 @@ A scenario file opens in a tab of its own, from the *Scenario's* pane or from th
 
 A scenario tab belongs to its rulework, so opening one opens that rulework, and the scenarios run against it with its unsaved edits. A scenario runs the rulework its `When` step names, which can be another one than the file's folder; the screen says so.
 
-The file and its unsaved edits live in `src/scenario/openScenario.ts`, one per file, kept by the `openScenarios` store so the edits survive a switch to another tab. The *Scenario's* pane next to an article reads the same copy: it runs the tab's unsaved edits and says it does. A run and a save read a scenario's values through one conversion (`src/scenario/inputs.ts`): the run applies the edits the way a save writes them, so the editor runs what the saved file will say.
+The file and its unsaved edits live in `src/scenario/openScenario.ts`, one per file, kept by the `openScenarios` store so the edits survive a switch to another tab. Next to an article the editor runs the same copy: it runs the tab's unsaved edits and says it does. A run and a save read a scenario's values through one conversion (`src/scenario/inputs.ts`): the run applies the edits the way a save writes them, so the editor runs what the saved file will say.
 
 A tab with unsaved edits, article or scenario file, has a dot in its corner. Closing a scenario tab with unsaved edits, switching traject, and reloading ask first; switching tabs does not, because nothing is lost.
 
@@ -118,7 +118,7 @@ The list in `packages/editor-api/src/feature_flags.rs` is also the allow-list: t
 |-----|---------|--------|
 | `panel.article_text` | on | Offers the *Tekst* pane in the editor. |
 | `panel.machine_readable` | on | Offers the *Machine* pane. |
-| `panel.scenario_form` | on | Offers the *Scenario's* pane, the scenario files on Home and the scenario tabs. Off, a scenario URL opens its rulework. |
+| `panel.scenario_form` | on | Offers the *Scenario's* pane, the scenario status in the *Machine* toolbar, the scenario files on Home and the scenario tabs. Off, a scenario URL opens its rulework. |
 | `panel.yaml_editor` | on | Offers the *YAML* pane. |
 | `panel.notes` | on | Offers the *Notities* pane. |
 | `panel.regelrijm` | off | Reads the actions in *Machine* as RegelRijm text (experimental). |
@@ -167,7 +167,7 @@ Besides the views in `src/` (`AppShell.vue`, `LibraryView.vue`, `EditorView.vue`
 | `MachineReadable.vue` / `MachineEmptyState.vue` | Machine-readable view, and the empty state with enrichment |
 | `EditSheet.vue` / `ActionSheet.vue` / `OperationSettings.vue` | Editing definitions, actions and operations |
 | `ScenarioScreen.vue` / `ScenarioForm.vue` / `ScenarioResult.vue` | A scenario tab: the scenario list, the form of one scenario, and its result |
-| `ScenarioStatusPane.vue` | The read-only *Scenario's* pane |
+| `ScenarioStatusPane.vue` / `ScenarioStatusMenuItems.vue` | The read-only *Scenario's* pane, and the menu behind the scenario status in the *Machine* toolbar |
 | `ExecutionTraceView.vue` / `LawGraphView.vue` (+ `graph/`) | Execution trace and cross-law graph |
 | `NoteCreator.vue` / `NoteCard.vue` | Stand-off notes (RFC-018) |
 | `RegelRijmPane.vue` / `RegelRijmText.vue` (in `src/regelrijm/`) | The RegelRijm readings at the top of *Machine* and the token text they show (RFC-054) |
@@ -181,7 +181,7 @@ Besides the views in `src/` (`AppShell.vue`, `LibraryView.vue`, `EditorView.vue`
 Where state lives depends on who shares it.
 
 - State the whole app shares lives in a Pinia setup store under `src/stores/`. So far these are the feature flags (`featureFlags.ts`), the user's trajecten with the active one (`trajects.ts`), what the views publish to the shell (`appChrome.ts`), the verdicts on an enrichment under review, which have to outlive moving from article to article (`enrichVerdicts.ts`), and the open scenario files, whose unsaved edits outlive a tab switch (`openScenarios.ts`). `main.ts` installs Pinia and starts loading the flags and the traject list; a store does nothing on import.
-- State of one open document lives in a composable each caller creates, such as `useOpenLaw` for the rulework open in the editor and `useProposalReview` for deciding on a generated proposal for it. Every open document has its own, so it is not a store. An open scenario file is kept differently, because the scenario tab and the *Scenario's* pane next to an article both read it, and its edits outlive either of them, so `createOpenScenario` makes the document and the `openScenarios` store keeps one per file.
+- State of one open document lives in a composable each caller creates, such as `useOpenLaw` for the rulework open in the editor and `useProposalReview` for deciding on a generated proposal for it. Every open document has its own, so it is not a store. An open scenario file is kept differently, because the scenario tab and the scenario status next to an article both read it, and its edits outlive either of them, so `createOpenScenario` makes the document and the `openScenarios` store keeps one per file.
 - Rulework content goes through the corpus reader (see [Data loading](#data-loading)).
 
 Other shared state still sits in module-level singletons under `src/composables/`, such as `useTasks.ts` and `useAddActions.ts`. Each moves to a store when someone changes it; there is no separate conversion.

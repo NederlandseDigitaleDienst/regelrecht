@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { flushPromises, mount } from '@vue/test-utils';
+import { defineComponent, h, ref } from 'vue';
 import ScenarioStatusPane from './ScenarioStatusPane.vue';
+import { useLawScenarios } from '../scenario/useLawScenarios';
 import { useOpenScenariosStore } from '../stores/openScenarios';
 import { installTestCorpus } from '../test-utils/corpusSetup';
 import { res, stubFetch } from '../test-utils/fetchStubs';
@@ -41,20 +43,28 @@ function fakeEngine(): EditorEngine {
   } as unknown as EditorEngine;
 }
 
-function mountPane() {
-  return mount(ScenarioStatusPane, {
-    props: {
-      trajectRef: TRAJECT,
-      lawId: 'wet_a',
-      engine: fakeEngine(),
-      engineReady: true,
-      lawYaml: LAW_YAML,
-      articles: [],
+// The editor runs the scenarios (useLawScenarios) and hands them to the pane.
+function mountPane(engine: EditorEngine = fakeEngine()) {
+  const Host = defineComponent({
+    emits: ['open'],
+    setup(_, { emit }) {
+      const scenarios = useLawScenarios({
+        trajectRef: ref(TRAJECT),
+        lawId: ref('wet_a'),
+        engine: ref(engine),
+        engineReady: ref(true),
+        lawYaml: ref(LAW_YAML),
+        articles: ref([]),
+        lawLoading: ref(false),
+      });
+      return () => h(ScenarioStatusPane, { scenarios, onOpen: (...args: unknown[]) => emit('open', ...args) });
     },
   });
+  return mount(Host);
 }
 
 const tagsOf = (w: ReturnType<typeof mountPane>) => w.findAll('nldd-tag').map((t) => t.attributes('text'));
+const passedRow = (w: ReturnType<typeof mountPane>) => w.find('[data-testid="scenario-status-basis.feature-passed"]');
 
 beforeEach(() => {
   vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -72,13 +82,21 @@ async function settle() {
 }
 
 describe('ScenarioStatusPane', () => {
-  it('lists the regelwerk\'s scenarios with the status of a run against it', async () => {
+  it('lists what needs attention, and the passed scenarios behind one row', async () => {
     const w = mountPane();
     await vi.waitFor(async () => {
       await settle();
-      expect(tagsOf(w)).toEqual(['Geslaagd', 'Mislukt']);
+      expect(tagsOf(w)).toEqual(['Mislukt']);
     });
     expect(w.text()).toContain('basis.feature');
+    expect(passedRow(w).find('nldd-text-cell').attributes('text')).toBe('1 geslaagd');
+    expect(passedRow(w).attributes('expanded')).toBeUndefined();
+
+    // The row opens up to the passed scenarios themselves.
+    await passedRow(w).trigger('click');
+    expect(passedRow(w).attributes('expanded')).toBeDefined();
+    expect(tagsOf(w)).toEqual(['Mislukt', 'Geslaagd']);
+    expect(w.find('[data-testid="scenario-status-basis.feature-0"] nldd-text-cell').attributes('text')).toBe('Heeft recht');
     // Read only: no form and no save in the pane.
     expect(w.find('[data-testid="save-scenarios-btn"]').exists()).toBe(false);
   });
@@ -87,7 +105,7 @@ describe('ScenarioStatusPane', () => {
     const w = mountPane();
     await vi.waitFor(async () => {
       await settle();
-      expect(tagsOf(w)).toEqual(['Geslaagd', 'Mislukt']);
+      expect(tagsOf(w)).toEqual(['Mislukt']);
     });
 
     // The tab changes the second scenario's inkomen to 1, without saving.
@@ -95,7 +113,8 @@ describe('ScenarioStatusPane', () => {
     file.setValues(1, { ...file.values.value[1]!, parameterValues: { inkomen: '1' } });
     await vi.waitFor(async () => {
       await settle();
-      expect(tagsOf(w)).toEqual(['Geslaagd', 'Geslaagd']);
+      expect(tagsOf(w)).toEqual([]);
+      expect(passedRow(w).find('nldd-text-cell').attributes('text')).toBe('2 geslaagd');
     });
     const banner = w.find('nldd-banner[variant="warning"]');
     expect(banner.attributes('text')).toBe('Niet-opgeslagen wijzigingen in het tabblad basis.feature');
@@ -105,7 +124,7 @@ describe('ScenarioStatusPane', () => {
     const w = mountPane();
     await vi.waitFor(async () => {
       await settle();
-      expect(w.findAll('[data-testid^="scenario-status-basis.feature-"]')).toHaveLength(2);
+      expect(w.find('[data-testid="scenario-status-basis.feature-1"]').exists()).toBe(true);
     });
     await w.find('[data-testid="scenario-status-basis.feature-1"]').trigger('click');
     expect(w.emitted('open')).toEqual([['basis.feature', 'Geen recht']]);
@@ -114,9 +133,7 @@ describe('ScenarioStatusPane', () => {
   it('shows no status while the regelwerk is not in the engine yet', async () => {
     const engine = fakeEngine();
     engine.hasLaw = () => false;
-    const w = mount(ScenarioStatusPane, {
-      props: { trajectRef: TRAJECT, lawId: 'wet_a', engine, engineReady: true, lawYaml: LAW_YAML, articles: [] },
-    });
+    const w = mountPane(engine);
     await vi.waitFor(async () => {
       await settle();
       expect(w.findAll('[data-testid^="scenario-status-basis.feature-"]')).toHaveLength(2);

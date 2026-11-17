@@ -1,3 +1,4 @@
+import { expect } from '@playwright/test';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import * as yaml from 'js-yaml';
@@ -428,31 +429,52 @@ export async function selectSheetDropdown(page, labelText, value) {
 }
 
 /**
- * Wait until a scenario in the read-only scenario pane reports the wanted
- * status ("Mislukt" / "Geslaagd"). The pane runs every scenario once its
- * dependency laws are loaded, and again after each edit to the regelwerk, and
- * shows the outcome as a tag on the scenario's row. Throws with the row's last
- * tag if the status never appears within `timeout`.
+ * Wait until a scenario reports the wanted status ("Mislukt" / "Geslaagd") in
+ * the scenario status of the Machine pane's toolbar. The editor runs every
+ * scenario once its dependency laws are loaded, and again after each edit to
+ * the regelwerk; the menu behind the status names each scenario with its
+ * status. The items are in the DOM while the menu is closed, so this reads
+ * them without opening it. Throws with the last status if the wanted one never
+ * appears within `timeout`.
  * @param {import('@playwright/test').Page} page
  * @param {string} title - substring of the scenario's name
  * @param {string} want - 'Mislukt' or 'Geslaagd'
  * @param {number} [timeout]
  */
 export async function expectScenarioResult(page, title, want, timeout = 60_000) {
-  const row = page
-    .locator('[data-testid="scenario-status-pane"] nldd-list-item')
-    .filter({ hasText: title })
+  const item = page
+    .locator(`[data-testid="scenario-status-btn"] nldd-menu-item[text*="${title}"]`)
     .first();
-  await row.waitFor({ state: 'visible', timeout: 30_000 });
-  const tag = row.locator('nldd-tag');
+  await item.waitFor({ state: 'attached', timeout: 30_000 });
   const deadline = Date.now() + timeout;
   let last = '';
   while (Date.now() < deadline) {
-    last = (await tag.getAttribute('text', { timeout: 1000 }).catch(() => null)) ?? '';
+    last = (await item.getAttribute('details', { timeout: 1000 }).catch(() => null)) ?? '';
     if (last === want) return;
     await page.waitForTimeout(500);
   }
   throw new Error(`scenario "${title}" never reported "${want}". Last status: "${last}"`);
+}
+
+/**
+ * Open a scenario in its tab from the scenario status in the Machine pane's
+ * toolbar: open the menu and choose the scenario. Only for a scenario that
+ * needs attention; the passed ones sit in a submenu.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} title - substring of the scenario's name
+ */
+export async function openScenarioFromStatus(page, title) {
+  const button = page.locator('[data-testid="scenario-status-btn"]');
+  const item = button.locator(`nldd-menu > nldd-menu-group > nldd-menu-item[text*="${title}"]`).first();
+  // Once the scenario has a status the first run is in, and the button is no
+  // longer busy (a busy button ignores a click).
+  await expect(item).toHaveAttribute('details', /.+/, { timeout: 60_000 });
+  // Open the menu; a toolbar that rebuilds just then can close it again.
+  await expect(async () => {
+    if (!(await item.isVisible())) await button.click();
+    await expect(item).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+  await item.click();
 }
 
 /**

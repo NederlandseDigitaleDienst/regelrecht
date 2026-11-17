@@ -101,13 +101,13 @@ test.describe('Scenario tab', () => {
     expect(await dotDrawn(scenarioTab(page))).toBe(true);
     await expect(page.locator('[data-testid="save-scenarios-btn"]')).toBeVisible();
 
-    // To an article of the same regelwerk: no question, and the pane there
-    // says it runs the tab's unsaved edits.
+    // To an article of the same regelwerk: no question, and the scenario
+    // status there says it runs the tab's unsaved edits.
     await navigate(page, `/trajecten/${TEST_TRAJECT_REF}/editor/wet_op_de_zorgtoeslag/2`);
     await page.locator('nldd-document-tab-bar-item[text="Artikel 2"]').waitFor({ timeout: 30_000 });
     await expect(page.locator('[data-testid="leave-confirm"][open]')).toHaveCount(0);
-    const pane = page.locator('[data-testid="scenario-status-pane"]');
-    await expect(pane.locator(`nldd-banner[text="Niet-opgeslagen wijzigingen in het tabblad ${FILE}"]`)).toBeVisible({ timeout: 30_000 });
+    const status = page.locator('[data-testid="scenario-status-btn"]');
+    await expect(status.locator('nldd-menu-item[text="Rekent met niet-opgeslagen wijzigingen"]')).toHaveCount(1, { timeout: 30_000 });
 
     // Back to the tab: the edit is still there.
     await scenarioTab(page).click();

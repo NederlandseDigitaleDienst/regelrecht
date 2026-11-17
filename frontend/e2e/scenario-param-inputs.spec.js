@@ -9,7 +9,7 @@
  * from the read-only scenario pane.
  */
 import { test, expect } from '@playwright/test';
-import { loadFixture, gotoEditor, clearOpenTabsStorage } from './helpers.js';
+import { loadFixture, gotoEditor, clearOpenTabsStorage, openScenarioFromStatus } from './helpers.js';
 import { mockCorpusApi } from './helpers-corpus.js';
 
 // A minimal scenario that passes one parameter of each declared datatype:
@@ -53,10 +53,8 @@ test.describe('Scenario parameter input controls', () => {
   test('renders a switch for boolean, number-field for amount, text-field for string', async ({ page }) => {
     await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
 
-    // Open the scenario in its tab from its row in the scenario pane.
-    const row = page.locator('[data-testid="scenario-status-pane"] nldd-list-item').filter({ hasText: 'Mixed parameter types' });
-    await row.waitFor({ timeout: 30_000 });
-    await row.click();
+    // Open the scenario in its tab from the scenario status in the toolbar.
+    await openScenarioFromStatus(page, 'Mixed parameter types');
     await expect(page).toHaveURL(/\/scenarios\/typed\.feature\?scenario=Mixed/);
 
     // Each parameter renders as a list-item: the name plus the typed control.
