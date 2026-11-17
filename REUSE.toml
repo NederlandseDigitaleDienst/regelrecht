@@ -84,6 +84,7 @@ SPDX-License-Identifier = "EUPL-1.2"
 path = [
   "corpus/**.yaml",
   "corpus-poc/**.yaml",
+  "corpus-poc/**.geojson",
   "packages/harvester/tests/fixtures/**.xml",
 ]
 SPDX-FileCopyrightText = "Staat der Nederlanden (Ministerie van Binnenlandse Zaken en Koninkrijksrelaties)"

@@ -1,0 +1,11 @@
+{
+  "type": "Feature",
+  "properties": {
+    "name": "beschermd_stadsgezicht_binnenstad",
+    "crs": "EPSG:28992"
+  },
+  "geometry": {
+    "type": "Polygon",
+    "coordinates": [[[155400, 463400], [155700, 463400], [155700, 463700], [155400, 463700], [155400, 463400]]]
+  }
+}

@@ -1,0 +1,32 @@
+---
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: omgevingswet
+regulatory_layer: WET
+publication_date: '2016-04-26'
+valid_from: '2024-01-01'
+bwb_id: BWBR0037885
+url: https://wetten.overheid.nl/BWBR0037885
+
+# Text only. These two articles are the legal basis of the permit duties in
+# the decentral ruleworks of this example; they carry no logic of their own
+# here.
+
+articles:
+  - number: '5.1'
+    text: |
+      1. Het is verboden zonder omgevingsvergunning de volgende activiteiten te verrichten:
+      a. een omgevingsplanactiviteit,
+      b. een rijksmonumentenactiviteit,
+      c. een ontgrondingsactiviteit,
+      d. een stortingsactiviteit op zee,
+      e. een Natura 2000-activiteit,
+      f. een jachtgeweeractiviteit,
+      g. een valkeniersactiviteit,
+      tenzij het gaat om een bij algemene maatregel van bestuur aangewezen geval.
+    url: https://wetten.overheid.nl/BWBR0037885#Hoofdstuk5_Afdeling5.1_Paragraaf5.1.1_Artikel5.1
+
+  - number: '5.3'
+    text: |
+      Het is verboden zonder omgevingsvergunning een activiteit te verrichten
+      wanneer dat in de waterschapsverordening is bepaald.
+    url: https://wetten.overheid.nl/BWBR0037885#Hoofdstuk5_Afdeling5.1_Paragraaf5.1.1_Artikel5.3

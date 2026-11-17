@@ -900,6 +900,13 @@ export const EXCEPTIONS = [
       'Bucket A over the live laws stays out of CI on purpose: it asserts what the laws produce today, ' +
       'so red there is a question for a human (packages/engine/tests/bdd/main.rs, "Bucket selection").',
   },
+  {
+    rule: 'feature',
+    path: 'corpus-poc/plaatsgebonden-regels/features/',
+    reason:
+      'An exploration of location-bound rules, run by hand with behave: its steps are not in bdd/grammar.yaml ' +
+      'and its ruleworks carry keys the schema does not have, so no runner in CI can read it yet.',
+  },
 ];
 
 function under(path, dir) {

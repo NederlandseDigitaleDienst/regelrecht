@@ -1,0 +1,78 @@
+---
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: omgevingsplan_dijkstad
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2024-01-01'
+valid_from: '2024-01-01'
+gemeente_code: GM9990
+officiele_titel: Omgevingsplan gemeente Dijkstad
+url: https://example.org/omgevingsplan-dijkstad
+
+# FICTIONAL. Dijkstad does not exist; the text is written for this example.
+#
+# PROPOSED, not in the schema: `areas` and `applies_in`.
+#   - `areas` names the areas this rulework designates and points at the
+#     geometry adopted with it. Coordinates never go in the YAML.
+#   - `applies_in` on an article names the area where that article applies.
+#     Without it the article applies in the territory of the rulework, here
+#     the municipality GM9990.
+
+legal_basis:
+  - law_id: omgevingswet
+    article: '5.1'
+    description: Lid 1 onder a - omgevingsplanactiviteit
+
+areas:
+  beschermd_stadsgezicht_binnenstad:
+    geometry: areas/beschermd_stadsgezicht_binnenstad.geojson
+
+articles:
+  # No applies_in: holds in the whole municipality.
+  - number: '4.1'
+    text: |
+      Het is verboden zonder omgevingsvergunning een boom te kappen.
+    url: https://example.org/omgevingsplan-dijkstad#artikel4.1
+
+    machine_readable:
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+            description: What the applicant wants to do
+        output:
+          - name: vergunningplicht
+            type: boolean
+            description: Whether the activity needs a permit under this article
+        actions:
+          - output: vergunningplicht
+            value:
+              operation: EQUALS
+              subject: $activiteit
+              value: boom_kappen
+
+  # Holds only in the named area.
+  - number: '5.2'
+    applies_in: beschermd_stadsgezicht_binnenstad
+    text: |
+      Ter plaatse van het werkingsgebied 'beschermd stadsgezicht binnenstad'
+      is het verboden zonder omgevingsvergunning een bouwwerk te bouwen.
+    url: https://example.org/omgevingsplan-dijkstad#artikel5.2
+
+    machine_readable:
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+            description: What the applicant wants to do
+        output:
+          - name: vergunningplicht
+            type: boolean
+            description: Whether the activity needs a permit under this article
+        actions:
+          - output: vergunningplicht
+            value:
+              operation: EQUALS
+              subject: $activiteit
+              value: bouwen
