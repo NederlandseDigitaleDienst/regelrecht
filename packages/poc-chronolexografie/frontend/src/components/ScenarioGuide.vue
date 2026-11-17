@@ -13,7 +13,8 @@ import { toetsAntwoorden } from '../antwoorden.js';
 import { loginHint } from '../inloggen.js';
 import { recordMetKenmerk, scenarioWaarden } from '../scenarioInvoer.js';
 import { counts, progress } from '../scenarioProgress.js';
-import { hoofdletter, leesbaar, longDate, state, waarde } from '../state.js';
+import { hoofdletter, leesbaar, longDate, state } from '../state.js';
+import { soortVan, toonWaarde } from '../stand.js';
 
 const props = defineProps({
   // The guide (scenarioGuides.js) and the scenario of the case YAML it follows.
@@ -52,12 +53,14 @@ watch(
   },
   { immediate: true },
 );
-// `beleid#1#betaalde_leges` → `Betaalde leges: 5000`, with what the scenario
-// expects where the cell answers otherwise.
+// `beleid#1#betaalde_leges` → `Betaalde leges: € 50,00`, with what the scenario
+// expects where the cell answers otherwise. A source a view of the UI spec
+// shows is written in its unit (stand.js).
 const antwoordTekst = (a) => {
   const naam = hoofdletter(leesbaar(a.bron.split('#').at(-1)));
-  const kreeg = a.fout ? `geen antwoord (${a.fout})` : waarde(a.kreeg);
-  return a.klopt ? `${naam}: ${kreeg}` : `${naam}: ${kreeg}; het scenario verwacht ${waarde(a.verwacht)}`;
+  const soort = soortVan(a.bron, state.vormen?.per_besluit);
+  const kreeg = a.fout ? `geen antwoord (${a.fout})` : toonWaarde(a.kreeg, soort);
+  return a.klopt ? `${naam}: ${kreeg}` : `${naam}: ${kreeg}; het scenario verwacht ${toonWaarde(a.verwacht, soort)}`;
 };
 
 const tabText = (id) => props.tabs.find((t) => t.id === id)?.tekst ?? id;

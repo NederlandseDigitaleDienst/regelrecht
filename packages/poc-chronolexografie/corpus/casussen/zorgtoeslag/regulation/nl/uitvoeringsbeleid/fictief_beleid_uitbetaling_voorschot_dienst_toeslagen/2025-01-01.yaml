@@ -72,6 +72,8 @@ articles:
         output:
           - name: betaald_op_voorschot
             type: amount
+            type_spec:
+              unit: eurocent
             description: Wat de Dienst op het voorschot betaalde, in eurocent.
         actions:
           - output: betaald_op_voorschot
