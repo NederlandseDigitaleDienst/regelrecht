@@ -122,6 +122,26 @@ test.describe('Scenario tab', () => {
     expect(await dotDrawn(scenarioTab(page))).toBe(false);
   });
 
+  test('opens the graph in a sheet over the full width, not in the result pane', async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1000 });
+    await page.goto(scenarioUrl);
+    const graphButton = page.locator('[data-testid="scenario-graph-btn"]');
+    await graphButton.waitFor({ timeout: 30_000 });
+    await graphButton.click();
+
+    const sheet = page.locator('[data-testid="scenario-graph-sheet"]');
+    await expect(sheet).toHaveAttribute('open', '');
+    const graph = sheet.locator('.law-graph-view');
+    await expect(graph).toBeVisible({ timeout: 30_000 });
+    // The reason for the sheet: in the result pane the graph got about 480px.
+    expect((await graph.boundingBox()).width).toBeGreaterThan(1000);
+    if (process.env.GRAPH_SHOT) await page.screenshot({ path: process.env.GRAPH_SHOT });
+
+    await sheet.locator('nldd-top-title-bar').evaluate((el) => el.dispatchEvent(new CustomEvent('dismiss', { bubbles: true, composed: true })));
+    await expect(sheet).not.toHaveAttribute('open', '');
+    await expect(graph).toHaveCount(0);
+  });
+
   test('asks before closing a tab with unsaved edits, and keeps it on "Blijf hier"', async ({ page }) => {
     await page.goto(scenarioUrl);
     const form = page.locator('[data-testid="scenario-form-pane"]');

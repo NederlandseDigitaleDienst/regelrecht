@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref, watch, toRef } from 'vue';
+import { computed, defineAsyncComponent, ref, watch, toRef } from 'vue';
 import ScenarioForm, { type ScenarioDrill } from './ScenarioForm.vue';
-import ScenarioResult, { type ResultView } from './ScenarioResult.vue';
+import ScenarioResult from './ScenarioResult.vue';
 import { useOpenScenariosStore } from '../stores/openScenarios';
 import { useScenarioEnvironment, type MappedArticle } from '../scenario/useScenarioEnvironment';
 import { useScenarioRuns } from '../scenario/useScenarioRuns';
@@ -13,6 +13,9 @@ import { useEngine, type EditorEngine } from '../composables/useEngine';
 import type { ScenarioValues } from '../scenario/inputs';
 import { CONFLICT_MESSAGE } from '../scenario/openScenario';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
+
+// The graph pulls in Vue Flow; load it only when someone opens it.
+const LawGraphView = defineAsyncComponent(() => import('./LawGraphView.vue'));
 
 /**
  * One feature file in its own editor tab: the scenarios on the left, the form
@@ -139,7 +142,6 @@ function discard() {
 }
 
 // --- Result: a pane when it fits, a sheet when only the form fits -------
-const resultView = ref<ResultView>('trace');
 const singleColumn = ref(false);
 const resultSheetEl = ref<NLDDSheet | null>(null);
 function onSingleColumnChange(e: Event) {
@@ -148,6 +150,15 @@ function onSingleColumnChange(e: Event) {
 }
 function showResult() {
   resultSheetEl.value?.show?.();
+}
+
+// --- Graph: a sheet of its own, over the full width ----------------------
+// Mounted only while open: building the Vue Flow graph for a regelwerk with
+// many cross-law references is not cheap.
+const graphOpen = ref(false);
+function showGraph() {
+  resultSheetEl.value?.hide?.();
+  graphOpen.value = true;
 }
 
 const saving = computed(() => file.value.saving.value);
@@ -295,13 +306,19 @@ const dirty = computed(() => file.value.dirty.value);
         <nldd-split-view-pane slot="pane-2" data-testid="scenario-result-pane">
           <nldd-page sticky-header>
             <nldd-container slot="header" padding="8" padding-bottom="0">
-              <nldd-top-title-bar text="Resultaat"></nldd-top-title-bar>
+              <nldd-top-title-bar text="Resultaat">
+                <nldd-button
+                  slot="toolbar"
+                  appearance="secondary"
+                  text="Graaf"
+                  data-testid="scenario-graph-btn"
+                  @click="showGraph"
+                ></nldd-button>
+              </nldd-top-title-bar>
             </nldd-container>
             <ScenarioResult
               v-if="!singleColumn"
-              v-model:view="resultView"
               :run="selectedRun"
-              :law-id="executedLawId"
               :output-types="outputTypes"
               @rerun="runNow"
             />
@@ -320,15 +337,40 @@ const dirty = computed(() => file.value.dirty.value);
             :text="`Resultaat: ${selectedScenario?.name ?? ''}`"
             dismiss-text="Sluit"
             @dismiss="resultSheetEl?.hide?.()"
-          ></nldd-top-title-bar>
+          >
+            <nldd-button slot="toolbar" appearance="secondary" text="Graaf" @click="showGraph"></nldd-button>
+          </nldd-top-title-bar>
         </nldd-container>
         <ScenarioResult
           v-if="singleColumn"
-          v-model:view="resultView"
           :run="selectedRun"
-          :law-id="executedLawId"
           :output-types="outputTypes"
           @rerun="runNow"
+        />
+      </nldd-page>
+    </nldd-sheet>
+
+    <!-- The law graph with the run's trace laid over it. -->
+    <nldd-sheet
+      placement="bottom"
+      :open="graphOpen || undefined"
+      data-testid="scenario-graph-sheet"
+      @close="graphOpen = false"
+    >
+      <nldd-page sticky-header>
+        <nldd-container slot="header" padding="8" padding-bottom="0">
+          <nldd-top-title-bar
+            :text="`Graaf: ${selectedScenario?.name ?? ''}`"
+            dismiss-text="Sluit"
+            @dismiss="graphOpen = false"
+          ></nldd-top-title-bar>
+        </nldd-container>
+        <LawGraphView
+          v-if="graphOpen"
+          :law-id="executedLawId"
+          :result="selectedRun?.result ?? null"
+          :output-name="selectedRun?.outputName ?? null"
+          :expectations="selectedRun?.expectations ?? {}"
         />
       </nldd-page>
     </nldd-sheet>

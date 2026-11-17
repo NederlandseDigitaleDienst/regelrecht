@@ -81,7 +81,7 @@ Only the selected article's edits are kept, so leaving it loses them. The editor
 
 #### Scenario tabs
 
-A scenario file opens in a tab of its own, from the *Scenario's* pane or from the rulework on Home. The tab shows `ScenarioScreen.vue`: the file's scenarios on the left with their status, the form of the selected scenario, and its result next to it. The result has two views, the execution trace and the cross-law graph with the trace laid over it (`LawGraphView.vue`). When the window is too narrow for the result pane, *Bekijk resultaat* opens it as a sheet. `?scenario=<naam>` in the URL names the scenario shown.
+A scenario file opens in a tab of its own, from the *Scenario's* pane or from the rulework on Home. The tab shows `ScenarioScreen.vue`: the file's scenarios on the left with their status, the form of the selected scenario, and its result next to it. The result is the execution trace. *Graaf* opens the cross-law graph with the trace laid over it (`LawGraphView.vue`) in a sheet over the full width, because the graph does not fit in the result pane. When the window is too narrow for the result pane, *Bekijk resultaat* opens it as a sheet. `?scenario=<naam>` in the URL names the scenario shown.
 
 A scenario tab belongs to its rulework, so opening one opens that rulework, and the scenarios run against it with its unsaved edits. A scenario runs the rulework its `When` step names, which can be another one than the file's folder; the screen says so.
 
