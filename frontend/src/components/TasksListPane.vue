@@ -109,7 +109,7 @@ const groups = computed((): TaskGroup<TaskRecord, RunningTaskJob>[] => {
   const jobs = filterRunning(running.value, props.categorie, props.lawId);
   if (!byAge.value) return groupTasks(shown, jobs, displayName);
   if (shown.length === 0 && jobs.length === 0) return [];
-  return [{ key: ALLE, context: null, lawId: null, name: 'Alle taken', ...listByAge(shown, jobs) }];
+  return [{ key: ALLE, context: null, lawId: null, name: 'Alle taken', ...listByAge(shown, jobs, displayName) }];
 });
 
 // A heading per group, unless the list is not grouped, or the page title

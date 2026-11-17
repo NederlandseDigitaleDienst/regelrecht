@@ -526,17 +526,19 @@ describe('TasksListPane', () => {
       [{ job_id: 'j1', job_type: 'enrich', law_id: 'wet_a', created_at: '2026-11-01T00:00:00Z' }],
     );
     expect(headings(wrapper)).toEqual([]);
+    // The document and article 3 share an hour: Werkdocumenten sorts before
+    // Wet A by name.
     expect(rowTitles(wrapper)).toEqual([
-      'Beoordeel artikel 3',
       'Beoordeel bijv-rapport.md',
+      'Beoordeel artikel 3',
       'Verrijking is mislukt',
       'Beoordeel artikel 10',
       // Running jobs below the tasks, even when they are older.
       'Wachten op verrijking',
     ]);
     expect(wrapper.findAll('nldd-list-item nldd-text-cell').map((c) => c.attributes('supporting-text'))).toEqual([
-      'Wet A',
       'Werkdocumenten',
+      'Wet A',
       'Wet B',
       'Wet B',
       'Wet A',

@@ -83,22 +83,57 @@ describe('listByAge', () => {
   const task = (id: string, created_at?: string) => ({ id, task_type: 'job_review', payload: {}, created_at });
   const job = (job_id: string, created_at?: string) => ({ job_id, job_type: 'enrich', law_id: 'wet_a', created_at });
 
-  it('puts the oldest first, comparing instants rather than strings', () => {
-    // As strings, '…00.5Z' sorts after '…01Z'; as instants it is earlier.
+  it('puts the oldest hour first, comparing instants rather than strings', () => {
+    // Whole hours, from the instant: half a second before ten is still the
+    // hour before.
     const { tasks } = listByAge(
-      [task('new', '2026-11-16T10:00:01Z'), task('half', '2026-11-16T10:00:00.5Z'), task('old', '2026-11-15T10:00:00Z')],
+      [task('ten', '2026-11-16T10:00:00Z'), task('nine', '2026-11-16T09:59:59.5Z'), task('old', '2026-11-15T10:00:00Z')],
       [],
     );
-    expect(tasks.map((t) => t.id)).toEqual(['old', 'half', 'new']);
+    expect(tasks.map((t) => t.id)).toEqual(['old', 'nine', 'ten']);
   });
 
-  it('orders the running jobs oldest first too, apart from the tasks', () => {
+  // An enrichment creates its tasks one by one, seconds apart: on the exact
+  // moment its articles would come out in creation order, mixed with another
+  // law's.
+  it('sorts within an hour by law name, then in article order', () => {
+    const art = (id: string, lawId: string, article: string, created_at: string) => ({
+      id,
+      task_type: 'job_review',
+      payload: { law_id: lawId, article },
+      created_at,
+    });
+    const doc = { id: 'doc', task_type: 'job_review', payload: { kind: 'document', target_path: 'x.md' }, created_at: '2026-11-16T10:30:00Z' };
+    const { tasks } = listByAge(
+      [
+        art('b2', 'wet_b', '2', '2026-11-16T10:05:00Z'),
+        art('a10', 'wet_a', '10', '2026-11-16T10:01:00Z'),
+        doc,
+        art('a2', 'wet_a', '2', '2026-11-16T10:59:00Z'),
+        art('a1a', 'wet_a', '1a', '2026-11-16T10:02:00Z'),
+        art('z1', 'wet_z', '1', '2026-11-16T09:59:00Z'),
+      ],
+      [],
+      nameFor,
+    );
+    // The hour before comes first, whatever its name; then Alpha-wet, Bèta-wet
+    // and Werkdocumenten by name.
+    expect(tasks.map((t) => t.id)).toEqual(['z1', 'a1a', 'a2', 'a10', 'b2', 'doc']);
+  });
+
+  it('orders the running jobs the same way, apart from the tasks', () => {
     const { tasks, running } = listByAge(
       [task('t', '2026-11-16T00:00:00Z')],
-      [job('j2', '2026-11-14T00:00:00Z'), job('j1', '2026-11-13T00:00:00Z')],
+      [
+        job('j2', '2026-11-14T00:00:00Z'),
+        { job_id: 'jb', job_type: 'enrich', law_id: 'wet_b', created_at: '2026-11-13T00:30:00Z' },
+        job('j1', '2026-11-13T00:40:00Z'),
+      ],
+      nameFor,
     );
     expect(tasks.map((t) => t.id)).toEqual(['t']);
-    expect(running.map((j) => j.job_id)).toEqual(['j1', 'j2']);
+    // j1 and jb share an hour: Alpha-wet before Bèta-wet.
+    expect(running.map((j) => j.job_id)).toEqual(['j1', 'jb', 'j2']);
   });
 
   it('puts an item without a readable timestamp last, keeping the server order among them', () => {

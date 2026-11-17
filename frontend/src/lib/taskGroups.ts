@@ -97,28 +97,70 @@ export function groupTasks<T extends Task, J extends RunningJob>(
     .sort((a, b) => failed(a) - failed(b) || rank(a) - rank(b) || a.name.localeCompare(b.name, 'nl'));
 }
 
-// Milliseconds since the epoch, for ordering by age. A missing or unreadable
-// timestamp sorts as the newest, so it ends up at the bottom rather than on top.
-function createdAt(item: { created_at?: string | null }): number {
+const HOUR_MS = 60 * 60 * 1000;
+
+// The hour an item was created in, for ordering by age. Whole hours, not
+// milliseconds: an enrichment creates its tasks one by one, so ordering on the
+// exact moment scatters the articles of one law. A missing or unreadable
+// timestamp counts as the newest, so it ends up at the bottom rather than on
+// top.
+function createdHour(item: { created_at?: string | null }): number {
   const time = item.created_at ? Date.parse(item.created_at) : Number.NaN;
-  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : time;
+  return Number.isNaN(time) ? Number.POSITIVE_INFINITY : Math.floor(time / HOUR_MS);
 }
 
-function oldestFirst<I extends { created_at?: string | null }>(items: readonly I[]): I[] {
-  return [...items].sort((a, b) => createdAt(a) - createdAt(b));
+// What an item is sorted on within its hour: its context by name, then its
+// place in that context (an article number, a file name).
+interface SortKey {
+  context: string;
+  label: string;
+}
+
+function contextName(context: TaskContext | null, lawId: string | null, nameFor: (lawId: string) => string): string {
+  if (context === WERKDOCUMENTEN) return 'Werkdocumenten';
+  return context === WET && lawId ? nameFor(lawId) : '';
+}
+
+function byHourThenName<I extends { created_at?: string | null }>(
+  items: readonly I[],
+  key: (item: I) => SortKey,
+): I[] {
+  const keyed = items.map((item) => ({ item, hour: createdHour(item), key: key(item) }));
+  keyed.sort(
+    (a, b) =>
+      // Infinity - Infinity is NaN; two items without a time are a tie.
+      (a.hour === b.hour ? 0 : a.hour - b.hour) ||
+      collator.compare(a.key.context, b.key.context) ||
+      collator.compare(a.key.label, b.key.label),
+  );
+  return keyed.map((k) => k.item);
 }
 
 /**
  * The order of "Alle taken": one list without headings, oldest first, so what
  * has waited longest is on top. That list spans every context, and a heading
  * per law would split it back up; each row names its context in its supporting
- * text instead (`taskContextName`). The tasks come first and the running jobs
- * below them, also oldest first: a job is something you wait for, not
- * something to do. Ties keep the server order.
+ * text instead.
+ *
+ * Age counts in whole hours. Within an hour the list goes by the name of the
+ * law (or Werkdocumenten), and within a law in article order, so the tasks one
+ * enrichment created sit together as 1, 1a, 2, 10. The tasks come first and
+ * the running jobs below them, in the same order: a job is something you wait
+ * for, not something to do. Ties keep the server order.
  */
 export function listByAge<T extends Task, J extends RunningJob>(
   tasks: readonly T[],
   running: readonly J[],
+  nameFor: (lawId: string) => string = (id) => id,
 ): { tasks: T[]; running: J[] } {
-  return { tasks: oldestFirst(tasks), running: oldestFirst(running) };
+  return {
+    tasks: byHourThenName(tasks, (task) => ({
+      context: contextName(taskContext(task), taskLawId(task), nameFor),
+      label: sortLabel(task),
+    })),
+    running: byHourThenName(running, (job) => ({
+      context: contextName(jobContext(job), jobLawId(job), nameFor),
+      label: fileName(job.target_path),
+    })),
+  };
 }
