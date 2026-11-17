@@ -2158,6 +2158,7 @@ pub(crate) fn fits_state_type(ty: &ParameterType, value: &Value) -> bool {
         | (ParameterType::Number, Value::Int(_) | Value::Decimal(_))
         | (ParameterType::Amount, Value::Int(_))
         | (ParameterType::String, Value::String(_)) => true,
+        (ParameterType::Date, Value::Date(_)) => true,
         (ParameterType::Date, Value::String(s)) => NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok(),
         _ => false,
     }
@@ -2262,6 +2263,7 @@ pub fn describe_applied(article: Option<&str>, changes: &[StateChange]) -> Strin
 fn show(value: &Value) -> String {
     match value {
         Value::String(s) => s.clone(),
+        Value::Date(d) => d.to_string(),
         Value::Null => "null".to_string(),
         other => serde_json::to_string(other).unwrap_or_else(|_| format!("{other:?}")),
     }

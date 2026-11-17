@@ -207,6 +207,7 @@ impl Ty {
             Value::Int(_) | Value::Decimal(_) => Some(Ty::Number),
             Value::String(s) if is_reference(s) => None,
             Value::String(_) => Some(Ty::String),
+            Value::Date(_) => Some(Ty::Date),
             Value::Array(_) => Some(Ty::Array),
             Value::Object(_) => Some(Ty::Object),
         }

@@ -279,7 +279,7 @@ fn the_reduction_asks_the_policy_for_the_school_year_of_the_first_day() {
     let result = evaluate(&service, "999990019", "2027-08-01").unwrap();
     assert_eq!(
         result.resolved_inputs["begin_schooljaar"],
-        Value::String("2027-08-01".into())
+        Value::Date("2027-08-01".parse().unwrap())
     );
     // Without the policy the school year is not known, nor the answer.
     let mut alone = LawExecutionService::new();

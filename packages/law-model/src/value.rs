@@ -3,6 +3,7 @@
 //! `Value`, `Operation` and `ParameterType` describe the *format* of a law
 //! document (literals, operation tags, parameter types). They are the canonical
 //! representation re-exported by the engine at `regelrecht_engine::types`.
+use crate::date::Date;
 use crate::number::Number;
 use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::ser::SerializeMap;
@@ -47,6 +48,9 @@ pub enum Value {
     Decimal(Number),
     /// String value
     String(String),
+    /// A calendar day (RFC-055). It is written as its text, `YYYY-MM-DD`, so
+    /// it leaves the engine as the string a date was before.
+    Date(Date),
     /// Array of values
     Array(Vec<Value>),
     /// Object/Map of values
@@ -116,6 +120,7 @@ impl Serialize for Value {
                 serializer.serialize_f64(f)
             }
             Value::String(s) => serializer.serialize_str(s),
+            Value::Date(d) => serializer.serialize_str(d.as_str()),
             Value::Array(arr) => arr.serialize(serializer),
             Value::Object(map) => map.serialize(serializer),
             Value::Untranslatable { article, construct } => {
@@ -270,6 +275,7 @@ impl PartialEq for Value {
             (Value::Int(a), Value::Int(b)) => a == b,
             (Value::Decimal(a), Value::Decimal(b)) => a == b,
             (Value::String(a), Value::String(b)) => a == b,
+            (Value::Date(a), Value::Date(b)) => a == b,
             (Value::Array(a), Value::Array(b)) => a == b,
             (Value::Object(a), Value::Object(b)) => a == b,
             // Two Untranslatable values are equal (like NaN == NaN in this domain)
@@ -416,6 +422,8 @@ impl Value {
     pub fn as_str(&self) -> Option<&str> {
         match self {
             Value::String(s) => Some(s),
+            // A date reads as its text, as it did when it was a string.
+            Value::Date(d) => Some(d.as_str()),
             _ => None,
         }
     }
@@ -449,6 +457,7 @@ impl Value {
             Value::Int(_) => "integer",
             Value::Decimal(_) => "decimal",
             Value::String(_) => "string",
+            Value::Date(_) => "date",
             Value::Array(_) => "array",
             Value::Object(_) => "object",
             Value::Untranslatable { .. } => "untranslatable",
@@ -469,6 +478,8 @@ impl Value {
             Value::Int(i) => *i != 0,
             Value::Decimal(d) => !d.is_zero(),
             Value::String(s) => !s.is_empty(),
+            // As the non-empty string a date was.
+            Value::Date(_) => true,
             Value::Array(a) => !a.is_empty(),
             Value::Object(o) => !o.is_empty(),
             Value::Untranslatable { .. } => false,
@@ -507,6 +518,12 @@ impl From<i32> for Value {
 impl From<f64> for Value {
     fn from(f: f64) -> Self {
         f64_to_value(f)
+    }
+}
+
+impl From<Date> for Value {
+    fn from(d: Date) -> Self {
+        Value::Date(d)
     }
 }
 
@@ -682,6 +699,7 @@ impl From<&Value> for serde_json::Value {
             Value::Int(i) => serde_json::json!(*i),
             Value::Decimal(d) => decimal_to_json(d),
             Value::String(s) => serde_json::Value::String(s.clone()),
+            Value::Date(d) => serde_json::Value::String(d.to_string()),
             Value::Array(arr) => serde_json::Value::Array(arr.iter().map(Into::into).collect()),
             Value::Object(map) => {
                 serde_json::Value::Object(map.iter().map(|(k, v)| (k.clone(), v.into())).collect())
@@ -706,6 +724,7 @@ impl From<Value> for serde_json::Value {
             Value::Int(i) => serde_json::json!(i),
             Value::Decimal(d) => decimal_to_json(&d),
             Value::String(s) => serde_json::Value::String(s),
+            Value::Date(d) => serde_json::Value::String(d.to_string()),
             Value::Array(arr) => {
                 serde_json::Value::Array(arr.into_iter().map(Into::into).collect())
             }
@@ -735,6 +754,7 @@ impl fmt::Display for Value {
             Value::Decimal(d) if d.is_integer() => write!(f, "{d:.1}"),
             Value::Decimal(d) => write!(f, "{}", d),
             Value::String(s) => write!(f, "{}", s),
+            Value::Date(d) => write!(f, "{d}"),
             Value::Array(arr) => {
                 write!(f, "[")?;
                 for (i, v) in arr.iter().enumerate() {

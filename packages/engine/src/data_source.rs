@@ -542,6 +542,7 @@ fn build_lookup_key(criteria: &BTreeMap<String, Value>) -> Option<String> {
 fn value_to_key(value: &Value) -> Option<String> {
     match value {
         Value::String(s) => Some(s.clone()),
+        Value::Date(d) => Some(d.to_string()),
         Value::Int(i) => Some(i.to_string()),
         Value::Decimal(d) => Some(d.to_string()),
         Value::Bool(b) => Some(b.to_string()),

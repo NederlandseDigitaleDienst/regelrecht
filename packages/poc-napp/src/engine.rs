@@ -335,7 +335,11 @@ fn req_int(outputs: &BTreeMap<String, Value>, name: &str) -> anyhow::Result<i64>
 
 fn req_date(outputs: &BTreeMap<String, Value>, name: &str) -> anyhow::Result<String> {
     match outputs.get(name) {
-        Some(Value::String(s)) => Ok(s.clone()),
+        // A date the engine computed is a date value; one that came in
+        // through an input is still its text. Both read as text here.
+        Some(value @ (Value::String(_) | Value::Date(_))) => {
+            Ok(value.as_str().unwrap_or_default().to_string())
+        }
         Some(other) => anyhow::bail!("output '{name}' is geen datum maar {other:?}"),
         None => anyhow::bail!("output '{name}' ontbreekt in het engine-resultaat"),
     }

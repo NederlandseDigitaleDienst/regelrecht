@@ -177,6 +177,11 @@ fn equal_at(a: &Value, b: &Value, path: &str) -> Result<bool, WrittenUnlike> {
                 path: path.to_string(),
             })
         }
+        // A date is stored as its text and read back as a string, so a date
+        // against that string is the same value.
+        (Value::Date(date), Value::String(text)) | (Value::String(text), Value::Date(date)) => {
+            Ok(date.as_str() == text)
+        }
         _ => Ok(a == b),
     }
 }
@@ -425,6 +430,17 @@ mod tests {
             assert!(err.to_string().ends_with(&format!(" at {path}")), "{err}");
             assert!(same_held(Some(&b), Some(&a)).is_err());
         }
+    }
+
+    #[test]
+    fn a_date_is_stored_as_its_text_and_equals_it_when_read_back() {
+        let day = Value::Date("2025-03-09".parse().unwrap());
+        assert_eq!(to_stored(&day).unwrap(), json!("2025-03-09"));
+        let back = round_trip(&day);
+        assert!(matches!(back, Value::String(_)));
+        assert!(equal_as_written(&day, &back).unwrap());
+        assert!(equal_as_written(&back, &day).unwrap());
+        assert!(!equal_as_written(&day, &Value::String("2025-03-10".into())).unwrap());
     }
 
     #[test]

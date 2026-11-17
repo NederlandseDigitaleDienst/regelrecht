@@ -31,6 +31,7 @@ Besides the engine, the model is used directly in a few places:
 |--------|---------|
 | `model.rs` | The document structure: `ArticleBasedLaw`, `Article`, `MachineReadable`, `Execution`, `Input`, `Output`, `Source`, `OpenTerm`, `ImplementsDeclaration`, `HookDeclaration`, `OverrideDeclaration`, `Marking`, and the rest of the types the schema defines |
 | `number.rs` | `Number`, an exact number held as a fraction of two integers of any size, with the rounding modes of `ROUND`, `CEIL` and `FLOOR` |
+| `date.rs` | `Date`, a calendar day held as its canonical text `YYYY-MM-DD` and checked to be a real day |
 | `value.rs` | `Value`, the runtime value type; `Operation`, the enum of operation names; `ParameterType`; and `RegulatoryLayer`, re-exported from `regelrecht-shared` |
 | `stored.rs` | `to_stored` and `from_stored`, which write a `Value` to JSON and read it back as exactly the same number; `equal_as_written`, the rule for comparing two such values |
 | `header.rs` | `parse_law_header`, a line-based scan for the top-level fields and an approximate article count |
