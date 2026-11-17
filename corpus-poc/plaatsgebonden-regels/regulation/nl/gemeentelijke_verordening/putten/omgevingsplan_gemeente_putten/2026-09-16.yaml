@@ -1,0 +1,250 @@
+---
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: omgevingsplan_gemeente_putten
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2026-09-16'
+valid_from: '2026-09-16'
+gemeente_code: GM0273
+officiele_titel: Omgevingsplan gemeente Putten
+url: https://lokaleregelgeving.overheid.nl/CVDR696248
+
+# REAL. Part of afdeling 21.5 (Oude Nijkerkerweg 33) of the Omgevingsplan
+# gemeente Putten, as published on lokaleregelgeving.overheid.nl and read on
+# 2026-11-17. The article texts are quoted; the logic is a first reading and
+# has not been checked by a lawyer.
+#
+# The four shapes are the published geometry of the four geographic
+# information objects that Bijlage I lists for this location, taken from the
+# GML at the identifier given with each. RD coordinates (EPSG:28992).
+#
+# Not checked: the date in force. `valid_from` is the date in the identifiers
+# of the information objects.
+#
+# PROPOSED, not in the schema: the value type `shape` and the operation
+# OVERLAPS.
+
+articles:
+  # The plan designates its areas in an annex: a name and an identifier per
+  # area. An annex is not an article; it is filed as one here because the
+  # format has no other place for it.
+  - number: Bijlage I
+    text: |
+      Overzicht Informatieobjecten
+
+      H21 Oude Nijkerkerweg 33
+      /join/id/regdata/gm0273/2026/2077aab16efd4863b7d8372bb58a8aaf/nld@2026-09-16;13055780
+
+      H21 Oude Nijkerkerweg 33 agrarisch vervallen aanduidingen
+      /join/id/regdata/gm0273/2026/94a677e7853f437a9500dcf0cbe055ab/nld@2026-09-16;13055780
+
+      H21 Oude Nijkerkerweg 33 functie Wonen
+      /join/id/regdata/gm0273/2026/a7fcea763bbc4df89709471d06c3ce70/nld@2026-09-16;13055780
+
+      H21 Oude Nijkerkerweg 33 maximale oppervlakte bijgebouwen: 287 m2
+      /join/id/regdata/gm0273/2026/d919cf0c476f4fb887620b7534af3acd/nld@2026-09-16;13055780
+    url: https://lokaleregelgeving.overheid.nl/CVDR696248
+
+    machine_readable:
+      execution:
+        output:
+          - name: gebied_oude_nijkerkerweg_33
+            type: shape
+            description: H21 Oude Nijkerkerweg 33
+          - name: gebied_agrarisch_vervallen_aanduidingen
+            type: shape
+            description: H21 Oude Nijkerkerweg 33 agrarisch vervallen aanduidingen
+          - name: gebied_functie_wonen
+            type: shape
+            description: H21 Oude Nijkerkerweg 33 functie Wonen
+          - name: gebied_maximale_oppervlakte_bijgebouwen
+            type: shape
+            description: 'H21 Oude Nijkerkerweg 33 maximale oppervlakte bijgebouwen: 287 m2'
+        actions:
+          - output: gebied_oude_nijkerkerweg_33
+            value: 'POLYGON((167843.258 472393.888, 167846.47 472247.156, 167789.323 472246.037, 167781.826 472383.09, 167843.258 472393.888))'
+          - output: gebied_agrarisch_vervallen_aanduidingen
+            value: 'POLYGON((167846.47 472247.156, 167789.323 472246.037, 167786.742 472293.222, 167817.786 472292.639, 167815.493 472388.99, 167843.258 472393.888, 167846.47 472247.156))'
+          - output: gebied_functie_wonen
+            value: 'POLYGON((167815.493 472388.99, 167817.786 472292.639, 167786.742 472293.222, 167781.826 472383.09, 167815.493 472388.99))'
+          - output: gebied_maximale_oppervlakte_bijgebouwen
+            value: 'POLYGON((167815.493 472388.99, 167817.786 472292.639, 167786.742 472293.222, 167781.826 472383.09, 167815.493 472388.99))'
+
+  # A whole afdeling that holds only in one area. The article that says so
+  # gives that as a value, and the other articles of the afdeling read it.
+  - number: '21.19'
+    text: |
+      Toepassingsbereik
+
+      Deze afdeling bevat regels die nodig zijn voor de gewenste ontwikkeling
+      ter plaatse van het gebied H21 Oude Nijkerkerweg 33 in Putten omdat deze
+      ontwikkeling in strijd is met het tijdelijke deel van dit omgevingsplan.
+      Daarom is deze afdeling alleen van toepassing ter plaatse van het gebied
+      H21 Oude Nijkerkerweg 33 in Putten.
+    url: https://lokaleregelgeving.overheid.nl/CVDR696248
+
+    machine_readable:
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The place the question is about
+        input:
+          - name: gebied_oude_nijkerkerweg_33
+            type: shape
+            description: The area listed in Bijlage I
+            source:
+              output: gebied_oude_nijkerkerweg_33
+        output:
+          - name: afdeling_21_5_van_toepassing
+            type: boolean
+            description: Whether afdeling 21.5 applies at the location
+        actions:
+          - output: afdeling_21_5_van_toepassing
+            value:
+              operation: OVERLAPS
+              subject: $location
+              value: $gebied_oude_nijkerkerweg_33
+
+  - number: '21.22'
+    text: |
+      Wonen: bestemming wonen van overeenkomstige toepassing
+
+      1. Ter plaatse van het gebied H21 Oude Nijkerkerweg 33 functie Wonen is
+      de bestemming Wonen als bedoeld in artikel 19 van het bestemmingsplan van
+      overeenkomstige toepassing.
+
+      2. Ter plaatse van het gebied H21 Oude Nijkerkerweg 33 functie Wonen
+      blijft de bestemming Agrarisch als bedoeld in artikel 3 van het
+      bestemmingsplan buiten toepassing.
+    url: https://lokaleregelgeving.overheid.nl/CVDR696248
+
+    machine_readable:
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The place the question is about
+        input:
+          - name: afdeling_21_5_van_toepassing
+            type: boolean
+            description: Whether this afdeling applies at the location (article 21.19)
+            source:
+              output: afdeling_21_5_van_toepassing
+          - name: gebied_functie_wonen
+            type: shape
+            description: The area listed in Bijlage I
+            source:
+              output: gebied_functie_wonen
+        output:
+          # Absent outside the area: the article says nothing there, and what
+          # holds follows from the bestemmingsplan itself.
+          - name: bestemming_wonen_van_toepassing
+            type: boolean
+            nullable: true
+            description: Lid 1 - the bestemming Wonen applies at the location
+          - name: bestemming_agrarisch_buiten_toepassing
+            type: boolean
+            nullable: true
+            description: Lid 2 - the bestemming Agrarisch does not apply at the location
+        actions:
+          - output: bestemming_wonen_van_toepassing
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - $afdeling_21_5_van_toepassing
+                      - operation: OVERLAPS
+                        subject: $location
+                        value: $gebied_functie_wonen
+                  then: true
+          - output: bestemming_agrarisch_buiten_toepassing
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - $afdeling_21_5_van_toepassing
+                      - operation: OVERLAPS
+                        subject: $location
+                        value: $gebied_functie_wonen
+                  then: true
+
+  # A norm that holds in one area. The number is in the text; the area only
+  # says where it holds.
+  - number: '21.23'
+    text: |
+      Wonen: uitbreiding oppervlak bijgebouwen
+
+      In aanvulling op artikel 19.2 van het bestemmingsplan geldt het volgende:
+
+      Ter plaatse van het gebied H21 Oude Nijkerkerweg 33 maximale oppervlakte
+      bijgebouwen: 287 m2 is een oppervlak aan bijgebouwen toegestaan tot een
+      maximum oppervlakte van 287m² onder de voorwaarde dat deze wordt
+      gecompenseerd met 307,5m² sloopmeters van eigen terrein, waarbij de
+      maximale oppervlakte per bijgebouw maximaal 200m2 is.
+    url: https://lokaleregelgeving.overheid.nl/CVDR696248
+
+    machine_readable:
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The place the question is about
+          - name: oppervlakte_bijgebouwen_m2
+            type: number
+            required: true
+            description: Total surface of the bijgebouwen after building, in m2
+          - name: sloopmeters_eigen_terrein_m2
+            type: number
+            required: true
+            description: Surface demolished on the own plot as compensation, in m2
+          - name: grootste_bijgebouw_m2
+            type: number
+            required: true
+            description: Surface of the largest single bijgebouw, in m2
+        input:
+          - name: afdeling_21_5_van_toepassing
+            type: boolean
+            description: Whether this afdeling applies at the location (article 21.19)
+            source:
+              output: afdeling_21_5_van_toepassing
+          - name: gebied_maximale_oppervlakte_bijgebouwen
+            type: shape
+            description: The area listed in Bijlage I
+            source:
+              output: gebied_maximale_oppervlakte_bijgebouwen
+        output:
+          - name: oppervlakte_bijgebouwen_toegestaan
+            type: boolean
+            nullable: true
+            description: Whether this surface of bijgebouwen is allowed under this article
+        actions:
+          - output: oppervlakte_bijgebouwen_toegestaan
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - $afdeling_21_5_van_toepassing
+                      - operation: OVERLAPS
+                        subject: $location
+                        value: $gebied_maximale_oppervlakte_bijgebouwen
+                  then:
+                    operation: AND
+                    conditions:
+                      - operation: LESS_THAN_OR_EQUAL
+                        subject: $oppervlakte_bijgebouwen_m2
+                        value: 287
+                      - operation: GREATER_THAN_OR_EQUAL
+                        subject: $sloopmeters_eigen_terrein_m2
+                        value: 307.5
+                      - operation: LESS_THAN_OR_EQUAL
+                        subject: $grootste_bijgebouw_m2
+                        value: 200

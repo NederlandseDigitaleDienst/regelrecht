@@ -226,12 +226,10 @@ def evaluate_at(law_id: str, output: str, location_wkt: str, params: dict, date:
     asked = next(r for r in available if r.id == law_id)
     asked_yaml = without_shapes(asked, asked.articles, shapes)
 
-    # A rulework with a territory speaks only about locations in it.
-    here = [
-        r
-        for r in available
-        if r.id != law_id and (r.territory() is None or overlaps(location, r.territory()))
-    ]
+    # The ruleworks that fill a term of the asked law. One with a territory
+    # speaks only about locations in it.
+    fillers = [r for r in available if r.id != law_id and any(fills(a, law_id) for a in r.articles)]
+    here = [r for r in fillers if r.territory() is None or overlaps(location, r.territory())]
     scope = dict(params)
     for rulework in here:
         scope.update(rulework.territory_codes())

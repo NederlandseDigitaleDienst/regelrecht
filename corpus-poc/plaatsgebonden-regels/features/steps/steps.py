@@ -32,6 +32,11 @@ def set_parameter(context, name, value):
     context.params[name] = value
 
 
+@given('parameter "{name}" is {value:g}')
+def set_number_parameter(context, name, value):
+    context.params[name] = value
+
+
 @when('I evaluate "{output}" of "{law}"')
 def evaluate(context, output, law):
     context.answers[output] = evaluate_at(law, output, context.location, context.params, context.date)
@@ -45,6 +50,11 @@ def assert_true(context, output):
 @then('output "{output}" is false')
 def assert_false(context, output):
     assert context.answers[output].value is False, f"{output} is {context.answers[output].value!r}"
+
+
+@then('output "{output}" is absent')
+def assert_absent(context, output):
+    assert context.answers[output].value is None, f"{output} is {context.answers[output].value!r}"
 
 
 @then('output "{output}" is filled by:')
