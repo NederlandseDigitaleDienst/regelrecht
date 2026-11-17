@@ -614,9 +614,7 @@ fn route_answer<'a>(
     input: &Input,
     terms: &[&'a crate::article::OpenTerm],
 ) -> std::result::Result<AnswerRoute<'a>, String> {
-    const NO_HOLDER: &str =
-        "the policy names no holder (competent_authority) whose cell gives it (RFC-048)";
-    let holder = Some(law.holder()).filter(|named| !named.is_empty());
+    let holder = law.holder();
     let ids: BTreeSet<&str> = terms.iter().map(|term| term.id.as_str()).collect();
     let fed: Vec<(&str, Option<&'a [NamedAuthority]>)> = terms
         .iter()
@@ -629,18 +627,19 @@ fn route_answer<'a>(
             (term.id.as_str(), named)
         })
         .collect();
-    let routes: Vec<Option<&'a [NamedAuthority]>> =
-        fed.iter().map(|(_, named)| named.or(holder)).collect();
-    if let Some(first) = routes.first()
-        && routes.iter().any(|route| !same_authorities(*route, *first))
-    {
+    // Each term asks whom it names, or else the holder; an input that feeds
+    // no term asks the holder. The loader holds a policy with a binding to
+    // one holder by name, so the holder names someone.
+    let routes: Vec<&'a [NamedAuthority]> = fed
+        .iter()
+        .map(|(_, named)| named.unwrap_or(holder))
+        .collect();
+    let named = routes.first().copied().unwrap_or(holder);
+    if routes.iter().any(|route| !same_authorities(route, named)) {
         let each: Vec<String> = fed
             .iter()
             .zip(&routes)
-            .map(|((term, _), route)| match route {
-                Some(named) => format!("'{term}' to {}", authorities(named)),
-                None => format!("'{term}' to the holder, and {NO_HOLDER}"),
-            })
+            .map(|((term, _), route)| format!("'{term}' to {}", authorities(route)))
             .collect();
         return Err(format!(
             "it feeds terms that route to different authorities ({}); one input asks one cell, \
@@ -655,24 +654,16 @@ fn route_answer<'a>(
         .map(|(_, named)| *named)
         .collect::<Option<Vec<_>>>()
         .and_then(|named| named.first().copied());
-    let Some(named) = routes.first().copied().unwrap_or(holder) else {
-        return Err(NO_HOLDER.to_string());
-    };
     Ok(AnswerRoute { named, competent })
 }
 
 /// Whether `a` and `b` name the same authorities, in any order: each by its
 /// name and kind, so a name without `type` is the `INSTANCE` it means.
-fn same_authorities(a: Option<&[NamedAuthority]>, b: Option<&[NamedAuthority]>) -> bool {
-    let key = |n: &NamedAuthority| (n.name.clone(), n.kind() == AuthorityType::Instance);
-    match (a, b) {
-        (Some(a), Some(b)) => {
-            let a: BTreeSet<_> = a.iter().map(key).collect();
-            let b: BTreeSet<_> = b.iter().map(key).collect();
-            a == b
-        }
-        (a, b) => a.is_none() && b.is_none(),
-    }
+fn same_authorities(a: &[NamedAuthority], b: &[NamedAuthority]) -> bool {
+    let key = |n: &NamedAuthority| (n.name.clone(), matches!(n.kind(), AuthorityType::Instance));
+    let a: BTreeSet<_> = a.iter().map(key).collect();
+    let b: BTreeSet<_> = b.iter().map(key).collect();
+    a == b
 }
 
 /// Why the cell that runs an execution has no ground to use the answer

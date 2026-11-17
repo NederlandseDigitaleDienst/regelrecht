@@ -1822,7 +1822,9 @@ articles:
 /// The policy of wilgendaal: one article fills all three terms, each from
 /// an answer of its own, and counts 0 where the cell is silent. `ontvangen`
 /// reads its answer through a helper output, and the helper output
-/// `opmerking` feeds no term.
+/// `opmerking` feeds no term. The input of `opmerking` passes the discount's
+/// answer on as a parameter: that input reads the discount's input, and no
+/// term reads it, so the discount's input feeds only the discount.
 const ONE_BINDING: &str = r#"
 $id: beleid_drie_termen
 regulatory_layer: UITVOERINGSBELEID
@@ -1857,7 +1859,7 @@ articles:
           - name: antwoord_opmerking
             type: string
             nullable: true
-            source: {reduction: opmerking, parameters: {bsn: $bsn}}
+            source: {reduction: opmerking, parameters: {bsn: $bsn, korting: $antwoord_korting}}
         output:
           - {name: leden, type: number}
           - {name: tussenstand, type: number, nullable: true}
@@ -2057,7 +2059,8 @@ fn a_term_that_builds_on_another_term_takes_its_value_not_its_input() {
 fn an_input_that_feeds_no_term_asks_the_holder() {
     // `opmerking` is an output of the binding that fills no term. Its input
     // asks the holder of the policy, as for a term that names no one; the
-    // register and the office are not asked.
+    // register and the office are not asked. The holder is asked for the
+    // discount first, which the input passes on.
     let (running, register, office) = three_cells();
     let running = running.answering("opmerking", Value::String("geen".into()));
     let result = read_three(
@@ -2069,7 +2072,7 @@ fn an_input_that_feeds_no_term_asks_the_holder() {
     )
     .unwrap();
     assert_eq!(result.outputs["opmerking"], Value::String("geen".into()));
-    assert_eq!(running.asked(), ["opmerking"]);
+    assert_eq!(running.asked(), ["korting", "opmerking"]);
     assert!(register.asked().is_empty() && office.asked().is_empty());
 }
 
