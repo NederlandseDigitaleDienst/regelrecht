@@ -136,3 +136,4 @@ scenarios:
         datum: 2026-02-09
         invoer:
           bekendmaking_datum: 2026-02-09
+          bezorging_mislukt: false

@@ -182,8 +182,9 @@ articles:
     url: https://example.invalid/fictieve_vergunningwet#6
     text: >-
       FICTIEF. De dienst maakt een besluit bekend door het aan de aanvrager
-      te verzenden, en legt vast op welke dag zij het verzond. Bezwaar kan
-      tot zes weken na die dag.
+      te verzenden, en legt vast op welke dag zij het verzond en of de
+      bezorging mislukte. Bezwaar kan tot zes weken na die dag. Mislukte de
+      bezorging, dan verzendt de dienst het besluit opnieuw.
     machine_readable:
       # The day the decision was sent is a fact the service records after
       # the decision, referring to it. The decision does not ask it; the
@@ -200,16 +201,29 @@ articles:
             - name: Fictieve dienst
           parameters:
             - bekendmaking_datum
+            - bezorging_mislukt
       execution:
         parameters:
           - name: bekendmaking_datum
             type: date
             description: De dag waarop de dienst het besluit verzond.
+          - name: bezorging_mislukt
+            type: boolean
+            nullable: true
+            description: Of de bezorging mislukte; afwezig als de dienst dat niet weet.
         output:
           - name: termijn_einde
             type: date
             description: De laatste dag waarop bezwaar kan.
+          - name: opnieuw_verzenden
+            type: boolean
+            description: Of de dienst het besluit opnieuw moet verzenden.
         actions:
+          - output: opnieuw_verzenden
+            value:
+              operation: EQUALS
+              subject: $bezorging_mislukt
+              value: true
           - output: termijn_einde
             value:
               operation: DATE_ADD

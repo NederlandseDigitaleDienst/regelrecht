@@ -136,3 +136,60 @@ fn the_fact_is_recorded_only_on_a_decision_it_makes_known() {
         .unwrap_err();
     assert!(e.to_string().contains("makes a decision known"), "{e}");
 }
+
+#[test]
+fn the_authority_cannot_give_what_the_fact_holds_with_the_decision() {
+    let mut spel = spel();
+    let aanvraag = spel
+        .indienen(
+            "fictieve_vergunningwet#1",
+            None,
+            &map(&json!({"aanvrager": "D. Voorbeeld", "meerderjarig": true})),
+            dag("2026-02-02"),
+        )
+        .unwrap();
+    let e = spel
+        .beslissen(
+            aanvraag["id"].as_str().unwrap(),
+            None,
+            &map(&json!({"bekendmaking_datum": "2026-02-02"})),
+            dag("2026-02-02"),
+        )
+        .unwrap_err();
+    assert_eq!(
+        e.to_string(),
+        "refused: 'bekendmaking_datum' of the decision of fictieve_vergunningwet#1 comes from the fact \
+         fictieve_vergunningwet#6#besluit_verzonden, which the authority records after the decision"
+    );
+}
+
+#[test]
+fn a_failed_delivery_the_fact_may_leave_out() {
+    let mut spel = spel();
+    let besluit = verleend(&mut spel, "2026-02-02");
+    // Sent, and the delivery failed: the service sends it again.
+    spel.vastleggen_verwijzend(
+        "fictieve_dienst",
+        SENT,
+        &map(&json!({"bekendmaking_datum": "2026-02-09", "bezorging_mislukt": true})),
+        Some(&besluit),
+        dag("2026-02-09"),
+    )
+    .unwrap();
+    let na = spel.bekendmaking(&besluit, dag("2026-02-09")).unwrap();
+    assert_eq!(na["bekendgemaakt"], json!(true));
+    assert_eq!(na["uitvoer"]["opnieuw_verzenden"], json!(true));
+    // Sent again a week later, delivery not known: the latest record
+    // counts, and the field it leaves out is absent.
+    spel.vastleggen_verwijzend(
+        "fictieve_dienst",
+        SENT,
+        &map(&json!({"bekendmaking_datum": "2026-02-16"})),
+        Some(&besluit),
+        dag("2026-02-16"),
+    )
+    .unwrap();
+    let opnieuw = spel.bekendmaking(&besluit, dag("2026-02-16")).unwrap();
+    assert_eq!(opnieuw["uitvoer"]["termijn_einde"], json!("2026-03-30"));
+    assert_eq!(opnieuw["uitvoer"]["opnieuw_verzenden"], json!(false));
+}
