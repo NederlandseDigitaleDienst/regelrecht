@@ -7,12 +7,15 @@ valid_from: '2024-01-01'
 bwb_id: BWBR0037885
 url: https://wetten.overheid.nl/BWBR0037885
 
-# REAL. Texts as on wetten.overheid.nl, read on 2026-11-17. Not checked:
-# since when the text reads so; `valid_from` is the date the law took effect.
+# REAL. Texts as on wetten.overheid.nl. The quoted provisions were compared
+# in the version in force on 2024-01-01 (the date the law took effect, and
+# `valid_from` here) and the one in force on 2026-11-17: they read the same.
+# The versions in between were not looked at.
 #
 # Modelled: article 5.1 lid 1 under a, and the definitions of
 # omgevingsplanactiviteit and buitenplanse omgevingsplanactiviteit from the
-# annex. The ban sits in this law. The omgevingsplan only fills what the law
+# annex. Article 2.4 is quoted as the basis for asking the plan of one
+# municipality; it carries no logic of its own. The ban sits in this law. The omgevingsplan only fills what the law
 # leaves open: for which activity the plan requires a permit, and which
 # activity conflicts with the plan.
 #
@@ -20,13 +23,25 @@ url: https://wetten.overheid.nl/BWBR0037885
 # g and lid 2 (among them the technical bouwactiviteit), and articles 5.3
 # and 5.4.
 #
-# The two terms of the annex name the location and combine with OR. The plan
-# of the municipality the location lies in is asked, article by article, and
-# a term holds when one article says so. They have no default: where no plan
-# is loaded for that place, the engine cannot resolve them and says so. It
-# does not read a missing plan as a plan that forbids nothing.
+# The two terms of the annex name the location and combine with OR. Article
+# 2.4 says the gemeenteraad adopts one omgevingsplan "voor het gehele
+# grondgebied van de gemeente", so the plan of the municipality the location
+# lies in is asked, article by article, and a term holds when one article
+# says so. Where that territory is, the Kadasterwet says (article 48 lid 3
+# onder c): the terms name that law as the source of the territory.
+#
+# The terms have no default: where no plan is loaded for that place, the
+# engine cannot resolve them and says so. It does not read a missing plan as
+# a plan that forbids nothing.
 
 articles:
+  - number: '2.4'
+    text: |
+      De gemeenteraad stelt voor het gehele grondgebied van de gemeente één
+      omgevingsplan vast waarin regels over de fysieke leefomgeving worden
+      opgenomen.
+    url: https://wetten.overheid.nl/BWBR0037885#Hoofdstuk2_Afdeling2.2_Artikel2.4
+
   - number: Bijlage onder A
     text: |
       buitenplanse omgevingsplanactiviteit: activiteit, inhoudende:
@@ -55,6 +70,9 @@ articles:
           delegated_to: gemeenteraad
           delegation_type: GEMEENTELIJKE_VERORDENING
           location: $location
+          territory:
+            regulation: kadasterwet
+            output: grens_van_gemeente
           combine: OR
           legal_basis: bijlage onder A (omgevingsplanactiviteit, onder a en b) Omgevingswet
         - id: activiteit_in_strijd_met_omgevingsplan
@@ -63,6 +81,9 @@ articles:
           delegated_to: gemeenteraad
           delegation_type: GEMEENTELIJKE_VERORDENING
           location: $location
+          territory:
+            regulation: kadasterwet
+            output: grens_van_gemeente
           combine: OR
           legal_basis: bijlage onder A (omgevingsplanactiviteit, onder b en c) Omgevingswet
 

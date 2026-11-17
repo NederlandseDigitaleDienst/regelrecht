@@ -1,0 +1,81 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: kadasterwet
+regulatory_layer: WET
+publication_date: '1989-05-03'
+valid_from: '2026-01-01'
+bwb_id: BWBR0004541
+url: https://wetten.overheid.nl/BWBR0004541
+
+# REAL. Text as on wetten.overheid.nl in the version in force from
+# 2026-01-01, read on 2026-11-17. Not checked: whether article 48 read the
+# same before that date, and the date of publication.
+#
+# Modelled: article 48 lid 3 onder c, for the boundary of a municipality. The
+# boundary of a municipality is laid down by a herindelingsregeling (Wet
+# algemene regels herindeling, article 2 and 3) and kept on the national
+# cadastral map, which is part of the Basisregistratie Kadaster. This article
+# is where the law says the register holds it.
+#
+# The boundary itself is not in this rulework. It is a fact from the
+# register, read the way the Wet basisregistratie personen reads a date of
+# birth: whoever asks supplies what the register holds on the date of the
+# question.
+#
+# NOT modelled: the rijksgrens and the boundary of a province (also onder c),
+# and the rest of the article.
+
+articles:
+  - number: '48'
+    text: |
+      [lid 1 en 2: niet overgenomen]
+
+      3. De basisregistratie kadaster bevat voorts de landelijke kadastrale
+      kaart. Die kaart is toegankelijk door middel van een coördinaat in het
+      net van coördinaatpunten, bedoeld in artikel 52, of door middel van de
+      kadastrale aanduiding van een perceel. De landelijke kadastrale kaart
+      bevat:
+      a. de afbeelding van de kadastrale grenzen van een perceel, weergegeven
+      in het net van coördinaatpunten, bedoeld in artikel 52;
+      b. de kadastrale aanduiding van een perceel;
+      c. de rijksgrens en de grens van een provincie of gemeente;
+      d. een voorstelling van de omtrek van een hoofd- of bijgebouw op een
+      perceel, met dien verstande dat de omtrek van een bijgebouw uitsluitend
+      wordt weergegeven indien die weergave naar het oordeel van de Dienst
+      nodig is voor een goede oriëntatie op de kadastrale kaart.
+
+      [lid 4 en verder: niet overgenomen]
+    url: https://wetten.overheid.nl/BWBR0004541#Hoofdstuk3_Titeldeel1_Artikel48
+
+    machine_readable:
+      execution:
+        parameters:
+          - name: gemeente_code
+            type: string
+            required: true
+            description: CBS code of the municipality whose boundary is asked
+        input:
+          # Lid 3 onder c: the boundary as the national cadastral map holds
+          # it, as a surface in the net of coordinate points of article 52
+          # (the stelsel van de Rijksdriehoeksmeting).
+          - name: grens_van_gemeente
+            type: shape
+            source: {}
+            description: The territory of the municipality, from the Basisregistratie Kadaster
+        output:
+          - name: grens_van_gemeente
+            type: shape
+            description: The territory of the municipality
+        actions:
+          - output: grens_van_gemeente
+            value: $grens_van_gemeente
+
+  - number: '52'
+    text: |
+      1. Er is een net van coördinaatpunten waarvan de coördinaten worden
+      vastgelegd in het stelsel van de Rijksdriehoeksmeting en in het stelsel
+      van het Europese referentiesysteem voor geodesie en navigatie.
+
+      2. Het bestuur van de Dienst stelt regelen vast omtrent de registratie en
+      de weergave van de in het eerste lid genoemde punten.
+    url: https://wetten.overheid.nl/BWBR0004541#Hoofdstuk3_Titeldeel2_Artikel52

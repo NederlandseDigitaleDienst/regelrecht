@@ -3,12 +3,13 @@ $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/
 $id: besluit_bouwwerken_leefomgeving
 regulatory_layer: AMVB
 publication_date: '2018-08-31'
-valid_from: '2024-01-01'
+valid_from: '2026-09-24'
 bwb_id: BWBR0041297
 url: https://wetten.overheid.nl/BWBR0041297
 
-# REAL. Texts as on wetten.overheid.nl, read on 2026-11-17. Not checked:
-# since when the text reads so. Modelled: article
+# REAL. Texts as on wetten.overheid.nl in the version in force from
+# 2026-09-24, read on 2026-11-17. Not checked: whether these articles read
+# the same before that date. Modelled: article
 # 2.28, article 2.29 aanhef and onder r, and article 2.30. These are the cases
 # that article 5.1 lid 1 of the Omgevingswet exempts from the permit duty for
 # an omgevingsplanactiviteit that consists of building.
