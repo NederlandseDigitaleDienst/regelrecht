@@ -152,3 +152,40 @@ articles:
         actions:
           - output: terras_verboden
             value: true
+
+  - number: '7'
+    url: https://example.com/test_omgevingsplan_linkerdorp/7
+    text: >-
+      De goothoogte van een bouwwerk bedraagt ten hoogste 6 meter.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '6'
+          open_term: maximale_goothoogte
+          gelet_op: Gelet op artikel 6 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: maximale_goothoogte
+            type: number
+        actions:
+          - output: maximale_goothoogte
+            value: 6
+
+  - number: '8'
+    url: https://example.com/test_omgevingsplan_linkerdorp/8
+    text: >-
+      Het aanleggen van een steiger is toegestaan.
+    machine_readable:
+      # The plan says no: in Linkerdorp a jetty is not forbidden.
+      implements:
+        - law: test_location_terms
+          article: '7'
+          open_term: steiger_verboden
+          gelet_op: Gelet op artikel 7 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: steiger_verboden
+            type: boolean
+        actions:
+          - output: steiger_verboden
+            value: false

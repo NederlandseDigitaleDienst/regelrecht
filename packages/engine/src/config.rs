@@ -100,13 +100,37 @@ pub const MAX_FUZZY_SCORED_WINDOWS: usize = 10_000;
 /// Maximum size of the text of a shape in bytes (4 MB).
 ///
 /// A shape reaches the engine as well-known text from outside: a parameter,
-/// a register, a literal. The boundary of a large municipality at the full
-/// detail of the cadastral map runs to tens of kilobytes and a province to
-/// around a megabyte, and a whole rulework may be 1 MB ([`MAX_YAML_SIZE`]).
-/// Four times that leaves room for any real boundary, while a text beyond it
-/// is refused before it is parsed, so reading it cannot be made to cost
-/// without bound.
+/// a register, a literal. The one real boundary measured here, the
+/// municipality of Putten at the detail the cadastral register gives it, is
+/// 2,185 points in 49 kB of text; a province will be many times that. A
+/// whole rulework may be 1 MB ([`MAX_YAML_SIZE`]), and four times that holds
+/// about 170,000 points written to the millimetre in the national grid.
+///
+/// The cap bounds the text that is parsed, which costs time in proportion to
+/// its length. It does not bound the validity check by itself; that has a
+/// limit of its own, [`MAX_SHAPE_CHECK_STEPS`].
 pub const MAX_SHAPE_TEXT_BYTES: usize = 4_000_000;
+
+/// Maximum number of steps the validity check of one shape may take.
+///
+/// A step is one comparison of two bounding boxes; a pair of segments that
+/// is held against each other counts for eight
+/// (see [`crate::shape_validity`]). The check finds the segments that lie
+/// near each other through a tree of boxes, so a boundary takes a number of
+/// steps that grows with n log n: measured, 41 per point for the boundary
+/// of Putten (2,185 points), and between 50 and 90 per point for generated
+/// boundaries of 8,000 to 500,000 points, smooth and jagged. The largest
+/// text that fits [`MAX_SHAPE_TEXT_BYTES`] with coordinates to the
+/// millimetre then takes about 15 million steps.
+///
+/// What runs into the limit is a shape in which many segments lie close to
+/// many others without touching: a thousand long narrow strips side by side
+/// that all lean the same way take 29 million steps, because the box of
+/// each strip covers its neighbours. Twice as many are refused. That is a
+/// real limit, and the price of a bound: without it such a text costs time
+/// with the square of its size. Fifty million steps take about a second and
+/// a half in an unoptimised build.
+pub const MAX_SHAPE_CHECK_STEPS: u64 = 50_000_000;
 
 /// Maximum depth of parentheses in the text of a shape.
 ///

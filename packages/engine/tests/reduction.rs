@@ -943,6 +943,14 @@ fn an_answerer_that_gives_no_answer_leaves_it_to_the_policy() {
             .iter()
             .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding)
     );
+    // The binding filled the term without the answer of a cell, and the
+    // trace names none.
+    let trace = result.trace.unwrap().render_box_drawing();
+    assert!(
+        trace.contains(&format!("implemented by {POLICY} article 2")),
+        "{trace}"
+    );
+    assert!(!trace.contains("with the answer of"), "{trace}");
     // Without a finding either, the policy's required term has no value.
     let e = granted_13a_with(&service, application(), &answerer).unwrap_err();
     assert!(e.to_string().contains(ONCE), "{e}");

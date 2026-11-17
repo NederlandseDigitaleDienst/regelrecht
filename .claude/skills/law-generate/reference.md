@@ -448,11 +448,13 @@ the text asks whether something lies in, on or within an area. The engine
 attaches no coordinate system to a shape, so both must be in the same one.
 
 Refused as no shape, and then an error and never `false`: text that is not
-WKT, a third dimension, an invalid geometry (a boundary that crosses itself),
-an empty geometry, a `GEOMETRYCOLLECTION`, a coordinate beyond 1e12, text
-after the geometry closes, a ring that does not end where it starts,
-parentheses nested deeper than three levels, and a text of more than
-4,000,000 bytes. A literal in a rulework is held to the same when it is
+WKT, a third dimension, an invalid geometry (a boundary that crosses or
+touches itself, rings that cross, a hole outside its polygon, polygons of a
+multipolygon that overlap), an empty geometry or one with an empty part, a
+`GEOMETRYCOLLECTION`, a coordinate beyond 1e12, text after the geometry
+closes, a ring that does not end where it starts, parentheses nested deeper
+than three levels, a text of more than 4,000,000 bytes, and a geometry that
+takes more than 50 million steps to check. A literal in a rulework is held to the same when it is
 validated, so copy an area exactly. Do not compare two shapes with `EQUALS`
 or `IN`: those compare the text, and the type check refuses them.
 
@@ -593,7 +595,9 @@ machine_readable:
   parameter, the code the candidate regulation carries, under the name of
   the field that carries it (`gemeente_code`, `provincie_code` or
   `waterschap_code`). So the article that gives the territory declares that
-  parameter. Where the territory is a fact in a register (the boundary of a
+  parameter, for the field of every regulation that fills the term: the type
+  check refuses a regulation with a `gemeente_code` when that article takes
+  only a `provincie_code`. Where the territory is a fact in a register (the boundary of a
   municipality, Kadasterwet art. 48), that article reads it as an input with
   `source: {}` and gives it as its output of type `shape`, like any register
   value. The type check refuses a `territory` whose output does not exist,
@@ -607,6 +611,15 @@ machine_readable:
   when none does and one fails, otherwise unknown when one is unknown,
   otherwise false. An implementing article that does not speak about the case
   gives `null`, so declare its output `nullable: true`; do not make it `false`.
+- A location can reach outside the territories of the regulations in scope.
+  For that part no regulation is known. With `combine: OR` the `default` of
+  the term counts as one more answer there, and a required term without a
+  default fails when no regulation gives true. Without `combine` the term is
+  refused as ambiguous, and so is a location in the territories of two codes
+  of one kind (two municipalities), whatever the dates of the regulations. A
+  province and a municipality are ranked by priority as before. Give a term that takes what holds in
+  each part `combine`, and give it a `default` when the text says what holds
+  where no regulation does.
 - `combine` does not go with `decided_per_case_by`.
 
 ## Hooks, Reactive Execution

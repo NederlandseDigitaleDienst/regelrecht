@@ -45,6 +45,7 @@ pub mod resolver;
 pub mod schema;
 pub mod service;
 mod shape;
+mod shape_validity;
 pub mod trace;
 pub mod typecheck;
 pub mod types;

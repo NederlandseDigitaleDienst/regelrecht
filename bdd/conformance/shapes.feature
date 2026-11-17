@@ -65,6 +65,22 @@ Feature: Shapes and OVERLAPS
     Then the execution fails with "subject of OVERLAPS"
     Then the execution fails with "is an empty geometry"
 
+  Scenario: An empty part of a shape is an error too
+    # The second polygon is there; the first is nowhere.
+    Given parameter "location" is "MULTIPOLYGON(EMPTY, ((155100 463610, 155110 463610, 155110 463620, 155100 463620, 155100 463610)))"
+    When I evaluate "ligt_in_beperkingengebied" of "test_shapes"
+    Then the execution fails
+    Then the execution fails with "has an empty part"
+
+  Scenario: A boundary that crosses itself is no shape
+    # A bow tie. The relation between two shapes is only defined for valid
+    # geometries.
+    Given parameter "location" is "POLYGON((155100 463610, 155110 463620, 155110 463610, 155100 463620, 155100 463610))"
+    When I evaluate "ligt_in_beperkingengebied" of "test_shapes"
+    Then the execution fails
+    Then the execution fails with "is not a valid geometry"
+    Then the execution fails with "crosses or touches itself"
+
   Scenario: A collection of geometries is no shape
     # A shape is a point, a line or a surface, or several of one kind.
     Given parameter "location" is "GEOMETRYCOLLECTION(POINT(155105 463625), LINESTRING(0 0, 1 1))"

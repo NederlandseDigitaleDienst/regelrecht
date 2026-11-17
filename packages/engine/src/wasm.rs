@@ -205,8 +205,9 @@ struct WasmExecuteResult {
     #[serde(skip_serializing_if = "Option::is_none")]
     regulation_valid_from: Option<String>,
     /// How each open term with a `location` or `combine: OR` was asked, in
-    /// the shape of [`ArticleResult::open_terms_asked`]: the place, the
-    /// territories it was held against and what every implementation gave.
+    /// the shape of [`ArticleResult::open_terms_asked`]: the place and
+    /// whether the regulations in scope cover it, the territories it was
+    /// held against and what every implementation gave.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     open_terms_asked: Vec<OpenTermAsked>,
 }

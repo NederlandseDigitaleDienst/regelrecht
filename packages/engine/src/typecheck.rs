@@ -86,12 +86,16 @@
 //!   another law: where the checker can consult that law, the output exists
 //!   and is a `shape`, and the article that gives it declares a parameter
 //!   for a territory code (`gemeente_code`, `provincie_code` or
-//!   `waterschap_code`), since that is what the engine asks it with. A law
-//!   it cannot consult is a matter for run time, as for `source.regulation`.
+//!   `waterschap_code`), since that is what the engine asks it with. A
+//!   regulation that carries such a code and fills a term with a `location`
+//!   is asked for under the name of its own field, so the article that
+//!   gives the territory declares a parameter of that name. A law the
+//!   checker cannot consult is a matter for run time, as for
+//!   `source.regulation`.
 
 use crate::article::{
     Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, CombineOp, Source,
-    foreach_binding,
+    foreach_binding, shares_territory, territory_code_fields, territory_codes,
 };
 use crate::types::{ParameterType, Value};
 use regelrecht_law_model::Column;
@@ -506,6 +510,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
         self.check_input_sources();
         self.check_implements();
         self.check_territories();
+        self.check_implemented_territories();
         let Some(actions) = self
             .article
             .get_execution_spec()
@@ -584,7 +589,6 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
     /// field that carries it, and an article that declares none of the three
     /// would give every candidate the same territory.
     fn check_territories(&mut self) {
-        const CODE_FIELDS: [&str; 3] = ["gemeente_code", "provincie_code", "waterschap_code"];
         for term in self.article.get_open_terms().into_iter().flatten() {
             let Some(territory) = &term.territory else {
                 continue;
@@ -622,7 +626,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             let asked_by_code = giving
                 .get_parameters()
                 .iter()
-                .any(|parameter| CODE_FIELDS.contains(&parameter.name.as_str()));
+                .any(|parameter| territory_code_fields().any(|field| field == parameter.name));
             if !asked_by_code {
                 self.report(
                     Rule::T5,
@@ -631,7 +635,68 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                          is asked with the code of a regulation under one of those names",
                         giving.number,
                         territory.regulation,
-                        CODE_FIELDS.join(", ")
+                        territory_code_fields().collect::<Vec<_>>().join(", ")
+                    ),
+                );
+            }
+        }
+    }
+
+    /// T5 for an article that fills a term with a `location` (schema
+    /// v0.8.23), in a regulation that carries a territory code. The engine
+    /// asks the territory of that regulation with its code, under the name
+    /// of the field that carries it, so the article that gives the
+    /// territory declares a parameter of that name: an article that takes a
+    /// `provincie_code` cannot say where a regulation with a
+    /// `gemeente_code` holds. Checked where the law that declares the term
+    /// and the law that gives the territory can both be consulted. A
+    /// regulation that applies wherever the declaring one does is not held
+    /// against a territory, and is not checked.
+    fn check_implemented_territories(&mut self) {
+        let Some(implements) = self.article.get_implements() else {
+            return;
+        };
+        for declaration in implements {
+            let Some(declarer) = self.law_named(&declaration.law) else {
+                continue;
+            };
+            let Some(term) = declarer
+                .find_article_by_number(&declaration.article)
+                .and_then(|article| article.get_open_terms())
+                .and_then(|terms| terms.iter().find(|t| t.id == declaration.open_term))
+            else {
+                continue;
+            };
+            let (Some(_), Some(territory)) = (&term.location, &term.territory) else {
+                continue;
+            };
+            if declarer.id == self.law.id || shares_territory(declarer, self.law) {
+                continue;
+            }
+            let Some(giving) = self
+                .law_named(&territory.regulation)
+                .and_then(|law| law.find_article_by_output(&territory.output))
+            else {
+                continue;
+            };
+            for (field, code) in territory_codes(self.law) {
+                if giving.get_parameters().iter().any(|p| p.name == field) {
+                    continue;
+                }
+                self.location = format!("implements '{}'", term.id);
+                self.report(
+                    Rule::T5,
+                    format!(
+                        "this regulation carries {field} '{code}' and fills '{}' of {} article \
+                         {}, whose territory is read from {}#{}; article {} of {} declares no \
+                         parameter {field}, so the territory of this regulation cannot be asked",
+                        term.id,
+                        declaration.law,
+                        declaration.article,
+                        territory.regulation,
+                        territory.output,
+                        giving.number,
+                        territory.regulation
                     ),
                 );
             }

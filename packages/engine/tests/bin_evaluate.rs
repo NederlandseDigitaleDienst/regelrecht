@@ -321,6 +321,7 @@ fn the_response_says_how_a_located_term_was_asked() {
     let asked = &resp["open_terms_asked"][0];
     assert_eq!(asked["term"], "verboden", "{}", run.stdout);
     assert_eq!(asked["location"], "POINT(5 5)");
+    assert_eq!(asked["location_covered"], true);
     let territory = &asked["territories"][0];
     assert_eq!(territory["law_id"], "test_bin_evaluate_plan");
     assert_eq!(territory["code"], "GM9901");

@@ -19,7 +19,8 @@
 //!   - law_id: String — the law ID that was evaluated
 //!   - law_uuid: Optional<String> — the law UUID if available
 //!   - open_terms_asked: Optional<Array> — how each open term with a `location`
-//!     or `combine: OR` was asked: the place, each territory test, each answer
+//!     or `combine: OR` was asked: the place and whether the regulations in
+//!     scope cover it, each territory test, each answer
 //!   - error: Optional<String> — error message if evaluation failed
 
 use regelrecht_engine::{

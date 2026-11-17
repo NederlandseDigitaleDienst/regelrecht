@@ -19,6 +19,7 @@
 //! The resolver enforces a maximum number of loaded laws (see [`crate::config::MAX_LOADED_LAWS`])
 //! to prevent memory exhaustion attacks.
 
+use crate::article::territory_codes;
 use crate::article::{
     Article, ArticleBasedLaw, HookFilter, HookPoint, LawLoad, OpenTerm, ProcedureDefinition,
 };
@@ -274,22 +275,25 @@ pub struct ImplementationLookup<'a> {
     /// `combine: OR` (schema v0.8.23) none wins: all of them, by law id and
     /// article number.
     pub implementations: Vec<(&'a ArticleBasedLaw, &'a Article)>,
-    /// Candidates refused by the delegation gate, in index order.
+    /// Candidates refused by the delegation gate, in index order; for a
+    /// term with a `location`, by regulation and article.
     pub refusals: Vec<DelegationRefusal>,
-    /// Candidates whose law has no version in force on the reference date, in
-    /// index order. Not competent for this date, and not silent about it.
+    /// Candidates whose law has no version in force on the reference date,
+    /// in the same order. Not competent for this date, and not silent about
+    /// it.
     pub not_in_force: Vec<DeclarationNotInForce>,
     /// For a term with a `location`: the Unknown of every competent
     /// candidate regulation whose territory is not known, once per
-    /// regulation. Such a candidate is neither in scope nor out of it, so it
-    /// is not among the implementations, and the term cannot be decided
-    /// against it.
+    /// regulation, by territory code and then by regulation. Such a
+    /// candidate is neither in scope nor out of it, so it is not among the
+    /// implementations, and the term cannot be decided against it.
     pub place_unknown: Vec<Value>,
     /// For a term with a `location` and `combine: OR`: why the territory of
     /// a competent candidate regulation could not be read, once per
-    /// regulation. Such a candidate is left out like one that fails when it
-    /// is asked: an implementation in scope that gives true still decides.
-    /// Without `combine` the first such failure fails the lookup.
+    /// regulation, by territory code and then by regulation. Such a
+    /// candidate is left out like one that fails when it is asked: an
+    /// implementation in scope that gives true still decides. Without
+    /// `combine` the first such failure fails the lookup.
     pub place_failed: Vec<String>,
 }
 
@@ -340,19 +344,6 @@ impl TermAsked<'_> {
             self.open_term.id, self.law_id, self.article
         )
     }
-}
-
-/// The codes of the territory `law` holds for, each with the name of the
-/// field that carries it: its `gemeente_code`, `provincie_code` and
-/// `waterschap_code`, where it carries them.
-fn territory_codes(law: &ArticleBasedLaw) -> impl Iterator<Item = (&'static str, &str)> {
-    [
-        ("gemeente_code", law.gemeente_code.as_deref()),
-        ("provincie_code", law.provincie_code.as_deref()),
-        ("waterschap_code", law.waterschap_code.as_deref()),
-    ]
-    .into_iter()
-    .filter_map(|(field, code)| code.map(|code| (field, code)))
 }
 
 /// Why no procedure definition was found (RFC-008).
@@ -585,16 +576,31 @@ fn references_law(law: &ArticleBasedLaw, law_id: &str) -> bool {
                         .and_then(|target| target.split_once('#'))
                         .is_some_and(|(regulation, _)| regulation == law_id)
             })
-        }) || article
+        })
+    }) || implements_term_of(law, law_id)
+        || reads_territory_from(law, law_id)
+}
+
+/// Whether an article of `law` implements an open term of `law_id`.
+fn implements_term_of(law: &ArticleBasedLaw, law_id: &str) -> bool {
+    law.articles.iter().any(|article| {
+        article
             .get_implements()
             .is_some_and(|implements| implements.iter().any(|i| i.law == law_id))
-            || article.get_open_terms().is_some_and(|terms| {
-                terms.iter().any(|term| {
-                    term.territory
-                        .as_ref()
-                        .is_some_and(|territory| territory.regulation == law_id)
-                })
+    })
+}
+
+/// Whether an open term of `law` reads its territory from `law_id` (schema
+/// v0.8.23).
+fn reads_territory_from(law: &ArticleBasedLaw, law_id: &str) -> bool {
+    law.articles.iter().any(|article| {
+        article.get_open_terms().is_some_and(|terms| {
+            terms.iter().any(|term| {
+                term.territory
+                    .as_ref()
+                    .is_some_and(|territory| territory.regulation == law_id)
             })
+        })
     })
 }
 
@@ -678,11 +684,23 @@ impl RuleResolver {
         // `source.regulation`, or an `implements` of one of its terms) could
         // not be held against it before; it is checked again now, and a
         // finding refuses this law and names the consumer.
-        let mut consumer_findings = Vec::new();
-        for consumer in self
+        // A regulation that fills a term whose territory is read from this
+        // law is held against it too (T5): it reads this law through the
+        // law that declares the term.
+        let territory_readers: BTreeSet<&str> = self
             .all_law_versions()
-            .filter(|consumer| consumer.id != law.id && references_law(consumer, &law.id))
-        {
+            .chain(std::iter::once(&law))
+            .filter(|reader| reads_territory_from(reader, &law.id))
+            .map(|reader| reader.id.as_str())
+            .collect();
+        let mut consumer_findings = Vec::new();
+        for consumer in self.all_law_versions().filter(|consumer| {
+            consumer.id != law.id
+                && (references_law(consumer, &law.id)
+                    || territory_readers
+                        .iter()
+                        .any(|reader| implements_term_of(consumer, reader)))
+        }) {
             consumer_findings.extend(crate::typecheck::check_law(consumer, &lookup));
         }
         if !consumer_findings.is_empty() {
@@ -1061,15 +1079,7 @@ impl RuleResolver {
     /// fields, and the same ones with the same values. Two national laws do
     /// not count; for them `matches_scope` already holds.
     fn shares_territory(a: &ArticleBasedLaw, b: &ArticleBasedLaw) -> bool {
-        let fields = |law: &ArticleBasedLaw| {
-            (
-                law.gemeente_code.clone(),
-                law.provincie_code.clone(),
-                law.waterschap_code.clone(),
-            )
-        };
-        let territory = fields(a);
-        territory != (None, None, None) && territory == fields(b)
+        crate::article::shares_territory(a, b)
     }
 
     /// Find all implementations of an open term, resolved by priority.
@@ -1081,37 +1091,9 @@ impl RuleResolver {
     /// is considered national and always matches. A law with scope fields only
     /// matches if every scope field has a matching value in the execution scope.
     fn matches_scope(law: &ArticleBasedLaw, scope: &HashMap<String, Value>) -> bool {
-        if let Some(ref law_gemeente) = law.gemeente_code {
-            let scope_value = scope.get("gemeente_code").and_then(|v| match v {
-                Value::String(s) => Some(s.as_str()),
-                _ => None,
-            });
-            match scope_value {
-                Some(sg) if sg == law_gemeente => {}
-                _ => return false,
-            }
-        }
-        if let Some(ref law_provincie) = law.provincie_code {
-            let scope_value = scope.get("provincie_code").and_then(|v| match v {
-                Value::String(s) => Some(s.as_str()),
-                _ => None,
-            });
-            match scope_value {
-                Some(sp) if sp == law_provincie => {}
-                _ => return false,
-            }
-        }
-        if let Some(ref law_waterschap) = law.waterschap_code {
-            let scope_value = scope.get("waterschap_code").and_then(|v| match v {
-                Value::String(s) => Some(s.as_str()),
-                _ => None,
-            });
-            match scope_value {
-                Some(sw) if sw == law_waterschap => {}
-                _ => return false,
-            }
-        }
-        true
+        territory_codes(law).all(
+            |(field, code)| matches!(scope.get(field), Some(Value::String(given)) if given == code),
+        )
     }
 
     /// Whether `law` may fill an open term that requires `delegation_type`.
@@ -1267,8 +1249,24 @@ impl RuleResolver {
         // against it once, however many of its articles fill the term.
         let located = open_term.location.is_some();
         let mut in_place: BTreeMap<&str, bool> = BTreeMap::new();
+        // The candidates that could not be placed, each under its territory
+        // code and its id: what the lookup reports of them, and which
+        // failure is raised, then does not depend on the order the laws
+        // were loaded in.
+        let mut not_known: BTreeMap<(String, &str), Value> = BTreeMap::new();
+        let mut failed: BTreeMap<(String, &str), String> = BTreeMap::new();
 
-        for entry in entries {
+        // The candidates of a term with a `location` are held against the
+        // place by regulation and article, so which is asked first, and
+        // with it the trace and the wording of a failure, does not depend on
+        // the order the laws were loaded in.
+        let mut ordered: Vec<&LawArticleRef> = entries.iter().collect();
+        if located {
+            ordered.sort_by(|a, b| {
+                (&a.law_id, &a.article_number).cmp(&(&b.law_id, &b.article_number))
+            });
+        }
+        for entry in ordered {
             let Some(law) = self.candidate_in_force(&asked, entry, &mut lookup) else {
                 continue;
             };
@@ -1291,21 +1289,21 @@ impl RuleResolver {
                 if !in_place.contains_key(law.id.as_str()) {
                     let placed =
                         Self::candidate_in_place(&asked, declarer, law, place.as_deref_mut())?;
+                    let code = || {
+                        let code = territory_codes(law).next().map(|(_, code)| code);
+                        (code.unwrap_or_default().to_string(), law.id.as_str())
+                    };
                     let here = match placed {
                         Placed::Here => true,
                         Placed::Elsewhere => false,
                         Placed::NotKnown(unknown) => {
-                            lookup.place_unknown.push(unknown);
+                            not_known.insert(code(), unknown);
                             false
                         }
-                        // One regulation has to win without `combine`, and
-                        // this one may be it; with `combine: OR` it is one
-                        // voice among several that cannot be heard.
-                        Placed::Failed(why) if open_term.combines_with_or() => {
-                            lookup.place_failed.push(why);
+                        Placed::Failed(why) => {
+                            failed.insert(code(), why);
                             false
                         }
-                        Placed::Failed(why) => return Err(EngineError::ResolutionError(why)),
                     };
                     in_place.insert(law.id.as_str(), here);
                 }
@@ -1320,8 +1318,18 @@ impl RuleResolver {
             }
             lookup.implementations.push((law, implementing));
         }
+        lookup.place_unknown = not_known.into_values().collect();
+        lookup.place_failed = failed.into_values().collect();
+        // One regulation has to win without `combine`, and one whose
+        // territory cannot be read may be it; with `combine: OR` it is one
+        // voice among several that cannot be heard.
+        if !open_term.combines_with_or()
+            && let Some(why) = lookup.place_failed.first()
+        {
+            return Err(EngineError::ResolutionError(why.clone()));
+        }
 
-        Self::order_implementations(open_term, &mut lookup)?;
+        Self::order_implementations(&asked, &mut lookup)?;
         Ok(lookup)
     }
 
@@ -1533,14 +1541,22 @@ impl RuleResolver {
     /// laws happened to be loaded in. Otherwise priority picks the winner
     /// (lex superior, then lex posterior) and it comes first.
     ///
+    /// Priority ranks regulations that hold for the same place. For a term
+    /// with a `location` and no `combine`, regulations of different
+    /// territories are not each other's higher or later law, so two of them
+    /// in scope are refused whatever their layers and dates
+    /// ([`Self::refuse_several_territories`]).
+    ///
     /// # Errors
     ///
     /// Without `combine`, when two candidates of one layer and date leave no
-    /// winner.
+    /// winner, and for a term with a `location` when the candidates in scope
+    /// carry different territory codes of one kind.
     fn order_implementations(
-        open_term: &OpenTerm,
+        asked: &TermAsked<'_>,
         lookup: &mut ImplementationLookup<'_>,
     ) -> Result<()> {
+        let open_term = asked.open_term;
         if lookup.implementations.is_empty() {
             return Ok(());
         }
@@ -1549,6 +1565,9 @@ impl RuleResolver {
                 (a_law.id.as_str(), a.number.as_str()).cmp(&(b_law.id.as_str(), b.number.as_str()))
             });
             return Ok(());
+        }
+        if open_term.location.is_some() {
+            Self::refuse_several_territories(asked, lookup)?;
         }
         let candidates: Vec<Candidate> = lookup
             .implementations
@@ -1576,6 +1595,49 @@ impl RuleResolver {
             }
         }
         Ok(())
+    }
+
+    /// Refuse a term with a `location` and no `combine` whose location lies
+    /// in the territories of several codes of one kind, such as two
+    /// municipalities: the term takes the rule of one regulation, and which
+    /// of two municipalities that is, is not a matter of which plan is the
+    /// newer one. Regulations of one code are left to priority. So are
+    /// regulations with codes of different kinds, a province and a
+    /// municipality in it, which always lie over each other and are ranked
+    /// by their layer, and a regulation without a code.
+    fn refuse_several_territories(
+        asked: &TermAsked<'_>,
+        lookup: &ImplementationLookup<'_>,
+    ) -> Result<()> {
+        let mut by_code: BTreeMap<(&str, &str), &str> = BTreeMap::new();
+        for (law, _) in &lookup.implementations {
+            for code in territory_codes(law) {
+                by_code.entry(code).or_insert(law.id.as_str());
+            }
+        }
+        let of_kind = |kind: &str| by_code.keys().filter(|(field, _)| *field == kind).count();
+        let Some(kind) = by_code
+            .keys()
+            .map(|(field, _)| *field)
+            .find(|field| of_kind(field) > 1)
+        else {
+            return Ok(());
+        };
+        let territories: Vec<String> = by_code
+            .iter()
+            .filter(|((field, _), _)| *field == kind)
+            .map(|((_, code), law_id)| format!("{code} ({law_id})"))
+            .collect();
+        Err(EngineError::ResolutionError(format!(
+            "Ambiguous: open term '{}' on {}#{} takes the regulation of the place, and its \
+             location lies in more than one territory: {}. Two regulations with a {kind} are \
+             not ranked against each other; a term that takes what each of them says declares \
+             `combine`",
+            asked.open_term.id,
+            asked.law_id,
+            asked.article,
+            territories.join(", ")
+        )))
     }
 
     /// Get the number of entries in the implements index.
@@ -5546,6 +5608,13 @@ articles:
         );
     }
 
+    /// What a term without `combine` says when its location lies in the
+    /// territories of both plans.
+    const TWO_TERRITORIES: &str = "Ambiguous: open term 'verboden' on plaatswet#1 takes the \
+         regulation of the place, and its location lies in more than one territory: GM0001 \
+         (plan_links), GM0002 (plan_rechts). Two regulations with a gemeente_code are not \
+         ranked against each other";
+
     #[test]
     fn test_find_implementations_without_combine_two_territories_are_ambiguous() {
         let resolver = place_resolver(LOCATED, None);
@@ -5553,7 +5622,113 @@ articles:
         let err = lookup_at(&resolver, &mut both, &HashMap::new())
             .unwrap_err()
             .to_string();
-        assert!(err.contains("Ambiguous priority"), "{err}");
+        assert!(err.contains(TWO_TERRITORIES), "{err}");
+    }
+
+    #[test]
+    fn test_find_implementations_two_territories_are_ambiguous_whatever_their_dates() {
+        // Two municipalities are not each other's later law: the newer plan
+        // does not win, whichever of the two it is.
+        for (newer, older) in [("plan_links", "plan_rechts"), ("plan_rechts", "plan_links")] {
+            let mut resolver = place_resolver(LOCATED, None);
+            let code = if newer == "plan_links" {
+                "GM0001"
+            } else {
+                "GM0002"
+            };
+            let later = place_plan(newer, &format!("gemeente_code: '{code}'"))
+                .replace("valid_from: '2025-01-01'", "valid_from: '2025-03-01'");
+            resolver.load_from_yaml(&later).unwrap();
+            let mut both = TestPlace::at(&["GM0001", "GM0002"]);
+            let err = lookup_at(&resolver, &mut both, &HashMap::new())
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains(TWO_TERRITORIES), "{newer} over {older}: {err}");
+        }
+    }
+
+    #[test]
+    fn test_find_implementations_priority_still_ranks_regulations_of_one_territory() {
+        // A later plan of the same municipality wins, as before; so does a
+        // plan next to a regulation that carries no code.
+        let later = place_plan("plan_links_nieuw", "gemeente_code: 'GM0001'")
+            .replace("valid_from: '2025-01-01'", "valid_from: '2025-03-01'");
+        let resolver = place_resolver(LOCATED, Some(&later));
+        let mut left = TestPlace::at(&["GM0001"]);
+        assert_eq!(
+            found(&lookup_at(&resolver, &mut left, &HashMap::new()).unwrap()),
+            ["plan_links_nieuw", "plan_links"]
+        );
+
+        let national = place_plan("landelijk_plan", "")
+            .replace("valid_from: '2025-01-01'", "valid_from: '2025-03-01'");
+        let resolver = place_resolver(LOCATED, Some(&national));
+        let mut left = TestPlace::at(&["GM0001"]);
+        assert_eq!(
+            found(&lookup_at(&resolver, &mut left, &HashMap::new()).unwrap())[0],
+            "landelijk_plan"
+        );
+    }
+
+    #[test]
+    fn test_find_implementations_a_province_and_a_municipality_are_ranked_by_priority() {
+        // A province and a municipality in it always lie over each other.
+        // Their codes are of different kinds, so the two are no ambiguity:
+        // priority picks one, as it did. The term delegates to one layer,
+        // so here the later of the two wins.
+        let province = place_plan("plan_provincie", "provincie_code: 'PV27'")
+            .replace("valid_from: '2025-01-01'", "valid_from: '2025-03-01'");
+        let resolver = place_resolver(LOCATED, Some(&province));
+        let mut both = TestPlace::at(&["GM0001", "PV27"]);
+        let lookup = lookup_at(&resolver, &mut both, &HashMap::new());
+        assert_eq!(found(&lookup.unwrap()), ["plan_provincie", "plan_links"]);
+        // Two municipalities next to the province are still refused.
+        let mut all = TestPlace::at(&["GM0001", "GM0002", "PV27"]);
+        let err = lookup_at(&resolver, &mut all, &HashMap::new())
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains(TWO_TERRITORIES), "{err}");
+    }
+
+    #[test]
+    fn test_find_implementations_what_could_not_be_placed_does_not_follow_load_order() {
+        // Both plans fail the place test. Whichever is loaded first, the
+        // failures come by territory code, and without `combine` the one of
+        // the lowest code is raised.
+        let fail = |code: &str| Placed::Failed(format!("the territory of '{code}' cannot be read"));
+        for term in [LOCATED_AND_COMBINED, LOCATED] {
+            for order in [["plan_links", "plan_rechts"], ["plan_rechts", "plan_links"]] {
+                let law = place_resolver(term, None);
+                let mut resolver = RuleResolver::new();
+                resolver
+                    .load_law(law.get_law("plaatswet").unwrap().clone())
+                    .unwrap();
+                for id in order {
+                    resolver.load_law(law.get_law(id).unwrap().clone()).unwrap();
+                }
+                let looked = resolver.find_implementations_at(
+                    "plaatswet",
+                    "1",
+                    open_term(&resolver, "plaatswet", "1", "verboden"),
+                    None,
+                    &HashMap::new(),
+                    Some(&mut |_, _, code| Ok(fail(code))),
+                );
+                if term == LOCATED {
+                    let err = looked.unwrap_err().to_string();
+                    assert!(err.contains("'GM0001' cannot be read"), "{order:?}: {err}");
+                } else {
+                    assert_eq!(
+                        looked.unwrap().place_failed,
+                        [
+                            "the territory of 'GM0001' cannot be read",
+                            "the territory of 'GM0002' cannot be read"
+                        ],
+                        "{order:?}"
+                    );
+                }
+            }
+        }
     }
 
     #[test]

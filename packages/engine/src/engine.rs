@@ -131,11 +131,27 @@ pub struct OpenTermAsked {
     /// with a territory code, held against the location.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub territories: Vec<TerritoryTest>,
+    /// For a term with a `location`, when the territory of every candidate
+    /// regulation was read: whether the location is covered, that is,
+    /// whether no part of it lies outside the territories of the
+    /// regulations in scope taken together. A regulation in scope that is
+    /// not held against a territory holds everywhere and covers any
+    /// location. Absent when a territory is unknown or could not be read:
+    /// what such a territory covers is not known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location_covered: Option<bool>,
     /// Every implementation that was asked, in the order it was asked, and
     /// what it gave. With `combine: OR` that is every implementation in
-    /// scope; without it, the ones asked until one filled the term.
+    /// scope; without it, the ones asked until one filled the term or
+    /// failed.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub answers: Vec<ImplementationAnswer>,
+    /// For a term with `combine: OR` whose location is not covered: what
+    /// the default of the term gave for the part of the location that lies
+    /// in no territory of a regulation in scope. It counts as one more
+    /// answer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<ImplementationGave>,
 }
 
 /// One candidate regulation held against the location of a case, for an open
@@ -153,7 +169,8 @@ pub struct TerritoryTest {
     /// The candidate regulation.
     pub law_id: String,
     /// The territory code it carries (`gemeente_code`, `provincie_code` or
-    /// `waterschap_code`).
+    /// `waterschap_code`). The tests of a term come by this code, and then
+    /// by the regulation.
     pub code: String,
     /// Where the territory of that code was read: `<regulation>#<output>`,
     /// as the term's `territory` names it.
@@ -197,7 +214,7 @@ pub enum ImplementationGave {
     Untranslatable,
     /// It gave this value, for a term that is no boolean: the value as the
     /// trace writes it.
-    Value { value: String },
+    Value(String),
     /// It failed, or gave something that is no boolean. Where another
     /// implementation gave true the term is true all the same, and this is
     /// where the failure is kept.
@@ -216,14 +233,12 @@ impl ImplementationGave {
                 missing: missing.iter().map(|fact| fact.name.clone()).collect(),
             },
             Value::Untranslatable { .. } => ImplementationGave::Untranslatable,
-            other => ImplementationGave::Value {
-                value: other.to_string(),
-            },
+            other => ImplementationGave::Value(other.to_string()),
         }
     }
 
     /// The answer in a few words, for a trace message.
-    fn describe(&self) -> String {
+    pub(crate) fn describe(&self) -> String {
         match self {
             ImplementationGave::True => "gave true".to_string(),
             ImplementationGave::False => "gave false".to_string(),
@@ -232,7 +247,7 @@ impl ImplementationGave {
                 format!("cannot say for lack of {}", missing.join(", "))
             }
             ImplementationGave::Untranslatable => "is untranslatable".to_string(),
-            ImplementationGave::Value { value } => format!("gave {value}"),
+            ImplementationGave::Value(value) => format!("gave {value}"),
             ImplementationGave::Failed { error } => format!("failed: {error}"),
         }
     }
@@ -320,8 +335,11 @@ pub struct ArticleResult {
     /// the output it fills in reads it with the finding in its place.
     pub open_terms: Vec<OpenTermFilled>,
     /// How each open term with a `location` or `combine: OR` was asked in
-    /// this execution: the place, the territories it was held against and
-    /// what every implementation gave. Populated by the service layer,
+    /// this execution: the place and whether the regulations in scope cover
+    /// it, the territories it was held against and what every
+    /// implementation gave. Also for a term that failed inside an
+    /// implementation whose failure another term took as an answer.
+    /// Populated by the service layer,
     /// independently of tracing, so it reaches the receipt.
     pub open_terms_asked: Vec<OpenTermAsked>,
     /// Every regulation version whose articles ran in this execution,

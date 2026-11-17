@@ -30,6 +30,40 @@ pub use regelrecht_law_model::{
     Temporal, TypeSpec, UntranslatableEntry, foreach_binding,
 };
 
+/// Reads one territory code of a law.
+type TerritoryCodeOf = for<'l> fn(&'l ArticleBasedLaw) -> Option<&'l str>;
+
+/// The fields of a regulation that carry the code of the territory it holds
+/// for, each with how it is read. This is the one list of them: the scope of
+/// a regulation, the parameter its territory is asked with and the check on
+/// the article that gives a territory all go by it.
+const TERRITORY_CODES: [(&str, TerritoryCodeOf); 3] = [
+    ("gemeente_code", |law| law.gemeente_code.as_deref()),
+    ("provincie_code", |law| law.provincie_code.as_deref()),
+    ("waterschap_code", |law| law.waterschap_code.as_deref()),
+];
+
+/// The names of the fields that carry a territory code.
+pub(crate) fn territory_code_fields() -> impl Iterator<Item = &'static str> {
+    TERRITORY_CODES.iter().map(|(field, _)| *field)
+}
+
+/// The codes of the territory `law` holds for, each with the name of the
+/// field that carries it.
+pub(crate) fn territory_codes(law: &ArticleBasedLaw) -> impl Iterator<Item = (&'static str, &str)> {
+    TERRITORY_CODES
+        .iter()
+        .filter_map(move |(field, code_of)| code_of(law).map(|code| (*field, code)))
+}
+
+/// Whether two scoped laws hold for the same territory: both carry a
+/// territory code, and the same ones with the same values. Two national
+/// laws do not count.
+pub(crate) fn shares_territory(a: &ArticleBasedLaw, b: &ArticleBasedLaw) -> bool {
+    let mut codes = territory_codes(a).peekable();
+    codes.peek().is_some() && codes.eq(territory_codes(b))
+}
+
 /// Engine-side loading of an [`ArticleBasedLaw`] from YAML, with the security
 /// limits and RFC-013 schema-version / provenance checks applied.
 ///
