@@ -471,3 +471,53 @@ fn a_fact_that_cannot_be_absent_is_waited_for() {
     assert!(after.made_known);
     assert_eq!(after.outputs["termijn_einde"], json!("2026-11-12"));
 }
+
+#[test]
+fn two_facts_cannot_hold_one_parameter() {
+    // Article 1, at the announcement too, says its own fact holds the day.
+    let procedure = PROCEDURE.replace(
+        "          applies_to: {legal_character: BESCHIKKING, stage: BEKENDMAKING}\n      execution:\n        parameters:\n          - {name: bekendmaking_datum, type: date}\n",
+        "          applies_to: {legal_character: BESCHIKKING, stage: BEKENDMAKING}\n      requires:\n        - fact: uitgereikt\n          parameters: [bekendmaking_datum]\n      execution:\n        parameters:\n          - {name: bekendmaking_datum, type: date}\n",
+    );
+    assert_ne!(procedure, PROCEDURE);
+    let service = service_of(&[&procedure, VERLOF, BEZWAAR]);
+    let e = decision::derive(&service, VERLOF_LAW, "1", day("2026-10-01")).unwrap_err();
+    assert!(
+        matches!(&e, Error::Setup(m) if m.contains("held by two facts")),
+        "{e}"
+    );
+}
+
+#[test]
+fn a_fact_of_an_article_that_takes_the_decision_holds_nothing_of_it() {
+    // Article 4, a hook at BESLUIT, says a fact holds who signed: that fact
+    // is no announcement, so the authority still gives it.
+    let procedure = PROCEDURE.replace(
+        "          applies_to: {legal_character: BESCHIKKING, stage: BESLUIT}\n      execution:",
+        "          applies_to: {legal_character: BESCHIKKING, stage: BESLUIT}\n      requires:\n        - fact: ondertekend\n          parameters: [ondertekend_door]\n      execution:",
+    );
+    assert_ne!(procedure, PROCEDURE);
+    let service = service_of(&[&procedure, VERLOF, BEZWAAR]);
+    let shape = decision::derive(&service, VERLOF_LAW, "1", day("2026-10-01")).unwrap();
+    assert_eq!(
+        shape.input("ondertekend_door").map(|i| &i.source),
+        Some(&Source::Supplied)
+    );
+}
+
+#[test]
+fn an_article_hooked_twice_on_the_announcement_holds_its_parameter_once() {
+    let procedure = PROCEDURE.replace(
+        "          applies_to: {legal_character: BESCHIKKING, stage: BEKENDMAKING}\n      requires:\n        - fact: toegezonden",
+        "          applies_to: {legal_character: BESCHIKKING, stage: BEKENDMAKING}\n        - hook_point: pre_actions\n          applies_to: {legal_character: BESCHIKKING, stage: BEKENDMAKING}\n      requires:\n        - fact: toegezonden",
+    );
+    assert_ne!(procedure, PROCEDURE);
+    let service = service_of(&[&procedure, VERLOF, BEZWAAR]);
+    let shape = decision::derive(&service, VERLOF_LAW, "1", day("2026-10-01")).unwrap();
+    assert_eq!(
+        shape.input("bekendmaking_datum").map(|i| &i.source),
+        Some(&Source::Fact {
+            fact: SENT.to_string()
+        })
+    );
+}

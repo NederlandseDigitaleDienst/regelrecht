@@ -310,6 +310,11 @@ impl Cell {
         self.chronicle.grams()
     }
 
+    /// The chronolexogram `id` of this chronicle, if there is one.
+    fn gram_by_id(&self, id: &str) -> Option<&Gram> {
+        self.grams().iter().find(|g| g.id == id)
+    }
+
     /// A copy of this cell with its chronicle in memory, to try a decision
     /// on: what is recorded in the copy is not kept in this cell or its file.
     pub fn sandbox(&self) -> Self {
@@ -397,7 +402,12 @@ impl Cell {
                 decisions.join(", ")
             )));
         }
-        let local = matches!(reference, Some(Reference::Local(_)));
+        // What the announcement of a decision of this cell gives, it derives;
+        // a copy of another cell's decision holds what that cell stored.
+        let local = match reference {
+            Some(Reference::Local(id)) => Some(id),
+            _ => None,
+        };
         let (referred, mut filled, id) = match reference {
             None => return Ok((Filled::default(), decisions)),
             Some(Reference::Local(id)) => {
@@ -442,17 +452,19 @@ impl Cell {
             let held = referred.held(&field.name).cloned();
             let held = match held {
                 Some(value) => Some(value),
-                None if local && gives.contains(&field.name) => {
-                    if announced.is_none() {
-                        announced = Some(
-                            self.announcement(service, sphere, id, on)?
-                                .map(|a| a.outputs)
-                                .unwrap_or_default(),
-                        );
+                None => match local.filter(|_| gives.contains(&field.name)) {
+                    Some(local) => {
+                        if announced.is_none() {
+                            announced = Some(
+                                self.announcement(service, sphere, local, on)?
+                                    .map(|a| a.outputs)
+                                    .unwrap_or_default(),
+                            );
+                        }
+                        announced.as_ref().and_then(|a| a.get(&field.name)).cloned()
                     }
-                    announced.as_ref().and_then(|a| a.get(&field.name)).cloned()
-                }
-                None => None,
+                    None => None,
+                },
             };
             if let Some(value) = held.as_ref() {
                 // Coupled by name, so checked as a supplied value is: the
@@ -1251,12 +1263,7 @@ impl Cell {
         // replaces, where it may take one in turn.
         let replaces = decision_outputs(service, &shape.law_id, &shape.article, gram.recorded_on);
         let call = Answerers::new(&reader, &others)
-            .deciding_for(
-                submission
-                    .as_ref()
-                    .filter(|_| !replaces.is_empty())
-                    .and_then(|s| decides_for(s, sphere)),
-            )
+            .deciding_for(decides_for(submission.as_ref(), &replaces, sphere))
             .call(findings);
         let result = service.execute_stage_in(
             &shape.law_id,
@@ -1296,7 +1303,7 @@ impl Cell {
         let submission = gram
             .refers_to
             .as_deref()
-            .and_then(|r| self.grams().iter().find(|g| g.id == r))
+            .and_then(|r| self.gram_by_id(r))
             .filter(|g| is_submission(service, g))
             .cloned();
         let shape = match &submission {
@@ -1354,7 +1361,7 @@ impl Cell {
         // submission refers to reads the chronicle without that one.
         let except = applied
             .as_ref()
-            .and_then(|a| self.grams().iter().find(|g| g.id == a.id))
+            .and_then(|a| self.gram_by_id(&a.id))
             .and_then(|g| g.refers_to.clone())
             .filter(|_| !replaces.is_empty());
         // Taken again, the decision sets aside every earlier one on it.
@@ -1377,12 +1384,11 @@ impl Cell {
         let others = known_on(sphere, on);
         // Only a decision that may take one in the place of the contested
         // one is taken for another authority.
-        let answerers = Answerers::new(&reader, &others).deciding_for(
-            applied
-                .as_ref()
-                .filter(|_| !replaces.is_empty())
-                .and_then(|a| decides_for(a, sphere)),
-        );
+        let answerers = Answerers::new(&reader, &others).deciding_for(decides_for(
+            applied.as_ref(),
+            &replaces,
+            sphere,
+        ));
         if let Some(name) = supplied
             .keys()
             .find(|name| is_finding(&shape, name, &self.authority))
@@ -1872,11 +1878,7 @@ impl Cell {
         let outputs: Vec<&str> = shape.outputs.iter().map(String::as_str).collect();
         let date = on.to_string();
         let call = Answerers::new(&reader, &others)
-            .deciding_for(
-                Some(&submission)
-                    .filter(|_| !replaces.is_empty())
-                    .and_then(|s| decides_for(s, sphere)),
-            )
+            .deciding_for(decides_for(Some(&submission), &replaces, sphere))
             .call(findings);
         let result =
             service.evaluate_law_with_trace_in(law_id, &outputs, parameters, call, &date)?;
@@ -2394,11 +2396,19 @@ impl<'r> Answerers<'r> {
 /// appeal does (RFC-053), the authority of that cell. A court that decides
 /// the case itself takes that authority's decision in its place (Awb 8:72
 /// lid 3 onder b), with that authority's policy, and so with its ground to
-/// use what other cells answer. The caller asks it only for a decision that
-/// may take one in the place of another. `None` for any other submission,
+/// use what other cells answer. Only for a decision that may take one in
+/// the place of another: one whose article has outputs of type decision
+/// (`replaces`). `None` for any other decision or submission, without one,
 /// and where the cell that took the contested decision is not in `sphere`.
-fn decides_for<'c>(submission: &Gram, sphere: &[&'c Cell]) -> Option<&'c Authority> {
-    let from = &submission.received.as_ref()?.from;
+fn decides_for<'c>(
+    submission: Option<&Gram>,
+    replaces: &[String],
+    sphere: &[&'c Cell],
+) -> Option<&'c Authority> {
+    if replaces.is_empty() {
+        return None;
+    }
+    let from = &submission?.received.as_ref()?.from;
     sphere
         .iter()
         .find(|cell| &cell.recording_actor == from)
