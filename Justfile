@@ -378,6 +378,11 @@ bdd-chrono:
     export REGULATION_PATH
     cd packages/engine && {{ci_flags}} BDD_BUCKET=corpus cargo test --test bdd -- --nocapture
 
+# Bucket A over the case of location-bound rules (RFC-057): real law with
+# fixed facts, so red here is a real error.
+bdd-plaatsgebonden:
+    cd packages/engine && {{ci_flags}} BDD_BUCKET=corpus REGULATION_PATH="$(pwd)/../../corpus-poc/plaatsgebonden-regels/regulation" cargo test --test bdd -- --nocapture
+
 # Start the demo and open it. One command for anyone who just wants to see it:
 # it builds the engine to WASM, starts Vite and opens the browser on the
 # presentation. Stop it with ctrl-c.

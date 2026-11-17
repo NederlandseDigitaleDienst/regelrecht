@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
 $id: omgevingswet
 regulatory_layer: WET
 publication_date: '2016-04-26'
@@ -7,36 +7,35 @@ valid_from: '2024-01-01'
 bwb_id: BWBR0037885
 url: https://wetten.overheid.nl/BWBR0037885
 
-# REAL. Texts as on wetten.overheid.nl, read on 2026-11-17. Modelled: article
-# 5.1 lid 1 under a, article 5.3, and three definitions from the annex.
+# REAL. Texts as on wetten.overheid.nl, read on 2026-11-17. Not checked:
+# since when the text reads so; `valid_from` is the date the law took effect.
 #
-# The bans sit in this law. A decentral rulework only fills what the law
+# Modelled: article 5.1 lid 1 under a, and the definitions of
+# omgevingsplanactiviteit and buitenplanse omgevingsplanactiviteit from the
+# annex. The ban sits in this law. The omgevingsplan only fills what the law
 # leaves open: for which activity the plan requires a permit, and which
 # activity conflicts with the plan.
 #
-# NOT modelled, so nothing here answers for it:
-#   - article 5.1 lid 1 under b to g, and lid 2 (among them the technical
-#     bouwactiviteit);
-#   - article 5.4 (omgevingsverordening);
-#   - the exemptions an algemene maatregel van bestuur gives under article
-#     5.1 lid 1 for other activities than building.
+# NOT modelled, so nothing here answers for it: article 5.1 lid 1 under b to
+# g and lid 2 (among them the technical bouwactiviteit), and articles 5.3
+# and 5.4.
 #
-# PROPOSED, not in the schema: `combine` on an open term. The definition of
-# omgevingsplanactiviteit speaks of an activity "waarvoor in het omgevingsplan
-# is bepaald dat ...". A plan says such things article by article, so the term
-# holds when any article of the plan says so. Without `combine` a term takes
-# one filler, as it does today.
+# The two terms of the annex name the location and combine with OR. The plan
+# of the municipality the location lies in is asked, article by article, and
+# a term holds when one article says so. They have no default: where no plan
+# is loaded for that place, the engine cannot resolve them and says so. It
+# does not read a missing plan as a plan that forbids nothing.
 
 articles:
   - number: Bijlage onder A
     text: |
-      bouwactiviteit: activiteit inhoudende het bouwen van een bouwwerk;
-
       buitenplanse omgevingsplanactiviteit: activiteit, inhoudende:
       a. een activiteit waarvoor in het omgevingsplan is bepaald dat het is
       verboden deze zonder omgevingsvergunning te verrichten en die in strijd
       is met het omgevingsplan, of
       b. een andere activiteit die in strijd is met het omgevingsplan;
+
+      [...]
 
       omgevingsplanactiviteit: activiteit, inhoudende:
       a. een activiteit waarvoor in het omgevingsplan is bepaald dat het is
@@ -52,33 +51,27 @@ articles:
       open_terms:
         - id: omgevingsplan_verbiedt_zonder_vergunning
           type: boolean
-          required: false
+          required: true
           delegated_to: gemeenteraad
           delegation_type: GEMEENTELIJKE_VERORDENING
+          location: $location
           combine: OR
           legal_basis: bijlage onder A (omgevingsplanactiviteit, onder a en b) Omgevingswet
-          default:
-            actions:
-              - output: omgevingsplan_verbiedt_zonder_vergunning
-                value: false
         - id: activiteit_in_strijd_met_omgevingsplan
           type: boolean
-          required: false
+          required: true
           delegated_to: gemeenteraad
           delegation_type: GEMEENTELIJKE_VERORDENING
+          location: $location
           combine: OR
           legal_basis: bijlage onder A (omgevingsplanactiviteit, onder b en c) Omgevingswet
-          default:
-            actions:
-              - output: activiteit_in_strijd_met_omgevingsplan
-                value: false
 
       execution:
         parameters:
-          - name: activiteit
-            type: string
+          - name: location
+            type: shape
             required: true
-            description: The activity, in the terms of this law (such as bouwactiviteit)
+            description: Where the activity takes place
         output:
           - name: omgevingsplanactiviteit
             type: boolean
@@ -111,6 +104,8 @@ articles:
       f. een jachtgeweeractiviteit,
       g. een valkeniersactiviteit,
       tenzij het gaat om een bij algemene maatregel van bestuur aangewezen geval.
+
+      [lid 2: niet overgenomen]
     url: https://wetten.overheid.nl/BWBR0037885#Hoofdstuk5_Afdeling5.1_Paragraaf5.1.1_Artikel5.1
 
     machine_readable:
@@ -144,37 +139,3 @@ articles:
                 - $omgevingsplanactiviteit
                 - operation: NOT
                   value: $bij_amvb_aangewezen_geval
-
-  - number: '5.3'
-    text: |
-      Het is verboden zonder omgevingsvergunning een activiteit te verrichten
-      wanneer dat in de waterschapsverordening is bepaald.
-    url: https://wetten.overheid.nl/BWBR0037885#Hoofdstuk5_Afdeling5.1_Paragraaf5.1.1_Artikel5.3
-
-    machine_readable:
-      open_terms:
-        - id: waterschapsverordening_verbiedt_zonder_vergunning
-          type: boolean
-          required: false
-          delegated_to: algemeen bestuur van het waterschap
-          delegation_type: WATERSCHAPS_VERORDENING
-          combine: OR
-          legal_basis: artikel 5.3 Omgevingswet
-          default:
-            actions:
-              - output: waterschapsverordening_verbiedt_zonder_vergunning
-                value: false
-
-      execution:
-        parameters:
-          - name: activiteit
-            type: string
-            required: true
-            description: The activity, in the terms of this law (such as bouwactiviteit)
-        output:
-          - name: vergunningplicht_waterschapsverordening
-            type: boolean
-            description: Forbidden without an omgevingsvergunning under the waterschapsverordening
-        actions:
-          - output: vergunningplicht_waterschapsverordening
-            value: $waterschapsverordening_verbiedt_zonder_vergunning

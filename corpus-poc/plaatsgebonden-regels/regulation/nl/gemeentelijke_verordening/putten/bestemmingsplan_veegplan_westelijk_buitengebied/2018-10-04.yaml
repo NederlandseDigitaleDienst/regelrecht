@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
 $id: bestemmingsplan_veegplan_westelijk_buitengebied
 regulatory_layer: GEMEENTELIJKE_VERORDENING
 publication_date: '2018-10-04'
@@ -53,10 +53,10 @@ articles:
             type: number
             required: false
             description: Onder c - height of the gutter, in m
-          - name: hoogte_m
+          - name: bouwhoogte_m
             type: number
             required: false
-            description: Onder d - height of the structure, in m
+            description: Onder d - bouwhoogte of the bijgebouw, in m
           - name: woning_is_wooncomplex_kleine_woning_of_recreatiewoning
             type: boolean
             required: false
@@ -82,7 +82,7 @@ articles:
                   subject: $goothoogte_m
                   value: 3.5
                 - operation: LESS_THAN_OR_EQUAL
-                  subject: $hoogte_m
+                  subject: $bouwhoogte_m
                   value: 6
                 - operation: NOT
                   value: $woning_is_wooncomplex_kleine_woning_of_recreatiewoning

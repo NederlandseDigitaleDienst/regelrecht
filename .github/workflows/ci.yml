@@ -718,6 +718,26 @@ jobs:
           export REGULATION_PATH
           cargo test --test bdd -- --nocapture
 
+      # Like `just bdd-plaatsgebonden`: bucket A over the case of location-bound
+      # rules. The law is real and the facts are fixed, so red here is a real
+      # error.
+      - name: Validate location-bound ruleworks
+        if: matrix.leg == 'forward'
+        env:
+          RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
+        run: |
+          find corpus-poc/plaatsgebonden-regels/regulation -name '*.yaml' ! -name '.*' -print0 | sort -z \
+            | xargs -0 script/validate.sh
+
+      - name: Run location-bound bucket (${{ matrix.leg }} actions)
+        working-directory: packages/engine
+        env:
+          BDD_BUCKET: corpus
+          BDD_REVERSE_ACTIONS: ${{ matrix.reverse }}
+          REGULATION_PATH: ${{ github.workspace }}/corpus-poc/plaatsgebonden-regels/regulation
+          RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
+        run: cargo test --test bdd -- --nocapture
+
       # Zoals `just bdd-demo`: de Awb-levensloop over hetzelfde democorpus.
       # De unit-baan draait deze test alleen tegen corpus/regulation.
       - name: Run Awb lifecycle over demo corpus

@@ -84,21 +84,23 @@ SPDX-License-Identifier = "EUPL-1.2"
 path = [
   "corpus/**.yaml",
   "corpus-poc/**.yaml",
-  # De verzonnen ambtsgebieden van de verkenning plaatsgebonden regels.
-  "corpus-poc/plaatsgebonden-regels/territories/GM9990.geojson",
-  "corpus-poc/plaatsgebonden-regels/territories/WS9990.geojson",
   "packages/harvester/tests/fixtures/**.xml",
 ]
 SPDX-FileCopyrightText = "Staat der Nederlanden (Ministerie van Binnenlandse Zaken en Koninkrijksrelaties)"
 SPDX-License-Identifier = "EUPL-1.2"
 
-# De gemeentegrens van Putten is geen eigen werk: het is een uitsnede uit de
-# dataset Bestuurlijke Gebieden van het Kadaster, afgeleid uit de
-# Basisregistratie Kadaster en via PDOK gepubliceerd onder CC BY 4.0.
+# Dit scenario bevat de gemeentegrens van Putten als registergegeven. Die grens
+# is geen eigen werk: het is een uitsnede uit de dataset Bestuurlijke Gebieden
+# van het Kadaster, afgeleid uit de Basisregistratie Kadaster en via PDOK
+# gepubliceerd onder CC BY 4.0. De scenario's eromheen vallen onder de EUPL.
 [[annotations]]
-path = "corpus-poc/plaatsgebonden-regels/territories/GM0273.geojson"
-SPDX-FileCopyrightText = "Kadaster"
-SPDX-License-Identifier = "CC-BY-4.0"
+path = "corpus-poc/plaatsgebonden-regels/regulation/nl/gemeentelijke_verordening/putten/omgevingsplan_gemeente_putten/scenarios/bijgebouw.feature"
+precedence = "override"
+SPDX-FileCopyrightText = [
+  "Staat der Nederlanden (Ministerie van Binnenlandse Zaken en Koninkrijksrelaties)",
+  "Kadaster",
+]
+SPDX-License-Identifier = "EUPL-1.2 AND CC-BY-4.0"
 
 # Het position paper "Rules as Executed" en de bestanden die eruit gegenereerd
 # zijn. Gepubliceerd onder CC BY 4.0 (https://doi.org/10.5281/zenodo.22201094).

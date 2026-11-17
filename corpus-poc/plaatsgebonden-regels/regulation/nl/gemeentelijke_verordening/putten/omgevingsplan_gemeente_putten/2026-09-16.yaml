@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
 $id: omgevingsplan_gemeente_putten
 regulatory_layer: GEMEENTELIJKE_VERORDENING
 publication_date: '2026-09-16'
@@ -11,34 +11,36 @@ url: https://lokaleregelgeving.overheid.nl/CVDR696248
 # REAL. Parts of the Omgevingsplan gemeente Putten as published on
 # lokaleregelgeving.overheid.nl, read on 2026-11-17. The article texts are
 # quoted. The logic is a first reading and has not been checked by a lawyer.
+# Not checked: the date in force; `valid_from` is the date in the identifiers
+# of the geographic information objects.
 #
 # Modelled, for building a bijbehorend bouwwerk:
 #   - the permit duty: articles 22.26, 22.27 (aanhef and onder a), 22.28;
-#   - what accords with the plan by law: article 22.36 (aanhef and onder a);
-#   - Oude Nijkerkerweg 33: Bijlage I, articles 21.3, 21.19, 21.22 and 21.23.
+#   - what accords with the plan by law: article 22.36 (aanhef and onder a),
+#     with articles 22.37 lid 2 and 22.38;
+#   - Oude Nijkerkerweg 33: Bijlage I, articles 21.3, 21.19, 21.22 lid 1 and
+#     21.23.
 #
-# Other structures than a bijbehorend bouwwerk (article 22.27 onder b to i,
-# article 22.36 onder b and c) are not modelled. Whether one of those parts
-# applies is asked as one fact per article. For a structure they do not name,
-# the answer to that is simply no.
+# The three shapes are the published geometry of the geographic information
+# objects that Bijlage I lists, taken from the GML at the identifier given
+# with each. RD coordinates (EPSG:28992).
 #
-# The four shapes are the published geometry of the four geographic
-# information objects that Bijlage I lists for this location, taken from the
-# GML at the identifier given with each. RD coordinates (EPSG:28992).
+# WHAT IS ASKED AND NOT WORKED OUT. Each is a parameter whose description
+# starts with "Not modelled" or "Conclusion of law". Where one of them decides
+# the outcome and it is not given, the outcome is unknown; nothing is assumed.
+#   - other structures than a bijbehorend bouwwerk: article 22.27 onder b to
+#     i, and article 22.36 onder b and c;
+#   - an activity that is not building;
+#   - a conflict with the plan anywhere but in the area Wonen of this address,
+#     or for something other than a bijgebouw. Those rules are in the older
+#     plans that are part of this omgevingsplan (Omgevingswet article 22.1);
+#   - the designation rijksbeschermd stads- of dorpsgezicht, the rules on
+#     archaeological research, and article 22.39 (external safety). These
+#     too rest on the older plans.
 #
-# TWO FACTS ARE ASKED THAT ARE CONCLUSIONS OF LAW, because the rules behind
-# them are in the older plans that are part of this omgevingsplan
-# (Omgevingswet article 22.1) and are not in this example:
-#   - whether the plan gives the location the designation rijksbeschermd
-#     stads- of dorpsgezicht (article 22.28 lid 3);
-#   - whether rules on archaeological research hold for the location (article
-#     22.28 lid 4).
-#
-# Not checked: the date in force. `valid_from` is the date in the identifiers
-# of the information objects.
-#
-# PROPOSED, not in the schema: the value type `shape` and the operation
-# OVERLAPS.
+# Articles 21.3 and 22.26 fill a term of the Omgevingswet. The engine gives
+# such an article only the parameters it declares, so each declares what the
+# articles it reads need.
 
 articles:
   # The plan designates its areas in an annex: a name and an identifier per
@@ -63,13 +65,12 @@ articles:
 
     machine_readable:
       execution:
+        # The area "agrarisch vervallen aanduidingen" is read by article
+        # 21.21, which is not modelled, so it is not given here.
         output:
           - name: gebied_oude_nijkerkerweg_33
             type: shape
             description: H21 Oude Nijkerkerweg 33
-          - name: gebied_agrarisch_vervallen_aanduidingen
-            type: shape
-            description: H21 Oude Nijkerkerweg 33 agrarisch vervallen aanduidingen
           - name: gebied_functie_wonen
             type: shape
             description: H21 Oude Nijkerkerweg 33 functie Wonen
@@ -79,8 +80,7 @@ articles:
         actions:
           - output: gebied_oude_nijkerkerweg_33
             value: 'POLYGON((167843.258 472393.888, 167846.47 472247.156, 167789.323 472246.037, 167781.826 472383.09, 167843.258 472393.888))'
-          - output: gebied_agrarisch_vervallen_aanduidingen
-            value: 'POLYGON((167846.47 472247.156, 167789.323 472246.037, 167786.742 472293.222, 167817.786 472292.639, 167815.493 472388.99, 167843.258 472393.888, 167846.47 472247.156))'
+          # The published geometry of this area and of the next is the same.
           - output: gebied_functie_wonen
             value: 'POLYGON((167815.493 472388.99, 167817.786 472292.639, 167786.742 472293.222, 167781.826 472383.09, 167815.493 472388.99))'
           - output: gebied_maximale_oppervlakte_bijgebouwen
@@ -89,7 +89,8 @@ articles:
   # The rule that keeps the bestemmingsplan in force at the locations of this
   # chapter, except where the chapter says otherwise. A bijgebouw that goes
   # against those rules conflicts with the plan, and this is the article that
-  # makes them count here.
+  # makes them count here. The text does not spell that test out; the logic
+  # below is what lid 1 comes to for a bijgebouw at this address.
   - number: '21.3'
     text: |
       Van overeenkomstige toepassing verklaarde regels uit het bestemmingsplan
@@ -121,36 +122,162 @@ articles:
             type: string
             required: true
             description: The activity, in the terms of the Omgevingswet
-          # Article 1.22 of the bestemmingsplan: a building that is not meant
-          # for living in, belongs to a dwelling on the same plot, and is
-          # subordinate to it.
+          - name: location
+            type: shape
+            required: true
+            description: Where the activity takes place
           - name: is_bijgebouw
             type: boolean
             required: false
             description: Whether what is built is a bijgebouw as the bestemmingsplan defines it
-          # What article 19.2.8 of the bestemmingsplan asks. A value of another
-          # rulework is read with the facts it needs passed along.
+          - name: in_strijd_met_het_plan_buiten_wat_hier_is_uitgewerkt
+            type: boolean
+            required: false
+            description: Not modelled - whether the activity conflicts with the plan in a case this article does not work out
           - name: oppervlakte_bijgebouwen_m2
             type: number
             required: false
             description: Total surface of the bijgebouwen of the dwelling after building, in m2
+          - name: sloopmeters_eigen_terrein_m2
+            type: number
+            required: false
+            description: Article 21.23 - surface demolished on the own plot, in m2
+          - name: grootste_bijgebouw_m2
+            type: number
+            required: false
+            description: Article 21.23 - surface of the largest single bijgebouw, in m2
           - name: goothoogte_m
             type: number
             required: false
-            description: Height of the gutter, in m
-          - name: hoogte_m
+            description: Bestemmingsplan article 19.2.8 onder c - in m
+          - name: bouwhoogte_m
             type: number
             required: false
-            description: Height of the structure, in m
+            description: Bestemmingsplan article 19.2.8 onder d - in m
           - name: woning_is_wooncomplex_kleine_woning_of_recreatiewoning
             type: boolean
             required: false
-            description: Whether the dwelling is one of the three kinds article 19.2.8 onder e names
+            description: Bestemmingsplan article 19.2.8 onder e
+          - name: is_bijbehorend_bouwwerk
+            type: boolean
+            required: false
+            description: Article 22.27 onder a - a bijbehorend bouwwerk or an extension of one
+          - name: op_de_grond_staand
+            type: boolean
+            required: false
+            description: Article 22.27 onder a, 1
+          - name: gelegen_in_achtererfgebied
+            type: boolean
+            required: false
+            description: Article 22.27 onder a, 2
+          - name: afstand_tot_openbaar_toegankelijk_gebied_m
+            type: number
+            required: false
+            description: Article 22.27 onder a, 3 - in m
+          - name: hoogte_m
+            type: number
+            required: false
+            description: Article 22.27 onder a, 4 - height of the structure, in m
+          - name: verblijfsgebied_op_tweede_bouwlaag_of_hoger
+            type: boolean
+            required: false
+            description: Article 22.27 onder a, 5
+          - name: heeft_dakterras_balkon_of_buitenruimte_boven_de_grond
+            type: boolean
+            required: false
+            description: Article 22.27 onder a, 6
+          - name: afstand_tot_oorspronkelijk_hoofdgebouw_m
+            type: number
+            required: false
+            description: Article 22.36 onder a, 1 and 2 - in m
+          - name: hoogte_scheidingsconstructie_tweede_bouwlaag_hoofdgebouw_m
+            type: number
+            required: false
+            description: Article 22.36 onder a, 1, II - in m
+          - name: hoogte_hoofdgebouw_m
+            type: number
+            required: false
+            description: Article 22.36 onder a, 1, III - in m
+          - name: heeft_schuin_dak
+            type: boolean
+            required: false
+            description: Article 22.36 onder a, 2, I
+          - name: hoogte_dakvoet_m
+            type: number
+            required: false
+            description: Article 22.36 onder a, 2, I - in m
+          - name: daknok_gevormd_door_twee_of_meer_schuine_dakvlakken
+            type: boolean
+            required: false
+            description: Article 22.36 onder a, 2, I
+          - name: hellingshoek_graden
+            type: number
+            required: false
+            description: Article 22.36 onder a, 2, I - in degrees
+          - name: afstand_daknok_tot_perceelsgrens_m
+            type: number
+            required: false
+            description: Article 22.36 onder a, 2, I - in m
+          - name: functioneel_ondergeschikt_aan_hoofdgebouw
+            type: boolean
+            required: false
+            description: Article 22.36 onder a, 2, II
+          - name: huisvesting_in_verband_met_mantelzorg
+            type: boolean
+            required: false
+            description: Article 22.36 onder a, 2, II and article 22.37 lid 2
+          - name: oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2
+            type: number
+            required: false
+            description: Article 22.36 onder a, 3 - after building, in m2
+          - name: bebouwingsgebied_m2
+            type: number
+            required: false
+            description: Article 22.36 onder a, 3 - in m2
+          - name: uitbreiding_van_of_gelegen_aan_of_bij_hoofdgebouw
+            type: boolean
+            required: false
+            description: Article 22.36 onder a, 4
+          - name: hoofdgebouw_is_woonwagen_tijdelijk_vergund_of_recreatief_nachtverblijf
+            type: boolean
+            required: false
+            description: Article 22.36 onder a, 4, I to III
+          - name: geheel_of_in_delen_verplaatsbaar
+            type: boolean
+            required: false
+            description: Article 22.37 lid 2 onder a
+          - name: oppervlakte_bouwwerk_m2
+            type: number
+            required: false
+            description: Surface of the structure, in m2
+          - name: buiten_de_bebouwde_kom
+            type: boolean
+            required: false
+            description: Article 22.37 lid 2 onder c
+          - name: in_overeenstemming_volgens_artikel_22_36_onder_b_of_c
+            type: boolean
+            required: false
+            description: Not modelled - whether onder b or c applies; false for a structure or use they do not name
+          - name: artikel_22_39_sluit_artikel_22_36_uit
+            type: boolean
+            required: false
+            description: Conclusion of law - whether article 22.39 (external safety) takes article 22.36 away
+          - name: in_aan_of_op_monument
+            type: boolean
+            required: false
+            description: Whether the activity takes place in, on or at a protected monument
+          - name: bij_monument
+            type: boolean
+            required: false
+            description: Whether the activity takes place near a protected monument
+          - name: locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht
+            type: boolean
+            required: false
+            description: Conclusion of law - whether the plan gives the location that designation
         input:
           - name: bestemming_wonen_van_toepassing
             type: boolean
-            nullable: true
-            description: Whether article 19 of the bestemmingsplan applies at the location (article 21.22)
+            description: Whether article 21.22 makes article 19 of the bestemmingsplan apply at the location
             source:
               output: bestemming_wonen_van_toepassing
           - name: verruiming_oppervlakte_bijgebouwen
@@ -179,16 +306,12 @@ articles:
               output: bijgebouw_voldoet_aan_artikel_19_2_8_onder_c_d_en_e
               parameters:
                 goothoogte_m: $goothoogte_m
-                hoogte_m: $hoogte_m
+                bouwhoogte_m: $bouwhoogte_m
                 woning_is_wooncomplex_kleine_woning_of_recreatiewoning: $woning_is_wooncomplex_kleine_woning_of_recreatiewoning
         output:
-          # Absent where this article does not speak: outside the area where
-          # article 19 of the bestemmingsplan applies, or for something other
-          # than a bijgebouw.
           - name: activiteit_in_strijd_met_omgevingsplan
             type: boolean
-            nullable: true
-            description: Whether building the bijgebouw conflicts with the plan
+            description: Whether the activity conflicts with the plan
         actions:
           - output: activiteit_in_strijd_met_omgevingsplan
             value:
@@ -201,9 +324,7 @@ articles:
                         subject: $activiteit
                         value: bouwactiviteit
                       - $is_bijgebouw
-                      - operation: EQUALS
-                        subject: $bestemming_wonen_van_toepassing
-                        value: true
+                      - $bestemming_wonen_van_toepassing
                   then:
                     operation: AND
                     conditions:
@@ -223,6 +344,7 @@ articles:
                               conditions:
                                 - $oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a
                                 - $verruiming_oppervlakte_bijgebouwen
+              default: $in_strijd_met_het_plan_buiten_wat_hier_is_uitgewerkt
 
   # A whole afdeling that holds only in one area. The article that says so
   # gives that as a value, and the other articles of the afdeling read it.
@@ -269,9 +391,7 @@ articles:
       de bestemming Wonen als bedoeld in artikel 19 van het bestemmingsplan van
       overeenkomstige toepassing.
 
-      2. Ter plaatse van het gebied H21 Oude Nijkerkerweg 33 functie Wonen
-      blijft de bestemming Agrarisch als bedoeld in artikel 3 van het
-      bestemmingsplan buiten toepassing.
+      [lid 2: niet overgenomen]
     url: https://lokaleregelgeving.overheid.nl/CVDR696248
 
     machine_readable:
@@ -293,25 +413,21 @@ articles:
             source:
               output: gebied_functie_wonen
         output:
-          # Absent outside the area: the article says nothing there, and what
-          # holds follows from the bestemmingsplan itself.
+          # False outside the area: there this article does not make article
+          # 19 apply. Whether it applies there for another reason is not said
+          # here.
           - name: bestemming_wonen_van_toepassing
             type: boolean
-            nullable: true
-            description: Lid 1 - article 19 of the bestemmingsplan applies at the location
+            description: Lid 1 - this article makes article 19 of the bestemmingsplan apply at the location
         actions:
           - output: bestemming_wonen_van_toepassing
             value:
-              operation: IF
-              cases:
-                - when:
-                    operation: AND
-                    conditions:
-                      - $afdeling_21_5_van_toepassing
-                      - operation: OVERLAPS
-                        subject: $location
-                        value: $gebied_functie_wonen
-                  then: true
+              operation: AND
+              conditions:
+                - $afdeling_21_5_van_toepassing
+                - operation: OVERLAPS
+                  subject: $location
+                  value: $gebied_functie_wonen
 
   # The article widens what article 19.2.8 of the bestemmingsplan allows. It
   # forbids nothing itself.
@@ -342,11 +458,11 @@ articles:
           - name: sloopmeters_eigen_terrein_m2
             type: number
             required: false
-            description: Surface demolished on the own plot as compensation, in m2
+            description: Article 21.23 - surface demolished on the own plot, in m2
           - name: grootste_bijgebouw_m2
             type: number
             required: false
-            description: Surface of the largest single bijgebouw, in m2
+            description: Article 21.23 - surface of the largest single bijgebouw, in m2
         input:
           - name: afdeling_21_5_van_toepassing
             type: boolean
@@ -401,6 +517,74 @@ articles:
             type: string
             required: true
             description: The activity, in the terms of the Omgevingswet
+          - name: verboden_zonder_vergunning_door_ander_artikel_van_het_plan
+            type: boolean
+            required: false
+            description: Not modelled - whether another article of the plan forbids an activity that is not building
+          - name: is_bijbehorend_bouwwerk
+            type: boolean
+            required: false
+            description: Article 22.27 onder a - a bijbehorend bouwwerk or an extension of one
+          - name: op_de_grond_staand
+            type: boolean
+            required: false
+            description: Article 22.27 onder a, 1
+          - name: gelegen_in_achtererfgebied
+            type: boolean
+            required: false
+            description: Article 22.27 onder a, 2
+          - name: afstand_tot_openbaar_toegankelijk_gebied_m
+            type: number
+            required: false
+            description: Article 22.27 onder a, 3 - in m
+          - name: hoogte_m
+            type: number
+            required: false
+            description: Article 22.27 onder a, 4 - height of the structure, in m
+          - name: verblijfsgebied_op_tweede_bouwlaag_of_hoger
+            type: boolean
+            required: false
+            description: Article 22.27 onder a, 5
+          - name: heeft_dakterras_balkon_of_buitenruimte_boven_de_grond
+            type: boolean
+            required: false
+            description: Article 22.27 onder a, 6
+          - name: uitzondering_volgens_artikel_22_27_onder_b_tot_en_met_i
+            type: boolean
+            required: false
+            description: Not modelled - whether onder b to i, read with article 22.28, lift the ban; false for a structure they do not name
+          - name: in_aan_of_op_monument
+            type: boolean
+            required: false
+            description: Whether the activity takes place in, on or at a protected monument
+          - name: bij_monument
+            type: boolean
+            required: false
+            description: Whether the activity takes place near a protected monument
+          - name: locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht
+            type: boolean
+            required: false
+            description: Conclusion of law - whether the plan gives the location that designation
+          - name: op_gebouwerf_aan_achterkant_niet_zijkant_niet_naar_openbaar_gebied
+            type: boolean
+            required: false
+            description: Article 22.28 lid 3 onder c
+          - name: locatie_is_openbaar_toegankelijk_gebied
+            type: boolean
+            required: false
+            description: Article 22.28 lid 3 onder d
+          - name: archeologische_onderzoeksregels_gelden_voor_locatie
+            type: boolean
+            required: false
+            description: Conclusion of law - article 22.28 lid 4, rules on archaeological research for the location
+          - name: oppervlakte_bouwwerk_m2
+            type: number
+            required: false
+            description: Surface of the structure, in m2
+          - name: verbod_grondwerkzaamheden_met_archeologische_regels
+            type: boolean
+            required: false
+            description: Article 22.28 lid 4 onder b
         input:
           - name: uitzondering_artikel_22_27
             type: boolean
@@ -408,11 +592,9 @@ articles:
             source:
               output: uitzondering_artikel_22_27
         output:
-          # Absent when the article does not speak about the case.
           - name: omgevingsplan_verbiedt_zonder_vergunning
             type: boolean
-            nullable: true
-            description: Whether this article forbids the activity without a permit
+            description: Whether the plan forbids the activity without a permit
         actions:
           - output: omgevingsplan_verbiedt_zonder_vergunning
             value:
@@ -425,6 +607,7 @@ articles:
                   then:
                     operation: NOT
                     value: $uitzondering_artikel_22_27
+              default: $verboden_zonder_vergunning_door_ander_artikel_van_het_plan
 
   - number: '22.27'
     text: |
@@ -453,38 +636,35 @@ articles:
           - name: is_bijbehorend_bouwwerk
             type: boolean
             required: false
-            description: Onder a - whether what is built is a bijbehorend bouwwerk or an extension of one
+            description: Article 22.27 onder a - a bijbehorend bouwwerk or an extension of one
           - name: op_de_grond_staand
             type: boolean
             required: false
-            description: Onder a, 1
+            description: Article 22.27 onder a, 1
           - name: gelegen_in_achtererfgebied
             type: boolean
             required: false
-            description: Onder a, 2
+            description: Article 22.27 onder a, 2
           - name: afstand_tot_openbaar_toegankelijk_gebied_m
             type: number
             required: false
-            description: Onder a, 3 - distance to openbaar toegankelijk gebied, in m
+            description: Article 22.27 onder a, 3 - in m
           - name: hoogte_m
             type: number
             required: false
-            description: Onder a, 4 - height of the structure, in m
+            description: Article 22.27 onder a, 4 - height of the structure, in m
           - name: verblijfsgebied_op_tweede_bouwlaag_of_hoger
             type: boolean
             required: false
-            description: Onder a, 5 - whether a verblijfsgebied lies above the first bouwlaag
+            description: Article 22.27 onder a, 5
           - name: heeft_dakterras_balkon_of_buitenruimte_boven_de_grond
             type: boolean
             required: false
-            description: Onder a, 6
-          # Onder b to i are not modelled.
-          - name: vrijgesteld_volgens_artikel_22_27_onder_b_tot_en_met_i
+            description: Article 22.27 onder a, 6
+          - name: uitzondering_volgens_artikel_22_27_onder_b_tot_en_met_i
             type: boolean
             required: false
-            description: >-
-              Whether onder b to i lift the ban; false for a structure they do
-              not name
+            description: Not modelled - whether onder b to i, read with article 22.28, lift the ban; false for a structure they do not name
         input:
           - name: onder_a_uitgesloten_door_artikel_22_28
             type: boolean
@@ -525,7 +705,7 @@ articles:
                     - $voldoet_aan_artikel_22_27_onder_a
                     - operation: NOT
                       value: $onder_a_uitgesloten_door_artikel_22_28
-                - $vrijgesteld_volgens_artikel_22_27_onder_b_tot_en_met_i
+                - $uitzondering_volgens_artikel_22_27_onder_b_tot_en_met_i
 
   - number: '22.28'
     text: |
@@ -576,37 +756,35 @@ articles:
           - name: in_aan_of_op_monument
             type: boolean
             required: false
-            description: Lid 1 - whether the activity takes place in, on or at a monument named there
+            description: Whether the activity takes place in, on or at a protected monument
           - name: bij_monument
             type: boolean
             required: false
-            description: Lid 2 - whether the activity takes place near a monument named there
-          # A conclusion of law: the designation is in the older plans.
+            description: Whether the activity takes place near a protected monument
           - name: locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht
             type: boolean
             required: false
-            description: Lid 3 - whether the plan gives the location that designation
+            description: Conclusion of law - whether the plan gives the location that designation
           - name: op_gebouwerf_aan_achterkant_niet_zijkant_niet_naar_openbaar_gebied
             type: boolean
             required: false
-            description: Lid 3 onder c
+            description: Article 22.28 lid 3 onder c
           - name: locatie_is_openbaar_toegankelijk_gebied
             type: boolean
             required: false
-            description: Lid 3 onder d
-          # A conclusion of law: the rules are in the older plans.
+            description: Article 22.28 lid 3 onder d
           - name: archeologische_onderzoeksregels_gelden_voor_locatie
             type: boolean
             required: false
-            description: Lid 4 - whether rules on archaeological research hold for the location
+            description: Conclusion of law - article 22.28 lid 4, rules on archaeological research for the location
           - name: oppervlakte_bouwwerk_m2
             type: number
             required: false
-            description: Lid 4 onder a - surface of the structure, in m2
+            description: Surface of the structure, in m2
           - name: verbod_grondwerkzaamheden_met_archeologische_regels
             type: boolean
             required: false
-            description: Lid 4 onder b
+            description: Article 22.28 lid 4 onder b
         output:
           - name: onder_a_uitgesloten_door_artikel_22_28
             type: boolean
@@ -690,137 +868,131 @@ articles:
 
     machine_readable:
       execution:
+        # Onder a, 1 and 2 say "voor zover": a structure that lies partly
+        # within 4 m and partly beyond is judged part by part (see also
+        # article 22.37 lid 1). Here the structure lies wholly on one side.
+        # "Onverminderd ... Afdeling 22.3" is not worked out.
         parameters:
-          # Onder a, 1 and 2 say "voor zover": a structure that lies partly
-          # within 4 m and partly beyond is judged part by part. Here the
-          # structure lies wholly on one side.
-          - name: afstand_tot_oorspronkelijk_hoofdgebouw_m
-            type: number
-            required: false
-            description: Onder a, 1 and 2 - distance to the oorspronkelijk hoofdgebouw, in m
           - name: hoogte_m
             type: number
             required: false
             description: Height of the structure, in m; with a ridge, the height of the ridge
+          - name: afstand_tot_oorspronkelijk_hoofdgebouw_m
+            type: number
+            required: false
+            description: Article 22.36 onder a, 1 and 2 - in m
           - name: hoogte_scheidingsconstructie_tweede_bouwlaag_hoofdgebouw_m
             type: number
             required: false
-            description: Onder a, 1, II - top of the scheidingsconstructie with the second bouwlaag, in m
+            description: Article 22.36 onder a, 1, II - in m
           - name: hoogte_hoofdgebouw_m
             type: number
             required: false
-            description: Onder a, 1, III - height of the hoofdgebouw, in m
+            description: Article 22.36 onder a, 1, III - in m
           - name: heeft_schuin_dak
             type: boolean
             required: false
-            description: Onder a, 2, I
+            description: Article 22.36 onder a, 2, I
           - name: hoogte_dakvoet_m
             type: number
             required: false
-            description: Onder a, 2, I - height of the dakvoet, in m
+            description: Article 22.36 onder a, 2, I - in m
           - name: daknok_gevormd_door_twee_of_meer_schuine_dakvlakken
             type: boolean
             required: false
-            description: Onder a, 2, I
+            description: Article 22.36 onder a, 2, I
           - name: hellingshoek_graden
             type: number
             required: false
-            description: Onder a, 2, I - pitch of the roof, in degrees
+            description: Article 22.36 onder a, 2, I - in degrees
           - name: afstand_daknok_tot_perceelsgrens_m
             type: number
             required: false
-            description: Onder a, 2, I - distance from the ridge to the plot boundary, in m
+            description: Article 22.36 onder a, 2, I - in m
           - name: functioneel_ondergeschikt_aan_hoofdgebouw
             type: boolean
             required: false
-            description: Onder a, 2, II
+            description: Article 22.36 onder a, 2, II
           - name: huisvesting_in_verband_met_mantelzorg
             type: boolean
             required: false
-            description: Onder a, 2, II
+            description: Article 22.36 onder a, 2, II and article 22.37 lid 2
           - name: oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2
             type: number
             required: false
-            description: Onder a, 3 - surface of bijbehorende bouwwerken in the bebouwingsgebied after building, in m2
+            description: Article 22.36 onder a, 3 - after building, in m2
           - name: bebouwingsgebied_m2
             type: number
             required: false
-            description: Onder a, 3 - surface of the bebouwingsgebied, in m2
+            description: Article 22.36 onder a, 3 - in m2
           - name: uitbreiding_van_of_gelegen_aan_of_bij_hoofdgebouw
             type: boolean
             required: false
-            description: Onder a, 4
+            description: Article 22.36 onder a, 4
           - name: hoofdgebouw_is_woonwagen_tijdelijk_vergund_of_recreatief_nachtverblijf
             type: boolean
             required: false
-            description: Onder a, 4, I to III - whether the hoofdgebouw is one of the three kinds named there
-          # Onder b and c are not modelled.
+            description: Article 22.36 onder a, 4, I to III
+          - name: geheel_of_in_delen_verplaatsbaar
+            type: boolean
+            required: false
+            description: Article 22.37 lid 2 onder a
+          - name: oppervlakte_bouwwerk_m2
+            type: number
+            required: false
+            description: Surface of the structure, in m2
+          - name: buiten_de_bebouwde_kom
+            type: boolean
+            required: false
+            description: Article 22.37 lid 2 onder c
           - name: in_overeenstemming_volgens_artikel_22_36_onder_b_of_c
             type: boolean
             required: false
-            description: >-
-              Whether onder b or c applies; false for a structure or use they
-              do not name
+            description: Not modelled - whether onder b or c applies; false for a structure or use they do not name
+          - name: artikel_22_39_sluit_artikel_22_36_uit
+            type: boolean
+            required: false
+            description: Conclusion of law - whether article 22.39 (external safety) takes article 22.36 away
         input:
           - name: voldoet_aan_artikel_22_27_onder_a
             type: boolean
             description: Whether the structure meets article 22.27 onder a
             source:
               output: voldoet_aan_artikel_22_27_onder_a
+          - name: artikel_22_36_uitgesloten_door_artikel_22_38
+            type: boolean
+            description: Whether article 22.38 takes this article away
+            source:
+              output: artikel_22_36_uitgesloten_door_artikel_22_38
         output:
           - name: van_rechtswege_in_overeenstemming
             type: boolean
-            description: Whether building the structure accords with the plan in any case
+            description: Whether the activity accords with the plan in any case
         actions:
           - output: van_rechtswege_in_overeenstemming
             value:
-              operation: OR
+              operation: AND
               conditions:
-                - $in_overeenstemming_volgens_artikel_22_36_onder_b_of_c
-                - operation: AND
+                - operation: NOT
+                  value: $artikel_22_36_uitgesloten_door_artikel_22_38
+                - operation: NOT
+                  value: $artikel_22_39_sluit_artikel_22_36_uit
+                - operation: OR
                   conditions:
-                    - $voldoet_aan_artikel_22_27_onder_a
-                    # Onder a, 1 and 2.
-                    - operation: IF
-                      cases:
-                        - when:
-                            operation: LESS_THAN_OR_EQUAL
-                            subject: $afstand_tot_oorspronkelijk_hoofdgebouw_m
-                            value: 4
-                          then:
-                            operation: AND
-                            conditions:
-                              - operation: LESS_THAN_OR_EQUAL
-                                subject: $hoogte_m
-                                value: 5
-                              - operation: LESS_THAN_OR_EQUAL
-                                subject: $hoogte_m
-                                value:
-                                  operation: ADD
-                                  values:
-                                    - $hoogte_scheidingsconstructie_tweede_bouwlaag_hoofdgebouw_m
-                                    - 0.3
-                              - operation: LESS_THAN_OR_EQUAL
-                                subject: $hoogte_m
-                                value: $hoogte_hoofdgebouw_m
-                      default:
-                        operation: AND
-                        conditions:
-                          - operation: OR
-                            conditions:
-                              - operation: LESS_THAN_OR_EQUAL
-                                subject: $hoogte_m
-                                value: 3
-                              - operation: AND
+                    - $in_overeenstemming_volgens_artikel_22_36_onder_b_of_c
+                    - operation: AND
+                      conditions:
+                        - $voldoet_aan_artikel_22_27_onder_a
+                        # Onder a, 1 and 2.
+                        - operation: IF
+                          cases:
+                            - when:
+                                operation: LESS_THAN_OR_EQUAL
+                                subject: $afstand_tot_oorspronkelijk_hoofdgebouw_m
+                                value: 4
+                              then:
+                                operation: AND
                                 conditions:
-                                  - $heeft_schuin_dak
-                                  - operation: LESS_THAN_OR_EQUAL
-                                    subject: $hoogte_dakvoet_m
-                                    value: 3
-                                  - $daknok_gevormd_door_twee_of_meer_schuine_dakvlakken
-                                  - operation: LESS_THAN_OR_EQUAL
-                                    subject: $hellingshoek_graden
-                                    value: 55
                                   - operation: LESS_THAN_OR_EQUAL
                                     subject: $hoogte_m
                                     value: 5
@@ -829,60 +1001,165 @@ articles:
                                     value:
                                       operation: ADD
                                       values:
-                                        - operation: MULTIPLY
-                                          values:
-                                            - $afstand_daknok_tot_perceelsgrens_m
-                                            - 0.47
-                                        - 3
-                          - operation: OR
+                                        - $hoogte_scheidingsconstructie_tweede_bouwlaag_hoofdgebouw_m
+                                        - 0.3
+                                  - operation: LESS_THAN_OR_EQUAL
+                                    subject: $hoogte_m
+                                    value: $hoogte_hoofdgebouw_m
+                          default:
+                            operation: AND
                             conditions:
-                              - $functioneel_ondergeschikt_aan_hoofdgebouw
-                              - $huisvesting_in_verband_met_mantelzorg
-                    # Onder a, 3.
-                    - operation: LESS_THAN_OR_EQUAL
-                      subject: $oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2
-                      value:
-                        operation: IF
-                        cases:
-                          - when:
-                              operation: LESS_THAN_OR_EQUAL
-                              subject: $bebouwingsgebied_m2
-                              value: 100
-                            then:
-                              operation: MULTIPLY
-                              values:
-                                - $bebouwingsgebied_m2
-                                - 0.5
-                          - when:
-                              operation: LESS_THAN_OR_EQUAL
-                              subject: $bebouwingsgebied_m2
-                              value: 300
-                            then:
-                              operation: ADD
-                              values:
-                                - 50
-                                - operation: MULTIPLY
-                                  values:
-                                    - operation: SUBTRACT
-                                      values:
-                                        - $bebouwingsgebied_m2
-                                        - 100
-                                    - 0.2
-                        default:
-                          operation: MIN
-                          values:
-                            - operation: ADD
-                              values:
-                                - 90
-                                - operation: MULTIPLY
-                                  values:
-                                    - operation: SUBTRACT
-                                      values:
-                                        - $bebouwingsgebied_m2
-                                        - 300
-                                    - 0.1
-                            - 150
-                    # Onder a, 4.
-                    - $uitbreiding_van_of_gelegen_aan_of_bij_hoofdgebouw
-                    - operation: NOT
-                      value: $hoofdgebouw_is_woonwagen_tijdelijk_vergund_of_recreatief_nachtverblijf
+                              - operation: OR
+                                conditions:
+                                  - operation: LESS_THAN_OR_EQUAL
+                                    subject: $hoogte_m
+                                    value: 3
+                                  - operation: AND
+                                    conditions:
+                                      - $heeft_schuin_dak
+                                      - operation: LESS_THAN_OR_EQUAL
+                                        subject: $hoogte_dakvoet_m
+                                        value: 3
+                                      - $daknok_gevormd_door_twee_of_meer_schuine_dakvlakken
+                                      - operation: LESS_THAN_OR_EQUAL
+                                        subject: $hellingshoek_graden
+                                        value: 55
+                                      - operation: LESS_THAN_OR_EQUAL
+                                        subject: $hoogte_m
+                                        value: 5
+                                      - operation: LESS_THAN_OR_EQUAL
+                                        subject: $hoogte_m
+                                        value:
+                                          operation: ADD
+                                          values:
+                                            - operation: MULTIPLY
+                                              values:
+                                                - $afstand_daknok_tot_perceelsgrens_m
+                                                - 0.47
+                                            - 3
+                              - operation: OR
+                                conditions:
+                                  - $functioneel_ondergeschikt_aan_hoofdgebouw
+                                  - $huisvesting_in_verband_met_mantelzorg
+                        # Onder a, 3, or what article 22.37 lid 2 puts in its
+                        # place for housing for mantelzorg.
+                        - operation: IF
+                          cases:
+                            - when: $huisvesting_in_verband_met_mantelzorg
+                              then:
+                                operation: AND
+                                conditions:
+                                  - $geheel_of_in_delen_verplaatsbaar
+                                  - operation: LESS_THAN_OR_EQUAL
+                                    subject: $oppervlakte_bouwwerk_m2
+                                    value: 100
+                                  - $buiten_de_bebouwde_kom
+                          default:
+                            operation: LESS_THAN_OR_EQUAL
+                            subject: $oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2
+                            value:
+                              operation: IF
+                              cases:
+                                - when:
+                                    operation: LESS_THAN_OR_EQUAL
+                                    subject: $bebouwingsgebied_m2
+                                    value: 100
+                                  then:
+                                    operation: MULTIPLY
+                                    values:
+                                      - $bebouwingsgebied_m2
+                                      - 0.5
+                                - when:
+                                    operation: LESS_THAN_OR_EQUAL
+                                    subject: $bebouwingsgebied_m2
+                                    value: 300
+                                  then:
+                                    operation: ADD
+                                    values:
+                                      - 50
+                                      - operation: MULTIPLY
+                                        values:
+                                          - operation: SUBTRACT
+                                            values:
+                                              - $bebouwingsgebied_m2
+                                              - 100
+                                          - 0.2
+                              default:
+                                operation: MIN
+                                values:
+                                  - operation: ADD
+                                    values:
+                                      - 90
+                                      - operation: MULTIPLY
+                                        values:
+                                          - operation: SUBTRACT
+                                            values:
+                                              - $bebouwingsgebied_m2
+                                              - 300
+                                          - 0.1
+                                  - 150
+                        # Onder a, 4.
+                        - $uitbreiding_van_of_gelegen_aan_of_bij_hoofdgebouw
+                        - operation: NOT
+                          value: $hoofdgebouw_is_woonwagen_tijdelijk_vergund_of_recreatief_nachtverblijf
+
+  # Lid 2 is worked out in article 22.36. Lid 1 is not: see the note there.
+  - number: '22.37'
+    text: |
+      Bijbehorend bouwwerk in bijzondere gevallen
+
+      1. Als een bijbehorend bouwwerk als bedoeld in Artikel 22.36, onder a,
+      bestaat uit een deel dat op meer, en een deel dat op minder dan 4 m van
+      het oorspronkelijk hoofdgebouw is gelegen zonder een inwendige
+      scheidingsconstructie tussen beide delen, is op het deel dat op minder
+      dan 4 m van het oorspronkelijk hoofdgebouw is gelegen Artikel 22.36,
+      onder a, onder 2, onder ii, van overeenkomstige toepassing.
+
+      2. Als een bijbehorend bouwwerk als bedoeld in Artikel 22.36, onder a,
+      wordt gebruikt voor huisvesting in verband met mantelzorg, gelden in
+      plaats van de in Artikel 22.36, onder a, onder 3°, gestelde eisen de
+      volgende eisen:
+      a. in zijn geheel of in delen verplaatsbaar;
+      b. de oppervlakte niet meer dan 100 m2; en
+      c. buiten de bebouwde kom.
+    url: https://lokaleregelgeving.overheid.nl/CVDR696248
+
+  - number: '22.38'
+    text: |
+      Inperkingen artikel 22.36 vanwege cultureel erfgoed
+
+      Artikel 22.36 is niet van toepassing op een activiteit die wordt verricht:
+      a. in, aan, op of bij een gemeentelijk monument, voorbeschermd
+      gemeentelijk monument, provinciaal monument, voorbeschermd provinciaal
+      monument, rijksmonument of voorbeschermd rijksmonument; of
+      b. op een locatie waaraan in dit omgevingsplan de functie-aanduiding
+      rijksbeschermd stads- of dorpsgezicht is gegeven.
+    url: https://lokaleregelgeving.overheid.nl/CVDR696248
+
+    machine_readable:
+      execution:
+        parameters:
+          - name: in_aan_of_op_monument
+            type: boolean
+            required: false
+            description: Whether the activity takes place in, on or at a protected monument
+          - name: bij_monument
+            type: boolean
+            required: false
+            description: Whether the activity takes place near a protected monument
+          - name: locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht
+            type: boolean
+            required: false
+            description: Conclusion of law - whether the plan gives the location that designation
+        output:
+          - name: artikel_22_36_uitgesloten_door_artikel_22_38
+            type: boolean
+            description: Whether this article takes article 22.36 away
+        actions:
+          - output: artikel_22_36_uitgesloten_door_artikel_22_38
+            value:
+              operation: OR
+              conditions:
+                - $in_aan_of_op_monument
+                - $bij_monument
+                - $locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht
