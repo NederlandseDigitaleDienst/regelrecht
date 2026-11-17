@@ -85,14 +85,14 @@ const runs = computed(() => runsFor(file.value));
 const selectedRun = computed(() => runs.value[selected.value] ?? null);
 
 // --- Status per scenario --------------------------------------------------
-const STATUS_TAG: Record<ScenarioStatus, { text: string; color: string }> = {
+const STATUS_BADGE: Record<ScenarioStatus, { text: string; color: string }> = {
   passed: { text: 'Geslaagd', color: 'success' },
   failed: { text: 'Mislukt', color: 'critical' },
   'no-expectations': { text: 'Geen verwachting', color: 'neutral' },
 };
-function statusTag(index: number) {
+function statusBadgeFor(index: number) {
   const status = runStatus(runs.value[index]);
-  return status ? STATUS_TAG[status] : null;
+  return status ? STATUS_BADGE[status] : null;
 }
 const dirtySet = computed(() => new Set(file.value.dirtyIndexes.value));
 
@@ -206,8 +206,9 @@ const dirty = computed(() => file.value.dirty.value);
                 :text="scenario.name"
                 :supporting-text="dirtySet.has(i) ? 'Niet opgeslagen' : undefined"
               ></nldd-text-cell>
-              <nldd-cell v-if="statusTag(i)" width="fit-content">
-                <nldd-tag size="sm" :color="statusTag(i)!.color" :text="statusTag(i)!.text"></nldd-tag>
+              <nldd-spacer-cell v-if="statusBadgeFor(i)" size="8"></nldd-spacer-cell>
+              <nldd-cell v-if="statusBadgeFor(i)" width="fit-content">
+                <nldd-badge size="sm" :color="statusBadgeFor(i)!.color" :text="statusBadgeFor(i)!.text"></nldd-badge>
               </nldd-cell>
             </nldd-list-item>
           </nldd-list>

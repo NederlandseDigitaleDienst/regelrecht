@@ -63,7 +63,7 @@ function mountPane(engine: EditorEngine = fakeEngine()) {
   return mount(Host);
 }
 
-const tagsOf = (w: ReturnType<typeof mountPane>) => w.findAll('nldd-tag').map((t) => t.attributes('text'));
+const tagsOf = (w: ReturnType<typeof mountPane>) => w.findAll('nldd-badge').map((t) => t.attributes('text'));
 const passedRow = (w: ReturnType<typeof mountPane>) => w.find('[data-testid="scenario-status-basis.feature-passed"]');
 
 beforeEach(() => {

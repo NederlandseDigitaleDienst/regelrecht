@@ -92,8 +92,9 @@ function toggle(key: string) {
           @click="emit('open', status.file.file.filename, line.name)"
         >
           <nldd-text-cell :text="line.name"></nldd-text-cell>
+          <nldd-spacer-cell v-if="line.status" size="8"></nldd-spacer-cell>
           <nldd-cell v-if="line.status" width="fit-content">
-            <nldd-tag size="sm" :color="STATUS_COLOR[line.status]" :text="STATUS_TEXT[line.status]"></nldd-tag>
+            <nldd-badge size="sm" :color="STATUS_COLOR[line.status]" :text="STATUS_TEXT[line.status]"></nldd-badge>
           </nldd-cell>
           <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
         </nldd-list-item>
@@ -110,7 +111,7 @@ function toggle(key: string) {
           <nldd-icon-cell size="20"><nldd-icon icon="success"></nldd-icon></nldd-icon-cell>
           <nldd-spacer-cell size="8"></nldd-spacer-cell>
           <nldd-text-cell :text="`${status.passed.length} geslaagd`"></nldd-text-cell>
-          <nldd-icon-cell size="20" icon="chevron-down" disclosure></nldd-icon-cell>
+          <nldd-icon-cell size="20" icon="chevron-right" disclosure></nldd-icon-cell>
         </nldd-list-item>
         <template v-if="expanded.has(scenarioFileKey(status.file.file))">
           <nldd-list-item
@@ -122,8 +123,9 @@ function toggle(key: string) {
             @click="emit('open', status.file.file.filename, line.name)"
           >
             <nldd-text-cell :text="line.name"></nldd-text-cell>
+            <nldd-spacer-cell size="8"></nldd-spacer-cell>
             <nldd-cell width="fit-content">
-              <nldd-tag size="sm" color="success" :text="STATUS_TEXT.passed"></nldd-tag>
+              <nldd-badge size="sm" color="success" :text="STATUS_TEXT.passed"></nldd-badge>
             </nldd-cell>
             <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
           </nldd-list-item>
