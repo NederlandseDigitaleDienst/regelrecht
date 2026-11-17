@@ -38,6 +38,7 @@ use crate::context::{LazyInputs, RuleContext};
 use crate::data_source::{DataSource, DataSourceRegistry, DictDataSource};
 use crate::engine::{
     ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputProvenance, RegulationRead,
+    Unanswered,
 };
 use crate::error::{EngineError, Result};
 use crate::operations::ValueResolver;
@@ -187,11 +188,12 @@ struct ResolutionContext<'a> {
 /// The answers one input of a binding took (`source.reduction`, RFC-048):
 /// the policy article, and who answered from what. The answers that were
 /// not null; where there were none, the null ones; where no cell answered,
-/// none.
+/// none. `unanswered` holds the answer the input did not get, if so.
 struct Bound {
     law_id: String,
     article: String,
     answers: Vec<AnswerProvenance>,
+    unanswered: Option<Unanswered>,
 }
 
 /// The outputs `article` computes at stage `stage` of its procedure
@@ -578,6 +580,91 @@ impl Drop for TraceGuard {
         if let Some(ref tb) = self.trace {
             tb.borrow_mut().pop();
         }
+    }
+}
+
+/// Whom an input of a binding asks for its answer (`source.reduction`,
+/// RFC-048 §4): the authorities whose cells may give it, and whether a term
+/// named them as competent rather than the policy as its holder.
+struct AnswerRoute<'a> {
+    named: &'a [NamedAuthority],
+    /// The authorities the terms the input feeds name in their
+    /// `competent_authority`; `None` where they name none and the holder is
+    /// asked. The ground for the answer depends on it ([`ungrounded`]).
+    competent: Option<&'a [NamedAuthority]>,
+}
+
+/// Route `input` of the binding `article` of the policy `law`, which fills
+/// `terms`, by the terms it feeds: those whose output reads the input,
+/// directly, through other outputs of the article, or as a parameter of
+/// another input ([`crate::demand::term_reads`]). A term that builds on the
+/// output of another term takes that term's value, so the input of the other
+/// term does not feed it. Each term asks the authorities it names as
+/// competent, or else the policy's holder. An input that feeds no term asks
+/// the holder, as the binding of a term that names no one does.
+///
+/// `Err` says why the input asks no one: the terms it feeds route to
+/// different authorities (one input asks one cell, so the binding gives each
+/// of them an input of its own), or the holder is asked and the policy names
+/// none.
+fn route_answer<'a>(
+    article: &Article,
+    law: &'a ArticleBasedLaw,
+    input: &Input,
+    terms: &[&'a crate::article::OpenTerm],
+) -> std::result::Result<AnswerRoute<'a>, String> {
+    const NO_HOLDER: &str =
+        "the policy names no holder (competent_authority) whose cell gives it (RFC-048)";
+    let holder = Some(law.holder()).filter(|named| !named.is_empty());
+    let ids: BTreeSet<&str> = terms.iter().map(|term| term.id.as_str()).collect();
+    let fed: Vec<(&str, Option<&'a [NamedAuthority]>)> = terms
+        .iter()
+        .filter(|term| crate::demand::term_reads(article, &term.id, &ids).contains(&input.name))
+        .map(|term| {
+            let named = term
+                .competent_authority
+                .as_ref()
+                .and_then(CompetentAuthority::named);
+            (term.id.as_str(), named)
+        })
+        .collect();
+    let routes: Vec<Option<&'a [NamedAuthority]>> =
+        fed.iter().map(|(_, named)| named.or(holder)).collect();
+    if let Some(first) = routes.first()
+        && routes.iter().any(|route| !same_authorities(*route, *first))
+    {
+        let each: Vec<String> = fed
+            .iter()
+            .zip(&routes)
+            .map(|((term, _), route)| match route {
+                Some(named) => format!("'{term}' to {}", authorities(named)),
+                None => format!("'{term}' to the holder, and {NO_HOLDER}"),
+            })
+            .collect();
+        return Err(format!(
+            "it feeds terms that route to different authorities ({}); one input asks one cell, \
+             so the binding takes each answer in an input of its own (RFC-048)",
+            each.join(", ")
+        ));
+    }
+    let competent = fed.iter().find_map(|(_, named)| *named);
+    let Some(named) = routes.first().copied().unwrap_or(holder) else {
+        return Err(NO_HOLDER.to_string());
+    };
+    Ok(AnswerRoute { named, competent })
+}
+
+/// Whether `a` and `b` name the same authorities, in any order: each by its
+/// name and kind, so a name without `type` is the `INSTANCE` it means.
+fn same_authorities(a: Option<&[NamedAuthority]>, b: Option<&[NamedAuthority]>) -> bool {
+    let key = |n: &NamedAuthority| (n.name.clone(), n.kind() == AuthorityType::Instance);
+    match (a, b) {
+        (Some(a), Some(b)) => {
+            let a: BTreeSet<_> = a.iter().map(key).collect();
+            let b: BTreeSet<_> = b.iter().map(key).collect();
+            a == b
+        }
+        (a, b) => a.is_none() && b.is_none(),
     }
 }
 
@@ -4595,12 +4682,14 @@ impl LawExecutionService {
     /// (`source.reduction`, RFC-048): ask the answerers of the call for
     /// `answer`, with the parameters the binding passes.
     ///
-    /// The binding is `article` of the policy `law`, which fills an open
-    /// term (`implements`, the loader holds to that). Where a term it fills
-    /// names its competent authorities (RFC-051), the answerer of the call
-    /// whose [`Authority`](crate::answer::Authority) they name is asked, and
-    /// none other; otherwise the one the policy names as its holder. One
-    /// question goes to one cell: where the call holds more than one cell
+    /// The binding is `article` of the policy `law`, which fills one or more
+    /// open terms (`implements`, the loader holds to that). Each input is
+    /// routed by the terms it feeds ([`route_answer`]): where those name
+    /// their competent authorities (RFC-051), the answerer of the call whose
+    /// [`Authority`](crate::answer::Authority) they name is asked, and none
+    /// other; otherwise the one the policy names as its holder. So one
+    /// binding may take the answers of several cells, each for its own term.
+    /// One question goes to one cell: where the call holds more than one cell
     /// they name, the input is an error, since which of them answers is an
     /// open point. An answerer without an answer of that name, or with a
     /// null one, is silent. Without an answer the input is null: the binding
@@ -4638,25 +4727,19 @@ impl LawExecutionService {
                     .find(|term| term.id == decl.open_term)
             })
             .collect();
-        let competent = terms.iter().find_map(|term| {
-            term.competent_authority
-                .as_ref()
-                .and_then(|authority| authority.named())
-        });
-        let Some(named) = competent.or_else(|| {
-            law.competent_authority
-                .as_ref()
-                .and_then(|authority| authority.named())
-        }) else {
-            return refuse(
-                res_ctx,
-                format!(
-                    "input '{}' of {} takes the answer '{answer}', but the policy names no \
-                     holder (competent_authority) whose cell gives it (RFC-048)",
-                    input.name, law.id
-                ),
-            );
+        let routed = match route_answer(article, law, input, &terms) {
+            Ok(routed) => routed,
+            Err(message) => {
+                return refuse(
+                    res_ctx,
+                    format!(
+                        "input '{}' of {} takes the answer '{answer}', but {message}",
+                        input.name, law.id
+                    ),
+                );
+            }
         };
+        let (named, competent) = (routed.named, routed.competent);
         let askees: Vec<&'c dyn OpenTermAnswerer> = res_ctx
             .answerer
             .into_iter()
@@ -4689,7 +4772,7 @@ impl LawExecutionService {
                 "No cell of this execution gives the answer '{answer}' for {}",
                 authorities(named)
             );
-            return Self::no_answer(article, law, input, message, Vec::new(), res_ctx);
+            return Self::no_answer(article, law, input, answer, message, Vec::new(), res_ctx);
         };
         // An answer from the receiver's own chronicle crosses no cell and
         // needs no ground; one from another cell does (RFC-056).
@@ -4727,6 +4810,7 @@ impl LawExecutionService {
                 law_id: law.id.clone(),
                 article: article.number.clone(),
                 answers: Vec::new(),
+                unanswered: None,
             });
             return Ok(Some(unknown));
         }
@@ -4747,7 +4831,7 @@ impl LawExecutionService {
                     authorities(named),
                     askee.authority().name
                 );
-                return Self::no_answer(article, law, input, message, Vec::new(), res_ctx);
+                return Self::no_answer(article, law, input, answer, message, Vec::new(), res_ctx);
             }
             Err(e) => {
                 res_ctx.trace_set_message(format!(
@@ -4782,6 +4866,7 @@ impl LawExecutionService {
                 article,
                 law,
                 input,
+                answer,
                 message,
                 vec![given.provenance],
                 res_ctx,
@@ -4797,6 +4882,7 @@ impl LawExecutionService {
             law_id: law.id.clone(),
             article: article.number.clone(),
             answers: vec![given.provenance],
+            unanswered: None,
         });
         Ok(Some(value))
     }
@@ -4804,13 +4890,15 @@ impl LawExecutionService {
     /// The value of an input of `article` that got no answer
     /// (`source.reduction`): null, where the input may be absent, and the
     /// binding then fills nothing, unless nothing falls back on it. The null
-    /// answers among those asked, `nulls`, are recorded for the report.
+    /// answers among those asked, `nulls`, are recorded for the report, and
+    /// so is the answer `answer` the input did not get, with `message`.
     /// Declared never absent, the input is an error: without a cell that
     /// answers, the decision fails (RFC-036, RFC-048).
     fn no_answer(
         article: &Article,
         law: &ArticleBasedLaw,
         input: &Input,
+        answer: &str,
         message: String,
         nulls: Vec<AnswerProvenance>,
         res_ctx: &mut ResolutionContext<'_>,
@@ -4823,12 +4911,17 @@ impl LawExecutionService {
             res_ctx.trace_set_message(message.clone());
             return Err(EngineError::InvalidOperation(message));
         }
-        res_ctx.trace_set_message(message);
+        res_ctx.trace_set_message(message.clone());
         res_ctx.trace_set_result(Value::Null);
         res_ctx.bound.push(Bound {
             law_id: law.id.clone(),
             article: article.number.clone(),
             answers: nulls,
+            unanswered: Some(Unanswered {
+                answer: answer.to_string(),
+                input: input.name.clone(),
+                message,
+            }),
         });
         Ok(Some(Value::Null))
     }
@@ -5171,6 +5264,8 @@ impl LawExecutionService {
                         .iter()
                         .flat_map(|b| b.answers.iter().cloned())
                         .collect();
+                    let unanswered: Vec<Unanswered> =
+                        taken.iter().filter_map(|b| b.unanswered.clone()).collect();
                     let by = if answers.is_empty() {
                         String::new()
                     } else {
@@ -5198,6 +5293,7 @@ impl LawExecutionService {
                                 law_id,
                                 article,
                                 answers,
+                                unanswered,
                             }
                         },
                     ));

@@ -71,6 +71,64 @@ pub(crate) fn required_outputs_with(
     required
 }
 
+/// Every name `output` of `article` reads, through the actions that compute
+/// it and the outputs of the article they read in turn
+/// ([`required_outputs`]).
+pub(crate) fn output_reads(article: &Article, output: &str) -> BTreeSet<String> {
+    let actions = article
+        .get_execution_spec()
+        .and_then(|e| e.actions.as_deref())
+        .unwrap_or_default();
+    let needed = required_outputs(actions, &[output]);
+    actions
+        .iter()
+        .filter(|a| a.output.as_ref().is_some_and(|o| needed.contains(o)))
+        .flat_map(referenced_names)
+        .collect()
+}
+
+/// What the binding `article` reads to fill the term `output`: the names
+/// the actions for `output` read, through the other outputs they read in
+/// turn, and through the parameters of the inputs among those names (an
+/// input whose `source` passes `$name` reads `name`). The walk does not enter
+/// another output named in `terms`: that output is a term of its own, filled
+/// with what it reads itself, and a term that builds on it takes its value,
+/// not its sources.
+pub(crate) fn term_reads(
+    article: &Article,
+    output: &str,
+    terms: &BTreeSet<&str>,
+) -> BTreeSet<String> {
+    let actions = article
+        .get_execution_spec()
+        .and_then(|e| e.actions.as_deref())
+        .unwrap_or_default();
+    let mut reads = BTreeSet::new();
+    let mut seen = BTreeSet::from([output.to_string()]);
+    let mut pending = vec![output.to_string()];
+    while let Some(name) = pending.pop() {
+        let by_actions = actions
+            .iter()
+            .filter(|a| a.output.as_deref() == Some(name.as_str()))
+            .flat_map(referenced_names);
+        let by_inputs = article
+            .get_inputs()
+            .iter()
+            .filter(|input| input.name == name)
+            .filter_map(|input| input.source.as_ref()?.parameters.as_ref())
+            .flat_map(|parameters| parameters.values())
+            .filter_map(|value| value.strip_prefix('$'))
+            .map(|path| path.split('.').next().unwrap_or(path).to_string());
+        for read in by_actions.chain(by_inputs) {
+            if !terms.contains(read.as_str()) && seen.insert(read.clone()) {
+                pending.push(read.clone());
+            }
+            reads.insert(read);
+        }
+    }
+    reads
+}
+
 /// The order to run `actions` in: every action after the actions producing
 /// what it reads. Where nothing orders two actions, declaration order does,
 /// so the order of the actions in the file never changes a value, except

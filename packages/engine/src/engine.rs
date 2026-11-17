@@ -66,7 +66,8 @@ pub enum OutputProvenance {
 /// guessing from the value: a regulation can give what the authority found.
 /// Serialized as `"finding"`, as `{"regulation": {"law_id", "article"}}`, so
 /// the regulation's article does not collide with the declaring one, or as
-/// `{"answer": {"law_id", "article", "answers": [...]}}`.
+/// `{"answer": {"law_id", "article", "answers": [...]}}`, with
+/// `"unanswered": [...]` beside the answers where an input got none.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FilledBy {
@@ -81,12 +82,32 @@ pub enum FilledBy {
     /// what each cell says it answered from, in the order the inputs were
     /// asked. Inputs may take the answers of different cells (synthesis,
     /// RFC-048). Where every cell was silent and nothing falls back, the
-    /// null answers; where no cell answered, none.
+    /// null answers; where no cell answered, none. `unanswered` lists each
+    /// input that got no answer, so the binding filled the term without it,
+    /// in the order the inputs were asked.
     Answer {
         law_id: String,
         article: String,
         answers: Vec<AnswerProvenance>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        unanswered: Vec<Unanswered>,
     },
+}
+
+/// An answer a binding asked for and did not get (RFC-048 §2): no cell of
+/// the execution gives it, or the cell asked was silent. The input that
+/// takes it is then null, and the binding says what holds; this records
+/// that it happened, next to the answers that were given. A cell that
+/// answered null is silent too: its answer is also among the answers, as
+/// the null one.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Unanswered {
+    /// The name of the answer (`source.reduction`).
+    pub answer: String,
+    /// The input of the binding that takes it.
+    pub input: String,
+    /// Why there is none, as the trace of the input says it.
+    pub message: String,
 }
 
 /// One open term of one article that was filled in an execution, and by
