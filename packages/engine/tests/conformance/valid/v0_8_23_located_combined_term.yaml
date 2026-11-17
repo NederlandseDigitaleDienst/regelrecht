@@ -1,0 +1,36 @@
+---
+# Tier C: an open term with a `location`, the shape that decides which
+# authority's regulation fills it, and `combine: OR`, which asks every
+# implementation (schema v0.8.23).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_conformance_located_combined_term
+regulatory_layer: WET
+bwb_id: BWBR9999978
+publication_date: '2026-11-17'
+valid_from: '2026-11-17'
+url: https://example.invalid/located-combined-term
+articles:
+  - number: '1'
+    url: https://example.invalid/located-combined-term/1
+    text: >-
+      Het is verboden een activiteit te verrichten voor zover dat in het
+      omgevingsplan is bepaald.
+    machine_readable:
+      open_terms:
+        - id: verboden_in_omgevingsplan
+          type: boolean
+          required: true
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          location: $locatie
+          combine: OR
+      execution:
+        parameters:
+          - name: locatie
+            type: shape
+            required: true
+        output:
+          - name: uitkomst
+            type: boolean
+        actions:
+          - output: uitkomst
+            value: $verboden_in_omgevingsplan

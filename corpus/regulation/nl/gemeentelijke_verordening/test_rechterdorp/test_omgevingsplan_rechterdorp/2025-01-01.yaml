@@ -1,0 +1,88 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_omgevingsplan_rechterdorp
+name: Testomgevingsplan Rechterdorp
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: GM9902
+officiele_titel: Omgevingsplan gemeente Rechterdorp
+url: https://example.com/test_omgevingsplan_rechterdorp
+
+# Een verzonnen gemeente. Haar gebied staat niet in dit bestand: de aanroeper
+# geeft het de engine onder de code GM9902.
+
+articles:
+  - number: '1'
+    url: https://example.com/test_omgevingsplan_rechterdorp/1
+    text: >-
+      Het is verboden zonder omgevingsvergunning een monument te slopen.
+    machine_readable:
+      # Bij slopen hangt het verbod af van de vraag of het bouwwerk een
+      # monument is. Wie dat niet opgeeft, krijgt geen "nee": het artikel kan
+      # het dan niet zeggen, en zijn uitkomst is onbekend. Over een andere
+      # activiteit zwijgt het.
+      implements:
+        - law: test_location_terms
+          article: '1'
+          open_term: verboden_in_omgevingsplan
+          gelet_op: Gelet op artikel 1 van de Testwet plaatsgebonden termen
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+          - name: monument
+            type: boolean
+            required: false
+        output:
+          - name: verboden_in_omgevingsplan
+            type: boolean
+            nullable: true
+        actions:
+          - output: verboden_in_omgevingsplan
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $activiteit
+                    value: slopen
+                  then: $monument
+              default: null
+
+  - number: '3'
+    url: https://example.com/test_omgevingsplan_rechterdorp/3
+    text: >-
+      De bouwhoogte van een bouwwerk bedraagt ten hoogste 12 meter.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '3'
+          open_term: maximale_bouwhoogte
+          gelet_op: Gelet op artikel 3 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: maximale_bouwhoogte
+            type: number
+        actions:
+          - output: maximale_bouwhoogte
+            value: 12
+
+  - number: '4'
+    url: https://example.com/test_omgevingsplan_rechterdorp/4
+    text: >-
+      Het tarief voor het in behandeling nemen van een aanvraag bedraagt 250.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '4'
+          open_term: legestarief
+          gelet_op: Gelet op artikel 4 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: legestarief
+            type: number
+        actions:
+          - output: legestarief
+            value: 250

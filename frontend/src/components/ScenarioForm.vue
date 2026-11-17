@@ -65,9 +65,12 @@ const props = withDefaults(defineProps<{
   /** Scenario object from mapFeatureToForm() (only the fields read here) */
   scenario: Pick<FormScenario, 'assertions'> & { execution?: FormScenario['execution'] };
   /** Merged setup from getEffectiveSetup() (only the fields read here) */
-  setup: Pick<FormSetup, 'calculationDate' | 'parameters' | 'dataSources'>;
+  setup: Pick<FormSetup, 'calculationDate' | 'parameters' | 'dataSources' | 'territories'>;
   /** WASM engine instance */
-  engine?: Pick<EditorEngine, 'clearDataSources' | 'registerDataSource' | 'executeWithTrace'> | null;
+  engine?: Pick<
+    EditorEngine,
+    'clearDataSources' | 'registerDataSource' | 'clearTerritories' | 'registerTerritory' | 'executeWithTrace'
+  > | null;
   /** Engine ready state */
   ready?: boolean;
   /** Law ID for execution */
@@ -317,6 +320,13 @@ function execute() {
   try {
     const engine = props.engine;
     engine.clearDataSources();
+
+    // The territories of the scenario, which the form does not edit: the
+    // engine picks the regulation of a place by them (schema v0.8.23).
+    engine.clearTerritories();
+    for (const territory of props.setup.territories || []) {
+      engine.registerTerritory(territory.code, territory.shape);
+    }
 
     // Register data sources
     for (const ds of dataSources.value) {

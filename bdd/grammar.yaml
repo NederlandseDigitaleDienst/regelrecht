@@ -110,6 +110,19 @@ steps:
     args: [{name: name, type: string}]
     datatable: true
 
+  # The territory of an authority, by its code (`gemeente_code`,
+  # `provincie_code`, `waterschap_code`), as a shape in well-known text. The
+  # caller gives the engine its territories as it gives data sources. An open
+  # term with a `location` (schema v0.8.23) is filled by a regulation that
+  # carries such a code only when the location overlaps the territory given
+  # for it; a code without a territory is an error there.
+  - id: set_territory
+    action: set_territory
+    keyword: given
+    tier: core
+    text: the territory of "{code}" is "{shape}"
+    args: [{name: code, type: string}, {name: shape, type: string}]
+
   # ---------- core: execute ----------
   - id: evaluate
     action: evaluate

@@ -45,7 +45,9 @@
     "ioc": {
       "test_files": [
         "ioc.json",
-        "open_terms.json"
+        "open_terms.json",
+        "open_term_location.json",
+        "open_term_combine.json"
       ],
       "operations": []
     },

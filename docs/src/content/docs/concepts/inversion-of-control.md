@@ -113,6 +113,46 @@ The scope selects among other regulations, with two exceptions. First, an ordina
 
 Second, a regulation with the same scope fields as the declaring one, set to the same values, fills its terms whatever the scope as well. Further rules that the college lays down under an ordinance of its own municipality are the case in point. Two national regulations do not count as sharing a territory; for them the scope plays no part anyway.
 
+### The regulation of a place
+
+A `gemeente_code` among the parameters works when the caller knows which municipality a case belongs to. For a rule about a place the caller knows something else: where the activity is. Since schema v0.8.23 an open term can name that place with `location`, and the place then picks the regulation.
+
+```yaml
+# A law that leaves a ban to the omgevingsplan
+machine_readable:
+  open_terms:
+    - id: verboden_in_omgevingsplan
+      type: boolean
+      required: true
+      delegated_to: gemeenteraad
+      delegation_type: GEMEENTELIJKE_VERORDENING
+      location: $locatie
+      combine: OR
+  execution:
+    parameters:
+      - name: locatie
+        type: shape
+        required: true
+```
+
+`location` is a `$`-reference to a parameter or an input of type `shape` in the article that declares the term. A regulation with a `gemeente_code`, `provincie_code` or `waterschap_code` fills the term only when that shape overlaps the territory of its code. The test is the one `OVERLAPS` applies: the interiors meet, so a location on the boundary of a territory lies in neither neighbor. A code among the parameters plays no part for such a term. A regulation without a territory, the declaring regulation itself and one of the declarer's own territory fill the term as described above.
+
+The engine does not know where a municipality lies. The caller gives it the territory of each code, as well-known text in the coordinate system of the locations: `register_territory` on the execution service, `registerTerritory` in WASM, `territories` in the request of the `evaluate` binary. A candidate whose code has no territory is an error that names the code. Whether that regulation applies at the location is then not known, and the engine does not read that as "it does not". A location that is not known makes the term unknown for lack of it.
+
+### Several articles that fill one term
+
+A plan states its bans article by article: one article forbids building without a permit, another felling a tree. Each of those articles fills the same open term, and so may the plans of two municipalities when a location lies across their boundary. Without `combine`, a term takes one implementation, and two of one layer and date fail on an ambiguous priority.
+
+`combine: OR` on a boolean term asks every implementation that is in force, of the delegated layer and in scope. No priority is applied among them. The term is:
+
+- true when one implementation gives true;
+- otherwise unknown when one of them is unknown, for lack of what it lacks;
+- otherwise false.
+
+An implementation that gives null does not speak about the case and counts as not saying so. That separates two answers a single implementation could not: a plan that was asked and forbids nothing gives false, while a location where no plan applies leaves the term without an implementation. The term then takes its `default`, and a required term without one is an error, as it is without `combine`. The execution records every implementation that gave true as having filled the term.
+
+`combine` does not go with `decided_per_case_by`. A term with `location` and without `combine` still takes one regulation, so a location across two territories is an ambiguity there.
+
 ## An implementation that reads the law it fills in
 
 An implementation can state its value in terms of the law it fills in. A ministerial regulation indexing an amount is the common case: *"het in artikel 4 genoemde bedrag wordt met ingang van 1 januari verhoogd met 3,2 procent"*, where the law leaves the amount open with a `default`. The implementing article then reads an output of that law, which depends on the very term it fills. That read is the law without this filling: the next implementation, or the `default` when there is none. The filling then applies once, whether the law or the implementing regulation is asked.
@@ -144,7 +184,7 @@ A binding fills the term like any other implementation: the term gets the bindin
 
 ## Conflict resolution
 
-When multiple regulations implement the same open term, the engine resolves conflicts using two rules from legal theory:
+When multiple regulations implement the same open term, and the term has no `combine`, the engine resolves conflicts using two rules from legal theory:
 
 1. **Lex superior** (higher regulatory layer wins): a *wet* takes precedence over a *ministeriële regeling*, and an ordinance yields to the act it executes
 2. **Lex posterior** (newer wins): between two regulations at the same level, the one with the later `valid_from` date takes precedence

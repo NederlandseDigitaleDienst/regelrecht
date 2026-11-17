@@ -27,6 +27,7 @@ export interface GherkinEngine {
   hasLaw(lawId: string): boolean;
   registerDataSource(name: string, keyField: string, records: Record<string, unknown>[]): void;
   registerDataSourceForLaw(lawId: string, name: string, keyField: string, records: Record<string, unknown>[]): void;
+  registerTerritory(code: string, wkt: string): void;
   execute(lawId: string, outputName: string, parameters: Record<string, unknown>, calculationDate: string): ExecutionResult;
 }
 
@@ -315,6 +316,13 @@ export async function dispatch(
       engine.registerDataSourceForLaw(lawId, sourceName, keyField, records);
       break;
     }
+
+    // The territory of an authority, by its code. An open term with a
+    // `location` is filled by the regulation whose territory the location
+    // overlaps (schema v0.8.23).
+    case 'set_territory':
+      engine.registerTerritory(text(0), text(1));
+      break;
 
     // --- core: execute ---
     case 'evaluate': {

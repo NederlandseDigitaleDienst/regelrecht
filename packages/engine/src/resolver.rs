@@ -25,8 +25,10 @@ use crate::article::{
 use crate::config;
 use crate::error::{EngineError, Result};
 use crate::priority::{self, Candidate};
+use crate::shape::{self, Territories};
 use crate::types::{RegulatoryLayer, Value};
 use chrono::NaiveDate;
+use geo::Geometry;
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 /// Why a law version could not be selected for a reference date.
@@ -270,13 +272,93 @@ impl DelegationRefusal {
 /// The outcome of an implements-index lookup for one open term.
 #[derive(Debug, Default)]
 pub struct ImplementationLookup<'a> {
-    /// Competent implementations, winner first.
+    /// Competent implementations, winner first. For a term with
+    /// `combine: OR` (schema v0.8.23) none wins: all of them, by law id and
+    /// article number.
     pub implementations: Vec<(&'a ArticleBasedLaw, &'a Article)>,
     /// Candidates refused by the delegation gate, in index order.
     pub refusals: Vec<DelegationRefusal>,
     /// Candidates whose law has no version in force on the reference date, in
     /// index order. Not competent for this date, and not silent about it.
     pub not_in_force: Vec<DeclarationNotInForce>,
+}
+
+/// Where a case is, for an open term with a `location` (schema v0.8.23): the
+/// shape the term names and the territories the caller registered. A
+/// regulation that carries a territory code fills such a term only when the
+/// location overlaps the territory of that code.
+pub(crate) struct Place<'a> {
+    pub(crate) location: &'a Geometry<f64>,
+    pub(crate) territories: &'a Territories,
+}
+
+impl Place<'_> {
+    /// Whether the location overlaps the territory of every code `law`
+    /// carries. A law without a code holds everywhere.
+    ///
+    /// # Errors
+    ///
+    /// When no territory is registered for a code of `law`: whether the law
+    /// applies here is then not known, which is not the same as "it does
+    /// not". `asked_for` names the open term, for the message.
+    fn holds(&self, law: &ArticleBasedLaw, asked_for: &str) -> Result<bool> {
+        for code in territory_codes(law) {
+            let Some(territory) = self.territories.of(code) else {
+                return Err(EngineError::ResolutionError(format!(
+                    "{asked_for} is filled by the regulation of the place, and no territory is \
+                     registered for '{code}' of {}",
+                    law.id
+                )));
+            };
+            let overlaps = shape::interiors_meet(self.location, territory).map_err(|why| {
+                EngineError::ResolutionError(format!(
+                    "{asked_for}: the location cannot be held against the territory of \
+                     '{code}': {why}"
+                ))
+            })?;
+            if !overlaps {
+                return Ok(false);
+            }
+        }
+        Ok(true)
+    }
+}
+
+/// One lookup of the implementations of an open term: the term as its
+/// article declares it, and the case it is asked for.
+struct TermAsked<'t> {
+    /// The law that declares the open term.
+    law_id: &'t str,
+    /// The number of the article that declares it.
+    article: &'t str,
+    open_term: &'t OpenTerm,
+    reference_date: Option<NaiveDate>,
+    /// The parameters of the execution, for the scope codes among them.
+    scope: &'t HashMap<String, Value>,
+    /// Where the case is, when the caller knows.
+    place: Option<&'t Place<'t>>,
+}
+
+impl TermAsked<'_> {
+    /// How a record about a dropped candidate names the term.
+    fn subject(&self) -> String {
+        format!(
+            "open term '{}' of {} article {}",
+            self.open_term.id, self.law_id, self.article
+        )
+    }
+}
+
+/// The codes of the territory `law` holds for: its `gemeente_code`,
+/// `provincie_code` and `waterschap_code`, where it carries them.
+fn territory_codes(law: &ArticleBasedLaw) -> impl Iterator<Item = &str> {
+    [
+        law.gemeente_code.as_deref(),
+        law.provincie_code.as_deref(),
+        law.waterschap_code.as_deref(),
+    ]
+    .into_iter()
+    .flatten()
 }
 
 /// Why no procedure definition was found (RFC-008).
@@ -1097,6 +1179,17 @@ impl RuleResolver {
     /// * `article` - The article number that declares the open term
     /// * `open_term` - The open term as declared by that article
     /// * `reference_date` - Optional date to filter by temporal validity
+    ///
+    /// A term with a `location` (schema v0.8.23) is filled by the regulation
+    /// of the place, which this lookup does not know: a regulation that
+    /// carries a territory code is then out of scope, whatever codes `scope`
+    /// holds. The execution service looks such a term up with the location of
+    /// the case and the territories it was given.
+    ///
+    /// # Errors
+    ///
+    /// When the term's `delegation_type` names no regulatory layer, or two
+    /// candidates of one layer and date leave no winner.
     pub fn find_implementations(
         &self,
         law_id: &str,
@@ -1105,165 +1198,297 @@ impl RuleResolver {
         reference_date: Option<NaiveDate>,
         scope: &HashMap<String, Value>,
     ) -> Result<ImplementationLookup<'_>> {
-        let open_term_id = open_term.id.as_str();
+        self.find_implementations_at(law_id, article, open_term, reference_date, scope, None)
+    }
+
+    /// [`Self::find_implementations`] for a case whose place is known. With
+    /// a `place`, a regulation that carries a territory code fills a term
+    /// with a `location` when the location overlaps the territory registered
+    /// for that code; the codes in `scope` play no part for such a term. For
+    /// a term without a `location` the `place` is not looked at.
+    ///
+    /// A term with `combine: OR` takes every candidate that is left, without
+    /// ranking them: no winner is picked, so two of one layer and date are
+    /// no conflict.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::find_implementations`], and when a candidate carries a
+    /// code that no territory is registered for.
+    pub(crate) fn find_implementations_at(
+        &self,
+        law_id: &str,
+        article: &str,
+        open_term: &OpenTerm,
+        reference_date: Option<NaiveDate>,
+        scope: &HashMap<String, Value>,
+        place: Option<&Place<'_>>,
+    ) -> Result<ImplementationLookup<'_>> {
+        let asked = TermAsked {
+            law_id,
+            article,
+            open_term,
+            reference_date,
+            scope,
+            place,
+        };
         let key = (
             law_id.to_string(),
             article.to_string(),
-            open_term_id.to_string(),
+            open_term.id.clone(),
         );
-        let candidate_entries = match self.implements_index.get(&key) {
-            Some(entries) => entries,
-            None => return Ok(ImplementationLookup::default()),
+        let Some(entries) = self.implements_index.get(&key) else {
+            return Ok(ImplementationLookup::default());
         };
 
         tracing::debug!(
             law_id = %law_id,
             article = %article,
-            open_term_id = %open_term_id,
-            candidates = candidate_entries.len(),
+            open_term_id = %open_term.id,
+            candidates = entries.len(),
             "Finding implementations for open term"
         );
 
-        // What layer the declaring article demands of an implementation. Absent
-        // means the law demands nothing, and then every layer may fill the term.
-        let delegation_type = open_term.delegation_type.as_deref();
-
-        // Resolve each candidate to actual (law, article) references
-        let mut candidates: Vec<Candidate> = Vec::new();
         let mut lookup = ImplementationLookup::default();
         // The declaring law, to recognise candidates of its own territory.
         let declarer = self.get_law_for_date(law_id, reference_date);
 
-        for entry in candidate_entries {
-            // Version filter. A regulation that is not in force on this date
-            // cannot fill the term, but its disappearance would be silent: the
-            // caller sees zero candidates and reports "no implementation, using
-            // the default" — the same sentence it prints when nobody ever wrote
-            // one. The two filters below say why they drop a candidate, and
-            // this one now does too, through the same lookup so the record
-            // reaches trace and receipt rather than the log alone.
-            let law = match self.get_law_for_date_reported(&entry.law_id, reference_date) {
-                Ok(law) => law,
-                Err(reason) => {
-                    tracing::debug!(
-                        candidate = %entry.law_id,
-                        reason = %reason.describe(),
-                        "Skipping: no version of this candidate is in force on the reference date"
-                    );
-                    lookup.not_in_force.push(DeclarationNotInForce {
-                        kind: DeclarationKind::Implementation,
-                        law_id: entry.law_id.clone(),
-                        article: entry.article_number.clone(),
-                        subject: format!(
-                            "open term '{open_term_id}' of {law_id} article {article}"
-                        ),
-                        reason: reason.describe(),
-                    });
-                    continue;
-                }
+        for entry in entries {
+            let Some(law) = self.candidate_in_force(&asked, entry, &mut lookup) else {
+                continue;
             };
-
-            // Scope filtering: check all scope fields on the candidate law against
-            // the execution parameters. A scoped regulation (e.g., with gemeente_code
-            // or provincie_code) only matches when the execution scope contains the
-            // same value. Unscoped regulations (national) always match. The
-            // regulation that declares the term matches too: the scope picks
-            // which regulation applies to a case, and that one already does.
-            // So does a regulation scoped to the same territory as the one that
-            // declares the term, such as the college's nadere regels under a
-            // verordening of the same municipality.
-            let of_the_declarers_territory =
-                declarer.is_some_and(|declarer| Self::shares_territory(declarer, law));
-            if law.id != law_id && !of_the_declarers_territory && !Self::matches_scope(law, scope) {
+            if !Self::candidate_in_scope(&asked, declarer, law)? {
                 tracing::debug!(
                     candidate = %entry.law_id,
-                    "Skipping: scope fields do not match execution parameters"
+                    "Skipping: the candidate's territory is not the one of this case"
                 );
                 continue;
             }
-
-            // Delegation gate: a layer the declaring article did not authorise
-            // is not a weaker candidate but no candidate at all.
-            if let Some(expected) = delegation_type
-                && !Self::matches_delegation(law, law_id, open_term_id, expected)?
-            {
-                tracing::debug!(
-                    candidate = %entry.law_id,
-                    candidate_layer = %law.regulatory_layer.as_str(),
-                    delegation_type = %expected,
-                    "Skipping: regulatory_layer is not the layer the open term delegates to"
-                );
-                lookup.refusals.push(DelegationRefusal {
-                    declaring_law: law_id.to_string(),
-                    declaring_article: article.to_string(),
-                    open_term: open_term_id.to_string(),
-                    required_layer: expected.to_string(),
-                    refused_law: law.id.clone(),
-                    refused_article: entry.article_number.clone(),
-                    refused_layer: law.regulatory_layer.as_str().to_string(),
-                });
+            if !Self::candidate_is_competent(&asked, entry, law, &mut lookup)? {
                 continue;
             }
-
-            let Some(art) = law
-                .articles
-                .iter()
-                .find(|a| a.number == entry.article_number)
+            let Some(implementing) =
+                Self::candidate_article(&asked, entry, law, entries, &mut lookup)
             else {
-                // The index is built from the newest version of each law, but
-                // the candidate was resolved for the reference date. An article
-                // number that the newest version has and this one does not is a
-                // version mismatch, not an absent implementation — say so
-                // rather than letting the candidate disappear without a word.
-                // The log alone did not: the caller still reported "no
-                // implementation, using the default", so the record goes the
-                // same way as the not-in-force one above, to trace and receipt.
+                continue;
+            };
+            lookup.implementations.push((law, implementing));
+        }
+
+        Self::order_implementations(open_term, &mut lookup)?;
+        Ok(lookup)
+    }
+
+    /// The version filter: the version of the candidate's law in force on
+    /// the reference date, or `None` when there is none.
+    ///
+    /// A regulation that is not in force on this date cannot fill the term,
+    /// but its disappearance would be silent: the caller sees zero
+    /// candidates and reports "no implementation, using the default" — the
+    /// same sentence it prints when nobody ever wrote one. The other filters
+    /// say why they drop a candidate, and this one does too, through the
+    /// same lookup, so the record reaches trace and receipt rather than the
+    /// log alone.
+    fn candidate_in_force<'s>(
+        &'s self,
+        asked: &TermAsked<'_>,
+        entry: &LawArticleRef,
+        lookup: &mut ImplementationLookup<'s>,
+    ) -> Option<&'s ArticleBasedLaw> {
+        match self.get_law_for_date_reported(&entry.law_id, asked.reference_date) {
+            Ok(law) => Some(law),
+            Err(reason) => {
+                tracing::debug!(
+                    candidate = %entry.law_id,
+                    reason = %reason.describe(),
+                    "Skipping: no version of this candidate is in force on the reference date"
+                );
                 lookup.not_in_force.push(DeclarationNotInForce {
                     kind: DeclarationKind::Implementation,
                     law_id: entry.law_id.clone(),
                     article: entry.article_number.clone(),
-                    subject: format!("open term '{open_term_id}' of {law_id} article {article}"),
-                    reason: missing_article_reason(
-                        law,
-                        &entry.article_number,
-                        "an implementation of the same open term",
-                        |candidate| {
-                            let offered = candidate_entries.iter().any(|e| {
-                                e.law_id == entry.law_id && e.article_number == candidate.number
-                            });
-                            !offered
-                                && candidate.get_implements().is_some_and(|decls| {
-                                    decls.iter().any(|d| {
-                                        d.law == law_id
-                                            && d.article == article
-                                            && d.open_term == open_term_id
-                                    })
-                                })
-                        },
-                    ),
+                    subject: asked.subject(),
+                    reason: reason.describe(),
                 });
-                continue;
-            };
+                None
+            }
+        }
+    }
 
-            candidates.push(Candidate {
+    /// The scope test: whether the candidate `law` applies to this case.
+    ///
+    /// A scoped regulation (with a `gemeente_code`, `provincie_code` or
+    /// `waterschap_code`) only matches when the execution scope contains the
+    /// same value. Unscoped regulations (national) always match. The
+    /// regulation that declares the term matches too: the scope picks which
+    /// regulation applies to a case, and that one already does. So does a
+    /// regulation scoped to the same territory as the one that declares the
+    /// term (`declarer`), such as the college's nadere regels under a
+    /// verordening of the same municipality.
+    ///
+    /// A term with a `location` (schema v0.8.23) asks the regulation of the
+    /// place instead: a candidate with a territory code is in scope when the
+    /// location overlaps the territory registered for that code, and the
+    /// codes among the parameters play no part. Without a place to hold it
+    /// against, such a candidate is out.
+    ///
+    /// # Errors
+    ///
+    /// When the term has a `location`, the place is known and no territory
+    /// is registered for a code the candidate carries.
+    fn candidate_in_scope(
+        asked: &TermAsked<'_>,
+        declarer: Option<&ArticleBasedLaw>,
+        law: &ArticleBasedLaw,
+    ) -> Result<bool> {
+        if law.id == asked.law_id
+            || declarer.is_some_and(|declarer| Self::shares_territory(declarer, law))
+        {
+            return Ok(true);
+        }
+        match (&asked.open_term.location, asked.place) {
+            (None, _) => Ok(Self::matches_scope(law, asked.scope)),
+            (Some(_), Some(place)) => place.holds(
                 law,
-                article_number: entry.article_number.clone(),
+                &format!(
+                    "Open term '{}' on {}#{}",
+                    asked.open_term.id, asked.law_id, asked.article
+                ),
+            ),
+            (Some(_), None) => Ok(territory_codes(law).next().is_none()),
+        }
+    }
+
+    /// The delegation gate: whether the candidate `law` is of the layer the
+    /// declaring article delegates the term to. A layer the article did not
+    /// authorise is not a weaker candidate but no candidate at all; the
+    /// refusal is recorded on `lookup` ([`Self::matches_delegation`] says
+    /// why). A term without a `delegation_type` demands nothing, and then
+    /// every layer may fill it.
+    ///
+    /// # Errors
+    ///
+    /// When the term's `delegation_type` names no regulatory layer.
+    fn candidate_is_competent(
+        asked: &TermAsked<'_>,
+        entry: &LawArticleRef,
+        law: &ArticleBasedLaw,
+        lookup: &mut ImplementationLookup<'_>,
+    ) -> Result<bool> {
+        let Some(expected) = asked.open_term.delegation_type.as_deref() else {
+            return Ok(true);
+        };
+        if Self::matches_delegation(law, asked.law_id, &asked.open_term.id, expected)? {
+            return Ok(true);
+        }
+        tracing::debug!(
+            candidate = %entry.law_id,
+            candidate_layer = %law.regulatory_layer.as_str(),
+            delegation_type = %expected,
+            "Skipping: regulatory_layer is not the layer the open term delegates to"
+        );
+        lookup.refusals.push(DelegationRefusal {
+            declaring_law: asked.law_id.to_string(),
+            declaring_article: asked.article.to_string(),
+            open_term: asked.open_term.id.clone(),
+            required_layer: expected.to_string(),
+            refused_law: law.id.clone(),
+            refused_article: entry.article_number.clone(),
+            refused_layer: law.regulatory_layer.as_str().to_string(),
+        });
+        Ok(false)
+    }
+
+    /// The implementing article of the candidate, in the version of its law
+    /// in force on the reference date, or `None` when that version has no
+    /// article of that number.
+    ///
+    /// The index is built from the newest version of each law, but the
+    /// candidate was resolved for the reference date. An article number that
+    /// the newest version has and this one does not is a version mismatch,
+    /// not an absent implementation — say so rather than letting the
+    /// candidate disappear without a word. The log alone did not: the caller
+    /// still reported "no implementation, using the default", so the record
+    /// goes the same way as the not-in-force one, to trace and receipt.
+    /// `entries` are all candidates for the term, to tell an article that
+    /// was renumbered from one that is offered under its own number.
+    fn candidate_article<'s>(
+        asked: &TermAsked<'_>,
+        entry: &LawArticleRef,
+        law: &'s ArticleBasedLaw,
+        entries: &[LawArticleRef],
+        lookup: &mut ImplementationLookup<'s>,
+    ) -> Option<&'s Article> {
+        let found = law
+            .articles
+            .iter()
+            .find(|a| a.number == entry.article_number);
+        if found.is_none() {
+            lookup.not_in_force.push(DeclarationNotInForce {
+                kind: DeclarationKind::Implementation,
+                law_id: entry.law_id.clone(),
+                article: entry.article_number.clone(),
+                subject: asked.subject(),
+                reason: missing_article_reason(
+                    law,
+                    &entry.article_number,
+                    "an implementation of the same open term",
+                    |candidate| {
+                        let offered = entries.iter().any(|e| {
+                            e.law_id == entry.law_id && e.article_number == candidate.number
+                        });
+                        !offered
+                            && candidate.get_implements().is_some_and(|decls| {
+                                decls.iter().any(|d| {
+                                    d.law == asked.law_id
+                                        && d.article == asked.article
+                                        && d.open_term == asked.open_term.id
+                                })
+                            })
+                    },
+                ),
             });
-            lookup.implementations.push((law, art));
         }
+        found
+    }
 
-        if candidates.is_empty() {
-            return Ok(lookup);
+    /// Put the implementations found in the order the caller asks them in.
+    /// For a term with `combine: OR` every candidate is asked, so none has
+    /// to win: they come by law id and article number, not in the order the
+    /// laws happened to be loaded in. Otherwise priority picks the winner
+    /// (lex superior, then lex posterior) and it comes first.
+    ///
+    /// # Errors
+    ///
+    /// Without `combine`, when two candidates of one layer and date leave no
+    /// winner.
+    fn order_implementations(
+        open_term: &OpenTerm,
+        lookup: &mut ImplementationLookup<'_>,
+    ) -> Result<()> {
+        if lookup.implementations.is_empty() {
+            return Ok(());
         }
-
-        // Use priority resolution to sort — return winner first
+        if open_term.combines_with_or() {
+            lookup.implementations.sort_by(|(a_law, a), (b_law, b)| {
+                (a_law.id.as_str(), a.number.as_str()).cmp(&(b_law.id.as_str(), b.number.as_str()))
+            });
+            return Ok(());
+        }
+        let candidates: Vec<Candidate> = lookup
+            .implementations
+            .iter()
+            .map(|(law, article)| Candidate {
+                law,
+                article_number: article.number.clone(),
+            })
+            .collect();
         if let Some((winner_law, reason)) = priority::resolve_candidate(&candidates)? {
             tracing::debug!(
                 winner = %winner_law.id,
                 reason = %reason,
                 "Open term implementation resolved"
             );
-
             // Put winner first, then the rest
             let winner_idx = lookup
                 .implementations
@@ -1275,8 +1500,7 @@ impl RuleResolver {
                 lookup.implementations.swap(0, idx);
             }
         }
-
-        Ok(lookup)
+        Ok(())
     }
 
     /// Get the number of entries in the implements index.
@@ -5076,5 +5300,246 @@ articles:
                 )
             );
         }
+    }
+
+    // -- schema v0.8.23: `location` and `combine: OR` on an open term ------
+
+    /// A law whose article 1 leaves `verboden` to the municipalities, with
+    /// `term` as the further lines of the term, and the plans of GM0001 and
+    /// GM0002, each with one article that fills it. `extra` is one more law.
+    fn place_resolver(term: &str, extra: Option<&str>) -> RuleResolver {
+        let law = format!(
+            r#"
+$id: plaatswet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      open_terms:
+        - id: verboden
+          type: boolean
+          delegation_type: GEMEENTELIJKE_VERORDENING
+{term}
+      execution:
+        parameters:
+          - name: locatie
+            type: shape
+            required: true
+        output:
+          - name: x
+            type: boolean
+        actions:
+          - output: x
+            value: $verboden
+"#
+        );
+        let mut resolver = RuleResolver::new();
+        resolver.load_from_yaml(&law).unwrap();
+        // Loaded right before left, so an order by id is not the load order.
+        for (id, scope) in [
+            ("plan_rechts", "gemeente_code: 'GM0002'"),
+            ("plan_links", "gemeente_code: 'GM0001'"),
+        ] {
+            resolver.load_from_yaml(&place_plan(id, scope)).unwrap();
+        }
+        if let Some(extra) = extra {
+            resolver.load_from_yaml(extra).unwrap();
+        }
+        resolver
+    }
+
+    /// A regulation `id` with `scope` as its territory line (or none) whose
+    /// article 1 fills `verboden` of the place law.
+    fn place_plan(id: &str, scope: &str) -> String {
+        format!(
+            r#"
+$id: {id}
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+{scope}
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      implements:
+        - law: plaatswet
+          article: '1'
+          open_term: verboden
+      execution:
+        output:
+          - name: verboden
+            type: boolean
+        actions:
+          - output: verboden
+            value: true
+"#
+        )
+    }
+
+    /// The territories of GM0001 (x 0 to 10) and GM0002 (x 10 to 20).
+    fn two_territories() -> Territories {
+        let mut territories = Territories::default();
+        territories
+            .register("GM0001", "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
+            .unwrap();
+        territories
+            .register("GM0002", "POLYGON((10 0, 20 0, 20 10, 10 10, 10 0))")
+            .unwrap();
+        territories
+    }
+
+    /// The ids of the laws that fill `verboden` at `location`, or the error.
+    fn found_at(
+        resolver: &RuleResolver,
+        territories: &Territories,
+        location: &str,
+        scope: &HashMap<String, Value>,
+    ) -> Result<Vec<String>> {
+        let location = shape::parse(location).unwrap();
+        let place = Place {
+            location: &location,
+            territories,
+        };
+        let lookup = resolver.find_implementations_at(
+            "plaatswet",
+            "1",
+            open_term(resolver, "plaatswet", "1", "verboden"),
+            None,
+            scope,
+            Some(&place),
+        )?;
+        Ok(lookup
+            .implementations
+            .iter()
+            .map(|(law, _)| law.id.clone())
+            .collect())
+    }
+
+    const LOCATED: &str = "          location: $locatie";
+    const LOCATED_AND_COMBINED: &str = "          location: $locatie\n          combine: OR";
+    const ACROSS_BOTH: &str = "POLYGON((8 4, 12 4, 12 6, 8 6, 8 4))";
+
+    #[test]
+    fn test_find_implementations_a_location_selects_by_territory() {
+        let resolver = place_resolver(LOCATED, None);
+        let territories = two_territories();
+        let none = HashMap::new();
+        assert_eq!(
+            found_at(&resolver, &territories, "POINT(5 5)", &none).unwrap(),
+            ["plan_links"]
+        );
+        assert_eq!(
+            found_at(&resolver, &territories, "POINT(15 5)", &none).unwrap(),
+            ["plan_rechts"]
+        );
+        // On the shared edge, and far away: the interiors do not meet.
+        assert!(
+            found_at(&resolver, &territories, "POINT(10 5)", &none)
+                .unwrap()
+                .is_empty()
+        );
+        assert!(
+            found_at(&resolver, &territories, "POINT(50 50)", &none)
+                .unwrap()
+                .is_empty()
+        );
+        // The code among the parameters plays no part.
+        let other_code = scope_of("gemeente_code", "GM0002");
+        assert_eq!(
+            found_at(&resolver, &territories, "POINT(5 5)", &other_code).unwrap(),
+            ["plan_links"]
+        );
+    }
+
+    #[test]
+    fn test_find_implementations_without_combine_two_territories_are_ambiguous() {
+        let resolver = place_resolver(LOCATED, None);
+        let err = found_at(&resolver, &two_territories(), ACROSS_BOTH, &HashMap::new())
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("Ambiguous priority"), "{err}");
+    }
+
+    #[test]
+    fn test_find_implementations_combine_or_takes_every_candidate_in_a_fixed_order() {
+        let resolver = place_resolver(LOCATED_AND_COMBINED, None);
+        assert_eq!(
+            found_at(&resolver, &two_territories(), ACROSS_BOTH, &HashMap::new()).unwrap(),
+            ["plan_links", "plan_rechts"]
+        );
+    }
+
+    #[test]
+    fn test_find_implementations_an_unregistered_territory_is_an_error() {
+        let extra = place_plan("plan_elders", "gemeente_code: 'GM0003'");
+        let resolver = place_resolver(LOCATED_AND_COMBINED, Some(&extra));
+        let err = found_at(&resolver, &two_territories(), "POINT(5 5)", &HashMap::new())
+            .unwrap_err()
+            .to_string();
+        assert!(
+            err.contains("no territory is registered for 'GM0003' of plan_elders"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn test_find_implementations_a_regulation_without_a_territory_holds_everywhere() {
+        let extra = place_plan("landelijk_plan", "");
+        let resolver = place_resolver(LOCATED_AND_COMBINED, Some(&extra));
+        assert_eq!(
+            found_at(
+                &resolver,
+                &two_territories(),
+                "POINT(50 50)",
+                &HashMap::new()
+            )
+            .unwrap(),
+            ["landelijk_plan"]
+        );
+    }
+
+    #[test]
+    fn test_find_implementations_a_location_without_a_place_has_no_territorial_candidate() {
+        // The lookup that knows no place: a regulation with a code is out,
+        // also when the scope holds that code; one without a code is in.
+        let extra = place_plan("landelijk_plan", "");
+        let resolver = place_resolver(LOCATED_AND_COMBINED, Some(&extra));
+        let lookup = resolver
+            .find_implementations(
+                "plaatswet",
+                "1",
+                open_term(&resolver, "plaatswet", "1", "verboden"),
+                None,
+                &scope_of("gemeente_code", "GM0001"),
+            )
+            .unwrap();
+        let ids: Vec<&str> = lookup
+            .implementations
+            .iter()
+            .map(|(law, _)| law.id.as_str())
+            .collect();
+        assert_eq!(ids, ["landelijk_plan"]);
+    }
+
+    #[test]
+    fn test_find_implementations_a_place_is_not_looked_at_without_a_location() {
+        // A term without `location` is matched by the code among the
+        // parameters, place or no place, and an unregistered code is no
+        // error there.
+        let extra = place_plan("plan_elders", "gemeente_code: 'GM0003'");
+        let resolver = place_resolver("          combine: OR", Some(&extra));
+        assert_eq!(
+            found_at(
+                &resolver,
+                &two_territories(),
+                "POINT(5 5)",
+                &scope_of("gemeente_code", "GM0003")
+            )
+            .unwrap(),
+            ["plan_elders"]
+        );
     }
 }

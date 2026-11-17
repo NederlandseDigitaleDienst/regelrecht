@@ -18,6 +18,8 @@ const setup = () => ({
 
 const fakeEngine = () => ({
   clearDataSources: vi.fn(),
+  clearTerritories: vi.fn(),
+  registerTerritory: vi.fn(),
   registerDataSource: vi.fn(),
   executeWithTrace: vi.fn<EditorEngine['executeWithTrace']>(() => ({ outputs: { aantal: 2 }, trace_text: '' })),
 });

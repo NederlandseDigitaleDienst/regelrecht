@@ -45,6 +45,15 @@ Laws that need source data (BRP, Belastingdienst, and the like) provide it with 
       | 999993653 | 2005-01-01    | Amsterdam      |
 ```
 
+A law whose open term is filled by the regulation of a place (`location`, see [Inversion of Control](/concepts/inversion-of-control#the-regulation-of-a-place)) needs the territory of each authority that has a regulation for it. A scenario gives one per code, as well-known text:
+
+```gherkin
+    Given the territory of "GM9901" is "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))"
+    Given parameter "location" is "POINT(5 5)"
+```
+
+`bdd/conformance/location_terms.feature` shows it with two municipalities side by side.
+
 See `corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/scenarios/eligibility.feature` for a complete, data-driven example.
 
 ### Running BDD Tests

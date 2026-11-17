@@ -915,6 +915,36 @@ impl WasmEngine {
         self.service.clear_data_sources();
     }
 
+    /// Give the territory of the authority with `code`, as a shape in
+    /// well-known text. It replaces a territory given for that code before.
+    ///
+    /// An open term with a `location` (schema v0.8.23) is filled by a
+    /// regulation that carries a `gemeente_code`, `provincie_code` or
+    /// `waterschap_code` only when the location overlaps the territory given
+    /// for that code. The territories and the locations must be in the same
+    /// coordinate system; the engine does not check that.
+    ///
+    /// # Errors
+    ///
+    /// When `wkt` is no shape.
+    ///
+    /// # Example (JavaScript)
+    /// ```javascript
+    /// engine.registerTerritory('GM0363', 'POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))');
+    /// ```
+    #[wasm_bindgen(js_name = registerTerritory)]
+    pub fn register_territory(&mut self, code: &str, wkt: &str) -> Result<(), JsValue> {
+        self.service
+            .register_territory(code, wkt)
+            .map_err(engine_error_to_wasm)
+    }
+
+    /// Forget every territory given with `registerTerritory()`.
+    #[wasm_bindgen(js_name = clearTerritories)]
+    pub fn clear_territories(&mut self) {
+        self.service.clear_territories();
+    }
+
     /// Get the engine version.
     #[wasm_bindgen(js_name = version)]
     pub fn version(&self) -> String {
@@ -1368,5 +1398,101 @@ articles:
             &note_with_source("https://example.com/bron"),
             "test_law"
         ));
+    }
+
+    #[test]
+    fn test_wasm_engine_territories_pick_the_regulation_of_the_place() {
+        let mut engine = WasmEngine::new();
+        load_law(
+            &mut engine,
+            r#"
+$id: place_law
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      open_terms:
+        - id: verboden
+          type: boolean
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          location: $locatie
+          combine: OR
+      execution:
+        parameters:
+          - name: locatie
+            type: shape
+            required: true
+        output:
+          - name: vergunningplichtig
+            type: boolean
+        actions:
+          - output: vergunningplichtig
+            value: $verboden
+"#,
+        );
+        load_law(
+            &mut engine,
+            r#"
+$id: place_plan
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: GM9901
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      implements:
+        - law: place_law
+          article: '1'
+          open_term: verboden
+      execution:
+        output:
+          - name: verboden
+            type: boolean
+        actions:
+          - output: verboden
+            value: true
+"#,
+        );
+        let evaluate = |engine: &WasmEngine| {
+            let mut params = BTreeMap::new();
+            params.insert(
+                "locatie".to_string(),
+                Value::String("POINT(5 5)".to_string()),
+            );
+            engine.service.evaluate_law_output(
+                "place_law",
+                "vergunningplichtig",
+                params,
+                "2025-06-01",
+            )
+        };
+
+        // Nobody gave the territory of GM9901 yet.
+        let err = evaluate(&engine).unwrap_err().to_string();
+        assert!(
+            err.contains("no territory is registered for 'GM9901'"),
+            "{err}"
+        );
+
+        // The binding hands the territory to the service. Its error path
+        // builds a JsValue, which only exists in a browser, so the shape that
+        // is none is tested on the service.
+        assert!(
+            engine
+                .register_territory("GM9901", "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))")
+                .is_ok()
+        );
+        let result = evaluate(&engine).unwrap();
+        assert_eq!(
+            result.outputs.get("vergunningplichtig"),
+            Some(&Value::Bool(true))
+        );
+
+        engine.clear_territories();
+        assert!(evaluate(&engine).is_err());
     }
 }

@@ -2790,9 +2790,37 @@
                     }
                   }
                 ]
+              },
+              "combine": {
+                "type": "string",
+                "enum": [
+                  "OR"
+                ],
+                "description": "Since v0.8.23, only on a term of type `boolean`: every implementation in force, of the delegated layer and in scope is asked, not only the one that wins on priority, and no priority is applied among them. So several articles of one regulation, and several regulations of the same layer and date, may fill the term. The term is true when one of them gives true; otherwise unknown when one of them is unknown; otherwise false. An implementation that gives null does not speak about the case and counts as not saying so. With no implementation at all the term takes its `default`, or is an error when it is required and has none. Not with `decided_per_case_by`. A `combine` of v0.8.8 to v0.8.12, which merged the answers of cells, is another field that v0.8.13 removed."
+              },
+              "location": {
+                "type": "string",
+                "pattern": "^\\$[a-z_][a-z0-9_]*$",
+                "description": "Since v0.8.23: the place that decides which authority's regulation fills this term, as a `$`-reference to a parameter or an input of type `shape` of this article. A regulation with a territory (`gemeente_code`, `provincie_code`, `waterschap_code`) fills the term only when this shape overlaps that territory, as `OVERLAPS` tests it; the caller of the engine gives the territory of each code. A code passed as a parameter plays no part for such a term, and a regulation whose code has no territory is an error. A regulation without a territory, the regulation that declares the term and one of the declarer's own territory fill it as they do without `location`."
               }
             },
-            "additionalProperties": false
+            "additionalProperties": false,
+            "dependencies": {
+              "combine": {
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "boolean"
+                    ]
+                  }
+                },
+                "not": {
+                  "required": [
+                    "decided_per_case_by"
+                  ]
+                }
+              }
+            }
           },
           "examples": [
             [

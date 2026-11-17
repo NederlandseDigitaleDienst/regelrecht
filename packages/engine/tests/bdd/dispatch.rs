@@ -104,6 +104,12 @@ impl RegelrechtWorld {
                 let items = records.into_iter().map(Value::Object).collect();
                 self.parameters.insert(name, Value::Array(items));
             }
+            "set_territory" => {
+                let (code, shape) = (args[0].as_str(), args[1].as_str());
+                self.service
+                    .register_territory(code, shape)
+                    .unwrap_or_else(|e| panic!("territory of '{code}': {e}"));
+            }
 
             // ----- core/provenance: execute -----
             "evaluate" => {

@@ -52,7 +52,9 @@
 //!   An article that implements a required open term without a
 //!   default may not declare its output for the term nullable, also where
 //!   the law leaves the term to an authority per case
-//!   (`decided_per_case_by`): the implementation's value is the term's.
+//!   (`decided_per_case_by`): the implementation's value is the term's. A
+//!   term with `combine: OR` (schema v0.8.23) is the exception: a null
+//!   implementation does not speak about the case.
 //! - **T1** Arithmetic and ordering operands are numbers (or amounts); `ADD`
 //!   also concatenates strings and arrays, ordering also compares dates. The
 //!   operands of `OVERLAPS` (schema v0.8.23) are shapes, and a literal there
@@ -529,7 +531,9 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
     /// fills it, no finding takes the place of a null (RFC-048 §2). A term
     /// with a default is filled by the default when the implementation is
     /// silent, and an optional term without one is nullable itself; neither
-    /// needs this.
+    /// needs this. Nor does a term with `combine: OR` (schema v0.8.23):
+    /// there a null says that the implementation does not speak about the
+    /// case, and the term is false when none says otherwise.
     fn check_implements(&mut self) {
         let Some(implements) = self.article.get_implements() else {
             return;
@@ -549,7 +553,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             else {
                 continue;
             };
-            if term.required && !term.has_default() {
+            if term.required && !term.has_default() && !term.combines_with_or() {
                 self.location = format!("output '{}'", output.name);
                 self.report(
                     Rule::N5,
@@ -4483,5 +4487,38 @@ output:
             text.starts_with("t article 1 output 'geen_huur': [N1] "),
             "{text}"
         );
+    }
+
+    #[test]
+    fn n5_a_nullable_implementation_of_a_combined_term_is_allowed() {
+        // With `combine: OR` (schema v0.8.23) a null says the implementation
+        // does not speak about the case; without it the required term has no
+        // value, which N5 refuses.
+        let wet = |combine: &str| {
+            ArticleBasedLaw::from_yaml_str(&format!(
+                "$id: wet\nregulatory_layer: WET\npublication_date: '2025-01-01'\narticles:\n  - \
+                 number: '1'\n    text: t\n    machine_readable:\n      open_terms:\n        - id: \
+                 verboden\n          type: boolean\n          required: true\n{combine}      \
+                 execution:\n        output:\n          - name: x\n            type: boolean\n        \
+                 actions:\n          - output: x\n            value: $verboden\n"
+            ))
+            .unwrap()
+        };
+        let plan = ArticleBasedLaw::from_yaml_str(
+            "$id: plan\nregulatory_layer: GEMEENTELIJKE_VERORDENING\npublication_date: \
+             '2025-01-01'\narticles:\n  - number: '1'\n    text: t\n    machine_readable:\n      \
+             implements:\n        - law: wet\n          article: '1'\n          open_term: verboden\n      \
+             execution:\n        output:\n          - name: verboden\n            type: boolean\n            \
+             nullable: true\n        actions:\n          - output: verboden\n            value: null\n",
+        )
+        .unwrap();
+
+        let combined = wet("          combine: OR\n");
+        let lookup = |id: &str| (id == "wet").then_some(&combined);
+        assert!(check_law(&plan, &lookup).is_empty());
+
+        let single = wet("");
+        let lookup = |id: &str| (id == "wet").then_some(&single);
+        assert_eq!(rules(&check_law(&plan, &lookup)), vec![Rule::N5]);
     }
 }

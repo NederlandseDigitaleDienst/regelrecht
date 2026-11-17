@@ -87,12 +87,17 @@ pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
                  with source.reduction (RFC-048)"
             ));
         }
+        // Since v0.8.23 the key is back on an open term with another meaning
+        // (`combine: OR`), which `reject_malformed_term_filling` holds to
+        // its rules. Before that version it is the removed one.
         for term in section.open_terms.iter().flatten() {
-            if term.combine.is_some() {
+            if term.combine.is_some() && !from_version(law, (0, 8, 23)) {
                 return refuse(format!(
                     "{where_}: open term '{}' has combine, which schema v0.8.13 removed; one \
                      question goes to one cell, and an article makes one outcome of the answers \
-                     of different cells (RFC-048 §4)",
+                     of different cells (RFC-048 §4). Schema v0.8.23 introduced combine: OR on \
+                     a boolean open term, which asks every implementation; declare v0.8.23 or \
+                     later for that",
                     term.id
                 ));
             }
@@ -154,12 +159,15 @@ pub(crate) fn reject_combine_before_its_version(law: &ArticleBasedLaw) -> Result
     Ok(())
 }
 
-/// Refuse the type `shape` and the operation `OVERLAPS` in a file on schema
-/// v0.8.22 or earlier: both arrived with v0.8.23. The schema refuses them
-/// there too, and the loader repeats that because a document can reach the
-/// engine without passing schema validation. The type is looked for on every
-/// parameter, input and output; the operation in the actions [`all_actions`]
-/// lists, at the level of the action and in every operand.
+/// Refuse the type `shape`, the operation `OVERLAPS` and a `location` on an
+/// open term in a file on schema v0.8.22 or earlier: all three arrived with
+/// v0.8.23. The schema refuses them there too, and the loader repeats that
+/// because a document can reach the engine without passing schema
+/// validation. The type is looked for on every parameter, input and output;
+/// the operation in the actions [`all_actions`] lists, at the level of the
+/// action and in every operand. `combine` on an open term arrived with
+/// v0.8.23 as well; [`reject_removed_constructs`] refuses it before that
+/// version, since an earlier version had the key with another meaning.
 pub(crate) fn reject_shapes_before_their_version(law: &ArticleBasedLaw) -> Result<()> {
     if from_version(law, (0, 8, 23)) {
         return Ok(());
@@ -171,6 +179,14 @@ pub(crate) fn reject_shapes_before_their_version(law: &ArticleBasedLaw) -> Resul
         )))
     };
     for (where_, section) in sections(law) {
+        if let Some(term) = section
+            .open_terms
+            .iter()
+            .flatten()
+            .find(|term| term.location.is_some())
+        {
+            return refuse(&where_, format!("open term '{}' has a location", term.id));
+        }
         if let Some(execution) = &section.execution {
             let parameters = execution.parameters.iter().flatten();
             let outputs = execution.output.iter().flatten();
@@ -203,6 +219,96 @@ pub(crate) fn reject_shapes_before_their_version(law: &ArticleBasedLaw) -> Resul
         }
     }
     Ok(())
+}
+
+/// Refuse an open term whose `combine` or `location` (schema v0.8.23) the
+/// engine cannot run as written. The schema refuses the same; the loader
+/// repeats it because a document can reach the engine without passing schema
+/// validation.
+///
+/// `combine` takes the one rule `OR`, on a term of type `boolean`, and not
+/// beside `decided_per_case_by`: a term the law leaves to an authority per
+/// case takes the authority's finding where no regulation fills it, and
+/// whether implementations that all stay silent leave the case to that
+/// finding or make the term false is a choice the format has not made.
+///
+/// `location` is a bare `$`-reference to a parameter or an input of the
+/// article that declares the term, and that one is of type `shape`.
+pub(crate) fn reject_malformed_term_filling(law: &ArticleBasedLaw) -> Result<()> {
+    for (where_, section) in sections(law) {
+        for term in section.open_terms.iter().flatten() {
+            let refuse = |why: String| {
+                Err(EngineError::LoadError(format!(
+                    "law '{}' {where_}: open term '{}' {why}",
+                    law.id, term.id
+                )))
+            };
+            if let Some(rule) = &term.combine {
+                if !term.combines_with_or() {
+                    return refuse(format!(
+                        "has combine {rule}; the one rule an open term takes is OR"
+                    ));
+                }
+                if term.term_type != ParameterType::Boolean {
+                    return refuse(
+                        "has combine OR and is no boolean; only a boolean term is combined"
+                            .to_string(),
+                    );
+                }
+                if term.decided_per_case_by.is_some() {
+                    return refuse(
+                        "has combine OR and decided_per_case_by; a term an authority judges \
+                         per case is not combined"
+                            .to_string(),
+                    );
+                }
+            }
+            if let Some(location) = &term.location {
+                let Some(name) = location.strip_prefix('$').filter(|n| is_bare_name(n)) else {
+                    return refuse(format!(
+                        "has the location '{location}'; a location is a reference such as \
+                         $locatie to a parameter or an input of the article"
+                    ));
+                };
+                let execution = section.execution.as_ref();
+                let declared = execution
+                    .and_then(|e| e.parameters.as_deref())
+                    .unwrap_or_default()
+                    .iter()
+                    .map(|p| (&p.name, p.param_type))
+                    .chain(inputs(section).iter().map(|i| (&i.name, i.input_type)))
+                    .find(|(declared, _)| *declared == name);
+                match declared {
+                    Some((_, ParameterType::Shape)) => {}
+                    Some(_) => {
+                        return refuse(format!(
+                            "has the location '{location}', which is no shape; a location \
+                             refers to a parameter or an input of type shape"
+                        ));
+                    }
+                    None => {
+                        return refuse(format!(
+                            "has the location '{location}', which is no parameter or input \
+                             of the article"
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Whether `name` is what follows the `$` of a `location`, by the schema's
+/// pattern `^\$[a-z_][a-z0-9_]*$`: one lowercase identifier, with no path
+/// into it. Unlike a column name it may start with two underscores, as the
+/// name of a parameter or an input may.
+fn is_bare_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars
+        .next()
+        .is_some_and(|c| c.is_ascii_lowercase() || c == '_')
+        && chars.all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
 /// Whether an `OVERLAPS` sits anywhere in `value`.
@@ -3308,5 +3414,160 @@ articles:
             .evaluate_law_output("obj", "x", Default::default(), "2025-01-01")
             .unwrap();
         assert!(matches!(result.outputs.get("x"), Some(Value::Object(_))));
+    }
+
+    /// A law under `version` whose one article declares the open term
+    /// `verboden` of type `term_type`, with `term` as its further lines, and
+    /// a parameter `locatie` of type `location_type`.
+    fn law_with_term(
+        version: &str,
+        term_type: &str,
+        term: &str,
+        location_type: &str,
+    ) -> ArticleBasedLaw {
+        let yaml = format!(
+            r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json
+$id: term_gate
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      open_terms:
+        - id: verboden
+          type: {term_type}
+{term}
+      execution:
+        parameters:
+          - name: locatie
+            type: {location_type}
+        input:
+          - name: perceel
+            type: shape
+            source: {{}}
+"#
+        );
+        serde_yaml_ng::from_str(&yaml).unwrap()
+    }
+
+    /// The message with which every load check refuses `law`, or none.
+    fn term_refusal(law: &ArticleBasedLaw) -> Option<String> {
+        reject_removed_constructs(law)
+            .and_then(|()| reject_shapes_before_their_version(law))
+            .and_then(|()| reject_malformed_term_filling(law))
+            .err()
+            .map(|e| e.to_string())
+    }
+
+    #[test]
+    fn combine_on_an_open_term_is_refused_before_v0_8_23() {
+        // v0.8.12 had the key with another meaning, v0.8.13 to v0.8.22 had
+        // none: both are told which version has `combine: OR`.
+        for version in ["v0.8.12", "v0.8.22"] {
+            let law = law_with_term(version, "boolean", "          combine: OR", "string");
+            let err = term_refusal(&law).unwrap();
+            assert!(
+                err.contains("open term 'verboden' has combine, which schema v0.8.13 removed")
+                    && err.contains("declare v0.8.23 or later"),
+                "{err}"
+            );
+        }
+        let law = law_with_term("v0.8.23", "boolean", "          combine: OR", "string");
+        assert_eq!(term_refusal(&law), None);
+    }
+
+    #[test]
+    fn combine_on_an_open_term_takes_or_on_a_boolean_not_judged_per_case() {
+        let refused = |term_type: &str, term: &str| {
+            term_refusal(&law_with_term("v0.8.23", term_type, term, "string")).unwrap()
+        };
+        for rule in ["AND", "~", "true", "[OR]"] {
+            let err = refused("boolean", &format!("          combine: {rule}"));
+            assert!(
+                err.contains("the one rule an open term takes is OR"),
+                "{rule}: {err}"
+            );
+        }
+        let err = refused("number", "          combine: OR");
+        assert!(
+            err.contains("open term 'verboden' has combine OR and is no boolean"),
+            "{err}"
+        );
+        let err = refused(
+            "boolean",
+            "          combine: OR\n          decided_per_case_by: het college",
+        );
+        assert!(
+            err.contains("has combine OR and decided_per_case_by"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_location_on_an_open_term_is_refused_before_v0_8_23() {
+        let law = law_with_term(
+            "v0.8.22",
+            "boolean",
+            "          location: $perceel",
+            "string",
+        );
+        // The input of type shape is refused first under v0.8.22, so the
+        // term is checked on its own here.
+        let err = reject_shapes_before_their_version(&law_with_term(
+            "v0.8.22",
+            "boolean",
+            "          location: $locatie",
+            "string",
+        ))
+        .unwrap_err()
+        .to_string();
+        assert!(
+            err.contains("open term 'verboden' has a location") && err.contains("v0.8.23"),
+            "{err}"
+        );
+        assert!(term_refusal(&law).is_some());
+    }
+
+    #[test]
+    fn a_location_refers_to_a_shape_the_article_declares() {
+        let refusal = |location: &str, location_type: &str| {
+            term_refusal(&law_with_term(
+                "v0.8.23",
+                "boolean",
+                &format!("          location: {location}"),
+                location_type,
+            ))
+        };
+        // A parameter and an input, both of type shape.
+        assert_eq!(refusal("$locatie", "shape"), None);
+        assert_eq!(refusal("$perceel", "string"), None);
+
+        let err = refusal("$locatie", "string").unwrap();
+        assert!(
+            err.contains("has the location '$locatie', which is no shape"),
+            "{err}"
+        );
+        let err = refusal("$elders", "shape").unwrap();
+        assert!(
+            err.contains("has the location '$elders', which is no parameter or input"),
+            "{err}"
+        );
+        // The schema's pattern allows a name that starts with two
+        // underscores, so the loader reads it as a name too: what is wrong
+        // with it is that the article declares no such value.
+        let err = refusal("$__elders", "shape").unwrap();
+        assert!(
+            err.contains("has the location '$__elders', which is no parameter or input"),
+            "{err}"
+        );
+        for written in ["locatie", "$locatie.vorm", "POINT(1 1)", "$", "$Locatie"] {
+            let err = refusal(written, "shape").unwrap();
+            assert!(
+                err.contains("a location is a reference such as"),
+                "{written}: {err}"
+            );
+        }
     }
 }

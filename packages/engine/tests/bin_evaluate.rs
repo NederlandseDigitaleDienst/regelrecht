@@ -149,3 +149,113 @@ fn an_invalid_date_fails_with_an_error_response() {
     );
     assert!(resp.get("outputs").is_none(), "no outputs on failure");
 }
+
+/// A law whose open term is filled by the regulation of the place, and the
+/// plan of one municipality that fills it.
+const PLACE_LAW_YAML: &str = r#"---
+$id: test_bin_evaluate_place
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: Verboden voor zover het omgevingsplan dat bepaalt.
+    machine_readable:
+      open_terms:
+        - id: verboden
+          type: boolean
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          location: $locatie
+          combine: OR
+      execution:
+        parameters:
+          - name: locatie
+            type: shape
+            required: true
+        output:
+          - name: vergunningplichtig
+            type: boolean
+        actions:
+          - output: vergunningplichtig
+            value: $verboden
+"#;
+
+const PLACE_PLAN_YAML: &str = r#"---
+$id: test_bin_evaluate_plan
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: GM9901
+articles:
+  - number: '1'
+    text: Het is verboden te bouwen.
+    machine_readable:
+      implements:
+        - law: test_bin_evaluate_place
+          article: '1'
+          open_term: verboden
+      execution:
+        output:
+          - name: verboden
+            type: boolean
+        actions:
+          - output: verboden
+            value: true
+"#;
+
+fn place_request(territories: &serde_json::Value) -> serde_json::Value {
+    serde_json::json!({
+        "law_yaml": PLACE_LAW_YAML,
+        "extra_laws": [PLACE_PLAN_YAML],
+        "output_names": ["vergunningplichtig"],
+        "params": {"locatie": "POINT(5 5)"},
+        "date": "2025-01-01",
+        "territories": territories,
+    })
+}
+
+/// The request gives the territories, as it gives the laws: the regulation of
+/// the place the location lies in fills the term.
+#[test]
+fn territories_in_the_request_pick_the_regulation_of_the_place() {
+    let run = run_evaluate(
+        &[],
+        &place_request(&serde_json::json!({
+            "GM9901": "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))"
+        })),
+    );
+    assert!(run.success, "expected exit code 0, stdout: {}", run.stdout);
+    let resp: serde_json::Value =
+        serde_json::from_str(&run.stdout).expect("stdout is not valid JSON");
+    assert_eq!(
+        resp["outputs"]["vergunningplichtig"],
+        serde_json::json!(true)
+    );
+}
+
+/// Without the territory the engine cannot say whether the plan applies, and
+/// a territory that is no shape is refused before anything runs.
+#[test]
+fn a_missing_or_unreadable_territory_fails_with_an_error_response() {
+    for (territories, named) in [
+        (
+            serde_json::json!({}),
+            "no territory is registered for 'GM9901'",
+        ),
+        (
+            serde_json::json!({"GM9901": "heel het dorp"}),
+            "the territory of 'GM9901' is no shape",
+        ),
+    ] {
+        let run = run_evaluate(&[], &place_request(&territories));
+        assert!(
+            !run.success,
+            "expected a non-zero exit code: {}",
+            run.stdout
+        );
+        let resp: serde_json::Value =
+            serde_json::from_str(&run.stdout).expect("stdout is not valid JSON");
+        let error = resp["error"].as_str().expect("error message");
+        assert!(error.contains(named), "{error}");
+    }
+}

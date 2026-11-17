@@ -123,6 +123,7 @@ impl LawLoad for ArticleBasedLaw {
         crate::load_check::reject_combine_before_its_version(&law)?;
         crate::load_check::reject_malformed_records(&law)?;
         crate::load_check::reject_shapes_before_their_version(&law)?;
+        crate::load_check::reject_malformed_term_filling(&law)?;
         crate::load_check::reject_misplaced_reduction(&law)?;
         crate::load_check::reject_misplaced_article_call(&law)?;
         crate::load_check::reject_misplaced_competence(&law)?;

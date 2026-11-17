@@ -1,0 +1,115 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_omgevingsplan_linkerdorp
+name: Testomgevingsplan Linkerdorp
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: GM9901
+officiele_titel: Omgevingsplan gemeente Linkerdorp
+url: https://example.com/test_omgevingsplan_linkerdorp
+
+# Een verzonnen gemeente. Haar gebied staat niet in dit bestand: de aanroeper
+# geeft het de engine onder de code GM9901.
+
+articles:
+  - number: '1'
+    url: https://example.com/test_omgevingsplan_linkerdorp/1
+    text: >-
+      Het is verboden zonder omgevingsvergunning een bouwwerk te bouwen.
+    machine_readable:
+      # Twee artikelen van dit plan vullen dezelfde term: dit artikel verbiedt
+      # het bouwen, artikel 2 het kappen. Over een andere activiteit zegt het
+      # artikel niets, en dat is null: geen "nee", maar zwijgen.
+      implements:
+        - law: test_location_terms
+          article: '1'
+          open_term: verboden_in_omgevingsplan
+          gelet_op: Gelet op artikel 1 van de Testwet plaatsgebonden termen
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+        output:
+          - name: verboden_in_omgevingsplan
+            type: boolean
+            nullable: true
+        actions:
+          - output: verboden_in_omgevingsplan
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $activiteit
+                    value: bouwen
+                  then: true
+              default: null
+
+  - number: '2'
+    url: https://example.com/test_omgevingsplan_linkerdorp/2
+    text: >-
+      Het is verboden zonder omgevingsvergunning een houtopstand te vellen.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '1'
+          open_term: verboden_in_omgevingsplan
+          gelet_op: Gelet op artikel 1 van de Testwet plaatsgebonden termen
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+        output:
+          - name: verboden_in_omgevingsplan
+            type: boolean
+            nullable: true
+        actions:
+          - output: verboden_in_omgevingsplan
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $activiteit
+                    value: kappen
+                  then: true
+              default: null
+
+  - number: '3'
+    url: https://example.com/test_omgevingsplan_linkerdorp/3
+    text: >-
+      De bouwhoogte van een bouwwerk bedraagt ten hoogste 9 meter.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '3'
+          open_term: maximale_bouwhoogte
+          gelet_op: Gelet op artikel 3 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: maximale_bouwhoogte
+            type: number
+        actions:
+          - output: maximale_bouwhoogte
+            value: 9
+
+  - number: '4'
+    url: https://example.com/test_omgevingsplan_linkerdorp/4
+    text: >-
+      Het tarief voor het in behandeling nemen van een aanvraag bedraagt 100.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '4'
+          open_term: legestarief
+          gelet_op: Gelet op artikel 4 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: legestarief
+            type: number
+        actions:
+          - output: legestarief
+            value: 100

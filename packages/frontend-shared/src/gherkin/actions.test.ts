@@ -303,6 +303,35 @@ describe('set_data_source through dispatch', () => {
   });
 });
 
+describe('set_territory through dispatch', () => {
+  it('gives the engine the territory under its code', async () => {
+    const calls: unknown[][] = [];
+    const engine = stubEngine({ registerTerritory: (...a) => void calls.push(a) });
+    await dispatch(
+      asCtx({}),
+      engine,
+      'set_territory',
+      ['GM9901', 'POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))'],
+      null,
+      { loadDependency: async () => {} },
+    );
+    expect(calls).toEqual([['GM9901', 'POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))']]);
+  });
+
+  it('lets the refusal of a territory that is no shape fail the step', async () => {
+    const engine = stubEngine({
+      registerTerritory: () => {
+        throw new Error("the territory of 'GM9901' is no shape");
+      },
+    });
+    await expect(
+      dispatch(asCtx({}), engine, 'set_territory', ['GM9901', 'heel het dorp'], null, {
+        loadDependency: async () => {},
+      }),
+    ).rejects.toThrow('is no shape');
+  });
+});
+
 describe('text arguments through dispatch', () => {
   // A quoted capture is typed by inference, so "404" arrives as a number.
   // The arms that compare text must still treat it as text.

@@ -1,0 +1,142 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_location_terms
+name: Testwet plaatsgebonden termen
+regulatory_layer: WET
+bwb_id: BWBR9999927
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_location_terms
+
+articles:
+  - number: '1'
+    url: https://example.com/test_location_terms/1
+    text: >-
+      Het is verboden zonder vergunning een activiteit te verrichten voor
+      zover in het omgevingsplan is bepaald dat het verboden is deze zonder
+      vergunning te verrichten.
+    machine_readable:
+      # De term heeft een plaats en een combinatieregel (schema v0.8.23). De
+      # plaats bepaalt welk omgevingsplan de term invult: dat van de gemeente
+      # waarvan het gebied de locatie overlapt. Met combine: OR wordt elk
+      # artikel van elk plan gevraagd dat zo in beeld komt, en is de term waar
+      # zodra een van die artikelen het verbod uitspreekt.
+      open_terms:
+        - id: verboden_in_omgevingsplan
+          type: boolean
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 1 Testwet plaatsgebonden termen
+          location: $location
+          combine: OR
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: De locatie van de activiteit, als WKT.
+          - name: activiteit
+            type: string
+            required: true
+            description: De activiteit - "bouwen", "kappen", "slopen" of iets anders.
+          - name: monument
+            type: boolean
+            required: false
+            description: Of het bouwwerk een monument is; alleen het plan van Rechterdorp vraagt ernaar.
+        output:
+          - name: vergunningplichtig
+            type: boolean
+        actions:
+          - output: vergunningplichtig
+            value: $verboden_in_omgevingsplan
+
+  - number: '2'
+    url: https://example.com/test_location_terms/2
+    text: >-
+      Het is verboden een terras te exploiteren voor zover dat bij
+      gemeentelijke verordening is verboden.
+    machine_readable:
+      # De enige verordening die deze term invult, is die van een gemeente
+      # waarvan geen scenario het gebied opgeeft. Of zij op de locatie geldt
+      # is dan niet te zeggen, en dat is een fout en geen "nee".
+      open_terms:
+        - id: terras_verboden
+          type: boolean
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 2 Testwet plaatsgebonden termen
+          location: $location
+          combine: OR
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: De locatie van het terras, als WKT.
+        output:
+          - name: terras_niet_toegestaan
+            type: boolean
+        actions:
+          - output: terras_niet_toegestaan
+            value: $terras_verboden
+
+  - number: '3'
+    url: https://example.com/test_location_terms/3
+    text: >-
+      De bouwhoogte van een bouwwerk bedraagt ten hoogste de hoogte die in
+      het omgevingsplan is bepaald.
+    machine_readable:
+      # Een plaats zonder combinatieregel: het plan van de plaats vult de
+      # term, en één plan moet winnen. Een locatie op de grens van twee
+      # gemeenten levert twee plannen van dezelfde laag en datum op, en dat
+      # is een fout, zoals het zonder plaats altijd al was.
+      open_terms:
+        - id: maximale_bouwhoogte
+          type: number
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 3 Testwet plaatsgebonden termen
+          location: $location
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: De locatie van het bouwwerk, als WKT.
+        output:
+          - name: toegestane_bouwhoogte
+            type: number
+        actions:
+          - output: toegestane_bouwhoogte
+            value: $maximale_bouwhoogte
+
+  - number: '4'
+    url: https://example.com/test_location_terms/4
+    text: >-
+      Voor het in behandeling nemen van een aanvraag zijn leges verschuldigd
+      naar het tarief dat bij gemeentelijke verordening is vastgesteld.
+    machine_readable:
+      # Een term zonder plaats: de verordening wordt gekozen op de
+      # gemeentecode onder de parameters, zoals vóór schema v0.8.23.
+      open_terms:
+        - id: legestarief
+          type: number
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 4 Testwet plaatsgebonden termen
+      execution:
+        parameters:
+          - name: gemeente_code
+            type: string
+            required: true
+            description: De code van de gemeente waar de aanvraag is ingediend.
+        output:
+          - name: verschuldigde_leges
+            type: number
+        actions:
+          - output: verschuldigde_leges
+            value: $legestarief

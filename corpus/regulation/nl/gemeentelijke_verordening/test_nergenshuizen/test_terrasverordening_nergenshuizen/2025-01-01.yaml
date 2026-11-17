@@ -1,0 +1,32 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_terrasverordening_nergenshuizen
+name: Testterrasverordening Nergenshuizen
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: GM9909
+officiele_titel: Terrasverordening gemeente Nergenshuizen
+url: https://example.com/test_terrasverordening_nergenshuizen
+
+# Een verzonnen gemeente waarvan geen scenario het gebied opgeeft. De engine
+# weet dan niet of deze verordening op een locatie geldt, en zegt dat.
+
+articles:
+  - number: '1'
+    url: https://example.com/test_terrasverordening_nergenshuizen/1
+    text: >-
+      Het is verboden een terras te exploiteren.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '2'
+          open_term: terras_verboden
+          gelet_op: Gelet op artikel 2 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: terras_verboden
+            type: boolean
+        actions:
+          - output: terras_verboden
+            value: true

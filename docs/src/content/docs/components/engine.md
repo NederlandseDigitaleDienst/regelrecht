@@ -249,7 +249,7 @@ const engine = new WasmEngine();
 
 ### WASM API
 
-The exported methods are the `#[wasm_bindgen(js_name = ...)]` functions on `WasmEngine` in `packages/engine/src/wasm.rs`. That file is the reference, and the `.d.ts` that `wasm-pack` generates next to the build carries the same list with types. Besides loading laws and the `execute` family shown above, it covers staged execution for Awb procedures (`executeStage`), data sources (`registerDataSource`, `registerDataSourceForLaw` for a source scoped to one law, `removeDataSource`, `clearDataSources`), bookkeeping (`listLaws`, `getLawInfo`, `hasLaw`, `unloadLaw`, `lawCount`, `version`) and note resolution (`resolveNote`, `resolveNotes`).
+The exported methods are the `#[wasm_bindgen(js_name = ...)]` functions on `WasmEngine` in `packages/engine/src/wasm.rs`. That file is the reference, and the `.d.ts` that `wasm-pack` generates next to the build carries the same list with types. Besides loading laws and the `execute` family shown above, it covers staged execution for Awb procedures (`executeStage`), data sources (`registerDataSource`, `registerDataSourceForLaw` for a source scoped to one law, `removeDataSource`, `clearDataSources`), the territories that pick the regulation of a place (`registerTerritory`, `clearTerritories`; see [Inversion of Control](/concepts/inversion-of-control#the-regulation-of-a-place)), bookkeeping (`listLaws`, `getLawInfo`, `hasLaw`, `unloadLaw`, `lawCount`, `version`) and note resolution (`resolveNote`, `resolveNotes`).
 
 > **Loading laws in WASM.** The WASM build wraps the same `LawExecutionService` as the native build, so cross-law references and open term resolution (the `open_terms` / `implements` IoC pattern) both work. There is no filesystem in the browser, so every law the execution reaches has to be pre-loaded with `loadLaw()` first. The [demo](/components/demo) runs the whole zorgtoeslag chain, open terms included, entirely in the browser.
 
@@ -291,6 +291,7 @@ See [RFC-013](/rfcs/rfc-013) for the design rationale.
 | `params` | Parameters as a JSON object |
 | `date` | Calculation date, `YYYY-MM-DD` |
 | `extra_laws` | Optional list of further rulework versions, loaded for cross-law references and open terms |
+| `territories` | Optional object with the territory of an authority per code, as well-known text (`{"GM0363": "POLYGON((...))"}`), for an open term with a `location` |
 
 Two flags change the run. `--untranslatable=<mode>` sets how the engine treats markings (`error`, `propagate`, `warn` or `ignore`; see [Markings](/concepts/markings)), and `--receipt` prints an Execution Receipt instead of the plain result. The binary loads only the laws in the request, so every law the execution reaches has to be in `law_yaml` or `extra_laws`. `jq` builds the request conveniently:
 

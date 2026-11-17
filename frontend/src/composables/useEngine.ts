@@ -19,6 +19,7 @@ export interface EditorEngine extends GherkinEngine {
   loadLaw(yaml: string): string;
   unloadLaw(lawId: string): boolean;
   clearDataSources(): void;
+  clearTerritories(): void;
   executeWithTrace(
     lawId: string,
     outputName: string,

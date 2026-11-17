@@ -1276,12 +1276,26 @@ pub struct OpenTerm {
     /// who gives the finding (RFC-048 §2).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub competent_authority: Option<CompetentAuthority>,
-    /// Schema v0.8.8's rule to merge the answers of the competent cells,
-    /// which v0.8.13 removed: one question goes to one cell (RFC-048 §4).
-    /// The model reads it only so the engine can refuse it at load instead
-    /// of dropping it silently; it is never written back.
-    #[serde(default, skip_serializing, deserialize_with = "present")]
+    /// How the implementations of the term make one value (schema v0.8.23):
+    /// `OR`, on a boolean term, asks every implementation in force, of the
+    /// delegated layer and in scope instead of the one that wins on
+    /// priority; [`Self::combines_with_or`] says whether it is set. Held as
+    /// written, so the engine can refuse at load what the declared version
+    /// does not allow instead of dropping it: any value before v0.8.23,
+    /// where v0.8.8 to v0.8.12 used the key to merge the answers of cells
+    /// and v0.8.13 removed it (RFC-048 §4), and any value but `OR` since.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "present"
+    )]
     pub combine: Option<serde_json::Value>,
+    /// The place that decides which authority's regulation fills the term
+    /// (schema v0.8.23): a `$`-reference to a parameter or an input of type
+    /// `shape` of the declaring article. A regulation with a territory fills
+    /// the term only when this shape overlaps that territory.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
 }
 
 impl OpenTerm {
@@ -1293,7 +1307,18 @@ impl OpenTerm {
             .as_ref()
             .is_some_and(|d| d.actions.as_ref().is_some_and(|a| !a.is_empty()))
     }
+
+    /// Whether every implementation of the term is asked and the term is
+    /// true when one of them is (`combine: OR`, schema v0.8.23).
+    pub fn combines_with_or(&self) -> bool {
+        self.combine
+            .as_ref()
+            .is_some_and(|rule| rule.as_str() == Some(TERM_COMBINE_OR))
+    }
 }
+
+/// The one rule `combine` on an open term takes (schema v0.8.23).
+const TERM_COMBINE_OR: &str = "OR";
 
 fn default_true() -> bool {
     true
