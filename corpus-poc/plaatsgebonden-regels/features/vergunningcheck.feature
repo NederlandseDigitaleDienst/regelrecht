@@ -32,18 +32,6 @@ Feature: Is a permit required for this, here?
       | rulework               | article |
       | omgevingsplan_dijkstad | 5.2     |
 
-  Scenario: Felling a tree in that same street - another article of the same plan
-    Given the location is the shape:
-      """
-      POLYGON((155100 463100, 155112 463100, 155112 463109, 155100 463109, 155100 463100))
-      """
-    Given parameter "activiteit" is "boom_kappen"
-    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
-    Then output "vergunningplicht_omgevingsplanactiviteit" is true
-    Then output "vergunningplicht_omgevingsplanactiviteit" is filled by:
-      | rulework               | article |
-      | omgevingsplan_dijkstad | 4.1     |
-
   Scenario: A shed in the old town - the exception does not hold in that area
     Given the location is the shape:
       """
@@ -106,3 +94,26 @@ Feature: Is a permit required for this, here?
     Then output "vergunningplicht_waterschapsverordening" is filled by:
       | rulework                            | article |
       | waterschapsverordening_rivierdijken | 3.1     |
+
+  # A tree is a point. The plan reads an area that the water board designated.
+
+  Scenario: Felling a tree in a residential street - a point as location
+    Given the location is the shape:
+      """
+      POINT(155105 463105)
+      """
+    Given parameter "activiteit" is "boom_kappen"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is true
+    Then output "vergunningplicht_omgevingsplanactiviteit" is filled by:
+      | rulework               | article |
+      | omgevingsplan_dijkstad | 4.1     |
+
+  Scenario: Felling a tree on the dike - the plan steps back for the water board's area
+    Given the location is the shape:
+      """
+      POINT(155105 463625)
+      """
+    Given parameter "activiteit" is "boom_kappen"
+    When I evaluate "vergunningplicht_omgevingsplanactiviteit" of "omgevingswet"
+    Then output "vergunningplicht_omgevingsplanactiviteit" is false

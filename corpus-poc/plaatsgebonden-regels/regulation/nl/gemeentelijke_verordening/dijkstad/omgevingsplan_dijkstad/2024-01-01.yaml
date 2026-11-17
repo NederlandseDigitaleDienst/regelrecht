@@ -10,25 +10,41 @@ url: https://example.org/omgevingsplan-dijkstad
 
 # FICTIONAL. Dijkstad does not exist; the text is written for this example.
 #
-# PROPOSED, not in the schema:
-#   - `areas`: the areas this rulework designates, each a variable of type
-#     shape whose value is the geometry adopted with the rulework.
-#   - a parameter of type `shape`, here `location`.
-#   - the operation OVERLAPS, which tests a shape against an area.
+# PROPOSED, not in the schema: the value type `shape` and the operation
+# OVERLAPS. Nothing else is new.
 #
-# This rulework uses the area INSIDE the logic (article 5.2). The
-# waterschapsverordening next to it uses `applies_in` on the article. Both
-# ways are here on purpose, to compare them.
-
-areas:
-  beschermd_stadsgezicht_binnenstad:
-    geometry: areas/beschermd_stadsgezicht_binnenstad.geojson
+# Three ways an article here relates to a place:
+#   - article 1.2 designates an area of its own;
+#   - article 4.1 refers to an area another rulework designated;
+#   - article 5.2 holds in the whole municipality and names an area only in an
+#     exception.
+# The municipality itself is not named in any article: a rulework with a
+# `gemeente_code` speaks only about locations in that territory.
 
 articles:
-  # No area named: holds in the whole municipality.
+  - number: '1.2'
+    text: |
+      Als beschermd stadsgezicht binnenstad wordt aangewezen het gebied dat als
+      zodanig is aangegeven in bijlage 1.
+    url: https://example.org/omgevingsplan-dijkstad#artikel1.2
+
+    machine_readable:
+      execution:
+        output:
+          - name: beschermd_stadsgezicht_binnenstad
+            type: shape
+            description: The area designated as beschermd stadsgezicht binnenstad
+        actions:
+          - output: beschermd_stadsgezicht_binnenstad
+            value: areas/beschermd_stadsgezicht_binnenstad-2024-01-01.geojson
+
   - number: '4.1'
     text: |
-      Het is verboden zonder omgevingsvergunning een boom te kappen.
+      1. Het is verboden zonder omgevingsvergunning een boom te kappen.
+
+      2. Het eerste lid geldt niet voor een boom in het beperkingengebied
+      waterkering, bedoeld in artikel 1.2 van de Waterschapsverordening
+      waterschap Rivierdijken.
     url: https://example.org/omgevingsplan-dijkstad#artikel4.1
 
     machine_readable:
@@ -43,26 +59,47 @@ articles:
             type: string
             required: true
             description: What the applicant wants to do
+          - name: location
+            type: shape
+            required: true
+            description: Where the applicant wants to do it
+        input:
+          # An area of another rulework, read like any other value of it.
+          - name: beperkingengebied_waterkering
+            type: shape
+            description: The area designated by the water board
+            source:
+              regulation: waterschapsverordening_rivierdijken
+              output: beperkingengebied_waterkering
         output:
           - name: omgevingsplan_verbiedt_zonder_vergunning
             type: boolean
+            nullable: true
             description: Whether this article forbids the activity without a permit
         actions:
           - output: omgevingsplan_verbiedt_zonder_vergunning
             value:
-              operation: EQUALS
-              subject: $activiteit
-              value: boom_kappen
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $activiteit
+                        value: boom_kappen
+                      - operation: NOT
+                        value:
+                          operation: OVERLAPS
+                          subject: $location
+                          value: $beperkingengebied_waterkering
+                  then: true
 
-  # A ban for the whole municipality with an exception, and an exception to
-  # that exception that holds only in a named area. `applies_in` cannot say
-  # this: the area sits in the middle of the rule.
   - number: '5.2'
     text: |
       1. Het is verboden zonder omgevingsvergunning een bouwwerk te bouwen.
 
       2. Het verbod geldt niet voor een bijbehorend bouwwerk, tenzij de locatie
-      ligt in het werkingsgebied 'beschermd stadsgezicht binnenstad'.
+      ligt in het beschermd stadsgezicht binnenstad.
     url: https://example.org/omgevingsplan-dijkstad#artikel5.2
 
     machine_readable:
@@ -81,25 +118,36 @@ articles:
             type: shape
             required: true
             description: Where the applicant wants to do it
+        input:
+          - name: beschermd_stadsgezicht_binnenstad
+            type: shape
+            description: The area designated in article 1.2
+            source:
+              output: beschermd_stadsgezicht_binnenstad
         output:
           - name: omgevingsplan_verbiedt_zonder_vergunning
             type: boolean
+            nullable: true
             description: Whether this article forbids the activity without a permit
         actions:
           - output: omgevingsplan_verbiedt_zonder_vergunning
             value:
-              operation: OR
-              conditions:
-                # Lid 1, not lifted by lid 2.
-                - operation: EQUALS
-                  subject: $activiteit
-                  value: hoofdgebouw_bouwen
+              operation: IF
+              cases:
+                # Lid 1, which lid 2 does not lift for a hoofdgebouw.
+                - when:
+                    operation: EQUALS
+                    subject: $activiteit
+                    value: hoofdgebouw_bouwen
+                  then: true
                 # Lid 2: lifted for a bijbehorend bouwwerk, except in the area.
-                - operation: AND
-                  conditions:
-                    - operation: EQUALS
-                      subject: $activiteit
-                      value: bijbehorend_bouwwerk_bouwen
-                    - operation: OVERLAPS
-                      subject: $location
-                      value: $beschermd_stadsgezicht_binnenstad
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject: $activiteit
+                        value: bijbehorend_bouwwerk_bouwen
+                      - operation: OVERLAPS
+                        subject: $location
+                        value: $beschermd_stadsgezicht_binnenstad
+                  then: true

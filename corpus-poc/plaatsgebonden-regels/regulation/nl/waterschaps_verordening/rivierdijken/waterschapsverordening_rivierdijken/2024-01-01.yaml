@@ -11,20 +11,32 @@ url: https://example.org/waterschapsverordening-rivierdijken
 # FICTIONAL. Waterschap Rivierdijken does not exist; the text is written for
 # this example.
 #
-# PROPOSED, not in the schema: `areas` and `applies_in`.
+# PROPOSED, not in the schema: the value type `shape` and the operation
+# OVERLAPS. Nothing else is new.
 #
-# This rulework names the area ON the article with `applies_in`: outside the
-# area the article does not exist, and its logic knows nothing of places. The
-# omgevingsplan next to it uses the area inside the logic. Both ways are here
-# on purpose, to compare them.
-
-areas:
-  beperkingengebied_waterkering:
-    geometry: areas/beperkingengebied_waterkering.geojson
+# An area is the output of the article that designates it. Its value is a
+# reference to the geometry adopted with this version of the rulework; the
+# coordinates are never in the YAML. A geometry file is never edited: a
+# changed boundary is a new file, named in a new version of the rulework.
 
 articles:
+  - number: '1.2'
+    text: |
+      Als beperkingengebied waterkering wordt aangewezen het gebied dat als
+      zodanig is aangegeven in bijlage 1.
+    url: https://example.org/waterschapsverordening-rivierdijken#artikel1.2
+
+    machine_readable:
+      execution:
+        output:
+          - name: beperkingengebied_waterkering
+            type: shape
+            description: The area designated as beperkingengebied waterkering
+        actions:
+          - output: beperkingengebied_waterkering
+            value: areas/beperkingengebied_waterkering-2024-01-01.geojson
+
   - number: '3.1'
-    applies_in: beperkingengebied_waterkering
     text: |
       Het is verboden zonder omgevingsvergunning een bouwwerk te bouwen in het
       beperkingengebied waterkering.
@@ -42,15 +54,37 @@ articles:
             type: string
             required: true
             description: What the applicant wants to do
+          - name: location
+            type: shape
+            required: true
+            description: Where the applicant wants to do it
+        input:
+          - name: beperkingengebied_waterkering
+            type: shape
+            description: The area designated in article 1.2
+            source:
+              output: beperkingengebied_waterkering
         output:
+          # Absent when the article does not speak about the case: it then
+          # forbids nothing, and the default of the open term holds.
           - name: waterschapsverordening_verbiedt_zonder_vergunning
             type: boolean
+            nullable: true
             description: Whether this article forbids the activity without a permit
         actions:
           - output: waterschapsverordening_verbiedt_zonder_vergunning
             value:
-              operation: IN
-              subject: $activiteit
-              values:
-                - hoofdgebouw_bouwen
-                - bijbehorend_bouwwerk_bouwen
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: IN
+                        subject: $activiteit
+                        values:
+                          - hoofdgebouw_bouwen
+                          - bijbehorend_bouwwerk_bouwen
+                      - operation: OVERLAPS
+                        subject: $location
+                        value: $beperkingengebied_waterkering
+                  then: true
