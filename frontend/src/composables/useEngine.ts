@@ -195,9 +195,16 @@ async function loadLawYaml(
   yaml: string,
   lawId: string | null = null,
   trajectRef: string | null = null,
+  /**
+   * The regelwerk's other versions, as saved. They go in first, so a scenario
+   * on another date finds the version in force then; `yaml` goes in last and
+   * replaces the version with its own valid_from.
+   */
+  otherVersions: readonly string[] = [],
 ): Promise<string> {
   const engine = await initEngine();
   if (lawId && engine.hasLaw(lawId)) engine.unloadLaw(lawId);
+  if (lawId) loadLawVersions(engine, [...otherVersions], lawId);
   try {
     const result = engine.loadLaw(yaml);
     if (lawId) {
@@ -206,8 +213,12 @@ async function loadLawYaml(
     }
     return result;
   } catch (e) {
-    // The previous copy is unloaded: say why the regelwerk is gone.
-    if (lawId) lawLoadErrors.set(lawId, e instanceof Error ? e.message : String(e));
+    if (lawId) {
+      // Without the edited version, a scenario on its dates would run on an
+      // older one and look right. Take the regelwerk out, and say why.
+      if (engine.hasLaw(lawId)) engine.unloadLaw(lawId);
+      lawLoadErrors.set(lawId, e instanceof Error ? e.message : String(e));
+    }
     throw e;
   } finally {
     lawsRevision.value++;

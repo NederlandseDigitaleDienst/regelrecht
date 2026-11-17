@@ -23,6 +23,7 @@ import { linkedOutput, linksByOutput, type LinkedFragment } from './regelrijm/re
 import type { Path } from '@regelrecht/frontend-shared/regelrijm/index';
 import { humanize } from './utils/outputFormat';
 import { useLatest } from './lib/useLatest';
+import { otherVersions } from './lib/lawVersions';
 import { useOpenTabs } from './composables/useOpenTabs';
 import { createTabRestore } from './composables/useTabRestore';
 import ArticleText from './components/ArticleText.vue';
@@ -1720,10 +1721,35 @@ let engineLoadDebounce: ReturnType<typeof setTimeout> | undefined;
 // without saying why. The WASM binding throws a plain string.
 const engineLoadError = ref<string | null>(null);
 
+// The open regelwerk's other saved versions, so a scenario on a date another
+// version covers runs on that one. The saved copy of the version on screen is
+// left out: the edited one replaces it, also when the edit moves its date. The
+// corpus reader caches the versions per traject. Without them the edited
+// version still loads, on its own.
+async function otherSavedVersionsOf(id: string | null, validFrom: string | null): Promise<string[]> {
+  if (!id) return [];
+  try {
+    return otherVersions((await corpus.versions(id)).yamls, validFrom);
+  } catch (e) {
+    console.warn('Could not read the other versions of the open regelwerk:', id, e);
+    return [];
+  }
+}
+
+// Reading the versions waits; a newer load that started meanwhile wins.
+const claimEngineLoad = useLatest();
+
 async function reloadEngineLaw(lawYaml: string | null, isReady: boolean) {
   if (!isReady || !lawYaml) return;
+  const isCurrent = claimEngineLoad();
+  // Read before the wait: a switch of regelwerk or traject meanwhile must not
+  // load this YAML under the other one.
+  const id = lawId.value;
+  const trajectRef = activeTrajectRef.value;
   try {
-    await loadLawYaml(lawYaml, lawId.value, activeTrajectRef.value);
+    const others = await otherSavedVersionsOf(id, lawValidFrom.value);
+    if (!isCurrent() || lawId.value !== id || activeTrajectRef.value !== trajectRef) return;
+    await loadLawYaml(lawYaml, id, trajectRef, others);
     engineLoadError.value = null;
   } catch (e) {
     // Reads `.message` off whatever was thrown, as before.
