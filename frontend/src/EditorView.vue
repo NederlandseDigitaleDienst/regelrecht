@@ -39,7 +39,6 @@ import MachineReadable from './components/MachineReadable.vue';
 import MachineEmptyState from './components/MachineEmptyState.vue';
 import ScenarioScreen from './components/ScenarioScreen.vue';
 import ScenarioStatusPane from './components/ScenarioStatusPane.vue';
-import ScenarioStatusMenuItems from './components/ScenarioStatusMenuItems.vue';
 import { useLawScenarios } from './scenario/useLawScenarios';
 import { statusBadge } from './scenario/statusSummary';
 import { useOpenScenariosStore } from './stores/openScenarios';
@@ -1601,13 +1600,19 @@ const scenarioCounts = lawScenarios.counts;
 // Machine pane is narrow (a quarter of a 1280px window). See statusBadge.
 const scenarioBadge = computed(() => statusBadge(scenarioCounts.value));
 // Busy only until the first outcome: a reload after an edit keeps the count
-// on screen and the menu reachable.
+// on screen and the sheet reachable.
 const scenarioStatusBusy = computed(() => {
   const c = scenarioCounts.value;
   return lawScenarios.loading.value && c.pending === c.total;
 });
 // Shown once the regelwerk has scenario files, or their list failed: a
 // regelwerk without scenarios gets no status, and no item that comes and goes.
+// The sheet the status opens: the same list as the *Scenario's* pane.
+const scenarioSheetOpen = ref(false);
+function openScenarioFromSheet(filename: string, scenarioName: string | null) {
+  scenarioSheetOpen.value = false;
+  openScenarioTab(filename, scenarioName);
+}
 const showScenarioStatus = computed(
   () =>
     lawScenarios.files.value.length > 0 ||
@@ -2442,9 +2447,10 @@ async function handleActionSave() {
                       <nldd-menu-item icon="document" text="Regelwerk-notities als YAML" @select="exportNotes"></nldd-menu-item>
                     </nldd-menu-group>
                   </nldd-toolbar-item>
-                  <!-- The open regelwerk's scenarios: their status, and behind
-                       it the ones that need attention. Scenarios test what
-                       this pane edits, so the outcome sits next to the edit. -->
+                  <!-- The open regelwerk's scenarios: their status, which opens
+                       a sheet with the ones that need attention. Scenarios
+                       test what this pane edits, so the outcome sits next to
+                       the edit. -->
                   <nldd-toolbar-item
                     v-if="view === 'machine' && showScenarioStatus"
                     slot="end"
@@ -2454,7 +2460,6 @@ async function handleActionSave() {
                   >
                     <nldd-button
                       size="md"
-                      expandable
                       :appearance="scenarioBadge.critical ? 'critical-tinted' : 'neutral-tinted'"
                       :start-icon="scenarioBadge.icon"
                       :text="scenarioBadge.text"
@@ -2462,16 +2467,14 @@ async function handleActionSave() {
                       :loading="scenarioStatusBusy || undefined"
                       :loading-text="lawScenarios.loadingText.value"
                       data-testid="scenario-status-btn"
-                    >
-                      <nldd-menu slot="popup" accessible-label="Scenario's">
-                        <ScenarioStatusMenuItems :scenarios="lawScenarios" @open="openScenarioTab" />
-                      </nldd-menu>
-                    </nldd-button>
-                    <nldd-menu-item slot="overflow" :text="scenarioBadge.label" :icon="scenarioBadge.icon">
-                      <nldd-menu>
-                        <ScenarioStatusMenuItems :scenarios="lawScenarios" @open="openScenarioTab" />
-                      </nldd-menu>
-                    </nldd-menu-item>
+                      @click="scenarioSheetOpen = true"
+                    ></nldd-button>
+                    <nldd-menu-item
+                      slot="overflow"
+                      :text="scenarioBadge.label"
+                      :icon="scenarioBadge.icon"
+                      @select="scenarioSheetOpen = true"
+                    ></nldd-menu-item>
                   </nldd-toolbar-item>
                   <!-- YAML parse-status (Machine-readable pane). -->
                   <nldd-toolbar-item v-if="view === 'yaml' && parseError" slot="end" label="YAML">
@@ -2836,6 +2839,26 @@ async function handleActionSave() {
       ref="searchPopoverRef"
       @select-law="onSearchSelectLaw"
     />
+    <!-- The status in the Machine toolbar opens the scenarios here. -->
+    <nldd-sheet
+      placement="right"
+      width="480px"
+      :open="scenarioSheetOpen || undefined"
+      data-testid="scenario-status-sheet"
+      @close="scenarioSheetOpen = false"
+    >
+      <nldd-page sticky-header>
+        <nldd-container slot="header" padding="8" padding-bottom="0">
+          <nldd-top-title-bar
+            text="Scenario's"
+            :supporting-text="lawName || undefined"
+            dismiss-text="Sluit"
+            @dismiss="scenarioSheetOpen = false"
+          ></nldd-top-title-bar>
+        </nldd-container>
+        <ScenarioStatusPane :scenarios="lawScenarios" @open="openScenarioFromSheet" />
+      </nldd-page>
+    </nldd-sheet>
   </Teleport>
 
   <!-- Publishing a note is irreversible (it lands in the repo and can't be made

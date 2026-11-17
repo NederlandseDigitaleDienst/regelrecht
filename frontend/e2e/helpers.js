@@ -428,13 +428,50 @@ export async function selectSheetDropdown(page, labelText, value) {
   }, value);
 }
 
+const SCENARIO_SHEET = '[data-testid="scenario-status-sheet"]';
+
+/**
+ * Open the sheet behind the scenario status in the Machine pane's toolbar.
+ * A busy status button (before the first run is in) ignores a click.
+ * @param {import('@playwright/test').Page} page
+ */
+export async function openScenarioSheet(page) {
+  const button = page.locator('[data-testid="scenario-status-btn"]');
+  const sheet = page.locator(SCENARIO_SHEET);
+  await button.waitFor({ timeout: 60_000 });
+  await expect(button).not.toHaveAttribute('loading', '', { timeout: 60_000 });
+  await expect(async () => {
+    if ((await sheet.getAttribute('open')) === null) await button.click();
+    await expect(sheet).toHaveAttribute('open', '', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
+/** Close the scenario sheet with its title bar's Sluit, as a user would. */
+export async function closeScenarioSheet(page) {
+  const sheet = page.locator(SCENARIO_SHEET);
+  if ((await sheet.getAttribute('open')) === null) return;
+  await sheet.locator('nldd-top-title-bar').evaluate((el) =>
+    el.dispatchEvent(new CustomEvent('dismiss', { bubbles: true, composed: true })),
+  );
+  await expect(sheet).not.toHaveAttribute('open', '');
+}
+
+/** The row of a scenario in the open sheet, with the passed ones opened up. */
+async function scenarioRowInSheet(page, title) {
+  const sheet = page.locator(SCENARIO_SHEET);
+  const passed = sheet.locator('[data-testid$="-passed"]');
+  if ((await passed.count()) > 0 && (await passed.first().getAttribute('expanded')) === null) {
+    await passed.first().click();
+  }
+  return sheet.locator('nldd-list-item').filter({ hasText: title }).first();
+}
+
 /**
  * Wait until a scenario reports the wanted status ("Mislukt" / "Geslaagd") in
- * the scenario status of the Machine pane's toolbar. The editor runs every
- * scenario once its dependency laws are loaded, and again after each edit to
- * the regelwerk; the menu behind the status names each scenario with its
- * status. The items are in the DOM while the menu is closed, so this reads
- * them without opening it. Throws with the last status if the wanted one never
+ * the sheet behind the scenario status in the Machine pane's toolbar. The
+ * editor runs every scenario once its dependency laws are loaded, and again
+ * after each edit to the regelwerk; a scenario's badge says its status in its
+ * accessible label. Throws with the last status if the wanted one never
  * appears within `timeout`.
  * @param {import('@playwright/test').Page} page
  * @param {string} title - substring of the scenario's name
@@ -442,39 +479,34 @@ export async function selectSheetDropdown(page, labelText, value) {
  * @param {number} [timeout]
  */
 export async function expectScenarioResult(page, title, want, timeout = 60_000) {
-  const item = page
-    .locator(`[data-testid="scenario-status-btn"] nldd-menu-item[text*="${title}"]`)
-    .first();
-  await item.waitFor({ state: 'attached', timeout: 30_000 });
+  await openScenarioSheet(page);
   const deadline = Date.now() + timeout;
   let last = '';
-  while (Date.now() < deadline) {
-    last = (await item.getAttribute('details', { timeout: 1000 }).catch(() => null)) ?? '';
-    if (last === want) return;
-    await page.waitForTimeout(500);
+  try {
+    while (Date.now() < deadline) {
+      // A scenario that passes moves into the passed group: look it up anew.
+      const row = await scenarioRowInSheet(page, title);
+      last = (await row.locator('nldd-badge').getAttribute('accessible-label', { timeout: 1000 }).catch(() => null)) ?? '';
+      if (last === want) return;
+      await page.waitForTimeout(500);
+    }
+  } finally {
+    // The spec goes on with the editor, not with this sheet over it.
+    await closeScenarioSheet(page);
   }
   throw new Error(`scenario "${title}" never reported "${want}". Last status: "${last}"`);
 }
 
 /**
- * Open a scenario in its tab from the scenario status in the Machine pane's
- * toolbar: open the menu and choose the scenario. Only for a scenario that
- * needs attention; the passed ones sit in a submenu.
+ * Open a scenario in its tab from the sheet behind the scenario status in the
+ * Machine pane's toolbar.
  * @param {import('@playwright/test').Page} page
  * @param {string} title - substring of the scenario's name
  */
 export async function openScenarioFromStatus(page, title) {
-  const button = page.locator('[data-testid="scenario-status-btn"]');
-  const item = button.locator(`nldd-menu > nldd-menu-group > nldd-menu-item[text*="${title}"]`).first();
-  // Once the scenario has a status the first run is in, and the button is no
-  // longer busy (a busy button ignores a click).
-  await expect(item).toHaveAttribute('details', /.+/, { timeout: 60_000 });
-  // Open the menu; a toolbar that rebuilds just then can close it again.
-  await expect(async () => {
-    if (!(await item.isVisible())) await button.click();
-    await expect(item).toBeVisible({ timeout: 2_000 });
-  }).toPass({ timeout: 20_000 });
-  await item.click();
+  await openScenarioSheet(page);
+  const row = await scenarioRowInSheet(page, title);
+  await row.click();
 }
 
 /**

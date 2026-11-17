@@ -68,7 +68,7 @@ The editor is a side-by-side split view with one pane per view. Each pane has a 
 | View | Content |
 |------|---------|
 | *Tekst* | The article text, editable for users with write access, with a formatting toolbar (bold, italic, list type). Selecting text starts a note. |
-| *Machine* | The `machine_readable` section as a structured view. `EditSheet.vue` and `ActionSheet.vue` edit definitions, inputs, outputs and actions. Behind `panel.regelrijm` the article's actions come first, each as Dutch text ([RFC-054](/rfcs/rfc-054)) with the article text that linking notes tie to it; a name leads to the rule that computes it, *Actie openen* opens `ActionSheet.vue`. Its toolbar shows the status of the rulework's scenarios as an icon and a count: failed, or else passed. The menu behind it lists the scenarios that need attention, with the passed ones in a submenu, and opens a scenario in its tab. `src/scenario/useLawScenarios.ts` runs them, once for the editor; the *Scenario's* pane reads the same runs. |
+| *Machine* | The `machine_readable` section as a structured view. `EditSheet.vue` and `ActionSheet.vue` edit definitions, inputs, outputs and actions. Behind `panel.regelrijm` the article's actions come first, each as Dutch text ([RFC-054](/rfcs/rfc-054)) with the article text that linking notes tie to it; a name leads to the rule that computes it, *Actie openen* opens `ActionSheet.vue`. Its toolbar shows the status of the rulework's scenarios as an icon and a count: the failed ones in red, all of them in green when all passed, and otherwise passed out of all ("18/21"). Clicking it opens a sheet with the same list as the *Scenario's* pane; choosing a scenario opens it in its tab. `src/scenario/useLawScenarios.ts` runs them, once for the editor; the sheet and the pane read the same runs. |
 | *Scenario's* | `ScenarioStatusPane.vue`: the rulework's Gherkin scenarios, read only, with the status of a run in the browser against the rulework as it is being edited, unsaved edits included. The scenarios that failed, expect nothing or have not run are listed one by one; the passed ones sit behind one row that opens up. Clicking a scenario opens its file in a scenario tab. |
 | *YAML* | The raw YAML in a code editor. A parse error shows under it; if the engine refuses the YAML, a banner says so above the panes. |
 | *Notities* | All notes on the article, and the drafts that have not been saved yet. |
@@ -167,7 +167,7 @@ Besides the views in `src/` (`AppShell.vue`, `LibraryView.vue`, `EditorView.vue`
 | `MachineReadable.vue` / `MachineEmptyState.vue` | Machine-readable view, and the empty state with enrichment |
 | `EditSheet.vue` / `ActionSheet.vue` / `OperationSettings.vue` | Editing definitions, actions and operations |
 | `ScenarioScreen.vue` / `ScenarioForm.vue` / `ScenarioResult.vue` | A scenario tab: the scenario list, the form of one scenario, and its result |
-| `ScenarioStatusPane.vue` / `ScenarioStatusMenuItems.vue` | The read-only *Scenario's* pane, and the menu behind the scenario status in the *Machine* toolbar |
+| `ScenarioStatusPane.vue` | The read-only *Scenario's* pane, also shown in the sheet behind the scenario status in the *Machine* toolbar |
 | `ExecutionTraceView.vue` / `LawGraphView.vue` (+ `graph/`) | Execution trace and cross-law graph |
 | `NoteCreator.vue` / `NoteCard.vue` | Stand-off notes (RFC-018) |
 | `RegelRijmPane.vue` / `RegelRijmText.vue` (in `src/regelrijm/`) | The RegelRijm readings at the top of *Machine* and the token text they show (RFC-054) |
