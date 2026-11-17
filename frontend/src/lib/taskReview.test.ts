@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import router from '../router';
-import { reviewTarget, sameTraject, proposalDivergence } from './taskReview';
+import {
+  reviewTarget,
+  sameTraject,
+  proposalDivergence,
+  taskInTraject,
+  jobInTraject,
+  taskNamesTraject,
+} from './taskReview';
 import type { ReviewTarget } from './taskReview';
 
 // Resolve a target that the test expects to exist; a null target fails here
@@ -249,5 +256,64 @@ describe('proposalDivergence', () => {
     const current = [{ number: '2', text: 'oud' }];
     const proposed = [{ number: 2, text: 'nieuw' }];
     expect(proposalDivergence(current, proposed, 2).target).toEqual(proposed[0]);
+  });
+});
+
+describe('taskInTraject', () => {
+  const HERE = 'kimi-test-2a72312c';
+
+  it('decides on traject_id when the task has it', () => {
+    expect(taskInTraject({ traject_id: '2a72312c-67a3-4527-9033-8f4dd52b1c82' }, HERE)).toBe(true);
+    expect(taskInTraject({ traject_id: '729b827f-797b-43b4-9ec7-9713eb579ce3' }, HERE)).toBe(false);
+  });
+
+  it('lets traject_id win over a payload ref that says otherwise', () => {
+    const task = {
+      traject_id: '729b827f-797b-43b4-9ec7-9713eb579ce3',
+      payload: { traject_ref: HERE },
+    };
+    expect(taskInTraject(task, HERE)).toBe(false);
+  });
+
+  it('falls back to payload.traject_ref, matching on the id part only', () => {
+    expect(taskInTraject({ payload: { traject_ref: 'old-name-2a72312c' } }, HERE)).toBe(true);
+    expect(taskInTraject({ payload: { traject_ref: 'voorbeeld-729b827f' } }, HERE)).toBe(false);
+  });
+
+  it('keeps a task that names no traject visible, so it can still be dismissed', () => {
+    expect(taskInTraject({ payload: { law_id: 'test_wet' } }, HERE)).toBe(true);
+  });
+
+  it('matches nothing without a traject to compare with', () => {
+    expect(taskInTraject({ traject_id: '2a72312c-67a3-4527-9033-8f4dd52b1c82' }, null)).toBe(false);
+    expect(taskInTraject({ traject_id: '2a72312c-67a3-4527-9033-8f4dd52b1c82' }, 'foo')).toBe(false);
+  });
+
+  it('ignores case on both sides', () => {
+    expect(taskInTraject({ traject_id: '2A72312C-67A3-4527-9033-8F4DD52B1C82' }, 'Kimi-Test-2A72312C')).toBe(true);
+  });
+
+  it('falls back to the payload when traject_id is too short to compare', () => {
+    expect(taskInTraject({ traject_id: 'abc', payload: { traject_ref: 'x-2a72312c' } }, HERE)).toBe(true);
+  });
+});
+
+describe('taskNamesTraject', () => {
+  it('is true for a task with a traject_id or a payload ref with an id part', () => {
+    expect(taskNamesTraject({ traject_id: '2a72312c-67a3-4527-9033-8f4dd52b1c82' })).toBe(true);
+    expect(taskNamesTraject({ payload: { traject_ref: 'x-2a72312c' } })).toBe(true);
+  });
+
+  it('is false for a task that names no traject', () => {
+    expect(taskNamesTraject({ payload: { law_id: 'test_wet' } })).toBe(false);
+    expect(taskNamesTraject({ payload: { traject_ref: 't-1' } })).toBe(false);
+  });
+});
+
+describe('jobInTraject', () => {
+  it('matches a running job on the id part of its traject_ref', () => {
+    expect(jobInTraject({ traject_ref: 'old-name-2a72312c' }, 'kimi-test-2a72312c')).toBe(true);
+    expect(jobInTraject({ traject_ref: 'voorbeeld-729b827f' }, 'kimi-test-2a72312c')).toBe(false);
+    expect(jobInTraject({ traject_ref: null }, 'kimi-test-2a72312c')).toBe(true);
   });
 });

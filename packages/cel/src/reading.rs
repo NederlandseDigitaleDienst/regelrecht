@@ -52,15 +52,16 @@ use std::collections::{BTreeMap, BTreeSet};
 use chrono::NaiveDate;
 use regelrecht_engine::{
     Answer as EngineAnswer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, ArticleResult,
-    Authority, Call, Chronicle as ChronicleSource, ChronicleRead, EngineError, LawExecutionService,
-    OpenTermAnswerer, RegulatoryLayer, Value,
+    Authority, Call, Chronicle as ChronicleSource, ChronicleRead, ChronicleRecord, EngineError,
+    LawExecutionService, OpenTermAnswerer, ProjectionOptions, RegulatoryLayer, Value,
+    has_projection,
 };
 use serde::Serialize;
 use serde_json::Map;
 
-use crate::chronicle::Gram;
 use crate::chronicle::EXECUTOGRAM;
-use crate::error::{refused, setup, Result};
+use crate::chronicle::Gram;
+use crate::error::{Result, refused, setup};
 use crate::shape::{self, article_on};
 use regelrecht_law_model::stored;
 
@@ -177,6 +178,33 @@ pub fn executogram_rows(
 pub const ROW_REFERS_TO: &str = "refers_to";
 
 /// `grams` as rows (`row`), each with the id of its chronolexogram.
+/// `grams` as the records a reduction that plays the chronicle forward reads
+/// (schema v0.8.14, [`regelrecht_engine::projection`]), in the order the cell
+/// recorded them, with the values as the engine reads them.
+pub fn chronicle_records(grams: &[Gram]) -> Result<Vec<ChronicleRecord>> {
+    let read = |values: &BTreeMap<String, serde_json::Value>| -> Result<BTreeMap<String, Value>> {
+        values
+            .iter()
+            .map(|(k, v)| Ok((k.clone(), stored::from_stored(v)?)))
+            .collect()
+    };
+    grams
+        .iter()
+        .map(|gram| {
+            Ok(ChronicleRecord {
+                id: gram.id.clone(),
+                kind: gram.kind.clone(),
+                basis: gram.basis.clone(),
+                fact: gram.fact.clone(),
+                recorded_on: gram.recorded_on,
+                refers_to: gram.refers_to.clone(),
+                fields: read(&gram.fields)?,
+                outputs: read(&gram.outputs)?,
+            })
+        })
+        .collect()
+}
+
 fn rows_of<'g>(
     service: &LawExecutionService,
     grams: impl Iterator<Item = &'g Gram>,
@@ -247,7 +275,7 @@ fn row(
             {
                 return Err(setup(format!(
                     "{label} holds '{name}' twice, as {held} and as {value}"
-                )))
+                )));
             }
             _ => {
                 row.insert(name.clone(), value);
@@ -339,8 +367,10 @@ pub struct Asked {
 /// version in force on the day, on its chronicle as `grams` holds it, and
 /// gives the engine the value with where it comes from: the cell, the
 /// answer, the reduction, its article and version, and how far it read the
-/// chronicle. The engine does not see the reduction run; the cell explains
-/// its answer on request ([`crate::Cell::explain_answer`]).
+/// chronicle. When the engine traces, the reader gives the reduction's run
+/// with the answer ([`EngineAnswer::trace`]), and the engine nests it under
+/// the answer; the cell also explains an answer on request
+/// ([`crate::Cell::explain_answer`]).
 ///
 /// The reduction is the rulework the service holds under that `$id`: a
 /// `REDUCTIE` the cell keeps (`reductions`). The answer
@@ -462,8 +492,18 @@ impl<'c> Reader<'c> {
             )));
         }
         let mut parameters = BTreeMap::new();
+        // A null for a parameter the reduction needs and cannot do without
+        // names nobody to answer about, such as a number an application left
+        // empty. As for a call to another law (RFC-036), the reduction is not
+        // run for nobody: the cell is silent, and the binding says what then
+        // holds. Every parameter is checked first, so a binding that leaves
+        // one out is refused whatever the case holds.
+        let mut for_nobody = false;
         for p in declared {
             match request.parameters.get(&p.name) {
+                Some(Value::Null) if p.required != Some(false) && !p.is_nullable() => {
+                    for_nobody = true;
+                }
                 Some(value) => {
                     parameters.insert(p.name.clone(), value.clone());
                 }
@@ -473,9 +513,12 @@ impl<'c> Reader<'c> {
                         "the answer '{name}' takes '{}' (reduction '{reduction}' article {}), \
                          which the binding does not pass",
                         p.name, article.number
-                    )))
+                    )));
                 }
             }
+        }
+        if for_nobody {
+            return Ok(None);
         }
         // The reduction may call rulework that binds a term to an answer of
         // this cell too, such as a regulation that asks where the school is
@@ -487,12 +530,23 @@ impl<'c> Reader<'c> {
         let call = Call {
             findings: BTreeMap::new(),
             answerer: Some(self),
+            decides_for: None,
             chronicle: Some(self),
             sphere: Vec::new(),
         };
         let outputs = [name];
         let date = request.calculation_date;
-        let result = if self.explain == Some(name) {
+        let trace = request.trace || self.explain == Some(name);
+        // A reduction that plays the chronicle forward (schema v0.8.14) gets
+        // the chronicle as records; the engine plays it and answers from the
+        // last state.
+        let result = if has_projection(article) {
+            let records = chronicle_records(&self.grams)?;
+            let options = ProjectionOptions { call, trace };
+            service
+                .evaluate_projection_with(reduction, &outputs, &records, parameters, date, options)?
+                .result
+        } else if trace {
             service.evaluate_law_with_trace_in(reduction, &outputs, parameters, call, date)?
         } else {
             service.evaluate_law_in(reduction, &outputs, parameters, call, date)?
@@ -575,6 +629,21 @@ impl ChronicleSource for Reader<'_> {
                 )),
             })
     }
+
+    /// The cell's chronicle as records, for a reduction that reads the
+    /// aggregates of another (`source.projections`, schema v0.8.17): the
+    /// engine plays them on the records.
+    fn records(&self) -> regelrecht_engine::Result<Option<Vec<ChronicleRecord>>> {
+        chronicle_records(&self.grams)
+            .map(Some)
+            .map_err(|e| match e {
+                crate::Error::Engine(e) => e,
+                other => EngineError::ResolutionError(format!(
+                    "the cell of '{}' giving its records: {other}",
+                    self.recording_actor
+                )),
+            })
+    }
 }
 
 impl OpenTermAnswerer for Reader<'_> {
@@ -620,6 +689,14 @@ impl OpenTermAnswerer for Reader<'_> {
                 self.recording_actor
             ))
         })?;
+        // When the engine traces, the reduction's run is how the cell came
+        // to the answer: for a projection, the `PROJECTION` node with the
+        // records that count and the fold, and the steps' law calls.
+        let trace = if request.trace {
+            result.trace.clone()
+        } else {
+            None
+        };
         let explained = (self.explain == Some(name)).then_some(result);
         self.asked.borrow_mut().push(Asked {
             name: name.to_string(),
@@ -627,7 +704,11 @@ impl OpenTermAnswerer for Reader<'_> {
             provenance: provenance.clone(),
             explained,
         });
-        Ok(Some(EngineAnswer { value, provenance }))
+        Ok(Some(EngineAnswer {
+            value,
+            provenance,
+            trace,
+        }))
     }
 }
 
@@ -635,6 +716,7 @@ impl OpenTermAnswerer for Reader<'_> {
 #[allow(clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
+    use regelrecht_engine::PathNode;
     use serde_json::json;
 
     const ACTOR: &str = "obs_de_klimop";
@@ -642,6 +724,7 @@ mod tests {
 
     fn gram(kind: &str, basis: &str, refers_to: Option<&str>) -> Gram {
         Gram {
+            law_versions: Vec::new(),
             id: format!("{kind}-{basis}"),
             kind: kind.into(),
             basis: basis.into(),
@@ -656,6 +739,29 @@ mod tests {
             missing: Vec::new(),
             outputs: [("verlof_verleend".to_string(), json!(true))].into(),
         }
+    }
+
+    /// The chronicle as a projection reads it: every gram in order, with
+    /// its values as the engine reads them.
+    #[test]
+    fn the_chronicle_as_records_keeps_every_gram_in_order() {
+        let mut fact = gram(EXECUTOGRAM, BASIS, None);
+        fact.fact = Some("ingeleverd".into());
+        let grams = [gram("BESCHIKKING", BASIS, Some("a")), fact];
+        let records = chronicle_records(&grams).unwrap();
+        assert_eq!(records.len(), 2);
+        let decision = &records[0];
+        assert_eq!(decision.id, grams[0].id);
+        assert_eq!(decision.kind, "BESCHIKKING");
+        assert_eq!(decision.basis, BASIS);
+        assert_eq!(decision.refers_to.as_deref(), Some("a"));
+        assert_eq!(decision.recorded_on, grams[0].recorded_on);
+        assert_eq!(decision.outputs["verlof_verleend"], Value::Bool(true));
+        assert_eq!(
+            decision.fields["eerste_verlofdag"],
+            Value::String("2027-02-01".into())
+        );
+        assert_eq!(records[1].fact.as_deref(), Some("ingeleverd"));
     }
 
     #[test]
@@ -750,13 +856,15 @@ mod tests {
         decision
             .outputs
             .insert("eerste_verlofdag".into(), json!("2027-03-01"));
-        assert!(rows(
-            &LawExecutionService::new(),
-            &[decision],
-            BASIS,
-            "BESCHIKKING"
-        )
-        .is_err());
+        assert!(
+            rows(
+                &LawExecutionService::new(),
+                &[decision],
+                BASIS,
+                "BESCHIKKING"
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -769,13 +877,15 @@ mod tests {
         decision
             .outputs
             .insert("aandeel".into(), json!({"__decimal": "5.00"}));
-        assert!(rows(
-            &LawExecutionService::new(),
-            &[decision],
-            BASIS,
-            "BESCHIKKING"
-        )
-        .is_ok());
+        assert!(
+            rows(
+                &LawExecutionService::new(),
+                &[decision],
+                BASIS,
+                "BESCHIKKING"
+            )
+            .is_ok()
+        );
     }
 
     #[test]
@@ -890,6 +1000,7 @@ articles:
     fn reduction(id: &str, valid_from: &str) -> String {
         format!(
             r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: {id}
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -968,6 +1079,25 @@ articles:
         vec![decision]
     }
 
+    /// The reader gives the engine its chronicle as records, for a
+    /// reduction that reads aggregates (`source.projections`, schema
+    /// v0.8.17): every gram, in order.
+    #[test]
+    fn the_reader_gives_its_chronicle_as_records() {
+        let grams = decisions();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            grams.clone(),
+            None,
+        );
+        let records = ChronicleSource::records(&reader).unwrap().expect("records");
+        assert_eq!(records, chronicle_records(&grams).unwrap());
+        assert_eq!(records.len(), 1);
+    }
+
     fn day() -> NaiveDate {
         NaiveDate::from_ymd_opt(2026, 10, 20).unwrap()
     }
@@ -983,6 +1113,7 @@ articles:
         let call = regelrecht_engine::Call {
             findings: BTreeMap::new(),
             answerer: Some(reader),
+            decides_for: None,
             chronicle: None,
             sphere: Vec::new(),
         };
@@ -999,6 +1130,7 @@ articles:
     /// article its parameter names (schema v0.8.11), such as that of the
     /// Awb.
     const WITHOUT_HOLDER: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_zonder_houder
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -1033,6 +1165,7 @@ articles:
     /// A reduction of the cell that calls [`WITHOUT_HOLDER`] for the
     /// decisions under `wet_fictief#1`.
     const CALLING: &str = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_a
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -1140,13 +1273,22 @@ articles:
             provenance.last_record.as_deref(),
             Some("BESCHIKKING-wet_fictief#1")
         );
-        // The reduction's FOREACH is not in the trace of the execution.
-        let trace = result.trace.unwrap().render_box_drawing();
+        // The traced execution holds how the cell came to its answer, under
+        // the node of the answer: the reduction's run, with its FOREACH.
+        let root = result.trace.unwrap();
+        let trace = root.render_box_drawing();
         assert!(
             trace.contains("Answered by answer 'al_verleend' of obs_de_klimop"),
             "{trace}"
         );
-        assert!(!trace.contains("FOREACH"), "{trace}");
+        fn find<'n>(node: &'n PathNode, name: &str) -> Option<&'n PathNode> {
+            if node.name == name && node.answer.is_some() {
+                return Some(node);
+            }
+            node.children.iter().find_map(|c| find(c, name))
+        }
+        let answer = find(&root, "al_verleend").expect("the node of the answer");
+        assert!(answer.render_box_drawing().contains("FOREACH"), "{trace}");
         let asked = reader.asked();
         assert_eq!(asked.len(), 1);
         assert_eq!(asked[0].name, "al_verleend");
@@ -1164,7 +1306,24 @@ articles:
             decisions(),
             Some("al_verleend"),
         );
-        granted(&service, &reader).unwrap();
+        // Also when the execution that asks does not trace.
+        let call = regelrecht_engine::Call {
+            findings: BTreeMap::new(),
+            answerer: Some(&reader),
+            decides_for: None,
+            chronicle: None,
+            sphere: Vec::new(),
+        };
+        let result = service
+            .evaluate_law_in(
+                "wet_fictief",
+                &["verleend"],
+                parameters(),
+                call,
+                "2026-10-20",
+            )
+            .unwrap();
+        assert!(result.trace.is_none());
         let asked = reader.asked();
         let trace = asked[0].explained.as_ref().unwrap().trace.as_ref().unwrap();
         assert!(trace.render_box_drawing().contains("FOREACH"));
@@ -1190,11 +1349,13 @@ articles:
             )
             .unwrap();
         assert_eq!(result.outputs["verleend"], Value::Bool(true));
-        assert!(result
-            .open_terms
-            .iter()
-            .any(|f| f.term == "al_verleend_volgens_hoofd"
-                && f.filled_by == regelrecht_engine::FilledBy::Finding));
+        assert!(
+            result
+                .open_terms
+                .iter()
+                .any(|f| f.term == "al_verleend_volgens_hoofd"
+                    && f.filled_by == regelrecht_engine::FilledBy::Finding)
+        );
     }
 
     #[test]
@@ -1268,6 +1429,7 @@ articles:
         let call = regelrecht_engine::Call {
             findings,
             answerer: Some(&reader),
+            decides_for: None,
             chronicle: None,
             sphere: Vec::new(),
         };
@@ -1280,11 +1442,13 @@ articles:
                 "2026-10-20",
             )
             .unwrap();
-        assert!(result
-            .open_terms
-            .iter()
-            .any(|f| f.term == "al_verleend_volgens_hoofd"
-                && f.filled_by == regelrecht_engine::FilledBy::Finding));
+        assert!(
+            result
+                .open_terms
+                .iter()
+                .any(|f| f.term == "al_verleend_volgens_hoofd"
+                    && f.filled_by == regelrecht_engine::FilledBy::Finding)
+        );
         assert!(reader.asked().is_empty());
     }
 
@@ -1303,6 +1467,7 @@ articles:
             name: "al_verleend",
             parameters: &BTreeMap::new(),
             calculation_date: "2026-10-20",
+            trace: false,
         };
         let e = reader.answer(&service, &request).unwrap_err();
         assert!(
@@ -1330,9 +1495,77 @@ articles:
             name: "al_verleend",
             parameters: &BTreeMap::new(),
             calculation_date: "2026-10-20",
+            trace: false,
         };
         let answer = reader.answer(&service, &request).unwrap().unwrap();
         assert_eq!(answer.value, Value::Bool(true));
+    }
+
+    #[test]
+    fn a_null_for_a_parameter_the_reduction_needs_leaves_the_cell_silent() {
+        // The binding asks about nobody: the reduction is not run for nobody
+        // and fails nothing; the cell gives no answer (RFC-036).
+        let service = service();
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let parameters = [("bsn".to_string(), Value::Null)].into();
+        let request = AnswerRequest {
+            name: "al_verleend",
+            parameters: &parameters,
+            calculation_date: "2026-10-20",
+            trace: false,
+        };
+        assert!(reader.answer(&service, &request).unwrap().is_none());
+        assert!(reader.asked().is_empty());
+
+        // A reduction that declares the parameter nullable is run with the
+        // null, as it said it can decide on nobody.
+        let nullable = reduction("reductie_a", "2026-01-01").replace(
+            "          - name: bsn\n            type: string\n        input:",
+            "          - name: bsn\n            type: string\n            nullable: true\n        input:",
+        );
+        assert_ne!(nullable, reduction("reductie_a", "2026-01-01"));
+        let service = service_with(&nullable);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let request = AnswerRequest {
+            name: "al_verleend",
+            parameters: &parameters,
+            calculation_date: "2026-10-20",
+            trace: false,
+        };
+        assert!(reader.answer(&service, &request).unwrap().is_some());
+
+        // A binding that leaves out a parameter the reduction needs is
+        // refused, also when another one it passes is null.
+        let two = reduction("reductie_a", "2026-01-01").replace(
+            "          - name: bsn\n            type: string\n        input:",
+            "          - name: bsn\n            type: string\n          - name: peildatum\n            type: date\n        input:",
+        );
+        assert_ne!(two, reduction("reductie_a", "2026-01-01"));
+        let service = service_with(&two);
+        let reader = Reader::new(
+            ACTOR,
+            authority(),
+            answers(),
+            reductions(),
+            decisions(),
+            None,
+        );
+        let e = reader.answer(&service, &request).unwrap_err();
+        assert!(e.to_string().contains("takes 'peildatum'"), "{e}");
     }
 
     #[test]
@@ -1352,6 +1585,7 @@ articles:
             name: "al_verleend",
             parameters: &given,
             calculation_date: "2026-10-20",
+            trace: false,
         };
         let e = reader.answer(&service, &request).unwrap_err();
         assert!(e.to_string().contains("'bsn_jongere'"), "{e}");

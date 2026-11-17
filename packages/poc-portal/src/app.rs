@@ -3,21 +3,22 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use axum::Router;
 use axum::body::Body;
 use axum::extract::{Path, Request, State};
-use axum::http::{header, HeaderValue, StatusCode, Uri};
+use axum::http::{HeaderValue, StatusCode, Uri, header};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::Router;
 use tower::ServiceExt as _;
 use tower_http::services::{ServeDir, ServeFile};
 
 use crate::bron::{Bron, BronFout};
-use crate::config::{upstream_url, Config};
+use crate::config::{Config, upstream_url};
 use crate::gate;
 use crate::pagina;
 use crate::proxy;
 use crate::registry::{Poc, Soort};
+use crate::version;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -35,14 +36,21 @@ pub struct AppState {
 }
 
 impl AppState {
+    /// Build the state, reading upstreams, assistants and source folders from
+    /// the process environment.
     pub fn new(config: Config) -> Self {
+        Self::with_env(config, |key| std::env::var(key).ok())
+    }
+
+    /// [`AppState::new`] with every variable read through `env`.
+    pub fn with_env(config: Config, env: impl Fn(&str) -> Option<String>) -> Self {
         let mut upstreams = HashMap::new();
         for poc in &config.registry.pocs {
             if poc.soort != Soort::Proxy {
                 continue;
             }
-            let env = format!("POC_UPSTREAM_{}", poc.slug.to_uppercase().replace('-', "_"));
-            match upstream_url(config.deployment.as_deref(), poc, std::env::var(env).ok()) {
+            let key = format!("POC_UPSTREAM_{}", poc.slug.to_uppercase().replace('-', "_"));
+            match upstream_url(config.deployment.as_deref(), poc, env(&key)) {
                 Some(url) => {
                     tracing::info!(slug = %poc.slug, url = %url, "proxied PoC");
                     upstreams.insert(poc.slug.clone(), url);
@@ -63,18 +71,18 @@ impl AppState {
             if !poc.assistent {
                 continue;
             }
-            let env = format!(
+            let key = format!(
                 "POC_ASSISTENT_{}",
                 poc.slug.to_uppercase().replace('-', "_")
             );
-            match std::env::var(&env) {
-                Ok(url) if !url.trim().is_empty() => {
+            match env(&key) {
+                Some(url) if !url.trim().is_empty() => {
                     tracing::info!(slug = %poc.slug, url = %url, "beleidsassistent");
                     assistenten.insert(poc.slug.clone(), url);
                 }
                 _ => tracing::info!(
                     slug = %poc.slug,
-                    "geen beleidsassistent ({env} niet gezet); /api antwoordt 503"
+                    "geen beleidsassistent ({key} niet gezet); /api antwoordt 503"
                 ),
             }
         }
@@ -86,17 +94,18 @@ impl AppState {
             for source in &poc.sources {
                 bronnen.insert(
                     (poc.slug.clone(), source.name.clone()),
-                    Bron::new(source, |k| std::env::var(k).ok()),
+                    Bron::new(source, &env),
                 );
             }
         }
-        let github = match regelrecht_github::GithubClient::new() {
-            Ok(c) => Some(Arc::new(c)),
-            Err(e) => {
-                tracing::error!(error = %e, "no GitHub client; sources on GitHub answer 502");
-                None
-            }
-        };
+        let github =
+            match regelrecht_github::GithubClient::from_base(env("GITHUB_API_BASE").as_deref()) {
+                Ok(c) => Some(Arc::new(c)),
+                Err(e) => {
+                    tracing::error!(error = %e, "no GitHub client; sources on GitHub answer 502");
+                    None
+                }
+            };
 
         Self {
             config: Arc::new(config),
@@ -116,6 +125,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/health", get(|| async { "OK" }))
+        .route(version::VERSION_PATH, get(version::version))
         .route("/_toegang/{slug}", post(toegang))
         .nest_service("/_assets", ServeDir::new(format!("{static_root}/_assets")))
         .fallback(
@@ -350,12 +360,13 @@ fn percent_decode(s: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(b) = u8::from_str_radix(&String::from_utf8_lossy(&bytes[i + 1..i + 3]), 16) {
-                out.push(b);
-                i += 3;
-                continue;
-            }
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && let Ok(b) = u8::from_str_radix(&String::from_utf8_lossy(&bytes[i + 1..i + 3]), 16)
+        {
+            out.push(b);
+            i += 3;
+            continue;
         }
         out.push(bytes[i]);
         i += 1;

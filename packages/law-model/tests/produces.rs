@@ -168,6 +168,9 @@ fn an_error_inside_either_form_is_reported_as_written() {
     ] {
         let message = law(produces).unwrap_err().to_string();
         assert!(message.contains(expected), "got: {message}");
-        assert!(!message.contains("did not match any variant"), "got: {message}");
+        assert!(
+            !message.contains("did not match any variant"),
+            "got: {message}"
+        );
     }
 }

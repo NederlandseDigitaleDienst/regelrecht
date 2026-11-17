@@ -26,8 +26,10 @@
 //! - **N2** A literal `null` is written only as the value of a nullable
 //!   output (directly, or through the branches of an `IF`), or as an element
 //!   of a container literal (an item of `LIST`, the body of a `FOREACH`
-//!   without `combine`): an array holding an absence is a value, and its
-//!   elements are untyped anyway.
+//!   without `combine`, a column of a `RECORD` since schema v0.8.22): an
+//!   array or a row holding an absence is a value. The elements of an array
+//!   are untyped, and a column of a row may hold null whatever its declared
+//!   type (`arrayColumn`).
 //! - **N3** An `IF` without `default` yields `null` when no case matches, so
 //!   it is allowed only as the value of a nullable output.
 //! - **N4** A value that may be absent enters arithmetic, ordering, logic, an
@@ -57,7 +59,13 @@
 //! - **T3** `EQUALS` compares values of one type; `number` and `amount` are
 //!   one type here, and so are `date` and `string`, since dates arrive as ISO
 //!   strings.
-//! - **T4** A literal assigned to an output has the output's type.
+//! - **T4** A literal assigned to an output has the output's type, and so
+//!   does a `RECORD` (schema v0.8.22), which is an object. A `RECORD` the
+//!   article builds for an output with `columns` (the body of a `FOREACH`
+//!   without `combine` or with `DISTINCT`, an item of a `LIST`, a branch of an
+//!   `IF` among those) names exactly those columns, and a value whose type the
+//!   checker knows (a literal, a declared name, a comparison) has the type
+//!   of its column.
 //! - **T5** A call to an article (`source.article`, RFC-045 §6) without
 //!   `output` yields a decision value, so the input is of type `decision`.
 //!   What it merges (`parameters_from`) is an object, and a `$`-reference
@@ -69,10 +77,11 @@
 //!   and claims nothing about its fields (`$x.outputs.y`), as for rows.
 
 use crate::article::{
-    foreach_binding, Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, CombineOp,
-    Source,
+    Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, CombineOp, Source,
+    foreach_binding,
 };
 use crate::types::{ParameterType, Value};
+use regelrecht_law_model::Column;
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 
@@ -632,22 +641,22 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 .flatten()
         };
         for reference in source.parameters_from.iter().flatten() {
-            if let Some(ty) = declared_root(self, reference) {
-                if ty != Ty::Object {
-                    let hint = if ty == Ty::Decision {
-                        format!(" (the parameters of a decision are {reference}.fields)")
-                    } else {
-                        String::new()
-                    };
-                    self.report(
-                        Rule::T5,
-                        format!(
-                            "'{name}' merges {reference} into the parameters of {target}, but \
+            if let Some(ty) = declared_root(self, reference)
+                && ty != Ty::Object
+            {
+                let hint = if ty == Ty::Decision {
+                    format!(" (the parameters of a decision are {reference}.fields)")
+                } else {
+                    String::new()
+                };
+                self.report(
+                    Rule::T5,
+                    format!(
+                        "'{name}' merges {reference} into the parameters of {target}, but \
                              it is declared {}; parameters_from takes objects{hint}",
-                            ty.name()
-                        ),
-                    );
-                }
+                        ty.name()
+                    ),
+                );
             }
         }
         if !input.is_nullable() {
@@ -877,17 +886,21 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
         };
 
         let info = self.check_expr(&expression, &facts, slot);
-        if let (Some(declared), Some(actual)) = (declared_ty, info.ty) {
-            if !declared.compatible(actual) && is_literal_shaped(&expression) {
-                self.report(
-                    Rule::T4,
-                    format!(
-                        "output is declared {} but is assigned a {} literal",
-                        declared.name(),
-                        actual.name()
-                    ),
-                );
-            }
+        if let (Some(declared), Some(actual)) = (declared_ty, info.ty)
+            && !declared.compatible(actual)
+            && is_literal_shaped(&expression)
+        {
+            self.report(
+                Rule::T4,
+                format!(
+                    "output is declared {} but is assigned {}",
+                    declared.name(),
+                    literal_kind(&expression, actual)
+                ),
+            );
+        }
+        if let Some(columns) = output.and_then(|o| o.columns.as_deref()) {
+            self.check_table_rows(&expression, columns);
         }
         // A literal in a branch of an IF that is the output's value is an
         // assignment to the output as well (T4).
@@ -918,21 +931,163 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
         for branch in branches {
             match branch {
                 ActionValue::Literal(value) => {
-                    if let Some(actual) = Ty::of_literal(value) {
-                        if !declared.compatible(actual) {
+                    if let Some(actual) = Ty::of_literal(value)
+                        && !declared.compatible(actual)
+                    {
+                        self.report(
+                            Rule::T4,
+                            format!(
+                                "output is declared {} but a branch assigns a {} literal",
+                                declared.name(),
+                                actual.name()
+                            ),
+                        );
+                    }
+                }
+                ActionValue::Operation(nested) => {
+                    if let ActionOperation::Record { .. } = nested.as_ref() {
+                        if !declared.compatible(Ty::Object) {
                             self.report(
                                 Rule::T4,
                                 format!(
-                                    "output is declared {} but a branch assigns a {} literal",
-                                    declared.name(),
-                                    actual.name()
+                                    "output is declared {} but a branch assigns a RECORD",
+                                    declared.name()
                                 ),
                             );
                         }
+                    } else {
+                        self.check_branch_literals(nested, declared);
                     }
                 }
-                ActionValue::Operation(nested) => self.check_branch_literals(nested, declared),
             }
+        }
+    }
+
+    /// T4 for an output with `columns`: the rows `expr` builds as the
+    /// elements of the table. Only rows written out in the article are
+    /// checked; a table taken from a reference is not.
+    fn check_table_rows(&mut self, expr: &ActionValue, columns: &[Column]) {
+        let ActionValue::Operation(op) = expr else {
+            return;
+        };
+        match op.as_ref() {
+            ActionOperation::Foreach {
+                as_name,
+                body,
+                combine: None | Some(CombineOp::Distinct),
+                ..
+            } => {
+                // The binding shadows the declarations in the body, as in
+                // `check_operation`, so a field of the element makes no claim.
+                self.bound.push(Binding {
+                    name: foreach_binding(as_name.as_deref()).to_string(),
+                    fields: as_name.is_none(),
+                });
+                self.check_element_rows(body, columns);
+                self.bound.pop();
+            }
+            ActionOperation::List { items } => {
+                for item in items {
+                    self.check_element_rows(item, columns);
+                }
+            }
+            ActionOperation::If { cases, default } => {
+                for branch in cases.iter().map(|case| &case.then).chain(default.iter()) {
+                    self.check_table_rows(branch, columns);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// T4 for one element of a table: a `RECORD`, or an `IF` whose branches
+    /// are.
+    fn check_element_rows(&mut self, expr: &ActionValue, columns: &[Column]) {
+        let ActionValue::Operation(op) = expr else {
+            return;
+        };
+        match op.as_ref() {
+            ActionOperation::Record { fields } => self.check_row(fields, columns),
+            ActionOperation::If { cases, default } => {
+                for branch in cases.iter().map(|case| &case.then).chain(default.iter()) {
+                    self.check_element_rows(branch, columns);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// T4 for the fields of one `RECORD` against the columns of its table.
+    fn check_row(&mut self, fields: &BTreeMap<String, ActionValue>, columns: &[Column]) {
+        let output = self.output.clone().unwrap_or_default();
+        for name in fields.keys() {
+            if !columns.iter().any(|column| &column.name == name) {
+                self.report(
+                    Rule::T4,
+                    format!("a row has the column '{name}', which '{output}' does not declare"),
+                );
+            }
+        }
+        for column in columns {
+            let Some(expr) = fields.get(&column.name) else {
+                self.report(
+                    Rule::T4,
+                    format!(
+                        "a row lacks the column '{}' of '{output}'; write null for a \
+                         column without a value",
+                        column.name
+                    ),
+                );
+                continue;
+            };
+            let declared = Ty::of(column.column_type);
+            if let Some(actual) = self.static_type(expr)
+                && !declared.compatible(actual)
+            {
+                self.report(
+                    Rule::T4,
+                    format!(
+                        "column '{}' is declared {} but is given a value of type {}",
+                        column.name,
+                        declared.name(),
+                        actual.name()
+                    ),
+                );
+            }
+        }
+    }
+
+    /// The type of `expr` as far as it is known without following the
+    /// path: a literal, a declared name, or an operation whose
+    /// result type does not depend on its operands. `None` claims nothing.
+    fn static_type(&self, expr: &ActionValue) -> Option<Ty> {
+        match expr {
+            ActionValue::Literal(Value::String(s)) if is_reference(s) => {
+                self.reference(s, &Facts::default()).ty
+            }
+            ActionValue::Literal(value) => Ty::of_literal(value),
+            ActionValue::Operation(op) => match op.as_ref() {
+                ActionOperation::Equals { .. }
+                | ActionOperation::NotEquals { .. }
+                | ActionOperation::GreaterThan { .. }
+                | ActionOperation::LessThan { .. }
+                | ActionOperation::GreaterThanOrEqual { .. }
+                | ActionOperation::LessThanOrEqual { .. }
+                | ActionOperation::And { .. }
+                | ActionOperation::Or { .. }
+                | ActionOperation::Not { .. }
+                | ActionOperation::In { .. }
+                | ActionOperation::NotIn { .. }
+                | ActionOperation::IsNull { .. }
+                | ActionOperation::NotNull { .. } => Some(Ty::Boolean),
+                ActionOperation::List { .. }
+                | ActionOperation::Foreach {
+                    combine: None | Some(CombineOp::Distinct),
+                    ..
+                } => Some(Ty::Array),
+                ActionOperation::Record { .. } => Some(Ty::Object),
+                _ => None,
+            },
         }
     }
 
@@ -1098,18 +1253,18 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
 
     /// T2: an operand of logic or an `IF` condition that must be a boolean.
     fn require_boolean(&mut self, info: &Info, operation: &str) {
-        if let Some(ty) = info.ty {
-            if ty != Ty::Boolean {
-                self.report(
-                    Rule::T2,
-                    format!(
-                        "{} is a {} and is used as a condition in {operation}, which needs a \
+        if let Some(ty) = info.ty
+            && ty != Ty::Boolean
+        {
+            self.report(
+                Rule::T2,
+                format!(
+                    "{} is a {} and is used as a condition in {operation}, which needs a \
                          boolean",
-                        info.describe,
-                        ty.name()
-                    ),
-                );
-            }
+                    info.describe,
+                    ty.name()
+                ),
+            );
         }
     }
 
@@ -1150,20 +1305,20 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 // ISO strings, RFC-021).
                 let both_ordered = self.require_numeric(&left, name, &[Ty::Date, Ty::String])
                     & self.require_numeric(&right, name, &[Ty::Date, Ty::String]);
-                if let (true, Some(l), Some(r)) = (both_ordered, left.ty, right.ty) {
-                    if !l.compatible(r) {
-                        self.report(
-                            Rule::T1,
-                            format!(
-                                "{name} orders {} ({}) against {} ({}), which are not the same \
+                if let (true, Some(l), Some(r)) = (both_ordered, left.ty, right.ty)
+                    && !l.compatible(r)
+                {
+                    self.report(
+                        Rule::T1,
+                        format!(
+                            "{name} orders {} ({}) against {} ({}), which are not the same \
                                  kind of value",
-                                left.describe,
-                                l.name(),
-                                right.describe,
-                                r.name()
-                            ),
-                        );
-                    }
+                            left.describe,
+                            l.name(),
+                            right.describe,
+                            r.name()
+                        ),
+                    );
                 }
                 Info::present(Some(Ty::Boolean), &format!("the {name}"))
             }
@@ -1230,6 +1385,14 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 }
                 Info::present(Some(Ty::Boolean), &format!("the {name}"))
             }
+            ActionOperation::Record { fields } => {
+                // A container like a LIST: a column may hold null
+                // (`arrayColumn`), and a row is never itself absent.
+                for field in fields.values() {
+                    self.check_expr(field, facts, ABSENCE_ALLOWED);
+                }
+                Info::present(Some(Ty::Object), "the RECORD")
+            }
             ActionOperation::List { items } => {
                 // A container literal: an element may be an absence (RFC-036
                 // compares containers element by element, and a null inside
@@ -1261,18 +1424,21 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                     self.require_boolean(&info, "FOREACH filter");
                     self.facts_when_true(filter, &mut body_facts);
                 }
-                // Without `combine` the FOREACH builds an array, and its
-                // elements may be absences like the items of a LIST; with a
+                // Without `combine` or with DISTINCT the FOREACH builds an
+                // array, and its elements may be absences like the items of a
+                // LIST; ONLY hands the element on as it is. With another
                 // combine the body is calculated with or decided on.
                 let body_info = match combine {
-                    None | Some(CombineOp::Only) => {
+                    None | Some(CombineOp::Only) | Some(CombineOp::Distinct) => {
                         self.check_expr(body, &body_facts, ABSENCE_ALLOWED)
                     }
                     Some(_) => self.operand(body, &body_facts, "FOREACH body"),
                 };
                 self.bound.pop();
                 match combine {
-                    None => Info::present(Some(Ty::Array), "the FOREACH"),
+                    None | Some(CombineOp::Distinct) => {
+                        Info::present(Some(Ty::Array), "the FOREACH")
+                    }
                     Some(CombineOp::Add) => {
                         self.require_numeric(&body_info, "FOREACH combine ADD", &[]);
                         Info::present(body_info.ty.filter(|t| t.is_numeric()), "the FOREACH")
@@ -1419,19 +1585,19 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             (false, false) => {
                 let left = self.check_expr(subject, facts, OPERAND);
                 let right = self.check_expr(value, facts, OPERAND);
-                if let (Some(l), Some(r)) = (left.ty, right.ty) {
-                    if !l.compatible(r) {
-                        self.report(
-                            Rule::T3,
-                            format!(
-                                "{name} compares {} ({}) with {} ({}), which can never be equal",
-                                left.describe,
-                                l.name(),
-                                right.describe,
-                                r.name()
-                            ),
-                        );
-                    }
+                if let (Some(l), Some(r)) = (left.ty, right.ty)
+                    && !l.compatible(r)
+                {
+                    self.report(
+                        Rule::T3,
+                        format!(
+                            "{name} compares {} ({}) with {} ({}), which can never be equal",
+                            left.describe,
+                            l.name(),
+                            right.describe,
+                            r.name()
+                        ),
+                    );
                 }
             }
         }
@@ -1626,9 +1792,20 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
 }
 
 /// Whether an expression is a literal in the sense of T4: a bare literal
-/// (not a reference), assigned directly to an output.
+/// (not a reference) or a `RECORD`, assigned directly to an output.
 fn is_literal_shaped(expr: &ActionValue) -> bool {
-    matches!(expr, ActionValue::Literal(value) if Ty::of_literal(value).is_some())
+    match expr {
+        ActionValue::Literal(value) => Ty::of_literal(value).is_some(),
+        ActionValue::Operation(op) => matches!(op.as_ref(), ActionOperation::Record { .. }),
+    }
+}
+
+/// How T4 names a literal-shaped expression of type `ty`.
+fn literal_kind(expr: &ActionValue, ty: Ty) -> String {
+    match expr {
+        ActionValue::Operation(_) => "a RECORD".to_string(),
+        ActionValue::Literal(_) => format!("a {} literal", ty.name()),
+    }
 }
 
 /// The reference an `EQUALS`/`NOT_EQUALS` tests against a literal `null`.
@@ -2083,17 +2260,34 @@ actions:
         assert_only(&property, Rule::N4, "'partner.inkomen' may be absent");
         // Every operand position that needs a present value.
         for (op, body) in [
-            ("GREATER_THAN", "    operation: GREATER_THAN\n    subject: $huur\n    value: 100\n"),
+            (
+                "GREATER_THAN",
+                "    operation: GREATER_THAN\n    subject: $huur\n    value: 100\n",
+            ),
             ("NOT", "    operation: NOT\n    value: $huur\n"),
-            ("AND", "    operation: AND\n    conditions:\n      - true\n      - $huur\n"),
-            ("ROUND", "    operation: ROUND\n    value: $huur\n    precision: 0\n"),
-            ("IF condition", "    value:\n      operation: IF\n      cases:\n        - when: $huur\n          then: 1\n      default: 2\n"),
-            ("AGE", "    value:\n      operation: AGE\n      date_of_birth: $huur\n      reference_date: $referencedate\n"),
+            (
+                "AND",
+                "    operation: AND\n    conditions:\n      - true\n      - $huur\n",
+            ),
+            (
+                "ROUND",
+                "    operation: ROUND\n    value: $huur\n    precision: 0\n",
+            ),
+            (
+                "IF condition",
+                "    value:\n      operation: IF\n      cases:\n        - when: $huur\n          then: 1\n      default: 2\n",
+            ),
+            (
+                "AGE",
+                "    value:\n      operation: AGE\n      date_of_birth: $huur\n      reference_date: $referencedate\n",
+            ),
         ] {
             let yaml = n4_law(&format!("  - output: uitkomst\n{body}"));
             let findings = check(&yaml);
             assert!(
-                findings.iter().any(|f| f.rule == Rule::N4 && f.message.contains(op)),
+                findings
+                    .iter()
+                    .any(|f| f.rule == Rule::N4 && f.message.contains(op)),
                 "{op}: {findings:#?}"
             );
         }
@@ -2121,7 +2315,9 @@ actions:
             ))
         };
         assert_only(
-            &branch("            operation: GREATER_THAN\n            subject: 1\n            value: 0\n"),
+            &branch(
+                "            operation: GREATER_THAN\n            subject: 1\n            value: 0\n",
+            ),
             Rule::N4,
             "is assigned to 'uitkomst'",
         );
@@ -2129,7 +2325,9 @@ actions:
             "            operation: NOT\n            value:\n              operation: EQUALS\n              subject: $huur\n              value: null\n",
         ));
         assert_only(
-            &branch("            operation: EQUALS\n            subject: $huur\n            value: null\n"),
+            &branch(
+                "            operation: EQUALS\n            subject: $huur\n            value: null\n",
+            ),
             Rule::N4,
             "'huur' is absent on this path",
         );
@@ -3009,7 +3207,9 @@ actions:
         );
         // `.iso` is a string, and orders like a date.
         assert_only(
-            &format!("{base}    operation: GREATER_THAN\n    subject: $referencedate.iso\n    value: 2025\n"),
+            &format!(
+                "{base}    operation: GREATER_THAN\n    subject: $referencedate.iso\n    value: 2025\n"
+            ),
             Rule::T1,
             "orders 'referencedate.iso' (string) against the literal (number)",
         );
@@ -3326,9 +3526,11 @@ actions:
         let findings = check(base);
         assert_eq!(rules(&findings), vec![Rule::N3, Rule::N4], "{findings:#?}");
         assert!(findings[1].message.contains("the IF"));
-        assert!(findings[1]
-            .message
-            .contains("may be absent and is used in ADD"));
+        assert!(
+            findings[1]
+                .message
+                .contains("may be absent and is used in ADD")
+        );
     }
 
     #[test]
@@ -3556,7 +3758,9 @@ actions:
             "NOT",
         );
         assert_only(
-            &format!("{base}    value:\n      operation: IF\n      cases:\n        - when: $bedrag\n          then: true\n      default: false\n"),
+            &format!(
+                "{base}    value:\n      operation: IF\n      cases:\n        - when: $bedrag\n          then: true\n      default: false\n"
+            ),
             Rule::T2,
             "condition in IF",
         );
@@ -3627,7 +3831,9 @@ actions:
         assert_clean(&format!("{base}    value: 12\n").replace("type: number", "type: amount"));
         // Through the branches of the IF that is the output's value.
         assert_only(
-            &format!("{base}    value:\n      operation: IF\n      cases:\n        - when: true\n          then: aap\n"),
+            &format!(
+                "{base}    value:\n      operation: IF\n      cases:\n        - when: true\n          then: aap\n"
+            ),
             Rule::T4,
             "a branch assigns a string literal",
         );
@@ -3845,6 +4051,263 @@ actions:
         };
         assert_clean(&law("ONLY"));
         assert!(!check(&law("MIN")).is_empty());
+    }
+
+    #[test]
+    fn foreach_distinct_takes_a_body_of_any_type_and_gives_an_array() {
+        // DISTINCT keeps each name once, in an array; ONLY over that array
+        // gives the one name, absent when there is none.
+        assert_clean(
+            r#"
+input:
+  - name: namen
+    type: array
+    source: {}
+output:
+  - name: unieke_namen
+    type: array
+  - name: de_naam
+    type: string
+    nullable: true
+actions:
+  - output: unieke_namen
+    value:
+      operation: FOREACH
+      collection: $namen
+      as: n
+      body: $n
+      combine: DISTINCT
+  - output: de_naam
+    value:
+      operation: FOREACH
+      collection: $unieke_namen
+      as: u
+      body: $u
+      combine: ONLY
+"#,
+        );
+        // DISTINCT over numbers gives an array, not a number, so ADD refuses
+        // it where MAX over the same body gives a number.
+        let add_over = |combine: &str| {
+            format!(
+                r#"
+input:
+  - name: bedragen
+    type: array
+    source: {{}}
+output:
+  - name: totaal
+    type: number
+actions:
+  - output: totaal
+    value:
+      operation: ADD
+      values:
+        - 1
+        - operation: FOREACH
+          collection: $bedragen
+          as: b
+          body: 5
+          combine: {combine}
+"#
+            )
+        };
+        assert!(!check(&add_over("DISTINCT")).is_empty());
+        assert!(check(&add_over("MAX")).is_empty());
+    }
+
+    /// An article whose output `tabel` has the columns `gebied` (string) and
+    /// `zetels` (number) and gets `value`, a YAML block.
+    fn table_law_with_value(value: &str) -> String {
+        let value: String = value.lines().map(|l| format!("      {l}\n")).collect();
+        format!(
+            r#"
+parameters:
+  - name: uitslagen
+    type: array
+  - name: extra
+    type: number
+  - name: actief
+    type: boolean
+output:
+  - name: tabel
+    type: array
+    columns:
+      - name: gebied
+        type: string
+      - name: zetels
+        type: number
+actions:
+  - output: tabel
+    value:
+{value}"#
+        )
+    }
+
+    /// [`table_law_with_value`] with a FOREACH over `$uitslagen` as `u`
+    /// whose body is a RECORD with `fields` (YAML lines).
+    fn table_law(fields: &str) -> String {
+        table_law_with_body(&format!("operation: RECORD\nfields:\n{}", indent(fields)))
+    }
+
+    /// [`table_law_with_value`] with a FOREACH over `$uitslagen` as `u`
+    /// whose body is `body` (YAML lines).
+    fn table_law_with_body(body: &str) -> String {
+        table_law_with_value(&format!(
+            "operation: FOREACH\ncollection: $uitslagen\nas: u\nbody:\n{}",
+            indent(body)
+        ))
+    }
+
+    /// `yaml` indented by two spaces.
+    fn indent(yaml: &str) -> String {
+        yaml.lines().map(|l| format!("  {l}\n")).collect()
+    }
+
+    /// A RECORD with `fields` as a YAML flow map.
+    fn rec(fields: &str) -> String {
+        format!("{{operation: RECORD, fields: {fields}}}")
+    }
+
+    #[test]
+    fn t4_a_record_built_for_a_table_names_its_columns() {
+        assert_clean(&table_law(
+            "gebied: $u.gebied\nzetels:\n  operation: ADD\n  values: [$u.zetels, $extra]",
+        ));
+        // A column may hold null.
+        assert_clean(&table_law("gebied: $u.gebied\nzetels: null"));
+        assert_only(
+            &table_law("gebied: $u.gebied\nzetels: $u.zetels\nkleur: rood"),
+            Rule::T4,
+            "column 'kleur'",
+        );
+        assert_only(
+            &table_law("gebied: $u.gebied"),
+            Rule::T4,
+            "lacks the column 'zetels'",
+        );
+    }
+
+    #[test]
+    fn t4_a_value_in_a_record_has_the_type_of_its_column_where_the_checker_knows_it() {
+        assert_only(
+            &table_law("gebied: $u.gebied\nzetels: veel"),
+            Rule::T4,
+            "column 'zetels' is declared number but is given a value of type string",
+        );
+        assert_only(
+            &table_law("gebied: $u.gebied\nzetels: $actief"),
+            Rule::T4,
+            "column 'zetels' is declared number but is given a value of type boolean",
+        );
+        // An operation whose result type does not depend on its operands.
+        assert_only(
+            &table_law("gebied: $u.gebied\nzetels: {operation: EQUALS, subject: $extra, value: 1}"),
+            Rule::T4,
+            "column 'zetels' is declared number but is given a value of type boolean",
+        );
+        assert_only(
+            &table_law("gebied: {operation: LIST, items: [$u.gebied]}\nzetels: 1"),
+            Rule::T4,
+            "column 'gebied' is declared string but is given a value of type array",
+        );
+        assert_only(
+            &table_law(&format!("gebied: {}\nzetels: 1", rec("{a: 1}"))),
+            Rule::T4,
+            "column 'gebied' is declared string but is given a value of type object",
+        );
+        // A field of the element is untyped: no claim.
+        assert_clean(&table_law("gebied: $u.zetels\nzetels: $u.gebied"));
+        // The binding shadows a declared name of the article: `$actief` is
+        // the element here, not the boolean parameter.
+        assert_clean(&table_law_with_value(&format!(
+            "operation: FOREACH\ncollection: $uitslagen\nas: actief\nbody: {}",
+            rec("{gebied: $actief.gebied, zetels: $actief}")
+        )));
+    }
+
+    #[test]
+    fn t4_a_record_is_checked_in_a_list_and_in_the_branches_of_an_if() {
+        let list = table_law_with_value(&format!(
+            "operation: LIST\nitems:\n  - {}\n  - {}",
+            rec("{gebied: noord, zetels: 1}"),
+            rec("{gebied: zuid, zetels: 2, aantal: 2}")
+        ));
+        assert_only(&list, Rule::T4, "column 'aantal'");
+        // A FOREACH with DISTINCT builds a table too.
+        assert_only(
+            &table_law_with_value(&format!(
+                "operation: FOREACH\ncollection: $uitslagen\nas: u\ncombine: DISTINCT\nbody: {}",
+                rec("{gebied: $u.gebied}")
+            )),
+            Rule::T4,
+            "lacks the column 'zetels'",
+        );
+        assert_only(
+            &table_law_with_body(&format!(
+                "operation: IF\ncases:\n  - when: $actief\n    then: {}\ndefault: {}",
+                rec("{gebied: $u.gebied, zetels: 1}"),
+                rec("{gebied: $u.gebied, zetels: '1'}")
+            )),
+            Rule::T4,
+            "column 'zetels' is declared number but is given a value of type string",
+        );
+        // An IF that is the output's value, with a table in each branch.
+        assert_only(
+            &table_law_with_value(&format!(
+                "operation: IF\ncases:\n  - when: $actief\n    then:\n      operation: LIST\n      items: [{}]\ndefault:\n  operation: LIST\n  items: [{}]",
+                rec("{gebied: noord, zetels: 1}"),
+                rec("{gebied: zuid}")
+            )),
+            Rule::T4,
+            "lacks the column 'zetels'",
+        );
+    }
+
+    #[test]
+    fn t4_a_record_assigned_to_an_output_that_is_no_object_is_an_error() {
+        assert_only(
+            r#"
+output:
+  - name: x
+    type: number
+actions:
+  - output: x
+    value: {operation: RECORD, fields: {a: 1}}
+"#,
+            Rule::T4,
+            "output is declared number but is assigned a RECORD",
+        );
+        assert_only(
+            r#"
+output:
+  - name: x
+    type: number
+actions:
+  - output: x
+    value:
+      operation: IF
+      cases:
+        - when: true
+          then: {operation: RECORD, fields: {a: 1}}
+      default: 2
+"#,
+            Rule::T4,
+            "output is declared number but a branch assigns a RECORD",
+        );
+        assert_clean(
+            r#"
+parameters:
+  - name: n
+    type: number
+output:
+  - name: x
+    type: object
+actions:
+  - output: x
+    value: {operation: RECORD, fields: {a: $n, b: null}}
+"#,
+        );
     }
 
     #[test]

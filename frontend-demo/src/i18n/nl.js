@@ -678,6 +678,7 @@ export default {
 
   // ---- simulatie: hoofdpaneel ---------------------------------------------
   'sim.tab.comparison': 'Vergelijking',
+  'sim.tab.label': 'Simulaties',
   'sim.view.overview': 'Overzicht',
   'sim.view.breakdown': 'Uitsplitsing',
   'sim.view.population': 'Populatie',
@@ -959,7 +960,6 @@ export default {
   'walkthrough.missing.title': 'Nog geen rondleiding',
   'walkthrough.missing.body': 'Deze versie van de demo heeft geen opgenomen rondleiding. De presentatie en de demo zelf werken wel.',
   'home.presentation.walkthrough': 'Opgenomen rondleiding bekijken',
-  'home.ways.label': 'Hoe wil je de demo zien?',
   'home.ways.walkthrough.title': 'Bekijk de rondleiding',
   'home.ways.walkthrough.text': 'Opgenomen, met stem. De demo speelt zichzelf af; je kunt pauzeren en zelf verder klikken. Ongeveer {minutes} minuten.',
   'home.ways.browse.title': 'Zelf rondkijken',

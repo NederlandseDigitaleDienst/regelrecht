@@ -12,9 +12,9 @@ mod common;
 use common::{bare_cell, object_map, service_of};
 
 use chrono::NaiveDate;
-use regelrecht_cel::{decision, Error, Source};
+use regelrecht_cel::{Error, Source, decision};
 use regelrecht_engine::LawExecutionService;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 /// A procedure for a beschikking, with a stage for the application.
 const GENERAL_LAW: &str = r#"
@@ -194,9 +194,11 @@ fn a_finding_another_authority_answers_is_refused() {
         .unwrap();
     assert!(own.asks_finding());
     assert!(!own.answers(cell.authority()));
-    assert!(shape
-        .finding("grond_aanwezig_volgens_hoofd", cell.authority())
-        .is_none());
+    assert!(
+        shape
+            .finding("grond_aanwezig_volgens_hoofd", cell.authority())
+            .is_none()
+    );
     let e = decide(
         &mut service,
         5,
@@ -420,7 +422,7 @@ articles:
 fn a_decision_is_taken_on_the_application_that_requests_it_from_another_article() {
     let mut service = service_of(&[GENERAL_LAW, SPLIT_LAW]);
     let shape = decision::derive(&service, LAW, "1", day()).unwrap();
-    assert_eq!(shape.application, "wet_verlof_fictief#2");
+    assert_eq!(shape.application.as_deref(), Some("wet_verlof_fictief#2"));
     let mut cell = bare_cell("fictieve_school");
     let app = cell
         .record_submission(

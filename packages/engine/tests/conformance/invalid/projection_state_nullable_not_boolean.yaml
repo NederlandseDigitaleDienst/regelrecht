@@ -1,0 +1,26 @@
+---
+# nullable on a property of the state is a boolean (schema v0.8.20).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.20/schema/v0.8.20/schema.json
+$id: test_conformance_nullable_not_boolean
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-13'
+valid_from: '2026-11-13'
+url: https://example.invalid/nullable-state
+name: Testreductie met een lege eigenschap in de staat
+articles:
+  - number: uitslag
+    url: https://example.invalid/nullable-state/uitslag
+    text: Per uitslag het inwonertal, als dat er is.
+    machine_readable:
+      projection:
+        per: test_conformance_parameter_columns#1
+        state:
+          - name: inwonertal
+            type: number
+            nullable: ja
+            description: Het inwonertal van de kieskring, of leeg.
+        steps:
+          - record: test_conformance_parameter_columns#1
+            actions:
+              - output: inwonertal
+                value: $state.inwonertal

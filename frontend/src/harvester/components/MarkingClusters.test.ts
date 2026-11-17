@@ -58,7 +58,7 @@ describe('MarkingClusters', () => {
       },
       global,
     });
-    expect(w.html()).toContain('alleen opencode');
+    expect(w.html()).toContain('alleen VLAM');
     expect(w.html()).toContain('mogelijk de enricher');
   });
 

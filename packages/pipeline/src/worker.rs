@@ -4,17 +4,17 @@ use std::time::Duration;
 use regelrecht_corpus::{CorpusClient, CorpusConfig};
 use reqwest::Client;
 use sqlx::PgPool;
-use tokio::signal::unix::{signal, SignalKind};
+use tokio::signal::unix::{SignalKind, signal};
 
 use crate::config::WorkerConfig;
 use crate::db;
 use crate::document_convert::{self, DocumentConvertPayload, LlmDocumentConverter};
 use crate::enrich::{
-    create_enrich_corpus, enrich_branch_name, execute_enrich, progress_file_path, EnrichConfig,
-    EnrichPayload, EnrichResult, RelatedLegislation,
+    EnrichConfig, EnrichPayload, EnrichResult, RelatedLegislation, create_enrich_corpus,
+    enrich_branch_name, execute_enrich, progress_file_path,
 };
 use crate::error::{PipelineError, Result};
-use crate::harvest::{execute_harvest, HarvestPayload, HarvestResult, MAX_HARVEST_DEPTH};
+use crate::harvest::{HarvestPayload, HarvestResult, MAX_HARVEST_DEPTH, execute_harvest};
 use crate::job_queue::{self, CreateJobRequest};
 use crate::law_convert::{self, LawConvertPayload, LlmLawStructurer};
 use crate::law_status;
@@ -870,7 +870,16 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
     let pool = db::create_pool(&pipeline_config).await?;
     db::ensure_schema(&pool).await?;
 
-    let enrich_config = EnrichConfig::from_env();
+    // opencode's credentials, endpoint and model, which the image's entrypoint
+    // used to write in shell. Only this worker does it: `enrich-once` runs on
+    // a developer's machine with their own opencode configuration.
+    let home = std::env::var_os("HOME").map(std::path::PathBuf::from);
+    let opencode = crate::agent::opencode::prepare_worker(
+        home.as_deref(),
+        std::path::Path::new(crate::agent::opencode::IMAGE_CONFIG),
+        |name| std::env::var(name).ok(),
+    )?;
+    let enrich_config = EnrichConfig::from_env().with_opencode_default_model(opencode.model);
 
     // One shared HTTP client for related-legislation SRU resolution. Built once
     // (connection pooling) and threaded into every enrich job's follow-up hook.
@@ -998,8 +1007,8 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
             }
         }
 
-        // Enforce the per-provider hourly run cap before claiming a job. The cap
-        // is multiplied during the local night window (00:00–08:00 Europe/
+        // Enforce the hourly run cap before claiming a job. The cap is
+        // multiplied during the local night window (00:00–08:00 Europe/
         // Amsterdam) by ENRICH_NIGHT_MULTIPLIER, so bulk enrichment runs mostly
         // overnight. Counted from the durable `jobs` table (not an in-memory
         // counter) so the cap holds across restarts/redeploys.
@@ -1016,15 +1025,17 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
         // gate on purpose — it is not an LLM run and doesn't touch the token
         // budget, so it must not be throttled by the enrich cap.
         //
-        // Fail-closed: a base limit of 0 (the default when ENRICH_HOURLY_LIMIT is
-        // unset) pauses the worker without even querying.
+        // The cap is on the claude provider, whatever this worker's own
+        // LLM_PROVIDER is: a user picks the provider per request, and claude
+        // runs on a personal subscription token. Other providers (opencode on
+        // VLAM) have no cap for now. Once the claude runs of this hour are used
+        // up, the worker keeps claiming jobs for other providers.
         //
-        // The cap keys on the worker's configured provider (LLM_PROVIDER), not
-        // the per-job payload provider — exact for a provider-dedicated worker
-        // (the intended deployment).
+        // Fail-closed: a base limit of 0 (the default when ENRICH_HOURLY_LIMIT is
+        // unset) holds back every claude job without even querying.
         let base = config.enrich_hourly_limit;
-        let provider = enrich_config.provider.name();
-        // `Some((cap, local_hour))` when we must pause; `None` when clear to run.
+        let provider = CAPPED_PROVIDER;
+        // `Some((cap, local_hour))` when claude must wait; `None` when clear.
         // A base of 0 pauses with a sentinel hour of -1 (renders as window=day).
         let pause: Option<(u32, i32)> = if base == 0 {
             Some((0, -1))
@@ -1045,7 +1056,6 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
             }
         };
         if let Some((cap, local_hour)) = pause {
-            current_interval = config.max_poll_interval;
             let window = if is_night_hour(local_hour) {
                 "night"
             } else {
@@ -1057,8 +1067,7 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
                     cap,
                     local_hour,
                     window,
-                    next_poll = ?current_interval,
-                    "hourly enrich limit reached (or ENRICH_HOURLY_LIMIT unset/0), pausing until the next local hour"
+                    "hourly enrich limit reached (or ENRICH_HOURLY_LIMIT unset/0); claude jobs wait for the next local hour, other providers still run"
                 );
                 hourly_limit_pause_logged = true;
             } else {
@@ -1067,18 +1076,20 @@ pub async fn run_enrich_worker(config: WorkerConfig) -> Result<()> {
                     cap,
                     local_hour,
                     window,
-                    "still paused on hourly enrich limit"
+                    "still holding back claude jobs on the hourly enrich limit"
                 );
             }
-            continue;
+        } else {
+            // Not paused this cycle — re-arm the info-level pause log for the next pause.
+            hourly_limit_pause_logged = false;
         }
-        // Not paused this cycle — re-arm the info-level pause log for the next pause.
-        hourly_limit_pause_logged = false;
+        let skip_provider = pause.map(|_| provider);
 
         match process_next_enrich_job(
             &pool,
             &repo_path,
             &enrich_config,
+            skip_provider,
             config.corpus_config.as_ref(),
             config.job_timeout,
             config.exhausted_threshold,
@@ -1221,10 +1232,10 @@ async fn resolve_related_bwb_id(
     entry: &RelatedLegislation,
 ) -> RelatedResolution {
     // (a) explicit bwb_id
-    if let Some(bwb_id) = entry.bwb_id.as_deref() {
-        if is_valid_bwb_id(bwb_id) {
-            return RelatedResolution::Resolved(bwb_id.to_string());
-        }
+    if let Some(bwb_id) = entry.bwb_id.as_deref()
+        && is_valid_bwb_id(bwb_id)
+    {
+        return RelatedResolution::Resolved(bwb_id.to_string());
     }
 
     // (b) slug lookup
@@ -1315,12 +1326,12 @@ async fn harvest_related_legislation(
         resolved += 1;
 
         // Skip harvest for exhausted laws (mirror the follow-up harvest block).
-        if let Ok(law) = law_status::get_law(pool, &bwb_id).await {
-            if law.status == LawStatusValue::HarvestExhausted {
-                exhausted += 1;
-                tracing::info!(bwb_id = %bwb_id, "skipping related harvest: law is harvest_exhausted");
-                continue;
-            }
+        if let Ok(law) = law_status::get_law(pool, &bwb_id).await
+            && law.status == LawStatusValue::HarvestExhausted
+        {
+            exhausted += 1;
+            tracing::info!(bwb_id = %bwb_id, "skipping related harvest: law is harvest_exhausted");
+            continue;
         }
 
         // Related harvests always want the latest consolidation (date None). The
@@ -1519,10 +1530,10 @@ async fn process_next_document_convert_job(
             // re-reads these bytes. This deletion targets a separate
             // `document_uploads` row, not the job/task tables, so it stays
             // outside the transaction above.
-            if fail_result.is_ok() {
-                if let Err(e) = document_convert::delete_upload(pool, payload.upload_id).await {
-                    tracing::warn!(job_id = %job.id, error = %e, "failed to delete document upload after terminal failure");
-                }
+            if fail_result.is_ok()
+                && let Err(e) = document_convert::delete_upload(pool, payload.upload_id).await
+            {
+                tracing::warn!(job_id = %job.id, error = %e, "failed to delete document upload after terminal failure");
             }
             fail_result?;
 
@@ -1714,10 +1725,10 @@ async fn process_next_law_convert_job(
             .await;
             // Upload-bytes alleen weg wanneer de fail+taak echt gecommit is
             // (zelfde afweging als het document-convert-pad).
-            if fail_result.is_ok() {
-                if let Err(e) = document_convert::delete_upload(pool, payload.upload_id).await {
-                    tracing::warn!(job_id = %job.id, error = %e, "failed to delete law upload after terminal failure");
-                }
+            if fail_result.is_ok()
+                && let Err(e) = document_convert::delete_upload(pool, payload.upload_id).await
+            {
+                tracing::warn!(job_id = %job.id, error = %e, "failed to delete law upload after terminal failure");
             }
             fail_result?;
 
@@ -1837,26 +1848,24 @@ async fn process_next_traject_harvest_job(
                     .await?;
                     failed.status == crate::models::JobStatus::Failed
                 };
-                if terminal {
-                    if let Some(account_id) = payload.requested_by {
-                        crate::tasks::create_task(
-                            &mut *tx,
-                            crate::tasks::NewTask {
-                                task_type: crate::tasks::TaskType::JobFailed,
-                                assignee_account_id: Some(account_id),
-                                traject_id: Some(payload.traject_id),
-                                job_id: Some(job.id),
-                                title: format!("Wet ophalen mislukt: {}", payload.display_name()),
-                                payload: Some(serde_json::json!({
-                                    "traject_ref": payload.traject_ref,
-                                    "bwb_id": payload.bwb_id,
-                                    "law_name": payload.law_name,
-                                    "error": msg.clone(),
-                                })),
-                            },
-                        )
-                        .await?;
-                    }
+                if terminal && let Some(account_id) = payload.requested_by {
+                    crate::tasks::create_task(
+                        &mut *tx,
+                        crate::tasks::NewTask {
+                            task_type: crate::tasks::TaskType::JobFailed,
+                            assignee_account_id: Some(account_id),
+                            traject_id: Some(payload.traject_id),
+                            job_id: Some(job.id),
+                            title: format!("Wet ophalen mislukt: {}", payload.display_name()),
+                            payload: Some(serde_json::json!({
+                                "traject_ref": payload.traject_ref,
+                                "bwb_id": payload.bwb_id,
+                                "law_name": payload.law_name,
+                                "error": msg.clone(),
+                            })),
+                        },
+                    )
+                    .await?;
                 }
                 tx.commit().await?;
                 Ok(())
@@ -2328,6 +2337,9 @@ pub async fn fail_enrich_task_job(
     job: &crate::models::Job,
     error: &str,
 ) -> Result<()> {
+    // The reason only reaches the database and the requester's task; log it
+    // too, or the worker log shows a failure without saying why.
+    tracing::warn!(job_id = %job.id, law_id = %job.law_id, error = %error, "enrich task job failed");
     let mut tx = pool.begin().await?;
     job_queue::fail_job_terminal(
         &mut *tx,
@@ -2352,6 +2364,7 @@ pub async fn fail_enrich_task_job_with_retry(
     job: &crate::models::Job,
     error: &str,
 ) -> Result<()> {
+    tracing::warn!(job_id = %job.id, law_id = %job.law_id, attempt = job.attempts, error = %error, "enrich task job failed");
     let mut tx = pool.begin().await?;
     let failed_job = job_queue::fail_job(
         &mut *tx,
@@ -2678,6 +2691,10 @@ fn bound_llm_timeout(config: &mut crate::enrich::EnrichConfig, job_timeout: Dura
 /// other call of a run gets one. See [`bound_llm_timeout`].
 const TRANSLATE_SHARE_WEIGHT: u32 = 3;
 
+/// The provider the hourly enrich cap applies to: claude runs on a personal
+/// subscription token. opencode (VLAM) has no cap for now.
+const CAPPED_PROVIDER: &str = "claude";
+
 /// Process the next available enrich job.
 ///
 /// Returns the [`JobOutcome`]: `Processed` when a job was handled, `Idle` when
@@ -2692,13 +2709,16 @@ async fn process_next_enrich_job(
     pool: &PgPool,
     repo_path: &Path,
     enrich_config: &EnrichConfig,
+    skip_provider: Option<&str>,
     corpus_config: Option<&CorpusConfig>,
     job_timeout: Duration,
     exhausted_threshold: i32,
     http_client: &Client,
     related_harvest_max_depth: u32,
 ) -> Result<JobOutcome> {
-    let job = match job_queue::claim_job(pool, Some(JobType::Enrich)).await? {
+    let job = match job_queue::claim_enrich_job(pool, skip_provider, enrich_config.provider.name())
+        .await?
+    {
         Some(job) => job,
         None => return Ok(JobOutcome::Idle),
     };
@@ -3539,7 +3559,9 @@ mod tests {
         let claims: Vec<usize> = lines
             .iter()
             .enumerate()
-            .filter(|(_, l)| l.contains("job_queue::claim_job("))
+            .filter(|(_, l)| {
+                l.contains("job_queue::claim_job(") || l.contains("job_queue::claim_enrich_job(")
+            })
             .map(|(i, _)| i)
             .collect();
         assert!(!claims.is_empty(), "the worker claims jobs");
@@ -3552,8 +3574,9 @@ mod tests {
                 .find(|l| !l.is_empty() && !l.starts_with("//"))
                 .unwrap_or("");
             assert!(
-                next_code_line
-                    .starts_with("let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job,"),
+                next_code_line.starts_with(
+                    "let _heartbeat = job_queue::JobHeartbeat::start(pool.clone(), &job,"
+                ),
                 "the claim on line {} must be followed by a named heartbeat guard, found: {next_code_line}",
                 i + 1
             );
@@ -3949,11 +3972,15 @@ articles:
         // large law could be terminally exhausted by one hiccupped chunk. Pin
         // the full formatted message, not just the marker, so a rewording that
         // accidentally introduces a classifier marker fails here.
+        // The real error ends with the activity summary; a marker in there
+        // (here in a tool target) must not make it terminal either.
         let chunk_err = PipelineError::Enrich(format!(
             "{}: no new machine_readable additions in the window, no chunk_report \
              referencing this window, no new untranslatables in the window \
-             (articles 15..30 of 324)",
-            crate::enrich::CHUNK_NO_OUTPUT_MARKER
+             (articles 15..30 of 324){} 3 turns, 1 tool calls, recent tools: read \
+             no machine_readable sections.md, 1 step(s) cut off by the output limit",
+            crate::enrich::CHUNK_NO_OUTPUT_MARKER,
+            crate::agent_activity::ACTIVITY_MARKER
         ));
         assert!(
             !is_deterministic_content_failure(&chunk_err.to_string()),

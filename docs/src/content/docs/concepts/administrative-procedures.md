@@ -87,14 +87,20 @@ input:
 
 This call runs on the day of the decision on the objection. It uses the fields and findings of the contested decision, plus any new findings of the authority. [Cross-Law References](/concepts/cross-law-references#calling-the-decision-of-an-article) describes the decision value.
 
+The authority judges two questions of admissibility case by case, as open terms of 7:11 with `decided_per_case_by`. Is the objector an interested party (Awb 7:1 lid 1 with 8:1 and 1:2)? And for an objection that came in late, can the objector reasonably not be held at fault (Awb 6:11)? 7:11 tests the period first, then the contested decision, then the interested party, and the engine stops at the first test that fails. The cell still refuses a decision without a required finding of the deciding article, also one the engine would not reach. So the authority gives both findings on every objection, and the one under 6:11 only counts when the objection is late.
+
 | Situation | Result |
 |---|---|
-| Late (Awb 6:9) | Not admissible; no reconsideration |
+| Late (Awb 6:9), and the authority finds the objector at fault | Not admissible; no reconsideration |
+| Late, but the authority finds the objector not at fault (Awb 6:11) | Admissible as far as the period goes |
 | Against a decision on objection (Awb 7:1 lid 1 onder a) | Not admissible. The engine sees this because the contested decision's `taken_on` is 7:11 |
+| The authority finds the objector no interested party (Awb 7:1 lid 1 with 8:1) | Not admissible; no reconsideration |
 | Admissible, and the outputs are the same | Unfounded; the decision stands |
-| Admissible, and an output differs | The decision is revoked; `nieuw_besluit` holds the new decision |
+| Admissible, and an output differs | The decision is revoked; `nieuw_besluit` holds the new decision, which is part of the decision on the objection and has no record of its own |
 
 Only `outputs` count. A `derived` end date that shifts because the day is later does not make the objection founded.
+
+In the Awb of the chronolexography PoC, 7:11 declares the effect `revokes: bestreden_besluit` when `bestreden_besluit_herroepen` is true. A reduction that plays the chronicle then no longer counts the contested decision ([Which records count](/concepts/chronolexography#which-records-count)).
 
 ## Appeal
 
@@ -117,7 +123,7 @@ produces:
 
 - Awb 6:5 and 6:9 hook onto the appeal just as onto the objection. Their text speaks of the "bezwaar- of beroepschrift", and their output names follow that text: `termijn_einddatum`, `bezwaar_of_beroepschrift_tijdig_ingediend`. On a decision on objection, `termijn_einddatum` is the last day for lodging the appeal.
 - An appeal is admissible when all of these hold:
-  - it came in on time;
+  - it came in on time, or the court finds that the appellant can reasonably not be held at fault for the delay (6:11);
   - the contested decision was taken on objection (`taken_on` is 7:11, Awb 7:1 lid 1);
   - the court finds the appellant an interested party (8:1).
 - Whether the appeal is well founded is for the court to judge. The court finds whether the decision breaches a rule of law, and which rule (8:77 lid 2). These are open terms with `decided_per_case_by`, and the court gives them as findings.
@@ -127,12 +133,17 @@ produces:
 
 | Situation | Result |
 |---|---|
-| Late (Awb 6:9) | Not admissible; the court judges nothing |
+| Late (Awb 6:9), and the court finds the appellant at fault | Not admissible; the court judges nothing |
+| Late, but the court finds the appellant not at fault (Awb 6:11) | Admissible as far as the period goes |
 | Against a decision on an application, without objection (Awb 7:1 lid 1) | Not admissible |
 | No rule breached | Unfounded; the decision stands |
 | A rule breached, legal effects not kept | Well founded: the decision is annulled, with an order for a new decision |
 | A rule breached, legal effects kept | Well founded: the decision is annulled, and no new decision is needed |
 | A rule breached, and the court decides the case itself | Well founded: the decision is annulled, and the judgment holds the decision in its place. There is no order |
+
+A party records the receipt of the copy of the judgment (8:79) as a fact (`Cell::record_receipt`). In the Awb of the PoC that fact revokes the decision it refers to when the court annulled it with its legal effects (`rechtsgevolgen_vernietigd`). A judgment that keeps the legal effects revokes nothing. When the court decides the case itself, the copy holds the decision in its place (`uitspraak_in_de_plaats`) as an `object`, not a `decision`: the receiving cell reads it and does not take it anew.
+
+A provisional measure of the voorzieningenrechter lapses as soon as the objection, or the appeal against the decision on it, is withdrawn (8:85 lid 2 onder b). The PoC records the withdrawal as a fact of 6:21 that refers to the objection or to the decision on it, so a reduction finds it beside the decision. Under a, where the period for appeal passes unused, the measure does not lapse yet in the PoC ([open questions](/concepts/chronolexography/open-questions)).
 
 [RFC-053](/rfcs/rfc-053) gives the design. `packages/poc-chronolexografie/corpus/regulation/nl/wet/algemene_wet_bestuursrecht/scenarios/beroep.feature` plays these cases.
 
@@ -145,7 +156,6 @@ A question is listed only when a choice is still to be made, when it needs inves
 | Stages are an Awb detail built into the format. The schema calls `procedure` Awb-defined, and the `stage` of a hook defaults to `BESLUIT`. The engine uses `BESLUIT` and the submission kinds (`AANVRAAG`, `BEZWAAR`, `BEROEP`) as stages. The cell runs two pairs of stages by name: `BESLUIT` and `BEKENDMAKING`, or `UITSPRAAK` and `TOEZENDING` ([RFC-053](/rfcs/rfc-053)). Should stages stay, as a free field whose values come from the law that defines the procedure? A run without a stage, such as a scenario, counts as `BESLUIT`. A procedure without that stage, such as `beroep` (UITSPRAAK, TOEZENDING), then fires no stage hooks. No such hooks exist yet. | Choice; breaking schema change |
 | `decision_type` is fixed per article, while one article can both grant and refuse. The value says nothing about the outcome, and no hook in the corpus filters on it. [RFC-022](/rfcs/rfc-022) proposes an open vocabulary. Should the field go, be derived from the outcome, or stay as a free field? | Choice; breaking schema change |
 | Awb 8:72 lid 4 says the court "kan" (may) order a new decision. The model always orders one when the court annuls, does not keep the legal effects and does not decide the case itself. It does not model the court's instructions. Should the order be a finding of the court instead? | Choice |
-| A decision on objection can revoke a decision and take a new one in its place. A party can appeal against that new decision. When the court annuls it, the administrative body cannot yet decide on the objection again. Deciding again (`Cell::decide_after`) needs a receipt that refers to the last decision on the objection itself. Should a receipt for the new decision count too? | Choice |
 | The court can decide the case itself and grant a parking card. The municipality's reduction then counts that card as an earlier card. But the reduction is silent on whether the card is still valid, so the college judges that. The row of the decision the court set in place holds `kaart_geldig_tot` as null, because only the college derives that date when it decides. Should the court's decision value carry the derived data too? | Choice |
 | An appeal against the judgment (*hoger beroep*, Awb 8:104 and 8:105) is recorded as text only. How the judgment of a higher court would reach the cells of the lower court and the administrative body is not designed yet. | Investigation |
 | Which article 7:11 calls is known only at run time. So the dependency graph, the editor and the type checker do not see that link. | Large refactor |

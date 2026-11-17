@@ -1,0 +1,32 @@
+---
+# Since schema v0.8.17 a step passes no parameter of the question.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$id: test_conformance_projection_step_passes_question
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-08'
+valid_from: '2026-11-08'
+url: https://example.invalid/projection
+name: Testreductie projectie
+articles:
+  - number: '1'
+    url: https://example.invalid/projection/1
+    text: Of de aanvrager op de peildatum een kaart heeft.
+    machine_readable:
+      projection:
+        per: test_conformance_decision_effects#2#BESCHIKKING
+        state:
+          - name: in_bezit
+            type: boolean
+        steps:
+          - record: test_conformance_decision_effects#2#BESCHIKKING
+            input:
+              - name: kaart
+                type: boolean
+                source:
+                  regulation: test_conformance_kaart
+                  output: kaart
+                  parameters:
+                    peildatum: $peildatum
+            actions:
+              - output: in_bezit
+                value: $kaart

@@ -448,7 +448,9 @@ mod tests {
             let plan = plan_step(
                 spec,
                 &wide,
-                Some("---\nallowed-tools: Read, Edit, Write, Bash, WebFetch, WebSearch, Grep, Glob\n---\n"),
+                Some(
+                    "---\nallowed-tools: Read, Edit, Write, Bash, WebFetch, WebSearch, Grep, Glob\n---\n",
+                ),
             );
             assert_eq!(plan, StepPlan::Run, "{} should run", spec.name);
         }

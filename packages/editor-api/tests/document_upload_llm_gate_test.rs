@@ -23,7 +23,7 @@ use pretty_assertions::assert_eq;
 use uuid::Uuid;
 
 use regelrecht_editor_api::accounts::AccountRecord;
-use regelrecht_editor_api::corpus_handlers::{upload_traject_document, UploadDocumentQuery};
+use regelrecht_editor_api::corpus_handlers::{UploadDocumentQuery, upload_traject_document};
 use regelrecht_editor_api::state::AppState;
 
 use regelrecht_pipeline::test_utils::TestDb;

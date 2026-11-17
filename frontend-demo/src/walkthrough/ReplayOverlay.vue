@@ -222,7 +222,7 @@ onUnmounted(() => {
         </nldd-container>
         <nldd-container padding="16" gap="24" :lang="replay.captionsLang">
           <nldd-container v-for="(c, i) in chapters" :key="i" padding="0" gap="8">
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h2>{{ c.title }}</h2>
             </nldd-title>
             <nldd-rich-text v-if="c.text" spacing="tight">

@@ -251,10 +251,12 @@ async fn test_blobs_survive_until_the_last_per_article_task_is_resolved() {
         .await
         .unwrap();
     assert_eq!(removed, 1);
-    assert!(tasks::load_blobs(&db.pool, job.id, BlobKind::Result)
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        tasks::load_blobs(&db.pool, job.id, BlobKind::Result)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -819,10 +821,12 @@ async fn test_finish_enrich_task_job_mid_law_unreadable_proposal_fails_the_windo
         .await
         .unwrap();
     assert_eq!(inputs.len(), 1);
-    assert!(job_queue::claim_job(&db.pool, Some(JobType::Enrich))
-        .await
-        .unwrap()
-        .is_none());
+    assert!(
+        job_queue::claim_job(&db.pool, Some(JobType::Enrich))
+            .await
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[tokio::test]
@@ -1163,10 +1167,12 @@ async fn test_open_document_task_target_paths_reserves_names_until_resolved() {
         .unwrap();
 
     // Nog geen taak - lege reservering.
-    assert!(tasks::open_document_task_target_paths(&db.pool, traject_id)
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        tasks::open_document_task_target_paths(&db.pool, traject_id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     // Task-delivered conversie: de job is 'completed' (dus buiten
     // `pending_target_paths`), maar de review is nog open - de naam moet nu
@@ -1206,10 +1212,12 @@ async fn test_open_document_task_target_paths_reserves_names_until_resolved() {
         .unwrap()
         .expect("assignee mag resolven");
 
-    assert!(tasks::open_document_task_target_paths(&db.pool, traject_id)
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        tasks::open_document_task_target_paths(&db.pool, traject_id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -1251,10 +1259,12 @@ async fn test_fail_enrich_task_job_creates_failed_task_and_cleans_input() {
         failed.status,
         regelrecht_pipeline::models::JobStatus::Failed
     );
-    assert!(tasks::load_blobs(&db.pool, job.id, BlobKind::Input)
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        tasks::load_blobs(&db.pool, job.id, BlobKind::Input)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     let open = tasks::list_open_tasks_for_account(&db.pool, account_id)
         .await
         .unwrap();
@@ -1303,10 +1313,12 @@ async fn test_fail_with_retry_creates_task_only_when_attempts_exhausted() {
         after_first.status,
         regelrecht_pipeline::models::JobStatus::Pending
     );
-    assert!(tasks::list_open_tasks_for_account(&db.pool, account_id)
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        tasks::list_open_tasks_for_account(&db.pool, account_id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
     assert_eq!(
         tasks::load_blobs(&db.pool, job.id, BlobKind::Input)
             .await
@@ -1340,10 +1352,12 @@ async fn test_fail_with_retry_creates_task_only_when_attempts_exhausted() {
         .unwrap();
     assert_eq!(open.len(), 1);
     assert_eq!(open[0].task_type, "job_failed");
-    assert!(tasks::load_blobs(&db.pool, job.id, BlobKind::Input)
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        tasks::load_blobs(&db.pool, job.id, BlobKind::Input)
+            .await
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[tokio::test]

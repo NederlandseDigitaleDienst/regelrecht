@@ -190,7 +190,7 @@ const codeSections = computed(() => {
         </nldd-simple-section>
 
         <nldd-simple-section v-else>
-          <nldd-title><h2>Job details</h2></nldd-title>
+          <nldd-title size="display-3"><h2>Job details</h2></nldd-title>
           <nldd-spacer size="8" />
 
           <nldd-list appearance="simple">
@@ -210,7 +210,7 @@ const codeSections = computed(() => {
 
           <template v-for="section in codeSections" :key="section.title">
             <nldd-spacer size="16" />
-            <nldd-title size="6"><h3>{{ section.title }}</h3></nldd-title>
+            <nldd-title size="display-6"><h3>{{ section.title }}</h3></nldd-title>
             <nldd-spacer size="4" />
             <nldd-code-viewer :wrap="section.wrap || undefined" :language="section.language || undefined">{{ section.code }}</nldd-code-viewer>
           </template>

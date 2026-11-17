@@ -402,10 +402,10 @@ fn deep_extraction_covers_all_crates() {
         if n["kind"] == "crate" {
             continue;
         }
-        if let Some(id) = n["id"].as_str() {
-            if let Some(c) = crate_prefix(id) {
-                crates_with_deep_nodes.insert(c.to_string());
-            }
+        if let Some(id) = n["id"].as_str()
+            && let Some(c) = crate_prefix(id)
+        {
+            crates_with_deep_nodes.insert(c.to_string());
         }
     }
 

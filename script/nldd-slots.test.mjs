@@ -11,7 +11,7 @@ import { componentSlots, slotAssignments, unknownSlots } from './nldd-slots.mjs'
 function fakePackage() {
   const dir = mkdtempSync(join(tmpdir(), 'nldd-pkg-'));
   const write = (tag, body) => {
-    const sub = join(dir, 'components', tag);
+    const sub = join(dir, 'dist', 'components', tag);
     mkdirSync(sub, { recursive: true });
     writeFileSync(join(sub, `${tag}.template.js`), body);
   };
@@ -22,7 +22,25 @@ function fakePackage() {
   write('inline-dialog', `export function t() { return html\`<slot></slot><slot name="actions"></slot>\`; }`);
   // Zoals nldd-bar-split-view: benoemt slots pas als het draait.
   write('bar-split-view', 'export function t(c) { return html`<slot name=${pane.slot}></slot>`; }');
-  return dir;
+  // Zoals nldd-toolbar: leest de kinderen van overflow zelf, zonder <slot>
+  // ervoor; alleen het manifest noemt die slot.
+  write('toolbar', 'export function t() { return html`<slot name="start"></slot><slot name="end"></slot>`; }');
+  writeFileSync(
+    join(dir, 'custom-elements.json'),
+    JSON.stringify({
+      modules: [
+        { declarations: [{ tagName: 'nldd-toolbar', slots: [{ name: 'start' }, { name: 'end' }, { name: 'overflow' }] }] },
+        // A tag without a template stays unchecked, also with a manifest entry.
+        { declarations: [{ tagName: 'nldd-ghost', slots: [{ name: 'only' }] }] },
+      ],
+    }),
+  );
+  return join(dir, 'dist', 'components');
+}
+
+/** The package root of the `dist/components` directory fakePackage returns. */
+function pkgRoot(componentsDir) {
+  return join(componentsDir, '..', '..');
 }
 
 function fakeSource(files) {
@@ -47,7 +65,7 @@ test('vindt een slot die het component niet heeft', () => {
     assert.equal(bad[0].slot, 'actions');
     assert.equal(bad[0].child, 'nldd-container');
   } finally {
-    rmSync(pkg, { recursive: true, force: true });
+    rmSync(pkgRoot(pkg), { recursive: true, force: true });
     rmSync(src, { recursive: true, force: true });
   }
 });
@@ -68,7 +86,7 @@ test('laat een slot die het component wél heeft met rust', () => {
   try {
     assert.deepEqual(unknownSlots(slotAssignments(src), componentSlots(pkg)), []);
   } finally {
-    rmSync(pkg, { recursive: true, force: true });
+    rmSync(pkgRoot(pkg), { recursive: true, force: true });
     rmSync(src, { recursive: true, force: true });
   }
 });
@@ -86,7 +104,7 @@ test('laat een component dat zijn slots pas bij het draaien benoemt met rust', (
   try {
     assert.deepEqual(unknownSlots(slotAssignments(src), componentSlots(pkg)), []);
   } finally {
-    rmSync(pkg, { recursive: true, force: true });
+    rmSync(pkgRoot(pkg), { recursive: true, force: true });
     rmSync(src, { recursive: true, force: true });
   }
 });
@@ -101,7 +119,29 @@ test('laat een tag die niet uit het ontwerpsysteem komt met rust', () => {
   try {
     assert.deepEqual(unknownSlots(slotAssignments(src), componentSlots(pkg)), []);
   } finally {
-    rmSync(pkg, { recursive: true, force: true });
+    rmSync(pkgRoot(pkg), { recursive: true, force: true });
+    rmSync(src, { recursive: true, force: true });
+  }
+});
+
+test('kent een slot die alleen het manifest noemt', () => {
+  const pkg = fakePackage();
+  const src = fakeSource({
+    'Toolbar.vue': `<template>
+      <nldd-toolbar>
+        <nldd-menu-item slot="overflow" text="Verrijk"></nldd-menu-item>
+        <nldd-menu-item slot="center" text="Fout"></nldd-menu-item>
+      </nldd-toolbar>
+      <nldd-ghost>
+        <span slot="anything"></span>
+      </nldd-ghost>
+    </template>`,
+  });
+  try {
+    const bad = unknownSlots(slotAssignments(src), componentSlots(pkg));
+    assert.deepEqual(bad.map((b) => `${b.parent}:${b.slot}`), ['nldd-toolbar:center']);
+  } finally {
+    rmSync(pkgRoot(pkg), { recursive: true, force: true });
     rmSync(src, { recursive: true, force: true });
   }
 });
@@ -114,6 +154,8 @@ test('leest de slots van het echte ontwerpsysteem, met nldd-title als ijkpunt', 
   assert.ok(title, 'nldd-title moet gevonden worden');
   assert.ok(title.has('end'), 'nldd-title heeft een end-slot');
   assert.ok(!title.has('actions'), 'nldd-title heeft géén actions-slot — dit is de bug die deze guard vangt');
+  // A slot only the manifest names: the toolbar copies these into its menu.
+  assert.ok(slots.get('nldd-toolbar').has('overflow'), 'nldd-toolbar heeft een overflow-slot');
   // En het component dat zijn slots pas bij het draaien benoemt.
   assert.equal(slots.get('nldd-bar-split-view'), null);
 });

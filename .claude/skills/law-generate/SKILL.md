@@ -573,6 +573,33 @@ each internally consistent, and the same person came out at € 827,63 or
 € 1.550,46 depending on which file you believed. A file that uses `unit: euro`
 anywhere is broken even if it is consistent with itself.
 
+**Every constant says what kind of quantity it is.** Write each entry in
+`definitions` in the structured form, with a `type` and, for a quantity, a
+`type_spec.unit` (RFC-023). A bare `naam: 123` is valid but says nothing: it
+does not tell cents from euros, or a share from a multiplier.
+
+```yaml
+definitions:
+  drempelinkomen_alleenstaande:     # "€ 39.719" in the text
+    value: 3971900
+    type: amount
+    type_spec:
+      unit: eurocent
+  termijn_rapportage:               # "vier jaar" in the text
+    value: 4
+    type: number
+    type_spec:
+      unit: years
+```
+
+Money is `type: amount` with `unit: eurocent`, as above. A duration takes its
+unit (`years`, `months`, `weeks`, `days`). A share takes the unit that matches
+how its value is written: `ratio` for a value between 0 and 1, `percentage` for
+one between 0 and 100. A unit is a label and never converts, so the formula
+that uses the value has to match it. A count or another plain number is
+`type: number` without a unit, and a text, a yes/no, a date or a list is
+`type: string`, `boolean`, `date` or `array`.
+
 Rounding is not part of this. The engine has `ROUND`, `CEIL` and `FLOOR`, so
 model the rounding the law states and round nothing where it states none.
 

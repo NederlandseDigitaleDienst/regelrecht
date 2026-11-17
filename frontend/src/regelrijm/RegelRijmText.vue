@@ -84,15 +84,38 @@ function isBlock(seg: Segment): boolean {
   return typeof seg !== 'string' && isName(seg) && seg.path?.[0] !== 'output' && seg.ref !== undefined && props.blocks.has(seg.ref);
 }
 
+// A name with a hint is focusable even when clicking it does nothing: the
+// tooltip opens on focus, so that is how a keyboard user reads the hint.
 function hint(seg: Segment): string | undefined {
   return typeof seg !== 'string' && isName(seg) && seg.path?.[0] !== 'output' && seg.ref !== undefined ? props.hints.get(seg.ref) : undefined;
 }
 
+// A clickable word is a span with role="button", not a <button>: a button is
+// an atomic inline box, so a long name could no longer wrap inside the line
+// of running text. The keys follow a native button: Enter acts on key down,
+// Space on key up, and the Space key down only stops the page from scrolling.
 function activate(e: Event, seg: Segment) {
   const run = action(seg);
   if (!run) return;
   e.preventDefault();
   run();
+}
+
+// The word Space went down on. Like a native button, a word acts on key up
+// only if it also took the key down: holding Space while focus moves on does
+// nothing.
+let spaceDownOn: EventTarget | null = null;
+
+function holdSpace(e: Event, seg: Segment) {
+  if (!action(seg)) return;
+  e.preventDefault();
+  spaceDownOn = e.currentTarget;
+}
+
+function releaseSpace(e: Event, seg: Segment) {
+  const downOn = spaceDownOn;
+  spaceDownOn = null;
+  if (downOn === e.currentTarget) activate(e, seg);
 }
 
 function label(seg: Token): string {
@@ -153,7 +176,8 @@ function title(seg: Token): string | undefined {
       :class="{ 'rr-block-action': action(seg) }"
       @click="activate($event, seg)"
       @keydown.enter="activate($event, seg)"
-      @keydown.space="activate($event, seg)"
+      @keydown.space="holdSpace($event, seg)"
+      @keyup.space="releaseSpace($event, seg)"
     ></nldd-token><span
       v-else
       :class="[CLASSES[seg.tk], actionClass(seg)]"
@@ -162,7 +186,8 @@ function title(seg: Token): string | undefined {
       :data-testid="testid(seg)"
       @click="activate($event, seg)"
       @keydown.enter="activate($event, seg)"
-      @keydown.space="activate($event, seg)"
+      @keydown.space="holdSpace($event, seg)"
+      @keyup.space="releaseSpace($event, seg)"
     >{{ label(seg) }}</span></nldd-tooltip><nldd-token
       v-else-if="isBlock(seg)"
       :text="blockText(seg)"
@@ -173,7 +198,8 @@ function title(seg: Token): string | undefined {
       :class="{ 'rr-block-action': action(seg) }"
       @click="activate($event, seg)"
       @keydown.enter="activate($event, seg)"
-      @keydown.space="activate($event, seg)"
+      @keydown.space="holdSpace($event, seg)"
+      @keyup.space="releaseSpace($event, seg)"
     ></nldd-token><span
       v-else
       :class="[CLASSES[seg.tk], actionClass(seg)]"
@@ -183,7 +209,8 @@ function title(seg: Token): string | undefined {
       :data-testid="testid(seg)"
       @click="activate($event, seg)"
       @keydown.enter="activate($event, seg)"
-      @keydown.space="activate($event, seg)"
+      @keydown.space="holdSpace($event, seg)"
+      @keyup.space="releaseSpace($event, seg)"
     >{{ label(seg) }}</span></template></div>
   </div>
 </template>

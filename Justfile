@@ -112,8 +112,9 @@ validate *FILES:
 
 # Validate the demo corpus (schema + type check, RFC-036/RFC-037)
 #
-# `validate` without arguments walks corpus/regulation and the corpus of the
-# chronolexografie PoC only, so the eighty demo laws would be seen by the pre-commit
+# `validate` without arguments walks corpus/regulation, the corpus of the
+# chronolexografie PoC and the fixtures of the cell's BDD suite only, so the
+# eighty demo laws would be seen by the pre-commit
 # hook and by nothing else. This recipe hands them to the same binary, so a law
 # that stops type-checking is caught by `just demo` and not first by a red
 # scenario run.
@@ -149,6 +150,13 @@ deploy-filters-test:
 [doc("Check the GHCR cleanup safety rules")]
 ghcr-cleanup-test:
     node --test script/ghcr-cleanup.test.mjs
+
+# Pins the schema diff that .github/workflows/schema-diff.yml posts on a pull
+# request with a new schema version. Same reasoning as deploy-filters-test:
+# node's built-in runner, no dependency.
+[doc("Check the schema diff comment for a new schema version")]
+schema-diff-test:
+    node --test script/schema-diff.test.mjs
 
 # Pins the build-time asset precompression the editor image relies on. Same
 # reasoning as deploy-filters-test: node's built-in runner, no dependency.
@@ -204,6 +212,25 @@ nldd-slots:
 nldd-slots-test:
     node --test script/nldd-slots.test.mjs
 
+# A test that runs nowhere stays green because it never starts. This guard
+# reads what CI runs (workflow steps, pre-commit hooks, and the recipes and npm
+# scripts they reach) and fails on a test outside it, a crate no `cargo test`
+# covers, a feature file no BDD runner reads, and a skip without a reason.
+[doc("Check that every test runs somewhere in CI")]
+orphan-tests:
+    node script/check-orphan-tests.mjs
+
+[doc("Check the orphan-test guard")]
+orphan-tests-test:
+    node --test script/orphan-tests.test.mjs
+
+# The gate of the rust-idioms skill reports clippy findings on changed lines
+# only. Its diff parser and test-code check decide whether a finding is shown,
+# and a mistake there reads as a green gate.
+[doc("Check the rust-idioms gate")]
+book-lints-test:
+    node --test .claude/skills/rust-idioms/book-lints.test.mjs
+
 # De Awb staat in twee corpora en moet daar hetzelfde zeggen. Het overzetten
 # ging twee keer mis op een weggevallen laatste regel — één keer de termijn in
 # artikel 6:8, waardoor de einddatum van de bezwaartermijn gelijk werd aan de
@@ -236,6 +263,13 @@ dockerfile-consistency-test:
 playwright-image-test:
     node --test script/playwright-image.test.mjs
 
+# How the docs accessibility gate gets its .debs: the fallback over the
+# sources and the SHA256 check. `curl` and `dpkg` are stubs on PATH, so
+# nothing goes over the network and nothing is installed.
+[doc("Check the .deb install for the docs accessibility gate")]
+a11y-debs-test:
+    script/install-a11y-debs.test.sh
+
 # De poort die productie op een groene CI laat wachten. Zonder deze test is een
 # poort die alles doorlaat niet te onderscheiden van een die werkt; `gh` staat
 # hier als stub op PATH, dus er gaat geen verkeer naar GitHub.
@@ -258,7 +292,7 @@ preview-environments-test:
 # container-backed suites; on a machine without a daemon, swap `test` for
 # `test-no-docker`.
 [doc("Run all quality checks, exactly what CI runs (needs Docker)")]
-check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
+check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test orphan-tests orphan-tests-test book-lints-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
 
 # --- Tests ---
 
@@ -314,11 +348,13 @@ test-db:
 # Run Rust BDD tests
 bdd:
     cd packages/engine && {{ci_flags}} cargo test --test bdd -- --nocapture
+    cd packages/cel && {{ci_flags}} cargo test --test bdd -- --nocapture
 
 # BDD met de acties van elk artikel omgekeerd: de volgorde in het bestand mag
 # geen uitkomst veranderen. CI draait de conformance- en demobucket zo ook.
 bdd-reversed:
     cd packages/engine && {{ci_flags}} BDD_REVERSE_ACTIONS=1 cargo test --test bdd -- --nocapture
+    cd packages/cel && {{ci_flags}} BDD_REVERSE_ACTIONS=1 cargo test --test bdd -- --nocapture
     cd packages/engine && {{ci_flags}} BDD_REVERSE_ACTIONS=1 BDD_BUCKET=corpus REGULATION_PATH="$(pwd)/../../corpus/demo/regulation" cargo test --test bdd -- --nocapture
 
 # Bucket A over de democorpus: REGULATION_PATH wijst wetten en scenario's naar corpus/demo.
@@ -549,9 +585,9 @@ mutants-diff BASE="origin/main":
     #!/usr/bin/env bash
     set -euo pipefail
     diff_file="$(mktemp -t mutants-diff-XXXXXX.diff)"
-    git -C packages diff --relative "{{BASE}}...HEAD" -- engine pipeline > "$diff_file"
+    git -C packages diff --relative "{{BASE}}...HEAD" -- engine pipeline cel > "$diff_file"
     if [ ! -s "$diff_file" ]; then
-        echo "Geen gewijzigde regels in packages/engine of packages/pipeline ten opzichte van {{BASE}}."
+        echo "Geen gewijzigde regels in packages/engine, packages/pipeline of packages/cel ten opzichte van {{BASE}}."
         exit 0
     fi
     cd packages
@@ -1055,10 +1091,20 @@ poc-chronolexografie-wasm:
 # Start de chronolexografie-poc los, op de vite-dev-server (http://localhost:5410)
 #
 # Alles draait in de browser: elk tabblad speelt zijn eigen casus. Achter het
-# portaal komt hij uit `just poc`. De NAPP-casus komt uit een bron; lokaal
-# zonder token met POC_BRON_NAPP=<map met casussen/, regulation/ en cells/>.
+# portaal komt hij uit `just poc`. Een casus uit een bron (`sources` in
+# pocs/registry.yaml) laadt lokaal zonder token met
+# POC_BRON_<NAAM>=<map met casussen/, regulation/ en cells/, of een manifest>.
 poc-chronolexografie: poc-chronolexografie-wasm
     npm run dev -w poc-chronolexografie
+
+# Speel de scenario's van een bron op de chronolexografie-poc
+#
+# `bron` is het manifest of de map van de bron (POC_BRON), vanaf de wortel van
+# de repo; `uit` een map voor laden.json en een JSON per scenario
+# (POC_SCENARIOS_UIT). De test faalt met één regel per stap die afwijkt van
+# `uitkomst` of `uitvoer`. Vorm van de verslagen: docs, components/poc-portal.
+poc-chronolexografie-scenarios bron uit="":
+    POC_BRON="{{bron}}" POC_SCENARIOS_UIT="{{uit}}" cargo test --manifest-path packages/Cargo.toml --package regelrecht-poc-chronolexografie --test scenarios -- the_scenarios_of_the_source_in_poc_bron_play --nocapture
 
 # Start de beleidsassistent van één casus, naast `just poc` in een tweede terminal
 #

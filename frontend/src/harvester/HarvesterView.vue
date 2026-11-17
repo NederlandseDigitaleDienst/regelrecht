@@ -73,6 +73,7 @@ function goToLibrary() {
               appearance="neutral-tinted"
               @click="goToLibrary"
             ></nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="arrow-left" text="Terug" @select="goToLibrary"></nldd-menu-item>
           </nldd-toolbar-item>
           <nldd-toolbar-title
             slot="start"
@@ -81,7 +82,7 @@ function goToLibrary() {
             min-width="fit-content"
           ></nldd-toolbar-title>
           <nldd-toolbar-item slot="center">
-            <nldd-tab-bar>
+            <nldd-tab-bar accessible-label="Onderdelen">
               <nldd-tab-bar-item
                 v-for="tab in tabs"
                 :key="tab.key"
@@ -90,14 +91,25 @@ function goToLibrary() {
                 @click="router.push(tab.route)"
               ></nldd-tab-bar-item>
             </nldd-tab-bar>
+            <nldd-menu-group slot="overflow" text="Onderdelen">
+              <nldd-menu-item
+                v-for="tab in tabs"
+                :key="`overflow-${tab.key}`"
+                type="radio"
+                :text="tab.label"
+                :selected="activeTab === tab.key || undefined"
+                @select="router.push(tab.route)"
+              ></nldd-menu-item>
+            </nldd-menu-group>
           </nldd-toolbar-item>
-          <nldd-toolbar-item slot="end">
+          <nldd-toolbar-item v-if="deploymentName" slot="end">
             <nldd-tag
-              v-if="deploymentName"
               color="warning"
-              size="sm"
               :text="deploymentName"
             ></nldd-tag>
+            <!-- The tag names the environment, it is no action: in the overflow
+                 menu it is a group title without items, not a disabled item. -->
+            <nldd-menu-group slot="overflow" :text="deploymentName"></nldd-menu-group>
           </nldd-toolbar-item>
           <nldd-toolbar-item slot="end">
             <nldd-icon-button
@@ -107,6 +119,7 @@ function goToLibrary() {
               appearance="neutral-tinted"
               @click="openNewHarvestJob"
             ></nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="plus-small" text="Nieuwe harvest-job" @select="openNewHarvestJob"></nldd-menu-item>
           </nldd-toolbar-item>
           <nldd-toolbar-item slot="end">
             <nldd-icon-button size="md" icon="account" text="Account" tooltip-timing="never" expandable>
@@ -141,6 +154,38 @@ function goToLibrary() {
                 ></nldd-menu-item>
               </nldd-menu>
             </nldd-icon-button>
+            <nldd-menu-item slot="overflow" icon="account" text="Account">
+              <nldd-menu>
+                <nldd-menu-item
+                  v-if="!authLoading && authenticated"
+                  :text="person?.name || person?.email"
+                  disabled
+                ></nldd-menu-item>
+                <nldd-menu-group text="Weergave">
+                  <nldd-menu-item
+                    v-for="[value, label] in colorSchemeOptions"
+                    :key="`overflow-scheme-${value}`"
+                    type="radio"
+                    :selected="colorScheme === value || undefined"
+                    :text="label"
+                    @select="setColorScheme(value)"
+                  ></nldd-menu-item>
+                </nldd-menu-group>
+                <nldd-menu-divider></nldd-menu-divider>
+                <nldd-menu-item
+                  v-if="!authLoading && authenticated"
+                  text="Uitloggen"
+                  icon="logout"
+                  @select="logout"
+                ></nldd-menu-item>
+                <nldd-menu-item
+                  v-else-if="!authLoading && oidcConfigured"
+                  text="Inloggen"
+                  icon="login"
+                  @select="login()"
+                ></nldd-menu-item>
+              </nldd-menu>
+            </nldd-menu-item>
           </nldd-toolbar-item>
         </nldd-toolbar>
       </nldd-container>

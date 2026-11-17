@@ -1,12 +1,12 @@
+use axum::Json;
 use axum::extract::{Query, State};
 use axum::http::StatusCode;
-use axum::Json;
 use regelrecht_pipeline::harvest_request::{
-    request_harvest, HarvestRequestOptions, HarvestRequestOutcome,
+    HarvestRequestOptions, HarvestRequestOutcome, request_harvest,
 };
-use regelrecht_pipeline::job_queue::{create_enrich_job_if_not_exists, CreateJobRequest};
+use regelrecht_pipeline::job_queue::{CreateJobRequest, create_enrich_job_if_not_exists};
 use regelrecht_pipeline::law_status::set_enrich_job;
-use regelrecht_pipeline::{EnrichPayload, JobType, Priority, ENRICH_PROVIDERS};
+use regelrecht_pipeline::{ENRICH_PROVIDERS, EnrichPayload, JobType, Priority};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -1250,11 +1250,9 @@ pub async fn create_harvest_job(
                 }),
             ))
         }
-        Ok(HarvestRequestOutcome::AlreadyQueued { existing_job_id }) => {
-            Err(ApiError::Conflict(format!(
-                "a pending or processing harvest job already exists: {existing_job_id}"
-            )))
-        }
+        Ok(HarvestRequestOutcome::AlreadyQueued { existing_job_id }) => Err(ApiError::Conflict(
+            format!("a pending or processing harvest job already exists: {existing_job_id}"),
+        )),
         Ok(HarvestRequestOutcome::Exhausted) => Err(ApiError::Conflict(format!(
             "{law_id} is harvest_exhausted — reset via /api/law_entries/{law_id}/reset-exhausted first"
         ))),
@@ -1263,7 +1261,9 @@ pub async fn create_harvest_job(
         }
         Err(e) => {
             tracing::error!(error = %e, law_id = %law_id, "failed to create harvest job");
-            Err(ApiError::Internal("failed to create harvest job".to_string()))
+            Err(ApiError::Internal(
+                "failed to create harvest job".to_string(),
+            ))
         }
     }
 }
@@ -1312,7 +1312,9 @@ pub async fn create_enrich_jobs(
     // Check if law is exhausted for enrich.
     match regelrecht_pipeline::law_status::get_law(&mut *tx, &law_id).await {
         Ok(law) if law.status == regelrecht_pipeline::LawStatusValue::EnrichExhausted => {
-            return Err(ApiError::Conflict(format!("{law_id} is enrich_exhausted — reset via /api/law_entries/{law_id}/reset-exhausted first")));
+            return Err(ApiError::Conflict(format!(
+                "{law_id} is enrich_exhausted — reset via /api/law_entries/{law_id}/reset-exhausted first"
+            )));
         }
         Err(regelrecht_pipeline::PipelineError::LawNotFound(_)) => {}
         Err(e) => {
@@ -1398,7 +1400,9 @@ pub async fn create_enrich_jobs(
             }
             Err(e) => {
                 tracing::error!(error = %e, law_id = %law_id, provider = %provider_name, "failed to create enrich job");
-                return Err(ApiError::Internal(format!("failed to create enrich job for provider {provider_name} (transaction rolled back, no jobs were created)")));
+                return Err(ApiError::Internal(format!(
+                    "failed to create enrich job for provider {provider_name} (transaction rolled back, no jobs were created)"
+                )));
             }
         }
     }
@@ -1560,7 +1564,7 @@ pub async fn reset_exhausted(
             return Err(ApiError::BadRequest(format!(
                 "law is not exhausted (status: {})",
                 law.status
-            )))
+            )));
         }
     };
 

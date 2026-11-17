@@ -5,7 +5,7 @@
 # scan, en packages/arch-extract/ui kwam pas boven toen Dependabot er zelf een
 # advisory op vond.
 #
-# Een lockfile met een eigen naam (opencode-plugins-package-lock.json) heeft geen
+# Een lockfile met een eigen naam (`<naam>-package-lock.json`) heeft geen
 # package.json naast zich. `npm audit` in die map auditeert dan een lege boom en
 # meldt nul kwetsbaarheden, wat niet van een echte schone uitslag te
 # onderscheiden is. Zo'n paar gaat daarom onder standaardnamen naar een tijdelijke

@@ -587,10 +587,12 @@ async fn insert_notes_batch_is_all_or_nothing() {
     .await
     .unwrap_err();
     assert_eq!(err, StatusCode::BAD_REQUEST);
-    assert!(user_notes::fetch_notes(&db.pool, alice.id, "test_wet")
-        .await
-        .unwrap()
-        .is_empty());
+    assert!(
+        user_notes::fetch_notes(&db.pool, alice.id, "test_wet")
+            .await
+            .unwrap()
+            .is_empty()
+    );
 
     // A batch that crosses the cap mid-way rolls back entirely.
     sqlx::query(

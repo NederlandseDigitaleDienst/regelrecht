@@ -188,13 +188,13 @@ fn run_test_case(test: &TestCase) -> Result<(), String> {
         }
 
         // Check article number if specified
-        if let Some(expected_article) = &expected.article_number {
-            if result.article_number != *expected_article {
-                return Err(format!(
-                    "Article number mismatch: expected '{}', got '{}'",
-                    expected_article, result.article_number
-                ));
-            }
+        if let Some(expected_article) = &expected.article_number
+            && result.article_number != *expected_article
+        {
+            return Err(format!(
+                "Article number mismatch: expected '{}', got '{}'",
+                expected_article, result.article_number
+            ));
         }
 
         Ok(())
@@ -368,10 +368,10 @@ fn test_all_golden_tests() {
         total_skipped += skipped;
 
         for (test_id, result) in results {
-            if let Err(e) = result {
-                if !e.starts_with("SKIPPED") {
-                    all_failures.push(format!("[{}] {}: {}", file, test_id, e));
-                }
+            if let Err(e) = result
+                && !e.starts_with("SKIPPED")
+            {
+                all_failures.push(format!("[{file}] {test_id}: {e}"));
             }
         }
 

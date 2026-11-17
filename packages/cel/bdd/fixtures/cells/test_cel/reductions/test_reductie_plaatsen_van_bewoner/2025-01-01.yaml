@@ -1,0 +1,42 @@
+---
+# FICTIEF. A read model of the cell's BDD suite: how many places the
+# resident rents without a termination, from the aggregates of
+# test_reductie_plaats_per_huur whose root holds the resident.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json
+$id: test_reductie_plaatsen_van_bewoner
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_plaatsen_van_bewoner
+name: Parkeerplaatsen van een bewoner (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_plaatsen_van_bewoner/1
+    text: >-
+      FICTIEF. Hoeveel plaatsen de bewoner huurt zonder dat de huur is
+      opgezegd.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bewoner
+            type: string
+        input:
+          - name: huren
+            type: array
+            source:
+              projections: test_reductie_plaats_per_huur
+              where:
+                bewoner: $bewoner
+        output:
+          - name: aantal_plaatsen
+            type: number
+        actions:
+          - output: aantal_plaatsen
+            value:
+              operation: FOREACH
+              collection: $huren
+              as: huur
+              filter: {operation: EQUALS, subject: $huur.einde_huur, value: null}
+              body: 1
+              combine: ADD

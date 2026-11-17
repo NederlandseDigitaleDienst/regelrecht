@@ -2,10 +2,10 @@
 
 use std::sync::Arc;
 
+use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use axum::routing::{get, post};
-use axum::Router;
 use http_body_util::BodyExt;
 use pretty_assertions::assert_eq;
 use serde_json::Value;
@@ -16,9 +16,9 @@ use regelrecht_admin::handlers;
 use regelrecht_admin::metrics;
 use regelrecht_admin::metrics::fetch_metrics;
 use regelrecht_admin::state::AppState;
+use regelrecht_pipeline::JobType;
 use regelrecht_pipeline::job_queue::{self, CreateJobRequest};
 use regelrecht_pipeline::test_utils::TestDb;
-use regelrecht_pipeline::JobType;
 
 fn test_app(pool: sqlx::PgPool) -> Router {
     let state = AppState {

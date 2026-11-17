@@ -13,7 +13,7 @@
  * Contexten zijn volledig data-gedreven, Werkdocumenten net zo goed als de
  * wetten: een context bestaat zolang er werk over ligt en verdwijnt daarna. Ligt
  * er niets meer, dan valt het hele blok weg - inclusief de kop, die anders boven
- * een ingang naar een lege lijst zou hangen. Wetsnamen via useCorpusLaws (de
+ * een ingang naar een lege lijst zou hangen. Wetsnamen via de corpuslezer (de
  * payload draagt alleen het rauwe law_id); die valt zelf al terug op
  * humanizeLawId voor een wet buiten het actieve corpus.
  *
@@ -27,9 +27,9 @@
  * zelfde afspraak als TasksSidebarItem/TasksListPane. Samen gemount blijft het
  * één interval (consumers-teller in useTasks).
  */
-import { computed, toRef } from 'vue';
-import { useTasks } from '../composables/useTasks';
-import { useCorpusLaws } from '../composables/useCorpusLaws';
+import { computed } from 'vue';
+import { useTrajectTasks } from '../composables/useTasks';
+import { useCorpus } from '../corpus';
 import {
   categoryCounts,
   lawContexts,
@@ -57,8 +57,8 @@ interface CategorySelection {
 
 const emit = defineEmits<{ select: [selection: CategorySelection] }>();
 
-const { tasks, running } = useTasks();
-const { displayName } = useCorpusLaws(toRef(props, 'trajectRef'));
+const { tasks, running } = useTrajectTasks(() => props.trajectRef);
+const { displayName } = useCorpus();
 
 const counts = computed(() => categoryCounts(tasks.value, running.value));
 const laws = computed(() => lawContexts(tasks.value, running.value, displayName));
@@ -161,7 +161,7 @@ function select(categorie: string, lawId: string | null = null): void {
        Anders staat er een kop boven een ingang die naar een lege lijst leidt. -->
   <template v-if="hasContexten">
     <nldd-spacer size="24"></nldd-spacer>
-    <nldd-title size="5"><h3>Contexten</h3></nldd-title>
+    <nldd-title size="display-5"><h3>Contexten</h3></nldd-title>
     <nldd-spacer size="8"></nldd-spacer>
 
     <nldd-list appearance="simple">

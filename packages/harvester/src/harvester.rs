@@ -4,12 +4,12 @@ use roxmltree::Document;
 
 use reqwest::Client;
 
-use crate::config::{validate_bwb_id, validate_date, wetten_url, DEFAULT_MAX_RESPONSE_SIZE};
+use crate::config::{DEFAULT_MAX_RESPONSE_SIZE, validate_bwb_id, validate_date, wetten_url};
 use crate::content::download_content_xml;
 use crate::error::Result;
-use crate::splitting::{create_dutch_law_hierarchy, LeafSplitStrategy, SplitContext, SplitEngine};
+use crate::splitting::{LeafSplitStrategy, SplitContext, SplitEngine, create_dutch_law_hierarchy};
 use crate::types::{Law, Preamble};
-use crate::wti::{download_wti, WtiParseResult};
+use crate::wti::{WtiParseResult, download_wti};
 use crate::xml::{find_bijlage_context, find_by_path, find_children, get_tag_name, get_text};
 
 /// Download and parse a Dutch law.
@@ -175,12 +175,12 @@ fn extract_aanhef(doc: &Document<'_>, bwb_id: &str, date: &str) -> Option<Preamb
     let mut parts: Vec<String> = Vec::new();
 
     // Extract <wij> element
-    if let Some(wij) = find_children(aanhef, "wij").next() {
-        if let Some(text) = wij.text() {
-            let trimmed = text.trim();
-            if !trimmed.is_empty() {
-                parts.push(trimmed.to_string());
-            }
+    if let Some(wij) = find_children(aanhef, "wij").next()
+        && let Some(text) = wij.text()
+    {
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            parts.push(trimmed.to_string());
         }
     }
 

@@ -8,19 +8,19 @@
   >
     <nldd-page>
       <nldd-container padding="24" gap="24">
-        <nldd-title :size="3">
+        <nldd-title heading-level="2" size="display-3">
           <span slot="overline">Zo is het berekend</span>
           <span>Je maandbedrag stap voor stap</span>
         </nldd-title>
 
         <section class="bs-block">
-          <nldd-title :size="5"><span>Verloop over de jaren</span></nldd-title>
+          <nldd-title heading-level="3" size="display-5"><span>Verloop over de jaren</span></nldd-title>
           <p class="bs-hint">Hoeveel je per maand betaalt en hoeveel schuld je nog hebt.</p>
           <timeline-chart :timeline="timeline" />
         </section>
 
         <section class="bs-block">
-          <nldd-title :size="5"><span>Dit komt letterlijk uit de wet</span></nldd-title>
+          <nldd-title heading-level="3" size="display-5"><span>Dit komt letterlijk uit de wet</span></nldd-title>
           <p class="bs-hint">
             Deze pagina rekent met de wet zelf. Hieronder zie je per stap uit
             welk artikel je maandbedrag komt.

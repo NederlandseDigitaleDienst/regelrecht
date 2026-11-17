@@ -1,9 +1,9 @@
 <script setup>
 // The scenarios of the case (packages/poc-chronolexografie/corpus/casussen/). A
 // scenario with a guide (scenarioGuides.js) is one row here, by its name; its
-// steps follow in the guide beside the page once it begins. One without (a
-// case from a source, such as NAPP) shows the steps from the YAML in order and
-// what you see at the end. The button puts the chronicle back on what the
+// steps follow in the guide beside the page once it begins, whether the case
+// is the PoC's own or comes from a source. One without (its steps are all
+// text) shows those lines in order and what you see at the end. The button puts the chronicle back on what the
 // cell records before the first scenario (empty, or what the case names under
 // `begin`) and the play date on the first day; then you go to the tab
 // Aanvrager.
@@ -29,9 +29,9 @@ async function begin(s) {
 
 <template>
   <nldd-simple-section>
-    <nldd-title
+    <nldd-title heading-level="2"
       slot="header"
-      size="3"
+      size="display-3"
       text="Scenario's"
       :supporting-text="`Elk scenario begint op ${eerste}, ${
         vooraf ? `met ${vooraf === 1 ? 'één chronolexogram' : `${vooraf} chronolexogrammen`} in de kroniek` : 'met een lege kroniek'
@@ -57,7 +57,7 @@ async function begin(s) {
       </nldd-list>
       <nldd-card v-for="s in zonderGids" :key="s.naam">
         <nldd-container padding="16" gap="12">
-          <nldd-title size="5" :text="s.naam">
+          <nldd-title heading-level="3" size="display-5" :text="s.naam">
             <nldd-tag v-if="state.scenario === s.naam" slot="end" color="accent" text="Bezig"></nldd-tag>
           </nldd-title>
           <nldd-rich-text>

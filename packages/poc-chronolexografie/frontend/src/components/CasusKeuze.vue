@@ -3,42 +3,57 @@
 // (fictieve) uitvoerder en onder welk artikel. Kiezen begint de cel van die
 // casus met een lege kroniek. Daarboven staat per bron (src/bronnen.js) wat
 // er niet lukte: een bron die er niet is, of een bestand dat niet laadt.
+// Een verborgen bron (src/verborgen.js) staat er niet, met haar casussen,
+// tenzij deze browser `?alle-casussen` aanzette; dan draagt haar kaart een tag.
 //
-// At the top: what a demo needs, the presentation and the explanation page
-// that shows in YAML how one case hangs together (presentation/uitleg.js),
-// and right under them the demo scenarios (presentation/demo.js).
-import { nextTick, onMounted, ref } from 'vue';
+// At the top: what a demo needs, the presentation and the short page that
+// says what RegelRecht and chronolexografie are (presentation/kort.js), and
+// right under them the demo scenarios (presentation/demo.js). The short page
+// links on to the explanation page (presentation/uitleg.js).
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { demoGuides } from '../presentation/demo.js';
+import { useKort } from '../presentation/useKort.js';
 import { useUitleg } from '../presentation/useUitleg.js';
-import { api } from '../api.js';
+import { api, bronLijst } from '../api.js';
 import { bronMeldingen, herkomst } from '../bronnen.js';
 import { artikelNaam } from '../logboek.js';
 import { navigate } from '../navigation.js';
 import { hoofdletter, kiezen, state } from '../state.js';
+import { useAlleCasussen, verborgenNamen, zichtbareBronnen, zichtbareCasussen } from '../verborgen.js';
 
-const emit = defineEmits(['presentatie', 'uitleg', 'demo']);
+const emit = defineEmits(['presentatie', 'kort', 'demo']);
 const demo = demoGuides();
 const casussen = ref([]);
-const uitlegKnop = ref(null);
+const kortKnop = ref(null);
+const kort = useKort();
 const uitleg = useUitleg();
-// Back from the explanation page, the focus returns to its button.
+// Back from the short page, or from the explanation page it leads to, the
+// focus returns to the button of the short page.
 onMounted(async () => {
-  if (!uitleg.terug.value) return;
+  if (!kort.terug.value && !uitleg.terug.value) return;
+  kort.terug.value = false;
   uitleg.terug.value = false;
   await nextTick();
-  uitlegKnop.value?.focus();
+  kortKnop.value?.focus();
 });
 const bronnen = ref([]);
+const verborgen = ref([]);
+const { alles } = useAlleCasussen();
 
 onMounted(async () => {
   try {
-    const lijst = await api.casussen();
+    const [lijst, namen] = await Promise.all([api.casussen(), bronLijst()]);
+    verborgen.value = verborgenNamen(namen);
     casussen.value = lijst.casussen;
     bronnen.value = lijst.bronnen ?? [];
   } catch (e) {
     state.fout = e.message;
   }
 });
+
+const getoond = computed(() => zichtbareCasussen(casussen.value, verborgen.value, alles.value));
+const meldingen = computed(() => bronMeldingen(zichtbareBronnen(bronnen.value, verborgen.value, alles.value)));
+const isVerborgen = (c) => verborgen.value.includes(c.bron);
 
 const artikel = (c) => {
   const [wet, nummer] = c.besluit.split('#');
@@ -52,49 +67,53 @@ const kies = (c) => navigate(() => kiezen(c.id));
 
 <template>
   <nldd-simple-section>
-    <nldd-title slot="header" size="3" text="Voor de demo">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Voor de demo">
       <nldd-text slot="supporting-text">Eerst de presentatie, dan de demoscenario's.</nldd-text>
     </nldd-title>
     <nldd-container gap="16">
       <nldd-button-bar>
         <nldd-button appearance="primary" start-icon="guide" text="Presentatie starten" @click="emit('presentatie')"></nldd-button>
-        <nldd-button ref="uitlegKnop" appearance="secondary" start-icon="link" text="Hoe het in elkaar zit" @click="emit('uitleg')"></nldd-button>
+        <nldd-button ref="kortKnop" appearance="secondary" start-icon="link" text="In het kort" @click="emit('kort')"></nldd-button>
       </nldd-button-bar>
       <nldd-title
-        size="4"
+        size="display-4"
         heading-level="2"
         text="Demoscenario's"
-        supporting-text="Gehandicaptenparkeerkaart, van simpel naar ingewikkeld."
+        supporting-text="Van simpel naar ingewikkeld, in twee casussen."
       ></nldd-title>
       <!-- `item-min-width`, not `item-width`: @nldd/design-system 0.9.0 renamed
            the attribute (collection.d.ts, @migration), and the old name now
            does nothing. -->
       <nldd-collection layout="grid" item-min-width="320px">
-        <nldd-card v-for="(g, i) in demo" :key="g.name">
+        <nldd-card v-for="(d, i) in demo" :key="d.guide.name">
           <nldd-container slot="header" padding="16">
-            <nldd-title size="5" heading-level="3" :overline="`Demo ${i + 1}`" :text="g.name"></nldd-title>
+            <nldd-title size="display-5" heading-level="3" :overline="`Demo ${i + 1} · ${d.titel}`" :text="d.guide.name"></nldd-title>
           </nldd-container>
           <nldd-container padding="16">
-            <nldd-text>{{ g.summary }}</nldd-text>
+            <nldd-text>{{ d.guide.summary }}</nldd-text>
           </nldd-container>
           <nldd-container slot="footer" padding="16">
-            <nldd-button appearance="secondary" text="Begin dit scenario" @click="emit('demo', g.name)"></nldd-button>
+            <nldd-button
+              appearance="secondary"
+              text="Begin dit scenario"
+              @click="emit('demo', { casus: d.casus, naam: d.guide.name })"
+            ></nldd-button>
           </nldd-container>
         </nldd-card>
       </nldd-collection>
     </nldd-container>
   </nldd-simple-section>
   <nldd-simple-section>
-    <nldd-title slot="header" size="3" text="Kies een casus">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Kies een casus">
       <nldd-text slot="supporting-text">
         Elke casus is een aanvraag, het besluit erop en het bezwaar ertegen, bij een verzonnen
         uitvoerder. De cel legt elke stap vast in haar kroniek en leest die terug bij een volgend
         besluit. Welke regels meelopen, volgt uit het artikel van de casus.
       </nldd-text>
     </nldd-title>
-    <nldd-container v-if="bronMeldingen(bronnen).length" gap="12" padding-bottom="16">
+    <nldd-container v-if="meldingen.length" gap="12" padding-bottom="16">
       <nldd-banner
-        v-for="m in bronMeldingen(bronnen)"
+        v-for="m in meldingen"
         :key="m.naam"
         :variant="m.variant"
         :text="m.tekst"
@@ -104,10 +123,11 @@ const kies = (c) => navigate(() => kiezen(c.id));
       </nldd-banner>
     </nldd-container>
     <nldd-collection layout="grid" item-min-width="320px">
-      <nldd-card v-for="c in casussen" :key="c.id">
-        <nldd-container slot="header" padding="16">
+      <nldd-card v-for="c in getoond" :key="c.id">
+        <nldd-container slot="header" padding="16" gap="8">
+          <nldd-tag v-if="isVerborgen(c)" size="sm" color="warning" text="Verborgen casus"></nldd-tag>
           <nldd-title
-            size="4"
+            size="display-4"
             heading-level="2"
             :overline="`${hoofdletter(c.cel_naam)} (fictief)`"
             :text="c.titel"

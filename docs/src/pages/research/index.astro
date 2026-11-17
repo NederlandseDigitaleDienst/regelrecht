@@ -70,7 +70,7 @@ const items: ResearchItem[] = [
     lg-padding-bottom="96"
   >
     <nldd-container slot="left">
-      <nldd-title size="2">
+      <nldd-title size="display-2">
         <h1>Research</h1>
       </nldd-title>
       <nldd-spacer />
@@ -81,7 +81,7 @@ const items: ResearchItem[] = [
         </p>
       </nldd-rich-text>
     </nldd-container>
-    <nldd-collection slot="right" layout="grid" item-width="320px">
+    <nldd-collection slot="right" layout="grid" item-min-width="320px">
       {items.map((item) => <LinkCard lang="en" tinted headingLevel={2} {...item} />)}
     </nldd-collection>
   </nldd-one-third-two-thirds-section>

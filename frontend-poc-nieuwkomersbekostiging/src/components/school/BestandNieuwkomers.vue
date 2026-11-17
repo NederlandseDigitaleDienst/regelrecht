@@ -1,6 +1,6 @@
 <template>
   <div class="bestand">
-    <nldd-tab-bar v-if="sector === 'po'" variant="text" accessible-label="Tabbladen Bestand Nieuwkomers" @tabchange="onTab">
+    <nldd-tab-bar v-if="sector === 'po'" variant="text" accessible-label="Tabbladen Bestand Nieuwkomers" @tab-change="onTab">
       <nldd-tab-bar-item
         v-for="t in [1, 2, 3]"
         :key="t"

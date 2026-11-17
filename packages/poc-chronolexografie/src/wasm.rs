@@ -101,47 +101,158 @@ impl Poc {
         antwoord(self.spel.kroniek())
     }
 
-    pub fn aanvragen(&mut self, velden: &str, datum: &str) -> Result<String, JsError> {
-        antwoord(self.spel.aanvragen(&kaart("velden", velden)?, dag(datum)?))
+    /// A submission under `artikel`; `op`: the decision it refers to, or
+    /// none.
+    pub fn indienen(
+        &mut self,
+        artikel: &str,
+        velden: &str,
+        datum: &str,
+        op: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.indienen(
+            artikel,
+            op.as_deref(),
+            &kaart("velden", velden)?,
+            dag(datum)?,
+        ))
     }
 
+    /// The cell `cel` of the case, another or its own, records `feit`.
+    /// `verwijst_naar`: the record of `cel` the fact is about, by its id or
+    /// by its kenmerk in the begin of `cel`, or none.
     pub fn vastleggen(
         &mut self,
         cel: &str,
         feit: &str,
         velden: &str,
         datum: &str,
+        verwijst_naar: Option<String>,
     ) -> Result<String, JsError> {
-        antwoord(
-            self.spel
-                .vastleggen(cel, feit, &kaart("velden", velden)?, dag(datum)?),
-        )
+        antwoord(self.spel.vastleggen_verwijzend(
+            cel,
+            feit,
+            &kaart("velden", velden)?,
+            verwijst_naar.as_deref(),
+            dag(datum)?,
+        ))
     }
 
-    pub fn besluiten(
+    /// Decide on the submission `op`; `na`: a later record after which it
+    /// is decided once more, or none.
+    pub fn beslissen(
         &mut self,
         op: &str,
         bevindingen: &str,
         datum: &str,
+        na: Option<String>,
     ) -> Result<String, JsError> {
-        antwoord(
-            self.spel
-                .besluiten(op, &kaart("bevindingen", bevindingen)?, dag(datum)?),
-        )
-    }
-
-    #[wasm_bindgen(js_name = voorvertoningBesluit)]
-    pub fn voorvertoning_besluit(
-        &mut self,
-        op: &str,
-        bevindingen: &str,
-        datum: &str,
-    ) -> Result<String, JsError> {
-        antwoord(self.spel.voorvertoning_besluit(
+        antwoord(self.spel.beslissen(
             op,
+            na.as_deref(),
             &kaart("bevindingen", bevindingen)?,
             dag(datum)?,
         ))
+    }
+
+    /// What the sources give for fields of the application before it is
+    /// submitted: `bronnen` is the JSON object `{ "<field>":
+    /// "<regelwerk>#<article>#<output>" }`, `velden` what the form holds so
+    /// far.
+    pub fn voorinvullen(
+        &mut self,
+        bronnen: &str,
+        velden: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.voorinvullen(
+            &kaart("bronnen", bronnen)?,
+            &kaart("velden", velden)?,
+            dag(datum)?,
+        ))
+    }
+
+    #[wasm_bindgen(js_name = voorBeslissen)]
+    pub fn voor_beslissen(
+        &mut self,
+        op: &str,
+        oordeel: &str,
+        datum: &str,
+        na: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.voor_beslissen(
+            op,
+            na.as_deref(),
+            &kaart("oordeel", oordeel)?,
+            dag(datum)?,
+        ))
+    }
+
+    pub fn voorvertoning(
+        &mut self,
+        op: &str,
+        bevindingen: &str,
+        datum: &str,
+        na: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.voorvertoning(
+            op,
+            na.as_deref(),
+            &kaart("bevindingen", bevindingen)?,
+            dag(datum)?,
+        ))
+    }
+
+    /// A decision under `artikel` taken ex officio; `over`: the record it
+    /// is about, or none.
+    pub fn ambtshalve(
+        &mut self,
+        artikel: &str,
+        gegeven: &str,
+        datum: &str,
+        over: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.ambtshalve(
+            artikel,
+            over.as_deref(),
+            &kaart("gegeven", gegeven)?,
+            dag(datum)?,
+        ))
+    }
+
+    pub fn toezenden(&mut self, besluit: &str, datum: &str) -> Result<String, JsError> {
+        antwoord(self.spel.toezenden(besluit, dag(datum)?))
+    }
+
+    /// What the cell `cel` (or the case's own) answers on `datum` for the
+    /// output `bron`, with the parameters `invoer`; nothing is recorded.
+    pub fn antwoord(
+        &mut self,
+        cel: Option<String>,
+        bron: &str,
+        invoer: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(
+            self.spel
+                .antwoord(cel.as_deref(), bron, &kaart("invoer", invoer)?, dag(datum)?),
+        )
+    }
+
+    /// Log in through the case's login step as `gebruikersnaam`; `dienst`:
+    /// another service than the case's, or none. Nothing about the session
+    /// stays here.
+    pub fn inloggen(
+        &mut self,
+        gebruikersnaam: &str,
+        wachtwoord: &str,
+        datum: &str,
+        dienst: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(
+            self.spel
+                .inloggen(gebruikersnaam, wachtwoord, dienst.as_deref(), dag(datum)?),
+        )
     }
 
     pub fn waarom(&mut self, id: &str) -> Result<String, JsError> {
@@ -156,132 +267,6 @@ impl Poc {
     #[wasm_bindgen(js_name = hoeBeantwoord)]
     pub fn hoe_beantwoord(&mut self, id: &str, naam: &str) -> Result<String, JsError> {
         antwoord(self.spel.hoe_beantwoord(id, naam))
-    }
-
-    pub fn bezwaren(
-        &mut self,
-        besluit: &str,
-        velden: &str,
-        datum: &str,
-    ) -> Result<String, JsError> {
-        antwoord(
-            self.spel
-                .bezwaren(besluit, &kaart("velden", velden)?, dag(datum)?),
-        )
-    }
-
-    pub fn heroverweging(&mut self, bezwaar: &str, datum: &str) -> Result<String, JsError> {
-        antwoord(self.spel.heroverweging(bezwaar, dag(datum)?))
-    }
-
-    #[wasm_bindgen(js_name = beslissenOpBezwaar)]
-    pub fn beslissen_op_bezwaar(
-        &mut self,
-        op: &str,
-        bevindingen: &str,
-        datum: &str,
-    ) -> Result<String, JsError> {
-        antwoord(self.spel.beslissen_op_bezwaar(
-            op,
-            &kaart("bevindingen", bevindingen)?,
-            dag(datum)?,
-        ))
-    }
-
-    #[wasm_bindgen(js_name = voorvertoningOpBezwaar)]
-    pub fn voorvertoning_op_bezwaar(
-        &mut self,
-        op: &str,
-        bevindingen: &str,
-        datum: &str,
-    ) -> Result<String, JsError> {
-        antwoord(self.spel.voorvertoning_op_bezwaar(
-            op,
-            &kaart("bevindingen", bevindingen)?,
-            dag(datum)?,
-        ))
-    }
-
-    #[wasm_bindgen(js_name = beroepInstellen)]
-    pub fn beroep_instellen(
-        &mut self,
-        besluit: &str,
-        velden: &str,
-        datum: &str,
-    ) -> Result<String, JsError> {
-        antwoord(
-            self.spel
-                .beroep_instellen(besluit, &kaart("velden", velden)?, dag(datum)?),
-        )
-    }
-
-    #[wasm_bindgen(js_name = uitspraakDoen)]
-    pub fn uitspraak_doen(
-        &mut self,
-        op: &str,
-        bevindingen: &str,
-        datum: &str,
-    ) -> Result<String, JsError> {
-        antwoord(
-            self.spel
-                .uitspraak_doen(op, &kaart("bevindingen", bevindingen)?, dag(datum)?),
-        )
-    }
-
-    #[wasm_bindgen(js_name = voorvertoningUitspraak)]
-    pub fn voorvertoning_uitspraak(
-        &mut self,
-        op: &str,
-        bevindingen: &str,
-        datum: &str,
-    ) -> Result<String, JsError> {
-        antwoord(self.spel.voorvertoning_uitspraak(
-            op,
-            &kaart("bevindingen", bevindingen)?,
-            dag(datum)?,
-        ))
-    }
-
-    pub fn toezenden(&mut self, uitspraak: &str, datum: &str) -> Result<String, JsError> {
-        antwoord(self.spel.toezenden(uitspraak, dag(datum)?))
-    }
-
-    #[wasm_bindgen(js_name = waaromUitspraak)]
-    pub fn waarom_uitspraak(&mut self, id: &str) -> Result<String, JsError> {
-        antwoord(self.spel.waarom_uitspraak(id))
-    }
-
-    #[wasm_bindgen(js_name = heroverwegingNaUitspraak)]
-    pub fn heroverweging_na_uitspraak(&mut self, ontvangst: &str) -> Result<String, JsError> {
-        antwoord(self.spel.heroverweging_na_uitspraak(ontvangst))
-    }
-
-    #[wasm_bindgen(js_name = opnieuwBeslissenOpBezwaar)]
-    pub fn opnieuw_beslissen_op_bezwaar(
-        &mut self,
-        ontvangst: &str,
-        bevindingen: &str,
-        datum: &str,
-    ) -> Result<String, JsError> {
-        antwoord(self.spel.opnieuw_beslissen_op_bezwaar(
-            ontvangst,
-            &kaart("bevindingen", bevindingen)?,
-            dag(datum)?,
-        ))
-    }
-
-    #[wasm_bindgen(js_name = voorvertoningNaUitspraak)]
-    pub fn voorvertoning_na_uitspraak(
-        &mut self,
-        ontvangst: &str,
-        bevindingen: &str,
-        datum: &str,
-    ) -> Result<String, JsError> {
-        antwoord(self.spel.voorvertoning_na_uitspraak(
-            ontvangst,
-            &kaart("bevindingen", bevindingen)?,
-            dag(datum)?,
-        ))
     }
 
     pub fn reducties(&mut self, datum: &str) -> Result<String, JsError> {

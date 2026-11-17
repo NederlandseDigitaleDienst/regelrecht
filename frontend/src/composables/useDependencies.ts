@@ -12,8 +12,7 @@ import { ref } from 'vue';
 import * as yaml from 'js-yaml';
 import { useBwbHarvest } from './useBwbHarvest';
 import { loadLawVersions } from './useEngine';
-import { implementorsUrl } from './corpusUrls';
-import { apiFetchJson } from '../lib/apiFetch';
+import { useCorpus } from '../corpus';
 
 /** The fields of a parsed law that the dependency walk reads. */
 interface LawDependencyFields {
@@ -80,7 +79,10 @@ export function useDependencies() {
   // Guards `loadImplementors` so a re-render / re-trigger of the scenario
   // panel doesn't restart the corpus-wide implementor scan for a law it
   // already scanned. Keyed on `{trajectRef}::{lawId}`.
+  // The implementors scan for one (traject, law), shared by every run for it.
+  // Null when the scan failed, so the next trigger retries it.
   let implementorsKey: string | null = null;
+  let implementorsScan: Promise<string[] | null> | null = null;
 
   /**
    * Load a law's direct + transitive `source.regulation` dependencies into
@@ -128,12 +130,13 @@ export function useDependencies() {
       for (const lawId of toLoad) {
         // Fetch the version YAMLs unconditionally - even for a law already in
         // the engine. They feed two consumers that are independent of engine
-        // state: the transitive-ref scan below, and (via `versionsCache` in
-        // ScenarioBuilder) the data-source column type map. The WASM engine is
-        // a shared singleton that persists across scenario-panel mounts and is
-        // pre-warmed by the machine view, so gating this fetch on
-        // `engine.hasLaw` left `versionsCache` empty on a warm engine and
-        // collapsed every typed data-source cell back to a plain string field.
+        // state: the transitive-ref scan below, and ScenarioBuilder's
+        // data-source column type map, built from the versions each run hands
+        // over. The WASM engine is a shared singleton that persists across
+        // scenario-panel mounts and is pre-warmed by the machine view, so
+        // gating this fetch on `engine.hasLaw` would leave the type map empty
+        // on a warm engine and collapse every typed data-source cell back to a
+        // plain string field. The corpus reader caches the versions.
         const alreadyLoaded = engine.hasLaw(lawId);
         let yamls: string[] = [];
         // Whether this law is sound enough to scan for transitive deps: already
@@ -229,51 +232,45 @@ export function useDependencies() {
    * slow on a large federated corpus, and scenarios declare the regulations
    * they need explicitly (their `Given law "x" is loaded` background), so the
    * scenario panel must not block on this. The caller fires it without
-   * awaiting, after the panel is already usable. Runs at most once per
-   * `(trajectRef, lawId)` so re-renders don't restart the scan.
+   * awaiting, after the panel is already usable. The scan runs at most once
+   * per `(active traject, lawId)`, so re-renders don't restart it; every run
+   * still hands the implementors' versions to `fetchLawVersions`, because the
+   * caller builds its type map per run.
    *
    * @param {string|null} lawId - The `$id` of the law to find implementors of.
    * @param {object} engine - WasmEngine instance.
    * @param {(lawId: string) => Promise<string[]>} fetchLawVersions - Fetch all version YAMLs.
-   * @param {string|null} trajectRef - Active traject reference.
    */
   async function loadImplementors(
     lawId: string | null,
     engine: DependencyEngine,
     fetchLawVersions: FetchLawVersions,
-    trajectRef: string | null = null,
   ): Promise<void> {
     if (!lawId) return;
-    const key = `${trajectRef || ''}::${lawId}`;
-    if (implementorsKey === key) return;
-    // Claim the key up front so a concurrent re-trigger doesn't start a second
-    // scan; reset it on failure so a transient error (network blip, throttled
-    // backend) can be retried on the next trigger rather than suppressed for
-    // the component's lifetime.
-    implementorsKey = key;
-    let implementors: unknown;
-    try {
-      implementors = await apiFetchJson<unknown>(implementorsUrl(trajectRef, lawId));
-    } catch {
-      // Best-effort: if the scan fails (HTTP error or network), explicitly-
-      // declared deps still cover the common case. Allow a retry on the
-      // next trigger.
-      implementorsKey = null;
-      return;
+    const corpus = useCorpus();
+    const key = `${corpus.trajectRef ?? ''}::${lawId}`;
+    if (implementorsKey !== key || !implementorsScan) {
+      // Claim the key up front so a concurrent re-trigger joins this scan;
+      // reset it on failure so a transient error (network blip, throttled
+      // backend) can be retried on the next trigger rather than suppressed
+      // for the component's lifetime.
+      implementorsKey = key;
+      implementorsScan = corpus.implementors(lawId).catch(() => {
+        // Best-effort: explicitly-declared deps still cover the common case.
+        if (implementorsKey === key) implementorsScan = null;
+        return null;
+      });
     }
-    if (!Array.isArray(implementors)) {
-      // A 200 with a non-array body (proxy error page parsed as JSON, null)
-      // must stay retryable, like any other failed scan.
-      implementorsKey = null;
-      return;
-    }
-    for (const implId of implementors as string[]) {
+    const implementors = await implementorsScan;
+    if (!implementors) return;
+    for (const implId of implementors) {
       try {
-        if (!engine.hasLaw(implId)) {
-          const yamls = await fetchLawVersions(implId);
-          if (loadLawVersions(engine, yamls, implId)) {
-            loadedDeps.value = [...loadedDeps.value, implId];
-          }
+        // Fetched even when the engine already has it, like the explicit
+        // dependencies above: the caller builds its data-source type map from
+        // the versions it is handed. The reader caches them.
+        const yamls = await fetchLawVersions(implId);
+        if (!engine.hasLaw(implId) && loadLawVersions(engine, yamls, implId)) {
+          loadedDeps.value = [...loadedDeps.value, implId];
         }
       } catch (e) {
         console.warn(`Failed to load implementing regulation '${implId}':`, e);

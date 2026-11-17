@@ -23,9 +23,9 @@ use common::{day, object_map};
 
 use std::path::{Path, PathBuf};
 
-use regelrecht_cel::{decision, shape, Cell, Error, Gram, Reference, Source};
+use regelrecht_cel::{Cell, Error, Gram, Reference, Source, decision, shape};
 use regelrecht_engine::LawExecutionService;
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 const LAW: &str = "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw";
 const ARTICLE: &str = "49";
@@ -131,7 +131,7 @@ fn service() -> LawExecutionService {
     let laws = [
         format!("regulation/nl/amvb/{LAW}"),
         "regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart".to_string(),
-        format!("regulation/nl/wet/{AWB}"),
+        common::poc("regulation/nl/wet/algemene_wet_bestuursrecht"),
         format!("regulation/nl/uitvoeringsbeleid/{POLICY}"),
         // The reductions of the municipality and of the GGD, each with its
         // cell (RFC-048).
@@ -139,9 +139,12 @@ fn service() -> LawExecutionService {
         common::reduction_dir(REPORTS),
         common::reduction_dir(ADVICE_REDUCTION),
         format!("regulation/nl/uitvoeringsbeleid/{ADVICE_POLICY}"),
-        // Which decisions still stand after objection and appeal: the
-        // reduction of the Awb, which the reductions above call.
-        common::reduction_dir("reductie_algemene_wet_bestuursrecht"),
+        // The decisions under an article as aggregates, with what the Awb
+        // gives a decision on an objection and the receipt of a ruling.
+        common::reduction_dir("reductie_gehandicaptenparkeerkaart"),
+        common::poc(
+            "regulation/nl/uitvoeringsbeleid/beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal",
+        ),
     ];
     common::load(&mut service, laws);
     service
@@ -299,9 +302,11 @@ fn an_application_is_recorded_with_the_awb_deadline() {
         json!("2026-12-08")
     );
     // The decision's outputs wait for the decision.
-    assert!(!gram
-        .outputs
-        .contains_key("gehandicaptenparkeerkaart_verstrekt"));
+    assert!(
+        !gram
+            .outputs
+            .contains_key("gehandicaptenparkeerkaart_verstrekt")
+    );
 }
 
 #[test]
@@ -625,7 +630,7 @@ fn reconsider_in(
         OBJECTION,
         objection,
         &Map::new(),
-        findings,
+        &common::on_objection(findings),
         day(on),
     )
     .unwrap()
@@ -698,14 +703,15 @@ fn gegrond_a_new_examination_revokes_the_refusal_and_grants_the_card() {
     // A new medical examination finds a long-term walking limitation; the
     // college gives that finding anew, and the others stand.
     let decided = reconsider(&mut cell, &bezwaar.id, &walking(true), "2026-11-20");
-    assert_eq!(decided.len(), 2);
-    let (decision, new) = (&decided[0], &decided[1]);
+    // One act, one record: the decision on the objection holds the new one.
+    assert_eq!(decided.len(), 1);
+    let decision = &decided[0];
+    let new = common::in_turn(decision);
 
     assert_eq!(decision.outputs[CAUSE], json!(true));
     assert_eq!(decision.outputs[REVOKED], json!(true));
-    assert_eq!(decision.outputs[NEW], json!(new.id));
+    assert_eq!(decision.outputs[NEW]["taken_on"], json!(bezwaar.basis));
     assert_eq!(new.basis, format!("{LAW}#{ARTICLE}"));
-    assert_eq!(new.refers_to.as_deref(), Some(bezwaar.id.as_str()));
     assert_eq!(new.fields[WALKING], json!(true));
     assert_eq!(new.fields[OTHER], json!(false));
     assert_eq!(
@@ -740,7 +746,7 @@ fn a_revoked_card_does_not_count_as_a_valid_one() {
     let decided = reconsider(&mut cell, &bezwaar.id, &walking(false), "2026-11-20");
     assert_eq!(decided[0].outputs[REVOKED], json!(true));
     assert_eq!(
-        decided[1].outputs["gehandicaptenparkeerkaart_verstrekt"],
+        common::in_turn(&decided[0]).outputs["gehandicaptenparkeerkaart_verstrekt"],
         json!(false)
     );
 
@@ -823,7 +829,7 @@ fn judged_by_the_court_in(
             "8:70",
             &appeal.id,
             &Map::new(),
-            findings,
+            &common::on_appeal(findings),
             day("2027-01-11"),
         )
         .unwrap()
@@ -952,7 +958,8 @@ fn the_cell_answers_the_policy_and_explains_the_card_it_counted() {
         node.result,
         Some(regelrecht_engine::Value::from(json!(true)))
     );
-    assert!(node.children.is_empty(), "{node:?}");
+    // Under it, how the cell came to the answer: the run of its reduction.
+    assert_eq!(node.children.len(), 1, "{node:?}");
     let answer = node.answer.as_ref().unwrap();
     assert_eq!(answer.answerer, RECORDING_ACTOR);
     assert_eq!(answer.law_id, REDUCTION);
@@ -966,9 +973,8 @@ fn the_cell_answers_the_policy_and_explains_the_card_it_counted() {
         answer.last_record.as_deref(),
         Some(second_application.id.as_str())
     );
-    // The reduction's FOREACH is not in the decision's trace.
-    let trace = root.render_box_drawing();
-    assert!(!trace.contains("FOREACH"), "{trace}");
+    // The reduction's FOREACH hangs under the answer in the decision's trace.
+    assert!(node.render_box_drawing().contains("FOREACH"), "{node:?}");
     // The report says the same: the cell answered the policy's term.
     assert!(
         result.open_terms.iter().any(|f| f.term == VALID
@@ -1684,7 +1690,7 @@ fn on_objection_a_new_advice_revokes_the_refusal() {
     let decided = reconsider(&mut cell, &bezwaar.id, &Map::new(), "2026-11-20");
     assert_eq!(decided[0].outputs[REVOKED], json!(true));
     assert_eq!(
-        decided[1].outputs["gehandicaptenparkeerkaart_verstrekt"],
+        common::in_turn(&decided[0]).outputs["gehandicaptenparkeerkaart_verstrekt"],
         json!(true)
     );
 }

@@ -162,7 +162,7 @@ function show(claim: ChangeClaim) {
             <nldd-rich-text spacing="tight">
               <p>{{ t('sheet.change.intro') }}</p>
             </nldd-rich-text>
-            <nldd-list appearance="box" :accessible-label="t('sheet.change.kind.label')">
+            <nldd-list appearance="box-tinted" :accessible-label="t('sheet.change.kind.label')">
               <nldd-list-item v-for="ct in CHANGE_TYPES" :key="ct.id" size="md" button @click="chooseType(ct.id)">
                 <nldd-icon-cell :icon="ct.icon" size="20" color="accent"></nldd-icon-cell>
                 <nldd-spacer-cell size="12"></nldd-spacer-cell>
@@ -176,7 +176,7 @@ function show(claim: ChangeClaim) {
           <template v-else-if="step === 1">
             <!-- Een gebeurtenis (huishouden): kiezen, geen invullen. -->
             <template v-if="type?.events">
-              <nldd-list appearance="box" :accessible-label="t('sheet.change.what.label')">
+              <nldd-list appearance="box-tinted" :accessible-label="t('sheet.change.what.label')">
                 <nldd-list-item
                   v-for="e in type.events"
                   :key="e.value"
@@ -199,13 +199,12 @@ function show(claim: ChangeClaim) {
                 <p>{{ t('sheet.change.values.intro') }}</p>
               </nldd-rich-text>
               <template v-for="group in type?.groups ?? []" :key="group.labelKey">
-                <nldd-title size="4"><h2>{{ groupLabel(group) }}</h2></nldd-title>
+                <nldd-title size="display-4"><h2>{{ groupLabel(group) }}</h2></nldd-title>
                 <nldd-form-field v-for="f in group.fields" :key="f.name" :label="fieldLabel(f)" optional>
                   <nldd-text-field
                     :value="answers[f.name] ?? ''"
                     width="full"
                     :keyboard="f.kind === 'text' ? undefined : 'numeric'"
-                    :prefix="f.scale ? '€' : undefined"
                     @input="setAnswer(f.name, inputValue($event))"
                   ></nldd-text-field>
                 </nldd-form-field>

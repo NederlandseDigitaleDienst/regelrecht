@@ -150,5 +150,63 @@
     "expect": "hier hoort het bezwaar ongegrond te zijn"
    }
   ]
+ },
+ {
+  "name": "Het voorschot wordt in termijnen betaald",
+  "summary": "De Dienst Toeslagen verleent een voorschot, betaalt de eerste termijn en legt die betaling vast bij het voorschot.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "Een alleenstaande vraagt zorgtoeslag aan voor 2025.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "De Dienst verleent een voorschot.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Nog niets betaald",
+    "tab": "bestuursorgaan",
+    "date": "2025-01-20",
+    "story": "Twee weken later is er op het voorschot nog niets betaald.",
+    "todo": "Zet de speeldatum op de dag van deze stap; de gids vraagt de cel dan om haar antwoorden.",
+    "values": [],
+    "seen": "De gids toont de antwoorden van de cel.",
+    "expect": null
+   },
+   {
+    "title": "Eerste termijn betalen",
+    "tab": "bestuursorgaan",
+    "date": "2025-01-24",
+    "story": "Het besluit is van januari, dus de Dienst betaalt het voorschot in elf termijnen (Awir artikel 22, tweede lid) en legt de eerste vast.",
+    "todo": "Klik onder Vastleggen op Vastleggen.",
+    "values": [
+     "bedrag: 14336"
+    ],
+    "seen": "Het feit staat in de kroniek van het bestuursorgaan.",
+    "expect": null
+   },
+   {
+    "title": "De eerste termijn is betaald",
+    "tab": "bestuursorgaan",
+    "date": "2025-02-03",
+    "story": "Op het voorschot is nu de eerste termijn betaald.",
+    "todo": "Zet de speeldatum op de dag van deze stap; de gids vraagt de cel dan om haar antwoorden.",
+    "values": [],
+    "seen": "De gids toont de antwoorden van de cel.",
+    "expect": null
+   }
+  ]
  }
 ]

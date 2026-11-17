@@ -328,6 +328,7 @@ function unique(laws: LawEntry[]) {
           <nldd-toolbar size="sm">
             <nldd-toolbar-item slot="start">
               <nldd-button size="sm" appearance="neutral-tinted" start-icon="books" :text="t('wet.sidebar.label')" :supporting-text="`${selected.size}`" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
+              <nldd-menu-item slot="overflow" icon="books" :text="t('wet.sidebar.label')" :details="`${selected.size}`" @select="splitView?.showPrimarySidebarSheet?.()"></nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-title slot="start" :text="t('wet.graph.title')" :supporting-text="t('wet.graph.subtitle', { laws: shownLaws.length, edges: graph.edges.filter((e) => !e.hidden).length, persona: profile?.name ?? t('wet.graph.persona.fallback') })" max-width="480px"></nldd-toolbar-title>
             <nldd-toolbar-item slot="end">
@@ -336,9 +337,13 @@ function unique(laws: LawEntry[]) {
                 <nldd-segmented-control-item value="portaal" :text="profile?.name ?? t('wet.graph.preset.portal')"></nldd-segmented-control-item>
                 <nldd-segmented-control-item value="alles" :text="t('wet.graph.preset.all')"></nldd-segmented-control-item>
               </nldd-segmented-control>
+              <nldd-menu-item slot="overflow" type="radio" :text="t('wet.graph.preset.story')" :selected="preset === 'verhaal' || undefined" @select="applyPreset('verhaal')"></nldd-menu-item>
+              <nldd-menu-item slot="overflow" type="radio" :text="profile?.name ?? t('wet.graph.preset.portal')" :selected="preset === 'portaal' || undefined" @select="applyPreset('portaal')"></nldd-menu-item>
+              <nldd-menu-item slot="overflow" type="radio" :text="t('wet.graph.preset.all')" :selected="preset === 'alles' || undefined" @select="applyPreset('alles')"></nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end">
               <nldd-button size="sm" appearance="neutral-tinted" start-icon="binoculars" :text="t('wet.graph.fit')" @click="fitAll()"></nldd-button>
+              <nldd-menu-item slot="overflow" icon="binoculars" :text="t('wet.graph.fit')" @select="fitAll()"></nldd-menu-item>
             </nldd-toolbar-item>
           </nldd-toolbar>
         </nldd-container>

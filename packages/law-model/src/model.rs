@@ -259,6 +259,21 @@ pub struct Source {
     /// load instead of dropping it silently; it is never written back.
     #[serde(default, skip_serializing, deserialize_with = "present")]
     pub combine: Option<serde_json::Value>,
+    /// The aggregates of a reduction whose projection plays one per record
+    /// of a kind (`projection.per`, schema v0.8.17): a list with one row per
+    /// root record, the last state of its aggregate with the root's `id`.
+    /// From schema v0.8.19 it names the article of the aggregate,
+    /// `<regulation>#<article>`, also in the reading file itself; up to
+    /// v0.8.18 the `$id` of the reduction alone ([`split_projections`]).
+    /// Only the chronicle of the cell that runs the reduction answers it.
+    /// Only a `REDUCTIE` may read it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub projections: Option<String>,
+    /// Only with `projections`: the roots whose aggregates are read, as a
+    /// map from a field or output of the root to a `$`-reference to a
+    /// parameter of the reading article (schema v0.8.17).
+    #[serde(default, rename = "where", skip_serializing_if = "Option::is_none")]
+    pub where_: Option<BTreeMap<String, String>>,
 }
 
 /// Parameter definition in execution spec
@@ -282,6 +297,23 @@ pub struct Parameter {
     pub temporal: Option<Temporal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legal_basis: Option<ProvisionReference>,
+    /// Only on a parameter of type `array` (schema v0.8.20): the columns of
+    /// each row. A projection that fills an array of its state from it
+    /// declares the same columns.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<Column>>,
+}
+
+/// One column of an array of rows (schema v0.8.20): its name and the scalar
+/// type of its values. A row lacking the column holds null there.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Column {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub column_type: ParameterType,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 impl Parameter {
@@ -345,6 +377,11 @@ pub struct Output {
     pub temporal: Option<Temporal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legal_basis: Option<ProvisionReference>,
+    /// Only on an output of type `array` (schema v0.8.22): the columns of
+    /// each row. The type check holds a row the article builds for this
+    /// output with `RECORD` to them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<Column>>,
 }
 
 impl Output {
@@ -470,6 +507,45 @@ pub struct ProducedItem {
     /// The moment that counts in law for this item (RFC-045).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub moment: Option<Moment>,
+    /// For a decision: the decisions it revokes (schema v0.8.14), such as
+    /// the contested decision (Awb 7:11 lid 2). The engine
+    /// carries them out when it plays a chronicle through a reduction with a
+    /// `projection` (`projection.rs`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effects: Option<Vec<RecordEffect>>,
+}
+
+/// One thing a record does with an earlier record (schema v0.8.14): it
+/// revokes it, from the start (ex tunc). It names the parameter whose value
+/// is that other record, and, with `when`, a boolean the record holds that
+/// must be true for the effect to hold, such as the revocation that follows
+/// only from a well-founded objection. A decision in the place of another
+/// revokes it and counts as a record of its own.
+///
+/// A decision has effects through `produces[].effects`, and names the record
+/// by a parameter. Since schema v0.8.15 a fact has them too, through
+/// `requires[].effects`, such as the receipt of a ruling that annuls a
+/// decision; a fact revokes the record it refers to, so its `revokes` is
+/// always [`RecordEffect::REFERS_TO`]. A change from a later day on,
+/// such as a suspension, is no effect: it is a step of the reduction with a
+/// date property.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct RecordEffect {
+    /// The parameter whose value is the record this one revokes.
+    #[serde(rename = "revokes")]
+    pub parameter: String,
+    /// A boolean the record holds: an output of a decision, or a parameter
+    /// a fact holds. The effect holds only when it is true. Without it the
+    /// effect always holds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub when: Option<String>,
+}
+
+impl RecordEffect {
+    /// The one value `revokes` takes on a fact (schema v0.8.15): the record
+    /// the fact refers to (`refers_to`, RFC-053).
+    pub const REFERS_TO: &'static str = "refers_to";
 }
 
 impl ProducedItem {
@@ -546,6 +622,15 @@ impl<'a> Produced<'a> {
         match self {
             Self::Object(_) => None,
             Self::Item(i) => i.derived.as_deref(),
+        }
+    }
+
+    /// For a decision in the list form: what it does with other decisions
+    /// (schema v0.8.14); empty for the object form.
+    pub fn effects(self) -> &'a [RecordEffect] {
+        match self {
+            Self::Object(_) => &[],
+            Self::Item(i) => i.effects.as_deref().unwrap_or_default(),
         }
     }
 
@@ -749,6 +834,12 @@ pub enum ActionOperation {
     },
     #[serde(rename = "LIST")]
     List { items: Vec<ActionValue> },
+    /// A row with its own columns (schema v0.8.22): each key of `fields`
+    /// names a column, each value is the expression for it.
+    #[serde(rename = "RECORD")]
+    Record {
+        fields: BTreeMap<String, ActionValue>,
+    },
     /// Iterate over a collection, evaluating `body` per element (RFC-016).
     ///
     /// The only operation that *defines* a variable rather than reading one:
@@ -852,6 +943,12 @@ pub enum CombineOp {
     /// as the record in force on a day, where a lowest or highest of a
     /// string or a date is not defined.
     Only,
+    /// The unique results, in the order each first occurs (schema v0.8.21).
+    /// Two results are the same when `EQUALS` says so: a number, string,
+    /// date or boolean by value, a row or list deeply. Null is a value and
+    /// stays once. An empty collection gives an empty array. One value from
+    /// several equal ones is `ONLY` over this result.
+    Distinct,
 }
 
 impl CombineOp {
@@ -864,6 +961,7 @@ impl CombineOp {
             CombineOp::Min => "MIN",
             CombineOp::Max => "MAX",
             CombineOp::Only => "ONLY",
+            CombineOp::Distinct => "DISTINCT",
         }
     }
 }
@@ -929,6 +1027,7 @@ impl ActionOperation {
                 .chain(values.iter().flatten())
                 .collect(),
             ActionOperation::List { items } => items.iter().collect(),
+            ActionOperation::Record { fields } => fields.values().collect(),
             ActionOperation::Foreach {
                 collection,
                 body,
@@ -983,6 +1082,7 @@ impl ActionOperation {
             ActionOperation::In { .. } => "IN",
             ActionOperation::NotIn { .. } => "NOT_IN",
             ActionOperation::List { .. } => "LIST",
+            ActionOperation::Record { .. } => "RECORD",
             ActionOperation::Foreach { .. } => "FOREACH",
             ActionOperation::Age { .. } => "AGE",
             ActionOperation::DateAdd { .. } => "DATE_ADD",
@@ -1228,6 +1328,19 @@ pub struct ArticleRequirement {
     /// authority or a list, such as the GGD for a medical examination.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub competent_authority: Option<CompetentAuthority>,
+    /// With `fact`: the earlier records an instance of the fact revokes
+    /// (schema v0.8.15), such as the receipt of a copy of a ruling that
+    /// annuls a decision (Awb 8:72 lid 1).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effects: Option<Vec<RecordEffect>>,
+}
+
+impl ArticleRequirement {
+    /// What an instance of this fact does with earlier records (schema
+    /// v0.8.15); empty when it does nothing.
+    pub fn effects(&self) -> &[RecordEffect] {
+        self.effects.as_deref().unwrap_or_default()
+    }
 }
 
 /// Declares that this article fills an open term from a higher-level law.
@@ -1317,6 +1430,16 @@ pub fn is_article_reference(s: &str) -> bool {
             .chars()
             .all(|c| alnum(c) || matches!(c, ':' | '.' | '_' | ' ' | '-'))
         && !names_paragraph
+}
+
+/// A reference to aggregates (`source.projections`) split into the
+/// reduction and the article of its aggregate: `<regulation>#<article>`
+/// (schema v0.8.19), or the reduction alone, as up to v0.8.18.
+pub fn split_projections(reference: &str) -> (&str, Option<&str>) {
+    match reference.split_once('#') {
+        Some((regulation, article)) => (regulation, Some(article)),
+        None => (reference, None),
+    }
 }
 
 /// Whether `s` names a fact an article requires, `<regulation>#<article>#<fact>`
@@ -1780,6 +1903,222 @@ pub struct MachineReadable {
     /// Document properties this article establishes (schema v0.7.0)
     #[serde(default)]
     pub declares: Option<Vec<Declaration>>,
+    /// In a reduction: the state it keeps while it plays a chronicle
+    /// forward, and what each record does with it (schema v0.8.14).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub projection: Option<Projection>,
+}
+
+/// A reduction that plays a cell's chronicle forward (schema v0.8.14): the
+/// properties of its state, and per article a record rests on, the step
+/// that changes them. Its `execution` answers from the last state.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Projection {
+    /// The parameter of the reduction that names whose records are played,
+    /// such as an applicant. A record holds its key under the same name, as
+    /// a field or an output. Without it, every record is played.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub key: Option<String>,
+    /// Instead of `key` (schema v0.8.17): play one aggregate per record that
+    /// rests on this article, `<regulation>#<article>` with `#<KIND>` where
+    /// the article gives more than one kind: that record, its root, and the
+    /// records that refer to it. Another reduction reads the last state of
+    /// each aggregate through `source.projections`.
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "optional_step_record"
+    )]
+    pub per: Option<String>,
+    pub state: Vec<StateProperty>,
+    pub steps: Vec<ProjectionStep>,
+}
+
+/// One property of a projection's state. Before the first record it holds
+/// the start value of its type ([`StateProperty::start`]).
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct StateProperty {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub property_type: ParameterType,
+    /// Since schema v0.8.20: whether the property may hold null, as
+    /// `nullable` on a parameter, input or output (RFC-036). A nullable
+    /// boolean, number or amount starts as null. A string or a date may hold
+    /// null whatever this says, as before; an array never does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nullable: Option<bool>,
+    /// Only and always with type `array` (schema v0.8.20): the columns of
+    /// each row, so the property holds a table.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<Column>>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
+}
+
+impl StateProperty {
+    /// Whether the property may hold null: when it says so (`nullable`,
+    /// schema v0.8.20), and always for a string or a date, whose start value
+    /// is null.
+    pub fn is_nullable(&self) -> bool {
+        self.nullable == Some(true)
+            || matches!(
+                self.property_type,
+                ParameterType::String | ParameterType::Date
+            )
+    }
+
+    /// The value before the first record: an empty list for an array, null
+    /// for a nullable property ([`Self::is_nullable`]), and otherwise false
+    /// for a boolean and 0 for a number or an amount.
+    pub fn start(&self) -> Value {
+        match self.property_type {
+            ParameterType::Array => Value::Array(Vec::new()),
+            _ if self.is_nullable() => Value::Null,
+            ParameterType::Boolean => Value::Bool(false),
+            ParameterType::Number | ParameterType::Amount => Value::Int(0),
+            _ => Value::Null,
+        }
+    }
+}
+
+/// What a record under one article does with the state: like an article,
+/// it takes inputs from the outputs of a law (`source.regulation`), with
+/// parameters from the record and the state, and its actions give the
+/// properties of the state their values. What the record does is in that
+/// law; the step only couples each property to an output.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct ProjectionStep {
+    /// The article the record rests on, `<regulation>#<article>`, with a
+    /// third segment `#<KIND>` when the article produces or requires more
+    /// than one kind of record: a submission kind, a legal character or
+    /// `EXECUTOGRAM`, such as `wet#1#BESCHIKKING`.
+    #[serde(deserialize_with = "step_record")]
+    pub record: String,
+    /// The outputs of a law the step takes, each as an article input with
+    /// `source: {regulation, output, parameters}`. A parameter is
+    /// `$record.<field>` or `$state.<property>`. A step without inputs, whose
+    /// actions read only the record and the state, omits the key; skipping
+    /// the empty list keeps a round trip equal to the source.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub input: Vec<Input>,
+    /// What the step gives each property of the state, as the actions of
+    /// an article: `output` names the property, `value` is an input of the
+    /// step (`$<input>`), a field of the record (`$record.<field>`) or a
+    /// property of the state before it (`$state.<property>`). A property no
+    /// action names keeps its value.
+    pub actions: Vec<Action>,
+}
+
+/// What a step reads: one of its inputs (`$<name>`), a field or output of
+/// the record (`$record.<name>`), or a property of the state before it
+/// (`$state.<name>`).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StepSource {
+    Input(String),
+    Record(String),
+    State(String),
+}
+
+impl StepSource {
+    /// Read `$<name>`, `$record.<name>` or `$state.<name>`; anything else is
+    /// no source.
+    pub fn parse(s: &str) -> Option<Self> {
+        let name_ok = |n: &str| {
+            !n.is_empty()
+                && n.chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        };
+        let path = s.strip_prefix('$')?;
+        match path.split_once('.') {
+            Some(("record", name)) if name_ok(name) => Some(Self::Record(name.to_string())),
+            Some(("state", name)) if name_ok(name) => Some(Self::State(name.to_string())),
+            None if name_ok(path) && path != "record" && path != "state" => {
+                Some(Self::Input(path.to_string()))
+            }
+            _ => None,
+        }
+    }
+}
+
+impl std::fmt::Display for StepSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Input(name) => write!(f, "${name}"),
+            Self::Record(name) => write!(f, "$record.{name}"),
+            Self::State(name) => write!(f, "$state.{name}"),
+        }
+    }
+}
+
+/// Whether the third segment of a record address (`per`, `steps[].record`)
+/// names a fact the article requires, in lower case, such as `ingeleverd` in
+/// `wet#4#ingeleverd` (schema v0.8.18), rather than a kind in capitals.
+pub fn names_fact(segment: &str) -> bool {
+    segment.starts_with(|c: char| c.is_ascii_lowercase())
+        && segment
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+}
+
+impl ProjectionStep {
+    /// The article the step is about and the kind or the fact it names, if
+    /// any: `wet#1` and `BESCHIKKING` for `wet#1#BESCHIKKING`, `wet#4` and
+    /// `ingeleverd` for `wet#4#ingeleverd` ([`names_fact`]).
+    pub fn basis_and_kind(&self) -> (&str, Option<&str>) {
+        split_kind(&self.record)
+    }
+}
+
+impl Projection {
+    /// The article and the kind or the fact of the roots of a projection
+    /// with `per`.
+    pub fn per_basis_and_kind(&self) -> Option<(&str, Option<&str>)> {
+        self.per.as_deref().map(split_kind)
+    }
+}
+
+/// [`step_record`] for an optional field.
+fn optional_step_record<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    step_record(deserializer).map(Some)
+}
+
+/// Split `<regulation>#<article>[#<KIND>|#<fact>]` into the article and the
+/// third segment.
+fn split_kind(record: &str) -> (&str, Option<&str>) {
+    match record.split('#').count() {
+        3 => record
+            .rsplit_once('#')
+            .map_or((record, None), |(basis, kind)| (basis, Some(kind))),
+        _ => (record, None),
+    }
+}
+
+/// Deserialize `<regulation>#<article>`, optionally followed by `#<KIND>`,
+/// a kind in capitals, or by `#<fact>`, the name of a fact in lower case
+/// (schema v0.8.18; the loader refuses it in a file on an earlier version).
+fn step_record<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let s = String::deserialize(deserializer)?;
+    let (basis, kind) = split_kind(&s);
+    let kind_ok = kind.is_none_or(|k| {
+        names_fact(k) || (!k.is_empty() && k.chars().all(|c| c.is_ascii_uppercase() || c == '_'))
+    });
+    if is_article_reference(basis) && kind_ok {
+        Ok(s)
+    } else {
+        Err(serde::de::Error::custom(format!(
+            "'{s}' is not <regulation>#<article>, optionally with #<KIND> or #<fact>, without a \
+             paragraph"
+        )))
+    }
 }
 
 /// Represents a single article in a law
@@ -2159,6 +2498,16 @@ pub struct ArticleBasedLaw {
 }
 
 impl ArticleBasedLaw {
+    /// The authorities the regulation names as its holder in its root
+    /// `competent_authority`, such as the body whose policy it is. Empty
+    /// when it names none, or names a reference instead.
+    pub fn holder(&self) -> &[NamedAuthority] {
+        self.competent_authority
+            .as_ref()
+            .and_then(CompetentAuthority::named)
+            .unwrap_or_default()
+    }
+
     /// Extract schema version (e.g., "v0.5.0") from the `$schema` URL.
     ///
     /// Looks for a `/vN.N.N` pattern (semver with v prefix) in the URL,

@@ -4,12 +4,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::path::Path;
-
 use chrono::NaiveDate;
 use regelrecht_poc_chronolexografie::kern::Corpus;
 use regelrecht_poc_chronolexografie::spel::{Fout, Spel};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
+use std::path::Path;
+
+mod common;
+use common::{Awb, indiening_van};
 
 fn spel() -> Spel {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -70,7 +72,10 @@ fn voorbeeld_bsn(casus: &Value) -> &str {
 fn the_forms_come_from_the_chosen_case() {
     let mut spel = spel_met("vakantieverlof");
     let vormen = spel.vormen(dag("2026-10-14")).unwrap();
-    assert_eq!(vormen["aanvraag"]["basis"], json!("leerplichtwet_1969#13a"));
+    assert_eq!(
+        vormen["indieningen"]["leerplichtwet_1969#13a"]["basis"],
+        json!("leerplichtwet_1969#13a")
+    );
 }
 
 #[test]
@@ -142,7 +147,7 @@ fn without_a_chosen_case_a_step_is_refused_and_choosing_one_starts_its_cell() {
     let casus = spel.kiezen("vakantieverlof").unwrap();
     assert_eq!(casus["besluit"], json!("leerplichtwet_1969#13a"));
     assert_eq!(
-        casus["beslissing_op_bezwaar"],
+        indiening_van(&casus, "BEZWAAR")["besluit"],
         json!("algemene_wet_bestuursrecht#7:11")
     );
     assert_eq!(casus["rol"], json!("het hoofd"));
@@ -231,12 +236,14 @@ fn the_appeal_from_the_objection_to_the_decision_taken_again() {
     // the case's own example values.
     let mut spel = spel_met("vakantieverlof");
     let casus = spel.casus().unwrap();
-    assert_eq!(casus["beroep"], json!("algemene_wet_bestuursrecht#8:70"));
+    let beroep = indiening_van(&casus, "BEROEP");
+    assert_eq!(beroep["artikel"], json!("algemene_wet_bestuursrecht#8:70"));
     assert_eq!(
-        casus["ontvangst"],
+        beroep["ontvangst"],
         json!("algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak")
     );
-    assert_eq!(casus["rechter"]["cel"], json!("rechtbank_wilgendaal"));
+    assert_eq!(beroep["cel"], json!("rechtbank_wilgendaal"));
+    assert_eq!(beroep["cel_naam"], json!("Rechtbank Wilgendaal"));
     let voorbeeld = &casus["voorbeeld"];
     let aanvraag = spel
         .aanvragen(&map(&voorbeeld["aanvraag"]), dag("2026-10-14"))
@@ -260,7 +267,7 @@ fn the_appeal_from_the_objection_to_the_decision_taken_again() {
     let ongegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &Map::new(),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-15"),
         )
         .unwrap();
@@ -290,18 +297,28 @@ fn the_appeal_from_the_objection_to_the_decision_taken_again() {
     spel.waarom_uitspraak(&uitspraak).unwrap();
     let ontvangst = spel.toezenden(&uitspraak, dag("2027-01-11")).unwrap();
     let ontvangst = ontvangst["id"].as_str().unwrap().to_string();
-    let toets = spel.heroverweging_na_uitspraak(&ontvangst).unwrap();
+    let toets = spel
+        .heroverweging_na_uitspraak(&ontvangst, &common::ontvankelijk(&Map::new()))
+        .unwrap();
     assert_eq!(toets["bezwaar"], bezwaar["id"]);
     let bevindingen = map(&json!({ "specifieke_aard_beroep_ouder": true }));
     let voorlopig = spel
-        .voorvertoning_na_uitspraak(&ontvangst, &bevindingen, dag("2027-01-18"))
+        .voorvertoning_na_uitspraak(
+            &ontvangst,
+            &common::ontvankelijk(&bevindingen),
+            dag("2027-01-18"),
+        )
         .unwrap();
     assert_eq!(
         voorlopig["voorlopig"]["nieuw_besluit"]["outputs"]["verlof_verleend"],
         json!(true)
     );
     let opnieuw = spel
-        .opnieuw_beslissen_op_bezwaar(&ontvangst, &bevindingen, dag("2027-01-18"))
+        .opnieuw_beslissen_op_bezwaar(
+            &ontvangst,
+            &common::ontvankelijk(&bevindingen),
+            dag("2027-01-18"),
+        )
         .unwrap();
     assert_eq!(
         opnieuw["nieuw_besluit"]["outputs"]["verlof_verleend"],
@@ -311,7 +328,7 @@ fn the_appeal_from_the_objection_to_the_decision_taken_again() {
     // Both chronicles: the court's is that of another cell of the case. A
     // reset empties it too.
     let kroniek = spel.kroniek().unwrap();
-    assert_eq!(kroniek["grammen"].as_array().unwrap().len(), 8);
+    assert_eq!(kroniek["grammen"].as_array().unwrap().len(), 7);
     let rechter = &kroniek["andere"][0];
     assert_eq!(rechter["cel"], json!("rechtbank_wilgendaal"));
     assert_eq!(rechter["cel_naam"], json!("Rechtbank Wilgendaal"));
@@ -343,7 +360,10 @@ fn parkeerkaart_a_second_card_next_to_a_valid_one() {
         .map(|a| a["cel"].as_str().unwrap())
         .collect();
     assert_eq!(andere, ["ggd_wilgendaal", "rechtbank_wilgendaal"]);
-    assert_eq!(casus["rechter"]["cel"], json!("rechtbank_wilgendaal"));
+    assert_eq!(
+        indiening_van(&casus, "BEROEP")["cel"],
+        json!("rechtbank_wilgendaal")
+    );
     let aanvraag = map(&casus["voorbeeld"]["aanvraag"]);
     let bevindingen = map(&casus["voorbeeld"]["bevindingen"]);
     let uitkomst = casus["uitkomst"].as_str().unwrap().to_string();
@@ -372,10 +392,12 @@ fn parkeerkaart_a_second_card_next_to_a_valid_one() {
         .hoe_beantwoord(id, "aanvrager_heeft_geldige_gehandicaptenparkeerkaart")
         .unwrap();
     let eerste = besluiten[0]["besluit"]["id"].as_str().unwrap();
-    assert!(hoe["antwoorden"][0]["spoor"]
-        .as_str()
-        .unwrap()
-        .contains(eerste));
+    assert!(
+        hoe["antwoorden"][0]["spoor"]
+            .as_str()
+            .unwrap()
+            .contains(eerste)
+    );
 }
 
 #[test]
@@ -487,8 +509,8 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
     // The scenario "Een kaart na bezwaar telt bij de volgende aanvraag", as
     // the app plays it. The refusal is revoked on objection and a card takes
     // its place (Awb 7:11). At the second application the municipality's
-    // reduction finds that card among the decisions that hold, which the
-    // reduction of the Awb gives.
+    // reduction plays that card, while the revoked refusal does not count:
+    // the effect of Awb 7:11 says so.
     const BSN: &str = "999990068";
     let mut spel = spel_met("gehandicaptenparkeerkaart");
     let casus = spel.casus().unwrap();
@@ -521,7 +543,7 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
     let gegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &Map::new(),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -529,10 +551,7 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
         gegrond["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
         json!(true)
     );
-    let nieuw = gegrond["beslissing"]["outputs"]["nieuw_besluit"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let beslissing = gegrond["beslissing"]["id"].as_str().unwrap().to_string();
 
     let tweede = spel.aanvragen(&aanvraag, dag("2027-03-01")).unwrap();
     let besluit = spel
@@ -551,23 +570,26 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
         .unwrap();
     assert_eq!(antwoord["waarde"], json!(true));
 
-    // The reduction of the Awb gives the refusal as revoked. The only decision
-    // that holds is the one the decision on objection put in its place, and
-    // that one holds the card the cell counted.
+    // The reduction explains itself in its trace. The decision on the
+    // objection revokes the refusal (Awb 7:11 lid 2, as an effect), so the
+    // refusal does not count. The decision it put in its place is part of
+    // it, and its step gives the card the cell counted, in the aggregate of
+    // the refusal.
     let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
     let id = besluit["besluit"]["id"].as_str().unwrap();
     let hoe = spel
         .hoe_beantwoord(id, "aanvrager_heeft_geldige_gehandicaptenparkeerkaart")
         .unwrap();
-    let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
-    assert_eq!(uitvoer["herroepen_besluiten"], json!([refusal]));
-    let geldend: Vec<&str> = uitvoer["geldende_besluiten"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|b| b["id"].as_str().unwrap())
-        .collect();
-    assert_eq!(geldend, [nieuw.as_str()]);
+    let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
+    assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
+    assert!(
+        spoor.contains(&format!("the aggregate of {refusal}")),
+        "{spoor}"
+    );
+    assert!(
+        spoor.contains(&format!("{beslissing}: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#4: kaart_geldig_tot: null -> ")),
+        "{spoor}"
+    );
 }
 
 #[test]
@@ -656,7 +678,10 @@ fn bedrijfsparkeervergunning_a_company_in_the_city_centre_gets_a_permit() {
         casus["rol"],
         json!("het college van burgemeester en wethouders")
     );
-    assert_eq!(casus["rechter"]["cel"], json!("rechtbank_wilgendaal"));
+    assert_eq!(
+        indiening_van(&casus, "BEROEP")["cel"],
+        json!("rechtbank_wilgendaal")
+    );
     let besluit = bedrijf_vraagt(
         &mut spel,
         "99990011",
@@ -679,26 +704,26 @@ fn bedrijfsparkeervergunning_a_company_in_the_city_centre_gets_a_permit() {
         antwoord(&besluit, "aantal_geldige_bedrijfsparkeervergunningen"),
         &json!(0)
     );
-    // The registration is in the Chamber's own chronicle (RFC-051 §2).
+    // The registration is in the Chamber's own chronicle (RFC-051 §2),
+    // beside the others of its begin and the correction of one of them.
     let kroniek = spel.kroniek().unwrap();
     assert_eq!(soorten(&kroniek), ["AANVRAAG", "BESCHIKKING"]);
     assert_eq!(kroniek["andere"][0]["cel"], json!("kamer_van_koophandel"));
-    assert_eq!(
-        soorten(&kroniek["andere"][0]),
-        ["EXECUTOGRAM", "EXECUTOGRAM", "EXECUTOGRAM", "EXECUTOGRAM"]
-    );
+    assert_eq!(soorten(&kroniek["andere"][0]), ["EXECUTOGRAM"; 8]);
 }
 
 const INSCHRIJVING: &str = "beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven";
 
 /// The Chamber of Commerce registers the establishment of `kvk` anew on
-/// `datum`.
+/// `datum`, under a trade name and a visiting address made up from them.
 fn kvk_schrijft_in(spel: &mut Spel, kvk: &str, postcode: &str, personen: u32, datum: &str) {
     spel.vastleggen(
         "kamer_van_koophandel",
         INSCHRIJVING,
         &map(&json!({
             "kvk_nummer": kvk,
+            "handelsnaam": format!("Bedrijf {kvk}"),
+            "bezoekadres": format!("Singel 1, {postcode} Wilgendaal"),
             "postcode": postcode,
             "aantal_werkzame_personen": personen,
             "datum_inschrijving": datum,
@@ -710,12 +735,11 @@ fn kvk_schrijft_in(spel: &mut Spel, kvk: &str, postcode: &str, personen: u32, da
 
 #[test]
 fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection() {
-    // The scenario "Het maximum in de schil, en een vergunning na bezwaar":
-    // one person works at the company, so it gets one permit and a second is
+    // One person works at the company, so it gets one permit and a second is
     // refused. After the objection the Chamber registers two, the refusal is
     // revoked and a permit takes its place (Awb 7:11). At the third
-    // application the municipality counts that permit and the first, among
-    // the decisions the reduction of the Awb gives.
+    // application the municipality counts that permit and the first; the
+    // revoked refusal does not count (the effect of Awb 7:11).
     const KVK: &str = "99990022";
     let mut spel = spel_met("bedrijfsparkeervergunning");
     let casus = spel.casus().unwrap();
@@ -757,7 +781,7 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
     let gegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &Map::new(),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -766,10 +790,7 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
         json!(true),
         "{gegrond}"
     );
-    let nieuw = gegrond["beslissing"]["outputs"]["nieuw_besluit"]
-        .as_str()
-        .unwrap()
-        .to_string();
+    let beslissing = gegrond["beslissing"]["id"].as_str().unwrap().to_string();
 
     let derde = bedrijf_vraagt_met(
         &mut spel,
@@ -790,18 +811,36 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
             "aantal_geldige_bedrijfsparkeervergunningen",
         )
         .unwrap();
-    let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
+    // The refusal does not count: the decision on the objection revokes it.
+    // The decision it put in the refusal's place is part of it, and lands in
+    // the refusal's aggregate through the step on the decision on the
+    // objection. The first permit is an aggregate of its own. Each has its
+    // last valid day.
+    let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
     let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
-    assert_eq!(uitvoer["herroepen_besluiten"], json!([refusal]));
-    let geldend: Vec<&str> = uitvoer["geldende_besluiten"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|b| b["id"].as_str().unwrap())
-        .collect();
-    assert_eq!(
-        geldend,
-        [eerste["besluit"]["id"].as_str().unwrap(), nieuw.as_str()]
+    let eerste = eerste["besluit"]["id"].as_str().unwrap();
+    for aggregaat in [refusal, eerste] {
+        assert!(
+            spoor.contains(&format!("the aggregate of {aggregaat}")),
+            "{aggregaat}: {spoor}"
+        );
+    }
+    assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
+    // Each aggregate holds which of its decisions grants the permit now:
+    // the first permit itself, and the decision on the objection that took
+    // a new decision in the refusal's place ($record.id, schema v0.8.18).
+    assert!(
+        spoor.contains(&format!(
+            "{eerste}: besluit_dat_verleent: null -> {eerste}, besluit_datum: null -> "
+        )),
+        "{spoor}"
+    );
+    assert!(
+        spoor.contains(&format!(
+            "{beslissing}: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal#3: \
+             besluit_dat_verleent: null -> {beslissing}, besluit_datum: null -> "
+        )),
+        "{spoor}"
     );
 }
 
@@ -832,7 +871,7 @@ fn bedrijfsparkeervergunning_outside_the_area_and_after_the_move_inside() {
         &json!("7711 AC")
     );
     let kvk = &spel.kroniek().unwrap()["andere"][0];
-    assert_eq!(soorten(kvk).len(), 5);
+    assert_eq!(soorten(kvk).len(), 9);
 }
 
 #[test]
@@ -954,7 +993,11 @@ fn thuiszorg_tot_bezwaar(spel: &mut Spel) -> (Value, Value) {
     // At the reconsideration the college judges anew; the form gives what
     // it judged before.
     let toets = spel
-        .heroverweging(bezwaar["id"].as_str().unwrap(), dag("2026-11-20"))
+        .heroverweging(
+            bezwaar["id"].as_str().unwrap(),
+            &common::ontvankelijk(&Map::new()),
+            dag("2026-11-20"),
+        )
         .unwrap();
     assert_eq!(toets["ontvankelijk"], json!(true), "{toets}");
     let opnieuw: Vec<(&str, &Value)> = toets["bevindingen"]
@@ -980,7 +1023,7 @@ fn bedrijfsparkeervergunning_the_hardship_clause_on_objection_grants_a_third_per
     let gegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &hardheid(true),
+            &common::ontvankelijk(&hardheid(true)),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -1000,7 +1043,7 @@ fn bedrijfsparkeervergunning_the_hardship_clause_on_objection_grants_a_third_per
         json!("2027-11-19")
     );
     // The new decision records the judgement that carries it.
-    assert_eq!(nieuw["fields"][HARDHEID], json!(true), "{nieuw}");
+    assert_eq!(nieuw["findings"][HARDHEID], json!(true), "{nieuw}");
 
     let vierde = bedrijf_vraagt_met(
         &mut spel,
@@ -1024,11 +1067,10 @@ fn bedrijfsparkeervergunning_the_hardship_clause_on_objection_grants_a_third_per
             "aantal_geldige_bedrijfsparkeervergunningen",
         )
         .unwrap();
-    let uitvoer = &hoe["antwoorden"][0]["uitvoer"];
-    assert_eq!(
-        uitvoer["herroepen_besluiten"],
-        json!([geweigerd["besluit"]["id"]])
-    );
+    // The refusal does not count: the decision on the objection revokes it.
+    let spoor = hoe["antwoorden"][0]["spoor"].as_str().unwrap();
+    let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
+    assert!(spoor.contains(&format!("{refusal}: revoked by")), "{spoor}");
 }
 
 #[test]
@@ -1041,7 +1083,7 @@ fn bedrijfsparkeervergunning_the_hardship_clause_not_applied_leaves_the_refusal(
     let ongegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &hardheid(false),
+            &common::ontvankelijk(&hardheid(false)),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -1131,7 +1173,7 @@ fn bedrijfsparkeervergunning_an_objection_against_a_permit_at_the_cap_does_not_c
     let beslissing = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &Map::new(),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -1161,13 +1203,11 @@ fn bedrijfsparkeervergunning_a_permit_granted_on_29_february_runs_to_28_february
 
 #[test]
 fn every_case_shows_the_reductions_of_its_cell() {
-    // The tab Reductie lists every reduction the cell's catalogue names,
-    // with the decisions each reads. A reduction can name the article whose
-    // decisions it reads through a parameter of the reduction it calls
-    // (`basis` of the reduction of the Awb). The municipality's catalogue
-    // serves two cases, so in each case one of its reductions reads the
-    // decisions under the other case's article: that article has to be in
-    // the case too.
+    // The tab Reductie lists every reduction the cell's catalogue names, with
+    // the decisions each reads: for a reduction that plays the chronicle, those
+    // under the article its step names. The municipality's catalogue serves two
+    // cases, so in each case one of its reductions reads the decisions under
+    // the other case's article: that article has to be in the case too.
     for id in [
         "bedrijfsparkeervergunning",
         "gehandicaptenparkeerkaart",
@@ -1185,7 +1225,9 @@ fn every_case_shows_the_reductions_of_its_cell() {
 fn the_log_holds_the_facts_the_other_cells_recorded() {
     // The registrations of the Chamber of Commerce are facts the decisions
     // read: the log shows them beside the municipality's own steps, those
-    // from the case file and one recorded during play, merged by day.
+    // from the case file and one recorded during play, merged by day. So
+    // are the authentications of the accredited service, from the case
+    // file, recorded the day before the first scenario.
     let mut spel = spel_met("bedrijfsparkeervergunning");
     bedrijf_vraagt(
         &mut spel,
@@ -1212,16 +1254,306 @@ fn the_log_holds_the_facts_the_other_cells_recorded() {
         "EXECUTOGRAM".to_string(),
     );
     let eigen = |kind: &str| ("gemeente_wilgendaal".to_string(), kind.to_string());
-    assert_eq!(
-        stappen,
-        [
-            kvk.clone(),
-            eigen("BESCHIKKING"),
-            eigen("AANVRAAG"),
-            kvk.clone(),
-            kvk.clone(),
-            kvk.clone(),
-            kvk
-        ]
+    let dienst = (
+        "erkende_dienst_inlogmiddel".to_string(),
+        "EXECUTOGRAM".to_string(),
     );
+    let mut verwacht = vec![kvk.clone(), eigen("BESCHIKKING"), eigen("AANVRAAG")];
+    verwacht.extend(std::iter::repeat_n(dienst, 8));
+    verwacht.extend(std::iter::repeat_n(kvk, 8));
+    assert_eq!(stappen, verwacht);
+}
+
+const KVK: &str = "kamer_van_koophandel";
+const CORRECTIE: &str = "beleid_handelsregister_kamer_van_koophandel#2#inschrijving_gecorrigeerd";
+
+/// The chronicle of the Chamber of Commerce in the game.
+fn kroniek_kvk(spel: &mut Spel) -> Vec<Value> {
+    let k = spel.kroniek().unwrap();
+    k["andere"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|a| a["cel"] == json!(KVK))
+        .unwrap()["grammen"]
+        .as_array()
+        .unwrap()
+        .clone()
+}
+
+/// The registration of the print shop the case names
+/// `inschrijving_drukkerij`, and the correction in its begin.
+fn drukkerij(grammen: &[Value]) -> (&Value, &Value) {
+    let van = |kvk: &str| {
+        grammen
+            .iter()
+            .find(|g| g["fields"]["kvk_nummer"] == json!(kvk))
+            .unwrap()
+    };
+    let inschrijving = van("99990066");
+    let correctie = grammen
+        .iter()
+        .find(|g| g["fact"] == json!("inschrijving_gecorrigeerd"))
+        .unwrap();
+    (inschrijving, correctie)
+}
+
+#[test]
+fn a_fact_refers_to_a_record_of_the_begin_by_its_kenmerk() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let (inschrijving, begin) = {
+        let grammen = kroniek_kvk(&mut spel);
+        let (i, c) = drukkerij(&grammen);
+        (i.clone(), c.clone())
+    };
+    assert_eq!(begin["refers_to"], inschrijving["id"]);
+    let velden = map(&json!({ "postcode": "7713 AB", "aantal_werkzame_personen": 3 }));
+    let gram = spel
+        .vastleggen_verwijzend(
+            KVK,
+            CORRECTIE,
+            &velden,
+            Some("inschrijving_drukkerij"),
+            dag("2026-11-02"),
+        )
+        .unwrap();
+    assert_eq!(gram["refers_to"], inschrijving["id"]);
+    // Without a kenmerk the fact refers to nothing, as before.
+    let gram = spel
+        .vastleggen(KVK, CORRECTIE, &velden, dag("2026-11-03"))
+        .unwrap();
+    assert!(gram.get("refers_to").is_none_or(Value::is_null), "{gram}");
+}
+
+#[test]
+fn a_fact_that_refers_to_an_unknown_kenmerk_is_refused() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let velden = map(&json!({ "postcode": "7713 AB", "aantal_werkzame_personen": 3 }));
+    let e = spel
+        .vastleggen_verwijzend(KVK, CORRECTIE, &velden, Some("onbekend"), dag("2026-11-02"))
+        .unwrap_err();
+    assert!(
+        matches!(&e, Fout::Cel(_))
+            && e.to_string()
+                .contains("'onbekend' is no record in the chronicle"),
+        "{e}"
+    );
+}
+
+#[test]
+fn a_reference_survives_a_saved_game() {
+    let bewaard = spel_met("bedrijfsparkeervergunning").bewaren().unwrap();
+    let mut terug = spel();
+    terug.herstellen(bewaard).unwrap();
+    let velden = map(&json!({ "postcode": "7713 AB", "aantal_werkzame_personen": 3 }));
+    let gram = terug
+        .vastleggen_verwijzend(
+            KVK,
+            CORRECTIE,
+            &velden,
+            Some("inschrijving_drukkerij"),
+            dag("2026-11-02"),
+        )
+        .unwrap();
+    let grammen = kroniek_kvk(&mut terug);
+    let (inschrijving, _) = drukkerij(&grammen);
+    assert_eq!(gram["refers_to"], inschrijving["id"]);
+}
+
+#[test]
+fn a_reference_into_a_chronicle_of_another_begin_is_refused() {
+    // A game saved before the case's begin changed: at the place of the
+    // registration the kenmerk names, the Chamber's chronicle holds a
+    // registration of the same fact for another company. The correction
+    // must not attach to it.
+    let mut bewaard = spel_met("bedrijfsparkeervergunning").bewaren().unwrap();
+    let kvk = bewaard["kronieken"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|k| k[0]["recording_actor"] == json!(KVK))
+        .unwrap()
+        .as_array_mut()
+        .unwrap();
+    kvk[4]["fields"]["kvk_nummer"] = json!("99990077");
+    let mut terug = spel();
+    terug.herstellen(bewaard).unwrap();
+    let velden = map(&json!({ "postcode": "7713 AB", "aantal_werkzame_personen": 3 }));
+    let e = terug
+        .vastleggen_verwijzend(
+            KVK,
+            CORRECTIE,
+            &velden,
+            Some("inschrijving_drukkerij"),
+            dag("2026-11-02"),
+        )
+        .unwrap_err();
+    assert!(
+        e.to_string().contains("does not start with its begin"),
+        "{e}"
+    );
+}
+
+/// The policy article of the fictional parking permit that reads the trade
+/// register through the answer of the cell of the Kamer van Koophandel.
+const HANDELSREGISTER: &str = "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#1";
+
+/// What the sources give for the application fields of `prefill`
+/// (`<field>` to `<output>` of [`HANDELSREGISTER`]), for the company
+/// `kvk_nummer`, as known on `datum`.
+fn voorinvullen(spel: &mut Spel, prefill: &[(&str, &str)], kvk_nummer: &str, datum: &str) -> Value {
+    let bronnen: Map<String, Value> = prefill
+        .iter()
+        .map(|(veld, uitvoer)| {
+            (
+                (*veld).to_string(),
+                json!(format!("{HANDELSREGISTER}#{uitvoer}")),
+            )
+        })
+        .collect();
+    spel.voorinvullen(
+        &bronnen,
+        &map(&json!({ "kvk_nummer": kvk_nummer })),
+        dag(datum),
+    )
+    .unwrap()
+}
+
+#[test]
+fn a_prefill_takes_the_value_from_the_cell_that_answers_and_records_nothing() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let voor = spel.kroniek().unwrap();
+    let ingevuld = voorinvullen(
+        &mut spel,
+        &[
+            ("postcode", "postcode_vestiging_volgens_handelsregister"),
+            (
+                "werkzame_personen",
+                "aantal_werkzame_personen_volgens_handelsregister",
+            ),
+        ],
+        "99990011",
+        "2026-10-13",
+    );
+    assert_eq!(ingevuld["postcode"]["waarde"], json!("7711 AB"));
+    assert_eq!(ingevuld["werkzame_personen"]["waarde"], json!(4));
+    assert_eq!(
+        ingevuld["werkzame_personen"]["bron"],
+        json!(format!(
+            "{HANDELSREGISTER}#aantal_werkzame_personen_volgens_handelsregister"
+        ))
+    );
+    // Where the value comes from: the cell that answered, with its answer
+    // and the reduction it answered from.
+    let herkomst = &ingevuld["werkzame_personen"]["herkomst"];
+    assert_eq!(herkomst.as_array().unwrap().len(), 1);
+    assert_eq!(herkomst[0]["door"], json!("kamer_van_koophandel"));
+    assert_eq!(herkomst[0]["antwoord"], json!("aantal_werkzame_personen"));
+    assert_eq!(
+        herkomst[0]["reductie"],
+        json!("reductie_vestiging_in_handelsregister")
+    );
+    assert_eq!(
+        herkomst[0]["artikel"],
+        json!("vestiging_in_handelsregister")
+    );
+    // Asking records nothing, in any cell.
+    assert_eq!(spel.kroniek().unwrap(), voor);
+}
+
+#[test]
+fn a_prefill_reads_the_chronicle_as_the_cell_knows_it_on_the_day() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let prefill = [(
+        "werkzame_personen",
+        "aantal_werkzame_personen_volgens_handelsregister",
+    )];
+    // The printer was registered on 23 February, but the Kamer recorded it
+    // only on 2 March: on 25 February its cell does not know it yet.
+    let eerder = voorinvullen(&mut spel, &prefill, "99990066", "2026-02-25");
+    assert_eq!(eerder["werkzame_personen"]["waarde"], Value::Null);
+    // From 2 March it knows the registration, with the correction to two
+    // persons it recorded the same day.
+    let later = voorinvullen(&mut spel, &prefill, "99990066", "2026-03-02");
+    assert_eq!(later["werkzame_personen"]["waarde"], json!(2));
+}
+
+#[test]
+fn a_prefill_without_what_a_source_needs_leaves_that_field_empty() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let bronnen = map(&json!({
+        "postcode": format!("{HANDELSREGISTER}#postcode_vestiging_volgens_handelsregister"),
+    }));
+    // No number yet: the applicant has not logged in.
+    let leeg = spel
+        .voorinvullen(&bronnen, &Map::new(), dag("2026-10-13"))
+        .unwrap();
+    assert_eq!(leeg["postcode"]["waarde"], Value::Null);
+    assert_eq!(leeg["postcode"]["herkomst"], json!([]));
+    assert!(
+        leeg["postcode"]["fout"]
+            .as_str()
+            .unwrap()
+            .contains("kvk_nummer")
+    );
+}
+
+#[test]
+fn a_prefill_for_a_number_the_register_does_not_know_is_empty_without_origin() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let leeg = voorinvullen(
+        &mut spel,
+        &[(
+            "werkzame_personen",
+            "aantal_werkzame_personen_volgens_handelsregister",
+        )],
+        "12345678",
+        "2026-10-13",
+    );
+    assert_eq!(leeg["werkzame_personen"]["waarde"], Value::Null);
+    assert_eq!(leeg["werkzame_personen"]["herkomst"], json!([]));
+}
+
+#[test]
+fn a_prefill_from_a_source_that_is_no_output_of_its_article_leaves_its_field_empty() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let velden = map(&json!({ "kvk_nummer": "99990011" }));
+    // A source that is no text is the caller's mistake: refused.
+    let bronnen = map(&json!({ "postcode": 42 }));
+    let e = spel
+        .voorinvullen(&bronnen, &velden, dag("2026-10-13"))
+        .unwrap_err();
+    assert!(
+        e.to_string()
+            .contains("not '<regelwerk>#<article>#<output>'"),
+        "{e}"
+    );
+    // A source the cell refuses leaves its own field empty, with the reason,
+    // and the other fields filled.
+    for (bron, waarom) in [
+        ("geen_bron", "is no <regulation>#<article>#<fact>"),
+        ("a#1", "is no <regulation>#<article>#<fact>"),
+        ("a##x", "is no <regulation>#<article>#<fact>"),
+        ("a#1#x#y", "is no <regulation>#<article>#<fact>"),
+        (
+            "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#1#bestaat_niet",
+            "has no output 'bestaat_niet'",
+        ),
+        (
+            "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#9#postcode_vestiging_volgens_handelsregister",
+            "has no article 9 in force",
+        ),
+    ] {
+        let bronnen = map(&json!({
+            "postcode": bron,
+            "werkzame_personen": format!("{HANDELSREGISTER}#aantal_werkzame_personen_volgens_handelsregister"),
+        }));
+        let ingevuld = spel
+            .voorinvullen(&bronnen, &velden, dag("2026-10-13"))
+            .unwrap();
+        assert_eq!(ingevuld["postcode"]["waarde"], Value::Null, "{bron}");
+        let fout = ingevuld["postcode"]["fout"].as_str().unwrap();
+        assert!(fout.contains(waarom), "{bron}: {fout}");
+        assert_eq!(ingevuld["werkzame_personen"]["waarde"], json!(4), "{bron}");
+    }
 }

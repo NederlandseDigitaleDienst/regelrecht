@@ -37,6 +37,7 @@ import '@nldd/design-system/list-item';
 import '@nldd/design-system/menu';
 import '@nldd/design-system/menu-bar';
 import '@nldd/design-system/menu-bar-item';
+import '@nldd/design-system/menu-item';
 import '@nldd/design-system/one-third-two-thirds-section';
 import '@nldd/design-system/page';
 import '@nldd/design-system/page-footer';

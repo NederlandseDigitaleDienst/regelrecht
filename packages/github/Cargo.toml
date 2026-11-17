@@ -1,7 +1,7 @@
 [package]
 name = "regelrecht-github"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 authors = ["MinBZK <noreply@minbzk.nl>"]
 description = "RegelRecht GitHub REST client — one GithubClient service shared across all regelrecht applications"
 license = "EUPL-1.2"

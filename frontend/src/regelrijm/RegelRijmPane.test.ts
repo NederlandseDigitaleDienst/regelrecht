@@ -2,8 +2,11 @@
 // the article as text in full, opening the action at a part, a tooltip on each
 // name saying where it comes from, and following a name to the article or
 // regelwerk that computes it.
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { mount, flushPromises, type VueWrapper } from '@vue/test-utils';
+import * as yaml from 'js-yaml';
+import { installTestCorpus } from '../test-utils/corpusSetup';
+import RegelRijmPane from './RegelRijmPane.vue';
 
 const WET_B = {
   $id: 'wet_b',
@@ -28,17 +31,15 @@ const ARTIKEL = {
 };
 const WET_A = { $id: 'wet_a', articles: [ARTIKEL, { number: '3', machine_readable: { execution: { actions: [{ output: 'korting', value: 5 }] } } }] };
 
-vi.mock('../composables/useLaw', () => ({
-  fetchLaw: vi.fn(async (_traject: string | null, id: string) => {
-    if (id === 'wet_c') return { law: { $id: 'wet_c', articles: [] }, lawName: 'Wet C' };
-    if (id !== 'wet_b') throw new Error('404');
-    return { law: WET_B, lawName: 'Wet B' };
-  }),
-}));
-
-const { default: RegelRijmPane } = await import('./RegelRijmPane.vue');
+// The other ruleworks the pane reads; any other id answers 404.
+function installCorpus() {
+  installTestCorpus({
+    '': { laws: { wet_b: yaml.dump(WET_B), wet_c: yaml.dump({ $id: 'wet_c', articles: [] }) } },
+  });
+}
 
 async function pane(props = {}) {
+  installCorpus();
   const wrapper = mount(RegelRijmPane, { props: { article: ARTIKEL, law: WET_A, lawId: 'wet_a', ...props } });
   await flushPromises();
   return wrapper;
@@ -153,7 +154,7 @@ describe('RegelRijmPane', () => {
     expect(wrapper.find('nldd-banner[variant="warning"]').attributes('text')).toBe('weg is in wet c geen uitkomst van een rekenregel.');
     await wrapper.find('[data-testid="regelrijm-follow-$kwijt"]').trigger('click');
     await flushPromises();
-    expect(wrapper.find('nldd-banner[variant="warning"]').attributes('text')).toBe('wet x is niet geladen: 404');
+    expect(wrapper.find('nldd-banner[variant="warning"]').attributes('text')).toBe('wet x is niet geladen: Failed to fetch: 404');
     expect(wrapper.emitted('navigate')).toBeUndefined();
   });
 

@@ -1,0 +1,37 @@
+---
+# Up to schema v0.8.18 a read model names the reduction alone.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json
+$id: test_conformance_bare_projections
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-11'
+valid_from: '2026-11-11'
+url: https://example.invalid/named
+name: Testreductie met benoemde artikelen
+articles:
+  - number: aantal_kaarten
+    url: https://example.invalid/named/aantal_kaarten
+    text: Hoeveel kaarten de aanvrager heeft.
+    machine_readable:
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+        input:
+          - name: kaarten
+            type: array
+            source:
+              projections: test_conformance_per_record
+              where:
+                aanvrager: $aanvrager
+        output:
+          - name: aantal_kaarten
+            type: number
+        actions:
+          - output: aantal_kaarten
+            value:
+              operation: FOREACH
+              collection: $kaarten
+              as: kaart
+              filter: $kaart.in_bezit
+              body: 1
+              combine: ADD

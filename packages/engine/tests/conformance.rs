@@ -75,10 +75,29 @@ const KNOWN_GAPS: &[&str] = &[
     "produces_unknown_decision_type.yaml",   // schema pins 9 decision types; model reads any string
     "produces_empty_list.yaml", // schema v0.8.1 wants at least one produced thing in a list; the model reads an empty list as producing nothing, which is what an absent `produces` means
     "produces_list_empty_outputs.yaml", // schema v0.8.1 wants at least one name under `outputs`; the model reads an empty list as an item that yields no output, which is what the schema means to rule out but harmless at run time
+    "produces_list_effects_empty.yaml", // schema v0.8.14 wants at least one effect; the model reads an empty list as a decision that does nothing with another, which is what an absent `effects` means
+    "produces_list_effects_on_submission.yaml", // schema v0.8.14 allows `effects` only on a decision; the model reads them on any item, and the loader refuses the law (`reject_ambiguous_produces`) — leniency stops at the model boundary
+    "projection_state_type_array.yaml", // schema v0.8.14 allows five types for a state property; the model reads any ParameterType, and the loader refuses the others (`reject_malformed_projection`)
+    "projection_state_empty.yaml", // schema v0.8.14 wants at least one state property; the model reads an empty list, and the loader refuses it
+    "projection_step_set_literal.yaml", // schema v0.8.14 allows only a bare reference as the value of a step's action; the model reads any value, and the loader refuses the rest (`reject_malformed_projection`)
+    "projection_step_set_operation.yaml", // schema v0.8.14 allows only a bare reference as the value of a step's action; the model reads an operation, and the loader refuses it (`reject_malformed_projection`)
     "produces_list_unknown_type.yaml", // schema v0.8.1 pins `type` to a submission kind or a legal character; the model reads any string, and an unknown one as a legal character, as for `produces_unknown_legal_character`
     "produces_list_requests_on_decision.yaml", // schema v0.8.1 allows `requests` only on a submission (`if`/`then`); the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)
     "produces_list_derived_on_submission.yaml", // schema v0.8.4 allows `derived` only on a decision (`if`/`then`); the model has it on every item, and the loader refuses it (`reject_ambiguous_produces`)
     "requires_fact_with_law.yaml", // schema v0.8.7 lets a `requires` entry name a fact or another provision, not both (`if`/`then`); the model has all fields on one entry, and the loader refuses it (`reject_malformed_facts`)
+    "projection_key.yaml", // schema v0.8.17 has no `key` on a projection, only `per`; the model still reads `key` for a law under v0.8.14 to v0.8.16, and the loader refuses it in a file under v0.8.17 (`reject_malformed_projection`)
+    "projection_step_passes_question.yaml", // schema v0.8.17 allows only `$record.<field>` and `$state.<property>` as a parameter of a step; the model reads any reference, and the loader refuses a parameter of the question in a file under v0.8.17 (`reject_malformed_projection`), as v0.8.14 to v0.8.16 allowed it
+    "reduction_article_both.yaml", // schema v0.8.17 forbids an execution beside a projection in one article (`if`/`then`); the model has both as options on the section, and the loader refuses the pair (`reject_malformed_projection`)
+    "projection_fact_name_before_v0_8_18.yaml", // schema v0.8.17 allows only a kind in capitals as the third segment of `per` and `steps[].record`; the model reads a fact name in lower case for any version, and the loader refuses it in a file under v0.8.17 or earlier (`reject_malformed_projection`)
+    "projection_state_array_columns_before_v0_8_20.yaml", // schema v0.8.19 allows five types for a state property; the model reads an array with columns for any version, and the loader refuses it in a file under v0.8.19 or earlier (`reject_malformed_projection`)
+    "projection_state_array_without_columns.yaml", // schema v0.8.20 requires `columns` with type `array` in the state; the model reads them as optional, and the loader refuses an array without them (`reject_malformed_projection`)
+    "projection_state_columns_on_scalar.yaml", // schema v0.8.20 allows `columns` only with type `array`; the model reads them on any state property, and the loader refuses them on a scalar (`reject_malformed_projection`)
+    "parameter_columns_not_array.yaml", // schema v0.8.20 allows `columns` only on a parameter of type `array`; the model reads them on any parameter, and the loader refuses them elsewhere (`reject_malformed_columns`)
+    "parameter_column_type_array.yaml", // schema v0.8.20 gives a column a scalar type; the model reads any ParameterType, and the loader refuses the others (`reject_malformed_columns`)
+    "projection_state_nullable_before_v0_8_20.yaml", // schema v0.8.19 has no `nullable` on a state property; the model reads it for any version, and the loader refuses it in a file under v0.8.19 or earlier (`reject_malformed_projection`)
+    "projection_state_array_nullable.yaml", // schema v0.8.20 refuses `nullable: true` on an array in the state; the model reads it on any state property, and the loader refuses it on an array (`reject_malformed_projection`)
+    "requires_effects_without_fact.yaml", // schema v0.8.15 allows `effects` on a `requires` entry only with `fact` (`if`/`else`); the model has all fields on one entry, and the loader refuses it (`reject_malformed_facts`)
+    "requires_fact_effect_revokes_field.yaml", // schema v0.8.15 pins `revokes` on a fact to `refers_to`; the model reads any string, and the loader refuses another (`reject_malformed_facts`)
     "produces_list_decision_type_on_submission.yaml", // schema v0.8.1 allows `decision_type` and `procedure_id` only on a decision; the model has them on every item, and a submission's are never read
     "temporal_unknown_type.yaml", // schema pins period|point_in_time; model reads any string
     "start_of_week_unit.yaml", // schema pins START_OF `in` to year|month; model reads any string, engine errors at runtime (same family as date_part_plural_unit)
@@ -135,10 +154,10 @@ fn first_difference(a: &Value, b: &Value, path: &str) -> Option<String> {
                         }
                     }
                     (Some(xv), None) => {
-                        return Some(format!("{sub}: source has {xv}, model omits"))
+                        return Some(format!("{sub}: source has {xv}, model omits"));
                     }
                     (None, Some(yv)) => {
-                        return Some(format!("{sub}: source omits, model has {yv}"))
+                        return Some(format!("{sub}: source omits, model has {yv}"));
                     }
                     (None, None) => {}
                 }
@@ -494,6 +513,7 @@ const UNCOVERED_SCHEMA_KEYS: &[(&str, &str)] = &[
     ("ifOperation.legal_basis", "model drops it"),
     ("inOperation.legal_basis", "model drops it"),
     ("listOperation.legal_basis", "model drops it"),
+    ("recordOperation.legal_basis", "model drops it"),
     ("logicalOperation.legal_basis", "model drops it"),
     ("notOperation.legal_basis", "model drops it"),
     ("roundingOperation.legal_basis", "model drops it"),
@@ -604,15 +624,15 @@ fn branch_matches(schema: &Value, branch: &Value, instance: &Value) -> bool {
             let Some(present) = object.get(key) else {
                 continue;
             };
-            if let Some(constant) = sub.get("const") {
-                if present != constant {
-                    return false;
-                }
+            if let Some(constant) = sub.get("const")
+                && present != constant
+            {
+                return false;
             }
-            if let Some(allowed) = sub.get("enum").and_then(Value::as_array) {
-                if !allowed.contains(present) {
-                    return false;
-                }
+            if let Some(allowed) = sub.get("enum").and_then(Value::as_array)
+                && !allowed.contains(present)
+            {
+                return false;
             }
         }
     }

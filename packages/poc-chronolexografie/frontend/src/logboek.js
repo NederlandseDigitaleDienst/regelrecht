@@ -9,7 +9,7 @@
  * `uitkomst` (een uitvoer van het artikel) of `begrip` (een open begrip, met
  * wie het invulde).
  */
-import { bezwaarBasis, hoofdletter, kort, leesbaar, neemt, state, toegewezen, waarde } from './state.js';
+import { bezwaarBasis, hoofdletter, kort, leesbaar, state, toegewezen, waarde } from './state.js';
 
 // Regelwerken die overal bij hun afkorting heten.
 const AFKORTINGEN = {
@@ -20,11 +20,13 @@ const AFKORTINGEN = {
 /**
  * De naam van een regelwerk: zijn afkorting, de naam die het zelf draagt
  * (`api.casus`), of zijn `$id` leesbaar met een hoofdletter.
+ *
+ * A name that refers to a value of the regelwerk (`'#wet_naam'`) is no name.
  */
 export function wetNaam(wet) {
   if (AFKORTINGEN[wet]) return AFKORTINGEN[wet];
   const naam = state.casus?.regelwerken?.find((r) => r.id === wet)?.naam;
-  if (naam) return naam;
+  if (naam && !naam.startsWith('#')) return naam;
   return hoofdletter(leesbaar(wet));
 }
 
@@ -156,7 +158,3 @@ export function uitslag(g) {
   if (toegewezen(g) === false) return { tekst: 'afgewezen', kleur: 'critical' };
   return { tekst: 'besluit', kleur: 'neutral' };
 }
-
-/** De beslissing op bezwaar die `id` als nieuw besluit nam, als die er is. */
-export const genomenBij = (id, grammen) =>
-  grammen.find((g) => g.basis === bezwaarBasis() && neemt(g, id)) ?? null;

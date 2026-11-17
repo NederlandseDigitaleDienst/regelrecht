@@ -14,6 +14,10 @@ Continuous integration runs on every push to `main` and every pull request via `
 - **YAML validation** - yamllint + schema validation on corpus files
 - **Pre-commit hooks** - trailing whitespace, end-of-file, merge conflicts,
   and licence information for every file (`reuse lint`, from `REUSE.toml`)
+- **Orphan tests** - the `orphan-tests` hook fails when a test file, a crate
+  or a feature file runs in no CI job, or when a `@wip` or `#[ignore]` carries
+  no reason. [Testing](/guide/testing#does-the-new-test-run) describes what it
+  reads and what it misses
 
 ### Tests (on Rust changes)
 
@@ -39,7 +43,11 @@ default, what `just bdd` runs), `corpus` or `conformance`.
 The **BDD conformance** job runs bucket B (`bdd/conformance/*.feature` against
 the synthetic `test_*` laws) as `BDD_BUCKET=conformance cargo test --test bdd`.
 It hangs on the `Test` gate, so it blocks a merge. That bucket proves the engine
-speaks the whole feature language and depends on nothing outside the repo.
+speaks the whole feature language and depends on nothing outside the repo. The
+same job then runs the cell's own BDD suite (`packages/cel/bdd/features`, run
+from `packages/cel` with `cargo test --test bdd`), once in file order and once
+with `BDD_REVERSE_ACTIONS=1`. Those steps are not part of the feature language;
+`bdd/README.md` explains why.
 
 The **BDD demo** job runs bucket A over `corpus/demo/regulation`, with
 `REGULATION_PATH` pointing at it. It runs as a matrix of two legs, each on its
@@ -49,10 +57,10 @@ by the Awb lifecycle test over the same corpus. The `reversed` leg runs the same
 scenarios with the actions of every article in reverse order
 (`BDD_REVERSE_ACTIONS=1`). The order in the file must never change an outcome.
 Locally, `just validate-demo` and `just bdd-demo` do what the `forward` leg
-does. `just bdd-reversed` first runs both buckets over `corpus/regulation` in
-reverse, then the `reversed` leg. The demo corpus and its synthetic persona data
-live entirely in the repository, so this job also hangs on the `Test` gate and
-blocks a merge when either leg fails.
+does. `just bdd-reversed` first runs both buckets over `corpus/regulation` and
+the cell's suite in reverse, then the `reversed` leg. The demo corpus and its
+synthetic persona data live entirely in the repository, so this job also hangs
+on the `Test` gate and blocks a merge when either leg fails.
 
 Bucket A over the live corpus (`corpus/regulation/**/scenarios/*.feature`) stays out of CI. It asserts
 what the live laws currently produce, so a failure there means a law changed or a
@@ -132,13 +140,33 @@ font with wider glyphs. Code blocks then overflow, and axe reports them as
 scrollable regions without keyboard access.
 
 It installs them without apt, to stay off the mirror described above.
-`script/install-a11y-debs.sh` downloads the three `.deb` files apt would pick
-(`unzip`, `fonts-dejavu-core` and its dependency `fonts-dejavu-mono`) from
-Launchpad, which keeps every published version. It checks each file against a
-SHA-256 in the script, stops on a mismatch, and installs them with `dpkg -i`.
-The result is the same files as `apt-get install`, fontconfig configuration
+`script/install-a11y-debs.sh` installs the three `.deb` files apt would pick
+(`unzip`, `fonts-dejavu-core` and its dependency `fonts-dejavu-mono`) with
+`dpkg -i`. Each file is checked against a SHA-256 in the script, wherever it
+came from, and the script stops when no source delivers the right bytes. The
+result is the same files as `apt-get install`, fontconfig configuration
 included, in about two seconds. A newer Playwright image may need newer
 versions; the script says how to look them up.
+
+The script tries five sources in turn:
+
+1. Launchpad, which keeps every version that was ever published.
+2. The Ubuntu archive pool on `archive.ubuntu.com`, which holds a version only
+   until a newer one replaces it. Sources 3 to 5 mirror that pool and drop old
+   versions the same way.
+3. The Azure mirror under `azure.archive.ubuntu.com`, the host in the image's
+   apt sources.
+4. The same Azure mirror under its Azure name,
+   `ubuntu-archive-asm.trafficmanager.net`.
+5. The kernel.org mirror, `mirrors.edge.kernel.org`.
+
+The last two are there because their names do not depend on Canonical's DNS
+for `ubuntu.com` and `launchpad.net`, which failed on 2026-11-11 and took the
+first three sources down with it. A host that does not answer at all is
+skipped for the remaining files, so it costs its timeout once (at most ten
+seconds to connect). A host that answers with an HTTP error, or with the wrong
+bytes, still gets the next file. `script/install-a11y-debs.test.sh` covers
+these paths with `curl` and `dpkg` as stubs.
 
 The preview server that pa11y reads from binds to `127.0.0.1` (`npm run a11y`
 in `docs/package.json`), and the gate's page list uses the same address. Left
@@ -175,11 +203,19 @@ Neither scans for known vulnerabilities. That is `just audit-advisories` (RustSe
 
 ### Schema protection (on PRs)
 
-Released schema versions in `schema/v*.*.*` are immutable. CI fails if a PR tries to modify or delete a released schema. `schema/latest` is a symlink to the highest released version (currently `v0.8.13`), not a directory to edit; a schema change goes into a new version directory.
+Released schema versions in `schema/v*.*.*` are immutable. CI fails if a PR tries to modify or delete a released schema. `schema/latest` is a symlink to the highest released version (currently `v0.8.22`), not a directory to edit; a schema change goes into a new version directory.
+
+### Schema diff comment (on PRs that touch `schema/`)
+
+Because a new version directory is a full copy, the pull request diff shows a `schema.json` of some 3,600 new lines, even when only a hundred lines of the language changed. `schema-diff.yml` compares each version a pull request adds with the highest version below it, and posts the result as a comment. The comment counts the definitions and properties that were added, removed or changed, lists the JSON paths involved, and holds a `diff -u` of the two files in a collapsible block. An edited released version is compared with its copy on the base branch. A value that differs only in the version number (`$id`, `title`, or a URL) is left out of the diff and named as such, so a version that changes nothing else says so.
+
+Each push updates the same comment. The job finds it by the marker line `<!-- schema-diff -->` written by `github-actions[bot]`. A push after which the pull request still changes something under `schema/` but adds no version any more deletes the comment. When a push leaves the pull request without any change under `schema/`, the `paths` filter keeps the workflow from starting, so the earlier comment stays. A diff too long for a GitHub comment is cut at a line, with a note on how to produce the whole diff locally: `node script/schema-diff.mjs --base origin/main`.
+
+The comment is a reading aid. What the new version means for someone writing a rulework belongs in plain language in the pull request description. The job is not a required check and does not run on `merge_group`. It is skipped on pull requests from a fork, whose token cannot write comments, and, like the werkpakket link, it runs the scripts from the base branch, so a pull request that changes `script/schema-diff.mjs` sees its effect only after it merges.
 
 ### Provenance checks (on corpus/engine changes)
 
-Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the corpus of the chronolexografie PoC (`packages/poc-chronolexografie/corpus/`, its reductions included) names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.13`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
+Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the corpus of the chronolexografie PoC (`packages/poc-chronolexografie/corpus/`, its reductions included) names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.22`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
 
 ### Docs accessibility gate (on docs changes)
 
@@ -230,6 +266,12 @@ CI uses path filters to determine which checks to run:
 
 The `ci` group includes `frontend/`, so frontend changes also trigger the Rust checks (the editor is shipped as one image built from `frontend/` plus the `editor-api` Rust binary that serves it). Docs-only changes skip the Rust checks and run the docs accessibility gate (`just docs-a11y`), the docs source checks and the design-system import check.
 
+## The build cache
+
+The jobs that compile Rust share compiled crates through sccache, which stores them in the GitHub Actions cache. Every such job sets it up with `.github/actions/setup-sccache`, and that action is the only place that sets `RUSTC_WRAPPER`. Before the first cargo step, the action starts the sccache server, and sccache reads its storage before it accepts work. If that read fails (in November 2026 the cache answered `503 ServerBusy`, "Egress is over the account limit"), the server refuses to start. With `RUSTC_WRAPPER` already set, cargo would then fail on its first call to `rustc`, before any test ran.
+
+So the action leaves `RUSTC_WRAPPER` unset in that case and writes the warning "build cache unreachable, building without sccache". The job compiles every crate itself, which is slower, and the warning on the run says why. `SCCACHE_IGNORE_SERVER_IO_ERROR` does not help here: sccache reads it only when a running server drops a compile response. `.github/actions/setup-sccache/start-server.sh` explains why `SCCACHE_SKIP_CACHE_CHECK` is not used either, and `start-server.test.sh` next to it covers both outcomes.
+
 ## Merge gates
 
 Passing the checks above is not enough on its own. Four gates weigh in on whether a pull request can merge. Only **Claude review completed** is a required status check on `main`; the other three report and are read by a human.
@@ -239,7 +281,7 @@ Passing the checks above is not enough on its own. Four gates weigh in on whethe
 | **Werkpakket genoemd** | The PR body ends with a `Werkpakket:` line naming a werkpakket from the roadmap. `geen` is allowed with a reason. See [Contributing](./contributing). |
 | **Claude review completed** | The automated review ran to completion for this commit and left no finding marked Critical. There is no override: fix the finding and push again. |
 | **Security update approved** | A Dependabot security update needs an approving review from someone with write access, on the commit being merged. Security updates skip the five-day cooldown, so a human looks at them instead. |
-| **Mutation Testing (diff)** | Reports on whether the tests pin the behavior the change introduces. |
+| **Mutation Testing (diff)** | Reports on whether the tests pin the behavior the change introduces. It runs when a PR changes `packages/engine`, `packages/pipeline` or `packages/cel`, and mutates only the changed lines. |
 
 The full list of required checks on `main` is `Pre-commit`, `WASM Build`, `Protect schema versions`, `Security Audit`, `Test`, `Validate PR title` and `Claude review completed`. That list lives in the branch protection, not in a file; `script/merge-queue-checks.test.mjs` keeps a hand-maintained copy of it (see [the merge queue](#the-merge-queue)).
 

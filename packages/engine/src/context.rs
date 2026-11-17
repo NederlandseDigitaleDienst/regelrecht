@@ -22,14 +22,12 @@
 //! # Child Context Behavior
 //!
 //! The `create_child()` method creates a child context for nested evaluation
-//! (e.g., FOREACH loops). Important: **child contexts start with an empty local scope**.
-//!
-//! This is an intentional design difference from the Python implementation:
-//! - **Rust**: Clears local scope in child contexts (safer, prevents variable pollution)
-//! - **Python**: Copies local scope to child contexts (allows cross-iteration access)
-//!
-//! If you need to pass values between iterations, use parameters or store them
-//! in outputs rather than relying on local scope inheritance.
+//! with an empty local scope. A FOREACH iteration uses
+//! `create_iteration_child()` instead: it keeps the locals of the context it
+//! runs in, so a nested FOREACH sees the element of the outer one, and the
+//! inner binding wins on a clash (RFC-016, note under Scope). Each iteration
+//! starts from the outer locals again, so nothing passes between iterations;
+//! pass such values through parameters or outputs.
 
 use crate::article::{ActionValue, CombineOp, Definition};
 use crate::config;
@@ -239,35 +237,19 @@ impl<'l> RuleContext<'l> {
     pub fn get_calculation_date(&self) -> &str {
         // Extract ISO date string from the cached reference_date_value
         // This is safe because we always set it in new()
-        if let Value::Object(obj) = &self.reference_date_value {
-            if let Some(Value::String(iso)) = obj.get("iso") {
-                return iso.as_str();
-            }
+        if let Value::Object(obj) = &self.reference_date_value
+            && let Some(Value::String(iso)) = obj.get("iso")
+        {
+            return iso.as_str();
         }
         // Fallback - should never happen since we always set iso in new()
         "1970-01-01"
     }
 
-    /// Create a child context for nested evaluation (e.g., FOREACH).
-    ///
-    /// The child inherits definitions, parameters, and outputs,
-    /// but starts with an **empty local scope**. This ensures that FOREACH loop
-    /// variables from a parent context don't leak into child iterations.
-    ///
-    /// # Design Note
-    ///
-    /// This behavior differs from the Python implementation, which copies the
-    /// local scope to child contexts. The Rust implementation intentionally
-    /// clears local scope to:
-    ///
-    /// 1. **Prevent variable pollution**: Loop variables shouldn't accidentally
-    ///    affect nested operations
-    /// 2. **Explicit is better**: If you need values in a child context, pass
-    ///    them explicitly via parameters or outputs
-    /// 3. **Safety**: Reduces the risk of subtle bugs from shared mutable state
-    ///
-    /// If Python compatibility is required for specific use cases, pass the
-    /// needed values explicitly via parameters before evaluation.
+    /// Create a child context for nested evaluation, with an empty local
+    /// scope. It inherits definitions, parameters and outputs. A FOREACH
+    /// iteration uses [`Self::create_iteration_child`], which keeps the
+    /// locals.
     pub fn create_child(&self) -> Self {
         Self {
             definitions: Rc::clone(&self.definitions),
@@ -287,6 +269,18 @@ impl<'l> RuleContext<'l> {
             // `trace_push` only stamps one when the context carries it.
             anchor: self.anchor.clone(),
             lazy: self.lazy,
+        }
+    }
+
+    /// A child context for one iteration of a FOREACH nested in another:
+    /// [`Self::create_child`], keeping the bindings of the outer iterations
+    /// in its local scope, so the inner body and filter can compare their
+    /// element with the outer one. What the inner iteration binds replaces
+    /// an outer binding of the same name.
+    pub fn create_iteration_child(&self) -> Self {
+        Self {
+            local: self.local.clone(),
+            ..self.create_child()
         }
     }
 
@@ -480,13 +474,13 @@ impl<'l> RuleContext<'l> {
         // 5. An input or open term of this article, resolved on its first
         // read (RFC-043). Where a value was passed under the input's name the
         // hook answers `None`, and the parameter below wins.
-        if let Some(LazyHook(lazy)) = self.lazy {
-            if let Some(result) = lazy.resolve_input(path) {
-                return result.map(|(value, resolve_type)| {
-                    self.trace_set_resolve_type(resolve_type);
-                    value
-                });
-            }
+        if let Some(LazyHook(lazy)) = self.lazy
+            && let Some(result) = lazy.resolve_input(path)
+        {
+            return result.map(|(value, resolve_type)| {
+                self.trace_set_resolve_type(resolve_type);
+                value
+            });
         }
 
         // 6. Parameters (direct inputs)

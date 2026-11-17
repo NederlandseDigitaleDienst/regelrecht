@@ -150,13 +150,13 @@ const overallStatus = computed(() => {
          hint that there is more to the right. Wrapping keeps every value
          visible; the sheet's own scroller handles the vertical axis. -->
     <template v-if="result && traceText">
-      <nldd-title size="5" class="etv-section-title"><span>Execution trace</span></nldd-title>
+      <nldd-title size="display-5" heading-level="4" class="etv-section-title"><span>Execution trace</span></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-code-viewer wrap>{{ traceText }}</nldd-code-viewer>
     </template>
 
     <template v-if="error && traceText && !result">
-      <nldd-title size="5" class="etv-section-title"><span>Partial trace (tot fout)</span></nldd-title>
+      <nldd-title size="display-5" heading-level="4" class="etv-section-title"><span>Partial trace (tot fout)</span></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-code-viewer wrap>{{ traceText }}</nldd-code-viewer>
       <template v-if="canReload">

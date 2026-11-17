@@ -1,0 +1,43 @@
+---
+# FICTIEF. A read model of the cell's BDD suite: whether a plate has a
+# permit, from the aggregates of test_reductie_parkeervergunning. A permit
+# moved to another plate holds the new plate in its state.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$id: test_reductie_vergunning_per_kenteken
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_vergunning_per_kenteken
+name: Vergunning per kenteken (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_vergunning_per_kenteken/1
+    text: >-
+      FICTIEF. Een kenteken heeft een vergunning als een vergunning die geldt
+      voor dat kenteken geldt.
+    machine_readable:
+      execution:
+        parameters:
+          - name: kenteken
+            type: string
+        input:
+          - name: vergunningen
+            type: array
+            source:
+              projections: test_reductie_parkeervergunning
+        output:
+          - name: kenteken_heeft_vergunning
+            type: boolean
+        actions:
+          - output: kenteken_heeft_vergunning
+            value:
+              operation: FOREACH
+              collection: $vergunningen
+              as: v
+              filter:
+                operation: EQUALS
+                subject: $v.kenteken
+                value: $kenteken
+              body: $v.vergunning
+              combine: OR

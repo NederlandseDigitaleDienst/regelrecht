@@ -1,0 +1,67 @@
+---
+# FICTIEF. A reduction of the fictional service over its own chronicle
+# (RFC-048), for tests/scenarios/: per payment of fees (fictieve_vergunningwet,
+# article 4) the amount paid and the amount refunded, and the total of what
+# was paid and not refunded. The service gives that total as its answer
+# betaalde_leges (cel.yaml); the fictional policy of the service takes it.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: reductie_leges
+regulatory_layer: REDUCTIE
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.invalid/reductie_leges
+name: Betaalde leges (fictieve reductie)
+articles:
+  - number: betaling
+    text: >-
+      FICTIEF. Per betaling van leges het betaalde en het terugbetaalde
+      bedrag.
+    url: https://example.invalid/reductie_leges#betaling
+    machine_readable:
+      projection:
+        per: fictieve_vergunningwet#4#leges_betaald
+        state:
+          - name: betaald
+            type: amount
+          - name: terugbetaald
+            type: amount
+        steps:
+          - record: fictieve_vergunningwet#4#leges_betaald
+            actions:
+              - output: betaald
+                value: $record.bedrag
+          - record: fictieve_vergunningwet#4#leges_terugbetaald
+            actions:
+              - output: terugbetaald
+                value: $record.bedrag
+  - number: betaalde_leges
+    text: >-
+      FICTIEF. De leges die de dienst ontving en niet terugbetaalde, in
+      eurocent.
+    url: https://example.invalid/reductie_leges#betaalde_leges
+    machine_readable:
+      execution:
+        input:
+          - name: betalingen
+            type: array
+            source:
+              projections: reductie_leges#betaling
+        output:
+          - name: betaalde_leges
+            type: amount
+        actions:
+          - output: betaalde_leges
+            value:
+              operation: FOREACH
+              collection: $betalingen
+              as: betaling
+              # Without a refund the state holds none.
+              body:
+                operation: IF
+                cases:
+                  - when: {operation: EQUALS, subject: $betaling.terugbetaald, value: null}
+                    then: $betaling.betaald
+                default:
+                  operation: SUBTRACT
+                  values: [$betaling.betaald, $betaling.terugbetaald]
+              combine: ADD

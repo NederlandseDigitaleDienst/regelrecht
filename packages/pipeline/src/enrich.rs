@@ -8,11 +8,14 @@ use regelrecht_corpus::{CorpusClient, CorpusConfig};
 use regelrecht_law_model::ArticleBasedLaw;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use tokio::io::AsyncReadExt;
 use uuid::Uuid;
 
 use crate::enrich_v2::{capabilities, context};
 use crate::error::{PipelineError, Result};
+// The agent subprocess lives in `crate::agent`; these names stay reachable
+// here because enrich is where every caller meets them.
+pub(crate) use crate::agent::run_llm_subprocess;
+pub use crate::agent::{AgentRun, ToolPolicy};
 
 /// Per-process cache of branch names already confirmed to exist on the
 /// corpus remote. Branches are never deleted once created, so a positive
@@ -402,20 +405,33 @@ fn articles_by_number(
     Ok(out)
 }
 
-/// Trait abstracting the LLM invocation so `execute_enrich` can be tested
-/// with a fake provider that doesn't spawn real processes.
+/// One agent call, as the enrich orchestration hands it to a runner: the
+/// prompt is built and the session decided ([`call_agent`]).
+#[derive(Debug, Clone, Copy)]
+pub struct AgentCall<'a> {
+    /// What the call is for: the pass, the window of articles and the law.
+    /// The process runner needs only the fields below; a fake in a test
+    /// decides what to answer from this.
+    pub payload: &'a EnrichPayload,
+    pub prompt: &'a str,
+    /// The law the agent edits in place.
+    pub yaml_abs: &'a Path,
+    /// The checkout the agent runs in.
+    pub repo_path: &'a Path,
+    pub tools: ToolPolicy<'a>,
+    pub session: SessionAction,
+}
+
+/// Where an agent call crosses into a process, so `execute_enrich` can be
+/// tested with a fake that spawns nothing. Everything before that point
+/// (the prompt, the chain plan, the context brief, the session) is
+/// [`call_agent`]'s, and a fake gets it for free.
 #[async_trait::async_trait]
 pub trait LlmRunner: Send + Sync {
-    /// Run the LLM on the given YAML file and return its exit status.
+    /// Run one call and say what it reported.
     ///
     /// Implementations should respect the timeout in `config`.
-    async fn run(
-        &self,
-        payload: &EnrichPayload,
-        yaml_abs: &Path,
-        repo_path: &Path,
-        config: &EnrichConfig,
-    ) -> Result<()>;
+    async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun>;
 }
 
 /// What one agent run cost, as the provider reports it.
@@ -442,59 +458,6 @@ pub struct AgentUsage {
 }
 
 impl AgentUsage {
-    /// Read the usage out of the provider's final JSON object.
-    ///
-    /// Takes the tail of stdout rather than the whole stream: the object we
-    /// want is the last one, and opencode inlines multi-megabyte bodies
-    /// earlier in the stream that nobody should hold in memory to reach it.
-    /// Returns `None` when the tail carries no recognisable object, which is
-    /// the normal case for a provider that reports nothing.
-    #[must_use]
-    pub fn from_stdout_tail(tail: &str) -> Option<Self> {
-        // The whole tail first. `--output-format json` writes one object, and
-        // looking for the last `{` lands inside it: this payload nests
-        // `iterations` and `cache_creation`, so the scan found a fragment with
-        // no `usage` and every figure came out zero.
-        //
-        // The scan stays for the streaming shape, where the closing object
-        // really is the last one on the stream.
-        //
-        // Then line by line from the end, for stream-json: the last line
-        // with a top-level `usage` is the closing `result`. Assistant and
-        // stream events carry theirs nested, and the CLI puts `type`
-        // anywhere in the object, so neither key order nor a `{"type"`
-        // prefix can be relied on.
-        let value: serde_json::Value = serde_json::from_str(tail.trim())
-            .ok()
-            .or_else(|| {
-                tail.lines().rev().find_map(|line| {
-                    let v: serde_json::Value = serde_json::from_str(line.trim()).ok()?;
-                    v.get("usage").is_some().then_some(v)
-                })
-            })
-            .or_else(|| {
-                let start = tail.rfind("{\"type\"").or_else(|| tail.rfind('{'))?;
-                serde_json::from_str(tail[start..].trim()).ok()
-            })?;
-        let usage = value.get("usage")?;
-        let n = |key: &str| {
-            usage
-                .get(key)
-                .and_then(serde_json::Value::as_u64)
-                .unwrap_or(0)
-        };
-        Some(Self {
-            input_tokens: n("input_tokens"),
-            output_tokens: n("output_tokens"),
-            cache_read_tokens: n("cache_read_input_tokens"),
-            cache_write_tokens: n("cache_creation_input_tokens"),
-            cost_millicents: value
-                .get("total_cost_usd")
-                .and_then(serde_json::Value::as_f64)
-                .map_or(0, |usd| (usd * 100_000.0).round() as u64),
-        })
-    }
-
     /// Add a second run's usage, for reporting a whole chain as one figure.
     #[must_use]
     pub fn plus(self, other: Self) -> Self {
@@ -583,9 +546,20 @@ const REREAD_INSTRUCTION: &str = "Read the article you are about to change from 
      against what you read there, not against what you meant to write. If the finding is right, \
      change the file; do not explain why the earlier choice was defensible.";
 
+/// The session mode a provider can honour. opencode cannot continue a
+/// session (see `run_llm_subprocess`), so every one of its calls runs cold,
+/// and the window says so instead of naming a mode it does not get.
+pub(crate) fn session_reuse_for(provider: &LlmProvider, requested: SessionReuse) -> SessionReuse {
+    if provider.dialect().capabilities().resumes_sessions {
+        requested
+    } else {
+        SessionReuse::Off
+    }
+}
+
 /// What one call must do with the window's session.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum SessionAction {
+pub enum SessionAction {
     /// No session id at all: the provider opens and forgets its own.
     Cold,
     /// Open the window's session under an id the worker chose.
@@ -611,8 +585,9 @@ pub struct AgentCallRecord {
     pub resumed: bool,
     /// What the provider reported, or `None` when it reported nothing.
     pub usage: Option<AgentUsage>,
-    /// The model the call ran on, as the CLI named it in its `init` event.
-    /// `None` when it named none (opencode, a fake runner).
+    /// The model the call ran on: as the claude CLI named it in its `init`
+    /// event, or for opencode the model it was told to use. `None` when
+    /// neither is known (a fake runner).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
 }
@@ -709,10 +684,10 @@ impl AgentSession {
     pub fn models(&self) -> Vec<String> {
         let mut models: Vec<String> = Vec::new();
         for call in self.calls() {
-            if let Some(model) = call.model {
-                if !models.contains(&model) {
-                    models.push(model);
-                }
+            if let Some(model) = call.model
+                && !models.contains(&model)
+            {
+                models.push(model);
             }
         }
         models
@@ -742,6 +717,9 @@ impl AgentSession {
         )
     }
 }
+
+/// How often a worker's memory watchdog reads the agent's RSS.
+const DEFAULT_MEMORY_POLL_INTERVAL: Duration = Duration::from_secs(5);
 
 /// Default for `ENRICH_AGENT_IDLE_SECS`. Generous on purpose: the claude
 /// provider streams every token, so ten silent minutes means no token at
@@ -782,637 +760,142 @@ fn end_call(payload: &EnrichPayload, action: SessionAction, run: AgentRun) {
     }
 }
 
-/// What one agent subprocess reported about itself.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct AgentRun {
-    /// Token use and cost, from the closing event.
-    pub usage: Option<AgentUsage>,
-    /// The model it ran on, from the `init` event.
-    pub model: Option<String>,
+/// Make one agent call for `payload`: decide the session, plan the chain,
+/// write the context brief, build the prompt, hand the call to `runner`, and
+/// record what it reported against the window's session.
+pub(crate) async fn call_agent(
+    runner: &dyn LlmRunner,
+    payload: &EnrichPayload,
+    yaml_abs: &Path,
+    repo_path: &Path,
+    config: &EnrichConfig,
+) -> Result<()> {
+    let progress_path = progress_file_path(yaml_abs);
+    let action = begin_call(payload);
+    config.activity.begin_call(pass_label(&payload.pass));
+    // Computed for both passes, because a feedback round runs in the same
+    // runtime as the translation it answers and the prompt tells it so
+    // ("You have no network and no search"). A deny list that only applied
+    // to the first pass would make that sentence false from round two on.
+    let (plan, deny) = chain_plan(repo_path);
+    // A feedback pass asks for one thing and gives the agent nothing
+    // else to do, so it cannot wander back into translating.
+    if let Pass::Feedback(feedback) = &payload.pass {
+        let prompt =
+            build_feedback_prompt(&payload.yaml_path, feedback, vocabulary_of(yaml_abs).await);
+        // A resumed round starts from a conversation in which the agent
+        // wrote the very thing the gate is complaining about, so it is
+        // told first of all to go and look.
+        let prompt = if action.resumed() {
+            format!("{REREAD_INSTRUCTION}\n\n{prompt}")
+        } else {
+            prompt
+        };
+        let call = AgentCall {
+            payload,
+            prompt: &prompt,
+            yaml_abs,
+            repo_path,
+            tools: ToolPolicy {
+                allow_bash: false,
+                deny: &deny,
+            },
+            session: action,
+        };
+        let run = runner.run(&call, config).await?;
+        end_call(payload, action, run);
+        return Ok(());
+    }
+
+    // What the chain may instruct depends on what this runtime grants.
+    // A step whose tools are absent is left out and recorded, rather than
+    // asked for and answered with an invention (issue #1036).
+    let report = capabilities::plan_report(&plan);
+    log_chain_plan(&report);
+    if let Some((spec, _)) = plan
+        .iter()
+        .find(|(_, p)| matches!(p, capabilities::StepPlan::Blocked { .. }))
+    {
+        return Err(PipelineError::Config(format!(
+            "required step {:?} cannot run in this runtime: {}",
+            spec.name,
+            report.trim_end()
+        )));
+    }
+    // Requirement 6 of RFC-026: an article never reaches an agent without
+    // its place in the structure and without what bears on it inside its
+    // own law. The worker assembles that and writes it down; the agent
+    // reads a file rather than hunting through the YAML.
+    // `ENRICH_CONTEXT_BRIEF=0` withholds the brief. It exists so a round
+    // can be run twice over the same laws with only this changed, which is
+    // the only way to say what the brief is worth rather than that the
+    // numbers moved.
+    let brief = if brief_withheld(std::env::var("ENRICH_CONTEXT_BRIEF").ok().as_deref()) {
+        tracing::info!("context brief withheld by ENRICH_CONTEXT_BRIEF=0");
+        None
+    } else {
+        context::write_brief(yaml_abs, payload.chunk_articles.as_deref(), repo_path)
+    };
+    if brief.is_none() {
+        tracing::warn!(law = %payload.yaml_path, "no context brief written");
+    }
+    // Chunked runs get the explicit-article-subset prompt; whole-law runs
+    // keep the original prompt byte-identical.
+    let prompt = build_prompt(
+        &payload.yaml_path,
+        &progress_path.to_string_lossy(),
+        &plan,
+        payload.chunk_articles.as_deref(),
+        payload.skip_mvt.unwrap_or(false),
+        brief.is_some(),
+    );
+    let call = AgentCall {
+        payload,
+        prompt: &prompt,
+        yaml_abs,
+        repo_path,
+        tools: ToolPolicy {
+            // Enrich edits YAML in place; it does not need shell access.
+            allow_bash: false,
+            deny: &deny,
+        },
+        session: action,
+    };
+    let run = runner.run(&call, config).await?;
+    end_call(payload, action, run);
+    Ok(())
 }
 
-/// Max bytes of the LLM subprocess's stderr to retain for diagnostics. The tail
-/// (most recent output) is kept and appended to the error on a non-zero exit, so
-/// a failure reports the real cause (e.g. an auth `401`) instead of a bare code.
-const MAX_STDERR_CAPTURE: usize = 4096;
+/// Log the chain plan when it says anything: steps left out or degraded.
+fn log_chain_plan(report: &str) {
+    if !report.is_empty() {
+        tracing::info!(plan = %report.trim_end(), "enrichment chain planned");
+    }
+}
 
-/// Max bytes of the agent's stdout to retain, enough to hold the provider's
-/// closing JSON object with the usage figures and nothing before it.
-const MAX_STDOUT_TAIL: usize = 32 * 1024;
+/// Whether `ENRICH_CONTEXT_BRIEF` withholds the context brief: only `0`
+/// does; unset or anything else keeps it.
+fn brief_withheld(raw: Option<&str>) -> bool {
+    raw == Some("0")
+}
 
 /// Default runner that spawns a real CLI process.
 pub struct ProcessLlmRunner;
 
 #[async_trait::async_trait]
 impl LlmRunner for ProcessLlmRunner {
-    async fn run(
-        &self,
-        payload: &EnrichPayload,
-        yaml_abs: &Path,
-        repo_path: &Path,
-        config: &EnrichConfig,
-    ) -> Result<()> {
-        let progress_path = progress_file_path(yaml_abs);
-        // Chunked runs get the explicit-article-subset prompt; whole-law runs
-        // keep the original prompt byte-identical.
-        // A feedback pass asks for one thing and gives the agent nothing
-        // else to do, so it cannot wander back into translating.
-        let action = begin_call(payload);
-        config.activity.begin_call(pass_label(&payload.pass));
-        // Computed for both passes, because a feedback round runs in the same
-        // runtime as the translation it answers and the prompt tells it so
-        // ("You have no network and no search"). A deny list that only applied
-        // to the first pass would make that sentence false from round two on.
-        let (plan, deny) = chain_plan(repo_path);
-        if let Pass::Feedback(feedback) = &payload.pass {
-            let prompt =
-                build_feedback_prompt(&payload.yaml_path, feedback, vocabulary_of(yaml_abs).await);
-            // A resumed round starts from a conversation in which the agent
-            // wrote the very thing the gate is complaining about, so it is
-            // told first of all to go and look.
-            let prompt = if action.resumed() {
-                format!("{REREAD_INSTRUCTION}\n\n{prompt}")
-            } else {
-                prompt
-            };
-            let run = run_llm_subprocess(
-                &config.provider,
-                &prompt,
-                Some(yaml_abs),
-                repo_path,
-                config,
-                ToolPolicy {
-                    allow_bash: false,
-                    deny: &deny,
-                },
-                action,
-            )
-            .await?;
-            end_call(payload, action, run);
-            return Ok(());
-        }
-
-        // What the chain may instruct depends on what this runtime grants.
-        // A step whose tools are absent is left out and recorded, rather than
-        // asked for and answered with an invention (issue #1036).
-        let report = capabilities::plan_report(&plan);
-        if !report.is_empty() {
-            tracing::info!(plan = %report.trim_end(), "enrichment chain planned");
-        }
-        if let Some((spec, _)) = plan
-            .iter()
-            .find(|(_, p)| matches!(p, capabilities::StepPlan::Blocked { .. }))
-        {
-            return Err(PipelineError::Config(format!(
-                "required step {:?} cannot run in this runtime: {}",
-                spec.name,
-                report.trim_end()
-            )));
-        }
-        // Requirement 6 of RFC-026: an article never reaches an agent without
-        // its place in the structure and without what bears on it inside its
-        // own law. The worker assembles that and writes it down; the agent
-        // reads a file rather than hunting through the YAML.
-        // `ENRICH_CONTEXT_BRIEF=0` withholds the brief. It exists so a round
-        // can be run twice over the same laws with only this changed, which is
-        // the only way to say what the brief is worth rather than that the
-        // numbers moved.
-        let brief = if std::env::var("ENRICH_CONTEXT_BRIEF").as_deref() == Ok("0") {
-            tracing::info!("context brief withheld by ENRICH_CONTEXT_BRIEF=0");
-            None
-        } else {
-            context::write_brief(yaml_abs, payload.chunk_articles.as_deref(), repo_path)
-        };
-        if brief.is_none() {
-            tracing::warn!(law = %payload.yaml_path, "no context brief written");
-        }
-        let prompt = build_prompt(
-            &payload.yaml_path,
-            &progress_path.to_string_lossy(),
-            &plan,
-            payload.chunk_articles.as_deref(),
-            payload.skip_mvt.unwrap_or(false),
-            brief.is_some(),
-        );
-        let run = run_llm_subprocess(
+    async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun> {
+        run_llm_subprocess(
             &config.provider,
-            &prompt,
-            Some(yaml_abs),
-            repo_path,
+            call.prompt,
+            Some(call.yaml_abs),
+            call.repo_path,
             config,
-            ToolPolicy {
-                // Enrich edits YAML in place; it does not need shell access.
-                allow_bash: false,
-                deny: &deny,
-            },
-            action,
+            call.tools,
+            call.session,
         )
-        .await?;
-        end_call(payload, action, run);
-        Ok(())
-    }
-}
-
-/// What tools one agent call may use.
-///
-/// Two fields because the provider takes two answers and they are not the same
-/// question. The allowlist decides what is approved without asking; the deny
-/// list decides what is not there at all. Conflating them is how the enrichment
-/// lane came to report a shell-less runtime to an agent that had a shell.
-#[derive(Debug, Clone, Copy)]
-pub(crate) struct ToolPolicy<'a> {
-    /// Whether the `claude` provider's allowlist includes `Bash` (enrich keeps
-    /// it off; document-convert needs it so the agent can run/install a
-    /// converter). No effect on `opencode`, which has its own tool model.
-    pub allow_bash: bool,
-    /// Tools withheld outright. Unlike leaving a tool off the allowlist, which
-    /// only means it has to be asked for, this takes it away.
-    pub deny: &'a [String],
-}
-
-impl ToolPolicy<'_> {
-    /// The claude provider's `--allowedTools` value.
-    fn allowed(self) -> &'static str {
-        if self.allow_bash {
-            "Bash,Read,Edit,Write,Grep,Glob"
-        } else {
-            "Read,Edit,Write,Grep,Glob"
-        }
-    }
-
-    /// The claude provider's `--disallowedTools` value, empty when nothing is
-    /// withheld. A caller that did not ask for the shell does not merely fail
-    /// to get it approved: it does not get it.
-    fn denied(self) -> Vec<String> {
-        let mut out: Vec<String> = self.deny.to_vec();
-        if !self.allow_bash {
-            out.push("Bash".to_owned());
-        }
-        out.sort();
-        out.dedup();
-        out
-    }
-}
-
-/// Spawn and supervise an LLM agent subprocess, provider-agnostically.
-///
-/// This is the reusable core lifted out of [`ProcessLlmRunner::run`]: it builds
-/// the command, drains stdout/stderr (retaining a bounded stderr tail for the
-/// error message), and races the child against the configured timeout and the
-/// RSS memory watchdog, killing the whole process group on either. `cwd` is the
-/// working directory the agent runs in (and writes its output into); `file_arg`
-/// is the optional single input file (OpenCode's `-f`). Callers supply their own
-/// `prompt` — enrich and document-convert differ only in that prompt.
-/// `tools` says what this call may use (see [`ToolPolicy`]).
-/// `session` says whether this call opens, continues or ignores a session; a
-/// caller with no window to speak of passes [`SessionAction::Cold`].
-pub(crate) async fn run_llm_subprocess(
-    provider: &LlmProvider,
-    prompt: &str,
-    file_arg: Option<&Path>,
-    cwd: &Path,
-    config: &EnrichConfig,
-    tools: ToolPolicy<'_>,
-    session: SessionAction,
-) -> Result<AgentRun> {
-    let provider_name = provider.name().to_string();
-
-    let mut cmd = build_command(
-        provider,
-        prompt,
-        file_arg,
-        cwd,
-        tools,
-        config.effort.as_deref(),
-        session,
-    );
-
-    // Both streams are piped and drained. stdout is drained-and-discarded: a
-    // verbose agent (e.g. opencode `--format json`) inlines the full body of
-    // every fetched page into its event stream, which would flood container
-    // logs. stderr is drained too — we MUST keep reading both or a full 64 KB
-    // OS pipe buffer blocks the child — but for stderr we also keep a bounded
-    // tail and re-log previews, so the LLM's real error (e.g. an auth 401) is
-    // both visible in the logs and attached to the job's failure.
-    cmd.stderr(std::process::Stdio::piped());
-    cmd.stdout(std::process::Stdio::piped());
-    let mut child = cmd
-        .spawn()
-        .map_err(|e| PipelineError::Enrich(format!("failed to spawn {}: {e}", provider_name)))?;
-
-    // Capture the PID before any wait reaps the child; the memory watchdog
-    // and process-group kill both need it.
-    let pid = child.id();
-    let activity = config.activity.clone();
-    activity.enter();
-    // However this call ends, it stops counting as in flight.
-    let _in_flight = ExitOnDrop(activity.clone());
-    // Only the claude provider streams per token, so only there does silence
-    // mean the agent stopped. opencode writes an event per finished part and
-    // can be quiet for longer while it writes a large file.
-    let idle_limit = match provider {
-        LlmProvider::Claude { .. } => config.idle_timeout,
-        LlmProvider::OpenCode { .. } => None,
-    };
-
-    // Drain stderr, retaining the last `MAX_STDERR_CAPTURE` bytes for the
-    // error message and re-logging bounded previews so it stays visible.
-    let stderr_tail = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
-    let stderr_task = child.stderr.take().map(|mut stderr| {
-        let tail = stderr_tail.clone();
-        let stderr_provider = provider_name.clone();
-        let activity = activity.clone();
-        tokio::spawn(async move {
-            let mut buf = [0u8; 8192];
-            loop {
-                match stderr.read(&mut buf).await {
-                    Ok(0) | Err(_) => break, // EOF or pipe gone
-                    Ok(n) => {
-                        activity.touch();
-                        let text = String::from_utf8_lossy(&buf[..n]);
-                        let preview: String = text.trim().chars().take(500).collect();
-                        if !preview.is_empty() {
-                            tracing::warn!(provider = %stderr_provider, %preview, "agent stderr");
-                        }
-                        if let Ok(mut t) = tail.lock() {
-                            t.push_str(&text);
-                            if t.len() > MAX_STDERR_CAPTURE {
-                                let mut cut = t.len() - MAX_STDERR_CAPTURE;
-                                while cut < t.len() && !t.is_char_boundary(cut) {
-                                    cut += 1;
-                                }
-                                *t = t[cut..].to_string();
-                            }
-                        }
-                    }
-                }
-            }
-        })
-    });
-    // Read the retained stderr tail, formatted as a "; stderr: …" suffix.
-    let stderr_suffix = || {
-        stderr_tail
-            .lock()
-            .ok()
-            .map(|t| t.trim().to_string())
-            .filter(|t| !t.is_empty())
-            .map(|t| format!("; stderr: {t}"))
-            .unwrap_or_default()
-    };
-
-    // Drain the agent's stdout so it never reaches container logs. We MUST
-    // keep reading it: if the OS pipe buffer (64 KB) fills, the child blocks
-    // indefinitely — the same deadlock the stderr comment above warns about.
-    // The task ends on EOF when the process exits or is killed.
-    // Tail of stdout, kept so the provider's closing JSON object can be read
-    // after the process exits. Bounded: everything before the last object is
-    // of no interest, and the stream can carry megabytes.
-    let stdout_tail = std::sync::Arc::new(Mutex::new(String::new()));
-    let tail_writer = std::sync::Arc::clone(&stdout_tail);
-    // The claude provider's closing `result` event, kept whole: it carries
-    // the usage, and the bounded tail can cut a long one in half.
-    let result_line = std::sync::Arc::new(Mutex::new(None::<String>));
-    let result_writer = std::sync::Arc::clone(&result_line);
-    // The model the CLI names in its `init` event, for the call's record.
-    let init_model = std::sync::Arc::new(Mutex::new(None::<String>));
-    let model_writer = std::sync::Arc::clone(&init_model);
-    let mut stdout_task = None;
-    if let Some(mut stdout) = child.stdout.take() {
-        let drain_provider = provider_name.clone();
-        let activity = activity.clone();
-        stdout_task = Some(tokio::spawn(async move {
-            let mut lines = crate::agent_activity::LineSplitter::default();
-            // Drain in fixed-size chunks rather than whole lines: opencode
-            // inlines multi-MB page bodies as a single JSON line, so a
-            // line reader would allocate the entire body just to log a
-            // 200-char preview — a heap spike on the very worker this
-            // watchdog exists to protect. Reading into a fixed buffer keeps
-            // the pipe empty without ever holding more than `buf`.
-            let mut buf = [0u8; 8192];
-            loop {
-                match stdout.read(&mut buf).await {
-                    Ok(0) | Err(_) => break, // EOF or pipe gone (process exited/killed)
-                    Ok(n) => {
-                        activity.touch();
-                        lines.feed(&buf[..n], |line| {
-                            activity.record_line(line);
-                            if let Some(model) = crate::agent_activity::init_model(line) {
-                                tracing::info!(provider = %drain_provider, %model, "agent session started");
-                                if let Ok(mut m) = model_writer.lock() {
-                                    *m = Some(model);
-                                }
-                            }
-                            if crate::agent_activity::is_result_event(line) {
-                                if let Ok(mut r) = result_writer.lock() {
-                                    *r = Some(line.to_string());
-                                }
-                            }
-                        });
-                        // Bounded preview at debug only (off under the
-                        // default "info" subscriber). The leading bytes of a
-                        // read carry the event type and ids, not the large
-                        // inlined bodies; lossy is fine for a log preview.
-                        let preview = String::from_utf8_lossy(&buf[..n.min(200)]);
-                        let preview = preview.trim_end();
-                        if !preview.is_empty() {
-                            tracing::debug!(provider = %drain_provider, %preview, "agent stdout");
-                        }
-                        #[allow(clippy::unwrap_used)]
-                        if let Ok(mut tail) = tail_writer.lock() {
-                            tail.push_str(&String::from_utf8_lossy(&buf[..n]));
-                            if tail.len() > MAX_STDOUT_TAIL {
-                                let cut = tail.len() - MAX_STDOUT_TAIL;
-                                let cut = tail
-                                    .char_indices()
-                                    .map(|(i, _)| i)
-                                    .find(|i| *i >= cut)
-                                    .unwrap_or(tail.len());
-                                *tail = tail.split_off(cut);
-                            }
-                        }
-                    }
-                }
-            }
-        }));
-    }
-
-    let status = tokio::select! {
-        result = child.wait() => {
-            result.map_err(|e| {
-                PipelineError::Enrich(format!("failed to wait for {}: {e}", provider_name))
-            })?
-        }
-        _ = tokio::time::sleep(config.timeout) => {
-            terminate(&mut child, pid).await;
-            // Abort the drain task rather than leaving it detached: if a
-            // grandchild inherited fd 2 and survived terminate(), the task
-            // would otherwise leak. The tail read below is already populated.
-            if let Some(t) = &stderr_task {
-                t.abort();
-            }
-            return Err(PipelineError::Enrich(format!(
-                "{} timed out after {:?}{}{}",
-                provider_name,
-                config.timeout,
-                stderr_suffix(),
-                activity.summary()
-            )));
-        }
-        silent = wait_for_silence(&activity, idle_limit) => {
-            tracing::error!(
-                provider = %provider_name,
-                silent_secs = silent.as_secs(),
-                "LLM subprocess wrote nothing for too long, killing it as stalled"
-            );
-            terminate(&mut child, pid).await;
-            if let Some(t) = &stderr_task {
-                t.abort();
-            }
-            return Err(PipelineError::Enrich(format!(
-                "{} stalled: no output for {}s{}{}",
-                provider_name,
-                silent.as_secs(),
-                stderr_suffix(),
-                activity.summary()
-            )));
-        }
-        observed_mb = watch_memory(pid, config.max_rss_mb) => {
-            tracing::error!(
-                provider = %provider_name,
-                pid = ?pid,
-                observed_mb,
-                limit_mb = config.max_rss_mb,
-                "LLM subprocess exceeded memory limit, killing to protect the container"
-            );
-            terminate(&mut child, pid).await;
-            if let Some(t) = &stderr_task {
-                t.abort();
-            }
-            return Err(PipelineError::Enrich(format!(
-                "{provider_name} exceeded memory limit of {} MB (RSS {observed_mb} MB), killed{}",
-                config.max_rss_mb, stderr_suffix()
-            )));
-        }
-    };
-
-    // Let stdout drain to its end so the closing event is in, on success for
-    // its usage and on failure for its error text. Bounded: a grandchild
-    // that inherited the pipe could keep it open and never EOF, and this
-    // await sits outside the timeout/memory select!.
-    if let Some(task) = stdout_task {
-        let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
-    }
-
-    if !status.success() {
-        // Give the stderr drain a moment to finish so the tail is complete,
-        // bounded for the same reason as stdout above. Best-effort, like the
-        // tail in the other paths.
-        if let Some(task) = stderr_task {
-            let _ = tokio::time::timeout(Duration::from_secs(2), task).await;
-        }
-        // The claude CLI reports a failed API call in its closing event and
-        // exits 1 with nothing on stderr; without this the reason is lost.
-        let cli_error = result_line
-            .lock()
-            .ok()
-            .and_then(|r| {
-                r.as_deref()
-                    .and_then(crate::agent_activity::result_error_text)
-            })
-            .map(|t| format!(": {t}"))
-            .unwrap_or_default();
-        return Err(PipelineError::Enrich(format!(
-            "{} exited with {}{}{}{}",
-            provider_name,
-            status,
-            cli_error,
-            stderr_suffix(),
-            activity.summary()
-        )));
-    }
-
-    // Success: abort the drain task instead of leaving it detached — same
-    // fd-2/grandchild-leak guard as the timeout/OOM paths. Normally it has
-    // already finished (the child closed stderr on exit); aborting a finished
-    // task is a no-op.
-    if let Some(t) = &stderr_task {
-        t.abort();
-    }
-
-    let from_result = result_line
-        .lock()
-        .ok()
-        .and_then(|r| r.as_deref().and_then(AgentUsage::from_stdout_tail));
-    let usage = from_result.or_else(|| {
-        stdout_tail
-            .lock()
-            .ok()
-            .and_then(|tail| AgentUsage::from_stdout_tail(&tail))
-    });
-    if let Some(u) = usage {
-        tracing::info!(
-            provider = %provider_name,
-            resumed = session.resumed(),
-            input_tokens = u.input_tokens,
-            output_tokens = u.output_tokens,
-            cache_read_tokens = u.cache_read_tokens,
-            cost_millicents = u.cost_millicents,
-            "agent run accounted"
-        );
-    }
-    let model = init_model.lock().ok().and_then(|m| m.clone());
-    Ok(AgentRun { usage, model })
-}
-
-/// Marks the agent subprocess as ended when its call returns, by any path.
-struct ExitOnDrop(crate::agent_activity::ActivityHandle);
-
-impl Drop for ExitOnDrop {
-    fn drop(&mut self) {
-        self.0.exit();
-    }
-}
-
-/// Resolve once the agent has written nothing for `limit`, with how long it
-/// has been silent. Never resolves when the check is off.
-async fn wait_for_silence(
-    activity: &crate::agent_activity::ActivityHandle,
-    limit: Option<Duration>,
-) -> Duration {
-    let Some(limit) = limit else {
-        return std::future::pending().await;
-    };
-    // Check a few times per limit, at most every 15 s, so a short limit in a
-    // test still fires promptly.
-    let every = (limit / 4).clamp(Duration::from_millis(50), Duration::from_secs(15));
-    loop {
-        tokio::time::sleep(every).await;
-        if let Some(silent) = activity.idle() {
-            if silent >= limit {
-                return silent;
-            }
-        }
-    }
-}
-
-/// Kill the LLM subprocess and reap it.
-///
-/// Signals the whole process group (negative pid) so any helpers the agent
-/// forked (node workers, git) die too — not just the direct child — then
-/// falls back to `child.kill()` (covers a missing pid) and waits to avoid a
-/// zombie.
-async fn terminate(child: &mut tokio::process::Child, pid: Option<u32>) {
-    kill_process_group(pid);
-    if let Err(e) = child.kill().await {
-        // After the group SIGKILL above the direct child is usually already
-        // gone, so `ESRCH` here is the expected benign race — only a different
-        // error is worth flagging.
-        if e.raw_os_error() != Some(libc::ESRCH) {
-            tracing::warn!(error = %e, "failed to kill LLM process");
-        }
-    }
-    let _ = child.wait().await;
-}
-
-/// Send `SIGKILL` to the entire process group led by `pid`.
-///
-/// The subprocess is spawned as its own process-group leader
-/// (`process_group(0)` in `build_command`), so `kill(-pid, …)` reaps the agent
-/// and everything it forked. A failure (e.g. `ESRCH`) just means the group has
-/// already exited and is ignored.
-fn kill_process_group(pid: Option<u32>) {
-    if let Some(pid) = pid {
-        // Guard against pid 0: `kill(-0, …)` collapses to `kill(0, …)`, which
-        // POSIX routes to the *caller's own* process group — it would SIGKILL
-        // the worker itself. `child.id()` never yields 0 in practice, but the
-        // consequence is catastrophic enough to refuse it defensively.
-        if pid == 0 {
-            return;
-        }
-        // SAFETY: `kill(2)` with a negative pid targets a process group and has
-        // no memory-safety implications; the return value is intentionally
-        // ignored (the group may already be gone). Linux PIDs are capped well
-        // below `i32::MAX` (`pid_max` <= 2^22), so `pid as i32` cannot overflow.
-        unsafe {
-            libc::kill(-(pid as i32), libc::SIGKILL);
-        }
-    }
-}
-
-/// Memory watchdog: resolve with the observed RSS (in MB) once the subprocess
-/// exceeds `max_rss_mb`.
-///
-/// The LLM agent accumulates fetched-page bodies in memory across a run; left
-/// unchecked it climbs to the container's cgroup limit and triggers an OOM kill
-/// of the whole pod. Polling RSS and killing the offender instead turns that
-/// into a clean, retryable job failure.
-///
-/// Disabled (never resolves, letting the `child.wait()`/timeout branches win)
-/// when `pid` is `None` or `max_rss_mb` is 0. We poll `/proc` directly rather
-/// than capping virtual memory with `RLIMIT_AS`: V8 reserves a huge virtual
-/// address space, so a virtual-memory ceiling would crash Node outright.
-async fn watch_memory(pid: Option<u32>, max_rss_mb: u64) -> u64 {
-    let pid = match pid {
-        Some(p) if max_rss_mb > 0 => p,
-        _ => {
-            tracing::debug!("enrich memory watchdog disabled (no pid or zero limit)");
-            std::future::pending::<()>().await;
-            unreachable!("pending future never resolves");
-        }
-    };
-
-    // RSS polling reads `/proc/<pid>/status`, which only exists on Linux (the
-    // deploy target). On a non-Linux dev machine `read_vmrss_kb` would return
-    // `None` every poll and the watchdog would never fire — silently. Make that
-    // degradation explicit and skip the pointless poll loop rather than letting
-    // a developer believe a ceiling is enforced when it is not.
-    if !cfg!(target_os = "linux") {
-        tracing::debug!(
-            "enrich memory watchdog inactive: RSS polling needs /proc (Linux only); \
-             agent runs without a memory ceiling on this platform"
-        );
-        std::future::pending::<()>().await;
-        unreachable!("pending future never resolves");
-    }
-
-    let interval = Duration::from_secs(5);
-    loop {
-        tokio::time::sleep(interval).await;
-        // A missing/unparsable status file means the process is gone; keep
-        // looping (harmless) and let `child.wait()` win the select.
-        if let Some(rss_kb) = read_vmrss_kb(pid).await {
-            let rss_mb = rss_kb / 1024;
-            if rss_mb > max_rss_mb {
-                return rss_mb;
-            }
-        }
-    }
-}
-
-/// Read a process's resident set size (RSS) from `/proc/<pid>/status`, in kB.
-/// Returns `None` if the file is missing or unparsable (e.g. the process exited).
-///
-/// This measures only the direct child PID, not the whole process group that
-/// `kill_process_group` SIGKILLs. That asymmetry is intentional: for the current
-/// opencode/Claude agent topology the runaway memory is the accumulated
-/// fetched-page bodies held in the main node process we spawn, so its RSS is the
-/// signal that matters. If a future agent moved that growth into a forked
-/// subprocess, this would need to sum the group's RSS (e.g. walk
-/// `/proc/<pid>/task` / children) to stay accurate.
-async fn read_vmrss_kb(pid: u32) -> Option<u64> {
-    let status = tokio::fs::read_to_string(format!("/proc/{pid}/status"))
         .await
-        .ok()?;
-    parse_vmrss_kb(&status)
-}
-
-/// Parse the `VmRSS` value (in kB) out of `/proc/<pid>/status` contents.
-fn parse_vmrss_kb(status: &str) -> Option<u64> {
-    status
-        .lines()
-        .find_map(|line| line.strip_prefix("VmRSS:"))
-        .and_then(|rest| rest.split_whitespace().next())
-        .and_then(|kb| kb.parse::<u64>().ok())
+    }
 }
 
 /// What kind of run this is. A chain is a sequence of passes over the same
@@ -1727,9 +1210,9 @@ pub struct EnrichPayload {
     pub new_law: Option<bool>,
     /// Article numbers this run must process (chunked enrichment). Computed
     /// per run by `execute_enrich_with_runner` from the persisted cursor and
-    /// passed to the [`LlmRunner`] via the normalized payload — never stored
-    /// in queue payloads (`skip_serializing_if` keeps old payloads and the
-    /// runner trait untouched). `None` means whole-law mode.
+    /// handed to the runner on [`AgentCall::payload`] — never stored in queue
+    /// payloads (`skip_serializing_if` keeps old payloads readable). `None`
+    /// means whole-law mode.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub chunk_articles: Option<Vec<String>>,
     /// De agent-sessie van dít venster: gedeeld door de vertaalslag en de
@@ -2117,20 +1600,12 @@ pub enum LlmProvider {
 impl LlmProvider {
     /// Short name used in branch names and metadata.
     pub fn name(&self) -> &str {
-        match self {
-            LlmProvider::OpenCode { .. } => "opencode",
-            LlmProvider::Claude { .. } => "claude",
-        }
+        self.dialect().name()
     }
 
-    /// Model string for metadata (provider-specific default if not set).
+    /// Model string for metadata, `default` if not set.
     pub fn model_str(&self) -> String {
-        match self {
-            LlmProvider::OpenCode { model, .. } => {
-                model.clone().unwrap_or_else(|| "default".into())
-            }
-            LlmProvider::Claude { model, .. } => model.clone().unwrap_or_else(|| "default".into()),
-        }
+        self.model().unwrap_or("default").to_string()
     }
 }
 
@@ -2203,6 +1678,9 @@ pub struct EnrichConfig {
     /// kills the process and fails the job instead of letting the agent OOM the
     /// whole container. 0 disables the watchdog.
     pub max_rss_mb: u64,
+    /// How often the memory watchdog reads the agent's RSS. Five seconds in
+    /// a worker; tests that exercise the watchdog shorten it.
+    pub memory_poll_interval: Duration,
     /// Max articles one enrich run may process (`ENRICH_MAX_ARTICLES_PER_RUN`).
     /// 0 disables chunking (whole-law sessions, the pre-chunking behavior).
     /// Default 15: a 600s session empirically enriches ~5–20 articles and the
@@ -2290,6 +1768,8 @@ impl EnrichConfig {
             feedback_timeout: Duration::from_secs(600),
             code_commit: "abc123".to_string(),
             max_rss_mb: 3500,
+            // Short, so tests of the watchdog do not wait five seconds.
+            memory_poll_interval: Duration::from_millis(100),
             // Chunking off by default in tests; chunk tests opt in explicitly.
             max_articles_per_run: 0,
             target_articles: Vec::new(),
@@ -2322,6 +1802,7 @@ impl EnrichConfig {
         effort: Option<String>,
         session_reuse: SessionReuse,
     ) -> Self {
+        let session_reuse = session_reuse_for(&provider, session_reuse);
         let mut provider_configs = std::collections::HashMap::new();
         provider_configs.insert("claude".to_string(), provider.clone());
         Self {
@@ -2330,6 +1811,7 @@ impl EnrichConfig {
             feedback_timeout: timeout,
             code_commit: String::new(),
             max_rss_mb: 0,
+            memory_poll_interval: DEFAULT_MEMORY_POLL_INTERVAL,
             max_articles_per_run: max_articles,
             target_articles,
             feedback_rounds,
@@ -2371,24 +1853,9 @@ impl EnrichConfig {
             .unwrap_or(15);
 
         // Build all provider configs once from env vars
-        let opencode_provider = LlmProvider::OpenCode {
-            path: std::env::var("OPENCODE_PATH")
-                .or_else(|_| std::env::var("LLM_PATH"))
-                .unwrap_or_else(|_| "opencode".into())
-                .into(),
-            model: std::env::var("OPENCODE_MODEL")
-                .or_else(|_| std::env::var("LLM_MODEL"))
-                .ok(),
-        };
-        let claude_provider = LlmProvider::Claude {
-            path: std::env::var("CLAUDE_PATH")
-                .or_else(|_| std::env::var("LLM_PATH"))
-                .unwrap_or_else(|_| "claude".into())
-                .into(),
-            model: std::env::var("CLAUDE_MODEL")
-                .or_else(|_| std::env::var("LLM_MODEL"))
-                .ok(),
-        };
+        let var = |name: &str| std::env::var(name).ok();
+        let opencode_provider = crate::agent::opencode::provider_from_env(var);
+        let claude_provider = crate::agent::claude::provider_from_env(var);
 
         // Feedback rounds per gate. A bad spec is not worth failing a worker
         // over, but it must not silently read as something else either.
@@ -2435,6 +1902,7 @@ impl EnrichConfig {
             "claude" => claude_provider.clone(),
             _ => opencode_provider.clone(),
         };
+        let session_reuse = session_reuse_for(&provider, session_reuse);
 
         let mut provider_configs = std::collections::HashMap::new();
         provider_configs.insert("opencode".to_string(), opencode_provider);
@@ -2446,6 +1914,7 @@ impl EnrichConfig {
             feedback_timeout: Duration::from_secs(timeout),
             code_commit,
             max_rss_mb,
+            memory_poll_interval: DEFAULT_MEMORY_POLL_INTERVAL,
             max_articles_per_run,
             // A worker walks whole laws; a named entry is a local, targeted
             // instruction and has no env var to arrive through.
@@ -2473,6 +1942,22 @@ impl EnrichConfig {
         }
     }
 
+    /// Fill in the opencode model when the environment named none, as
+    /// [`crate::agent::opencode::prepare_worker`] found it in the image's
+    /// configuration. opencode names no model in its output, so this is the
+    /// model a job records for its calls. A model the environment named wins.
+    #[must_use]
+    pub fn with_opencode_default_model(mut self, model: Option<String>) -> Self {
+        let Some(model) = model else {
+            return self;
+        };
+        crate::agent::opencode::fill_default_model(&mut self.provider, &model);
+        for provider in self.provider_configs.values_mut() {
+            crate::agent::opencode::fill_default_model(provider, &model);
+        }
+        self
+    }
+
     /// Return a config with the provider overridden if the payload specifies one.
     ///
     /// Selects from pre-built provider configs — no env vars are re-read.
@@ -2487,6 +1972,7 @@ impl EnrichConfig {
             );
             self.provider.clone()
         };
+        let session_reuse = session_reuse_for(&provider, self.session_reuse);
 
         Self {
             provider,
@@ -2494,6 +1980,7 @@ impl EnrichConfig {
             feedback_timeout: self.feedback_timeout,
             code_commit: self.code_commit.clone(),
             max_rss_mb: self.max_rss_mb,
+            memory_poll_interval: self.memory_poll_interval,
             max_articles_per_run: self.max_articles_per_run,
             target_articles: self.target_articles.clone(),
             feedback_rounds: self.feedback_rounds,
@@ -2506,7 +1993,7 @@ impl EnrichConfig {
             // closing pass — the use the field's own doc gives as its reason
             // for existing — did nothing.
             steps: self.steps,
-            session_reuse: self.session_reuse,
+            session_reuse,
             effort: self.effort.clone(),
             activity: self.activity.clone(),
             idle_timeout: self.idle_timeout,
@@ -3033,226 +2520,18 @@ pub fn progress_file_path(yaml_abs: &Path) -> PathBuf {
         .join(".enrichment-progress.json")
 }
 
-/// Allowlisted environment variable prefixes/names that are safe to pass to the
-/// LLM subprocess.  Everything else (DATABASE_URL, etc.) is stripped.
-const LLM_ENV_ALLOWLIST: &[&str] = &[
-    "HOME",
-    "PATH",
-    "TERM",
-    "LANG",
-    "USER",
-    "SHELL",
-    "TMPDIR",
-    "XDG_",
-    // Provider-specific auth.
-    //
-    // NOTE: ANTHROPIC_API_KEY is deliberately NOT forwarded. The claude provider
-    // authenticates only with a personal subscription via CLAUDE_CODE_OAUTH_TOKEN.
-    // Keeping ANTHROPIC_API_KEY out of the subprocess env means that even if it is
-    // still set on the worker (e.g. a leftover), it can never reach `claude` and
-    // silently take precedence over the OAuth token — the exact footgun that
-    // makes claude fail auth at startup.
-    "CLAUDE_CODE_OAUTH_TOKEN",
-    "VLAM_API_KEY",
-    "OPENCODE_",
-];
+/// The model the claude provider runs when nothing names one. Without it the
+/// CLI picks for itself, which depends on its version and the subscription
+/// behind the token, and has moved from Opus to Sonnet before.
+pub const DEFAULT_CLAUDE_MODEL: &str = "claude-opus-5-5";
 
-/// Check whether an environment variable name is on the allowlist.
-fn env_allowed(key: &str) -> bool {
-    LLM_ENV_ALLOWLIST
-        .iter()
-        .any(|prefix| key == *prefix || key.starts_with(prefix))
-}
-
-/// Select one Claude OAuth token from a comma-separated list, rotating by a
-/// time `bucket` so consecutive runs spread across several personal
-/// subscriptions (each token has its own usage/rate limits).
-///
-/// `CLAUDE_CODE_OAUTH_TOKEN` may hold multiple tokens separated by commas. The
-/// chosen index is `bucket % n`; callers pass `unix_secs / 100`, so the active
-/// token rotates roughly every 100 seconds. Returns `(index, count, token)`, or
-/// `None` when there are no non-empty tokens. Pure so it can be unit-tested.
-fn select_claude_token(raw: &str, bucket: u64) -> Option<(usize, usize, &str)> {
-    let tokens: Vec<&str> = raw
-        .split(',')
-        .map(|t| t.trim())
-        .filter(|t| !t.is_empty())
-        .collect();
-    if tokens.is_empty() {
-        return None;
-    }
-    let idx = (bucket % tokens.len() as u64) as usize;
-    Some((idx, tokens.len(), tokens[idx]))
-}
-
-/// Build the command for the configured LLM provider.
-///
-/// The subprocess gets a stripped environment: only variables on
-/// `LLM_ENV_ALLOWLIST` are forwarded.  This prevents leaking DATABASE_URL
-/// and other secrets to the LLM process (which may have shell access).
-///
-/// `file_arg` is passed to OpenCode as its `-f` input file (the Claude provider
-/// ignores it and reads via its own tools from `cwd`). Enrich passes the law
-/// YAML; a caller with no single input file passes `None`.
-fn build_command(
-    provider: &LlmProvider,
-    prompt: &str,
-    file_arg: Option<&Path>,
-    cwd: &Path,
-    tools: ToolPolicy<'_>,
-    effort: Option<&str>,
-    session: SessionAction,
-) -> tokio::process::Command {
-    // Collect allowed env vars before creating the command.
-    let safe_env: Vec<(String, String)> =
-        std::env::vars().filter(|(k, _)| env_allowed(k)).collect();
-
-    // Diagnostic logging: record exactly what will be spawned and which env vars
-    // are forwarded (NAMES only — never values). Classify the OAuth token by its
-    // non-secret prefix so a misconfiguration (an API key pasted into the OAuth
-    // slot) is obvious, and flag whether ANTHROPIC_API_KEY is still present in the
-    // worker env even though it is deliberately never forwarded.
-    let forwarded_env: Vec<&str> = safe_env.iter().map(|(k, _)| k.as_str()).collect();
-    let oauth_token_kind = std::env::var("CLAUDE_CODE_OAUTH_TOKEN").ok().map(|t| {
-        if t.is_empty() {
-            "empty"
-        } else if t.starts_with("sk-ant-oat") {
-            "oauth-token (sk-ant-oat…)"
-        } else if t.starts_with("sk-ant-api") {
-            "WRONG: looks like an API key (sk-ant-api…)"
-        } else {
-            "unrecognized-prefix"
-        }
-    });
-    let model = match provider {
-        LlmProvider::OpenCode { model, .. } | LlmProvider::Claude { model, .. } => model.as_deref(),
-    };
-    tracing::info!(
-        provider = provider.name(),
-        model = ?model,
-        effort = ?effort,
-        prompt_chars = prompt.len(),
-        claude_oauth_token_kind = ?oauth_token_kind,
-        anthropic_api_key_present_in_worker_env = std::env::var_os("ANTHROPIC_API_KEY").is_some(),
-        "spawning LLM subprocess"
-    );
-    // The forwarded env var NAMES are static between spawns — keep them at debug
-    // so they don't add a long line to every job's info logs.
-    tracing::debug!(provider = provider.name(), forwarded_env = ?forwarded_env, "forwarded env to LLM subprocess");
-
-    let mut cmd = match provider {
-        LlmProvider::OpenCode { path, model } => {
-            let mut cmd = tokio::process::Command::new(path);
-            cmd.env_clear();
-            cmd.envs(safe_env);
-            cmd.env("NODE_OPTIONS", "--max-old-space-size=512");
-            cmd.arg("run").arg(prompt);
-            if let Some(f) = file_arg {
-                cmd.arg("-f").arg(f);
-            }
-            cmd.arg("--format").arg("json").arg("--dir").arg(cwd);
-            if let Some(ref m) = model {
-                cmd.arg("-m").arg(m);
-            }
-            // OpenCode has no effort flag; saying so beats passing an option
-            // it would reject and letting the run fail on a typo in config.
-            if effort.is_some() {
-                tracing::warn!("effort is not supported by opencode; ignored");
-            }
-            // Session reuse is a claude-provider affair. Under opencode every
-            // call stays cold, and it says so rather than letting a run be
-            // read as though the windows had been shared.
-            if !matches!(session, SessionAction::Cold) {
-                tracing::warn!("session reuse is not wired for opencode; this call runs cold");
-            }
-            cmd
-        }
-        LlmProvider::Claude { path, model } => {
-            let mut cmd = tokio::process::Command::new(path);
-            cmd.env_clear();
-            cmd.envs(safe_env);
-            cmd.env("NODE_OPTIONS", "--max-old-space-size=512");
-            // If CLAUDE_CODE_OAUTH_TOKEN holds several comma-separated tokens,
-            // override the forwarded value with a single one chosen by a
-            // time-rotating index, so load spreads across the subscriptions.
-            if let Ok(raw) = std::env::var("CLAUDE_CODE_OAUTH_TOKEN") {
-                let bucket = std::time::SystemTime::now()
-                    .duration_since(std::time::UNIX_EPOCH)
-                    .map(|d| d.as_secs() / 100)
-                    .unwrap_or(0);
-                if let Some((idx, count, token)) = select_claude_token(&raw, bucket) {
-                    // Always apply the selected (trimmed) token — even for a
-                    // single token — so stray whitespace or a trailing comma
-                    // never reaches claude verbatim. Never log the token value;
-                    // only the 1-based position and count.
-                    cmd.env("CLAUDE_CODE_OAUTH_TOKEN", token);
-                    if count > 1 {
-                        tracing::info!(
-                            using_token = idx + 1,
-                            of_tokens = count,
-                            "selected claude oauth token (rotating by ~100s)"
-                        );
-                    }
-                }
-            }
-            // Leaving a tool off `--allowedTools` does not take it away: that
-            // flag auto-approves, and what it omits merely has to be asked for,
-            // which the checkout's own settings then grant. Withholding needs
-            // `--disallowedTools`. Without this the enrichment agent made
-            // twenty `Bash` calls in a session whose plan reported the step as
-            // running degraded for want of a shell.
-            let denied = tools.denied();
-            cmd.arg("-p")
-                .arg(prompt)
-                .arg("--allowedTools")
-                .arg(tools.allowed())
-                // One JSON event per line while the run goes, closing with
-                // the `result` event that carries the token use. The worker
-                // reads the events for progress and to notice a stalled
-                // run; `--include-partial-messages` adds an event per token
-                // so a long answer does not look like silence. stream-json
-                // requires `--verbose` under `-p`.
-                .arg("--output-format")
-                .arg("stream-json")
-                .arg("--verbose")
-                .arg("--include-partial-messages")
-                .current_dir(cwd);
-            if !denied.is_empty() {
-                cmd.arg("--disallowedTools").arg(denied.join(","));
-            }
-            if let Some(ref m) = model {
-                cmd.arg("--model").arg(m);
-            }
-            // Effort rides beside the model because that is how the CLI takes
-            // it: one flag for which model, one for how hard it thinks.
-            if let Some(e) = effort {
-                cmd.arg("--effort").arg(e);
-            }
-            // The window's session. The worker chooses the id rather than
-            // reading it back out of the provider's closing JSON: an id we
-            // hand in is known before the process starts, so a run that dies
-            // before it prints anything still leaves a resumable session, and
-            // nothing has to be parsed to continue.
-            match session {
-                SessionAction::Cold => {}
-                SessionAction::Start(id) => {
-                    cmd.arg("--session-id").arg(id.to_string());
-                }
-                SessionAction::Resume(id) => {
-                    cmd.arg("--resume").arg(id.to_string());
-                }
-            }
-            cmd
-        }
-    };
-
-    // Run the agent as its own process-group leader so a timeout/memory kill can
-    // signal the whole tree (the CLI plus any node workers or git it forks), not
-    // just the direct child. `kill_on_drop` is a backstop: if the worker future
-    // is dropped (panic, early return) the child is reaped rather than orphaned.
-    cmd.process_group(0);
-    cmd.kill_on_drop(true);
-    cmd
+/// The claude model: `CLAUDE_MODEL`, then `LLM_MODEL`, then
+/// [`DEFAULT_CLAUDE_MODEL`]. An empty value counts as unset.
+pub fn claude_model(claude_model: Option<String>, llm_model: Option<String>) -> String {
+    claude_model
+        .filter(|m| !m.trim().is_empty())
+        .or_else(|| llm_model.filter(|m| !m.trim().is_empty()))
+        .unwrap_or_else(|| DEFAULT_CLAUDE_MODEL.to_string())
 }
 
 /// Result of preparing the per-job enrichment checkout: the client plus the
@@ -3787,9 +3066,14 @@ async fn run_feedback_rounds(
             }),
             ..payload.clone()
         };
-        runner
-            .run(&feedback_payload, yaml_abs, corpus_root, &round_config)
-            .await?;
+        call_agent(
+            runner,
+            &feedback_payload,
+            yaml_abs,
+            corpus_root,
+            &round_config,
+        )
+        .await?;
 
         let reading = evaluate_gate(gate, yaml_abs, corpus_root, window).await?;
         findings = reading.answerable;
@@ -3925,9 +3209,7 @@ async fn run_windows_concurrently(
             ..payload.clone()
         };
         runs.push(async move {
-            runner
-                .run(&their_payload, &their_yaml, &checkout, config)
-                .await?;
+            call_agent(runner, &their_payload, &their_yaml, &checkout, config).await?;
             let text = tokio::fs::read_to_string(&their_yaml).await?;
             Ok::<_, PipelineError>(text)
         });
@@ -4726,9 +4008,7 @@ pub async fn execute_enrich_with_runner(
             )
             .await?;
         } else {
-            runner
-                .run(&normalized_payload, &yaml_abs, repo_path, config)
-                .await?;
+            call_agent(runner, &normalized_payload, &yaml_abs, repo_path, config).await?;
         }
 
         tracing::info!(law_id = %payload.law_id, provider = %provider_name, "enrichment completed");
@@ -5002,9 +4282,10 @@ pub async fn execute_enrich_with_runner(
                 return Err(PipelineError::Enrich(format!(
                     "{CHUNK_NO_OUTPUT_MARKER}: no new machine_readable additions in the window, \
                      no chunk_report referencing this window, no new markings or untranslatables \
-                     in the window (entries {} of {})",
+                     in the window (entries {} of {}){}",
                     numbers.join(", "),
-                    articles_before
+                    articles_before,
+                    config.activity.summary()
                 )));
             }
         }
@@ -5058,19 +4339,17 @@ pub async fn execute_enrich_with_runner(
         .and_then(|p| p.file_name())
         .map(|n| n.to_string_lossy().to_string());
     let features_dir = repo_path.join("features");
-    if let Some(ref slug) = law_slug {
-        if features_dir.exists() {
-            if let Ok(mut entries) = tokio::fs::read_dir(&features_dir).await {
-                while let Ok(Some(entry)) = entries.next_entry().await {
-                    let path = entry.path();
-                    if path.extension().is_some_and(|e| e == "feature") {
-                        if let Some(name) = path.file_stem() {
-                            if name.to_string_lossy().contains(slug.as_str()) {
-                                written_files.push(path);
-                            }
-                        }
-                    }
-                }
+    if let Some(ref slug) = law_slug
+        && features_dir.exists()
+        && let Ok(mut entries) = tokio::fs::read_dir(&features_dir).await
+    {
+        while let Ok(Some(entry)) = entries.next_entry().await {
+            let path = entry.path();
+            if path.extension().is_some_and(|e| e == "feature")
+                && let Some(name) = path.file_stem()
+                && name.to_string_lossy().contains(slug.as_str())
+            {
+                written_files.push(path);
             }
         }
     }
@@ -5618,6 +4897,76 @@ related_legislation:
     }
 
     #[test]
+    fn claude_model_defaults_to_opus_and_yields_to_the_env() {
+        assert_eq!(claude_model(None, None), "claude-opus-5-5");
+        assert_eq!(claude_model(Some(" ".into()), None), "claude-opus-5-5");
+        assert_eq!(claude_model(None, Some("x".into())), "x");
+        assert_eq!(claude_model(Some("y".into()), Some("x".into())), "y");
+    }
+
+    #[test]
+    fn the_image_model_fills_in_only_where_no_model_was_named() {
+        let opencode = |model: Option<&str>| LlmProvider::OpenCode {
+            path: "opencode".into(),
+            model: model.map(str::to_string),
+        };
+        let mut config = EnrichConfig::for_test(opencode(None));
+        config
+            .provider_configs
+            .insert("opencode".into(), opencode(Some("")));
+        let config = config.with_opencode_default_model(Some("vlam/kimi-k3-prepaid".into()));
+        assert_eq!(config.provider.model(), Some("vlam/kimi-k3-prepaid"));
+        // An empty model counts as none, as it did in the shell.
+        assert_eq!(
+            config.with_provider_override("opencode").provider.model(),
+            Some("vlam/kimi-k3-prepaid")
+        );
+        // claude keeps its own model.
+        assert_eq!(
+            config.with_provider_override("claude").provider.model(),
+            Some("opus")
+        );
+
+        let named = EnrichConfig::for_test(opencode(Some("chosen")))
+            .with_opencode_default_model(Some("vlam/kimi-k3-prepaid".into()));
+        assert_eq!(named.provider.model(), Some("chosen"));
+        let none = EnrichConfig::for_test(opencode(None)).with_opencode_default_model(None);
+        assert_eq!(none.provider.model(), None);
+    }
+
+    #[test]
+    fn an_opencode_job_runs_without_session_reuse() {
+        let config = EnrichConfig::for_test(LlmProvider::Claude {
+            path: "claude".into(),
+            model: None,
+        });
+        let config = EnrichConfig {
+            session_reuse: SessionReuse::Window,
+            ..config
+        };
+        let mut configs = config.provider_configs.clone();
+        configs.insert(
+            "opencode".to_string(),
+            LlmProvider::OpenCode {
+                path: "opencode".into(),
+                model: None,
+            },
+        );
+        let config = EnrichConfig {
+            provider_configs: configs,
+            ..config
+        };
+        assert_eq!(
+            config.with_provider_override("opencode").session_reuse,
+            SessionReuse::Off
+        );
+        assert_eq!(
+            config.with_provider_override("claude").session_reuse,
+            SessionReuse::Window
+        );
+    }
+
+    #[test]
     fn test_llm_provider_opencode_defaults() {
         let provider = LlmProvider::OpenCode {
             path: "opencode".into(),
@@ -5723,41 +5072,6 @@ articles:
         assert!(ENRICH_PROVIDERS.contains(&"opencode"));
         assert!(ENRICH_PROVIDERS.contains(&"claude"));
         assert_eq!(ENRICH_PROVIDERS.len(), 2);
-    }
-
-    #[test]
-    fn test_select_claude_token() {
-        // empty / whitespace-only -> None
-        assert_eq!(select_claude_token("", 0), None);
-        assert_eq!(select_claude_token("  , ,", 5), None);
-
-        // single token -> always that token, index 0
-        assert_eq!(select_claude_token("tokA", 0), Some((0, 1, "tokA")));
-        assert_eq!(select_claude_token(" tokA ", 999), Some((0, 1, "tokA")));
-
-        // multiple tokens -> rotate by bucket % n, whitespace trimmed
-        assert_eq!(select_claude_token("a, b , c", 0), Some((0, 3, "a")));
-        assert_eq!(select_claude_token("a, b , c", 1), Some((1, 3, "b")));
-        assert_eq!(select_claude_token("a, b , c", 2), Some((2, 3, "c")));
-        assert_eq!(select_claude_token("a, b , c", 3), Some((0, 3, "a")));
-        // large bucket (e.g. unix_secs/100) still wraps correctly
-        assert_eq!(select_claude_token("a,b", 17_000_001), Some((1, 2, "b")));
-    }
-
-    #[test]
-    fn test_parse_vmrss_kb_extracts_value() {
-        let status = "Name:\tnode\nVmPeak:\t 4194304 kB\nVmRSS:\t  2097152 kB\nThreads:\t12\n";
-        assert_eq!(parse_vmrss_kb(status), Some(2_097_152));
-    }
-
-    #[test]
-    fn test_parse_vmrss_kb_missing_or_malformed() {
-        // No VmRSS line.
-        assert_eq!(parse_vmrss_kb("Name:\tnode\nThreads:\t12\n"), None);
-        // VmRSS present but value not numeric.
-        assert_eq!(parse_vmrss_kb("VmRSS:\t  notanumber kB\n"), None);
-        // Empty input.
-        assert_eq!(parse_vmrss_kb(""), None);
     }
 
     #[test]
@@ -6297,16 +5611,20 @@ articles:
         // Both accepting sides, so the guard is not simply closed: a finding
         // fewer, or a schema error repaired while the findings stand still —
         // which is what binding an input without `source` actually does.
-        assert!(Rewrite {
-            findings_after: 2,
-            ..swap
-        }
-        .is_progress());
-        assert!(Rewrite {
-            schema_before: 1,
-            ..swap
-        }
-        .is_progress());
+        assert!(
+            Rewrite {
+                findings_after: 2,
+                ..swap
+            }
+            .is_progress()
+        );
+        assert!(
+            Rewrite {
+                schema_before: 1,
+                ..swap
+            }
+            .is_progress()
+        );
     }
 
     /// Whatever the counts say, a law the parser cannot read never replaces
@@ -6343,13 +5661,8 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for SchemaBreakingRunner {
-        async fn run(
-            &self,
-            _payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let yaml_abs = call.yaml_abs;
             let text = tokio::fs::read_to_string(yaml_abs).await?;
             let broken = text.replace(
                 "    machine_readable:\n      endpoint: hoogte\n",
@@ -6359,7 +5672,7 @@ articles:
             );
             assert_ne!(broken, text, "de testrunner moet iets veranderen");
             tokio::fs::write(yaml_abs, broken).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -6413,16 +5726,11 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for HarmlessRunner {
-        async fn run(
-            &self,
-            _payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let yaml_abs = call.yaml_abs;
             let text = tokio::fs::read_to_string(yaml_abs).await?;
             tokio::fs::write(yaml_abs, format!("{text}# nagelezen\n")).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -6525,42 +5833,35 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for MarkingRunner {
-        async fn run(
-            &self,
-            _payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let yaml_abs = call.yaml_abs;
             #[allow(clippy::unwrap_used)]
             {
                 *self.calls.lock().unwrap() += 1;
             }
             let content = tokio::fs::read_to_string(yaml_abs).await?;
             let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
-            if let serde_yaml_ng::Value::Mapping(ref mut map) = value {
-                if let Some(serde_yaml_ng::Value::Sequence(ref mut articles)) =
-                    map.get_mut("articles")
-                {
-                    for article in articles.iter_mut() {
-                        if let serde_yaml_ng::Value::Mapping(ref mut article_map) = article {
-                            if article_map.contains_key("machine_readable") {
-                                continue;
-                            }
-                            let marking: serde_yaml_ng::Value = serde_yaml_ng::from_str(
-                                "markings:\n  - about: naar redelijkheid en billijkheid is een open norm\n    reason: het model kent alleen formules en geen oordeelsruimte\n    resolution: model\n    resolved_by: het formaat zou een oordeelsruimte moeten kunnen dragen die geen formule is\n    target: []\n    legal_text_excerpt: naar redelijkheid en billijkheid\n",
-                            )?;
-                            article_map.insert(
-                                serde_yaml_ng::Value::String("machine_readable".into()),
-                                marking,
-                            );
-                            break;
+            if let serde_yaml_ng::Value::Mapping(ref mut map) = value
+                && let Some(serde_yaml_ng::Value::Sequence(articles)) = map.get_mut("articles")
+            {
+                for article in articles.iter_mut() {
+                    if let serde_yaml_ng::Value::Mapping(article_map) = article {
+                        if article_map.contains_key("machine_readable") {
+                            continue;
                         }
+                        let marking: serde_yaml_ng::Value = serde_yaml_ng::from_str(
+                            "markings:\n  - about: naar redelijkheid en billijkheid is een open norm\n    reason: het model kent alleen formules en geen oordeelsruimte\n    resolution: model\n    resolved_by: het formaat zou een oordeelsruimte moeten kunnen dragen die geen formule is\n    target: []\n    legal_text_excerpt: naar redelijkheid en billijkheid\n",
+                        )?;
+                        article_map.insert(
+                            serde_yaml_ng::Value::String("machine_readable".into()),
+                            marking,
+                        );
+                        break;
                     }
                 }
             }
             tokio::fs::write(yaml_abs, serde_yaml_ng::to_string(&value)?).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -6804,18 +6105,12 @@ articles:
 
         #[async_trait::async_trait]
         impl LlmRunner for SilentRunner {
-            async fn run(
-                &self,
-                _payload: &EnrichPayload,
-                _yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, _call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
                 #[allow(clippy::unwrap_used)]
                 {
                     *self.calls.lock().unwrap() += 1;
                 }
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -6859,13 +6154,8 @@ articles:
 
         #[async_trait::async_trait]
         impl LlmRunner for ChurningRunner {
-            async fn run(
-                &self,
-                _payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+                let yaml_abs = call.yaml_abs;
                 #[allow(clippy::unwrap_used)]
                 let call = {
                     let mut calls = self.calls.lock().unwrap();
@@ -6874,7 +6164,7 @@ articles:
                 };
                 let content = tokio::fs::read_to_string(yaml_abs).await?;
                 tokio::fs::write(yaml_abs, format!("{content}# round {call}\n")).await?;
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -7109,96 +6399,15 @@ articles:
         assert!(SessionReuse::parse("sometimes").is_err());
     }
 
-    #[test]
-    fn a_tool_the_lane_does_not_grant_is_denied_and_not_merely_left_off() {
-        // `--allowedTools` auto-approves; it does not withhold. Leaving Bash
-        // off it is what let the enrichment agent make twenty shell calls in a
-        // session whose plan reported the shell as absent. Whatever the
-        // capability planner calls ungranted has to arrive as `--disallowedTools`
-        // or the plan is a description of a runtime that does not exist.
-        let provider = LlmProvider::Claude {
-            path: "claude".into(),
-            model: None,
-        };
-        let args = |allow_bash: bool, deny: &[String]| -> Vec<String> {
-            build_command(
-                &provider,
-                "prompt",
-                None,
-                Path::new("/tmp"),
-                ToolPolicy { allow_bash, deny },
-                None,
-                SessionAction::Cold,
-            )
-            .as_std()
-            .get_args()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect()
-        };
-
-        let lane = args(false, &["WebFetch".to_owned(), "WebSearch".to_owned()]);
-        let at = lane
-            .iter()
-            .position(|a| a == "--disallowedTools")
-            .expect("lane denies something");
-        assert_eq!(lane[at + 1], "Bash,WebFetch,WebSearch");
-
-        // A caller that asked for the shell keeps it.
-        let converter = args(true, &[]);
-        assert!(
-            !converter.iter().any(|a| a == "--disallowedTools"),
-            "document-convert must keep its shell: {converter:?}"
-        );
-    }
-
-    #[test]
-    fn the_claude_command_starts_and_resumes_a_session() {
-        let provider = LlmProvider::Claude {
-            path: "claude".into(),
-            model: None,
-        };
-        let id = Uuid::new_v4();
-        let args = |action: SessionAction| -> Vec<String> {
-            build_command(
-                &provider,
-                "prompt",
-                None,
-                Path::new("/tmp"),
-                ToolPolicy {
-                    allow_bash: false,
-                    deny: &[],
-                },
-                None,
-                action,
-            )
-            .as_std()
-            .get_args()
-            .map(|a| a.to_string_lossy().into_owned())
-            .collect()
-        };
-
-        let cold = args(SessionAction::Cold);
-        assert!(!cold.iter().any(|a| a == "--session-id" || a == "--resume"));
-
-        let start = args(SessionAction::Start(id));
-        let at = start
-            .iter()
-            .position(|a| a == "--session-id")
-            .expect("start");
-        assert_eq!(start[at + 1], id.to_string());
-
-        let resume = args(SessionAction::Resume(id));
-        let at = resume.iter().position(|a| a == "--resume").expect("resume");
-        assert_eq!(resume[at + 1], id.to_string());
-    }
-
-    /// Answers a round like [`MarkingRunner`], but takes the session decision
-    /// the same way the process runner does — through `begin_call`/`end_call`
-    /// — and writes down what it decided. Anything less would test a copy of
-    /// the rule rather than the rule.
+    /// Answers a round like [`MarkingRunner`], and writes down the session
+    /// decision each call was handed. `call_agent` makes that decision before
+    /// any runner sees the call, so this records the rule itself rather than a
+    /// copy of it.
     struct SessionRunner {
         inner: MarkingRunner,
         actions: std::sync::Mutex<Vec<(String, SessionAction)>>,
+        /// Each call's prompt and whether it was given a shell.
+        prompts: std::sync::Mutex<Vec<(String, bool)>>,
     }
 
     impl SessionRunner {
@@ -7208,6 +6417,7 @@ articles:
                     calls: std::sync::Mutex::new(0),
                 },
                 actions: std::sync::Mutex::new(Vec::new()),
+                prompts: std::sync::Mutex::new(Vec::new()),
             }
         }
 
@@ -7215,35 +6425,36 @@ articles:
         fn actions(&self) -> Vec<(String, SessionAction)> {
             self.actions.lock().unwrap().clone()
         }
+
+        #[allow(clippy::unwrap_used)]
+        fn prompts(&self) -> Vec<(String, bool)> {
+            self.prompts.lock().unwrap().clone()
+        }
     }
 
     #[async_trait::async_trait]
     impl LlmRunner for SessionRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            repo_path: &Path,
-            config: &EnrichConfig,
-        ) -> Result<()> {
-            let action = begin_call(payload);
+        async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun> {
+            let payload = call.payload;
             #[allow(clippy::unwrap_used)]
             {
                 self.actions
                     .lock()
                     .unwrap()
-                    .push((pass_label(&payload.pass).to_string(), action));
+                    .push((pass_label(&payload.pass).to_string(), call.session));
+                self.prompts
+                    .lock()
+                    .unwrap()
+                    .push((call.prompt.to_string(), call.tools.allow_bash));
             }
-            self.inner.run(payload, yaml_abs, repo_path, config).await?;
-            end_call(payload, action, AgentRun::default());
-            Ok(())
+            self.inner.run(call, config).await
         }
     }
 
     async fn rounds_with_session(
         reuse: SessionReuse,
         session: &std::sync::Arc<AgentSession>,
-    ) -> Vec<(String, SessionAction)> {
+    ) -> SessionRunner {
         let (dir, path) = silent_law_on_disk(3).await;
         let mut config = rounds_config(FeedbackRounds {
             marking: 2,
@@ -7268,7 +6479,31 @@ articles:
         .await
         .expect("rounds run");
 
-        runner.actions()
+        runner
+    }
+
+    #[test]
+    fn only_zero_withholds_the_context_brief() {
+        assert!(brief_withheld(Some("0")));
+        assert!(!brief_withheld(None));
+        assert!(!brief_withheld(Some("1")));
+        assert!(!brief_withheld(Some("")));
+    }
+
+    #[tokio::test]
+    async fn a_resumed_round_is_told_to_read_the_file_again_and_gets_no_shell() {
+        let session = std::sync::Arc::new(AgentSession::new(SessionReuse::Window));
+        let prompts = rounds_with_session(SessionReuse::Window, &session)
+            .await
+            .prompts();
+        assert_eq!(prompts.len(), 2, "both rounds ran");
+        // The first round opens the session and has nothing to reread.
+        assert!(!prompts[0].0.starts_with(REREAD_INSTRUCTION));
+        // The second continues it, so it is told first that memory is not
+        // evidence and the file is.
+        assert!(prompts[1].0.starts_with(REREAD_INSTRUCTION));
+        // Enrich edits YAML in place; no round gets a shell.
+        assert!(prompts.iter().all(|(_, bash)| !bash));
     }
 
     #[tokio::test]
@@ -7276,7 +6511,9 @@ articles:
         // Two rounds at the same gate, over the same articles: the second
         // must continue the first rather than start a seventh cold process.
         let session = std::sync::Arc::new(AgentSession::new(SessionReuse::Window));
-        let actions = rounds_with_session(SessionReuse::Window, &session).await;
+        let actions = rounds_with_session(SessionReuse::Window, &session)
+            .await
+            .actions();
 
         assert_eq!(actions.len(), 2, "both rounds ran");
         assert_eq!(
@@ -7301,11 +6538,15 @@ articles:
         // Same law, same gate, a new window: nothing is resumed. The saving
         // stops at the window boundary on purpose.
         let first = std::sync::Arc::new(AgentSession::new(SessionReuse::Window));
-        let first_actions = rounds_with_session(SessionReuse::Window, &first).await;
+        let first_actions = rounds_with_session(SessionReuse::Window, &first)
+            .await
+            .actions();
         assert!(first_actions.iter().any(|(_, a)| a.resumed()));
 
         let second = std::sync::Arc::new(AgentSession::new(SessionReuse::Window));
-        let second_actions = rounds_with_session(SessionReuse::Window, &second).await;
+        let second_actions = rounds_with_session(SessionReuse::Window, &second)
+            .await
+            .actions();
         assert_eq!(
             second_actions[0].1,
             SessionAction::Start(second.id()),
@@ -7317,7 +6558,9 @@ articles:
     #[tokio::test]
     async fn the_marking_gate_stays_cold_under_repair_mode() {
         let session = std::sync::Arc::new(AgentSession::new(SessionReuse::Repair));
-        let actions = rounds_with_session(SessionReuse::Repair, &session).await;
+        let actions = rounds_with_session(SessionReuse::Repair, &session)
+            .await
+            .actions();
 
         assert_eq!(actions.len(), 2);
         assert!(
@@ -7493,44 +6736,35 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for InvalidThenRepairingRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let payload = call.payload;
+            let yaml_abs = call.yaml_abs;
             let is_repair = matches!(payload.pass, Pass::Feedback(_));
             #[allow(clippy::unwrap_used)]
             self.calls.lock().unwrap().push(is_repair);
 
             let content = tokio::fs::read_to_string(yaml_abs).await?;
             let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
-            if let serde_yaml_ng::Value::Mapping(ref mut map) = value {
-                if let Some(serde_yaml_ng::Value::Sequence(ref mut articles)) =
-                    map.get_mut("articles")
-                {
-                    for article in articles.iter_mut() {
-                        if let serde_yaml_ng::Value::Mapping(ref mut m) = article {
-                            let mut mr = serde_yaml_ng::Mapping::new();
-                            if is_repair {
-                                // The repair round drops the invented key.
-                                mr.insert(
-                                    "markings".into(),
-                                    serde_yaml_ng::Value::Sequence(vec![]),
-                                );
-                            } else {
-                                // An invented key: `machine_readable` is
-                                // `additionalProperties: false`.
-                                mr.insert("verzonnen_sleutel".into(), "iets".into());
-                            }
-                            m.insert("machine_readable".into(), serde_yaml_ng::Value::Mapping(mr));
+            if let serde_yaml_ng::Value::Mapping(ref mut map) = value
+                && let Some(serde_yaml_ng::Value::Sequence(articles)) = map.get_mut("articles")
+            {
+                for article in articles.iter_mut() {
+                    if let serde_yaml_ng::Value::Mapping(m) = article {
+                        let mut mr = serde_yaml_ng::Mapping::new();
+                        if is_repair {
+                            // The repair round drops the invented key.
+                            mr.insert("markings".into(), serde_yaml_ng::Value::Sequence(vec![]));
+                        } else {
+                            // An invented key: `machine_readable` is
+                            // `additionalProperties: false`.
+                            mr.insert("verzonnen_sleutel".into(), "iets".into());
                         }
+                        m.insert("machine_readable".into(), serde_yaml_ng::Value::Mapping(mr));
                     }
                 }
             }
             tokio::fs::write(yaml_abs, serde_yaml_ng::to_string(&value)?).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -7595,13 +6829,9 @@ articles:
 
         #[async_trait::async_trait]
         impl LlmRunner for UnansweringRunner {
-            async fn run(
-                &self,
-                payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+                let payload = call.payload;
+                let yaml_abs = call.yaml_abs;
                 #[allow(clippy::unwrap_used)]
                 self.passes.lock().unwrap().push(match &payload.pass {
                     Pass::Translate => "translate",
@@ -7614,26 +6844,24 @@ articles:
                     },
                 });
                 if !matches!(payload.pass, Pass::Translate) {
-                    return Ok(()); // answers nothing, on purpose
+                    return Ok(AgentRun::default()); // answers nothing, on purpose
                 }
                 let content = tokio::fs::read_to_string(yaml_abs).await?;
                 let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
-                if let serde_yaml_ng::Value::Mapping(ref mut map) = value {
-                    if let Some(serde_yaml_ng::Value::Sequence(ref mut arts)) =
-                        map.get_mut("articles")
-                    {
-                        for a in arts.iter_mut() {
-                            if let serde_yaml_ng::Value::Mapping(ref mut m) = a {
-                                m.insert(
-                                    "machine_readable".into(),
-                                    serde_yaml_ng::Value::Mapping(Default::default()),
-                                );
-                            }
+                if let serde_yaml_ng::Value::Mapping(ref mut map) = value
+                    && let Some(serde_yaml_ng::Value::Sequence(arts)) = map.get_mut("articles")
+                {
+                    for a in arts.iter_mut() {
+                        if let serde_yaml_ng::Value::Mapping(m) = a {
+                            m.insert(
+                                "machine_readable".into(),
+                                serde_yaml_ng::Value::Mapping(Default::default()),
+                            );
                         }
                     }
                 }
                 tokio::fs::write(yaml_abs, serde_yaml_ng::to_string(&value)?).await?;
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -7803,36 +7031,29 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for FakeLlmRunner {
-        async fn run(
-            &self,
-            _payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let yaml_abs = call.yaml_abs;
             let content = tokio::fs::read_to_string(yaml_abs).await?;
             let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
 
-            if let serde_yaml_ng::Value::Mapping(ref mut map) = value {
-                if let Some(serde_yaml_ng::Value::Sequence(ref mut articles)) =
-                    map.get_mut("articles")
-                {
-                    for article in articles.iter_mut() {
-                        if let serde_yaml_ng::Value::Mapping(ref mut article_map) = article {
-                            if !article_map.contains_key("machine_readable") {
-                                article_map.insert(
-                                    serde_yaml_ng::Value::String("machine_readable".into()),
-                                    serde_yaml_ng::Value::Mapping(Default::default()),
-                                );
-                            }
-                        }
+            if let serde_yaml_ng::Value::Mapping(ref mut map) = value
+                && let Some(serde_yaml_ng::Value::Sequence(articles)) = map.get_mut("articles")
+            {
+                for article in articles.iter_mut() {
+                    if let serde_yaml_ng::Value::Mapping(article_map) = article
+                        && !article_map.contains_key("machine_readable")
+                    {
+                        article_map.insert(
+                            serde_yaml_ng::Value::String("machine_readable".into()),
+                            serde_yaml_ng::Value::Mapping(Default::default()),
+                        );
                     }
                 }
             }
 
             let output = serde_yaml_ng::to_string(&value)?;
             tokio::fs::write(yaml_abs, output).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -7866,16 +7087,9 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for TruncatingLlmRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            repo_path: &Path,
-            config: &EnrichConfig,
-        ) -> Result<()> {
-            FakeLlmRunner
-                .run(payload, yaml_abs, repo_path, config)
-                .await?;
+        async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun> {
+            let yaml_abs = call.yaml_abs;
+            FakeLlmRunner.run(call, config).await?;
             let content = tokio::fs::read_to_string(yaml_abs).await?;
             let mut doc: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
             if let Some(serde_yaml_ng::Value::Mapping(first)) =
@@ -7884,7 +7098,7 @@ articles:
                 first.insert("text".into(), "Article".into());
             }
             tokio::fs::write(yaml_abs, serde_yaml_ng::to_string(&doc)?).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -8044,13 +7258,7 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for FailingLlmRunner {
-        async fn run(
-            &self,
-            _payload: &EnrichPayload,
-            _yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, _call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
             Err(PipelineError::Enrich("simulated LLM failure".into()))
         }
     }
@@ -8102,14 +7310,8 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for NoopLlmRunner {
-        async fn run(
-            &self,
-            _payload: &EnrichPayload,
-            _yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
-            Ok(())
+        async fn run(&self, _call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            Ok(AgentRun::default())
         }
     }
 
@@ -8503,13 +7705,10 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for WindowRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let payload = call.payload;
+            let yaml_abs = call.yaml_abs;
+            let repo_path = call.repo_path;
             #[allow(clippy::unwrap_used)]
             {
                 self.checkouts.lock().unwrap().push(repo_path.to_path_buf());
@@ -8535,7 +7734,7 @@ articles:
                 }
             }
             tokio::fs::write(yaml_abs, serde_yaml_ng::to_string(&doc)?).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -8596,13 +7795,8 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for SessionRecordingWindowRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            repo_path: &Path,
-            config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun> {
+            let payload = call.payload;
             #[allow(clippy::unwrap_used)]
             {
                 self.sessions
@@ -8610,7 +7804,7 @@ articles:
                     .unwrap()
                     .push(payload.session.as_ref().map(|s| (s.id(), s.reuse())));
             }
-            self.inner.run(payload, yaml_abs, repo_path, config).await
+            self.inner.run(call, config).await
         }
     }
 
@@ -8709,68 +7903,6 @@ articles:
                 (spec, capabilities::plan_step(spec, &grant, Some(declared)))
             })
             .collect()
-    }
-
-    #[test]
-    fn usage_is_read_from_the_providers_closing_object() {
-        // The shape the claude CLI emits under `--output-format json`.
-        let tail = r#"{"type":"result","subtype":"success","is_error":false,
-            "duration_ms":812345,"num_turns":42,"result":"done",
-            "total_cost_usd":1.2345,
-            "usage":{"input_tokens":1200,"output_tokens":34567,
-                     "cache_read_input_tokens":980000,"cache_creation_input_tokens":45}}"#;
-        let u = AgentUsage::from_stdout_tail(tail).expect("usage");
-        assert_eq!(u.input_tokens, 1200);
-        assert_eq!(u.output_tokens, 34567);
-        assert_eq!(u.cache_read_tokens, 980_000);
-        // Money as an integer: 1.2345 dollar is 123450 thousandths of a cent.
-        assert_eq!(u.cost_millicents, 123_450);
-    }
-
-    #[test]
-    fn only_the_last_object_in_the_stream_counts() {
-        // The stream carries earlier objects; the accounting is the final one.
-        let tail = concat!(
-            r#"{"type":"assistant","usage":{"input_tokens":1,"output_tokens":1}}"#,
-            "\n",
-            r#"{"type":"result","usage":{"input_tokens":99,"output_tokens":7}}"#,
-        );
-        let u = AgentUsage::from_stdout_tail(tail).expect("usage");
-        assert_eq!(u.input_tokens, 99);
-        assert_eq!(u.output_tokens, 7);
-    }
-
-    #[test]
-    fn usage_is_found_in_a_stream_whatever_the_key_order() {
-        // stream-json as the CLI writes it: the closing event does not start
-        // with `type`, and a stream event with a nested `type` follows it.
-        let tail = concat!(
-            r#"{"type":"assistant","message":{"usage":{"input_tokens":1}}}"#,
-            "\n",
-            r#"{"duration_api_ms":5,"type":"result","total_cost_usd":0.01,"usage":{"input_tokens":42,"output_tokens":7}}"#,
-            "\n",
-            r#"{"type":"stream_event","event":{"type":"message_stop"}}"#,
-            "\n",
-        );
-        let u = AgentUsage::from_stdout_tail(tail).expect("usage");
-        assert_eq!(u.input_tokens, 42);
-        assert_eq!(u.output_tokens, 7);
-        assert_eq!(u.cost_millicents, 1_000);
-    }
-
-    #[test]
-    fn a_truncated_tail_reports_nothing_rather_than_guessing() {
-        // The tail is bounded, so a large stream can cut an object in half.
-        // Half a figure is worse than no figure.
-        assert!(AgentUsage::from_stdout_tail(r#"put_tokens":1200,"output_"#).is_none());
-        assert!(AgentUsage::from_stdout_tail("").is_none());
-        assert!(AgentUsage::from_stdout_tail("no json here at all").is_none());
-    }
-
-    #[test]
-    fn an_object_without_usage_reports_nothing() {
-        // A provider that reports no accounting must not read as zero cost.
-        assert!(AgentUsage::from_stdout_tail(r#"{"type":"result","result":"ok"}"#).is_none());
     }
 
     #[test]
@@ -9137,18 +8269,14 @@ chunk_report:
 
     #[async_trait::async_trait]
     impl LlmRunner for FakeChunkRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            _config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+            let payload = call.payload;
+            let yaml_abs = call.yaml_abs;
             // A feedback pass carries no window: it asks about the file as
             // it now stands. Only the translating passes are the subject of
             // this test, so record those and let the rest through.
             let Some(chunk) = payload.chunk_articles.clone() else {
-                return Ok(());
+                return Ok(AgentRun::default());
             };
             self.calls
                 .lock()
@@ -9157,25 +8285,22 @@ chunk_report:
 
             let content = tokio::fs::read_to_string(yaml_abs).await?;
             let mut value: serde_yaml_ng::Value = serde_yaml_ng::from_str(&content)?;
-            if let serde_yaml_ng::Value::Mapping(ref mut map) = value {
-                if let Some(serde_yaml_ng::Value::Sequence(ref mut articles)) =
-                    map.get_mut("articles")
-                {
-                    for article in articles.iter_mut() {
-                        if let serde_yaml_ng::Value::Mapping(ref mut article_map) = article {
-                            let number = article_map
-                                .get("number")
-                                .and_then(|n| n.as_str())
-                                .unwrap_or_default()
-                                .to_string();
-                            if chunk.contains(&number)
-                                && !article_map.contains_key("machine_readable")
-                            {
-                                article_map.insert(
-                                    serde_yaml_ng::Value::String("machine_readable".into()),
-                                    serde_yaml_ng::Value::Mapping(Default::default()),
-                                );
-                            }
+            if let serde_yaml_ng::Value::Mapping(ref mut map) = value
+                && let Some(serde_yaml_ng::Value::Sequence(articles)) = map.get_mut("articles")
+            {
+                for article in articles.iter_mut() {
+                    if let serde_yaml_ng::Value::Mapping(article_map) = article {
+                        let number = article_map
+                            .get("number")
+                            .and_then(|n| n.as_str())
+                            .unwrap_or_default()
+                            .to_string();
+                        if chunk.contains(&number) && !article_map.contains_key("machine_readable")
+                        {
+                            article_map.insert(
+                                serde_yaml_ng::Value::String("machine_readable".into()),
+                                serde_yaml_ng::Value::Mapping(Default::default()),
+                            );
                         }
                     }
                 }
@@ -9193,7 +8318,7 @@ chunk_report:
                 );
                 tokio::fs::write(enrichment_result_path(yaml_abs), report).await?;
             }
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -9422,13 +8547,9 @@ articles:
 
     #[async_trait::async_trait]
     impl LlmRunner for ScriptedRunner {
-        async fn run(
-            &self,
-            payload: &EnrichPayload,
-            yaml_abs: &Path,
-            _repo_path: &Path,
-            config: &EnrichConfig,
-        ) -> Result<()> {
+        async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun> {
+            let payload = call.payload;
+            let yaml_abs = call.yaml_abs;
             self.ceilings.lock().unwrap().push(config.timeout);
             let mut text = tokio::fs::read_to_string(yaml_abs).await?;
             match &payload.pass {
@@ -9462,7 +8583,7 @@ articles:
                 }
             }
             tokio::fs::write(yaml_abs, text).await?;
-            Ok(())
+            Ok(AgentRun::default())
         }
     }
 
@@ -9808,9 +8929,11 @@ articles:
         let last = runs.last().unwrap();
         assert!(last.law_complete, "the layer walk ends");
         assert!(last.feedback.iter().any(|g| g.gate == "binding-final"));
-        assert!(runs[..runs.len() - 1]
-            .iter()
-            .all(|r| !r.feedback.iter().any(|g| g.gate == "binding-final")));
+        assert!(
+            runs[..runs.len() - 1]
+                .iter()
+                .all(|r| !r.feedback.iter().any(|g| g.gate == "binding-final"))
+        );
     }
 
     /// The ceiling the worker divides the job budget by is the number of agent
@@ -10009,19 +9132,14 @@ articles:
         struct ReportOnlyRunner;
         #[async_trait::async_trait]
         impl LlmRunner for ReportOnlyRunner {
-            async fn run(
-                &self,
-                _payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+                let yaml_abs = call.yaml_abs;
                 tokio::fs::write(
                     enrichment_result_path(yaml_abs),
                     "chunk_report:\n  articles_reviewed: [\"1\", \"2\"]\n  articles_skipped:\n    - number: \"1\"\n      reason: transitional law\n",
                 )
                 .await?;
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -10099,15 +9217,11 @@ articles:
         struct MarkingOnlyRunner;
         #[async_trait::async_trait]
         impl LlmRunner for MarkingOnlyRunner {
-            async fn run(
-                &self,
-                payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+                let payload = call.payload;
+                let yaml_abs = call.yaml_abs;
                 if !matches!(payload.pass, Pass::Translate) {
-                    return Ok(());
+                    return Ok(AgentRun::default());
                 }
                 // The prompt names this path to the agent, so a run that
                 // handed over an empty one would send it looking for nothing.
@@ -10131,7 +9245,7 @@ articles:
                 );
                 assert_ne!(updated, content, "fixture must contain a bare model");
                 tokio::fs::write(yaml_abs, updated).await?;
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -10229,17 +9343,13 @@ articles:
         struct OutOfWindowRunner;
         #[async_trait::async_trait]
         impl LlmRunner for OutOfWindowRunner {
-            async fn run(
-                &self,
-                payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+                let payload = call.payload;
+                let yaml_abs = call.yaml_abs;
                 // Only the translating pass edits. A feedback pass that
                 // repeated this edit would write the key twice.
                 if !matches!(payload.pass, Pass::Translate) {
-                    return Ok(());
+                    return Ok(AgentRun::default());
                 }
                 let content = tokio::fs::read_to_string(yaml_abs).await?;
                 let updated = content.replace(
@@ -10247,7 +9357,7 @@ articles:
                     "  - number: '3'\n    text: Article three.\n    machine_readable: {}",
                 );
                 tokio::fs::write(yaml_abs, updated).await?;
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -10282,15 +9392,10 @@ articles:
         struct FixedReportRunner(&'static str);
         #[async_trait::async_trait]
         impl LlmRunner for FixedReportRunner {
-            async fn run(
-                &self,
-                _payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
+                let yaml_abs = call.yaml_abs;
                 tokio::fs::write(enrichment_result_path(yaml_abs), self.0).await?;
-                Ok(())
+                Ok(AgentRun::default())
             }
         }
 
@@ -10415,13 +9520,7 @@ articles:
         struct PanickingRunner;
         #[async_trait::async_trait]
         impl LlmRunner for PanickingRunner {
-            async fn run(
-                &self,
-                _payload: &EnrichPayload,
-                _yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, _call: &AgentCall<'_>, _config: &EnrichConfig) -> Result<AgentRun> {
                 panic!("LLM must not run for an empty chunk window");
             }
         }
@@ -10504,19 +9603,12 @@ articles:
         struct AssertWholeLawRunner;
         #[async_trait::async_trait]
         impl LlmRunner for AssertWholeLawRunner {
-            async fn run(
-                &self,
-                payload: &EnrichPayload,
-                yaml_abs: &Path,
-                _repo_path: &Path,
-                _config: &EnrichConfig,
-            ) -> Result<()> {
+            async fn run(&self, call: &AgentCall<'_>, config: &EnrichConfig) -> Result<AgentRun> {
+                let payload = call.payload;
                 assert!(payload.chunk_articles.is_none());
                 assert!(payload.skip_mvt.is_none());
                 // Enrich everything so the zero-coverage guard passes.
-                FakeLlmRunner
-                    .run(payload, yaml_abs, _repo_path, _config)
-                    .await
+                FakeLlmRunner.run(call, config).await
             }
         }
 
@@ -10739,10 +9831,7 @@ mod subprocess_tests {
         // The fake CLI is freshly written; retry on ETXTBSY as `run` does.
         let mut attempt = 0;
         loop {
-            match ProcessLlmRunner
-                .run(&payload, &yaml_abs, dir.path(), &config)
-                .await
-            {
+            match call_agent(&ProcessLlmRunner, &payload, &yaml_abs, dir.path(), &config).await {
                 Err(e) if e.to_string().contains("Text file busy") && attempt < 10 => {
                     attempt += 1;
                     tokio::time::sleep(Duration::from_millis(50)).await;

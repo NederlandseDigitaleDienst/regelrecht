@@ -1,17 +1,18 @@
 <script setup lang="ts">
 import { isRawDefinition, type ExecutionAction, type ExecutionField, type MachineReadableSection, type RawDefinition } from '../lib/lawFormat';
-import { computed, inject, ref, toRef, watch, nextTick } from 'vue';
+import { formatDefinitionValue } from '../lib/definitionForm';
+import { computed, inject, ref, watch, nextTick } from 'vue';
 import { humanize } from '../utils/outputFormat';
 import { decisionOf } from '@regelrecht/frontend-shared/produces';
 import type { Decision, ProducedItem } from '@regelrecht/frontend-shared/produces';
-import { useCorpusLaws } from '../composables/useCorpusLaws';
+import { useCorpus } from '../corpus';
 import BreakableName from './BreakableName.vue';
 import RowActionsMenu from './RowActionsMenu.vue';
 import MachineEmptyState from './MachineEmptyState.vue';
 import RegelRijmPane from '../regelrijm/RegelRijmPane.vue';
 import type { LinkedFragment } from '../regelrijm/regelrijmLinks';
 import type { Path } from '@regelrecht/frontend-shared/regelrijm/index';
-import { useFeatureFlags } from '../composables/useFeatureFlags';
+import { useFeatureFlagsStore } from '../stores/featureFlags';
 
 // Law-format shapes (schema/latest/schema.json), only the fields read here.
 
@@ -57,9 +58,6 @@ const props = withDefaults(defineProps<{
   /** True while a save PUT is in flight */
   saving?: boolean;
   /** Error from the most recent save attempt (Error instance or null) */
-  /** Active traject ref - scopes the corpus-laws lookup so display
-   *  names reflect the traject's view (including its in-progress edits). */
-  trajectRef?: string | null;
   /** Read-only context: offer a button that opens the editor so the missing
    *  machine-readable version can be created there. Ignored when `editable`,
    *  which seeds it in place instead. */
@@ -95,7 +93,6 @@ const props = withDefaults(defineProps<{
   editable: false,
   dirty: false,
   saving: false,
-  trajectRef: null,
   canCreate: false,
   canEnrich: false,
   needs: '',
@@ -110,7 +107,7 @@ const props = withDefaults(defineProps<{
   links: () => new Map(),
 });
 
-const { displayName: lawDisplayName } = useCorpusLaws(toRef(props, 'trajectRef'));
+const { displayName: lawDisplayName } = useCorpus();
 
 // Provided by AppShell; see LibraryView's "Bewerken" button.
 const onLoginTriggerPointerdown = inject('onLoginTriggerPointerdown', () => {});
@@ -123,7 +120,7 @@ const emit = defineEmits<{
   'open-edit': [payload: OpenEditPayload];
   'init-mr': [];
   /** Ask for a generated proposal instead of writing one by hand. */
-  'enrich': [trigger: EventTarget | null];
+  'enrich': [trigger: EventTarget | null, provider?: string];
   /** Open the task list filtered to this law, while a run is pending. */
   'view-tasks': [];
   /** Open review-modus voor de klaarstaande taak. */
@@ -204,7 +201,7 @@ const hasDecision = computed(() => {
 //
 // That is not hypothetical: RECHTSPOSITIE was added to legal_character in
 // schema v0.5.9 (RFC-038) and this list was not updated, so the editor could
-// not set it on a law for the whole of that release. Current as of v0.8.13.
+// not set it on a law for the whole of that release. Current as of v0.8.22.
 const LEGAL_CHARACTERS = [
   'BESCHIKKING', 'TOETS', 'WAARDEBEPALING', 'BESLUIT_VAN_ALGEMENE_STREKKING', 'INFORMATIEF',
   'RECHTSPOSITIE', 'UITSPRAAK',
@@ -250,30 +247,15 @@ const outputs = computed(() =>
 const actions = computed(() => execution.value?.actions ?? []);
 // Behind `panel.regelrijm` the actions come first, as RegelRijm readings: the
 // way into the article's rules, instead of a list of output names at the end.
-const { isEnabled } = useFeatureFlags();
-const regelrijm = computed(() => props.regelrijm && isEnabled('panel.regelrijm'));
+const featureFlags = useFeatureFlagsStore();
+const regelrijm = computed(() => props.regelrijm && featureFlags.isEnabled('panel.regelrijm'));
 
 function onProducesChange(key: string, event: Event) {
   updateProduces(key, (event.target as HTMLSelectElement).value);
 }
 
-function formatValue(val: unknown, unit: string | undefined): string {
-  if (typeof val === 'number') {
-    if (unit === 'eurocent') {
-      return (val / 100).toLocaleString('nl-NL', { style: 'currency', currency: 'EUR' });
-    }
-    if (val > 0 && val < 1 && !unit) {
-      return (val * 100).toLocaleString('nl-NL', { maximumFractionDigits: 3 }) + '%';
-    }
-  }
-  // A list definition value (YAML sequence) renders here; String([...])
-  // joins with a bare comma ("a,b,c") which has no break opportunity and
-  // pushes the column width. Use comma + space so it can wrap.
-  if (Array.isArray(val)) return val.join(', ');
-  // A YAML-null value renders as empty, not as the word "null".
-  if (val == null) return '';
-  return String(val);
-}
+// Formatting follows the unit and nothing else; see lib/definitionForm.
+const formatValue = formatDefinitionValue;
 
 // structuredClone throws DataCloneError on Vue reactive proxies; YAML data is JSON-safe.
 function snapshot<T>(value: T): T {
@@ -411,7 +393,7 @@ function addOutput() {
     :can-create="canCreate"
     :create-href="createHref"
     :enrich-error="enrichError"
-    @enrich="emit('enrich', $event)"
+    @enrich="(trigger: EventTarget | null, provider?: string) => emit('enrich', trigger, provider)"
     @write="emit('init-mr')"
     @create="emit('create-mr', $event)"
     @view-tasks="emit('view-tasks')"
@@ -424,7 +406,6 @@ function addOutput() {
         :article="article"
         :law="law"
         :law-id="lawId"
-        :traject-ref="trajectRef"
         :editable="editable"
         :links="links"
         @open-action="(action, path) => emit('open-action', action, path)"
@@ -491,7 +472,7 @@ function addOutput() {
     <!-- Definities -->
     <template v-if="definitions.length || editable">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-definitions"><h5>Definities</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-definitions"><h5>Definities</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="def in definitions" :key="def.name" size="md">
@@ -519,6 +500,7 @@ function addOutput() {
           <nldd-cell v-if="editable">
             <RowActionsMenu
               :accessible-label="`Acties voor definitie ${def.name}`"
+              :edit-testid="`def-${def.name}-edit-btn`"
               :delete-testid="`def-${def.name}-delete-btn`"
               @edit="editDef(def.name)"
               @delete="deleteDef(def.name)"
@@ -536,7 +518,7 @@ function addOutput() {
     <!-- Parameters -->
     <template v-if="parameters.length || editable">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-parameters"><h5>Parameters</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-parameters"><h5>Parameters</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="(param, index) in parameters" :key="param.name" size="md">
@@ -562,7 +544,7 @@ function addOutput() {
     <!-- Inputs -->
     <template v-if="inputs.length || editable">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-inputs"><h5>Inputs</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-inputs"><h5>Inputs</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="(input, index) in inputs" :key="input.name" :data-testid="`input-row-${input.name}`" size="md">
@@ -591,7 +573,7 @@ function addOutput() {
     <!-- Outputs -->
     <template v-if="outputs.length || editable">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-outputs"><h5>Outputs</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-outputs"><h5>Outputs</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="(output, index) in outputs" :key="output.name" size="md">
@@ -617,7 +599,7 @@ function addOutput() {
     <!-- Acties (with the flag panel.regelrijm: first, as readings) -->
     <template v-if="!regelrijm && (actions.length || editable)">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-actions"><h5>Acties</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-actions"><h5>Acties</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item

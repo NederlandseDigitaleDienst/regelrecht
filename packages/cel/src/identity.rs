@@ -28,7 +28,7 @@ use std::path::Path;
 use regelrecht_engine::Authority;
 use serde::Deserialize;
 
-use crate::error::{setup, Result};
+use crate::error::{Result, setup};
 use crate::files::Files;
 
 /// The file in a cell directory that holds its identity.
@@ -162,7 +162,7 @@ pub fn reductions(files: &dyn Files, dir: &Path) -> Result<BTreeSet<String>> {
                     "{}: a directory of reductions holds one directory per reduction, named \
                      by its $id, with a file per version (<valid_from>.yaml) and nothing else",
                     entry.display()
-                )))
+                )));
             }
         }
     }

@@ -675,6 +675,7 @@ export default {
 
   // ---- simulation: the main panel -----------------------------------------
   'sim.tab.comparison': 'Comparison',
+  'sim.tab.label': 'Simulations',
   'sim.view.overview': 'Overview',
   'sim.view.breakdown': 'Breakdown',
   'sim.view.population': 'Population',
@@ -938,7 +939,6 @@ export default {
   'walkthrough.missing.title': 'No walkthrough yet',
   'walkthrough.missing.body': 'This version of the demo has no recorded walkthrough. The presentation and the demo itself do work.',
   'home.presentation.walkthrough': 'Watch the recorded walkthrough',
-  'home.ways.label': 'How do you want to see the demo?',
   'home.ways.walkthrough.title': 'Watch the walkthrough',
   'home.ways.walkthrough.text': 'Recorded, with a voice. The demo plays itself; you can pause and click on yourself. About {minutes} minutes.',
   'home.ways.browse.title': 'Look around yourself',

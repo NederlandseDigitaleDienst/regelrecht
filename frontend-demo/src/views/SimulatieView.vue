@@ -106,6 +106,8 @@ function getKnob(path: string[]) {
   return path.reduce<KnobTree | number | undefined>((o, k) => (o as KnobTree | undefined)?.[k], params.value as unknown as KnobTree);
 }
 function setKnob(path: string[], value: unknown) {
+  // An emptied number field reports null: no answer, so the knob keeps its value.
+  if (value === null || value === '') return;
   const n = Number(value);
   if (!Number.isFinite(n)) return;
   // Every knob path ends in a number inside the parameters (CITIZEN_KNOBS, BUSINESS_KNOBS).
@@ -114,6 +116,8 @@ function setKnob(path: string[], value: unknown) {
 }
 function numberFrom(e: Event) {
   const v = (e as CustomEvent<{ value?: unknown } | null | undefined>).detail?.value ?? (e.target as (EventTarget & { value?: unknown }) | null)?.value;
+  // An emptied number field reports null (or ''), which Number() would read as 0.
+  if (v === null || v === undefined || v === '') return null;
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
@@ -314,6 +318,7 @@ function showLaw(lawId: string) {
 const inspectorLaw = computed(() => (inspector.value ? corpus.value?.lawById(inspector.value.lawId) : null));
 function setOverride(lawId: string, key: string, value: unknown) {
   overrides[lawId] ??= {};
+  if (value === null || value === '') return;
   const n = Number(value);
   // Set on the line above when it was missing.
   if (Number.isFinite(n)) overrides[lawId]![key] = n;
@@ -635,7 +640,7 @@ function exportJson() {
             <nldd-button width="full" appearance="secondary" size="sm" :text="t('sim.run.stop')" @click="cancel"></nldd-button>
           </template>
           <nldd-banner v-if="runError" variant="critical" :text="t('sim.run.failed')" :supporting-text="runError"></nldd-banner>
-          <nldd-rich-text v-if="lawSet.skipped.length" size="sm">
+          <nldd-rich-text v-if="lawSet.skipped.length">
             <p><small>{{ t('sim.skipped', { laws: lawSet.skipped.map((s) => t('sim.skipped.law', { name: s.law.name, missing: s.missing.join(', ') })).join('; ') }) }}</small></p>
           </nldd-rich-text>
         </nldd-container>
@@ -653,9 +658,10 @@ function exportJson() {
           <nldd-toolbar size="sm">
             <nldd-toolbar-item slot="start" v-if="narrow">
               <nldd-button size="sm" appearance="neutral-tinted" start-icon="settings" :text="t('sim.settings.open')" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
+              <nldd-menu-item slot="overflow" icon="settings" :text="t('sim.settings.open')" @select="splitView?.showPrimarySidebarSheet?.()"></nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="start" v-if="runs.length">
-              <nldd-tab-bar size="sm" @tabchange="onTab">
+              <nldd-tab-bar :accessible-label="t('sim.tab.label')" @tab-change="onTab">
                 <!-- De kleur van de run als bolletje in de icoonplek: een streep
                      onder de tab hing aan de rechthoek van het element en
                      sneed door de afgeronde hover- en huidige-achtergrond. -->
@@ -664,6 +670,10 @@ function exportJson() {
                 </nldd-tab-bar-item>
                 <nldd-tab-bar-item v-if="runs.length > 1" data-run="vergelijking" :current="activeTab === 'vergelijking' || undefined" :text="t('sim.tab.comparison')" icon="arrow-left-right"></nldd-tab-bar-item>
               </nldd-tab-bar>
+              <nldd-menu-group slot="overflow" :text="t('sim.tab.label')">
+                <nldd-menu-item v-for="r in runs" :key="r.id" type="radio" :text="runLabel(r)" :selected="activeTab === r.id || undefined" @select="activeTab = r.id"></nldd-menu-item>
+                <nldd-menu-item v-if="runs.length > 1" type="radio" :text="t('sim.tab.comparison')" :selected="activeTab === 'vergelijking' || undefined" @select="activeTab = 'vergelijking'"></nldd-menu-item>
+              </nldd-menu-group>
             </nldd-toolbar-item>
             <template v-if="activeRun">
               <nldd-toolbar-item slot="end">
@@ -673,9 +683,14 @@ function exportJson() {
                   <nldd-segmented-control-item value="populatie" :text="t('sim.view.population')"></nldd-segmented-control-item>
                   <nldd-segmented-control-item v-if="harmonizeEnabled" value="harmonisatie" :text="t('sim.view.harmonisation')"></nldd-segmented-control-item>
                 </nldd-segmented-control>
+                <nldd-menu-item slot="overflow" type="radio" :text="t('sim.view.overview')" :selected="mainView === 'overzicht' || undefined" @select="mainView = 'overzicht'"></nldd-menu-item>
+                <nldd-menu-item slot="overflow" type="radio" :text="t('sim.view.breakdown')" :selected="mainView === 'uitsplitsing' || undefined" @select="mainView = 'uitsplitsing'"></nldd-menu-item>
+                <nldd-menu-item slot="overflow" type="radio" :text="t('sim.view.population')" :selected="mainView === 'populatie' || undefined" @select="mainView = 'populatie'"></nldd-menu-item>
+                <nldd-menu-item v-if="harmonizeEnabled" slot="overflow" type="radio" :text="t('sim.view.harmonisation')" :selected="mainView === 'harmonisatie' || undefined" @select="mainView = 'harmonisatie'"></nldd-menu-item>
               </nldd-toolbar-item>
               <nldd-toolbar-item slot="end">
                 <nldd-icon-button size="sm" appearance="neutral-tinted" icon="close" :text="t('sim.run.close')" @click="removeRun(activeRun.id)"></nldd-icon-button>
+                <nldd-menu-item slot="overflow" icon="close" :text="t('sim.run.close')" @select="removeRun(activeRun.id)"></nldd-menu-item>
               </nldd-toolbar-item>
               <nldd-toolbar-item slot="end">
                 <nldd-icon-button size="sm" appearance="neutral-tinted" icon="menu" :text="t('sim.export')" tooltip-timing="never" expandable>
@@ -686,6 +701,11 @@ function exportJson() {
                     <nldd-menu-item :text="t('sim.export.delete')" icon="trash" @click="removeRun(activeRun.id)"></nldd-menu-item>
                   </nldd-menu>
                 </nldd-icon-button>
+                <nldd-menu-group slot="overflow" :text="t('sim.export')">
+                  <nldd-menu-item text="CSV" icon="file-text" @select="exportCsv"></nldd-menu-item>
+                  <nldd-menu-item text="JSON" icon="brackets-ellipsis" @select="exportJson"></nldd-menu-item>
+                  <nldd-menu-item :text="t('sim.export.delete')" icon="trash" @select="removeRun(activeRun.id)"></nldd-menu-item>
+                </nldd-menu-group>
               </nldd-toolbar-item>
             </template>
           </nldd-toolbar>
@@ -711,7 +731,7 @@ function exportJson() {
               <nldd-banner v-if="Object.keys(activeRun.overrides).length" variant="accent" :text="t('sim.overrides.title')" :supporting-text="Object.entries(activeRun.overrides).map(([id, o]) => `${corpus?.lawById(id)?.name ?? id}: ${Object.entries(o).map(([k, v]) => `${k} = ${v}`).join(', ')}`).join(' · ')"></nldd-banner>
 
               <nldd-card :accessible-label="t('sim.population.title')">
-                <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="5" :text="t('sim.population.title')" :supporting-text="t('sim.population.meta', { date: formatValue(activeRun.referenceDate), seed: activeRun.params.seed, seconds: (activeRun.durationMs / 1000).toFixed(1) })"></nldd-title-cell></nldd-container>
+                <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="display-5" :text="t('sim.population.title')" :supporting-text="t('sim.population.meta', { date: formatValue(activeRun.referenceDate), seed: activeRun.params.seed, seconds: (activeRun.durationMs / 1000).toFixed(1) })"></nldd-title-cell></nldd-container>
                 <nldd-container padding-inline="12" padding-bottom="12">
                   <nldd-list appearance="simple" :accessible-label="t('sim.population.facts_label')">
                     <nldd-list-item v-for="[label, value] in populationFacts" :key="label" size="sm">
@@ -725,13 +745,13 @@ function exportJson() {
               <nldd-card v-if="disposable" background="tinted" :accessible-label="t('sim.disposable.title')">
                 <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center">
                   <nldd-icon icon="euro-sign" size="24"></nldd-icon>
-                  <nldd-title-cell size="4" :text="t('sim.disposable.title')" :supporting-text="t('sim.disposable.lead')"></nldd-title-cell>
+                  <nldd-title-cell size="display-4" :text="t('sim.disposable.title')" :supporting-text="t('sim.disposable.lead')"></nldd-title-cell>
                 </nldd-container>
                 <nldd-container padding-inline="12" padding-bottom="12" gap="12">
                   <nldd-container layout="grid" column-count="3" sm-column-count="1" gap="12">
-                    <nldd-list appearance="box-base" :accessible-label="t('sim.disposable.avg')"><nldd-list-item size="md"><nldd-title-cell size="3" :overline="t('sim.disposable.avg')" :text="money(disposable.avgDisposable)"></nldd-title-cell></nldd-list-item></nldd-list>
-                    <nldd-list appearance="box-base" :accessible-label="t('sim.disposable.median')"><nldd-list-item size="md"><nldd-title-cell size="3" :overline="t('sim.disposable.median')" :text="money(disposable.medianDisposable)"></nldd-title-cell></nldd-list-item></nldd-list>
-                    <nldd-list appearance="box-base" :accessible-label="t('sim.disposable.after_housing')"><nldd-list-item size="md"><nldd-title-cell size="3" :overline="t('sim.disposable.after_housing')" :text="money(disposable.avgAfterHousing)" :supporting-text="t('sim.disposable.housing_cost', { amount: money(disposable.avgHousing) })"></nldd-title-cell></nldd-list-item></nldd-list>
+                    <nldd-list appearance="box-base" :accessible-label="t('sim.disposable.avg')"><nldd-list-item size="md"><nldd-title-cell size="display-3" :overline="t('sim.disposable.avg')" :text="money(disposable.avgDisposable)"></nldd-title-cell></nldd-list-item></nldd-list>
+                    <nldd-list appearance="box-base" :accessible-label="t('sim.disposable.median')"><nldd-list-item size="md"><nldd-title-cell size="display-3" :overline="t('sim.disposable.median')" :text="money(disposable.medianDisposable)"></nldd-title-cell></nldd-list-item></nldd-list>
+                    <nldd-list appearance="box-base" :accessible-label="t('sim.disposable.after_housing')"><nldd-list-item size="md"><nldd-title-cell size="display-3" :overline="t('sim.disposable.after_housing')" :text="money(disposable.avgAfterHousing)" :supporting-text="t('sim.disposable.housing_cost', { amount: money(disposable.avgHousing) })"></nldd-title-cell></nldd-list-item></nldd-list>
                   </nldd-container>
                   <nldd-list appearance="box-base" :accessible-label="t('sim.disposable.build_up')">
                     <nldd-list-item size="sm">
@@ -751,14 +771,14 @@ function exportJson() {
               </nldd-card>
 
               <nldd-card :accessible-label="t('sim.eligible.short')">
-                <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="5" :text="t('sim.eligible.title')" :supporting-text="t('sim.eligible.lead')"></nldd-title-cell></nldd-container>
+                <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="display-5" :text="t('sim.eligible.title')" :supporting-text="t('sim.eligible.lead')"></nldd-title-cell></nldd-container>
                 <nldd-container padding="12">
                   <SimBarChart :categories="eligibleChart.categories" :series="eligibleChart.series" unit="percent" horizontal :height="`${Math.max(200, 34 * eligibleChart.categories.length + 40)}px`" />
                 </nldd-container>
               </nldd-card>
 
               <nldd-card v-if="amountChart.categories.length" :accessible-label="t('sim.amount.title')">
-                <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="5" :text="t('sim.amount.title')" :supporting-text="t('sim.amount.lead')"></nldd-title-cell></nldd-container>
+                <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="display-5" :text="t('sim.amount.title')" :supporting-text="t('sim.amount.lead')"></nldd-title-cell></nldd-container>
                 <nldd-container padding="12">
                   <SimBarChart :categories="amountChart.categories" :series="amountChart.series" unit="euro" horizontal :height="`${Math.max(160, 34 * amountChart.categories.length + 40)}px`" />
                 </nldd-container>
@@ -787,7 +807,7 @@ function exportJson() {
               <nldd-card v-if="disposable" background="tinted" :accessible-label="t('sim.disposable.per_group')">
                 <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center">
                   <nldd-icon icon="euro-sign" size="24"></nldd-icon>
-                  <nldd-title-cell size="5" :text="t('sim.disposable.title')" :supporting-text="t('sim.disposable.per_month_by', { dimension: dimensionLabel(dimension).toLowerCase() })"></nldd-title-cell>
+                  <nldd-title-cell size="display-5" :text="t('sim.disposable.title')" :supporting-text="t('sim.disposable.per_month_by', { dimension: dimensionLabel(dimension).toLowerCase() })"></nldd-title-cell>
                 </nldd-container>
                 <nldd-container padding-inline="12" padding-bottom="12">
                   <nldd-table columns="minmax(140px, 1fr) 90px 130px 130px 130px" :accessible-label="t('sim.disposable.per_group')">
@@ -811,7 +831,7 @@ function exportJson() {
               <nldd-card v-for="law in lawRows" :key="law.id" :accessible-label="law.name">
                 <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="top">
                   <OrgLogo :service="law.service" size="sm" />
-                  <nldd-title-cell size="5" :text="law.name" :supporting-text="t('sim.breakdown.law_meta', { outcome: law.s.hasEligibility ? t('sim.breakdown.law_eligible', { pct: pct(law.s.eligiblePct) }) : t('sim.breakdown.law_all'), dimension: dimensionLabel(dimension).toLowerCase() })"></nldd-title-cell>
+                  <nldd-title-cell size="display-5" :text="law.name" :supporting-text="t('sim.breakdown.law_meta', { outcome: law.s.hasEligibility ? t('sim.breakdown.law_eligible', { pct: pct(law.s.eligiblePct) }) : t('sim.breakdown.law_all'), dimension: dimensionLabel(dimension).toLowerCase() })"></nldd-title-cell>
                 </nldd-container>
                 <nldd-container padding-inline="12" padding-bottom="12">
                 <nldd-table columns="minmax(140px, 1fr) 110px 90px 130px" :accessible-label="t('sim.breakdown.table_label', { name: law.name, dimension: dimensionLabel(dimension) })">
@@ -835,7 +855,7 @@ function exportJson() {
 
           <nldd-simple-section v-else-if="mainView === 'populatie'" width="full">
             <nldd-card :accessible-label="t('sim.population.title')">
-              <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="5" :text="t('sim.population.title')" :supporting-text="t('sim.subjects.meta', { shown: Math.min(activeRun.results.length, 200), total: activeRun.results.length })"></nldd-title-cell></nldd-container>
+              <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="display-5" :text="t('sim.population.title')" :supporting-text="t('sim.subjects.meta', { shown: Math.min(activeRun.results.length, 200), total: activeRun.results.length })"></nldd-title-cell></nldd-container>
               <nldd-container padding-inline="12" padding-bottom="12">
               <nldd-table :columns="`repeat(${subjectColumns.length}, minmax(90px, 1fr)) 90px`" :accessible-label="t('sim.subjects.table_label')">
                 <nldd-table-row slot="header">
@@ -858,7 +878,7 @@ function exportJson() {
           <nldd-simple-section v-else-if="mainView === 'harmonisatie'" width="full">
             <nldd-container gap="16">
               <nldd-card :accessible-label="t('sim.harmonise.settings_label')">
-                <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="5" :text="t('sim.harmonise.title')" :supporting-text="t('sim.harmonise.lead')"></nldd-title-cell></nldd-container>
+                <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="display-5" :text="t('sim.harmonise.title')" :supporting-text="t('sim.harmonise.lead')"></nldd-title-cell></nldd-container>
                 <nldd-container padding-inline="12" padding-bottom="12" gap="12">
                   <nldd-form-field :label="t('sim.harmonise.laws')">
                     <nldd-container layout="wrap" gap="8">
@@ -874,7 +894,7 @@ function exportJson() {
                     </nldd-container>
                     <nldd-form-field-help-text v-if="!harmonizableLaws.length">{{ t('sim.harmonise.no_laws') }}</nldd-form-field-help-text>
                   </nldd-form-field>
-                  <nldd-container layout="row" gap="12" layout-wrap>
+                  <nldd-container layout="wrap" gap="12">
                     <nldd-form-field :label="t('sim.harmonise.primary')">
                       <nldd-dropdown>
                         <select :value="harmonizePrimary" @change="harmonizePrimary = selectValue($event)">
@@ -895,7 +915,7 @@ function exportJson() {
 
               <template v-if="harmonizeModel">
                 <nldd-card :accessible-label="t('sim.harmonise.fit_label')">
-                  <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="5" :text="t('sim.harmonise.fit_title')" :supporting-text="t('sim.harmonise.fit_lead')"></nldd-title-cell></nldd-container>
+                  <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="display-5" :text="t('sim.harmonise.fit_title')" :supporting-text="t('sim.harmonise.fit_lead')"></nldd-title-cell></nldd-container>
                   <nldd-container padding-inline="12" padding-bottom="12">
                     <nldd-list appearance="box-tinted" :accessible-label="t('sim.harmonise.metrics_label')">
                       <nldd-list-item size="md">
@@ -915,7 +935,7 @@ function exportJson() {
                 </nldd-card>
 
                 <nldd-card v-for="(group, gi) in harmonizeTable" :key="gi" :accessible-label="t('sim.harmonise.bracket_label')">
-                  <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="5" :text="group.group" :supporting-text="t('sim.harmonise.bracket_meta', { count: group.count, total: activeRun.results.length })"></nldd-title-cell></nldd-container>
+                  <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="display-5" :text="group.group" :supporting-text="t('sim.harmonise.bracket_meta', { count: group.count, total: activeRun.results.length })"></nldd-title-cell></nldd-container>
                   <nldd-container padding-inline="12" padding-bottom="12">
                     <nldd-table columns="2fr 1fr 1fr" :accessible-label="t('sim.harmonise.bracket_table')">
                       <nldd-table-row slot="header">
@@ -933,7 +953,7 @@ function exportJson() {
                 </nldd-card>
 
                 <nldd-card :accessible-label="t('sim.harmonise.worst_label')">
-                  <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="5" :text="t('sim.harmonise.worst_title')" :supporting-text="t('sim.harmonise.worst_lead')"></nldd-title-cell></nldd-container>
+                  <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="display-5" :text="t('sim.harmonise.worst_title')" :supporting-text="t('sim.harmonise.worst_lead')"></nldd-title-cell></nldd-container>
                   <nldd-container padding-inline="12" padding-bottom="12">
                     <nldd-table columns="2fr 1fr 1fr 1fr" :accessible-label="t('sim.harmonise.worst_table')">
                       <nldd-table-row slot="header">
@@ -981,7 +1001,7 @@ function exportJson() {
               </nldd-table-row>
             </nldd-table>
             <nldd-card :accessible-label="t('sim.comparison.label')">
-              <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="5" :text="t('sim.comparison.title')" :supporting-text="t('sim.comparison.lead', { n: comparable.length })"></nldd-title-cell></nldd-container>
+              <nldd-container slot="header" padding="12" layout="row" gap="12" vertical-alignment="center"><nldd-title-cell size="display-5" :text="t('sim.comparison.title')" :supporting-text="t('sim.comparison.lead', { n: comparable.length })"></nldd-title-cell></nldd-container>
               <nldd-container padding="12">
                 <SimBarChart :categories="comparisonChart.categories" :series="comparisonChart.series" unit="percent" horizontal :height="`${Math.max(220, (18 * comparable.length + 12) * comparisonChart.categories.length + 60)}px`" />
               </nldd-container>

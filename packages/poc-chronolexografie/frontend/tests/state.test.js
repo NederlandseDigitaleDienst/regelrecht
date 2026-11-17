@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { hervatten, hoofdvelden, state, stap, verversen } from '../src/state.js';
+import { api } from '../src/api.js';
+import { melding } from '../src/melding.js';
+import { hervatten, hoofdvelden, samenvatting, state, stap, verversen } from '../src/state.js';
 
 // The cell is not loaded here: the API hands back a fixed case and an empty
 // chronicle, and the saved game is an opaque value.
@@ -67,6 +69,24 @@ describe('saving the game of this tab', () => {
     expect(await hervatten('vakantieverlof')).toBe('none');
     expect(storage.has('poc-spel')).toBe(false);
   });
+
+  it('drops a game saved in an older form and says to start again', async () => {
+    // A game saved before the decision on an objection held the new decision
+    // itself: the cell refuses its chronicle and does not convert it.
+    storage.set('poc-spel', JSON.stringify({ casus: 'vakantieverlof', spel: {}, datum: '2026-11-20' }));
+    const herstellen = api.herstellen;
+    api.herstellen = async () => {
+      throw new Error("setup: the chronicle of 'obs_de_klimop' is in an older form: chronolexogram 'x' holds 'y'");
+    };
+    try {
+      expect(await hervatten('vakantieverlof')).toBe('none');
+    } finally {
+      api.herstellen = herstellen;
+    }
+    expect(storage.has('poc-spel')).toBe(false);
+    expect(state.casus).toBeNull();
+    expect(melding(state.fout)).toBe('Dit spel is opgeslagen in een oudere vorm en kan niet verder. Begin opnieuw met een casus.');
+  });
 });
 
 describe('stap', () => {
@@ -121,5 +141,22 @@ describe('hoofdvelden', () => {
   it('gives nothing for a gram the law gives no fields', () => {
     met({});
     expect(hoofdvelden({ id: 'g', fields: { a: 1 } })).toEqual([]);
+  });
+});
+
+describe('samenvatting', () => {
+  it('names a table the application holds by its number of rows', () => {
+    state.casus = { ...casus, besluit: 'r#1' };
+    state.vormen = {
+      aanvraag: {
+        velden: [
+          { naam: 'bestuur', type: 'array', basis: 'r#1', kolommen: [{ naam: 'naam', type: 'string' }] },
+          { naam: 'actief', type: 'boolean', basis: 'r#1' },
+        ],
+      },
+    };
+    const aanvraag = { fields: { bestuur: [{ naam: 'A' }, { naam: 'B' }], actief: true }, recorded_on: '2026-10-14' };
+    expect(samenvatting(aanvraag)).toBe('bestuur: 2 rijen · actief: ja · ontvangen 2026-10-14');
+    state.vormen = null;
   });
 });

@@ -1,7 +1,7 @@
 <script setup>
 // The explanation page: a page of the app, built like the choice screen
 // (CasusKeuze.vue), that shows with small pieces of YAML how law, policy,
-// cell, reduction and the reduction of the Awb hang together, on one case
+// cell, reduction and the effects in the Awb hang together, on one case
 // (uitleg.js). Each step is a section with a heading, the text of the
 // article it rests on where there is one, two or three
 // sentences, and per panel a whole file of the corpus as a tree that folds,
@@ -19,6 +19,7 @@ import { load } from 'js-yaml';
 import YamlNode from '@regelrecht/frontend-shared/components/YamlNode.vue';
 import { bestanden as haalBestanden } from '../api.js';
 import SchemaOverzicht from './SchemaOverzicht.vue';
+import { stukken } from './stukken.js';
 import { CASUSSEN, keten as ketenVan } from './schema.js';
 import { bronnen, casus, intro, keten, openPaden, steps } from './uitleg.js';
 import { useUitleg } from './useUitleg.js';
@@ -59,13 +60,6 @@ onMounted(async () => {
   terugKnop.value?.focus();
 });
 
-/** A sentence in pieces: plain text, and `name` as code. */
-const stukken = (zin) =>
-  String(zin)
-    .split(/(`[^`]+`)/)
-    .filter(Boolean)
-    .map((s) => (s.startsWith('`') ? { code: s.slice(1, -1) } : { tekst: s }));
-
 /** The case file, which the picture starts from. */
 const casusPad = `${CASUSSEN}${casus}.yaml`;
 /**
@@ -92,7 +86,7 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
       <nldd-button-bar>
         <nldd-button ref="terugKnop" appearance="neutral-tinted" start-icon="back" text="Naar de casuskeuze" @click="emit('terug')"></nldd-button>
       </nldd-button-bar>
-      <nldd-title size="2" heading-level="1" :overline="intro.overline" :text="intro.title">
+      <nldd-title size="display-2" heading-level="1" :overline="intro.overline" :text="intro.title">
         <nldd-text slot="supporting-text">
           <template v-for="(s, i) in stukken(intro.lead)" :key="i"><code v-if="s.code">{{ s.code }}</code><template v-else>{{ s.tekst }}</template></template>
         </nldd-text>
@@ -100,7 +94,7 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
     </nldd-container>
   </nldd-simple-section>
   <nldd-simple-section>
-    <nldd-title slot="header" size="3" heading-level="2" :overline="keten.overline" :text="keten.title"></nldd-title>
+    <nldd-title slot="header" size="display-3" heading-level="2" :overline="keten.overline" :text="keten.title"></nldd-title>
     <nldd-container gap="12">
       <nldd-text v-for="(t, j) in keten.text" :key="j">
         <template v-for="(st, k) in stukken(t)" :key="k"><code v-if="st.code">{{ st.code }}</code><template v-else>{{ st.tekst }}</template></template>
@@ -111,7 +105,7 @@ const kortPad = (source) => source.split('/').slice(-3).join('/');
     </nldd-container>
   </nldd-simple-section>
   <nldd-simple-section v-for="(s, i) in steps" :key="s.title">
-    <nldd-title slot="header" size="3" heading-level="2" :overline="`Stap ${i + 1} · ${s.overline}`" :text="s.title"></nldd-title>
+    <nldd-title slot="header" size="display-3" heading-level="2" :overline="`Stap ${i + 1} · ${s.overline}`" :text="s.title"></nldd-title>
     <nldd-container gap="12">
       <!-- The text of the article the step rests on: text, not YAML, and
            Dutch. Its source is a plain caption under it; the quote's own

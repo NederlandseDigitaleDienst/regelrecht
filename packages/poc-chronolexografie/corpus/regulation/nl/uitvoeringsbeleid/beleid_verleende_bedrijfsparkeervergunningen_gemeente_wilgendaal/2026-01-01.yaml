@@ -1,0 +1,369 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-12-01'
+valid_from: '2026-01-01'
+# FICTIEF. De gemeente Wilgendaal bestaat niet en dit is geen bekendgemaakt
+# beleid, maar een eigen keuze in de modellering. Er is geen bekendmaking; de
+# url wijst daarom naar het Delftse besluit waarnaar het uitvoeringsbesluit
+# parkeren van Wilgendaal is gemodelleerd. Welke bedrijfsparkeervergunningen
+# (artikel 2 van de fictieve parkeerverordening) op een dag geldig zijn. De
+# gemeente houdt per besluit op een aanvraag een aggregaat bij en per
+# afschrift van een uitspraak van de voorzieningenrechter een
+# (reductie_bedrijfsparkeervergunning, artikelen vergunning en schorsing); de
+# read models van die reductie, per bedrijf en per kenteken, geven dit beleid
+# de rijen van die aggregaten en de dag (schema v0.8.17). Wat een rij op die dag
+# betekent, staat hier: artikel 1 zegt welke besluiten op de dag geschorst
+# zijn, artikel 2 welke vergunningen geldig zijn. Artikel 3 zegt per
+# beslissing op bezwaar wat het nieuwe besluit verleent dat zij in de plaats
+# van het herroepen besluit nam, voor de reductie per besluit. Het beleid
+# staat los van het beleid bedrijfsparkeervergunning, omdat dat beleid de
+# reductie per bedrijf aanroept.
+url: https://lokaleregelgeving.overheid.nl/CVDR733452
+name: Verleende bedrijfsparkeervergunningen in de gemeente Wilgendaal (fictief beleid)
+competent_authority:
+  name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering. Een besluit is op een dag
+      geschorst als de voorzieningenrechter het verzoek geheel of
+      gedeeltelijk toewees (artikel 8:84, tweede lid, onder d, van de
+      Algemene wet bestuursrecht) en het besluit schorste (artikel 8:81)
+      vanaf die dag of eerder, en de schorsing op die dag nog niet is
+      geëindigd. De voorzieningenrechter kan het besluit ook voor een deel
+      schorsen; dit beleid maakt daarin geen onderscheid. Zij eindigt op de dag
+      waarop de voorziening volgens de uitspraak vervalt (artikel 8:85,
+      eerste lid), op de dag waarop de voorzieningenrechter haar opheft
+      (artikel 8:87, eerste lid), op de dag waarop na het begin van de
+      schorsing het bezwaar tegen het besluit of het beroep tegen de
+      beslissing op dat bezwaar is ingetrokken (artikel 8:85, tweede lid,
+      onder b), of op de dag waarop de bestuursrechter na het begin van de
+      schorsing uitspraak doet in de hoofdzaak over het besluit (artikel
+      8:85, tweede lid, onder c). Elke uitspraak van de
+      voorzieningenrechter geldt voor zich: een latere uitspraak over
+      hetzelfde besluit laat een eerdere zoals zij was.
+    url: https://lokaleregelgeving.overheid.nl/CVDR733452
+    machine_readable:
+      # Elke rij van schorsingen is één afschrift van een uitspraak van de
+      # voorzieningenrechter, met wat ernaar verwijst: een opheffing (8:87).
+      # Wat de voorziening op grond van 8:85, tweede lid, doet vervallen (de
+      # dag van de intrekking, de dag van de uitspraak in de hoofdzaak),
+      # staat bij het besluit; de binnenste FOREACH zoekt het op bij het
+      # besluit waarop de schorsing ziet.
+      execution:
+        parameters:
+          - name: vergunningen
+            type: array
+            description: >-
+              De besluiten op aanvragen, elk met het besluit uit zijn
+              aggregaat dat de vergunning nu verleent, de dag waarop het
+              bezwaar of beroep is ingetrokken en de dag van de uitspraak in
+              de hoofdzaak.
+          - name: schorsingen
+            type: array
+            description: >-
+              De uitspraken van de voorzieningenrechter, elk met het besluit
+              waarop zij ziet, waartoe zij strekt, de dag waarop de schorsing
+              ingaat, de dag waarop de voorziening volgens de uitspraak
+              vervalt en de dag waarop zij is opgeheven.
+          - name: peildatum
+            type: date
+            description: De dag waarover de vraag gaat.
+        output:
+          - name: geschorste_besluiten
+            type: array
+            description: De besluiten die op de peildatum geschorst zijn.
+        actions:
+          - output: geschorste_besluiten
+            value:
+              operation: FOREACH
+              collection: $schorsingen
+              as: schorsing
+              # Eerst of er een schorsing is: DATE_DIFF faalt op een lege
+              # datum, en AND stopt bij de eerste onwaar.
+              filter:
+                operation: AND
+                conditions:
+                  - operation: EQUALS
+                    subject: $schorsing.uitspraak_strekt_tot
+                    value: gehele of gedeeltelijke toewijzing van het verzoek
+                  - operation: NOT
+                    value: {operation: EQUALS, subject: $schorsing.geschorst_vanaf, value: null}
+                  - operation: GREATER_THAN_OR_EQUAL
+                    subject: {operation: DATE_DIFF, from: $schorsing.geschorst_vanaf, to: $peildatum, in: days}
+                    value: 0
+                  - operation: NOT
+                    value:
+                      operation: OR
+                      conditions:
+                        - operation: AND
+                          conditions:
+                            - operation: NOT
+                              value: {operation: EQUALS, subject: $schorsing.voorziening_vervalt_op, value: null}
+                            - operation: GREATER_THAN_OR_EQUAL
+                              subject:
+                                operation: DATE_DIFF
+                                from: $schorsing.voorziening_vervalt_op
+                                to: $peildatum
+                                in: days
+                              value: 0
+                        - operation: AND
+                          conditions:
+                            - operation: NOT
+                              value: {operation: EQUALS, subject: $schorsing.voorziening_opgeheven_op, value: null}
+                            - operation: GREATER_THAN_OR_EQUAL
+                              subject:
+                                operation: DATE_DIFF
+                                from: $schorsing.voorziening_opgeheven_op
+                                to: $peildatum
+                                in: days
+                              value: 0
+                  # Vervallen door wat bij het besluit staat, na het begin van
+                  # de schorsing (8:85, tweede lid): het bezwaar of beroep is
+                  # ingetrokken (onder b), of de bestuursrechter deed uitspraak
+                  # in de hoofdzaak (onder c). Onder a is niet gemodelleerd;
+                  # zie artikel 8:85 in de Awb van deze poc.
+                  - operation: NOT
+                    value:
+                      operation: FOREACH
+                      collection: $vergunningen
+                      as: vergunning
+                      filter:
+                        operation: AND
+                        conditions:
+                          # Het besluit dat de vergunning verleent: het besluit
+                          # op de aanvraag, of de beslissing op bezwaar die in
+                          # zijn plaats een nieuw besluit nam.
+                          - operation: EQUALS
+                            subject: $vergunning.besluit_dat_verleent
+                            value: $schorsing.besluit
+                          - operation: OR
+                            conditions:
+                              # Onder b: vanaf de dag van de intrekking.
+                              - operation: AND
+                                conditions:
+                                  - operation: NOT
+                                    value: {operation: EQUALS, subject: $vergunning.ingetrokken_op, value: null}
+                                  - operation: GREATER_THAN_OR_EQUAL
+                                    subject:
+                                      operation: DATE_DIFF
+                                      from: $schorsing.geschorst_vanaf
+                                      to: $vergunning.ingetrokken_op
+                                      in: days
+                                    value: 0
+                                  - operation: GREATER_THAN_OR_EQUAL
+                                    subject:
+                                      operation: DATE_DIFF
+                                      from: $vergunning.ingetrokken_op
+                                      to: $peildatum
+                                      in: days
+                                    value: 0
+                              # Onder c: vanaf de dag van de uitspraak.
+                              - operation: AND
+                                conditions:
+                                  - operation: NOT
+                                    value: {operation: EQUALS, subject: $vergunning.uitspraak_hoofdzaak_op, value: null}
+                                  - operation: GREATER_THAN_OR_EQUAL
+                                    subject:
+                                      operation: DATE_DIFF
+                                      from: $schorsing.geschorst_vanaf
+                                      to: $vergunning.uitspraak_hoofdzaak_op
+                                      in: days
+                                    value: 0
+                                  - operation: GREATER_THAN_OR_EQUAL
+                                    subject:
+                                      operation: DATE_DIFF
+                                      from: $vergunning.uitspraak_hoofdzaak_op
+                                      to: $peildatum
+                                      in: days
+                                    value: 0
+                      body: true
+                      combine: OR
+              body: $schorsing.besluit
+
+  - number: '2'
+    text: >-
+      FICTIEF, eigen keuze in de modellering. Een bedrijfsparkeervergunning is
+      op een dag geldig als het besluit dat haar verleent op of vóór die dag
+      is genomen, zij op die dag nog niet is verlopen, en het besluit op die
+      dag niet is geschorst (artikel 1). Een weigering geeft geen vergunning.
+    url: https://lokaleregelgeving.overheid.nl/CVDR733452
+    machine_readable:
+      execution:
+        parameters:
+          - name: vergunningen
+            type: array
+            description: >-
+              De besluiten op aanvragen, elk met het besluit dat de
+              vergunning nu verleent, of het een vergunning verleent, de dag van het besluit, de laatste geldige
+              dag van de vergunning en de dag van de uitspraak in de hoofdzaak.
+          - name: schorsingen
+            type: array
+            description: De uitspraken van de voorzieningenrechter, als in artikel 1.
+          - name: peildatum
+            type: date
+            description: De dag waarop de vergunningen geldig moeten zijn.
+        input:
+          - name: geschorst
+            type: array
+            source:
+              regulation: beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
+              output: geschorste_besluiten
+              parameters:
+                vergunningen: $vergunningen
+                schorsingen: $schorsingen
+                peildatum: $peildatum
+        output:
+          - name: aantal_geldige_vergunningen
+            type: number
+            description: Hoeveel vergunningen op de peildatum geldig zijn.
+          - name: een_geldige_vergunning
+            type: boolean
+            description: Of er op de peildatum een geldige vergunning is.
+        actions:
+          - output: aantal_geldige_vergunningen
+            value:
+              operation: FOREACH
+              collection: $vergunningen
+              as: vergunning
+              # Per vergunning eerst of er een is: DATE_DIFF faalt op een lege
+              # datum, en IF stopt bij het eerste geval dat geldt.
+              filter:
+                operation: IF
+                cases:
+                  # Geen vergunning: een weigering, of een besluit dat niet
+                  # meetelt (dan zette zijn stap niets).
+                  - when:
+                      operation: NOT
+                      value: $vergunning.verleend
+                    then: false
+                  # Na de dag genomen.
+                  - when:
+                      operation: LESS_THAN
+                      subject: {operation: DATE_DIFF, from: $vergunning.besluit_datum, to: $peildatum, in: days}
+                      value: 0
+                    then: false
+                  # Vóór de dag verlopen.
+                  - when:
+                      operation: LESS_THAN
+                      subject: {operation: DATE_DIFF, from: $peildatum, to: $vergunning.vergunning_geldig_tot, in: days}
+                      value: 0
+                    then: false
+                  # Op de dag geschorst (artikel 1): het besluit dat de
+                  # vergunning verleent. Dat is de beslissing op bezwaar die in
+                  # de plaats van het besluit op de aanvraag een nieuw besluit
+                  # nam, als er een is; een schorsing van het herroepen besluit
+                  # raakt dan niets meer.
+                  - when:
+                      operation: IN
+                      subject: $vergunning.besluit_dat_verleent
+                      value: $geschorst
+                    then: false
+                default: true
+              body: 1
+              combine: ADD
+          - output: een_geldige_vergunning
+            value:
+              operation: GREATER_THAN
+              subject: $aantal_geldige_vergunningen
+              value: 0
+
+  - number: '3'
+    text: >-
+      FICTIEF, eigen keuze in de modellering. Neemt het college op bezwaar
+      een nieuw besluit in de plaats van het herroepen besluit, dan telt dat
+      besluit zoals een besluit op de aanvraag: verleent het een vergunning,
+      dan is die verleend op de dag van het nieuwe besluit en geldig tot en
+      met de dag die het noemt. De vergunning berust dan op de beslissing op
+      bezwaar: een schorsing raakt haar alleen als zij over die beslissing
+      gaat. Een beslissing op bezwaar zonder nieuw besluit laat staan wat
+      gold.
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel7:11
+    machine_readable:
+      # Awb 7:11, tweede lid: het bestuursorgaan herroept het bestreden
+      # besluit en neemt in de plaats daarvan een nieuw besluit. De gemeente
+      # legt de beslissing op bezwaar vast, met het nieuwe besluit erin
+      # (nieuw_besluit); het nieuwe besluit is geen eigen record. Dit artikel
+      # leest niets anders dan wat het krijgt.
+      execution:
+        parameters:
+          - name: al_besluit_dat_verleent
+            type: string
+            nullable: true
+            description: >-
+              Het besluit dat de vergunning vóór deze beslissing op bezwaar
+              verleende: het besluit op de aanvraag, of een eerdere beslissing
+              op bezwaar die een nieuw besluit in de plaats nam.
+          - name: beslissing_op_bezwaar
+            type: string
+            description: Deze beslissing op bezwaar.
+          - name: al_verleend
+            type: boolean
+            description: Of het besluit vóór deze beslissing op bezwaar een vergunning verleende.
+          - name: al_besluit_datum
+            type: date
+            nullable: true
+            description: De dag van dat besluit.
+          - name: al_vergunning_geldig_tot
+            type: date
+            nullable: true
+            description: De laatste geldige dag van die vergunning.
+          - name: nieuw_besluit
+            type: decision
+            nullable: true
+            description: >-
+              Het besluit dat de beslissing op bezwaar in de plaats van het
+              herroepen besluit nam; leeg als zij dat niet deed.
+        output:
+          - name: verleend_na_bezwaar
+            type: boolean
+            description: Of er na deze beslissing op bezwaar een vergunning is verleend.
+          - name: besluit_datum_na_bezwaar
+            type: date
+            nullable: true
+            description: De dag van het besluit dat de vergunning verleent.
+          - name: vergunning_geldig_tot_na_bezwaar
+            type: date
+            nullable: true
+            description: De laatste geldige dag van die vergunning.
+          - name: besluit_dat_verleent_na_bezwaar
+            type: string
+            nullable: true
+            description: >-
+              Het besluit dat de vergunning na deze beslissing op bezwaar
+              verleent: deze beslissing als zij een nieuw besluit in de plaats
+              nam, anders het besluit van daarvoor.
+        actions:
+          - output: besluit_dat_verleent_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $nieuw_besluit, value: null}
+                  then: $al_besluit_dat_verleent
+              default: $beslissing_op_bezwaar
+          - output: verleend_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $nieuw_besluit, value: null}
+                  then: $al_verleend
+              default:
+                operation: EQUALS
+                subject: $nieuw_besluit.outputs.bedrijfsparkeervergunning_verleend
+                value: true
+          - output: besluit_datum_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $nieuw_besluit, value: null}
+                  then: $al_besluit_datum
+              default: $nieuw_besluit.fields.besluit_datum
+          - output: vergunning_geldig_tot_na_bezwaar
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $nieuw_besluit, value: null}
+                  then: $al_vergunning_geldig_tot
+              default: $nieuw_besluit.outputs.vergunning_geldig_tot

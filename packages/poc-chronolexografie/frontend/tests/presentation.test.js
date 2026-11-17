@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url';
 import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 import { CORPUS_NAMES, KINDS, slides } from '../src/presentation/slides.js';
-import { DEMO_CASUS, DEMO_SCENARIOS, demoGuides } from '../src/presentation/demo.js';
+import { DEMO_SCENARIOS, demoGuides } from '../src/presentation/demo.js';
 import { createPresentation, keyAction, startIndex } from '../src/presentation/usePresentation.js';
 
 // The slides name reductions, open terms and outputs of the corpus, and
@@ -93,14 +93,20 @@ describe('the slides', () => {
 });
 
 describe('the demo scenarios', () => {
-  const yaml = load(
-    readFileSync(new URL(`../../corpus/casussen/${DEMO_CASUS}.yaml`, import.meta.url), 'utf8'),
-  );
+  const yaml = (id) =>
+    load(readFileSync(new URL(`../../corpus/casussen/${id}.yaml`, import.meta.url), 'utf8'));
 
-  it('are scenarios of the case, each with a guide', () => {
-    const names = yaml.scenarios.map((s) => s.naam);
-    for (const n of DEMO_SCENARIOS) expect(names).toContain(n);
-    expect(demoGuides().map((g) => g?.name)).toEqual([...DEMO_SCENARIOS]);
+  it('are scenarios of their case, each with a guide', () => {
+    for (const { casus, naam } of DEMO_SCENARIOS) {
+      expect(yaml(casus).scenarios.map((s) => s.naam)).toContain(naam);
+    }
+    expect(demoGuides().map((d) => [d.casus, d.guide?.name])).toEqual(
+      DEMO_SCENARIOS.map(({ casus, naam }) => [casus, naam]),
+    );
+  });
+
+  it('name the title of their case', () => {
+    for (const d of demoGuides()) expect(d.titel, d.casus).toBe(yaml(d.casus).titel);
   });
 });
 

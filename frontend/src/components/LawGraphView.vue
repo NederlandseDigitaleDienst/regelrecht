@@ -21,8 +21,8 @@ import type { TraceSteppingOptions } from '../composables/useTraceStepping';
 import { useColorScheme } from '../composables/useColorScheme';
 import { stepHasHighlights } from '../lib/traceEdges';
 import type { TraceStep } from '../lib/traceEdges';
-import { lawUrl } from '../composables/corpusUrls';
-import { apiFetchText } from '../lib/apiFetch';
+import { useCorpus } from '../corpus';
+import type { RequestError } from '../lib/apiFetch';
 
 /** The engine's TraceResult: the trace read by useTraceStepping, plus the outputs. */
 type GraphTraceResult = NonNullable<TraceSteppingOptions['result']['value']> & {
@@ -40,23 +40,27 @@ const props = withDefaults(
     // matching output leaf on the root law.
     outputName?: string | null;
     expectations?: Record<string, unknown>;
-    /** Active traject ref - routes dependency reads through the
-     *  traject's backend so the graph mirrors what the editor pane shows. */
-    trajectRef?: string | null;
   }>(),
   {
     lawId: null,
     result: null,
     outputName: null,
     expectations: () => ({}),
-    trajectRef: null,
   },
 );
 
+// Dependency reads go through the active traject, so the graph mirrors what
+// the editor pane shows.
+const corpus = useCorpus();
 async function fetchLawYaml(lawId: string) {
-  return apiFetchText(lawUrl(props.trajectRef, lawId), {
-    errorMessage: (status) => `Law '${lawId}' niet gevonden (${status})`,
-  });
+  try {
+    return (await corpus.law(lawId)).rawYaml;
+  } catch (e) {
+    const status = (e as RequestError).status;
+    // An HTTP failure gets the message the graph shows; a network error keeps its own.
+    if (status === undefined) throw e;
+    throw new Error(`Law '${lawId}' niet gevonden (${status})`);
+  }
 }
 
 // Vue Flow types a node component against its full NodeProps; ours declare

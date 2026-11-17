@@ -164,6 +164,8 @@ const handelingenGewijzigd = computed(
 );
 
 function stelMinutenIn(id, minuten) {
+  // An emptied number field reports null; Number(null) would store 0 minutes.
+  if (minuten === null || minuten === undefined || minuten === '') return;
   const n = Number(minuten);
   if (!Number.isFinite(n) || n < 0) return;
   handelingenOverrides.minuten[id] = n;

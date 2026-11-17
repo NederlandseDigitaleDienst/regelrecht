@@ -7,6 +7,7 @@ import type { EditorEngine } from '../composables/useEngine';
 import type { Expectation } from '../utils/outputFormat';
 import { formatValue, formatMissing, normalizeForCompare, matchStatus as _matchStatus, humanize, expectationsFromAssertions } from '../utils/outputFormat';
 import { NOT_NULLABLE_MESSAGE, nullAllowed, isNullText } from '../utils/nullability';
+import { todayLocalIso } from '../lib/localDate';
 import DataSourceTable from './DataSourceTable.vue';
 import ScenarioParameterInput from './ScenarioParameterInput.vue';
 import AbsenceToggle from './AbsenceToggle.vue';
@@ -109,7 +110,7 @@ const emit = defineEmits<{
 }>();
 
 // --- Form state (initialized from scenario setup) ---
-const calculationDate = ref(props.setup.calculationDate || new Date().toISOString().slice(0, 10));
+const calculationDate = ref(props.setup.calculationDate || todayLocalIso());
 
 // Scalar parameters edit as one control each; a collection-valued parameter
 // (RFC-016, `Given parameter "x" is the collection:`) is a table and gets
@@ -261,7 +262,7 @@ const errorTraceText = ref<unknown>(null);
 // when the scenario/setup props change and when the parent discards edits
 // (cancel / click-away) without replacing formState - see ScenarioBuilder.
 function discardEdits() {
-  calculationDate.value = props.setup.calculationDate || new Date().toISOString().slice(0, 10);
+  calculationDate.value = props.setup.calculationDate || todayLocalIso();
   parameterValues.value = Object.fromEntries(
     scalarParams().map((p) => [p.name, p.value ?? '']),
   );
@@ -472,7 +473,7 @@ const dateControlId = useId();
     <template v-if="!drilledIn">
       <!-- Expected outputs -->
       <template v-if="hasExpectations">
-        <nldd-title size="5"><h2>Verwachte uitkomsten</h2></nldd-title>
+        <nldd-title size="display-5"><h2>Verwachte uitkomsten</h2></nldd-title>
         <nldd-spacer size="8"></nldd-spacer>
         <nldd-list appearance="box-tinted">
           <nldd-list-item v-for="(exp, name) in expectations" :key="name" size="md">
@@ -505,14 +506,14 @@ const dateControlId = useId();
 
       <!-- Input: date + parameters -->
       <nldd-spacer v-if="hasExpectations" size="16"></nldd-spacer>
-      <nldd-title size="5"><h2>Invoer</h2></nldd-title>
+      <nldd-title size="display-5"><h2>Invoer</h2></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item size="md">
           <nldd-text-cell text="Datum" min-width="120px" max-width="200px"></nldd-text-cell>
           <nldd-spacer-cell size="8"></nldd-spacer-cell>
           <nldd-cell width="full" min-width="120px">
-            <!-- The date control is a date-typed text field: it emits text. -->
+            <!-- The date control is a date field: it emits the ISO date as text. -->
             <ScenarioParameterInput
               :id="dateControlId"
               type="date"
@@ -579,7 +580,7 @@ const dateControlId = useId();
       <!-- Data sources: a row per source, drill in one level deeper -->
       <template v-if="dataSources.length">
         <nldd-spacer size="16"></nldd-spacer>
-        <nldd-title size="5"><h2>Bronnen</h2></nldd-title>
+        <nldd-title size="display-5"><h2>Bronnen</h2></nldd-title>
         <nldd-spacer size="8"></nldd-spacer>
         <nldd-list appearance="box-tinted">
           <nldd-list-item

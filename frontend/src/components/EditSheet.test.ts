@@ -1,7 +1,9 @@
-import { describe, it, expect, beforeAll, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 import { mount, type VueWrapper } from '@vue/test-utils';
 import { nextTick } from 'vue';
+import type { DefinitionForm } from '../lib/definitionForm';
 import EditSheet, { type EditSheetItem } from './EditSheet.vue';
+import { installTestCorpus } from '../test-utils/corpusSetup';
 
 /** A source.parameters row as the tests read and write it. */
 type TestParamRow = { key: string; value: string; _rowId?: number };
@@ -17,12 +19,15 @@ interface TestFormValues {
   sourceRegulation: string;
   sourceOutput: string;
   sourceParameters: TestParamRow[];
+  def?: DefinitionForm;
 }
 
 /** The script-setup bindings the tests drive through wrapper.vm. */
 interface EditSheetVm {
   values: TestFormValues;
   save(): void;
+  onDefTypeChange(event: { target: { value: string } }): void;
+  onDefNumber(event: Event): void;
   allLaws: { law_id: string }[];
   availableOutputs: unknown[];
   onLawComboChange(event: { detail: { value: string } }): Promise<void>;
@@ -44,11 +49,6 @@ function firstSave(events: unknown[][] | undefined): SavedPayload {
   const first = events?.[0];
   if (!first) throw new Error('no save event emitted');
   return first[0] as SavedPayload;
-}
-
-/** A fetch Response stand-in with only what apiFetchJson reads. */
-function fakeResponse(ok: boolean, body: unknown): Response {
-  return { ok, json: async () => body } as unknown as Response;
 }
 
 // Vite is configured with `isCustomElement: tag => tag.startsWith('nldd-')`
@@ -139,6 +139,97 @@ describe('EditSheet', () => {
       const events = wrapper.emitted('save');
       expect(firstSave(events).section).toBe('add-definition');
       expect(firstSave(events).key).toBe('foo');
+    });
+  });
+
+  describe('structured definition', () => {
+    // The sheet sets `def` for a definition item; a missing one is a failure here.
+    function defOf(wrapper: SheetWrapper): DefinitionForm {
+      const def = wrapper.vm.values.def;
+      if (!def) throw new Error('no definition form');
+      return def;
+    }
+
+    it('saves a type and unit picked for a bare value', async () => {
+      const wrapper = mountSheet();
+      await setItem(wrapper, { section: 'definition', key: 'percentage', rawDef: 13.7 });
+
+      const def = defOf(wrapper);
+      expect(def.type).toBe('');
+      def.type = 'number';
+      def.unit = 'percentage';
+      wrapper.vm.save();
+      await nextTick();
+
+      expect(firstSave(wrapper.emitted('save')).data).toEqual({
+        value: 13.7,
+        type: 'number',
+        type_spec: { unit: 'percentage' },
+      });
+    });
+
+    // Through the dropdown's own handler: tagging an existing eurocent
+    // constant as Bedrag must not move it by a factor of 100.
+    it('keeps the stored number when the dropdown makes a bare number an amount', async () => {
+      const wrapper = mountSheet();
+      await setItem(wrapper, { section: 'definition', key: 'drempelinkomen', rawDef: 3971900 });
+
+      wrapper.vm.onDefTypeChange({ target: { value: 'amount' } });
+      expect(defOf(wrapper).number).toBe(39719);
+      wrapper.vm.save();
+      await nextTick();
+
+      expect(firstSave(wrapper.emitted('save')).data).toEqual({
+        value: 3971900,
+        type: 'amount',
+        type_spec: { unit: 'eurocent' },
+      });
+    });
+
+    // Since design system 0.18 a number field can be emptied, and reports null.
+    it('keeps the number of a definition whose field is emptied, and shows it again', async () => {
+      const wrapper = mountSheet();
+      await setItem(wrapper, { section: 'definition', key: 'aandeel', rawDef: 0.04273 });
+
+      const field = { value: null as unknown };
+      const emptied = (type: string) => {
+        const event = new CustomEvent(type, { detail: { value: null } });
+        Object.defineProperty(event, 'target', { value: field });
+        return event;
+      };
+      wrapper.vm.onDefNumber(emptied('input'));
+      expect(defOf(wrapper).number).toBe(0.04273);
+      expect(field.value).toBeNull();
+
+      wrapper.vm.onDefNumber(emptied('change'));
+      expect(defOf(wrapper).number).toBe(0.04273);
+      expect(field.value).toBe(0.04273);
+
+      wrapper.vm.onDefNumber(new CustomEvent('input', { detail: { value: 0.05 } }));
+      expect(defOf(wrapper).number).toBe(0.05);
+    });
+
+    it('keeps a bare value bare while it has no type', async () => {
+      const wrapper = mountSheet();
+      await setItem(wrapper, { section: 'definition', key: 'aandeel', rawDef: 0.04273 });
+
+      defOf(wrapper).number = 0.05;
+      wrapper.vm.save();
+      await nextTick();
+
+      expect(firstSave(wrapper.emitted('save')).data).toBe(0.05);
+    });
+
+    it('starts a new definition as a structured number', async () => {
+      const wrapper = mountSheet();
+      await setItem(wrapper, { section: 'add-definition', isNew: true });
+
+      wrapper.vm.values.name = 'termijn';
+      defOf(wrapper).number = 4;
+      wrapper.vm.save();
+      await nextTick();
+
+      expect(firstSave(wrapper.emitted('save')).data).toEqual({ value: 4, type: 'number' });
     });
   });
 
@@ -573,23 +664,32 @@ describe('EditSheet', () => {
       { name: 'leeftijd', output_type: 'number', article_number: '2.7', parameters: [{ name: 'bsn', param_type: 'string' }, { name: 'peildatum', param_type: 'date' }] },
       { name: 'heeft_partner', output_type: 'boolean', article_number: '2.8', parameters: [{ name: 'bsn', param_type: 'string' }] },
     ];
-    let fetchSpy: MockInstance<typeof fetch>;
-
     beforeEach(() => {
-      fetchSpy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
-        const urlStr = typeof url === 'string' ? url : url.toString();
-        if (urlStr.includes('/api/corpus/laws') && urlStr.includes('/outputs')) {
-          return fakeResponse(true, mockOutputs);
-        }
-        if (urlStr.includes('/api/corpus/laws')) {
-          return fakeResponse(true, mockLaws);
-        }
-        return fakeResponse(false, {});
+      installTestCorpus({
+        '': {
+          list: mockLaws,
+          outputs: Object.fromEntries(mockLaws.map((l) => [l.law_id, mockOutputs])),
+        },
       });
     });
 
-    afterEach(() => {
-      fetchSpy.mockRestore();
+    it('reads the law list and outputs from the traject it is open in', async () => {
+      // A law that exists only in the traject has no outputs in the global
+      // corpus, so inside a traject both must come from the traject's corpus.
+      installTestCorpus({
+        '': {},
+        'proef-0123abcd': {
+          list: [{ law_id: 'eigen_regeling', name: 'Eigen regeling', display_name: 'Eigen regeling' }],
+          outputs: { eigen_regeling: mockOutputs },
+        },
+      }, 'proef-0123abcd');
+      const wrapper = mountSheet();
+      await setItem(wrapper, { section: 'add-input', isNew: true });
+      await vi.waitFor(() => expect(wrapper.vm.allLaws.map((l) => l.law_id)).toEqual(['eigen_regeling']));
+
+      await wrapper.vm.onLawComboChange({ detail: { value: 'eigen_regeling' } });
+
+      await vi.waitFor(() => expect(wrapper.vm.availableOutputs).toEqual(mockOutputs));
     });
 
     it('onLawComboChange sets sourceRegulation, clears sourceOutput, and fetches outputs', async () => {

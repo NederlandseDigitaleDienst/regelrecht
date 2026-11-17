@@ -3,15 +3,16 @@
  * the form of the step they are at starts from the case's example values
  * for its kind (`voorbeeld`) with the step's own values over them
  * (`invoer`, casussen/<id>.yaml); the guide names the same values
- * (scenarioGuides.js). In free play every form starts empty. A case from a
- * source has no guide: there a form starts from the example values alone.
+ * (scenarioGuides.js). In free play every form starts empty. A scenario
+ * without a guide (its steps are all text) starts every form from the
+ * example values alone.
  *
  * The visitor can change every value. What they change is theirs until the
  * scenario moves on to its next step; then the form starts again from that
  * step ([`formulier`]).
  */
 import { computed, reactive, watch } from 'vue';
-import { guideFor } from './scenarioGuides.js';
+import { guideFor, vastleggendeCel } from './scenarioGuides.js';
 import { counts, progress } from './scenarioProgress.js';
 import { aanvragen, besluitOp, bezwaarBasis, isBesluit, state } from './state.js';
 
@@ -20,6 +21,9 @@ const VOORBEELD = {
   aanvraag: 'aanvraag',
   besluit: 'bevindingen',
   bezwaar: 'bezwaar',
+  // Het oordeel van het bestuursorgaan over de ontvankelijkheid (Awb 7:11).
+  beslissing_op_bezwaar: 'beslissing_op_bezwaar',
+  opnieuw_beslissen: 'beslissing_op_bezwaar',
   beroep: 'beroep',
   uitspraak: 'uitspraak',
 };
@@ -59,7 +63,7 @@ function past(step, doel) {
     case 'beroep':
       return !doel.besluit || beslissingen()[step.doel - 1]?.id === doel.besluit;
     case 'vastleggen':
-      return step.stap.cel === doel.cel && step.stap.feit === doel.feit;
+      return vastleggendeCel(step.stap, state.casus) === doel.cel && step.stap.feit === doel.feit;
     default:
       return true;
   }
@@ -94,6 +98,50 @@ export function scenarioWaarden(soort, doel = {}) {
   if (!guideFor(state.casus, state.scenario)) return VOORBEELD[soort] ? { ...voorbeeld } : null;
   if (!isHuidigeStap(soort, doel)) return null;
   return { ...voorbeeld, ...(huidigeStap().step.stap.invoer ?? {}) };
+}
+
+/**
+ * The earlier record that the record step the scenario is at refers to
+ * (`verwijst_naar`), when that step records `feit` in cell `cel`: the id of
+ * the record of an earlier step with that kenmerk, or else the kenmerk as it
+ * is, for a record in the begin of the cell. Null otherwise, and always in
+ * free play.
+ */
+export function scenarioVerwijzing(cel, feit) {
+  if (!isHuidigeStap('vastleggen', { cel, feit })) return null;
+  const naar = huidigeStap().step.stap.verwijst_naar;
+  if (!naar) return null;
+  const eerder = guideFor(state.casus, state.scenario).steps.find((s) => s.stap.kenmerk === naar);
+  return (eerder && recordVan(eerder)) ?? naar;
+}
+
+/**
+ * The id of the record that the step of the scenario with `kenmerk` made, or
+ * null when no step gives it or its record is not there (yet). The guide
+ * knows the record of a decision and of a record step (`recordVan`); a
+ * scenario of generic steps has no guide (scenarioGuides.js).
+ */
+export function recordMetKenmerk(kenmerk) {
+  const guide = guideFor(state.casus, state.scenario);
+  const step = guide?.steps.find((s) => s.stap.kenmerk === kenmerk);
+  return step ? recordVan(step) : null;
+}
+
+/**
+ * The id of the record that the done step `step` made, or null: the decision
+ * on its application, or the executogram it recorded, counted among the
+ * records of its fact in the chronicle of its cell.
+ */
+function recordVan(step) {
+  if (step.stap.stap === 'besluit') {
+    const a = aanvragen()[step.doel - 1];
+    return (a && besluitOp(a.id)?.id) ?? null;
+  }
+  if (step.stap.stap !== 'vastleggen') return null;
+  const cel = vastleggendeCel(step.stap, state.casus);
+  const grammen = cel === state.casus.cel ? state.grammen : (state.andere.find((a) => a.cel === cel)?.grammen ?? []);
+  const vanFeit = grammen.filter((g) => g.kind === 'EXECUTOGRAM' && `${g.basis}#${g.fact}` === step.stap.feit);
+  return vanFeit[step.vooraf + step.keer - 1]?.id ?? null;
 }
 
 /**

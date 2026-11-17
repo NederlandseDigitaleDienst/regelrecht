@@ -243,6 +243,20 @@ function detailValue(e: Event): unknown {
   return (e as CustomEvent<{ value?: unknown } | null | undefined>).detail?.value;
 }
 
+/**
+ * The number field. Since design system 0.18 it can be emptied and then
+ * reports null: the value stays what it was, and the field shows it again once
+ * it commits, so what is on screen is what gets submitted.
+ */
+function onNumber(e: Event) {
+  const value = detailValue(e);
+  if (value === null || value === undefined || value === '') {
+    if (e.type === 'change') (e.target as EventTarget & { value: unknown }).value = newValue.value;
+    return;
+  }
+  newValue.value = String(value);
+}
+
 function submit() {
   if (!props.node) return;
   let value;
@@ -315,7 +329,7 @@ function submit() {
                  same columns, each cell typed on what the column holds, and
                  rows can be added or removed, as the POC allowed. -->
             <template v-else-if="kind === 'rows'">
-              <nldd-table :columns="`repeat(${columns.length}, minmax(120px, 1fr)) max-content`">
+              <nldd-table :accessible-label="humanize(node.name)" :columns="`repeat(${columns.length}, minmax(120px, 1fr)) max-content`">
                 <nldd-table-row slot="header">
                   <nldd-text-cell v-for="c in columns" :key="c" size="sm" :text="humanize(c)"></nldd-text-cell>
                   <nldd-text-cell size="sm" text=""></nldd-text-cell>
@@ -382,9 +396,9 @@ function submit() {
             <!-- Typed input, as the POC had it: a date gets a date picker and a
                  number a number field, so the value a citizen enters is of the
                  kind the law expects. An amount stays a text field: the number
-                 field has no empty state and shows the Dutch comma badly. -->
+                 field shows the Dutch comma badly. -->
             <nldd-date-field v-else-if="kind === 'date'" :value="newValue" width="full" @change="newValue = (detailValue($event) as string | undefined) ?? newValue"></nldd-date-field>
-            <nldd-number-field v-else-if="kind === 'number'" :value="newValue" width="full" hide-spin-buttons :step="step" @input="newValue = String(detailValue($event) ?? newValue)" @change="newValue = String(detailValue($event) ?? newValue)"></nldd-number-field>
+            <nldd-number-field v-else-if="kind === 'number'" :value="newValue" width="full" hide-spin-buttons :step="step" @input="onNumber" @change="onNumber"></nldd-number-field>
             <nldd-text-field v-else :value="newValue" @input="newValue = inputValue($event)"></nldd-text-field>
           </nldd-form-field>
           <nldd-form-field :label="selfDeclared ? t('sheet.edit.reason.self') : t('sheet.edit.reason.correction')" :optional="selfDeclared || undefined">

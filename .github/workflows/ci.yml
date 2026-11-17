@@ -394,12 +394,6 @@ jobs:
     needs: changes
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    env:
-      # sccache caches compilations across runs; the GHA backend is wired up by
-      # the sccache-action step below. Incremental must be off for sccache.
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -426,8 +420,8 @@ jobs:
         # version and its sha256: .github/actions/setup-mold/action.yml.
         uses: ./.github/actions/setup-mold
 
-      - name: Run sccache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba  # v0.0.11
+      - name: Setup sccache
+        uses: ./.github/actions/setup-sccache
 
       - name: Cache cargo registry (shared)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -538,9 +532,6 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      CARGO_INCREMENTAL: "0"
       TEST_POSTGRES_URL: ${{ matrix.postgres-url }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -554,8 +545,8 @@ jobs:
       - name: Install mold linker
         uses: ./.github/actions/setup-mold
 
-      - name: Run sccache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba  # v0.0.11
+      - name: Setup sccache
+        uses: ./.github/actions/setup-sccache
 
       - name: Cache cargo registry (shared)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -575,10 +566,6 @@ jobs:
     if: needs.changes.outputs.ci == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -588,8 +575,8 @@ jobs:
       - name: Install mold linker
         uses: ./.github/actions/setup-mold
 
-      - name: Run sccache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba  # v0.0.11
+      - name: Setup sccache
+        uses: ./.github/actions/setup-sccache
 
       - name: Cache cargo registry (shared)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -627,6 +614,24 @@ jobs:
           RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
         run: cargo test --test bdd -- --nocapture
 
+      # De eigen BDD-afdeling van de cel (packages/cel/bdd): stappen die in
+      # een kroniek vastleggen, bovenop de canonieke taal. Ze staan buiten
+      # bdd/grammar.yaml, het taalcontract van elke engine, en de runner staat
+      # in de cel, omdat de engine niet van de cel kan afhangen (zie
+      # bdd/README.md).
+      - name: Run the cell's BDD suite
+        working-directory: packages/cel
+        env:
+          RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
+        run: cargo test --test bdd -- --nocapture
+
+      - name: Run the cell's BDD suite with reversed actions
+        working-directory: packages/cel
+        env:
+          BDD_REVERSE_ACTIONS: "1"
+          RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
+        run: cargo test --test bdd -- --nocapture
+
   # Bucket A over het demo-corpus: de 80 gemigreerde POC-wetten onder
   # corpus/demo met hun scenario's en persona-data (REGULATION_PATH wijst wetten
   # én scenario's daarheen). Anders dan bucket A over corpus/regulation hangt
@@ -651,10 +656,6 @@ jobs:
             reverse: ''
           - leg: reversed
             reverse: '1'
-    env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      CARGO_INCREMENTAL: "0"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -664,8 +665,8 @@ jobs:
       - name: Install mold linker
         uses: ./.github/actions/setup-mold
 
-      - name: Run sccache
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba  # v0.0.11
+      - name: Setup sccache
+        uses: ./.github/actions/setup-sccache
 
       - name: Cache cargo registry (shared)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
@@ -975,9 +976,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      RUSTC_WRAPPER: sccache
-      SCCACHE_GHA_ENABLED: "true"
-      CARGO_INCREMENTAL: "0"
       BUILD: ${{ needs.changes.outputs.ci == 'true' || needs.changes.outputs.walkthrough == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -993,9 +991,9 @@ jobs:
         with:
           targets: wasm32-unknown-unknown
 
-      - name: Run sccache
+      - name: Setup sccache
         if: env.BUILD == 'true'
-        uses: mozilla-actions/sccache-action@fc920bf0ec8de6ee65d409111f7ec508035751ba  # v0.0.11
+        uses: ./.github/actions/setup-sccache
 
       - name: Cache cargo registry (shared)
         if: env.BUILD == 'true'
@@ -1432,8 +1430,8 @@ jobs:
       # Two packages the image lacks: `unzip` for Puppeteer's Chrome download,
       # and the DejaVu fonts the runner image renders code blocks in. The
       # script installs the exact .debs apt would pick, pinned by checksum,
-      # without going through the image's apt mirror; why, and how to refresh
-      # them, is in the script.
+      # without going through the image's apt mirror; why, which sources it
+      # tries, and how to refresh them, is in the script.
       - name: Install unzip and fonts
         if: needs.changes.outputs.docs == 'true'
         run: script/install-a11y-debs.sh

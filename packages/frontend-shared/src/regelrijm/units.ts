@@ -134,10 +134,14 @@ export function literalUnits(
       case 'LIST':
         each('items', firstUnit(node.items, declared) ?? unit);
         return;
+      case 'RECORD':
+        // A row is measured in nothing; each column carries its own unit.
+        if (isRecord(node.fields)) for (const [k, v] of Object.entries(node.fields)) visit(v, null, [...path, 'fields', k]);
+        return;
       case 'FOREACH':
         at('collection', null);
         at('filter', null);
-        at('body', ['ADD', 'MIN', 'MAX', 'ONLY', undefined].includes(node.combine as string | undefined) ? unit : null);
+        at('body', ['ADD', 'MIN', 'MAX', 'ONLY', 'DISTINCT', undefined].includes(node.combine as string | undefined) ? unit : null);
         return;
       case 'ROUND': case 'CEIL': case 'FLOOR':
         at('value', unit);

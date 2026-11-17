@@ -18,7 +18,7 @@
 
     <template v-else>
       <nldd-form-field label="Waaraan draaien" :supporting-label="`een bedrag uit ${werkversieLabel}; dit is wat de oplosser verandert`">
-        <nldd-dropdown :key="`${werkversie}:${definities.length}:${defKey}`" size="sm" @change="defKey = $event.detail?.value ?? defKey">
+        <nldd-dropdown :key="`${werkversie}:${definities.length}:${defKey}`" size="sm" @change="defKey = $event.target.value ?? defKey">
           <select :value="defKey">
             <option v-for="d in definities" :key="d.key" :value="d.key">{{ d.label }}</option>
           </select>

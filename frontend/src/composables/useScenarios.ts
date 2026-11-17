@@ -158,7 +158,7 @@ export function useScenarios(
     if (!lawId.value) return;
     requireTraject(trajectRef.value, 'scenario save');
 
-    // Snapshot the scope before the await (mirrors useLaw.saveLaw): if
+    // Snapshot the scope before the await (mirrors useOpenLaw.save): if
     // the user switches law/traject while the PUT is in flight, the
     // watch below clears `scenarioEtags` for the new scope - the stale
     // completion must not re-insert its ETag (keys are bare filenames

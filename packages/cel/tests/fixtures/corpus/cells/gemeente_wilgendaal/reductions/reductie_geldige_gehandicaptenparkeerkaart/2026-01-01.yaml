@@ -1,116 +1,130 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.12/schema/v0.8.12/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
 $id: reductie_geldige_gehandicaptenparkeerkaart
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
+# Geen regelgeving: een reductie van het college van de (fictieve) gemeente
+# Wilgendaal over zijn eigen kroniek (RFC-022 §4.1, RFC-048). Ze speelt
+# zelf niets af: ze leest de aggregaten van de besluiten over de aanvrager
+# (reductie_gehandicaptenparkeerkaart), elk met zijn laatste staat
+# (source.projections, schema v0.8.17); de geldigheidsduur staat al in elk
+# besluit (artikel 51 van het BABW). Welke besluiten
+# meetellen, volgt uit de effecten die de Awb een besluit geeft: een
+# beslissing op bezwaar die het bestreden besluit herroept (7:11, tweede lid),
+# en de ontvangst van een uitspraak die een besluit met zijn rechtsgevolgen
+# vernietigt (8:79 met 8:72). Wat die besluiten op een dag betekenen, zegt het
+# beleid van het college over verstrekte kaarten
+# (beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal). De cel
+# van de gemeente geeft haar uitvoer als twee antwoorden (cel.yaml, answers):
+# of de aanvrager een geldige kaart heeft (artikel 1), en of hij eerder een
+# kaart van het college kreeg (artikel 2). Het beleid van het college koppelt
+# het eerste aan zijn eigen open begrip, ook als Awb 7:11 artikel 49 opnieuw
+# aanroept, en het tweede aan het open begrip van artikel 2, tweede lid, onder
+# a en b, van de Regeling gehandicaptenparkeerkaart. Twee artikelen, omdat het
+# tweede antwoord de dag van het besluit niet kent: artikel 2 van de regeling
+# geeft die niet mee. Er is geen bekendmaking; de url wijst naar artikel 49.
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
 name: Geldige gehandicaptenparkeerkaart bij de gemeente Wilgendaal (reductie)
 articles:
   - number: '1'
     text: >-
-      Geen regelgeving.
+      Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
+      kijkt door middel van een chronolexografische reductie op zijn eigen
+      kroniek of er een besluit meetelt waarin het de aanvrager een kaart
+      verstrekte: niet herroepen en niet door de bestuursrechter vernietigd
+      (Awb 7:11 en 8:72). De aanvrager heeft een geldige
+      gehandicaptenparkeerkaart als het college hem in een besluit op een
+      aanvraag (artikel 49 van het BABW) een kaart verstrekte die op de dag van
+      het besluit nog geldig is. Verstrekte de bestuursrechter hem zelf een
+      kaart (Awb 8:72, derde lid, onder b), dan zegt het systeem niets: het
+      kent de geldigheid van die kaart niet.
     url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
     machine_readable:
       execution:
+        # Wat het antwoord vraagt; het beleid dat het koppelt, geeft ze op
+        # naam mee.
         parameters:
           - name: bsn_aanvrager
             type: string
+            description: Burgerservicenummer van de gehandicapte die de kaart aanvraagt.
           - name: besluit_datum
             type: date
+            description: De dag waarop het college op de aanvraag besluit.
         input:
-          - name: geldende_besluiten
+          - name: kaarten
             type: array
             source:
-              regulation: reductie_algemene_wet_bestuursrecht
+              projections: reductie_gehandicaptenparkeerkaart
+              where:
+                bsn_aanvrager: $bsn_aanvrager
+          - name: geldig
+            type: boolean
+            nullable: true
+            source:
+              regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+              output: geldige_kaart
               parameters:
-                basis: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+                kaarten: $kaarten
+                besluit_datum: $besluit_datum
         output:
           - name: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
             type: boolean
             nullable: true
+            description: >-
+              Of het college de aanvrager een kaart verstrekte die op de dag van
+              het besluit nog geldig is; afwezig als de bestuursrechter hem
+              zelf een kaart verstrekte en het college geen geldige kaart.
         actions:
           - output: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
-            value:
-              operation: IF
-              cases:
-                - when:
-                    operation: FOREACH
-                    collection: $geldende_besluiten
-                    as: besluit
-                    filter:
-                      operation: AND
-                      conditions:
-                        - operation: EQUALS
-                          subject: $besluit.bsn_aanvrager
-                          value: $bsn_aanvrager
-                        - operation: NOT
-                          value:
-                            operation: EQUALS
-                            subject: $besluit.kaart_geldig_tot
-                            value: null
-                        - operation: GREATER_THAN_OR_EQUAL
-                          subject:
-                            operation: DATE_DIFF
-                            from: $besluit_datum
-                            to: $besluit.kaart_geldig_tot
-                            in: days
-                          value: 0
-                    body: true
-                    combine: OR
-                  then: true
-                - when:
-                    operation: FOREACH
-                    collection: $geldende_besluiten
-                    as: besluit
-                    filter:
-                      operation: AND
-                      conditions:
-                        - operation: EQUALS
-                          subject: $besluit.gehandicaptenparkeerkaart_verstrekt
-                          value: true
-                        - operation: EQUALS
-                          subject: $besluit.kaart_geldig_tot
-                          value: null
-                    body: true
-                    combine: OR
-                  then: null
-              default: false
+            value: $geldig
   - number: '2'
     text: >-
-      Geen regelgeving.
+      Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
+      kijkt door middel van een chronolexografische reductie op zijn eigen
+      kroniek of het de aanvrager eerder een kaart verstrekte. Hij kreeg
+      eerder een kaart als het college hem in een besluit op een aanvraag
+      (artikel 49 van het BABW) een kaart verstrekte die meetelt, geldig of
+      niet, of als de bestuursrechter hem zelf een kaart verstrekte (Awb 8:72,
+      derde lid, onder b); anders zegt het systeem niets.
     url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
     machine_readable:
       execution:
+        # Artikel 2 van de regeling kent de dag van het besluit niet; dit
+        # antwoord heeft hem ook niet nodig.
         parameters:
           - name: bsn_aanvrager
             type: string
+            description: Burgerservicenummer van de gehandicapte die de kaart aanvraagt.
         input:
-          - name: geldende_besluiten
+          - name: kaarten
             type: array
             source:
-              regulation: reductie_algemene_wet_bestuursrecht
+              projections: reductie_gehandicaptenparkeerkaart
+              where:
+                bsn_aanvrager: $bsn_aanvrager
+          - name: eerder
+            type: boolean
+            source:
+              regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+              output: eerder_verstrekt
               parameters:
-                basis: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+                kaarten: $kaarten
         output:
           - name: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
             type: boolean
             nullable: true
+            description: >-
+              Waar, als het college de aanvrager eerder een kaart verstrekte;
+              anders afwezig.
         actions:
+          # Vindt het systeem geen kaart, dan zwijgt het (null): een kaart van
+          # een andere gemeente of van het CBR kent het niet, en dan stelt het
+          # college het vast.
           - output: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
             value:
               operation: IF
               cases:
-                - when:
-                    operation: FOREACH
-                    collection: $geldende_besluiten
-                    as: besluit
-                    filter:
-                      operation: AND
-                      conditions:
-                        - operation: EQUALS
-                          subject: $besluit.gehandicaptenparkeerkaart_verstrekt
-                          value: true
-                    body: true
-                    combine: OR
+                - when: $eerder
                   then: true
+              default: null

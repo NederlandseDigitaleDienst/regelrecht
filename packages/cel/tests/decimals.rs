@@ -13,7 +13,7 @@ use chrono::NaiveDate;
 use regelrecht_cel::{Cell, Chronicle, Gram, Reference};
 use regelrecht_engine::{LawExecutionService, Value};
 use regelrecht_law_model::stored;
-use serde_json::{json, Map};
+use serde_json::{Map, json};
 
 mod common;
 use common::cell_tempdir;
@@ -550,6 +550,7 @@ fn a_gram_that_would_not_open_again_is_not_appended() {
     let path = dir.path().join("kroniek.jsonl");
     let mut chronicle = Chronicle::open(&path).unwrap();
     let gram = Gram {
+        law_versions: Vec::new(),
         id: "g".into(),
         kind: "AANVRAAG".into(),
         basis: format!("{ID}#1"),

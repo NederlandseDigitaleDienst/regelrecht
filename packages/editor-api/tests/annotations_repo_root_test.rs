@@ -5,17 +5,16 @@
 //! subpath stay readable, and the next save builds on them but writes the
 //! merged result to the repository root.
 //!
-//! GitHub is played by wiremock; `GITHUB_API_BASE` (the test seam in
-//! `GithubClient::new`) points every client at it. Everything runs in ONE
-//! test so that process-wide env var cannot race between parallel tests.
+//! GitHub is played by wiremock; the `GithubSettings` the test puts in the
+//! app state point every client at it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod common;
 
 use common::{
-    add_central_seed, insert_traject, seed_account_record, session_for, state_with_user_token_mode,
-    traject_ref, TEST_EMAIL, TEST_NAME,
+    TEST_EMAIL, TEST_NAME, add_central_seed, app_state_with_github, github_settings,
+    insert_traject, seed_account_record, session_for, traject_ref,
 };
 
 use axum::extract::{Extension, Path, State};
@@ -27,7 +26,7 @@ use uuid::Uuid;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use regelrecht_corpus::annotation_schema::{append_notes_to_sidecar, AppendOutcome};
+use regelrecht_corpus::annotation_schema::{AppendOutcome, append_notes_to_sidecar};
 use regelrecht_editor_api::accounts::AccountRecord;
 use regelrecht_editor_api::corpus_handlers::{get_traject_annotations, save_annotations};
 use regelrecht_editor_api::github_oauth::{self, GithubOAuth};
@@ -90,8 +89,8 @@ fn b64(s: &str) -> String {
     base64::engine::general_purpose::STANDARD.encode(s.as_bytes())
 }
 
-/// Branch exists, repo readable, sidecar only at the legacy location.
-async fn mount_repo(server: &MockServer, legacy_text: &str) {
+/// The repo is readable and the traject branch exists.
+async fn mount_branch(server: &MockServer) {
     Mock::given(method("GET"))
         .and(path(format!("/repos/{OWN_REPO}")))
         .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
@@ -109,6 +108,28 @@ async fn mount_repo(server: &MockServer, legacy_text: &str) {
         })))
         .mount(server)
         .await;
+}
+
+/// The traject branch's tree listing holds exactly `paths`.
+async fn mount_tree(server: &MockServer, paths: &[String]) {
+    let tree: Vec<_> = paths
+        .iter()
+        .map(|p| serde_json::json!({ "path": p, "type": "blob", "sha": format!("sha-{p}") }))
+        .collect();
+    Mock::given(method("GET"))
+        .and(path(format!("/repos/{OWN_REPO}/git/trees/{OWN_BRANCH}")))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "sha": "tree-sha",
+            "truncated": false,
+            "tree": tree,
+        })))
+        .mount(server)
+        .await;
+}
+
+/// Branch exists, repo readable, sidecar only at the legacy location.
+async fn mount_repo(server: &MockServer, legacy_text: &str) {
+    mount_branch(server).await;
     Mock::given(method("GET"))
         .and(path(root_sidecar()))
         .respond_with(ResponseTemplate::new(404))
@@ -124,14 +145,6 @@ async fn mount_repo(server: &MockServer, legacy_text: &str) {
             "content": b64(legacy_text),
             "encoding": "base64",
         })))
-        .mount(server)
-        .await;
-    Mock::given(method("PUT"))
-        .and(path(root_sidecar()))
-        .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
-            "content": { "sha": "root-v1" },
-        })))
-        .expect(1)
         .mount(server)
         .await;
 }
@@ -155,12 +168,8 @@ async fn read_notes(
     body
 }
 
-#[tokio::test]
-async fn subpath_traject_reads_legacy_notes_and_saves_at_the_repo_root() {
-    let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
-
-    let db = TestDb::new().await;
+/// A local seed directory holding the law the notes are about.
+fn seed_with_law() -> tempfile::TempDir {
     let seed = tempfile::tempdir().unwrap();
     let law_dir = seed.path().join("wet").join(LAW_ID);
     std::fs::create_dir_all(&law_dir).unwrap();
@@ -169,9 +178,38 @@ async fn subpath_traject_reads_legacy_notes_and_saves_at_the_repo_root() {
         format!("$id: {LAW_ID}\nname: Voorbeeldwet\n"),
     )
     .unwrap();
+    seed
+}
+
+/// Headers carrying the account's linked GitHub token, as the browser sends
+/// them.
+fn linked_headers(oauth: &GithubOAuth, account: &AccountRecord) -> HeaderMap {
+    let mut headers = HeaderMap::new();
+    headers.insert(
+        axum::http::header::COOKIE,
+        axum::http::HeaderValue::from_str(&github_oauth::seal_token_cookie_for_tests(
+            oauth,
+            account.id,
+            "user-token",
+        ))
+        .unwrap(),
+    );
+    headers
+}
+
+#[tokio::test]
+async fn subpath_traject_reads_legacy_notes_and_saves_at_the_repo_root() {
+    let server = MockServer::start().await;
+
+    let db = TestDb::new().await;
+    let seed = seed_with_law();
 
     let oauth = GithubOAuth::for_tests(true);
-    let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
+    let state = app_state_with_github(
+        Some(db.pool.clone()),
+        Some(oauth.clone()),
+        github_settings(&server.uri(), &[]),
+    );
     let account = seed_account_record(&db.pool, TEST_EMAIL, TEST_NAME).await;
     let tref = traject_ref(seeded_traject(&db.pool, account.id, seed.path()).await);
 
@@ -181,17 +219,15 @@ async fn subpath_traject_reads_legacy_notes_and_saves_at_the_repo_root() {
         panic!("a fresh sidecar is always a write");
     };
     mount_repo(&server, &legacy_text).await;
-
-    let mut headers = HeaderMap::new();
-    headers.insert(
-        axum::http::header::COOKIE,
-        axum::http::HeaderValue::from_str(&github_oauth::seal_token_cookie_for_tests(
-            &oauth,
-            account.id,
-            "user-token",
-        ))
-        .unwrap(),
-    );
+    Mock::given(method("PUT"))
+        .and(path(root_sidecar()))
+        .respond_with(ResponseTemplate::new(201).set_body_json(serde_json::json!({
+            "content": { "sha": "root-v1" },
+        })))
+        .expect(1)
+        .mount(&server)
+        .await;
+    let headers = linked_headers(&oauth, &account);
 
     // Only the legacy file exists: the read serves it.
     assert_eq!(
@@ -242,6 +278,88 @@ async fn subpath_traject_reads_legacy_notes_and_saves_at_the_repo_root() {
     // sidecar cache the save filled (read-your-writes), not from GitHub;
     // the corpus tests cover the backend read of the root file.
     assert_eq!(read_notes(&state, &account, &tref, &headers).await, written);
+}
 
-    std::env::remove_var("GITHUB_API_BASE");
+/// The Contents reads of `LAW_ID`'s sidecar, at either location, that
+/// reached the fake GitHub.
+async fn sidecar_reads(server: &MockServer) -> usize {
+    server
+        .received_requests()
+        .await
+        .unwrap()
+        .iter()
+        .filter(|r| {
+            r.method.as_str() == "GET"
+                && [root_sidecar(), legacy_sidecar()].contains(&r.url.path().to_string())
+        })
+        .count()
+}
+
+#[tokio::test]
+async fn notes_absent_from_the_tree_listing_cost_no_github_read() {
+    // The index scan already lists the traject branch's tree. When that
+    // listing has no sidecar for the law, the notes read answers "no notes"
+    // from it instead of asking GitHub at two locations.
+    let server = MockServer::start().await;
+    let db = TestDb::new().await;
+    let seed = seed_with_law();
+    let oauth = GithubOAuth::for_tests(true);
+    let state = app_state_with_github(
+        Some(db.pool.clone()),
+        Some(oauth.clone()),
+        github_settings(&server.uri(), &[]),
+    );
+    let account = seed_account_record(&db.pool, TEST_EMAIL, TEST_NAME).await;
+    let tref = traject_ref(seeded_traject(&db.pool, account.id, seed.path()).await);
+    mount_branch(&server).await;
+    // Another law's notes, at the root: not this law's.
+    mount_tree(
+        &server,
+        &["annotations/wet_andere/annotations.yaml".to_string()],
+    )
+    .await;
+
+    let body = read_notes(&state, &account, &tref, &linked_headers(&oauth, &account)).await;
+    assert!(body.contains("annotations: []"), "{body}");
+    assert_eq!(
+        sidecar_reads(&server).await,
+        0,
+        "no Contents read for an absent sidecar"
+    );
+}
+
+#[tokio::test]
+async fn notes_in_the_tree_listing_are_read_from_github() {
+    // The other side: a sidecar the listing does show (here at the legacy
+    // location) is read as before.
+    let server = MockServer::start().await;
+    let db = TestDb::new().await;
+    let seed = seed_with_law();
+    let oauth = GithubOAuth::for_tests(true);
+    let state = app_state_with_github(
+        Some(db.pool.clone()),
+        Some(oauth.clone()),
+        github_settings(&server.uri(), &[]),
+    );
+    let account = seed_account_record(&db.pool, TEST_EMAIL, TEST_NAME).await;
+    let tref = traject_ref(seeded_traject(&db.pool, account.id, seed.path()).await);
+
+    let AppendOutcome::Write(legacy_text) =
+        append_notes_to_sidecar(None, &[note("oude notitie")], SCHEMA_URL).unwrap()
+    else {
+        panic!("a fresh sidecar is always a write");
+    };
+    mount_repo(&server, &legacy_text).await;
+    mount_tree(
+        &server,
+        &[format!(
+            "{OWN_SUBPATH}/annotations/{LAW_ID}/annotations.yaml"
+        )],
+    )
+    .await;
+
+    assert_eq!(
+        read_notes(&state, &account, &tref, &linked_headers(&oauth, &account)).await,
+        legacy_text
+    );
 }

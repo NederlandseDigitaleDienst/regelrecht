@@ -18,9 +18,9 @@ mod common;
 
 use common::{day, object_map};
 
-use regelrecht_cel::{shape, Cell, Error, Gram};
+use regelrecht_cel::{Cell, Error, Gram, shape};
 use regelrecht_engine::{FilledBy, LawExecutionService};
-use serde_json::{json, Map, Value};
+use serde_json::{Map, Value, json};
 
 /// A procedure for a beschikking.
 const GENERAL_LAW: &str = r#"
@@ -104,10 +104,12 @@ articles:
             value: $eerder_verstrekt
 "#;
 
-/// The policy that binds the term of art. 2 to the answer of the competent
-/// cells (RFC-048). Its holder is one college; since the term names who is
-/// competent, the engine asks those and not the holder, so the fiction lets
-/// every college of these tests decide under it.
+/// The policy of the RDW that binds the term of art. 2 to the answer of the
+/// competent cells (RFC-048). It is the RDW's ground to use what a college
+/// or the national issuer holds (RFC-056). Since the term names who is
+/// competent, the engine asks those and not the holder. A college that
+/// decides under it asks only its own cell, which needs no ground, so the
+/// fiction lets every college of these tests decide under it too.
 const BINDING: &str = r#"
 $id: beleid_eerder_fictief
 regulatory_layer: UITVOERINGSBELEID
@@ -115,7 +117,7 @@ publication_date: '2026-01-01'
 valid_from: '2026-01-01'
 url: https://example.org/beleid
 competent_authority:
-  name: wilgendaal
+  name: RDW
 articles:
   - number: '1'
     text: Of eerder een kaart is verstrekt, zeggen de verstrekkende instanties.
@@ -155,6 +157,7 @@ articles:
 fn reduction(actor: &str) -> String {
     format!(
         r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_eerder_{actor}
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -430,10 +433,11 @@ fn two_competent_cells_are_an_error() {
             .contains("2 cells of the call are named by 'college van burgemeester en wethouders' or 'Landelijke uitgever': Landelijke uitgever, oostmeer"),
         "{e}"
     );
-    assert!(!rdw
-        .grams()
-        .iter()
-        .any(|g| g.outputs.contains_key("kaart_verstrekt")));
+    assert!(
+        !rdw.grams()
+            .iter()
+            .any(|g| g.outputs.contains_key("kaart_verstrekt"))
+    );
 }
 
 #[test]

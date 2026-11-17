@@ -25,7 +25,7 @@ describe('ScenarioParameterInput', () => {
       ['boolean', 'nldd-switch-field'],
       ['number', 'nldd-number-field'],
       ['amount', 'nldd-number-field'],
-      ['date', 'nldd-text-field'],
+      ['date', 'nldd-date-field'],
       ['string', 'nldd-text-field'],
     ];
     for (const [type, tag] of cases) {
@@ -112,7 +112,7 @@ describe('ScenarioParameterInput', () => {
         const text = wrapper.find('nldd-text-field');
         expect(text.exists()).toBe(true);
         expect(text.attributes('value')).toBe('null');
-        expect(text.attributes('type')).toBeUndefined(); // not the date picker
+        expect(wrapper.find('nldd-date-field').exists()).toBe(false);
         expect(wrapper.find('nldd-number-field').exists()).toBe(false);
         expect(wrapper.find('nldd-switch-field').exists()).toBe(false);
       });
@@ -147,8 +147,16 @@ describe('ScenarioParameterInput', () => {
   describe('date / string', () => {
     it('emits the date string', () => {
       const wrapper = mountInput({ type: 'date', value: '' });
-      wrapper.find('nldd-text-field').element.dispatchEvent(
+      wrapper.find('nldd-date-field').element.dispatchEvent(
         new CustomEvent('input', { detail: { value: '2025-01-01' } }),
+      );
+      expect(lastUpdate(wrapper)).toBe('2025-01-01');
+    });
+
+    it('emits a date picked in the calendar, which fires only change', () => {
+      const wrapper = mountInput({ type: 'date', value: '' });
+      wrapper.find('nldd-date-field').element.dispatchEvent(
+        new CustomEvent('change', { detail: { value: '2025-01-01' } }),
       );
       expect(lastUpdate(wrapper)).toBe('2025-01-01');
     });

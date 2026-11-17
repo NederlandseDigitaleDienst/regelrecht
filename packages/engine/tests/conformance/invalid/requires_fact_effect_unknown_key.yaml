@@ -1,0 +1,25 @@
+---
+# An effect of a fact revokes; `replaces` is no effect (schema v0.8.15).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_conformance_fact_effect_unknown_key
+regulatory_layer: WET
+publication_date: '2026-11-07'
+valid_from: '2026-11-07'
+bwb_id: BWBR0099993
+name: Testwet onbekend effect van een feit
+url: https://example.invalid/fact-effect-unknown-key
+articles:
+  - number: '1'
+    url: https://example.invalid/fact-effect-unknown-key/1
+    text: FICTIEF. Het bestuursorgaan legt een feit vast.
+    machine_readable:
+      requires:
+        - fact: feit
+          parameters:
+            - besluit
+          effects:
+            - replaces: refers_to
+      execution:
+        parameters:
+          - name: besluit
+            type: string

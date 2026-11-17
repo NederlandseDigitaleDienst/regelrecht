@@ -11,8 +11,8 @@
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
-use regelrecht_cel::identity::REDUCTIONS;
 use regelrecht_cel::Cell;
+use regelrecht_cel::identity::REDUCTIONS;
 use regelrecht_engine::{LawExecutionService, PathNode};
 use serde_json::{Map, Value};
 
@@ -32,6 +32,33 @@ pub fn day(on: &str) -> NaiveDate {
 /// The object inside a `json!({...})`.
 pub fn object_map(value: Value) -> Map<String, Value> {
     value.as_object().unwrap().clone()
+}
+
+/// `findings` for a decision on an objection under Awb 7:11, with what the
+/// administrative body judges on admissibility where `findings` says
+/// nothing: the objector is an interested party (Awb 1:2, 7:1 and 8:1), and
+/// was at fault for a late objection, so 6:11 does not save it. A test that
+/// is about either judgement gives it itself.
+pub fn on_objection(findings: &Map<String, Value>) -> Map<String, Value> {
+    let mut findings = findings.clone();
+    findings
+        .entry("indiener_bezwaarschrift_is_belanghebbende")
+        .or_insert(Value::Bool(true));
+    findings
+        .entry("indiener_bezwaarschrift_niet_in_verzuim")
+        .or_insert(Value::Bool(false));
+    findings
+}
+
+/// `findings` for a judgment on an appeal under Awb 8:70, with the court's
+/// judgement under 6:11 where `findings` says nothing: the appellant was at
+/// fault for a late appeal. A test about that judgement gives it itself.
+pub fn on_appeal(findings: &Map<String, Value>) -> Map<String, Value> {
+    let mut findings = findings.clone();
+    findings
+        .entry("indiener_beroepschrift_niet_in_verzuim")
+        .or_insert(Value::Bool(false));
+    findings
 }
 
 /// A service with the given regelwerken, as YAML.
@@ -54,6 +81,20 @@ pub fn corpus() -> PathBuf {
 /// these tests call: the fixtures do not copy them.
 pub fn repo_corpus() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
+}
+
+/// The directory `dir` of the corpus of the chronolexografie PoC
+/// (`packages/poc-chronolexografie/corpus`), as an absolute path that
+/// [`load`] takes as it is. The cell's tests read the Awb from there: the
+/// Awb of the PoC gives a decision on an objection and the receipt of a
+/// ruling their effects (`revokes`), which the reductions over aggregates
+/// read; the Awb of the corpus does not yet.
+pub fn poc(dir: &str) -> String {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../poc-chronolexografie/corpus")
+        .join(dir)
+        .to_string_lossy()
+        .into_owned()
 }
 
 /// Load every version in each directory of `dirs`, relative to a corpus
@@ -155,4 +196,28 @@ pub fn answered(node: &PathNode) -> Vec<&PathNode> {
         found.insert(0, node);
     }
     found
+}
+
+/// The decision `decision` took in turn, such as the new decision a decision
+/// on an objection put in the place of the revoked one (Awb 7:11, second
+/// paragraph). One act is one record: the cell keeps it as a value in an
+/// output of `decision`, not as a chronolexogram of its own. Returned as a
+/// [`regelrecht_cel::Gram`] for the tests to read: under the id of
+/// `decision`, with the value's basis, its fields and findings together as
+/// fields, and its outputs.
+pub fn in_turn(decision: &regelrecht_cel::Gram) -> regelrecht_cel::Gram {
+    let value = decision
+        .outputs
+        .values()
+        .find_map(|v| v.as_object().filter(|o| o.contains_key("taken_on")))
+        .unwrap_or_else(|| panic!("decision '{}' took none in turn", decision.id));
+    let part = |key: &str| value[key].as_object().cloned().unwrap_or_default();
+    let mut fields = part("fields");
+    fields.extend(part("findings"));
+    regelrecht_cel::Gram {
+        basis: value["basis"].as_str().unwrap().to_string(),
+        fields: fields.into_iter().collect(),
+        outputs: part("outputs").into_iter().collect(),
+        ..decision.clone()
+    }
 }

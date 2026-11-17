@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/NederlandseDigitaleDienst/regelrecht/actions/workflows/ci.yml/badge.svg)](https://github.com/NederlandseDigitaleDienst/regelrecht/actions/workflows/ci.yml)
 [![License: EUPL-1.2](https://img.shields.io/badge/License-EUPL--1.2-blue.svg)](https://opensource.org/licenses/EUPL-1.2)
-[![Rust 2021](https://img.shields.io/badge/Rust-2021_edition-orange.svg)](https://doc.rust-lang.org/edition-guide/rust-2021/)
+[![Rust 2024](https://img.shields.io/badge/Rust-2024_edition-orange.svg)](https://doc.rust-lang.org/edition-guide/rust-2024/)
 [![Mutation Testing](https://github.com/NederlandseDigitaleDienst/regelrecht/actions/workflows/mutation-testing.yml/badge.svg)](https://github.com/NederlandseDigitaleDienst/regelrecht/actions/workflows/mutation-testing.yml)
 [![Docs](https://img.shields.io/badge/docs-regelrecht-green.svg)](https://docs.regelrecht.rijks.app)
 

@@ -4,7 +4,7 @@ import type { OpenTab } from '../lib/openTabsStorage';
 
 type TrajectRef = string | null;
 
-/** A load error as useLaw leaves it: a network error has no `status`. */
+/** A load error as useOpenLaw leaves it: a network error has no `status`. */
 export type LoadError = { status?: number } | (Error & { status?: number });
 
 /**
@@ -50,7 +50,7 @@ export interface TabRestoreDeps<Loc> {
  * @param {(ref: string|null, lawId: string) => void} deps.dropLaw
  * @param {(lawId: string, article: string, ref: string|null) => Promise<boolean>} deps.switchLaw - resolves to whether THIS call won the shared staleness race
  * @param {() => void} deps.clearLaw
- * @param {{ value: { status?: number } | null }} deps.error - useLaw's error ref
+ * @param {{ value: { status?: number } | null }} deps.error - useOpenLaw's error ref
  * @param {{ replace: Function }} deps.router
  * @param {(lawId: string|null, article: string|null) => object} deps.editorRouteFor
  * @param {() => boolean} deps.canPrune - true once traject membership is confirmed

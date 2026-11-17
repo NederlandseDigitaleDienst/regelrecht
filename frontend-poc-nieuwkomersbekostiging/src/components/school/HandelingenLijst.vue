@@ -5,7 +5,7 @@
         <span class="hl-partij">{{ partijLabel(groep.partij) }}</span>
         <span class="hl-tot">{{ minutes(groep.minuten) }} · {{ euro(groep.kosten) }}</span>
       </div>
-      <nldd-list appearance="box">
+      <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="h in groep.items" :key="h.id" size="sm">
           <nldd-text-cell size="sm" :text="handelingTitel(h)" :color="h.aantal ? 'content' : 'secondary'">
             <span slot="supporting-text" class="hl-toelichting">

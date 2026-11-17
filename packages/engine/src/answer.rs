@@ -25,11 +25,22 @@
 //! fills nothing, so the term is what it is without a filling regulation,
 //! such as the finding of the deciding authority.
 //!
-//! The engine does not see how an answer came about. It records who gave it
+//! The cell that runs the execution receives the answer, and needs a
+//! ground for it (RFC-056): the binding is in its own policy, or in that of
+//! the authority it decides for ([`Call::decides_for`]), or a law gives the
+//! term to the holder of the policy (the term names the holder in its
+//! `competent_authority`, and the cell asked is the holder's). Without a
+//! ground the engine refuses the input before it asks any cell.
+//!
+//! The engine does not judge how an answer came about. It records who gave it
 //! and from what ([`AnswerProvenance`]) in the report of the execution
 //! (`ArticleResult::open_terms`, with the binding article) and as one node
-//! per answer in the trace. Explaining the answer is the answerer's own
-//! business.
+//! per answer in the trace. When the execution traces, the request says so
+//! ([`AnswerRequest::trace`]); the answerer may then give how it came to the
+//! answer ([`Answer::trace`]), and the engine nests that trace under the
+//! node of the answer: for a cell, the run of its reduction, with the
+//! projection it played. An answerer that does not explain itself gives
+//! none.
 
 use std::collections::BTreeMap;
 
@@ -38,6 +49,7 @@ use serde::{Deserialize, Serialize};
 use crate::article::{ArticleBasedLaw, AuthorityType, NamedAuthority};
 use crate::error::Result;
 use crate::service::LawExecutionService;
+use crate::trace::PathNode;
 use crate::types::Value;
 
 /// A named answer the engine asks an answerer for.
@@ -50,13 +62,20 @@ pub struct AnswerRequest<'r> {
     pub parameters: &'r BTreeMap<String, Value>,
     /// The date of the execution (YYYY-MM-DD).
     pub calculation_date: &'r str,
+    /// Whether the execution traces: the answerer may then say how it came
+    /// to the answer ([`Answer::trace`]).
+    pub trace: bool,
 }
 
-/// An answer to an [`AnswerRequest`]: the value, and who gave it from what.
+/// An answer to an [`AnswerRequest`]: the value, who gave it from what,
+/// and, when the request traces, how the answerer came to it as a trace,
+/// which the engine nests under the node of the answer. `None` from an
+/// answerer that does not explain itself.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Answer {
     pub value: Value,
     pub provenance: AnswerProvenance,
+    pub trace: Option<PathNode>,
 }
 
 /// Who gave a named answer and from what, as the answerer says it.
@@ -119,6 +138,19 @@ impl Authority {
     }
 }
 
+/// The authorities `named`, for a message: "'a' or 'b'", or "no one" when
+/// it names none.
+pub fn authorities(named: &[NamedAuthority]) -> String {
+    if named.is_empty() {
+        return "no one".to_string();
+    }
+    named
+        .iter()
+        .map(|authority| format!("'{}'", authority.name))
+        .collect::<Vec<_>>()
+        .join(" or ")
+}
+
 /// What gives named answers for the caller of an execution: a cell.
 pub trait OpenTermAnswerer {
     /// Who this answerer is, for the engine to tell whether a binding asks
@@ -178,6 +210,14 @@ pub trait Chronicle {
         read: ChronicleRead<'_>,
         calculation_date: &str,
     ) -> Result<Option<Value>>;
+
+    /// The records of the chronicle, in order, for a reduction that reads
+    /// the aggregates of another (`source.projections`, schema v0.8.17).
+    /// `None` when this chronicle gives no records; the input is then an
+    /// error.
+    fn records(&self) -> Result<Option<Vec<crate::projection::ChronicleRecord>>> {
+        Ok(None)
+    }
 }
 
 /// What a caller gives an execution apart from its parameters: the
@@ -190,6 +230,11 @@ pub struct Call<'a> {
     /// The cell that runs the execution: asked for the answers a binding of
     /// its policy takes (RFC-048).
     pub answerer: Option<&'a dyn OpenTermAnswerer>,
+    /// The authority whose decision the running cell takes in its place, if
+    /// any: a court that decides the case itself takes the decision of the
+    /// administrative body (Awb 8:72 lid 3 onder b). The binding of that
+    /// body's policy then gives its answer with the body's ground (RFC-056).
+    pub decides_for: Option<&'a Authority>,
     /// The chronicle of the cell that runs a reduction (RFC-048): it gives
     /// the rows every reduction in the execution reads. Only a cell that
     /// runs one of its reductions passes it; a decision is taken without.

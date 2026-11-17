@@ -174,7 +174,7 @@ onUnmounted(() => Object.values(debounceTimers).forEach(clearTimeout));
           v-for="v in col.filter.options"
           :key="v"
           type="radio"
-          :text="formatStatus(v)"
+          :text="col.filter.optionLabel ? col.filter.optionLabel(v) : formatStatus(v)"
           :value="v"
           :selected="filters[getFilterKey(col)] === v"
         />

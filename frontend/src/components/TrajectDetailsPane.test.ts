@@ -4,9 +4,9 @@ import type { DOMWrapper, VueWrapper } from '@vue/test-utils';
 import TrajectDetailsPane from './TrajectDetailsPane.vue';
 import type { TrajectSource } from '../composables/useTrajectDetail';
 
-// De pane praat via twee poten met de backend: het detail-GET (apiFetchJson, in
-// useTrajectDetail) en de PATCH (apiFetch, in useTrajects). Beide mocken we hier
-// en verder draaien de echte composables mee.
+// The pane talks to the backend along two paths: the detail GET (apiFetchJson,
+// in useTrajectDetail) and the writes (apiFetch, in the trajecten store). Both
+// are mocked here; the real composable and store run on top of them.
 const apiFetch = vi.fn();
 const apiFetchJson = vi.fn();
 vi.mock('../lib/apiFetch', () => ({
@@ -18,6 +18,8 @@ vi.mock('../lib/apiFetch', () => ({
 const roles = new Set<string>();
 vi.mock('../composables/useAuth', () => ({
   hasRole: (role: string) => roles.has(role),
+  // The trajecten store reads the login state; only `.value` is read.
+  useAuth: () => ({ authenticated: { value: true }, oidcConfigured: { value: false } }),
 }));
 
 vi.mock('vue-router', () => ({
@@ -117,8 +119,8 @@ beforeEach(() => {
   apiFetch.mockReset();
   apiFetch.mockResolvedValue(undefined);
   apiFetchJson.mockReset();
-  // refreshTrajects() in useTrajects doet een kale fetch; die hoort niet bij
-  // wat deze test bewijst.
+  // The trajecten store's refreshTrajects() does a plain fetch; it is not part
+  // of what this test proves.
   global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => [] });
 });
 

@@ -17,7 +17,9 @@
 
 pub mod bundel;
 pub mod casus;
+pub mod inlogstap;
 pub mod kern;
 pub mod spel;
+pub mod ui_spec;
 #[cfg(feature = "wasm")]
 pub mod wasm;

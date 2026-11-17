@@ -1,12 +1,12 @@
 <script setup lang="ts">
-import { computed, ref, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import { buildOperationTree, type OperationNode, type OperationTreeRow } from '../utils/operationTree';
 import OperationSettings, { type OperationSettingsArticle } from './OperationSettings.vue';
 import { articleContext, formatLiteral, pathKey, renderAction, renderFocus } from '@regelrecht/frontend-shared/regelrijm/index';
 import type { Path, Segment, Token } from '@regelrecht/frontend-shared/regelrijm/index';
-import { useFeatureFlags } from '../composables/useFeatureFlags';
-import { fetchLaw } from '../composables/useLaw';
+import { useFeatureFlagsStore } from '../stores/featureFlags';
+import { useCorpus } from '../corpus';
 import { humanize } from '../utils/outputFormat';
 import RegelRijmText from '../regelrijm/RegelRijmText.vue';
 import { followReference, isNavigable, originHint, rawAt, resolveReference, type NavigableTarget } from '../regelrijm/regelrijmNav';
@@ -30,7 +30,6 @@ const props = withDefaults(defineProps<{
    *  belongs to, so a name in the reading can lead to the rule computing it. */
   law?: Record<string, unknown> | null;
   lawId?: string | null;
-  trajectRef?: string | null;
   /** The path of the part to open at, from a click on an operation word in a
    *  RegelRijm reading. Null opens at the top of the action. */
   focusPath?: Path | null;
@@ -42,9 +41,10 @@ const props = withDefaults(defineProps<{
   regelrijm: false,
   law: null,
   lawId: null,
-  trajectRef: null,
   focusPath: null,
 });
+
+const corpus = useCorpus();
 
 const emit = defineEmits<{
   close: [];
@@ -53,7 +53,7 @@ const emit = defineEmits<{
   navigate: [target: { lawId: string; articleNumber: string }];
   'open-output': [output: string];
 }>();
-const { isEnabled } = useFeatureFlags();
+const featureFlags = useFeatureFlagsStore();
 
 const sheetEl = ref<NLDDSheet | null>(null);
 
@@ -159,7 +159,7 @@ interface Reading {
 }
 
 const reading = computed((): Reading | null => {
-  if (!props.regelrijm || !isEnabled('panel.regelrijm') || !props.action) return null;
+  if (!props.regelrijm || !featureFlags.isEnabled('panel.regelrijm') || !props.action) return null;
   try {
     const full = renderAction(props.action, { article: props.article });
     // An action without an operation (a value or a single name) reads whole.
@@ -229,7 +229,7 @@ async function followName(seg: Token) {
   const from = props.action;
   const to = await followReference(seg.ref, {
     law: props.law, lawId: props.lawId, article: props.article, label: humanize,
-    load: (id: string) => fetchLaw(props.trajectRef ?? null, id),
+    load: (id: string) => corpus.law(id),
   });
   // The sheet may have closed or moved on while another law loaded.
   if (!to || props.action !== from) return;
@@ -237,20 +237,6 @@ async function followName(seg: Token) {
   else if (to.kind === 'navigate') emit('navigate', { lawId: to.lawId, articleNumber: to.articleNumber });
   else emit('open-output', to.output);
 }
-
-function handleKeydown(e: KeyboardEvent) {
-  if (e.key === 'Escape' && props.action) {
-    emit('close');
-  }
-}
-
-onMounted(() => {
-  document.addEventListener('keydown', handleKeydown);
-});
-
-onUnmounted(() => {
-  document.removeEventListener('keydown', handleKeydown);
-});
 </script>
 
 <template>

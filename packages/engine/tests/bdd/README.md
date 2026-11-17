@@ -27,6 +27,10 @@ tests/bdd/
 ├── world.rs                   # RegelrechtWorld — generic, law-agnostic test state
 ├── dispatch.rs                # ArgValue + World::dispatch — the single hand-written
 │                              #   home for all step semantics (every grammar action)
+├── extension.rs               # Actions a runner adds: none here; the cell's runner
+│                              #   (packages/cel/tests/bdd) brings its own
+├── runner.rs                  # Feature parser and cucumber run, shared with the
+│                              #   cell's runner
 └── helpers/
     ├── mod.rs                 # Helper module
     ├── regulation_loader.rs   # Loads all corpus YAML regulations

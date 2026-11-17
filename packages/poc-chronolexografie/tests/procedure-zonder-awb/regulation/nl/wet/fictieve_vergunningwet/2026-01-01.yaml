@@ -1,0 +1,179 @@
+---
+# FICTIEF. A synthetic law for tests/scenarios/: a procedure that is not
+# the Awb's, to show that the harness plays what the law declares and names
+# no step of a procedure itself. None of it is the text of a law. It has its
+# own procedure for a decision, no objection and no court; a second
+# application refers to the decision on the first, and the service takes a
+# withdrawal ex officio.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$id: fictieve_vergunningwet
+name: Fictieve vergunningwet
+regulatory_layer: WET
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.invalid/fictieve_vergunningwet
+competent_authority: Fictieve dienst
+
+procedure:
+  - id: vergunning
+    default: true
+    applies_to:
+      legal_character: BESCHIKKING
+    stages:
+      - name: AANVRAAG
+        description: De aanvrager dient een aanvraag in.
+        requires:
+          - name: aanvraag_datum
+            type: date
+      - name: BESLUIT
+        description: De dienst beslist.
+        requires:
+          - name: besluit_datum
+            type: date
+      - name: BEKENDMAKING
+        description: De dienst maakt het besluit bekend.
+        requires:
+          - name: bekendmaking_datum
+            type: date
+
+articles:
+  - number: '1'
+    url: https://example.invalid/fictieve_vergunningwet#1
+    text: >-
+      FICTIEF. Op aanvraag verleent de dienst een vergunning aan wie
+      meerderjarig is.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: fictieve_vergunningwet#1
+            parameters:
+              - aanvrager
+              - meerderjarig
+          - type: BESCHIKKING
+            outputs:
+              - vergunning_verleend
+        parameters:
+          - name: aanvrager
+            type: string
+          - name: meerderjarig
+            type: boolean
+        output:
+          - name: vergunning_verleend
+            type: boolean
+        actions:
+          - output: vergunning_verleend
+            value: $meerderjarig
+
+  - number: '2'
+    url: https://example.invalid/fictieve_vergunningwet#2
+    text: >-
+      FICTIEF. Op aanvraag van de houder verlengt de dienst een verleende
+      vergunning.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: fictieve_vergunningwet#2
+            parameters:
+              - te_verlengen_vergunning
+          - type: BESCHIKKING
+            outputs:
+              - verlenging_verleend
+        parameters:
+          - name: te_verlengen_vergunning
+            type: decision
+            description: De vergunning waarvan de houder verlenging vraagt.
+        output:
+          - name: verlenging_verleend
+            type: boolean
+        actions:
+          - output: verlenging_verleend
+            value: $te_verlengen_vergunning.outputs.vergunning_verleend
+
+  - number: '3'
+    url: https://example.invalid/fictieve_vergunningwet#3
+    text: >-
+      FICTIEF. De dienst kan een verleende vergunning intrekken.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - ingetrokken
+            effects:
+              - revokes: ingetrokken_besluit
+        parameters:
+          - name: ingetrokken_besluit
+            type: string
+            description: Het besluit dat de dienst intrekt.
+        output:
+          - name: ingetrokken
+            type: boolean
+        actions:
+          - output: ingetrokken
+            value: true
+
+  - number: '4'
+    url: https://example.invalid/fictieve_vergunningwet#4
+    text: >-
+      FICTIEF. De dienst legt vast dat de leges voor een vergunning zijn
+      betaald, en welk bedrag. Betaalt de dienst leges terug, dan legt zij dat
+      vast bij de betaling die zij terugbetaalt. De dienst stelt bij beleid
+      vast welke leges zij ontving en niet terugbetaalde.
+    machine_readable:
+      # The service records both facts in its own chronicle, while it
+      # handles the case: the payment refers to the decision it is made on,
+      # the refund to the payment (refers_to, schema v0.8.17).
+      requires:
+        - fact: leges_betaald
+          description: Dat de leges voor de vergunning waarnaar het feit verwijst, zijn betaald.
+          competent_authority:
+            - name: Fictieve dienst
+          parameters:
+            - bedrag
+        - fact: leges_terugbetaald
+          description: Dat de dienst de betaling waarnaar het feit verwijst, terugbetaalde.
+          competent_authority:
+            - name: Fictieve dienst
+          parameters:
+            - bedrag
+      # How much of the fees the service received and did not refund, the
+      # service's policy says (fictief_beleid_leges).
+      open_terms:
+        - id: betaalde_leges
+          type: amount
+          required: true
+          description: De leges die de dienst ontving en niet terugbetaalde, in eurocent.
+      execution:
+        parameters:
+          - name: bedrag
+            type: amount
+            description: Het bedrag in eurocent.
+
+  - number: '5'
+    url: https://example.invalid/fictieve_vergunningwet#5
+    text: >-
+      FICTIEF. Een fictieve bank meldt de dienst dat een betaling is
+      ontvangen. De dienst legt de ontvangst van die melding vast.
+    machine_readable:
+      # The first fact is the bank's, the second the receipt the service
+      # records of it: the service does not record either itself.
+      requires:
+        - fact: betaling_gemeld
+          description: Dat de bank een betaling meldde.
+          competent_authority:
+            - name: Fictieve bank
+          parameters:
+            - bedrag
+        - fact: melding_ontvangen
+          description: Dat de dienst de melding van de bank ontving.
+          competent_authority:
+            - name: Fictieve dienst
+          parameters:
+            - bedrag
+      execution:
+        parameters:
+          - name: bedrag
+            type: amount
+            description: Het bedrag in eurocent.

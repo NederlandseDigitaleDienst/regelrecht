@@ -2,7 +2,7 @@
 import { ref, reactive } from 'vue';
 import type { Annotation, NLDDTextEditor, TextEditorState } from '@nldd/design-system/text-editor';
 
-/** Detail of `nldd-text-editor-annotation-click` (not typed by the design system). */
+/** Detail of `annotation-click` (not typed by the design system). */
 interface AnnotationClickDetail {
   ids: string[];
   rect: DOMRect;
@@ -42,7 +42,7 @@ const emit = defineEmits<{
 const editorRef = ref<NLDDTextEditor | null>(null);
 
 // Reactive mirror of the editor's toolbar state, fed by the
-// `nldd-text-editor-state` event. The parent's header toolbar reads
+// `state-change` event. The parent's header toolbar reads
 // activeFormats/canUndo/canRedo off the exposed refs to drive the format
 // segmented-controls and the article-level undo/redo bar.
 const activeFormats = reactive({
@@ -87,12 +87,31 @@ function getAnnotations() {
   return editorRef.value?.getAnnotations() ?? [];
 }
 
+// The editor renumbers ordered lists, and in an article each numbered
+// paragraph ("1.", "2.") reads as a list of one. So when it takes in a text
+// from us (another article, a discard) it turns "2." into "1." and reports
+// that as `input`, as if someone typed it. That echo is no edit: passed on,
+// it would mark an article nobody touched as changed, save the renumbered
+// text with the next save, and - arriving a tick late - land on the next
+// article's text. An input that differs from our value only in list numbers
+// is that echo, so it is dropped. A user cannot change only a number anyway:
+// the editor renumbers it straight back.
+const LIST_MARKER = /^(\s*(?:>\s*)*)\d+([.)] )/gm;
+function withoutListNumbers(text: string): string {
+  return text.replace(LIST_MARKER, '$1#$2');
+}
+function isRenumberingEcho(value: string): boolean {
+  return value !== props.modelValue && withoutListNumbers(value) === withoutListNumbers(props.modelValue);
+}
+
 // The element sets `value` before dispatching `input`, so `e.target.value` is
 // the fresh (sentinel-stripped) Markdown. The DS editor guards a value that
 // merely mirrors its own document, so binding `:value="modelValue"` back in
 // doesn't churn the cursor on each keystroke.
 function onInput(e: Event) {
-  emit('update:modelValue', (e.target as NLDDTextEditor).value);
+  const value = (e.target as NLDDTextEditor).value;
+  if (isRenumberingEcho(value)) return;
+  emit('update:modelValue', value);
 }
 
 // focusin bubbles and is composed, so it crosses the shadow boundary; the
@@ -161,7 +180,7 @@ defineExpose({
   <div v-else class="article-text-editor" data-testid="article-text-editor">
     <nldd-text-editor
       ref="editorRef"
-      appearance="simple"
+      embedded
       :rows="8"
       resize="auto"
       annotatable
@@ -171,8 +190,8 @@ defineExpose({
       accessible-label="Artikeltekst"
       @input="onInput"
       @focusin="onFocusIn"
-      @nldd-text-editor-state="onState"
-      @nldd-text-editor-annotation-click="onAnnotationClick"
+      @state-change="onState"
+      @annotation-click="onAnnotationClick"
     ></nldd-text-editor>
   </div>
 </template>

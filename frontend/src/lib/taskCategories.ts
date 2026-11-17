@@ -41,8 +41,11 @@ export interface TaskPayload {
 export interface Task {
   id?: string;
   task_type?: string;
+  /** The traject the task belongs to, set by the server for every traject task. */
+  traject_id?: string | null;
   title?: string | null;
   payload?: TaskPayload | null;
+  created_at?: string | null;
 }
 
 // Structural view of a running job (RunningTaskJob in tasks.rs).
@@ -50,7 +53,9 @@ export interface RunningJob {
   job_id?: string;
   job_type?: string;
   law_id?: string | null;
+  traject_ref?: string | null;
   target_path?: string | null;
+  created_at?: string | null;
 }
 
 export interface LawContext {
@@ -112,6 +117,13 @@ export function taskLawId(task: Task | null | undefined): string | null {
 export function jobContext(job: RunningJob | null | undefined): TaskContext | null {
   if (!job) return null;
   if (job.job_type === 'document_convert') return WERKDOCUMENTEN;
+  // Two more job types carry a law_id that names no law in the corpus: a
+  // law_convert carries a synthetic `lawdoc:{traject}/{file}` key, and a
+  // traject_harvest the BWB id of a law that is not in the corpus yet (it gets
+  // its own id once harvested). Neither is a law context: as one, the panel
+  // and the list would show the key as a law's name and link to a law that
+  // does not exist. They count under Alle and Wachten op only.
+  if (job.job_type === 'law_convert' || job.job_type === 'traject_harvest') return null;
   return job.law_id ? WET : null;
 }
 

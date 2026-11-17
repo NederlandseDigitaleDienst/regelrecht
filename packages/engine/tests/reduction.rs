@@ -46,8 +46,25 @@ fn repo_corpus_dir() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
 }
 
+/// The reductions these tests are about, which read the decisions of the
+/// cell with `source.decisions` (refused in a reduction from schema
+/// v0.8.17): the school's reduction and the reduction of the Awb, as they
+/// were before the cell read its decisions as aggregates. They declare
+/// v0.8.12, which still reads them.
+fn own_dir() -> std::path::PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/source_decisions")
+}
+
+/// A file of these tests: from [`own_dir`], or else from the corpus of the
+/// cell's tests.
 fn corpus(path: &str) -> String {
-    std::fs::read_to_string(corpus_dir().join(path)).unwrap()
+    let own = own_dir().join(path);
+    let path = if own.is_file() {
+        own
+    } else {
+        corpus_dir().join(path)
+    };
+    std::fs::read_to_string(path).unwrap()
 }
 
 /// The reduction of the fictional school that reads its decisions, from
@@ -776,6 +793,7 @@ impl OpenTermAnswerer for Answerer {
         Ok(self.value.clone().map(|value| Answer {
             value,
             provenance: provenance(),
+            trace: None,
         }))
     }
 }
@@ -789,6 +807,7 @@ fn granted_13a_with(
     let call = Call {
         findings,
         answerer: Some(answerer),
+        decides_for: None,
         chronicle: None,
         sphere: Vec::new(),
     };
@@ -899,10 +918,12 @@ fn a_loaded_reduction_fills_nothing_by_itself() {
     parameters.insert(ONCE_HEAD.to_string(), Value::Bool(false));
     let result = granted_13a(&service, parameters).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(true));
-    assert!(result
-        .open_terms
-        .iter()
-        .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding));
+    assert!(
+        result
+            .open_terms
+            .iter()
+            .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding)
+    );
 }
 
 #[test]
@@ -916,10 +937,12 @@ fn an_answerer_that_gives_no_answer_leaves_it_to_the_policy() {
     let result = granted_13a_with(&service, parameters, &answerer).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(false));
     assert_eq!(answerer.asked.borrow().len(), 1);
-    assert!(result
-        .open_terms
-        .iter()
-        .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding));
+    assert!(
+        result
+            .open_terms
+            .iter()
+            .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding)
+    );
     // Without a finding either, the policy's required term has no value.
     let e = granted_13a_with(&service, application(), &answerer).unwrap_err();
     assert!(e.to_string().contains(ONCE), "{e}");
@@ -935,10 +958,12 @@ fn a_silent_answerer_leaves_it_to_the_policy() {
     let answerer = Answerer::giving_value(Some(Value::Null));
     let result = granted_13a_with(&service, parameters, &answerer).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(false));
-    assert!(result
-        .open_terms
-        .iter()
-        .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding));
+    assert!(
+        result
+            .open_terms
+            .iter()
+            .any(|f| f.term == ONCE_HEAD && f.filled_by == FilledBy::Finding)
+    );
     let trace = result.trace.unwrap().render_box_drawing();
     assert!(trace.contains("is silent (null)"), "{trace}");
     assert!(!trace.contains("is silent for this case"), "{trace}");
@@ -980,6 +1005,7 @@ fn an_answerer_that_fails_ends_the_execution() {
     let call = Call {
         findings,
         answerer: Some(&Failing(cell_authority())),
+        decides_for: None,
         chronicle: None,
         sphere: Vec::new(),
     };
@@ -1022,10 +1048,12 @@ fn without_an_answerer_the_term_is_the_heads_finding_or_an_error() {
     parameters.insert(ONCE_HEAD.to_string(), Value::Bool(true));
     let result = granted_13a(&service, parameters).unwrap();
     assert_eq!(result.outputs["verlof_verleend"], Value::Bool(false));
-    assert!(result
-        .open_terms
-        .iter()
-        .any(|f| f.term == ONCE_HEAD && matches!(f.filled_by, FilledBy::Finding)));
+    assert!(
+        result
+            .open_terms
+            .iter()
+            .any(|f| f.term == ONCE_HEAD && matches!(f.filled_by, FilledBy::Finding))
+    );
     // No default: without the head's finding there is no answer, and no
     // second leave granted by silence.
     let e = granted_13a(&service, application()).unwrap_err();
@@ -1070,6 +1098,7 @@ fn revoked_on_objection_with(
     let call = Call {
         findings: BTreeMap::new(),
         answerer: Some(answerer),
+        decides_for: None,
         chronicle: None,
         sphere: Vec::new(),
     };
@@ -1106,10 +1135,12 @@ fn in_the_call_anew_the_engine_asks_the_answerer() {
         result.outputs["bestreden_besluit_herroepen"],
         Value::Bool(true)
     );
-    assert!(result
-        .open_terms
-        .iter()
-        .any(|f| f.term == ONCE && f.filled_by == bound()));
+    assert!(
+        result
+            .open_terms
+            .iter()
+            .any(|f| f.term == ONCE && f.filled_by == bound())
+    );
     let root = result.trace.unwrap();
     assert_eq!(answered(&root).len(), 1, "{}", root.render_box_drawing());
 }
@@ -1685,9 +1716,11 @@ fn a_parameter_that_names_no_article_is_an_error_not_a_read() {
             "{not_an_article}: {e}"
         );
     }
-    assert!(chronicle
-        .asked
-        .borrow()
-        .iter()
-        .all(|(_, read)| !read.contains("leerplichtwet_1969")));
+    assert!(
+        chronicle
+            .asked
+            .borrow()
+            .iter()
+            .all(|(_, read)| !read.contains("leerplichtwet_1969"))
+    );
 }

@@ -7,7 +7,7 @@
 use reqwest::Client;
 use roxmltree::Document;
 
-use crate::config::{manifest_url, DEFAULT_MAX_RESPONSE_SIZE};
+use crate::config::{DEFAULT_MAX_RESPONSE_SIZE, manifest_url};
 use crate::error::{HarvesterError, NoTextReason, Result};
 use crate::http::{bytes_to_string, download_bytes};
 

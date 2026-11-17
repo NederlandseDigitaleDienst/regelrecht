@@ -98,6 +98,12 @@ function collapseAll() {
   expandState.all = false;
   expandState.version += 1;
 }
+/** The overflow menu's way to the published text: a menu item has no `target`,
+ *  and following the link in the same tab would leave the demo. */
+function openPublishedText() {
+  const url = activeLaw.value?.doc.url;
+  if (typeof url === 'string' && url) window.open(url, '_blank', 'noopener');
+}
 function resetExpansion() {
   expandState.all = null;
   expandState.paths = activeLaw.value ? configFor('expanded_paths', activeLaw.value) : [];
@@ -188,11 +194,13 @@ const referencedBy = computed(() => {
           <nldd-toolbar size="sm">
             <nldd-toolbar-item slot="start">
               <nldd-button size="sm" appearance="neutral-tinted" start-icon="books" :text="t('wet.sidebar.label')" :supporting-text="`${sidebarLaws.length}`" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
+              <nldd-menu-item slot="overflow" icon="books" :text="t('wet.sidebar.label')" :details="`${sidebarLaws.length}`" @select="splitView?.showPrimarySidebarSheet?.()"></nldd-menu-item>
             </nldd-toolbar-item>
             <template v-if="activeLaw">
               <nldd-toolbar-item slot="start" v-if="trail.length > 1">
                 <!-- `trail.length > 1` guarantees `trail.at(-2)`; an active law guarantees the corpus. -->
                 <nldd-icon-button size="sm" appearance="neutral-transparent" icon="chevron-left" :text="t('wet.back', { name: tabInfo(trail.at(-2)!)?.name ?? t('wet.back.fallback') })" @click="goBack"></nldd-icon-button>
+                <nldd-menu-item slot="overflow" icon="chevron-left" :text="t('wet.back', { name: tabInfo(trail.at(-2)!)?.name ?? t('wet.back.fallback') })" @select="goBack"></nldd-menu-item>
               </nldd-toolbar-item>
               <nldd-toolbar-title slot="start" :text="activeLaw.name" :supporting-text="t('wet.valid_from', { service: serviceInfo(corpus!, activeLaw.service).name, date: activeLaw.valid_from })" max-width="480px"></nldd-toolbar-title>
               <nldd-toolbar-item slot="end">
@@ -200,6 +208,8 @@ const referencedBy = computed(() => {
                   <nldd-segmented-control-item value="tree" :text="t('wet.view.tree')"></nldd-segmented-control-item>
                   <nldd-segmented-control-item value="raw" :text="t('wet.view.raw')"></nldd-segmented-control-item>
                 </nldd-segmented-control>
+                <nldd-menu-item slot="overflow" type="radio" :text="t('wet.view.tree')" :selected="!showRaw || undefined" @select="showRaw = false"></nldd-menu-item>
+                <nldd-menu-item slot="overflow" type="radio" :text="t('wet.view.raw')" :selected="showRaw || undefined" @select="showRaw = true"></nldd-menu-item>
               </nldd-toolbar-item>
               <nldd-toolbar-item slot="end" v-if="!showRaw">
                 <nldd-button-bar size="sm">
@@ -207,9 +217,13 @@ const referencedBy = computed(() => {
                   <nldd-icon-button icon="chevron-down" :text="t('wet.expand.all')" @click="expandAll"></nldd-icon-button>
                   <nldd-icon-button icon="chevron-up" :text="t('wet.collapse.all')" @click="collapseAll"></nldd-icon-button>
                 </nldd-button-bar>
+                <nldd-menu-item slot="overflow" icon="chevron-up-chevron-down" :text="t('wet.expand.default')" @select="resetExpansion"></nldd-menu-item>
+                <nldd-menu-item slot="overflow" icon="chevron-down" :text="t('wet.expand.all')" @select="expandAll"></nldd-menu-item>
+                <nldd-menu-item slot="overflow" icon="chevron-up" :text="t('wet.collapse.all')" @select="collapseAll"></nldd-menu-item>
               </nldd-toolbar-item>
               <nldd-toolbar-item slot="end">
                 <nldd-button size="sm" appearance="neutral-tinted" end-icon="external-link" text="wetten.overheid.nl" :href="activeLaw.doc.url" target="_blank"></nldd-button>
+                <nldd-menu-item slot="overflow" icon="external-link" text="wetten.overheid.nl" @select="openPublishedText"></nldd-menu-item>
               </nldd-toolbar-item>
             </template>
           </nldd-toolbar>

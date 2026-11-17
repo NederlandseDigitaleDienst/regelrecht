@@ -560,14 +560,14 @@ fn resolve_imports(
         };
         for spec in &file.specifiers {
             if spec.starts_with('.') {
-                if let Some(target) = resolve_relative(dir, spec, file_by_abs) {
-                    if target != file.node_id {
-                        edges.push(Edge {
-                            from: file.node_id.clone(),
-                            to: target,
-                            kind: EdgeKind::Uses,
-                        });
-                    }
+                if let Some(target) = resolve_relative(dir, spec, file_by_abs)
+                    && target != file.node_id
+                {
+                    edges.push(Edge {
+                        from: file.node_id.clone(),
+                        to: target,
+                        kind: EdgeKind::Uses,
+                    });
                 }
             } else {
                 resolve_bare(apps, file, spec, file_by_abs, edges);
@@ -626,18 +626,16 @@ fn resolve_bare(
                 kind: EdgeKind::DependsOn,
             });
         }
-        if whole {
-            if let Some(entry) = &app.entry {
-                if let Some(target) = file_by_abs.get(entry) {
-                    if target != &file.node_id {
-                        edges.push(Edge {
-                            from: file.node_id.clone(),
-                            to: target.clone(),
-                            kind: EdgeKind::Uses,
-                        });
-                    }
-                }
-            }
+        if whole
+            && let Some(entry) = &app.entry
+            && let Some(target) = file_by_abs.get(entry)
+            && target != &file.node_id
+        {
+            edges.push(Edge {
+                from: file.node_id.clone(),
+                to: target.clone(),
+                kind: EdgeKind::Uses,
+            });
         }
         return;
     }

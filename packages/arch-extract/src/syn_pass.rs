@@ -24,13 +24,13 @@
 //!    macro-introduced name), is **dropped rather than guessed** — a false edge
 //!    is worse than a missing one.
 
-use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::path::Path;
 
 use syn::visit::Visit;
 
-use crate::crate_graph::{rel, CrateInfo};
+use crate::crate_graph::{CrateInfo, rel};
 use crate::model::{Edge, EdgeKind, Kind, Level, Node};
 
 /// A reference resolved to a concrete workspace target: a crate short-name plus
@@ -107,14 +107,14 @@ pub fn extract(
     // Pass 2: resolve edges against the full symbol table.
     for items in &mut per_crate {
         for r in &items.type_refs {
-            if let Some(to) = lookup(&symbols, &r.target) {
-                if to != r.owner {
-                    edges.push(Edge {
-                        from: r.owner.clone(),
-                        to,
-                        kind: EdgeKind::Uses,
-                    });
-                }
+            if let Some(to) = lookup(&symbols, &r.target)
+                && to != r.owner
+            {
+                edges.push(Edge {
+                    from: r.owner.clone(),
+                    to,
+                    kind: EdgeKind::Uses,
+                });
             }
         }
         for im in &items.trait_impls {
@@ -255,10 +255,10 @@ fn collect_crate(
         if type_ids.contains(parent) {
             continue;
         }
-        if let Some(leaf) = parent.rsplit("::").next() {
-            if let Some(Some(real)) = items.type_by_name.get(leaf) {
-                n.parent = Some(real.clone());
-            }
+        if let Some(leaf) = parent.rsplit("::").next()
+            && let Some(Some(real)) = items.type_by_name.get(leaf)
+        {
+            n.parent = Some(real.clone());
         }
     }
 
@@ -801,12 +801,12 @@ fn collect_type_paths(ty: &syn::Type, out: &mut Vec<Vec<String>>) {
             if !segs.is_empty() {
                 out.push(segs);
             }
-            if let Some(last) = tp.path.segments.last() {
-                if let syn::PathArguments::AngleBracketed(args) = &last.arguments {
-                    for arg in &args.args {
-                        if let syn::GenericArgument::Type(inner) = arg {
-                            collect_type_paths(inner, out);
-                        }
+            if let Some(last) = tp.path.segments.last()
+                && let syn::PathArguments::AngleBracketed(args) = &last.arguments
+            {
+                for arg in &args.args {
+                    if let syn::GenericArgument::Type(inner) = arg {
+                        collect_type_paths(inner, out);
                     }
                 }
             }
@@ -855,12 +855,11 @@ fn is_test_gated(attrs: &[syn::Attribute]) -> bool {
         if attr.path().is_ident("test") {
             return true;
         }
-        if attr.path().is_ident("cfg") {
-            if let syn::Meta::List(list) = &attr.meta {
-                if tokens_contain_test(list.tokens.clone()) {
-                    return true;
-                }
-            }
+        if attr.path().is_ident("cfg")
+            && let syn::Meta::List(list) = &attr.meta
+            && tokens_contain_test(list.tokens.clone())
+        {
+            return true;
         }
     }
     false
@@ -887,16 +886,15 @@ fn first_doc(attrs: &[syn::Attribute]) -> Option<String> {
         if !attr.path().is_ident("doc") {
             continue;
         }
-        if let syn::Meta::NameValue(nv) = &attr.meta {
-            if let syn::Expr::Lit(syn::ExprLit {
+        if let syn::Meta::NameValue(nv) = &attr.meta
+            && let syn::Expr::Lit(syn::ExprLit {
                 lit: syn::Lit::Str(s),
                 ..
             }) = &nv.value
-            {
-                let line = s.value().trim().to_string();
-                if !line.is_empty() {
-                    return Some(line);
-                }
+        {
+            let line = s.value().trim().to_string();
+            if !line.is_empty() {
+                return Some(line);
             }
         }
     }
@@ -988,13 +986,15 @@ mod tests {
     #[test]
     fn unknown_multisegment_path_is_dropped_not_leaf_matched() {
         // `std::fmt::Error` must not resolve to a same-crate `Error`.
-        assert!(resolve_path(
-            &segs(&["std", "fmt", "Error"]),
-            "engine",
-            &HashMap::new(),
-            &idents()
-        )
-        .is_none());
+        assert!(
+            resolve_path(
+                &segs(&["std", "fmt", "Error"]),
+                "engine",
+                &HashMap::new(),
+                &idents()
+            )
+            .is_none()
+        );
     }
 
     #[test]

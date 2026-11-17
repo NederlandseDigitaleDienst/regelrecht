@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { artikelNaam, genomenBij, genummerd, ingevuldDoor, opsomming, stapTekst, toon, uitslag, wetNaam } from '../src/logboek.js';
-import { rol, state } from '../src/state.js';
+import { artikelNaam, genummerd, ingevuldDoor, opsomming, stapTekst, toon, uitslag, wetNaam } from '../src/logboek.js';
+import { nieuwBesluit, rol, state, waarde } from '../src/state.js';
 
 // De casus zoals `api.casus` haar geeft, voor zover het logboek haar leest.
 beforeEach(() => {
@@ -14,6 +14,7 @@ beforeEach(() => {
       { id: 'leerplichtwet_1969', naam: null },
       { id: 'algemene_wet_bestuursrecht', naam: 'Algemene wet bestuursrecht' },
       { id: 'fictief_beleid_met_naam', naam: 'Beleid van de gemeente' },
+      { id: 'wet_met_verwijzing_als_naam', naam: '#wet_naam' },
     ],
   };
 });
@@ -164,12 +165,12 @@ describe('wat de cel uit zichzelf vastlegde', () => {
   });
 });
 
-describe('genomenBij', () => {
-  it('vindt de beslissing op bezwaar die een besluit als nieuw besluit nam', () => {
-    const nieuw = '019a0000-0000-7000-8000-00000000dddd';
-    const beslissing = { id: 'x', basis: 'algemene_wet_bestuursrecht#7:11', outputs: { nieuw_besluit: nieuw } };
-    expect(genomenBij(nieuw, [beslissing])).toBe(beslissing);
-    expect(genomenBij('ander', [beslissing])).toBeNull();
+describe('nieuwBesluit', () => {
+  it('geeft het besluit dat een beslissing op bezwaar in de plaats nam, met haar dag', () => {
+    const waarde = { basis: 'leerplichtwet_1969#13a', taken_on: 'algemene_wet_bestuursrecht#7:11', fields: {}, findings: {}, outputs: { verlof_verleend: true } };
+    const beslissing = { id: 'x', basis: 'algemene_wet_bestuursrecht#7:11', recorded_on: '2026-11-15', outputs: { nieuw_besluit: waarde } };
+    expect(nieuwBesluit(beslissing)).toEqual({ ...waarde, recorded_on: '2026-11-15' });
+    expect(nieuwBesluit({ ...beslissing, outputs: { nieuw_besluit: null } })).toBeNull();
   });
 });
 
@@ -181,6 +182,25 @@ describe('toon en artikelNaam', () => {
     expect(artikelNaam('fictief_beleid', '2')).toBe('Fictief beleid artikel 2');
     expect(wetNaam('fictief_beleid_met_naam')).toBe('Beleid van de gemeente');
     expect(wetNaam('besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw')).toBe('BABW');
+    expect(wetNaam('wet_met_verwijzing_als_naam')).toBe('Wet met verwijzing als naam');
+  });
+});
+
+describe('an unknown value (RFC-036)', () => {
+  const onbekend = (...namen) => ({
+    __unknown: true,
+    missing: namen.map((name) => ({ law: 'voorbeeld_beleid', name, kind: 'not_passed' })),
+  });
+
+  it('names what is missing, not the JSON of the engine', () => {
+    expect(toon(onbekend('nummer_opgegeven'))).toBe('onbekend (ontbreekt: nummer opgegeven)');
+    expect(waarde(onbekend('nummer_opgegeven', 'kanaal'))).toBe('onbekend (ontbreekt: nummer opgegeven, kanaal)');
+    expect(waarde(onbekend('kanaal', 'kanaal'))).toBe('onbekend (ontbreekt: kanaal)');
+  });
+
+  it('says only onbekend when the engine names nothing missing', () => {
+    expect(waarde({ __unknown: true })).toBe('onbekend');
+    expect(waarde({ __unknown: true, missing: [] })).toBe('onbekend');
   });
 });
 

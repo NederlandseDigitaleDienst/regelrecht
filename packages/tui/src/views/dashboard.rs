@@ -95,20 +95,20 @@ impl DashboardView {
         let features_dir = project_root.join("features");
         let mut feature_count = 0;
         let mut scenario_count = 0;
-        if features_dir.is_dir() {
-            if let Ok(entries) = std::fs::read_dir(&features_dir) {
-                for entry in entries.flatten() {
-                    if entry.path().extension().is_some_and(|ext| ext == "feature") {
-                        feature_count += 1;
-                        if let Ok(content) = std::fs::read_to_string(entry.path()) {
-                            scenario_count += content
-                                .lines()
-                                .filter(|l| {
-                                    let t = l.trim();
-                                    t.starts_with("Scenario:") || t.starts_with("Scenario Outline:")
-                                })
-                                .count();
-                        }
+        if features_dir.is_dir()
+            && let Ok(entries) = std::fs::read_dir(&features_dir)
+        {
+            for entry in entries.flatten() {
+                if entry.path().extension().is_some_and(|ext| ext == "feature") {
+                    feature_count += 1;
+                    if let Ok(content) = std::fs::read_to_string(entry.path()) {
+                        scenario_count += content
+                            .lines()
+                            .filter(|l| {
+                                let t = l.trim();
+                                t.starts_with("Scenario:") || t.starts_with("Scenario Outline:")
+                            })
+                            .count();
                     }
                 }
             }

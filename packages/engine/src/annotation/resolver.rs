@@ -770,8 +770,7 @@ mod tests {
     fn both_prefix_and_suffix_have_to_match() {
         // The first occurrence has the right prefix but the wrong suffix. Only
         // the occurrence that matches both sides is the anchor.
-        let text =
-            "recht op een zorgtoeslag krachtens deze wet en recht op een zorgtoeslag van rechtswege";
+        let text = "recht op een zorgtoeslag krachtens deze wet en recht op een zorgtoeslag van rechtswege";
         let arts = vec![article("2", text)];
         let sel = selector("zorgtoeslag", "op een", "van rechtswege");
         let r = resolve(&sel, &arts);
@@ -873,8 +872,7 @@ mod tests {
 
     #[test]
     fn a_position_hint_with_the_wrong_suffix_is_rejected() {
-        let text =
-            "recht op een zorgtoeslag krachtens deze wet en recht op een zorgtoeslag van rechtswege";
+        let text = "recht op een zorgtoeslag krachtens deze wet en recht op een zorgtoeslag van rechtswege";
         let arts = vec![article("2", text)];
         let stale = text.find("zorgtoeslag").unwrap();
         let sel = hinted(

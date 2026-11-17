@@ -8,10 +8,10 @@ use std::time::Duration;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
+use regelrecht_pipeline::PipelineError;
 use regelrecht_pipeline::job_queue::{self, CreateJobRequest};
 use regelrecht_pipeline::models::{JobStatus, JobType, Priority};
 use regelrecht_pipeline::test_utils::TestDb;
-use regelrecht_pipeline::PipelineError;
 
 #[tokio::test]
 async fn test_create_and_get_job() {
@@ -392,9 +392,11 @@ async fn test_reap_spares_long_running_job_with_fresh_heartbeat() {
         .await
         .unwrap();
     let held = job_queue::get_job(&db.pool, job.id).await.unwrap();
-    assert!(job_queue::heartbeat(&db.pool, held.id, held.started_at)
-        .await
-        .unwrap());
+    assert!(
+        job_queue::heartbeat(&db.pool, held.id, held.started_at)
+            .await
+            .unwrap()
+    );
 
     let reaped = job_queue::reap_orphaned_jobs(&db.pool, Duration::from_secs(60))
         .await
@@ -479,12 +481,16 @@ async fn test_heartbeat_from_earlier_claim_does_not_land() {
     assert_eq!(second.id, first.id);
     assert_ne!(second.started_at, first.started_at);
 
-    assert!(!job_queue::heartbeat(&db.pool, first.id, first.started_at)
-        .await
-        .unwrap());
-    assert!(job_queue::heartbeat(&db.pool, second.id, second.started_at)
-        .await
-        .unwrap());
+    assert!(
+        !job_queue::heartbeat(&db.pool, first.id, first.started_at)
+            .await
+            .unwrap()
+    );
+    assert!(
+        job_queue::heartbeat(&db.pool, second.id, second.started_at)
+            .await
+            .unwrap()
+    );
 }
 
 /// Seconds since the job's last heartbeat, as the database sees it.
@@ -777,6 +783,43 @@ async fn test_concurrent_claim_safety() {
         .count();
 
     assert_eq!(claimed_count, 1);
+}
+
+#[tokio::test]
+async fn claim_enrich_job_skips_jobs_for_a_held_back_provider() {
+    let db = TestDb::new().await;
+
+    // Oldest first: a claude job, a job naming no provider (runs on the
+    // worker's default, here claude), and an opencode job.
+    let req =
+        CreateJobRequest::new(JobType::Enrich, "c1").with_payload(json!({"provider": "claude"}));
+    job_queue::create_job(&db.pool, req).await.unwrap();
+    let req = CreateJobRequest::new(JobType::Enrich, "d1").with_payload(json!({}));
+    job_queue::create_job(&db.pool, req).await.unwrap();
+    let req =
+        CreateJobRequest::new(JobType::Enrich, "o1").with_payload(json!({"provider": "opencode"}));
+    job_queue::create_job(&db.pool, req).await.unwrap();
+
+    // Claude held back: only the opencode job is claimable, although it is the newest.
+    let job = job_queue::claim_enrich_job(&db.pool, Some("claude"), "claude")
+        .await
+        .unwrap()
+        .expect("the opencode job");
+    assert_eq!(job.law_id, "o1");
+    let none = job_queue::claim_enrich_job(&db.pool, Some("claude"), "claude")
+        .await
+        .unwrap();
+    assert!(
+        none.is_none(),
+        "the default-provider job runs on claude, so it waits too"
+    );
+
+    // Nothing held back: oldest first again.
+    let job = job_queue::claim_enrich_job(&db.pool, None, "claude")
+        .await
+        .unwrap()
+        .expect("the claude job");
+    assert_eq!(job.law_id, "c1");
 }
 
 #[tokio::test]

@@ -10,7 +10,7 @@
  */
 import { ref } from 'vue';
 import { apiFetchJson } from '../lib/apiFetch';
-import type { TrajectSummary } from './useTrajects';
+import type { TrajectSummary } from '../stores/trajects';
 
 /** One source of a traject (TrajectSourceDto in trajects.rs). */
 export interface TrajectSource {

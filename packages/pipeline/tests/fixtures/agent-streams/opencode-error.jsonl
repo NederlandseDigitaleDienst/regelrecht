@@ -1,0 +1,4 @@
+# ASSEMBLED, NOT CAPTURED (see opencode-success.jsonl). A failed model call:
+# opencode writes an error event on stdout and exits 1 with nothing on stderr.
+{"type":"step_start","part":{"type":"step-start"}}
+{"type":"error","error":{"name":"APIError","data":{"message":"401"}}}

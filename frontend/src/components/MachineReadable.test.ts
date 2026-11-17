@@ -191,12 +191,29 @@ describe('MachineReadable', () => {
       expect(wrapper.find('nldd-inline-dialog').attributes('text')).toContain('Geen machine-leesbare gegevens');
     });
 
-    it('formats percentage values (0 < v < 1)', () => {
+    // Nothing in `{ value: 0.01896 }` says it is a percentage, so it is not
+    // shown as one: the earlier guess for every number between 0 and 1 hid a
+    // factor of 100. A ratio says so and is shown with what it amounts to.
+    it('shows a number between 0 and 1 without a unit as the number it is', () => {
       const wrapper = mountEditable();
       // The value sits in the `text` attribute (read-only cells) or as
       // slot text next to BreakableName (editable definition rows).
       const cells = wrapper.findAll('nldd-text-cell').map(c => `${c.attributes('text') || ''} ${c.text()}`);
-      expect(cells.some(t => /1,896\s*%/.test(t))).toBe(true);
+      expect(cells.some(t => /0\.01896/.test(t))).toBe(true);
+      expect(cells.some(t => /1,896\s*%/.test(t))).toBe(false);
+    });
+
+    it('shows a ratio with the percentage it amounts to', () => {
+      const wrapper = mount(MachineReadable, {
+        props: {
+          article: createArticle({
+            definitions: { aandeel: { value: 0.01896, type: 'number', type_spec: { unit: 'ratio' } } },
+          }),
+          editable: true,
+        },
+      });
+      const cells = wrapper.findAll('nldd-text-cell').map(c => `${c.attributes('text') || ''} ${c.text()}`);
+      expect(cells.some(t => /0,01896 \(1,896%\)/.test(t))).toBe(true);
     });
 
     it('formats eurocent values as currency', () => {

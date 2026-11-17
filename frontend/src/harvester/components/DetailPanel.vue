@@ -123,7 +123,7 @@ function onSheetClose() {
 
           <template v-if="progressFields.length">
             <nldd-spacer size="16" />
-            <nldd-title size="6"><h3>{{ progressTitle }}</h3></nldd-title>
+            <nldd-title size="display-6"><h3>{{ progressTitle }}</h3></nldd-title>
             <nldd-spacer size="4" />
             <nldd-list appearance="simple" data-testid="job-progress">
               <nldd-list-item v-for="[label, value] in progressFields" :key="label">
@@ -140,7 +140,7 @@ function onSheetClose() {
 
           <template v-for="section in codeSections" :key="section.title">
             <nldd-spacer size="16" />
-            <nldd-title size="6"><h3>{{ section.title }}</h3></nldd-title>
+            <nldd-title size="display-6"><h3>{{ section.title }}</h3></nldd-title>
             <nldd-spacer size="4" />
             <nldd-code-viewer :wrap="section.wrap || undefined" :language="section.language || undefined">{{ section.code }}</nldd-code-viewer>
           </template>

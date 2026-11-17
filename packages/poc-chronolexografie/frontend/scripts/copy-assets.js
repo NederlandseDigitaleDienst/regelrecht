@@ -6,9 +6,11 @@
  *    pocs/registry.yaml; een test in packages/poc-chronolexografie
  *    (src/bundel.rs) houdt dat er niets in staat wat geen casus nodig heeft.
  *    Elk bestand eronder gaat mee, behalve de scenario's.
- *  - public/bronnen.json: de namen van de bronnen bij `sources` van
- *    chronolexografie. De app haalt elke bron op bron/<naam> wanneer zij
- *    laadt (src/bronnen.js); het portaal serveert haar, niet de build.
+ *  - public/bronnen.json: de bronnen bij `sources` van chronolexografie,
+ *    elk als `{ naam, verborgen }`. De app haalt elke bron op bron/<naam>
+ *    wanneer zij laadt (src/bronnen.js); het portaal serveert haar, niet de
+ *    build. De casussen van een verborgen bron staan niet op het
+ *    keuzescherm (src/verborgen.js).
  *  - public/wasm/pkg/: de cel en het spel als WASM, uit `just
  *    poc-chronolexografie-wasm` (of de wasm-builder in het poc-image).
  *
@@ -60,9 +62,10 @@ for (const map of poc.corpus) {
 mkdirSync(resolve(appRoot, 'public'), { recursive: true });
 writeFileSync(resolve(appRoot, 'public', 'bundel.json'), JSON.stringify(bundel));
 console.log(`bundel: ${Object.keys(bundel).length} bestand(en) uit ${poc.corpus.length} map(pen)`);
-const bronnen = (poc.sources ?? []).map((s) => s.name);
+const bronnen = (poc.sources ?? []).map((s) => ({ naam: s.name, verborgen: s.verborgen === true }));
 writeFileSync(resolve(appRoot, 'public', 'bronnen.json'), JSON.stringify(bronnen));
-console.log(`bronnen: ${bronnen.join(', ') || 'geen'}`);
+const namen = bronnen.map((b) => (b.verborgen ? `${b.naam} (verborgen)` : b.naam));
+console.log(`bronnen: ${namen.join(', ') || 'geen'}`);
 
 const wasm = resolve(appRoot, 'public', 'wasm', 'pkg', 'regelrecht_poc_chronolexografie_bg.wasm');
 if (!existsSync(wasm)) {

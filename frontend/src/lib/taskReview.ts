@@ -1,4 +1,4 @@
-import type { Task } from './taskCategories';
+import type { RunningJob, Task } from './taskCategories';
 
 // Structural view of an article as both the saved law and a proposal carry it;
 // only the fields compared here.
@@ -61,6 +61,53 @@ function trajectKey(ref: unknown): string | null {
   return match ? match[1]!.toLowerCase() : null;
 }
 
+/**
+ * Whether a task says which traject it belongs to, through `traject_id` or a
+ * `payload.traject_ref` with an id part. An action that runs in a traject
+ * (retrying an enrichment) needs this: a task that names no traject is shown
+ * everywhere, so running it "here" could be the wrong traject.
+ */
+export function taskNamesTraject(task: Task): boolean {
+  if (typeof task.traject_id === 'string' && task.traject_id.length >= 8) return true;
+  return trajectKey(task.payload?.traject_ref) !== null;
+}
+
+/**
+ * Whether a task belongs to the traject `trajectRef`. `/api/tasks` returns the
+ * whole account, so a view inside one traject has to narrow it down: the same
+ * law enriched in two trajects is two separate pieces of work.
+ *
+ * `traject_id` decides when the task has it: the server sets it on every
+ * traject task, and a ref's 8-hex suffix is the first 8 characters of that id
+ * (`traject_ref` in trajects.rs). `payload.traject_ref` is the fallback,
+ * because not every task kind fills it.
+ *
+ * A task that names no traject at all stays visible: it belongs to no other
+ * traject either, and hiding it would leave it where nobody can dismiss it.
+ * That is the opposite of `sameTraject`, where a missing ref matches nothing;
+ * both are intended.
+ */
+export function taskInTraject(task: Task, trajectRef: unknown): boolean {
+  const key = trajectKey(trajectRef);
+  if (key === null) return false;
+  if (typeof task.traject_id === 'string' && task.traject_id.length >= 8) {
+    return task.traject_id.slice(0, 8).toLowerCase() === key;
+  }
+  const own = trajectKey(task.payload?.traject_ref);
+  return own === null || own === key;
+}
+
+/**
+ * Whether a running job was requested in the traject `trajectRef`. Same rule
+ * as `taskInTraject`: a job without a recognisable traject stays visible.
+ */
+export function jobInTraject(job: RunningJob, trajectRef: unknown): boolean {
+  const key = trajectKey(trajectRef);
+  if (key === null) return false;
+  const own = trajectKey(job.traject_ref);
+  return own === null || own === key;
+}
+
 export function reviewTarget(task: Task | null | undefined): ReviewTarget | null {
   const trajectRef = task?.payload?.traject_ref;
   if (!trajectRef) return null;
@@ -103,13 +150,13 @@ function articleDiffers(current: ReviewArticle | undefined, proposedArticle: Rev
  * waar of niet er wijzigingen zijn die de (single-article-scoped) editor
  * niet zichtbaar kan maken. Dat geldt voor:
  *  - een tweede (of latere) afwijkend artikel naast `target`;
- *  - een voorgesteld artikel dat de huidige wet niet heeft (v1 kan alleen
- *    een BESTAAND artikel seeden als unsaved edit, zie applyProposedContent
- *    in EditorView.vue);
- *  - een artikel van de huidige wet dat in het voorstel ONTBREEKT (een
- *    verwijdering) - Opslaan committeert die verwijdering net zo goed als
- *    de rest van het voorstel, dus de banner moet ernaar verwijzen ook al
- *    is er geen "proposed article" om te seeden of te tonen.
+ *  - a proposed article the current law does not have (v1 can only seed an
+ *    EXISTING article as an unsaved edit; see applyProposedContent in
+ *    useProposalReview.ts);
+ *  - an article of the current law that is MISSING from the proposal (a
+ *    deletion) - saving commits that deletion like the rest of the proposal,
+ *    so the status line has to point at it even though there is no proposed
+ *    article to seed or show.
  *
  * @param {string|null} [articleNumber] Wijst de taak één artikel aan
  *   (`payload.article`), dan gaat het hier alléén daarover: dat artikel wordt
@@ -129,9 +176,9 @@ export function proposalDivergence<A extends ReviewArticle>(
     const wanted = String(articleNumber);
     const pa = proposed.find((a) => String(a.number) === wanted);
     const match = current.find((a) => String(a.number) === wanted);
-    // Zonder tegenhanger in de opgeslagen wet valt er niets te seeden: de
-    // editor kan een artikel dat de wet niet heeft niet als losse wijziging
-    // tonen. Dan geen target, en de banner meldt dat.
+    // Without a counterpart in the saved law there is nothing to seed: the
+    // editor cannot show an article the law does not have as a single
+    // change. Then there is no target, and the status line says so.
     const target = pa && match && articleDiffers(match, pa) ? pa : null;
     return { target, hiddenChanges: false };
   }

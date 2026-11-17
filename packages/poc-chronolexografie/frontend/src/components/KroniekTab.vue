@@ -4,8 +4,9 @@
 // Below it the chronicles of the other cells of the case (RFC-048): each
 // cell keeps its own; the bestuursorgaan asks them, but does not write in
 // them. The court is one of them (RFC-053).
-import { computed, nextTick, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import { state } from '../state.js';
+import { inBeeld } from '../verwijzingen.js';
 import GramCode from './GramCode.vue';
 
 // The chronicle of the cell of the case, then those of the other cells.
@@ -20,24 +21,28 @@ const kronieken = computed(() => [
 ]);
 const bestaat = (id) => kronieken.value.some((k) => k.grammen.some((g) => g.id === id));
 
-// From the log: bring that chronolexogram into view, once it is there.
-const gevraagd = ref(state.inKroniek);
-state.inKroniek = null;
+// From the log or a reference (verwijzingen.js): bring that chronolexogram
+// into view, once it is there, give it focus and mark it.
+const gemarkeerd = ref(null);
 watch(
-  [gevraagd, kronieken],
+  [() => state.inKroniek, kronieken],
   async ([id]) => {
     if (!id || !bestaat(id)) return;
-    gevraagd.value = null;
-    await nextTick();
-    document.getElementById(`gram-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    state.inKroniek = null;
+    gemarkeerd.value = id;
+    await inBeeld(`gram-${id}`);
   },
   { immediate: true },
 );
+// A request this tab could not find does not wait for the next visit.
+onBeforeUnmount(() => {
+  state.inKroniek = null;
+});
 </script>
 
 <template>
   <nldd-simple-section v-for="k in kronieken" :key="k.naam">
-    <nldd-title slot="header" size="3" :text="`Kroniek van ${k.naam}`">
+    <nldd-title heading-level="2" slot="header" size="display-3" :text="`Kroniek van ${k.naam}`">
       <nldd-text v-if="k.eigen" slot="supporting-text">
         Eén kroniek, van de cel van de uitvoerder. Elke stap in het proces legt er één
         chronolexogram in vast (een beslissing op bezwaar die herroept, legt er twee vast); er wordt
@@ -58,7 +63,15 @@ watch(
       :supporting-text="k.eigen ? 'Dien als aanvrager een aanvraag in om het eerste chronolexogram te maken.' : k.rechter ? 'Stel als aanvrager beroep in tegen een beslissing op bezwaar.' : undefined"
     ></nldd-inline-dialog>
     <nldd-container v-else gap="24">
-      <GramCode v-for="(g, i) in k.grammen" :id="`gram-${g.id}`" :key="g.id" :gram="g" :nummer="i + 1" />
+      <GramCode
+        v-for="(g, i) in k.grammen"
+        :id="`gram-${g.id}`"
+        :key="g.id"
+        tabindex="-1"
+        :gram="g"
+        :nummer="i + 1"
+        :gemarkeerd="g.id === gemarkeerd"
+      />
     </nldd-container>
   </nldd-simple-section>
 </template>

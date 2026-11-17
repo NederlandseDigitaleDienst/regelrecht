@@ -20,7 +20,8 @@
 //! A submission may refer to a decision (RFC-045 §6): a field of type
 //! `decision` holds it, and the deciding article gets its decision value.
 //! A decision output of the deciding article is a decision taken in turn,
-//! which the cell records too ([`cell`]). A submission that refers to a
+//! which the cell keeps as part of the decision that took it: one act, one
+//! record ([`cell`]). A submission that refers to a
 //! decision, such as an objection, is decided like any other: the law says
 //! what it holds and how it is decided, and the cell knows no article that
 //! does this.
@@ -33,11 +34,13 @@ pub mod files;
 pub mod identity;
 pub mod reading;
 pub mod shape;
+pub mod versions;
 
 pub use cell::{Cell, Reference};
-pub use chronicle::{Afschrift, Chronicle, Gram, GramMoment, Received, EXECUTOGRAM};
+pub use chronicle::{Afschrift, Chronicle, EXECUTOGRAM, Gram, GramMoment, Received};
 pub use decision::{DecisionShape, Input, Source};
 pub use error::{Error, Result};
 pub use files::{Bundle, Disk, Files};
 pub use reading::{Binding, Term};
 pub use shape::{Field, Moment, Shape};
+pub use versions::{LawChange, LawSince};

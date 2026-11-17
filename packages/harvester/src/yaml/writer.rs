@@ -9,7 +9,7 @@ use regex::Regex;
 use serde::Serialize;
 
 use super::text::{
-    classify_text_style, normalize_text, should_wrap_text, wrap_text_default, TextStyle,
+    TextStyle, classify_text_style, normalize_text, should_wrap_text, wrap_text_default,
 };
 use crate::config::SCHEMA_URL;
 use crate::error::{HarvesterError, Result};
@@ -299,10 +299,10 @@ fn needs_yaml_quoting(value: &str) -> bool {
     }
 
     // Starts with YAML special character
-    if let Some(&first) = value.as_bytes().first() {
-        if b"{}[],&*#?|-<>=!%@:\"`' ".contains(&first) {
-            return true;
-        }
+    if let Some(&first) = value.as_bytes().first()
+        && b"{}[],&*#?|-<>=!%@:\"`' ".contains(&first)
+    {
+        return true;
     }
 
     // Contains problematic sequences or trailing colon
@@ -499,15 +499,14 @@ fn fold_text_blocks(yaml: &str, plan: &[(String, TextStyle)]) -> Result<String> 
         while k < plan.len() && plan[k].0 != reconstructed {
             k += 1;
         }
-        let style =
-            plan.get(k)
-                .map(|(_, s)| *s)
-                .ok_or_else(|| HarvesterError::FoldPlanMismatch {
-                    detail: format!(
+        let style = plan.get(k).map(|(_, s)| *s).ok_or_else(|| {
+            HarvesterError::FoldPlanMismatch {
+                detail: format!(
                     "serialized `text: |-` block did not match any remaining fold-plan entry: {:?}",
                     reconstructed.chars().take(60).collect::<String>()
                 ),
-                })?;
+            }
+        })?;
         k += 1;
 
         match style {
@@ -677,9 +676,9 @@ mod tests {
         assert!(needs_yaml_quoting("")); // empty
         assert!(needs_yaml_quoting("foo: bar")); // contains ": "
         assert!(needs_yaml_quoting("end:")); // ends with ":"
-                                             // Scientific-notation floats: YAML resolves these to numbers on read,
-                                             // so a string like the article number "24e1" must stay quoted or it
-                                             // round-trips into the float 240.0.
+        // Scientific-notation floats: YAML resolves these to numbers on read,
+        // so a string like the article number "24e1" must stay quoted or it
+        // round-trips into the float 240.0.
         assert!(needs_yaml_quoting("24e1"));
         assert!(needs_yaml_quoting("1e5"));
         assert!(needs_yaml_quoting("2E10"));
@@ -716,8 +715,7 @@ mod tests {
         // and `- ` lines must be shifted uniformly by the enclosing sequence's
         // extra (+2) — the `- ` content lines must NOT be treated as sequence
         // items (which would over-indent them to +4).
-        let input =
-            "articles:\n- number: '1'\n  text: |-\n    intro:\n\n    - item een\n    - item twee\n  url: x";
+        let input = "articles:\n- number: '1'\n  text: |-\n    intro:\n\n    - item een\n    - item twee\n  url: x";
         let result = indent_yaml_sequences(input);
         assert_eq!(
             result,

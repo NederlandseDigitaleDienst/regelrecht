@@ -21,12 +21,15 @@
 // demo scenarios (startDemo). The button "Presentatie" brings the deck back,
 // on the slide it was last left on, or else on the first. The explanation
 // page (presentation/UitlegPagina.vue) takes the place of the choice screen,
-// from its button or `?uitleg`.
+// from the deck, the short page or `?uitleg`. The short page
+// (presentation/KortPagina.vue) does too, from the button on the choice
+// screen or `?kort`; its button at the bottom opens the explanation page.
 //
 // The address names the case and the scenario (navigation.js), so a link
 // opens a scenario and the browser's back and forward walk the choices.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { api } from './api.js';
+import { getoond } from './herkomst.js';
 import { artikelNaam } from './logboek.js';
 import { melding } from './melding.js';
 import { current, followAddress, navigate, toChoice, unknown } from './navigation.js';
@@ -37,6 +40,7 @@ import AndereCellenTab from './components/AndereCellenTab.vue';
 import BestuursorgaanTab from './components/BestuursorgaanTab.vue';
 import CasusKeuze from './components/CasusKeuze.vue';
 import HerkomstSheet from './components/HerkomstSheet.vue';
+import InlogScherm from './components/InlogScherm.vue';
 import KroniekTab from './components/KroniekTab.vue';
 import LogboekTab from './components/LogboekTab.vue';
 import NaUitspraak from './components/NaUitspraak.vue';
@@ -44,10 +48,21 @@ import ScenarioGuide from './components/ScenarioGuide.vue';
 import ScenarioTab from './components/ScenarioTab.vue';
 import { guideFor } from './scenarioGuides.js';
 import PresentationDeck from './presentation/PresentationDeck.vue';
+import KortPagina from './presentation/KortPagina.vue';
 import UitlegPagina from './presentation/UitlegPagina.vue';
+import { KORT, useKort } from './presentation/useKort.js';
 import { useUitleg } from './presentation/useUitleg.js';
-import { DEMO_CASUS } from './presentation/demo.js';
 import { startIndex, usePresentation } from './presentation/usePresentation.js';
+import { useAlleCasussen } from './verborgen.js';
+import { toonInKroniek } from './verwijzingen.js';
+import { inlogScherm, wisSessie } from './sessie.js';
+
+// The login screen of a case with a login step (InlogScherm.vue) takes the
+// place of the app while it is open, as a redirect to the service would.
+// The tab and the game stay as they were.
+const inloggenOpen = computed(
+  () => inlogScherm.value && !!state.vormen?.aanvraag?.inloggen?.inlogstap,
+);
 
 // Het tabblad Andere cellen staat er alleen bij een casus met andere cellen
 // (RFC-048).
@@ -79,11 +94,25 @@ onMounted(async () => {
 
 const presentation = usePresentation();
 const uitleg = useUitleg();
+const kort = useKort();
+const alleCasussen = useAlleCasussen();
 onMounted(() => {
+  // `?alle-casussen` holds for this browser, not for the address: read it and take it off.
+  alleCasussen.follow();
   const i = startIndex(window.location.search, presentation.total.value);
   if (i !== null) presentation.start(i);
-  // The page belongs to the choice screen; on a case's address it gives way.
-  uitleg.follow({ opCasus: !!parseRoute(window.location.pathname, import.meta.env.BASE_URL).casus });
+  // The pages belong to the choice screen; on a case's address they give way.
+  const opCasus = !!parseRoute(window.location.pathname, import.meta.env.BASE_URL).casus;
+  uitleg.follow({ opCasus });
+  kort.follow({ opCasus });
+});
+// Which page of the choice screen shows, if any; the explanation page wins
+// when the address asks for both.
+const keuzePagina = computed(() => {
+  if (state.casus) return null;
+  if (uitleg.active.value) return 'uitleg';
+  if (kort.active.value) return 'kort';
+  return null;
 });
 watch(() => state.datum, verversen);
 
@@ -110,18 +139,26 @@ const subtitle = computed(
   () => `De cel van ${state.casus?.cel_naam} · ${artikel.value} · bestuursorgaan: ${state.casus?.rol}`,
 );
 
-// Een link in het logboek naar een chronolexogram opent het in de kroniek.
-function naarKroniek(id) {
-  state.inKroniek = id;
-  tab.value = 'kroniek';
-}
+// A link to a chronolexogram, from the log or from a reference of another
+// one (verwijzingen.js), opens it in the Kroniek tab, also from the sheet.
+// Synchronous, because KroniekTab.vue clears the request once it shows the
+// gram, and a watcher that ran after that would see nothing to do.
+watch(
+  () => state.inKroniek,
+  (id) => {
+    if (!id) return;
+    getoond.value = null;
+    tab.value = 'kroniek';
+  },
+  { flush: 'sync' },
+);
 
 // In a scenario, starting over begins that scenario again, as the guide's
 // own button does: the play date back on its first day, the tab Aanvrager and
 // the guide open.
 async function opnieuw() {
   if (state.scenario) await restart();
-  else await stap(() => api.reset());
+  else if (await stap(() => api.reset())) wisSessie(state.casus.id);
 }
 
 // The guide of the scenario that began, if it has one.
@@ -132,13 +169,20 @@ const split = ref(null);
 // Whether the split view put the inspector in a sheet, for lack of room.
 const asSheet = ref(false);
 let observer = null;
-onMounted(() => {
-  observer = new MutationObserver(() => {
-    asSheet.value = split.value?.hasAttribute('inspector-auto-hidden') ?? false;
-  });
-  observer.observe(split.value, { attributes: true, attributeFilter: ['inspector-auto-hidden'] });
-  asSheet.value = split.value.hasAttribute('inspector-auto-hidden');
-});
+// The split view is new each time the login screen gave way to the app again.
+watch(
+  split,
+  (el) => {
+    observer?.disconnect();
+    if (!el) return;
+    observer = new MutationObserver(() => {
+      asSheet.value = el.hasAttribute('inspector-auto-hidden');
+    });
+    observer.observe(el, { attributes: true, attributeFilter: ['inspector-auto-hidden'] });
+    asSheet.value = el.hasAttribute('inspector-auto-hidden');
+  },
+  { flush: 'post' },
+);
 onBeforeUnmount(() => observer?.disconnect());
 
 // The split view decides inline or sheet after its next layout, a frame
@@ -159,18 +203,21 @@ function chooseScenario() {
   hideGuide();
   tab.value = 'scenarios';
 }
+// A scenario opens on the tab of its first step, such as a registration at
+// another cell.
 async function started() {
-  tab.value = 'aanvrager';
+  tab.value = guide.value?.steps[0]?.tab ?? 'aanvrager';
   await openGuide();
 }
 async function restart() {
   if (await beginScenario(state.scenario)) await started();
 }
-// A demo scenario of the parking card, from the choice screen: choose the
-// case if it is not open, then begin the scenario as its own button does.
-function startDemo(naam) {
+// A demo scenario (presentation/demo.js), from the choice screen: choose
+// its case if that is not open, then begin the scenario as its own button
+// does.
+function startDemo({ casus, naam }) {
   return navigate(async (mine) => {
-    if (state.casus?.id !== DEMO_CASUS && !(await kiezen(DEMO_CASUS))) return false;
+    if (state.casus?.id !== casus && !(await kiezen(casus))) return false;
     if (!current(mine) || !(await beginScenario(naam)) || !current(mine)) return false;
     await started();
   });
@@ -179,7 +226,14 @@ function startDemo(naam) {
 // screen, so an open case gives way first.
 async function uitlegVanDek() {
   if (state.casus) await toChoice();
-  uitleg.open();
+  if (kort.active.value) kortNaarUitleg();
+  else uitleg.open();
+}
+// From the short page to the explanation page, on the short page's entry:
+// back from the explanation page returns to where the short page came from.
+function kortNaarUitleg() {
+  uitleg.open({ vervangt: KORT });
+  kort.verlaat();
 }
 function toTab(id) {
   tab.value = id;
@@ -192,7 +246,8 @@ function toTab(id) {
   <!-- The layout of the editor (frontend/src/AppShell.vue): the bars across
        the full width in an nldd-bar-split-view, the content under them in its
        main pane, here a navigation split view with the guide as inspector. -->
-  <nldd-shell>
+  <InlogScherm v-if="inloggenOpen" />
+  <nldd-shell v-else>
     <nldd-bar-split-view>
       <nldd-split-view-pane slot="title-bar">
         <nldd-container padding="8">
@@ -250,7 +305,7 @@ function toTab(id) {
           <nldd-split-view-pane slot="main" has-content>
             <!-- One page per tab, as the editor gets one per route: a new tab
                  starts at its top instead of where the last one was scrolled. -->
-            <nldd-page :key="uitleg.active.value && !state.casus ? 'uitleg' : tab" landmarks="page">
+            <nldd-page :key="keuzePagina ?? tab" landmarks="page">
               <nldd-simple-section v-if="state.fout" padding-block="16">
                 <nldd-banner
                   variant="critical"
@@ -289,14 +344,20 @@ function toTab(id) {
                 </nldd-banner>
               </nldd-simple-section>
               <UitlegPagina
-                v-else-if="uitleg.active.value && !state.casus"
+                v-else-if="keuzePagina === 'uitleg'"
                 @terug="uitleg.close()"
                 @casus="(id) => uitleg.naarCasus(() => navigate(() => kiezen(id)))"
+              />
+              <KortPagina
+                v-else-if="keuzePagina === 'kort'"
+                @terug="kort.close()"
+                @casus="(id) => kort.naarCasus(() => navigate(() => kiezen(id)))"
+                @uitleg="kortNaarUitleg"
               />
               <CasusKeuze
                 v-else-if="!state.casus"
                 @presentatie="presentation.start()"
-                @uitleg="uitleg.open()"
+                @kort="kort.open()"
                 @demo="startDemo"
               />
               <template v-else-if="state.vormen">
@@ -308,7 +369,7 @@ function toTab(id) {
                 </template>
                 <AndereCellenTab v-else-if="tab === 'andere'" />
                 <KroniekTab v-else-if="tab === 'kroniek'" />
-                <LogboekTab v-else @kroniek="naarKroniek" />
+                <LogboekTab v-else @kroniek="toonInKroniek" />
               </template>
             </nldd-page>
           </nldd-split-view-pane>

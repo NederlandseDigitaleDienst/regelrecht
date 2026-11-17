@@ -1,9 +1,9 @@
 //! The PoC portal: one hostname, several proof-of-concepts, each behind its own
 //! password.
 
-use regelrecht_poc_portal::app::{router, AppState};
-use regelrecht_poc_portal::config::Config;
 use regelrecht_poc_portal::REGISTRY_YAML;
+use regelrecht_poc_portal::app::{AppState, router};
+use regelrecht_poc_portal::config::Config;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { MarkingCluster } from '../composables/useMarkingClusters';
+import { providerLabel } from '../../lib/enrichProviders';
 
 // The backlog, read off the corpus: markings grouped by the change that would
 // resolve them. One marking is an observation; the same change wanted by four
@@ -54,9 +55,10 @@ const singletons = computed(() => props.clusters.filter((c) => c.markings === 1)
 // on all of them is not a signal, it is decoration.
 function providerHint(cluster: MarkingCluster): string | null {
   const providers = cluster.providers || [];
-  if (providers.length !== 1) return null;
+  const only = providers[0];
+  if (providers.length !== 1 || !only) return null;
   if ((cluster.providers_on_these_laws ?? 0) < 2) return null;
-  return `alleen ${providers[0]}`;
+  return `alleen ${providerLabel(only)}`;
 }
 
 // Where the change bites. Articles before laws reads naturally, and the
@@ -87,7 +89,7 @@ function kind(cluster: MarkingCluster): { text: string; color: string } {
          the padding, so nothing here needs custom CSS. -->
     <nldd-card>
       <nldd-container padding="16">
-        <nldd-title size="5"><h2>Wat het formaat mist</h2></nldd-title>
+        <nldd-title size="display-5"><h2>Wat het formaat mist</h2></nldd-title>
         <nldd-spacer size="4" />
         <nldd-rich-text>
           <p>

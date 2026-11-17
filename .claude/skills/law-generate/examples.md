@@ -133,8 +133,14 @@ machine_readable:
   definitions:
     VERMOGENSGRENS_ALLEENSTAAND:
       value: 15485900  # €154.859 in eurocent
+      type: amount
+      type_spec:
+        unit: eurocent
     VERMOGENSGRENS_GEHUWD:
       value: 18687500  # €186.875 in eurocent
+      type: amount
+      type_spec:
+        unit: eurocent
   execution:
     parameters:
       - name: bsn
@@ -192,8 +198,14 @@ machine_readable:
   definitions:
     percentage_drempelinkomen_alleenstaande:
       value: 0.01896
+      type: number
+      type_spec:
+        unit: ratio
     percentage_drempelinkomen_partner:
       value: 0.04273
+      type: number
+      type_spec:
+        unit: ratio
   execution:
     parameters:
       - name: bsn

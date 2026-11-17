@@ -5,7 +5,7 @@
 // exercises the recent-laws surface.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { shallowMount, type VueWrapper } from '@vue/test-utils';
-import { ref } from 'vue';
+import { reactive } from 'vue';
 import * as harness from './test-utils/libraryViewHarness';
 
 /** A "Recent bekeken" entry as LibraryView stores it. */
@@ -28,25 +28,17 @@ interface LibraryViewInternals {
 }
 type LibraryWrapper = Omit<VueWrapper, 'vm'> & { vm: VueWrapper['vm'] & LibraryViewInternals };
 
-const routeState: { name: string; params: Record<string, string>; query: Record<string, string>; fullPath: string; hash: string } = {
+const routeState: { name: string; params: Record<string, string>; query: Record<string, string>; fullPath: string; hash: string } = reactive({
   name: 'library-traject',
   params: { trajectRef: 'traject-aaaa1111', docPath: '' },
   query: {},
   fullPath: '/traject/traject-aaaa1111/bibliotheek',
   hash: '',
-};
+});
 vi.mock('vue-router', () => harness.vueRouter(() => routeState));
 vi.mock('./composables/useAuth', () => harness.auth());
 
-// The ref the view watches: switching traject keeps the view mounted, so the
-// test drives the switch by writing to this exact ref.
-const activeTrajectRef = ref<string | null>('traject-aaaa1111');
-vi.mock('./composables/useTrajects', () =>
-  harness.trajectsModule(() => ({ activeTrajectRef, activeTraject: ref({ name: 'Traject A' }) })),
-);
-
 vi.mock('./lib/apiFetch', () => harness.apiFetchModule());
-vi.mock('./composables/useFeatureFlags', () => harness.featureFlags());
 vi.mock('./composables/useDocumentsManager', () => harness.documentsManager());
 vi.mock('./composables/useTrajectDocumentJobs', () => harness.trajectDocumentJobs());
 vi.mock('./composables/useDocumentUpload', () => harness.documentUpload());
@@ -56,12 +48,11 @@ import LibraryView from './LibraryView.vue';
 
 const KEY = 'regelrecht-recent-laws';
 const mountLibrary = () =>
-  shallowMount(LibraryView, { global: { stubs: { teleport: true } } }) as unknown as LibraryWrapper;
+  shallowMount(LibraryView, { global: { stubs: { teleport: true }, plugins: [harness.pinia()] } }) as unknown as LibraryWrapper;
 const stored = (trajectRef: string): RecentLawEntry[] => JSON.parse(localStorage.getItem(`${KEY}:${trajectRef}`) || '[]');
 
 beforeEach(() => {
   localStorage.clear();
-  activeTrajectRef.value = 'traject-aaaa1111';
   routeState.params = { trajectRef: 'traject-aaaa1111', docPath: '' };
 });
 
@@ -80,7 +71,7 @@ describe('LibraryView recent bekeken', () => {
     wrapper.vm.recordRecentLaw('wet_a', 'Wet A');
     await wrapper.vm.$nextTick();
 
-    activeTrajectRef.value = 'traject-bbbb2222';
+    routeState.params = { trajectRef: 'traject-bbbb2222', docPath: '' };
     await wrapper.vm.$nextTick();
 
     expect(wrapper.vm.recentLaws.map(r => r.law_id)).toEqual(['wet_b']);
@@ -93,7 +84,7 @@ describe('LibraryView recent bekeken', () => {
     wrapper.vm.recordRecentLaw('wet_a', 'Wet A');
     await wrapper.vm.$nextTick();
 
-    activeTrajectRef.value = null;
+    routeState.params = { docPath: '' };
     await wrapper.vm.$nextTick();
     expect(wrapper.vm.recentLaws).toEqual([]);
 
@@ -129,7 +120,7 @@ describe('LibraryView recent bekeken', () => {
 
     // Wat de wissel in het echt doet: de corpus laadt opnieuw, dus de naam van
     // de nog openstaande wet lost opnieuw op en de watch vuurt.
-    activeTrajectRef.value = null;
+    routeState.params = { docPath: '' };
     wrapper.vm.laws = [{ law_id: 'wet_a', name: 'Wet A in de corpus' }];
     await wrapper.vm.$nextTick();
     await wrapper.vm.$nextTick();

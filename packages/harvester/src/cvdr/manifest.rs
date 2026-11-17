@@ -83,29 +83,28 @@ fn parse_cvdr_manifest(xml: &str, cvdr_id: &str) -> Result<CvdrVersion> {
         }
 
         // Look for expression elements or item elements that contain version info
-        if node.has_tag_name("expression") || node.has_tag_name("item") {
-            if let Some(label) = node.attribute("label") {
-                if let Some(version) = extract_version_from_path(label, cvdr_id) {
-                    // Check for duplicates
-                    if !versions.iter().any(|v| v.version == version.version) {
-                        versions.push(version);
-                    }
-                }
+        if (node.has_tag_name("expression") || node.has_tag_name("item"))
+            && let Some(label) = node.attribute("label")
+            && let Some(version) = extract_version_from_path(label, cvdr_id)
+        {
+            // Check for duplicates
+            if !versions.iter().any(|v| v.version == version.version) {
+                versions.push(version);
             }
         }
     }
 
     // If we got a _latestItem match and it exists in our versions, prefer it
-    if let Some(ref latest) = latest_from_attr {
-        if versions.iter().any(|v| v.version == latest.version) {
-            tracing::debug!(
-                cvdr_id = %cvdr_id,
-                version = latest.version,
-                versioned_id = %latest.versioned_id,
-                "Resolved CVDR version from _latestItem"
-            );
-            return Ok(latest.clone());
-        }
+    if let Some(ref latest) = latest_from_attr
+        && versions.iter().any(|v| v.version == latest.version)
+    {
+        tracing::debug!(
+            cvdr_id = %cvdr_id,
+            version = latest.version,
+            versioned_id = %latest.versioned_id,
+            "Resolved CVDR version from _latestItem"
+        );
+        return Ok(latest.clone());
     }
 
     // Fall back to the highest version number

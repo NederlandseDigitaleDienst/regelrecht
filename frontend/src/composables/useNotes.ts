@@ -9,12 +9,29 @@
  * the DOM needs UTF-16.
  */
 import { ref, computed, watch } from 'vue';
+import * as yaml from 'js-yaml';
 import type { Ref } from 'vue';
 import { useEngine } from './useEngine';
 import { annotationsUrl } from './corpusUrls';
 import { apiFetch } from '../lib/apiFetch';
 import { useLatest } from '../lib/useLatest';
 import type { MatchResult, TextMatch, TextQuoteSelector } from './useTextSelection';
+
+/**
+ * Whether a notes document holds at least one note. A document that does not
+ * parse counts as having notes, so the engine reports what is wrong with it.
+ */
+function hasNotes(yamlText: string): boolean {
+  if (!yamlText.trim()) return false;
+  try {
+    // Unchecked YAML; only `annotations` is read, and checked with
+    // Array.isArray.
+    const doc = yaml.load(yamlText) as { annotations?: unknown } | null;
+    return !Array.isArray(doc?.annotations) || doc.annotations.length > 0;
+  } catch {
+    return true;
+  }
+}
 
 /**
  * A note: a W3C Web Annotation (annotation schema, `definitions/Annotation`).
@@ -102,7 +119,7 @@ export function useNotes(
   // while a slow annotations fetch is in flight lets the older response
   // overwrite the newer law's notes - and because article numbers collide
   // across laws ('1','2','3' everywhere) the stale offsets would silently
-  // highlight wrong spans. useLaw guards the same race the same way.
+  // highlight wrong spans. useOpenLaw guards the same race the same way.
   const claimLoad = useLatest();
 
   async function load() {
@@ -144,13 +161,15 @@ export function useNotes(
         allowStatuses: [404],
         errorMessage: (status: number) => `Kon notities niet laden: ${status}`,
       });
-      if (res.status === 404) {
-        // A law without a sidecar is normal, not an error.
+      // A law without notes gets an empty document; a 404 means the law is
+      // not in this corpus, and then it has no notes either. Neither needs
+      // the engine.
+      const yamlText = res.status === 404 ? '' : await res.text();
+      if (!hasNotes(yamlText)) {
         cache.set(key, []);
         if (!isStale()) resolved.value = [];
         return;
       }
-      const yamlText = await res.text();
 
       const engine = await initEngine();
       // The resolver needs the law's articles loaded; mirror how the
@@ -160,7 +179,7 @@ export function useNotes(
       // refetches when a previous load came from a different traject.
       // A bare `if (!engine.hasLaw(id))` gate here would skip that scope
       // check and resolve notes against stale-scope content.
-      await loadDependency(id, tr);
+      await loadDependency(id);
       // `vf` selects the viewed version inside the engine's full version
       // set; `undefined` (no valid_from on the law) means the latest.
       const result = engine.resolveNotes(id, yamlText, vf ?? undefined);
@@ -218,7 +237,7 @@ export function useNotes(
     const articleNr = selectedArticle.value?.number;
     if (articleNr == null || articleNr === '') return [];
     // String() both sides: js-yaml decodes an unquoted `number: 2` to a JS
-    // number while the resolver's article_number is always a string. useLaw
+    // number while the resolver's article_number is always a string. useOpenLaw
     // applies the same defensive coercion for the same reason.
     const target = String(articleNr);
     const out: NoteWithSpans[] = [];
@@ -309,10 +328,10 @@ export function useResolvedDraftNotes(
     }
     try {
       const engine = await initEngine();
-      // Pass the scope so the engine cache can detect a stale copy
-      // from a previous traject and refetch - without this a switch
-      // would keep highlighting drafts against the old law content.
-      await loadDependency(id, tr);
+      // loadDependency checks the scope, so the engine cache detects a
+      // stale copy from a previous traject and refetches - without this a
+      // switch would keep highlighting drafts against the old law content.
+      await loadDependency(id);
       const out: { note: Note; match: MatchResult }[] = [];
       for (const note of notes) {
         const selector = note?.target?.selector;

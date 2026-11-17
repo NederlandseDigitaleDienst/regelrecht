@@ -1,14 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
-import { useTrajects } from '../composables/useTrajects';
-import type { TrajectSummary } from '../composables/useTrajects';
+import { useTrajectsStore } from '../stores/trajects';
+import type { TrajectSummary } from '../stores/trajects';
 import type { OpenTab } from '../lib/openTabsStorage';
 import { useAuth } from '../composables/useAuth';
 import { useLoginToChooser } from '../composables/useLoginToChooser';
 import { homeTarget, trajectSwitchTarget } from '../composables/useLastVisitedRoute';
-import { useAppChrome } from '../composables/useAppChrome';
+import { useAppChromeStore } from '../stores/appChrome';
 import TrajectCreateForm from './TrajectCreateForm.vue';
 
 // Mobiele (sm) samenvoeging van de traject-knop en de artikel-tabbladen-knop:
@@ -16,9 +17,11 @@ import TrajectCreateForm from './TrajectCreateForm.vue';
 // menu-acties + traject-switcher + nieuw traject) en - in de editor - een
 // "Artikelen"-lijst (de open tabbladen). md/lg houden TrajectMenu + de
 // document-tab-bar. Hergebruikt dezelfde composables/handlers als TrajectMenu.
-const { trajects, activeTrajectRef, activeTraject, loading, createTraject } = useTrajects();
+const trajectsStore = useTrajectsStore();
+const { trajects, activeTrajectRef, activeTraject, loading } = storeToRefs(trajectsStore);
+const { createTraject } = trajectsStore;
 const { authenticated } = useAuth();
-const { documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions } = useAppChrome();
+const { documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions } = storeToRefs(useAppChromeStore());
 const route = useRoute();
 const router = useRouter();
 
@@ -29,7 +32,7 @@ const loginToChooser = useLoginToChooser();
 const sheetEl = ref<NLDDSheet | null>(null);
 const sheetMode = ref<'list' | 'create'>('list'); // 'list' | 'create'
 
-// Editor = de editor-view publiceert open tabbladen via useAppChrome.
+// In the editor, the editor view publishes its open tabs through the chrome store.
 const hasArticles = computed(() => documentTabs.value.length > 0 && !!tabActions.value);
 
 // --- Knoptekst: in de editor het actieve artikel · wet, met het traject als
@@ -180,14 +183,16 @@ function isActiveTab(tab: OpenTab): boolean {
 }
 function selectTab(tab: OpenTab): void {
   closeSheet();
-  tabActions.value?.select(tab);
+  // The sheet shows the active tab from the editor's state, so a switch the
+  // editor refuses (unsaved edits the user kept) needs nothing put back here.
+  void tabActions.value?.select(tab);
 }
 function closeTab(tab: OpenTab): void {
-  tabActions.value?.close(tab);
+  void tabActions.value?.close(tab);
 }
 // Reorder is tijdelijk uitgeschakeld op sm (drag-bugs). De editor exposeert
 // `tabActions.reorder` nog, dus opnieuw inschakelen = `reorderable`
-// @nldd-reorder + de drag-handle-cells terugzetten op de Artikelen-lijst.
+// @reorder + de reorder-handle-cells terugzetten op de Artikelen-lijst.
 
 // Sluit de sheet zodra het scherm groter dan sm wordt (md+ heeft eigen chrome).
 let breakpointQuery: MediaQueryList | null = null;
@@ -282,7 +287,7 @@ onBeforeUnmount(() => {
                sheet header. -->
           <template v-if="activeTraject">
             <nldd-spacer size="24"></nldd-spacer>
-            <nldd-title size="5"><h2>Trajecten</h2></nldd-title>
+            <nldd-title size="display-5"><h2>Trajecten</h2></nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
           </template>
           <nldd-list appearance="box-tinted">
@@ -326,7 +331,7 @@ onBeforeUnmount(() => {
           <!-- hasArticles implies tabActions is set, hence the `!` below. -->
           <template v-if="hasArticles">
             <nldd-spacer size="24"></nldd-spacer>
-            <nldd-title size="5"><h2>Artikelen</h2></nldd-title>
+            <nldd-title size="display-5"><h2>Artikelen</h2></nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
             <nldd-list appearance="box-tinted">
               <nldd-list-item

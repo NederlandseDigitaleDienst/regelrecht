@@ -110,14 +110,13 @@ before.
 - A new rule or condition with only a happy-path test leaves the condition
   itself untested: delete it and every test still passes. Ask for at least one
   case where the condition decides the outcome.
-- Will the new test actually run? A `*.test.sh` file runs in CI only when a
-  hook in `.pre-commit-config.yaml` or a step in `.github/workflows/ci.yml` runs
-  it, directly or through a `Justfile` recipe. A recipe that nothing in CI calls
-  runs only locally. A `*.test.ts` file runs only if its package has a test step in
-  `.github/workflows/ci.yml`, usually `npm test -w <package>`, and a `.feature`
-  file only in a directory that a BDD runner scans. A Rust test behind
-  `#[ignore]`, or a scenario tagged `@wip`, needs a comment saying why and what
-  would let it run again.
+- Will the new test actually run? The `orphan-tests` pre-commit hook
+  (`script/check-orphan-tests.mjs`) fails on a test file, crate or `.feature`
+  file that no CI job reaches, and on a `#[ignore]` or `@wip` without a comment.
+  It cannot judge the reason: a skip still needs to say why and what would let
+  it run again. A new BDD runner outside the engine needs an entry in
+  `BDD_RUNNERS` in `script/orphan-tests.mjs`, or its feature files fail the
+  hook.
 - Is the setup copied? Rust tests share helpers through `tests/common/` (in
   `engine` and `cel`) or through a `test-utils` feature (`pipeline` and `auth`,
   with the helpers in `src/test_utils.rs`). If the new test builds by hand what

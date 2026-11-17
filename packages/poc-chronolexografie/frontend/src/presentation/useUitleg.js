@@ -1,6 +1,7 @@
 /**
- * Whether the explanation page (UitlegPagina.vue) shows instead of the
- * choice screen. Its address is
+ * Whether a page of the choice screen shows instead of it: the explanation
+ * page (UitlegPagina.vue) here, the short page (KortPagina.vue, useKort.js)
+ * with the same code under its own parameter. Its address is
  * the page's own with `?uitleg`, beside `?presentatie` of the deck
  * (usePresentation.js): a query parameter leaves the paths of the cases and
  * scenarios (route.js) as they are. Opening adds the parameter, so the
@@ -10,7 +11,7 @@
  * the choice screen (App.vue).
  *
  * `createUitleg` makes one, for the tests; the app shares one through
- * `useUitleg`.
+ * `useUitleg`. `createPagina` makes one for another parameter.
  */
 import { ref } from 'vue';
 
@@ -18,18 +19,20 @@ import { ref } from 'vue';
 export const PARAM = 'uitleg';
 
 /** Whether a query string asks for the page. */
-export const asked = (search) => new URLSearchParams(search).has(PARAM);
+export const asked = (search, param = PARAM) => new URLSearchParams(search).has(param);
 
 /** `href` with the parameter on or off. */
-export function withParam(href, on) {
+export function withParam(href, on, param = PARAM) {
   const url = new URL(href);
-  if (on) url.searchParams.set(PARAM, '');
-  else url.searchParams.delete(PARAM);
+  if (on) url.searchParams.set(param, '');
+  else url.searchParams.delete(param);
   // `?uitleg=` reads as `?uitleg` in the address bar.
-  return url.toString().replace(`${PARAM}=`, PARAM).replace(/\?$/, '');
+  return url.toString().replace(new RegExp(`([?&]${param})=(?=&|$)`), '$1').replace(/\?$/, '');
 }
 
-export function createUitleg() {
+export function createPagina(param) {
+  const isOpen = (search) => asked(search, param);
+  const withOwnParam = (href, on) => withParam(href, on, param);
   const active = ref(false);
   // Whether the choice screen should take the focus back when it returns:
   // its button that opened the page is gone while the page shows.
@@ -41,7 +44,7 @@ export function createUitleg() {
   // Back and forward open and close it along with the address.
   const onPop = () => {
     const was = active.value;
-    active.value = asked(window.location.search);
+    active.value = isOpen(window.location.search);
     if (was && !active.value) terug.value = true;
   };
 
@@ -54,24 +57,33 @@ export function createUitleg() {
 
   /**
    * Open the page; from a click it gets an address of its own, an entry
-   * marked as the page's (`uitleg` in its state), so closing can go back over
-   * it, also after back and forward or a reload.
+   * marked as the page's (its parameter in its state), so closing can go back
+   * over it, also after back and forward or a reload.
+   *
+   * `vervangt` names the parameter of another page of the choice screen that
+   * this one takes the place of, on that page's entry: back then skips both,
+   * and closing goes back only when that page had pushed its entry.
    */
-  function open({ push = true } = {}) {
+  function open({ push = true, vervangt = null } = {}) {
     listen();
     active.value = true;
     geklikt = push;
-    if (push && typeof window !== 'undefined' && !asked(window.location.search)) {
-      window.history.pushState({ ...window.history.state, uitleg: true }, '', withParam(window.location.href, true));
+    if (!push || typeof window === 'undefined') return;
+    if (vervangt) {
+      const { [vervangt]: pushed, ...rest } = window.history.state ?? {};
+      const href = withOwnParam(withParam(window.location.href, false, vervangt), true);
+      window.history.replaceState({ ...rest, [param]: pushed || undefined }, '', href);
+    } else if (!isOpen(window.location.search)) {
+      window.history.pushState({ ...window.history.state, [param]: true }, '', withOwnParam(window.location.href, true));
     }
   }
 
   function close() {
     active.value = false;
     terug.value = true;
-    if (typeof window === 'undefined' || !asked(window.location.search)) return;
-    if (window.history.state?.uitleg) window.history.back();
-    else window.history.replaceState(window.history.state, '', withParam(window.location.href, false));
+    if (typeof window === 'undefined' || !isOpen(window.location.search)) return;
+    if (window.history.state?.[param]) window.history.back();
+    else window.history.replaceState(window.history.state, '', withOwnParam(window.location.href, false));
   }
 
   /**
@@ -80,8 +92,8 @@ export function createUitleg() {
    */
   function verlaat() {
     active.value = false;
-    if (typeof window !== 'undefined' && asked(window.location.search)) {
-      window.history.replaceState(window.history.state, '', withParam(window.location.href, false));
+    if (typeof window !== 'undefined' && isOpen(window.location.search)) {
+      window.history.replaceState(window.history.state, '', withOwnParam(window.location.href, false));
     }
   }
 
@@ -99,7 +111,7 @@ export function createUitleg() {
    */
   function follow({ opCasus = false } = {}) {
     listen();
-    if (typeof window === 'undefined' || !asked(window.location.search)) return;
+    if (typeof window === 'undefined' || !isOpen(window.location.search)) return;
     if (opCasus) verlaat();
     else open({ push: false });
   }
@@ -118,6 +130,9 @@ export function createUitleg() {
 
   return { active, terug, open, close, verlaat, naarCasus, neemFocus, follow, onPop };
 }
+
+/** The explanation page, for the tests. */
+export const createUitleg = () => createPagina(PARAM);
 
 let shared = null;
 

@@ -223,6 +223,51 @@ where
     Ok(job)
 }
 
+/// Claim the next pending enrich job, like [`claim_job`], skipping jobs that
+/// would run on `skip_provider`. A job runs on the provider in its payload, or
+/// on `default_provider` (the worker's `LLM_PROVIDER`) when it names none.
+///
+/// This is how the hourly cap holds back one provider without stopping the
+/// worker: once the claude runs of this hour are used up, jobs for another
+/// provider still get claimed. With `skip_provider` `None` it claims any enrich
+/// job.
+#[tracing::instrument(skip(executor))]
+pub async fn claim_enrich_job<'e, E>(
+    executor: E,
+    skip_provider: Option<&str>,
+    default_provider: &str,
+) -> Result<Option<Job>>
+where
+    E: sqlx::PgExecutor<'e>,
+{
+    let job = sqlx::query_as::<_, Job>(
+        r#"
+        UPDATE jobs
+        SET status = 'processing', started_at = now(), heartbeat_at = now(), attempts = attempts + 1
+        WHERE id = (
+            SELECT id FROM jobs
+            WHERE status = 'pending'
+              AND job_type = 'enrich'
+              AND (scheduled_at IS NULL OR scheduled_at <= now())
+              AND ($1::text IS NULL OR COALESCE(payload->>'provider', $2) <> $1)
+            ORDER BY priority DESC, created_at ASC
+            LIMIT 1
+            FOR UPDATE SKIP LOCKED
+        )
+        RETURNING *
+        "#,
+    )
+    .bind(skip_provider)
+    .bind(default_provider)
+    .fetch_optional(executor)
+    .await?;
+
+    if let Some(ref j) = job {
+        tracing::info!(job_id = %j.id, law_id = %j.law_id, attempt = j.attempts, "job claimed");
+    }
+    Ok(job)
+}
+
 /// Mark a job as completed with an optional result payload.
 #[tracing::instrument(skip(executor, result))]
 pub async fn complete_job<'e, E>(

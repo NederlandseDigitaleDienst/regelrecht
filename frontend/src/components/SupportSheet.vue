@@ -20,7 +20,7 @@ defineExpose({ show, hide });
 
 <template>
   <Teleport to="body">
-    <nldd-sheet ref="sheetEl" placement="right" width="480px" full-height @close="hide">
+    <nldd-sheet ref="sheetEl" placement="right" width="480px" @close="hide">
       <nldd-page sticky-header>
         <nldd-top-title-bar slot="header" text="Help" dismiss-text="Sluit" @dismiss="hide"></nldd-top-title-bar>
         <nldd-simple-section width="full">

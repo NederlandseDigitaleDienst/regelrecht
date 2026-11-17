@@ -1,9 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
+import { storeToRefs } from 'pinia';
+import { isNavigationFailure, useRoute, useRouter } from 'vue-router';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
-import { useTrajects } from '../composables/useTrajects';
-import type { TrajectSummary } from '../composables/useTrajects';
+import { useTrajectsStore } from '../stores/trajects';
+import type { TrajectSummary } from '../stores/trajects';
 import { useAuth } from '../composables/useAuth';
 import { useLoginToChooser } from '../composables/useLoginToChooser';
 import { homeTarget, trajectSwitchTarget } from '../composables/useLastVisitedRoute';
@@ -14,19 +15,25 @@ const props = withDefaults(
     // Mobile presentation: stretch the trigger button to the full toolbar
     // width with left-aligned content.
     fullWidth?: boolean;
+    // Render as a menu item with the same choices in a submenu instead of a
+    // button: the alternative a toolbar shows in its overflow menu. The
+    // toolbar copies it into that menu and sends `select` on to this
+    // original, so its items act on `select`, not on `click`.
+    menuItem?: boolean;
   }>(),
-  { fullWidth: false },
+  { fullWidth: false, menuItem: false },
 );
+
+// The toolbar places the menu-item form with `slot="overflow"`; the component
+// has two roots (the trigger and the teleported sheet), so the attributes are
+// bound on the trigger explicitly.
+defineOptions({ inheritAttrs: false });
 
 const emit = defineEmits<{ switched: [trajectRef: string] }>();
 
-const {
-  trajects,
-  activeTrajectRef,
-  activeTraject,
-  loading,
-  createTraject,
-} = useTrajects();
+const trajectsStore = useTrajectsStore();
+const { trajects, activeTrajectRef, activeTraject, loading } = storeToRefs(trajectsStore);
+const { createTraject } = trajectsStore;
 // Auth gates the menu: logged-in users get the traject switcher; everyone
 // else gets a popover explaining that trajecten unlock after login.
 const { authenticated } = useAuth();
@@ -62,11 +69,12 @@ function goToTaken(): void {
 // but mutually exclusive with them, so it lives in the same switcher. Carries
 // the open law so you land on the same law, globally (homeTarget's no-traject
 // shapes). Editing from here still routes through the chooser (editorRouteFor).
-function goToCorpusJuris(): void {
-  router.push(homeTarget({
+async function goToCorpusJuris(): Promise<void> {
+  const failure = await router.push(homeTarget({
     lawId: route.params.lawId || undefined,
     articleNumber: route.params.articleNumber || undefined,
   }));
+  if (isNavigationFailure(failure)) restoreTrajectSelection();
 }
 
 /**
@@ -78,8 +86,25 @@ function goToCorpusJuris(): void {
  * shows the new traject's own saved tabs in the bar without auto-opening one.
  * Per-tab state: a switch here only affects this tab, never other open tabs.
  */
-async function goToTraject(trajectRef: string): Promise<void> {
-  await router.push(trajectSwitchTarget(route.name, trajectRef));
+// Resolves to whether the switch happened: the editor can keep the user
+// where they are when leaving would lose unsaved edits.
+async function goToTraject(trajectRef: string): Promise<boolean> {
+  const failure = await router.push(trajectSwitchTarget(route.name, trajectRef));
+  if (!isNavigationFailure(failure)) return true;
+  restoreTrajectSelection();
+  return false;
+}
+
+// The menu marks a chosen traject selected before the navigation runs. When
+// the navigation does not happen, put the mark back on the active traject;
+// Vue does not patch a binding whose value did not change.
+const trajectGroupEl = ref<HTMLElement | null>(null);
+function restoreTrajectSelection(): void {
+  trajectGroupEl.value
+    ?.querySelectorAll<HTMLElement & { selected: boolean }>('nldd-menu-item[type="radio"]')
+    .forEach((item) => {
+      item.selected = (item.dataset.trajectRef || null) === (activeTrajectRef.value ?? null);
+    });
 }
 
 
@@ -152,8 +177,7 @@ async function selectTraject(t: TrajectSummary): Promise<void> {
     return;
   }
   if (t.ref === activeTrajectRef.value) return;
-  await goToTraject(t.ref);
-  emit('switched', t.ref);
+  if (await goToTraject(t.ref)) emit('switched', t.ref);
 }
 
 async function submitCreate(): Promise<void> {
@@ -181,8 +205,7 @@ async function submitCreate(): Promise<void> {
       console.warn('TrajectMenu: created traject has no ref', created);
       return;
     }
-    await goToTraject(created.ref);
-    emit('switched', created.ref);
+    if (await goToTraject(created.ref)) emit('switched', created.ref);
   } catch (e) {
     createError.value = (e as Error).message || 'Aanmaken mislukt';
   } finally {
@@ -193,7 +216,81 @@ async function submitCreate(): Promise<void> {
 </script>
 
 <template>
+  <nldd-menu-item
+    v-if="menuItem"
+    v-bind="$attrs"
+    icon="traject"
+    :text="activeLabel"
+    :disabled="menuLoading || undefined"
+  >
+    <nldd-menu v-if="authenticated">
+      <nldd-menu-item
+        v-if="activeTraject"
+        text="Werkdocumenten"
+        icon="documents"
+        @select="goToWerkdocumenten"
+      ></nldd-menu-item>
+      <nldd-menu-item
+        v-if="activeTraject"
+        text="Taken"
+        icon="tasks"
+        @select="goToTaken"
+      ></nldd-menu-item>
+      <nldd-menu-item v-if="activeTraject" text="Instellingen" icon="settings">
+        <nldd-menu>
+          <nldd-menu-item
+            text="Algemeen"
+            icon="traject"
+            @select="goToInstellingen('details')"
+          ></nldd-menu-item>
+          <nldd-menu-item
+            text="Leden"
+            icon="person-2"
+            @select="goToInstellingen('leden')"
+          ></nldd-menu-item>
+        </nldd-menu>
+      </nldd-menu-item>
+      <nldd-menu-group ref="trajectGroupEl" text="Trajecten">
+        <nldd-menu-item
+          type="radio"
+          data-traject-ref=""
+          :selected="!activeTrajectRef || undefined"
+          text="Corpus juris"
+          @select="goToCorpusJuris"
+        ></nldd-menu-item>
+        <nldd-menu-item
+          v-for="t in trajects"
+          :key="t.id"
+          type="radio"
+          :data-traject-ref="t.ref ?? ''"
+          :selected="t.ref === activeTrajectRef || undefined"
+          :text="`${t.name}${t.status === 'afgerond' ? ' (afgerond)' : ''}`"
+          @select="selectTraject(t)"
+        ></nldd-menu-item>
+        <nldd-menu-item
+          text="Nieuw traject…"
+          icon="plus"
+          @select="openCreate"
+        ></nldd-menu-item>
+      </nldd-menu-group>
+    </nldd-menu>
+    <!-- Not logged in: what the button's popover offers, as a menu. -->
+    <nldd-menu v-else>
+      <nldd-menu-item
+        text="Inloggen"
+        icon="login"
+        @select="loginToChooser"
+      ></nldd-menu-item>
+      <nldd-menu-item
+        text="Account aanvragen"
+        icon="new-account"
+        @select="goToAccountRequest"
+      ></nldd-menu-item>
+    </nldd-menu>
+  </nldd-menu-item>
   <nldd-button
+    v-else
+    v-bind="$attrs"
     data-testid="traject-menu-trigger"
     size="md"
     expandable
@@ -293,15 +390,16 @@ async function submitCreate(): Promise<void> {
 
   <!-- Teleport the sheet out of the toolbar so it doesn't inherit the
        toolbar's positioning / clipping. Matches the ScenarioBuilder
-       pattern. Each TrajectMenu instance (md/lg/sm) teleports its own
-       sheet to body but only one is active per breakpoint, so they
-       don't visually collide. -->
+       pattern. Every TrajectMenu instance (the buttons in the md, lg and
+       mobile bars and their menu-item alternatives in the toolbar overflow
+       menus) teleports its own sheet to body. Only the instance whose
+       "Nieuw traject…" was chosen opens its sheet, so they don't visually
+       collide. -->
   <Teleport to="body">
     <nldd-sheet
       ref="sheetEl"
       placement="right"
       width="520px"
-      full-height
       @close="closeCreate"
     >
       <nldd-page sticky-header>
