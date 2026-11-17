@@ -1,0 +1,34 @@
+/*
+ * Styling the NLDD design system does not offer yet.
+ *
+ * Every rule here fills a gap in @nldd/design-system and goes once the design
+ * system covers it. Each one says which gap, and attaches only to an element's
+ * outside (its tag and a data attribute the app sets), never to its shadow DOM,
+ * so a design-system upgrade that keeps the element keeps the rule.
+ * e2e/scenario-tab.spec.js checks that the rules still draw after an upgrade;
+ * docs/src/content/docs/components/frontend.md lists this file.
+ */
+
+/*
+ * Gap: nldd-document-tab-bar-item has no "modified" state (0.22: attributes
+ * text, supporting-text, short-text, short-supporting-text, href, selected;
+ * no parts, no slots). A tab with unsaved edits gets a dot in its top left
+ * corner. Remove once the item can show this itself.
+ */
+nldd-document-tab-bar-item[data-unsaved] {
+  position: relative;
+}
+
+nldd-document-tab-bar-item[data-unsaved]::before {
+  position: absolute;
+  /* Above the item's own (shadow) content, which paints a background. */
+  z-index: 1;
+  top: 3px;
+  left: 3px;
+  border-radius: 50%;
+  background-color: var(--semantics-content-warning-color);
+  width: 7px;
+  height: 7px;
+  content: '';
+  pointer-events: none;
+}

@@ -1,12 +1,16 @@
 /**
  * The feature files open in the editor, as a store the whole editor shares.
  *
- * One open copy per traject, regelwerk and file, so every view of a file reads
- * the same text and the same unsaved edits. The copies live in memory only; a
- * reload starts from the saved files. A view that edits a file decides how
- * long its edits live: the scenario pane throws them away when its edit sheet
- * closes. A copy without edits stays cached for the session, which costs one
- * parsed feature per file.
+ * A file opened in a scenario tab keeps its unsaved edits while the user works
+ * in another tab, and the editor runs the same copy next to an article (the
+ * status in the Machine pane's toolbar, the *Scenario's* pane): what those show
+ * is what the tab holds, edits included. So the open files outlive any one
+ * screen. They live in memory only; a reload starts from the saved files (the
+ * editor asks before it lets that happen).
+ *
+ * The editor opens files too, to run them. A file is kept until its tab closes
+ * or the traject is left; one opened without a tab stays cached for the
+ * session, which costs one parsed feature per file.
  */
 import { shallowReactive, toRaw } from 'vue';
 import { defineStore } from 'pinia';

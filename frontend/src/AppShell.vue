@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, nextTick, onMounted, onBeforeUnmount, provide } from 'vue';
+import { computed, ref, nextTick, onMounted, onBeforeUnmount, provide, watch } from 'vue';
 import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
 import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
@@ -21,6 +21,7 @@ import {
   isHomeSection,
 } from './composables/useLastVisitedRoute';
 import { useAppChromeStore } from './stores/appChrome';
+import { useOpenScenariosStore } from './stores/openScenarios';
 import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from './constants';
 import type { OpenTab } from './lib/openTabsStorage';
 
@@ -229,6 +230,25 @@ onMounted(() => {
   mdQuery?.addEventListener?.('change', updateViewport);
   lgQuery?.addEventListener?.('change', updateViewport);
 });
+// Unsaved scenario edits live in memory and outlive the editor (leaving it
+// for Home keeps them, with their tabs), so the shell is where a reload or
+// closing the browser tab warns about them. The editor warns about its open
+// article itself. Registered only while there are edits, because a
+// beforeunload listener keeps some browsers from caching the page.
+const openScenarios = useOpenScenariosStore();
+function warnUnsavedScenarios(event: BeforeUnloadEvent) {
+  event.preventDefault();
+}
+watch(
+  () => openScenarios.anyDirty(),
+  (dirty) => {
+    if (dirty) window.addEventListener('beforeunload', warnUnsavedScenarios);
+    else window.removeEventListener('beforeunload', warnUnsavedScenarios);
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => window.removeEventListener('beforeunload', warnUnsavedScenarios));
+
 onBeforeUnmount(() => {
   mdQuery?.removeEventListener?.('change', updateViewport);
   lgQuery?.removeEventListener?.('change', updateViewport);
@@ -535,10 +555,11 @@ function restoreTabSelection() {
               v-for="tab in documentTabs"
               :key="`${documentTabsTrajectRef ?? ''}:${tabActions?.key(tab)}`"
               :data-tab-key="tabActions?.key(tab)"
-              :text="`Artikel ${tab.articleNumber}`"
-              :supporting-text="tabActions?.displayName(tab)"
-              :short-text="`Art. ${tab.articleNumber}`"
-              :short-supporting-text="tabActions?.displayName(tab)"
+              :data-unsaved="tabActions?.label(tab).unsaved || undefined"
+              :text="tabActions?.label(tab).text"
+              :supporting-text="tabActions?.label(tab).supportingText"
+              :short-text="tabActions?.label(tab).shortText"
+              :short-supporting-text="tabActions?.label(tab).supportingText"
               :selected="activeDocumentTab && tabActions?.key(activeDocumentTab) === tabActions?.key(tab) || undefined"
               @click="onTabClick(tab)"
             >

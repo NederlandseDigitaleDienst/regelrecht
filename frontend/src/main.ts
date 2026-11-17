@@ -1,5 +1,7 @@
 import './nldd-components.js';
 import '@nldd/design-system/styles';
+// After the design system's own styles: what it does not offer yet.
+import './styles/design-system-gaps.css';
 import { computed, createApp } from 'vue';
 import { createPinia } from 'pinia';
 import App from './App.vue';

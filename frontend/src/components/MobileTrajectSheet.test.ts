@@ -13,7 +13,7 @@ vi.mock('vue-router', () => ({
 
 import MobileTrajectSheet from './MobileTrajectSheet.vue';
 import { useAppChromeStore } from '../stores/appChrome';
-import type { OpenTab } from '../lib/openTabsStorage';
+import { tabKey, type OpenTab } from '../lib/openTabsStorage';
 
 // nldd-sheet compiles to a raw custom element; stub show()/hide() with spies.
 let showSpy: Mock<() => void> | undefined, hideSpy: Mock<() => void> | undefined;
@@ -28,18 +28,22 @@ beforeAll(() => {
 });
 
 const TABS: OpenTab[] = [
-  { lawId: 'zorgtoeslagwet', articleNumber: '3' },
-  { lawId: 'awir', articleNumber: '1' },
+  { kind: 'article', lawId: 'zorgtoeslagwet', articleNumber: '3' },
+  { kind: 'article', lawId: 'awir', articleNumber: '1' },
 ];
 const NAMES: Record<string, string> = { zorgtoeslagwet: 'Zorgtoeslagwet', awir: 'Awir' };
-const tabKey = (t: OpenTab) => `${t.lawId}:${t.articleNumber}`;
+// The editor's labels for article tabs, as far as these tests read them.
+const label = (t: OpenTab) => {
+  const number = t.kind === 'article' ? t.articleNumber : '';
+  return { text: `Artikel ${number}`, shortText: `Art. ${number}`, supportingText: NAMES[t.lawId] || t.lawId, unsaved: false };
+};
 
 beforeEach(() => {
   showSpy = vi.fn();
   hideSpy = vi.fn();
   useAppChromeStore().registerTabActions({
     key: tabKey,
-    displayName: (t: OpenTab) => NAMES[t.lawId] || t.lawId,
+    label,
     select: vi.fn(),
     close: vi.fn(),
     reorder: vi.fn(),

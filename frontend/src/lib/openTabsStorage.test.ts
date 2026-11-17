@@ -10,8 +10,8 @@ import {
 // ref gets its own `regelrecht-open-tabs:<ref>` / `regelrecht-active-tab:<ref>`
 // key. These pin the per-traject isolation and the try/catch safe defaults.
 
-const TAB_A = { lawId: 'wet_op_de_zorgtoeslag', articleNumber: '1' };
-const TAB_B = { lawId: 'algemene_wet_inkomensafhankelijke_regelingen', articleNumber: '7' };
+const TAB_A = { kind: 'article', lawId: 'wet_op_de_zorgtoeslag', articleNumber: '1' } as const;
+const TAB_B = { kind: 'article', lawId: 'algemene_wet_inkomensafhankelijke_regelingen', articleNumber: '7' } as const;
 
 beforeEach(() => {
   localStorage.clear();
@@ -86,18 +86,18 @@ describe('openTabsStorage', () => {
         'regelrecht-open-tabs:x',
         JSON.stringify([{ lawId: 'some_law', articleNumber: 5 }]),
       );
-      expect(loadSavedTabs('x')).toEqual([{ lawId: 'some_law', articleNumber: '5' }]);
+      expect(loadSavedTabs('x')).toEqual([{ kind: 'article', lawId: 'some_law', articleNumber: '5' }]);
     });
 
     it('de-duplicates identical tabs (numeric vs string article collapse)', () => {
       localStorage.setItem(
         'regelrecht-open-tabs:x',
         JSON.stringify([
-          { lawId: 'some_law', articleNumber: 5 },
-          { lawId: 'some_law', articleNumber: '5' },
+          { kind: 'article', lawId: 'some_law', articleNumber: 5 },
+          { kind: 'article', lawId: 'some_law', articleNumber: '5' },
         ]),
       );
-      expect(loadSavedTabs('x')).toEqual([{ lawId: 'some_law', articleNumber: '5' }]);
+      expect(loadSavedTabs('x')).toEqual([{ kind: 'article', lawId: 'some_law', articleNumber: '5' }]);
     });
 
     it('caps the stored set at MAX_TABS, keeping the newest', () => {
@@ -108,8 +108,8 @@ describe('openTabsStorage', () => {
       localStorage.setItem('regelrecht-open-tabs:x', JSON.stringify(many));
       const loaded = loadSavedTabs('x');
       expect(loaded).toHaveLength(20);
-      expect(loaded[0]).toEqual({ lawId: 'law_5', articleNumber: '1' });
-      expect(loaded[19]).toEqual({ lawId: 'law_24', articleNumber: '1' });
+      expect(loaded[0]).toEqual({ kind: 'article', lawId: 'law_5', articleNumber: '1' });
+      expect(loaded[19]).toEqual({ kind: 'article', lawId: 'law_24', articleNumber: '1' });
     });
 
     it('drops a malformed active tab', () => {
@@ -122,13 +122,39 @@ describe('openTabsStorage', () => {
         'regelrecht-active-tab:x',
         JSON.stringify({ lawId: 'some_law', articleNumber: 5 }),
       );
-      expect(loadSavedActiveTab('x')).toEqual({ lawId: 'some_law', articleNumber: '5' });
+      expect(loadSavedActiveTab('x')).toEqual({ kind: 'article', lawId: 'some_law', articleNumber: '5' });
     });
   });
 
   describe('safe defaults when storage is unavailable', () => {
     afterEach(() => {
       vi.restoreAllMocks();
+    });
+
+    it('reads a tab saved before scenario tabs existed as an article tab', () => {
+      localStorage.setItem('regelrecht-open-tabs:x', JSON.stringify([{ lawId: 'some_law', articleNumber: '2' }]));
+      expect(loadSavedTabs('x')).toEqual([{ kind: 'article', lawId: 'some_law', articleNumber: '2' }]);
+    });
+
+    it('keeps a scenario tab, and drops one without a file name', () => {
+      localStorage.setItem(
+        'regelrecht-open-tabs:x',
+        JSON.stringify([
+          { kind: 'scenario', lawId: 'some_law', filename: 'basis.feature' },
+          { kind: 'scenario', lawId: 'some_law' },
+          { kind: 'scenario', lawId: 'some_law', filename: '' },
+        ]),
+      );
+      expect(loadSavedTabs('x')).toEqual([{ kind: 'scenario', lawId: 'some_law', filename: 'basis.feature' }]);
+    });
+
+    it('keeps a scenario tab next to an article tab of the same law', () => {
+      const tabs = [
+        { kind: 'article', lawId: 'some_law', articleNumber: '1' },
+        { kind: 'scenario', lawId: 'some_law', filename: '1' },
+      ] as const;
+      saveTabs('x', tabs);
+      expect(loadSavedTabs('x')).toEqual(tabs);
     });
 
     it('swallows write failures (e.g. quota full / disabled)', () => {
