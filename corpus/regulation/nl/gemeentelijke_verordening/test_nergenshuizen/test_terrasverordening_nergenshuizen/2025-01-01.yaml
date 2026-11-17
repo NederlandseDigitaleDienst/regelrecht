@@ -9,8 +9,9 @@ gemeente_code: GM9909
 officiele_titel: Terrasverordening gemeente Nergenshuizen
 url: https://example.com/test_terrasverordening_nergenshuizen
 
-# Een verzonnen gemeente waarvan geen scenario het gebied opgeeft. De engine
-# weet dan niet of deze verordening op een locatie geldt, en zegt dat.
+# A fictional municipality whose territory no scenario gives. The engine
+# then does not know whether this verordening applies at a location, and
+# says so.
 
 articles:
   - number: '1'

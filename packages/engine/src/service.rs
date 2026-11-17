@@ -37,7 +37,8 @@ use crate::config;
 use crate::context::{LazyInputs, RuleContext};
 use crate::data_source::{DataSource, DataSourceRegistry, DictDataSource};
 use crate::engine::{
-    ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputProvenance, RegulationRead,
+    ArticleEngine, ArticleResult, FilledBy, ImplementationAnswer, ImplementationGave,
+    OpenTermAsked, OpenTermFilled, OutputProvenance, RegulationRead,
 };
 use crate::error::{EngineError, Result};
 use crate::operations::ValueResolver;
@@ -47,7 +48,7 @@ use crate::resolver::{
     HookEntry, ImplementationLookup, LawArticleRef, Place, ProcedureMiss, RuleResolver,
     SelectionReason, hook_filter_admits, missing_article_reason, submission_filter_admits,
 };
-use crate::shape::{self, Territories};
+use crate::shape::{self, ShapeCache, Territories};
 use crate::trace::{LegalAnchor, PathNode, TraceBuilder, ValueSource};
 use crate::types::{
     Connectivity, LegalStatus, MissingKind, PathNodeType, RegulatoryLayer, ResolveType, TypeSpec,
@@ -166,6 +167,12 @@ struct ResolutionContext<'a> {
     /// The open terms a finding, a regulation or a binding filled in this
     /// execution ([`ArticleResult::open_terms`]).
     open_terms: Vec<OpenTermFilled>,
+    /// How the open terms with a `location` or `combine: OR` were asked in
+    /// this execution ([`ArticleResult::open_terms_asked`]).
+    open_terms_asked: Vec<OpenTermAsked>,
+    /// The shapes this execution has read, by their text: a location and an
+    /// operand of `OVERLAPS` are parsed and validated once.
+    shapes: Rc<ShapeCache>,
     /// The regulation versions whose articles ran in this execution
     /// ([`ArticleResult::regulations_read`]).
     regulations_read: Vec<RegulationRead>,
@@ -312,6 +319,8 @@ impl<'a> ResolutionContext<'a> {
             findings_asked: BTreeSet::new(),
             findings_noted: BTreeSet::new(),
             open_terms: Vec::new(),
+            open_terms_asked: Vec::new(),
+            shapes: Rc::default(),
             regulations_read: Vec::new(),
             answerer: None,
             decides_for: None,
@@ -377,6 +386,14 @@ impl<'a> ResolutionContext<'a> {
             return Ok(());
         }
         Err(EngineError::FindingsNotAsked { findings })
+    }
+
+    /// Record how an open term with a `location` or `combine: OR` was
+    /// asked, once: a term asked again in the same way is one record.
+    fn note_term_asked(&mut self, asked: OpenTermAsked) {
+        if !self.open_terms_asked.contains(&asked) {
+            self.open_terms_asked.push(asked);
+        }
     }
 
     /// Record that `filled_by` filled the open term `term` of `article` of
@@ -1003,6 +1020,9 @@ struct LazyArticleInputs<'a, 'r, 'c> {
     scope: RuleContext<'static>,
     res_ctx: RefCell<&'r mut ResolutionContext<'c>>,
     memo: RefCell<BTreeMap<String, Slot>>,
+    /// The shapes of the execution, held here so an operation can reach
+    /// them while the resolution context is lent out.
+    shapes: Rc<ShapeCache>,
 }
 
 /// What the memo knows about a name.
@@ -1052,6 +1072,10 @@ impl LazyInputs for AfterPreHooks<'_> {
         outputs: &BTreeMap<String, Value>,
     ) -> Option<Result<Value>> {
         (self.replace)(name, value, outputs)
+    }
+
+    fn shapes(&self) -> Option<&ShapeCache> {
+        self.inputs.shapes()
     }
 }
 
@@ -1112,8 +1136,12 @@ enum Location {
     /// The term names no location: the codes among the parameters select
     /// the regulation, as before.
     NotNamed,
-    /// The shape the term's `location` refers to.
-    Shape(Geometry<f64>),
+    /// The shape the term's `location` refers to, and the text it was
+    /// given as.
+    Shape {
+        shape: Rc<Geometry<f64>>,
+        text: String,
+    },
     /// The term names a location that has no value for this case: the
     /// Unknown that says what is missing.
     NotKnown(Value),
@@ -1121,7 +1149,8 @@ enum Location {
 
 /// The location `term` of `article` of `law_id` names, read from `values`:
 /// the parameters of the execution, with the input the location refers to
-/// where the article resolved one.
+/// where the article resolved one. The text is parsed through `shapes`, so
+/// several terms at one location parse it once.
 ///
 /// # Errors
 ///
@@ -1133,6 +1162,7 @@ fn location_of(
     article: &str,
     term: &crate::article::OpenTerm,
     values: &HashMap<String, Value>,
+    shapes: &ShapeCache,
 ) -> Result<Location> {
     let Some(reference) = term.location.as_deref() else {
         return Ok(Location::NotNamed);
@@ -1149,8 +1179,12 @@ fn location_of(
             MissingKind::NotPassed,
         ))),
         Some(unknown @ Value::Unknown(_)) => Ok(Location::NotKnown(unknown.clone())),
-        Some(Value::String(text)) => shape::parse(text)
-            .map(Location::Shape)
+        Some(Value::String(text)) => shapes
+            .parse(text)
+            .map(|shape| Location::Shape {
+                shape,
+                text: text.clone(),
+            })
             .map_err(|why| EngineError::InvalidOperation(format!("{named} is no shape: {why}"))),
         Some(Value::Null) => Err(EngineError::InvalidOperation(format!(
             "{named} is null; a regulation is picked by the place of the case, and this case \
@@ -1197,6 +1231,142 @@ fn answered_by(filled_by: &FilledBy) -> String {
                 .join(", ")
         ),
         _ => String::new(),
+    }
+}
+
+/// What asking every implementation of a term with `combine: OR` came to:
+/// what each one gave, and the value they make together, `None` when none
+/// was asked.
+struct Combined {
+    answers: Vec<ImplementationAnswer>,
+    outcome: Result<Option<Value>>,
+}
+
+/// What the implementations of a term with `combine: OR` gave, gathered
+/// while each is asked.
+#[derive(Default)]
+struct Given {
+    /// Every implementation that was asked, in order, with its answer.
+    answers: Vec<ImplementationAnswer>,
+    /// Who gave true.
+    fillers: Vec<FilledBy>,
+    unknowns: Vec<Value>,
+    /// The first untranslatable answer.
+    taint: Option<Value>,
+    /// The first failure, kept to raise when none gives true.
+    first_error: Option<EngineError>,
+}
+
+impl Given {
+    /// Take in what the article `impl_article` of `impl_law` gave when it
+    /// was run for the term at `site`. A run that is `None` was held back
+    /// and is not an answer. A failure, and a value that is no boolean or
+    /// null, is kept as an answer and not raised here.
+    fn take(
+        &mut self,
+        site: &str,
+        impl_law: &ArticleBasedLaw,
+        impl_article: &Article,
+        ran: Result<Option<(Value, FilledBy)>>,
+    ) {
+        let mut failed = |error: EngineError| {
+            let gave = ImplementationGave::Failed {
+                error: error.to_string(),
+            };
+            self.first_error.get_or_insert(error);
+            gave
+        };
+        let gave = match ran {
+            Ok(None) => return,
+            Err(error) => failed(error),
+            Ok(Some((Value::Bool(true), by))) => {
+                self.fillers.push(by);
+                ImplementationGave::True
+            }
+            Ok(Some((Value::Bool(false), _))) => ImplementationGave::False,
+            Ok(Some((Value::Null, _))) => ImplementationGave::Silent,
+            Ok(Some((value @ Value::Unknown(_), _))) => {
+                let missing = value.missing_facts().iter().map(|m| m.name.clone());
+                let gave = ImplementationGave::Unknown {
+                    missing: missing.collect(),
+                };
+                self.unknowns.push(value);
+                gave
+            }
+            Ok(Some((value @ Value::Untranslatable { .. }, _))) => {
+                self.taint.get_or_insert(value);
+                ImplementationGave::Untranslatable
+            }
+            Ok(Some((other, _))) => failed(EngineError::InvalidOperation(format!(
+                "{site} has combine OR, which takes a boolean or null from each \
+                 implementation; {} article {} gives a {}",
+                impl_law.id,
+                impl_article.number,
+                other.type_name()
+            ))),
+        };
+        self.answers.push(ImplementationAnswer {
+            law_id: impl_law.id.clone(),
+            article: impl_article.number.clone(),
+            gave,
+        });
+    }
+
+    /// Make one value of the answers, for `term` of `article` of `law`:
+    /// true, else the first failure, else untranslatable, else unknown, else
+    /// false; `None` when none was asked. The trace of the term gets the
+    /// outcome with every answer, and each implementation that gave true is
+    /// recorded as having filled the term.
+    fn combine(
+        self,
+        law: &ArticleBasedLaw,
+        article: &Article,
+        term: &crate::article::OpenTerm,
+        res_ctx: &mut ResolutionContext<'_>,
+    ) -> Combined {
+        let Given {
+            answers,
+            fillers,
+            unknowns,
+            taint,
+            first_error,
+        } = self;
+        if answers.is_empty() {
+            return Combined {
+                answers,
+                outcome: Ok(None),
+            };
+        }
+        let (what, outcome) = if !fillers.is_empty() {
+            for by in fillers {
+                res_ctx.note_open_term(&law.id, &article.number, &term.id, by);
+            }
+            ("is true", Ok(Value::Bool(true)))
+        } else if let Some(error) = first_error {
+            (
+                "fails: no implementation gives true and one failed",
+                Err(error),
+            )
+        } else if let Some(taint) = taint {
+            ("is untranslatable: no implementation gives true", Ok(taint))
+        } else if let Some(unknown) = Value::merge_unknown(&unknowns) {
+            ("is unknown: no implementation gives true", Ok(unknown))
+        } else {
+            ("is false", Ok(Value::Bool(false)))
+        };
+        let asked: Vec<String> = answers.iter().map(ImplementationAnswer::describe).collect();
+        res_ctx.trace_set_message(format!(
+            "Open term '{}' {what} (combine OR); asked: {}",
+            term.id,
+            asked.join("; ")
+        ));
+        if let Ok(value) = &outcome {
+            res_ctx.trace_set_result(value.clone());
+        }
+        Combined {
+            answers,
+            outcome: outcome.map(Some),
+        }
     }
 }
 
@@ -1284,6 +1454,7 @@ impl<'a, 'r, 'c> LazyArticleInputs<'a, 'r, 'c> {
             law,
             parameters,
             scope,
+            shapes: Rc::clone(&res_ctx.shapes),
             res_ctx: RefCell::new(res_ctx),
             memo: RefCell::new(BTreeMap::new()),
         })
@@ -1552,6 +1723,10 @@ impl LazyInputs for LazyArticleInputs<'_, '_, '_> {
             Some(owned) => self.resolve_owned(owned),
             None => Ok(None),
         })
+    }
+
+    fn shapes(&self) -> Option<&ShapeCache> {
+        Some(&self.shapes)
     }
 }
 
@@ -1890,6 +2065,8 @@ pub struct StageReport {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub open_terms: Vec<OpenTermFilled>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub open_terms_asked: Vec<OpenTermAsked>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub regulations_read: Vec<RegulationRead>,
 }
 
@@ -1913,6 +2090,7 @@ impl StageReport {
             &res_ctx.declarations_not_in_force,
         );
         add(&mut self.open_terms, &res_ctx.open_terms);
+        add(&mut self.open_terms_asked, &res_ctx.open_terms_asked);
         add(&mut self.regulations_read, &res_ctx.regulations_read);
     }
 
@@ -1927,6 +2105,7 @@ impl StageReport {
             .declarations_not_in_force
             .clone_from(&self.declarations_not_in_force);
         result.open_terms.clone_from(&self.open_terms);
+        result.open_terms_asked.clone_from(&self.open_terms_asked);
         result.regulations_read.clone_from(&self.regulations_read);
     }
 }
@@ -2244,6 +2423,7 @@ impl LawExecutionService {
                 declaration_version_notes: result.declaration_version_notes.clone(),
                 declarations_not_in_force: result.declarations_not_in_force.clone(),
                 open_terms: result.open_terms.clone(),
+                open_terms_asked: result.open_terms_asked.clone(),
             },
             accepted_values: Vec::new(),
             timestamp: chrono::Utc::now().to_rfc3339(),
@@ -2853,6 +3033,7 @@ impl LawExecutionService {
         scope: &HashMap<String, Value>,
     ) -> Result<Vec<DecisionTerm>> {
         let ref_date = Some(parse_calculation_date(calculation_date)?);
+        let shapes = ShapeCache::default();
         let mut terms: Vec<DecisionTerm> = Vec::new();
         let mut todo = vec![(law_id.to_string(), article_number.to_string())];
         let mut seen: BTreeSet<(String, String)> = BTreeSet::new();
@@ -2874,7 +3055,8 @@ impl LawExecutionService {
                 .unwrap_or_default();
             let mut found = Vec::new();
             for term in article.get_open_terms().into_iter().flatten() {
-                let lookup = self.implementations_for(&law_id, &number, term, ref_date, scope)?;
+                let lookup =
+                    self.implementations_for(&law_id, &number, term, ref_date, scope, &shapes)?;
                 let filled_by: Vec<String> = lookup
                     .implementations
                     .iter()
@@ -3497,6 +3679,7 @@ impl LawExecutionService {
                     declaration_version_notes: Vec::new(),
                     declarations_not_in_force: Vec::new(),
                     open_terms: Vec::new(),
+                    open_terms_asked: Vec::new(),
                     regulations_read: Vec::new(),
                 });
             }
@@ -4499,7 +4682,13 @@ impl LawExecutionService {
         let filled = if res_ctx.findings.is_empty() {
             BTreeSet::new()
         } else {
-            self.filled_terms(law, article, &parameters, res_ctx.reference_date())?
+            self.filled_terms(
+                law,
+                article,
+                &parameters,
+                res_ctx.reference_date(),
+                &res_ctx.shapes,
+            )?
         };
         for (id, finding) in res_ctx.findings_for(law, article, &filled)? {
             if res_ctx.depth == 0 && parameters.contains_key(&id) {
@@ -5020,6 +5209,7 @@ impl LawExecutionService {
         article: &Article,
         parameters: &BTreeMap<String, Value>,
         date: Option<NaiveDate>,
+        shapes: &ShapeCache,
     ) -> Result<BTreeSet<String>> {
         let scope: HashMap<String, Value> = parameters
             .iter()
@@ -5030,7 +5220,8 @@ impl LawExecutionService {
             if term.decided_per_case_by.is_none() {
                 continue;
             }
-            let lookup = self.implementations_for(&law.id, &article.number, term, date, &scope)?;
+            let lookup =
+                self.implementations_for(&law.id, &article.number, term, date, &scope, shapes)?;
             if !lookup.implementations.is_empty() {
                 filled.insert(term.id.clone());
             }
@@ -5063,6 +5254,7 @@ impl LawExecutionService {
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
         let date = res_ctx.reference_date();
+        let shapes = Rc::clone(&res_ctx.shapes);
         let mut todo: Vec<(String, String)> = vec![(law.id.clone(), article.number.clone())];
         let mut seen: BTreeSet<(String, String)> = BTreeSet::new();
         while let Some((law_id, number)) = todo.pop() {
@@ -5077,7 +5269,8 @@ impl LawExecutionService {
                 continue;
             };
             for term in found.get_open_terms().into_iter().flatten() {
-                let lookup = self.implementations_for(&law_id, &number, term, date, &scope)?;
+                let lookup =
+                    self.implementations_for(&law_id, &number, term, date, &scope, &shapes)?;
                 for (impl_law, impl_article) in &lookup.implementations {
                     for own in impl_article.get_open_terms().into_iter().flatten() {
                         if own.decided_per_case_by.is_none() {
@@ -5094,6 +5287,7 @@ impl LawExecutionService {
                                 own,
                                 date,
                                 &scope,
+                                &shapes,
                             )?
                             .implementations
                             .is_empty()
@@ -5123,8 +5317,9 @@ impl LawExecutionService {
         term: &crate::article::OpenTerm,
         date: Option<NaiveDate>,
         values: &HashMap<String, Value>,
+        shapes: &ShapeCache,
     ) -> Result<ImplementationLookup<'_>> {
-        let location = location_of(law_id, article, term, values)?;
+        let location = location_of(law_id, article, term, values, shapes)?;
         self.implementations_at(law_id, article, term, date, values, &location)
     }
 
@@ -5140,7 +5335,7 @@ impl LawExecutionService {
         location: &Location,
     ) -> Result<ImplementationLookup<'_>> {
         let place = match location {
-            Location::Shape(shape) => Some(Place {
+            Location::Shape { shape, .. } => Some(Place {
                 location: shape,
                 territories: &self.territories,
             }),
@@ -5243,19 +5438,25 @@ impl LawExecutionService {
     }
 
     /// Ask every implementation of `term`, a term with `combine: OR` (schema
-    /// v0.8.23), and make one value of what they say, as `OR` does of its
-    /// operands: true when one gives true; otherwise untranslatable when one
-    /// is; otherwise unknown when one is, for lack of everything they lack;
-    /// otherwise false. An implementation that gives null does not speak
-    /// about the case and counts as not saying so. Every implementation that
-    /// gave true is recorded as having filled the term.
+    /// v0.8.23), and make one value of what they say. In this order:
     ///
-    /// `None` when no implementation was asked: there is none, or each is
-    /// held back. The term then goes on as a term without `combine` does.
+    /// 1. true when one gives true, whatever the others did, an
+    ///    implementation that failed included: its failure is kept in the
+    ///    answers and in the trace, and is not raised;
+    /// 2. otherwise the error of the first implementation that failed, or
+    ///    that gave something that is no boolean;
+    /// 3. otherwise untranslatable when one is;
+    /// 4. otherwise unknown when one is, for lack of everything they lack;
+    /// 5. otherwise false.
     ///
-    /// # Errors
+    /// An implementation that gives null does not speak about the case and
+    /// counts as not saying so. Every implementation is asked, also after
+    /// one gave true, and every one that gave true is recorded as having
+    /// filled the term.
     ///
-    /// When an implementation fails, or gives something that is no boolean.
+    /// The outcome is `None` when no implementation was asked: there is
+    /// none, or each is held back. The term then goes on as a term without
+    /// `combine` does.
     fn ask_every_implementation(
         &self,
         article: &Article,
@@ -5264,85 +5465,48 @@ impl LawExecutionService {
         parameters: &BTreeMap<String, Value>,
         implementations: &[(&ArticleBasedLaw, &Article)],
         res_ctx: &mut ResolutionContext<'_>,
-    ) -> Result<Option<Value>> {
-        let mut says_so: Vec<(String, FilledBy)> = Vec::new();
-        let mut does_not: Vec<String> = Vec::new();
-        let mut unknown: Vec<(String, Value)> = Vec::new();
-        let mut taint: Option<Value> = None;
+    ) -> Combined {
+        let site = format!("Open term '{}' on {}#{}", term.id, law.id, article.number);
+        let mut given = Given::default();
         for (impl_law, impl_article) in implementations {
             let ran =
-                self.run_implementation(law, term, (impl_law, impl_article), parameters, res_ctx)?;
-            let Some((value, by)) = ran else {
-                continue;
-            };
-            let name = format!("{} article {}", impl_law.id, impl_article.number);
-            match value {
-                Value::Bool(true) => says_so.push((name, by)),
-                Value::Bool(false) | Value::Null => does_not.push(name),
-                Value::Unknown(_) => unknown.push((name, value)),
-                Value::Untranslatable { .. } => {
-                    taint.get_or_insert(value);
-                }
-                other => {
-                    let message = format!(
-                        "Open term '{}' on {}#{} has combine OR, which takes a boolean or null \
-                         from each implementation; {name} gives a {}",
-                        term.id,
-                        law.id,
-                        article.number,
-                        other.type_name()
-                    );
-                    res_ctx.trace_set_message(message.clone());
-                    return Err(EngineError::InvalidOperation(message));
-                }
-            }
+                self.run_implementation(law, term, (impl_law, impl_article), parameters, res_ctx);
+            given.take(&site, impl_law, impl_article, ran);
         }
-        let asked = says_so.len() + does_not.len() + unknown.len() + usize::from(taint.is_some());
-        if asked == 0 {
-            return Ok(None);
-        }
-        let names = |named: &[String]| named.join(", ");
-        if !says_so.is_empty() {
-            let (named, fillers): (Vec<String>, Vec<FilledBy>) = says_so.into_iter().unzip();
-            res_ctx.trace_set_result(Value::Bool(true));
+        given.combine(law, article, term, res_ctx)
+    }
+
+    /// Put in the trace, under the open term being resolved, where the case
+    /// is and how each candidate regulation was held against it: the
+    /// location by its start and the hash of its text, each territory by its
+    /// code and the hash of the text it was registered as.
+    fn trace_place(asked: &OpenTermAsked, res_ctx: &ResolutionContext<'_>) {
+        let Some(location) = &asked.location else {
+            return;
+        };
+        {
+            let _guard = res_ctx.trace_guard("location", PathNodeType::OpenTermResolution);
             res_ctx.trace_set_message(format!(
-                "Open term '{}' is true (combine OR): implemented by {}; {asked} asked",
-                term.id,
-                names(&named)
+                "Open term '{}' is asked at the location {} ({})",
+                asked.term,
+                shape::quote(location),
+                shape::text_hash(location)
             ));
-            for by in fillers {
-                res_ctx.note_open_term(&law.id, &article.number, &term.id, by);
-            }
-            return Ok(Some(Value::Bool(true)));
         }
-        if let Some(taint) = taint {
-            res_ctx.trace_set_result(taint.clone());
+        for test in &asked.territories {
+            let _guard = res_ctx.trace_guard(&test.law_id, PathNodeType::OpenTermResolution);
             res_ctx.trace_set_message(format!(
-                "Open term '{}' is untranslatable (combine OR): none of the {asked} \
-                 implementations asked gives true, and one is untranslatable",
-                term.id
+                "The location {} the territory of '{}' ({}), which {} carries",
+                if test.overlaps {
+                    "overlaps"
+                } else {
+                    "does not overlap"
+                },
+                test.code,
+                test.territory,
+                test.law_id
             ));
-            return Ok(Some(taint));
         }
-        let (unknown_names, unknowns): (Vec<String>, Vec<Value>) = unknown.into_iter().unzip();
-        if let Some(merged) = Value::merge_unknown(&unknowns) {
-            res_ctx.trace_set_result(merged.clone());
-            res_ctx.trace_set_message(format!(
-                "Open term '{}' is unknown (combine OR): none of the {asked} implementations \
-                 asked gives true, and {} cannot say",
-                term.id,
-                names(&unknown_names)
-            ));
-            return Ok(Some(merged));
-        }
-        res_ctx.trace_set_result(Value::Bool(false));
-        res_ctx.trace_set_message(format!(
-            "Open term '{}' is false (combine OR): none of the implementations asked gives \
-             true ({})",
-            term.id,
-            names(&does_not)
-        ));
-        Ok(Some(Value::Bool(false)))
     }
 
     /// Resolve one open term declared on an article via IoC (implements index),
@@ -5432,7 +5596,8 @@ impl LawExecutionService {
         // A term with a `location` (schema v0.8.23) is filled by the
         // regulation of the place. Where the place is not known, neither is
         // the regulation, so the term is unknown for lack of the location.
-        let location = match location_of(&law.id, &article.number, term, &scope) {
+        let located = location_of(&law.id, &article.number, term, &scope, &res_ctx.shapes);
+        let location = match located {
             Ok(Location::NotKnown(unknown)) => {
                 res_ctx.trace_set_result(unknown.clone());
                 res_ctx.trace_set_message(format!(
@@ -5468,6 +5633,27 @@ impl LawExecutionService {
                 return Err(e);
             }
         };
+
+        // What a term with a `location` or `combine: OR` rests on is not in
+        // any rulework: the territories come from the caller, and an
+        // implementation that did not decide the outcome leaves no other
+        // mark. So the place, each territory test and each answer go into
+        // the trace under this term and, tracing or not, onto the result.
+        let mut asked =
+            (term.location.is_some() || term.combines_with_or()).then(|| OpenTermAsked {
+                law_id: law.id.clone(),
+                article: article.number.clone(),
+                term: term.id.clone(),
+                location: match &location {
+                    Location::Shape { text, .. } => Some(text.clone()),
+                    Location::NotNamed | Location::NotKnown(_) => None,
+                },
+                territories: lookup.territory_tests.clone(),
+                answers: Vec::new(),
+            });
+        if let Some(asked) = &asked {
+            Self::trace_place(asked, res_ctx);
+        }
 
         // A regulation that arrogates a term the law delegates elsewhere is
         // skipped, so a competent regulation lower in the ranking can still
@@ -5522,15 +5708,27 @@ impl LawExecutionService {
         // A term with `combine: OR` (schema v0.8.23) has no winner: every
         // candidate is asked and the term is what they say together. Only
         // where none was asked does it go on to its default below.
-        let ranked = if term.combines_with_or() {
-            match self.ask_every_implementation(
+        let combined = term.combines_with_or().then(|| {
+            self.ask_every_implementation(
                 article,
                 law,
                 term,
                 parameters,
                 &lookup.implementations,
                 res_ctx,
-            ) {
+            )
+        });
+        let outcome = combined.map(|combined| {
+            if let Some(asked) = &mut asked {
+                asked.answers = combined.answers;
+            }
+            combined.outcome
+        });
+        if let Some(asked) = asked {
+            res_ctx.note_term_asked(asked);
+        }
+        let ranked = if let Some(outcome) = outcome {
+            match outcome {
                 Ok(None) => &[][..],
                 Ok(Some(value)) => {
                     res_ctx.leave(&ot_key);
@@ -6703,7 +6901,13 @@ impl LawExecutionService {
         let declared = Self::filter_parameters_for_article(article, &passed);
         let mut findings: BTreeMap<String, Value> = BTreeMap::new();
         let mut now_filled: Vec<String> = Vec::new();
-        let filled = self.filled_terms(target_law, article, &passed, res_ctx.reference_date())?;
+        let filled = self.filled_terms(
+            target_law,
+            article,
+            &passed,
+            res_ctx.reference_date(),
+            &res_ctx.shapes,
+        )?;
         for term in article.get_open_terms().into_iter().flatten() {
             if term.decided_per_case_by.is_none() || declared.contains_key(&term.id) {
                 continue;
@@ -17267,8 +17471,8 @@ articles:
         assert!(
             trace_mentions(
                 &root,
-                "Open term 'verboden' is false (combine OR): none of the implementations asked \
-                 gives true (plan_links article 1, plan_links article 2)"
+                "Open term 'verboden' is false (combine OR); asked: plan_links article 1 was \
+                 silent (null); plan_links article 2 gave false"
             ),
             "{}",
             root.render_box_drawing()
@@ -17615,5 +17819,408 @@ articles:
         assert!(filled_by(&HashMap::new()).is_empty());
         let code = HashMap::from([("gemeente_code".to_string(), Value::String("GM0001".into()))]);
         assert!(filled_by(&code).is_empty());
+    }
+
+    // -- what a located or combined term leaves behind ------------------------
+
+    /// The record of how `verboden` was asked.
+    fn asked(result: &ArticleResult) -> &OpenTermAsked {
+        let records: Vec<&OpenTermAsked> = result
+            .open_terms_asked
+            .iter()
+            .filter(|asked| asked.term == "verboden")
+            .collect();
+        assert_eq!(records.len(), 1, "{:#?}", result.open_terms_asked);
+        records[0]
+    }
+
+    /// What each implementation gave, as `law#article` and the answer.
+    fn answers(result: &ArticleResult) -> Vec<(String, ImplementationGave)> {
+        asked(result)
+            .answers
+            .iter()
+            .map(|a| (format!("{}#{}", a.law_id, a.article), a.gave.clone()))
+            .collect()
+    }
+
+    #[test]
+    fn the_place_test_is_recorded_on_the_result_the_receipt_and_the_trace() {
+        let left = plan("plan_links", "GM0001", &[("1", "true"), ("2", "null")]);
+        let right = plan("plan_rechts", "GM0002", &[("1", "true")]);
+        let service = place_service(&[&place_law(), &left, &right]);
+        let parameters = params(&[("locatie", Value::String("POINT(5 5)".to_string()))]);
+        let result = service
+            .evaluate_law_output_with_trace(
+                "plaatswet",
+                "vergunningplichtig",
+                parameters.clone(),
+                "2025-06-01",
+            )
+            .unwrap();
+
+        let record = asked(&result);
+        assert_eq!(record.law_id, "plaatswet");
+        assert_eq!(record.article, "1");
+        assert_eq!(record.location.as_deref(), Some("POINT(5 5)"));
+        // One test per candidate regulation, not one per article: the plan
+        // of GM0001 has two articles that fill the term.
+        let mut tests: Vec<(&str, &str, bool)> = record
+            .territories
+            .iter()
+            .map(|t| (t.law_id.as_str(), t.code.as_str(), t.overlaps))
+            .collect();
+        tests.sort_unstable();
+        assert_eq!(
+            tests,
+            [
+                ("plan_links", "GM0001", true),
+                ("plan_rechts", "GM0002", false)
+            ]
+        );
+        let left_test = record
+            .territories
+            .iter()
+            .find(|t| t.code == "GM0001")
+            .unwrap();
+        assert_eq!(left_test.territory, shape::text_hash(LEFT));
+        assert_eq!(
+            answers(&result),
+            [
+                ("plan_links#1".to_string(), ImplementationGave::True),
+                ("plan_links#2".to_string(), ImplementationGave::Silent),
+            ]
+        );
+
+        // The receipt carries the same record, trace or no trace.
+        let receipt = service.build_receipt_with_outputs(&result, &parameters, "2025-06-01", &[]);
+        assert_eq!(receipt.results.open_terms_asked, result.open_terms_asked);
+        let json = serde_json::to_value(&receipt.results).unwrap();
+        assert_eq!(
+            json["open_terms_asked"][0]["answers"][0]["gave"],
+            serde_json::json!("true")
+        );
+
+        // The trace says the same under the open term.
+        let root = result.trace.as_ref().unwrap();
+        for needle in [
+            "Open term 'verboden' is asked at the location POINT(5 5)",
+            "The location overlaps the territory of 'GM0001'",
+            "The location does not overlap the territory of 'GM0002'",
+            &shape::text_hash(LEFT),
+            "asked: plan_links article 1 gave true; plan_links article 2 was silent (null)",
+        ] {
+            assert!(
+                trace_mentions(root, needle),
+                "{needle}\n{}",
+                root.render_box_drawing()
+            );
+        }
+    }
+
+    #[test]
+    fn two_runs_that_differ_only_in_a_territory_leave_different_records() {
+        let left = plan("plan_links", "GM0001", &[("1", "true")]);
+        let run = |territory: &str| {
+            let mut service = LawExecutionService::new();
+            service.load_law(&place_law()).unwrap();
+            service.load_law(&left).unwrap();
+            service.register_territory("GM0001", territory).unwrap();
+            service
+                .evaluate_law_output_with_trace(
+                    "plaatswet",
+                    "vergunningplichtig",
+                    params(&[("locatie", Value::String("POINT(5 5)".to_string()))]),
+                    "2025-06-01",
+                )
+                .unwrap()
+        };
+        let smaller = "POLYGON((0 0, 6 0, 6 6, 0 6, 0 0))";
+        let (first, second) = (run(LEFT), run(smaller));
+        // The same answer from the same parameters and ruleworks...
+        assert_eq!(first.outputs, second.outputs);
+        // ...and a record that says the territories were not the same.
+        assert_ne!(first.open_terms_asked, second.open_terms_asked);
+        assert_eq!(
+            asked(&second).territories[0].territory,
+            shape::text_hash(smaller)
+        );
+        assert!(trace_mentions(
+            second.trace.as_ref().unwrap(),
+            &shape::text_hash(smaller)
+        ));
+    }
+
+    #[test]
+    fn a_false_or_unknown_combined_term_records_what_every_implementation_gave() {
+        let left = plan("plan_links", "GM0001", &[("1", "null"), ("2", "false")]);
+        let right = plan("plan_rechts", "GM0002", &[("1", "$monument")]);
+        let service = place_service(&[&place_law(), &left, &right]);
+
+        let is_false = permit_needed(&service, "POINT(5 5)").unwrap();
+        assert_eq!(
+            is_false.outputs.get("vergunningplichtig"),
+            Some(&Value::Bool(false))
+        );
+        assert_eq!(
+            answers(&is_false),
+            [
+                ("plan_links#1".to_string(), ImplementationGave::Silent),
+                ("plan_links#2".to_string(), ImplementationGave::False),
+            ]
+        );
+
+        let unknown = permit_needed(&service, ACROSS).unwrap();
+        assert!(unknown.outputs["vergunningplichtig"].is_unknown());
+        assert_eq!(
+            answers(&unknown),
+            [
+                ("plan_links#1".to_string(), ImplementationGave::Silent),
+                ("plan_links#2".to_string(), ImplementationGave::False),
+                (
+                    "plan_rechts#1".to_string(),
+                    ImplementationGave::Unknown {
+                        missing: vec!["monument".to_string()]
+                    }
+                ),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_term_without_location_or_combine_leaves_no_such_record() {
+        let law = place_law_with(
+            "          default:\n            actions:\n              - output: verboden\n                value: false",
+            "required: true",
+        );
+        let left = plan("plan_links", "GM0001", &[("1", "true")]);
+        let service = place_service(&[&law, &left]);
+        let result = service
+            .evaluate_law_output(
+                "plaatswet",
+                "vergunningplichtig",
+                params(&[
+                    ("locatie", Value::String("POINT(5 5)".to_string())),
+                    ("gemeente_code", Value::String("GM0001".to_string())),
+                ]),
+                "2025-06-01",
+            )
+            .unwrap();
+        assert_eq!(
+            result.outputs.get("vergunningplichtig"),
+            Some(&Value::Bool(true))
+        );
+        assert!(result.open_terms_asked.is_empty());
+    }
+
+    // -- combine: OR and an implementation that fails -------------------------
+
+    /// A plan whose one article fails when it runs: it holds the place
+    /// against an area the caller gives, and the caller gives no shape.
+    fn failing_plan(id: &str, code: &str) -> String {
+        format!(
+            r#"
+$id: {id}
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: {code}
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      implements:
+        - law: plaatswet
+          article: '1'
+          open_term: verboden
+      execution:
+        parameters:
+          - name: locatie
+            type: shape
+            required: true
+          - name: gebied
+            type: string
+            required: true
+        output:
+          - name: verboden
+            type: boolean
+        actions:
+          - output: verboden
+            value:
+              operation: OVERLAPS
+              subject: $locatie
+              value: $gebied
+"#
+        )
+    }
+
+    /// `vergunningplichtig` across both territories, with an area that is
+    /// no shape for the plan that asks for one.
+    fn permit_needed_with_a_broken_area(service: &LawExecutionService) -> Result<ArticleResult> {
+        service.evaluate_law_output_with_trace(
+            "plaatswet",
+            "vergunningplichtig",
+            params(&[
+                ("locatie", Value::String(ACROSS.to_string())),
+                ("gebied", Value::String("ergens".to_string())),
+            ]),
+            "2025-06-01",
+        )
+    }
+
+    #[test]
+    fn combine_or_true_wins_over_an_implementation_that_fails() {
+        // The failing plan sorts first, so it is asked before the one that
+        // says so: the term is true all the same, and every plan was asked.
+        let broken = failing_plan("plan_a_kapot", "GM0001");
+        let right = plan("plan_rechts", "GM0002", &[("1", "true")]);
+        let service = place_service(&[&place_law(), &broken, &right]);
+
+        let result = permit_needed_with_a_broken_area(&service).unwrap();
+        assert_eq!(
+            result.outputs.get("vergunningplichtig"),
+            Some(&Value::Bool(true))
+        );
+        assert_eq!(fillers(&result), ["plan_rechts#1"]);
+        let given = answers(&result);
+        assert_eq!(given.len(), 2, "{given:?}");
+        assert_eq!(given[0].0, "plan_a_kapot#1");
+        let ImplementationGave::Failed { error } = &given[0].1 else {
+            panic!("expected a failure, got {:?}", given[0].1);
+        };
+        assert!(error.contains("does not parse as WKT"), "{error}");
+        assert_eq!(
+            given[1],
+            ("plan_rechts#1".to_string(), ImplementationGave::True)
+        );
+        // The failure is in the trace too, not raised.
+        let root = result.trace.as_ref().unwrap();
+        assert!(
+            trace_mentions(root, "plan_a_kapot article 1 failed: "),
+            "{}",
+            root.render_box_drawing()
+        );
+    }
+
+    #[test]
+    fn combine_or_raises_the_first_failure_when_none_says_so() {
+        // Beside the failure: an implementation that says no, one that is
+        // silent and one that cannot say. A failure outranks all three.
+        let broken = failing_plan("plan_a_kapot", "GM0001");
+        let right = plan(
+            "plan_rechts",
+            "GM0002",
+            &[("1", "false"), ("2", "null"), ("3", "$monument")],
+        );
+        let service = place_service(&[&place_law(), &broken, &right]);
+        let e = permit_needed_with_a_broken_area(&service).unwrap_err();
+        assert!(
+            e.to_string()
+                .contains("the value of OVERLAPS is not a shape: 'ergens' does not parse as WKT"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn combine_or_takes_an_answer_that_is_no_boolean_as_a_failure() {
+        // The plan hands on what it was given for `monument`, and the caller
+        // gave text. True from another plan still wins; alone it is an error.
+        let left = plan("plan_links", "GM0001", &[("1", "$monument")]);
+        let right = plan("plan_rechts", "GM0002", &[("1", "true")]);
+        let not_a_boolean = |location: &str| {
+            params(&[
+                ("locatie", Value::String(location.to_string())),
+                ("monument", Value::String("ja".to_string())),
+            ])
+        };
+        let service = place_service(&[&place_law(), &left, &right]);
+
+        let across = service
+            .evaluate_law_output(
+                "plaatswet",
+                "vergunningplichtig",
+                not_a_boolean(ACROSS),
+                "2025-06-01",
+            )
+            .unwrap();
+        assert_eq!(
+            across.outputs.get("vergunningplichtig"),
+            Some(&Value::Bool(true))
+        );
+        assert!(matches!(
+            answers(&across)[0].1,
+            ImplementationGave::Failed { .. }
+        ));
+
+        let e = service
+            .evaluate_law_output(
+                "plaatswet",
+                "vergunningplichtig",
+                not_a_boolean("POINT(5 5)"),
+                "2025-06-01",
+            )
+            .unwrap_err();
+        assert!(
+            e.to_string().contains(
+                "has combine OR, which takes a boolean or null from each implementation; \
+                 plan_links article 1 gives a string"
+            ),
+            "{e}"
+        );
+    }
+
+    // -- a term an authority decides per case, at an unknown place ------------
+
+    #[test]
+    fn a_finding_does_not_stand_in_for_the_plan_of_an_unknown_place() {
+        // The term is left to an authority per case and has a location. With
+        // the location unknown, whether a plan fills the term is unknown
+        // too, so the finding is not taken for the term's value: the term is
+        // unknown for lack of the location.
+        let law = place_law_with(
+            "          location: $locatie\n          decided_per_case_by: het college\n          \
+             default:\n            actions:\n              - output: verboden\n                value: false",
+            "required: false",
+        );
+        let left = plan("plan_links", "GM0001", &[("1", "false")]);
+        let service = place_service(&[&law, &left]);
+        let finding = BTreeMap::from([("verboden".to_string(), Value::Bool(true))]);
+
+        let nowhere_known = service
+            .evaluate_law_with_findings(
+                "plaatswet",
+                &["vergunningplichtig"],
+                BTreeMap::new(),
+                finding.clone(),
+                "2025-06-01",
+            )
+            .unwrap();
+        let value = &nowhere_known.outputs["vergunningplichtig"];
+        let missing: Vec<&str> = value
+            .missing_facts()
+            .iter()
+            .map(|m| m.name.as_str())
+            .collect();
+        assert_eq!(missing, ["locatie"], "{value:?}");
+        assert!(nowhere_known.open_terms.is_empty());
+
+        // Where the place is known and a plan fills the term, the finding is
+        // refused, as it is for any term a regulation fills.
+        let at = |location: &str| {
+            service.evaluate_law_with_findings(
+                "plaatswet",
+                &["vergunningplichtig"],
+                params(&[("locatie", Value::String(location.to_string()))]),
+                finding.clone(),
+                "2025-06-01",
+            )
+        };
+        let e = at("POINT(5 5)").unwrap_err();
+        assert!(e.to_string().contains("verboden"), "{e}");
+        // Where the place is known and no plan applies, the finding counts.
+        let no_plan = at("POINT(50 50)").unwrap();
+        assert_eq!(
+            no_plan.outputs.get("vergunningplichtig"),
+            Some(&Value::Bool(true))
+        );
     }
 }

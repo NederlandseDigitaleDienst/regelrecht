@@ -7,8 +7,11 @@
 //! system. Parsing is the `wkt` crate's and the geometry the `geo` crate's;
 //! this module only joins the two and says what it refuses.
 
-use geo::{Geometry, Relate, Validation};
-use std::collections::BTreeMap;
+use geo::{CoordsIter, Geometry, HasDimensions, Relate, Validation};
+use sha2::{Digest, Sha256};
+use std::cell::RefCell;
+use std::collections::{BTreeMap, HashMap};
+use std::rc::Rc;
 use std::str::FromStr;
 use wkt::Wkt;
 use wkt::types::Dimension;
@@ -16,6 +19,15 @@ use wkt::types::Dimension;
 /// The DE-9IM pattern of `OVERLAPS`: the interiors of the two shapes have at
 /// least one point in common, whatever their boundaries do.
 const INTERIORS_MEET: &str = "T********";
+
+/// The largest absolute value a coordinate of a shape may have. A position on
+/// earth stays far below it in any unit a law would use: the circumference
+/// of the earth is 4e10 millimetres. Up to this bound a coordinate is exact
+/// to a ten-thousandth of its unit (it stays below 2^53 with room to spare)
+/// and the products of coordinate differences the relation is computed from
+/// stay near 1e24, far from the overflow that made corners at 1e308 relate
+/// to nothing.
+const MAX_COORDINATE: f64 = 1e12;
 
 /// The longest piece of an unreadable shape a message quotes. A boundary can
 /// run to megabytes, and the start is what tells a reader what was passed.
@@ -29,7 +41,12 @@ const QUOTED_CHARS: usize = 60;
 /// dimension or a measure (`POINT Z`, `POINT M`), or the geometry it
 /// describes is not valid, such as a polygon whose boundary crosses itself.
 /// An invalid geometry is refused because the relation between two shapes is
-/// only defined for valid ones.
+/// only defined for valid ones. A shape is a point, a line or a surface, or
+/// several of one kind, so a `GEOMETRYCOLLECTION` is refused, and so is an
+/// empty geometry (`POINT EMPTY`): a place that is nowhere overlaps nothing,
+/// and that would read as an answer. A coordinate beyond
+/// [`MAX_COORDINATE`], or one that is no number, is refused because the
+/// relation is not reliable there.
 pub(crate) fn parse(text: &str) -> Result<Geometry<f64>, String> {
     let quoted = quote(text);
     let parsed =
@@ -41,10 +58,78 @@ pub(crate) fn parse(text: &str) -> Result<Geometry<f64>, String> {
     }
     let geometry =
         Geometry::try_from(parsed).map_err(|e| format!("'{quoted}' does not parse as WKT: {e}"))?;
+    if matches!(geometry, Geometry::GeometryCollection(_)) {
+        return Err(format!(
+            "'{quoted}' is a collection of geometries; a shape is a point, a line or a surface"
+        ));
+    }
+    if geometry.is_empty() {
+        return Err(format!(
+            "'{quoted}' is an empty geometry; a shape has at least one point"
+        ));
+    }
+    // Written so that a coordinate that is no number fails the test too.
+    let in_bounds = |value: f64| value.abs() <= MAX_COORDINATE;
+    if !geometry
+        .coords_iter()
+        .all(|c| in_bounds(c.x) && in_bounds(c.y))
+    {
+        return Err(format!(
+            "'{quoted}' has a coordinate beyond {MAX_COORDINATE:e}; the relation between \
+             shapes is not reliable that far out"
+        ));
+    }
     geometry
         .check_validation()
         .map_err(|e| format!("'{quoted}' is not a valid geometry: {e}"))?;
     Ok(geometry)
+}
+
+/// What reading a text as a shape came to: the shape, shared, or why it is
+/// none.
+type Parsed = Result<Rc<Geometry<f64>>, String>;
+
+/// The shapes one execution has read, by their text, so a text is parsed
+/// and validated once however often an operation or an open term meets it.
+/// A text that is no shape is remembered with its refusal.
+#[derive(Debug, Default)]
+pub struct ShapeCache(RefCell<HashMap<String, Parsed>>);
+
+impl ShapeCache {
+    /// The shape `text` describes, parsed on its first use.
+    ///
+    /// # Errors
+    ///
+    /// When `text` is no shape, for the reasons [`parse`] gives.
+    pub(crate) fn parse(&self, text: &str) -> Parsed {
+        if let Some(known) = self.0.borrow().get(text) {
+            return known.clone();
+        }
+        let parsed = parse(text).map(Rc::new);
+        self.0.borrow_mut().insert(text.to_string(), parsed.clone());
+        parsed
+    }
+
+    /// How many texts were read, for a test of the cache.
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.0.borrow().len()
+    }
+}
+
+/// What identifies the text of a shape in a record: `sha256:` and the hash
+/// of the text as it was given. A boundary can run to megabytes, so a trace
+/// and a receipt carry this in its place.
+pub(crate) fn text_hash(text: &str) -> String {
+    format!("sha256:{}", hex::encode(Sha256::digest(text.as_bytes())))
+}
+
+/// The territory of one authority: its shape, and the hash of the text it
+/// was given as.
+#[derive(Debug)]
+pub(crate) struct Territory {
+    pub(crate) shape: Geometry<f64>,
+    pub(crate) hash: String,
 }
 
 /// Whether the interiors of two shapes meet (DE-9IM `T********`). A polygon
@@ -67,7 +152,7 @@ pub(crate) fn interiors_meet(a: &Geometry<f64>, b: &Geometry<f64>) -> Result<boo
 /// `location` (schema v0.8.23) is filled by a regulation that carries such a
 /// code only when the location overlaps the territory registered for it.
 #[derive(Debug, Default)]
-pub(crate) struct Territories(BTreeMap<String, Geometry<f64>>);
+pub(crate) struct Territories(BTreeMap<String, Territory>);
 
 impl Territories {
     /// Register `wkt` as the territory of `code`, in place of an earlier one.
@@ -76,13 +161,16 @@ impl Territories {
     ///
     /// When `wkt` is no shape, for the reasons [`parse`] gives.
     pub(crate) fn register(&mut self, code: &str, wkt: &str) -> Result<(), String> {
-        let territory = parse(wkt)?;
+        let territory = Territory {
+            shape: parse(wkt)?,
+            hash: text_hash(wkt),
+        };
         self.0.insert(code.to_string(), territory);
         Ok(())
     }
 
     /// The territory registered for `code`.
-    pub(crate) fn of(&self, code: &str) -> Option<&Geometry<f64>> {
+    pub(crate) fn of(&self, code: &str) -> Option<&Territory> {
         self.0.get(code)
     }
 
@@ -93,7 +181,7 @@ impl Territories {
 }
 
 /// The start of `text`, for a message.
-fn quote(text: &str) -> String {
+pub(crate) fn quote(text: &str) -> String {
     let mut quoted: String = text.chars().take(QUOTED_CHARS).collect();
     if text.chars().nth(QUOTED_CHARS).is_some() {
         quoted.push('…');
@@ -166,9 +254,59 @@ mod tests {
     }
 
     #[test]
-    fn an_empty_shape_overlaps_nothing() {
-        assert!(!overlaps("POINT EMPTY", SQUARE));
-        assert!(!overlaps("POLYGON EMPTY", SQUARE));
+    fn an_empty_shape_is_refused() {
+        // It would overlap nothing, and "nothing" would read as an answer.
+        for text in ["POINT EMPTY", "POLYGON EMPTY", "MULTIPOLYGON EMPTY"] {
+            let err = parse(text).unwrap_err();
+            assert!(err.contains("is an empty geometry"), "{text}: {err}");
+        }
+    }
+
+    #[test]
+    fn a_collection_of_geometries_is_refused() {
+        let err = parse("GEOMETRYCOLLECTION(POINT(1 1), LINESTRING(0 0, 2 2))").unwrap_err();
+        assert!(err.contains("is a collection of geometries"), "{err}");
+        // Several of one kind are a shape.
+        assert!(overlaps("MULTIPOINT((50 50), (5 5))", SQUARE));
+        assert!(overlaps(
+            "MULTIPOLYGON(((20 20, 30 20, 30 30, 20 30, 20 20)), ((1 1, 2 1, 2 2, 1 2, 1 1)))",
+            SQUARE
+        ));
+    }
+
+    #[test]
+    fn a_coordinate_out_of_bounds_is_an_error_and_never_no_overlap() {
+        // Corners at 1e308 made the relation overflow, and the polygon that
+        // covers the square "overlapped nothing".
+        let huge =
+            "POLYGON((-1e308 -1e308, 1e308 -1e308, 1e308 1e308, -1e308 1e308, -1e308 -1e308))";
+        let err = parse(huge).unwrap_err();
+        assert!(err.contains("has a coordinate beyond 1e12"), "{err}");
+        let err = parse("POINT(1e12 1.0000001e12)").unwrap_err();
+        assert!(err.contains("has a coordinate beyond 1e12"), "{err}");
+        // On the bound is in bounds, and a square that large still relates.
+        let wide = "POLYGON((-1e12 -1e12, 1e12 -1e12, 1e12 1e12, -1e12 1e12, -1e12 -1e12))";
+        assert!(overlaps(wide, SQUARE));
+        assert!(overlaps("POINT(999999999999.5 0)", wide));
+    }
+
+    #[test]
+    fn a_text_is_parsed_once_per_cache() {
+        let shapes = ShapeCache::default();
+        let first = shapes.parse(SQUARE).unwrap();
+        let again = shapes.parse(SQUARE).unwrap();
+        assert!(Rc::ptr_eq(&first, &again));
+        // A refusal is remembered too.
+        assert_eq!(shapes.parse("nergens"), shapes.parse("nergens"));
+        assert!(shapes.parse("nergens").is_err());
+        assert_eq!(shapes.len(), 2);
+    }
+
+    #[test]
+    fn the_hash_of_a_text_tells_two_texts_apart() {
+        assert_eq!(text_hash(SQUARE), text_hash(SQUARE));
+        assert_ne!(text_hash(SQUARE), text_hash("POINT(5 5)"));
+        assert!(text_hash(SQUARE).starts_with("sha256:"));
     }
 
     #[test]
@@ -190,11 +328,11 @@ mod tests {
         assert!(territories.of("GM0001").is_none());
         territories.register("GM0001", SQUARE).unwrap();
         let inside = parse("POINT(5 5)").unwrap();
-        assert!(interiors_meet(&inside, territories.of("GM0001").unwrap()).unwrap());
+        assert!(interiors_meet(&inside, &territories.of("GM0001").unwrap().shape).unwrap());
         territories
             .register("GM0001", "POLYGON((20 20, 30 20, 30 30, 20 30, 20 20))")
             .unwrap();
-        assert!(!interiors_meet(&inside, territories.of("GM0001").unwrap()).unwrap());
+        assert!(!interiors_meet(&inside, &territories.of("GM0001").unwrap().shape).unwrap());
         territories.clear();
         assert!(territories.of("GM0001").is_none());
     }

@@ -1,0 +1,20 @@
+---
+# An open term is a string, number, boolean, amount or date. A shape is a
+# value an article computes or takes in, not one a regulation fills in.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_conformance_open_term_type_shape
+regulatory_layer: WET
+bwb_id: BWBR9999985
+publication_date: '2026-11-17'
+valid_from: '2026-11-17'
+url: https://example.invalid/open-term-type-shape
+articles:
+  - number: '1'
+    url: https://example.invalid/open-term-type-shape/1
+    text: Het beperkingengebied wordt bij omgevingsplan aangewezen.
+    machine_readable:
+      open_terms:
+        - id: beperkingengebied
+          type: shape
+          required: true
+          delegation_type: GEMEENTELIJKE_VERORDENING

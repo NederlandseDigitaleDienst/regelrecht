@@ -15,9 +15,9 @@ articles:
       Als beperkingengebied wordt aangewezen de strook die op de bij deze wet
       behorende kaart is aangegeven.
     machine_readable:
-      # De aanwijzing is een uitvoer van type shape (schema v0.8.23): de strook
-      # staat als WKT in de actie. De coördinaten zijn verzonnen en volgen de
-      # vorm van het Rijksdriehoeksstelsel; de strook is 3000 bij 50.
+      # The designation is an output of type shape (schema v0.8.23): the
+      # strip stands as WKT in the action. The coordinates are made up and
+      # follow the form of the Rijksdriehoeksstelsel; the strip is 3000 by 50.
       execution:
         output:
           - name: beperkingengebied
@@ -32,14 +32,14 @@ articles:
       Een locatie ligt in het beperkingengebied indien zij het gebied, bedoeld
       in artikel 1, overlapt.
     machine_readable:
-      # OVERLAPS is waar als de binnenkanten elkaar raken (DE-9IM T********):
-      # een gedeelde rand of een punt op de rand telt niet.
+      # OVERLAPS is true when the interiors meet (DE-9IM T********): a
+      # shared edge or a point on the boundary does not count.
       execution:
         parameters:
           - name: location
             type: shape
             required: true
-            description: De locatie van de activiteit, als WKT.
+            description: The location of the activity, as WKT.
         input:
           - name: beperkingengebied
             type: shape
@@ -61,14 +61,14 @@ articles:
       Een aanvraag raakt het beperkingengebied indien ten minste een van de
       percelen waarop zij ziet, het gebied, bedoeld in artikel 1, overlapt.
     machine_readable:
-      # Een rij is ongetypeerd, dus geen declaratie houdt een perceel zonder
-      # vorm tegen aan de grens; OVERLAPS zelf doet dat (RFC-036).
+      # A row is untyped, so no declaration stops a parcel without a shape
+      # at the boundary; OVERLAPS itself does (RFC-036).
       execution:
         parameters:
           - name: percelen
             type: array
             required: true
-            description: De percelen van de aanvraag, elk met een vorm.
+            description: The parcels of the application, each with a shape.
         input:
           - name: beperkingengebied
             type: shape

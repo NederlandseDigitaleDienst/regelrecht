@@ -428,6 +428,31 @@ When the law asks whether something happened *after* the first of the month
 `GREATER_THAN(DATE_PART($d, in: day), 1)`. A change on the first counts in that
 month itself.
 
+### OVERLAPS, whether two shapes overlap (schema v0.8.23)
+```yaml
+operation: OVERLAPS
+subject: $locatie                  # The shape that is tested
+value: $beperkingengebied          # The shape it is tested against
+```
+
+Both operands are of type `shape`: a two-dimensional geometry written as
+well-known text (WKT), such as `POINT(155105 463625)` or a `POLYGON` with its
+corner points. A parameter, an input and an output can be a `shape`; an open
+term and a column cannot. A regulation that designates an area gives it as an
+output of type `shape`, with the WKT as the value of its action.
+
+`OVERLAPS` is true when the interiors of the two shapes have a point in
+common. A location partly on an area overlaps it; one that shares only an edge
+with it does not, and neither does a point on the boundary. Use it only where
+the text asks whether something lies in, on or within an area. The engine
+attaches no coordinate system to a shape, so both must be in the same one.
+
+Refused as no shape, and then an error and never `false`: text that is not
+WKT, a third dimension, an invalid geometry (a boundary that crosses itself),
+an empty geometry, a `GEOMETRYCOLLECTION`, and a coordinate beyond 1e12. Do
+not compare two shapes with `EQUALS` or `IN`: those compare the text, and the
+type check refuses them.
+
 ### ROUND, CEIL and FLOOR, rounding (RFC-024)
 ```yaml
 operation: ROUND                   # ROUND | CEIL | FLOOR
@@ -530,6 +555,41 @@ machine_readable:
 
 The engine automatically resolves `$standaardpremie` by finding the regulation
 that `implements` the open term, using lex superior / lex posterior priority rules.
+
+**A term filled by the regulation of a place** (schema v0.8.23). Where the law
+leaves something to "het omgevingsplan", "de waterschapsverordening" or
+another regulation that holds for a territory, and the case is about a place,
+give the term a `location` and, where several articles may each state it, a
+`combine`:
+```yaml
+machine_readable:
+  open_terms:
+    - id: verboden_in_omgevingsplan
+      type: boolean
+      required: true
+      delegated_to: gemeenteraad
+      delegation_type: GEMEENTELIJKE_VERORDENING
+      location: $locatie            # a parameter or input of type shape of this article
+      combine: OR                   # only on a boolean term
+  execution:
+    parameters:
+      - name: locatie
+        type: shape
+        required: true
+```
+
+- `location` picks the regulation by the place: a regulation with a
+  `gemeente_code`, `provincie_code` or `waterschap_code` fills the term only
+  when the location overlaps the territory of that code. The caller of the
+  engine supplies the territories; they are not in a rulework. Without
+  `location` the regulation is picked by the code among the parameters.
+- `combine: OR` asks every implementation instead of the one that wins on
+  priority, so each article of a plan that states a ban is its own
+  implementation of the term. The term is true when one gives true, an error
+  when none does and one fails, otherwise unknown when one is unknown,
+  otherwise false. An implementing article that does not speak about the case
+  gives `null`, so declare its output `nullable: true`; do not make it `false`.
+- `combine` does not go with `decided_per_case_by`.
 
 ## Hooks, Reactive Execution
 

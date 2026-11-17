@@ -137,7 +137,9 @@ machine_readable:
 
 `location` is a `$`-reference to a parameter or an input of type `shape` in the article that declares the term. A regulation with a `gemeente_code`, `provincie_code` or `waterschap_code` fills the term only when that shape overlaps the territory of its code. The test is the one `OVERLAPS` applies: the interiors meet, so a location on the boundary of a territory lies in neither neighbor. A code among the parameters plays no part for such a term. A regulation without a territory, the declaring regulation itself and one of the declarer's own territory fill the term as described above.
 
-The engine does not know where a municipality lies. The caller gives it the territory of each code, as well-known text in the coordinate system of the locations: `register_territory` on the execution service, `registerTerritory` in WASM, `territories` in the request of the `evaluate` binary. A candidate whose code has no territory is an error that names the code. Whether that regulation applies at the location is then not known, and the engine does not read that as "it does not". A location that is not known makes the term unknown for lack of it.
+The engine does not know where a municipality lies. The caller gives it the territory of each code, as well-known text in the coordinate system of the locations: `register_territory` on the execution service, `registerTerritory` in WASM, `territories` in the request of the `evaluate` binary. A candidate whose code has no territory is an error that names the code. Whether that regulation applies at the location is then not known, and the engine does not read that as "it does not". The delegation gate comes first, so a regulation of a layer the term does not delegate to is refused as such and needs no territory. A location that is not known makes the term unknown for lack of it. That holds for a term an authority decides per case as well: a finding does not stand in for the plan of an unknown place.
+
+The territories are in no rulework, so two executions with the same parameters and other territories can differ. The execution therefore records, for every term with a `location`, the location and each candidate regulation that was held against it: its territory code, the hash of the text the territory was registered as, and whether the location overlapped it. The record is on the result as `open_terms_asked`, on the receipt under the same name, and in the trace under the open term.
 
 ### Several articles that fill one term
 
@@ -145,11 +147,15 @@ A plan states its bans article by article: one article forbids building without 
 
 `combine: OR` on a boolean term asks every implementation that is in force, of the delegated layer and in scope. No priority is applied among them. The term is:
 
-- true when one implementation gives true;
+- true when one implementation gives true, whatever the others did;
+- otherwise the error of the first implementation that failed;
+- otherwise untranslatable when one of them is ([Markings](/concepts/markings));
 - otherwise unknown when one of them is unknown, for lack of what it lacks;
 - otherwise false.
 
-An implementation that gives null does not speak about the case and counts as not saying so. That separates two answers a single implementation could not: a plan that was asked and forbids nothing gives false, while a location where no plan applies leaves the term without an implementation. The term then takes its `default`, and a required term without one is an error, as it is without `combine`. The execution records every implementation that gave true as having filled the term.
+Every implementation is asked, also after one gave true. An implementation that fails does not take the term down with it when another says so: its failure is recorded and not raised. One that gives something other than a boolean or null counts as failed.
+
+An implementation that gives null does not speak about the case and counts as not saying so. That separates two answers a single implementation could not: a plan that was asked and forbids nothing gives false, while a location where no plan applies leaves the term without an implementation. The term then takes its `default`, and a required term without one is an error, as it is without `combine`. The execution records every implementation that gave true as having filled the term, and under `open_terms_asked` what each implementation gave: true, false, silent, unknown with what it lacks, untranslatable, or failed with its error. A term that comes out false or unknown is explained by that list.
 
 `combine` does not go with `decided_per_case_by`. A term with `location` and without `combine` still takes one regulation, so a location across two territories is an ambiguity there.
 

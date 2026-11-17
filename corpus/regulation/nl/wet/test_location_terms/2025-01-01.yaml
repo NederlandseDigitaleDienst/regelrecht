@@ -16,11 +16,11 @@ articles:
       zover in het omgevingsplan is bepaald dat het verboden is deze zonder
       vergunning te verrichten.
     machine_readable:
-      # De term heeft een plaats en een combinatieregel (schema v0.8.23). De
-      # plaats bepaalt welk omgevingsplan de term invult: dat van de gemeente
-      # waarvan het gebied de locatie overlapt. Met combine: OR wordt elk
-      # artikel van elk plan gevraagd dat zo in beeld komt, en is de term waar
-      # zodra een van die artikelen het verbod uitspreekt.
+      # The term has a location and a combine rule (schema v0.8.23). The
+      # location decides which omgevingsplan fills the term: that of the
+      # municipality whose territory the location overlaps. With combine: OR
+      # every article of every plan found that way is asked, and the term is
+      # true as soon as one of those articles states the ban.
       open_terms:
         - id: verboden_in_omgevingsplan
           type: boolean
@@ -35,15 +35,15 @@ articles:
           - name: location
             type: shape
             required: true
-            description: De locatie van de activiteit, als WKT.
+            description: The location of the activity, as WKT.
           - name: activiteit
             type: string
             required: true
-            description: De activiteit - "bouwen", "kappen", "slopen" of iets anders.
+            description: The activity - "bouwen", "kappen", "slopen" or anything else.
           - name: monument
             type: boolean
             required: false
-            description: Of het bouwwerk een monument is; alleen het plan van Rechterdorp vraagt ernaar.
+            description: Whether the building is a monument; only the plan of Rechterdorp asks for it.
         output:
           - name: vergunningplichtig
             type: boolean
@@ -57,9 +57,9 @@ articles:
       Het is verboden een terras te exploiteren voor zover dat bij
       gemeentelijke verordening is verboden.
     machine_readable:
-      # De enige verordening die deze term invult, is die van een gemeente
-      # waarvan geen scenario het gebied opgeeft. Of zij op de locatie geldt
-      # is dan niet te zeggen, en dat is een fout en geen "nee".
+      # The only verordening that fills this term is that of a municipality
+      # whose territory no scenario gives. Whether it applies at the location
+      # cannot be said then, and that is an error, not a "no".
       open_terms:
         - id: terras_verboden
           type: boolean
@@ -74,7 +74,7 @@ articles:
           - name: location
             type: shape
             required: true
-            description: De locatie van het terras, als WKT.
+            description: The location of the terrace, as WKT.
         output:
           - name: terras_niet_toegestaan
             type: boolean
@@ -88,10 +88,10 @@ articles:
       De bouwhoogte van een bouwwerk bedraagt ten hoogste de hoogte die in
       het omgevingsplan is bepaald.
     machine_readable:
-      # Een plaats zonder combinatieregel: het plan van de plaats vult de
-      # term, en één plan moet winnen. Een locatie op de grens van twee
-      # gemeenten levert twee plannen van dezelfde laag en datum op, en dat
-      # is een fout, zoals het zonder plaats altijd al was.
+      # A location without a combine rule: the plan of the place fills the
+      # term, and one plan has to win. A location across the boundary of two
+      # municipalities gives two plans of the same layer and date, and that
+      # is an error, as it always was without a location.
       open_terms:
         - id: maximale_bouwhoogte
           type: number
@@ -105,7 +105,7 @@ articles:
           - name: location
             type: shape
             required: true
-            description: De locatie van het bouwwerk, als WKT.
+            description: The location of the building, as WKT.
         output:
           - name: toegestane_bouwhoogte
             type: number
@@ -119,8 +119,8 @@ articles:
       Voor het in behandeling nemen van een aanvraag zijn leges verschuldigd
       naar het tarief dat bij gemeentelijke verordening is vastgesteld.
     machine_readable:
-      # Een term zonder plaats: de verordening wordt gekozen op de
-      # gemeentecode onder de parameters, zoals vóór schema v0.8.23.
+      # A term without a location: the verordening is picked by the
+      # gemeente_code among the parameters, as before schema v0.8.23.
       open_terms:
         - id: legestarief
           type: number
@@ -133,7 +133,7 @@ articles:
           - name: gemeente_code
             type: string
             required: true
-            description: De code van de gemeente waar de aanvraag is ingediend.
+            description: The code of the municipality where the application was filed.
         output:
           - name: verschuldigde_leges
             type: number

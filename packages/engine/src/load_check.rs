@@ -234,6 +234,12 @@ pub(crate) fn reject_shapes_before_their_version(law: &ArticleBasedLaw) -> Resul
 ///
 /// `location` is a bare `$`-reference to a parameter or an input of the
 /// article that declares the term, and that one is of type `shape`.
+///
+/// The term itself is no `shape`: the schema gives an open term a string,
+/// number, boolean, amount or date, and a shape that a regulation would fill
+/// in has no place to be checked. A column cannot be a shape either;
+/// [`reject_malformed_columns`] refuses that with every other type that is
+/// no scalar.
 pub(crate) fn reject_malformed_term_filling(law: &ArticleBasedLaw) -> Result<()> {
     for (where_, section) in sections(law) {
         for term in section.open_terms.iter().flatten() {
@@ -243,6 +249,12 @@ pub(crate) fn reject_malformed_term_filling(law: &ArticleBasedLaw) -> Result<()>
                     law.id, term.id
                 )))
             };
+            if term.term_type == ParameterType::Shape {
+                return refuse(
+                    "is of type shape; an open term is a string, number, boolean, amount or date"
+                        .to_string(),
+                );
+            }
             if let Some(rule) = &term.combine {
                 if !term.combines_with_or() {
                     return refuse(format!(
@@ -3567,6 +3579,40 @@ articles:
             assert!(
                 err.contains("a location is a reference such as"),
                 "{written}: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn an_open_term_is_no_shape() {
+        let law = law_with_term("v0.8.23", "shape", "", "shape");
+        let err = term_refusal(&law).unwrap();
+        assert!(
+            err.contains("open term 'verboden' is of type shape; an open term is a string"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn a_column_is_no_shape() {
+        let column = |on: &str| {
+            law_under(
+                "v0.8.23",
+                &format!(
+                    "        {on}:\n          - name: percelen\n            type: array\n            \
+                     columns:\n              - name: ligging\n                type: shape\n"
+                ),
+            )
+        };
+        for (on, named) in [("parameters", "parameter"), ("output", "output")] {
+            let err = reject_malformed_columns(&column(on))
+                .unwrap_err()
+                .to_string();
+            assert!(
+                err.contains(&format!(
+                    "{named} 'percelen' gives column 'ligging' the type Shape"
+                )),
+                "{err}"
             );
         }
     }

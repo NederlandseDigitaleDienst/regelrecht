@@ -62,7 +62,8 @@
 //! - **T2** Logical operands and `IF` conditions are booleans.
 //! - **T3** `EQUALS` compares values of one type; `number` and `amount` are
 //!   one type here, and so are `date` and `string`, since dates arrive as ISO
-//!   strings.
+//!   strings. A `shape` (schema v0.8.23) is not an operand of `EQUALS` or
+//!   `IN`, which would compare its text; `OVERLAPS` tests two shapes.
 //! - **T4** A literal assigned to an output has the output's type, and so
 //!   does a `RECORD` (schema v0.8.22), which is an object. A literal assigned
 //!   to an output of type `shape` (schema v0.8.23) parses as well-known text,
@@ -1410,12 +1411,14 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 // The subject therefore need not be established present, and
                 // a `null` among the `values` is an element of a list, a
                 // membership test for absence (N2).
-                self.check_expr(subject, facts, OPERAND);
+                let info = self.check_expr(subject, facts, OPERAND);
+                self.refuse_shape_as_text(&info, name);
                 if let Some(value) = value {
                     self.check_expr(value, facts, OPERAND);
                 }
                 for item in values.iter().flatten() {
-                    self.check_expr(item, facts, ABSENCE_ALLOWED);
+                    let info = self.check_expr(item, facts, ABSENCE_ALLOWED);
+                    self.refuse_shape_as_text(&info, name);
                 }
                 Info::present(Some(Ty::Boolean), &format!("the {name}"))
             }
@@ -1560,6 +1563,23 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
         }
     }
 
+    /// T3: a shape is not compared as text. `EQUALS` and `IN` are
+    /// structural, so on two shapes they would compare the well-known text
+    /// letter by letter: `POINT(1 1)` and `POINT (1 1)` are one place and two
+    /// texts. Comparing a shape with null, the absence test, is not this.
+    fn refuse_shape_as_text(&mut self, info: &Info, operation: &str) {
+        if info.ty == Some(Ty::Shape) {
+            self.report(
+                Rule::T3,
+                format!(
+                    "{} is a shape and is compared in {operation}, which compares the text of \
+                     a shape and not the place it describes; use OVERLAPS to test two shapes",
+                    info.describe
+                ),
+            );
+        }
+    }
+
     /// T1: an operand of `OVERLAPS` is a shape. A shape arrives as a string
     /// of well-known text, so a string passes as a date passes for an
     /// ordering; a literal is held to the text it must be.
@@ -1649,6 +1669,8 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             (false, false) => {
                 let left = self.check_expr(subject, facts, OPERAND);
                 let right = self.check_expr(value, facts, OPERAND);
+                self.refuse_shape_as_text(&left, name);
+                self.refuse_shape_as_text(&right, name);
                 if let (Some(l), Some(r)) = (left.ty, right.ty)
                     && !l.compatible(r)
                 {
@@ -4520,5 +4542,46 @@ output:
         let single = wet("");
         let lookup = |id: &str| (id == "wet").then_some(&single);
         assert_eq!(rules(&check_law(&plan, &lookup)), vec![Rule::N5]);
+    }
+
+    #[test]
+    fn a_shape_is_not_compared_as_text() {
+        let compare = |operation: &str| {
+            format!("{OVERLAPS_HEAD}actions:\n  - output: x\n    value:\n{operation}")
+        };
+        assert_only(
+            &compare("      operation: EQUALS\n      subject: $locatie\n      value: POINT(1 1)\n"),
+            Rule::T3,
+            "'locatie' is a shape and is compared in EQUALS, which compares the text of a shape \
+             and not the place it describes; use OVERLAPS to test two shapes",
+        );
+        // Against a text too: a shape reads as a string, so this would pass
+        // as an ordinary comparison of strings.
+        assert_only(
+            &compare(
+                "      operation: EQUALS\n      subject: $omschrijving\n      value: $gebied\n",
+            ),
+            Rule::T3,
+            "'gebied' is a shape and is compared in EQUALS",
+        );
+        assert_only(
+            &compare(
+                "      operation: IN\n      subject: $locatie\n      values:\n        - POINT(1 1)\n",
+            ),
+            Rule::T3,
+            "'locatie' is a shape and is compared in IN",
+        );
+        assert_only(
+            &compare(
+                "      operation: IN\n      subject: $omschrijving\n      values:\n        - $gebied\n",
+            ),
+            Rule::T3,
+            "'gebied' is a shape and is compared in IN",
+        );
+        // Whether a shape is there at all is another question.
+        assert_clean(&compare(
+            "      operation: NOT\n      value:\n        operation: EQUALS\n        subject: \
+             $perceel\n        value: null\n",
+        ));
     }
 }

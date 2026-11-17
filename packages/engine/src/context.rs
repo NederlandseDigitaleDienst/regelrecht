@@ -33,6 +33,7 @@ use crate::article::{ActionValue, CombineOp, Definition};
 use crate::config;
 use crate::error::{EngineError, Result};
 use crate::operations::ValueResolver;
+use crate::shape::ShapeCache;
 use crate::trace::{LegalAnchor, TraceBuilder};
 use crate::types::{MissingKind, PathNodeType, ResolveType, TypeSpec, Value};
 use chrono::{Datelike, NaiveDate};
@@ -115,6 +116,12 @@ pub(crate) trait LazyInputs {
         _value: &Value,
         _outputs: &BTreeMap<String, Value>,
     ) -> Option<Result<Value>> {
+        None
+    }
+
+    /// The shapes the execution has read so far, so a text is parsed once
+    /// per execution. `None` where there is no execution to share them with.
+    fn shapes(&self) -> Option<&ShapeCache> {
         None
     }
 }
@@ -538,6 +545,10 @@ impl ValueResolver for RuleContext<'_> {
 
     fn has_trace(&self) -> bool {
         RuleContext::has_trace(self)
+    }
+
+    fn shapes(&self) -> Option<&ShapeCache> {
+        self.lazy.and_then(|LazyHook(lazy)| lazy.shapes())
     }
 
     /// `RuleContext` can create child scopes, so it is the resolver that can

@@ -9,8 +9,8 @@ gemeente_code: GM9902
 officiele_titel: Omgevingsplan gemeente Rechterdorp
 url: https://example.com/test_omgevingsplan_rechterdorp
 
-# Een verzonnen gemeente. Haar gebied staat niet in dit bestand: de aanroeper
-# geeft het de engine onder de code GM9902.
+# A fictional municipality. Its territory is not in this file: the caller
+# gives it to the engine under the code GM9902.
 
 articles:
   - number: '1'
@@ -18,10 +18,10 @@ articles:
     text: >-
       Het is verboden zonder omgevingsvergunning een monument te slopen.
     machine_readable:
-      # Bij slopen hangt het verbod af van de vraag of het bouwwerk een
-      # monument is. Wie dat niet opgeeft, krijgt geen "nee": het artikel kan
-      # het dan niet zeggen, en zijn uitkomst is onbekend. Over een andere
-      # activiteit zwijgt het.
+      # For demolishing, the ban depends on whether the building is a
+      # monument. A caller who does not say gets no "no": the article cannot
+      # tell then, and its outcome is unknown. About any other activity it
+      # is silent.
       implements:
         - law: test_location_terms
           article: '1'

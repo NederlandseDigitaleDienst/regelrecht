@@ -16,14 +16,14 @@ articles:
       locatie in het beperkingengebied, bedoeld in artikel 1 van de Testwet
       vormen.
     machine_readable:
-      # Deze wet wijst zelf geen gebied aan: zij leest het gebied dat de
-      # Testwet vormen aanwijst en toetst haar eigen locatie daaraan.
+      # This law designates no area itself: it reads the area the Testwet
+      # vormen designates and tests its own location against it.
       execution:
         parameters:
           - name: location
             type: shape
             required: true
-            description: De locatie van de activiteit, als WKT.
+            description: The location of the activity, as WKT.
         input:
           - name: beperkingengebied
             type: shape

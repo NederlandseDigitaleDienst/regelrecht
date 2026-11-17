@@ -185,6 +185,13 @@ pub trait ValueResolver {
         false
     }
 
+    /// The shapes read so far in the execution this resolver belongs to, so
+    /// `OVERLAPS` parses a text once however often it meets it. `None` by
+    /// default: every operand is then parsed where it is used.
+    fn shapes(&self) -> Option<&crate::shape::ShapeCache> {
+        None
+    }
+
     /// Execute a FOREACH (RFC-016), if this resolver can create child scopes.
     ///
     /// FOREACH is the one operation that binds a variable, so it needs a
@@ -775,22 +782,32 @@ fn execute_overlaps<R: ValueResolver>(
     }
     reject_null(OP, [&subject_val, &value_val])?;
 
-    let subject_shape = parse_shape(&subject_val, "subject", OP)?;
-    let value_shape = parse_shape(&value_val, "value", OP)?;
+    let subject_shape = parse_shape(&subject_val, "subject", OP, resolver.shapes())?;
+    let value_shape = parse_shape(&value_val, "value", OP, resolver.shapes())?;
     crate::shape::interiors_meet(&subject_shape, &value_shape)
         .map(Value::Bool)
         .map_err(|why| EngineError::InvalidOperation(format!("{OP}: {why}")))
 }
 
-/// Read the operand `operand` (`subject` or `value`) of `op` as a shape.
-fn parse_shape(val: &Value, operand: &str, op: &str) -> Result<geo::Geometry<f64>> {
+/// Read the operand `operand` (`subject` or `value`) of `op` as a shape,
+/// from `shapes` where the execution has read that text before.
+fn parse_shape(
+    val: &Value,
+    operand: &str,
+    op: &str,
+    shapes: Option<&crate::shape::ShapeCache>,
+) -> Result<std::rc::Rc<geo::Geometry<f64>>> {
     let Value::String(text) = val else {
         return Err(EngineError::TypeMismatch {
             expected: format!("a shape (a string of WKT) as the {operand} of {op}"),
             actual: val.type_name().to_string(),
         });
     };
-    crate::shape::parse(text).map_err(|why| {
+    let parsed = match shapes {
+        Some(shapes) => shapes.parse(text),
+        None => crate::shape::parse(text).map(std::rc::Rc::new),
+    };
+    parsed.map_err(|why| {
         EngineError::InvalidOperation(format!("the {operand} of {op} is not a shape: {why}"))
     })
 }
@@ -7720,5 +7737,57 @@ body:
             .unwrap()
         );
         assert!(!compound_equal(&record(Value::Int(5)), &record(Value::Int(6)), "EQUALS").unwrap());
+    }
+
+    #[test]
+    fn overlaps_parses_a_shape_text_once_per_execution() {
+        /// A resolver that hands out the shapes of one execution.
+        #[derive(Default)]
+        struct SharingResolver {
+            shapes: crate::shape::ShapeCache,
+        }
+
+        impl ValueResolver for SharingResolver {
+            fn resolve(&self, name: &str) -> Result<Value> {
+                Err(EngineError::VariableNotFound(name.to_string()))
+            }
+
+            fn shapes(&self) -> Option<&crate::shape::ShapeCache> {
+                Some(&self.shapes)
+            }
+        }
+
+        let area = "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))";
+        let resolver = SharingResolver::default();
+        for (location, expected) in [("POINT(5 5)", true), ("POINT(50 50)", false)] {
+            for _ in 0..3 {
+                let result = execute_overlaps(
+                    &ActionValue::Literal(Value::String(location.to_string())),
+                    &ActionValue::Literal(Value::String(area.to_string())),
+                    &resolver,
+                    0,
+                );
+                assert_eq!(result.unwrap(), Value::Bool(expected));
+            }
+        }
+        // Six evaluations read three texts: the area and the two locations.
+        assert_eq!(resolver.shapes.len(), 3);
+        // A text that is no shape is remembered with its refusal and still
+        // names the operand.
+        for _ in 0..2 {
+            let err = execute_overlaps(
+                &ActionValue::Literal(Value::String("nergens".to_string())),
+                &ActionValue::Literal(Value::String(area.to_string())),
+                &resolver,
+                0,
+            )
+            .unwrap_err()
+            .to_string();
+            assert!(
+                err.contains("the subject of OVERLAPS is not a shape"),
+                "{err}"
+            );
+        }
+        assert_eq!(resolver.shapes.len(), 4);
     }
 }

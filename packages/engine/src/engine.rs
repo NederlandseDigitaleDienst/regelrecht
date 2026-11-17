@@ -24,7 +24,9 @@ use crate::article::{Action, ActionOperation, Article, ArticleBasedLaw};
 use crate::context::{LazyInputs, RuleContext};
 use crate::error::{EngineError, Result};
 use crate::operations::{evaluate_value, execute_operation};
-use crate::resolver::{DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal};
+use crate::resolver::{
+    DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal, TerritoryTest,
+};
 use crate::trace::{LegalAnchor, PathNode, TraceBuilder};
 use crate::types::{PathNodeType, Value};
 use std::cell::RefCell;
@@ -102,6 +104,92 @@ pub struct OpenTermFilled {
     pub filled_by: FilledBy,
 }
 
+/// How one open term with a `location` or `combine: OR` (schema v0.8.23)
+/// was asked in an execution.
+///
+/// Such a term rests on more than the ruleworks and the parameters: on the
+/// territories the caller gave the engine, and on what every implementation
+/// said, also the ones that did not decide the outcome. This record holds
+/// both, so two executions that differ only in a territory, or a term that
+/// came out false or unknown, can be told apart and explained afterwards.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct OpenTermAsked {
+    /// The law and article that declare the term.
+    pub law_id: String,
+    pub article: String,
+    /// The id of the open term.
+    pub term: String,
+    /// For a term with a `location`: the place of the case, as the text of
+    /// the shape it was given as.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    /// For a term with a `location`: every competent candidate regulation
+    /// with a territory code, held against the location.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub territories: Vec<TerritoryTest>,
+    /// For a term with `combine: OR`: every implementation that was asked,
+    /// in the order it was asked, and what it gave.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub answers: Vec<ImplementationAnswer>,
+}
+
+/// What one implementation of a term with `combine: OR` gave when asked.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ImplementationAnswer {
+    /// The implementing regulation and article.
+    pub law_id: String,
+    pub article: String,
+    pub gave: ImplementationGave,
+}
+
+/// The answer of one implementation of a term with `combine: OR`.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ImplementationGave {
+    /// It says so.
+    True,
+    /// It says no.
+    False,
+    /// It gave null: it does not speak about the case.
+    Silent,
+    /// It cannot say, for lack of these facts.
+    Unknown { missing: Vec<String> },
+    /// It rests on a construct the format cannot express (RFC-012).
+    Untranslatable,
+    /// It failed, or gave something that is no boolean. Where another
+    /// implementation gave true the term is true all the same, and this is
+    /// where the failure is kept.
+    Failed { error: String },
+}
+
+impl ImplementationGave {
+    /// The answer in a few words, for a trace message.
+    fn describe(&self) -> String {
+        match self {
+            ImplementationGave::True => "gave true".to_string(),
+            ImplementationGave::False => "gave false".to_string(),
+            ImplementationGave::Silent => "was silent (null)".to_string(),
+            ImplementationGave::Unknown { missing } => {
+                format!("cannot say for lack of {}", missing.join(", "))
+            }
+            ImplementationGave::Untranslatable => "is untranslatable".to_string(),
+            ImplementationGave::Failed { error } => format!("failed: {error}"),
+        }
+    }
+}
+
+impl ImplementationAnswer {
+    /// `<law> article <number> <what it gave>`, for a trace message.
+    pub(crate) fn describe(&self) -> String {
+        format!(
+            "{} article {} {}",
+            self.law_id,
+            self.article,
+            self.gave.describe()
+        )
+    }
+}
+
 /// One version of a regulation whose article ran in an execution: its
 /// `$id`, its `valid_from` and the hash of its content, as the engine
 /// loaded it. A record that keeps these refers to the law it rests on
@@ -171,6 +259,11 @@ pub struct ArticleResult {
     /// be listed twice, once per filler: an implementing article that reads
     /// the output it fills in reads it with the finding in its place.
     pub open_terms: Vec<OpenTermFilled>,
+    /// How each open term with a `location` or `combine: OR` was asked in
+    /// this execution: the place, the territories it was held against and
+    /// what every implementation gave. Populated by the service layer,
+    /// independently of tracing, so it reaches the receipt.
+    pub open_terms_asked: Vec<OpenTermAsked>,
     /// Every regulation version whose articles ran in this execution,
     /// nested calls included, once each, in the order they first ran.
     /// Populated by the service layer, independently of tracing. A cached
@@ -403,6 +496,7 @@ impl<'a> ArticleEngine<'a> {
             declaration_version_notes: Vec::new(),
             declarations_not_in_force: Vec::new(),
             open_terms: Vec::new(),
+            open_terms_asked: Vec::new(),
             regulations_read: Vec::new(),
         };
 

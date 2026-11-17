@@ -58,6 +58,27 @@ Feature: Shapes and OVERLAPS
     Then the execution fails with "subject of OVERLAPS"
     Then the execution fails with "does not parse as WKT"
 
+  Scenario: An empty geometry is no shape
+    # It would overlap nothing, and "nothing" would read as an answer.
+    Given parameter "location" is "POINT EMPTY"
+    When I evaluate "ligt_in_beperkingengebied" of "test_shapes"
+    Then the execution fails with "subject of OVERLAPS"
+    Then the execution fails with "is an empty geometry"
+
+  Scenario: A collection of geometries is no shape
+    # A shape is a point, a line or a surface, or several of one kind.
+    Given parameter "location" is "GEOMETRYCOLLECTION(POINT(155105 463625), LINESTRING(0 0, 1 1))"
+    When I evaluate "ligt_in_beperkingengebied" of "test_shapes"
+    Then the execution fails with "is a collection of geometries"
+
+  Scenario: A coordinate out of bounds fails, and never reads as outside
+    # Corners at 1e308 cover the whole strip. The relation overflows that far
+    # out, so the engine refuses the shape rather than answer false.
+    Given parameter "location" is "POLYGON((-1e308 -1e308, 1e308 -1e308, 1e308 1e308, -1e308 1e308, -1e308 -1e308))"
+    When I evaluate "ligt_in_beperkingengebied" of "test_shapes"
+    Then the execution fails
+    Then the execution fails with "has a coordinate beyond 1e12"
+
   Scenario: An absent shape fails, as ordering an absence does
     # A row is untyped, so no declaration refuses the null at the boundary;
     # the operation does. Whether nothing overlaps an area is not a question
