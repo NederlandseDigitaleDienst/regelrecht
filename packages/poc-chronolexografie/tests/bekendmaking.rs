@@ -105,3 +105,34 @@ fn the_period_follows_from_the_record_that_makes_it_known() {
     assert_eq!(na["velden"]["bekendmaking_datum"], json!("2026-02-09"));
     assert_eq!(na["uitvoer"]["termijn_einde"], json!("2026-03-23"));
 }
+
+#[test]
+fn the_fact_is_recorded_only_on_a_decision_it_makes_known() {
+    let mut spel = spel();
+    let besluit = verleend(&mut spel, "2026-02-02");
+    let velden = map(&json!({"bekendmaking_datum": "2026-02-09"}));
+    // Without a reference it is no fact the service records on its own.
+    let e = spel
+        .vastleggen_verwijzend("fictieve_dienst", SENT, &velden, None, dag("2026-02-09"))
+        .unwrap_err();
+    assert!(e.to_string().contains("records no fact"), "{e}");
+    let betaling = spel
+        .vastleggen_verwijzend(
+            "fictieve_dienst",
+            "fictieve_vergunningwet#4#leges_betaald",
+            &map(&json!({"bedrag": 5000})),
+            Some(&besluit),
+            dag("2026-02-09"),
+        )
+        .unwrap();
+    let e = spel
+        .vastleggen_verwijzend(
+            "fictieve_dienst",
+            SENT,
+            &velden,
+            Some(betaling["id"].as_str().unwrap()),
+            dag("2026-02-09"),
+        )
+        .unwrap_err();
+    assert!(e.to_string().contains("makes a decision known"), "{e}");
+}

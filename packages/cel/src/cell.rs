@@ -76,7 +76,8 @@ pub struct Announcement {
     /// What they hold of the parameters of the stage, by name.
     pub fields: Map<String, serde_json::Value>,
     /// Whether every date the stage requires is recorded, such as the day
-    /// the decision was made known. Until then the stage does not run.
+    /// the decision was made known, and every parameter a fact holds that
+    /// cannot be absent. Until then the stage does not run.
     pub made_known: bool,
     /// What the stage gave, such as the period for objection (Awb 6:8);
     /// empty until it is `made_known`.
@@ -1158,7 +1159,8 @@ impl Cell {
     ///
     /// Per fact the stage reads, the latest executogram of it that refers to
     /// the decision and is recorded on or before `on` holds its parameters.
-    /// Once every date the stage requires is recorded, the stage runs, in the
+    /// Once every date the stage requires is recorded, and every parameter a
+    /// fact holds that cannot be absent, the stage runs, in the
     /// law of the day of the decision, on the decision's fields and findings
     /// and what those executograms hold; the cells answer as they knew things
     /// on `on`. Nothing of it is recorded: like what a submission gives
@@ -1176,26 +1178,7 @@ impl Cell {
         on: NaiveDate,
     ) -> Result<Option<Announcement>> {
         let gram = self.decision_gram(service, id)?.clone();
-        // The record the decision refers to: the submission it was taken on,
-        // or, for a decision taken ex officio, the record it is about.
-        let submission = gram
-            .refers_to
-            .as_deref()
-            .and_then(|r| self.grams().iter().find(|g| g.id == r))
-            .filter(|g| is_submission(service, g))
-            .cloned();
-        let shape = match &submission {
-            Some(_) => decision_shape_of(service, &gram, gram.recorded_on)?,
-            None => {
-                let (law_id, article) = gram.basis.split_once('#').ok_or_else(|| {
-                    setup(format!(
-                        "chronolexogram '{id}' has basis '{}', not <regulation>#<article>",
-                        gram.basis
-                    ))
-                })?;
-                decision::derive_ex_officio(service, law_id, article, gram.recorded_on)?
-            }
-        };
+        let (shape, submission) = self.taken(service, &gram)?;
         let Some(stage) = shape.announcement().cloned() else {
             return Ok(None);
         };
@@ -1224,17 +1207,20 @@ impl Cell {
                 }
             }
         }
-        // A date the stage requires that a fact holds must be recorded; one
-        // the cell filled with the day of the decision the decision holds.
-        announcement.made_known = stage.requires.iter().all(|r| {
-            !matches!(
-                shape.input(&r.name).map(|i| &i.source),
-                Some(Source::Fact { .. })
-            ) || announcement
-                .fields
-                .get(&r.name)
-                .is_some_and(|v| !v.is_null())
-        });
+        // What a fact holds and the stage cannot go without must be
+        // recorded: a date the stage requires, and a parameter that cannot
+        // be absent. A date the cell filled the decision holds itself.
+        announcement.made_known = shape
+            .inputs
+            .iter()
+            .filter(|i| matches!(i.source, Source::Fact { .. }))
+            .filter(|i| !i.field.nullable || stage.requires.iter().any(|r| r.name == i.field.name))
+            .all(|i| {
+                announcement
+                    .fields
+                    .get(&i.field.name)
+                    .is_some_and(|v| !v.is_null())
+            });
         if !announcement.made_known {
             return Ok(Some(announcement));
         }
@@ -1252,11 +1238,11 @@ impl Cell {
             .iter()
             .filter(|i| matches!(i.source, Source::Fact { .. }))
         {
-            let value = match announcement.fields.get(&input.field.name) {
-                Some(value) => value,
-                None if input.field.nullable => &serde_json::Value::Null,
-                None => continue,
-            };
+            // `made_known` holds every one that cannot be absent.
+            let value = announcement
+                .fields
+                .get(&input.field.name)
+                .unwrap_or(&serde_json::Value::Null);
             parameters.insert(input.field.name.clone(), stored::from_stored(value)?);
         }
         let reader = self.known_on(on);
@@ -1283,6 +1269,49 @@ impl Cell {
         )?;
         collect_outputs(&result, &mut announcement.outputs)?;
         Ok(Some(announcement))
+    }
+
+    /// What the decision `id` of this chronicle holds, as the law in force
+    /// on its day says: taken on the submission it refers to, or ex officio
+    /// ([`decision::derive`], [`decision::derive_ex_officio`]). Such as which
+    /// facts its announcement reads ([`DecisionShape::announcement_facts`]).
+    ///
+    /// # Errors
+    ///
+    /// `id` that is no decision of this chronicle, and a decision whose
+    /// article the law in force on its day does not hold.
+    pub fn decision_shape(&self, service: &LawExecutionService, id: &str) -> Result<DecisionShape> {
+        let gram = self.decision_gram(service, id)?;
+        Ok(self.taken(service, gram)?.0)
+    }
+
+    /// The shape of the decision `gram`, and the submission it was taken on;
+    /// none for a decision taken ex officio, which refers to the record it
+    /// is about.
+    fn taken(
+        &self,
+        service: &LawExecutionService,
+        gram: &Gram,
+    ) -> Result<(DecisionShape, Option<Gram>)> {
+        let submission = gram
+            .refers_to
+            .as_deref()
+            .and_then(|r| self.grams().iter().find(|g| g.id == r))
+            .filter(|g| is_submission(service, g))
+            .cloned();
+        let shape = match &submission {
+            Some(_) => decision_shape_of(service, gram, gram.recorded_on)?,
+            None => {
+                let (law_id, article) = gram.basis.split_once('#').ok_or_else(|| {
+                    setup(format!(
+                        "chronolexogram '{}' has basis '{}', not <regulation>#<article>",
+                        gram.id, gram.basis
+                    ))
+                })?;
+                decision::derive_ex_officio(service, law_id, article, gram.recorded_on)?
+            }
+        };
+        Ok((shape, submission))
     }
 
     #[allow(clippy::too_many_arguments)]

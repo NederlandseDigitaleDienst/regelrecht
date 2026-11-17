@@ -432,3 +432,42 @@ fn a_fact_cannot_hold_what_the_decision_is_taken_with() {
         "{e}"
     );
 }
+
+#[test]
+fn a_fact_that_cannot_be_absent_is_waited_for() {
+    // The address the fact holds cannot be absent; the date is the cell's.
+    let procedure = PROCEDURE
+        .replace(
+            "parameters: [bekendmaking_datum, adres_toezending]",
+            "parameters: [adres_toezending]",
+        )
+        .replace(
+            "          - {name: adres_toezending, type: string, nullable: true}\n",
+            "          - {name: adres_toezending, type: string}\n",
+        );
+    let mut service = service_of(&[&procedure, VERLOF, BEZWAAR]);
+    let mut cell = bare_cell("fictieve_school");
+    let decision = decide(&mut cell, &mut service, "2026-10-01");
+    let before = cell
+        .announcement(&mut service, &[], &decision.id, day("2026-10-01"))
+        .unwrap()
+        .unwrap();
+    assert!(!before.made_known);
+    // An objection before it gets no period, and is not refused.
+    let objection = object(&mut cell, &mut service, &decision.id, "2026-10-02");
+    assert_eq!(objection.fields["termijn_einde"], Value::Null);
+    cell.record_executogram_referring(
+        &service,
+        SENT,
+        &object_map(json!({"adres_toezending": "Dorpsstraat 1"})),
+        Some(&decision.id),
+        day("2026-10-03"),
+    )
+    .unwrap();
+    let after = cell
+        .announcement(&mut service, &[], &decision.id, day("2026-10-03"))
+        .unwrap()
+        .unwrap();
+    assert!(after.made_known);
+    assert_eq!(after.outputs["termijn_einde"], json!("2026-11-12"));
+}

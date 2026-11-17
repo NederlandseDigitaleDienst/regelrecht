@@ -839,8 +839,9 @@ fn besluit_vorm(
 
 /// How the decision `id` of the case's own cell is made known on `on`
 /// ([`Cell::announcement`]): which records of its announcement the chronicle
-/// holds, what they hold, whether every date the stage requires is there,
-/// and what the stage then gives, such as the period for objection. `null`
+/// holds, what they hold, whether every date the stage requires and every
+/// parameter a fact holds that cannot be absent is there, and what the stage
+/// then gives, such as the period for objection. `null`
 /// for a decision announced with it, on its day.
 ///
 /// # Errors
@@ -859,6 +860,34 @@ pub fn bekendmaking(corpus: &Corpus, cellen: &Cellen, id: &str, on: NaiveDate) -
         }),
         None => Value::Null,
     })
+}
+
+/// Refuse a fact that makes a decision known, `feit`, on a record that is no
+/// decision of the case's own cell whose announcement reads it.
+fn maakt_bekend(
+    service: &LawExecutionService,
+    cellen: &Cellen,
+    feit: &str,
+    refers_to: Option<&str>,
+) -> Result<()> {
+    // As the cell reads the decision: in the law of its day.
+    let leest = match refers_to {
+        Some(id) => match cellen.eigen.decision_shape(service, id) {
+            Ok(vorm) => vorm.announcement_facts().contains(&feit),
+            Err(Error::Refused(_)) => false,
+            Err(e) => return Err(e),
+        },
+        None => false,
+    };
+    if leest {
+        return Ok(());
+    }
+    Err(Error::Refused(format!(
+        "'{feit}' makes a decision known: it is recorded on a decision of '{}' whose \
+         announcement reads it, and {} is none",
+        cellen.eigen.recording_actor(),
+        refers_to.map_or_else(|| "no record".to_string(), |r| format!("'{r}'"))
+    )))
 }
 
 /// The facts the announcement of a decision of the case reads
@@ -1378,13 +1407,9 @@ pub fn vastleggen_verwijzend(
                 .is_some_and(|h| h.iter().any(|h| h["feit"] == feit))
     });
     // A fact that makes a decision known, the case's own cell records on
-    // that decision, in the step after it ([`bekendmaking`]).
-    let bekendmaakt = eigen
-        && verwijst_naar.is_some()
-        && bekendmakingsfeiten(corpus, &service, on)?
-            .iter()
-            .any(|f| f == feit);
-    if !mag && !bekendmaakt {
+    // that decision, in the step after it ([`bekendmaking`]): which facts
+    // those are, the decision it refers to says.
+    if !(mag || eigen && verwijst_naar.is_some()) {
         return Err(Error::Refused(format!(
             "'{cel}' records no fact '{feit}': it is no cell of this case, or the law does not \
              give that cell that fact to record"
@@ -1395,6 +1420,9 @@ pub fn vastleggen_verwijzend(
         None => None,
     };
     let refers_to = refers_to.as_deref();
+    if !mag {
+        maakt_bekend(&service, cellen, feit, refers_to)?;
+    }
     // The fact and its receipt land together or not at all: the case's cell
     // can refuse the receipt after the other cell took the fact. Try it first.
     leg_vast(

@@ -6,8 +6,12 @@
 // verwijzing naar het besluit (FeitVastleggen.vue). Wat de bekendmaking
 // geeft, zoals de bezwaartermijn (Awb 6:8), volgt dan uit de kroniek op de
 // speeldatum (`api.bekendmaking`). Bij een besluit waarvan de bekendmaking
-// geen feit leest, maakt de cel het bekend op de dag van het besluit; dan is
-// er geen stap en toont deze sectie niets.
+// geen feit leest, maakt de cel het bekend op de dag van het besluit. Leest
+// geen besluit van de casus zo'n feit, dan toont deze sectie niets; een
+// eerder besluit onder een versie zonder zo'n feit staat er als bekendgemaakt
+// op zijn dag, zonder formulier. De sectie toont de besluiten op
+// de aanvragen van de casus; een beslissing op bezwaar of een ambtshalve
+// besluit waarvan de bekendmaking een feit leest, biedt ze nog niet aan.
 import { computed, reactive, watch } from 'vue';
 import { api } from '../api.js';
 import { aanvragen, alsJson, besluitOp, kort, state } from '../state.js';
@@ -29,7 +33,12 @@ const besluiten = computed(() =>
 const stand = reactive({});
 let vraag = 0;
 watch(
-  () => [besluiten.value.map((b) => b.id).join(), state.grammen.length, state.datum],
+  () => [
+    besluiten.value.map((b) => b.id).join(),
+    state.grammen.length,
+    ...(state.andere ?? []).map((a) => a.grammen.length),
+    state.datum,
+  ],
   async () => {
     const deze = ++vraag;
     for (const b of besluiten.value) {
@@ -47,18 +56,27 @@ watch(
 
 const status = (id) => {
   const s = stand[id];
-  if (!s) return { text: 'Bekendmaking wordt gelezen', variant: 'loading' };
+  if (s === undefined) return { text: 'Bekendmaking wordt gelezen', variant: 'loading' };
+  // Een besluit waarvan de bekendmaking geen feit leest (`null`).
+  if (s === null)
+    return { text: 'Bekendgemaakt', supporting: 'Op de dag van het besluit.', icon: 'check-mark-circle', color: 'success' };
   if (s.fout) return { text: 'De bekendmaking is niet te lezen', supporting: s.fout, icon: 'warning' };
   if (!s.bekendgemaakt)
     return {
       text: 'Nog niet bekendgemaakt',
       supporting:
-        'De kroniek houdt op de speeldatum geen vastlegging van de bekendmaking. Wat daaruit volgt, zoals de bezwaartermijn, ligt nog niet vast.',
+        s.vastgelegd.length === 0
+          ? 'De kroniek houdt op de speeldatum geen vastlegging van de bekendmaking. Wat daaruit volgt, zoals de bezwaartermijn, ligt nog niet vast.'
+          : 'De kroniek houdt een vastlegging van de bekendmaking, maar daarin ontbreekt nog wat de bekendmaking nodig heeft, zoals de dag van verzending.',
       icon: 'info',
     };
+  const aantal = s.vastgelegd.length;
   return {
     text: 'Bekendgemaakt',
-    supporting: `Uit ${s.vastgelegd.length === 1 ? 'de vastlegging' : `${s.vastgelegd.length} vastleggingen`} in de kroniek.`,
+    supporting:
+      aantal === 0
+        ? 'Op de dag van het besluit.'
+        : `Uit ${aantal === 1 ? 'de vastlegging' : `${aantal} vastleggingen`} in de kroniek.`,
     icon: 'check-mark-circle',
     color: 'success',
   };
@@ -96,11 +114,11 @@ const status = (id) => {
             :supporting-text="status(b.id).supporting"
           ></nldd-inline-dialog>
           <nldd-code-viewer
-            v-if="stand[b.id]?.bekendgemaakt"
+            v-if="stand[b.id]?.bekendgemaakt && Object.keys(stand[b.id].uitvoer).length"
             language="json"
             appearance="box-tinted"
           >{{ alsJson(stand[b.id].uitvoer) }}</nldd-code-viewer>
-          <FeitVastleggen :cel="state.vormen.besluit.cel" :handelingen="vorm().feiten" :verwijst-naar="b.id" />
+          <FeitVastleggen v-if="stand[b.id] !== null" :cel="state.vormen.besluit.cel" :handelingen="vorm().feiten" :verwijst-naar="b.id" />
         </nldd-container>
       </nldd-card>
     </nldd-container>
