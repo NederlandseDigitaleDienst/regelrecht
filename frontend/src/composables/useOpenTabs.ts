@@ -5,17 +5,20 @@ import {
   saveTabs,
   loadSavedActiveTab,
   saveActiveTab,
+  tabKey,
   MAX_TABS,
 } from '../lib/openTabsStorage';
-import type { OpenTab } from '../lib/openTabsStorage';
+import type { OpenTab, ScenarioTab } from '../lib/openTabsStorage';
 
 type TrajectRef = string | null | undefined;
 
-/** A tab as callers pass it in; `articleNumber` is normalised to a string. */
-export interface TabInput {
-  lawId: string;
-  articleNumber: string | number;
-}
+/**
+ * A tab as callers pass it in: an article (`kind` may be left out, and
+ * `articleNumber` is normalised to a string) or a scenario file.
+ */
+export type TabInput =
+  | { kind?: 'article'; lawId: string; articleNumber: string | number }
+  | ScenarioTab;
 
 interface TabBucket {
   tabs: OpenTab[];
@@ -45,7 +48,7 @@ interface TabBucket {
  * in-place array splice), so consumers stay cheap and there is no per-tab
  * reactivity to leak. No lifecycle hooks, so this is directly unit-testable.
  *
- * A tab has the shape `{ lawId, articleNumber }` (`articleNumber` a string).
+ * A tab is an article or a scenario file; see `OpenTab`.
  */
 export function useOpenTabs(activeTrajectRef: Readonly<Ref<TrajectRef>>) {
   // Map<string, { tabs: Tab[], active: Tab | null }>. Keyed on the traject ref
@@ -71,12 +74,9 @@ export function useOpenTabs(activeTrajectRef: Readonly<Ref<TrajectRef>>) {
     return b;
   }
 
-  function tabKey(tab: TabInput): string {
-    return `${tab.lawId}:${tab.articleNumber}`;
-  }
-
   function normalize(tab: TabInput): OpenTab {
-    return { lawId: tab.lawId, articleNumber: String(tab.articleNumber) };
+    if (tab.kind === 'scenario') return { kind: 'scenario', lawId: tab.lawId, filename: tab.filename };
+    return { kind: 'article', lawId: tab.lawId, articleNumber: String(tab.articleNumber) };
   }
 
   // --- Explicit-ref reads (used by the restore flow, which always names the
@@ -90,9 +90,9 @@ export function useOpenTabs(activeTrajectRef: Readonly<Ref<TrajectRef>>) {
     version.value;
     return bucket(trajectRef).active;
   }
-  function findTab(trajectRef: TrajectRef, lawId: string, articleNumber: string | number): OpenTab | null {
-    const num = String(articleNumber);
-    return tabsFor(trajectRef).find((t) => t.lawId === lawId && t.articleNumber === num) ?? null;
+  function findTab(trajectRef: TrajectRef, tab: TabInput): OpenTab | null {
+    const key = tabKey(normalize(tab));
+    return tabsFor(trajectRef).find((t) => tabKey(t) === key) ?? null;
   }
 
   // --- Reactive views for the currently active traject. ---
@@ -178,9 +178,9 @@ export function useOpenTabs(activeTrajectRef: Readonly<Ref<TrajectRef>>) {
   }
 
   /**
-   * Drop every tab pointing at `lawId` from a traject (the self-heal for a law
-   * that 404's in this traject), clear the active tab when it was one of them,
-   * and re-persist both keys.
+   * Drop every tab pointing at `lawId` from a traject, its scenario tabs
+   * included (the self-heal for a law that 404's in this traject), clear the
+   * active tab when it was one of them, and re-persist both keys.
    */
   function dropLaw(trajectRef: TrajectRef, lawId: string): void {
     const b = bucket(trajectRef);

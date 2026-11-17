@@ -488,6 +488,34 @@ impl LawExecutionService {
             .collect();
         // `per` came with schema v0.8.17, so its step rules hold.
         self.check_steps(law_id, &projection, &[], day, true)?;
+        if !filter.is_empty() {
+            // A root rests on its article as in force on the day it was
+            // recorded, and a reader is written against the article in
+            // force on the day asked; a name any of those versions declares
+            // may match. Without roots there is nothing to match and nothing
+            // to check here: the loader checks `where` when it holds the
+            // root's law.
+            let mut roots: Vec<&Article> = Vec::new();
+            let mut present = false;
+            for root in known.iter().filter(|r| is_root(per, r)) {
+                present = true;
+                let article = self.article_of(root)?;
+                if !roots.iter().any(|a| std::ptr::eq(*a, article)) {
+                    roots.push(article);
+                }
+            }
+            if present
+                && let Some((law, number)) = per.0.split_once('#')
+                && let Some(article) = self
+                    .resolver()
+                    .get_law_for_date(law, Some(day))
+                    .and_then(|l| l.find_article_by_number(number))
+            {
+                roots.push(article);
+            }
+            check_where(&projection, &roots, filter.keys().map(String::as_str))
+                .map_err(|why| EngineError::InvalidOperation(format!("{reference}: {why}")))?;
+        }
         self.refuse_unattached_revocations(&known)?;
         let none = BTreeMap::new();
         let mut played = Vec::new();
@@ -1214,6 +1242,62 @@ pub(crate) fn aggregate_projection<'l>(
     }
 }
 
+/// Refuse a `where` (`source.projections`, schema v0.8.17) that names
+/// something no root of `projection` can hold. `where` picks a root by a
+/// field or an output of the root record itself, as an article in `roots`
+/// declares the record of the kind or the fact `per` names. `roots` holds
+/// each version of that article a root may rest on; a name one of them
+/// declares passes. `where` does not read the state of the aggregate, nor
+/// `refers_to` or `id`: a name only the state holds would match no root and
+/// leave the read model with no rows, without saying why. A `per` the
+/// article cannot resolve is left to the step checks, which report it.
+/// The loader runs this from schema v0.8.19; a reader on an earlier
+/// version is checked only when the cell plays it, with roots present.
+pub(crate) fn check_where<'n>(
+    projection: &Projection,
+    roots: &[&Article],
+    names: impl IntoIterator<Item = &'n str>,
+) -> std::result::Result<(), String> {
+    let Some(per) = projection.per_basis_and_kind() else {
+        return Ok(());
+    };
+    if roots.is_empty() {
+        return Ok(());
+    }
+    let (basis, selector) = per;
+    let fact = selector.filter(|k| names_fact(k));
+    let declares = |root: &Article, name: &str| match fact {
+        // A fact the article does not require is the step checks' to report.
+        Some(fact) => {
+            !facts_of(root).contains(&fact)
+                || executogram_field_type(root, Some(fact), name).is_some()
+        }
+        None => match record_kind(root, basis, selector) {
+            Ok(kind) => field_type(root, kind.as_deref(), name).is_some(),
+            // Not this check's to report; the step checks do.
+            Err(_) => true,
+        },
+    };
+    let Some(name) = names
+        .into_iter()
+        .find(|name| !roots.iter().any(|root| declares(root, name)))
+    else {
+        return Ok(());
+    };
+    let per = per_name(per);
+    if projection.state.iter().any(|p| p.name == name) {
+        return Err(format!(
+            "where names '{name}', which a root of {per} does not hold as a field or an \
+             output; it is in the state of the aggregate, and where does not read the state. \
+             Filter the rows in a FOREACH instead"
+        ));
+    }
+    Err(format!(
+        "where names '{name}', which a root of {per} does not hold as a field or an output \
+         (where reads neither refers_to nor the record's id), so no root would match"
+    ))
+}
+
 /// Whether `record` is a root of a projection with `per`: it rests on that
 /// article, and is of that kind or an instance of that fact where `per`
 /// names one.
@@ -1454,7 +1538,7 @@ pub(crate) fn check_step<'l>(
         }
         // A required parameter the output does not read, such as a field
         // a fact of the article holds, need not be passed.
-        let reads = output_reads(called, output);
+        let reads = crate::demand::output_reads(called, output);
         if let Some(required) = called.get_parameters().iter().find(|p| {
             since_v0_8_16
                 && p.required != Some(false)
@@ -1931,22 +2015,6 @@ fn field_type(article: &Article, kind: Option<&str>, name: &str) -> Option<Param
         .or_else(|| in_outputs.then(output).flatten())
 }
 
-/// Every name `output` of `article` reads, through the actions that compute
-/// it and the outputs of the article they read in turn
-/// ([`crate::demand::required_outputs`]).
-fn output_reads(article: &Article, output: &str) -> BTreeSet<String> {
-    let actions = article
-        .get_execution_spec()
-        .and_then(|e| e.actions.as_deref())
-        .unwrap_or_default();
-    let needed = crate::demand::required_outputs(actions, &[output]);
-    actions
-        .iter()
-        .filter(|a| a.output.as_ref().is_some_and(|o| needed.contains(o)))
-        .flat_map(crate::demand::referenced_names)
-        .collect()
-}
-
 /// Refuse an output a step cannot read: one that depends on anything but
 /// the parameters the step passes. Purity is a matter of what the step
 /// reads, not of the whole article, so the check follows `output` through
@@ -1965,7 +2033,7 @@ fn refuse_impure(article: &Article, output: &str) -> std::result::Result<(), Str
     if machine.projection.is_some() {
         return Err("the article plays a projection itself".to_string());
     }
-    let reads = output_reads(article, output);
+    let reads = crate::demand::output_reads(article, output);
     // An input named like an output still reaches that output's first
     // assignment (the pass-through `x: $x`), so a read of the name counts.
     if let Some(input) = article
@@ -4565,14 +4633,37 @@ articles:
         );
     }
 
+    /// [`LAW`] with article 1 taking a number, `nummer`, besides the
+    /// applicant.
+    fn law_with_number() -> String {
+        LAW.replace(
+            "parameters: [{name: aanvrager, type: string, required: false}]",
+            "parameters: [{name: aanvrager, type: string, required: false}, \
+             {name: nummer, type: number, required: false}]",
+        )
+    }
+
+    /// The versions of the law in `laws`, [`REDUCTION`] and [`PER_GRANT`].
+    fn per_grant_over(laws: &[&str]) -> LawExecutionService {
+        let mut service = LawExecutionService::new();
+        for law in laws {
+            service.load_law(law).unwrap();
+        }
+        service.load_law(REDUCTION).unwrap();
+        service.load_law(PER_GRANT).unwrap();
+        service
+    }
+
     /// `where` compares numbers by value, as EQUALS does: a number matches
     /// the same number written as a decimal.
     #[test]
     fn where_compares_numbers_by_value() {
         let mut root = granted_to("a", "x");
         root.fields.insert("nummer".to_string(), Value::Int(2));
+        // `where` names only what the root's article declares.
+        let service = per_grant_over(&[&law_with_number()]);
         let rows = |value: Value| {
-            per_service()
+            service
                 .projection_rows(
                     "per_verlening",
                     std::slice::from_ref(&root),
@@ -4586,6 +4677,58 @@ articles:
             Value::Array(vec![row("a", true, "x")])
         );
         assert_eq!(rows(Value::Int(3)), Value::Array(Vec::new()));
+    }
+
+    /// A root rests on its article as in force on the day it was recorded,
+    /// so `where` may name a field that version declares and a later one
+    /// dropped.
+    #[test]
+    fn where_names_a_field_of_the_version_a_root_rests_on() {
+        let service = per_grant_over(&[
+            &law_with_number(),
+            &LAW.replace("valid_from: '2025-01-01'", "valid_from: '2025-04-01'"),
+        ]);
+        let mut root = granted_to("a", "x");
+        root.fields.insert("nummer".to_string(), Value::Int(2));
+        let rows = service
+            .projection_rows(
+                "per_verlening",
+                std::slice::from_ref(&root),
+                &BTreeMap::from([("nummer".to_string(), Value::Int(2))]),
+                "2025-05-01",
+            )
+            .unwrap();
+        assert_eq!(rows, Value::Array(vec![row("a", true, "x")]));
+        // A name no version declares is still refused.
+        let err = service
+            .projection_rows(
+                "per_verlening",
+                std::slice::from_ref(&root),
+                &BTreeMap::from([("onbekend".to_string(), Value::Int(2))]),
+                "2025-05-01",
+            )
+            .expect_err("no version declares it")
+            .to_string();
+        assert!(err.contains("where names 'onbekend'"), "{err}");
+    }
+
+    /// A reader written against a newer version may name a field that
+    /// version adds before any root rests on it: no root matches yet.
+    #[test]
+    fn where_names_a_field_of_the_version_in_force_on_the_day_asked() {
+        let service = per_grant_over(&[
+            LAW,
+            &law_with_number().replace("valid_from: '2025-01-01'", "valid_from: '2025-04-01'"),
+        ]);
+        let rows = service
+            .projection_rows(
+                "per_verlening",
+                &[granted_to("a", "x")],
+                &BTreeMap::from([("nummer".to_string(), Value::Int(2))]),
+                "2025-05-01",
+            )
+            .unwrap();
+        assert_eq!(rows, Value::Array(Vec::new()));
     }
 
     /// [`LAW`] with article 4 requiring two facts: a card handed in
@@ -4648,6 +4791,115 @@ articles:
 
     fn on(day: &str) -> Value {
         Value::String(day.to_string())
+    }
+
+    /// One aggregate per card reported lost, with the card it is about in
+    /// the state, from `$record.refers_to`.
+    const PER_LOSS: &str = r#"
+$id: per_verlies
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      projection:
+        per: wet#4#verloren
+        state: [{name: kaart, type: string}]
+        steps:
+          - record: wet#4#verloren
+            actions: [{output: kaart, value: $record.refers_to}]
+  - number: '2'
+    text: t
+    machine_readable:
+      execution:
+        parameters: [{name: kaart, type: string}]
+        input:
+          - name: verliezen
+            type: array
+            source: {projections: per_verlies#1}
+        output: [{name: aantal, type: number}]
+        actions:
+          - output: aantal
+            value:
+              operation: FOREACH
+              collection: $verliezen
+              as: v
+              filter: {operation: EQUALS, subject: $v.kaart, value: $kaart}
+              body: 1
+              combine: ADD
+"#;
+
+    /// `where` picks a root by a field or an output the root record holds,
+    /// not by the state of its aggregate. A name only the state holds, here
+    /// `kaart` from `$record.refers_to`, would match no root and give no
+    /// rows without a word; the engine refuses it, when the reduction loads
+    /// after the law and when the cell plays it, and says to filter in a
+    /// FOREACH, which does read the state.
+    #[test]
+    fn where_on_the_state_of_the_aggregate_is_refused() {
+        let lost = ChronicleRecord {
+            refers_to: Some("a".to_string()),
+            ..fact("b", "4", "verloren", &[("gemeld", on("2025-02-01"))])
+        };
+        let mut service = LawExecutionService::new();
+        service.load_law(&two_facts()).unwrap();
+        service.load_law(PER_LOSS).unwrap();
+        // The FOREACH reads the state and finds the loss.
+        let outcome = service
+            .evaluate_projection(
+                "per_verlies",
+                &["aantal"],
+                std::slice::from_ref(&lost),
+                BTreeMap::from([("kaart".to_string(), Value::String("a".to_string()))]),
+                "2025-03-01",
+                false,
+            )
+            .unwrap();
+        assert_eq!(outcome.result.outputs["aantal"], Value::Int(1));
+        // A field of the root may be named.
+        let by = |name: &str, value: Value| {
+            service.projection_rows(
+                "per_verlies#1",
+                std::slice::from_ref(&lost),
+                &BTreeMap::from([(name.to_string(), value)]),
+                "2025-03-01",
+            )
+        };
+        assert_eq!(
+            by("gemeld", on("2025-02-01")).unwrap(),
+            Value::Array(vec![Value::Object(BTreeMap::from([
+                ("id".to_string(), Value::String("b".to_string())),
+                ("kaart".to_string(), Value::String("a".to_string())),
+            ]))])
+        );
+        // The state, or `refers_to`, may not.
+        let err = by("kaart", Value::String("a".to_string()))
+            .expect_err("where on the state")
+            .to_string();
+        assert!(
+            err.contains("where names 'kaart'") && err.contains("FOREACH"),
+            "{err}"
+        );
+        let err = by("refers_to", Value::String("a".to_string()))
+            .expect_err("where on refers_to")
+            .to_string();
+        assert!(err.contains("no root would match"), "{err}");
+        // Written in the law, it is refused when the reduction loads.
+        let mut service = LawExecutionService::new();
+        service.load_law(&two_facts()).unwrap();
+        let err = service
+            .load_law(&PER_LOSS.replace(
+                "source: {projections: per_verlies#1}",
+                "source: {projections: per_verlies#1, where: {kaart: $kaart}}",
+            ))
+            .expect_err("where on the state")
+            .to_string();
+        assert!(
+            err.contains("input 'verliezen'") && err.contains("FOREACH"),
+            "{err}"
+        );
     }
 
     #[test]

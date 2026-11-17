@@ -40,7 +40,8 @@ const hasArticles = computed(() => documentTabs.value.length > 0 && !!tabActions
 const buttonText = computed(() => {
   const tab = activeDocumentTab.value;
   if (tab && tabActions.value) {
-    return `Artikel ${tab.articleNumber} · ${tabActions.value.displayName(tab)}`;
+    const label = tabActions.value.label(tab);
+    return `${label.text} · ${label.supportingText}`;
   }
   if (activeTraject.value) return activeTraject.value.name;
   if (menuLoading.value) return 'Trajecten';
@@ -172,10 +173,13 @@ async function submitCreate(): Promise<void> {
 
 // --- Artikelen (open tabbladen), zelfde acties als de oude DocumentTabsSheet ---
 function tabText(tab: OpenTab): string {
-  return `Artikel ${tab.articleNumber}`;
+  return tabActions.value?.label(tab).text ?? '';
 }
 function tabSupporting(tab: OpenTab): string | undefined {
-  return tabActions.value?.displayName(tab);
+  return tabActions.value?.label(tab).supportingText;
+}
+function tabUnsaved(tab: OpenTab): boolean {
+  return !!tabActions.value?.label(tab).unsaved;
 }
 function isActiveTab(tab: OpenTab): boolean {
   const active = activeDocumentTab.value;
@@ -347,6 +351,9 @@ onBeforeUnmount(() => {
                 <nldd-spacer-cell v-else size="20"></nldd-spacer-cell>
                 <nldd-spacer-cell size="8"></nldd-spacer-cell>
                 <nldd-text-cell :text="tabText(tab)" :supporting-text="tabSupporting(tab)"></nldd-text-cell>
+                <nldd-cell v-if="tabUnsaved(tab)" width="fit-content">
+                  <nldd-tag size="sm" color="warning" text="Niet opgeslagen"></nldd-tag>
+                </nldd-cell>
                 <nldd-spacer-cell size="8"></nldd-spacer-cell>
                 <nldd-cell>
                   <nldd-icon-button

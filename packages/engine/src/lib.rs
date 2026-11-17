@@ -77,7 +77,7 @@ pub use context::RuleContext;
 pub use data_source::{DataSource, DataSourceMatch, DataSourceRegistry, DictDataSource};
 pub use engine::{
     ArticleEngine, ArticleResult, FilledBy, ImplementationAnswer, ImplementationGave,
-    OpenTermAsked, OpenTermFilled, OutputProvenance, RegulationRead, TerritoryTest,
+    OpenTermAsked, OpenTermFilled, OutputProvenance, RegulationRead, TerritoryTest, Unanswered,
 };
 pub use error::{EngineError, ExternalError, Result};
 pub use operations::{ValueResolver, evaluate_value, execute_operation};

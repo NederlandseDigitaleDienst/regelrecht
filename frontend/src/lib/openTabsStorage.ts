@@ -11,7 +11,9 @@
  * access is wrapped in try/catch with a safe default so full/disabled storage
  * never breaks the editor - tab persistence is best-effort.
  *
- * A tab has the shape `{ lawId, articleNumber }`.
+ * A tab is an article (`{ kind: 'article', lawId, articleNumber }`) or a
+ * scenario feature file (`{ kind: 'scenario', lawId, filename }`). Tabs saved
+ * before scenario tabs existed carry no `kind` and read as articles.
  *
  * Reads are sanitised (see `sanitizeTabs`): earlier builds of the per-traject
  * feature briefly wrote one traject's law under another traject's key, and
@@ -29,10 +31,26 @@ const ACTIVE_TAB_STORAGE_PREFIX = 'regelrecht-active-tab:';
 // the in-memory store (`useOpenTabs`) enforce the same bound.
 export const MAX_TABS = 20;
 
-/** A stored tab. These keys are the persisted format; do not rename them. */
-export interface OpenTab {
+/** An article tab. These keys are the persisted format; do not rename them. */
+export interface ArticleTab {
+  kind: 'article';
   lawId: string;
   articleNumber: string;
+}
+
+/** A tab for one feature file of a regelwerk's scenarios. Persisted as is. */
+export interface ScenarioTab {
+  kind: 'scenario';
+  lawId: string;
+  filename: string;
+}
+
+/** A stored tab. */
+export type OpenTab = ArticleTab | ScenarioTab;
+
+/** A tab's identity: two tabs with the same key are the same tab. */
+export function tabKey(tab: OpenTab): string {
+  return tab.kind === 'scenario' ? `${tab.lawId}::scenario::${tab.filename}` : `${tab.lawId}:${tab.articleNumber}`;
 }
 
 type TrajectRef = string | null | undefined;
@@ -46,23 +64,33 @@ function activeTabKey(trajectRef: TrajectRef): string {
 }
 
 /**
- * Coerce one stored value into a valid tab `{ lawId, articleNumber }` or
- * `null`. A tab needs a non-empty string `lawId` and an `articleNumber`; the
- * latter is normalised to a string so a legacy numeric value and a string
- * value never read as two different tabs.
+ * Coerce one stored value into a valid tab, or `null`. Every tab needs a
+ * non-empty string `lawId`. A scenario tab needs a non-empty `filename`; any
+ * other value is an article tab, which needs an `articleNumber`, normalised
+ * to a string so a legacy numeric value and a string value never read as two
+ * different tabs.
  */
 export function sanitizeTab(raw: unknown): OpenTab | null {
   if (!raw || typeof raw !== 'object') return null;
-  const { lawId, articleNumber } = raw as { lawId?: unknown; articleNumber?: unknown };
+  const { kind, lawId, articleNumber, filename } = raw as {
+    kind?: unknown;
+    lawId?: unknown;
+    articleNumber?: unknown;
+    filename?: unknown;
+  };
   if (typeof lawId !== 'string' || lawId === '') return null;
+  if (kind === 'scenario') {
+    if (typeof filename !== 'string' || filename === '') return null;
+    return { kind: 'scenario', lawId, filename };
+  }
   if (articleNumber == null || articleNumber === '') return null;
-  return { lawId, articleNumber: String(articleNumber) };
+  return { kind: 'article', lawId, articleNumber: String(articleNumber) };
 }
 
 /**
  * Sanitise a parsed tab array: drop malformed entries, normalise
- * `articleNumber` to a string, de-duplicate by `lawId:articleNumber`
- * (first occurrence wins) and cap at `MAX_TABS` (keeping the newest).
+ * `articleNumber` to a string, de-duplicate by `tabKey` (first occurrence
+ * wins) and cap at `MAX_TABS` (keeping the newest).
  */
 export function sanitizeTabs(parsed: unknown): OpenTab[] {
   if (!Array.isArray(parsed)) return [];
@@ -71,7 +99,7 @@ export function sanitizeTabs(parsed: unknown): OpenTab[] {
   for (const raw of parsed) {
     const tab = sanitizeTab(raw);
     if (!tab) continue;
-    const key = `${tab.lawId}:${tab.articleNumber}`;
+    const key = tabKey(tab);
     if (seen.has(key)) continue;
     seen.add(key);
     clean.push(tab);

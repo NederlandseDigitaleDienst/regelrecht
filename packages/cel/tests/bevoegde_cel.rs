@@ -347,6 +347,7 @@ fn a_card_of_a_college_counts() {
         law_id,
         article,
         answers,
+        ..
     } = &filled.filled_by
     else {
         panic!("one answer: {:?}", filled.filled_by)

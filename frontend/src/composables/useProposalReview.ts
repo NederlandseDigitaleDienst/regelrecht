@@ -165,6 +165,22 @@ export function useProposalReview(host: ProposalReviewHost) {
   }
 
   /**
+   * Read the parts of the enrichment again, for their current status. Unlike
+   * `loadJobParts` there is no fallback: when the read fails, the parts as
+   * loaded stay, because a single-part fallback would drop the verdicts on
+   * all the others.
+   */
+  async function refreshJobParts(detail: TaskDetail): Promise<void> {
+    if (!detail.job_id) return;
+    try {
+      const json = await fetchJobTasks(detail.job_id);
+      if (Array.isArray(json?.tasks) && json.tasks.length > 0) jobParts.value = json.tasks;
+    } catch {
+      // Keep the parts as loaded; the apply call reports what it refuses.
+    }
+  }
+
+  /**
    * Leg het oordeel over het onderdeel dat nu open staat vast en zeg wat er
    * daarna moet gebeuren: het volgende onbeoordeelde onderdeel, of - als dit
    * de laatste was - dat de verrijking verwerkt kan worden.
@@ -199,6 +215,11 @@ export function useProposalReview(host: ProposalReviewHost) {
     // With a task loaded the key falls back to at least its id.
     const key = verdictKey.value!;
     const decided = verdicts.forJob(key);
+    // A part can be closed elsewhere while this review is open: "Verwerpen"
+    // in the task list resolves it at once, from another tab too. The apply
+    // endpoint refuses the whole batch when one decision names a part that is
+    // no longer open, approvals included, so read again which parts still are.
+    await refreshJobParts(task);
     const decisions = openParts.value
       .map((part): EnrichDecision | null => {
         const verdict = decided[part.id];
@@ -221,6 +242,12 @@ export function useProposalReview(host: ProposalReviewHost) {
         throw new Error('Deze taak hoort bij geen verrijking meer en kan niet worden overgenomen. Verwerp haar om haar af te sluiten.');
       }
       await resolveTask(task.id, 'rejected');
+      verdicts.clear(key);
+      reset();
+      return null;
+    }
+    // Everything was closed elsewhere in the meantime: nothing left to write.
+    if (decisions.length === 0) {
       verdicts.clear(key);
       reset();
       return null;

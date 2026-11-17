@@ -12,6 +12,7 @@ import { isOntvangst } from './beroep.js';
 import {
   aanvragen,
   besluitOp,
+  besluitenOnder,
   bezwaarBasis,
   isBesluit,
   state,
@@ -54,6 +55,8 @@ export function counts() {
           g.fact === fact &&
           Object.entries(velden).every(([k, v]) => g.fields?.[k] === v),
       ).length,
+    /** Decisions of the case's cell under `artikel` that no submission asked for. */
+    ambtshalve: (artikel) => besluitenOnder(artikel).length,
     refusals: state.refusals,
     // The play date: a check step (toetsen) is done once it is reached.
     datum: state.datum,

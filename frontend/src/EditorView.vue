@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, reactive, watch, watchEffect, nextTick, onBeforeUnmount } from 'vue';
 import { storeToRefs } from 'pinia';
-import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router';
+import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate, type RouteLocationNormalized } from 'vue-router';
 import { useOpenLaw } from './composables/useOpenLaw';
 import { useCorpus } from './corpus';
 import { useEngine } from './composables/useEngine';
@@ -23,6 +23,7 @@ import { linkedOutput, linksByOutput, type LinkedFragment } from './regelrijm/re
 import type { Path } from '@regelrecht/frontend-shared/regelrijm/index';
 import { humanize } from './utils/outputFormat';
 import { useLatest } from './lib/useLatest';
+import { otherVersions } from './lib/lawVersions';
 import { useOpenTabs } from './composables/useOpenTabs';
 import { createTabRestore } from './composables/useTabRestore';
 import ArticleText from './components/ArticleText.vue';
@@ -37,21 +38,24 @@ import EditSheet from './components/EditSheet.vue';
 import SearchPopover from './components/SearchPopover.vue';
 import MachineReadable from './components/MachineReadable.vue';
 import MachineEmptyState from './components/MachineEmptyState.vue';
-import ScenarioBuilder from './components/ScenarioBuilder.vue';
-import ExecutionTraceView from './components/ExecutionTraceView.vue';
-import { buildOutputTypeMap } from './utils/articleMapping';
-import LawGraphView from './components/LawGraphView.vue';
+import ScenarioScreen from './components/ScenarioScreen.vue';
+import ScenarioStatusPane from './components/ScenarioStatusPane.vue';
+import { useLawScenarios } from './scenario/useLawScenarios';
+import { statusBadge } from './scenario/statusSummary';
+import { useOpenScenariosStore } from './stores/openScenarios';
 import { singleParam } from './lib/routeParams';
+import { tabKey } from './lib/openTabsStorage';
 import type { ComponentPublicInstance } from 'vue';
 import type { NLDDSheet } from '@nldd/design-system/sheet';
 import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
+import type { OpenScenario } from './scenario/openScenario';
 import type { NLDDPopover } from '@nldd/design-system/popover';
 import type { Annotation } from '@nldd/design-system/text-editor';
 import type { Note } from './composables/useNotes';
 import type { EditorEngine } from './composables/useEngine';
-import type { OpenTab } from './lib/openTabsStorage';
+import type { OpenTab, ScenarioTab } from './lib/openTabsStorage';
+import type { TabLabel } from './stores/appChrome';
 import type { ExecutionAction } from './lib/lawFormat';
-import type { ScenarioExecutedPayload } from './components/ScenarioBuilder.vue';
 import type { EditSheetItem } from './components/EditSheet.vue';
 import type { MachineReadableDelete, MachineReadableSave } from './lib/machineReadableEdits';
 
@@ -99,8 +103,8 @@ const {
 
 // Per-pane view selection. Each pane independently picks one of the
 // available views (Tekst, Machine, Scenario's, YAML). Same view can be
-// in multiple panes (e.g. two YAML panes for diff). Layout always has
-// one pane per view; nldd-side-by-side-split-view auto-hides panes
+// in multiple panes (e.g. two YAML panes for diff). The default layout has
+// one pane per view, except the views in OFF_BY_DEFAULT; nldd-side-by-side-split-view auto-hides panes
 // from the right when the viewport is too narrow, so left = highest
 // priority. Visibility flags via panel.* feature flags filter what's
 // pickable in the menu.
@@ -119,11 +123,27 @@ function viewLabel(viewId: string) {
 }
 
 const PANE_VIEWS_KEY = 'regelrecht-pane-views';
+// Views a new layout leaves out. The scenarios' status sits in the Machine
+// pane's toolbar; the full list stays a view anyone can pick.
+const OFF_BY_DEFAULT = new Set(['scenario']);
+// Set once this browser's layout has dropped the *Scenario's* pane, so a pane
+// someone adds back afterwards stays.
+const SCENARIO_PANE_MOVED_KEY = 'regelrecht-pane-views-scenario-moved';
 const paneViews = ref<string[]>(loadPaneViews());
+
+/** The default layout out of the views on offer. */
+function defaultPaneViews(ids: readonly string[]): string[] {
+  const picked = ids.filter(id => !OFF_BY_DEFAULT.has(id));
+  return picked.length > 0 ? picked : [...ids];
+}
 
 function loadPaneViews(): string[] {
   try {
     const stored = JSON.parse(localStorage.getItem(PANE_VIEWS_KEY) ?? 'null');
+    // A layout saved before the status moved to the toolbar loses its
+    // *Scenario's* pane once, so the change reaches those who had it.
+    const firstSinceMove = !localStorage.getItem(SCENARIO_PANE_MOVED_KEY);
+    localStorage.setItem(SCENARIO_PANE_MOVED_KEY, '1');
     // Only accept entries we still recognise - a stale value left over
     // from a removed view (e.g. 'form' before scenario was renamed) or
     // an externally injected string would otherwise produce a pane with
@@ -135,12 +155,16 @@ function loadPaneViews(): string[] {
       stored.length > 0 &&
       stored.every(v => typeof v === 'string' && knownIds.has(v))
     ) {
-      return stored;
+      const kept = firstSinceMove ? stored.filter(v => v !== 'scenario') : stored;
+      if (kept.length === 0) return stored;
+      // Saved now: the watch below only saves a change made after loading.
+      if (kept.length !== stored.length) localStorage.setItem(PANE_VIEWS_KEY, JSON.stringify(kept));
+      return kept;
     }
   } catch {
     /* fall through to default */
   }
-  return VIEW_DEFINITIONS.map(v => v.id);
+  return defaultPaneViews(VIEW_DEFINITIONS.map(v => v.id));
 }
 
 // Every paneViews mutation goes through `paneViews.value = next`
@@ -160,8 +184,7 @@ watch(paneViews, (val) => {
 //   the full available set, which spuriously appended every available
 //   view a user happened not to have open whenever any unrelated flag
 //   flipped.
-// When everything is filtered out, reset to one pane per available view
-// as the safe default.
+// When everything is filtered out, reset to the default layout.
 watch(availableViews, (views, oldViews) => {
   const allowedIds = new Set(views.map(v => v.id));
   const filtered = paneViews.value.filter(v => allowedIds.has(v));
@@ -174,7 +197,7 @@ watch(availableViews, (views, oldViews) => {
     .map(v => v.id);
   const next = [...filtered, ...newlyEnabled];
   if (next.length === 0 && views.length > 0) {
-    paneViews.value = views.map(v => v.id);
+    paneViews.value = defaultPaneViews(views.map(v => v.id));
     return;
   }
   if (
@@ -295,13 +318,15 @@ const {
   publishedTrajectRef,
   tabsFor,
   activeTabFor,
-  findTab: findTabIn,
   openTab,
   setActiveTab,
   closeTab: closeTabIn,
   reorderTabs: reorderTabsIn,
   dropLaw,
 } = useOpenTabs(activeTrajectRef);
+
+// The scenario files open in this session, with their unsaved edits.
+const openScenarios = useOpenScenariosStore();
 
 // Restore-on-entry flow (see useTabRestore): opens the last active article of a
 // traject when its editor is entered without a law in the URL, pruning tabs
@@ -316,7 +341,7 @@ const tabRestore = createTabRestore({
   clearLaw,
   error,
   router,
-  editorRouteFor,
+  routeForTab,
   canPrune: () => activeTraject.value != null,
 });
 
@@ -396,8 +421,10 @@ async function reconcileTraject(next: string | null): Promise<void> {
     selectedArticleNumber.value != null;
   if (loaded) {
     // openTab de-dups, caps at MAX_TABS and marks it active - all under `next`.
-    // `loaded` checked that lawId equals the URL's law id.
-    openTab(next, { lawId: lawId.value as string, articleNumber: String(selectedArticleNumber.value) });
+    // `loaded` checked that lawId equals the URL's law id. On a scenario
+    // route the URL names a scenario file of that law, which is the tab.
+    if (scenarioRoute.value) openTab(next, scenarioRoute.value.tab);
+    else openTab(next, { lawId: lawId.value as string, articleNumber: String(selectedArticleNumber.value) });
   } else {
     // Failed cross-traject deep link: don't leave the previous traject's law
     // marked active in this traject's bar (it isn't in this bucket here).
@@ -930,9 +957,6 @@ watch(draftCount, (count, prev) => {
   }
 });
 
-const resultSheetOpen = ref(false);
-const graphSheetOpen = ref(false);
-
 // --- Corpus search (reuse the shared SearchPopover) ---
 const searchPopoverRef = ref(null);
 // The toolbar search control lives in the AppShell; register our popover so
@@ -977,19 +1001,6 @@ function onSearchSelectLaw(lawIdVal: string) {
   router.push(libraryRouteFor(lawIdVal));
 }
 
-const resultSheetEl = ref<NLDDSheet | null>(null);
-watch(resultSheetOpen, async (open) => {
-  await nextTick();
-  if (open) resultSheetEl.value?.show();
-  else resultSheetEl.value?.hide();
-});
-const graphSheetEl = ref<NLDDSheet | null>(null);
-watch(graphSheetOpen, async (open) => {
-  await nextTick();
-  if (open) graphSheetEl.value?.show();
-  else graphSheetEl.value?.hide();
-});
-
 // The per-traject tab store (`useOpenTabs`) and the restore-on-entry flow
 // (`useTabRestore`) are initialised near the useOpenLaw block above; the storage
 // layer lives in lib/openTabsStorage.js (per-traject keys, sanitising reads,
@@ -1029,6 +1040,21 @@ function editorRouteFor(
   };
 }
 
+/** A router target for one scenario file's tab, at a scenario when named. */
+function scenarioRouteFor(tab: Pick<ScenarioTab, 'lawId' | 'filename'>, scenarioName?: string | null) {
+  return {
+    name: 'editor-scenario-traject',
+    params: { trajectRef: singleParam(route.params.trajectRef), lawId: tab.lawId, filename: tab.filename },
+    ...(scenarioName ? { query: { scenario: scenarioName } } : {}),
+  };
+}
+
+/** Where a tab lives; null for the traject's editor root. */
+function routeForTab(tab: OpenTab | null) {
+  if (!tab) return editorRouteFor(null, null);
+  return tab.kind === 'scenario' ? scenarioRouteFor(tab) : editorRouteFor(tab.lawId, tab.articleNumber);
+}
+
 /**
  * Build a router target for the bibliotheek that preserves the current
  * traject scope, mirroring editorRouteFor. Used when leaving the editor
@@ -1053,15 +1079,17 @@ function lawNameKey(trajectRef: string | null | undefined, lawIdVal: string) {
 // is enough: the switch sets it before mutating and clears it after nextTick.
 let suppressTabAutoOpen = false;
 
-function tabKey(tab: OpenTab) {
-  return `${tab.lawId}:${tab.articleNumber}`;
-}
-
-// Same-shape wrapper over the store's explicit-ref lookup, scoped to the active
-// traject (the only traject EditorView's watches ever add to).
-function findTab(lawIdVal: string, articleNumber: string | number) {
-  return findTabIn(activeTrajectRef.value, lawIdVal, articleNumber);
-}
+// The scenario file this editor shows, when the route is a scenario tab's.
+const scenarioRoute = computed(() => {
+  if (route.name !== 'editor-scenario-traject') return null;
+  const lawIdParam = singleParam(route.params.lawId);
+  const filename = singleParam(route.params.filename);
+  if (!lawIdParam || !filename) return null;
+  return {
+    tab: { kind: 'scenario', lawId: lawIdParam, filename } as ScenarioTab,
+    scenarioName: typeof route.query.scenario === 'string' ? route.query.scenario : null,
+  };
+});
 
 // Add tab when initial law loads
 watch([() => lawId.value, selectedArticle], ([id, article]) => {
@@ -1075,6 +1103,8 @@ watch([() => lawId.value, selectedArticle], ([id, article]) => {
   // Defer to watch(activeTrajectRef), which reconciles the bar under the
   // correct traject once it commits.
   if (lawTrajectRef.value !== activeTrajectRef.value) return;
+  // A scenario tab opens its law too, without making an article tab of it.
+  if (scenarioRoute.value || activeTab.value?.kind === 'scenario') return;
   // openTab de-dups, caps at MAX_TABS and marks it active - all under the active
   // traject's own bucket.
   openTab(activeTrajectRef.value, { lawId: id, articleNumber: String(article.number) });
@@ -1082,6 +1112,42 @@ watch([() => lawId.value, selectedArticle], ([id, article]) => {
     lawNames.value = { ...lawNames.value, [lawNameKey(activeTrajectRef.value, id)]: lawName.value };
   }
 });
+
+// A scenario route (a deep link, back/forward, a tab switch) makes its file
+// the active tab of the traject the route is in. During a cross-traject
+// navigation the traject switch reconciles the bar instead.
+watch(
+  () => [scenarioRoute.value, activeTrajectRef.value] as const,
+  ([current, trajectRef]) => {
+    if (!current || !trajectRef) return;
+    if (singleParam(route.params.trajectRef) !== trajectRef) return;
+    openTab(trajectRef, current.tab);
+  },
+  { immediate: true },
+);
+
+// Back from a scenario tab to an article by URL (a link, back/forward): the
+// article was selected while the route still named the scenario file, so the
+// load watch above left the tab bar alone. Once the article route has
+// committed, make its article the active tab.
+watch(
+  () => [route.name, lawId.value, selectedArticleNumber.value] as const,
+  ([name, id, articleNumber]) => {
+    if (name !== 'editor-traject' || activeTab.value?.kind !== 'scenario') return;
+    if (!id || articleNumber == null || singleParam(route.params.lawId) !== id) return;
+    if (lawTrajectRef.value !== activeTrajectRef.value) return;
+    openTab(activeTrajectRef.value, { lawId: id, articleNumber: String(articleNumber) });
+  },
+);
+
+// Scenarios switched off: a scenario URL lands on its regelwerk.
+watch(
+  () => !!scenarioRoute.value && !featureFlags.isEnabled('panel.scenario_form'),
+  (off) => {
+    if (off && scenarioRoute.value) router.replace(editorRouteFor(scenarioRoute.value.tab.lawId, null));
+  },
+  { immediate: true },
+);
 
 // Also populate lawNames when lawName resolves
 watch(lawName, (name) => {
@@ -1095,7 +1161,8 @@ watch(lawName, (name) => {
 
 // Resolves to false when the user chose to stay on the article that is open
 // (unsaved edits), so the tab bar can put its selection back.
-async function selectTab(tab: OpenTab): Promise<boolean> {
+async function selectTab(tab: OpenTab, { scenarioName = null }: { scenarioName?: string | null } = {}): Promise<boolean> {
+  if (tab.kind === 'scenario') return selectScenarioTab(tab, scenarioName);
   if (!isOpenArticle(tab.lawId, tab.articleNumber) && !(await confirmLeave())) return false;
   setActiveTab(activeTrajectRef.value, tab);
   // Drop an open action edit; it belongs to the article we are leaving.
@@ -1128,6 +1195,43 @@ async function selectTab(tab: OpenTab): Promise<boolean> {
   return true;
 }
 
+// A scenario tab belongs to its regelwerk: it opens that regelwerk (when it is
+// another one, that is leaving the open one) and shows the file. Moving
+// between a regelwerk's articles and its scenarios keeps the open article and
+// its edits, so the scenarios run against them; the file's own edits live in
+// the open-scenarios store and survive any tab switch.
+async function selectScenarioTab(tab: ScenarioTab, scenarioName: string | null): Promise<boolean> {
+  const otherLaw = tab.lawId !== lawId.value;
+  if (otherLaw && !(await confirmLeave())) return false;
+  // An open action edit belongs to the article view; the screen changes.
+  if (activeAction.value) handleActionClose();
+  if (otherLaw) {
+    const won = await openLaw.open({
+      lawId: tab.lawId,
+      articleNumber: null,
+      trajectRef: singleParam(route.params.trajectRef) || null,
+    });
+    // A newer open took over: that one says which tab is active, not this.
+    if (!won) return true;
+    lawNames.value = { ...lawNames.value, [lawNameKey(activeTrajectRef.value, tab.lawId)]: lawName.value };
+  }
+  setActiveTab(activeTrajectRef.value, tab);
+  router.replace(scenarioRouteFor(tab, scenarioName));
+  return true;
+}
+
+/** Open a scenario file of the open regelwerk in its tab, at a scenario. */
+function openScenarioTab(filename: string, scenarioName: string | null) {
+  if (!lawId.value) return;
+  selectTab({ kind: 'scenario', lawId: lawId.value, filename }, { scenarioName }).catch(console.warn);
+}
+
+/** Show another scenario of the open file. */
+function selectScenarioInTab(name: string) {
+  const current = scenarioRoute.value;
+  if (current) router.replace(scenarioRouteFor(current.tab, name));
+}
+
 // --- Leaving an article with unsaved edits ---------------------------------
 // Only the selected article's edits are kept, so anything that leaves it -
 // another tab, article, law or traject, closing its tab, back/forward,
@@ -1136,6 +1240,9 @@ async function selectTab(tab: OpenTab): Promise<boolean> {
 const leaveModalEl = ref<NLDDModalDialog | null>(null);
 let pendingLeave: Promise<boolean> | null = null;
 let answerPendingLeave: ((leave: boolean) => void) | null = null;
+// What the open question would throw away, and how.
+const leaveText = ref('');
+let discardPending: (() => void) | null = null;
 
 function isOpenArticle(lawIdVal: string, articleNumber: string | number): boolean {
   return lawIdVal === lawId.value && String(articleNumber) === String(selectedArticleNumber.value);
@@ -1149,10 +1256,37 @@ function isOpenArticle(lawIdVal: string, articleNumber: string | number): boolea
  */
 function confirmLeave(): Promise<boolean> {
   if (!openLaw.hasUnsavedWork.value) return Promise.resolve(true);
+  return askToDiscard(`Je hebt niet-opgeslagen wijzigingen in artikel ${selectedArticleNumber.value ?? ''}`, discardArticle);
+}
+
+/**
+ * Whether the open article (when `article` is set) and these scenario files
+ * may lose their unsaved edits: at once when none of them has any, else once
+ * the user chose. One question for all of them, so staying keeps all of them.
+ */
+function confirmDiscard({ article = false, files = [] }: { article?: boolean; files?: readonly OpenScenario[] }): Promise<boolean> {
+  const articleDirty = article && openLaw.hasUnsavedWork.value;
+  const dirty = files.filter((f) => f.dirty.value);
+  if (!articleDirty && dirty.length === 0) return Promise.resolve(true);
+  const parts: string[] = [];
+  if (articleDirty) parts.push(`artikel ${selectedArticleNumber.value ?? ''}`);
+  if (dirty.length === 1) parts.push(dirty[0]!.file.filename);
+  else if (dirty.length > 1) parts.push(`${dirty.length} scenariobestanden`);
+  return askToDiscard(`Je hebt niet-opgeslagen wijzigingen in ${parts.join(' en in ')}`, () => {
+    if (articleDirty) discardArticle();
+    dirty.forEach((f) => f.discard());
+  });
+}
+
+// One question at a time; a second request while the dialog is open waits for
+// the same answer.
+function askToDiscard(text: string, discard: () => void): Promise<boolean> {
   if (pendingLeave) return pendingLeave;
   const dialog = leaveModalEl.value;
   // Without the design system there is no dialog to ask with; let it go.
   if (!dialog?.show) return Promise.resolve(true);
+  leaveText.value = text;
+  discardPending = discard;
   pendingLeave = new Promise<boolean>((resolve) => {
     answerPendingLeave = resolve;
   });
@@ -1162,22 +1296,34 @@ function confirmLeave(): Promise<boolean> {
 
 function answerLeave(leave: boolean) {
   const answer = answerPendingLeave;
+  const discard = discardPending;
   answerPendingLeave = null;
   pendingLeave = null;
+  discardPending = null;
   // The dialog's close event after a button click finds nothing pending.
   if (!answer) return;
-  if (leave) discardArticle();
+  if (leave) discard?.();
   leaveModalEl.value?.hide?.();
   answer(leave);
 }
 
-onBeforeRouteLeave(async () => {
+function isEditorRoute(name: unknown): boolean {
+  return name === 'editor-traject' || name === 'editor-scenario-traject';
+}
+
+// Moving between an article tab and a scenario tab moves between the two
+// editor routes, which Vue Router reports as leaving one; that is a
+// navigation within the editor. Leaving the editor drops the open article,
+// not the open scenario files: those stay in the store with their tabs.
+onBeforeRouteLeave(async (to) => {
+  if (isEditorRoute(to.name)) return guardEditorNavigation(to);
   if (!(await confirmLeave())) return false;
 });
 
 // Reloading or closing the browser tab: the browser asks with its own words.
 // Registered only while there is unsaved work, because a beforeunload
 // listener keeps some browsers from caching the page for back/forward.
+// Scenario edits outlive the editor; AppShell warns for those.
 function warnBeforeUnload(event: BeforeUnloadEvent) {
   event.preventDefault();
 }
@@ -1236,17 +1382,29 @@ watch(trajectMissing, (missing) => {
 // law, and opening it twice in the same tick would burn an extra fetch (the
 // first loses useOpenLaw's stale-open race, but still hits the network).
 // This guard handles the law / article portion only.
-onBeforeRouteUpdate(async (to) => {
+onBeforeRouteUpdate((to) => guardEditorNavigation(to));
+
+async function guardEditorNavigation(to: RouteLocationNormalized): Promise<false | void> {
   const newLawId = singleParam(to.params.lawId);
-  const newArticle = singleParam(to.params.articleNumber);
+  const toScenario = to.name === 'editor-scenario-traject';
+  const newArticle = toScenario ? null : singleParam(to.params.articleNumber);
+  const fromTraject = singleParam(route.params.trajectRef) ?? null;
+  const leavesTraject = (singleParam(to.params.trajectRef) ?? null) !== fromTraject;
   // A navigation away from the open article (another article, law or
   // traject, or the bare root) asks first when that would lose edits. One
-  // that only changes the query (`?task=`) stays on the article.
+  // that only changes the query (`?task=`, `?scenario=`) stays, and so does
+  // one to a scenario tab of the same regelwerk.
   const leavesArticle =
     (newLawId ?? null) !== (lawId.value ?? null) ||
     (!!newArticle && String(newArticle) !== String(selectedArticleNumber.value)) ||
-    (singleParam(to.params.trajectRef) ?? null) !== (singleParam(route.params.trajectRef) ?? null);
-  if (leavesArticle && !(await confirmLeave())) return false;
+    leavesTraject;
+  // Leaving the traject leaves its scenario files too; one question for both.
+  if (leavesTraject) {
+    if (!(await confirmDiscard({ article: true, files: openScenarios.dirtyIn(fromTraject) }))) return false;
+    openScenarios.closeTraject(fromTraject);
+  } else if (leavesArticle && !(await confirmLeave())) {
+    return false;
+  }
   // The bare editor root is restored by the watch below, after the navigation
   // has committed.
   if (!newLawId) return;
@@ -1264,7 +1422,7 @@ onBeforeRouteUpdate(async (to) => {
   } else if (newArticle && String(newArticle) !== String(selectedArticleNumber.value)) {
     selectArticle(newArticle);
   }
-});
+}
 
 // Back/forward, the Home/Editor tab, or closing the last tab to the bare editor
 // root WITHIN the same traject: watch(activeTrajectRef) won't fire (ref
@@ -1294,7 +1452,20 @@ watch(
 // edits), so the tab bar can put its selection back.
 async function closeTab(tab: OpenTab, next: OpenTab | null = null): Promise<boolean> {
   const wasActive = !!activeTab.value && tabKey(activeTab.value) === tabKey(tab);
-  if (wasActive && !(await confirmLeave())) return false;
+  if (tab.kind === 'scenario') {
+    // A scenario file's edits go with its tab. The open article goes too when
+    // the tab that takes over is not the same rulework's (or is another of its
+    // articles): ask about both before anything closes.
+    const file = scenarioFileOf(tab);
+    const takesOver = wasActive ? next ?? neighbourOf(tab) : null;
+    const articleStays = !wasActive || (!!takesOver && takesOver.lawId === lawId.value
+      && (takesOver.kind === 'scenario' || isOpenArticle(takesOver.lawId, takesOver.articleNumber)));
+    if (!(await confirmDiscard({ article: !articleStays, files: file ? [file] : [] }))) return false;
+    openScenarios.close(scenarioFileRef(tab));
+  } else if ((wasActive || isOpenArticle(tab.lawId, tab.articleNumber)) && !(await confirmLeave())) {
+    // Closing the open article's tab drops its edits, also from another tab.
+    return false;
+  }
   // The store removes the tab, promotes the replacement (the bar's `next` pick,
   // else right-then-left) and persists both keys - closing the active tab and
   // reloading must not resurrect it.
@@ -1310,8 +1481,40 @@ async function closeTab(tab: OpenTab, next: OpenTab | null = null): Promise<bool
   return true;
 }
 
+// The tab that takes over when `tab` closes and the bar names none: the one to
+// its right, else to its left (the rule useOpenTabs applies).
+function neighbourOf(tab: OpenTab): OpenTab | null {
+  const tabs = openTabs.value;
+  const index = tabs.findIndex((t) => tabKey(t) === tabKey(tab));
+  if (index === -1) return null;
+  return tabs[index + 1] ?? tabs[index - 1] ?? null;
+}
+
 function tabDisplayName(tab: OpenTab) {
   return lawNames.value[lawNameKey(activeTrajectRef.value, tab.lawId)] || humanizeLawId(tab.lawId);
+}
+
+function scenarioFileRef(tab: ScenarioTab) {
+  return { trajectRef: activeTrajectRef.value ?? '', lawId: tab.lawId, filename: tab.filename };
+}
+function scenarioFileOf(tab: ScenarioTab): OpenScenario | undefined {
+  return openScenarios.find(scenarioFileRef(tab));
+}
+
+// What the tab bar shows for a tab, including whether it holds unsaved edits:
+// an article tab when it is the open article and that has edits, a scenario
+// tab when its file has.
+function tabLabel(tab: OpenTab): TabLabel {
+  const supportingText = tabDisplayName(tab);
+  if (tab.kind === 'scenario') {
+    return { text: tab.filename, shortText: tab.filename, supportingText, unsaved: !!scenarioFileOf(tab)?.dirty.value };
+  }
+  return {
+    text: `Artikel ${tab.articleNumber}`,
+    shortText: `Art. ${tab.articleNumber}`,
+    supportingText,
+    unsaved: isOpenArticle(tab.lawId, tab.articleNumber) && openLaw.hasUnsavedWork.value,
+  };
 }
 
 // Publish the editor-only chrome (federated "PR #N" indicator + document
@@ -1327,7 +1530,7 @@ function reorderTabs(fromIndex: number, toIndex: number) {
 
 registerTabActions({
   key: tabKey,
-  displayName: tabDisplayName,
+  label: tabLabel,
   // A failure is logged and treated as done: the bar keeps what it shows.
   select: (tab) => selectTab(tab).catch((e) => { console.warn(e); return true; }),
   close: (tab, next) => closeTab(tab, next).catch((e) => { console.warn(e); return true; }),
@@ -1378,69 +1581,47 @@ const {
 } = useEngine();
 initEngine().catch(() => {});
 
+// --- The open regelwerk's scenarios ---
+// Run here, once, for the status in the Machine pane's toolbar and the
+// *Scenario's* pane. A scenario tab runs its own file, so nothing runs here
+// while one is shown.
+const lawScenarios = useLawScenarios({
+  trajectRef: activeTrajectRef,
+  lawId: computed(() =>
+    featureFlags.isEnabled('panel.scenario_form') && !scenarioRoute.value ? lawId.value ?? null : null,
+  ),
+  engine: computed(() => (engineReady.value ? getEngine() : null)),
+  engineReady,
+  lawYaml: currentLawYaml,
+  articles,
+  lawLoading: computed(() => loading.value || !selectedArticle.value),
+});
+const scenarioCounts = lawScenarios.counts;
+// The status as the toolbar shows it: an icon and a count, because the
+// Machine pane is narrow (a quarter of a 1280px window). See statusBadge.
+const scenarioBadge = computed(() => statusBadge(scenarioCounts.value));
+// Busy only until the first outcome: a reload after an edit keeps the count
+// on screen and the sheet reachable.
+const scenarioStatusBusy = computed(() => {
+  const c = scenarioCounts.value;
+  return lawScenarios.loading.value && c.pending === c.total;
+});
+// Shown once the regelwerk has scenario files, or their list failed: a
+// regelwerk without scenarios gets no status, and no item that comes and goes.
+// The sheet the status opens: the same list as the *Scenario's* pane.
+const scenarioSheetOpen = ref(false);
+function openScenarioFromSheet(filename: string, scenarioName: string | null) {
+  scenarioSheetOpen.value = false;
+  openScenarioTab(filename, scenarioName);
+}
+const showScenarioStatus = computed(
+  () =>
+    lawScenarios.files.value.length > 0 ||
+    !!lawScenarios.listError.value,
+);
+
 // The engine-loading watch lives below, next to `currentLawYaml`, so it
 // observes in-memory edits rather than only the persisted `rawYaml`.
-
-// --- Trace state (receives trace from last executed scenario) ---
-const lastTraceText = ref<string | null>(null);
-const lastResult = ref<ScenarioExecutedPayload['result']>(null);
-const lastError = ref<string | null>(null);
-const lastExpectations = ref<ScenarioExecutedPayload['expectations']>({});
-const lastScenarioName = ref('');
-// The scenario's entry output (e.g. "is_rechthebbende"). The graph view
-// uses this to pin its "▶ start" marker to the right leaf.
-const lastOutputName = ref<string | null>(null);
-// Declared units of the opened law's outputs, so the result sheet renders a
-// value as money only when its type_spec says so. Scenarios execute the opened
-// law, so its articles carry the outputs the trace reports.
-const outputTypeMap = computed(() => buildOutputTypeMap(articles.value));
-// Loading state of the last scenario and a bound re-run callback, so the
-// result sheet can show "running…" / an error with a reload action.
-const lastRunning = ref(false);
-const lastReload = ref<(() => void) | null>(null);
-
-function handleScenarioExecuted({ result, traceText, error, running, expectations, scenarioName, outputName, reload, view }: ScenarioExecutedPayload) {
-  lastResult.value = result;
-  // The engine hands trace text and errors back untyped; ExecutionTraceView
-  // renders them as text, so they are passed on as they are.
-  lastTraceText.value = traceText as string | null;
-  lastError.value = (error || null) as string | null;
-  lastRunning.value = !!running;
-  lastReload.value = typeof reload === 'function' ? reload : null;
-  lastExpectations.value = expectations || {};
-  lastScenarioName.value = scenarioName || '';
-  lastOutputName.value = outputName || null;
-  // Open exactly one of the two sheets - opening the second on top of
-  // the first would leave the previous one as a stale layer that
-  // re-appears when the user dismisses the foreground sheet.
-  if (view === 'graph') {
-    resultSheetOpen.value = false;
-    graphSheetOpen.value = true;
-  } else {
-    graphSheetOpen.value = false;
-    resultSheetOpen.value = true;
-  }
-}
-
-// Clear the captured trace whenever the active law changes - otherwise
-// LawGraphView would re-flatten the old trace under the new lawId,
-// misattribute every step to the new law, and pin the "▶ start" badge
-// to a leaf that just happens to share the previous output's name.
-// The trace and graph sheets close along with the trace they were
-// showing: leaving them open over an empty graph or a fresh law the
-// user just navigated into is more confusing than auto-dismissing.
-watch(lawId, () => {
-  lastResult.value = null;
-  lastTraceText.value = null;
-  lastError.value = null;
-  lastRunning.value = false;
-  lastReload.value = null;
-  lastExpectations.value = {};
-  lastScenarioName.value = '';
-  lastOutputName.value = null;
-  resultSheetOpen.value = false;
-  graphSheetOpen.value = false;
-});
 
 // --- Editor state ---
 // The sheet for a definition or row of the Machine pane. The edits it makes
@@ -1540,10 +1721,35 @@ let engineLoadDebounce: ReturnType<typeof setTimeout> | undefined;
 // without saying why. The WASM binding throws a plain string.
 const engineLoadError = ref<string | null>(null);
 
+// The open regelwerk's other saved versions, so a scenario on a date another
+// version covers runs on that one. The saved copy of the version on screen is
+// left out: the edited one replaces it, also when the edit moves its date. The
+// corpus reader caches the versions per traject. Without them the edited
+// version still loads, on its own.
+async function otherSavedVersionsOf(id: string | null, validFrom: string | null): Promise<string[]> {
+  if (!id) return [];
+  try {
+    return otherVersions((await corpus.versions(id)).yamls, validFrom);
+  } catch (e) {
+    console.warn('Could not read the other versions of the open regelwerk:', id, e);
+    return [];
+  }
+}
+
+// Reading the versions waits; a newer load that started meanwhile wins.
+const claimEngineLoad = useLatest();
+
 async function reloadEngineLaw(lawYaml: string | null, isReady: boolean) {
   if (!isReady || !lawYaml) return;
+  const isCurrent = claimEngineLoad();
+  // Read before the wait: a switch of regelwerk or traject meanwhile must not
+  // load this YAML under the other one.
+  const id = lawId.value;
+  const trajectRef = activeTrajectRef.value;
   try {
-    await loadLawYaml(lawYaml, lawId.value, activeTrajectRef.value);
+    const others = await otherSavedVersionsOf(id, lawValidFrom.value);
+    if (!isCurrent() || lawId.value !== id || activeTrajectRef.value !== trajectRef) return;
+    await loadLawYaml(lawYaml, id, trajectRef, others);
     engineLoadError.value = null;
   } catch (e) {
     // Reads `.message` off whatever was thrown, as before.
@@ -1910,6 +2116,25 @@ async function handleActionSave() {
           </nldd-simple-section>
         </nldd-page>
 
+        <!-- A scenario file in its own tab. The open regelwerk stays loaded
+             behind it, with its unsaved edits, so the scenarios run against
+             them. -->
+        <ScenarioScreen
+          v-else-if="scenarioRoute && activeTrajectRef"
+          :key="`${scenarioRoute.tab.lawId}::${scenarioRoute.tab.filename}`"
+          :traject-ref="activeTrajectRef"
+          :law-id="scenarioRoute.tab.lawId"
+          :filename="scenarioRoute.tab.filename"
+          :scenario-name="scenarioRoute.scenarioName"
+          :law-name="tabDisplayName(scenarioRoute.tab)"
+          :engine="getEngine()"
+          :engine-ready="engineReady"
+          :law-yaml="lawId === scenarioRoute.tab.lawId ? currentLawYaml : null"
+          :articles="lawId === scenarioRoute.tab.lawId ? articles : []"
+          :law-unsaved="lawId === scenarioRoute.tab.lawId && openLaw.hasUnsavedWork.value"
+          @select-scenario="selectScenarioInTab"
+        />
+
         <!-- All editor flags off - paneViews is empty so the
              side-by-side view would render zero pane slots. Surface an
              explicit empty-state with a CTA to the settings menu so
@@ -1962,8 +2187,8 @@ async function handleActionSave() {
         <nldd-side-by-side-split-view :panes="String(paneViews.length)">
           <!-- Compound key: when a flag flip shifts which view sits at a
                given index, Vue would otherwise patch the existing pane in
-               place - leaking ScenarioBuilder form state and engine
-               results into a different view. Re-keying on the view id
+               place - leaking one view's state (a scenario pane's
+               runs, an editor's selection) into a different view. Re-keying on the view id
                forces an unmount + remount on identity change, at the
                (acceptable) cost of losing pane scroll position. -->
           <!-- data-testid names the view, not the index: the empty states and
@@ -2248,6 +2473,35 @@ async function handleActionSave() {
                       <nldd-menu-item icon="document" text="Regelwerk-notities als YAML" @select="exportNotes"></nldd-menu-item>
                     </nldd-menu-group>
                   </nldd-toolbar-item>
+                  <!-- The open regelwerk's scenarios: their status, which opens
+                       a sheet with the ones that need attention. Scenarios
+                       test what this pane edits, so the outcome sits next to
+                       the edit. -->
+                  <nldd-toolbar-item
+                    v-if="view === 'machine' && showScenarioStatus"
+                    slot="end"
+                    label="Scenario's"
+                    :priority="3"
+                    data-testid="scenario-status-toolbar"
+                  >
+                    <nldd-button
+                      size="md"
+                      :appearance="scenarioBadge.critical ? 'critical-tinted' : 'neutral-tinted'"
+                      :start-icon="scenarioBadge.icon"
+                      :text="scenarioBadge.text"
+                      :accessible-label="scenarioBadge.label"
+                      :loading="scenarioStatusBusy || undefined"
+                      :loading-text="lawScenarios.loadingText.value"
+                      data-testid="scenario-status-btn"
+                      @click="scenarioSheetOpen = true"
+                    ></nldd-button>
+                    <nldd-menu-item
+                      slot="overflow"
+                      :text="scenarioBadge.label"
+                      :icon="scenarioBadge.icon"
+                      @select="scenarioSheetOpen = true"
+                    ></nldd-menu-item>
+                  </nldd-toolbar-item>
                   <!-- YAML parse-status (Machine-readable pane). -->
                   <nldd-toolbar-item v-if="view === 'yaml' && parseError" slot="end" label="YAML">
                     <nldd-badge color="critical" text="YAML parse error"></nldd-badge>
@@ -2472,18 +2726,12 @@ async function handleActionSave() {
                     :supporting-text="`${engineInitError.message} - voer 'just wasm-build' uit om de WASM module te bouwen.`"
                   ></nldd-inline-dialog>
                 </nldd-simple-section>
-                <!-- Rendered with a law id or a loaded article, and a loaded
-                     article means a loaded law: lawId is a string here. -->
-                <ScenarioBuilder
+                <!-- Reads the runs the editor keeps for the open regelwerk,
+                     the ones the Machine pane's status shows too. -->
+                <ScenarioStatusPane
                   v-else
-                  :law-id="(lawId as string)"
-                  :law-yaml="currentLawYaml"
-                  :engine="getEngine()"
-                  :ready="engineReady"
-                  :article-loading="loading || !selectedArticle"
-                  :articles="articles"
-                  :traject-ref="activeTrajectRef"
-                  @executed="handleScenarioExecuted"
+                  :scenarios="lawScenarios"
+                  @open="openScenarioTab"
                 />
               </template>
 
@@ -2617,6 +2865,26 @@ async function handleActionSave() {
       ref="searchPopoverRef"
       @select-law="onSearchSelectLaw"
     />
+    <!-- The status in the Machine toolbar opens the scenarios here. -->
+    <nldd-sheet
+      placement="right"
+      width="480px"
+      :open="scenarioSheetOpen || undefined"
+      data-testid="scenario-status-sheet"
+      @close="scenarioSheetOpen = false"
+    >
+      <nldd-page sticky-header>
+        <nldd-container slot="header" padding="8" padding-bottom="0">
+          <nldd-top-title-bar
+            text="Scenario's"
+            :supporting-text="lawName || undefined"
+            dismiss-text="Sluit"
+            @dismiss="scenarioSheetOpen = false"
+          ></nldd-top-title-bar>
+        </nldd-container>
+        <ScenarioStatusPane :scenarios="lawScenarios" @open="openScenarioFromSheet" />
+      </nldd-page>
+    </nldd-sheet>
   </Teleport>
 
   <!-- Publishing a note is irreversible (it lands in the repo and can't be made
@@ -2646,12 +2914,12 @@ async function handleActionSave() {
     <nldd-button slot="actions" appearance="destructive" text="Verwijder" data-testid="delete-confirm-btn" @click="confirmDelete"></nldd-button>
   </nldd-modal-dialog>
 
-  <!-- Leaving an article with unsaved edits (see confirmLeave). The safe
-       option, staying, is the primary action. -->
+  <!-- Leaving an article or closing a scenario file with unsaved edits (see
+       askToDiscard). The safe option, staying, is the primary action. -->
   <nldd-modal-dialog
     ref="leaveModalEl"
     variant="alert"
-    :text="`Je hebt niet-opgeslagen wijzigingen in artikel ${selectedArticleNumber ?? ''}`"
+    :text="leaveText"
     supporting-text="Als je doorgaat, gaan ze verloren."
     data-testid="leave-confirm"
     @close="answerLeave(false)"
@@ -2671,54 +2939,4 @@ async function handleActionSave() {
     @dismiss="dismissSaveError"
   ></nldd-notification>
 
-  <!-- Trace sheet - execution trace + expected outcomes for the most
-       recently executed scenario. Opened from a scenario card's "Toon
-       resultaat" button. -->
-  <nldd-sheet
-    ref="resultSheetEl"
-    placement="bottom"
-    @close="resultSheetOpen = false"
-  >
-    <nldd-page sticky-header>
-      <nldd-top-title-bar slot="header" :text="lastScenarioName ? `Resultaat: ${lastScenarioName}` : 'Resultaat'" collapse-anchor="result-scenario-title" dismiss-text="Sluit" @dismiss="resultSheetOpen = false"></nldd-top-title-bar>
-      <nldd-simple-section width="full">
-        <nldd-title id="result-scenario-title" size="display-4"><h3>{{ lastScenarioName ? `Resultaat: ${lastScenarioName}` : 'Resultaat' }}</h3></nldd-title>
-        <nldd-spacer size="16"></nldd-spacer>
-        <ExecutionTraceView
-          :result="lastResult"
-          :trace-text="lastTraceText"
-          :error="lastError"
-          :running="lastRunning"
-          :expectations="lastExpectations"
-          :output-types="outputTypeMap"
-          :can-reload="!!lastReload"
-          @reload="lastReload && lastReload()"
-        />
-      </nldd-simple-section>
-    </nldd-page>
-  </nldd-sheet>
-
-  <!-- Graph sheet - visual law graph with the scenario's trace overlay.
-       Opened from a scenario card's "Graaf" button. -->
-  <nldd-sheet
-    ref="graphSheetEl"
-    placement="bottom"
-    @close="graphSheetOpen = false"
-  >
-    <nldd-page sticky-header>
-      <nldd-top-title-bar slot="header" :text="lastScenarioName ? `Graaf: ${lastScenarioName}` : 'Graaf'" dismiss-text="Sluit" @dismiss="graphSheetOpen = false"></nldd-top-title-bar>
-      <!-- Lazy-mount: building the Vue Flow graph for laws with many
-           cross-law references is non-trivial and the sheet is hidden
-           by default. Render only while the sheet is open; the remount
-           cost on each subsequent open is acceptable next to dragging
-           an unused Vue Flow tree behind every editor session. -->
-      <LawGraphView
-        v-if="graphSheetOpen"
-        :law-id="lawId"
-        :result="lastResult"
-        :output-name="lastOutputName"
-        :expectations="lastExpectations"
-      />
-    </nldd-page>
-  </nldd-sheet>
 </template>

@@ -2282,7 +2282,7 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
     // The report says the same: the cell answered the term.
     assert!(
         result.open_terms.iter().any(|f| f.term == ONCE
-            && matches!(&f.filled_by, regelrecht_engine::FilledBy::Answer { law_id, article, answers }
+            && matches!(&f.filled_by, regelrecht_engine::FilledBy::Answer { law_id, article, answers, .. }
                 if law_id == LEAVE_POLICY && article == "2" && answers == std::slice::from_ref(answer))),
         "{:?}",
         result.open_terms

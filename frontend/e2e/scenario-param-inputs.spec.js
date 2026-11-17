@@ -5,17 +5,18 @@
  * declared datatype (ScenarioParameterInput): a boolean input becomes a
  * switch, an amount/eurocent input a number-field showing euros, and a
  * string a plain text-field. Drives the real editor with a mocked corpus
- * (no editor-api / Postgres needed) and opens the scenario edit sheet.
+ * (no editor-api / Postgres needed) and opens the scenario in its own tab
+ * from the read-only scenario pane.
  */
 import { test, expect } from '@playwright/test';
-import { loadFixture, gotoEditor, clearOpenTabsStorage } from './helpers.js';
+import { loadFixture, gotoEditor, clearOpenTabsStorage, openScenarioFromStatus } from './helpers.js';
 import { mockCorpusApi } from './helpers-corpus.js';
 
 // A minimal scenario that passes one parameter of each declared datatype:
 // bsn (string), is_verzekerde (boolean input), toetsingsinkomen (amount,
 // unit eurocent). Execution may not fully succeed without cross-law data,
-// but the scenario card and its edit sheet still render, which is what we
-// assert against.
+// but the scenario's row and its form still render, which is what we assert
+// against.
 const SCENARIO = `Feature: Typed input controls
 
   Scenario: Mixed parameter types
@@ -52,15 +53,14 @@ test.describe('Scenario parameter input controls', () => {
   test('renders a switch for boolean, number-field for amount, text-field for string', async ({ page }) => {
     await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
 
-    // Open the scenario edit sheet via the card's "Bewerk" button.
-    const edit = page.getByRole('button', { name: 'Bewerk' }).first();
-    await edit.waitFor({ timeout: 30_000 });
-    await edit.click();
+    // Open the scenario in its tab from the scenario status in the toolbar.
+    await openScenarioFromStatus(page, 'Mixed parameter types');
+    await expect(page).toHaveURL(/\/scenarios\/typed\.feature\?scenario=Mixed/);
 
     // Each parameter renders as a list-item: the name plus the typed control.
-    // Scope by the list-item carrying the parameter name. The sheet opening
-    // is implied by the controls becoming visible below.
-    const itemFor = (name) => page.locator('nldd-list-item').filter({ hasText: name });
+    // Scope by the list-item carrying the parameter name, in the form.
+    const form = page.locator('[data-testid="scenario-form-pane"]');
+    const itemFor = (name) => form.locator('nldd-list-item').filter({ hasText: name });
 
     // boolean -> switch (and the stored "true" reflects as checked)
     const sw = itemFor('is_verzekerde').locator('nldd-switch-field');

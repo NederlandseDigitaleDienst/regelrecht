@@ -8,8 +8,9 @@ import type { OpenTab } from '../lib/openTabsStorage';
 // (5xx / unconfirmed membership) and the superseded-claim guard.
 
 const REF = 'traject-a-00000001';
-const T1: OpenTab = { lawId: 'law_1', articleNumber: '1' };
-const T2: OpenTab = { lawId: 'law_2', articleNumber: '3' };
+const T1: OpenTab = { kind: 'article', lawId: 'law_1', articleNumber: '1' };
+const T2: OpenTab = { kind: 'article', lawId: 'law_2', articleNumber: '3' };
+const S1: OpenTab = { kind: 'scenario', lawId: 'law_1', filename: 'basis.feature' };
 
 /**
  * Build a restore instance over a fake bucket + a fake `switchLaw` that sets
@@ -26,10 +27,11 @@ interface HarnessOptions {
   switchWon?: boolean;
 }
 
-/** What editorRouteFor builds in this harness. */
+/** What routeForTab builds in this harness. */
 interface FakeLocation {
   lawId: string | null;
   articleNumber: string | null;
+  filename?: string;
 }
 
 interface HarnessState {
@@ -39,6 +41,7 @@ interface HarnessState {
   replaced: FakeLocation[];
   dropped: string[];
   activeSetTo: (OpenTab | null)[];
+  switched: [string, string | null][];
   cleared: number;
 }
 
@@ -56,6 +59,7 @@ function harness({
     replaced: [],
     dropped: [],
     activeSetTo: [],
+    switched: [],
     cleared: 0,
   };
   const restore = createTabRestore({
@@ -70,7 +74,8 @@ function harness({
       state.dropped.push(lawId);
       if (state.active && state.active.lawId === lawId) state.active = null;
     },
-    switchLaw: async (lawId) => {
+    switchLaw: async (lawId, article) => {
+      state.switched.push([lawId, article]);
       const status = laws[lawId];
       // Model `error` as whatever is VISIBLE after the await. When this call is
       // superseded (`switchWon: false`) the value on the shared ref belongs to
@@ -86,7 +91,11 @@ function harness({
     clearLaw: () => { state.cleared++; },
     error: state.error,
     router: { replace: (t: FakeLocation) => state.replaced.push(t) },
-    editorRouteFor: (lawId, articleNumber): FakeLocation => ({ lawId, articleNumber }),
+    routeForTab: (tab): FakeLocation => {
+      if (!tab) return { lawId: null, articleNumber: null };
+      if (tab.kind === 'scenario') return { lawId: tab.lawId, articleNumber: null, filename: tab.filename };
+      return { lawId: tab.lawId, articleNumber: tab.articleNumber };
+    },
     canPrune: () => canPrune,
   });
   return { restore, state };
@@ -211,5 +220,11 @@ describe('createTabRestore', () => {
     expect(state.replaced).toEqual([]);
     expect(state.dropped).toEqual([]);
     expect(state.tabs).toEqual([T1]);
+  });
+  it('restores a scenario tab: opens its law without an article and goes to the file', async () => {
+    const { restore, state } = harness({ tabs: [T2, S1], active: S1 });
+    await restore.restoreForTraject(REF, { hasLawInUrl: false });
+    expect(state.switched).toEqual([['law_1', null]]);
+    expect(state.replaced).toEqual([{ lawId: 'law_1', articleNumber: null, filename: 'basis.feature' }]);
   });
 });

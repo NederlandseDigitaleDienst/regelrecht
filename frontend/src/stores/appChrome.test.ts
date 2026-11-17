@@ -7,7 +7,7 @@ import { useAppChromeStore } from './appChrome';
 describe('useAppChromeStore', () => {
   it('drops everything the editor published when it clears its chrome', () => {
     const chrome = useAppChromeStore();
-    chrome.setEditorChrome({ pr: { number: 7, url: 'https://example.test/pr/7' }, tabs: [{ lawId: 'wet_a', articleNumber: '1' }] });
+    chrome.setEditorChrome({ pr: { number: 7, url: 'https://example.test/pr/7' }, tabs: [{ kind: 'article', lawId: 'wet_a', articleNumber: '1' }] });
     chrome.setEditorChanges({ dirty: true, saving: false, canUndo: false, canRedo: false, review: false, reviewStatus: null, reviewCanRejectRest: false });
 
     chrome.clearEditorChrome();

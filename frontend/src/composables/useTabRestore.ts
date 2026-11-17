@@ -1,4 +1,4 @@
-import { MAX_TABS } from '../lib/openTabsStorage';
+import { MAX_TABS, tabKey } from '../lib/openTabsStorage';
 import { useLatest } from '../lib/useLatest';
 import type { OpenTab } from '../lib/openTabsStorage';
 
@@ -9,18 +9,20 @@ export type LoadError = { status?: number } | (Error & { status?: number });
 
 /**
  * What `createTabRestore` needs from the editor; see the JSDoc below. `Loc` is
- * whatever `editorRouteFor` builds and `router.replace` accepts.
+ * whatever `routeForTab` builds and `router.replace` accepts.
  */
 export interface TabRestoreDeps<Loc> {
   tabsFor: (ref: TrajectRef) => OpenTab[];
   activeTabFor: (ref: TrajectRef) => OpenTab | null;
   setActiveTab: (ref: TrajectRef, tab: OpenTab | null) => unknown;
   dropLaw: (ref: TrajectRef, lawId: string) => void;
-  switchLaw: (lawId: string, article: string, ref: TrajectRef) => Promise<boolean>;
+  /** Open a law; `article` null for a scenario tab, which shows no article. */
+  switchLaw: (lawId: string, article: string | null, ref: TrajectRef) => Promise<boolean>;
   clearLaw: () => void;
   error: { readonly value: LoadError | null | undefined };
   router: { replace: (to: Loc) => unknown };
-  editorRouteFor: (lawId: string | null, article: string | null) => Loc;
+  /** Where a tab lives; null for the traject's editor root. */
+  routeForTab: (tab: OpenTab | null) => Loc;
   canPrune: () => boolean;
 }
 
@@ -48,11 +50,11 @@ export interface TabRestoreDeps<Loc> {
  * @param {(ref: string|null) => Tab|null} deps.activeTabFor - saved active tab
  * @param {(ref: string|null, tab: Tab|null) => void} deps.setActiveTab
  * @param {(ref: string|null, lawId: string) => void} deps.dropLaw
- * @param {(lawId: string, article: string, ref: string|null) => Promise<boolean>} deps.switchLaw - resolves to whether THIS call won the shared staleness race
+ * @param {(lawId: string, article: string|null, ref: string|null) => Promise<boolean>} deps.switchLaw - resolves to whether THIS call won the shared staleness race
  * @param {() => void} deps.clearLaw
  * @param {{ value: { status?: number } | null }} deps.error - useOpenLaw's error ref
  * @param {{ replace: Function }} deps.router
- * @param {(lawId: string|null, article: string|null) => object} deps.editorRouteFor
+ * @param {(tab: Tab|null) => object} deps.routeForTab - the tab's route; null for the editor root
  * @param {() => boolean} deps.canPrune - true once traject membership is confirmed
  */
 export function createTabRestore<Loc>({
@@ -64,7 +66,7 @@ export function createTabRestore<Loc>({
   clearLaw,
   error,
   router,
-  editorRouteFor,
+  routeForTab,
   canPrune,
 }: TabRestoreDeps<Loc>) {
   // Supersede an in-flight restore when a newer one starts (rapid A->B->A
@@ -78,11 +80,11 @@ export function createTabRestore<Loc>({
     // Home").
     clearLaw();
     setActiveTab(trajectRef, null);
-    router.replace(editorRouteFor(null, null));
+    router.replace(routeForTab(null));
   }
 
   /**
-   * Restore the last active (or first) article for `trajectRef`.
+   * Restore the last active (or first) tab for `trajectRef`.
    *
    * @param {string|null} trajectRef
    * @param {{ hasLawInUrl: boolean }} opts
@@ -116,16 +118,17 @@ export function createTabRestore<Loc>({
       // Prefer the remembered article while it still exists; otherwise the
       // first surviving tab.
       const candidate =
-        (remembered &&
-          current.find(
-            (t) => t.lawId === remembered.lawId && t.articleNumber === remembered.articleNumber,
-          )) ||
+        (remembered && current.find((t) => tabKey(t) === tabKey(remembered))) ||
         current[0]!; // non-empty: checked just above
 
       // Set active synchronously BEFORE the await (mirrors `selectTab`) so the
       // neutral empty state never flashes between rounds.
       setActiveTab(trajectRef, candidate);
-      const won = await switchLaw(candidate.lawId, candidate.articleNumber, trajectRef);
+      const won = await switchLaw(
+        candidate.lawId,
+        candidate.kind === 'article' ? candidate.articleNumber : null,
+        trajectRef,
+      );
       // A newer restore superseded us: drop every write from here on.
       if (!isCurrent()) return;
       // `switchLaw` shares one staleness token across ALL callers, so a
@@ -155,7 +158,7 @@ export function createTabRestore<Loc>({
       if (error.value) return;
 
       // Clean load: sync the URL so a refresh / back-forward stays in step.
-      router.replace(editorRouteFor(candidate.lawId, candidate.articleNumber));
+      router.replace(routeForTab(candidate));
       return;
     }
     // Belt tripped (should be unreachable): settle on the neutral root.

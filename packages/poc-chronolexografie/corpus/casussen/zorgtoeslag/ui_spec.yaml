@@ -1,0 +1,16 @@
+---
+# De UI-beschrijving van de casus zorgtoeslag, in de vorm van de
+# UI-beschrijving van een bron (src/ui_spec.rs), per veld. Een veld met
+# `answer` toont de Dienst naast elk besluit: wat de cel erover antwoordt,
+# met het besluit als de parameter die `decision` noemt. Hier is dat wat er
+# op het voorschot is betaald (het fictieve beleid over de betaling van het
+# voorschot, artikel 2).
+elements:
+  - id: UI1
+    element: betaling van het voorschot
+    fields:
+      - name: betaald_op_voorschot
+        visibility: shown
+        answer:
+          from: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#2#betaald_op_voorschot
+          decision: voorschotbesluit

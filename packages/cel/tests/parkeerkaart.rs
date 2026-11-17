@@ -979,7 +979,7 @@ fn the_cell_answers_the_policy_and_explains_the_card_it_counted() {
     assert!(
         result.open_terms.iter().any(|f| f.term == VALID
             && f.law_id == POLICY
-            && matches!(&f.filled_by, regelrecht_engine::FilledBy::Answer { law_id, article, answers }
+            && matches!(&f.filled_by, regelrecht_engine::FilledBy::Answer { law_id, article, answers, .. }
                 if law_id == POLICY && article == "2" && answers == std::slice::from_ref(answer))),
         "{:?}",
         result.open_terms
