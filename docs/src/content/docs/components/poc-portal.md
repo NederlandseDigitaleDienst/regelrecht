@@ -116,7 +116,16 @@ A `vastleggen` step of a scenario records a fact in the cell its `cel` names. Wi
   invoer: {bedrag: 5000}
 ```
 
-A fact that makes a decision known, such as the day the decision was sent, is recorded on that decision ([Recording and deciding](/concepts/chronolexography#recording-and-deciding)). The decision form does not ask it. The tab of the authority has a section *Bekendmaken* with a form per decision on an application of the case. That form records the fact with a reference to the decision. It also shows what follows from it on the play date, such as the period for objection. A scenario records it with a `vastleggen` step whose `verwijst_naar` names the decision, as above.
+A fact that makes a decision known, such as the day the decision was sent, is recorded on that decision ([Recording and deciding](/concepts/chronolexography#recording-and-deciding)). The decision form does not ask it. The tab of the authority has a section *Bekendmaken* with a form per decision on an application of the case. That form records the fact with a reference to the decision. It also shows what follows from it on the play date, such as the period for objection. A scenario records it with a `vastleggen` step whose `verwijst_naar` names the decision, as above. What the announcement gives is not known when the decision is taken, so the decision step cannot check it. The `vastleggen` step checks it instead: its `uitvoer` names outputs of the announcement as the cell derives them on the step's play date. A submission against the decision, such as an objection, leaves the period to the cell, also when it comes only from the announcement.
+
+```yaml
+- stap: vastleggen
+  feit: fictieve_vergunningwet#6#besluit_verzonden
+  verwijst_naar: vergunning
+  datum: 2026-02-09
+  invoer: {bekendmaking_datum: 2026-02-09}
+  uitvoer: {termijn_einde: 2026-03-23}
+```
 
 Apart from *Bekendmaken*, the form in free play has no field for the reference yet. When it loads the case, the app refuses a reference that names no earlier kenmerk or that names a submission or a record of another cell, and a step kenmerk that a `begin` already gives.
 

@@ -573,3 +573,16 @@ fn a_decision_that_asks_its_announcement_too_early_leaves_the_other_decisions_be
         "{e}"
     );
 }
+
+#[test]
+fn what_a_submission_takes_from_the_decision_includes_its_announcement() {
+    let mut service = service();
+    let mut cell = bare_cell("fictieve_school");
+    let decision = decide(&mut cell, &mut service, "2026-10-01");
+    // Not in the decision, but a submission against it takes it all the same.
+    assert!(!decision.outputs.contains_key("termijn_einde"));
+    let gives = cell.decision_gives(&service, &decision.id).unwrap();
+    assert!(gives.iter().any(|g| g == "termijn_einde"), "{gives:?}");
+    assert!(gives.iter().any(|g| g == "verleend"), "{gives:?}");
+    assert!(cell.decision_gives(&service, "geen-besluit").is_err());
+}

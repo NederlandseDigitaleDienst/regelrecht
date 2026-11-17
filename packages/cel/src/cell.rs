@@ -1292,6 +1292,22 @@ impl Cell {
         Ok(self.taken(service, gram)?.0)
     }
 
+    /// What a submission that refers to the decision `id` of this chronicle
+    /// takes from it besides what it holds: every output of the articles of
+    /// its stages, such as the period for objection, also where its
+    /// announcement gives it only once a fact is recorded ([`Cell::announcement`]).
+    /// The submitter supplies none of them ([`Cell::record_submission`]).
+    ///
+    /// # Errors
+    ///
+    /// `id` that is no decision of this chronicle, and a decision whose
+    /// article the law in force on its day does not hold.
+    pub fn decision_gives(&self, service: &LawExecutionService, id: &str) -> Result<Vec<String>> {
+        let gram = self.decision_gram(service, id)?;
+        let shape = decision_shape_of(service, gram, gram.recorded_on)?;
+        Ok(gives(service, &shape, gram.recorded_on))
+    }
+
     /// The shape of the decision `gram`, and the submission it was taken on;
     /// none for a decision taken ex officio, which refers to the record it
     /// is about.

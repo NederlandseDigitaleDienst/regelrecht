@@ -157,10 +157,14 @@ const indiening = computed(() => indieningVorm.waarden(tegen.value?.besluit.id))
 const indieningVelden = computed(() => {
   const t = tegen.value;
   if (!t || !state.vormen) return [];
-  // Het bestreden besluit en wat het al bevat (de termijn, Awb 6:8) vult de
-  // cel zelf.
+  // Het bestreden besluit en wat het al bevat of geeft (de termijn, Awb 6:8,
+  // ook als die pas uit de bekendmaking volgt) vult de cel zelf.
+  const geeft = state.vormen.uit_besluit?.[t.besluit.id] ?? [];
   return state.vormen[t.soort].velden.filter(
-    (v) => !(v.naam in (t.besluit.outputs ?? {})) && !(v.naam in (t.besluit.fields ?? {})),
+    (v) =>
+      !(v.naam in (t.besluit.outputs ?? {})) &&
+      !(v.naam in (t.besluit.fields ?? {})) &&
+      !geeft.includes(v.naam),
   );
 });
 

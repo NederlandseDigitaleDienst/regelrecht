@@ -710,6 +710,14 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
         "besluiten": besluiten,
         "andere_cellen": handelingen(&service, corpus, cell, on)?,
         "eigen": eigen_handelingen(&service, corpus, cell, on)?,
+        // Per decision of the case's cell, what a submission against it
+        // takes from it and its submitter does not fill (`Cell::decision_gives`).
+        "uit_besluit": cell
+            .eigen
+            .grams()
+            .iter()
+            .filter_map(|g| Some((g.id.clone(), json!(cell.eigen.decision_gives(&service, &g.id).ok()?))))
+            .collect::<Map<String, Value>>(),
         "eigen_velden": std::iter::once(&cell.eigen)
             .chain(&cell.andere)
             .flat_map(|c| c.grams())

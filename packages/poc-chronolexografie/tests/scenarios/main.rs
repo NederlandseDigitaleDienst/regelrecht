@@ -968,3 +968,117 @@ fn an_answer_names_a_record_by_the_kenmerk_of_a_step_made_by_then() {
         );
     }
 }
+
+/// The fictional procedure of `ZONDER_AWB` as a source, with `wijzig`
+/// applied to the steps of its scenario that makes a decision known, and
+/// `artikel` added to its law.
+fn bekendmaking_stappen(
+    artikel: &str,
+    wijzig: impl FnOnce(&mut Vec<Value>),
+) -> BTreeMap<String, String> {
+    let mut bestanden = bestanden(&crate_dir().join(ZONDER_AWB));
+    let wet = "regulation/nl/wet/fictieve_vergunningwet/2026-01-01.yaml";
+    let tekst = format!("{}\n{artikel}", bestanden[wet].trim_end());
+    bestanden.insert(wet.into(), tekst);
+    let pad = "casussen/fictieve_vergunning.yaml";
+    let mut casus: Value = serde_yaml_ng::from_str(&bestanden[pad]).unwrap();
+    let stappen = casus["scenarios"]
+        .as_array_mut()
+        .unwrap()
+        .iter_mut()
+        .find(|s| s["naam"] == "Verleend en daarna bekendgemaakt")
+        .unwrap()["stappen"]
+        .as_array_mut()
+        .unwrap();
+    wijzig(stappen);
+    bestanden.insert(pad.into(), serde_yaml_ng::to_string(&casus).unwrap());
+    bestanden
+}
+
+/// A step that records the fact making a decision known checks, under
+/// `uitvoer`, what the announcement then gives: the decision step cannot,
+/// as the fact does not exist yet when the decision is taken.
+#[test]
+fn a_step_that_makes_a_decision_known_checks_what_the_announcement_gives() {
+    let met = |termijn: &str| {
+        bekendmaking_stappen("", |stappen| {
+            let stap = stappen.last_mut().unwrap();
+            assert_eq!(stap["stap"], json!("vastleggen"));
+            stap["uitvoer"] = json!({"termijn_einde": termijn});
+        })
+    };
+    let (mut spel, stand) = spel_met_bron(met("2026-03-23"));
+    let fouten = speel_bron(&mut spel, &stand, None);
+    assert!(fouten.is_empty(), "{}", fouten.join("\n"));
+    let (mut spel, stand) = spel_met_bron(met("2026-03-24"));
+    assert_eq!(
+        speel_bron(&mut spel, &stand, None),
+        [
+            "fictieve_vergunning, 'Verleend en daarna bekendgemaakt', step 3: output \
+             'termijn_einde': expected \"2026-03-24\", got \"2026-03-23\""
+        ]
+    );
+}
+
+/// Article 8, added to the fictional law: a request against a decision,
+/// which takes the period that runs from its announcement.
+const VERZOEK_TEGEN_BESLUIT: &str = r"
+  - number: '8'
+    url: https://example.invalid/fictieve_vergunningwet#8
+    text: >-
+      FICTIEF. De houder van een vergunning kan de dienst om uitleg vragen.
+      De dienst noemt daarbij of de termijn van artikel 6 bekend is.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: fictieve_vergunningwet#8
+            parameters:
+              - uit_te_leggen_besluit
+              - termijn_einde
+          - type: BESCHIKKING
+            outputs:
+              - termijn_bekend
+        parameters:
+          - name: uit_te_leggen_besluit
+            type: decision
+          - name: termijn_einde
+            type: date
+            nullable: true
+        output:
+          - name: termijn_bekend
+            type: boolean
+        actions:
+          - output: termijn_bekend
+            value:
+              operation: NOT
+              value:
+                operation: EQUALS
+                subject: $termijn_einde
+                value: null
+";
+
+/// A submission against a decision that is made known by a fact takes the
+/// period from the announcement, after the fact is recorded: the player
+/// leaves the field to the cell, as the form does, and does not supply it
+/// empty.
+#[test]
+fn a_submission_after_the_announcement_takes_the_period_from_it() {
+    let (mut spel, stand) = spel_met_bron(bekendmaking_stappen(VERZOEK_TEGEN_BESLUIT, |stappen| {
+        stappen.push(json!({
+            "stap": "indienen",
+            "artikel": "fictieve_vergunningwet#8",
+            "verwijst_naar": "vergunning",
+            "kenmerk": "verzoek",
+            "datum": "2026-02-12",
+        }));
+        stappen.push(json!({
+            "stap": "beslissen",
+            "verwijst_naar": "verzoek",
+            "datum": "2026-02-12",
+            "uitvoer": {"termijn_bekend": true},
+        }));
+    }));
+    let fouten = speel_bron(&mut spel, &stand, None);
+    assert!(fouten.is_empty(), "{}", fouten.join("\n"));
+}
