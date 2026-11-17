@@ -214,6 +214,78 @@ def run_engine(law_yaml: str, extra_laws: list[str], output: str, params: dict, 
     return response["outputs"][output]
 
 
+@dataclass(frozen=True)
+class Statement:
+    """What one article says about the activity at the location."""
+
+    rulework: str
+    article: str
+    output: str
+    value: object
+
+
+def judges_at_a_place(article: dict) -> bool:
+    """Whether an article judges something at a place.
+
+    Both parts are declarations the format already has or would have: the
+    article produces a TOETS, and it takes a shape as a parameter.
+    """
+    execution = execution_of(article)
+    produces = execution.get("produces", {})
+    takes_shape = any(p.get("type") == SHAPE for p in execution.get("parameters", []))
+    return produces.get("legal_character") == "TOETS" and takes_shape
+
+
+def output_names(article: dict) -> set[str]:
+    return {o["name"] for o in execution_of(article).get("output", []) if o.get("type") != SHAPE}
+
+
+def referenced(article: dict) -> set[str]:
+    """The other ruleworks an article needs to be read."""
+    section = article.get("machine_readable", {})
+    laws = {i["law"] for i in section.get("implements", [])}
+    for declared in section.get("execution", {}).get("input", []):
+        regulation = declared.get("source", {}).get("regulation")
+        if regulation is not None:
+            laws.add(regulation)
+    return laws
+
+
+def ask(activity: str, location_wkt: str, params: dict, date: str) -> list[Statement]:
+    """Every article that speaks about the activity at the location.
+
+    The question names no rulework. A rulework with a territory is asked only
+    when the location lies in it, and of what remains every article that
+    judges at a place is asked. An article that gives nothing is silent.
+    """
+    location = wkt.loads(location_wkt)
+    available = ruleworks_in_force(date)
+    by_id = {r.id: r for r in available}
+    shapes = Shapes(available, location)
+    here = [r for r in available if r.territory() is None or overlaps(location, r.territory())]
+    scope = {**params, "activiteit": activity}
+    for rulework in here:
+        scope.update(rulework.territory_codes())
+
+    statements = []
+    for rulework in here:
+        for article in rulework.articles:
+            if not judges_at_a_place(article):
+                continue
+            names = output_names(article)
+            # Another article of the same rulework may give an output of the
+            # same name; the engine finds an article by its output, so those
+            # are left out.
+            alongside = [a for a in rulework.articles if a is article or not (output_names(a) & names)]
+            law_yaml = without_shapes(rulework, alongside, shapes)
+            others = [without_shapes(by_id[i], by_id[i].articles, shapes) for i in sorted(referenced(article))]
+            for name in sorted(names):
+                value = run_engine(law_yaml, others, name, scope, date)
+                if value is not None:
+                    statements.append(Statement(rulework.id, str(article["number"]), name, value))
+    return sorted(statements, key=lambda s: (s.rulework, s.article, s.output))
+
+
 def fills(article: dict, law_id: str) -> bool:
     implements = article.get("machine_readable", {}).get("implements", [])
     return any(i["law"] == law_id for i in implements)

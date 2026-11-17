@@ -1,8 +1,11 @@
-Feature: A real omgevingsplan - Oude Nijkerkerweg 33 in Putten
-  Afdeling 21.5 of the Omgevingsplan gemeente Putten holds only at one
-  location. Bijlage I of the plan lists four areas for it, each with its own
-  published geometry. Inside the location one area has the function Wonen,
-  and there a norm for bijgebouwen holds.
+Feature: May I build this here? - Oude Nijkerkerweg 33 in Putten
+  A real plan. Afdeling 21.5 of the Omgevingsplan gemeente Putten holds only
+  at one location. Bijlage I of the plan lists four areas for it, each with
+  its own published geometry. Inside the location one area has the function
+  Wonen, and there a norm for bijgebouwen holds.
+
+  The question names no rulework: that the location lies in Putten follows
+  from the municipal boundary.
 
   Coordinates are in the Dutch RD system (EPSG:28992), in metres.
 
@@ -17,12 +20,10 @@ Feature: A real omgevingsplan - Oude Nijkerkerweg 33 in Putten
     Given parameter "oppervlakte_bijgebouwen_m2" is 250
     Given parameter "sloopmeters_eigen_terrein_m2" is 310
     Given parameter "grootste_bijgebouw_m2" is 180
-    When I evaluate "afdeling_21_5_van_toepassing" of "omgevingsplan_gemeente_putten"
-    Then output "afdeling_21_5_van_toepassing" is true
-    When I evaluate "bestemming_wonen_van_toepassing" of "omgevingsplan_gemeente_putten"
-    Then output "bestemming_wonen_van_toepassing" is true
-    When I evaluate "oppervlakte_bijgebouwen_toegestaan" of "omgevingsplan_gemeente_putten"
-    Then output "oppervlakte_bijgebouwen_toegestaan" is true
+    When I ask whether I may "bijgebouw_bouwen" at the location
+    Then these articles speak:
+      | rulework                      | article | output                             | value |
+      | omgevingsplan_gemeente_putten | 21.23   | oppervlakte_bijgebouwen_toegestaan | true  |
 
   Scenario: More bijgebouwen than 287 m2
     Given the location is the shape:
@@ -32,8 +33,10 @@ Feature: A real omgevingsplan - Oude Nijkerkerweg 33 in Putten
     Given parameter "oppervlakte_bijgebouwen_m2" is 300
     Given parameter "sloopmeters_eigen_terrein_m2" is 310
     Given parameter "grootste_bijgebouw_m2" is 180
-    When I evaluate "oppervlakte_bijgebouwen_toegestaan" of "omgevingsplan_gemeente_putten"
-    Then output "oppervlakte_bijgebouwen_toegestaan" is false
+    When I ask whether I may "bijgebouw_bouwen" at the location
+    Then these articles speak:
+      | rulework                      | article | output                             | value |
+      | omgevingsplan_gemeente_putten | 21.23   | oppervlakte_bijgebouwen_toegestaan | false |
 
   Scenario: Too little demolished in return
     Given the location is the shape:
@@ -43,10 +46,12 @@ Feature: A real omgevingsplan - Oude Nijkerkerweg 33 in Putten
     Given parameter "oppervlakte_bijgebouwen_m2" is 250
     Given parameter "sloopmeters_eigen_terrein_m2" is 200
     Given parameter "grootste_bijgebouw_m2" is 180
-    When I evaluate "oppervlakte_bijgebouwen_toegestaan" of "omgevingsplan_gemeente_putten"
-    Then output "oppervlakte_bijgebouwen_toegestaan" is false
+    When I ask whether I may "bijgebouw_bouwen" at the location
+    Then these articles speak:
+      | rulework                      | article | output                             | value |
+      | omgevingsplan_gemeente_putten | 21.23   | oppervlakte_bijgebouwen_toegestaan | false |
 
-  Scenario: On the same plot but outside the area Wonen - the articles are silent
+  Scenario: On the same plot but outside the area Wonen - the article is silent
     Given the location is the shape:
       """
       POLYGON((167800 472255, 167810 472255, 167810 472265, 167800 472265, 167800 472255))
@@ -54,12 +59,8 @@ Feature: A real omgevingsplan - Oude Nijkerkerweg 33 in Putten
     Given parameter "oppervlakte_bijgebouwen_m2" is 250
     Given parameter "sloopmeters_eigen_terrein_m2" is 310
     Given parameter "grootste_bijgebouw_m2" is 180
-    When I evaluate "afdeling_21_5_van_toepassing" of "omgevingsplan_gemeente_putten"
-    Then output "afdeling_21_5_van_toepassing" is true
-    When I evaluate "bestemming_wonen_van_toepassing" of "omgevingsplan_gemeente_putten"
-    Then output "bestemming_wonen_van_toepassing" is absent
-    When I evaluate "oppervlakte_bijgebouwen_toegestaan" of "omgevingsplan_gemeente_putten"
-    Then output "oppervlakte_bijgebouwen_toegestaan" is absent
+    When I ask whether I may "bijgebouw_bouwen" at the location
+    Then no article speaks
 
   Scenario: Next to the plot - the afdeling does not apply
     Given the location is the shape:
@@ -69,10 +70,8 @@ Feature: A real omgevingsplan - Oude Nijkerkerweg 33 in Putten
     Given parameter "oppervlakte_bijgebouwen_m2" is 250
     Given parameter "sloopmeters_eigen_terrein_m2" is 310
     Given parameter "grootste_bijgebouw_m2" is 180
-    When I evaluate "afdeling_21_5_van_toepassing" of "omgevingsplan_gemeente_putten"
-    Then output "afdeling_21_5_van_toepassing" is false
-    When I evaluate "oppervlakte_bijgebouwen_toegestaan" of "omgevingsplan_gemeente_putten"
-    Then output "oppervlakte_bijgebouwen_toegestaan" is absent
+    When I ask whether I may "bijgebouw_bouwen" at the location
+    Then no article speaks
 
   # A building across the line between the area Wonen and the agrarian part.
   # With OVERLAPS the norm for Wonen holds for the whole building. Whether the
@@ -85,7 +84,15 @@ Feature: A real omgevingsplan - Oude Nijkerkerweg 33 in Putten
     Given parameter "oppervlakte_bijgebouwen_m2" is 250
     Given parameter "sloopmeters_eigen_terrein_m2" is 310
     Given parameter "grootste_bijgebouw_m2" is 180
-    When I evaluate "bestemming_wonen_van_toepassing" of "omgevingsplan_gemeente_putten"
-    Then output "bestemming_wonen_van_toepassing" is true
-    When I evaluate "oppervlakte_bijgebouwen_toegestaan" of "omgevingsplan_gemeente_putten"
-    Then output "oppervlakte_bijgebouwen_toegestaan" is true
+    When I ask whether I may "bijgebouw_bouwen" at the location
+    Then these articles speak:
+      | rulework                      | article | output                             | value |
+      | omgevingsplan_gemeente_putten | 21.23   | oppervlakte_bijgebouwen_toegestaan | true  |
+
+  Scenario: Felling a tree at that location - the article is about something else
+    Given the location is the shape:
+      """
+      POINT(167800 472325)
+      """
+    When I ask whether I may "boom_kappen" at the location
+    Then no article speaks

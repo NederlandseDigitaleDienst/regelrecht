@@ -191,22 +191,32 @@ articles:
 
     machine_readable:
       execution:
+        # This article judges an activity at a place, so the question "may I do
+        # this here?" asks it.
+        produces:
+          legal_character: TOETS
         parameters:
+          # The article speaks about bijgebouwen. That it concerns the activity
+          # of building one is a reading, not a quote.
+          - name: activiteit
+            type: string
+            required: true
+            description: What the applicant wants to do
           - name: location
             type: shape
             required: true
             description: The place the question is about
           - name: oppervlakte_bijgebouwen_m2
             type: number
-            required: true
+            required: false
             description: Total surface of the bijgebouwen after building, in m2
           - name: sloopmeters_eigen_terrein_m2
             type: number
-            required: true
+            required: false
             description: Surface demolished on the own plot as compensation, in m2
           - name: grootste_bijgebouw_m2
             type: number
-            required: true
+            required: false
             description: Surface of the largest single bijgebouw, in m2
         input:
           - name: afdeling_21_5_van_toepassing
@@ -232,6 +242,9 @@ articles:
                 - when:
                     operation: AND
                     conditions:
+                      - operation: EQUALS
+                        subject: $activiteit
+                        value: bijgebouw_bouwen
                       - $afdeling_21_5_van_toepassing
                       - operation: OVERLAPS
                         subject: $location

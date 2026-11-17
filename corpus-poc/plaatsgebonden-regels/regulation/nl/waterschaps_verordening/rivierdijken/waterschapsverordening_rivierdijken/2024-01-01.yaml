@@ -49,6 +49,10 @@ articles:
           open_term: waterschapsverordening_verbiedt_zonder_vergunning
           gelet_op: Gelet op artikel 5.3 van de Omgevingswet
       execution:
+        # This article judges an activity at a place, so the question "may I do
+        # this here?" asks it.
+        produces:
+          legal_character: TOETS
         parameters:
           - name: activiteit
             type: string
