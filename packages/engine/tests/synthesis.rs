@@ -1820,8 +1820,9 @@ articles:
 "#;
 
 /// The policy of wilgendaal: one article fills all three terms, each from
-/// an answer of its own, and counts 0 where the cell is silent. `ontvangen` reads its answer through a helper
-/// output, and the helper output `opmerking` feeds no term.
+/// an answer of its own, and counts 0 where the cell is silent. `ontvangen`
+/// reads its answer through a helper output, and the helper output
+/// `opmerking` feeds no term.
 const ONE_BINDING: &str = r#"
 $id: beleid_drie_termen
 regulatory_layer: UITVOERINGSBELEID
@@ -2042,10 +2043,12 @@ fn a_term_that_builds_on_another_term_takes_its_value_not_its_input() {
     .unwrap();
     // 10 - 3 - (1 + 10)
     assert_eq!(result.outputs["bedrag"], Value::Int(-4));
+    // The binding computes `leden` again for the discount, so the register
+    // may be asked once per term; it is only ever asked for `leden`.
+    let asked = register.asked();
     assert!(
-        register.asked().iter().all(|a| a == "leden"),
-        "{:?}",
-        register.asked()
+        !asked.is_empty() && asked.iter().all(|a| a == "leden"),
+        "{asked:?}"
     );
     assert_eq!(running.asked(), ["korting"]);
 }
@@ -2163,4 +2166,80 @@ fn the_ground_for_an_answer_follows_the_term_its_input_feeds() {
         "{message}"
     );
     assert!(office.asked().is_empty());
+}
+
+#[test]
+fn a_term_that_names_no_one_lends_an_input_no_ground() {
+    // The register's term names the holder, wilgendaal, by name; the
+    // discount names no one and reads the same helper. Both route to
+    // wilgendaal's cell, but only one of the two terms is given to the holder
+    // by law. Zuidmeer runs the execution and has no policy of its own here,
+    // so the input has no ground (RFC-056) and wilgendaal is not asked.
+    let law = THREE_TERMS.replacen("{name: register, type: CATEGORY}", "{name: wilgendaal}", 1);
+    assert_ne!(law, THREE_TERMS);
+    let policy = with_member_helper().replace(
+        "              default: $antwoord_korting\n",
+        "              default: {operation: ADD, values: [$antwoord_korting, $ledenhulp]}\n",
+    );
+    let mut service = LawExecutionService::new();
+    service.load_law(&law).unwrap();
+    service.load_law(&policy).unwrap();
+    let running = Fake::new("zuidmeer", None);
+    let holder = Fake::new("wilgendaal", None).answering("leden", Value::Int(10));
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(&running),
+        decides_for: None,
+        chronicle: None,
+        sphere: vec![&holder],
+    };
+    let e = service
+        .evaluate_law_in("beleid_drie_termen", &["leden"], parameters(), call, DATE)
+        .unwrap_err();
+    let message = e.to_string();
+    assert!(
+        message.contains("input 'antwoord_leden'") && message.contains("RFC-056"),
+        "{message}"
+    );
+    assert!(holder.asked().is_empty(), "{:?}", holder.asked());
+}
+
+#[test]
+fn an_input_named_like_its_term_feeds_only_that_term() {
+    // The register's input carries the name of its term (`leden: $leden`),
+    // and the discount builds on that term. The discount takes the term's
+    // value, so the input still feeds only `leden` and goes to the register.
+    // The input is declared never absent and passed through as is
+    // (`leden: $leden`), so the type check reads `$leden` as a number.
+    let policy = ONE_BINDING
+        .replace("antwoord_leden", "leden")
+        .replace(
+            "          - name: leden\n            type: number\n            nullable: true\n",
+            "          - name: leden\n            type: number\n",
+        )
+        .replace(
+            "          - output: leden\n            value:\n              operation: IF\n              cases:\n                - when: {operation: EQUALS, subject: $leden, value: null}\n                  then: 0\n              default: $leden\n",
+            "          - {output: leden, value: $leden}\n",
+        )
+        .replace(
+            "              default: $antwoord_korting\n",
+            "              default: {operation: ADD, values: [$antwoord_korting, $leden]}\n",
+        );
+    assert!(
+        policy.contains("{output: leden, value: $leden}")
+            && policy.contains("[$antwoord_korting, $leden]")
+    );
+    let (running, register, office) = three_cells();
+    let result = read_three(
+        &policy,
+        "wet_drie_termen",
+        "bedrag",
+        &running,
+        vec![&register, &office],
+    )
+    .unwrap();
+    // 10 - 3 - (1 + 10)
+    assert_eq!(result.outputs["bedrag"], Value::Int(-4));
+    assert!(!register.asked().is_empty());
+    assert_eq!(running.asked(), ["korting"]);
 }

@@ -589,8 +589,9 @@ impl Drop for TraceGuard {
 struct AnswerRoute<'a> {
     named: &'a [NamedAuthority],
     /// The authorities the terms the input feeds name in their
-    /// `competent_authority`; `None` where they name none and the holder is
-    /// asked. The ground for the answer depends on it ([`ungrounded`]).
+    /// `competent_authority`; `None` where one of them names none, so the
+    /// holder is asked for it. The ground for the answer depends on it
+    /// ([`ungrounded`]).
     competent: Option<&'a [NamedAuthority]>,
 }
 
@@ -647,7 +648,13 @@ fn route_answer<'a>(
             each.join(", ")
         ));
     }
-    let competent = fed.iter().find_map(|(_, named)| *named);
+    // The law gives the input to an authority only where every term it feeds
+    // names one; a term that names no one lends no ground (RFC-056).
+    let competent = fed
+        .iter()
+        .map(|(_, named)| *named)
+        .collect::<Option<Vec<_>>>()
+        .and_then(|named| named.first().copied());
     let Some(named) = routes.first().copied().unwrap_or(holder) else {
         return Err(NO_HOLDER.to_string());
     };

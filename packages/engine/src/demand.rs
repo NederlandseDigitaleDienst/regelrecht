@@ -120,7 +120,12 @@ pub(crate) fn term_reads(
             .filter_map(|value| value.strip_prefix('$'))
             .map(|path| path.split('.').next().unwrap_or(path).to_string());
         for read in by_actions.chain(by_inputs) {
-            if !terms.contains(read.as_str()) && seen.insert(read.clone()) {
+            // Another term's output is its value, not a read of its sources,
+            // also where an input carries the same name (`leden: $leden`).
+            if read != output && terms.contains(read.as_str()) {
+                continue;
+            }
+            if seen.insert(read.clone()) {
                 pending.push(read.clone());
             }
             reads.insert(read);
