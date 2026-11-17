@@ -1255,6 +1255,7 @@ articles:
             law_id,
             article,
             answers,
+            ..
         } = &filled.filled_by
         else {
             panic!("{filled:?}");

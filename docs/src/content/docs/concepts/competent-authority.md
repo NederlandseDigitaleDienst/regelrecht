@@ -58,6 +58,10 @@ A cell is an organization that keeps its own chronicle and answers questions fro
 
 Wherever that binding runs, the engine asks the one cell in the call that the term names. It does not ask a cell that the term does not name. If the call holds more than one cell that the term names, the decision fails. The engine merges no answers, and which cell of a category answers is an [open question](/concepts/chronolexography/open-questions). For a term without `competent_authority`, the engine asks the cell of the authority that holds the policy. The article's own `competent_authority` plays no part in which cell the engine asks.
 
+One binding may fill several terms, each with a different competent authority. The engine then routes each input that takes an answer by the terms it feeds. An input feeds a term when the output for that term reads it: directly, through another output of the binding, or as a parameter of another input. A term that builds on the output of another term takes that value and not its source, so the other term's input does not feed it. A policy article can thus take a count from a register's cell and a sum from the deciding authority's own cell, and combine the two.
+
+An input that feeds terms routed to different authorities makes the execution fail when the engine resolves it, because one input asks one cell. The binding then needs an input per answer. An input that feeds no term asks the holder of the policy.
+
 ## Who gives a finding
 
 A finding is what the authority itself decides on an open norm in a single case. An open term with `decided_per_case_by` needs a finding when no regulation fills it. The field also names the authority in words. The engine reads it only as a marker that the term is judged case by case. Who gives the finding follows from competence:
