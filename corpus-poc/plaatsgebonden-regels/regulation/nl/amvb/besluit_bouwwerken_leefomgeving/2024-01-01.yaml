@@ -15,8 +15,18 @@ url: https://wetten.overheid.nl/BWBR0041297
 #
 # Article 2.29 onder a to q each name one kind of structure (a dakkapel, a
 # dakraam, a zonnepaneel, an erfafscheiding and so on). They are not modelled.
-# Whether one of them lifts the ban is asked as one fact. For a structure
-# they do not name, the answer to that is simply no.
+# Whether one of them lifts the ban is asked as one fact,
+# vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q. For a structure they
+# do not name, the answer to that is simply no. The opening "Onverminderd
+# regels in het omgevingsplan over het in stand houden ..." is not worked
+# out, and article 2.30 lid 3 onder b, 1° and 2° are left out because they
+# concern a change to an existing building.
+#
+# Asked and not worked out as well: whether another algemene maatregel van
+# bestuur exempts an activity that is not building
+# (aangewezen_geval_volgens_andere_algemene_maatregel_van_bestuur), and, as a
+# conclusion of law, whether the plan gives the location the designation
+# rijksbeschermd stads- of dorpsgezicht.
 #
 # NOT modelled: the technical permit duty for building (articles 2.25 to
 # 2.27, which work out article 5.1 lid 2 of the Omgevingswet).
@@ -80,13 +90,18 @@ articles:
             description: >-
               Whether what is built is one of the structures that onder a to q
               name
-          # Onder a to q are not modelled.
           - name: vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q
             type: boolean
             required: false
             description: >-
-              Whether onder a to q lift the ban; false for a structure they do
-              not name
+              Not modelled - whether onder a to q, read with article 2.30,
+              lift the ban; false for a structure they do not name
+          - name: aangewezen_geval_volgens_andere_algemene_maatregel_van_bestuur
+            type: boolean
+            required: false
+            description: >-
+              Not modelled - whether another algemene maatregel van bestuur
+              exempts an activity that is not building
           - name: gelegen_in_voorerfgebied
             type: boolean
             required: false
@@ -112,7 +127,7 @@ articles:
           - name: locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht
             type: boolean
             required: false
-            description: Article 2.30 lid 3
+            description: Conclusion of law - article 2.30 lid 3, whether the plan gives the location that designation
           - name: op_gebouwerf_aan_achterkant_niet_zijkant_niet_naar_openbaar_gebied
             type: boolean
             required: false
@@ -139,31 +154,34 @@ articles:
         actions:
           - output: bij_amvb_aangewezen_geval
             value:
-              operation: AND
-              conditions:
-                # Article 2.28: outside the paragraaf the article lifts nothing.
-                - $paragraaf_2_3_3_van_toepassing
-                - operation: OR
-                  conditions:
-                    - $vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q
-                    # Onder r speaks of "een ander bouwwerk": one that onder a
-                    # to q do not name.
-                    - operation: AND
-                      conditions:
-                        - operation: NOT
-                          value: $bouwwerk_genoemd_in_artikel_2_29_onder_a_tot_en_met_q
-                        - operation: OR
+              operation: IF
+              cases:
+                - when: $paragraaf_2_3_3_van_toepassing
+                  then:
+                    operation: OR
+                    conditions:
+                        - $vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q
+                        # Onder r speaks of "een ander bouwwerk": one that onder a
+                        # to q do not name.
+                        - operation: AND
                           conditions:
-                            - $gelegen_in_voorerfgebied
-                            - $gelegen_in_achtererfgebied
-                        - operation: LESS_THAN_OR_EQUAL
-                          subject: $hoogte_m
-                          value: 1
-                        - operation: LESS_THAN_OR_EQUAL
-                          subject: $oppervlakte_bouwwerk_m2
-                          value: 2
-                        - operation: NOT
-                          value: $onder_r_uitgesloten_door_artikel_2_30
+                            - operation: NOT
+                              value: $bouwwerk_genoemd_in_artikel_2_29_onder_a_tot_en_met_q
+                            - operation: OR
+                              conditions:
+                                - $gelegen_in_voorerfgebied
+                                - $gelegen_in_achtererfgebied
+                            - operation: LESS_THAN_OR_EQUAL
+                              subject: $hoogte_m
+                              value: 1
+                            - operation: LESS_THAN_OR_EQUAL
+                              subject: $oppervlakte_bouwwerk_m2
+                              value: 2
+                            - operation: NOT
+                              value: $onder_r_uitgesloten_door_artikel_2_30
+              # Article 2.28: this paragraaf is about building. Whether another
+              # algemene maatregel van bestuur exempts another activity is asked.
+              default: $aangewezen_geval_volgens_andere_algemene_maatregel_van_bestuur
 
   - number: '2.30'
     text: |
@@ -211,7 +229,7 @@ articles:
           - name: locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht
             type: boolean
             required: false
-            description: Lid 3 - whether the plan gives the location that designation
+            description: Conclusion of law - article 2.30 lid 3, whether the plan gives the location that designation
           - name: op_gebouwerf_aan_achterkant_niet_zijkant_niet_naar_openbaar_gebied
             type: boolean
             required: false

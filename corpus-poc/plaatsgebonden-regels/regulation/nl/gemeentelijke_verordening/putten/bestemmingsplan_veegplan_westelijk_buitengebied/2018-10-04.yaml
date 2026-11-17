@@ -19,10 +19,12 @@ url: https://www.ruimtelijkeplannen.nl/documents/NL.IMRO.0273.BPBGWVeegplan-VA02
 # example. At Oude Nijkerkerweg 33 the omgevingsplan says so (article 21.22),
 # and that plan reads the outcomes below.
 #
-# NOT modelled, and outside what the outcomes below cover:
-#   - onder a, the maximum that an aanduiding 'maximum oppervlakte
-#     bijgebouwen' gives, and the four addresses named there;
-#   - onder b (existing bijgebouwen above the maximum) and onder f.
+# NOT modelled: onder a, the maximum that an aanduiding 'maximum oppervlakte
+# bijgebouwen' gives and the four addresses named there; onder b (existing
+# bijgebouwen above the maximum); and onder f. Whether one of these allows
+# more than 80 m2 is asked as one fact,
+# ruimer_toegestaan_volgens_artikel_19_2_8_onder_a_of_b. Where it decides the
+# outcome and is not given, the outcome is unknown.
 
 articles:
   - number: 19.2.8
@@ -33,6 +35,7 @@ articles:
       a. de gezamenlijke oppervlakte van bijgebouwen bedraagt per woning
       maximaal 80 m2 dan wel de maximale oppervlakte welke is opgenomen ter
       plaatse van de aanduiding 'maximum oppervlakte bijgebouwen', [...]
+      [onder b: niet overgenomen]
       c. de goothoogte bedraagt maximaal 3,5 m;
       d. de bouwhoogte bedraagt maximaal 6 m;
       e. bijgebouwen zijn niet toegestaan:
@@ -40,6 +43,7 @@ articles:
       - wooncomplex';
       2. bij kleine woningen;
       3. bij recreatiewoningen;
+      [onder f: niet overgenomen]
     url: https://www.ruimtelijkeplannen.nl/documents/NL.IMRO.0273.BPBGWVeegplan-VA02/r_NL.IMRO.0273.BPBGWVeegplan-VA02.html
 
     machine_readable:
@@ -49,6 +53,12 @@ articles:
             type: number
             required: false
             description: Onder a - total surface of the bijgebouwen of the dwelling after building, in m2
+          - name: ruimer_toegestaan_volgens_artikel_19_2_8_onder_a_of_b
+            type: boolean
+            required: false
+            description: >-
+              Not modelled - whether an aanduiding or onder b allows more than
+              80 m2
           - name: goothoogte_m
             type: number
             required: false
@@ -64,16 +74,19 @@ articles:
         output:
           - name: oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a
             type: boolean
-            description: Onder a - whether the total surface stays within 80 m2
+            description: Onder a - whether the total surface is allowed
           - name: bijgebouw_voldoet_aan_artikel_19_2_8_onder_c_d_en_e
             type: boolean
             description: Onder c, d and e - heights within the maxima, and bijgebouwen allowed with this dwelling
         actions:
           - output: oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a
             value:
-              operation: LESS_THAN_OR_EQUAL
-              subject: $oppervlakte_bijgebouwen_m2
-              value: 80
+              operation: OR
+              conditions:
+                - operation: LESS_THAN_OR_EQUAL
+                  subject: $oppervlakte_bijgebouwen_m2
+                  value: 80
+                - $ruimer_toegestaan_volgens_artikel_19_2_8_onder_a_of_b
           - output: bijgebouw_voldoet_aan_artikel_19_2_8_onder_c_d_en_e
             value:
               operation: AND

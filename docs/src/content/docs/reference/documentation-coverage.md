@@ -63,6 +63,7 @@ A reader meets these constructs in a rulework or a running service whatever the 
 | RFC-053 | The appeal to the administrative court (`BEROEP`, `UITSPRAAK`, Awb 8:70 and 8:72) | [Applications, Decisions and Objections](../concepts/administrative-procedures#appeal), [Schema](./schema) |
 | RFC-054 | RegelRijm, a Dutch reading of an action tree (partially built: the reading and the editor pane, not yet the presenter) | [Shared Frontend Package](../components/frontend-shared#regelrijm-regelrijmindex), [Editor](../components/frontend) |
 | RFC-056 | A cell uses another cell's answer only with a legal basis (the check in the engine when it resolves a binding, `Call::decides_for`, the source of `Cell::consult` for a prefilled form) | [Chronolexography](../concepts/chronolexography#answers-of-other-cells) |
+| RFC-057 | A place in a law is a shape (the type `shape`, `OVERLAPS`, `location` and `combine` on an open term, the register of territories, the step `the territory of`) | [Law Format](../concepts/law-format#operations), [Inversion of Control](../concepts/inversion-of-control#the-regulation-of-a-place), [Schema](./schema) |
 
 ## Backlog
 
