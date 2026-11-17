@@ -354,8 +354,9 @@ pub(crate) fn interiors_meet(a: &Shape, b: &Shape) -> Result<bool, String> {
 /// when nothing of it is left. The overlay puts all coordinates on one fine
 /// grid, so points that are written the same in two shapes stay the same;
 /// two neighbours whose common boundary is not written with the same points
-/// leave a gap between them, however narrow, and a gap is not covered. A
-/// territory that is a line or a point covers a location only by itself.
+/// leave a gap between them, and a gap is not covered unless it is narrower
+/// than the grid, about a billionth of the extent of the shapes. A territory
+/// that is a line or a point covers a location only by itself.
 pub(crate) fn covered_by(location: &Shape, territories: &[Rc<Shape>]) -> bool {
     let covers =
         |territory: &Shape, part: &Geometry<f64>| part.relate(&territory.geometry).is_coveredby();
@@ -832,7 +833,7 @@ mod tests {
         // Past both.
         assert!(!covered("POLYGON((8 4, 22 4, 22 6, 8 6, 8 4))", &both));
         assert!(!covered("POLYGON((8 4, 12 4, 12 12, 8 12, 8 4))", &both));
-        // A gap between the two is not covered, however narrow.
+        // A gap between the two is not covered.
         let gap = [
             SQUARE,
             "POLYGON((10.001 0, 20 0, 20 10, 10.001 10, 10.001 0))",

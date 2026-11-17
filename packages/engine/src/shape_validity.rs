@@ -202,7 +202,9 @@ enum Meeting {
 }
 
 /// The sign of the turn from `a` over `b` to `c`: 1 to the left, -1 to the
-/// right, 0 when the three lie on a line. Exact.
+/// right, 0 when the three lie on a line. Exact for coordinates whose
+/// products do not underflow; a shape of some 1e-150 across reads as a line
+/// and is refused.
 fn turn(a: Coord<f64>, b: Coord<f64>, c: Coord<f64>) -> i8 {
     match RobustKernel::orient2d(a, b, c) {
         Orientation::CounterClockwise => 1,

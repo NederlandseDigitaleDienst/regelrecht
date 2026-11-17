@@ -96,7 +96,7 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
   # ---- The surface of bijgebouwen: bestemmingsplan 19.2.8 onder a, widened by
   # article 21.23 to 287 m2 with 307,5 m2 demolished and 200 m2 per bijgebouw.
 
-  Scenario: 250 m2 of bijgebouwen, with the demolition the plan asks - no permit
+  Scenario: 250 m2 of bijgebouwen, with the demolition the plan asks - no permit for an omgevingsplanactiviteit
     # Above the 80 m2 of the bestemmingsplan and above the 150 m2 that
     # accords with the plan by law, but within what article 21.23 adds.
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
@@ -739,7 +739,7 @@ Feature: A bijgebouw at Oude Nijkerkerweg 33 in Putten - does it need a permit?
     When I evaluate "buitenplanse_omgevingsplanactiviteit" of "omgevingswet"
     Then output "buitenplanse_omgevingsplanactiviteit" is false
 
-  Scenario: Not in achtererfgebied, but excepted by onder b to i - no permit
+  Scenario: Not in achtererfgebied, but excepted by onder b to i - no permit for an omgevingsplanactiviteit
     Given parameter "location" is "POLYGON((167795 472320, 167801 472320, 167801 472330, 167795 472330, 167795 472320))"
     Given parameter "oppervlakte_bijgebouwen_m2" is 250
     Given parameter "oppervlakte_bijbehorende_bouwwerken_in_bebouwingsgebied_m2" is 250
