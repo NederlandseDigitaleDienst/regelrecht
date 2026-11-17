@@ -220,87 +220,58 @@ class Statement:
 
     rulework: str
     article: str
-    output: str
-    value: object
+    qualification: str
+    through: list[Filler]
 
 
-def judges_at_a_place(article: dict) -> bool:
-    """Whether an article judges something at a place.
+@dataclass(frozen=True)
+class Verdict:
+    answer: str
+    because: list[Statement]
 
-    Both parts are declarations the format already has or would have: the
-    article produces a TOETS, and it takes a shape as a parameter.
-    """
-    execution = execution_of(article)
-    produces = execution.get("produces", {})
-    takes_shape = any(p.get("type") == SHAPE for p in execution.get("parameters", []))
-    return produces.get("legal_character") == "TOETS" and takes_shape
+
+# The output every article that judges an activity gives, and its values from
+# mild to strict. The strictest one that any article gives is the answer.
+QUALIFICATION = "kwalificatie"
+STRICTNESS = ["toegestaan", "vergunningplicht", "verbod"]
+NO_RULE = "geen_regel"
 
 
 def output_names(article: dict) -> set[str]:
     return {o["name"] for o in execution_of(article).get("output", []) if o.get("type") != SHAPE}
 
 
-def referenced(article: dict) -> set[str]:
-    """The other ruleworks an article needs to be read."""
-    section = article.get("machine_readable", {})
-    laws = {i["law"] for i in section.get("implements", [])}
-    for declared in section.get("execution", {}).get("input", []):
-        regulation = declared.get("source", {}).get("regulation")
-        if regulation is not None:
-            laws.add(regulation)
-    return laws
+def fills(filler: dict, law_id: str, article: dict) -> bool:
+    """Whether one article fills an open term of another."""
+    implements = filler.get("machine_readable", {}).get("implements", [])
+    number = str(article["number"])
+    return any(i["law"] == law_id and str(i["article"]) == number for i in implements)
 
 
-def ask(activity: str, location_wkt: str, params: dict, date: str) -> list[Statement]:
-    """Every article that speaks about the activity at the location.
-
-    The question names no rulework. A rulework with a territory is asked only
-    when the location lies in it, and of what remains every article that
-    judges at a place is asked. An article that gives nothing is silent.
-    """
-    location = wkt.loads(location_wkt)
-    available = ruleworks_in_force(date)
-    by_id = {r.id: r for r in available}
+def evaluate_article(
+    asked: Rulework,
+    article: dict,
+    output: str,
+    location: BaseGeometry,
+    available: list[Rulework],
+    params: dict,
+    date: str,
+) -> Answer:
+    """One output of one article at the location, with what fills its terms."""
     shapes = Shapes(available, location)
-    here = [r for r in available if r.territory() is None or overlaps(location, r.territory())]
-    scope = {**params, "activiteit": activity}
-    for rulework in here:
-        scope.update(rulework.territory_codes())
+    # Another article of the same rulework may give an output of the same
+    # name; the engine finds an article by its output, so those are left out.
+    names = output_names(article)
+    alongside = [a for a in asked.articles if a is article or not (output_names(a) & names)]
+    asked_yaml = without_shapes(asked, alongside, shapes)
 
-    statements = []
-    for rulework in here:
-        for article in rulework.articles:
-            if not judges_at_a_place(article):
-                continue
-            names = output_names(article)
-            # Another article of the same rulework may give an output of the
-            # same name; the engine finds an article by its output, so those
-            # are left out.
-            alongside = [a for a in rulework.articles if a is article or not (output_names(a) & names)]
-            law_yaml = without_shapes(rulework, alongside, shapes)
-            others = [without_shapes(by_id[i], by_id[i].articles, shapes) for i in sorted(referenced(article))]
-            for name in sorted(names):
-                value = run_engine(law_yaml, others, name, scope, date)
-                if value is not None:
-                    statements.append(Statement(rulework.id, str(article["number"]), name, value))
-    return sorted(statements, key=lambda s: (s.rulework, s.article, s.output))
-
-
-def fills(article: dict, law_id: str) -> bool:
-    implements = article.get("machine_readable", {}).get("implements", [])
-    return any(i["law"] == law_id for i in implements)
-
-
-def evaluate_at(law_id: str, output: str, location_wkt: str, params: dict, date: str) -> Answer:
-    location = wkt.loads(location_wkt)
-    available = ruleworks_in_force(date)
-    shapes = Shapes(available, location)
-    asked = next(r for r in available if r.id == law_id)
-    asked_yaml = without_shapes(asked, asked.articles, shapes)
-
-    # The ruleworks that fill a term of the asked law. One with a territory
+    # The ruleworks that fill a term of this article. One with a territory
     # speaks only about locations in it.
-    fillers = [r for r in available if r.id != law_id and any(fills(a, law_id) for a in r.articles)]
+    fillers = [
+        r
+        for r in available
+        if r.id != asked.id and any(fills(a, asked.id, article) for a in r.articles)
+    ]
     here = [r for r in fillers if r.territory() is None or overlaps(location, r.territory())]
     scope = dict(params)
     for rulework in here:
@@ -314,16 +285,55 @@ def evaluate_at(law_id: str, output: str, location_wkt: str, params: dict, date:
     without_fillers = run_engine(asked_yaml, [], output, scope, date)
     spoken: dict[Filler, object] = {}
     for rulework in here:
-        for article in rulework.articles:
-            if not fills(article, law_id):
+        for filler in rulework.articles:
+            if not fills(filler, asked.id, article):
                 continue
-            alone = without_shapes(rulework, [article], shapes)
+            alone = without_shapes(rulework, [filler], shapes)
             answer = run_engine(asked_yaml, [alone], output, scope, date)
             if answer != without_fillers:
-                spoken[Filler(rulework.id, str(article["number"]))] = answer
+                spoken[Filler(rulework.id, str(filler["number"]))] = answer
 
     answers = {json.dumps(a, sort_keys=True) for a in spoken.values()}
     if len(answers) > 1:
-        raise RuntimeError(f"{law_id}: fillers disagree about {output!r}: {spoken}")
+        raise RuntimeError(f"{asked.id}: fillers disagree about {output!r}: {spoken}")
     value = next(iter(spoken.values())) if spoken else without_fillers
     return Answer(value, sorted(spoken, key=lambda f: (f.rulework, f.article)))
+
+
+def evaluate_at(law_id: str, output: str, location_wkt: str, params: dict, date: str) -> Answer:
+    """A named output of a named law at the location."""
+    available = ruleworks_in_force(date)
+    asked = next(r for r in available if r.id == law_id)
+    article = next(a for a in asked.articles if output in output_names(a))
+    return evaluate_article(asked, article, output, wkt.loads(location_wkt), available, params, date)
+
+
+def ask(activity: str, location_wkt: str, params: dict, date: str) -> Verdict:
+    """May this activity be done at this location?
+
+    The question names no rulework. A rulework with a territory is asked only
+    when the location lies in it. Of what remains, every article that gives a
+    qualification is asked; one that gives nothing is silent. The answer is
+    the strictest qualification given.
+    """
+    location = wkt.loads(location_wkt)
+    available = ruleworks_in_force(date)
+    scope = {**params, "activiteit": activity}
+    because = []
+    for rulework in available:
+        bounds = rulework.territory()
+        if bounds is not None and not overlaps(location, bounds):
+            continue
+        for article in rulework.articles:
+            if QUALIFICATION not in output_names(article):
+                continue
+            answer = evaluate_article(rulework, article, QUALIFICATION, location, available, scope, date)
+            if answer.value is None:
+                continue
+            if answer.value not in STRICTNESS:
+                raise ValueError(f"{rulework.id} art. {article['number']}: unknown qualification {answer.value!r}")
+            because.append(Statement(rulework.id, str(article["number"]), answer.value, answer.filled_by))
+    because.sort(key=lambda s: (s.rulework, s.article))
+    if not because:
+        return Verdict(NO_RULE, [])
+    return Verdict(max((s.qualification for s in because), key=STRICTNESS.index), because)

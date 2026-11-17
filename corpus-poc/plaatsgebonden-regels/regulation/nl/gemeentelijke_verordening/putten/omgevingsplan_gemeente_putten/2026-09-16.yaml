@@ -191,10 +191,6 @@ articles:
 
     machine_readable:
       execution:
-        # This article judges an activity at a place, so the question "may I do
-        # this here?" asks it.
-        produces:
-          legal_character: TOETS
         parameters:
           # The article speaks about bijgebouwen. That it concerns the activity
           # of building one is a reading, not a quote.
@@ -230,12 +226,20 @@ articles:
             source:
               output: gebied_maximale_oppervlakte_bijgebouwen
         output:
-          - name: oppervlakte_bijgebouwen_toegestaan
-            type: boolean
+          # What this article says about the activity, in the one vocabulary
+          # every judging article uses: toegestaan, vergunningplicht or verbod.
+          # Absent when the article does not speak about the case.
+          #
+          # `verbod` is too strong as law: building beyond the norm is in
+          # conflict with the plan, and for that a permit can be asked
+          # (Omgevingswet, bijlage onder A, omgevingsplanactiviteit onder c).
+          # That route is not modelled here.
+          - name: kwalificatie
+            type: string
             nullable: true
-            description: Whether this surface of bijgebouwen is allowed under this article
+            description: The qualification this article gives the activity
         actions:
-          - output: oppervlakte_bijgebouwen_toegestaan
+          - output: kwalificatie
             value:
               operation: IF
               cases:
@@ -250,14 +254,19 @@ articles:
                         subject: $location
                         value: $gebied_maximale_oppervlakte_bijgebouwen
                   then:
-                    operation: AND
-                    conditions:
-                      - operation: LESS_THAN_OR_EQUAL
-                        subject: $oppervlakte_bijgebouwen_m2
-                        value: 287
-                      - operation: GREATER_THAN_OR_EQUAL
-                        subject: $sloopmeters_eigen_terrein_m2
-                        value: 307.5
-                      - operation: LESS_THAN_OR_EQUAL
-                        subject: $grootste_bijgebouw_m2
-                        value: 200
+                    operation: IF
+                    cases:
+                      - when:
+                          operation: AND
+                          conditions:
+                            - operation: LESS_THAN_OR_EQUAL
+                              subject: $oppervlakte_bijgebouwen_m2
+                              value: 287
+                            - operation: GREATER_THAN_OR_EQUAL
+                              subject: $sloopmeters_eigen_terrein_m2
+                              value: 307.5
+                            - operation: LESS_THAN_OR_EQUAL
+                              subject: $grootste_bijgebouw_m2
+                              value: 200
+                        then: toegestaan
+                    default: verbod

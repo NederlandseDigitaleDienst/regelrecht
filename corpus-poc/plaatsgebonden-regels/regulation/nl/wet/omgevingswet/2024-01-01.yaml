@@ -53,9 +53,25 @@ articles:
           - name: vergunningplicht_omgevingsplanactiviteit
             type: boolean
             description: Lid 1 under a - permit required as omgevingsplanactiviteit
+          # What this article says about the activity, in the one vocabulary
+          # every judging article uses: toegestaan, vergunningplicht or verbod.
+          # Absent when the article does not speak about the case.
+          - name: kwalificatie
+            type: string
+            nullable: true
+            description: The qualification this article gives the activity
         actions:
           - output: vergunningplicht_omgevingsplanactiviteit
             value: $omgevingsplan_verbiedt_zonder_vergunning
+          - output: kwalificatie
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $omgevingsplan_verbiedt_zonder_vergunning
+                    value: true
+                  then: vergunningplicht
 
   - number: '5.3'
     text: |
@@ -86,6 +102,19 @@ articles:
           - name: vergunningplicht_waterschapsverordening
             type: boolean
             description: Permit required under the waterschapsverordening
+          - name: kwalificatie
+            type: string
+            nullable: true
+            description: The qualification this article gives the activity
         actions:
           - output: vergunningplicht_waterschapsverordening
             value: $waterschapsverordening_verbiedt_zonder_vergunning
+          - output: kwalificatie
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $waterschapsverordening_verbiedt_zonder_vergunning
+                    value: true
+                  then: vergunningplicht

@@ -21,9 +21,10 @@ Feature: May I build this here? - Oude Nijkerkerweg 33 in Putten
     Given parameter "sloopmeters_eigen_terrein_m2" is 310
     Given parameter "grootste_bijgebouw_m2" is 180
     When I ask whether I may "bijgebouw_bouwen" at the location
-    Then these articles speak:
-      | rulework                      | article | output                             | value |
-      | omgevingsplan_gemeente_putten | 21.23   | oppervlakte_bijgebouwen_toegestaan | true  |
+    Then the answer is "toegestaan"
+    Then because of:
+      | rulework                      | article | qualification | through |
+      | omgevingsplan_gemeente_putten | 21.23   | toegestaan    |         |
 
   Scenario: More bijgebouwen than 287 m2
     Given the location is the shape:
@@ -34,9 +35,10 @@ Feature: May I build this here? - Oude Nijkerkerweg 33 in Putten
     Given parameter "sloopmeters_eigen_terrein_m2" is 310
     Given parameter "grootste_bijgebouw_m2" is 180
     When I ask whether I may "bijgebouw_bouwen" at the location
-    Then these articles speak:
-      | rulework                      | article | output                             | value |
-      | omgevingsplan_gemeente_putten | 21.23   | oppervlakte_bijgebouwen_toegestaan | false |
+    Then the answer is "verbod"
+    Then because of:
+      | rulework                      | article | qualification | through |
+      | omgevingsplan_gemeente_putten | 21.23   | verbod        |         |
 
   Scenario: Too little demolished in return
     Given the location is the shape:
@@ -47,9 +49,10 @@ Feature: May I build this here? - Oude Nijkerkerweg 33 in Putten
     Given parameter "sloopmeters_eigen_terrein_m2" is 200
     Given parameter "grootste_bijgebouw_m2" is 180
     When I ask whether I may "bijgebouw_bouwen" at the location
-    Then these articles speak:
-      | rulework                      | article | output                             | value |
-      | omgevingsplan_gemeente_putten | 21.23   | oppervlakte_bijgebouwen_toegestaan | false |
+    Then the answer is "verbod"
+    Then because of:
+      | rulework                      | article | qualification | through |
+      | omgevingsplan_gemeente_putten | 21.23   | verbod        |         |
 
   Scenario: On the same plot but outside the area Wonen - the article is silent
     Given the location is the shape:
@@ -60,7 +63,7 @@ Feature: May I build this here? - Oude Nijkerkerweg 33 in Putten
     Given parameter "sloopmeters_eigen_terrein_m2" is 310
     Given parameter "grootste_bijgebouw_m2" is 180
     When I ask whether I may "bijgebouw_bouwen" at the location
-    Then no article speaks
+    Then the answer is "geen_regel"
 
   Scenario: Next to the plot - the afdeling does not apply
     Given the location is the shape:
@@ -71,7 +74,7 @@ Feature: May I build this here? - Oude Nijkerkerweg 33 in Putten
     Given parameter "sloopmeters_eigen_terrein_m2" is 310
     Given parameter "grootste_bijgebouw_m2" is 180
     When I ask whether I may "bijgebouw_bouwen" at the location
-    Then no article speaks
+    Then the answer is "geen_regel"
 
   # A building across the line between the area Wonen and the agrarian part.
   # With OVERLAPS the norm for Wonen holds for the whole building. Whether the
@@ -85,9 +88,10 @@ Feature: May I build this here? - Oude Nijkerkerweg 33 in Putten
     Given parameter "sloopmeters_eigen_terrein_m2" is 310
     Given parameter "grootste_bijgebouw_m2" is 180
     When I ask whether I may "bijgebouw_bouwen" at the location
-    Then these articles speak:
-      | rulework                      | article | output                             | value |
-      | omgevingsplan_gemeente_putten | 21.23   | oppervlakte_bijgebouwen_toegestaan | true  |
+    Then the answer is "toegestaan"
+    Then because of:
+      | rulework                      | article | qualification | through |
+      | omgevingsplan_gemeente_putten | 21.23   | toegestaan    |         |
 
   Scenario: Felling a tree at that location - the article is about something else
     Given the location is the shape:
@@ -95,4 +99,4 @@ Feature: May I build this here? - Oude Nijkerkerweg 33 in Putten
       POINT(167800 472325)
       """
     When I ask whether I may "boom_kappen" at the location
-    Then no article speaks
+    Then the answer is "geen_regel"

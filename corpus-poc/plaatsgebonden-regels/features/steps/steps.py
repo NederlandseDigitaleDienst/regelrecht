@@ -3,8 +3,8 @@
 The steps that set a date and a parameter, evaluate an output and assert its
 value are the canonical ones from `bdd/grammar.yaml`, bound here to the
 resolver. New are: the location as a shape, the question "may I do this
-here?", what the articles answer, and which decentral articles filled an
-output.
+here?", its answer and the articles behind it, and which decentral articles
+filled an output.
 """
 
 import sys
@@ -41,19 +41,24 @@ def set_number_parameter(context, name, value):
 
 @when('I ask whether I may "{activity}" at the location')
 def ask_whether(context, activity):
-    context.statements = ask(activity, context.location, context.params, context.date)
+    context.verdict = ask(activity, context.location, context.params, context.date)
 
 
-@then("these articles speak:")
-def assert_statements(context):
-    expected = sorted((row["rulework"], row["article"], row["output"], row["value"]) for row in context.table)
-    actual = [(s.rulework, s.article, s.output, str(s.value).lower()) for s in context.statements]
+@then('the answer is "{answer}"')
+def assert_answer(context, answer):
+    assert context.verdict.answer == answer, f"the answer is {context.verdict.answer!r}: {context.verdict.because}"
+
+
+@then("because of:")
+def assert_because(context):
+    expected = sorted(
+        (row["rulework"], row["article"], row["qualification"], row["through"]) for row in context.table
+    )
+    actual = [
+        (s.rulework, s.article, s.qualification, ", ".join(f"{f.rulework} {f.article}" for f in s.through))
+        for s in context.verdict.because
+    ]
     assert actual == expected, f"expected {expected}, got {actual}"
-
-
-@then("no article speaks")
-def assert_silence(context):
-    assert context.statements == [], f"expected none, got {context.statements}"
 
 
 @when('I evaluate "{output}" of "{law}"')
