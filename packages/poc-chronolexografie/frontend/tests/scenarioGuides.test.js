@@ -211,6 +211,34 @@ describe('bouwGids', () => {
     expect(g.steps.map((s) => s.done(tel({ 'w#3': 2 })))).toEqual([true, false, true]);
   });
 
+  it('makes a refused ex officio step done once the cell refused it', () => {
+    const g = bouwGids(
+      { naam: 'x', stappen: [{ stap: 'ambtshalve', artikel: 'w#2', uitkomst: 'geweigerd' }] },
+      { cel: 'dienst', andere_cellen: [] },
+    );
+    const [s] = g.steps;
+    const k = (refusals, n = 0) => ({ refusals, ambtshalve: () => n });
+    expect(s.done(k([]))).toBe(false);
+    expect(s.done(k(["no cell of the case 'x' takes the decision of w#2 ex officio"]))).toBe(true);
+    expect(s.expect.check(k([], 1))).toBe(false);
+  });
+
+  it('does not count a refused ex officio step towards the steps after it', () => {
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [
+          { stap: 'ambtshalve', artikel: 'w#3' },
+          { stap: 'ambtshalve', artikel: 'w#3', uitkomst: 'geweigerd' },
+          { stap: 'ambtshalve', artikel: 'w#3' },
+        ],
+      },
+      { cel: 'dienst', andere_cellen: [] },
+    );
+    const k = { refusals: ['the decision of w#3 refers to x, which is no chronolexogram'], ambtshalve: () => 2 };
+    expect(g.steps.map((s) => s.done(k))).toEqual([true, true, true]);
+  });
+
   it('carries the answers a step expects, with the play date to ask them on', () => {
     const antwoorden = [{ bron: 'beleid#1#betaalde_leges', verwacht: 5000 }];
     const g = bouwGids(

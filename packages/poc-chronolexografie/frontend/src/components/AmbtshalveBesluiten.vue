@@ -6,10 +6,10 @@
 // (`state.vormen.besluiten[artikel]`). Following a scenario, the step's
 // article, decision and values are filled in (scenarioInvoer.js). Below
 // the form stand the decisions taken this way.
-import { computed, reactive } from 'vue';
+import { computed, reactive, watch } from 'vue';
 import { api } from '../api.js';
 import { formulier, huidigeStap, scenarioOver, scenarioWaarden } from '../scenarioInvoer.js';
-import { isBesluit, kort, leesbaar, longDate, besluitBasis, state, stap, waarde, zonderLeeg } from '../state.js';
+import { besluitenOnder, isBesluitSoort, kort, leesbaar, longDate, state, stap, waarde, zonderLeeg } from '../state.js';
 import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
@@ -18,7 +18,15 @@ const artikelen = computed(() =>
 );
 
 // The article chosen; at an ex officio step of a scenario, the step's own.
+// What the visitor chose holds until the scenario moves to its next step.
 const keuze = reactive({ artikel: null, over: {} });
+watch(
+  () => huidigeStap()?.index,
+  () => {
+    keuze.artikel = null;
+    keuze.over = {};
+  },
+);
 const artikel = computed(() => {
   const nu = huidigeStap()?.step.stap;
   if (keuze.artikel) return keuze.artikel;
@@ -38,7 +46,13 @@ const gegeven = (a) => ({
 });
 
 // The decisions of the case's cell an ex officio decision can concern.
-const besluiten = computed(() => state.grammen.filter((g) => isBesluit(g) && g.basis === besluitBasis()));
+// Every decision of the cell, whatever its article; a scenario's reference
+// that is none of these is offered too, so the form shows what it submits.
+const besluiten = computed(() => state.grammen.filter(isBesluitSoort));
+const extra = (a) => {
+  const id = over(a);
+  return id && !besluiten.value.some((b) => b.id === id) ? [id] : [];
+};
 const over = (a) => (a in keuze.over ? keuze.over[a] : (scenarioOver(a) ?? ''));
 
 async function nemen() {
@@ -50,9 +64,7 @@ async function nemen() {
   }
 }
 
-const genomen = computed(() =>
-  state.grammen.filter((g) => artikelen.value.includes(g.basis) && g.kind !== 'EXECUTOGRAM'),
-);
+const genomen = computed(() => artikelen.value.flatMap((a) => besluitenOnder(a)));
 </script>
 
 <template>
@@ -71,6 +83,7 @@ const genomen = computed(() =>
           <nldd-dropdown>
             <select :value="over(artikel)" @change="keuze.over[artikel] = $event.target.value">
               <option value="">Geen</option>
+              <option v-for="id in extra(artikel)" :key="id" :value="id">Record {{ kort(id) }}</option>
               <option v-for="b in besluiten" :key="b.id" :value="b.id">
                 Besluit {{ kort(b.id) }} van {{ longDate(b.recorded_on) }}
               </option>

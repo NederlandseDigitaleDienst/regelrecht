@@ -387,8 +387,17 @@ export function samenvatting(aanvraag) {
  * waarop het is genomen. Een ontvangst van een uitspraak verwijst ook, naar
  * het besluit waarover die gaat, en is geen besluit.
  */
-export const isBesluit = (g) =>
-  !!g.refers_to && !['AANVRAAG', 'BEZWAAR', 'EXECUTOGRAM'].includes(g.kind);
+export const isBesluit = (g) => !!g.refers_to && isBesluitSoort(g);
+
+/** Whether a chronolexogram is a decision by its kind: no submission and no executogram. */
+export const isBesluitSoort = (g) => !['AANVRAAG', 'BEZWAAR', 'EXECUTOGRAM'].includes(g.kind);
+
+/** The decisions of the case's cell under `artikel`, also one that concerns no record (taken ex officio). */
+export const besluitenOnder = (artikel) =>
+  state.grammen.filter((g) => g.basis === artikel && isBesluitSoort(g));
+
+/** The decisions of the case's cell under the case's deciding article, in chronicle order. */
+export const eigenBesluiten = () => state.grammen.filter((g) => isBesluit(g) && g.basis === besluitBasis());
 
 /** Een decimaal staat in een chronolexogram als `{"__decimal": "…"}`. */
 export const isDecimaal = (v) =>

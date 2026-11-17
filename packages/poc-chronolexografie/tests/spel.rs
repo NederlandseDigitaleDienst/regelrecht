@@ -101,6 +101,48 @@ fn the_ui_spec_puts_what_the_cell_knows_beside_a_decision() {
     );
 }
 
+/// What the law does not hold shows as `fout` on the answer or field, and a
+/// field the view asks takes the parameter of an answer's article.
+#[test]
+fn a_view_says_what_the_law_does_not_hold_and_asks_a_parameter() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut cases = Corpus::alle(&dir.join("corpus"), &dir.join("corpus/casussen")).unwrap();
+    let zorgtoeslag = cases
+        .iter_mut()
+        .find(|c| c.casus.id == "zorgtoeslag")
+        .unwrap();
+    let bron = "fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#2";
+    let spec = regelrecht_poc_chronolexografie::ui_spec::lees(&format!(
+        "elements: [{{id: UI1, fields: [
+            {{name: a, answer: {{from: '{bron}#betaald_op_voorschot', decision: besluit}}}},
+            {{name: b, answer: {{from: '{bron}#niets', decision: voorschotbesluit}}}},
+            {{name: c, answer: {{from: 'onbekend#1#x', decision: d}}}},
+            {{name: voorschotbesluit, visibility: asked}},
+            {{name: rente, visibility: asked}}]}}]"
+    ))
+    .unwrap();
+    zorgtoeslag.weergaven = spec.weergaven;
+    let mut spel = Spel::new(cases);
+    spel.kiezen("zorgtoeslag").unwrap();
+    let vormen = spel.vormen(dag("2025-01-20")).unwrap();
+    let w = &vormen["per_besluit"][0];
+    let fout = |i: usize| w["antwoorden"][i]["fout"].as_str().unwrap().to_string();
+    assert!(
+        fout(0).contains("takes no parameter 'besluit'"),
+        "{}",
+        fout(0)
+    );
+    assert!(fout(1).contains("has no output 'niets'"), "{}", fout(1));
+    assert!(
+        fout(2).contains("'onbekend' is not in force"),
+        "{}",
+        fout(2)
+    );
+    assert_eq!(w["velden"][0]["type"], json!("string"));
+    assert_eq!(w["velden"][0]["basis"], json!(bron));
+    assert!(w["velden"][1]["fout"].as_str().unwrap().contains("'rente'"));
+}
+
 #[test]
 fn a_refusal_gives_the_reason_and_reset_starts_from_the_school() {
     let mut spel = spel_met("vakantieverlof");

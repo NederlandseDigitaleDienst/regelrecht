@@ -136,6 +136,7 @@ struct ElementPrefill {
 /// # Errors
 ///
 /// As [`lees`].
+#[cfg(test)]
 pub fn prefill(tekst: &str) -> Result<BTreeMap<String, String>, String> {
     lees(tekst).map(|spec| spec.prefill)
 }
@@ -184,6 +185,13 @@ fn per_field(elements: Vec<Element>) -> Result<(Vec<ElementPrefill>, Vec<Weergav
     for (i, element) in elements.into_iter().enumerate() {
         let name = element_name(element.id.as_ref(), i);
         if let Some(weergave) = weergave(&name, element.element.as_deref(), &element.fields)? {
+            if weergaven.iter().any(|w: &Weergave| w.naam == weergave.naam) {
+                return Err(format!(
+                    "the UI spec: two elements show answers beside a decision as '{}'; \
+                     give each its own name",
+                    weergave.naam
+                ));
+            }
             weergaven.push(weergave);
         }
         if element.prefill.is_some() {
@@ -245,6 +253,11 @@ fn weergave(name: &str, titel: Option<&str>, fields: &[Field]) -> Result<Option<
                 "the UI spec: {name} shows '{veld}' from '{}', which is no \
                  <regelwerk>#<article>#<output>",
                 answer.from
+            ));
+        }
+        if answer.decision.is_empty() {
+            return Err(format!(
+                "the UI spec: {name} shows '{veld}' without the parameter that takes the decision"
             ));
         }
         antwoorden.push(Antwoord {
@@ -557,5 +570,13 @@ elements:
         let e = lees("elements: [{id: UI8, fields: [{answer: {from: 'b#2#s', decision: d}}]}]")
             .unwrap_err();
         assert!(e.contains("without a `name`"), "{e}");
+        let e = lees(
+            "elements: [{id: UI8, fields: [{name: s, answer: {from: 'b#2#s', decision: ''}}]}]",
+        )
+        .unwrap_err();
+        assert!(e.contains("without the parameter"), "{e}");
+        let twee = "elements: [{id: A, element: x, fields: [{name: s, answer: {from: 'b#2#s', decision: d}}]},
+                               {id: B, element: x, fields: [{name: t, answer: {from: 'b#2#t', decision: d}}]}]";
+        assert!(lees(twee).unwrap_err().contains("two elements"));
     }
 }

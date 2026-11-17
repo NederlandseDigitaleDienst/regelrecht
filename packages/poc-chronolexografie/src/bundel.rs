@@ -170,9 +170,9 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
     let spec = match bron.bestanden.get(UI_SPEC).map(|t| ui_spec::lees(t)) {
         Some(Ok(spec)) => spec,
         Some(Err(e)) => {
-            stand
-                .meldingen
-                .push(format!("{UI_SPEC}: {e}; the forms are not prefilled"));
+            stand.meldingen.push(format!(
+                "{UI_SPEC}: {e}; the forms are not prefilled and no answers show beside a decision"
+            ));
             ui_spec::UiSpec::default()
         }
         None => ui_spec::UiSpec::default(),

@@ -20,7 +20,7 @@ import {
   beslissingOp,
   besluitOp,
   alsJson,
-  isBesluit,
+  eigenBesluiten,
   longDate,
   toegewezen,
   jaNee,
@@ -50,9 +50,7 @@ const oordelen = () => state.vormen?.besluit.bevindingen ?? [];
 // The decisions of the case's cell under its deciding article, newest first,
 // with beside each what the UI spec of the case shows of it (StandBijBesluit.vue).
 const weergaven = computed(() => state.vormen?.per_besluit ?? []);
-const genomen = computed(() =>
-  state.grammen.filter((g) => isBesluit(g) && g.basis === besluitBasis()).reverse(),
-);
+const genomen = computed(() => eigenBesluiten().reverse());
 const eigenAmbtshalve = computed(() =>
   (state.casus.ambtshalve ?? []).some((a) => a.cel === state.casus.cel),
 );

@@ -160,6 +160,9 @@ const KINDS = {
     todo: 'Klik onder Ambtshalve besluiten op Ambtshalve besluiten.',
     seen: () => 'Het besluit staat onder Ambtshalve besluiten.',
     done: (n, stap) => (k) => k.ambtshalve(stap.artikel) >= n,
+    // An article no cell takes ex officio, a judgement left out, or a
+    // decision it concerns that the chronicle does not hold.
+    weigering: /ex officio|no judgement was given|asks '|refers to '/,
   },
   opnieuw_beslissen: {
     tab: 'bestuursorgaan',
@@ -249,8 +252,13 @@ export function bouwGids(scenario, casus = null) {
       const ingelogd = (besloten.inloggen ?? 0) + (stap.uitkomst === 'geweigerd' ? 1 : 0);
       done = kind.done(ingelogd, { feit }, vooraf(casus, feit));
     } else if (stap.stap === 'ambtshalve') {
+      // Counted per article, without the refused steps before: a refused
+      // step is done when one more decision exists than those expect, as
+      // for a login above.
       const sleutel = `ambtshalve ${stap.artikel}`;
-      done = kind.done((geteld[sleutel] = (geteld[sleutel] ?? 0) + 1), stap);
+      const eerder = geteld[sleutel] ?? 0;
+      if (stap.uitkomst !== 'geweigerd') geteld[sleutel] = eerder + 1;
+      done = kind.done(eerder + 1, stap);
     } else done = kind.done(stap.stap === 'besluit' ? doel : n, stap);
     // A record step of the case's own cell happens on the authority's tab.
     const soort =

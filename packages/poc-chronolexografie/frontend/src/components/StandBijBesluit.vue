@@ -6,7 +6,7 @@
 // what the authority gives besides; left empty, the regelwerk says what
 // follows. Nothing is recorded.
 import { reactive, ref, watch } from 'vue';
-import { hoofdletter, leesbaar, state } from '../state.js';
+import { hoofdletter, leesbaar, longDate, state } from '../state.js';
 import { label, toonWaarde, vraagStand } from '../stand.js';
 import VeldInvoer from './VeldInvoer.vue';
 
@@ -17,9 +17,15 @@ const props = defineProps({
   weergaven: { type: Array, required: true },
 });
 
-// Per view what the authority gives in the fields it asks.
+// Per view what the authority gives in the fields it asks, set up once per
+// view so that reading it during render writes nothing.
 const gegeven = reactive({});
-const waarden = (naam) => (gegeven[naam] ??= {});
+watch(
+  () => props.weergaven,
+  (weergaven) => weergaven.forEach((w) => (gegeven[w.naam] ??= {})),
+  { immediate: true },
+);
+const waarden = (naam) => gegeven[naam] ?? {};
 
 // Per view the answers, asked again whenever the play date, a chronicle or
 // a given value changes; a later answer wins over one still on its way.
@@ -61,10 +67,10 @@ const tekst = (a) => (a.fout ? `geen antwoord (${a.fout})` : toonWaarde(a.kreeg,
         v-else
         :veld="v"
         :model-value="waarden(w.naam)[v.naam]"
-        @update:model-value="waarden(w.naam)[v.naam] = $event"
+        @update:model-value="gegeven[w.naam][v.naam] = $event"
       />
     </template>
-    <nldd-list appearance="box-base" :accessible-label="`${leesbaar(w.naam)} op ${state.datum}`">
+    <nldd-list appearance="box-base" :accessible-label="`${leesbaar(w.naam)} op ${longDate(state.datum)}`">
       <nldd-list-item v-for="a in stand[w.naam] ?? []" :key="a.veld" size="sm">
         <nldd-text-cell :text="label(a)" :supporting-text="a.beschrijving ?? ''"></nldd-text-cell>
         <nldd-text-cell width="fit-content" :text="tekst(a)"></nldd-text-cell>
