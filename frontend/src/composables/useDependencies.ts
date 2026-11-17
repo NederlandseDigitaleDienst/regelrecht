@@ -130,8 +130,8 @@ export function useDependencies() {
       for (const lawId of toLoad) {
         // Fetch the version YAMLs unconditionally - even for a law already in
         // the engine. They feed two consumers that are independent of engine
-        // state: the transitive-ref scan below, and ScenarioBuilder's
-        // data-source column type map, built from the versions each run hands
+        // state: the transitive-ref scan below, and the scenario
+        // environment's data-source column type map, built from the versions each run hands
         // over. The WASM engine is a shared singleton that persists across
         // scenario-panel mounts and is pre-warmed by the machine view, so
         // gating this fetch on `engine.hasLaw` would leave the type map empty

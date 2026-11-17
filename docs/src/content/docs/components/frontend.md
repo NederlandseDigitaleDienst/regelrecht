@@ -77,6 +77,8 @@ A law without a `machine_readable` section shows an empty state in *Machine* and
 
 The rulework on screen and the unsaved edits to it live in `src/composables/useOpenLaw.ts`, which also loads and saves it. The panes edit the article in three forms: its text, its `machine_readable` as a structure, and the same section as YAML. The module keeps those in step and resets them from the saved article whenever the article, rulework or traject changes. The action sheet edits a copy of the action, which joins the article only when the sheet saves.
 
+The selected scenario file and its unsaved edits live in `src/scenario/openScenario.ts`, kept by the `openScenarios` store, one per file. A run and a save read a scenario's values through one conversion (`src/scenario/inputs.ts`): the run applies the edits the way a save writes them, so the editor runs what the saved file will say. `src/scenario/useScenarioEnvironment.ts` loads the rulework's dependencies into the engine, and `src/scenario/useScenarioRuns.ts` runs every scenario of a file again when the laws in the engine change or the edits stop changing.
+
 Only the selected article's edits are kept, so leaving it loses them. The editor asks first: switching tabs, articles, ruleworks or trajecten, closing the article's tab, browser back and forward, and leaving the editor all open a dialog with *Blijf hier* and *Wijzigingen weggooien*. Reloading or closing the browser tab gets the browser's own prompt instead. A review proposal that nobody has edited is not counted, because the editor places it again when the reviewer returns.
 
 ### Top-level pages
@@ -169,8 +171,8 @@ Besides the views in `src/` (`AppShell.vue`, `LibraryView.vue`, `EditorView.vue`
 
 Where state lives depends on who shares it.
 
-- State the whole app shares lives in a Pinia setup store under `src/stores/`. So far these are the feature flags (`featureFlags.ts`), the user's trajecten with the active one (`trajects.ts`), what the views publish to the shell (`appChrome.ts`), and the verdicts on an enrichment under review, which have to outlive moving from article to article (`enrichVerdicts.ts`). `main.ts` installs Pinia and starts loading the flags and the traject list; a store does nothing on import.
-- State of one open document lives in a composable each caller creates, such as `useOpenLaw` for the rulework open in the editor and `useProposalReview` for deciding on a generated proposal for it. Every open document has its own, so it is not a store.
+- State the whole app shares lives in a Pinia setup store under `src/stores/`. So far these are the feature flags (`featureFlags.ts`), the user's trajecten with the active one (`trajects.ts`), what the views publish to the shell (`appChrome.ts`), the verdicts on an enrichment under review, which have to outlive moving from article to article (`enrichVerdicts.ts`), and the open scenario files (`openScenarios.ts`). `main.ts` installs Pinia and starts loading the flags and the traject list; a store does nothing on import.
+- State of one open document lives in a composable each caller creates, such as `useOpenLaw` for the rulework open in the editor and `useProposalReview` for deciding on a generated proposal for it. Every open document has its own, so it is not a store. An open scenario file is kept differently: `createOpenScenario` makes the document and the `openScenarios` store keeps one per file, so a view that mounts again reads the same copy, unsaved edits included.
 - Rulework content goes through the corpus reader (see [Data loading](#data-loading)).
 
 Other shared state still sits in module-level singletons under `src/composables/`, such as `useTasks.ts` and `useAddActions.ts`. Each moves to a store when someone changes it; there is no separate conversion.

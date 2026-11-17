@@ -92,6 +92,8 @@ export interface FormState {
 export interface FormDataSource {
   sourceName: string;
   keyField: string;
+  /** The regelwerk a `for law "..."` source is registered for. */
+  lawId?: string;
   fields?: { name: string; type?: string }[];
   rows?: Record<string, unknown>[];
 }
@@ -471,7 +473,7 @@ function formDataSourceToState(ds: FormDataSource): StateDataSource {
       return v === undefined || v === null ? '' : String(v);
     }),
   );
-  return { sourceName: ds.sourceName, keyField: ds.keyField, headers, rows };
+  return { sourceName: ds.sourceName, keyField: ds.keyField, ...(ds.lawId ? { lawId: ds.lawId } : {}), headers, rows };
 }
 
 /**

@@ -153,6 +153,7 @@ function onSwitchChange(event: FieldEvent) {
     :invalid="invalid || undefined"
     :unmet="invalid ? unmet : undefined"
     :value="displayValue"
+    width="full"
     @input="onDateInput"
     @change="onDateInput"
   ></nldd-date-field>
