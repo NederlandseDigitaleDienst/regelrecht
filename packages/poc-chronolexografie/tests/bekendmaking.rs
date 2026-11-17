@@ -193,3 +193,110 @@ fn a_failed_delivery_the_fact_may_leave_out() {
     assert_eq!(opnieuw["uitvoer"]["termijn_einde"], json!("2026-03-30"));
     assert_eq!(opnieuw["uitvoer"]["opnieuw_verzenden"], json!(false));
 }
+
+/// Article 7, added to a copy of the fixture: a decision that asks the day
+/// of its own announcement when it is taken, where the fact of article 6
+/// holds that day only after it. A modelling error in article 7, which the
+/// cel refuses when article 7 is decided, and only then.
+const ARTIKEL_7: &str = r"
+  - number: '7'
+    url: https://example.invalid/fictieve_vergunningwet#7
+    text: >-
+      FICTIEF. Op aanvraag verklaart de dienst iets, en het besluit noemt de
+      dag waarop het is bekendgemaakt.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: fictieve_vergunningwet#7
+            parameters:
+              - bekendmaking_datum
+          - type: BESCHIKKING
+            outputs:
+              - verklaard
+        parameters:
+          - name: bekendmaking_datum
+            type: date
+            description: De dag waarop het besluit is bekendgemaakt.
+        output:
+          - name: verklaard
+            type: boolean
+        actions:
+          - output: verklaard
+            value: true
+";
+
+/// Copy the directory `from` into `to`, file by file.
+fn kopieer(from: &Path, to: &Path) {
+    std::fs::create_dir_all(to).unwrap();
+    for entry in std::fs::read_dir(from).unwrap() {
+        let entry = entry.unwrap();
+        let doel = to.join(entry.file_name());
+        if entry.file_type().unwrap().is_dir() {
+            kopieer(&entry.path(), &doel);
+        } else {
+            std::fs::copy(entry.path(), doel).unwrap();
+        }
+    }
+}
+
+#[test]
+fn a_decision_whose_shape_collides_with_the_fact_leaves_the_others_usable() {
+    let bron = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/procedure-zonder-awb");
+    let stempel = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_nanos();
+    let pad = std::env::temp_dir().join(format!("bekendmaking-{}-{stempel}", std::process::id()));
+    kopieer(&bron, &pad);
+    let wet = pad.join("regulation/nl/wet/fictieve_vergunningwet/2026-01-01.yaml");
+    let tekst = std::fs::read_to_string(&wet).unwrap();
+    std::fs::write(&wet, format!("{}\n{ARTIKEL_7}", tekst.trim_end())).unwrap();
+    let mut spel = Spel::new(Corpus::alle(&pad, &pad.join("casussen")).unwrap());
+    spel.kiezen("fictieve_vergunning").unwrap();
+
+    // The forms load; only the colliding decision carries its refusal.
+    let vormen = spel.vormen(dag("2026-02-02")).unwrap();
+    let fout = vormen["besluiten"]["fictieve_vergunningwet#7"]["fout"]
+        .as_str()
+        .unwrap();
+    assert!(fout.contains("'bekendmaking_datum'"), "{fout}");
+    assert!(fout.contains("fictieve_vergunningwet#7"), "{fout}");
+    assert_eq!(
+        vormen["besluiten"]["fictieve_vergunningwet#1"]["bekendmaking"]["feiten"][0]["feit"],
+        json!(SENT)
+    );
+
+    // Article 1 still decides and is made known.
+    let besluit = verleend(&mut spel, "2026-02-02");
+    spel.vastleggen_verwijzend(
+        "fictieve_dienst",
+        SENT,
+        &map(&json!({"bekendmaking_datum": "2026-02-09"})),
+        Some(&besluit),
+        dag("2026-02-09"),
+    )
+    .unwrap();
+    let na = spel.bekendmaking(&besluit, dag("2026-02-09")).unwrap();
+    assert_eq!(na["uitvoer"]["termijn_einde"], json!("2026-03-23"));
+
+    // Article 7 is refused when it is decided, with the same reason.
+    let aanvraag = spel
+        .indienen(
+            "fictieve_vergunningwet#7",
+            None,
+            &map(&json!({"bekendmaking_datum": "2026-02-10"})),
+            dag("2026-02-10"),
+        )
+        .unwrap();
+    let e = spel
+        .beslissen(
+            aanvraag["id"].as_str().unwrap(),
+            None,
+            &Map::new(),
+            dag("2026-02-10"),
+        )
+        .unwrap_err();
+    assert!(e.to_string().contains("'bekendmaking_datum'"), "{e}");
+    std::fs::remove_dir_all(&pad).unwrap();
+}

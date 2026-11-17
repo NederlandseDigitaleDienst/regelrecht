@@ -521,3 +521,55 @@ fn an_article_hooked_twice_on_the_announcement_holds_its_parameter_once() {
         })
     );
 }
+
+#[test]
+fn a_decision_that_asks_its_announcement_too_early_leaves_the_other_decisions_be() {
+    // Article 2 of the same law asks the day of its own announcement when
+    // it is taken; the fact of the procedure holds that day only after it.
+    let verlof = format!(
+        "{VERLOF}  - number: '2'\n    text: Het hoofd verklaart op aanvraag dat het verlof is gegeven.\n    machine_readable:\n      execution:\n        produces:\n          - type: AANVRAAG\n            requests: wet_verlof_fictief#2\n            parameters: [bekendmaking_datum]\n          - type: BESCHIKKING\n            outputs: [verklaard]\n        parameters:\n          - {{name: bekendmaking_datum, type: date}}\n        output:\n          - {{name: verklaard, type: boolean}}\n        actions:\n          - {{output: verklaard, value: true}}\n"
+    );
+    let mut service = service_of(&[PROCEDURE, &verlof, BEZWAAR]);
+    let e = decision::derive(&service, VERLOF_LAW, "2", day("2026-10-01")).unwrap_err();
+    assert!(
+        matches!(&e, Error::Setup(m) if m.contains("wet_verlof_fictief#2") && m.contains(SENT)),
+        "{e}"
+    );
+    // Article 1 of that law decides and is made known as before.
+    let mut cell = bare_cell("fictieve_school");
+    let decision = decide(&mut cell, &mut service, "2026-10-01");
+    send(&mut cell, &service, &decision.id, "2026-10-05");
+    let known = cell
+        .announcement(&mut service, &[], &decision.id, day("2026-10-05"))
+        .unwrap()
+        .unwrap();
+    assert_eq!(known.outputs["termijn_einde"], json!("2026-11-16"));
+    // Deciding article 2 is refused, for that reason.
+    let application = cell
+        .record_submission(
+            &mut service,
+            &[],
+            VERLOF_LAW,
+            "2",
+            None,
+            &object_map(json!({"bekendmaking_datum": "2026-10-06"})),
+            day("2026-10-06"),
+        )
+        .unwrap();
+    let e = cell
+        .decide(
+            &mut service,
+            &[],
+            VERLOF_LAW,
+            "2",
+            &application.id,
+            &Map::new(),
+            &Map::new(),
+            day("2026-10-06"),
+        )
+        .unwrap_err();
+    assert!(
+        matches!(&e, Error::Setup(m) if m.contains("stage BESLUIT")),
+        "{e}"
+    );
+}

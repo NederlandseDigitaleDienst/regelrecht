@@ -688,8 +688,8 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
                 &i.cel,
                 false,
                 on,
-            )?;
-            besluiten.insert(i.besluit.clone(), vorm);
+            );
+            besluiten.insert(i.besluit.clone(), of_fout(vorm, &i.besluit, &i.cel)?);
         }
     }
     for a in &corpus.afleiding.ambtshalve {
@@ -702,8 +702,8 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             &a.cel,
             true,
             on,
-        )?;
-        besluiten.insert(a.artikel.clone(), vorm);
+        );
+        besluiten.insert(a.artikel.clone(), of_fout(vorm, &a.artikel, &a.cel)?);
     }
     Ok(json!({
         "indieningen": indieningen,
@@ -716,6 +716,18 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             .map(|g| (g.id.clone(), json!(eigen_velden(&service, g))))
             .collect::<Map<String, Value>>(),
     }))
+}
+
+/// The form of a decision, or, where the cel refuses to shape that decision
+/// (`Error::Setup`), why: a modelling error in one decision leaves the forms
+/// of the others, even of the same law, as they are. The cel refuses that
+/// decision again when it is taken. Any other error stops the forms.
+fn of_fout(vorm: Result<Value>, artikel: &str, cel: &str) -> Result<Value> {
+    match vorm {
+        Ok(vorm) => Ok(vorm),
+        Err(Error::Setup(fout)) => Ok(json!({ "basis": artikel, "cel": cel, "fout": fout })),
+        Err(e) => Err(e),
+    }
 }
 
 /// The form of the decision under `artikel` that the cell `cel` takes, on a
@@ -901,7 +913,11 @@ fn bekendmakingsfeiten(
     let mut feiten = Vec::new();
     for i in &corpus.afleiding.indieningen {
         let (law, article) = basis(&i.besluit)?;
-        let vorm = decision::derive(service, law, article, on)?;
+        // A decision the cel refuses to shape is made known by no one; its
+        // own form says why ([`vormen`]).
+        let Ok(vorm) = decision::derive(service, law, article, on) else {
+            continue;
+        };
         for feit in vorm.announcement_facts() {
             if !feiten.iter().any(|f| f == feit) {
                 feiten.push(feit.to_string());
@@ -1062,7 +1078,11 @@ fn opnieuw_te_beoordelen(
         }
         gezien.push(&i.besluit);
         let (law, article) = basis(&i.besluit)?;
-        let shape = decision::derive(service, law, article, on)?;
+        // A decision the cel refuses to shape asks nothing; its own form
+        // says why ([`vormen`]).
+        let Ok(shape) = decision::derive(service, law, article, on) else {
+            continue;
+        };
         for t in shape.terms.iter().filter(|t| t.asks_finding()) {
             if !uit.iter().any(|f| f.name == t.id) {
                 uit.push(decision::finding_field(t));
