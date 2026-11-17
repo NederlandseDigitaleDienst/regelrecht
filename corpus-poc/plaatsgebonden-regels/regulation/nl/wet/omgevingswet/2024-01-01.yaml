@@ -18,8 +18,8 @@ url: https://wetten.overheid.nl/BWBR0037885
 #   - article 5.1 lid 1 under b to g, and lid 2 (among them the technical
 #     bouwactiviteit);
 #   - article 5.4 (omgevingsverordening);
-#   - which cases an algemene maatregel van bestuur exempts under article 5.1
-#     lid 1. That is asked as a fact.
+#   - the exemptions an algemene maatregel van bestuur gives under article
+#     5.1 lid 1 for other activities than building.
 #
 # PROPOSED, not in the schema: `combine` on an open term. The definition of
 # omgevingsplanactiviteit speaks of an activity "waarvoor in het omgevingsplan
@@ -114,15 +114,18 @@ articles:
     url: https://wetten.overheid.nl/BWBR0037885#Hoofdstuk5_Afdeling5.1_Paragraaf5.1.1_Artikel5.1
 
     machine_readable:
+      open_terms:
+        # "tenzij het gaat om een bij algemene maatregel van bestuur
+        # aangewezen geval". For building, the cases are in article 2.29 of
+        # the Besluit bouwwerken leefomgeving.
+        - id: bij_amvb_aangewezen_geval
+          type: boolean
+          required: true
+          delegated_to: regering
+          delegation_type: AMVB
+          legal_basis: artikel 5.1, eerste lid, Omgevingswet
+
       execution:
-        parameters:
-          # "tenzij het gaat om een bij algemene maatregel van bestuur
-          # aangewezen geval". The cases are in the Omgevingsbesluit, which is
-          # not modelled; whoever asks must say whether one applies.
-          - name: bij_amvb_aangewezen_geval
-            type: boolean
-            required: true
-            description: Whether the case is one that an algemene maatregel van bestuur exempts
         input:
           - name: omgevingsplanactiviteit
             type: boolean

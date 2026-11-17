@@ -7,12 +7,23 @@ Feature: May I do this here?
   "without a permit" means that none of the bans named in questions.yaml
   holds. That file also names the bans it does not cover.
 
+  The Omgevingswet and the Besluit bouwwerken leefomgeving are real here.
+
   Coordinates are in the Dutch RD system (EPSG:28992), in metres.
   Dijkstad and waterschap Rivierdijken are fictional.
 
   Background:
     Given the calculation date is "2026-11-17"
-    Given parameter "bij_amvb_aangewezen_geval" is "false"
+    # What is built, as far as the Besluit bouwwerken leefomgeving asks.
+    Given the following parameters:
+      | bouwwerk_genoemd_in_artikel_2_29_onder_a_tot_en_met_q                | false |
+      | gelegen_in_achtererfgebied                                           | true  |
+      | gelegen_in_voorerfgebied                                             | false |
+      | hoogte_m                                                             | 4     |
+      | oppervlakte_bouwwerk_m2                                              | 12    |
+      | vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q                | false |
+      | in_aan_of_op_monument                                                | false |
+      | locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht | false |
 
   Scenario: A shed in a residential street - the plan lifts its own ban
     Given the location is the shape:
@@ -93,15 +104,19 @@ Feature: May I do this here?
       | article | output                                  | through                                 |
       | 5.3     | vergunningplicht_waterschapsverordening | waterschapsverordening_rivierdijken 3.1 |
 
-  Scenario: The same house, in a case that an algemene maatregel van bestuur exempts
-    # The exemption of article 5.1 lid 1 lifts the ban of that article only.
-    # Article 5.3 has no such clause, so the water board's ban stays.
+  Scenario: A low fence post base of 1,5 m2 on the dike in the old town - exempt from one ban only
+    # Article 2.29 onder r of the Besluit bouwwerken leefomgeving lifts the
+    # ban of article 5.1 lid 1 of the Omgevingswet for a structure of at most
+    # 1 m high and 2 m2. Article 5.3 has no such clause, so the water board's
+    # ban stays.
     Given the location is the shape:
       """
-      POLYGON((155500 463620, 155512 463620, 155512 463629, 155500 463629, 155500 463620))
+      POLYGON((155500 463620, 155501 463620, 155501 463621.5, 155500 463621.5, 155500 463620))
       """
-    Given parameter "is_bijbehorend_bouwwerk" is "false"
-    Given parameter "bij_amvb_aangewezen_geval" is "true"
+    Given the following parameters:
+      | is_bijbehorend_bouwwerk | false |
+      | hoogte_m                | 0.9   |
+      | oppervlakte_bouwwerk_m2 | 1.5   |
     When I ask whether I may "bouwactiviteit" at the location
     Then the answer is "only with a permit"
     Then because of:

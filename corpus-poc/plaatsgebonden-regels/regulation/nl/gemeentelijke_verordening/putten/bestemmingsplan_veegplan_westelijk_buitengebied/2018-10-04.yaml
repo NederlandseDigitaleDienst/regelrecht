@@ -1,0 +1,88 @@
+---
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: bestemmingsplan_veegplan_westelijk_buitengebied
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2018-10-04'
+valid_from: '2018-10-04'
+gemeente_code: GM0273
+officiele_titel: Bestemmingsplan Veegplan Westelijk Buitengebied
+url: https://www.ruimtelijkeplannen.nl/documents/NL.IMRO.0273.BPBGWVeegplan-VA02/r_NL.IMRO.0273.BPBGWVeegplan-VA02.html
+
+# REAL. Bestemmingsplan 'Veegplan Westelijk Buitengebied' of the gemeente
+# Putten, adopted on 4 October 2018 (NL.IMRO.0273.BPBGWVeegplan-VA02), as on
+# ruimtelijkeplannen.nl, read on 2026-11-17. Modelled: article 19.2.8 onder a,
+# c, d and e.
+#
+# Since 1 January 2024 this plan is part of the omgevingsplan of Putten
+# (Omgevingswet article 22.1). It says nothing here about where its article 19
+# holds: that follows from the areas of the plan itself, which are not in this
+# example. At Oude Nijkerkerweg 33 the omgevingsplan says so (article 21.22),
+# and that plan reads the outcomes below.
+#
+# NOT modelled, and outside what the outcomes below cover:
+#   - onder a, the maximum that an aanduiding 'maximum oppervlakte
+#     bijgebouwen' gives, and the four addresses named there;
+#   - onder b (existing bijgebouwen above the maximum) and onder f.
+
+articles:
+  - number: 19.2.8
+    text: |
+      Bijgebouwen
+
+      Voor bijgebouwen bij woningen gelden de volgende regels:
+      a. de gezamenlijke oppervlakte van bijgebouwen bedraagt per woning
+      maximaal 80 m2 dan wel de maximale oppervlakte welke is opgenomen ter
+      plaatse van de aanduiding 'maximum oppervlakte bijgebouwen', [...]
+      c. de goothoogte bedraagt maximaal 3,5 m;
+      d. de bouwhoogte bedraagt maximaal 6 m;
+      e. bijgebouwen zijn niet toegestaan:
+      1. bij woningen ter plaatse van de aanduiding 'specifieke vorm van wonen
+      - wooncomplex';
+      2. bij kleine woningen;
+      3. bij recreatiewoningen;
+    url: https://www.ruimtelijkeplannen.nl/documents/NL.IMRO.0273.BPBGWVeegplan-VA02/r_NL.IMRO.0273.BPBGWVeegplan-VA02.html
+
+    machine_readable:
+      execution:
+        parameters:
+          - name: oppervlakte_bijgebouwen_m2
+            type: number
+            required: false
+            description: Onder a - total surface of the bijgebouwen of the dwelling after building, in m2
+          - name: goothoogte_m
+            type: number
+            required: false
+            description: Onder c - height of the gutter, in m
+          - name: hoogte_m
+            type: number
+            required: false
+            description: Onder d - height of the structure, in m
+          - name: woning_is_wooncomplex_kleine_woning_of_recreatiewoning
+            type: boolean
+            required: false
+            description: Onder e - whether the dwelling is one of the three kinds named there
+        output:
+          - name: oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a
+            type: boolean
+            description: Onder a - whether the total surface stays within 80 m2
+          - name: bijgebouw_voldoet_aan_artikel_19_2_8_onder_c_d_en_e
+            type: boolean
+            description: Onder c, d and e - heights within the maxima, and bijgebouwen allowed with this dwelling
+        actions:
+          - output: oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a
+            value:
+              operation: LESS_THAN_OR_EQUAL
+              subject: $oppervlakte_bijgebouwen_m2
+              value: 80
+          - output: bijgebouw_voldoet_aan_artikel_19_2_8_onder_c_d_en_e
+            value:
+              operation: AND
+              conditions:
+                - operation: LESS_THAN_OR_EQUAL
+                  subject: $goothoogte_m
+                  value: 3.5
+                - operation: LESS_THAN_OR_EQUAL
+                  subject: $hoogte_m
+                  value: 6
+                - operation: NOT
+                  value: $woning_is_wooncomplex_kleine_woning_of_recreatiewoning

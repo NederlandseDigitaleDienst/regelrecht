@@ -114,6 +114,11 @@ def overlaps(a: BaseGeometry, b: BaseGeometry) -> bool:
     return a.relate_pattern(b, "T********")
 
 
+def is_unknown(value: object) -> bool:
+    """Whether the engine could not decide for lack of a fact."""
+    return isinstance(value, dict) and value.get("__unknown") is True
+
+
 def section_of(article: dict) -> dict:
     return article.get("machine_readable", {})
 
@@ -149,6 +154,8 @@ class Case:
     date: str
     # Open terms already worked out, by (rulework, article, term).
     terms: dict[tuple[str, str, str], object] = field(default_factory=dict)
+    # Open terms a filler could not decide for lack of a fact, with what lacks.
+    undecided: dict[tuple[str, str, str], list] = field(default_factory=dict)
 
     def rulework(self, rulework_id: str) -> Rulework:
         return next(r for r in self.ruleworks if r.id == rulework_id)
@@ -157,6 +164,27 @@ class Case:
         """A rulework with a territory speaks only about locations in it."""
         bounds = rulework.territory()
         return bounds is None or overlaps(self.location, bounds)
+
+    def combines(self, implemented: dict) -> bool:
+        """Whether an `implements` entry fills a term that combines its fillers."""
+        for rulework in self.ruleworks:
+            if rulework.id != implemented["law"]:
+                continue
+            for article in rulework.articles:
+                if str(article["number"]) != str(implemented["article"]):
+                    continue
+                for term in section_of(article).get("open_terms", []):
+                    if term["id"] == implemented["open_term"]:
+                        return "combine" in term
+        return False
+
+    def others(self, rulework: Rulework) -> list[str]:
+        """Every other rulework that speaks at the location, as the engine may read it."""
+        return [
+            self.for_engine(other, other.articles)
+            for other in self.ruleworks
+            if other.id != rulework.id and self.covers(other)
+        ]
 
     def scope(self) -> dict:
         """The parameters, with the code of every territory the location lies in."""
@@ -202,6 +230,13 @@ class Case:
             section = section_of(article)
             for term in section.get("open_terms", []):
                 term.pop("combine", None)
+            # A filler of a combining term has been asked on its own; left in,
+            # the engine would refuse two of them for one term.
+            kept = [i for i in section.get("implements", []) if not self.combines(i)]
+            if kept:
+                section["implements"] = kept
+            else:
+                section.pop("implements", None)
             execution = section.get("execution")
             if execution:
                 shape_outputs = {o["name"] for o in execution.get("output", []) if o.get("type") == SHAPE}
@@ -257,7 +292,6 @@ class Case:
         gives nothing does not speak about the case. Returns who spoke.
         """
         spoke: dict[tuple[str, str], list[Filler]] = {}
-        plain = self.for_engine(holder, holder.articles)
         for article in holder.articles:
             for term in section_of(article).get("open_terms", []):
                 found = self.fillers(holder, article, term["id"])
@@ -272,11 +306,15 @@ class Case:
                 if combine != "OR":
                     raise ValueError(f"{holder.id}: combine {combine!r} is not known here")
                 speakers = []
+                number = str(article["number"])
                 for rulework, filler in found:
                     filler_yaml = self.for_engine(rulework, self.alongside(rulework, filler))
-                    if run_engine(filler_yaml, [plain], term["id"], self.scope(), self.date) is True:
+                    said = run_engine(filler_yaml, self.others(rulework), term["id"], self.scope(), self.date)
+                    if said is True:
                         speakers.append(Filler(rulework.id, str(filler["number"])))
-                number = str(article["number"])
+                    elif is_unknown(said):
+                        lacking = self.undecided.setdefault((holder.id, number, term["id"]), [])
+                        lacking.extend(said.get("missing", []))
                 spoke[(number, term["id"])] = sorted(speakers, key=lambda f: (f.rulework, f.article))
                 if speakers:
                     self.terms[(holder.id, number, term["id"])] = True
@@ -317,10 +355,16 @@ class Case:
         """One output of one article, with the articles that filled its terms."""
         spoke = self.work_out_terms(rulework)
         law_yaml = self.for_engine(rulework, self.alongside(rulework, article))
-        value = run_engine(law_yaml, [], output, self.scope(), self.date)
+        value = run_engine(law_yaml, self.others(rulework), output, self.scope(), self.date)
         through: set[Filler] = set()
+        lacking: list = []
         for key in self.terms_read(rulework, article, output):
             through.update(spoke.get(key, []))
+            lacking.extend(self.undecided.get((rulework.id, *key), []))
+        if value is not True and lacking:
+            # With OR, one filler that says yes decides the term. Without one,
+            # a filler that could not decide leaves the term undecided.
+            value = {"__unknown": True, "missing": lacking}
         return Answer(value, sorted(through, key=lambda f: (f.rulework, f.article)))
 
 
@@ -373,21 +417,27 @@ def run_engine(law_yaml: str, extra_laws: list[str], output: str, params: dict, 
 # values of the law, so they are here and not in a rulework.
 ONLY_WITH_A_PERMIT = "only with a permit"
 WITHOUT_A_PERMIT = "without a permit"
+CANNOT_SAY = "cannot say"
 
 
 def ask(question: str, activity: str, location_wkt: str, params: dict, date: str) -> Verdict:
     """Answer a question from `questions.yaml` for an activity at a location.
 
     The question names the bans of one law that answer it. Each ban stands on
-    its own, so the activity needs a permit when any of them holds.
+    its own, so the activity needs a permit when any of them holds. When none
+    holds and the engine could not decide one of them for lack of a fact, the
+    answer is that it cannot be said.
     """
     asked = yaml.safe_load(QUESTIONS.read_text())[question]
     case = Case(ruleworks_in_force(date), wkt.loads(location_wkt), {**params, "activiteit": activity}, date)
     law = case.rulework(asked["law"])
     because = []
+    undecided = []
     for ban in asked["bans"]:
         article = law.article(ban["article"])
         answer = case.evaluate(law, article, ban["output"])
+        if is_unknown(answer.value):
+            undecided.append((ban["output"], answer.value.get("missing")))
         if answer.value is not True:
             continue
         because.append(Reason(str(ban["article"]), ban["output"], answer.filled_by))
@@ -395,4 +445,8 @@ def ask(question: str, activity: str, location_wkt: str, params: dict, date: str
             reported = case.evaluate(law, law.article(extra["article"]), extra["output"])
             if reported.value is True:
                 because.append(Reason(str(extra["article"]), extra["output"], reported.filled_by))
-    return Verdict(ONLY_WITH_A_PERMIT if because else WITHOUT_A_PERMIT, because)
+    if because:
+        return Verdict(ONLY_WITH_A_PERMIT, because)
+    if undecided:
+        return Verdict(CANNOT_SAY, [Reason("", f"{output}: {missing}", []) for output, missing in undecided])
+    return Verdict(WITHOUT_A_PERMIT, [])
