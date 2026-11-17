@@ -94,30 +94,22 @@ describe('bronAntwoord', () => {
     expect(tekst).toContain('named twice');
   });
 
-  it('still reads the old Dutch field names wortel and mappen', () => {
-    const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
-    mkdirSync(join(dir, 'werk', 'w'), { recursive: true });
-    writeFileSync(join(dir, 'werk', 'bron.yaml'), 'wortel: ..\nmappen:\n  regulation/nl/w: werk/w\n');
-    writeFileSync(join(dir, 'werk', 'w', '2026-01-01.yaml'), '$id: w');
-    const [status, , tekst] = bronAntwoord('voorbeeld', { [lokaleEnv('voorbeeld')]: join(dir, 'werk', 'bron.yaml') });
-    rmSync(dir, { recursive: true });
-    expect(status).toBe(200);
-    expect(Object.keys(JSON.parse(tekst).bestanden)).toEqual(['regulation/nl/w/2026-01-01.yaml']);
-  });
-
-  it('rejects a manifest without directories, or with a field under both names, as the portal does', () => {
+  it('rejects a manifest without directories, or with the old Dutch field names, as the portal does', () => {
     const dir = mkdtempSync(join(tmpdir(), 'bron-dev-'));
     const antwoord = (yaml) => {
       writeFileSync(join(dir, 'bron.yaml'), yaml);
       return bronAntwoord('voorbeeld', { [lokaleEnv('voorbeeld')]: join(dir, 'bron.yaml') });
     };
     const zonder = antwoord('repo_root: ..\n');
-    const dubbel = antwoord('repo_root: ..\nwortel: ..\ndirectories: {a: b}\n');
+    const wortel = antwoord('wortel: ..\ndirectories: {a: b}\n');
+    const mappen = antwoord('repo_root: ..\nmappen: {a: b}\n');
     rmSync(dir, { recursive: true });
     expect(zonder[0]).toBe(502);
     expect(zonder[2]).toContain('missing field `directories`');
-    expect(dubbel[0]).toBe(502);
-    expect(dubbel[2]).toContain('duplicate field `repo_root`');
+    expect(wortel[0]).toBe(502);
+    expect(wortel[2]).toContain('unknown field `wortel`');
+    expect(mappen[0]).toBe(502);
+    expect(mappen[2]).toContain('unknown field `mappen`');
   });
 
   it('zegt zonder POC_BRON_<NAAM> dat de bron niet beschikbaar is', () => {

@@ -46,21 +46,13 @@ export function filesFromManifest(manifestPath) {
   // A field the portal does not know is refused there (serde
   // `deny_unknown_fields`), so here too: a key that is ignored here would load
   // a source the portal refuses.
-  const bekend = ['repo_root', 'wortel', 'directories', 'mappen', 'ui_spec'];
+  const bekend = ['repo_root', 'directories', 'ui_spec'];
   const onbekend = Object.keys(manifest).find((k) => !bekend.includes(k));
   if (onbekend !== undefined) {
     throw new Error(`the manifest ${manifestPath}: unknown field \`${onbekend}\``);
   }
-  // The Dutch names (`wortel`, `mappen`) are the ones the first manifests
-  // used, accepted like the serde aliases in the portal. They go once the
-  // existing manifests use the new names.
-  for (const [name, alias] of [['repo_root', 'wortel'], ['directories', 'mappen']]) {
-    if (name in manifest && alias in manifest) {
-      throw new Error(`the manifest ${manifestPath}: duplicate field \`${name}\``);
-    }
-  }
-  const repoRoot = manifest.repo_root ?? manifest.wortel ?? '';
-  const directories = manifest.directories ?? manifest.mappen;
+  const repoRoot = manifest.repo_root ?? '';
+  const directories = manifest.directories;
   if (directories == null) throw new Error(`the manifest ${manifestPath}: missing field \`directories\``);
   const rootDir = resolve(dirname(manifestPath), repoRoot);
   const pairs = Object.entries(directories).map(([doel, van]) => [zonderSlash(doel), zonderSlash(van)]);

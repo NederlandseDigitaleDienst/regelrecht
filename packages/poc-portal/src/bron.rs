@@ -129,11 +129,8 @@ impl Herkomst {
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
-    // The aliases accept the Dutch names the first manifests used
-    // (`wortel`, `mappen`). They go once the existing manifests use the new names.
-    #[serde(default, alias = "wortel")]
+    #[serde(default)]
     pub repo_root: String,
-    #[serde(alias = "mappen")]
     pub directories: BTreeMap<String, String>,
     #[serde(default)]
     pub ui_spec: Option<String>,
@@ -744,10 +741,11 @@ mod tests {
     }
 
     #[test]
-    fn a_manifest_with_the_old_dutch_field_names_still_reads() {
-        let oud = Manifest::lees("wortel: ../..\nmappen: {a: b}\n", "m").unwrap();
-        let nieuw = Manifest::lees("repo_root: ../..\ndirectories: {a: b}\n", "m").unwrap();
-        assert_eq!(oud, nieuw);
+    fn a_manifest_with_the_old_dutch_field_names_is_refused() {
+        let e = Manifest::lees("wortel: ../..\ndirectories: {a: b}\n", "m").unwrap_err();
+        assert!(e.contains("unknown field `wortel`"), "{e}");
+        let e = Manifest::lees("repo_root: ../..\nmappen: {a: b}\n", "m").unwrap_err();
+        assert!(e.contains("unknown field `mappen`"), "{e}");
     }
 
     #[test]
