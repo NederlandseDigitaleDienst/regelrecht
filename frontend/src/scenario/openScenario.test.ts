@@ -206,3 +206,36 @@ describe('createOpenScenario', () => {
     expect(doc.featureText.value).toContain('Given parameter "inkomen" is 7');
   });
 });
+
+describe('duplicate scenario names', () => {
+  it('names the ones more than one scenario carries', async () => {
+    const twice = `Feature: Dubbel
+
+  Scenario: Basis
+    Given parameter "inkomen" is 1
+    When I evaluate "x" of "wet_a"
+
+  Scenario: Anders
+    Given parameter "inkomen" is 2
+    When I evaluate "x" of "wet_a"
+
+  Scenario: Basis
+    Given parameter "inkomen" is 3
+    When I evaluate "x" of "wet_a"
+`;
+    stubFetch(async () => res({ body: twice, etag: '"v1"' }));
+    const doc = createOpenScenario(FILE);
+    await doc.load();
+    expect(doc.duplicateNames.value).toEqual(['Basis']);
+    // Still read in full: every scenario is there, by position.
+    expect(doc.scenarios.value.map((s) => s.name)).toEqual(['Basis', 'Anders', 'Basis']);
+    expect(doc.inputsFor(2)?.parameters).toEqual({ inkomen: 3 });
+  });
+
+  it('has none in a file whose names differ', async () => {
+    stubFetch(async () => res({ body: FEATURE, etag: '"v1"' }));
+    const doc = createOpenScenario(FILE);
+    await doc.load();
+    expect(doc.duplicateNames.value).toEqual([]);
+  });
+});

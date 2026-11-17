@@ -70,6 +70,17 @@ export function createOpenScenario(file: ScenarioFileRef) {
 
   const scenarios = computed(() => state.value?.scenarios ?? []);
   const featureName = computed(() => state.value?.featureName ?? '');
+  /**
+   * The names more than one scenario in the file carries, in file order. The
+   * file runs and saves as it is (edits apply by position), but a link by name
+   * reaches only the first; keeping names apart is the author's.
+   */
+  const duplicateNames = computed(() => {
+    const seen = new Set<string>();
+    const twice = new Set<string>();
+    for (const s of scenarios.value) (seen.has(s.name) ? twice : seen).add(s.name);
+    return [...twice];
+  });
 
   /** The indexes of the scenarios whose values differ from the saved file. */
   const dirtyIndexes = computed(() =>
@@ -224,6 +235,7 @@ export function createOpenScenario(file: ScenarioFileRef) {
     saveError,
     featureText,
     featureName,
+    duplicateNames,
     state,
     scenarios,
     values,

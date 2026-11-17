@@ -188,31 +188,44 @@ const dirty = computed(() => file.value.dirty.value);
             v-else-if="file.loaded.value && !scenarios.length"
             text="Dit bestand bevat geen scenario's die de editor kan lezen."
           ></nldd-inline-dialog>
-          <nldd-list v-else accessible-label="Scenario's in dit bestand">
-            <nldd-list-item
-              v-for="(scenario, i) in scenarios"
-              :key="i"
-              size="md"
-              button
-              :current="i === selected || undefined"
-              :data-testid="`scenario-item-${i}`"
-              @click="select(i)"
-            >
-              <nldd-text-cell
-                :text="scenario.name"
-                :supporting-text="dirtySet.has(i) ? 'Niet opgeslagen' : undefined"
-              ></nldd-text-cell>
-              <nldd-spacer-cell v-if="statusBadgeFor(i)" size="8"></nldd-spacer-cell>
-              <nldd-cell v-if="statusBadgeFor(i)" width="fit-content">
-                <nldd-badge
-                  size="sm"
-                  :color="statusBadgeFor(i)!.color"
-                  :icon="statusBadgeFor(i)!.icon"
-                  :accessible-label="statusBadgeFor(i)!.label"
-                ></nldd-badge>
-              </nldd-cell>
-            </nldd-list-item>
-          </nldd-list>
+          <template v-else>
+            <nldd-banner
+              v-if="file.duplicateNames.value.length"
+              size="sm"
+              variant="warning"
+              :text="file.duplicateNames.value.length === 1
+                ? `Meer dan één scenario heet '${file.duplicateNames.value[0]}'`
+                : `Meer dan één scenario heet ${file.duplicateNames.value.map((n) => `'${n}'`).join(', ')}`"
+              supporting-text="Een link naar zo'n scenario opent het eerste met die naam. Geef elk scenario een eigen naam."
+              data-testid="scenario-duplicate-names"
+            ></nldd-banner>
+            <nldd-spacer v-if="file.duplicateNames.value.length" size="8"></nldd-spacer>
+            <nldd-list accessible-label="Scenario's in dit bestand">
+              <nldd-list-item
+                v-for="(scenario, i) in scenarios"
+                :key="i"
+                size="md"
+                button
+                :current="i === selected || undefined"
+                :data-testid="`scenario-item-${i}`"
+                @click="select(i)"
+              >
+                <nldd-text-cell
+                  :text="scenario.name"
+                  :supporting-text="dirtySet.has(i) ? 'Niet opgeslagen' : undefined"
+                ></nldd-text-cell>
+                <nldd-spacer-cell v-if="statusBadgeFor(i)" size="8"></nldd-spacer-cell>
+                <nldd-cell v-if="statusBadgeFor(i)" width="fit-content">
+                  <nldd-badge
+                    size="sm"
+                    :color="statusBadgeFor(i)!.color"
+                    :icon="statusBadgeFor(i)!.icon"
+                    :accessible-label="statusBadgeFor(i)!.label"
+                  ></nldd-badge>
+                </nldd-cell>
+              </nldd-list-item>
+            </nldd-list>
+          </template>
         </nldd-simple-section>
       </nldd-page>
     </nldd-split-view-pane>
