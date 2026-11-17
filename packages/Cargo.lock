@@ -4125,6 +4125,9 @@ dependencies = [
 name = "regelrecht-law-model"
 version = "0.1.0"
 dependencies = [
+ "num-bigint",
+ "num-rational",
+ "num-traits",
  "regelrecht-shared",
  "rust_decimal",
  "rust_decimal_macros",
