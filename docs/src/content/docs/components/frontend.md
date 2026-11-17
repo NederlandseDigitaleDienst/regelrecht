@@ -81,13 +81,13 @@ Only the selected article's edits are kept, so leaving it loses them. The editor
 
 #### Scenario tabs
 
-A scenario file opens in a tab of its own, from the *Scenario's* pane or from the rulework on Home. The tab shows `ScenarioScreen.vue`: the file's scenarios on the left with their status, the form of the selected scenario, and its result next to it. The result is the execution trace. *Graaf* opens the cross-law graph with the trace laid over it (`LawGraphView.vue`) in a sheet over the full width, because the graph does not fit in the result pane. When the window is too narrow for the result pane, *Bekijk resultaat* opens it as a sheet. `?scenario=<naam>` in the URL names the scenario shown.
+A scenario file opens in a tab of its own, from the *Scenario's* pane or from the rulework on Home. The tab shows `ScenarioScreen.vue`: the file's scenarios on the left with their status, the form of the selected scenario, and its result next to it. The result is the execution trace. *Graaf* opens the cross-law graph with the trace laid over it (`LawGraphView.vue`) in a sheet over the full width, because the graph does not fit in the result pane. When the window is too narrow for the result pane, *Bekijk resultaat* opens it as a sheet. `?scenario=<naam>` in the URL names the scenario shown. When several scenarios in a file share a name, the tab warns: such a link opens the first of them, and keeping names apart is up to the author.
 
-A scenario tab belongs to its rulework, so opening one opens that rulework, and the scenarios run against it with its unsaved edits. A scenario runs the rulework its `When` step names, which can be another one than the file's folder; the screen says so.
+A scenario tab belongs to its rulework, so opening one opens that rulework, and the scenarios run against it with its unsaved edits. The engine holds every saved version of the open rulework, with the edited one in place of its saved copy, so a scenario runs on the version in force on its calculation date. When the engine refuses the edited version, the rulework leaves the engine and its scenarios fail with the reason, rather than run on a saved version. A scenario runs the rulework its `When` step names, which can be another one than the file's folder; the screen says so.
 
 The file and its unsaved edits live in `src/scenario/openScenario.ts`, one per file, kept by the `openScenarios` store so the edits survive a switch to another tab. Next to an article the editor runs the same copy: it runs the tab's unsaved edits and says it does. A run and a save read a scenario's values through one conversion (`src/scenario/inputs.ts`): the run applies the edits the way a save writes them, so the editor runs what the saved file will say.
 
-A tab with unsaved edits, article or scenario file, has a dot in its corner. Closing a scenario tab with unsaved edits, switching traject, and reloading ask first; switching tabs does not, because nothing is lost.
+A tab with unsaved edits, article or scenario file, has a dot in its corner, and its supporting text adds *niet opgeslagen*, so a screen reader says it as well. Closing a scenario tab with unsaved edits, switching traject, and reloading ask first; switching tabs does not, because nothing is lost.
 
 ### Top-level pages
 

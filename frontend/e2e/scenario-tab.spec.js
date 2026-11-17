@@ -98,6 +98,8 @@ test.describe('Scenario tab', () => {
     await bsn.waitFor({ timeout: 30_000 });
     await typeInto(bsn, '111222333');
     await expect(scenarioTab(page)).toHaveAttribute('data-unsaved', 'true');
+    // A screen reader hears it too: the supporting text says it.
+    await expect.poll(() => scenarioTab(page).evaluate((el) => el.supportingText)).toBe('Wet op de zorgtoeslag · niet opgeslagen');
     expect(await dotDrawn(scenarioTab(page))).toBe(true);
     await expect(page.locator('[data-testid="save-scenarios-btn"]')).toBeVisible();
 
@@ -121,6 +123,7 @@ test.describe('Scenario tab', () => {
     await expect.poll(() => puts.length).toBe(1);
     expect(puts[0]).toContain('Given parameter "bsn" is 111222333');
     await expect(scenarioTab(page)).not.toHaveAttribute('data-unsaved', 'true');
+    await expect.poll(() => scenarioTab(page).evaluate((el) => el.supportingText)).toBe('Wet op de zorgtoeslag');
     expect(await dotDrawn(scenarioTab(page))).toBe(false);
   });
 

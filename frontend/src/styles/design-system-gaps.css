@@ -13,7 +13,9 @@
  * Gap: nldd-document-tab-bar-item has no "modified" state (0.22: attributes
  * text, supporting-text, short-text, short-supporting-text, href, selected;
  * no parts, no slots). A tab with unsaved edits gets a dot in its top left
- * corner. Remove once the item can show this itself.
+ * corner. A dot alone is not heard, so AppShell also adds "niet opgeslagen"
+ * to the item's supporting text, which shows and is read with the tab's name.
+ * Remove both once the item can show this itself.
  */
 nldd-document-tab-bar-item[data-unsaved] {
   position: relative;

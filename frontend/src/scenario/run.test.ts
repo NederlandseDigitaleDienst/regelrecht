@@ -86,6 +86,13 @@ describe('a run before its regelwerk is in the engine', () => {
     expect(run.error).toBe("Regelwerk 'wet_a' is niet geladen: invalid YAML");
     expect(runStatus(run)).toBe('failed');
   });
+
+  it('fails with the reason even when a saved version is back in the engine', () => {
+    const e = engine(() => ({ outputs: { heeft_recht: true } }));
+    const run = runScenario(e, INPUTS, EXPECTS_TRUE, 'invalid YAML');
+    expect(e.executeWithTrace).not.toHaveBeenCalled();
+    expect(run.error).toBe("Regelwerk 'wet_a' is niet geladen: invalid YAML");
+  });
 });
 
 describe('runStatus', () => {

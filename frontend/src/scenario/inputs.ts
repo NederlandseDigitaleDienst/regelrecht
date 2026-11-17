@@ -97,7 +97,9 @@ export function valuesFromSetup(setup: FormSetup): ScenarioValues {
   const collections = parameters.filter((p) => isCollectionValue(p.value));
   return {
     calculationDate: setup.calculationDate || todayLocalIso(),
-    parameterValues: Object.fromEntries(scalars.map((p) => [p.name, p.value ?? ''])),
+    // A null the file states shows as the word null, as a typed one does; a
+    // blank would read as "no value" and drop out of the next save.
+    parameterValues: Object.fromEntries(scalars.map((p) => [p.name, p.value === null ? 'null' : p.value ?? ''])),
     collections: collections.map((p) => ({
       name: p.name,
       columns: collectionColumns(p).map((name) => ({ name })),

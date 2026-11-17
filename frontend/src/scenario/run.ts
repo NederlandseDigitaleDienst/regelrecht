@@ -71,11 +71,14 @@ export function runScenario(
   if (!inputs.outputName) {
     return { ...base, result: null, traceText: null, error: 'Dit scenario noemt geen uitkomst om te berekenen.' };
   }
+  // A known reason the regelwerk is not as it should be in the engine is a
+  // failure, also when another loader has put a saved version back since:
+  // a run on that version would look right and be about the wrong text.
+  if (loadError) {
+    return { ...base, result: null, traceText: null, error: `Regelwerk '${inputs.lawId}' is niet geladen: ${loadError}` };
+  }
+  // Not there yet is waiting.
   if (!engine.hasLaw(inputs.lawId)) {
-    // Not there yet is waiting; not there for a known reason is a failure.
-    if (loadError) {
-      return { ...base, result: null, traceText: null, error: `Regelwerk '${inputs.lawId}' is niet geladen: ${loadError}` };
-    }
     return { ...base, result: null, traceText: null, error: null, pending: true };
   }
   try {
