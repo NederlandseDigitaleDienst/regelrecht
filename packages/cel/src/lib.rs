@@ -36,7 +36,7 @@ pub mod reading;
 pub mod shape;
 pub mod versions;
 
-pub use cell::{Cell, Reference};
+pub use cell::{Announcement, Cell, Reference};
 pub use chronicle::{Afschrift, Chronicle, EXECUTOGRAM, Gram, GramMoment, Received};
 pub use decision::{DecisionShape, Input, Source};
 pub use error::{Error, Result};

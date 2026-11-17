@@ -483,6 +483,17 @@ impl Speler<'_> {
                     .iter()
                     .find(|h| h["feit"] == json!(feit))
             })
+            // A fact that makes a decision of the cell known, recorded on
+            // that decision in the step after it.
+            .or_else(|| {
+                vormen["besluiten"]
+                    .as_object()?
+                    .values()
+                    .filter(|b| b["cel"] == json!(cel))
+                    .filter_map(|b| b["bekendmaking"]["feiten"].as_array())
+                    .flatten()
+                    .find(|h| h["feit"] == json!(feit))
+            })
             .ok_or_else(|| format!("{cel} records no {feit}"))?;
         let mut velden = map(&stap["invoer"]);
         rij["leeg_gelaten"] = json!(vul_leeg(&handeling["velden"], &mut velden));

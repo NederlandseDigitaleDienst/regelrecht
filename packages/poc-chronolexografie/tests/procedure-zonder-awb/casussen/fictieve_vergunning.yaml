@@ -114,3 +114,25 @@ scenarios:
         antwoorden:
           - bron: fictief_beleid_leges#1#betaalde_leges
             verwacht: 0
+  - naam: Verleend en daarna bekendgemaakt
+    eind: >-
+      De vergunning is verleend. De dienst legde een week later vast dat zij
+      het besluit verzond; de termijn loopt vanaf die dag.
+    stappen:
+      - stap: indienen
+        artikel: fictieve_vergunningwet#1
+        kenmerk: aanvraag
+        invoer:
+          aanvrager: D. Voorbeeld
+          meerderjarig: true
+      - stap: beslissen
+        verwijst_naar: aanvraag
+        kenmerk: vergunning
+        uitvoer:
+          vergunning_verleend: true
+      - stap: vastleggen
+        feit: fictieve_vergunningwet#6#besluit_verzonden
+        verwijst_naar: vergunning
+        datum: 2026-02-09
+        invoer:
+          bekendmaking_datum: 2026-02-09

@@ -65,6 +65,24 @@ enum Taken<'a> {
     },
 }
 
+/// The stage that makes a decision known, as the chronicle holds it on a day
+/// ([`Cell::announcement`]), for a decision whose announcement reads a fact
+/// the authority records after it ([`DecisionShape::announcement`]).
+#[derive(Debug, Clone, PartialEq, Default)]
+pub struct Announcement {
+    /// The executograms it read: per fact, the latest that refers to the
+    /// decision.
+    pub read: Vec<String>,
+    /// What they hold of the parameters of the stage, by name.
+    pub fields: Map<String, serde_json::Value>,
+    /// Whether every date the stage requires is recorded, such as the day
+    /// the decision was made known. Until then the stage does not run.
+    pub made_known: bool,
+    /// What the stage gave, such as the period for objection (Awb 6:8);
+    /// empty until it is `made_known`.
+    pub outputs: BTreeMap<String, serde_json::Value>,
+}
+
 /// The decision a submission refers to: one in the cell's own chronicle, by
 /// its id, or one of another cell, by the copy that cell made of it
 /// ([`Cell::afschrift`], RFC-053).
@@ -340,7 +358,7 @@ impl Cell {
         on: NaiveDate,
     ) -> Result<Gram> {
         let shape = shape::derive(service, law_id, article, on)?;
-        let (filled, from_referred) = self.referred(service, &shape, reference)?;
+        let (filled, from_referred) = self.referred(service, sphere, &shape, reference, on)?;
         check_supplied(&shape, supplied, &from_referred)?;
         self.record(service, sphere, &shape, supplied, filled, on)
     }
@@ -349,14 +367,18 @@ impl Cell {
     /// its field of type `decision`, which holds that decision's id, and
     /// every other field that decision holds by name or, where an override
     /// voided it, gives (such as the end of a period that a hook on the
-    /// decision computes). Returns what the cell fills, and the names the
-    /// submitter may not supply: these, and the `decision` field also without
-    /// `refers_to`.
+    /// decision computes). A decision of its own whose announcement reads a
+    /// fact gives that period as the chronicle holds it on `on`
+    /// ([`Cell::announcement`]); until the decision is made known, it gives
+    /// none. Returns what the cell fills, and the names the submitter may not
+    /// supply: these, and the `decision` field also without `refers_to`.
     fn referred(
         &self,
-        service: &LawExecutionService,
+        service: &mut LawExecutionService,
+        sphere: &[&Cell],
         shape: &Shape,
         reference: Option<Reference<'_>>,
+        on: NaiveDate,
     ) -> Result<(Filled, Vec<String>)> {
         let decisions: Vec<String> = shape
             .fields
@@ -374,6 +396,7 @@ impl Cell {
                 decisions.join(", ")
             )));
         }
+        let local = matches!(reference, Some(Reference::Local(_)));
         let (referred, mut filled, id) = match reference {
             None => return Ok((Filled::default(), decisions)),
             Some(Reference::Local(id)) => {
@@ -412,8 +435,25 @@ impl Cell {
         let referred_shape = decision_shape_of(service, referred, taken_on)?;
         let gives = gives(service, &referred_shape, taken_on);
         let mut from_referred = decisions.clone();
+        // What the announcement gives, run only when a field needs it.
+        let mut announced: Option<BTreeMap<String, serde_json::Value>> = None;
         for field in shape.fields.iter().filter(|f| !decisions.contains(&f.name)) {
-            if let Some(value) = referred.held(&field.name) {
+            let held = referred.held(&field.name).cloned();
+            let held = match held {
+                Some(value) => Some(value),
+                None if local && gives.contains(&field.name) => {
+                    if announced.is_none() {
+                        announced = Some(
+                            self.announcement(service, sphere, id, on)?
+                                .map(|a| a.outputs)
+                                .unwrap_or_default(),
+                        );
+                    }
+                    announced.as_ref().and_then(|a| a.get(&field.name)).cloned()
+                }
+                None => None,
+            };
+            if let Some(value) = held.as_ref() {
                 // Coupled by name, so checked as a supplied value is: the
                 // two articles may mean another thing by it.
                 if !shape::fits(field, value) {
@@ -1111,6 +1151,140 @@ impl Cell {
         )
     }
 
+    /// The stage that makes the decision `id` known, as the chronicle holds
+    /// it on `on`, for a decision whose announcement reads a fact
+    /// ([`DecisionShape::announcement`]); `None` for one whose stages all ran
+    /// when it was taken, which holds what they gave itself.
+    ///
+    /// Per fact the stage reads, the latest executogram of it that refers to
+    /// the decision and is recorded on or before `on` holds its parameters.
+    /// Once every date the stage requires is recorded, the stage runs, in the
+    /// law of the day of the decision, on the decision's fields and findings
+    /// and what those executograms hold; the cells answer as they knew things
+    /// on `on`. Nothing of it is recorded: like what a submission gives
+    /// ([`Cell::submission_outputs`]), it follows from the chronicle.
+    ///
+    /// # Errors
+    ///
+    /// `id` that is no decision of this chronicle, and whatever the engine
+    /// refuses when the stage runs.
+    pub fn announcement(
+        &self,
+        service: &mut LawExecutionService,
+        sphere: &[&Cell],
+        id: &str,
+        on: NaiveDate,
+    ) -> Result<Option<Announcement>> {
+        let gram = self.decision_gram(service, id)?.clone();
+        // The record the decision refers to: the submission it was taken on,
+        // or, for a decision taken ex officio, the record it is about.
+        let submission = gram
+            .refers_to
+            .as_deref()
+            .and_then(|r| self.grams().iter().find(|g| g.id == r))
+            .filter(|g| is_submission(service, g))
+            .cloned();
+        let shape = match &submission {
+            Some(_) => decision_shape_of(service, &gram, gram.recorded_on)?,
+            None => {
+                let (law_id, article) = gram.basis.split_once('#').ok_or_else(|| {
+                    setup(format!(
+                        "chronolexogram '{id}' has basis '{}', not <regulation>#<article>",
+                        gram.basis
+                    ))
+                })?;
+                decision::derive_ex_officio(service, law_id, article, gram.recorded_on)?
+            }
+        };
+        let Some(stage) = shape.announcement().cloned() else {
+            return Ok(None);
+        };
+        let mut announcement = Announcement::default();
+        for fact in shape.announcement_facts() {
+            let (basis, name) = shape::split_fact(fact)?;
+            let Some(latest) = self.grams().iter().rev().find(|g| {
+                g.kind == EXECUTOGRAM
+                    && g.basis == basis
+                    && g.fact.as_deref() == Some(name)
+                    && g.refers_to.as_deref() == Some(id)
+                    && g.recorded_on <= on
+            }) else {
+                continue;
+            };
+            announcement.read.push(latest.id.clone());
+            for input in shape
+                .inputs
+                .iter()
+                .filter(|i| matches!(&i.source, Source::Fact { fact: f } if f == fact))
+            {
+                if let Some(value) = latest.fields.get(&input.field.name) {
+                    announcement
+                        .fields
+                        .insert(input.field.name.clone(), value.clone());
+                }
+            }
+        }
+        // A date the stage requires that a fact holds must be recorded; one
+        // the cell filled with the day of the decision the decision holds.
+        announcement.made_known = stage.requires.iter().all(|r| {
+            !matches!(
+                shape.input(&r.name).map(|i| &i.source),
+                Some(Source::Fact { .. })
+            ) || announcement
+                .fields
+                .get(&r.name)
+                .is_some_and(|v| !v.is_null())
+        });
+        if !announcement.made_known {
+            return Ok(Some(announcement));
+        }
+        // The decision values its fields hold, as the decision got them; a
+        // decision taken ex officio takes none from what it refers to.
+        let decisions = match &submission {
+            Some(submission) => {
+                self.decision_values(service, sphere, &shape, submission, gram.recorded_on)?
+            }
+            None => BTreeMap::new(),
+        };
+        let (mut parameters, findings) = taken_with(&shape, &gram, &decisions)?;
+        for input in shape
+            .inputs
+            .iter()
+            .filter(|i| matches!(i.source, Source::Fact { .. }))
+        {
+            let value = match announcement.fields.get(&input.field.name) {
+                Some(value) => value,
+                None if input.field.nullable => &serde_json::Value::Null,
+                None => continue,
+            };
+            parameters.insert(input.field.name.clone(), stored::from_stored(value)?);
+        }
+        let reader = self.known_on(on);
+        let others = known_on(sphere, on);
+        // As the decision was taken: for the authority whose decision it
+        // replaces, where it may take one in turn.
+        let replaces = decision_outputs(service, &shape.law_id, &shape.article, gram.recorded_on);
+        let call = Answerers::new(&reader, &others)
+            .deciding_for(
+                submission
+                    .as_ref()
+                    .filter(|_| !replaces.is_empty())
+                    .and_then(|s| decides_for(s, sphere)),
+            )
+            .call(findings);
+        let result = service.execute_stage_in(
+            &shape.law_id,
+            &shape.article,
+            &stage.stage,
+            None,
+            parameters,
+            call,
+            &gram.recorded_on.to_string(),
+        )?;
+        collect_outputs(&result, &mut announcement.outputs)?;
+        Ok(Some(announcement))
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn decide_on(
         &mut self,
@@ -1623,21 +1797,20 @@ impl Cell {
             .clone();
         // A decision taken ex officio refers to the record it is about, not
         // to a submission, and has nothing to be taken on again.
-        let referred = submission
+        if submission
             .basis
             .split_once('#')
             .and_then(|(law, number)| {
                 shape::article_on(service, law, number, submission.recorded_on)
             })
-            .ok_or_else(|| {
-                setup(format!(
-                    "'{submission_id}' rests on '{}', which names no article in force on {}",
-                    submission.basis, submission.recorded_on
-                ))
-            })?;
-        let is_submission = referred.get_submission().and_then(|s| s.submission_kind())
-            == Some(submission.kind.as_str());
-        if !is_submission {
+            .is_none()
+        {
+            return Err(setup(format!(
+                "'{submission_id}' rests on '{}', which names no article in force on {}",
+                submission.basis, submission.recorded_on
+            )));
+        }
+        if !is_submission(service, &submission) {
             return Err(setup(format!(
                 "the decision '{}' was taken ex officio, about '{submission_id}', which is no \
                  submission; the cell does not replay it",
@@ -1666,20 +1839,7 @@ impl Cell {
             .collect();
         let reader = self.reader(before, explain);
         let others = known_on(sphere, on);
-        let given = candidates(&shape, &decision);
-        let mut parameters = BTreeMap::new();
-        let mut findings = BTreeMap::new();
-        for (name, value) in &decision.fields {
-            if given.contains_key(name) {
-                findings.insert(name.clone(), stored::from_stored(value)?);
-                continue;
-            }
-            if shape.input(name).is_none() {
-                continue;
-            }
-            let value = decisions.get(name).map_or(value, |(_, v)| v);
-            parameters.insert(name.clone(), stored::from_stored(value)?);
-        }
+        let (parameters, findings) = taken_with(&shape, &decision, &decisions)?;
         let outputs: Vec<&str> = shape.outputs.iter().map(String::as_str).collect();
         let date = on.to_string();
         let call = Answerers::new(&reader, &others)
@@ -1916,7 +2076,10 @@ impl Cell {
     /// The cell runs the stages of that article again with the value's
     /// `fields` and `findings`, and fills a date a stage requires with `on`, so a hook at
     /// a later stage gives the new decision its own outcome (such as its own
-    /// period from its own announcement). The outputs of its decision item must be
+    /// period from its own announcement). Where its announcement reads a
+    /// fact ([`DecisionShape::announcement`]), that stage does not run: the
+    /// new decision is no record of its own, so no fact can refer to it, and
+    /// it has no period. The outputs of its decision item must be
     /// those of the value, as a chronicle stores them; otherwise the value
     /// is not this article's decision on these fields. A value that holds
     /// `taken_on` must name the article of `submission`: the new decision
@@ -2287,6 +2450,43 @@ fn take(
     Ok((fields, outputs))
 }
 
+/// What the engine gets when the decision `decision` of `shape` is taken
+/// again: its parameters, with each decision it holds as the value in
+/// `decisions`, and apart from them its findings ([`candidates`]).
+fn taken_with(
+    shape: &DecisionShape,
+    decision: &Gram,
+    decisions: &BTreeMap<String, (String, serde_json::Value)>,
+) -> Result<(BTreeMap<String, Value>, BTreeMap<String, Value>)> {
+    let given = candidates(shape, decision);
+    let mut parameters = BTreeMap::new();
+    let mut findings = BTreeMap::new();
+    for (name, value) in &decision.fields {
+        if given.contains_key(name) {
+            findings.insert(name.clone(), stored::from_stored(value)?);
+            continue;
+        }
+        if shape.input(name).is_none() {
+            continue;
+        }
+        let value = decisions.get(name).map_or(value, |(_, v)| v);
+        parameters.insert(name.clone(), stored::from_stored(value)?);
+    }
+    Ok((parameters, findings))
+}
+
+/// Whether `gram` is a submission: of the kind its article, in the law in
+/// force on the day it was recorded, establishes. A decision taken ex
+/// officio refers to a record that is none.
+fn is_submission(service: &LawExecutionService, gram: &Gram) -> bool {
+    gram.basis
+        .split_once('#')
+        .and_then(|(law, number)| shape::article_on(service, law, number, gram.recorded_on))
+        .and_then(|article| article.get_submission())
+        .and_then(|s| s.submission_kind())
+        == Some(gram.kind.as_str())
+}
+
 /// What holds a finding of the deciding authority in the decision `gram`
 /// of `shape`: every field that is no parameter of the decision and no
 /// value a policy filled. That is a finding on an open term of the decision
@@ -2382,6 +2582,8 @@ fn asked(
                 }
             },
             Source::Cell => Some(serde_json::Value::String(on.to_string())),
+            // Recorded after the decision; the announcement reads it then.
+            Source::Fact { .. } => None,
         };
         if let Some(value) = value {
             fields.insert(name.clone(), value);
@@ -2406,7 +2608,7 @@ fn run_stages(
 ) -> Result<BTreeMap<String, serde_json::Value>> {
     let date = on.to_string();
     let mut outputs = BTreeMap::new();
-    for stage in &shape.stages {
+    for stage in shape.taken_stages() {
         // Every stage computes the decision's outputs, so a hook at a later
         // stage can read them; they are the same at each.
         let call = answerers.call(findings.clone());
@@ -2654,6 +2856,9 @@ fn check_decision_supplied(
             Source::Supplied => None,
             Source::Application => Some("the application".to_string()),
             Source::Cell => Some("the cell: it is the day of the decision".to_string()),
+            Source::Fact { fact } => Some(format!(
+                "the fact {fact}, which the authority records after the decision"
+            )),
         };
         if let Some(from) = from {
             return Err(refused(format!(

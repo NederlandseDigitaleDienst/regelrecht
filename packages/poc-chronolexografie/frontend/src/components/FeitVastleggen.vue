@@ -17,11 +17,16 @@ const props = defineProps({
   // De cel die vastlegt, en de feiten die zij vastlegt (`vormen`).
   cel: { type: String, required: true },
   handelingen: { type: Array, required: true },
+  // Het record van `cel` waarover elk feit gaat, zoals het besluit dat wordt
+  // bekendgemaakt (Bekendmaken.vue), of geen.
+  verwijstNaar: { type: String, default: null },
 });
 
-// Per handeling de ingevulde velden.
-const vorm = formulier((feit) => scenarioWaarden('vastleggen', { cel: props.cel, feit }));
-const velden = (feit) => vorm.waarden(feit);
+// Per handeling de ingevulde velden; met `verwijstNaar` per record apart.
+const sleutel = (feit) => (props.verwijstNaar ? `${props.verwijstNaar}|${feit}` : feit);
+const feitVan = (s) => s.split('|').pop();
+const vorm = formulier((s) => scenarioWaarden('vastleggen', { cel: props.cel, feit: feitVan(s) }));
+const velden = (feit) => vorm.waarden(sleutel(feit));
 
 // The folded forms the visitor opened, until the next step.
 const geopend = reactive({});
@@ -52,9 +57,9 @@ async function vastleggen(handeling) {
       .map((v) => [v.naam, ingevuld[v.naam] ?? (v.type === 'boolean' && !v.mag_leeg ? false : undefined)])
       .filter(([, v]) => v !== undefined),
   );
-  const verwijstNaar = scenarioVerwijzing(props.cel, feit);
+  const verwijstNaar = props.verwijstNaar ?? scenarioVerwijzing(props.cel, feit);
   const ok = await stap(() => api.vastleggen(props.cel, feit, gegeven, state.datum, verwijstNaar));
-  if (ok) vorm.wis(feit);
+  if (ok) vorm.wis(sleutel(feit));
 }
 </script>
 
@@ -83,7 +88,7 @@ async function vastleggen(handeling) {
           :key="veld.naam"
           :model-value="velden(h.feit)[veld.naam]"
           :veld="veld"
-          @update:model-value="vorm.zet(h.feit, veld.naam, $event)"
+          @update:model-value="vorm.zet(sleutel(h.feit), veld.naam, $event)"
         />
         <nldd-button appearance="primary" text="Vastleggen" @click="vastleggen(h)"></nldd-button>
       </template>

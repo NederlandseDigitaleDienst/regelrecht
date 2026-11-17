@@ -177,3 +177,41 @@ articles:
           - name: bedrag
             type: amount
             description: Het bedrag in eurocent.
+
+  - number: '6'
+    url: https://example.invalid/fictieve_vergunningwet#6
+    text: >-
+      FICTIEF. De dienst maakt een besluit bekend door het aan de aanvrager
+      te verzenden, en legt vast op welke dag zij het verzond. Bezwaar kan
+      tot zes weken na die dag.
+    machine_readable:
+      # The day the decision was sent is a fact the service records after
+      # the decision, referring to it. The decision does not ask it; the
+      # period follows from the fact (Cell::announcement).
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BEKENDMAKING
+      requires:
+        - fact: besluit_verzonden
+          description: Dat de dienst het besluit waarnaar het feit verwijst, aan de aanvrager verzond.
+          competent_authority:
+            - name: Fictieve dienst
+          parameters:
+            - bekendmaking_datum
+      execution:
+        parameters:
+          - name: bekendmaking_datum
+            type: date
+            description: De dag waarop de dienst het besluit verzond.
+        output:
+          - name: termijn_einde
+            type: date
+            description: De laatste dag waarop bezwaar kan.
+        actions:
+          - output: termijn_einde
+            value:
+              operation: DATE_ADD
+              date: $bekendmaking_datum
+              weeks: 6
