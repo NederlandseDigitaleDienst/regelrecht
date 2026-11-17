@@ -449,9 +449,12 @@ attaches no coordinate system to a shape, so both must be in the same one.
 
 Refused as no shape, and then an error and never `false`: text that is not
 WKT, a third dimension, an invalid geometry (a boundary that crosses itself),
-an empty geometry, a `GEOMETRYCOLLECTION`, and a coordinate beyond 1e12. Do
-not compare two shapes with `EQUALS` or `IN`: those compare the text, and the
-type check refuses them.
+an empty geometry, a `GEOMETRYCOLLECTION`, a coordinate beyond 1e12, text
+after the geometry closes, a ring that does not end where it starts,
+parentheses nested deeper than three levels, and a text of more than
+4,000,000 bytes. A literal in a rulework is held to the same when it is
+validated, so copy an area exactly. Do not compare two shapes with `EQUALS`
+or `IN`: those compare the text, and the type check refuses them.
 
 ### ROUND, CEIL and FLOOR, rounding (RFC-024)
 ```yaml
@@ -593,8 +596,11 @@ machine_readable:
   parameter. Where the territory is a fact in a register (the boundary of a
   municipality, Kadasterwet art. 48), that article reads it as an input with
   `source: {}` and gives it as its output of type `shape`, like any register
-  value. A territory that is unknown leaves the term unknown; one that is no
-  shape is an error.
+  value. The type check refuses a `territory` whose output does not exist,
+  is no `shape`, or whose article declares none of the three code
+  parameters. A territory that is unknown leaves the term unknown; one that
+  is no shape is an error, unless the term has `combine: OR` and a
+  regulation in scope gives true.
 - `combine: OR` asks every implementation instead of the one that wins on
   priority, so each article of a plan that states a ban is its own
   implementation of the term. The term is true when one gives true, an error

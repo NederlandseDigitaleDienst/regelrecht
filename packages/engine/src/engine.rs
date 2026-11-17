@@ -119,15 +119,21 @@ pub struct OpenTermAsked {
     /// The id of the open term.
     pub term: String,
     /// For a term with a `location`: the place of the case, as the text of
-    /// the shape it was given as.
+    /// the shape it was given as. Absent when the location is unknown.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub location: Option<String>,
+    /// For a term whose location is unknown: the facts the location lacks.
+    /// The term is then unknown for lack of them, and no regulation was
+    /// held against a place.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub location_missing: Vec<String>,
     /// For a term with a `location`: every competent candidate regulation
     /// with a territory code, held against the location.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub territories: Vec<TerritoryTest>,
-    /// For a term with `combine: OR`: every implementation that was asked,
-    /// in the order it was asked, and what it gave.
+    /// Every implementation that was asked, in the order it was asked, and
+    /// what it gave. With `combine: OR` that is every implementation in
+    /// scope; without it, the ones asked until one filled the term.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub answers: Vec<ImplementationAnswer>,
 }
@@ -157,13 +163,16 @@ pub struct TerritoryTest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub territory: Option<String>,
     /// Whether the interiors of the location and the territory meet. Absent
-    /// when the territory is unknown: the regulation is then neither in
-    /// scope nor out of it.
+    /// when the territory is unknown or could not be read: the regulation
+    /// is then neither in scope nor out of it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub overlaps: Option<bool>,
+    /// Why the territory could not be read as a shape, where it could not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
 }
 
-/// What one implementation of a term with `combine: OR` gave when asked.
+/// What one implementation of an open term gave when it was asked.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct ImplementationAnswer {
     /// The implementing regulation and article.
@@ -172,7 +181,7 @@ pub struct ImplementationAnswer {
     pub gave: ImplementationGave,
 }
 
-/// The answer of one implementation of a term with `combine: OR`.
+/// The answer of one implementation of an open term.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum ImplementationGave {
@@ -186,6 +195,9 @@ pub enum ImplementationGave {
     Unknown { missing: Vec<String> },
     /// It rests on a construct the format cannot express (RFC-012).
     Untranslatable,
+    /// It gave this value, for a term that is no boolean: the value as the
+    /// trace writes it.
+    Value { value: String },
     /// It failed, or gave something that is no boolean. Where another
     /// implementation gave true the term is true all the same, and this is
     /// where the failure is kept.
@@ -193,6 +205,23 @@ pub enum ImplementationGave {
 }
 
 impl ImplementationGave {
+    /// What `value` is as an answer: the answer an implementation gave when
+    /// it ran without failing.
+    pub(crate) fn of(value: &Value) -> Self {
+        match value {
+            Value::Bool(true) => ImplementationGave::True,
+            Value::Bool(false) => ImplementationGave::False,
+            Value::Null => ImplementationGave::Silent,
+            Value::Unknown(missing) => ImplementationGave::Unknown {
+                missing: missing.iter().map(|fact| fact.name.clone()).collect(),
+            },
+            Value::Untranslatable { .. } => ImplementationGave::Untranslatable,
+            other => ImplementationGave::Value {
+                value: other.to_string(),
+            },
+        }
+    }
+
     /// The answer in a few words, for a trace message.
     fn describe(&self) -> String {
         match self {
@@ -203,6 +232,7 @@ impl ImplementationGave {
                 format!("cannot say for lack of {}", missing.join(", "))
             }
             ImplementationGave::Untranslatable => "is untranslatable".to_string(),
+            ImplementationGave::Value { value } => format!("gave {value}"),
             ImplementationGave::Failed { error } => format!("failed: {error}"),
         }
     }

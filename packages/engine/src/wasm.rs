@@ -60,7 +60,7 @@ use wasm_bindgen::prelude::*;
 
 use crate::annotation::{self, TextQuoteSelector, law_id_from_source};
 use crate::config;
-use crate::engine::OutputProvenance;
+use crate::engine::{ArticleResult, OpenTermAsked, OutputProvenance};
 use crate::error::EngineError;
 use crate::service::{ExecutionOutcome, LawExecutionService, StageState};
 use crate::trace::{TraceBuilder, TraceDocument};
@@ -204,6 +204,29 @@ struct WasmExecuteResult {
     regulation_hash: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     regulation_valid_from: Option<String>,
+    /// How each open term with a `location` or `combine: OR` was asked, in
+    /// the shape of [`ArticleResult::open_terms_asked`]: the place, the
+    /// territories it was held against and what every implementation gave.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    open_terms_asked: Vec<OpenTermAsked>,
+}
+
+impl From<ArticleResult> for WasmExecuteResult {
+    fn from(result: ArticleResult) -> Self {
+        WasmExecuteResult {
+            outputs: result.outputs,
+            output_provenance: result.output_provenance,
+            resolved_inputs: result.resolved_inputs,
+            article_number: result.article_number,
+            law_id: result.law_id,
+            law_uuid: result.law_uuid,
+            engine_version: result.engine_version,
+            schema_version: result.schema_version,
+            regulation_hash: result.regulation_hash,
+            regulation_valid_from: result.regulation_valid_from,
+            open_terms_asked: result.open_terms_asked,
+        }
+    }
 }
 
 /// Serializable result for executeStage().
@@ -253,6 +276,30 @@ struct WasmExecuteResultWithTrace {
     regulation_hash: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     regulation_valid_from: Option<String>,
+    /// As on [`WasmExecuteResult`].
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    open_terms_asked: Vec<OpenTermAsked>,
+}
+
+impl From<ArticleResult> for WasmExecuteResultWithTrace {
+    fn from(result: ArticleResult) -> Self {
+        let trace_text = result.trace.as_ref().map(|t| t.render_box_drawing());
+        WasmExecuteResultWithTrace {
+            outputs: result.outputs,
+            output_provenance: result.output_provenance,
+            resolved_inputs: result.resolved_inputs,
+            article_number: result.article_number,
+            law_id: result.law_id,
+            law_uuid: result.law_uuid,
+            trace: result.trace.map(TraceDocument::new),
+            trace_text,
+            engine_version: result.engine_version,
+            schema_version: result.schema_version,
+            regulation_hash: result.regulation_hash,
+            regulation_valid_from: result.regulation_valid_from,
+            open_terms_asked: result.open_terms_asked,
+        }
+    }
 }
 
 /// Serializable law info for get_law_info()
@@ -341,18 +388,7 @@ impl WasmEngine {
             .evaluate_law_output(law_id, output_name, params, calculation_date)
             .map_err(engine_error_to_wasm)?;
 
-        let wasm_result = WasmExecuteResult {
-            outputs: result.outputs,
-            output_provenance: result.output_provenance,
-            resolved_inputs: result.resolved_inputs,
-            article_number: result.article_number,
-            law_id: result.law_id,
-            law_uuid: result.law_uuid,
-            engine_version: result.engine_version,
-            schema_version: result.schema_version,
-            regulation_hash: result.regulation_hash,
-            regulation_valid_from: result.regulation_valid_from,
-        };
+        let wasm_result = WasmExecuteResult::from(result);
 
         wasm_result.serialize(&js_serializer()).map_err(|e| {
             wasm_error(&format!(
@@ -465,21 +501,7 @@ impl WasmEngine {
             TraceBuilder::new_untimed(),
         ) {
             Ok(result) => {
-                let trace_text = result.trace.as_ref().map(|t| t.render_box_drawing());
-                let wasm_result = WasmExecuteResultWithTrace {
-                    outputs: result.outputs,
-                    output_provenance: result.output_provenance,
-                    resolved_inputs: result.resolved_inputs,
-                    article_number: result.article_number,
-                    law_id: result.law_id,
-                    law_uuid: result.law_uuid,
-                    trace: result.trace.map(TraceDocument::new),
-                    trace_text,
-                    engine_version: result.engine_version,
-                    schema_version: result.schema_version,
-                    regulation_hash: result.regulation_hash,
-                    regulation_valid_from: result.regulation_valid_from,
-                };
+                let wasm_result = WasmExecuteResultWithTrace::from(result);
 
                 wasm_result.serialize(&js_serializer()).map_err(|e| {
                     wasm_error(&format!(
@@ -546,18 +568,7 @@ impl WasmEngine {
             .evaluate_law(law_id, &name_refs, params, calculation_date)
             .map_err(engine_error_to_wasm)?;
 
-        let wasm_result = WasmExecuteResult {
-            outputs: result.outputs,
-            output_provenance: result.output_provenance,
-            resolved_inputs: result.resolved_inputs,
-            article_number: result.article_number,
-            law_id: result.law_id,
-            law_uuid: result.law_uuid,
-            engine_version: result.engine_version,
-            schema_version: result.schema_version,
-            regulation_hash: result.regulation_hash,
-            regulation_valid_from: result.regulation_valid_from,
-        };
+        let wasm_result = WasmExecuteResult::from(result);
 
         wasm_result.serialize(&js_serializer()).map_err(|e| {
             wasm_error(&format!(
@@ -589,21 +600,7 @@ impl WasmEngine {
             TraceBuilder::new_untimed(),
         ) {
             Ok(result) => {
-                let trace_text = result.trace.as_ref().map(|t| t.render_box_drawing());
-                let wasm_result = WasmExecuteResultWithTrace {
-                    outputs: result.outputs,
-                    output_provenance: result.output_provenance,
-                    resolved_inputs: result.resolved_inputs,
-                    article_number: result.article_number,
-                    law_id: result.law_id,
-                    law_uuid: result.law_uuid,
-                    trace: result.trace.map(TraceDocument::new),
-                    trace_text,
-                    engine_version: result.engine_version,
-                    schema_version: result.schema_version,
-                    regulation_hash: result.regulation_hash,
-                    regulation_valid_from: result.regulation_valid_from,
-                };
+                let wasm_result = WasmExecuteResultWithTrace::from(result);
 
                 wasm_result.serialize(&js_serializer()).map_err(|e| {
                     wasm_error(&format!(
@@ -1368,5 +1365,114 @@ articles:
             &note_with_source("https://example.com/bron"),
             "test_law"
         ));
+    }
+
+    #[test]
+    fn test_wasm_result_carries_how_a_located_term_was_asked() {
+        // The binding itself is a JsValue and cannot run natively; what it
+        // serializes can. Both result shapes carry the record as the
+        // engine's result holds it.
+        let mut engine = WasmEngine::new();
+        for law in [
+            r#"
+$id: place_law
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      open_terms:
+        - id: verboden
+          type: boolean
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          location: $locatie
+          territory: {regulation: boundaries, output: grens}
+          combine: OR
+      execution:
+        parameters:
+          - name: locatie
+            type: shape
+            required: true
+        output:
+          - name: vergunningplichtig
+            type: boolean
+        actions:
+          - output: vergunningplichtig
+            value: $verboden
+"#,
+            r#"
+$id: boundaries
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+        parameters:
+          - name: gemeente_code
+            type: string
+            required: true
+        output:
+          - name: grens
+            type: shape
+        actions:
+          - output: grens
+            value: POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))
+"#,
+            r#"
+$id: place_plan
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: GM9901
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      implements:
+        - law: place_law
+          article: '1'
+          open_term: verboden
+      execution:
+        output:
+          - name: verboden
+            type: boolean
+        actions:
+          - output: verboden
+            value: true
+"#,
+        ] {
+            load_law(&mut engine, law);
+        }
+        let evaluate = || {
+            let mut params = BTreeMap::new();
+            params.insert(
+                "locatie".to_string(),
+                Value::String("POINT(5 5)".to_string()),
+            );
+            engine
+                .service
+                .evaluate_law_output_with_trace(
+                    "place_law",
+                    "vergunningplichtig",
+                    params,
+                    "2025-06-01",
+                )
+                .unwrap()
+        };
+        let plain = serde_json::to_value(WasmExecuteResult::from(evaluate())).unwrap();
+        let traced = serde_json::to_value(WasmExecuteResultWithTrace::from(evaluate())).unwrap();
+        for result in [&plain, &traced] {
+            let asked = &result["open_terms_asked"][0];
+            assert_eq!(asked["term"], "verboden", "{result}");
+            assert_eq!(asked["location"], "POINT(5 5)");
+            assert_eq!(asked["territories"][0]["code"], "GM9901");
+            assert_eq!(asked["territories"][0]["source"], "boundaries#grens");
+            assert_eq!(asked["territories"][0]["overlaps"], true);
+            assert_eq!(asked["answers"][0]["gave"], "true");
+        }
+        assert!(traced["trace_text"].is_string());
     }
 }

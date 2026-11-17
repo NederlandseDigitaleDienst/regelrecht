@@ -83,39 +83,63 @@ Feature: An open term filled by the regulations of a place
 
   Scenario: A regulation whose territory the register does not hold leaves the term unknown
     # The register has no row for Nergenshuizen, so whether its regulation
-    # applies here is not known. That is never read as "it does not": the
-    # term is unknown for lack of the boundary in the register.
-    Given parameter "location" is "POINT(5 5)"
+    # applies here is not known. That is never read as "it does not": in
+    # Rechterdorp, where no plan speaks about terraces, the term is unknown
+    # for lack of the boundary in the register.
+    Given parameter "location" is "POINT(15 5)"
     When I evaluate "terras_niet_toegestaan" of "test_location_terms"
     Then the execution succeeds
     Then output "terras_niet_toegestaan" is unknown for lack of "grens_in_register"
 
-  Scenario: With the boundary in the register the regulation is held against the location
-    Given the following "grenzenregister" data with key "gemeente_code" for law "test_grenzenregister":
-      | gemeente_code | grens_in_register                      |
-      | GM9909        | POLYGON((0 0, 6 0, 6 6, 0 6, 0 0))     |
-    And parameter "location" is "POINT(5 5)"
+  Scenario: A plan in scope that says so wins over a territory the register does not hold
+    # In Linkerdorp the plan forbids a terrace. Whatever Nergenshuizen's
+    # regulation would add, the term is true.
+    Given parameter "location" is "POINT(5 5)"
     When I evaluate "terras_niet_toegestaan" of "test_location_terms"
     Then output "terras_niet_toegestaan" is true
 
-  Scenario: A territory asked of a law that is not loaded is an error that names the term, the code and the source
-    # A boundary that cannot be read is not the same as one that is not known.
+  Scenario: With the boundary in the register the regulation is held against the location
+    Given the following "grenzenregister" data with key "gemeente_code" for law "test_grenzenregister":
+      | gemeente_code | grens_in_register                      |
+      | GM9909        | POLYGON((10 0, 16 0, 16 6, 10 6, 10 0)) |
+    And parameter "location" is "POINT(15 5)"
+    When I evaluate "terras_niet_toegestaan" of "test_location_terms"
+    Then output "terras_niet_toegestaan" is true
+
+  Scenario: A territory asked of a law that is not loaded is an error that names the term and the source
+    # A defect of the term, whatever a regulation would say: Linkerdorp's
+    # verordening forbids the event, and the term still fails.
     Given parameter "location" is "POINT(5 5)"
     When I evaluate "evenement_niet_toegestaan" of "test_location_terms"
     Then the execution fails
     Then the execution fails with "Open term 'evenement_verboden' on test_location_terms#5"
-    Then the execution fails with "the territory of 'GM9901'"
-    Then the execution fails with "from test_register_dat_niet_bestaat#grens_van_gemeente cannot be read"
+    Then the execution fails with "reads its territory from test_register_dat_niet_bestaat#grens_van_gemeente"
+    Then the execution fails with "no law 'test_register_dat_niet_bestaat' is loaded"
 
-  Scenario: A territory that is not a shape is an error
-    # The term names the area of a municipality in square kilometres where it
-    # needs its boundary.
-    Given parameter "location" is "POINT(5 5)"
-    When I evaluate "reclame_niet_toegestaan" of "test_location_terms"
+  Scenario: With combine, a territory that cannot be read does not fail a case the own plan decides
+    # The register holds a boundary for Nergenshuizen that crosses itself.
+    # The location lies in Linkerdorp, whose plan forbids a terrace: the term
+    # is true, and the failure of the other territory is recorded, not raised.
+    Given the following "grenzenregister" data with key "gemeente_code" for law "test_grenzenregister":
+      | gemeente_code | grens_in_register                      |
+      | GM9909        | POLYGON((30 0, 40 10, 40 0, 30 10, 30 0)) |
+    And parameter "location" is "POINT(5 5)"
+    When I evaluate "terras_niet_toegestaan" of "test_location_terms"
+    Then output "terras_niet_toegestaan" is true
+
+  Scenario: With combine, a territory that cannot be read fails the case when no plan says so
+    # In Rechterdorp no plan speaks about terraces, so nothing outweighs the
+    # territory that could not be read.
+    Given the following "grenzenregister" data with key "gemeente_code" for law "test_grenzenregister":
+      | gemeente_code | grens_in_register                      |
+      | GM9909        | POLYGON((30 0, 40 10, 40 0, 30 10, 30 0)) |
+    And parameter "location" is "POINT(15 5)"
+    When I evaluate "terras_niet_toegestaan" of "test_location_terms"
     Then the execution fails
-    Then the execution fails with "Open term 'reclame_verboden' on test_location_terms#6"
-    Then the execution fails with "the territory of 'GM9901'"
-    Then the execution fails with "from test_grenzenregister#oppervlakte_van_gemeente is a integer, not a shape"
+    Then the execution fails with "Open term 'terras_verboden' on test_location_terms#2"
+    Then the execution fails with "the territory of 'GM9909'"
+    Then the execution fails with "from test_grenzenregister#grens_van_gemeente is no shape"
+    Then the execution fails with "is not a valid geometry"
 
   Scenario: Of two articles of one plan, one that says so is enough
     # Article 1 of Linkerdorp's plan is silent on felling; article 2 forbids it.

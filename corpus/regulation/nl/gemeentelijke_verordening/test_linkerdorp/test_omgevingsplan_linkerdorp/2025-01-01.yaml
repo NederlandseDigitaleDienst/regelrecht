@@ -135,17 +135,20 @@ articles:
   - number: '6'
     url: https://example.com/test_omgevingsplan_linkerdorp/6
     text: >-
-      Het is verboden handelsreclame te maken.
+      Het is verboden een terras te exploiteren.
     machine_readable:
+      # A second regulation that fills the terrace term, beside the one of
+      # Nergenshuizen: in Linkerdorp this plan decides, whatever is known of
+      # Nergenshuizen's territory.
       implements:
         - law: test_location_terms
-          article: '6'
-          open_term: reclame_verboden
-          gelet_op: Gelet op artikel 6 van de Testwet plaatsgebonden termen
+          article: '2'
+          open_term: terras_verboden
+          gelet_op: Gelet op artikel 2 van de Testwet plaatsgebonden termen
       execution:
         output:
-          - name: reclame_verboden
+          - name: terras_verboden
             type: boolean
         actions:
-          - output: reclame_verboden
+          - output: terras_verboden
             value: true

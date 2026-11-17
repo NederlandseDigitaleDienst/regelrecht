@@ -82,6 +82,12 @@
 //!   target of this law also exists. A target taken from a value is known
 //!   only at run time: the checker then knows the input is a decision value
 //!   and claims nothing about its fields (`$x.outputs.y`), as for rows.
+//!   The `territory` of an open term (schema v0.8.23) names an output of
+//!   another law: where the checker can consult that law, the output exists
+//!   and is a `shape`, and the article that gives it declares a parameter
+//!   for a territory code (`gemeente_code`, `provincie_code` or
+//!   `waterschap_code`), since that is what the engine asks it with. A law
+//!   it cannot consult is a matter for run time, as for `source.regulation`.
 
 use crate::article::{
     Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, CombineOp, Source,
@@ -499,6 +505,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
         self.check_definitions();
         self.check_input_sources();
         self.check_implements();
+        self.check_territories();
         let Some(actions) = self
             .article
             .get_execution_spec()
@@ -563,6 +570,68 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                          default, and may be null; produce a value for every case or give the \
                          term a default",
                         output.name, term.id, declaration.law, declaration.article
+                    ),
+                );
+            }
+        }
+    }
+
+    /// T5 for the `territory` of an open term (schema v0.8.23): the output
+    /// of a law that gives the territory a candidate regulation holds for.
+    /// Where that law can be consulted, the output exists, is a `shape`, and
+    /// its article declares a parameter for one of the territory codes: the
+    /// engine asks it with the code of a candidate, under the name of the
+    /// field that carries it, and an article that declares none of the three
+    /// would give every candidate the same territory.
+    fn check_territories(&mut self) {
+        const CODE_FIELDS: [&str; 3] = ["gemeente_code", "provincie_code", "waterschap_code"];
+        for term in self.article.get_open_terms().into_iter().flatten() {
+            let Some(territory) = &term.territory else {
+                continue;
+            };
+            let Some(law) = self.law_named(&territory.regulation) else {
+                continue;
+            };
+            self.location = format!("open term '{}'", term.id);
+            let named = format!(
+                "the territory of '{}' is read from {}#{}",
+                term.id, territory.regulation, territory.output
+            );
+            let Some(giving) = law.find_article_by_output(&territory.output) else {
+                self.report(
+                    Rule::T5,
+                    format!(
+                        "{named}, and {} has no output '{}'",
+                        territory.regulation, territory.output
+                    ),
+                );
+                continue;
+            };
+            let ty = giving
+                .find_output(&territory.output)
+                .map(|output| output.output_type);
+            if let Some(ty) = ty.filter(|ty| *ty != ParameterType::Shape) {
+                self.report(
+                    Rule::T5,
+                    format!(
+                        "{named}, which is a {}; a territory is a shape",
+                        Ty::of(ty).name()
+                    ),
+                );
+            }
+            let asked_by_code = giving
+                .get_parameters()
+                .iter()
+                .any(|parameter| CODE_FIELDS.contains(&parameter.name.as_str()));
+            if !asked_by_code {
+                self.report(
+                    Rule::T5,
+                    format!(
+                        "{named}, and article {} of {} declares no parameter {}; the territory \
+                         is asked with the code of a regulation under one of those names",
+                        giving.number,
+                        territory.regulation,
+                        CODE_FIELDS.join(", ")
                     ),
                 );
             }
@@ -4583,5 +4652,95 @@ output:
             "      operation: NOT\n      value:\n        operation: EQUALS\n        subject: \
              $perceel\n        value: null\n",
         ));
+    }
+
+    /// A law whose one article leaves `verboden` to the regulation of a
+    /// place and reads the territory from `territory`.
+    fn located_law(territory: &str) -> ArticleBasedLaw {
+        ArticleBasedLaw::from_yaml_str(&format!(
+            "$id: plaatswet\nregulatory_layer: WET\npublication_date: '2025-01-01'\narticles:\n  \
+             - number: '1'\n    text: t\n    machine_readable:\n      open_terms:\n        - id: \
+             verboden\n          type: boolean\n          location: $locatie\n          territory: \
+             {territory}\n          combine: OR\n      execution:\n        parameters:\n          - \
+             name: locatie\n            type: shape\n            required: true\n        output:\n          \
+             - name: x\n            type: boolean\n        actions:\n          - output: x\n            \
+             value: $verboden\n"
+        ))
+        .unwrap()
+    }
+
+    /// A law `register` whose one article gives `output` of type `ty`, with
+    /// `parameters` as the names of the parameters it declares.
+    fn register_law(output: &str, ty: &str, parameters: &[&str]) -> ArticleBasedLaw {
+        let parameters: String = parameters
+            .iter()
+            .map(|name| format!("  - name: {name}\n    type: string\n"))
+            .collect();
+        let parameters = if parameters.is_empty() {
+            String::new()
+        } else {
+            format!("parameters:\n{parameters}")
+        };
+        law(
+            "register",
+            &format!(
+                "{parameters}input:\n  - name: in_register\n    type: {ty}\n    source: \
+                 {{}}\noutput:\n  - name: {output}\n    type: {ty}\nactions:\n  - output: \
+                 {output}\n    value: $in_register\n"
+            ),
+        )
+    }
+
+    #[test]
+    fn t5_a_territory_is_a_shape_output_asked_by_a_territory_code() {
+        let term = located_law("{regulation: register, output: grens}");
+        let findings_with = |register: &ArticleBasedLaw| {
+            let lookup = |id: &str| (id == "register").then_some(register);
+            check_law(&term, &lookup)
+        };
+        // A shape, asked by any of the three codes: fine.
+        for code in ["gemeente_code", "provincie_code", "waterschap_code"] {
+            let findings = findings_with(&register_law("grens", "shape", &[code]));
+            assert!(findings.is_empty(), "{code}: {findings:#?}");
+        }
+
+        let no_such_output = findings_with(&register_law("omtrek", "shape", &["gemeente_code"]));
+        assert_eq!(rules(&no_such_output), vec![Rule::T5]);
+        assert!(
+            no_such_output[0]
+                .message
+                .contains("the territory of 'verboden' is read from register#grens, and register has no output 'grens'"),
+            "{}",
+            no_such_output[0].message
+        );
+        assert_eq!(no_such_output[0].location, "open term 'verboden'");
+
+        let a_number = findings_with(&register_law("grens", "number", &["gemeente_code"]));
+        assert_eq!(rules(&a_number), vec![Rule::T5]);
+        assert!(
+            a_number[0]
+                .message
+                .contains("which is a number; a territory is a shape"),
+            "{}",
+            a_number[0].message
+        );
+
+        // Asked by nothing a regulation carries: every candidate would get
+        // the same territory.
+        for parameters in [&[][..], &["bsn"][..]] {
+            let findings = findings_with(&register_law("grens", "shape", parameters));
+            assert_eq!(rules(&findings), vec![Rule::T5], "{parameters:?}");
+            assert!(
+                findings[0].message.contains(
+                    "article 1 of register declares no parameter gemeente_code, provincie_code, \
+                     waterschap_code"
+                ),
+                "{}",
+                findings[0].message
+            );
+        }
+
+        // A law the checker cannot consult is a matter for run time.
+        assert!(check_law_alone(&term).is_empty());
     }
 }

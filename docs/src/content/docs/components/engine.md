@@ -313,6 +313,8 @@ cargo run -q --bin evaluate < /tmp/request.json
 cargo run -q --bin evaluate -- --receipt --untranslatable=warn < /tmp/request.json
 ```
 
+Where the execution resolved an open term with a `location` or `combine: OR`, the response also carries `open_terms_asked`: the place, each territory it was held against and what every implementation gave ([Inversion of Control](/concepts/inversion-of-control#the-regulation-of-a-place)). The WASM `execute` family returns the same field.
+
 On failure the binary prints `{"error": "...", "engine_version": "..."}` and exits with status 1.
 
 Schema validation has its own recipe, run from the repository root:

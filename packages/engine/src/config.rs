@@ -97,6 +97,27 @@ pub const MAX_FUZZY_SCAN_CHARS: usize = 250_000;
 /// `Skipped` when nothing was found by then.
 pub const MAX_FUZZY_SCORED_WINDOWS: usize = 10_000;
 
+/// Maximum size of the text of a shape in bytes (4 MB).
+///
+/// A shape reaches the engine as well-known text from outside: a parameter,
+/// a register, a literal. The boundary of a large municipality at the full
+/// detail of the cadastral map runs to tens of kilobytes and a province to
+/// around a megabyte, and a whole rulework may be 1 MB ([`MAX_YAML_SIZE`]).
+/// Four times that leaves room for any real boundary, while a text beyond it
+/// is refused before it is parsed, so reading it cannot be made to cost
+/// without bound.
+pub const MAX_SHAPE_TEXT_BYTES: usize = 4_000_000;
+
+/// Maximum depth of parentheses in the text of a shape.
+///
+/// A shape is a point, a line or a surface, or several of one kind. The
+/// deepest of those is a `MULTIPOLYGON(((x y, ...)))`: three levels. Deeper
+/// nesting only occurs in a `GEOMETRYCOLLECTION`, which is no shape, and the
+/// parser recurses on it without a bound of its own: twenty thousand nested
+/// collections overflow the stack, which aborts the process and cannot be
+/// caught. So the depth is checked before the parser sees the text.
+pub const MAX_SHAPE_PAREN_DEPTH: usize = 3;
+
 /// Maximum recursion depth for dot notation property access.
 ///
 /// Prevents stack overflow on malicious input like "a.a.a.a.a...".

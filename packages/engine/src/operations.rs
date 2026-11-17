@@ -796,7 +796,7 @@ fn parse_shape(
     operand: &str,
     op: &str,
     shapes: Option<&crate::shape::ShapeCache>,
-) -> Result<std::rc::Rc<geo::Geometry<f64>>> {
+) -> Result<std::rc::Rc<crate::shape::Shape>> {
     let Value::String(text) = val else {
         return Err(EngineError::TypeMismatch {
             expected: format!("a shape (a string of WKT) as the {operand} of {op}"),

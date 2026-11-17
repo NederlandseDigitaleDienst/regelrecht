@@ -18,9 +18,13 @@
 //!   - article_number: String — the article that was executed
 //!   - law_id: String — the law ID that was evaluated
 //!   - law_uuid: Optional<String> — the law UUID if available
+//!   - open_terms_asked: Optional<Array> — how each open term with a `location`
+//!     or `combine: OR` was asked: the place, each territory test, each answer
 //!   - error: Optional<String> — error message if evaluation failed
 
-use regelrecht_engine::{LawExecutionService, OutputProvenance, UntranslatableMode, Value};
+use regelrecht_engine::{
+    LawExecutionService, OpenTermAsked, OutputProvenance, UntranslatableMode, Value,
+};
 use std::collections::BTreeMap;
 use std::io::Read;
 
@@ -64,6 +68,11 @@ struct EvaluateResponse {
     /// Per-output provenance (Direct/Reactive/Override)
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     output_provenance: BTreeMap<String, OutputProvenance>,
+    /// How each open term with a `location` or `combine: OR` was asked: the
+    /// place, the territories it was held against and what every
+    /// implementation gave, as on the engine's result.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    open_terms_asked: Vec<OpenTermAsked>,
 }
 
 fn error_response(msg: String) -> EvaluateResponse {
@@ -78,6 +87,7 @@ fn error_response(msg: String) -> EvaluateResponse {
         schema_version: None,
         regulation_hash: None,
         output_provenance: BTreeMap::new(),
+        open_terms_asked: Vec::new(),
     }
 }
 
@@ -209,6 +219,7 @@ fn main() {
                     schema_version: result.schema_version,
                     regulation_hash: result.regulation_hash,
                     output_provenance: result.output_provenance,
+                    open_terms_asked: result.open_terms_asked,
                 };
                 println!("{}", serde_json::to_string(&resp).unwrap_or_default());
             }

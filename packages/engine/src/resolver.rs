@@ -285,6 +285,12 @@ pub struct ImplementationLookup<'a> {
     /// is not among the implementations, and the term cannot be decided
     /// against it.
     pub place_unknown: Vec<Value>,
+    /// For a term with a `location` and `combine: OR`: why the territory of
+    /// a competent candidate regulation could not be read, once per
+    /// regulation. Such a candidate is left out like one that fails when it
+    /// is asked: an implementation in scope that gives true still decides.
+    /// Without `combine` the first such failure fails the lookup.
+    pub place_failed: Vec<String>,
 }
 
 /// How a candidate regulation lies to the place of a case, for an open term
@@ -298,6 +304,11 @@ pub(crate) enum Placed {
     /// The territory is not known: the Unknown that says what is missing.
     /// The regulation is then neither in scope nor out of it.
     NotKnown(Value),
+    /// The territory of this regulation could not be read as a shape: its
+    /// value is none, its geometry is not valid, or asking it failed. The
+    /// message says which. Not for a defect of the term itself, such as a
+    /// territory law that is not loaded: that fails the test.
+    Failed(String),
 }
 
 /// Holds a candidate regulation against the place of a case. It is given the
@@ -559,9 +570,10 @@ fn list_findings(findings: &[crate::typecheck::Finding]) -> String {
 }
 
 /// Whether `law` reads `law_id`: an input that takes one of its outputs or
-/// calls one of its articles by a fixed reference (RFC-045 §6), or an article
-/// that implements one of its open terms. These are the places where the
-/// type check consults another law (RFC-037, N5, T5).
+/// calls one of its articles by a fixed reference (RFC-045 §6), an article
+/// that implements one of its open terms, or an open term that reads its
+/// territory from it (schema v0.8.23). These are the places where the type
+/// check consults another law (RFC-037, N5, T5).
 fn references_law(law: &ArticleBasedLaw, law_id: &str) -> bool {
     law.articles.iter().any(|article| {
         article.get_inputs().iter().any(|input| {
@@ -576,6 +588,13 @@ fn references_law(law: &ArticleBasedLaw, law_id: &str) -> bool {
         }) || article
             .get_implements()
             .is_some_and(|implements| implements.iter().any(|i| i.law == law_id))
+            || article.get_open_terms().is_some_and(|terms| {
+                terms.iter().any(|term| {
+                    term.territory
+                        .as_ref()
+                        .is_some_and(|territory| territory.regulation == law_id)
+                })
+            })
     })
 }
 
@@ -1199,9 +1218,10 @@ impl RuleResolver {
     ///
     /// # Errors
     ///
-    /// As [`Self::find_implementations`], when `place` fails, and when a
+    /// As [`Self::find_implementations`], when `place` fails, when a
     /// candidate for a term with a `location` carries more than one
-    /// territory code.
+    /// territory code, and for a term without `combine` when the territory
+    /// of a candidate cannot be read ([`Placed::Failed`]).
     pub(crate) fn find_implementations_at(
         &self,
         law_id: &str,
@@ -1246,7 +1266,7 @@ impl RuleResolver {
         // filled the term is held against the place. A regulation is held
         // against it once, however many of its articles fill the term.
         let located = open_term.location.is_some();
-        let mut in_place: BTreeMap<&str, Placed> = BTreeMap::new();
+        let mut in_place: BTreeMap<&str, bool> = BTreeMap::new();
 
         for entry in entries {
             let Some(law) = self.candidate_in_force(&asked, entry, &mut lookup) else {
@@ -1271,12 +1291,25 @@ impl RuleResolver {
                 if !in_place.contains_key(law.id.as_str()) {
                     let placed =
                         Self::candidate_in_place(&asked, declarer, law, place.as_deref_mut())?;
-                    if let Placed::NotKnown(unknown) = &placed {
-                        lookup.place_unknown.push(unknown.clone());
-                    }
-                    in_place.insert(law.id.as_str(), placed);
+                    let here = match placed {
+                        Placed::Here => true,
+                        Placed::Elsewhere => false,
+                        Placed::NotKnown(unknown) => {
+                            lookup.place_unknown.push(unknown);
+                            false
+                        }
+                        // One regulation has to win without `combine`, and
+                        // this one may be it; with `combine: OR` it is one
+                        // voice among several that cannot be heard.
+                        Placed::Failed(why) if open_term.combines_with_or() => {
+                            lookup.place_failed.push(why);
+                            false
+                        }
+                        Placed::Failed(why) => return Err(EngineError::ResolutionError(why)),
+                    };
+                    in_place.insert(law.id.as_str(), here);
                 }
-                if in_place.get(law.id.as_str()) != Some(&Placed::Here) {
+                if in_place.get(law.id.as_str()) != Some(&true) {
                     tracing::debug!(
                         candidate = %entry.law_id,
                         "Skipping: the candidate's territory is not known to be the place of \

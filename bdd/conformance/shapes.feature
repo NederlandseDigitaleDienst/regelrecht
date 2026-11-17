@@ -79,6 +79,27 @@ Feature: Shapes and OVERLAPS
     Then the execution fails
     Then the execution fails with "has a coordinate beyond 1e12"
 
+  Scenario: Text after the shape is an error, and is never dropped
+    # The parser reads the first geometry and would leave the rest unread.
+    Given parameter "location" is "POINT(155105 463625) POINT(153000 463625)"
+    When I evaluate "ligt_in_beperkingengebied" of "test_shapes"
+    Then the execution fails
+    Then the execution fails with "has text after the shape closes"
+
+  Scenario: A ring that does not close is an error
+    # The last corner is not the first. Closing it by itself would make
+    # another area of a mis-transcribed one.
+    Given parameter "location" is "POLYGON((155100 463610, 155110 463610, 155110 463620, 155100 463620))"
+    When I evaluate "ligt_in_beperkingengebied" of "test_shapes"
+    Then the execution fails
+    Then the execution fails with "has a ring that does not end where it starts"
+
+  Scenario: Parentheses nested deeper than a shape needs are an error
+    Given parameter "location" is "POLYGON((((155100 463610, 155110 463610, 155110 463620, 155100 463610))))"
+    When I evaluate "ligt_in_beperkingengebied" of "test_shapes"
+    Then the execution fails
+    Then the execution fails with "nests parentheses deeper than 3"
+
   Scenario: An absent shape fails, as ordering an absence does
     # A row is untyped, so no declaration refuses the null at the boundary;
     # the operation does. Whether nothing overlaps an area is not a question

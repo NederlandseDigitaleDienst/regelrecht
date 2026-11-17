@@ -37,23 +37,3 @@ articles:
         actions:
           - output: grens_van_gemeente
             value: $grens_in_register
-
-  - number: '2'
-    url: https://example.com/test_grenzenregister/2
-    text: >-
-      De oppervlakte van een gemeente bedraagt 100 vierkante kilometer.
-    machine_readable:
-      # An output that is no shape, for a term that names it as its
-      # territory by mistake.
-      execution:
-        parameters:
-          - name: gemeente_code
-            type: string
-            required: true
-            description: The code of the municipality whose area is asked.
-        output:
-          - name: oppervlakte_van_gemeente
-            type: number
-        actions:
-          - output: oppervlakte_van_gemeente
-            value: 100
