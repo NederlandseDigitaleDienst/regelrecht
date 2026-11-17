@@ -2864,6 +2864,23 @@ mod tests {
         }
 
         #[test]
+        fn the_size_limit_admits_a_number_of_exactly_that_many_bits() {
+            // 1 / 2^n has a denominator of n + 1 bits.
+            let power_of_a_half = |n: u64| {
+                let half = dec("0.5");
+                (0..n).fold(Number::one(), |value, _| &value * &half)
+            };
+            let at_the_limit = power_of_a_half(MAX_NUMBER_BITS - 1);
+            assert_eq!(at_the_limit.bits(), MAX_NUMBER_BITS);
+            assert!(within_size_limit("TEST", at_the_limit).is_ok());
+            let one_bit_over = power_of_a_half(MAX_NUMBER_BITS);
+            assert!(matches!(
+                within_size_limit("TEST", one_bit_over),
+                Err(EngineError::ArithmeticOverflow(_))
+            ));
+        }
+
+        #[test]
         fn a_number_over_the_size_limit_is_an_overflow_that_names_the_operation() {
             // Adding fractions with different prime denominators multiplies
             // the denominators; enough of them pass any limit.
