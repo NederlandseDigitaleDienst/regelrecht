@@ -14,10 +14,10 @@ url: https://example.org/waterschapsverordening-rivierdijken
 # PROPOSED, not in the schema: the value type `shape` and the operation
 # OVERLAPS. Nothing else is new.
 #
-# An area is the output of the article that designates it. Its value is a
-# reference to the geometry adopted with this version of the rulework; the
-# coordinates are never in the YAML. A geometry file is never edited: a
-# changed boundary is a new file, named in a new version of the rulework.
+# An area is the output of the article that designates it. Its value is the
+# shape itself, written as WKT in RD coordinates (EPSG:28992), the same
+# notation a scenario uses for a location. A version of the rulework so holds
+# its own geometry, and a changed boundary is a new version.
 
 articles:
   - number: '1.2'
@@ -34,7 +34,7 @@ articles:
             description: The area designated as beperkingengebied waterkering
         actions:
           - output: beperkingengebied_waterkering
-            value: areas/beperkingengebied_waterkering-2024-01-01.geojson
+            value: 'POLYGON((154000 463600, 157000 463600, 157000 463650, 154000 463650, 154000 463600))'
 
   - number: '3.1'
     text: |

@@ -5,7 +5,8 @@ Two things are proposed here that the schema does not have: the value type
 knows both, by sitting in front of the engine that does not:
 
 - it works out the value of every shape an article uses: the location given
-  with the question, or an area that another article designates;
+  with the question, or an area that another article designates. Both are
+  written as WKT in RD coordinates;
 - it decides every OVERLAPS and writes the outcome into the action tree;
 - it takes what is left of `shape` out of the rulework, and hands the engine
   a rulework it can read.
@@ -125,8 +126,7 @@ class Shapes:
             if declared["name"] == name and declared.get("type") == SHAPE:
                 source = declared["source"]
                 owner = self.ruleworks[source.get("regulation", rulework.id)]
-                path = designating_action(owner, source["output"])
-                return read_geometry(owner.directory / str(path))
+                return wkt.loads(str(designating_action(owner, source["output"])))
         raise ValueError(f"{rulework.id} art. {article['number']}: {name!r} is not a shape here")
 
     def decide(self, rulework: Rulework, article: dict, node: object) -> object:

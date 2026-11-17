@@ -36,7 +36,7 @@ articles:
             description: The area designated as beschermd stadsgezicht binnenstad
         actions:
           - output: beschermd_stadsgezicht_binnenstad
-            value: areas/beschermd_stadsgezicht_binnenstad-2024-01-01.geojson
+            value: 'POLYGON((155400 463400, 155700 463400, 155700 463700, 155400 463700, 155400 463400))'
 
   - number: '4.1'
     text: |
