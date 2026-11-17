@@ -323,6 +323,51 @@ describe('useProposalReview: deciding', () => {
     expect(tasks.applyEnrichment).toHaveBeenCalledWith(JOB, [{ task_id: 't1', action: 'rejected' }], '"v1"');
   });
 
+  // "Verwerpen" in the task list resolves a part at once, also while the same
+  // enrichment is open here (another tab). The apply endpoint refuses a batch
+  // that names a part that is no longer open, approvals included.
+  it('leaves out a part closed elsewhere while the review was open', async () => {
+    const { review } = await startReview();
+    tasks.fetchJobTasks.mockResolvedValue({
+      tasks: [
+        { id: 't1', article: '1', status: 'open', title: 'artikel 1' },
+        { id: 't2', article: '2', status: 'rejected', title: 'artikel 2' },
+      ],
+    });
+    await review.rejectRest();
+
+    expect(tasks.applyEnrichment).toHaveBeenCalledWith(JOB, [{ task_id: 't1', action: 'rejected' }], '"v1"');
+  });
+
+  it('keeps the parts as loaded when reading them again fails', async () => {
+    const { review } = await startReview();
+    tasks.fetchJobTasks.mockRejectedValue(new Error('503'));
+    await review.rejectRest();
+
+    expect(tasks.applyEnrichment).toHaveBeenCalledWith(
+      JOB,
+      [
+        { task_id: 't1', action: 'rejected' },
+        { task_id: 't2', action: 'rejected' },
+      ],
+      '"v1"',
+    );
+  });
+
+  it('writes nothing when every part was closed elsewhere', async () => {
+    const { review } = await startReview();
+    tasks.fetchJobTasks.mockResolvedValue({
+      tasks: [
+        { id: 't1', article: '1', status: 'rejected', title: 'artikel 1' },
+        { id: 't2', article: '2', status: 'dismissed', title: 'artikel 2' },
+      ],
+    });
+    await review.rejectRest();
+
+    expect(tasks.applyEnrichment).not.toHaveBeenCalled();
+    expect(review.active.value).toBe(false);
+  });
+
   it('keeps the review and its verdicts when writing fails', async () => {
     tasks.applyEnrichment.mockRejectedValue(new Error('412'));
     const { review } = await startReview();

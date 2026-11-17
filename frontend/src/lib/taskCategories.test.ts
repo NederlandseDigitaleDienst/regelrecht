@@ -172,6 +172,17 @@ describe('jobContext', () => {
     expect(jobLawId(convertJob)).toBeNull();
   });
 
+  // A law conversion carries a synthetic `lawdoc:` key and a harvest the BWB id
+  // of a law not yet in the corpus; neither names a law to file it under.
+  it('files a law conversion and a harvest under no context', () => {
+    const lawConvert = { job_id: 'j3', job_type: 'law_convert', law_id: 'lawdoc:t-abcd1234/voorstel.pdf' };
+    const harvest = { job_id: 'j4', job_type: 'traject_harvest', law_id: 'BWBR0002399' };
+    expect(jobContext(lawConvert)).toBeNull();
+    expect(jobLawId(lawConvert)).toBeNull();
+    expect(jobContext(harvest)).toBeNull();
+    expect(lawContexts([], [lawConvert, harvest])).toEqual([]);
+  });
+
   it('overleeft een lege job', () => {
     expect(jobContext(undefined)).toBeNull();
     expect(jobContext({})).toBeNull();

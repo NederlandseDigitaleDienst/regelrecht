@@ -1,6 +1,7 @@
 // The Algemeen page of a law: an overview with where the law comes from (its
 // published text and its folder on GitHub). The whole file has its own entry,
-// YAML, right below Algemeen.
+// YAML, right below Algemeen, and inside a traject the law's runs have one
+// below that, Verwerkingen.
 // Mounts LibraryView `shallow` with the composable stubs from
 // test-utils/libraryViewHarness.ts.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -17,7 +18,8 @@ const routeState: { name: string; params: Record<string, string>; query: Record<
   fullPath: '/corpus-juris/wet_a/algemeen',
   hash: '',
 });
-vi.mock('vue-router', () => harness.vueRouter(() => routeState));
+const replace = vi.hoisted(() => vi.fn());
+vi.mock('vue-router', () => harness.vueRouter(() => routeState, () => ({ replace })));
 vi.mock('./composables/useAuth', () => harness.auth());
 
 // What the corpus holds: the law's file, and its list entry for `?ids=`.
@@ -55,6 +57,8 @@ const LAW_TEXT = [
 const FOLDER = 'https://github.com/example-org/central-corpus/tree/main/regulation/nl/wet/wet_a';
 
 beforeEach(() => {
+  replace.mockReset();
+  replace.mockResolvedValue(undefined);
   routeState.params = { lawId: 'wet_a', articleNumber: 'algemeen' };
   routeState.hash = '';
   server.lawText = LAW_TEXT;
@@ -119,5 +123,53 @@ describe('LibraryView Algemeen', () => {
     await settle();
     expect(corpus.transport.calls).toContain('traject-aaaa1111 list');
     expect(wrapper.get('[data-testid="algemeen-link-github"]').attributes('href')).toBe(FOLDER);
+  });
+});
+
+describe('LibraryView Verwerkingen', () => {
+  it('lists the law\'s runs inside a traject, below YAML', async () => {
+    routeState.params = { trajectRef: 'traject-aaaa1111', lawId: 'wet_a', articleNumber: 'verwerkingen' };
+    const wrapper = mountLibrary();
+    await settle();
+    const yaml = wrapper.get('[data-testid="law-entry-yaml"]').element;
+    expect(yaml.nextElementSibling?.getAttribute('data-testid')).toBe('law-entry-verwerkingen');
+    expect(wrapper.get('[data-testid="law-entry-verwerkingen"]').attributes('current')).toBeDefined();
+    expect(wrapper.get('#verwerkingen-titel h3').text()).toBe('Verwerkingen');
+    // The page asks for this law's runs, with its BWB id for the harvest.
+    const list = wrapper.getComponent({ name: 'RunsListPane' });
+    expect(list.props()).toMatchObject({ trajectRef: 'traject-aaaa1111', lawId: 'wet_a', bwbId: 'BWBR0000001' });
+    expect(wrapper.text()).not.toContain('bestaat niet');
+  });
+
+  it('opens a run in the sheet and closes it again', async () => {
+    routeState.params = { trajectRef: 'traject-aaaa1111', lawId: 'wet_a', articleNumber: 'verwerkingen' };
+    const wrapper = mountLibrary();
+    await settle();
+    const sheet = () => wrapper.getComponent({ name: 'RunDetailSheet' });
+    expect(sheet().props('jobId')).toBeNull();
+    wrapper.getComponent({ name: 'RunsListPane' }).vm.$emit('select', 'j1');
+    await nextTick();
+    expect(sheet().props('jobId')).toBe('j1');
+    sheet().vm.$emit('close');
+    await nextTick();
+    expect(sheet().props('jobId')).toBeNull();
+  });
+
+  it('has no Verwerkingen outside a traject: runs belong to one', async () => {
+    const wrapper = mountLibrary();
+    await settle();
+    expect(wrapper.find('[data-testid="law-entry-verwerkingen"]').exists()).toBe(false);
+  });
+
+  // Switching to Corpus juris from the page keeps the article segment.
+  it('shows the law instead of a missing article for Verwerkingen outside a traject', async () => {
+    routeState.params = { lawId: 'wet_a', articleNumber: 'verwerkingen' };
+    const wrapper = mountLibrary();
+    await settle();
+    expect(wrapper.findComponent({ name: 'RunsListPane' }).exists()).toBe(false);
+    expect(replace).toHaveBeenCalledWith(
+      expect.objectContaining({ params: expect.not.objectContaining({ articleNumber: expect.anything() }) }),
+    );
+    expect(replace.mock.calls.at(-1)?.[0]).toMatchObject({ params: { lawId: 'wet_a' } });
   });
 });
