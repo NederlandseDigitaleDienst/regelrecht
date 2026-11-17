@@ -17,7 +17,7 @@
  * That holds without naming any column of any law.
  */
 import { toon } from './logboek.js';
-import { isDecimaal, leesbaar } from './state.js';
+import { decimaalGetal, isDecimaal, leesbaar } from './state.js';
 
 /** The types of a column that counts something: no part of a key. */
 const MAAT = ['number', 'amount'];
@@ -28,7 +28,7 @@ export const sleutelKolommen = (kolommen) => kolommen.filter((k) => !MAAT.includ
 /** A cell as it is compared: absent is null, a decimal is its number. */
 const celWaarde = (v) => {
   if (v === undefined) return null;
-  return isDecimaal(v) ? Number(v.__decimal) : v;
+  return isDecimaal(v) ? decimaalGetal(v) : v;
 };
 
 /** The values of `rij` in the columns `namen`, as one text to compare. */
@@ -75,7 +75,7 @@ export function zelfdeTabel(a, b, kolommen) {
 export const alsInvoer = (tabel) =>
   Array.isArray(tabel)
     ? tabel.map((rij) =>
-        Object.fromEntries(Object.entries(rij ?? {}).map(([k, v]) => [k, isDecimaal(v) ? Number(v.__decimal) : v])),
+        Object.fromEntries(Object.entries(rij ?? {}).map(([k, v]) => [k, isDecimaal(v) ? decimaalGetal(v) : v])),
       )
     : tabel;
 

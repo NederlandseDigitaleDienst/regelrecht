@@ -143,6 +143,7 @@ describe('the edge cases of the comparison', () => {
 describe('alsInvoer', () => {
   it('holds a decimal cell as its number, and leaves a value that is no table', () => {
     expect(alsInvoer([{ aantal: { __decimal: '2.5' }, naam: 'A' }])).toEqual([{ aantal: 2.5, naam: 'A' }]);
+    expect(alsInvoer([{ aandeel: { __fraction: '1/4' } }])).toEqual([{ aandeel: 0.25 }]);
     expect(alsInvoer('tekst')).toBe('tekst');
     expect(alsInvoer(undefined)).toBeUndefined();
   });
