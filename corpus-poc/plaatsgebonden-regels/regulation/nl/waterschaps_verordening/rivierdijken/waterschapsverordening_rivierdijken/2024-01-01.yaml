@@ -11,12 +11,12 @@ url: https://example.org/waterschapsverordening-rivierdijken
 # FICTIONAL. Waterschap Rivierdijken does not exist; the text is written for
 # this example.
 #
-# PROPOSED, not in the schema: `areas` and `applies_in` (see the omgevingsplan).
-
-legal_basis:
-  - law_id: omgevingswet
-    article: '5.3'
-    description: Omgevingsvergunningplicht waterschapsverordening
+# PROPOSED, not in the schema: `areas` and `applies_in`.
+#
+# This rulework names the area ON the article with `applies_in`: outside the
+# area the article does not exist, and its logic knows nothing of places. The
+# omgevingsplan next to it uses the area inside the logic. Both ways are here
+# on purpose, to compare them.
 
 areas:
   beperkingengebied_waterkering:
@@ -31,6 +31,11 @@ articles:
     url: https://example.org/waterschapsverordening-rivierdijken#artikel3.1
 
     machine_readable:
+      implements:
+        - law: omgevingswet
+          article: '5.3'
+          open_term: waterschapsverordening_verbiedt_zonder_vergunning
+          gelet_op: Gelet op artikel 5.3 van de Omgevingswet
       execution:
         parameters:
           - name: activiteit
@@ -38,12 +43,14 @@ articles:
             required: true
             description: What the applicant wants to do
         output:
-          - name: vergunningplicht
+          - name: waterschapsverordening_verbiedt_zonder_vergunning
             type: boolean
-            description: Whether the activity needs a permit under this article
+            description: Whether this article forbids the activity without a permit
         actions:
-          - output: vergunningplicht
+          - output: waterschapsverordening_verbiedt_zonder_vergunning
             value:
-              operation: EQUALS
+              operation: IN
               subject: $activiteit
-              value: bouwen
+              values:
+                - hoofdgebouw_bouwen
+                - bijbehorend_bouwwerk_bouwen

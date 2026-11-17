@@ -7,9 +7,11 @@ valid_from: '2024-01-01'
 bwb_id: BWBR0037885
 url: https://wetten.overheid.nl/BWBR0037885
 
-# Text only. These two articles are the legal basis of the permit duties in
-# the decentral ruleworks of this example; they carry no logic of their own
-# here.
+# The entry point of the example. The bans sit here; the decentral ruleworks
+# only say for which activities, and where. Each article leaves that to an
+# open term, and the question "is a permit required?" is asked of this law.
+#
+# Only article 5.1 lid 1 under a and article 5.3 are modelled.
 
 articles:
   - number: '5.1'
@@ -25,8 +27,65 @@ articles:
       tenzij het gaat om een bij algemene maatregel van bestuur aangewezen geval.
     url: https://wetten.overheid.nl/BWBR0037885#Hoofdstuk5_Afdeling5.1_Paragraaf5.1.1_Artikel5.1
 
+    machine_readable:
+      open_terms:
+        # Bijlage onder A, begrip omgevingsplanactiviteit, onder a: "een
+        # activiteit waarvoor in het omgevingsplan is bepaald dat het is
+        # verboden deze zonder omgevingsvergunning te verrichten".
+        - id: omgevingsplan_verbiedt_zonder_vergunning
+          type: boolean
+          required: false
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: bijlage onder A (omgevingsplanactiviteit, onder a) Omgevingswet
+          default:
+            actions:
+              - output: omgevingsplan_verbiedt_zonder_vergunning
+                value: false
+
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+            description: What the applicant wants to do
+        output:
+          - name: vergunningplicht_omgevingsplanactiviteit
+            type: boolean
+            description: Lid 1 under a - permit required as omgevingsplanactiviteit
+        actions:
+          - output: vergunningplicht_omgevingsplanactiviteit
+            value: $omgevingsplan_verbiedt_zonder_vergunning
+
   - number: '5.3'
     text: |
       Het is verboden zonder omgevingsvergunning een activiteit te verrichten
       wanneer dat in de waterschapsverordening is bepaald.
     url: https://wetten.overheid.nl/BWBR0037885#Hoofdstuk5_Afdeling5.1_Paragraaf5.1.1_Artikel5.3
+
+    machine_readable:
+      open_terms:
+        - id: waterschapsverordening_verbiedt_zonder_vergunning
+          type: boolean
+          required: false
+          delegated_to: algemeen bestuur van het waterschap
+          delegation_type: WATERSCHAPS_VERORDENING
+          legal_basis: artikel 5.3 Omgevingswet
+          default:
+            actions:
+              - output: waterschapsverordening_verbiedt_zonder_vergunning
+                value: false
+
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+            description: What the applicant wants to do
+        output:
+          - name: vergunningplicht_waterschapsverordening
+            type: boolean
+            description: Permit required under the waterschapsverordening
+        actions:
+          - output: vergunningplicht_waterschapsverordening
+            value: $waterschapsverordening_verbiedt_zonder_vergunning
