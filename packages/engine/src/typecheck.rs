@@ -54,13 +54,17 @@
 //!   the law leaves the term to an authority per case
 //!   (`decided_per_case_by`): the implementation's value is the term's.
 //! - **T1** Arithmetic and ordering operands are numbers (or amounts); `ADD`
-//!   also concatenates strings and arrays, ordering also compares dates.
+//!   also concatenates strings and arrays, ordering also compares dates. The
+//!   operands of `OVERLAPS` (schema v0.8.23) are shapes, and a literal there
+//!   parses as well-known text.
 //! - **T2** Logical operands and `IF` conditions are booleans.
 //! - **T3** `EQUALS` compares values of one type; `number` and `amount` are
 //!   one type here, and so are `date` and `string`, since dates arrive as ISO
 //!   strings.
 //! - **T4** A literal assigned to an output has the output's type, and so
-//!   does a `RECORD` (schema v0.8.22), which is an object. A `RECORD` the
+//!   does a `RECORD` (schema v0.8.22), which is an object. A literal assigned
+//!   to an output of type `shape` (schema v0.8.23) parses as well-known text,
+//!   also in a branch of an `IF`. A `RECORD` the
 //!   article builds for an output with `columns` (the body of a `FOREACH`
 //!   without `combine` or with `DISTINCT`, an item of a `LIST`, a branch of an
 //!   `IF` among those) names exactly those columns, and a value whose type the
@@ -182,6 +186,9 @@ enum Ty {
     /// A decision value `{basis, fields, findings, outputs}` (RFC-045 §6): an object
     /// whose fields the checker does not type, like any object.
     Decision,
+    /// A two-dimensional geometry (schema v0.8.23): at run time a string of
+    /// well-known text.
+    Shape,
 }
 
 impl Ty {
@@ -195,6 +202,7 @@ impl Ty {
             ParameterType::Array => Ty::Array,
             ParameterType::Object => Ty::Object,
             ParameterType::Decision => Ty::Decision,
+            ParameterType::Shape => Ty::Shape,
         }
     }
 
@@ -218,8 +226,8 @@ impl Ty {
 
     /// Whether two known types may meet in a comparison or an assignment:
     /// `number` and `amount` are both numbers, a `date` arrives as an ISO
-    /// string from data and from `$referencedate.iso`, and a `decision` is an
-    /// object at run time.
+    /// string from data and from `$referencedate.iso`, a `decision` is an
+    /// object at run time, and a `shape` is a string of well-known text.
     fn compatible(self, other: Ty) -> bool {
         self == other
             || (self.is_numeric() && other.is_numeric())
@@ -229,6 +237,8 @@ impl Ty {
                     | (Ty::String, Ty::Date)
                     | (Ty::Decision, Ty::Object)
                     | (Ty::Object, Ty::Decision)
+                    | (Ty::Shape, Ty::String)
+                    | (Ty::String, Ty::Shape)
             )
     }
 
@@ -242,6 +252,7 @@ impl Ty {
             Ty::Array => "array",
             Ty::Object => "object",
             Ty::Decision => "decision",
+            Ty::Shape => "shape",
         }
     }
 }
@@ -899,6 +910,14 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 ),
             );
         }
+        if declared_ty == Some(Ty::Shape)
+            && let Some(why) = unreadable_shape_literal(&expression)
+        {
+            self.report(
+                Rule::T4,
+                format!("output is declared shape but is assigned a literal that is none: {why}"),
+            );
+        }
         if let Some(columns) = output.and_then(|o| o.columns.as_deref()) {
             self.check_table_rows(&expression, columns);
         }
@@ -940,6 +959,17 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                                 "output is declared {} but a branch assigns a {} literal",
                                 declared.name(),
                                 actual.name()
+                            ),
+                        );
+                    }
+                    if declared == Ty::Shape
+                        && let Some(why) = unreadable_shape_literal(branch)
+                    {
+                        self.report(
+                            Rule::T4,
+                            format!(
+                                "output is declared shape but a branch assigns a literal that \
+                                 is none: {why}"
                             ),
                         );
                     }
@@ -1516,6 +1546,36 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 self.operand(date, facts, name);
                 Info::present(Some(Ty::Date), "the START_OF")
             }
+            ActionOperation::Overlaps { subject, value } => {
+                for (operand, role) in [(subject, "subject"), (value, "value")] {
+                    let info = self.operand(operand, facts, name);
+                    self.require_shape(&info, operand, role, name);
+                }
+                Info::present(Some(Ty::Boolean), "the OVERLAPS")
+            }
+        }
+    }
+
+    /// T1: an operand of `OVERLAPS` is a shape. A shape arrives as a string
+    /// of well-known text, so a string passes as a date passes for an
+    /// ordering; a literal is held to the text it must be.
+    fn require_shape(&mut self, info: &Info, operand: &ActionValue, role: &str, operation: &str) {
+        match info.ty {
+            Some(Ty::Shape | Ty::String) | None => {}
+            Some(ty) => self.report(
+                Rule::T1,
+                format!(
+                    "{} is a {} and is the {role} of {operation}, which needs a shape",
+                    info.describe,
+                    ty.name()
+                ),
+            ),
+        }
+        if let Some(why) = unreadable_shape_literal(operand) {
+            self.report(
+                Rule::T1,
+                format!("the {role} of {operation} is not a shape: {why}"),
+            );
         }
     }
 
@@ -1797,6 +1857,18 @@ fn is_literal_shaped(expr: &ActionValue) -> bool {
     match expr {
         ActionValue::Literal(value) => Ty::of_literal(value).is_some(),
         ActionValue::Operation(op) => matches!(op.as_ref(), ActionOperation::Record { .. }),
+    }
+}
+
+/// Why a string literal is no shape, or `None` when `expr` is no string
+/// literal (a reference, an operation, another kind of literal) or is one
+/// that reads as a shape.
+fn unreadable_shape_literal(expr: &ActionValue) -> Option<String> {
+    match expr {
+        ActionValue::Literal(Value::String(text)) if !is_reference(text) => {
+            crate::shape::parse(text).err()
+        }
+        _ => None,
     }
 }
 
@@ -4307,6 +4379,99 @@ actions:
   - output: x
     value: {operation: RECORD, fields: {a: $n, b: null}}
 "#,
+        );
+    }
+
+    const OVERLAPS_HEAD: &str = r#"
+parameters:
+  - name: locatie
+    type: shape
+  - name: gebied
+    type: shape
+  - name: perceel
+    type: shape
+    nullable: true
+  - name: oppervlakte
+    type: number
+  - name: omschrijving
+    type: string
+output:
+  - name: x
+    type: boolean
+"#;
+
+    fn overlaps(subject: &str, value: &str) -> String {
+        format!(
+            "{OVERLAPS_HEAD}actions:\n  - output: x\n    value:\n      operation: OVERLAPS\n      \
+             subject: {subject}\n      value: {value}\n"
+        )
+    }
+
+    #[test]
+    fn overlaps_takes_two_shapes_and_gives_a_boolean() {
+        assert_clean(&overlaps("$locatie", "$gebied"));
+        // A shape arrives as a string of WKT, so a string and a literal pass.
+        assert_clean(&overlaps("$omschrijving", "$gebied"));
+        assert_clean(&overlaps("POINT(1 1)", "$gebied"));
+        assert_only(
+            &overlaps("$oppervlakte", "$gebied"),
+            Rule::T1,
+            "'oppervlakte' is a number and is the subject of OVERLAPS, which needs a shape",
+        );
+        assert_only(
+            &overlaps("$locatie", "true"),
+            Rule::T1,
+            "the literal is a boolean and is the value of OVERLAPS",
+        );
+        assert_only(
+            &overlaps("$locatie", "langs de dijk"),
+            Rule::T1,
+            "the value of OVERLAPS is not a shape: 'langs de dijk' does not parse as WKT",
+        );
+        // The result is a boolean: assigning it to a number is not a literal
+        // mismatch, but deciding on it is allowed.
+        assert_clean(&format!(
+            "{OVERLAPS_HEAD}actions:\n  - output: x\n    value:\n      operation: AND\n      \
+             conditions:\n        - operation: OVERLAPS\n          subject: $locatie\n          \
+             value: $gebied\n"
+        ));
+    }
+
+    #[test]
+    fn overlaps_needs_a_shape_that_is_present() {
+        assert_only(
+            &overlaps("$perceel", "$gebied"),
+            Rule::N4,
+            "'perceel' may be absent and is used in OVERLAPS",
+        );
+    }
+
+    #[test]
+    fn a_literal_for_a_shape_output_parses_as_wkt() {
+        let shape_output = |value: &str| {
+            format!(
+                "output:\n  - name: gebied\n    type: shape\nactions:\n  - output: gebied\n    value: {value}\n"
+            )
+        };
+        assert_clean(&shape_output("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))"));
+        assert_only(
+            &shape_output("langs de dijk"),
+            Rule::T4,
+            "output is declared shape but is assigned a literal that is none: 'langs de dijk' \
+             does not parse as WKT",
+        );
+        assert_only(
+            &shape_output("12"),
+            Rule::T4,
+            "output is declared shape but is assigned a number literal",
+        );
+        assert_only(
+            &shape_output(
+                "\n      operation: IF\n      cases:\n        - when: true\n          then: \
+                 POINT(1 1)\n      default: nergens",
+            ),
+            Rule::T4,
+            "a branch assigns a literal that is none: 'nergens' does not parse as WKT",
         );
     }
 

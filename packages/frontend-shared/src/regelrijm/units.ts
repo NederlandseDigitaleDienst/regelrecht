@@ -122,6 +122,11 @@ export function literalUnits(
         at('value', null);
         each('values', exprUnit(node.subject, declared));
         return;
+      // Shapes are measured in nothing.
+      case 'OVERLAPS':
+        at('subject', null);
+        at('value', null);
+        return;
       case 'IF': {
         const u = firstUnit([...ifCases(node).map((c) => c.then), node.default], declared) ?? unit;
         ifCases(node).forEach((c, i) => {

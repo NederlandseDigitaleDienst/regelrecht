@@ -1,0 +1,22 @@
+---
+# The type shape came with schema v0.8.23. Under v0.8.22 both the schema and
+# the loader refuse it.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_conformance_shape_before_v0_8_23
+regulatory_layer: WET
+bwb_id: BWBR9999976
+publication_date: '2026-11-17'
+valid_from: '2026-11-17'
+url: https://example.invalid/shape-before
+articles:
+  - number: '1'
+    url: https://example.invalid/shape-before/1
+    text: Als beperkingengebied wordt aangewezen de strook langs de dijk.
+    machine_readable:
+      execution:
+        output:
+          - name: beperkingengebied
+            type: shape
+        actions:
+          - output: beperkingengebied
+            value: POLYGON((154000 463600, 157000 463600, 157000 463650, 154000 463650, 154000 463600))

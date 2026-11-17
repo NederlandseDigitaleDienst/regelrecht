@@ -122,6 +122,7 @@ impl LawLoad for ArticleBasedLaw {
         crate::load_check::reject_removed_constructs(&law)?;
         crate::load_check::reject_combine_before_its_version(&law)?;
         crate::load_check::reject_malformed_records(&law)?;
+        crate::load_check::reject_shapes_before_their_version(&law)?;
         crate::load_check::reject_misplaced_reduction(&law)?;
         crate::load_check::reject_misplaced_article_call(&law)?;
         crate::load_check::reject_misplaced_competence(&law)?;
@@ -213,7 +214,8 @@ fn reject_literal_operations(law: &ArticleBasedLaw) -> Result<()> {
             | Op::GreaterThan { subject, value }
             | Op::LessThan { subject, value }
             | Op::GreaterThanOrEqual { subject, value }
-            | Op::LessThanOrEqual { subject, value } => {
+            | Op::LessThanOrEqual { subject, value }
+            | Op::Overlaps { subject, value } => {
                 walk_action_value(subject, where_)?;
                 walk_action_value(value, where_)
             }

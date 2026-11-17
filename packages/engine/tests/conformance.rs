@@ -518,6 +518,7 @@ const UNCOVERED_SCHEMA_KEYS: &[(&str, &str)] = &[
     ("notOperation.legal_basis", "model drops it"),
     ("roundingOperation.legal_basis", "model drops it"),
     ("startOfOperation.legal_basis", "model drops it"),
+    ("overlapsOperation.legal_basis", "model drops it"),
 ];
 
 /// Every `(owner, property)` pair the schema defines, where `owner` is the

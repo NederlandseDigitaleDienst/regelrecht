@@ -62,7 +62,7 @@ use crate::article::ArticleBasedLaw;
 use crate::error::{EngineError, Result};
 use regelrecht_law_model::{
     Action, ActionOperation, ActionValue, Column, CombineOp, CompetentAuthority, MachineReadable,
-    ParameterType, RegulatoryLayer, StateProperty, names_fact,
+    Operation, ParameterType, RegulatoryLayer, StateProperty, names_fact,
 };
 
 /// Refuse a construct that a later schema version removed, naming what
@@ -152,6 +152,66 @@ pub(crate) fn reject_combine_before_its_version(law: &ArticleBasedLaw) -> Result
         }
     }
     Ok(())
+}
+
+/// Refuse the type `shape` and the operation `OVERLAPS` in a file on schema
+/// v0.8.22 or earlier: both arrived with v0.8.23. The schema refuses them
+/// there too, and the loader repeats that because a document can reach the
+/// engine without passing schema validation. The type is looked for on every
+/// parameter, input and output; the operation in the actions [`all_actions`]
+/// lists, at the level of the action and in every operand.
+pub(crate) fn reject_shapes_before_their_version(law: &ArticleBasedLaw) -> Result<()> {
+    if from_version(law, (0, 8, 23)) {
+        return Ok(());
+    }
+    let refuse = |where_: &str, what: String| {
+        Err(EngineError::LoadError(format!(
+            "law '{}' {where_}: {what}, which schema v0.8.23 introduced; declare v0.8.23 or later",
+            law.id
+        )))
+    };
+    for (where_, section) in sections(law) {
+        if let Some(execution) = &section.execution {
+            let parameters = execution.parameters.iter().flatten();
+            let outputs = execution.output.iter().flatten();
+            let fields = parameters
+                .map(|p| ("parameter", &p.name, p.param_type))
+                .chain(
+                    inputs(section)
+                        .iter()
+                        .map(|i| ("input", &i.name, i.input_type)),
+                )
+                .chain(outputs.map(|o| ("output", &o.name, o.output_type)));
+            for (kind, name, ty) in fields {
+                if ty == ParameterType::Shape {
+                    return refuse(&where_, format!("{kind} '{name}' is of type shape"));
+                }
+            }
+        }
+        for action in all_actions(section) {
+            if action.operation == Some(Operation::Overlaps)
+                || action.operands().any(contains_overlaps)
+            {
+                return refuse(
+                    &where_,
+                    format!(
+                        "action for output '{}' has an OVERLAPS",
+                        action.output.as_deref().unwrap_or("(unnamed)")
+                    ),
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Whether an `OVERLAPS` sits anywhere in `value`.
+fn contains_overlaps(value: &ActionValue) -> bool {
+    let ActionValue::Operation(op) = value else {
+        return false;
+    };
+    matches!(op.as_ref(), ActionOperation::Overlaps { .. })
+        || op.operands().into_iter().any(contains_overlaps)
 }
 
 /// Every action of a section: those of its execution, the default actions
@@ -1799,6 +1859,64 @@ articles:
                   default: null
 "#
         )
+    }
+
+    /// A law under `version` with `execution` as the execution of its one
+    /// article.
+    fn law_under(version: &str, execution: &str) -> ArticleBasedLaw {
+        let yaml = format!(
+            r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json
+$id: shape_gate
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      execution:
+{execution}"#
+        );
+        serde_yaml_ng::from_str(&yaml).unwrap()
+    }
+
+    #[test]
+    fn the_type_shape_is_refused_before_v0_8_23() {
+        let parameter = "        parameters:\n          - name: locatie\n            type: shape\n";
+        let input = "        input:\n          - name: gebied\n            type: shape\n            \
+                     source: {}\n";
+        let output = "        output:\n          - name: gebied\n            type: shape\n";
+        for (execution, named) in [
+            (parameter, "parameter 'locatie' is of type shape"),
+            (input, "input 'gebied' is of type shape"),
+            (output, "output 'gebied' is of type shape"),
+        ] {
+            let err = reject_shapes_before_their_version(&law_under("v0.8.22", execution))
+                .unwrap_err()
+                .to_string();
+            assert!(err.contains(named) && err.contains("v0.8.23"), "{err}");
+            reject_shapes_before_their_version(&law_under("v0.8.23", execution)).unwrap();
+        }
+    }
+
+    #[test]
+    fn overlaps_is_refused_before_v0_8_23() {
+        // Nested in an operand, and written at the level of the action.
+        let nested = "        actions:\n          - output: x\n            value:\n              \
+                      operation: NOT\n              value:\n                operation: OVERLAPS\n                \
+                      subject: $a\n                value: $b\n";
+        let at_action_level = "        actions:\n          - output: x\n            operation: \
+                               OVERLAPS\n            subject: $a\n            value: $b\n";
+        for execution in [nested, at_action_level] {
+            let err = reject_shapes_before_their_version(&law_under("v0.8.22", execution))
+                .unwrap_err()
+                .to_string();
+            assert!(
+                err.contains("action for output 'x' has an OVERLAPS") && err.contains("v0.8.23"),
+                "{err}"
+            );
+            reject_shapes_before_their_version(&law_under("v0.8.23", execution)).unwrap();
+        }
     }
 
     #[test]

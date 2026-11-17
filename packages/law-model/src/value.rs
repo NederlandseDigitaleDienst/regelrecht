@@ -813,6 +813,10 @@ pub enum Operation {
     DatePart,
     StartOf,
 
+    // Spatial operations (1)
+    /// Whether the interiors of two shapes meet (schema v0.8.23).
+    Overlaps,
+
     // Engine-only compat aliases — accepted during deserialization but NOT in the
     // v0.5.0 schema operationType enum. YAML using these will execute correctly but
     // fail schema validation. New laws should use NOT + the positive operation instead.
@@ -862,6 +866,7 @@ impl Operation {
         Operation::DateDiff,
         Operation::DatePart,
         Operation::StartOf,
+        Operation::Overlaps,
     ];
 
     /// Compat aliases accepted by the engine but not in the schema.
@@ -910,6 +915,7 @@ impl Operation {
         Operation::DateDiff,
         Operation::DatePart,
         Operation::StartOf,
+        Operation::Overlaps,
         Operation::NotEquals,
         Operation::IsNull,
         Operation::NotNull,
@@ -996,6 +1002,7 @@ impl Operation {
             Operation::DateDiff => "DATE_DIFF",
             Operation::DatePart => "DATE_PART",
             Operation::StartOf => "START_OF",
+            Operation::Overlaps => "OVERLAPS",
             Operation::NotEquals => "NOT_EQUALS",
             Operation::IsNull => "IS_NULL",
             Operation::NotNull => "NOT_NULL",
@@ -1025,6 +1032,11 @@ pub enum ParameterType {
     /// v0.8.4, RFC-045 §6). A value built from a recorded decision may also
     /// hold `taken_on`. At run time an object.
     Decision,
+    /// A two-dimensional geometry (schema v0.8.23). At run time a string
+    /// holding well-known text (WKT), such as `POINT(155105 463625)`. The
+    /// value carries no coordinate system: both operands of `OVERLAPS` must
+    /// be in the same one.
+    Shape,
 }
 
 #[cfg(test)]

@@ -36,6 +36,7 @@ const SAMPLES: Record<string, Operation> = {
   DATE_DIFF: { operation: 'DATE_DIFF', from: '$a', to: '$b', in: 'days' },
   DATE_PART: { operation: 'DATE_PART', date: '$d', in: 'year' },
   START_OF: { operation: 'START_OF', date: '$d', in: 'month' },
+  OVERLAPS: { operation: 'OVERLAPS', subject: '$locatie', value: '$gebied' },
   ROUND: { operation: 'ROUND', value: { operation: 'DIVIDE', values: ['$a', 12] }, precision: 0 },
   CEIL: { operation: 'CEIL', value: '$a', precision: 2 },
   FLOOR: { operation: 'FLOOR', value: '$a', precision: -2 },
@@ -68,6 +69,7 @@ const EXPECTED: Record<string, string> = {
   DATE_DIFF: 'het aantal dagen van [a] tot [b]',
   DATE_PART: 'het jaartal van [d]',
   START_OF: 'de eerste dag van de maand waarin [d] valt',
+  OVERLAPS: '[locatie] overlapt [gebied]',
   ROUND: 'afgerond op hele eenheden ( [a] gedeeld door 12 )',
   CEIL: 'naar boven afgerond op 2 decimalen ( [a] )',
   FLOOR: 'naar beneden afgerond op veelvouden van 100 ( [a] )',
@@ -95,6 +97,11 @@ describe('RegelRijm covers the schema', () => {
     const problems = r.segments.filter((s) => typeof s !== 'string' && (s.tk === 'error' || s.tk === 'hole'));
     expect(problems).toEqual([]);
     expect(r.text).toBe('[u] wordt: de lijst van de rij ( naam: [n] van [x]; som: [a] van [x] plus 1 ) over elke [x] in [m]');
+  });
+
+  it('reads OVERLAPS with the verb at the end after als', () => {
+    const value = { operation: 'IF', cases: [{ when: { operation: 'OVERLAPS', subject: '$locatie', value: '$gebied' }, then: 1 }], default: 0 };
+    expect(renderAction({ output: 'u', value }, { ctx }).text).toBe('[u] wordt: 1 als [locatie] [gebied] overlapt, anders 0');
   });
 
   it('shows an unknown operation as an error, not as something else', () => {

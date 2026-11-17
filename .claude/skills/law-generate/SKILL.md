@@ -642,6 +642,7 @@ actions:
 | Conditional | `IF` | `cases:` (each `when`/`then`) + `default:` |
 | Collection | `LIST` | `items:` array |
 | Rounding | `ROUND`, `CEIL`, `FLOOR` | `value:` + `precision:` (required) |
+| Spatial | `OVERLAPS` (schema v0.8.23) | `subject:` + `value:`, both of type `shape` (a string of WKT) |
 | Date | `AGE` (`date_of_birth`, `reference_date`), `DATE_ADD` (`date` + `years`/`months`/`weeks`/`days`), `DATE` (`year`, `month`, `day`), `DATE_DIFF` (`from`, `to`, `in`), `DAY_OF_WEEK` (`date`), `DATE_PART` (`date`, `in`), `START_OF` (`date`, `in`) | named fields |
 
 `ROUND` is half-up (rekenkundig, the Hoge Raad default), `CEIL` rounds up,

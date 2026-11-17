@@ -768,6 +768,10 @@ pub(crate) fn action_to_operation(
             subject: require_subject(operation)?,
             value: require_value(operation)?,
         }),
+        Operation::Overlaps => Ok(ActionOperation::Overlaps {
+            subject: require_subject(operation)?,
+            value: require_value(operation)?,
+        }),
 
         // Arithmetic operations (values)
         Operation::Add => Ok(ActionOperation::Add {

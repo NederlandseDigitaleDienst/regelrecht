@@ -1,0 +1,30 @@
+---
+# OVERLAPS came with schema v0.8.23. Under v0.8.22 both the schema and the
+# loader refuse it.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_conformance_overlaps_before_v0_8_23
+regulatory_layer: WET
+bwb_id: BWBR9999977
+publication_date: '2026-11-17'
+valid_from: '2026-11-17'
+url: https://example.invalid/overlaps-before
+articles:
+  - number: '1'
+    url: https://example.invalid/overlaps-before/1
+    text: Een locatie ligt in het gebied indien zij het gebied overlapt.
+    machine_readable:
+      execution:
+        parameters:
+          - name: locatie
+            type: string
+          - name: gebied
+            type: string
+        output:
+          - name: ligt_in_gebied
+            type: boolean
+        actions:
+          - output: ligt_in_gebied
+            value:
+              operation: OVERLAPS
+              subject: $locatie
+              value: $gebied

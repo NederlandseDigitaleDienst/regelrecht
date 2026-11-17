@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.22",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.23",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -1104,7 +1104,7 @@
         },
         "type": {
           "type": "string",
-          "description": "Value type. What an `amount` is counted in is declared separately, in `type_spec.unit`; units are opt-in per law, and an un-annotated value has unit `unknown` and is never checked (RFC-023). A `decision` is a decision value `{basis, fields, findings, outputs}`: the article that decided (`<regulation>#<article>`), the parameters that article was given and declares, its findings per case (the open terms it leaves to an authority per case, `decided_per_case_by`, under their ids), and the outputs of its decision item (RFC-050). A value built from a recorded decision may also carry `taken_on`: the article that established the submission the decision was taken on.",
+          "description": "Value type. What an `amount` is counted in is declared separately, in `type_spec.unit`; units are opt-in per law, and an un-annotated value has unit `unknown` and is never checked (RFC-023). A `decision` is a decision value `{basis, fields, findings, outputs}`: the article that decided (`<regulation>#<article>`), the parameters that article was given and declares, its findings per case (the open terms it leaves to an authority per case, `decided_per_case_by`, under their ids), and the outputs of its decision item (RFC-050). A value built from a recorded decision may also carry `taken_on`: the article that established the submission the decision was taken on. A `shape` (since v0.8.23) is a two-dimensional geometry, held as a string of well-known text (WKT) such as `POINT(155105 463625)` or `POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))`. A shape carries no coordinate system: the shapes that meet in an `OVERLAPS` must be in the same one.",
           "enum": [
             "string",
             "number",
@@ -1113,7 +1113,8 @@
             "object",
             "array",
             "date",
-            "decision"
+            "decision",
+            "shape"
           ]
         },
         "nullable": {
@@ -2227,6 +2228,42 @@
         }
       ]
     },
+    "overlapsOperation": {
+      "type": "object",
+      "description": "Whether two shapes overlap: true when their interiors have a point in common (DE-9IM `T********`), since v0.8.23. A polygon that lies partly on another overlaps it; two polygons that share only an edge or a corner do not; a point overlaps a polygon when it lies inside it and not on its boundary. Both operands are of type `shape`, a string of two-dimensional well-known text (WKT), and must be in the same coordinate system, which the operation does not check. A null operand is an error, as in an ordering comparison, and so is a string that is not valid WKT; an unknown operand makes the result unknown.",
+      "required": [
+        "operation",
+        "subject",
+        "value"
+      ],
+      "properties": {
+        "operation": {
+          "type": "string",
+          "const": "OVERLAPS",
+          "description": "Operation discriminator. Pins this object to the OVERLAPS form; the engine dispatches on it and the schema rejects any other key combination."
+        },
+        "subject": {
+          "$ref": "#/definitions/operationValue",
+          "description": "The shape that is tested, such as the location of an activity."
+        },
+        "value": {
+          "$ref": "#/definitions/operationValue",
+          "description": "The shape it is tested against, such as an area a regulation designates."
+        },
+        "legal_basis": {
+          "$ref": "#/definitions/legalBasis",
+          "description": "The article this particular step rests on. Set it where one action combines rules from several provisions and the operands come from different articles, so a trace can name the provision behind each step."
+        }
+      },
+      "additionalProperties": false,
+      "examples": [
+        {
+          "operation": "OVERLAPS",
+          "subject": "$locatie",
+          "value": "$beperkingengebied"
+        }
+      ]
+    },
     "operationType": {
       "type": "string",
       "description": "Operation type identifier used in action definitions, naming the same forms the operations below accept.",
@@ -2257,6 +2294,7 @@
         "DATE_DIFF",
         "DATE_PART",
         "START_OF",
+        "OVERLAPS",
         "ROUND",
         "CEIL",
         "FLOOR"
@@ -2315,6 +2353,9 @@
         },
         {
           "$ref": "#/definitions/startOfOperation"
+        },
+        {
+          "$ref": "#/definitions/overlapsOperation"
         }
       ]
     },

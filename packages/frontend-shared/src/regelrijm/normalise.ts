@@ -39,6 +39,7 @@ export const OPERATION_FIELDS: Readonly<Record<string, readonly string[]>> = Obj
   DATE_DIFF: ['from', 'to', 'in'],
   DATE_PART: ['date', 'in'],
   START_OF: ['date', 'in'],
+  OVERLAPS: ['subject', 'value'],
   ROUND: ['value', 'precision'],
   CEIL: ['value', 'precision'],
   FLOOR: ['value', 'precision'],

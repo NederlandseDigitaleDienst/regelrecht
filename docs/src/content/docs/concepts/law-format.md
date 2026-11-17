@@ -200,7 +200,19 @@ Values are referred to as `$name`, whether they are parameters, inputs, outputs 
 
 An action computes one output. The logic is a tree of operations, and article 3 follows the sentence of the law. Lid 1 names two grounds joined by "of": the applicant's own assets exceed the first limit, or, for someone with the same partner all year, the joint assets exceed the second. The test passes when neither ground holds, so the action is an `AND` of the first comparison and a conditional that applies the second only to a partner of the whole year. Dienst Toeslagen applies only the joint limit to a couple; the two readings differ when the applicant's own assets are above the first limit and the joint assets below the second. The model follows the letter, and a scenario in the corpus fixes that choice so it can be revisited on purpose.
 
-The schema defines 28 operations: arithmetic, comparison, logic, a conditional, rounding, collections and dates. Each one, with the operands it takes, is in [Operations](/reference/schema#operations) in the reference. They share one shape ([RFC-004](/rfcs/rfc-004)): the operation names what happens, and named operands say what it happens to, so `subject` and `value` in a comparison read in the order the law states them.
+The schema defines 30 operations: arithmetic, comparison, logic, a conditional, rounding, collections, dates and one spatial test. Each one, with the operands it takes, is in [Operations](/reference/schema#operations) in the reference. They share one shape ([RFC-004](/rfcs/rfc-004)): the operation names what happens, and named operands say what it happens to, so `subject` and `value` in a comparison read in the order the law states them.
+
+The spatial test is `OVERLAPS`, since schema v0.8.23. It compares two values of type `shape`: a geometry written as well-known text (WKT), such as `POINT(155105 463625)` or a `POLYGON` with its corner points. A regulation that designates an area gives it as an output of type `shape`, with the WKT as the value of the action, and an article that tests a location reads that output and compares:
+
+```yaml
+- output: ligt_in_beperkingengebied
+  value:
+    operation: OVERLAPS
+    subject: $locatie
+    value: $beperkingengebied
+```
+
+`OVERLAPS` is true when the interiors of the two shapes have a point in common. A location that lies partly on the area overlaps it. One that shares only an edge with it does not, and neither does a point on the boundary. The engine attaches no coordinate system to a shape, so both must be in the same one; it cannot tell when they are not. A string that is not valid WKT is an error and never `false`: an area that cannot be read has not been shown to lie outside anything. An absent shape is an error too, as an absent number is in an ordering comparison ([RFC-036](/rfcs/rfc-036)).
 
 The engine also accepts the compat aliases `NOT_EQUALS`, `IS_NULL`, `NOT_NULL` and `NOT_IN`, and `SWITCH` as an alias of `IF`. The schema does not, so a law that uses one parses and then fails `just validate`. Write the positive operation wrapped in `NOT` instead.
 

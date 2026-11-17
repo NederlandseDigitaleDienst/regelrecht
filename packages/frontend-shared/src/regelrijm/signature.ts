@@ -15,7 +15,7 @@ const UNIT_KINDS: Record<string, string> = {
   euro: 'bedrag', eurocent: 'bedrag', percentage: 'percentage', ratio: 'verhouding',
   years: 'aantal jaren', months: 'aantal maanden', weeks: 'aantal weken', days: 'aantal dagen',
 };
-const CONDITION_OPS = new Set(['AND', 'OR', 'NOT', 'EQUALS', 'GREATER_THAN', 'LESS_THAN', 'GREATER_THAN_OR_EQUAL', 'LESS_THAN_OR_EQUAL', 'IN']);
+const CONDITION_OPS = new Set(['AND', 'OR', 'NOT', 'EQUALS', 'GREATER_THAN', 'LESS_THAN', 'GREATER_THAN_OR_EQUAL', 'LESS_THAN_OR_EQUAL', 'IN', 'OVERLAPS']);
 const DIFF_KINDS: Record<string, string> = { days: 'aantal dagen', months: 'aantal maanden', years: 'aantal jaren' };
 const PART_KINDS: Record<string, string> = { year: 'jaartal', month: 'maandnummer', day: 'dagnummer' };
 

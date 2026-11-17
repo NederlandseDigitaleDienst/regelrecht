@@ -924,6 +924,15 @@ pub enum ActionOperation {
         #[serde(rename = "in")]
         unit: String,
     },
+
+    // Spatial
+    /// Whether the interiors of two shapes meet (schema v0.8.23). Both
+    /// operands are shapes: strings holding 2D well-known text.
+    #[serde(rename = "OVERLAPS")]
+    Overlaps {
+        subject: ActionValue,
+        value: ActionValue,
+    },
 }
 
 /// Aggregation applied to the per-element results of a FOREACH (RFC-016).
@@ -991,7 +1000,8 @@ impl ActionOperation {
             | ActionOperation::GreaterThan { subject, value }
             | ActionOperation::LessThan { subject, value }
             | ActionOperation::GreaterThanOrEqual { subject, value }
-            | ActionOperation::LessThanOrEqual { subject, value } => vec![subject, value],
+            | ActionOperation::LessThanOrEqual { subject, value }
+            | ActionOperation::Overlaps { subject, value } => vec![subject, value],
             ActionOperation::Add { values }
             | ActionOperation::Subtract { values }
             | ActionOperation::Multiply { values }
@@ -1091,6 +1101,7 @@ impl ActionOperation {
             ActionOperation::DateDiff { .. } => "DATE_DIFF",
             ActionOperation::DatePart { .. } => "DATE_PART",
             ActionOperation::StartOf { .. } => "START_OF",
+            ActionOperation::Overlaps { .. } => "OVERLAPS",
         }
     }
 }

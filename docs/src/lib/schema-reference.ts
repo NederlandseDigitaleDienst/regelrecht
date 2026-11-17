@@ -236,6 +236,7 @@ const OPERATION_CONCEPTS: Record<string, ConceptLink> = {
     href: '/concepts/temporal-and-dates#comparing-and-subtracting-dates',
     label: 'Dates',
   },
+  overlapsOperation: { href: '/concepts/law-format#operations', label: 'Operations' },
 };
 
 /**
