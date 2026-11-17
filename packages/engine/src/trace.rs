@@ -876,7 +876,7 @@ fn format_value_compact(value: &Value) -> String {
         Value::Int(i) => i.to_string(),
         Value::Decimal(d) => {
             // Limit decimal places
-            if d.fract().is_zero() {
+            if d.is_integer() {
                 format!("{:.1}", d)
             } else {
                 format!("{:.2}", d)
@@ -952,10 +952,14 @@ fn format_value_display(value: &Value) -> String {
         }
         Value::Int(i) => i.to_string(),
         Value::Decimal(d) => {
-            if d.fract().is_zero() {
+            if d.is_integer() {
                 format!("{:.1}", d)
-            } else {
+            } else if d.decimal_places().is_some() {
                 format!("{}", d)
+            } else {
+                // No finite decimal holds the number (one third): show
+                // enough digits to recognize it.
+                format!("{d:.10}")
             }
         }
         Value::String(s) => format!("'{}'", s),
@@ -1528,7 +1532,7 @@ mod tests {
     fn a_whole_decimal_does_not_survive_a_round_trip() {
         let mut builder = TraceBuilder::new_untimed();
         builder.push("bedrag", PathNodeType::Resolve);
-        builder.set_result(Value::Decimal(rust_decimal::Decimal::from(100)));
+        builder.set_result(Value::Decimal(crate::types::Number::from(100)));
         let original = builder.build().unwrap();
 
         let json = serde_json::to_string(&original).expect("serializes");
@@ -1631,8 +1635,8 @@ articles:
         let mut builder = TraceBuilder::new_untimed();
         builder.push("bedrag", PathNodeType::Action);
         builder.set_type_spec(TypeSpec {
-            min: Some(rust_decimal::Decimal::ZERO),
-            max: Some(rust_decimal::Decimal::ONE_HUNDRED),
+            min: Some(crate::types::Number::zero()),
+            max: Some(crate::types::Number::from(100)),
             ..TypeSpec::default()
         });
         let root = builder.build().expect("a built trace");
@@ -1648,7 +1652,7 @@ articles:
         builder.push("bedrag", PathNodeType::Action);
         builder.set_type_spec(TypeSpec {
             unit: Some("eurocent".to_string()),
-            min: Some(rust_decimal::Decimal::ZERO),
+            min: Some(crate::types::Number::zero()),
             ..TypeSpec::default()
         });
         let root = builder.build().expect("a built trace");

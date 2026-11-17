@@ -2,15 +2,16 @@
 //! and the rule by which two such values are the same.
 //!
 //! A `Value` keeps an integer as an `Int` and every other number as an exact
-//! `Decimal`. Plain JSON numbers cannot carry that: the ordinary
-//! serialization of a `Value` writes a decimal as a float, so `1/3` loses its
-//! 28 digits, and reads a whole float back as an integer, so a decimal `5.0`
-//! returns as `5`. That serialization stays as it is: it is what the API,
-//! the WASM build and the frontend read. What is kept to be read back, such
-//! as a chronicle, goes through this module instead: [`to_stored`] writes a
-//! decimal as `{"__decimal": "<digits>"}`, with the digits and the scale the
-//! `Decimal` holds, and [`from_stored`] reads that back as the same decimal.
-//! Every other value is the JSON the ordinary conversion writes.
+//! `Decimal`, a fraction. Plain JSON numbers cannot carry that: the ordinary
+//! serialization of a `Value` writes a decimal as a float, so `1/3` becomes
+//! its nearest double, and reads a whole float back as an integer, so a
+//! decimal `5.0` returns as `5`. That serialization stays as it is: it is
+//! what the API, the WASM build and the frontend read. What is kept to be
+//! read back, such as a chronicle, goes through this module instead:
+//! [`to_stored`] writes a decimal as `{"__decimal": "<digits>"}`, or as
+//! `{"__fraction": "<numerator>/<denominator>"}` when no finite decimal
+//! holds it (RFC-055), and [`from_stored`] reads either back as the same
+//! number. Every other value is the JSON the ordinary conversion writes.
 //!
 //! [`equal_as_written`] is the rule the engine's `EQUALS` applies to two
 //! lists or two records; [`same`] applies it to two stored values.
@@ -18,22 +19,30 @@
 use std::collections::BTreeMap;
 use std::fmt;
 
-use rust_decimal::Decimal;
 use serde_json::Value as J;
 
-use crate::Value;
+use crate::{Number, Value};
 
 /// The key of the object a decimal is stored as.
 pub const DECIMAL_KEY: &str = "__decimal";
 
+/// The key of the object a number without a finite decimal form is stored
+/// as, such as one third.
+pub const FRACTION_KEY: &str = "__fraction";
+
+/// Whether `key` is kept for a stored number.
+fn is_reserved(key: &str) -> bool {
+    key == DECIMAL_KEY || key == FRACTION_KEY
+}
+
 /// Why a value cannot be stored, read back or compared.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum StoredError {
-    /// A record holds [`DECIMAL_KEY`] itself: read back, it would be a
-    /// decimal it never was.
+    /// A record holds [`DECIMAL_KEY`] or [`FRACTION_KEY`] itself: read back,
+    /// it would be a number it never was.
     ReservedKey(String),
-    /// An object holds [`DECIMAL_KEY`] but is not the object [`to_stored`]
-    /// writes for a decimal.
+    /// An object holds [`DECIMAL_KEY`] or [`FRACTION_KEY`] but is not the
+    /// object [`to_stored`] writes for a number.
     NotADecimal(String),
     /// Two values hold an integer and a decimal of the same value at one
     /// place ([`equal_as_written`]).
@@ -45,7 +54,7 @@ impl fmt::Display for StoredError {
         match self {
             StoredError::ReservedKey(value) => write!(
                 f,
-                "{value} holds the key '{DECIMAL_KEY}', which is kept for a stored decimal"
+                "{value} holds the key '{DECIMAL_KEY}' or '{FRACTION_KEY}', which are kept for a stored number"
             ),
             StoredError::NotADecimal(json) => write!(f, "{json} is no stored decimal"),
             StoredError::Unlike(unlike) => unlike.fmt(f),
@@ -91,10 +100,14 @@ pub fn to_stored(value: &Value) -> Result<J, StoredError> {
     Ok(match value {
         Value::Decimal(d) => {
             let mut marker = serde_json::Map::new();
-            marker.insert(DECIMAL_KEY.to_string(), J::String(d.to_string()));
+            if d.decimal_places().is_some() {
+                marker.insert(DECIMAL_KEY.to_string(), J::String(d.to_string()));
+            } else {
+                marker.insert(FRACTION_KEY.to_string(), J::String(d.to_fraction_string()));
+            }
             J::Object(marker)
         }
-        Value::Object(map) if map.contains_key(DECIMAL_KEY) => {
+        Value::Object(map) if map.keys().any(|key| is_reserved(key)) => {
             return Err(StoredError::ReservedKey(value.to_string()));
         }
         Value::Array(items) => J::Array(items.iter().map(to_stored).collect::<Result<_, _>>()?),
@@ -119,7 +132,9 @@ pub fn from_stored(json: &J) -> Result<Value, StoredError> {
 /// turn into a decimal it never was.
 pub fn holds_reserved_key(json: &J) -> bool {
     match json {
-        J::Object(map) => map.contains_key(DECIMAL_KEY) || map.values().any(holds_reserved_key),
+        J::Object(map) => {
+            map.keys().any(|key| is_reserved(key)) || map.values().any(holds_reserved_key)
+        }
         J::Array(items) => items.iter().any(holds_reserved_key),
         _ => false,
     }
@@ -154,7 +169,7 @@ fn equal_at(a: &Value, b: &Value, path: &str) -> Result<bool, WrittenUnlike> {
             Ok(equal)
         }
         (Value::Int(i), Value::Decimal(d)) | (Value::Decimal(d), Value::Int(i))
-            if Decimal::from(*i) == *d =>
+            if Number::from(*i) == *d =>
         {
             Err(WrittenUnlike {
                 left: a.to_string(),
@@ -184,7 +199,9 @@ pub fn same_held(a: Option<&J>, b: Option<&J>) -> Result<bool, StoredError> {
 /// Turn the decimal objects in `value` back into decimals.
 fn restore(value: Value) -> Result<Value, StoredError> {
     Ok(match value {
-        Value::Object(map) if map.contains_key(DECIMAL_KEY) => Value::Decimal(decimal(&map)?),
+        Value::Object(map) if map.keys().any(|key| is_reserved(key)) => {
+            Value::Decimal(number(&map)?)
+        }
         Value::Object(map) => Value::Object(
             map.into_iter()
                 .map(|(k, v)| Ok((k, restore(v)?)))
@@ -197,17 +214,43 @@ fn restore(value: Value) -> Result<Value, StoredError> {
     })
 }
 
-/// The decimal `map` stands for: the object [`to_stored`] writes for one.
-fn decimal(map: &BTreeMap<String, Value>) -> Result<Decimal, StoredError> {
-    let digits = map
-        .get(DECIMAL_KEY)
-        .and_then(Value::as_str)
-        .filter(|_| map.len() == 1);
-    // Only the digits `to_stored` writes: what parses but reads otherwise,
-    // such as `1_0` or `+1`, is no decimal it wrote.
-    digits
-        .and_then(|d| d.parse::<Decimal>().ok().filter(|p| p.to_string() == d))
-        .ok_or_else(|| StoredError::NotADecimal(J::from(&Value::Object(map.clone())).to_string()))
+/// The number `map` stands for: the object [`to_stored`] writes for one.
+///
+/// A decimal is read from plain digits only (`-12.50`), so what parses but
+/// was never written, such as `+1` or `1e3`, is refused. Digits with trailing
+/// zeros are read too: values stored before numbers became fractions carry
+/// them.
+fn number(map: &BTreeMap<String, Value>) -> Result<Number, StoredError> {
+    let refused = || StoredError::NotADecimal(J::from(&Value::Object(map.clone())).to_string());
+    let (key, text) = map
+        .iter()
+        .next()
+        .filter(|_| map.len() == 1)
+        .and_then(|(key, value)| Some((key.as_str(), value.as_str()?)))
+        .ok_or_else(refused)?;
+    let unsigned = text.strip_prefix('-').unwrap_or(text);
+    let digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
+    let well_formed = match key {
+        DECIMAL_KEY => match unsigned.split_once('.') {
+            Some((whole, fraction)) => digits(whole) && digits(fraction),
+            None => digits(unsigned),
+        },
+        FRACTION_KEY => unsigned
+            .split_once('/')
+            .is_some_and(|(numerator, denominator)| digits(numerator) && digits(denominator)),
+        _ => false,
+    };
+    if !well_formed {
+        return Err(refused());
+    }
+    let parsed: Number = text.parse().map_err(|_| refused())?;
+    // A fraction is stored in lowest terms and only when no decimal holds it.
+    if key == FRACTION_KEY
+        && (parsed.decimal_places().is_some() || parsed.to_fraction_string() != text)
+    {
+        return Err(refused());
+    }
+    Ok(parsed)
 }
 
 #[cfg(test)]
@@ -226,13 +269,70 @@ mod tests {
     }
 
     #[test]
-    fn a_decimal_keeps_its_digits_and_scale() {
-        for s in ["5.0", "5", "0.3333333333333333333333333333", "-12.50"] {
+    fn a_decimal_stays_a_decimal_with_its_value() {
+        for (s, shown) in [
+            ("5", "5.0"),
+            (
+                "0.3333333333333333333333333333",
+                "0.3333333333333333333333333333",
+            ),
+            ("-12.5", "-12.5"),
+        ] {
             let value = dec(s);
             let back = round_trip(&value);
             assert!(matches!(back, Value::Decimal(_)), "{s}");
-            assert_eq!(back.to_string(), s);
+            assert_eq!(back, value);
+            assert_eq!(back.to_string(), shown);
         }
+    }
+
+    #[test]
+    fn digits_stored_with_trailing_zeros_are_still_read() {
+        // Values stored before numbers became fractions carry their scale.
+        for (stored, value) in [("5.0", "5"), ("-12.50", "-12.5"), ("5.00", "5")] {
+            let back = from_stored(&json!({ "__decimal": stored })).unwrap();
+            assert_eq!(back, dec(value), "{stored}");
+        }
+    }
+
+    #[test]
+    fn a_number_without_a_finite_decimal_is_stored_as_a_fraction() {
+        let third = dec("1/3");
+        assert_eq!(to_stored(&third).unwrap(), json!({ "__fraction": "1/3" }));
+        assert_eq!(round_trip(&third), third);
+        let negative = dec("-22/7");
+        assert_eq!(round_trip(&negative), negative);
+    }
+
+    #[test]
+    fn a_decimal_with_very_many_digits_comes_back() {
+        // 1 / 2^401 has 401 decimals; a long chain of unrounded
+        // multiplications by a rate reaches that.
+        let mut value: Number = "1".parse().unwrap();
+        let half: Number = "0.5".parse().unwrap();
+        for _ in 0..401 {
+            value = &value * &half;
+        }
+        let value = Value::Decimal(value);
+        assert_eq!(round_trip(&value), value);
+    }
+
+    #[test]
+    fn a_fraction_that_was_never_written_is_refused() {
+        for text in ["2/6", "1/2", "1/0", "+1/3", "1/-3", "1 / 3", "1/3/5", "0.5"] {
+            let err = from_stored(&json!({ "__fraction": text })).unwrap_err();
+            assert!(matches!(err, StoredError::NotADecimal(_)), "{text}");
+        }
+    }
+
+    #[test]
+    fn a_record_may_not_hold_the_fraction_key() {
+        let record = Value::Object([("__fraction".to_string(), Value::Int(1))].into());
+        assert!(matches!(
+            to_stored(&record),
+            Err(StoredError::ReservedKey(_))
+        ));
+        assert!(holds_reserved_key(&json!({"a": [{"__fraction": "1/3"}]})));
     }
 
     #[test]
@@ -335,7 +435,7 @@ mod tests {
             err,
             WrittenUnlike {
                 left: "5".into(),
-                right: "5".into(),
+                right: "5.0".into(),
                 path: "[1]".into()
             }
         );

@@ -47,7 +47,11 @@ impl std::error::Error for ParseNumberError {}
 
 /// The largest exponent [`Number::from_str`] accepts in `1e400` notation. It
 /// covers every `f64` and keeps a short text from asking for a huge number.
-const MAX_PARSE_EXPONENT: u32 = 400;
+/// Digits written out are bounded by the length of the text instead.
+const MAX_PARSE_EXPONENT: u64 = 400;
+
+/// The most decimals [`Number::round_to`] rounds to, or tens it rounds away.
+pub const MAX_ROUND_DECIMALS: u32 = 400;
 
 fn ten_to(exponent: u32) -> BigInt {
     Pow::pow(BigInt::from(10), exponent)
@@ -126,8 +130,17 @@ impl Number {
     }
 
     /// The number rounded to `decimals` decimals. A negative `decimals`
-    /// rounds to tens or hundreds: `-2` rounds to whole hundreds.
-    pub fn round_to(&self, decimals: i32, mode: Rounding) -> Self {
+    /// rounds to tens or hundreds: `-2` rounds to whole hundreds. `None`
+    /// when `decimals` is beyond [`MAX_ROUND_DECIMALS`] either way.
+    pub fn round_to(&self, decimals: i32, mode: Rounding) -> Option<Self> {
+        if decimals.unsigned_abs() > MAX_ROUND_DECIMALS {
+            return None;
+        }
+        Some(self.rounded(decimals, mode))
+    }
+
+    /// [`Number::round_to`] for a `decimals` the caller has bounded.
+    fn rounded(&self, decimals: i32, mode: Rounding) -> Self {
         let scale = BigRational::from_integer(ten_to(decimals.unsigned_abs()));
         let scaled = if decimals >= 0 {
             &self.0 * &scale
@@ -204,11 +217,12 @@ impl Number {
 impl fmt::Display for Number {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(precision) = f.precision() {
+            // More decimals than MAX_ROUND_DECIMALS are not written.
             let decimals = u32::try_from(precision)
                 .unwrap_or(u32::MAX)
-                .min(MAX_PARSE_EXPONENT);
-            // `decimals` is at most MAX_PARSE_EXPONENT, so it fits an i32.
-            let rounded = self.round_to(decimals as i32, Rounding::HalfAwayFromZero);
+                .min(MAX_ROUND_DECIMALS);
+            // `decimals` is at most MAX_ROUND_DECIMALS, so it fits an i32.
+            let rounded = self.rounded(decimals as i32, Rounding::HalfAwayFromZero);
             return rounded.write_decimal(f, decimals);
         }
         match self.decimal_places() {
@@ -255,12 +269,12 @@ impl FromStr for Number {
             return Err(fail());
         }
         let digits: BigInt = format!("{whole}{fraction}").parse().map_err(|_| fail())?;
+        if exponent.unsigned_abs() > MAX_PARSE_EXPONENT {
+            return Err(fail());
+        }
         let fraction_len = i64::try_from(fraction.len()).map_err(|_| fail())?;
         let shift = exponent.checked_sub(fraction_len).ok_or_else(fail)?;
-        let power = u32::try_from(shift.unsigned_abs())
-            .ok()
-            .filter(|power| *power <= MAX_PARSE_EXPONENT)
-            .ok_or_else(fail)?;
+        let power = u32::try_from(shift.unsigned_abs()).map_err(|_| fail())?;
         let value = if shift >= 0 {
             BigRational::from_integer(digits * ten_to(power))
         } else {
@@ -394,6 +408,10 @@ mod tests {
         assert_eq!(num("2.5E2"), num("250"));
         assert_eq!(num("+7"), num("7"));
         assert_eq!(num(".5"), num("0.5"));
+        // Written-out digits are not held to the exponent limit.
+        let long = format!("0.{}1", "0".repeat(500));
+        assert_eq!(num(&long).decimal_places(), Some(501));
+        assert_eq!(num(&num(&long).to_string()), num(&long));
     }
 
     #[test]
@@ -428,17 +446,19 @@ mod tests {
     #[test]
     fn rounding_follows_the_mode() {
         let half = Rounding::HalfAwayFromZero;
-        assert_eq!(num("2.5").round_to(0, half), num("3"));
-        assert_eq!(num("-2.5").round_to(0, half), num("-3"));
-        assert_eq!(num("2.449").round_to(1, half), num("2.4"));
-        assert_eq!(num("1/3").round_to(2, half), num("0.33"));
-        assert_eq!(num("1250").round_to(-2, half), num("1300"));
-        assert_eq!(num("-1250").round_to(-2, half), num("-1300"));
-        assert_eq!(num("2.01").round_to(0, Rounding::Ceil), num("3"));
-        assert_eq!(num("-2.99").round_to(0, Rounding::Ceil), num("-2"));
-        assert_eq!(num("2.99").round_to(0, Rounding::Floor), num("2"));
-        assert_eq!(num("-2.01").round_to(0, Rounding::Floor), num("-3"));
-        assert_eq!(num("149").round_to(-2, Rounding::Floor), num("100"));
+        assert_eq!(num("2.5").round_to(0, half), Some(num("3")));
+        assert_eq!(num("-2.5").round_to(0, half), Some(num("-3")));
+        assert_eq!(num("2.449").round_to(1, half), Some(num("2.4")));
+        assert_eq!(num("1/3").round_to(2, half), Some(num("0.33")));
+        assert_eq!(num("1250").round_to(-2, half), Some(num("1300")));
+        assert_eq!(num("-1250").round_to(-2, half), Some(num("-1300")));
+        assert_eq!(num("2.01").round_to(0, Rounding::Ceil), Some(num("3")));
+        assert_eq!(num("-2.99").round_to(0, Rounding::Ceil), Some(num("-2")));
+        assert_eq!(num("2.99").round_to(0, Rounding::Floor), Some(num("2")));
+        assert_eq!(num("-2.01").round_to(0, Rounding::Floor), Some(num("-3")));
+        assert_eq!(num("149").round_to(-2, Rounding::Floor), Some(num("100")));
+        assert_eq!(num("1").round_to(401, half), None);
+        assert_eq!(num("1").round_to(-401, half), None);
     }
 
     #[test]

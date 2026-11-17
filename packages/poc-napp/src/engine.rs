@@ -15,7 +15,7 @@ use std::cell::RefCell;
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use regelrecht_engine::{LawExecutionService, Value};
+use regelrecht_engine::{LawExecutionService, Number, Rounding, Value};
 use serde::Serialize;
 use serde_json::json;
 
@@ -315,20 +315,19 @@ fn req_bool(outputs: &BTreeMap<String, Value>, name: &str) -> anyhow::Result<boo
 
 /// Rond een niet-geheel engine-getal af op een heel getal.
 ///
-/// De engine kende ooit `Value::Float`; dat is `Value::Decimal` geworden, en
-/// dat is geen naamswijziging maar de reden dat dit hier klopt: deze functies
-/// lezen bedragen in centen, en een binaire float kan een bedrag als 0,10 niet
-/// exact voorstellen. `round()` op een Decimal rondt halve centen weg van nul,
+/// De engine houdt een niet-geheel getal exact bij, als breuk. Deze functies
+/// lezen bedragen in centen; `round_to(0, ..)` rondt halve centen weg van nul,
 /// zoals bij geld hoort.
-fn decimal_naar_i64(d: rust_decimal::Decimal) -> i64 {
-    use rust_decimal::prelude::ToPrimitive;
-    d.round().to_i64().unwrap_or(0)
+fn decimal_naar_i64(d: &Number) -> i64 {
+    d.round_to(0, Rounding::HalfAwayFromZero)
+        .and_then(|rounded| rounded.to_i64())
+        .unwrap_or(0)
 }
 
 fn req_int(outputs: &BTreeMap<String, Value>, name: &str) -> anyhow::Result<i64> {
     match outputs.get(name) {
         Some(Value::Int(n)) => Ok(*n),
-        Some(Value::Decimal(d)) => Ok(decimal_naar_i64(*d)),
+        Some(Value::Decimal(d)) => Ok(decimal_naar_i64(d)),
         Some(other) => anyhow::bail!("output '{name}' is geen getal maar {other:?}"),
         None => anyhow::bail!("output '{name}' ontbreekt in het engine-resultaat"),
     }
@@ -352,7 +351,7 @@ fn hook_bool(outputs: &BTreeMap<String, Value>, name: &str) -> bool {
 fn hook_int(outputs: &BTreeMap<String, Value>, name: &str) -> i64 {
     match outputs.get(name) {
         Some(Value::Int(n)) => *n,
-        Some(Value::Decimal(d)) => decimal_naar_i64(*d),
+        Some(Value::Decimal(d)) => decimal_naar_i64(d),
         _ => 0,
     }
 }
@@ -1272,6 +1271,18 @@ pub async fn evaluate_bezwaartermijn(
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_half_cent_rounds_away_from_zero() {
+        let number = |text: &str| {
+            text.parse::<Number>()
+                .expect("test literal should be a number")
+        };
+        assert_eq!(decimal_naar_i64(&number("0.5")), 1);
+        assert_eq!(decimal_naar_i64(&number("2.5")), 3);
+        assert_eq!(decimal_naar_i64(&number("-2.5")), -3);
+        assert_eq!(decimal_naar_i64(&number("2.4")), 2);
+    }
 
     fn procedure() -> Procedure {
         beschikking_procedure(include_str!(

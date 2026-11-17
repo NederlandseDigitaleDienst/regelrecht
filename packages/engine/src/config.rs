@@ -37,6 +37,15 @@ pub const MAX_YAML_SIZE: usize = 1_000_000;
 /// 1000 elements is sufficient for any reasonable law structure.
 pub const MAX_ARRAY_SIZE: usize = 1_000;
 
+/// Maximum size, in bits, of the numerator or the denominator of a number.
+///
+/// Numbers are exact fractions (RFC-055), and fractions with different
+/// denominators grow when they are added. 4096 bits is about 1200 decimal
+/// digits, far beyond any legal calculation; a number over it is an
+/// `ArithmeticOverflow` that names the operation. Raising the limit changes
+/// no outcome, only whether an answer arrives.
+pub const MAX_NUMBER_BITS: u64 = 4_096;
+
 /// Maximum combined depth for reference resolution in the service layer.
 ///
 /// A single shared counter governs cross-law reference chains and same-law

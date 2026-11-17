@@ -9,7 +9,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use regelrecht_engine::{LawExecutionService, Value};
-use rust_decimal::prelude::ToPrimitive;
 use serde::Deserialize;
 use std::collections::{BTreeMap, HashMap};
 use std::fs;

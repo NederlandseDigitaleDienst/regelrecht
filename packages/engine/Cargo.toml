@@ -18,7 +18,6 @@ crate-type = ["cdylib", "rlib"]
 
 [dependencies]
 regelrecht-law-model = { path = "../law-model" }
-rust_decimal.workspace = true
 serde.workspace = true
 serde_yaml_ng.workspace = true
 serde_json.workspace = true
@@ -93,7 +92,6 @@ tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 walkdir.workspace = true
 tracing-subscriber.workspace = true
 criterion = { version = "0.8", features = ["html_reports"] }
-rust_decimal_macros.workspace = true
 # Used by the schema↔model conformance suite (tests/conformance.rs, requires the
 # `validate` feature). serde_json/serde_yaml_ng are regular deps but must be
 # re-declared here to be in scope for the integration-test crate.

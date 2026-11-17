@@ -144,15 +144,14 @@ pub struct TypeSpec {
     /// Minimum allowed value (issue #444). Parsed metadata, not yet enforced.
     ///
     /// Serialized as a JSON number, because that is what the schema types it
-    /// as; `Decimal`'s default is a string, which makes the re-serialized
-    /// document schema-invalid. A bound beyond f64 precision is out of range
-    /// for what these fields describe.
-    #[serde(default, with = "rust_decimal::serde::float_option")]
-    pub min: Option<rust_decimal::Decimal>,
+    /// as. A bound beyond f64 precision is out of range for what these fields
+    /// describe.
+    #[serde(default)]
+    pub min: Option<crate::Number>,
     /// Maximum allowed value (issue #444). Parsed metadata, not yet enforced.
     /// Serialized as a JSON number; see [`TypeSpec::min`].
-    #[serde(default, with = "rust_decimal::serde::float_option")]
-    pub max: Option<rust_decimal::Decimal>,
+    #[serde(default)]
+    pub max: Option<crate::Number>,
 }
 
 /// Source specification for input fields

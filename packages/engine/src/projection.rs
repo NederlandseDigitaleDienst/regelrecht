@@ -4689,7 +4689,7 @@ articles:
                 .unwrap()
         };
         assert_eq!(
-            rows(Value::Decimal(rust_decimal::Decimal::new(20, 1))),
+            rows(Value::Decimal(crate::types::dec("2.0"))),
             Value::Array(vec![row("a", true, "x")])
         );
         assert_eq!(rows(Value::Int(3)), Value::Array(Vec::new()));
