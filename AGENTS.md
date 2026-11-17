@@ -451,6 +451,10 @@ Drie dingen om te weten voordat je hier iets aanraakt:
   reconstructies van wetsvoorstellen, met een eigen schrijfstijl uit de losse
   PoC-repo's. Ze gaan niet door `just validate`, staan buiten yamllint, en de
   harvester heeft er niets mee te maken. Behandel ze niet als het corpus.
+  Eén map is anders: `corpus-poc/plaatsgebonden-regels/` is de casus bij
+  RFC-057, met geldende regelgeving in de gewone schrijfstijl. Het is geen poc
+  en staat niet in het register. CI valideert die regelwerken tegen het schema
+  en draait hun scenario's (`just bdd-plaatsgebonden`).
 - **Elke poc draagt een `status` en een `voorbehoud`**, allebei verplicht en
   zonder default. Ze staan op drie plekken (kaart, inlogscherm, en een strook
   binnen de poc zelf), omdat die drie verschillende mensen bereiken: een

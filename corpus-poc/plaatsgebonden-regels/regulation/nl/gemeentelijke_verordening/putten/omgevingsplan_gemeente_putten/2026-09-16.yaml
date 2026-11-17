@@ -25,7 +25,8 @@ url: https://lokaleregelgeving.overheid.nl/CVDR696248
 # with each. RD coordinates (EPSG:28992).
 #
 # Modelled as well: article 22.264 lid 1, a second permit duty of the plan,
-# for another activity.
+# for another activity. Articles 22.41 and 22.261 are quoted because it
+# depends on them.
 #
 # WHAT IS ASKED AND NOT WORKED OUT. Each is a parameter whose description
 # starts with "Not modelled" or "Conclusion of law". Where one of them decides
@@ -35,17 +36,22 @@ url: https://lokaleregelgeving.overheid.nl/CVDR696248
 #   - uitzondering_volgens_artikel_22_27_onder_b_tot_en_met_i: other
 #     structures than a bijbehorend bouwwerk;
 #   - in_overeenstemming_volgens_artikel_22_36_onder_b_of_c;
-#   - verboden_zonder_vergunning_door_ander_artikel_van_het_plan: an activity
-#     that is neither building nor the one of article 22.264;
 #   - in_strijd_met_overige_regels_van_het_bestemmingsplan: the rules of the
 #     bestemmingsplan other than article 19.2.8 onder a, c, d and e;
-#   - ruimer_toegestaan_volgens_artikel_19_2_8_onder_a_of_b;
+#   - verboden_zonder_vergunning_door_ander_artikel_van_het_plan: an activity
+#     that is neither building nor the one of article 22.264;
 #   - in_strijd_met_het_plan_buiten_wat_hier_is_uitgewerkt: a conflict with
 #     the plan anywhere but in the area Wonen of this address, or for
 #     something other than a bijgebouw.
+#   The last two are asked by the entry "Niet overgenomen" at the end, which
+#   is not an article of the plan and says so.
 #
-# Conclusions of law, from rules that are not in this example:
-#   - is_bijgebouw (bestemmingsplan article 1.22);
+# Conclusions of law, from rules or definitions that are not in this example:
+#   - is_bijbehorend_bouwwerk, gelegen_in_achtererfgebied and is_bijgebouw
+#     (terms that the Besluit bouwwerken leefomgeving and article 1.22 of the
+#     bestemmingsplan define);
+#   - maximum_oppervlakte_bijgebouwen_volgens_aanduiding_m2 (the map of the
+#     bestemmingsplan);
 #   - locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht,
 #     archeologische_onderzoeksregels_gelden_voor_locatie and
 #     verbod_grondwerkzaamheden_met_archeologische_regels (the older plans
@@ -55,9 +61,16 @@ url: https://lokaleregelgeving.overheid.nl/CVDR696248
 #     vergunningplichtig_volgens_hoofdstuk_3_besluit_activiteiten_leefomgeving
 #     (article 22.261).
 #
-# Two readings that a lawyer should check. Article 22.28 lid 3 onder a and b
-# are left out because they concern a change to an existing building. The
-# opening "Onverminderd ..." of article 22.36 is not worked out.
+# Readings that a lawyer should check:
+#   - Article 21.3 carries the test for a conflict with the plan. Its text
+#     says the bestemmingsplan holds here except where this chapter says
+#     otherwise; the test below is what that comes to for a bijgebouw.
+#   - Article 22.28 lid 3 onder a and b are left out because they concern a
+#     change to an existing building.
+#   - Articles 22.36 onder a, 1 and 2 say "voor zover", and article 22.37
+#     lid 1 is about a structure that lies partly within 4 m of the main
+#     building. Here a structure lies wholly within 4 m or wholly beyond.
+#   - The opening "Onverminderd ..." of article 22.36 is not worked out.
 #
 # Articles 21.3, 22.26 and 22.264 fill a term of the Omgevingswet. The engine gives
 # such an article only the parameters it declares, so each declares what the
@@ -82,6 +95,8 @@ articles:
 
       H21 Oude Nijkerkerweg 33 maximale oppervlakte bijgebouwen: 287 m2
       /join/id/regdata/gm0273/2026/d919cf0c476f4fb887620b7534af3acd/nld@2026-09-16;13055780
+
+      [de informatieobjecten van de andere locaties: niet overgenomen]
     url: https://lokaleregelgeving.overheid.nl/CVDR696248
 
     machine_readable:
@@ -151,10 +166,6 @@ articles:
             type: boolean
             required: false
             description: Conclusion of law - whether what is built is a bijgebouw as article 1.22 of the bestemmingsplan defines it
-          - name: in_strijd_met_het_plan_buiten_wat_hier_is_uitgewerkt
-            type: boolean
-            required: false
-            description: Not modelled - whether the activity conflicts with the plan in a case this article does not work out
           - name: in_strijd_met_overige_regels_van_het_bestemmingsplan
             type: boolean
             required: false
@@ -183,14 +194,15 @@ articles:
             type: boolean
             required: false
             description: Bestemmingsplan article 19.2.8 onder e
-          - name: ruimer_toegestaan_volgens_artikel_19_2_8_onder_a_of_b
-            type: boolean
+          - name: maximum_oppervlakte_bijgebouwen_volgens_aanduiding_m2
+            type: number
             required: false
-            description: Not modelled - whether an aanduiding or onder b of article 19.2.8 of the bestemmingsplan allows more than 80 m2
+            nullable: true
+            description: Conclusion of law - bestemmingsplan article 19.2.8 onder a, the maximum an aanduiding gives for the location; null when there is none
           - name: is_bijbehorend_bouwwerk
             type: boolean
             required: false
-            description: Article 22.27 onder a - a bijbehorend bouwwerk or an extension of one
+            description: Conclusion of law - article 22.27 onder a, whether what is built is a bijbehorend bouwwerk or an extension of one
           - name: op_de_grond_staand
             type: boolean
             required: false
@@ -198,7 +210,7 @@ articles:
           - name: gelegen_in_achtererfgebied
             type: boolean
             required: false
-            description: Article 22.27 onder a, 2
+            description: Conclusion of law - article 22.27 onder a, 2, whether it lies in achtererfgebied
           - name: afstand_tot_openbaar_toegankelijk_gebied_m
             type: number
             required: false
@@ -327,7 +339,7 @@ articles:
               output: oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a
               parameters:
                 oppervlakte_bijgebouwen_m2: $oppervlakte_bijgebouwen_m2
-                ruimer_toegestaan_volgens_artikel_19_2_8_onder_a_of_b: $ruimer_toegestaan_volgens_artikel_19_2_8_onder_a_of_b
+                maximum_oppervlakte_bijgebouwen_volgens_aanduiding_m2: $maximum_oppervlakte_bijgebouwen_volgens_aanduiding_m2
           - name: bijgebouw_voldoet_aan_artikel_19_2_8_onder_c_d_en_e
             type: boolean
             description: Whether the bijgebouw meets the other rules of the bestemmingsplan
@@ -339,9 +351,13 @@ articles:
                 bouwhoogte_m: $bouwhoogte_m
                 woning_is_wooncomplex_kleine_woning_of_recreatiewoning: $woning_is_wooncomplex_kleine_woning_of_recreatiewoning
         output:
+          # Absent where this article does not speak: outside the area where
+          # article 21.22 makes article 19 of the bestemmingsplan apply, or
+          # for something other than a bijgebouw.
           - name: activiteit_in_strijd_met_omgevingsplan
             type: boolean
-            description: Whether the activity conflicts with the plan
+            nullable: true
+            description: Whether building the bijgebouw conflicts with the plan
         actions:
           - output: activiteit_in_strijd_met_omgevingsplan
             value:
@@ -379,7 +395,6 @@ articles:
                                     - $oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a
                                     - $verruiming_oppervlakte_bijgebouwen
                           - $in_strijd_met_overige_regels_van_het_bestemmingsplan
-              default: $in_strijd_met_het_plan_buiten_wat_hier_is_uitgewerkt
 
   # A whole afdeling that holds only in one area. The article that says so
   # gives that as a value, and the other articles of the afdeling read it.
@@ -552,14 +567,10 @@ articles:
             type: string
             required: true
             description: The activity, in the terms of the Omgevingswet
-          - name: verboden_zonder_vergunning_door_ander_artikel_van_het_plan
-            type: boolean
-            required: false
-            description: Not modelled - whether another article of the plan forbids an activity that is not building
           - name: is_bijbehorend_bouwwerk
             type: boolean
             required: false
-            description: Article 22.27 onder a - a bijbehorend bouwwerk or an extension of one
+            description: Conclusion of law - article 22.27 onder a, whether what is built is a bijbehorend bouwwerk or an extension of one
           - name: op_de_grond_staand
             type: boolean
             required: false
@@ -567,7 +578,7 @@ articles:
           - name: gelegen_in_achtererfgebied
             type: boolean
             required: false
-            description: Article 22.27 onder a, 2
+            description: Conclusion of law - article 22.27 onder a, 2, whether it lies in achtererfgebied
           - name: afstand_tot_openbaar_toegankelijk_gebied_m
             type: number
             required: false
@@ -627,9 +638,12 @@ articles:
             source:
               output: uitzondering_artikel_22_27
         output:
+          # Absent for an activity that is not building: this article does
+          # not speak about it.
           - name: omgevingsplan_verbiedt_zonder_vergunning
             type: boolean
-            description: Whether the plan forbids the activity without a permit
+            nullable: true
+            description: Whether this article forbids the activity without a permit
         actions:
           - output: omgevingsplan_verbiedt_zonder_vergunning
             value:
@@ -642,7 +656,6 @@ articles:
                   then:
                     operation: NOT
                     value: $uitzondering_artikel_22_27
-              default: $verboden_zonder_vergunning_door_ander_artikel_van_het_plan
 
   - number: '22.27'
     text: |
@@ -671,7 +684,7 @@ articles:
           - name: is_bijbehorend_bouwwerk
             type: boolean
             required: false
-            description: Article 22.27 onder a - a bijbehorend bouwwerk or an extension of one
+            description: Conclusion of law - article 22.27 onder a, whether what is built is a bijbehorend bouwwerk or an extension of one
           - name: op_de_grond_staand
             type: boolean
             required: false
@@ -679,7 +692,7 @@ articles:
           - name: gelegen_in_achtererfgebied
             type: boolean
             required: false
-            description: Article 22.27 onder a, 2
+            description: Conclusion of law - article 22.27 onder a, 2, whether it lies in achtererfgebied
           - name: afstand_tot_openbaar_toegankelijk_gebied_m
             type: number
             required: false
@@ -1199,6 +1212,34 @@ articles:
                 - $bij_monument
                 - $locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht
 
+  # Quoted because article 22.264 depends on them; not worked out.
+  - number: '22.41'
+    text: |
+      Algemeen toepassingsbereik
+
+      1. Deze afdeling is van toepassing op een milieubelastende activiteit als
+      bedoeld in de bijlage bij de Omgevingswet.
+
+      2. Deze afdeling is niet van toepassing op:
+      a. wonen;
+      b. het feitelijk verrichten van bouw- en sloopwerkzaamheden aan
+      bouwwerken of het feitelijk verrichten van onderhoudswerkzaamheden aan
+      een bouwwerk of van een terrein;
+      c. een milieubelastende activiteit die in hoofdzaak in de openbare
+      buitenruimte wordt verricht;
+      d. doorgaand verkeer op wegen, vaarwegen en spoorwegen;
+      [onder e tot en met g, en lid 3 en 4: niet overgenomen]
+    url: https://lokaleregelgeving.overheid.nl/CVDR696248
+
+  - number: '22.261'
+    text: |
+      Toepassingsbereik
+
+      Deze paragraaf is niet van toepassing op een milieubelastende activiteit
+      die als vergunningplichtig is aangewezen in hoofdstuk 3 van het Besluit
+      activiteiten leefomgeving.
+    url: https://lokaleregelgeving.overheid.nl/CVDR696248
+
   # A second article of the plan that requires a permit. It fills the same
   # term of the Omgevingswet as article 22.26, for another activity: the term
   # holds when one article of the plan says so.
@@ -1219,13 +1260,14 @@ articles:
           open_term: omgevingsplan_verbiedt_zonder_vergunning
           gelet_op: Gelet op artikel 5.1, eerste lid, onder a, van de Omgevingswet
       execution:
+        # Lid 1 holds only where afdeling 22.3 applies (article 22.41) and
+        # paragraaf 22.3.26 does (article 22.261). Both articles are quoted
+        # below and asked as conclusions of law.
         parameters:
-          # The activity in the words of this article; the Omgevingswet has
-          # no term of its own for it.
           - name: activiteit
             type: string
             required: true
-            description: The activity, in the terms of the Omgevingswet
+            description: The activity, here in the words of this article
           - name: afdeling_22_3_van_toepassing
             type: boolean
             required: false
@@ -1255,3 +1297,93 @@ articles:
                       - $afdeling_22_3_van_toepassing
                       - operation: NOT
                         value: $vergunningplichtig_volgens_hoofdstuk_3_besluit_activiteiten_leefomgeving
+
+  # NOT AN ARTICLE OF THE PLAN. The plan has more rules than this rulework
+  # holds: other permit duties, and the older plans that are part of it. This
+  # entry stands for them, so that a question they would decide comes out
+  # unknown and not as "the plan says nothing". It answers only where no
+  # article above speaks, with a fact that whoever asks must give.
+  - number: Niet overgenomen
+    text: |
+      [De overige regels van dit omgevingsplan zijn niet overgenomen.]
+    url: https://lokaleregelgeving.overheid.nl/CVDR696248
+
+    machine_readable:
+      implements:
+        - law: omgevingswet
+          article: Bijlage onder A
+          open_term: omgevingsplan_verbiedt_zonder_vergunning
+          gelet_op: Gelet op artikel 5.1, eerste lid, onder a, van de Omgevingswet
+        - law: omgevingswet
+          article: Bijlage onder A
+          open_term: activiteit_in_strijd_met_omgevingsplan
+          gelet_op: Gelet op artikel 5.1, eerste lid, onder a, van de Omgevingswet
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+            description: The activity, in the terms of the Omgevingswet
+          - name: location
+            type: shape
+            required: true
+            description: Where the activity takes place
+          - name: is_bijgebouw
+            type: boolean
+            required: false
+            description: Conclusion of law - whether what is built is a bijgebouw as article 1.22 of the bestemmingsplan defines it
+          - name: verboden_zonder_vergunning_door_ander_artikel_van_het_plan
+            type: boolean
+            required: false
+            description: Not modelled - whether another article of the plan forbids an activity that is not building
+          - name: in_strijd_met_het_plan_buiten_wat_hier_is_uitgewerkt
+            type: boolean
+            required: false
+            description: Not modelled - whether the activity conflicts with the plan in a case this article does not work out
+        input:
+          - name: bestemming_wonen_van_toepassing
+            type: boolean
+            description: Whether article 21.22 makes article 19 of the bestemmingsplan apply at the location
+            source:
+              output: bestemming_wonen_van_toepassing
+        output:
+          - name: omgevingsplan_verbiedt_zonder_vergunning
+            type: boolean
+            nullable: true
+            description: Whether a rule that is not included forbids the activity without a permit
+          - name: activiteit_in_strijd_met_omgevingsplan
+            type: boolean
+            nullable: true
+            description: Whether the activity conflicts with a rule that is not included
+        actions:
+          # Articles 22.26 and 22.264 speak about these two activities.
+          - output: omgevingsplan_verbiedt_zonder_vergunning
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: NOT
+                    value:
+                      operation: IN
+                      subject: $activiteit
+                      values:
+                        - bouwactiviteit
+                        - kweken_van_maden_van_vliegende_insecten
+                  then: $verboden_zonder_vergunning_door_ander_artikel_van_het_plan
+          # Article 21.3 speaks about a bijgebouw where article 19 of the
+          # bestemmingsplan applies.
+          - output: activiteit_in_strijd_met_omgevingsplan
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: NOT
+                    value:
+                      operation: AND
+                      conditions:
+                        - operation: EQUALS
+                          subject: $activiteit
+                          value: bouwactiviteit
+                        - $is_bijgebouw
+                        - $bestemming_wonen_van_toepassing
+                  then: $in_strijd_met_het_plan_buiten_wat_hier_is_uitgewerkt

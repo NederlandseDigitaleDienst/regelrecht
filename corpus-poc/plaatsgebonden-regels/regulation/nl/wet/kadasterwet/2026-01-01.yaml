@@ -22,6 +22,16 @@ url: https://wetten.overheid.nl/BWBR0004541
 # birth: whoever asks supplies what the register holds on the date of the
 # question.
 #
+# Two steps here are not in the text of the article, and are how this
+# rulework makes the boundary usable:
+#   - The article says the map holds "de grens" of a municipality, a line.
+#     The output is the surface that line encloses, the territory, because
+#     that is what a location is held against.
+#   - The article says the map is reached by a coordinate or by the cadastral
+#     designation of a plot. The output is asked by the CBS code of the
+#     municipality, the code a regulation in this corpus carries as
+#     `gemeente_code`.
+#
 # NOT modelled: the rijksgrens and the boundary of a province (also onder c),
 # and the rest of the article.
 
@@ -61,11 +71,11 @@ articles:
           - name: grens_van_gemeente
             type: shape
             source: {}
-            description: The territory of the municipality, from the Basisregistratie Kadaster
+            description: The surface inside the boundary of the municipality, from the national cadastral map
         output:
           - name: grens_van_gemeente
             type: shape
-            description: The territory of the municipality
+            description: The surface inside the boundary of the municipality
         actions:
           - output: grens_van_gemeente
             value: $grens_van_gemeente

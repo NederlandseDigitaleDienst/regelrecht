@@ -62,6 +62,12 @@ the cell's suite in reverse, then the `reversed` leg. The demo corpus and its
 synthetic persona data live entirely in the repository, so this job also hangs
 on the `Test` gate and blocks a merge when either leg fails.
 
+The same job runs bucket A over `corpus-poc/plaatsgebonden-regels/regulation`,
+the case of location-bound rules of [RFC-057](/rfcs/rfc-057), in both legs. The
+`forward` leg first validates its ruleworks against the schema. The law in that
+case is real and its facts are fixed in the scenarios, so a red run is an error
+and not a question for a human. Locally: `just bdd-plaatsgebonden`.
+
 Bucket A over the live corpus (`corpus/regulation/**/scenarios/*.feature`) stays out of CI. It asserts
 what the live laws currently produce, so a failure there means a law changed or a
 scenario went stale; a human decides what that is worth. Run it locally with

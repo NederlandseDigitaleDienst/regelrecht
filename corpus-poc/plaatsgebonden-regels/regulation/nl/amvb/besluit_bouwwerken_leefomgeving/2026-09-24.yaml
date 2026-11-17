@@ -16,9 +16,11 @@ url: https://wetten.overheid.nl/BWBR0041297
 #
 # Article 2.29 onder a to q each name one kind of structure (a dakkapel, a
 # dakraam, a zonnepaneel, an erfafscheiding and so on). They are not modelled.
-# Whether one of them lifts the ban is asked as one fact,
-# vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q. For a structure they
-# do not name, the answer to that is simply no. The opening "Onverminderd
+# Two facts are asked about them: whether what is built is one of those
+# structures (bouwwerk_genoemd_in_artikel_2_29_onder_a_tot_en_met_q), and
+# whether one of them lifts the ban
+# (vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q). For a structure
+# they do not name, the answer to both is no. The opening "Onverminderd
 # regels in het omgevingsplan over het in stand houden ..." is not worked
 # out, and article 2.30 lid 3 onder b, 1° and 2° are left out because they
 # concern a change to an existing building.
@@ -27,7 +29,12 @@ url: https://wetten.overheid.nl/BWBR0041297
 # bestuur exempts an activity that is not building
 # (aangewezen_geval_volgens_andere_algemene_maatregel_van_bestuur), and, as a
 # conclusion of law, whether the plan gives the location the designation
-# rijksbeschermd stads- of dorpsgezicht.
+# rijksbeschermd stads- of dorpsgezicht
+# (locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht).
+#
+# Article 2.28 names the paragraaf's subject as "een bouwactiviteit en het in
+# stand houden en gebruiken van het te bouwen bouwwerk"; the test below looks
+# at the bouwactiviteit only.
 #
 # NOT modelled: the technical permit duty for building (articles 2.25 to
 # 2.27, which work out article 5.1 lid 2 of the Omgevingswet).
@@ -89,8 +96,8 @@ articles:
             type: boolean
             required: false
             description: >-
-              Whether what is built is one of the structures that onder a to q
-              name
+              Not modelled - whether what is built is one of the structures
+              that onder a to q name
           - name: vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q
             type: boolean
             required: false

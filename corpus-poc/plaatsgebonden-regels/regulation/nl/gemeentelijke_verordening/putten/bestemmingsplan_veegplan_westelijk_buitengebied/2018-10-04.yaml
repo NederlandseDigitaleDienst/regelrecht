@@ -19,12 +19,17 @@ url: https://www.ruimtelijkeplannen.nl/documents/NL.IMRO.0273.BPBGWVeegplan-VA02
 # example. At Oude Nijkerkerweg 33 the omgevingsplan says so (article 21.22),
 # and that plan reads the outcomes below.
 #
-# NOT modelled: onder a, the maximum that an aanduiding 'maximum oppervlakte
-# bijgebouwen' gives and the four addresses named there; onder b (existing
-# bijgebouwen above the maximum); and onder f. Whether one of these allows
-# more than 80 m2 is asked as one fact,
-# ruimer_toegestaan_volgens_artikel_19_2_8_onder_a_of_b. Where it decides the
-# outcome and is not given, the outcome is unknown.
+# `valid_from` is the date the plan was adopted.
+#
+# Onder a gives 80 m2, or the maximum of an aanduiding 'maximum oppervlakte
+# bijgebouwen' where the map has one. The map is not in this example, so that
+# maximum is asked as a conclusion of law,
+# maximum_oppervlakte_bijgebouwen_volgens_aanduiding_m2, and is null where
+# the map has no aanduiding.
+#
+# NOT modelled: the four addresses onder a names, onder b (existing
+# bijgebouwen above the maximum) and onder f. The omgevingsplan asks whether
+# one of the other rules of this plan is broken.
 
 articles:
   - number: 19.2.8
@@ -53,12 +58,13 @@ articles:
             type: number
             required: false
             description: Onder a - total surface of the bijgebouwen of the dwelling after building, in m2
-          - name: ruimer_toegestaan_volgens_artikel_19_2_8_onder_a_of_b
-            type: boolean
+          - name: maximum_oppervlakte_bijgebouwen_volgens_aanduiding_m2
+            type: number
             required: false
+            nullable: true
             description: >-
-              Not modelled - whether an aanduiding or onder b allows more than
-              80 m2
+              Conclusion of law - onder a, the maximum an aanduiding gives for
+              the location; null when there is none
           - name: goothoogte_m
             type: number
             required: false
@@ -81,12 +87,17 @@ articles:
         actions:
           - output: oppervlakte_bijgebouwen_binnen_artikel_19_2_8_onder_a
             value:
-              operation: OR
-              conditions:
-                - operation: LESS_THAN_OR_EQUAL
-                  subject: $oppervlakte_bijgebouwen_m2
-                  value: 80
-                - $ruimer_toegestaan_volgens_artikel_19_2_8_onder_a_of_b
+              operation: LESS_THAN_OR_EQUAL
+              subject: $oppervlakte_bijgebouwen_m2
+              value:
+                operation: IF
+                cases:
+                  - when:
+                      operation: EQUALS
+                      subject: $maximum_oppervlakte_bijgebouwen_volgens_aanduiding_m2
+                      value: null
+                    then: 80
+                default: $maximum_oppervlakte_bijgebouwen_volgens_aanduiding_m2
           - output: bijgebouw_voldoet_aan_artikel_19_2_8_onder_c_d_en_e
             value:
               operation: AND

@@ -65,6 +65,7 @@ BDD_BUCKET=conformance just bdd   # Engine conformance, then the cell's suite
 BDD_BUCKET=corpus just bdd        # Law validation, then the cell's suite
 just bdd-demo                     # Bucket A over the demo corpus
 just bdd-chrono                   # Bucket A over the corpus of the chronolexografie PoC
+just bdd-plaatsgebonden           # Bucket A over the case of location-bound rules (RFC-057)
 just bdd-trace                    # With execution traces in trace_output/
 ```
 
