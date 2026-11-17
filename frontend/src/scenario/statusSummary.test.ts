@@ -7,7 +7,7 @@ const run = (over: Partial<ScenarioRun>): ScenarioRun => ({
   traceText: null,
   error: null,
   outputName: 'ok',
-  expectations: { ok: true },
+  expectations: { ok: 'true' },
   ...over,
 });
 
@@ -54,16 +54,18 @@ describe('statusBadge', () => {
     });
   });
 
-  it('shows the passed ones when none failed', () => {
-    expect(statusBadge(counts({ total: 3, passed: 2, noExpectations: 1 }))).toEqual({
-      text: '2', icon: 'success', critical: false, label: "Scenario's: 2 geslaagd, 1 zonder verwachting",
+  it('shows all of them, green, when all passed', () => {
+    expect(statusBadge(counts({ total: 22, passed: 22 }))).toEqual({
+      text: '22', icon: 'success', critical: false, label: "Scenario's: 22 geslaagd",
     });
   });
 
-  it('shows all of them when none failed or passed, and names that number', () => {
-    expect(statusBadge(counts({ total: 3, noExpectations: 2, pending: 1 }))).toEqual({
-      text: '3', icon: 'lab', critical: false, label: "Scenario's: 3, 2 zonder verwachting, 1 nog zonder uitkomst",
+  it('shows passed out of all, not green, when some have no outcome', () => {
+    expect(statusBadge(counts({ total: 21, passed: 18, pending: 3 }))).toEqual({
+      text: '18/21', icon: 'lab', critical: false, label: "Scenario's: 18/21 geslaagd, 3 nog zonder uitkomst",
     });
-    expect(statusBadge(counts({})).label).toBe("Scenario's: 0");
+    expect(statusBadge(counts({ total: 3, noExpectations: 2, pending: 1 })).label)
+      .toBe("Scenario's: 0/3 geslaagd, 2 zonder verwachting, 1 nog zonder uitkomst");
+    expect(statusBadge(counts({})).text).toBe('0/0');
   });
 });

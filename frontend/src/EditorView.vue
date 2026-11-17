@@ -1203,7 +1203,6 @@ async function selectTab(tab: OpenTab, { scenarioName = null }: { scenarioName?:
 async function selectScenarioTab(tab: ScenarioTab, scenarioName: string | null): Promise<boolean> {
   const otherLaw = tab.lawId !== lawId.value;
   if (otherLaw && !(await confirmLeave())) return false;
-  setActiveTab(activeTrajectRef.value, tab);
   // An open action edit belongs to the article view; the screen changes.
   if (activeAction.value) handleActionClose();
   if (otherLaw) {
@@ -1212,9 +1211,11 @@ async function selectScenarioTab(tab: ScenarioTab, scenarioName: string | null):
       articleNumber: null,
       trajectRef: singleParam(route.params.trajectRef) || null,
     });
+    // A newer open took over: that one says which tab is active, not this.
     if (!won) return true;
     lawNames.value = { ...lawNames.value, [lawNameKey(activeTrajectRef.value, tab.lawId)]: lawName.value };
   }
+  setActiveTab(activeTrajectRef.value, tab);
   router.replace(scenarioRouteFor(tab, scenarioName));
   return true;
 }

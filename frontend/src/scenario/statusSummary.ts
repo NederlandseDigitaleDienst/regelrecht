@@ -62,7 +62,11 @@ export const STATUS_TEXT: Record<ScenarioStatus, string> = {
 
 /** How the editor's toolbar shows the status of a regelwerk's scenarios. */
 export interface StatusBadge {
-  /** The visible count: the failed ones, else the passed ones, else all. */
+  /**
+   * The visible count: the failed ones; else all of them when all passed;
+   * else passed out of all ("18/21"), so a file that is partly without an
+   * outcome does not look all green.
+   */
   text: string;
   icon: 'error' | 'success' | 'lab';
   critical: boolean;
@@ -71,19 +75,17 @@ export interface StatusBadge {
 }
 
 export function statusBadge(c: StatusCounts): StatusBadge {
-  const tally = [
-    c.failed && `${c.failed} mislukt`,
-    c.passed && `${c.passed} geslaagd`,
+  const rest = [
     c.noExpectations && `${c.noExpectations} zonder verwachting`,
     c.pending && `${c.pending} nog zonder uitkomst`,
   ].filter(Boolean);
   if (c.failed) {
+    const tally = [`${c.failed} mislukt`, c.passed && `${c.passed} geslaagd`, ...rest].filter(Boolean);
     return { text: String(c.failed), icon: 'error', critical: true, label: `Scenario's: ${tally.join(', ')}` };
   }
-  if (c.passed) {
-    return { text: String(c.passed), icon: 'success', critical: false, label: `Scenario's: ${tally.join(', ')}` };
+  if (c.total > 0 && c.passed === c.total) {
+    return { text: String(c.passed), icon: 'success', critical: false, label: `Scenario's: ${c.passed} geslaagd` };
   }
-  // Nothing failed or passed: the count is all of them, and the name says so.
-  const label = tally.length ? `Scenario's: ${c.total}, ${tally.join(', ')}` : `Scenario's: ${c.total}`;
-  return { text: String(c.total), icon: 'lab', critical: false, label };
+  const text = `${c.passed}/${c.total}`;
+  return { text, icon: 'lab', critical: false, label: [`Scenario's: ${text} geslaagd`, ...rest].join(', ') };
 }
