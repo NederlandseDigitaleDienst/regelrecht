@@ -78,6 +78,29 @@ fn the_forms_come_from_the_chosen_case() {
     );
 }
 
+/// The UI spec of the case puts a view beside each decision: what is paid
+/// on the advance, with the output's unit and the parameter that takes the
+/// decision, from the law.
+#[test]
+fn the_ui_spec_puts_what_the_cell_knows_beside_a_decision() {
+    let mut spel = spel_met("zorgtoeslag");
+    let vormen = spel.vormen(dag("2025-01-20")).unwrap();
+    let weergave = &vormen["per_besluit"][0];
+    assert_eq!(weergave["naam"], json!("betaling van het voorschot"));
+    let antwoord = &weergave["antwoorden"][0];
+    assert_eq!(antwoord["type"], json!("amount"));
+    assert_eq!(antwoord["eenheid"], json!("eurocent"));
+    assert_eq!(antwoord["besluit"], json!("voorschotbesluit"));
+    assert_eq!(antwoord["parameters"], json!(["voorschotbesluit"]));
+    assert!(antwoord.get("fout").is_none(), "{antwoord}");
+    // A case without a UI spec has no view.
+    let mut spel = spel_met("vakantieverlof");
+    assert_eq!(
+        spel.vormen(dag("2026-10-14")).unwrap()["per_besluit"],
+        json!([])
+    );
+}
+
 #[test]
 fn a_refusal_gives_the_reason_and_reset_starts_from_the_school() {
     let mut spel = spel_met("vakantieverlof");

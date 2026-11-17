@@ -54,6 +54,10 @@ export function counts() {
           g.fact === fact &&
           Object.entries(velden).every(([k, v]) => g.fields?.[k] === v),
       ).length,
+    /** Decisions of the case's cell under `artikel` that no submission asked for. */
+    ambtshalve: (artikel) =>
+      state.grammen.filter((g) => g.basis === artikel && !['AANVRAAG', 'BEZWAAR', 'EXECUTOGRAM'].includes(g.kind))
+        .length,
     refusals: state.refusals,
     // The play date: a check step (toetsen) is done once it is reached.
     datum: state.datum,

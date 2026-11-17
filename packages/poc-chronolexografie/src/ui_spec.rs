@@ -1,6 +1,7 @@
 //! What the poc reads from the UI spec of a source (`ui_spec.yaml` at the
 //! root of the source, the file its manifest names): per field of the
-//! application, the source the form prefills it from.
+//! application, the source the form prefills it from, and the views the
+//! authority sees beside each of its decisions ([`Weergave`]).
 //!
 //! A UI spec is a register of elements, each with what a screen shows, asks
 //! and fills, and on what grounds. It comes in two forms:
@@ -9,6 +10,13 @@
 //!   prefills carries `fill: {from: <source>}`;
 //! - the older form: `elementen`, each with a map `prefill` from field to
 //!   source.
+//!
+//! A field of the per-field form may also carry `answer: {from: <source>,
+//! decision: <parameter>}`: the element then shows, beside each decision of
+//! the case's cell, what the cell answers for that source, with the id of the
+//! decision as the parameter `decision`. The fields of such an element that
+//! it asks (`visibility: asked`) are what the authority gives those sources
+//! besides, such as a rate of interest no regelwerk holds.
 //!
 //! The poc reads only those sources and leaves every other key to the
 //! register and its own checks, so a register that grows a key does not stop
@@ -36,6 +44,8 @@ struct Register {
 #[derive(Debug, Deserialize)]
 struct Element {
     id: Option<Value>,
+    /// The name of the element, as a view beside a decision is titled.
+    element: Option<String>,
     #[serde(default)]
     fields: Vec<Field>,
     /// The key of the older form; present here, it is a mix-up.
@@ -48,6 +58,50 @@ struct Element {
 struct Field {
     name: Option<String>,
     fill: Option<Fill>,
+    visibility: Option<String>,
+    answer: Option<Answer>,
+}
+
+/// What a field of a view beside a decision shows: the answer of the case's
+/// cell for `from`, with the id of the decision as the parameter
+/// `decision`. An unknown key is refused, as in [`Fill`].
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct Answer {
+    from: String,
+    decision: String,
+}
+
+/// What the poc reads from a UI spec: the prefill of the application, and the
+/// views beside a decision.
+#[derive(Debug, Default, Clone)]
+pub struct UiSpec {
+    /// Per field of the application, the source the form prefills it from.
+    pub prefill: BTreeMap<String, String>,
+    /// The elements that show answers beside each decision of the case's cell.
+    pub weergaven: Vec<Weergave>,
+}
+
+/// An element that shows, beside each decision of the case's cell, what the
+/// cell answers about it: such as what is still to be paid on it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Weergave {
+    /// The element's name, or its id.
+    pub naam: String,
+    pub antwoorden: Vec<Antwoord>,
+    /// The fields the element asks: what the authority gives the sources
+    /// besides the decision.
+    pub gevraagd: Vec<String>,
+}
+
+/// One field of a [`Weergave`]: the answer for `bron`
+/// (`<regelwerk>#<article>#<output>`), with the id of the decision as the
+/// parameter `besluit`.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Antwoord {
+    pub veld: String,
+    pub bron: String,
+    pub besluit: String,
 }
 
 /// How a field is filled: from a source (`from`), or by the element itself
@@ -77,22 +131,34 @@ struct ElementPrefill {
 }
 
 /// Per field the source the form prefills it from, over every element of the
-/// UI spec `tekst`. Two elements may name the same source for a field, as
-/// the form and the sheet that edits a field do.
+/// UI spec `tekst` ([`lees`]).
+///
+/// # Errors
+///
+/// As [`lees`].
+pub fn prefill(tekst: &str) -> Result<BTreeMap<String, String>, String> {
+    lees(tekst).map(|spec| spec.prefill)
+}
+
+/// What the poc reads from the UI spec `tekst`: per field the source the form
+/// prefills it from, over every element (two elements may name the same
+/// source for a field, as the form and the sheet that edits a field do), and
+/// the views beside a decision.
 ///
 /// # Errors
 ///
 /// The text when it is no UI spec; a UI spec with neither `elements` nor
 /// `elementen`, or with both; an element of one form that carries the key of
 /// the other; a `fill` with a key other than `from` or `by`, or with neither;
+/// a field with both `fill` and `answer`, or an `answer` without a `name`;
 /// a source that is no `<regelwerk>#<article>#<output>`; and a field two
 /// elements prefill from different sources.
-pub fn prefill(tekst: &str) -> Result<BTreeMap<String, String>, String> {
+pub fn lees(tekst: &str) -> Result<UiSpec, String> {
     let register: Register =
         serde_yaml_ng::from_str(tekst).map_err(|e| format!("the UI spec: {e}"))?;
-    let elements = match (register.elements, register.elementen) {
+    let (elements, weergaven) = match (register.elements, register.elementen) {
         (Some(elements), None) => per_field(elements)?,
-        (None, Some(elementen)) => older_form(elementen)?,
+        (None, Some(elementen)) => (older_form(elementen)?, Vec::new()),
         (Some(_), Some(_)) => {
             return Err("the UI spec has both `elements` and `elementen`; keep one form".into());
         }
@@ -104,14 +170,22 @@ pub fn prefill(tekst: &str) -> Result<BTreeMap<String, String>, String> {
             );
         }
     };
-    merge(elements)
+    Ok(UiSpec {
+        prefill: merge(elements)?,
+        weergaven,
+    })
 }
 
-/// The prefill of the elements of the per-field form.
-fn per_field(elements: Vec<Element>) -> Result<Vec<ElementPrefill>, String> {
+/// The prefill of the elements of the per-field form, and the views beside a
+/// decision among them.
+fn per_field(elements: Vec<Element>) -> Result<(Vec<ElementPrefill>, Vec<Weergave>), String> {
     let mut uit = Vec::new();
+    let mut weergaven = Vec::new();
     for (i, element) in elements.into_iter().enumerate() {
         let name = element_name(element.id.as_ref(), i);
+        if let Some(weergave) = weergave(&name, element.element.as_deref(), &element.fields)? {
+            weergaven.push(weergave);
+        }
         if element.prefill.is_some() {
             return Err(format!(
                 "the UI spec: {name} has `prefill`, a key of the older form; \
@@ -144,7 +218,56 @@ fn per_field(elements: Vec<Element>) -> Result<Vec<ElementPrefill>, String> {
         }
         uit.push(ElementPrefill { name, sources });
     }
-    Ok(uit)
+    Ok((uit, weergaven))
+}
+
+/// The view beside a decision that the element `name` (titled `titel`) makes
+/// of its `fields`, or none when no field carries an `answer`.
+fn weergave(name: &str, titel: Option<&str>, fields: &[Field]) -> Result<Option<Weergave>, String> {
+    let mut antwoorden = Vec::new();
+    for field in fields {
+        let Some(answer) = &field.answer else {
+            continue;
+        };
+        let veld = field.name.as_deref().unwrap_or_default();
+        if veld.is_empty() {
+            return Err(format!(
+                "the UI spec: {name} shows an answer for a field without a `name`"
+            ));
+        }
+        if field.fill.is_some() {
+            return Err(format!(
+                "the UI spec: {name} both fills '{veld}' and shows it as an answer; keep one"
+            ));
+        }
+        if !regelrecht_law_model::is_fact_reference(&answer.from) {
+            return Err(format!(
+                "the UI spec: {name} shows '{veld}' from '{}', which is no \
+                 <regelwerk>#<article>#<output>",
+                answer.from
+            ));
+        }
+        antwoorden.push(Antwoord {
+            veld: veld.to_string(),
+            bron: answer.from.clone(),
+            besluit: answer.decision.clone(),
+        });
+    }
+    if antwoorden.is_empty() {
+        return Ok(None);
+    }
+    let gevraagd = fields
+        .iter()
+        .filter(|f| {
+            f.answer.is_none() && f.fill.is_none() && f.visibility.as_deref() == Some("asked")
+        })
+        .filter_map(|f| f.name.clone())
+        .collect();
+    Ok(Some(Weergave {
+        naam: titel.map_or_else(|| name.to_string(), str::to_string),
+        antwoorden,
+        gevraagd,
+    }))
 }
 
 /// The prefill of the elements of the older form.
@@ -376,5 +499,63 @@ elements:
         let e = prefill("elementen: [{prefill: {naam: 'r#5h'}}]").unwrap_err();
         assert!(e.contains("element 1 prefills 'naam' from 'r#5h'"), "{e}");
         assert!(prefill("elementen: 3").is_err());
+    }
+
+    #[test]
+    fn an_element_with_answers_is_a_view_beside_a_decision() {
+        let tekst = "
+elements:
+  - id: UI1
+    fields: [{name: naam, fill: {from: 'r#5h#naam'}}]
+  - id: UI8
+    element: stand van de betaling
+    role: behandelaar
+    fields:
+      - {name: rente, visibility: asked}
+      - {name: saldo, visibility: shown, answer: {from: 'b#2#saldo', decision: besluit}}
+      - {name: kanaal, visibility: asked, fill: {by: system}}
+      - {name: geen, visibility: hidden}
+";
+        let spec = lees(tekst).unwrap();
+        assert_eq!(spec.prefill.len(), 1);
+        assert_eq!(
+            spec.weergaven,
+            vec![Weergave {
+                naam: "stand van de betaling".into(),
+                antwoorden: vec![Antwoord {
+                    veld: "saldo".into(),
+                    bron: "b#2#saldo".into(),
+                    besluit: "besluit".into(),
+                }],
+                gevraagd: vec!["rente".into()],
+            }]
+        );
+        // Without a name of its own the view goes by its id.
+        let spec = lees(
+            "elements: [{id: UI9, fields: [{name: s, answer: {from: 'b#2#s', decision: d}}]}]",
+        )
+        .unwrap();
+        assert_eq!(spec.weergaven[0].naam, "UI9");
+    }
+
+    #[test]
+    fn an_answer_that_does_not_read_is_refused() {
+        let e = lees(
+            "elements: [{id: UI8, fields: [{name: s, answer: {form: 'b#2#s', decision: d}}]}]",
+        )
+        .unwrap_err();
+        assert!(e.contains("unknown field `form`"), "{e}");
+        let e =
+            lees("elements: [{id: UI8, fields: [{name: s, answer: {from: 'b#2', decision: d}}]}]")
+                .unwrap_err();
+        assert!(e.contains("UI8 shows 's' from 'b#2'"), "{e}");
+        let e = lees(
+            "elements: [{id: UI8, fields: [{name: s, fill: {by: system}, answer: {from: 'b#2#s', decision: d}}]}]",
+        )
+        .unwrap_err();
+        assert!(e.contains("both fills 's'"), "{e}");
+        let e = lees("elements: [{id: UI8, fields: [{answer: {from: 'b#2#s', decision: d}}]}]")
+            .unwrap_err();
+        assert!(e.contains("without a `name`"), "{e}");
     }
 }

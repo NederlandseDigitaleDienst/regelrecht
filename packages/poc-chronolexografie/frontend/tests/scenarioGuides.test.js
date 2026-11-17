@@ -193,6 +193,24 @@ describe('bouwGids', () => {
     expect(toets.done({ datum: '2026-03-02' })).toBe(true);
   });
 
+  it('makes an ex officio step done once its article has as many decisions as the scenario took', () => {
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [
+          { stap: 'ambtshalve', artikel: 'w#3' },
+          { stap: 'ambtshalve', artikel: 'w#4' },
+          { stap: 'ambtshalve', artikel: 'w#3' },
+        ],
+      },
+      { cel: 'dienst', andere_cellen: [] },
+    );
+    const tel = (per) => ({ ambtshalve: (a) => per[a] ?? 0 });
+    expect(g.steps.map((s) => s.tab)).toEqual(['bestuursorgaan', 'bestuursorgaan', 'bestuursorgaan']);
+    expect(g.steps.map((s) => s.done(tel({ 'w#3': 1, 'w#4': 1 })))).toEqual([true, true, false]);
+    expect(g.steps.map((s) => s.done(tel({ 'w#3': 2 })))).toEqual([true, false, true]);
+  });
+
   it('carries the answers a step expects, with the play date to ask them on', () => {
     const antwoorden = [{ bron: 'beleid#1#betaalde_leges', verwacht: 5000 }];
     const g = bouwGids(

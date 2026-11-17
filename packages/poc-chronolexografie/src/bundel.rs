@@ -164,17 +164,18 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         Bundle::new(alles).map_err(|e| Error::Setup(format!("source '{}': {e}", bron.naam)))?,
     );
     let roots = [wortel.clone()];
-    // A UI spec that does not read costs the prefill, not the cases: they
-    // play with empty forms, and the source says why.
-    let prefill = match bron.bestanden.get(UI_SPEC).map(|t| ui_spec::prefill(t)) {
-        Some(Ok(prefill)) => prefill,
+    // A UI spec that does not read costs the prefill and the views beside a
+    // decision, not the cases: they play with empty forms, and the source
+    // says why.
+    let spec = match bron.bestanden.get(UI_SPEC).map(|t| ui_spec::lees(t)) {
+        Some(Ok(spec)) => spec,
         Some(Err(e)) => {
             stand
                 .meldingen
                 .push(format!("{UI_SPEC}: {e}; the forms are not prefilled"));
-            BTreeMap::new()
+            ui_spec::UiSpec::default()
         }
-        None => BTreeMap::new(),
+        None => ui_spec::UiSpec::default(),
     };
     let regelwerken = Regelwerken::load(&*bundle, &roots)?;
     stand
@@ -186,7 +187,8 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         let id = casus.id.clone();
         match Corpus::load(bundle.clone(), &roots, &regelwerken, casus) {
             Ok(mut c) => {
-                c.prefill = prefill.clone();
+                c.prefill = spec.prefill.clone();
+                c.weergaven = spec.weergaven.clone();
                 uit.push(c);
             }
             Err(e) => stand.fouten.push(format!("case '{id}': {e}")),

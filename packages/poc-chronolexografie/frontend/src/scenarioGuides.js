@@ -151,6 +151,16 @@ const KINDS = {
     // The case refuses a check step without a play date (src/casus.rs).
     done: (n, stap) => (k) => (k.datum ?? '') >= stap.datum,
   },
+  // A decision the case's cell takes ex officio (AmbtshalveBesluiten.vue),
+  // under the article the step names. Done once the cell holds as many
+  // decisions under that article as the scenario took so far.
+  ambtshalve: {
+    tab: 'bestuursorgaan',
+    title: () => 'Ambtshalve besluiten',
+    todo: 'Klik onder Ambtshalve besluiten op Ambtshalve besluiten.',
+    seen: () => 'Het besluit staat onder Ambtshalve besluiten.',
+    done: (n, stap) => (k) => k.ambtshalve(stap.artikel) >= n,
+  },
   opnieuw_beslissen: {
     tab: 'bestuursorgaan',
     title: () => 'Opnieuw beslissen',
@@ -238,6 +248,9 @@ export function bouwGids(scenario, casus = null) {
       const feit = casus?.inloggen?.feit;
       const ingelogd = (besloten.inloggen ?? 0) + (stap.uitkomst === 'geweigerd' ? 1 : 0);
       done = kind.done(ingelogd, { feit }, vooraf(casus, feit));
+    } else if (stap.stap === 'ambtshalve') {
+      const sleutel = `ambtshalve ${stap.artikel}`;
+      done = kind.done((geteld[sleutel] = (geteld[sleutel] ?? 0) + 1), stap);
     } else done = kind.done(stap.stap === 'besluit' ? doel : n, stap);
     // A record step of the case's own cell happens on the authority's tab.
     const soort =
