@@ -348,8 +348,20 @@ articles:
 #[test]
 fn awb_4_13_neemt_de_termijn_van_de_wet_van_de_aanvraag() {
     let mut service = load_corpus();
-    if !heeft_wet(&service, "algemene_wet_bestuursrecht") {
-        eprintln!("overgeslagen: de Awb zit niet in dit corpus");
+    // Het democorpus heeft een eigen Awb, zonder het open begrip van lid 1.
+    let met_open_begrip = WalkDir::new(common::regulation_base_path())
+        .follow_links(true)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.path()
+                .to_string_lossy()
+                .contains("algemene_wet_bestuursrecht")
+        })
+        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
+        .any(|yaml| yaml.contains("id: wettelijke_beslistermijn"));
+    if !met_open_begrip {
+        eprintln!("overgeslagen: de Awb in dit corpus laat lid 1 niet als open begrip");
         return;
     }
     service.load_law(SUBSIDIEWET_MET_TERMIJN).unwrap();
