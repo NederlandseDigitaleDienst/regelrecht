@@ -3,8 +3,10 @@
 //!
 //! A scenario has one cell with one chronicle in memory. Records are named by
 //! the id in the scenario; the day they are recorded is the calculation date.
-//! The fixtures in `packages/cel/bdd/fixtures` (the synthetic law, and the
-//! reductions of a cell) are loaded next to the corpus.
+//! A feature in `packages/cel/bdd/features` runs against the corpus with the
+//! fixtures in `packages/cel/bdd/fixtures` (the synthetic law, and the
+//! reductions of a cell) next to it; a feature in a scenario set
+//! (`crate::sets`) against the regelwerken of that set alone.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -14,14 +16,16 @@ use regelrecht_cel::reading::Reader;
 use regelrecht_cel::{Afschrift, Cell, Chronicle, Disk, EXECUTOGRAM, Gram, Received, shape};
 use regelrecht_engine::projection::describe_applied;
 use regelrecht_engine::{
-    Aggregate, Article, Authority, Call, LawExecutionService, ProjectionEvent, ProjectionOutcome,
-    Value,
+    Aggregate, Article, ArticleResult, Authority, Call, LawExecutionService, ProjectionEvent,
+    ProjectionOutcome, Value,
 };
 use regelrecht_law_model::stored;
 use walkdir::WalkDir;
 
 use crate::dispatch::{ArgValue, table_cell_value};
+use crate::helpers::regulation_loader::load_all_regulations;
 use crate::helpers::table::{Rows, rows_to_params};
+use crate::sets::{ScenarioSet, load_regelwerk};
 use crate::world::RegelrechtWorld;
 
 /// The cell that records, as `recording_actor`.
@@ -44,34 +48,39 @@ pub struct State {
 }
 
 impl State {
-    /// An empty chronicle, after loading the fixtures: every regelwerk under
-    /// `fixtures/regulation`, and the reductions under `fixtures/cells`.
-    pub fn new(service: &mut LawExecutionService) -> Self {
-        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("bdd/fixtures");
-        for entry in WalkDir::new(&fixtures).into_iter().filter_map(Result::ok) {
-            let path = entry.path();
-            let rel = path.strip_prefix(&fixtures).unwrap();
-            let regelwerk = rel.starts_with("regulation")
-                || rel.components().any(|c| c.as_os_str() == "reductions");
-            if regelwerk && path.extension().is_some_and(|x| x == "yaml") {
-                let mut yaml = std::fs::read_to_string(path).unwrap();
-                // As the corpus loader does, so `BDD_REVERSE_ACTIONS` covers
-                // the reductions too.
-                if crate::reverse_actions::enabled() {
-                    yaml = crate::reverse_actions::reversed_actions(&yaml)
-                        .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-                }
-                service
-                    .load_law(&yaml)
-                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            }
-        }
+    /// An empty chronicle, and nothing projected or refused yet.
+    pub fn new() -> Self {
         Self {
             chronicle: Chronicle::in_memory(),
             court: Chronicle::in_memory(),
             projection: None,
             aggregates: Vec::new(),
             refused: None,
+        }
+    }
+}
+
+/// Load the regelwerken a scenario of the feature at `feature` runs against.
+/// A feature in a scenario set ([`ScenarioSet`]) gets the regelwerken of that
+/// set alone; any other feature (`bdd/features`) gets the corpus and the
+/// fixtures: every regelwerk under `fixtures/regulation`, and the reductions
+/// under `fixtures/cells`.
+pub fn load(service: &mut LawExecutionService, feature: Option<&Path>) {
+    if let Some(set) = feature.and_then(ScenarioSet::containing) {
+        set.load(service);
+        return;
+    }
+    if let Err(e) = load_all_regulations(service) {
+        panic!("Failed to load regulations: {e}");
+    }
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("bdd/fixtures");
+    for entry in WalkDir::new(&fixtures).into_iter().filter_map(Result::ok) {
+        let path = entry.path();
+        let rel = path.strip_prefix(&fixtures).unwrap();
+        let regelwerk = rel.starts_with("regulation")
+            || rel.components().any(|c| c.as_os_str() == "reductions");
+        if regelwerk && path.extension().is_some_and(|x| x == "yaml") {
+            load_regelwerk(service, path);
         }
     }
 }
@@ -324,6 +333,8 @@ fn decide_on_submission(
 }
 
 /// Execute the decision of article `basis` with `parameters` and record it.
+/// The canonical output steps then read what the decision gave, with what
+/// the hooks on it gave (such as the last day of a decision term).
 fn decide(
     world: &mut RegelrechtWorld,
     id: &str,
@@ -331,8 +342,17 @@ fn decide(
     refers_to: Option<&str>,
     parameters: BTreeMap<String, Value>,
 ) {
-    let gram = decided(world, id, basis, refers_to, parameters);
+    let Decided { gram, result } = decided(world, id, basis, refers_to, parameters);
     append(world, gram);
+    world.result = Some(result);
+    world.error = None;
+}
+
+/// A decision of the cell, not yet recorded, and the engine's result it
+/// came from.
+struct Decided {
+    gram: Gram,
+    result: ArticleResult,
 }
 
 /// The decision of article `basis` with `parameters`, as a chronolexogram
@@ -343,7 +363,7 @@ fn decided(
     basis: &str,
     refers_to: Option<&str>,
     parameters: BTreeMap<String, Value>,
-) -> Gram {
+) -> Decided {
     let deciding = article(world, basis);
     let decision = deciding
         .get_decision()
@@ -355,15 +375,16 @@ fn decided(
         .service
         .evaluate_law(law, &outputs, parameters.clone(), &world.calculation_date)
         .unwrap_or_else(|e| panic!("decision '{id}' under {basis}: {e}"));
-    gram(
+    let gram = gram(
         world,
         id,
         kind,
         basis.to_string(),
         refers_to,
         parameters,
-        result.outputs,
-    )
+        result.outputs.clone(),
+    );
+    Decided { gram, result }
 }
 
 fn gram(
@@ -496,7 +517,7 @@ fn court_rules(
         .map(|(k, v)| (k.clone(), stored::from_stored(v).expect("stored field")))
         .collect();
     parameters.extend(found);
-    let mut gram = decided(world, id, &basis, Some(&appeal.id), parameters);
+    let mut gram = decided(world, id, &basis, Some(&appeal.id), parameters).gram;
     gram.recording_actor = COURT.to_string();
     world
         .extension

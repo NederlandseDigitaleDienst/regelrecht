@@ -1,0 +1,108 @@
+---
+# FICTIEF. A synthetic general administrative law for the construct
+# "beslistermijn" (packages/cel/bdd/constructs/beslistermijn). Article 1 and 2
+# are loosely shaped after article 4:13 of the Algemene wet bestuursrecht: a
+# decision is due within the term a statutory provision sets (lid 1), and
+# without one within eight weeks after the application was received (lid 2).
+# Both articles fire as a hook on every decision (BESCHIKKING) of a host law,
+# such as test_wet_tafeldekken. None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_algemene_bestuursregels
+name: Testwet algemene bestuursregels
+regulatory_layer: WET
+bwb_id: BWBR9999981
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.com/test_algemene_bestuursregels
+
+articles:
+  - number: '1'
+    url: https://example.com/test_algemene_bestuursregels/1
+    text: |-
+      FICTIEF, naar artikel 4:13 van de Algemene wet bestuursrecht.
+      1. De gastheer beslist binnen de termijn die een wettelijk voorschrift
+      bepaalt.
+      2. Bepaalt geen wettelijk voorschrift een termijn, dan beslist de
+      gastheer binnen acht weken na ontvangst van de aanvraag.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BESLUIT
+      # Lid 1 leaves the term to the statutory provision of the host law.
+      # Today a host law sets its own term with an override on
+      # `beslistermijn_weken` (test_wet_feestmaaltijd, article 3). Filling
+      # this open term through `implements` needs the host law as the only
+      # candidate, which the engine does not do yet: see the scenario tagged
+      # @wip in scenarios/beslistermijn.feature.
+      open_terms:
+        - id: wettelijke_beslistermijn_weken
+          type: number
+          required: false
+          legal_basis: artikel 1, eerste lid, Testwet algemene bestuursregels
+          description: >-
+            De beslistermijn in weken die een wettelijk voorschrift bepaalt
+            (lid 1).
+          # Lid 2: zonder wettelijk voorschrift acht weken.
+          default:
+            actions:
+              - output: wettelijke_beslistermijn_weken
+                value: 8
+      execution:
+        output:
+          - name: beslistermijn_weken
+            type: number
+            description: De beslistermijn in weken (lid 1 en 2).
+        actions:
+          - output: beslistermijn_weken
+            value: $wettelijke_beslistermijn_weken
+
+  - number: '2'
+    url: https://example.com/test_algemene_bestuursregels/2
+    text: |-
+      FICTIEF, naar artikel 4:13 van de Algemene wet bestuursrecht.
+      1. De beslistermijn vangt aan met ingang van de dag na die waarop de
+      gastheer de aanvraag ontving.
+      2. Een beschikking die de gastheer na de laatste dag van de
+      beslistermijn geeft, is niet tijdig gegeven.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BESLUIT
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: true
+            description: De dag waarop de gastheer de aanvraag ontving (lid 1).
+        input:
+          - name: beslistermijn_weken
+            type: number
+            source:
+              regulation: test_algemene_bestuursregels
+              output: beslistermijn_weken
+        output:
+          - name: uiterste_beslisdatum
+            type: date
+            description: >-
+              De laatste dag van de beslistermijn. De dag van ontvangst telt
+              niet mee (lid 1).
+          - name: besluit_te_laat
+            type: boolean
+            description: >-
+              Of de beschikking na de laatste dag van de beslistermijn is
+              gegeven (lid 2). De dag van de beschikking is de peildatum.
+        actions:
+          - output: uiterste_beslisdatum
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: $beslistermijn_weken
+          - output: besluit_te_laat
+            value:
+              operation: GREATER_THAN
+              subject: $referencedate.iso
+              value: $uiterste_beslisdatum

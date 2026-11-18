@@ -1,0 +1,75 @@
+---
+# FICTIEF. A host law for the construct "beslistermijn"
+# (packages/cel/bdd/constructs/beslistermijn) with a decision term of its own:
+# article 3 sets two weeks, as the statutory provision that
+# test_algemene_bestuursregels, article 1, first paragraph, refers to. It does
+# so with an override, the route the engine supports today. None of it is the
+# text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_wet_feestmaaltijd
+name: Testwet feestmaaltijd
+regulatory_layer: WET
+bwb_id: BWBR9999983
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.com/test_wet_feestmaaltijd
+
+articles:
+  - number: '1'
+    url: https://example.com/test_wet_feestmaaltijd/1
+    text: >-
+      FICTIEF. Wie een feestmaaltijd wil, vraagt de gastheer daarom en
+      vermeldt het aantal gangen.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_wet_feestmaaltijd#2
+            parameters:
+              - aantal_gangen
+        parameters:
+          - name: aantal_gangen
+            type: number
+
+  - number: '2'
+    url: https://example.com/test_wet_feestmaaltijd/2
+    text: >-
+      FICTIEF. De gastheer beslist op de aanvraag. Hij bereidt een
+      feestmaaltijd van ten hoogste vijf gangen.
+    machine_readable:
+      execution:
+        produces:
+          - type: BESCHIKKING
+            outputs:
+              - feestmaaltijd_wordt_bereid
+        parameters:
+          - name: aantal_gangen
+            type: number
+        output:
+          - name: feestmaaltijd_wordt_bereid
+            type: boolean
+        actions:
+          - output: feestmaaltijd_wordt_bereid
+            value:
+              operation: LESS_THAN_OR_EQUAL
+              subject: $aantal_gangen
+              value: 5
+
+  - number: '3'
+    url: https://example.com/test_wet_feestmaaltijd/3
+    text: >-
+      FICTIEF. In afwijking van artikel 1, tweede lid, van de Testwet
+      algemene bestuursregels beslist de gastheer binnen twee weken na
+      ontvangst van de aanvraag.
+    machine_readable:
+      overrides:
+        - law: test_algemene_bestuursregels
+          article: '1'
+          output: beslistermijn_weken
+      execution:
+        output:
+          - name: beslistermijn_weken
+            type: number
+        actions:
+          - output: beslistermijn_weken
+            value: 2

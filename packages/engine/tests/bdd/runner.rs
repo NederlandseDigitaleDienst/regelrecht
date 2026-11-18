@@ -54,6 +54,11 @@ pub async fn run(features: Vec<PathBuf>) {
         .with_parser::<ExplicitPaths, Vec<PathBuf>>(ExplicitPaths)
         .max_concurrent_scenarios(1) // Run scenarios sequentially for predictable state
         .fail_on_skipped()
+        // The world starts empty: which regelwerken a scenario loads depends
+        // on the feature it belongs to (`crate::extension::load`).
+        .before(|feature, _rule, _scenario, world| {
+            Box::pin(async move { world.load_regelwerken(feature.path.as_deref()) })
+        })
         .with_default_cli()
         .filter_run_and_exit(features, |feature, _rule, scenario| {
             let is_wip = |tags: &[String]| tags.iter().any(|t| t == "wip");

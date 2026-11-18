@@ -10,19 +10,18 @@ use regelrecht_engine::{
 };
 use std::collections::BTreeMap;
 use std::fmt;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// Global scenario counter for unique trace file names.
 static SCENARIO_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-use crate::helpers::regulation_loader::load_all_regulations;
-
 /// Test world that holds state across steps in a Cucumber scenario.
 #[derive(World)]
 #[world(init = Self::new)]
 pub struct RegelrechtWorld {
-    /// Law execution service with all regulations loaded
+    /// Law execution service, with the regelwerken of the scenario loaded
+    /// before its first step ([`Self::load_regelwerken`])
     pub service: LawExecutionService,
     /// Calculation date for the current scenario
     pub calculation_date: String,
@@ -77,18 +76,12 @@ impl Default for RegelrechtWorld {
 }
 
 impl RegelrechtWorld {
-    /// Create a new world with all regulations loaded.
+    /// Create a new world with no regelwerk loaded yet: the runner loads them
+    /// before the first step, once it knows the feature
+    /// ([`Self::load_regelwerken`]).
     pub fn new() -> Self {
-        let mut service = LawExecutionService::new();
-
-        // Load all regulations from the regulation directory
-        if let Err(e) = load_all_regulations(&mut service) {
-            panic!("Failed to load regulations: {}", e);
-        }
-        let extension = crate::extension::State::new(&mut service);
-
         Self {
-            service,
+            service: LawExecutionService::new(),
             calculation_date: "2024-01-01".to_string(),
             parameters: BTreeMap::new(),
             findings: BTreeMap::new(),
@@ -100,8 +93,16 @@ impl RegelrechtWorld {
             data_sources: BTreeMap::new(),
             scoped_data_sources: Vec::new(),
             requested_outputs: Vec::new(),
-            extension,
+            extension: crate::extension::State::new(),
         }
+    }
+
+    /// Load the regelwerken a scenario of the feature at `feature` runs
+    /// against. Which ones is the runner's choice (`crate::extension::load`):
+    /// the engine's runner loads the corpus for every feature, the cell's
+    /// runner the regelwerken of a scenario set for a feature in one.
+    pub fn load_regelwerken(&mut self, feature: Option<&Path>) {
+        crate::extension::load(&mut self.service, feature);
     }
 
     /// Returns true if trace output is enabled via the `TRACE` env var.
