@@ -4,7 +4,21 @@ import { docsNav } from '~/lib/navLinks';
 
 // Top-level documentation overview: every category, linking to its category
 // (overview) page. Home is excluded — it's the site landing, not a category.
-const categories = docsNav.filter((n) => n.match !== '/en/');
+const sections = docsNav.filter((n) => n.match !== '/en/');
+// The documentation is English. Sections written in Dutch get a group of
+// their own with an English heading, so a reader sees the language change
+// before following the link instead of after. The roadmap is not a docs
+// section, but it is the other Dutch part of the site and readers look for it
+// here.
+const categories = sections.filter((n) => n.lang !== 'nl');
+const dutchSections = [
+  ...sections.filter((n) => n.lang === 'nl'),
+  {
+    text: 'Roadmap',
+    link: '/roadmap',
+    summary: 'De werkpakketten per fase, met de onderzoeksvragen en de RFC’s die erbij horen.',
+  },
+];
 const title = 'Documentation · RegelRecht';
 ---
 
@@ -24,6 +38,26 @@ const title = 'Documentation · RegelRecht';
         {
           categories.map((c) => (
             <nldd-list-item href={c.link}>
+              <nldd-text-cell
+                text={c.text}
+                supporting-text={c.summary}
+                width="full"
+              />
+              <nldd-spacer-cell />
+              <nldd-icon-cell size="20" icon="chevron-right" />
+            </nldd-list-item>
+          ))
+        }
+      </nldd-list>
+      <nldd-spacer size="32" />
+      <nldd-title size="display-4">
+        <h2>In Dutch</h2>
+      </nldd-title>
+      <nldd-spacer size="8" />
+      <nldd-list type="navigation" appearance="box-tinted">
+        {
+          dutchSections.map((c) => (
+            <nldd-list-item href={c.link} lang="nl">
               <nldd-text-cell
                 text={c.text}
                 supporting-text={c.summary}
