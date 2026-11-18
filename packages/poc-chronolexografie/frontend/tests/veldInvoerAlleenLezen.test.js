@@ -5,6 +5,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp, h, nextTick } from 'vue';
 import VeldInvoer from '../src/components/VeldInvoer.vue';
+import { BESTUUR, RIJEN } from './fixtureTabel.js';
 
 let app = null;
 let el = null;
@@ -36,6 +37,13 @@ describe('VeldInvoer alleen-lezen', () => {
   it('disables a switch the system fills', async () => {
     await mount({ naam: 'elektronisch', type: 'boolean' }, true, true);
     expect(el.querySelector('nldd-switch-field').hasAttribute('disabled')).toBe(true);
+  });
+
+  it('shows a table the system fills without its buttons', async () => {
+    await mount(BESTUUR, RIJEN, true);
+    expect(el.querySelectorAll('nldd-table-row:not([slot])').length).toBe(RIJEN.length);
+    expect(el.querySelector('nldd-button[text="Rij toevoegen"]')).toBeNull();
+    expect(el.querySelector('nldd-icon-button')).toBeNull();
   });
 
   it('leaves a field the applicant fills editable', async () => {

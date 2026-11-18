@@ -67,10 +67,11 @@ const aanvraagVorm = formulier(() => {
 // without a session the application does not come through the form, as one
 // on paper, and the system fills nothing (voorinvulling.js).
 const systeem = computed(() => systeemVult(inloggen.value, sessie.value, state.vormen?.aanvraag?.systeem));
+const doorInloggen = computed(() => ingevuldDoorInloggen(inloggen.value, sessie.value, veldnamen.value));
 const aanvraag = computed(() => {
   const uitStap = scenarioWaarden('aanvraag') ? huidigeStap()?.step.stap.invoer?.[inloggen.value?.veld] : undefined;
   const waarden = metSessie(inloggen.value, sessie.value, aanvraagVorm.waarden('aanvraag'), veldnamen.value, uitStap);
-  return metSysteem(waarden, systeem.value, voorgevuld.value);
+  return metSysteem(waarden, systeem.value, voorgevuld.value, doorInloggen.value);
 });
 // The sources asked: the prefill, and what the system fills from a source.
 const prefill = computed(() => ({ ...(state.vormen?.aanvraag?.prefill ?? {}), ...systeemBronnen(systeem.value) }));
@@ -135,10 +136,9 @@ const herkomst = (veld) =>
     ? systeemTekst(systeem.value[veld.naam], voorgevuld.value[veld.naam], celNaam)
     : herkomstTekst(voorgevuld.value[veld.naam], aanvraag.value[veld.naam], celNaam, veld.kolommen);
 
-const velden = computed(() => {
-  const door = ingevuldDoorInloggen(inloggen.value, sessie.value, veldnamen.value);
-  return opHetFormulier(state.vormen?.aanvraag?.velden, state.vormen?.aanvraag?.verborgen, door);
-});
+const velden = computed(() =>
+  opHetFormulier(state.vormen?.aanvraag?.velden, state.vormen?.aanvraag?.verborgen, doorInloggen.value),
+);
 function uitloggen() {
   wisSessie(state.casus.id);
 }

@@ -24,6 +24,10 @@
 //! - `visibility: hidden`: the form does not show it. It still submits what
 //!   fills it.
 //!
+//! What a field says counts over every element, as a prefill does, so an
+//! element of another screen that names a field of the application says it
+//! for the form too.
+//!
 //! A field of the per-field form may also carry `answer: {from: <source>,
 //! decision: <parameter>}`: the element then shows, beside each decision of
 //! the case's cell, what the cell answers for that source, with the id of the
@@ -239,7 +243,7 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
     let prefill = merge(elements)?;
     if let Some(veld) = prefill.keys().find(|v| systeem.contains_key(*v)) {
         return Err(format!(
-            "the UI spec prefills '{veld}' in one element and fills it by the system in another"
+            "the UI spec both prefills '{veld}' and fills it by the system"
         ));
     }
     Ok(UiSpec {
@@ -335,10 +339,21 @@ fn lees_veld(velden: &mut ElementVelden, field: Field, weergave: bool) -> Result
         velden.sources.push((veld, from));
         return Ok(());
     }
-    if veld.is_empty() || weergave {
+    if veld.is_empty() {
         return Ok(());
     }
+    // Read in a view beside a decision too, so that a misspelling there is
+    // refused as well; only the form uses it.
     let vulling = systeemvulling(&name, &veld, fill)?;
+    if weergave {
+        return Ok(());
+    }
+    if field.visibility.as_deref() == Some("asked") {
+        return Err(format!(
+            "the UI spec: {name} asks '{veld}' and fills it by the system; the applicant \
+             does not type what the system fills"
+        ));
+    }
     velden.systeem.push((veld, vulling));
     Ok(())
 }
@@ -720,6 +735,18 @@ elements:
         assert!(e.contains("without `by: system`"), "{e}");
         let e = fout("{by: user}");
         assert!(e.contains("knows only `by: system`"), "{e}");
+        let e = lees(
+            "elements: [{id: UI1, fields: [{name: x, visibility: asked, fill: {by: system}}]}]",
+        )
+        .unwrap_err();
+        assert!(e.contains("UI1 asks 'x' and fills it by the system"), "{e}");
+        // A view beside a decision is no form, but a misspelling there is refused all the same.
+        let e = lees(
+            "elements: [{id: UI8, fields: [{name: s, answer: {from: 'b#2#s', decision: d}},
+                                          {name: x, fill: {by: system, submission: dag}}]}]",
+        )
+        .unwrap_err();
+        assert!(e.contains("`submission: dag`"), "{e}");
     }
 
     #[test]

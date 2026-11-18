@@ -198,13 +198,18 @@ describe('fields the system fills', () => {
 
   it('fills over the scenario and the applicant, and leaves the login to the login', () => {
     const waarden = { dagtekening: '2020-01-01', kanaal: 'papier', naam: 'Eigen naam', nummer: '90123456' };
-    expect(metSysteem(waarden, systeem, voorgevuld)).toEqual({
+    expect(metSysteem(waarden, systeem, voorgevuld, new Set(['nummer']))).toEqual({
       dagtekening: '2028-03-06',
       kanaal: 'portaal',
       elektronisch: true,
       naam: 'Eigen naam',
       nummer: '90123456',
     });
+  });
+
+  it('leaves a field the login gives nothing empty', () => {
+    const uit = metSysteem({ nummer: 'uit het voorbeeld' }, systeem, {}, new Set());
+    expect('nummer' in uit && uit.nummer === undefined).toBe(true);
   });
 
   it('leaves a field empty when its source gives nothing', () => {

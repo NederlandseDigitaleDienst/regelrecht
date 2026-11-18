@@ -32,6 +32,7 @@ const getal = (tekst) => {
     :veld="veld"
     :model-value="modelValue"
     :herkomst="herkomst"
+    :alleen-lezen="alleenLezen"
     @update:model-value="emit('update:modelValue', $event)"
   />
   <nldd-switch-field

@@ -110,16 +110,18 @@ export const systeemBronnen = (systeem) =>
  * What the application holds: the form's `waarden`, with what the system
  * fills over them, per field the value it knows, or what the source gave
  * (`voorgevuld`), and empty when the source gave nothing. That goes over
- * what a scenario or the example gives. A field the login fills is left to
- * the login. A field the form hides keeps its value: it is submitted, only
- * not shown.
+ * what a scenario or the example gives. A field the login fills keeps what
+ * the login gave it (`doorInloggen`, the names inlogstap.js fills), and is
+ * empty when the login gives it nothing. A field the form hides keeps its
+ * value: it is submitted, only not shown.
  */
-export function metSysteem(waarden, systeem, voorgevuld) {
+export function metSysteem(waarden, systeem, voorgevuld, doorInloggen = new Set()) {
   const gegeven = voorgevuldeWaarden(voorgevuld);
   const uit = { ...waarden };
   for (const [naam, hoe] of Object.entries(systeem ?? {})) {
     if ('waarde' in hoe) uit[naam] = hoe.waarde ?? undefined;
     else if (hoe.bron) uit[naam] = gegeven[naam];
+    else if (!doorInloggen.has(naam)) uit[naam] = undefined;
   }
   return uit;
 }

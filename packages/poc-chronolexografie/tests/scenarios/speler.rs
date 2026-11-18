@@ -371,9 +371,10 @@ impl Speler<'_> {
     /// The fields the UI spec has the system fill (`systeem`), as the form
     /// fills them: a value the system knows goes in as it is, and a source as
     /// the cell answers it on what the application holds so far. Those
-    /// values go over the case's example. A step may not name such a field:
-    /// the applicant does not type it. The login fills its own fields
-    /// ([`Speler::uit_sessie`]). In a case with a login step, an application
+    /// values go over the case's example; a source that gives nothing, or an
+    /// unknown value, leaves the field empty. A step may not name such a
+    /// field: the applicant does not type it. The login fills its own fields
+    /// ([`Speler::uit_sessie`]), and one it gives nothing stays empty. In a case with a login step, an application
     /// without a session did not come through the form, as one on paper: the
     /// system fills nothing, and the step names what it holds.
     fn door_het_systeem(
@@ -395,12 +396,28 @@ impl Speler<'_> {
         {
             return Err(format!("the step fills '{veld}', which the system fills"));
         }
+        // What the login fills: its field, and each claim of the session.
+        let door_inloggen = |veld: &str| {
+            aanvraag["inloggen"]["veld"].as_str() == Some(veld)
+                || self.sessie.as_ref().is_some_and(|c| c.contains_key(veld))
+        };
         let mut bronnen = Map::new();
         for (veld, hoe) in systeem {
-            if let Some(waarde) = hoe.get("waarde") {
-                velden.insert(veld.clone(), waarde.clone());
-            } else if let Some(bron) = hoe.get("bron") {
-                bronnen.insert(veld.clone(), bron.clone());
+            match (hoe.get("waarde"), hoe.get("bron")) {
+                (Some(Value::Null), _) => {
+                    velden.remove(veld);
+                }
+                (Some(waarde), _) => {
+                    velden.insert(veld.clone(), waarde.clone());
+                }
+                (None, Some(bron)) => {
+                    velden.remove(veld);
+                    bronnen.insert(veld.clone(), bron.clone());
+                }
+                (None, None) if !door_inloggen(veld) => {
+                    velden.remove(veld);
+                }
+                (None, None) => {}
             }
         }
         if bronnen.is_empty() {
