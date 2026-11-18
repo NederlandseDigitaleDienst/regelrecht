@@ -3,8 +3,9 @@
 # (packages/cel/bdd/constructs/beslistermijn) with a decision term of its own:
 # two weeks after receipt, the term set by statutory provision that article
 # 4:13, first paragraph, of the Algemene wet bestuursrecht refers to. Article
-# 2 sets it with an override on the output of 4:13; test_permit_act_implements
-# fills the open term of 4:13 instead. None of it is the text of a law.
+# 2 replaces the lid 2 output of 4:13, redelijke_beslistermijn_einddatum, with
+# an override, the route from before RFC-058. test_permit_act_implements fills
+# the open term of lid 1 instead. None of it is the text of a law.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
 $id: test_permit_act_short_term
 name: Testwet vergunning met korte beslistermijn

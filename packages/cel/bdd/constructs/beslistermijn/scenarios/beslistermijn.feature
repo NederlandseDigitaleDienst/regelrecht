@@ -7,7 +7,10 @@ Feature: The decision term of Awb 4:13 on an application for a permit
   # the corpus (../corpus.yaml names it), the permit acts in ../regulation are
   # fictional, and nothing else is loaded. Article 4:13 hooks onto every
   # application (AANVRAAG): it takes the day of receipt as the moment that
-  # counts, and gives the last day of the term, eight weeks later (lid 2).
+  # counts. It gives the last day of the term set by statutory provision
+  # (lid 1) as `uiterste_beslisdatum`, eight weeks after receipt when the
+  # host act sets none, and the eight weeks of lid 2 as
+  # `redelijke_beslistermijn_einddatum`.
   #
   # The cell records an application on the calculation date, and that day is
   # the receipt. The decision is recorded on the calculation date of its own
@@ -21,8 +24,9 @@ Feature: The decision term of Awb 4:13 on an application for a permit
   # law as well as in the model.
   #
   # Names that come from the corpus stay Dutch: `datum_ontvangst`,
-  # `dagtekening` and the other fields of Awb 4:2, and the output
-  # `redelijke_beslistermijn_einddatum` of Awb 4:13.
+  # `dagtekening` and the other fields of Awb 4:2, and the outputs
+  # `uiterste_beslisdatum` and `redelijke_beslistermijn_einddatum` of Awb
+  # 4:13.
 
   Scenario: The application holds the fields of the permit act and of Awb 4:2, and takes the receipt as its moment
     # The hooks on the application decide what it holds. Awb 4:13 adds no
@@ -52,6 +56,9 @@ Feature: The decision term of Awb 4:13 on an application for a permit
     And output "redelijke_beslistermijn_einddatum" equals "2026-04-28"
     And output "redelijke_beslistermijn_einddatum" has reactive provenance
     And decision "permit_decision" is given on or before "redelijke_beslistermijn_einddatum"
+    # test_permit_act_implements is loaded too and fills the term of 4:13
+    # with one week, but only for its own application (RFC-058).
+    And output "uiterste_beslisdatum" equals "2026-04-28"
 
   Scenario: A decision on the last day of the term is on time
     Given the calculation date is "2026-03-03"
@@ -90,9 +97,11 @@ Feature: The decision term of Awb 4:13 on an application for a permit
 
   Scenario: A permit act with a term of its own sets two weeks with an override
     # Awb 4:13 lid 1: a term set by statutory provision goes first. This
-    # host act sets it with an override on the output of 4:13 (article 2 of
-    # test_permit_act_short_term); the last scenario fills the open term of
-    # 4:13 instead.
+    # host act replaces the lid 2 output of 4:13,
+    # `redelijke_beslistermijn_einddatum`, with an override (article 2 of
+    # test_permit_act_short_term), the route from before RFC-058. The last
+    # scenario fills the open term of lid 1 instead, which gives
+    # `uiterste_beslisdatum`.
     Given the calculation date is "2026-03-03"
     When the cell records submission "permit_application" under article "1" of "test_permit_act_short_term" with:
       | meets_conditions | true |
