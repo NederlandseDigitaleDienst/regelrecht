@@ -40,12 +40,20 @@ Feature: Operations are defined per type — RFC-055
     Then output "tekst" equals "afspraak"
 
   @signature:ADD:array
-  Scenario: ADD of two arrays joins them
+  Scenario: ADD of two arrays joins them in order
     Given the following "register" data with key "bsn" for law "test_signaturen":
-      | bsn       | rij                          |
-      | 999993653 | {"a": ["x", "y"], "b": ["z"]} |
-    When I evaluate "lijst" of "test_signaturen"
+      | bsn       | rij                                                        |
+      | 999993653 | {"a": ["x", "y"], "b": ["z"], "verwacht": ["x", "y", "z"]} |
+    When I evaluate "lijst_klopt" of "test_signaturen"
     Then the execution succeeds
+    Then output "lijst_klopt" is true
+  Scenario: ADD of two arrays keeps their order
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                                        |
+      | 999993653 | {"a": ["x", "y"], "b": ["z"], "verwacht": ["z", "x", "y"]} |
+    When I evaluate "lijst_klopt" of "test_signaturen"
+    Then the execution succeeds
+    Then output "lijst_klopt" is false
 
   Scenario: ADD of a number and a string is refused
     Given the following "register" data with key "bsn" for law "test_signaturen":
@@ -429,3 +437,167 @@ Feature: Operations are defined per type — RFC-055
       | 999993653 | {"a": []} |
     When I evaluate "keuze" of "test_signaturen"
     Then the execution fails with "IF is not defined for (array)"
+
+  # ---------------------------------------------------------------------------
+  # EQUALS on lists and records: element by element. Different shapes are
+  # unequal; a list against a record is two types.
+  # ---------------------------------------------------------------------------
+
+  Scenario: EQUALS of two equal lists is true
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                            |
+      | 999993653 | {"a": [1, "x"], "b": [1, "x"]} |
+    When I evaluate "gelijk" of "test_signaturen"
+    Then the execution succeeds
+    Then output "gelijk" is true
+
+  Scenario: EQUALS of two lists of different length is false
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                     |
+      | 999993653 | {"a": [1], "b": [1, 2]} |
+    When I evaluate "gelijk" of "test_signaturen"
+    Then the execution succeeds
+    Then output "gelijk" is false
+
+  Scenario: EQUALS of two records with different fields is false
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                            |
+      | 999993653 | {"a": {"x": 1}, "b": {"y": 1}} |
+    When I evaluate "gelijk" of "test_signaturen"
+    Then the execution succeeds
+    Then output "gelijk" is false
+
+  Scenario: EQUALS of a list and a record is refused
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                       |
+      | 999993653 | {"a": [1], "b": {"x": 1}} |
+    When I evaluate "gelijk" of "test_signaturen"
+    Then the execution fails with "EQUALS is not defined for (array, object)"
+
+  # ---------------------------------------------------------------------------
+  # A date makes a date of what stands beside it: a string in the form of a
+  # date is that day, and any other string is no date.
+  # ---------------------------------------------------------------------------
+
+  Scenario: EQUALS of the reference date and the same day written as text is true
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                 |
+      | 999993653 | {"a": "2025-01-01"} |
+    When I evaluate "is_peildatum" of "test_signaturen"
+    Then the execution succeeds
+    Then output "is_peildatum" is true
+
+  Scenario: EQUALS of the reference date and another day is false
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                 |
+      | 999993653 | {"a": "2025-01-02"} |
+    When I evaluate "is_peildatum" of "test_signaturen"
+    Then the execution succeeds
+    Then output "is_peildatum" is false
+
+  Scenario: EQUALS of the reference date and a text that is no date is refused
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij             |
+      | 999993653 | {"a": "morgen"} |
+    When I evaluate "is_peildatum" of "test_signaturen"
+    Then the execution fails with "it is not a date in the form YYYY-MM-DD"
+
+  Scenario: EQUALS of the reference date and a day that does not exist is refused
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                 |
+      | 999993653 | {"a": "2025-02-30"} |
+    When I evaluate "is_peildatum" of "test_signaturen"
+    Then the execution fails with "it is not a date in the form YYYY-MM-DD"
+
+  Scenario: EQUALS of the reference date and a number is refused
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij             |
+      | 999993653 | {"a": 20250101} |
+    When I evaluate "is_peildatum" of "test_signaturen"
+    Then the execution fails with "EQUALS is not defined for (number, date)"
+
+  Scenario: An ordering against the reference date reads a day written as text
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                 |
+      | 999993653 | {"a": "2024-12-31"} |
+    When I evaluate "voor_peildatum" of "test_signaturen"
+    Then the execution succeeds
+    Then output "voor_peildatum" is true
+
+  Scenario: An ordering of a text that is no date against the reference date is refused
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij               |
+      | 999993653 | {"a": "gisteren"} |
+    When I evaluate "voor_peildatum" of "test_signaturen"
+    Then the execution fails with "it is not a date in the form YYYY-MM-DD"
+
+  Scenario: An ordering of a number against the reference date is refused
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij         |
+      | 999993653 | {"a": 2024} |
+    When I evaluate "voor_peildatum" of "test_signaturen"
+    Then the execution fails with "LESS_THAN is not defined for (number, date)"
+
+  # ---------------------------------------------------------------------------
+  # A FOREACH filter and the combines AND and OR take booleans as well.
+  # ---------------------------------------------------------------------------
+
+  @signature:FOREACH-filter:boolean
+  Scenario: A FOREACH filter keeps the elements whose verdict is true
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                                                    |
+      | 999993653 | {"rijen": [{"keur": true, "waarde": 5}, {"keur": false, "waarde": 7}]} |
+    When I evaluate "som_van_gekeurde" of "test_signaturen"
+    Then the execution succeeds
+    Then output "som_van_gekeurde" equals 5
+
+  Scenario: A FOREACH filter refuses a count as a verdict
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                   |
+      | 999993653 | {"rijen": [{"keur": 1, "waarde": 5}]} |
+    When I evaluate "som_van_gekeurde" of "test_signaturen"
+    Then the execution fails with "FOREACH filter is not defined for (number)"
+
+  @signature:combine-AND:boolean @signature:combine-OR:boolean
+  Scenario: combine AND and OR reduce booleans
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                          |
+      | 999993653 | {"rijen": [{"keur": true}, {"keur": false}]} |
+    When I evaluate outputs "allen_gekeurd, een_gekeurd" of "test_signaturen"
+    Then the execution succeeds
+    Then output "allen_gekeurd" is false
+    Then output "een_gekeurd" is true
+
+  Scenario: combine AND refuses a string as a verdict
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                         |
+      | 999993653 | {"rijen": [{"keur": "ja"}]} |
+    When I evaluate "allen_gekeurd" of "test_signaturen"
+    Then the execution fails with "FOREACH combine AND is not defined for (string)"
+
+  Scenario: combine OR refuses a number as a verdict
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                      |
+      | 999993653 | {"rijen": [{"keur": 0}]} |
+    When I evaluate "een_gekeurd" of "test_signaturen"
+    Then the execution fails with "FOREACH combine OR is not defined for (number)"
+
+  # ---------------------------------------------------------------------------
+  # An unknown operand is dealt with before the types are looked at.
+  # ---------------------------------------------------------------------------
+
+  Scenario: ADD of an unknown value and a string is unknown, not a type error
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij            |
+      | 999993653 | {"a": "tekst"} |
+    When I evaluate "met_optioneel" of "test_signaturen"
+    Then the execution succeeds
+    Then output "met_optioneel" is unknown
+
+  Scenario: ADD of a known number and a string is still refused
+    Given parameter "optioneel" is 5
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij            |
+      | 999993653 | {"a": "tekst"} |
+    When I evaluate "met_optioneel" of "test_signaturen"
+    Then the execution fails with "ADD is not defined for (number, string)"

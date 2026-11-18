@@ -54,11 +54,11 @@ pub enum EngineError {
         right: String,
     },
 
-    /// Division by zero
     /// Operand types that match no signature of the operation (RFC-055).
     #[error("{operation} is not defined for ({operands})")]
     UnsupportedOperation { operation: String, operands: String },
 
+    /// Division by zero
     #[error("Division by zero")]
     DivisionByZero,
 

@@ -520,3 +520,179 @@ articles:
               operation: GREATER_THAN_OR_EQUAL
               subject: $rij.a
               value: $rij.b
+  - number: '22'
+    url: https://example.com/test_signaturen/22
+    text: >-
+      De samengevoegde lijst klopt indien zij gelijk is aan de verwachte lijst.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: lijst_klopt
+            type: boolean
+        actions:
+          - output: lijst_klopt
+            value:
+              operation: EQUALS
+              subject:
+                operation: ADD
+                values:
+                  - $rij.a
+                  - $rij.b
+              value: $rij.verwacht
+  - number: '23'
+    url: https://example.com/test_signaturen/23
+    text: >-
+      De som van de gekeurde waarden is de som van de waarden van de rijen die gekeurd zijn.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: som_van_gekeurde
+            type: number
+        actions:
+          - output: som_van_gekeurde
+            value:
+              operation: FOREACH
+              collection: $rij.rijen
+              as: regel
+              filter: $regel.keur
+              body: $regel.waarde
+              combine: ADD
+  - number: '24'
+    url: https://example.com/test_signaturen/24
+    text: >-
+      Alle rijen zijn gekeurd indien elke rij gekeurd is.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: allen_gekeurd
+            type: boolean
+        actions:
+          - output: allen_gekeurd
+            value:
+              operation: FOREACH
+              collection: $rij.rijen
+              as: regel
+              body: $regel.keur
+              combine: AND
+  - number: '25'
+    url: https://example.com/test_signaturen/25
+    text: >-
+      Een rij is gekeurd indien ten minste een rij gekeurd is.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: een_gekeurd
+            type: boolean
+        actions:
+          - output: een_gekeurd
+            value:
+              operation: FOREACH
+              collection: $rij.rijen
+              as: regel
+              body: $regel.keur
+              combine: OR
+  - number: '26'
+    url: https://example.com/test_signaturen/26
+    text: >-
+      Het eerste is de peildatum indien het dezelfde dag is.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: is_peildatum
+            type: boolean
+        actions:
+          - output: is_peildatum
+            value:
+              operation: EQUALS
+              subject: $rij.a
+              value: $referencedate
+  - number: '27'
+    url: https://example.com/test_signaturen/27
+    text: >-
+      Het eerste ligt voor de peildatum indien het een eerdere dag is.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: voor_peildatum
+            type: boolean
+        actions:
+          - output: voor_peildatum
+            value:
+              operation: LESS_THAN
+              subject: $rij.a
+              value: $referencedate
+  - number: '28'
+    url: https://example.com/test_signaturen/28
+    text: >-
+      De som met het optionele gegeven is het optionele gegeven vermeerderd met het eerste.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+          - name: optioneel
+            type: number
+            required: false
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: met_optioneel
+            type: number
+        actions:
+          - output: met_optioneel
+            value:
+              operation: ADD
+              values:
+                - $optioneel
+                - $rij.a

@@ -37,7 +37,7 @@ use crate::article::{ActionOperation, ActionValue, Case, CombineOp, foreach_bind
 use crate::config::MAX_NUMBER_BITS;
 use crate::context::RuleContext;
 use crate::error::{EngineError, Result};
-use crate::signatures::{self, Kind};
+use crate::signatures::{self, Kind, Signature};
 use crate::types::{Operation, PathNodeType, Value};
 use chrono::{Datelike, NaiveDate};
 use regelrecht_law_model::{Date, Number, Rounding, stored};
@@ -630,20 +630,10 @@ fn equal_by_value(a: &Value, b: &Value, op_name: &str) -> Result<bool> {
     if a.is_null() || b.is_null() {
         return Ok(a.is_null() && b.is_null());
     }
-    // A date against the same day in another form: a string in the form of a
-    // date, or the `{iso}` object of a reference date (RFC-055, conversions 1
-    // to 3). Two strings and two objects stay what they are, so objects that
-    // merely share an `iso` field do not become equal (RFC-021).
-    if matches!(a, Value::Date(_)) || matches!(b, Value::Date(_)) || is_mixed_date_pair(a, b) {
-        return match (date_operand(a, op_name)?, date_operand(b, op_name)?) {
-            (Some(left), Some(right)) => Ok(left == right),
-            _ => Err(signatures::unsupported(op_name, &kinds_of([a, b]))),
-        };
-    }
-    if Kind::of(a) != Kind::of(b) {
-        return Err(signatures::unsupported(op_name, &kinds_of([a, b])));
-    }
+    let kinds = comparison_kinds(a, b, op_name, false)?;
+    signatures::matching_among(signatures::signatures(Operation::Equals), op_name, &kinds)?;
     match (a, b) {
+        _ if kinds == [Kind::Date, Kind::Date] => Ok(parse_date(a)? == parse_date(b)?),
         (Value::Object(_), Value::Object(_)) | (Value::Array(_), Value::Array(_)) => {
             compound_equal(a, b, op_name)
         }
@@ -651,25 +641,64 @@ fn equal_by_value(a: &Value, b: &Value, op_name: &str) -> Result<bool> {
     }
 }
 
-/// An operand as a day, where the other operand makes a date of it: a date,
-/// a string in the form `YYYY-MM-DD`, or the `{iso}` object of a reference
-/// date. `None` for a value of another kind.
+/// Equality as `combine: DISTINCT` has it until the signatures of the
+/// collection operations land: values of different kinds are different
+/// values, not an error.
+fn equal_for_distinct(a: &Value, b: &Value, op_name: &str) -> Result<bool> {
+    let equal = match (a, b) {
+        (Value::Object(_), Value::Object(_)) | (Value::Array(_), Value::Array(_)) => {
+            compound_equal(a, b, op_name)?
+        }
+        _ => values_equal(a, b),
+    };
+    if !equal
+        && is_mixed_date_pair(a, b)
+        && let (Ok(a_date), Ok(b_date)) = (parse_date(a), parse_date(b))
+    {
+        return Ok(a_date == b_date);
+    }
+    Ok(equal)
+}
+
+/// The kinds of the two operands of a comparison, once a date has made a
+/// date of what stands beside it (RFC-055, conversions 1 to 3): a string in
+/// the form `YYYY-MM-DD`, and the `{iso}` object of a reference date.
+///
+/// A date is at hand when an operand is a date value or a reference date.
+/// For an ordering (`ordering`) two strings in the form of a date are two
+/// dates as well; for `EQUALS` two strings stay strings, and two objects
+/// stay objects, so objects that merely share an `iso` field do not become
+/// equal (RFC-021).
 ///
 /// # Errors
 ///
-/// [`EngineError::InvalidDate`] for a string that is no date: beside a date,
-/// a string has to be one.
-fn date_operand(value: &Value, op_name: &str) -> Result<Option<NaiveDate>> {
-    match value {
-        Value::Date(_) => parse_date(value).map(Some),
-        Value::String(text) => parse_date(value).map(Some).map_err(|_| {
-            EngineError::InvalidDate(format!(
-                "{op_name} compares '{text}' with a date, and it is not a date in the form YYYY-MM-DD"
-            ))
-        }),
-        Value::Object(_) => Ok(parse_date(value).ok()),
-        _ => Ok(None),
+/// [`EngineError::InvalidDate`] for a string that is no date beside a date.
+fn comparison_kinds(a: &Value, b: &Value, op_name: &str, ordering: bool) -> Result<Vec<Kind>> {
+    let reads_as_day = |value: &Value| parse_date(value).is_ok();
+    let is_day = |value: &Value| {
+        matches!(value, Value::Date(_))
+            || (matches!(value, Value::Object(_)) && reads_as_day(value))
+    };
+    let both_objects = matches!((a, b), (Value::Object(_), Value::Object(_)));
+    let both_date_strings = matches!((a, b), (Value::String(_), Value::String(_)))
+        && reads_as_day(a)
+        && reads_as_day(b);
+    let dated = ((is_day(a) || is_day(b)) && (ordering || !both_objects))
+        || (ordering && both_date_strings);
+    if !dated {
+        return Ok(kinds_of([a, b]));
     }
+    [a, b]
+        .into_iter()
+        .filter_map(|operand| match operand {
+            operand if reads_as_day(operand) => Some(Ok(Kind::Date)),
+            Value::String(text) => Some(Err(EngineError::InvalidDate(format!(
+                "{op_name} compares '{text}' with a date, and it is not a date in the form \
+                 YYYY-MM-DD"
+            )))),
+            other => Kind::of(other).map(Ok),
+        })
+        .collect()
 }
 
 /// `EQUALS` on two lists or two records: structural, with the numbers inside
@@ -743,37 +772,21 @@ where
         return Err(absent_operand(op_name));
     }
 
-    // Numbers first: the common case and the historical behavior.
-    if is_numeric(&subject_val) && is_numeric(&value_val) {
-        let subject_num = to_decimal(&subject_val)?;
-        let value_num = to_decimal(&value_val)?;
-        return Ok(Value::Bool(satisfies(subject_num.cmp(&value_num))));
-    }
-
-    // Dates: only when BOTH operands parse as ISO dates, so a mismatch
-    // (e.g. number vs date) surfaces as a clear error rather than a silent coercion.
-    let subject_date = parse_date(&subject_val);
-    let value_date = parse_date(&value_val);
-    if let (Ok(subject_date), Ok(value_date)) = (&subject_date, &value_date) {
-        return Ok(Value::Bool(satisfies(subject_date.cmp(value_date))));
-    }
-
-    // Neither two numbers nor two dates. Beside a date, a string has to be
-    // one; every other pairing matches no signature (RFC-055).
-    if subject_date.is_ok() || value_date.is_ok() {
-        for operand in [&subject_val, &value_val] {
-            date_operand(operand, op_name)?;
-        }
-    }
-    Err(signatures::unsupported(
+    // Two numbers or two dates, and nothing else (RFC-055). A date makes a
+    // date of the string or the reference date beside it, and two strings
+    // in the form of a date order as dates.
+    let kinds = comparison_kinds(&subject_val, &value_val, op_name, true)?;
+    signatures::matching_among(
+        signatures::signatures(Operation::GreaterThan),
         op_name,
-        &kinds_of([&subject_val, &value_val]),
-    ))
-}
-
-/// Whether a value is a number (Int or Decimal) for comparison dispatch.
-fn is_numeric(val: &Value) -> bool {
-    matches!(val, Value::Int(_) | Value::Decimal(_))
+        &kinds,
+    )?;
+    let ordering = if kinds == [Kind::Number, Kind::Number] {
+        to_decimal(&subject_val)?.cmp(&to_decimal(&value_val)?)
+    } else {
+        parse_date(&subject_val)?.cmp(&parse_date(&value_val)?)
+    };
+    Ok(Value::Bool(satisfies(ordering)))
 }
 
 // =============================================================================
@@ -1063,10 +1076,10 @@ where
     if let Some(tainted) = find_untranslatable(&evaluated) {
         return Ok(tainted);
     }
-    if let Some(unknown) = propagate_unknown(resolver, "MIN/MAX", &evaluated) {
+    if let Some(unknown) = propagate_unknown(resolver, operation.name(), &evaluated) {
         return Ok(unknown);
     }
-    reject_null("MIN/MAX", &evaluated)?;
+    reject_null(operation.name(), &evaluated)?;
     require_signature(operation, &evaluated)?;
 
     let mut has_decimal = false;
@@ -1129,20 +1142,19 @@ fn execute_rounding<R: ValueResolver>(
     if evaluated.is_untranslatable() {
         return Ok(evaluated);
     }
-    let op_name = match mode {
-        RoundMode::Round => "ROUND",
-        RoundMode::Ceil => "CEIL",
-        RoundMode::Floor => "FLOOR",
+    let operation = match mode {
+        RoundMode::Round => Operation::Round,
+        RoundMode::Ceil => Operation::Ceil,
+        RoundMode::Floor => Operation::Floor,
     };
+    let op_name = operation.name();
     // Rounding an unknown amount is unknown; rounding an absence is an error
     // (RFC-036): "geen" is not an amount to round.
     if let Some(unknown) = propagate_unknown(resolver, op_name, [&evaluated]) {
         return Ok(unknown);
     }
     reject_null(op_name, [&evaluated])?;
-    if Kind::of(&evaluated) != Some(Kind::Number) {
-        return Err(signatures::unsupported(op_name, &kinds_of([&evaluated])));
-    }
+    require_signature(operation, std::slice::from_ref(&evaluated))?;
     let operand = to_decimal(&evaluated)?;
     let rounded = round_decimal(&operand, precision, mode)?;
     // Mirror the arithmetic ops: an integral result returns `Int`, otherwise `Decimal`.
@@ -1212,7 +1224,7 @@ fn execute_and<R: ValueResolver>(
             continue;
         }
         // Definitive false wins over taint and unknown (AND commutativity)
-        if !verdict("AND", &val)? {
+        if !verdict(signatures::signatures(Operation::And), "AND", &val)? {
             return Ok(Value::Bool(false));
         }
         if let Some(ref mut r) = results {
@@ -1266,7 +1278,7 @@ fn execute_or<R: ValueResolver>(
             continue;
         }
         // Definitive true wins over taint and unknown (OR commutativity)
-        if verdict("OR", &val)? {
+        if verdict(signatures::signatures(Operation::Or), "OR", &val)? {
             return Ok(Value::Bool(true));
         }
     }
@@ -1302,7 +1314,11 @@ fn execute_not<R: ValueResolver>(value: &ActionValue, resolver: &R, depth: usize
     if val.is_null() {
         return Err(absent_operand("NOT"));
     }
-    Ok(Value::Bool(!verdict("NOT", &val)?))
+    Ok(Value::Bool(!verdict(
+        signatures::signatures(Operation::Not),
+        "NOT",
+        &val,
+    )?))
 }
 
 // =============================================================================
@@ -1351,7 +1367,7 @@ fn execute_if<R: ValueResolver>(
             return Err(absent_operand("IF"));
         }
 
-        if verdict("IF", &condition_result)? {
+        if verdict(signatures::condition(), "IF", &condition_result)? {
             if tracing {
                 resolver.trace_push("THEN", PathNodeType::Operation);
             }
@@ -1717,7 +1733,7 @@ fn evaluate_iteration(
         if verdict.is_null() {
             return Err(absent_operand("FOREACH filter"));
         }
-        if !self::verdict("FOREACH filter", &verdict)? {
+        if !self::verdict(signatures::condition(), "FOREACH filter", &verdict)? {
             return Ok(IterationOutcome::Skipped);
         }
     }
@@ -1790,7 +1806,11 @@ fn combine_or(results: &[Value]) -> Result<Value> {
             unknowns.push(v.clone());
             continue;
         }
-        if verdict("FOREACH combine OR", v)? {
+        if verdict(
+            signatures::combine_signatures(CombineOp::Or),
+            "FOREACH combine OR",
+            v,
+        )? {
             return Ok(Value::Bool(true));
         }
     }
@@ -1819,7 +1839,11 @@ fn combine_and(results: &[Value]) -> Result<Value> {
             unknowns.push(v.clone());
             continue;
         }
-        if !verdict("FOREACH combine AND", v)? {
+        if !verdict(
+            signatures::combine_signatures(CombineOp::And),
+            "FOREACH combine AND",
+            v,
+        )? {
             return Ok(Value::Bool(false));
         }
     }
@@ -1881,7 +1905,7 @@ fn combine_distinct(results: Vec<Value>) -> Result<Value> {
     for result in results {
         let mut seen = false;
         for kept in &unique {
-            if equal_by_value(kept, &result, "FOREACH combine DISTINCT")? {
+            if equal_for_distinct(kept, &result, "FOREACH combine DISTINCT")? {
                 seen = true;
                 break;
             }
@@ -2571,12 +2595,16 @@ fn require_signature(operation: Operation, operands: &[Value]) -> Result<()> {
     Ok(())
 }
 
-/// A condition as the boolean it has to be (RFC-055). Any other value
-/// matches no signature of `op_name`: a count is not a verdict.
-fn verdict(op_name: &str, value: &Value) -> Result<bool> {
+/// A condition as the boolean it has to be (RFC-055): `rows` are the
+/// signatures of the place it stands in, and `name` is how an error names
+/// that place. Any other value matches no row: a count is not a verdict.
+fn verdict(rows: &[Signature], name: &str, value: &Value) -> Result<bool> {
+    signatures::matching_among(rows, name, &kinds_of([value]))?;
     match value {
         Value::Bool(verdict) => Ok(*verdict),
-        other => Err(signatures::unsupported(op_name, &kinds_of([other]))),
+        // The rows of a condition take booleans only, so nothing else gets
+        // here; say so rather than guess a verdict.
+        other => Err(signatures::unsupported(name, &kinds_of([other]))),
     }
 }
 
@@ -4121,13 +4149,13 @@ mod tests {
         }
 
         #[test]
-        fn test_foreach_combine_distinct_refuses_elements_of_different_types() {
-            // DISTINCT compares as EQUALS does, and EQUALS of two types is an
-            // error, not `false` (RFC-055).
-            let err = distinct_of(vec![s("1"), Value::Int(1), Value::Bool(true)]).unwrap_err();
-            assert!(
-                matches!(err, EngineError::UnsupportedOperation { .. }),
-                "{err}"
+        fn test_foreach_combine_distinct_does_not_equate_values_of_different_types() {
+            // Unchanged until the signatures of the collection operations
+            // land: DISTINCT keeps values of different kinds apart.
+            let result = distinct_of(vec![s("1"), Value::Int(1), Value::Bool(true)]).unwrap();
+            assert_eq!(
+                result,
+                Value::Array(vec![s("1"), Value::Int(1), Value::Bool(true)])
             );
         }
 
@@ -6293,6 +6321,78 @@ body:
         }
 
         #[test]
+        fn test_a_number_against_a_date_written_as_text_matches_no_signature() {
+            // No date value is at hand, so the string stays a string.
+            let resolver = TestResolver::new();
+            let op = ActionOperation::GreaterThan {
+                subject: lit(2025i64),
+                value: lit("2025-01-01"),
+            };
+            let err = execute_operation(&op, &resolver, 0).unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "GREATER_THAN is not defined for (number, string)"
+            );
+        }
+
+        #[test]
+        fn test_two_reference_dates_order_as_dates_but_equal_as_objects() {
+            let resolver = TestResolver::new()
+                .with_var("eerder", date_obj("2025-01-01"))
+                .with_var("later", date_obj("2025-06-01"));
+            let ordered = ActionOperation::LessThan {
+                subject: var("eerder"),
+                value: var("later"),
+            };
+            assert_eq!(
+                execute_operation(&ordered, &resolver, 0).unwrap(),
+                Value::Bool(true)
+            );
+            let equal = ActionOperation::Equals {
+                subject: var("eerder"),
+                value: var("later"),
+            };
+            assert_eq!(
+                execute_operation(&equal, &resolver, 0).unwrap(),
+                Value::Bool(false)
+            );
+        }
+
+        #[test]
+        fn test_a_string_against_an_object_that_is_no_date_matches_no_signature() {
+            // An object with an `iso` field that is no date is an object, so
+            // the string beside it is not held to be a date.
+            let not_a_date =
+                Value::Object([("iso".to_string(), Value::String("x".to_string()))].into());
+            let resolver = TestResolver::new().with_var("ding", not_a_date);
+            let op = ActionOperation::Equals {
+                subject: lit("hello"),
+                value: var("ding"),
+            };
+            let err = execute_operation(&op, &resolver, 0).unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "EQUALS is not defined for (string, object)"
+            );
+        }
+
+        #[test]
+        fn test_a_date_equals_the_reference_date_of_the_same_day() {
+            let resolver = TestResolver::new().with_var("referencedate", date_obj("2025-01-01"));
+            for (day, expected) in [("2025-01-01", true), ("2025-01-02", false)] {
+                let op = ActionOperation::Equals {
+                    subject: lit(Value::Date(day.parse().unwrap())),
+                    value: var("referencedate"),
+                };
+                assert_eq!(
+                    execute_operation(&op, &resolver, 0).unwrap(),
+                    Value::Bool(expected),
+                    "{day}"
+                );
+            }
+        }
+
+        #[test]
         fn test_two_strings_that_are_no_dates_do_not_order() {
             let resolver = TestResolver::new();
             let op = ActionOperation::GreaterThan {
@@ -7349,8 +7449,8 @@ body:
                 ("SUBTRACT", |values| ActionOperation::Subtract { values }),
                 ("MULTIPLY", |values| ActionOperation::Multiply { values }),
                 ("DIVIDE", |values| ActionOperation::Divide { values }),
-                ("MIN/MAX", |values| ActionOperation::Min { values }),
-                ("MIN/MAX", |values| ActionOperation::Max { values }),
+                ("MIN", |values| ActionOperation::Min { values }),
+                ("MAX", |values| ActionOperation::Max { values }),
             ];
             for (name, build) in cases {
                 // Unknown: the union of the unknown operands' facts, once each.
