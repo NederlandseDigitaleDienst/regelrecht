@@ -16,7 +16,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
-use regelrecht_cel::{Cell, Error, Files, identity};
+use regelrecht_cel::{Cell, Error, Files, StandardAnswer, identity};
 use regelrecht_engine::LawLoad;
 use regelrecht_law_model::{
     Article, ArticleBasedLaw, AuthorityType, CompetentAuthority, HookFilter, NamedAuthority,
@@ -1300,9 +1300,24 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
     if decision_law != law {
         gevonden.push(decision_law.clone());
     }
-    for id in cells.iter().flat_map(|cell| cell.answers().values()) {
-        if !gevonden.contains(id) {
-            gevonden.push(id.clone());
+    // An answer from a fact comes from its standard reduction, which the
+    // cell writes out when the service is built: the case needs the
+    // regulations of its facts instead.
+    for cell in cells {
+        let standaard: BTreeMap<String, &StandardAnswer> = cell
+            .standard_answers()
+            .map(|(fact, id)| (id, fact))
+            .collect();
+        for id in cell.answers().values() {
+            let ids: Vec<&str> = match standaard.get(id) {
+                Some(fact) => fact.regulations().collect(),
+                None => vec![id.as_str()],
+            };
+            for id in ids {
+                if !gevonden.iter().any(|g| g == id) {
+                    gevonden.push(id.to_string());
+                }
+            }
         }
     }
 

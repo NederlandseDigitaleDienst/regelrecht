@@ -12,7 +12,8 @@ use std::sync::Arc;
 
 use chrono::NaiveDate;
 use regelrecht_cel::{
-    Cell, Disk, EXECUTOGRAM, Error, Files, Gram, Reference, Source, decision, reading, shape,
+    Cell, Disk, EXECUTOGRAM, Error, Files, Gram, Reference, Source, StandardAnswer, decision,
+    reading, shape,
 };
 use regelrecht_engine::{
     AnswerProvenance, ArticleResult, Authority, EngineError, FilledBy, LawExecutionService,
@@ -39,6 +40,9 @@ pub struct Corpus {
     /// Per `$id` and `valid_from` of a regelwerk the cell runs, that
     /// version as written.
     geschreven: BTreeMap<(String, Option<String>), String>,
+    /// The answers the cells give from a fact, each with the `$id` of its
+    /// standard reduction, which [`Corpus::service`] writes out.
+    standaard: Vec<(StandardAnswer, String)>,
     cell_dir: PathBuf,
     /// The directories of the other cells of the sphere, in the order of
     /// the case file.
@@ -208,6 +212,11 @@ impl Corpus {
             .map(|(a, dir)| Cell::in_memory_from(&*files, &a.cel, dir))
             .collect::<Result<Vec<_>>>()?;
         let cells: Vec<&Cell> = std::iter::once(&cell).chain(&andere).collect();
+        let standaard = cells
+            .iter()
+            .flat_map(|cell| cell.standard_answers())
+            .map(|(fact, id)| (fact.clone(), id))
+            .collect();
         let regelwerken = &regelwerken.voor(&casus)?;
         let afleiding = afleiden(regelwerken, &casus, &cells)?;
         let mut versies = Vec::new();
@@ -230,6 +239,7 @@ impl Corpus {
             regelwerken: gelezen,
             versies,
             geschreven,
+            standaard,
             cell_dir,
             andere_dirs,
             files,
@@ -367,6 +377,24 @@ impl Corpus {
             .map(String::as_str)
     }
 
+    /// The version of the standard reduction `id` valid from `valid_from`,
+    /// as a cell writes it out from the regulations in `service`: it was
+    /// never written by hand.
+    fn standaard_yaml(
+        &self,
+        service: &LawExecutionService,
+        id: &str,
+        valid_from: &Option<String>,
+    ) -> Option<String> {
+        let (fact, _) = self.standaard.iter().find(|(_, s)| s == id)?;
+        let from = NaiveDate::parse_from_str(valid_from.as_deref()?, "%Y-%m-%d").ok()?;
+        fact.versions(service, id)
+            .ok()?
+            .into_iter()
+            .find(|version| version.valid_from == from)
+            .map(|version| version.yaml)
+    }
+
     /// The submission that `artikel` establishes in this case, or a
     /// refusal for an article that establishes none a cell of the case
     /// decides on.
@@ -412,12 +440,17 @@ impl Corpus {
             .chain(self.casus.andere_cellen.iter().map(|a| a.cel.as_str()))
     }
 
-    /// A service with every regelwerk the cell runs.
+    /// A service with every regelwerk the cell runs, and the standard
+    /// reduction of each answer a cell gives from a fact.
     pub fn service(&self) -> Result<LawExecutionService> {
         let mut service = LawExecutionService::new();
         for yaml in &self.versies {
             service.load_law(yaml)?;
         }
+        regelrecht_cel::standard::load(
+            &mut service,
+            self.standaard.iter().map(|(fact, id)| (fact, id.clone())),
+        )?;
         Ok(service)
     }
 
@@ -3434,7 +3467,8 @@ pub fn reducties(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value>
         uit.push(json!({
             "id": id,
             "geldig_vanaf": reduction.valid_from,
-            "yaml": corpus.yaml_van(&id, &reduction.valid_from),
+            "yaml": corpus.yaml_van(&id, &reduction.valid_from).map(str::to_string)
+                .or_else(|| corpus.standaard_yaml(&service, &id, &reduction.valid_from)),
             "tekst": reduction.articles.iter().map(|a| json!({
                 "artikel": a.number,
                 "tekst": a.text,

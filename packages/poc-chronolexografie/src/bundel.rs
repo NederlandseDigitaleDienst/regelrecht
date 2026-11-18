@@ -554,6 +554,33 @@ mod tests {
         );
     }
 
+    /// A cell of a case from a source may answer from a fact without a
+    /// reduction of its own (`cel.yaml`, [`regelrecht_cel::standard`]): the
+    /// case takes the fact's regulation, the service the standard
+    /// reduction, and the tab Reductie shows it written out.
+    #[test]
+    fn a_cell_of_a_source_answers_from_a_fact_through_the_standard_reduction() {
+        let mut bron = voorinvullen_bron();
+        let cel = bron
+            .bestanden
+            .get_mut("cells/voorbeeld_loket/cel.yaml")
+            .unwrap();
+        cel.push_str("answers:\n  verenigingen: voorbeeld_register#1#vereniging_ingeschreven\n");
+        let (mut spel, _, dag) = voorinvullen_spel(bron);
+        let stand = spel.reducties(dag).unwrap();
+        let reducties = stand["reducties"].as_array().unwrap();
+        let standaard = reducties
+            .iter()
+            .find(|r| r["id"] == "standaard_voorbeeld_loket_verenigingen")
+            .unwrap_or_else(|| panic!("{stand}"));
+        assert_eq!(standaard["antwoorden"], serde_json::json!(["verenigingen"]));
+        let yaml = standaard["yaml"].as_str().unwrap();
+        assert!(
+            yaml.contains("per: voorbeeld_register#1#vereniging_ingeschreven"),
+            "{yaml}"
+        );
+    }
+
     #[test]
     fn the_form_of_a_case_from_a_source_names_what_its_ui_spec_prefills() {
         let (mut spel, casus, dag) = voorinvullen_spel(voorinvullen_bron());

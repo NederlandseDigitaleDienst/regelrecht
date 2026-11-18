@@ -28,6 +28,7 @@ use crate::files::{Disk, Files};
 use crate::identity;
 use crate::reading::{Asked, Reader};
 use crate::shape::{self, Field, Shape};
+use crate::standard::StandardAnswer;
 use crate::versions::{self, LawSince};
 use regelrecht_law_model::stored;
 
@@ -47,8 +48,11 @@ pub struct Cell {
     /// Per answer the cell gives, the `$id` of its reduction (`cel.yaml`,
     /// `answers`, RFC-048).
     answers: BTreeMap<String, String>,
-    /// The `$id`s of the reductions the cell keeps (`reductions`).
+    /// The `$id`s of the reductions the cell keeps (`reductions`), and of
+    /// the standard reduction of each answer it gives from a fact.
     reductions: BTreeSet<String>,
+    /// The answers the cell gives from a fact (`cel.yaml`, [`crate::standard`]).
+    standard: Vec<StandardAnswer>,
     chronicle: Chronicle,
 }
 
@@ -164,9 +168,24 @@ impl Cell {
         }
         let identity::Identity {
             authority,
-            answers,
-            reductions,
+            mut answers,
+            standard,
+            mut reductions,
         } = identity::read(files, cell_dir)?;
+        // An answer from a fact comes from its standard reduction, which the
+        // cell keeps as it keeps its own.
+        for fact in &standard {
+            let id = fact.reduction_id(&recording_actor);
+            if !reductions.insert(id.clone()) {
+                return Err(setup(format!(
+                    "{}: the answer '{}' comes from the standard reduction '{id}', and the \
+                     cell keeps a reduction of that $id itself",
+                    cell_dir.display(),
+                    fact.answer
+                )));
+            }
+            answers.insert(fact.answer.clone(), id);
+        }
         if let Some(g) = chronicle
             .grams()
             .iter()
@@ -233,6 +252,7 @@ impl Cell {
             authority,
             answers,
             reductions,
+            standard,
             chronicle,
         })
     }
@@ -256,9 +276,29 @@ impl Cell {
         &self.answers
     }
 
-    /// The `$id`s of the reductions the cell keeps (`reductions`).
+    /// The `$id`s of the reductions the cell keeps (`reductions`), with the
+    /// standard reduction of each answer it gives from a fact.
     pub fn reductions(&self) -> &BTreeSet<String> {
         &self.reductions
+    }
+
+    /// The answers the cell gives from a fact, each through its standard
+    /// reduction ([`crate::standard`]), with the `$id` of that reduction.
+    pub fn standard_answers(&self) -> impl Iterator<Item = (&StandardAnswer, String)> {
+        self.standard
+            .iter()
+            .map(|fact| (fact, fact.reduction_id(&self.recording_actor)))
+    }
+
+    /// Load the standard reductions of the cell into `service`, after the
+    /// regulations whose facts they read ([`crate::standard::load`]).
+    ///
+    /// # Errors
+    ///
+    /// When a standard reduction cannot be written out, or the service
+    /// refuses it.
+    pub fn load_standard_reductions(&self, service: &mut LawExecutionService) -> Result<()> {
+        crate::standard::load(service, self.standard_answers())
     }
 
     pub fn recording_actor(&self) -> &str {
@@ -299,6 +339,7 @@ impl Cell {
             authority: self.authority.clone(),
             answers: self.answers.clone(),
             reductions: self.reductions.clone(),
+            standard: self.standard.clone(),
             chronicle: self.chronicle.in_memory_copy(),
         }
     }

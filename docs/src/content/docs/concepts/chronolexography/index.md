@@ -32,7 +32,7 @@ answers:
 
 The law names a role, not an organization ([Competent Authority](/concepts/competent-authority)). The engine matches a role of type `INSTANCE` to the cell's `name`, and a role of type `CATEGORY` to its `category`.
 
-`answers` is the cell's catalogue. It lists the answers the cell gives, and for each one the reduction of its own that computes it. The catalogue holds no logic. Nothing else about a cell is configured. When the catalogue names a reduction that the cell does not keep, the cell refuses to open.
+`answers` is the cell's catalogue. It lists the answers the cell gives, and for each one the reduction of its own that computes it, or a fact the cell records ([An answer from a fact](#an-answer-from-a-fact-experimental)). The catalogue holds no logic. Nothing else about a cell is configured. When the catalogue names a reduction that the cell does not keep, the cell refuses to open.
 
 ## What a chronicle holds
 
@@ -257,6 +257,25 @@ projection:
 The loader checks that the columns of the state match those of the fact, where the fact declares them. The cell does not check a recorded fact against those columns, and a column of type `amount` declares no unit. The rows are checked once a step puts them in the state. A row lacking a column holds null there. A row with a column the array does not declare, or with a value that is not of its column's type, fails the step. A step replaces the array and never adds rows to it, so a correction that refers to the result gives the whole new array. The read model reads the array as a field of each row, `$uitslag.lijsten`, and iterates over it with a `FOREACH` inside the `FOREACH` over the rows. The inner one sees the element of the outer one. The tests are in `packages/cel/bdd/features/tables.feature` and `packages/engine/tests/projection_table.rs`.
 
 The engine plays each aggregate on every question, in the version of the reduction in force on the calculation date. The trace of the reading input holds a `PROJECTION` node per aggregate, with its `COUNTS` and `FOLD`. The cell gives the records of its chronicle for it (`Chronicle::records`); `evaluate_projection` plays a read model on the records it is given.
+
+### An answer from a fact (experimental)
+
+Many reductions over facts only copy: the step on the root copies each field of the fact into a property of the same name, a correction that refers to it copies the fields it holds, and the read model passes the aggregates on as rows. For that case the catalogue may name the fact instead of a reduction. The cell then writes the reduction out itself.
+
+```yaml
+# cells/<cell>/cel.yaml
+answers:
+  inschrijvingen:
+    fact: test_chronicle_corrections#1#ingeschreven
+    referred_by: [test_chronicle_corrections#2#postcode_gecorrigeerd]
+    where: [bewoner]
+```
+
+Without `referred_by` and `where`, the fact reference alone will do: `inschrijvingen: test_chronicle_corrections#1#ingeschreven`.
+
+The written-out form is an ordinary `REDUCTIE`, which the service loads like any other, so revocation, the calculation date and the trace work as they do for a reduction written by hand. Article `aggregaat` plays one aggregate per record of the fact. Its state holds every field of the fact and of each fact in `referred_by`, with the type the law declares. The step of each fact copies every field that fact holds, so a correction overwrites the fields it shares with the root and adds the ones only it has. The article named after the answer reads the aggregates, filtered with `where` on fields of the root, and gives them as rows; each name in `where` becomes a parameter that the binding passes. There is one version per version of the fact's regulation, and its `$id` names the cell and the answer, such as `standaard_gemeente_voorbeeldstad_inschrijvingen`. The test `packages/cel/tests/standard_answer.rs` compares the two forms.
+
+The law does not say which facts refer to a given fact, because `refers_to` belongs to each record. The catalogue therefore lists them. A reduction whose steps call the law, or whose read model selects among the rows, is still written by hand.
 
 ## Documents between cells
 

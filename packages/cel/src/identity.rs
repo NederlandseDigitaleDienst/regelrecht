@@ -13,7 +13,9 @@
 //! directory. It holds no logic: the reduction holds that, and the policy of
 //! the authority that decides binds an open term to the answer
 //! (`source.reduction`). Where a reduction sits says whose it is; a
-//! reduction names no holder of its own (schema v0.8.12).
+//! reduction names no holder of its own (schema v0.8.12). An answer may name
+//! a fact instead (`<regulation>#<article>#<fact>`): the cell then answers it
+//! through the standard reduction of that fact ([`crate::standard`]).
 //!
 //! ```yaml
 //! name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
@@ -30,6 +32,7 @@ use serde::Deserialize;
 
 use crate::error::{Result, setup};
 use crate::files::Files;
+use crate::standard::{Entry, Source, StandardAnswer};
 
 /// The file in a cell directory that holds its identity.
 pub const FILE: &str = "cel.yaml";
@@ -54,16 +57,18 @@ struct File {
     #[serde(default)]
     category: Option<String>,
     #[serde(default)]
-    answers: BTreeMap<String, String>,
+    answers: BTreeMap<String, Entry>,
 }
 
 /// What the cell directory says: who the cell is, per answer it gives the
-/// `$id` of the reduction whose output it is (`cel.yaml`), and the `$id`s
-/// of the reductions it keeps (`reductions`).
+/// `$id` of the reduction whose output it is (`cel.yaml`), the answers it
+/// gives from a fact through the standard reduction, and the `$id`s of the
+/// reductions it keeps (`reductions`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Identity {
     pub authority: Authority,
     pub answers: BTreeMap<String, String>,
+    pub standard: Vec<StandardAnswer>,
     pub reductions: BTreeSet<String>,
 }
 
@@ -89,19 +94,35 @@ pub fn read(files: &dyn Files, dir: &Path) -> Result<Identity> {
             path.display()
         )));
     }
-    if let Some((answer, reduction)) = file
-        .answers
-        .iter()
-        .find(|(answer, reduction)| blank(answer) || blank(reduction))
-    {
-        return Err(setup(format!(
-            "{}: the answer '{answer}' names the reduction '{reduction}'; neither may be empty",
-            path.display()
-        )));
+    let mut answers = BTreeMap::new();
+    let mut standard = Vec::new();
+    for (answer, entry) in file.answers {
+        match entry.source(&answer) {
+            Source::Reduction(reduction) => {
+                if blank(&answer) || blank(&reduction) {
+                    return Err(setup(format!(
+                        "{}: the answer '{answer}' names the reduction '{reduction}'; neither \
+                         may be empty",
+                        path.display()
+                    )));
+                }
+                answers.insert(answer, reduction);
+            }
+            Source::Standard(fact) => {
+                if blank(&answer) {
+                    return Err(setup(format!(
+                        "{}: an answer may not be empty",
+                        path.display()
+                    )));
+                }
+                fact.check()
+                    .map_err(|e| setup(format!("{}: {e}", path.display())))?;
+                standard.push(fact);
+            }
+        }
     }
     let reductions = reductions(files, &dir.join(REDUCTIONS))?;
-    if let Some((answer, reduction)) = file
-        .answers
+    if let Some((answer, reduction)) = answers
         .iter()
         .find(|(_, reduction)| !reductions.contains(*reduction))
     {
@@ -117,7 +138,8 @@ pub fn read(files: &dyn Files, dir: &Path) -> Result<Identity> {
             name: file.name,
             category: file.category,
         },
-        answers: file.answers,
+        answers,
+        standard,
         reductions,
     })
 }
