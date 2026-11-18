@@ -520,7 +520,7 @@ const CORRECTED: &str = "  - number: '1'
 /// regulations takes effect, from the day the root's regulation requires
 /// the fact. A referring fact not yet in force has no step in a version;
 /// a field the referring fact may leave null may hold null. Loading it
-/// twice keeps the one loaded first.
+/// twice keeps the one loaded first. An answer name may hold digits and _.
 #[test]
 fn a_standard_reduction_follows_the_versions_of_its_regulations() {
     let mut service = LawExecutionService::new();
@@ -539,7 +539,7 @@ fn a_standard_reduction_follows_the_versions_of_its_regulations() {
     let dir = cell_tempdir();
     std::fs::write(
         dir.path().join("cel.yaml"),
-        "name: Testcel\nanswers:\n  rijen:\n    fact: test_standaard_register#1#ingeschreven\n    referred_by: [test_standaard_correcties#1#postcode_gecorrigeerd]\n",
+        "name: Testcel\nanswers:\n  rijen_2:\n    fact: test_standaard_register#1#ingeschreven\n    referred_by: [test_standaard_correcties#1#postcode_gecorrigeerd]\n",
     )
     .unwrap();
     let cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
