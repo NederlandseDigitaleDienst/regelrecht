@@ -827,6 +827,7 @@ fn bound() -> FilledBy {
         law_id: POLICY.to_string(),
         article: "2".to_string(),
         answers: vec![provenance()],
+        unanswered: Vec::new(),
     }
 }
 

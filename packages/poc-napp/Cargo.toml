@@ -26,7 +26,6 @@ tower-http = { workspace = true, features = ["cors", "fs", "trace"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
 anyhow = "1"
-# Voor het lezen van Value::Decimal uit de engine (was ooit Value::Float).
 # 0.12 en niet de 0.13 die corpus/github/pipeline gebruiken: deze crate hangt aan
 # regelrecht-auth, en die is door openidconnect/oauth2 op 0.12 gepind. Twee
 # versies naast elkaar in één binary zou een tweede TLS-stack meecompileren.

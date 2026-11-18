@@ -387,8 +387,17 @@ export function samenvatting(aanvraag) {
  * waarop het is genomen. Een ontvangst van een uitspraak verwijst ook, naar
  * het besluit waarover die gaat, en is geen besluit.
  */
-export const isBesluit = (g) =>
-  !!g.refers_to && !['AANVRAAG', 'BEZWAAR', 'EXECUTOGRAM'].includes(g.kind);
+export const isBesluit = (g) => !!g.refers_to && isBesluitSoort(g);
+
+/** Whether a chronolexogram is a decision by its kind: no submission and no executogram. */
+export const isBesluitSoort = (g) => !['AANVRAAG', 'BEZWAAR', 'EXECUTOGRAM'].includes(g.kind);
+
+/** The decisions of the case's cell under `artikel`, also one that concerns no record (taken ex officio). */
+export const besluitenOnder = (artikel) =>
+  state.grammen.filter((g) => g.basis === artikel && isBesluitSoort(g));
+
+/** The decisions of the case's cell under the case's deciding article, in chronicle order. */
+export const eigenBesluiten = () => state.grammen.filter((g) => isBesluit(g) && g.basis === besluitBasis());
 
 /**
  * A number that is not an integer is held in a chronolexogram as
@@ -404,11 +413,18 @@ export const isDecimaal = (v) =>
 /** The text a stored number holds: its digits, or its fraction. */
 export const decimaalTekst = (v) => v.__decimal ?? v.__fraction;
 
-/** A stored number as a JavaScript number; a fraction as its nearest double. */
+/**
+ * A stored number as a JavaScript number; a fraction as a double close to it.
+ * The division is done on whole numbers of any size, because a numerator and
+ * a denominator can each be beyond the range of a double while their
+ * quotient is not.
+ */
 export function decimaalGetal(v) {
   if ('__decimal' in v) return Number(v.__decimal);
   const [teller, noemer] = String(v.__fraction).split('/');
-  return Number(teller) / Number(noemer);
+  // A power of two, so scaling back is exact.
+  const BITS = 200n;
+  return Number((BigInt(teller) << BITS) / BigInt(noemer)) / 2 ** Number(BITS);
 }
 
 /**
