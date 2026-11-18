@@ -131,6 +131,16 @@ export const COMPONENTS = {
       'packages/poc-portal/Dockerfile',
     ],
   },
+  // Het wetsprocessysteem (packages/wetsproces). De crate-kant volgt uit de
+  // graaf: de crate hangt aan poc-chronolexografie, dus een wijziging in de
+  // kern of in het corpus van die poc (waar het manifest naar wijst) raakt
+  // dit image ook. Het casusbestand en het manifest staan in de map van de
+  // crate zelf; de Dockerfile staat hieronder met de hand, want een
+  // Dockerfile in een cratemap telt niet via de graaf (zie isDockerfile).
+  wetsproces: {
+    crate: 'regelrecht-wetsproces',
+    paths: ['packages/wetsproces/Dockerfile'],
+  },
 };
 
 // Raakt elk component met een Rust-image: de workspace zelf.

@@ -12,7 +12,10 @@ categories = ["development-tools"]
 
 [dependencies]
 async-trait.workspace = true
-tokio = { workspace = true, features = ["process", "fs"] }
+# `rt` for spawn_blocking and task_local!, `sync` for the backend's locks and
+# `time` for the retry delay: declared here so the crate also builds without
+# the `github` feature, as the readers of a source manifest take it.
+tokio = { workspace = true, features = ["process", "fs", "rt", "sync", "time"] }
 tracing.workspace = true
 thiserror.workspace = true
 serde.workspace = true

@@ -37,7 +37,8 @@ use crate::kern::{Corpus, Result};
 use crate::ui_spec;
 
 /// Where a source holds its UI spec: at its root, where the portal puts
-/// the file its manifest names (`UI_SPEC` in poc-portal, `bron.rs`).
+/// the file its manifest names (`UI_SPEC` in
+/// `packages/corpus/src/source_manifest.rs`).
 pub const UI_SPEC: &str = "ui_spec.yaml";
 
 /// This crate's corpus, under the repository root: the cases under
@@ -140,8 +141,14 @@ pub fn met_bronnen(
 }
 
 /// The cases of `bron`, each on the source under `bron/<name>` alone. A case
-/// that does not load is in `stand.fouten`.
-fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
+/// that does not load is in `stand.fouten`. The wetsproces component loads
+/// its one case with this too (`packages/wetsproces/src/case.rs`).
+///
+/// # Errors
+///
+/// When the name of the source is no name, its files make no bundle, or its
+/// regelwerken or case files do not read.
+pub fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
     let wortel = Path::new(BRONNEN).join(&bron.naam);
     // A name is one path component of a-z, 0-9 and '-', so it stays under
     // `bron/`.
@@ -398,9 +405,9 @@ mod tests {
     }
 
     /// A source on disk as the portal gives it: a folder, or a manifest
-    /// (packages/poc-portal/src/bron.rs).
+    /// (packages/corpus/src/source_manifest.rs).
     fn uit_map(pad: &Path) -> BTreeMap<String, String> {
-        regelrecht_poc_portal::bron::lokaal(pad).unwrap()
+        regelrecht_corpus::source_manifest::lokaal(pad).unwrap()
     }
 
     /// The Awb of this crate's corpus and the reductions of no cell, by

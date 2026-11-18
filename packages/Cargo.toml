@@ -17,6 +17,7 @@ members = [
     "poc-portal",
     "shared",
     "tui",
+    "wetsproces",
 ]
 
 [workspace.package]

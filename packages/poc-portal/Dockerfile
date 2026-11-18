@@ -49,18 +49,18 @@ RUN set -eu; \
       exit 1; \
     fi
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d; /"wetsproces"/d' Cargo.toml
 COPY packages/cel/ cel/
 COPY packages/engine/ engine/
 COPY packages/law-model/ law-model/
 COPY packages/poc-chronolexografie/ poc-chronolexografie/
 COPY packages/shared/ shared/
 # The tests of chronolexografie load a source with the portal's own loader, a
-# dev-dependency on poc-portal. Cargo reads the manifest of every dependency,
-# dev ones too, and the portal with its own dependencies is not in this stage;
-# the WASM build needs none of it, so the line goes.
-RUN grep -q '^regelrecht-poc-portal = ' poc-chronolexografie/Cargo.toml && \
-    sed -i '/^regelrecht-poc-portal = /d' poc-chronolexografie/Cargo.toml
+# dev-dependency on corpus (src/source_manifest.rs). Cargo reads the manifest
+# of every dependency, dev ones too, and corpus with its own dependencies is
+# not in this stage; the WASM build needs none of it, so the line goes.
+RUN grep -q '^regelrecht-corpus = ' poc-chronolexografie/Cargo.toml && \
+    sed -i '/^regelrecht-corpus = /d' poc-chronolexografie/Cargo.toml
 RUN cargo build --target wasm32-unknown-unknown --release --features wasm -p regelrecht-engine && \
     wasm-bindgen --target web --out-dir /wasm-pkg \
       target/wasm32-unknown-unknown/release/regelrecht_engine.wasm
@@ -147,7 +147,7 @@ COPY packages/Cargo.lock packages/Cargo.toml ./
 # hoeft te vinden. De grep-assertie valt om als de members-array ooit op één
 # regel wordt gezet — dan zou de sed er stilletjes langs lopen.
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-chronolexografie"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-chronolexografie"/d; /"tui"/d; /"wetsproces"/d' Cargo.toml
 COPY packages/auth/ auth/
 COPY packages/corpus/ corpus/
 # regelrecht-corpus hangt aan github; het portaal gebruikt uit corpus alleen

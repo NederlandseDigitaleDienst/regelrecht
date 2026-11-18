@@ -1,0 +1,37 @@
+---
+# Het wetsproces dat dit component uitvoert: de gehandicaptenparkeerkaart bij
+# de fictieve gemeente Wilgendaal (BABW, artikel 49), met de Awb-keten van
+# aanvraag, bezwaar en beroep. Dezelfde cel, hetzelfde artikel en hetzelfde
+# corpus als de casus van de chronolexografie-poc
+# (packages/poc-chronolexografie/corpus/casussen/gehandicaptenparkeerkaart.yaml);
+# wat daar alleen voor het naspelen dient, zoals de scenario's en de
+# voorbeeldgegevens, staat hier niet. De regelwerken die de cel draait leidt
+# de kern af uit dit artikel en de cel, binnen dit corpus.
+cel: gemeente_wilgendaal
+artikel: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49
+corpus:
+  - regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+  - regulation/nl/wet/algemene_wet_bestuursrecht
+  - regulation/nl/ministeriele_regeling/regeling_gehandicaptenparkeerkaart
+  - regulation/nl/gemeentelijke_verordening/wilgendaal/parkeerverordening_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_geneeskundig_advies_gemeente_wilgendaal
+  - regulation/nl/gemeentelijke_verordening/wilgendaal/uitvoeringsbesluit_parkeren_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_bedrijfsparkeervergunning_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_verleende_bedrijfsparkeervergunningen_gemeente_wilgendaal
+  - regulation/nl/uitvoeringsbeleid/beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+# De uitvoer die zegt of het besluit het gevraagde toewijst.
+uitkomst: gehandicaptenparkeerkaart_verstrekt
+titel: Gehandicaptenparkeerkaart
+cel_naam: gemeente Wilgendaal
+# De dag waarop de bestuurbare klok in test mode begint.
+speeldatum: 2026-10-13
+voorbeeld: {}
+# De GGD die het geneeskundig onderzoek verricht en de bestuursrechter, elk
+# met een eigen kroniek (RFC-048, RFC-053).
+andere_cellen:
+  - cel: ggd_wilgendaal
+    cel_naam: GGD Wilgendaal
+  - cel: rechtbank_wilgendaal
+    cel_naam: Rechtbank Wilgendaal
+scenarios: []

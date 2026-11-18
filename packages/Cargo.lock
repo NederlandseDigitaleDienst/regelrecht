@@ -4178,9 +4178,9 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "regelrecht-cel",
+ "regelrecht-corpus",
  "regelrecht-engine",
  "regelrecht-law-model",
- "regelrecht-poc-portal",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -4269,6 +4269,27 @@ dependencies = [
  "tokio",
  "tracing",
  "walkdir",
+]
+
+[[package]]
+name = "regelrecht-wetsproces"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "chrono",
+ "http-body-util",
+ "regelrecht-cel",
+ "regelrecht-corpus",
+ "regelrecht-poc-chronolexografie",
+ "regelrecht-shared",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tower",
+ "tower-http 0.7.1",
+ "tracing",
 ]
 
 [[package]]
