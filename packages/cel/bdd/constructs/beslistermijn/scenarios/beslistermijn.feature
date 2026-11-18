@@ -21,7 +21,7 @@ Feature: The decision term of Awb 4:13 on an application for a permit
   # Like the Awb in the corpus, 4:13 here leaves out the Algemene
   # termijnenwet, which moves a last day on a weekend or public holiday to
   # the next working day. The dates here keep every last day on a working
-  # day, so the scenarios hold in law as well as in the model.
+  # day, so the scenarios would hold under the Algemene termijnenwet too.
 
   Scenario: The application holds the fields of the permit act and its date, and takes the receipt as its moment
     # The hooks on the application decide what it holds. Article 4:2 adds

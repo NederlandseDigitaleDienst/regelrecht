@@ -64,9 +64,9 @@ impl State {
 
 /// Load the regelwerken a scenario of the feature at `feature` runs against.
 /// A feature in a scenario set ([`ScenarioSet`]) gets the regelwerken of that
-/// set alone. Any other feature
-/// (`bdd/features`) gets the corpus and the fixtures: every regelwerk under
-/// `fixtures/regulation`, and the reductions under `fixtures/cells`.
+/// set alone. Any other feature (`bdd/features`) gets the corpus and the
+/// fixtures: every regelwerk under `fixtures/regulation`, and the reductions
+/// under `fixtures/cells`.
 pub fn load(service: &mut LawExecutionService, feature: Option<&Path>) {
     if let Some(set) = feature.and_then(ScenarioSet::containing) {
         set.load(service);

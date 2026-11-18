@@ -47,14 +47,6 @@ articles:
             nullable: true
             required: false
             description: The date on the application.
-        output:
-          - name: application_is_dated
-            type: boolean
-        actions:
-          - output: application_is_dated
-            value:
-              operation: NOT
-              value: {operation: EQUALS, subject: $application_date, value: null}
 
   - number: '4:13'
     url: https://example.com/test_general_administrative_act/4:13

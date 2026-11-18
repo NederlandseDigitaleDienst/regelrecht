@@ -11,8 +11,8 @@
 //!
 //! A feature under `<set>/scenarios/` runs against the regelwerken under
 //! `<set>/regulation/` and nothing else: not the corpus, not the fixtures of
-//! `bdd/fixtures`. A hook fires only from a regelwerk the set loads, so a
-//! construct is tried without every other law of the corpus taking part.
+//! `bdd/fixtures`. A hook fires only from a regelwerk the set loads, so in a
+//! construct a hook fires only from the set's own regelwerken.
 //!
 //! The constructs under `bdd/constructs/` are the scenario sets this runner
 //! finds itself ([`constructs`]). A corpus laid out the same way (a
@@ -120,11 +120,11 @@ fn files_with_extension(dir: &Path, extension: &str) -> Vec<PathBuf> {
 }
 
 /// Load the regelwerk at `path` into `service`, failing the scenario when it
-/// does not load, and return its `$id`. As the corpus loader does,
-/// `BDD_REVERSE_ACTIONS` reverses the actions of each article first.
-pub fn load_regelwerk(service: &mut LawExecutionService, path: &Path) -> String {
+/// does not load. As the corpus loader does, `BDD_REVERSE_ACTIONS` reverses
+/// the actions of each article first.
+pub fn load_regelwerk(service: &mut LawExecutionService, path: &Path) {
     let yaml = regulation_source(path).unwrap_or_else(|e| panic!("{e}"));
-    service
-        .load_law(&yaml)
-        .unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+    if let Err(e) = service.load_law(&yaml) {
+        panic!("{}: {e}", path.display());
+    }
 }
