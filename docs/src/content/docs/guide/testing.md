@@ -20,7 +20,7 @@ The cell has a BDD suite of its own in `packages/cel/bdd/`, outside both buckets
 
 ### Trying out a construct
 
-A construct of the law format that is hard to get right, such as a decision term that fires as a hook on every decision, gets a directory of its own under `packages/cel/bdd/constructs/`. Its features run against its own fictional ruleworks and nothing else: the corpus and the fixtures of the cell's suite stay out. That matters for hooks, because a hook fires on every decision of every loaded rulework, and the real Awb in the corpus would otherwise fire on the test laws too.
+A construct of the law format that is hard to get right gets a directory of its own under `packages/cel/bdd/constructs/`. The first is a decision term that fires as a hook on every decision. A construct's features run against its own fictional ruleworks and nothing else; the corpus and the fixtures of the cell's suite stay out. For hooks that matters. A hook fires on every decision its `applies_to` matches, in every loaded rulework, so the real Awb in the corpus would fire on the test laws too.
 
 ```text
 packages/cel/bdd/constructs/beslistermijn/
@@ -30,7 +30,7 @@ packages/cel/bdd/constructs/beslistermijn/
   scenarios/beslistermijn.feature
 ```
 
-The `beslistermijn` construct is the first. A fictional general law follows Awb 4:13 and hooks onto the decision of a host law; the scenarios record an application on one day and decide on another, then check the last day of the term and whether the decision came too late. They cover the last day itself, the day after, a decision well within the term, and a term that runs from receipt rather than from the day the application was recorded. A host law with a term of its own sets it with an override. Filling that term through `implements` instead needs the engine to take the host law as the only candidate, which it does not do yet, so that scenario carries `@wip`.
+In the `beslistermijn` construct, a fictional general law, loosely modeled on Awb 4:13, hooks onto the decision of a host law. Each scenario records an application on one day and decides on it on another. It then checks the last day of the term and whether the decision came too late. The scenarios cover the last day itself, the day after, a decision well within the term, and a term that runs from receipt rather than from the day the application was recorded. A host law with a term of its own sets it with an override. It could also fill the term through `implements`, but the engine does not yet take the host law as the only candidate for that. That scenario carries `@wip`.
 
 To add a construct:
 
@@ -41,7 +41,7 @@ To add a construct:
 
 `just bdd` and the CI job "BDD conformance" run the constructs with the rest of the cell's suite; no recipe or workflow changes.
 
-The runner decides what to load from where a feature sits. A feature under `<set>/scenarios/` loads the ruleworks under `<set>/regulation/`, whichever directory `<set>` is. A corpus with a `scenarios/` directory next to its `regulation/` directory therefore loads the same way. Running its scenarios takes only adding its features to the list in `packages/cel/tests/bdd/main.rs`; how the cell's runner loads stays as it is. That variant is not built yet. The engine's own runner does not read where a feature sits and always loads the corpus.
+The runner decides what to load from where a feature sits. A feature under `<set>/scenarios/` loads the ruleworks under `<set>/regulation/`, whichever directory `<set>` is. A corpus with a `scenarios/` directory next to its `regulation/` directory would load by the same rule once its features are added to the list in `packages/cel/tests/bdd/main.rs`. Nothing does that yet. The engine's own runner does not look at where a feature sits and always loads the corpus.
 
 ### The step vocabulary is generated, not hand-written
 
@@ -148,7 +148,7 @@ just mutants-diff  # Only what this branch changed
 
 ## Schema Validation
 
-Every rulework is validated against the JSON schema. Without arguments, `just validate` checks the corpus (`corpus/regulation`), the ruleworks and reductions of the chronolexografie PoC, and the fixtures of the cell's BDD suite (`packages/cel/bdd/fixtures`: its `regulation/` directory, the reductions of its cell, and the `regulation/` directory of each construct). It leaves the demo corpus out; `just validate-demo` covers that. The pre-commit hook runs the same recipe on the changed files in all of these directories, the demo corpus included, and CI runs the hooks over the whole tree.
+Every rulework is validated against the JSON schema. Without arguments, `just validate` checks the corpus (`corpus/regulation`), the ruleworks and reductions of the chronolexografie PoC, and the fixtures of the cell's BDD suite (`packages/cel/bdd/fixtures`: its `regulation/` directory and the reductions of its cell), and the `regulation/` directory of each construct in `packages/cel/bdd/constructs`. It leaves the demo corpus out; `just validate-demo` covers that. The pre-commit hook runs the same recipe on the changed files in all of these directories, the demo corpus included, and CI runs the hooks over the whole tree.
 
 ```bash
 just validate                     # Validate all

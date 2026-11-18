@@ -1,9 +1,11 @@
 ---
 # FICTIEF. A synthetic general administrative law for the construct
-# "beslistermijn" (packages/cel/bdd/constructs/beslistermijn). Article 1 and 2
-# are loosely shaped after article 4:13 of the Algemene wet bestuursrecht: a
+# "beslistermijn" (packages/cel/bdd/constructs/beslistermijn). Article 1 is
+# loosely shaped after article 4:13 of the Algemene wet bestuursrecht: a
 # decision is due within the term a statutory provision sets (lid 1), and
 # without one within eight weeks after the application was received (lid 2).
+# Article 2 says when the term runs and when a decision is late, after the
+# way the Awb counts its terms.
 # Both articles fire as a hook on every decision (BESCHIKKING) of a host law,
 # such as test_wet_tafeldekken. None of it is the text of a law.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
@@ -61,7 +63,7 @@ articles:
   - number: '2'
     url: https://example.com/test_algemene_bestuursregels/2
     text: |-
-      FICTIEF, naar artikel 4:13 van de Algemene wet bestuursrecht.
+      FICTIEF, naar de termijnregels van de Algemene wet bestuursrecht.
       1. De beslistermijn vangt aan met ingang van de dag na die waarop de
       gastheer de aanvraag ontving.
       2. Een beschikking die de gastheer na de laatste dag van de

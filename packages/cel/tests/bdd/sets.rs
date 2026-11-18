@@ -74,7 +74,11 @@ impl ScenarioSet {
 pub fn constructs(constructs: &Path) -> Vec<ScenarioSet> {
     let mut roots: Vec<PathBuf> = std::fs::read_dir(constructs)
         .unwrap_or_else(|e| panic!("{}: {e}", constructs.display()))
-        .map(|entry| entry.unwrap().path())
+        .map(|entry| {
+            entry
+                .unwrap_or_else(|e| panic!("{}: {e}", constructs.display()))
+                .path()
+        })
         .filter(|path| path.is_dir())
         .collect();
     roots.sort();
@@ -117,7 +121,8 @@ fn files_with_extension(dir: &Path, extension: &str) -> Vec<PathBuf> {
 /// does not load. As the corpus loader does, `BDD_REVERSE_ACTIONS` reverses
 /// the actions of each article first.
 pub fn load_regelwerk(service: &mut LawExecutionService, path: &Path) {
-    let mut yaml = std::fs::read_to_string(path).unwrap();
+    let mut yaml =
+        std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     if crate::reverse_actions::enabled() {
         yaml = crate::reverse_actions::reversed_actions(&yaml)
             .unwrap_or_else(|e| panic!("{}: {e}", path.display()));

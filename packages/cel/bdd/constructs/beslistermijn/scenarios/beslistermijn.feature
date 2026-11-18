@@ -5,11 +5,12 @@ Feature: The decision term as a hook on the decision of a host law
 
   # The construct "beslistermijn". The regelwerken in ../regulation are
   # fictional and are the only ones these scenarios load; the corpus is not
-  # loaded. Article 1 and 2 of test_algemene_bestuursregels follow article
-  # 4:13 of the Awb: the term a statutory provision sets (lid 1), else eight
-  # weeks after the application was received (lid 2). Both fire as a hook on
-  # every BESCHIKKING. test_wet_tafeldekken sets no term of its own;
-  # test_wet_feestmaaltijd sets two weeks with an override.
+  # loaded. Article 1 of test_algemene_bestuursregels is loosely modeled on
+  # article 4:13 of the Awb: the term a statutory provision sets (lid 1), else
+  # eight weeks after the application was received (lid 2). Article 2 counts
+  # the term as the Awb does. Both fire as a hook on every BESCHIKKING.
+  # test_wet_tafeldekken sets no term of its own; test_wet_feestmaaltijd sets
+  # two weeks with an override.
   #
   # The day the application was received is what the host found, so it is
   # given with the decision, not with the application. The decision is taken

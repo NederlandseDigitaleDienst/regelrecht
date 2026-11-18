@@ -517,6 +517,8 @@ fn court_rules(
         .map(|(k, v)| (k.clone(), stored::from_stored(v).expect("stored field")))
         .collect();
     parameters.extend(found);
+    // The ruling is the court's, not a decision of the cell: it does not
+    // become the result the canonical output steps read.
     let mut gram = decided(world, id, &basis, Some(&appeal.id), parameters).gram;
     gram.recording_actor = COURT.to_string();
     world
