@@ -341,6 +341,25 @@ export function geldendBesluit(aanvraag) {
 }
 
 /**
+ * Whether application `a` still awaits its decision: no decision holds for
+ * it now ([`geldendBesluit`]). Its tag then reads In behandeling.
+ */
+export const inBehandeling = (a) => !geldendBesluit(a);
+
+/**
+ * The applications of applicant `wie` that are in behandeling. `veld` is the
+ * field of an application that holds who applied (the login field,
+ * `inloggen.veld`). A case without one has no applicants to tell apart, so
+ * every application counts; with one and nobody logged in (`wie` empty),
+ * none is theirs. The key compares as text, as the login choice holds it.
+ */
+export function lopendeAanvragen(veld, wie) {
+  if (veld === undefined || veld === null) return aanvragen().filter(inBehandeling);
+  if (wie === undefined || wie === null || wie === '') return [];
+  return aanvragen().filter((a) => inBehandeling(a) && String(a.fields?.[veld]) === String(wie));
+}
+
+/**
  * A date as the page writes it: `2026-10-14` → `14 oktober 2026`. A date
  * without a time is midnight UTC, so it is shown in UTC; west of Greenwich it
  * would otherwise become the day before.

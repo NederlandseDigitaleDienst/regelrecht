@@ -5,6 +5,7 @@ import {
   ingelogdAls,
   ingevuldDoorInloggen,
   metSessie,
+  nietIngelogdTekst,
   weigerTekst,
   weigeringTelt,
 } from '../src/inlogstap.js';
@@ -84,6 +85,12 @@ describe('the texts of the login step', () => {
     expect(ingelogdAls(SESSIE)).toBe('Ingelogd als bakker');
     expect(claimRegel(INLOGGEN, SESSIE)).toBe(
       'kvk nummer 99970011 · pseudoniem ps-b4k001 · betrouwbaarheidsniveau substantieel',
+    );
+  });
+
+  it('names, before the login, both the new application and the ones before', () => {
+    expect(nietIngelogdTekst(INLOGGEN.inlogstap)).toBe(
+      'Log in bij Erkende dienst voor bedrijfs- en organisatiemiddelen voor een nieuwe aanvraag en voor de aanvragen die je al deed. Het inloggen is gesimuleerd.',
     );
   });
 
