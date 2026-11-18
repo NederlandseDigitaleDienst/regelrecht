@@ -71,6 +71,9 @@ jobs:
               - corpus/regulation/**
               # De demo-wetten en -scenario's: gevalideerd en gedraaid als bucket demo.
               - corpus/demo/**
+              # De casus van plaatsgebonden regels (RFC-057): gevalideerd en
+              # gedraaid in dezelfde baan.
+              - corpus/plaatsgebonden-regels/**
               - schema/**
               - script/**
               # De npm-workspace zelf: een dependency-bump raakt alleen deze
@@ -717,6 +720,26 @@ jobs:
           REGULATION_PATH=$(echo "$DIRS" | sed "s|^|$GITHUB_WORKSPACE/|" | paste -sd:)
           export REGULATION_PATH
           cargo test --test bdd -- --nocapture
+
+      # Like `just bdd-plaatsgebonden`: bucket A over the case of location-bound
+      # rules. The law is real and the facts are fixed, so red here is a real
+      # error.
+      - name: Validate location-bound ruleworks
+        if: matrix.leg == 'forward'
+        env:
+          RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
+        run: |
+          find corpus/plaatsgebonden-regels/regulation -name '*.yaml' ! -name '.*' -print0 | sort -z \
+            | xargs -0 script/validate.sh
+
+      - name: Run location-bound bucket (${{ matrix.leg }} actions)
+        working-directory: packages/engine
+        env:
+          BDD_BUCKET: corpus
+          BDD_REVERSE_ACTIONS: ${{ matrix.reverse }}
+          REGULATION_PATH: ${{ github.workspace }}/corpus/plaatsgebonden-regels/regulation
+          RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
+        run: cargo test --test bdd -- --nocapture
 
       # Zoals `just bdd-demo`: de Awb-levensloop over hetzelfde democorpus.
       # De unit-baan draait deze test alleen tegen corpus/regulation.

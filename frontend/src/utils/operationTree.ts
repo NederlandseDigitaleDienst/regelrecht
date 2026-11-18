@@ -92,6 +92,8 @@ export const OPERATION_LABELS: Record<string, string> = {
   DATE_DIFF: 'datumverschil',
   DATE_PART: 'datumonderdeel',
   START_OF: 'begin van',
+  // Ruimtelijk
+  OVERLAPS: 'overlapt',
   // Verzameling
   LIST: 'lijst',
   RECORD: 'rij',
@@ -282,6 +284,7 @@ const COMPARISON_SYMBOLS: Record<string, string> = {
   LESS_THAN: '<',
   GREATER_THAN_OR_EQUAL: '≥',
   LESS_THAN_OR_EQUAL: '≤',
+  OVERLAPS: 'overlapt',
 };
 const ARITHMETIC_SYMBOLS: Record<string, string> = { ADD: '+', SUBTRACT: '−', MULTIPLY: '×', DIVIDE: '÷' };
 const ARITHMETIC_NOUNS: Record<string, string> = { ADD: 'som', SUBTRACT: 'aftrekking', MULTIPLY: 'product', DIVIDE: 'deling' };

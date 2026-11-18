@@ -113,6 +113,94 @@ The scope selects among other regulations, with two exceptions. First, an ordina
 
 Second, a regulation with the same scope fields as the declaring one, set to the same values, fills its terms whatever the scope as well. Further rules that the college lays down under an ordinance of its own municipality are the case in point. Two national regulations do not count as sharing a territory; for them the scope plays no part anyway.
 
+### The regulation of a place
+
+A `gemeente_code` among the parameters works when the caller knows which municipality a case belongs to. For a rule about a place the caller knows something else: where the activity is. Since schema v0.8.23 an open term can name that place with `location`, and say with `territory` where the territory of an authority is read. The place then picks the regulation.
+
+```yaml
+# A law that leaves a ban to the omgevingsplan
+machine_readable:
+  open_terms:
+    - id: verboden_in_omgevingsplan
+      type: boolean
+      required: true
+      delegated_to: gemeenteraad
+      delegation_type: GEMEENTELIJKE_VERORDENING
+      location: $locatie
+      territory:
+        regulation: kadasterwet
+        output: grens_van_gemeente
+      combine: OR
+  execution:
+    parameters:
+      - name: locatie
+        type: shape
+        required: true
+```
+
+`location` is a `$`-reference to a parameter or an input of type `shape` in the article that declares the term. A regulation with a `gemeente_code`, `provincie_code` or `waterschap_code` fills the term only when that shape overlaps the territory of its code. The test is the one `OVERLAPS` applies: the interiors meet, so a location on the boundary of a territory lies in neither neighbor. A code among the parameters plays no part for such a term. A regulation without a territory, the declaring regulation itself and one of the declarer's own territory fill the term as described above.
+
+`territory` names the output of a law that gives the territory of an authority. The boundary of a municipality is a fact a register holds: article 48 of the Kadasterwet puts "de grens van een provincie of gemeente" on the national cadastral map. A register enters the corpus through the law that establishes it. An article of that law reads the register as an input with `source: {}` and gives the value as its output, the way the Wet basisregistratie personen gives what the BRP holds (see [Cross-Law References](./cross-law-references)). The territory is such an output:
+
+```yaml
+# The law of the register, article with the boundary of a municipality
+machine_readable:
+  execution:
+    parameters:
+      - name: gemeente_code
+        type: string
+        required: true
+    input:
+      - name: grens_in_register
+        type: shape
+        source: {}
+    output:
+      - name: grens_van_gemeente
+        type: shape
+    actions:
+      - output: grens_van_gemeente
+        value: $grens_in_register
+```
+
+For each candidate regulation that carries a territory code, the engine asks that output on the calculation date with one parameter: the code, under the name of the field that carries it, so `gemeente_code: GM0273` for a municipal plan. It is a call to another law like any other. It stands in the trace, it is checked for cycles, and the register reaches it as a data source bound to that law. A code is asked once per term, however many regulations carry it. `location` and `territory` come together; the schema and the loader refuse one without the other. A regulation that carries more than one territory code is an error for such a term.
+
+A `territory` that names a law that is not in force on the calculation date, or an output that law does not give, is a defect of the term: an error whenever the term is read, whatever a regulation would say. When the named law is loaded the type check finds most of it earlier. The output must exist and be a `shape`, and the article that gives it must declare a parameter named `gemeente_code`, `provincie_code` or `waterschap_code`, since that is what the engine asks it with. A law that is not loaded cannot be checked then, as for `source.regulation`.
+
+The code is passed under the name of its own field and under no other. An article that takes a `provincie_code` therefore cannot say where a regulation with a `gemeente_code` holds: it would answer without the code it was asked with. The type check refuses a regulation that fills such a term when the article behind `territory` declares no parameter for the field the regulation carries, in whatever order the three laws are loaded. Where the check could not run, the territory of that regulation counts at run time as one that cannot be read.
+
+The value has to be a shape. A territory that cannot be read as one (the call fails, the value is no shape, its geometry is not valid) is a defect of that one candidate, and the error names the term, the code and the source. Without `combine` it fails the term, since the candidate that cannot be placed may be the one that wins. With `combine: OR` it counts as an implementation that failed: a regulation in scope that gives true still decides, and the failure is recorded. A territory that is unknown is something else. When the register has no row for a code, the input of the register's law is unknown for lack of that fact, and so is the territory. The regulation is then neither in scope nor out of it, and the engine does not read that as "it does not apply". Without `combine` the term is unknown for lack of what the territory lacks. With `combine: OR` a regulation that is in scope and gives true still makes the term true; otherwise the term is unknown.
+
+A location can reach outside the territories of the regulations in scope: a parcel that holds a corner of the municipal boundary, or one that lies partly in a municipality whose plan does not fill the term. The regulations that were asked say nothing about that part, so their answers do not decide the term by themselves. The engine judges whether the location is covered, that is, whether no part of it lies outside the territories of the regulations in scope taken together. Two territories that share a boundary cover a location across it. A regulation in scope that is not held against a territory, such as a national one, covers any location. The part that is not covered is a place for which no regulation is known, and what holds there is what holds where there is none: the `default` of the term.
+
+With `combine: OR` the default then counts as one more answer beside those of the regulations. A required term without a default fails when no regulation in scope gives true, with an error that says part of the location lies in no territory for which a regulation is known. An optional term without a default adds nothing. Without `combine` the term is refused as ambiguous, because no one regulation holds for the whole location. A location that lies wholly outside every territory is not affected: no regulation is in scope, and the term takes its default or fails as a term without an implementation does. Coverage is judged only when the territory of every candidate was read. An unknown territory still makes the term unknown, and one that cannot be read still fails it.
+
+One territory that covers the location settles the question with the exact relation between the two shapes. For a location across several territories the engine lays their surfaces over the location in one overlay, on a fine grid. Points written the same in two boundaries stay the same, so neighbors that share the points of their common boundary leave no gap. Boundaries that do not share them leave a gap, and a gap is not covered unless it is narrower than the grid of the overlay, about a billionth of the extent of the shapes.
+
+The delegation gate comes first, so the territory of a regulation at a layer the term does not delegate to is never asked. A location that is not known makes the term unknown for lack of it. That holds for a term an authority decides per case as well: a finding does not stand in for the plan of an unknown place.
+
+A term with a `location` rests on what a register held, which does not show in the term's own article. The execution therefore records, for every such term, the location and each candidate regulation that was held against it: its territory code, where the territory was read (`kadasterwet#grens_van_gemeente`), the hash of the text of the territory that was used, and whether the location overlapped it. For an unknown territory the hash and the outcome are absent, and for one that could not be read the record holds the error. The candidates come by territory code and then by regulation, whatever the order the laws were loaded in, and the same order decides which of two unreadable territories is the error that is raised. `location_covered` says whether the regulations in scope cover the location; it is absent when a territory is unknown or could not be read. When the location itself is unknown, the record says what it lacks and lists no territory. The record also lists every implementation that was asked and what it gave, with `combine` and without it, and under `default` what the default gave where it answered for a part that is not covered. A term that fails leaves its record too. That matters where the failure is taken as one answer by a term with `combine: OR` further up: the record is then what remains of the term that failed. It is on the result as `open_terms_asked`, on the receipt and in the output of the `evaluate` binary and of the WASM `execute` family under the same name, and in the trace under the open term, where each territory is a step with the call to the register's law beneath it.
+
+A listing made before the article runs, such as [`decision_terms`](/components/engine) or the hand-out of findings to terms an authority decides per case, cannot always tell the place: the location may be an input, or a territory may be unknown. It then reports the place as not known (`place_not_known` on a listed term) and never as "no regulation here". A finding for such a term is passed on, and the term decides when it is resolved with the location in hand.
+
+### Several articles that fill one term
+
+A plan states its bans article by article: one article forbids building without a permit, another felling a tree. Each of those articles fills the same open term, and so may the plans of two municipalities when a location lies across their boundary. Without `combine`, a term takes one implementation, and two of one layer and date fail on an ambiguous priority.
+
+`combine: OR` on a boolean term asks every implementation that is in force, of the delegated layer and in scope. No priority is applied among them. The term is:
+
+- true when one implementation gives true, whatever the others did;
+- otherwise the error of the first failure: a candidate whose territory could not be read, then an implementation that failed, then the default where it was asked for a part of the location that is not covered;
+- otherwise an error when the term is required, has no default, and part of its location lies in no territory for which a regulation is known;
+- otherwise untranslatable when one of them is ([Markings](/concepts/markings));
+- otherwise unknown when one of them is unknown, or when a candidate regulation could not be asked because its territory is unknown, for lack of what they lack;
+- otherwise false.
+
+Every implementation is asked, also after one gave true. An implementation that fails does not take the term down with it when another says so: its failure is recorded and not raised. One that gives something other than a boolean or null counts as failed.
+
+An implementation that gives null does not speak about the case and counts as not saying so. That separates two answers a single implementation could not: a plan that was asked and forbids nothing gives false, while a location where no plan applies leaves the term without an implementation. The term then takes its `default`, and a required term without one is an error, as it is without `combine`. The execution records every implementation that gave true as having filled the term, and under `open_terms_asked` what each implementation gave: true, false, silent, unknown with what it lacks, untranslatable, or failed with its error. For a term that is no boolean, asked without `combine`, the answer is the value itself, written as `{"value": "12"}`. A term that comes out false or unknown is explained by that list.
+
+`combine` does not go with `decided_per_case_by`. A term with `location` and without `combine` still takes one regulation, and takes it for the whole location. A location in the territories of two codes of one kind, such as two municipalities, is refused as ambiguous, whatever the dates of the two regulations: two municipalities are not each other's later law. Priority keeps ranking regulations of one code, and a regulation without a code next to them. It also ranks regulations whose codes are of different kinds. A province and a municipality in it always lie over each other, and the higher layer wins there as it does without `location`.
+
 ## An implementation that reads the law it fills in
 
 An implementation can state its value in terms of the law it fills in. A ministerial regulation indexing an amount is the common case: *"het in artikel 4 genoemde bedrag wordt met ingang van 1 januari verhoogd met 3,2 procent"*, where the law leaves the amount open with a `default`. The implementing article then reads an output of that law, which depends on the very term it fills. That read is the law without this filling: the next implementation, or the `default` when there is none. The filling then applies once, whether the law or the implementing regulation is asked.
@@ -144,7 +232,7 @@ A binding fills the term like any other implementation: the term gets the bindin
 
 ## Conflict resolution
 
-When multiple regulations implement the same open term, the engine resolves conflicts using two rules from legal theory:
+When multiple regulations implement the same open term, and the term has no `combine`, the engine resolves conflicts using two rules from legal theory:
 
 1. **Lex superior** (higher regulatory layer wins): a *wet* takes precedence over a *ministeriële regeling*, and an ordinance yields to the act it executes
 2. **Lex posterior** (newer wins): between two regulations at the same level, the one with the later `valid_from` date takes precedence

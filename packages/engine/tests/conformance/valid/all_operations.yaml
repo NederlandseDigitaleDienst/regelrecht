@@ -1,7 +1,7 @@
 ---
 # Tier C: one nested operation per operation definition in the schema, so every
 # operand field is exercised at least once. Nonsense as law, exhaustive as shape.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
 $id: test_conformance_all_operations
 regulatory_layer: WET
 publication_date: '2025-01-01'
@@ -22,6 +22,10 @@ articles:
             type: amount
           - name: BEDRAGEN
             type: array
+          - name: LOCATIE
+            type: shape
+          - name: GEBIED
+            type: shape
         output:
           - name: uitkomst
             type: boolean
@@ -156,3 +160,6 @@ articles:
                         value: 18
                       then: true
                   default: false
+                - operation: OVERLAPS
+                  subject: $LOCATIE
+                  value: $GEBIED

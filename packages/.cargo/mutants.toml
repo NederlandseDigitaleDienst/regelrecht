@@ -94,6 +94,16 @@ exclude_re = [
     # diagnostische tekst vast.
     'operations\.rs.*replace ValueResolver::trace_get_message -> Option<String> with Some',
 
+    # The same for the shapes of an execution (schema v0.8.23). The default
+    # of `ValueResolver::shapes` says "no execution to share shapes with",
+    # and `OVERLAPS` then parses each operand where it meets it. A default
+    # that hands out a fresh, empty cache per call makes it parse each
+    # operand where it meets it as well: nothing is in the cache. The outcome
+    # is the same and so is the number of texts parsed. The resolver that
+    # carries the real cache (RuleContext) overrides this, and that override
+    # is killed by a_shape_text_is_parsed_once_per_execution_wherever_it_is_met.
+    'operations\.rs.*replace ValueResolver::shapes -> Option<&crate::shape::ShapeCache> with Some',
+
     # --- data_source.rs ----------------------------------------------------
 
     # De handgeschreven `Debug for DataSourceRegistry` bestaat alleen omdat
@@ -110,6 +120,15 @@ exclude_re = [
     # `&dyn LazyInputs` geen Debug afleidt en `RuleContext` dat wel wil. De
     # uitvoer is diagnostisch, niets leest hem (RFC-043).
     'context\.rs.*impl std::fmt::Debug for LazyHook',
+
+    # The default of `LazyInputs::shapes`, for the same reason as the default
+    # of `ValueResolver::shapes` above: it exists so an implementation
+    # without an execution compiles, and a fresh empty cache per call parses
+    # as often as none. The three implementations that belong to an
+    # execution (LazyArticleInputs, AfterPreHooks, EarlierTerms) override it
+    # and are killed by the count of texts parsed in
+    # a_shape_text_is_parsed_once_per_execution_wherever_it_is_met.
+    'context\.rs.*replace LazyInputs::shapes -> Option<&ShapeCache> with Some',
 
     # --- typecheck.rs ------------------------------------------------------
 

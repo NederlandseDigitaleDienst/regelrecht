@@ -65,7 +65,7 @@ pub const SUPPORTED_SCHEMAS: &[&str] = &[
     "v0.5.4", "v0.5.5", "v0.5.6", "v0.5.7", "v0.5.8", "v0.5.9", "v0.6.0", "v0.7.0", "v0.7.1",
     "v0.8.0", "v0.8.1", "v0.8.2", "v0.8.3", "v0.8.4", "v0.8.5", "v0.8.6", "v0.8.7", "v0.8.8",
     "v0.8.9", "v0.8.10", "v0.8.11", "v0.8.12", "v0.8.13", "v0.8.14", "v0.8.15", "v0.8.16",
-    "v0.8.17", "v0.8.18", "v0.8.19", "v0.8.20", "v0.8.21", "v0.8.22",
+    "v0.8.17", "v0.8.18", "v0.8.19", "v0.8.20", "v0.8.21", "v0.8.22", "v0.8.23",
 ];
 
 /// Maximum quote length (in `char`s) for the fuzzy annotation scan.
@@ -96,6 +96,51 @@ pub const MAX_FUZZY_SCAN_CHARS: usize = 250_000;
 /// the total work regardless. Exceeding it truncates the scan and reports
 /// `Skipped` when nothing was found by then.
 pub const MAX_FUZZY_SCORED_WINDOWS: usize = 10_000;
+
+/// Maximum size of the text of a shape in bytes (4 MB).
+///
+/// A shape reaches the engine as well-known text from outside: a parameter,
+/// a register, a literal. The one real boundary measured here, the
+/// municipality of Putten at the detail the cadastral register gives it, is
+/// 2,185 points in 49 kB of text; a province will be many times that. A
+/// whole rulework may be 1 MB ([`MAX_YAML_SIZE`]), and four times that holds
+/// about 170,000 points written to the millimetre in the national grid.
+///
+/// The cap bounds the text that is parsed, which costs time in proportion to
+/// its length. It does not bound the validity check by itself; that has a
+/// limit of its own, [`MAX_SHAPE_CHECK_STEPS`].
+pub const MAX_SHAPE_TEXT_BYTES: usize = 4_000_000;
+
+/// Maximum number of steps the validity check of one shape may take.
+///
+/// A step is one comparison of two bounding boxes; a pair of segments that
+/// is held against each other counts for eight
+/// (see [`crate::shape_validity`]). The check finds the segments that lie
+/// near each other through a tree of boxes, so a boundary takes a number of
+/// steps that grows with n log n: measured, 41 per point for the boundary
+/// of Putten (2,185 points), and between 50 and 90 per point for generated
+/// boundaries of 8,000 to 500,000 points, smooth and jagged. The largest
+/// text that fits [`MAX_SHAPE_TEXT_BYTES`] with coordinates to the
+/// millimetre then takes about 15 million steps.
+///
+/// What runs into the limit is a shape in which many segments lie close to
+/// many others without touching: a thousand long narrow strips side by side
+/// that all lean the same way take 29 million steps, because the box of
+/// each strip covers its neighbours. Twice as many are refused. That is a
+/// real limit, and the price of a bound: without it such a text costs time
+/// with the square of its size. Fifty million steps take about a second and
+/// a half in an unoptimised build.
+pub const MAX_SHAPE_CHECK_STEPS: u64 = 50_000_000;
+
+/// Maximum depth of parentheses in the text of a shape.
+///
+/// A shape is a point, a line or a surface, or several of one kind. The
+/// deepest of those is a `MULTIPOLYGON(((x y, ...)))`: three levels. Deeper
+/// nesting only occurs in a `GEOMETRYCOLLECTION`, which is no shape, and the
+/// parser recurses on it without a bound of its own: twenty thousand nested
+/// collections overflow the stack, which aborts the process and cannot be
+/// caught. So the depth is checked before the parser sees the text.
+pub const MAX_SHAPE_PAREN_DEPTH: usize = 3;
 
 /// Maximum recursion depth for dot notation property access.
 ///

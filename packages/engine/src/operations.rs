@@ -11,6 +11,7 @@
 //! - **Conditional:** IF (multi-case with cases/default)
 //! - **Collection:** IN, LIST
 //! - **Date:** AGE, DATE_ADD, DATE, DAY_OF_WEEK, DATE_DIFF, DATE_PART, START_OF
+//! - **Spatial:** OVERLAPS
 //!
 //! **Engine-only (not in schema, accepted for backward compatibility):**
 //! NOT_EQUALS, IS_NULL, NOT_NULL, NOT_IN
@@ -182,6 +183,13 @@ pub trait ValueResolver {
     /// Check if tracing is active. Returns false by default.
     fn has_trace(&self) -> bool {
         false
+    }
+
+    /// The shapes read so far in the execution this resolver belongs to, so
+    /// `OVERLAPS` parses a text once however often it meets it. `None` by
+    /// default: every operand is then parsed where it is used.
+    fn shapes(&self) -> Option<&crate::shape::ShapeCache> {
+        None
     }
 
     /// Execute a FOREACH (RFC-016), if this resolver can create child scopes.
@@ -514,6 +522,11 @@ fn execute_operation_internal<R: ValueResolver>(
         }
         ActionOperation::DatePart { date, part } => execute_date_part(date, part, resolver, depth),
         ActionOperation::StartOf { date, unit } => execute_start_of(date, unit, resolver, depth),
+
+        // Spatial
+        ActionOperation::Overlaps { subject, value } => {
+            execute_overlaps(subject, value, resolver, depth)
+        }
     }
 }
 
@@ -732,6 +745,71 @@ fn comparable_kind(val: &Value, parses_as_date: bool) -> Option<&'static str> {
 /// Whether a value is a number (Int or Decimal) for comparison dispatch.
 fn is_numeric(val: &Value) -> bool {
     matches!(val, Value::Int(_) | Value::Decimal(_))
+}
+
+// =============================================================================
+// Spatial Operations
+// =============================================================================
+
+/// Execute OVERLAPS (schema v0.8.23): whether the interiors of two shapes
+/// meet (DE-9IM `T********`).
+///
+/// Both operands are shapes, strings of two-dimensional well-known text. The
+/// engine attaches no coordinate system to a shape, so the two must be in the
+/// same one.
+///
+/// The operands are checked as the ordering comparisons check theirs: an
+/// untranslatable taints the result, an unknown makes it unknown, and a null
+/// is an [`EngineError::AbsentOperand`], because whether nothing overlaps an
+/// area is not a question the law asked (RFC-036). An operand that is no
+/// shape is an error that names the operand, never `false`: an area that
+/// cannot be read has not been shown to lie outside anything.
+fn execute_overlaps<R: ValueResolver>(
+    subject: &ActionValue,
+    value: &ActionValue,
+    resolver: &R,
+    depth: usize,
+) -> Result<Value> {
+    const OP: &str = "OVERLAPS";
+    let subject_val = evaluate_value(subject, resolver, depth)?;
+    let value_val = evaluate_value(value, resolver, depth)?;
+
+    if let Some(tainted) = propagate_binary(&subject_val, &value_val) {
+        return Ok(tainted);
+    }
+    if let Some(unknown) = propagate_unknown(resolver, OP, [&subject_val, &value_val]) {
+        return Ok(unknown);
+    }
+    reject_null(OP, [&subject_val, &value_val])?;
+
+    let subject_shape = parse_shape(&subject_val, "subject", OP, resolver.shapes())?;
+    let value_shape = parse_shape(&value_val, "value", OP, resolver.shapes())?;
+    crate::shape::interiors_meet(&subject_shape, &value_shape)
+        .map(Value::Bool)
+        .map_err(|why| EngineError::InvalidOperation(format!("{OP}: {why}")))
+}
+
+/// Read the operand `operand` (`subject` or `value`) of `op` as a shape,
+/// from `shapes` where the execution has read that text before.
+fn parse_shape(
+    val: &Value,
+    operand: &str,
+    op: &str,
+    shapes: Option<&crate::shape::ShapeCache>,
+) -> Result<std::rc::Rc<crate::shape::Shape>> {
+    let Value::String(text) = val else {
+        return Err(EngineError::TypeMismatch {
+            expected: format!("a shape (a string of WKT) as the {operand} of {op}"),
+            actual: val.type_name().to_string(),
+        });
+    };
+    let parsed = match shapes {
+        Some(shapes) => shapes.parse(text),
+        None => crate::shape::parse(text).map(std::rc::Rc::new),
+    };
+    parsed.map_err(|why| {
+        EngineError::InvalidOperation(format!("the {operand} of {op} is not a shape: {why}"))
+    })
 }
 
 // =============================================================================
@@ -5646,6 +5724,61 @@ body:
     }
 
     // -------------------------------------------------------------------------
+    // Spatial operation Tests (schema v0.8.23)
+    // -------------------------------------------------------------------------
+
+    mod spatial_operations {
+        use super::*;
+
+        const AREA: &str = "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))";
+
+        fn overlaps(subject: impl Into<Value>, value: impl Into<Value>) -> Result<Value> {
+            let op = ActionOperation::Overlaps {
+                subject: lit(subject),
+                value: lit(value),
+            };
+            execute_operation(&op, &TestResolver::new(), 0)
+        }
+
+        #[test]
+        fn overlaps_is_true_when_the_interiors_meet() {
+            let half_on = "POLYGON((5 5, 15 5, 15 15, 5 15, 5 5))";
+            assert_eq!(overlaps(half_on, AREA).unwrap(), Value::Bool(true));
+            assert_eq!(overlaps("POINT(5 5)", AREA).unwrap(), Value::Bool(true));
+            assert_eq!(overlaps(AREA, "POINT(5 5)").unwrap(), Value::Bool(true));
+        }
+
+        #[test]
+        fn overlaps_is_false_on_a_shared_boundary_and_outside() {
+            let beside = "POLYGON((10 0, 20 0, 20 10, 10 10, 10 0))";
+            assert_eq!(overlaps(beside, AREA).unwrap(), Value::Bool(false));
+            assert_eq!(overlaps("POINT(10 5)", AREA).unwrap(), Value::Bool(false));
+            assert_eq!(overlaps("POINT(50 50)", AREA).unwrap(), Value::Bool(false));
+        }
+
+        #[test]
+        fn an_operand_that_is_no_shape_is_an_error_that_names_it() {
+            let err = overlaps("langs de dijk", AREA).unwrap_err().to_string();
+            assert!(
+                err.contains("the subject of OVERLAPS is not a shape")
+                    && err.contains("'langs de dijk' does not parse as WKT"),
+                "{err}"
+            );
+            let err = overlaps(AREA, "POINT(1)").unwrap_err().to_string();
+            assert!(
+                err.contains("the value of OVERLAPS is not a shape"),
+                "{err}"
+            );
+            let err = overlaps(AREA, 5i64).unwrap_err();
+            assert!(
+                matches!(&err, EngineError::TypeMismatch { expected, .. }
+                    if expected.contains("the value of OVERLAPS")),
+                "{err:?}"
+            );
+        }
+    }
+
+    // -------------------------------------------------------------------------
     // Date comparison Tests (RFC-021 route A: type-safe ordered comparison)
     // -------------------------------------------------------------------------
 
@@ -6806,6 +6939,26 @@ body:
     mod absent_and_unknown {
         use super::*;
 
+        #[test]
+        fn overlaps_propagates_unknown_and_refuses_absence() {
+            let r = resolver();
+            let run = |subject: ActionValue, value: ActionValue| {
+                execute_operation(&ActionOperation::Overlaps { subject, value }, &r, 0)
+            };
+            let area = || lit("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))");
+            let unknown = run(var("huur"), area()).unwrap();
+            assert_eq!(missing_names(&unknown), vec!["huur"]);
+            let both = run(var("huur"), var("partner")).unwrap();
+            assert_eq!(missing_names(&both), vec!["huur", "partner_bsn"]);
+            // Untranslatable beats unknown, unknown beats null.
+            assert_eq!(run(var("huur"), var("vaag")).unwrap(), taint());
+            let unknown = run(var("geen"), var("huur")).unwrap();
+            assert_eq!(missing_names(&unknown), vec!["huur"]);
+            // Whether nothing overlaps an area is not a question the law asked.
+            absent(run(var("geen"), area()).unwrap_err(), "OVERLAPS");
+            absent(run(area(), var("geen")).unwrap_err(), "OVERLAPS");
+        }
+
         fn resolver() -> TestResolver {
             TestResolver::new()
                 .with_var("geen", Value::Null)
@@ -7584,5 +7737,57 @@ body:
             .unwrap()
         );
         assert!(!compound_equal(&record(Value::Int(5)), &record(Value::Int(6)), "EQUALS").unwrap());
+    }
+
+    #[test]
+    fn overlaps_parses_a_shape_text_once_per_execution() {
+        /// A resolver that hands out the shapes of one execution.
+        #[derive(Default)]
+        struct SharingResolver {
+            shapes: crate::shape::ShapeCache,
+        }
+
+        impl ValueResolver for SharingResolver {
+            fn resolve(&self, name: &str) -> Result<Value> {
+                Err(EngineError::VariableNotFound(name.to_string()))
+            }
+
+            fn shapes(&self) -> Option<&crate::shape::ShapeCache> {
+                Some(&self.shapes)
+            }
+        }
+
+        let area = "POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))";
+        let resolver = SharingResolver::default();
+        for (location, expected) in [("POINT(5 5)", true), ("POINT(50 50)", false)] {
+            for _ in 0..3 {
+                let result = execute_overlaps(
+                    &ActionValue::Literal(Value::String(location.to_string())),
+                    &ActionValue::Literal(Value::String(area.to_string())),
+                    &resolver,
+                    0,
+                );
+                assert_eq!(result.unwrap(), Value::Bool(expected));
+            }
+        }
+        // Six evaluations read three texts: the area and the two locations.
+        assert_eq!(resolver.shapes.len(), 3);
+        // A text that is no shape is remembered with its refusal and still
+        // names the operand.
+        for _ in 0..2 {
+            let err = execute_overlaps(
+                &ActionValue::Literal(Value::String("nergens".to_string())),
+                &ActionValue::Literal(Value::String(area.to_string())),
+                &resolver,
+                0,
+            )
+            .unwrap_err()
+            .to_string();
+            assert!(
+                err.contains("the subject of OVERLAPS is not a shape"),
+                "{err}"
+            );
+        }
+        assert_eq!(resolver.shapes.len(), 4);
     }
 }

@@ -1,0 +1,268 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_location_terms
+name: Testwet plaatsgebonden termen
+regulatory_layer: WET
+bwb_id: BWBR9999927
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_location_terms
+
+articles:
+  - number: '1'
+    url: https://example.com/test_location_terms/1
+    text: >-
+      Het is verboden zonder vergunning een activiteit te verrichten voor
+      zover in het omgevingsplan is bepaald dat het verboden is deze zonder
+      vergunning te verrichten.
+    machine_readable:
+      # The term has a location and a combine rule (schema v0.8.23). The
+      # location decides which omgevingsplan fills the term: that of the
+      # municipality whose territory the location overlaps. The territory is
+      # the boundary the Testwet grenzenregister gives for the code the plan
+      # carries. With combine: OR
+      # every article of every plan found that way is asked, and the term is
+      # true as soon as one of those articles states the ban.
+      open_terms:
+        - id: verboden_in_omgevingsplan
+          type: boolean
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 1 Testwet plaatsgebonden termen
+          location: $location
+          territory:
+            regulation: test_grenzenregister
+            output: grens_van_gemeente
+          combine: OR
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The location of the activity, as WKT.
+          - name: activiteit
+            type: string
+            required: true
+            description: The activity - "bouwen", "kappen", "slopen" or anything else.
+          - name: monument
+            type: boolean
+            required: false
+            description: Whether the building is a monument; only the plan of Rechterdorp asks for it.
+        output:
+          - name: vergunningplichtig
+            type: boolean
+        actions:
+          - output: vergunningplichtig
+            value: $verboden_in_omgevingsplan
+
+  - number: '2'
+    url: https://example.com/test_location_terms/2
+    text: >-
+      Het is verboden een terras te exploiteren voor zover dat bij
+      gemeentelijke verordening is verboden.
+    machine_readable:
+      # Two regulations fill this term: the plan of Linkerdorp, and the
+      # verordening of a municipality whose boundary is not in the register
+      # unless a scenario puts it there. Whether that one applies at the
+      # location is unknown then, and so is the term where no plan says so:
+      # not a "no".
+      open_terms:
+        - id: terras_verboden
+          type: boolean
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 2 Testwet plaatsgebonden termen
+          location: $location
+          territory:
+            regulation: test_grenzenregister
+            output: grens_van_gemeente
+          combine: OR
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The location of the terrace, as WKT.
+        output:
+          - name: terras_niet_toegestaan
+            type: boolean
+        actions:
+          - output: terras_niet_toegestaan
+            value: $terras_verboden
+
+  - number: '3'
+    url: https://example.com/test_location_terms/3
+    text: >-
+      De bouwhoogte van een bouwwerk bedraagt ten hoogste de hoogte die in
+      het omgevingsplan is bepaald.
+    machine_readable:
+      # A location without a combine rule: the plan of the place fills the
+      # term for the whole location. A location across the boundary of two
+      # municipalities lies in the territory of two plans, and one that
+      # reaches past the boundary of a municipality lies partly where no plan
+      # is known. Both are an error: no one plan holds for the location.
+      open_terms:
+        - id: maximale_bouwhoogte
+          type: number
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 3 Testwet plaatsgebonden termen
+          location: $location
+          territory:
+            regulation: test_grenzenregister
+            output: grens_van_gemeente
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The location of the building, as WKT.
+        output:
+          - name: toegestane_bouwhoogte
+            type: number
+        actions:
+          - output: toegestane_bouwhoogte
+            value: $maximale_bouwhoogte
+
+  - number: '4'
+    url: https://example.com/test_location_terms/4
+    text: >-
+      Voor het in behandeling nemen van een aanvraag zijn leges verschuldigd
+      naar het tarief dat bij gemeentelijke verordening is vastgesteld.
+    machine_readable:
+      # A term without a location: the verordening is picked by the
+      # gemeente_code among the parameters, as before schema v0.8.23.
+      open_terms:
+        - id: legestarief
+          type: number
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 4 Testwet plaatsgebonden termen
+      execution:
+        parameters:
+          - name: gemeente_code
+            type: string
+            required: true
+            description: The code of the municipality where the application was filed.
+        output:
+          - name: verschuldigde_leges
+            type: number
+        actions:
+          - output: verschuldigde_leges
+            value: $legestarief
+
+  - number: '5'
+    url: https://example.com/test_location_terms/5
+    text: >-
+      Het is verboden een evenement te houden voor zover dat bij
+      gemeentelijke verordening is verboden.
+    machine_readable:
+      # The territory is asked of a law that is not in the corpus. That is a
+      # defect of this term, whatever a regulation would say: an error that
+      # names the term and the source. A law that is not loaded cannot be
+      # checked when this one is validated, so it shows when the term is read.
+      open_terms:
+        - id: evenement_verboden
+          type: boolean
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 5 Testwet plaatsgebonden termen
+          location: $location
+          territory:
+            regulation: test_register_dat_niet_bestaat
+            output: grens_van_gemeente
+          combine: OR
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The location of the event, as WKT.
+        output:
+          - name: evenement_niet_toegestaan
+            type: boolean
+        actions:
+          - output: evenement_niet_toegestaan
+            value: $evenement_verboden
+
+  - number: '6'
+    url: https://example.com/test_location_terms/6
+    text: >-
+      De goothoogte van een bouwwerk bedraagt ten hoogste de hoogte die bij
+      gemeentelijke verordening is bepaald.
+    machine_readable:
+      # Like article 3, a location without a combine rule. The regulations
+      # that fill this term are not of one date: the plan of Linkerdorp is of
+      # 2025-01-01, the verordening of Rechterdorp of 2024-07-01 and, from
+      # 2025-03-01, of that date. A location across both municipalities is
+      # refused whichever of the two is the newer one: two municipalities
+      # are not each other's later law.
+      open_terms:
+        - id: maximale_goothoogte
+          type: number
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 6 Testwet plaatsgebonden termen
+          location: $location
+          territory:
+            regulation: test_grenzenregister
+            output: grens_van_gemeente
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The location of the building, as WKT.
+        output:
+          - name: toegestane_goothoogte
+            type: number
+        actions:
+          - output: toegestane_goothoogte
+            value: $maximale_goothoogte
+
+  - number: '7'
+    url: https://example.com/test_location_terms/7
+    text: >-
+      Het is verboden een steiger aan te leggen voor zover het omgevingsplan
+      dat bepaalt. Waar geen omgevingsplan geldt, is het aanleggen van een
+      steiger verboden.
+    machine_readable:
+      # A location, a combine rule and a default. The default is what holds
+      # where no plan is known. For a location that lies partly in the
+      # territory of a plan and partly outside it, the default is one more
+      # answer beside what the plan says: it speaks for the part outside.
+      # Only the plan of Linkerdorp fills this term.
+      open_terms:
+        - id: steiger_verboden
+          type: boolean
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          legal_basis: artikel 7 Testwet plaatsgebonden termen
+          location: $location
+          territory:
+            regulation: test_grenzenregister
+            output: grens_van_gemeente
+          combine: OR
+          default:
+            actions:
+              - output: steiger_verboden
+                value: true
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The location of the jetty, as WKT.
+        output:
+          - name: steiger_niet_toegestaan
+            type: boolean
+        actions:
+          - output: steiger_niet_toegestaan
+            value: $steiger_verboden

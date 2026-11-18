@@ -45,6 +45,16 @@ Laws that need source data (BRP, Belastingdienst, and the like) provide it with 
       | 999993653 | 2005-01-01    | Amsterdam      |
 ```
 
+A register that one law establishes is given with the same step, bound to that law, so its rows answer only while that law's inputs resolve:
+
+```gherkin
+    Given the following "grenzenregister" data with key "gemeente_code" for law "test_grenzenregister":
+      | gemeente_code | grens_in_register                      |
+      | GM9901        | POLYGON((0 0, 10 0, 10 10, 0 10, 0 0)) |
+```
+
+That is also how a scenario gives the territories for an open term that is filled by the regulation of a place (`location` and `territory`, see [Inversion of Control](/concepts/inversion-of-control#the-regulation-of-a-place)): the territory is the output of the law of the register, so the scenario fills the register. `bdd/conformance/location_terms.feature` shows it with two municipalities side by side.
+
 See `corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/scenarios/eligibility.feature` for a complete, data-driven example.
 
 ### Running BDD Tests
@@ -55,6 +65,7 @@ BDD_BUCKET=conformance just bdd   # Engine conformance, then the cell's suite
 BDD_BUCKET=corpus just bdd        # Law validation, then the cell's suite
 just bdd-demo                     # Bucket A over the demo corpus
 just bdd-chrono                   # Bucket A over the corpus of the chronolexografie PoC
+just bdd-plaatsgebonden           # Bucket A over the case of location-bound rules (RFC-057)
 just bdd-trace                    # With execution traces in trace_output/
 ```
 

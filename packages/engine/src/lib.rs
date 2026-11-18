@@ -44,6 +44,8 @@ pub mod resolver;
 #[cfg(feature = "validate")]
 pub mod schema;
 pub mod service;
+mod shape;
+mod shape_validity;
 pub mod trace;
 pub mod typecheck;
 pub mod types;
@@ -74,8 +76,8 @@ pub use config::{
 pub use context::RuleContext;
 pub use data_source::{DataSource, DataSourceMatch, DataSourceRegistry, DictDataSource};
 pub use engine::{
-    ArticleEngine, ArticleResult, FilledBy, OpenTermFilled, OutputProvenance, RegulationRead,
-    Unanswered,
+    ArticleEngine, ArticleResult, FilledBy, ImplementationAnswer, ImplementationGave,
+    OpenTermAsked, OpenTermFilled, OutputProvenance, RegulationRead, TerritoryTest, Unanswered,
 };
 pub use error::{EngineError, ExternalError, Result};
 pub use operations::{ValueResolver, evaluate_value, execute_operation};

@@ -428,6 +428,36 @@ When the law asks whether something happened *after* the first of the month
 `GREATER_THAN(DATE_PART($d, in: day), 1)`. A change on the first counts in that
 month itself.
 
+### OVERLAPS, whether two shapes overlap (schema v0.8.23)
+```yaml
+operation: OVERLAPS
+subject: $locatie                  # The shape that is tested
+value: $beperkingengebied          # The shape it is tested against
+```
+
+Both operands are of type `shape`: a two-dimensional geometry written as
+well-known text (WKT), such as `POINT(155105 463625)` or a `POLYGON` with its
+corner points. A parameter, an input and an output can be a `shape`; an open
+term and a column cannot. A regulation that designates an area gives it as an
+output of type `shape`, with the WKT as the value of its action.
+
+`OVERLAPS` is true when the interiors of the two shapes have a point in
+common. A location partly on an area overlaps it; one that shares only an edge
+with it does not, and neither does a point on the boundary. Use it only where
+the text asks whether something lies in, on or within an area. The engine
+attaches no coordinate system to a shape, so both must be in the same one.
+
+Refused as no shape, and then an error and never `false`: text that is not
+WKT, a third dimension, an invalid geometry (a boundary that crosses or
+touches itself, rings that cross, a hole outside its polygon, polygons of a
+multipolygon that overlap), an empty geometry or one with an empty part, a
+`GEOMETRYCOLLECTION`, a coordinate beyond 1e12, text after the geometry
+closes, a ring that does not end where it starts, parentheses nested deeper
+than three levels, a text of more than 4,000,000 bytes, and a geometry that
+takes more than 50 million steps to check. A literal in a rulework is held to the same when it is
+validated, so copy an area exactly. Do not compare two shapes with `EQUALS`
+or `IN`: those compare the text, and the type check refuses them.
+
 ### ROUND, CEIL and FLOOR, rounding (RFC-024)
 ```yaml
 operation: ROUND                   # ROUND | CEIL | FLOOR
@@ -530,6 +560,67 @@ machine_readable:
 
 The engine automatically resolves `$standaardpremie` by finding the regulation
 that `implements` the open term, using lex superior / lex posterior priority rules.
+
+**A term filled by the regulation of a place** (schema v0.8.23). Where the law
+leaves something to "het omgevingsplan", "de waterschapsverordening" or
+another regulation that holds for a territory, and the case is about a place,
+give the term a `location` with a `territory` and, where several articles may
+each state it, a `combine`:
+```yaml
+machine_readable:
+  open_terms:
+    - id: verboden_in_omgevingsplan
+      type: boolean
+      required: true
+      delegated_to: gemeenteraad
+      delegation_type: GEMEENTELIJKE_VERORDENING
+      location: $locatie            # a parameter or input of type shape of this article
+      territory:                    # where the territory of an authority is read
+        regulation: kadasterwet     #   the law that gives it, usually out of a register
+        output: grens_van_gemeente  #   its output, a shape
+      combine: OR                   # only on a boolean term
+  execution:
+    parameters:
+      - name: locatie
+        type: shape
+        required: true
+```
+
+- `location` picks the regulation by the place: a regulation with a
+  `gemeente_code`, `provincie_code` or `waterschap_code` fills the term only
+  when the location overlaps the territory of that code. Without `location`
+  the regulation is picked by the code among the parameters.
+- `territory` names the output of a law that gives that territory, and comes
+  with `location`; neither stands alone. The engine asks it with one
+  parameter, the code the candidate regulation carries, under the name of
+  the field that carries it (`gemeente_code`, `provincie_code` or
+  `waterschap_code`). So the article that gives the territory declares that
+  parameter, for the field of every regulation that fills the term: the type
+  check refuses a regulation with a `gemeente_code` when that article takes
+  only a `provincie_code`. Where the territory is a fact in a register (the boundary of a
+  municipality, Kadasterwet art. 48), that article reads it as an input with
+  `source: {}` and gives it as its output of type `shape`, like any register
+  value. The type check refuses a `territory` whose output does not exist,
+  is no `shape`, or whose article declares none of the three code
+  parameters. A territory that is unknown leaves the term unknown; one that
+  is no shape is an error, unless the term has `combine: OR` and a
+  regulation in scope gives true.
+- `combine: OR` asks every implementation instead of the one that wins on
+  priority, so each article of a plan that states a ban is its own
+  implementation of the term. The term is true when one gives true, an error
+  when none does and one fails, otherwise unknown when one is unknown,
+  otherwise false. An implementing article that does not speak about the case
+  gives `null`, so declare its output `nullable: true`; do not make it `false`.
+- A location can reach outside the territories of the regulations in scope.
+  For that part no regulation is known. With `combine: OR` the `default` of
+  the term counts as one more answer there, and a required term without a
+  default fails when no regulation gives true. Without `combine` the term is
+  refused as ambiguous, and so is a location in the territories of two codes
+  of one kind (two municipalities), whatever the dates of the regulations. A
+  province and a municipality are ranked by priority as before. Give a term that takes what holds in
+  each part `combine`, and give it a `default` when the text says what holds
+  where no regulation does.
+- `combine` does not go with `decided_per_case_by`.
 
 ## Hooks, Reactive Execution
 

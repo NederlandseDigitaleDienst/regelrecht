@@ -1,0 +1,44 @@
+---
+# Tier C: the type shape on a parameter, an input and an output, a WKT literal
+# as the value of a shape output, and OVERLAPS (schema v0.8.23).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_conformance_shape_overlaps
+regulatory_layer: WET
+bwb_id: BWBR9999975
+publication_date: '2026-11-17'
+valid_from: '2026-11-17'
+url: https://example.invalid/shape-overlaps
+articles:
+  - number: '1'
+    url: https://example.invalid/shape-overlaps/1
+    text: Als beperkingengebied wordt aangewezen de strook langs de dijk.
+    machine_readable:
+      execution:
+        output:
+          - name: beperkingengebied
+            type: shape
+        actions:
+          - output: beperkingengebied
+            value: POLYGON((154000 463600, 157000 463600, 157000 463650, 154000 463650, 154000 463600))
+  - number: '2'
+    url: https://example.invalid/shape-overlaps/2
+    text: Een locatie ligt in het beperkingengebied indien zij het gebied overlapt.
+    machine_readable:
+      execution:
+        parameters:
+          - name: locatie
+            type: shape
+        input:
+          - name: beperkingengebied
+            type: shape
+            source:
+              output: beperkingengebied
+        output:
+          - name: ligt_in_gebied
+            type: boolean
+        actions:
+          - output: ligt_in_gebied
+            value:
+              operation: OVERLAPS
+              subject: $locatie
+              value: $beperkingengebied

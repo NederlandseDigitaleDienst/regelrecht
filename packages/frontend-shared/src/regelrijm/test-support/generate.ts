@@ -66,7 +66,7 @@ export function generateAction(rand: () => number, maxDepth = 4): { output: stri
         return { operation: o, conditions: many(d, 0, 4) };
       case 'NOT':
         return { operation: 'NOT', value: rand() < 0.4 ? { operation: 'EQUALS', subject: value(d), value: value(d) } : value(d) };
-      case 'EQUALS': case 'GREATER_THAN': case 'LESS_THAN': case 'GREATER_THAN_OR_EQUAL': case 'LESS_THAN_OR_EQUAL':
+      case 'EQUALS': case 'GREATER_THAN': case 'LESS_THAN': case 'GREATER_THAN_OR_EQUAL': case 'LESS_THAN_OR_EQUAL': case 'OVERLAPS':
         return { operation: o, subject: value(d), value: value(d) };
       case 'IF': {
         const n: Operation = { operation: 'IF', cases: Array.from({ length: Math.floor(rand() * 3) }, () => ({ when: value(d), then: value(d) })) };

@@ -149,3 +149,194 @@ fn an_invalid_date_fails_with_an_error_response() {
     );
     assert!(resp.get("outputs").is_none(), "no outputs on failure");
 }
+
+/// A law that tests a location against an area, for a request that gives
+/// the location as a parameter.
+const OVERLAP_LAW_YAML: &str = r#"---
+$id: test_bin_evaluate_overlap
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: Een locatie ligt in het gebied indien zij het overlapt.
+    machine_readable:
+      execution:
+        parameters:
+          - name: locatie
+            type: shape
+            required: true
+        output:
+          - name: ligt_in_gebied
+            type: boolean
+        actions:
+          - output: ligt_in_gebied
+            value:
+              operation: OVERLAPS
+              subject: $locatie
+              value: POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))
+"#;
+
+/// Twenty thousand nested collections in a shape overflowed the stack of the
+/// WKT parser, and the process died on a signal with nothing on stdout. The
+/// binary now answers with an error response and a status of its own.
+#[test]
+fn a_deeply_nested_shape_is_an_error_response_and_no_abort() {
+    let nested = format!(
+        "{}POINT(1 1){}",
+        "GEOMETRYCOLLECTION(".repeat(20_000),
+        ")".repeat(20_000)
+    );
+    let deep = format!("POLYGON{}0 0{}", "(".repeat(20_000), ")".repeat(20_000));
+    for (location, named) in [
+        (nested, "is a collection of geometries"),
+        (deep, "nests parentheses deeper than 3"),
+    ] {
+        let run = run_evaluate(
+            &[],
+            &serde_json::json!({
+                "law_yaml": OVERLAP_LAW_YAML,
+                "output_names": ["ligt_in_gebied"],
+                "params": {"locatie": location},
+                "date": "2025-01-01",
+            }),
+        );
+        assert!(
+            !run.success,
+            "expected a non-zero exit code: {}",
+            run.stdout
+        );
+        // An abort leaves stdout empty; an error response is JSON.
+        let resp: serde_json::Value =
+            serde_json::from_str(&run.stdout).expect("stdout is not valid JSON");
+        let error = resp["error"].as_str().expect("error message");
+        assert!(
+            error.contains("the subject of OVERLAPS is not a shape") && error.contains(named),
+            "{error}"
+        );
+    }
+}
+
+/// A law whose open term is filled by the regulation of the place, the law
+/// that gives the territory of a municipality, and the plan of one.
+const PLACE_LAW_YAML: &str = r#"---
+$id: test_bin_evaluate_place
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: Verboden voor zover het omgevingsplan dat bepaalt.
+    machine_readable:
+      open_terms:
+        - id: verboden
+          type: boolean
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          location: $locatie
+          territory:
+            regulation: test_bin_evaluate_boundaries
+            output: grens
+          combine: OR
+      execution:
+        parameters:
+          - name: locatie
+            type: shape
+            required: true
+        output:
+          - name: vergunningplichtig
+            type: boolean
+        actions:
+          - output: vergunningplichtig
+            value: $verboden
+"#;
+
+const BOUNDARIES_LAW_YAML: &str = r#"---
+$id: test_bin_evaluate_boundaries
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: De grens van de gemeente is de grens op de kaart bij deze wet.
+    machine_readable:
+      execution:
+        parameters:
+          - name: gemeente_code
+            type: string
+            required: true
+        output:
+          - name: grens
+            type: shape
+        actions:
+          - output: grens
+            value: POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))
+"#;
+
+const PLACE_PLAN_YAML: &str = r#"---
+$id: test_bin_evaluate_plan
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: GM9901
+articles:
+  - number: '1'
+    text: Het is verboden te bouwen.
+    machine_readable:
+      implements:
+        - law: test_bin_evaluate_place
+          article: '1'
+          open_term: verboden
+      execution:
+        output:
+          - name: verboden
+            type: boolean
+        actions:
+          - output: verboden
+            value: true
+"#;
+
+/// The response says how a term that is filled by the regulation of a place
+/// was asked: the location, each territory it was held against and what each
+/// implementation gave. The territory is in no parameter, so without this a
+/// caller could not tell what the outcome rests on.
+#[test]
+fn the_response_says_how_a_located_term_was_asked() {
+    let run = run_evaluate(
+        &[],
+        &serde_json::json!({
+            "law_yaml": PLACE_LAW_YAML,
+            "extra_laws": [BOUNDARIES_LAW_YAML, PLACE_PLAN_YAML],
+            "output_names": ["vergunningplichtig"],
+            "params": {"locatie": "POINT(5 5)"},
+            "date": "2025-01-01",
+        }),
+    );
+    assert!(run.success, "expected exit code 0, stdout: {}", run.stdout);
+    let resp: serde_json::Value =
+        serde_json::from_str(&run.stdout).expect("stdout is not valid JSON");
+    assert_eq!(
+        resp["outputs"]["vergunningplichtig"],
+        serde_json::json!(true)
+    );
+    let asked = &resp["open_terms_asked"][0];
+    assert_eq!(asked["term"], "verboden", "{}", run.stdout);
+    assert_eq!(asked["location"], "POINT(5 5)");
+    assert_eq!(asked["location_covered"], true);
+    let territory = &asked["territories"][0];
+    assert_eq!(territory["law_id"], "test_bin_evaluate_plan");
+    assert_eq!(territory["code"], "GM9901");
+    assert_eq!(territory["source"], "test_bin_evaluate_boundaries#grens");
+    assert_eq!(territory["overlaps"], true);
+    assert!(
+        territory["territory"]
+            .as_str()
+            .is_some_and(|hash| hash.starts_with("sha256:"))
+    );
+    assert_eq!(asked["answers"][0]["gave"], "true");
+
+    // A law without such a term has no record to show.
+    let plain = run_evaluate(&[], &request());
+    let resp: serde_json::Value =
+        serde_json::from_str(&plain.stdout).expect("stdout is not valid JSON");
+    assert!(resp.get("open_terms_asked").is_none(), "{}", plain.stdout);
+}

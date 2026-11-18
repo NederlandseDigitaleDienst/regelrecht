@@ -44,6 +44,8 @@ monorepo. The component tour and the full directory map are in
   law-making visualization, and the demo (engine as WASM, no backend; see
   `docs/src/content/docs/components/demo.md`)
 - `corpus/regulation/` - the law corpus in YAML; `corpus/demo/` - the demo corpus
+- `corpus/plaatsgebonden-regels/` - the case of RFC-057: real law about one
+  address, validated and run in CI (`just bdd-plaatsgebonden`)
 - `bdd/` - the canonical Gherkin language (`bdd/grammar.yaml`) and the engine
   conformance suite; the two scenario buckets are explained in
   `docs/src/content/docs/guide/testing.md`

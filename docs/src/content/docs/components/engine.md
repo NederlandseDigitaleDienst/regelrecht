@@ -268,6 +268,8 @@ The engine enforces fixed limits, set in `packages/engine/src/config.rs`, so tha
 
 Three more bound the fuzzy search that anchors a note to law text. The sliding-window match is cubic in the quote length and runs synchronously in the browser, so `MAX_FUZZY_QUOTE_CHARS` (120), `MAX_FUZZY_SCAN_CHARS` (250,000 characters of law text per resolve) and `MAX_FUZZY_SCORED_WINDOWS` (10,000) cap it. A search that hits one of them reports the note as `Skipped` rather than as not found, which keeps "not searched" apart from "not there".
 
+Three bound a shape, which reaches the engine as text from outside (see [the law format](/concepts/law-format)). `MAX_SHAPE_TEXT_BYTES` (4,000,000) and `MAX_SHAPE_PAREN_DEPTH` (3) are checked before the text is parsed. `MAX_SHAPE_CHECK_STEPS` (50 million) bounds the check that a surface is valid. That check finds the segments that lie near each other through a tree of bounding boxes, so a boundary of n points takes a number of steps that grows with n log n: about 41 per point for the 2,185 points of the boundary of Putten, and 50 to 90 per point for generated boundaries of up to 500,000 points. A shape that needs more than the limit is refused. That is a real limit for one kind of shape: a thousand long narrow strips that all lean the same way take 29 million steps, and twice as many are refused.
+
 `SUPPORTED_SCHEMAS` lists the schema versions this engine build accepts. A law whose `$schema` names a version outside that list is refused at load time, with an error that lists the supported versions. A law without `$schema` is not checked against the list.
 
 The list holds every schema version in the repository, and the engine runs them all on one code path: `just validate` checks a rulework against the schema its `$schema` names, and the engine has no behavior per version. Not every version was issued for use. Some held a construct that was later rejected, and others were replaced before anything used them. The engine does not support such a construct: a rulework that uses one is refused at load, and the error names the replacement. A rulework that reads `source.executograms`, for example, is told to use `source.facts`.
@@ -312,6 +314,8 @@ cargo run -q --bin evaluate < /tmp/request.json
 # The same request, printed as an Execution Receipt
 cargo run -q --bin evaluate -- --receipt --untranslatable=warn < /tmp/request.json
 ```
+
+Where the execution resolved an open term with a `location` or `combine: OR`, the response also carries `open_terms_asked`: the place and whether the regulations in scope cover it, each territory it was held against and what every implementation gave ([Inversion of Control](/concepts/inversion-of-control#the-regulation-of-a-place)). The WASM `execute` family returns the same field.
 
 On failure the binary prints `{"error": "...", "engine_version": "..."}` and exits with status 1.
 

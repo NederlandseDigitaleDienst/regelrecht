@@ -69,6 +69,7 @@ const CMP_SUB_WORDS: Record<string, [string | null, string | null]> = {
   LESS_THAN: ['minder is dan', null],
   GREATER_THAN_OR_EQUAL: ['ten minste', 'is'],
   LESS_THAN_OR_EQUAL: ['ten hoogste', 'is'],
+  OVERLAPS: [null, 'overlapt'],
 };
 
 export const LEVEL = Object.freeze({ CHOICE: 1, LOGIC: 2, NOT: 3, CMP: 4, ARITH: 5, CLOSED: 6 });
@@ -81,6 +82,7 @@ const CMP_WORDS: Record<string, string> = {
   LESS_THAN: 'is minder dan',
   GREATER_THAN_OR_EQUAL: 'is ten minste',
   LESS_THAN_OR_EQUAL: 'is ten hoogste',
+  OVERLAPS: 'overlapt',
 };
 const ROUND_WORDS: Record<string, string> = { ROUND: 'afgerond', CEIL: 'naar boven afgerond', FLOOR: 'naar beneden afgerond' };
 const AGGREGATE_WORDS: Record<string, string> = { ADD: 'de som van', MIN: 'de kleinste waarde van', MAX: 'de grootste waarde van', ONLY: 'de enige waarde van', DISTINCT: 'de unieke waarden van' };
@@ -430,7 +432,7 @@ export class Renderer {
         }
         return { doc: sp(K('niet'), at(LEVEL.CLOSED, field('value'))), level: LEVEL.NOT };
       }
-      case 'EQUALS': case 'GREATER_THAN': case 'LESS_THAN': case 'GREATER_THAN_OR_EQUAL': case 'LESS_THAN_OR_EQUAL': {
+      case 'EQUALS': case 'GREATER_THAN': case 'LESS_THAN': case 'GREATER_THAN_OR_EQUAL': case 'LESS_THAN_OR_EQUAL': case 'OVERLAPS': {
         const s = at(LEVEL.ARITH, field('subject'));
         if (op === 'EQUALS' && n.value === null) return { doc: group(s, ' ', K('ontbreekt')), level: LEVEL.CMP };
         const o = at(LEVEL.ARITH, field('value'));

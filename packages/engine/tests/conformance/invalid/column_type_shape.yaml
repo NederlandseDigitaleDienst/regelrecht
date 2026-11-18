@@ -1,0 +1,24 @@
+---
+# A column of an array of rows holds a scalar (schema v0.8.20). A shape is
+# none, also under v0.8.23.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_conformance_column_type_shape
+regulatory_layer: WET
+bwb_id: BWBR9999986
+publication_date: '2026-11-17'
+valid_from: '2026-11-17'
+url: https://example.invalid/column-type-shape
+articles:
+  - number: '1'
+    url: https://example.invalid/column-type-shape/1
+    text: De aanvraag vermeldt de percelen waarop zij ziet, elk met zijn ligging.
+    machine_readable:
+      execution:
+        parameters:
+          - name: percelen
+            type: array
+            columns:
+              - name: naam
+                type: string
+              - name: ligging
+                type: shape

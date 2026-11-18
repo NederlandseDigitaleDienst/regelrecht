@@ -1,0 +1,36 @@
+---
+# A term an authority judges per case is not combined: whether silent
+# implementations leave the case to the authority or make the term false
+# is not something the format says.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_conformance_open_term_combine_decided_per_case
+regulatory_layer: WET
+bwb_id: BWBR9999983
+publication_date: '2026-11-17'
+valid_from: '2026-11-17'
+url: https://example.invalid/open-term-combine-decided-per-case
+articles:
+  - number: '1'
+    url: https://example.invalid/open-term-combine-decided-per-case/1
+    text: >-
+      Het is verboden een activiteit te verrichten voor zover dat in het
+      omgevingsplan is bepaald.
+    machine_readable:
+      open_terms:
+        - id: verboden_in_omgevingsplan
+          type: boolean
+          required: true
+          delegation_type: GEMEENTELIJKE_VERORDENING
+          combine: OR
+          decided_per_case_by: het college van burgemeester en wethouders
+      execution:
+        parameters:
+          - name: locatie
+            type: shape
+            required: true
+        output:
+          - name: uitkomst
+            type: boolean
+        actions:
+          - output: uitkomst
+            value: $verboden_in_omgevingsplan

@@ -1,0 +1,270 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: besluit_bouwwerken_leefomgeving
+regulatory_layer: AMVB
+publication_date: '2018-08-31'
+valid_from: '2026-09-24'
+bwb_id: BWBR0041297
+url: https://wetten.overheid.nl/BWBR0041297
+
+# REAL. Texts as on wetten.overheid.nl in the version in force from
+# 2026-09-24, read on 2026-11-17. Not checked: whether these articles read
+# the same before that date. Modelled: article
+# 2.28, article 2.29 aanhef and onder r, and article 2.30. These are the cases
+# that article 5.1 lid 1 of the Omgevingswet exempts from the permit duty for
+# an omgevingsplanactiviteit that consists of building.
+#
+# Article 2.29 onder a to q each name one kind of structure (a dakkapel, a
+# dakraam, a zonnepaneel, an erfafscheiding and so on). They are not modelled.
+# Two facts are asked about them: whether what is built is one of those
+# structures (bouwwerk_genoemd_in_artikel_2_29_onder_a_tot_en_met_q), and
+# whether one of them lifts the ban
+# (vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q). For a structure
+# they do not name, the answer to both is no. The opening "Onverminderd
+# regels in het omgevingsplan over het in stand houden ..." is not worked
+# out, and article 2.30 lid 3 onder b, 1° and 2° are left out because they
+# concern a change to an existing building.
+#
+# Asked and not worked out as well: whether another algemene maatregel van
+# bestuur exempts an activity that is not building
+# (aangewezen_geval_volgens_andere_algemene_maatregel_van_bestuur), and, as a
+# conclusion of law, whether the plan gives the location the designation
+# rijksbeschermd stads- of dorpsgezicht
+# (locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht).
+#
+# Article 2.28 names the paragraaf's subject as "een bouwactiviteit en het in
+# stand houden en gebruiken van het te bouwen bouwwerk"; the test below looks
+# at the bouwactiviteit only.
+#
+# NOT modelled: the technical permit duty for building (articles 2.25 to
+# 2.27, which work out article 5.1 lid 2 of the Omgevingswet).
+
+articles:
+  - number: '2.28'
+    text: |
+      Deze paragraaf is van toepassing op omgevingsplanactiviteiten bestaande
+      uit een bouwactiviteit en het in stand houden en gebruiken van het te
+      bouwen bouwwerk.
+    url: https://wetten.overheid.nl/BWBR0041297#Hoofdstuk2_Afdeling2.3_Paragraaf2.3.3_Artikel2.28
+
+    machine_readable:
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+            description: The activity, in the terms of the Omgevingswet
+        output:
+          - name: paragraaf_2_3_3_van_toepassing
+            type: boolean
+            description: Whether paragraaf 2.3.3 applies to the activity
+        actions:
+          - output: paragraaf_2_3_3_van_toepassing
+            value:
+              operation: EQUALS
+              subject: $activiteit
+              value: bouwactiviteit
+
+  - number: '2.29'
+    text: |
+      Onverminderd regels in het omgevingsplan over het in stand houden van een
+      bouwwerk die betrekking hebben op de ernstige ontsiering van het uiterlijk
+      van dat bouwwerk, geldt het verbod, bedoeld in artikel 5.1, eerste lid,
+      van de wet, om zonder omgevingsvergunning een omgevingsplanactiviteit te
+      verrichten, niet voor een omgevingsplanactiviteit voor zover de activiteit
+      betrekking heeft op een van de volgende bouwwerken:
+      [onder a tot en met q: niet overgenomen]
+      r. een ander bouwwerk in voor- of achtererfgebied, als wordt voldaan aan
+      de volgende eisen:
+      1°. niet hoger dan 1 m; en
+      2°. de oppervlakte niet meer dan 2 m2.
+    url: https://wetten.overheid.nl/BWBR0041297#Hoofdstuk2_Afdeling2.3_Paragraaf2.3.3_Artikel2.29
+
+    machine_readable:
+      implements:
+        - law: omgevingswet
+          article: '5.1'
+          open_term: bij_amvb_aangewezen_geval
+          gelet_op: Gelet op artikel 5.1, eerste lid, van de Omgevingswet
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+            description: The activity, in the terms of the Omgevingswet
+          - name: bouwwerk_genoemd_in_artikel_2_29_onder_a_tot_en_met_q
+            type: boolean
+            required: false
+            description: >-
+              Not modelled - whether what is built is one of the structures
+              that onder a to q name
+          - name: vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q
+            type: boolean
+            required: false
+            description: >-
+              Not modelled - whether onder a to q, read with article 2.30,
+              lift the ban; false for a structure they do not name
+          - name: aangewezen_geval_volgens_andere_algemene_maatregel_van_bestuur
+            type: boolean
+            required: false
+            description: >-
+              Not modelled - whether another algemene maatregel van bestuur
+              exempts an activity that is not building
+          - name: gelegen_in_voorerfgebied
+            type: boolean
+            required: false
+            description: Onder r - whether the structure stands in voorerfgebied
+          - name: gelegen_in_achtererfgebied
+            type: boolean
+            required: false
+            description: Onder r - whether the structure stands in achtererfgebied
+          - name: hoogte_m
+            type: number
+            required: false
+            description: Onder r, 1° - height of the structure, in m
+          - name: oppervlakte_bouwwerk_m2
+            type: number
+            required: false
+            description: Onder r, 2° - surface of the structure, in m2
+          # What article 2.30 asks. The Omgevingswet calls this article, and an
+          # article that is called receives only the parameters it declares.
+          - name: in_aan_of_op_monument
+            type: boolean
+            required: false
+            description: Article 2.30 lid 1
+          - name: locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht
+            type: boolean
+            required: false
+            description: Conclusion of law - article 2.30 lid 3, whether the plan gives the location that designation
+          - name: op_gebouwerf_aan_achterkant_niet_zijkant_niet_naar_openbaar_gebied
+            type: boolean
+            required: false
+            description: Article 2.30 lid 3 onder b, 3°
+          - name: locatie_is_openbaar_toegankelijk_gebied
+            type: boolean
+            required: false
+            description: Article 2.30 lid 3 onder b, 4°
+        input:
+          - name: paragraaf_2_3_3_van_toepassing
+            type: boolean
+            description: Whether this paragraaf applies (article 2.28)
+            source:
+              output: paragraaf_2_3_3_van_toepassing
+          - name: onder_r_uitgesloten_door_artikel_2_30
+            type: boolean
+            description: Whether article 2.30 takes onder r away
+            source:
+              output: onder_r_uitgesloten_door_artikel_2_30
+        output:
+          - name: bij_amvb_aangewezen_geval
+            type: boolean
+            description: Whether the ban of article 5.1 lid 1 of the Omgevingswet is lifted
+        actions:
+          - output: bij_amvb_aangewezen_geval
+            value:
+              operation: IF
+              cases:
+                - when: $paragraaf_2_3_3_van_toepassing
+                  then:
+                    operation: OR
+                    conditions:
+                      - $vrijgesteld_volgens_artikel_2_29_onder_a_tot_en_met_q
+                      # Onder r speaks of "een ander bouwwerk": one that onder a
+                      # to q do not name.
+                      - operation: AND
+                        conditions:
+                          - operation: NOT
+                            value: $bouwwerk_genoemd_in_artikel_2_29_onder_a_tot_en_met_q
+                          - operation: OR
+                            conditions:
+                              - $gelegen_in_voorerfgebied
+                              - $gelegen_in_achtererfgebied
+                          - operation: LESS_THAN_OR_EQUAL
+                            subject: $hoogte_m
+                            value: 1
+                          - operation: LESS_THAN_OR_EQUAL
+                            subject: $oppervlakte_bouwwerk_m2
+                            value: 2
+                          - operation: NOT
+                            value: $onder_r_uitgesloten_door_artikel_2_30
+              # Article 2.28: this paragraaf is about building. Whether another
+              # algemene maatregel van bestuur exempts another activity is asked.
+              default: $aangewezen_geval_volgens_andere_algemene_maatregel_van_bestuur
+
+  - number: '2.30'
+    text: |
+      1. Op een omgevingsplanactiviteit die wordt verricht in, aan of op een
+      gemeentelijk monument, voorbeschermd gemeentelijk monument, provinciaal
+      monument, voorbeschermd provinciaal monument, rijksmonument of
+      voorbeschermd rijksmonument is alleen artikel 2.29, onder a, van
+      toepassing.
+
+      2. Op een omgevingsplanactiviteit die wordt verricht bij een gemeentelijk
+      monument, voorbeschermd gemeentelijk monument, provinciaal monument,
+      voorbeschermd provinciaal monument, rijksmonument of voorbeschermd
+      rijksmonument zijn alleen de volgende onderdelen van artikel 2.29 van
+      toepassing:
+      a. artikel 2.29, onder a, voor zover ook kleur en materiaalsoort van het
+      bouwwerk niet wijzigen; en
+      b. artikel 2.29, onder b, c, f, h, i, k, l, p, onder 2° tot en met 8°, q
+      en r.
+
+      3. Op een omgevingsplanactiviteit die wordt verricht op een locatie
+      waaraan in het omgevingsplan de functie-aanduiding rijksbeschermd stads-
+      of dorpsgezicht is gegeven, is van toepassing:
+      a. artikel 2.29, onder a, alleen voor zover ook kleur en materiaalsoort
+      van het bouwwerk niet wijzigen; en
+      b. artikel 2.29, onder b tot en met r, alleen voor zover het gaat om:
+      1°. inpandige wijzigingen;
+      2°. een wijziging van een achtergevel of achterdakvlak, als die gevel of
+      dat dakvlak niet naar openbaar toegankelijk gebied is gekeerd;
+      3°. een bouwwerk op gebouwerf aan de achterkant van een hoofdgebouw, als
+      dat gebouwerf niet ook deel uitmaakt van het gebouwerf aan de zijkant van
+      dat gebouw en niet naar openbaar toegankelijk gebied is gekeerd; of
+      4°. een bouwwerk op een locatie die onderdeel is van openbaar
+      toegankelijk gebied.
+    url: https://wetten.overheid.nl/BWBR0041297#Hoofdstuk2_Afdeling2.3_Paragraaf2.3.3_Artikel2.30
+
+    machine_readable:
+      execution:
+        parameters:
+          - name: in_aan_of_op_monument
+            type: boolean
+            required: false
+            description: Lid 1 - whether the activity takes place in, on or at a monument named there
+          # The plan gives this designation to a location. No plan in this
+          # example designates such an area, so it is asked.
+          - name: locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht
+            type: boolean
+            required: false
+            description: Conclusion of law - article 2.30 lid 3, whether the plan gives the location that designation
+          - name: op_gebouwerf_aan_achterkant_niet_zijkant_niet_naar_openbaar_gebied
+            type: boolean
+            required: false
+            description: Lid 3 onder b, 3°
+          - name: locatie_is_openbaar_toegankelijk_gebied
+            type: boolean
+            required: false
+            description: Lid 3 onder b, 4°
+        output:
+          - name: onder_r_uitgesloten_door_artikel_2_30
+            type: boolean
+            description: Whether this article takes article 2.29 onder r away
+        actions:
+          # Lid 2 leaves onder r standing, so being near a monument changes
+          # nothing for it. Lid 3 onder b, 1° and 2° concern changes to an
+          # existing building, not a new structure.
+          - output: onder_r_uitgesloten_door_artikel_2_30
+            value:
+              operation: OR
+              conditions:
+                - $in_aan_of_op_monument
+                - operation: AND
+                  conditions:
+                    - $locatie_heeft_functieaanduiding_rijksbeschermd_stads_of_dorpsgezicht
+                    - operation: NOT
+                      value:
+                        operation: OR
+                        conditions:
+                          - $op_gebouwerf_aan_achterkant_niet_zijkant_niet_naar_openbaar_gebied
+                          - $locatie_is_openbaar_toegankelijk_gebied

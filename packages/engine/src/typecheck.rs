@@ -52,15 +52,22 @@
 //!   An article that implements a required open term without a
 //!   default may not declare its output for the term nullable, also where
 //!   the law leaves the term to an authority per case
-//!   (`decided_per_case_by`): the implementation's value is the term's.
+//!   (`decided_per_case_by`): the implementation's value is the term's. A
+//!   term with `combine: OR` (schema v0.8.23) is the exception: a null
+//!   implementation does not speak about the case.
 //! - **T1** Arithmetic and ordering operands are numbers (or amounts); `ADD`
-//!   also concatenates strings and arrays, ordering also compares dates.
+//!   also concatenates strings and arrays, ordering also compares dates. The
+//!   operands of `OVERLAPS` (schema v0.8.23) are shapes, and a literal there
+//!   parses as well-known text.
 //! - **T2** Logical operands and `IF` conditions are booleans.
 //! - **T3** `EQUALS` compares values of one type; `number` and `amount` are
 //!   one type here, and so are `date` and `string`, since dates arrive as ISO
-//!   strings.
+//!   strings. A `shape` (schema v0.8.23) is not an operand of `EQUALS` or
+//!   `IN`, which would compare its text; `OVERLAPS` tests two shapes.
 //! - **T4** A literal assigned to an output has the output's type, and so
-//!   does a `RECORD` (schema v0.8.22), which is an object. A `RECORD` the
+//!   does a `RECORD` (schema v0.8.22), which is an object. A literal assigned
+//!   to an output of type `shape` (schema v0.8.23) parses as well-known text,
+//!   also in a branch of an `IF`. A `RECORD` the
 //!   article builds for an output with `columns` (the body of a `FOREACH`
 //!   without `combine` or with `DISTINCT`, an item of a `LIST`, a branch of an
 //!   `IF` among those) names exactly those columns, and a value whose type the
@@ -75,10 +82,20 @@
 //!   target of this law also exists. A target taken from a value is known
 //!   only at run time: the checker then knows the input is a decision value
 //!   and claims nothing about its fields (`$x.outputs.y`), as for rows.
+//!   The `territory` of an open term (schema v0.8.23) names an output of
+//!   another law: where the checker can consult that law, the output exists
+//!   and is a `shape`, and the article that gives it declares a parameter
+//!   for a territory code (`gemeente_code`, `provincie_code` or
+//!   `waterschap_code`), since that is what the engine asks it with. A
+//!   regulation that carries such a code and fills a term with a `location`
+//!   is asked for under the name of its own field, so the article that
+//!   gives the territory declares a parameter of that name. A law the
+//!   checker cannot consult is a matter for run time, as for
+//!   `source.regulation`.
 
 use crate::article::{
     Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, CombineOp, Source,
-    foreach_binding,
+    foreach_binding, shares_territory, territory_code_fields, territory_codes,
 };
 use crate::types::{ParameterType, Value};
 use regelrecht_law_model::Column;
@@ -182,6 +199,9 @@ enum Ty {
     /// A decision value `{basis, fields, findings, outputs}` (RFC-045 §6): an object
     /// whose fields the checker does not type, like any object.
     Decision,
+    /// A two-dimensional geometry (schema v0.8.23): at run time a string of
+    /// well-known text.
+    Shape,
 }
 
 impl Ty {
@@ -195,6 +215,7 @@ impl Ty {
             ParameterType::Array => Ty::Array,
             ParameterType::Object => Ty::Object,
             ParameterType::Decision => Ty::Decision,
+            ParameterType::Shape => Ty::Shape,
         }
     }
 
@@ -218,8 +239,8 @@ impl Ty {
 
     /// Whether two known types may meet in a comparison or an assignment:
     /// `number` and `amount` are both numbers, a `date` arrives as an ISO
-    /// string from data and from `$referencedate.iso`, and a `decision` is an
-    /// object at run time.
+    /// string from data and from `$referencedate.iso`, a `decision` is an
+    /// object at run time, and a `shape` is a string of well-known text.
     fn compatible(self, other: Ty) -> bool {
         self == other
             || (self.is_numeric() && other.is_numeric())
@@ -229,6 +250,8 @@ impl Ty {
                     | (Ty::String, Ty::Date)
                     | (Ty::Decision, Ty::Object)
                     | (Ty::Object, Ty::Decision)
+                    | (Ty::Shape, Ty::String)
+                    | (Ty::String, Ty::Shape)
             )
     }
 
@@ -242,6 +265,7 @@ impl Ty {
             Ty::Array => "array",
             Ty::Object => "object",
             Ty::Decision => "decision",
+            Ty::Shape => "shape",
         }
     }
 }
@@ -485,6 +509,8 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
         self.check_definitions();
         self.check_input_sources();
         self.check_implements();
+        self.check_territories();
+        self.check_implemented_territories();
         let Some(actions) = self
             .article
             .get_execution_spec()
@@ -518,7 +544,9 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
     /// fills it, no finding takes the place of a null (RFC-048 §2). A term
     /// with a default is filled by the default when the implementation is
     /// silent, and an optional term without one is nullable itself; neither
-    /// needs this.
+    /// needs this. Nor does a term with `combine: OR` (schema v0.8.23):
+    /// there a null says that the implementation does not speak about the
+    /// case, and the term is false when none says otherwise.
     fn check_implements(&mut self) {
         let Some(implements) = self.article.get_implements() else {
             return;
@@ -538,7 +566,7 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             else {
                 continue;
             };
-            if term.required && !term.has_default() {
+            if term.required && !term.has_default() && !term.combines_with_or() {
                 self.location = format!("output '{}'", output.name);
                 self.report(
                     Rule::N5,
@@ -547,6 +575,128 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                          default, and may be null; produce a value for every case or give the \
                          term a default",
                         output.name, term.id, declaration.law, declaration.article
+                    ),
+                );
+            }
+        }
+    }
+
+    /// T5 for the `territory` of an open term (schema v0.8.23): the output
+    /// of a law that gives the territory a candidate regulation holds for.
+    /// Where that law can be consulted, the output exists, is a `shape`, and
+    /// its article declares a parameter for one of the territory codes: the
+    /// engine asks it with the code of a candidate, under the name of the
+    /// field that carries it, and an article that declares none of the three
+    /// would give every candidate the same territory.
+    fn check_territories(&mut self) {
+        for term in self.article.get_open_terms().into_iter().flatten() {
+            let Some(territory) = &term.territory else {
+                continue;
+            };
+            let Some(law) = self.law_named(&territory.regulation) else {
+                continue;
+            };
+            self.location = format!("open term '{}'", term.id);
+            let named = format!(
+                "the territory of '{}' is read from {}#{}",
+                term.id, territory.regulation, territory.output
+            );
+            let Some(giving) = law.find_article_by_output(&territory.output) else {
+                self.report(
+                    Rule::T5,
+                    format!(
+                        "{named}, and {} has no output '{}'",
+                        territory.regulation, territory.output
+                    ),
+                );
+                continue;
+            };
+            let ty = giving
+                .find_output(&territory.output)
+                .map(|output| output.output_type);
+            if let Some(ty) = ty.filter(|ty| *ty != ParameterType::Shape) {
+                self.report(
+                    Rule::T5,
+                    format!(
+                        "{named}, which is a {}; a territory is a shape",
+                        Ty::of(ty).name()
+                    ),
+                );
+            }
+            let asked_by_code = giving
+                .get_parameters()
+                .iter()
+                .any(|parameter| territory_code_fields().any(|field| field == parameter.name));
+            if !asked_by_code {
+                self.report(
+                    Rule::T5,
+                    format!(
+                        "{named}, and article {} of {} declares no parameter {}; the territory \
+                         is asked with the code of a regulation under one of those names",
+                        giving.number,
+                        territory.regulation,
+                        territory_code_fields().collect::<Vec<_>>().join(", ")
+                    ),
+                );
+            }
+        }
+    }
+
+    /// T5 for an article that fills a term with a `location` (schema
+    /// v0.8.23), in a regulation that carries a territory code. The engine
+    /// asks the territory of that regulation with its code, under the name
+    /// of the field that carries it, so the article that gives the
+    /// territory declares a parameter of that name: an article that takes a
+    /// `provincie_code` cannot say where a regulation with a
+    /// `gemeente_code` holds. Checked where the law that declares the term
+    /// and the law that gives the territory can both be consulted. A
+    /// regulation that applies wherever the declaring one does is not held
+    /// against a territory, and is not checked.
+    fn check_implemented_territories(&mut self) {
+        let Some(implements) = self.article.get_implements() else {
+            return;
+        };
+        for declaration in implements {
+            let Some(declarer) = self.law_named(&declaration.law) else {
+                continue;
+            };
+            let Some(term) = declarer
+                .find_article_by_number(&declaration.article)
+                .and_then(|article| article.get_open_terms())
+                .and_then(|terms| terms.iter().find(|t| t.id == declaration.open_term))
+            else {
+                continue;
+            };
+            let (Some(_), Some(territory)) = (&term.location, &term.territory) else {
+                continue;
+            };
+            if declarer.id == self.law.id || shares_territory(declarer, self.law) {
+                continue;
+            }
+            let Some(giving) = self
+                .law_named(&territory.regulation)
+                .and_then(|law| law.find_article_by_output(&territory.output))
+            else {
+                continue;
+            };
+            for (field, code) in territory_codes(self.law) {
+                if giving.get_parameters().iter().any(|p| p.name == field) {
+                    continue;
+                }
+                self.location = format!("implements '{}'", term.id);
+                self.report(
+                    Rule::T5,
+                    format!(
+                        "this regulation carries {field} '{code}' and fills '{}' of {} article \
+                         {}, whose territory is read from {}#{}; article {} of {} declares no \
+                         parameter {field}, so the territory of this regulation cannot be asked",
+                        term.id,
+                        declaration.law,
+                        declaration.article,
+                        territory.regulation,
+                        territory.output,
+                        giving.number,
+                        territory.regulation
                     ),
                 );
             }
@@ -899,6 +1049,14 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 ),
             );
         }
+        if declared_ty == Some(Ty::Shape)
+            && let Some(why) = unreadable_shape_literal(&expression)
+        {
+            self.report(
+                Rule::T4,
+                format!("output is declared shape but is assigned a literal that is none: {why}"),
+            );
+        }
         if let Some(columns) = output.and_then(|o| o.columns.as_deref()) {
             self.check_table_rows(&expression, columns);
         }
@@ -940,6 +1098,17 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                                 "output is declared {} but a branch assigns a {} literal",
                                 declared.name(),
                                 actual.name()
+                            ),
+                        );
+                    }
+                    if declared == Ty::Shape
+                        && let Some(why) = unreadable_shape_literal(branch)
+                    {
+                        self.report(
+                            Rule::T4,
+                            format!(
+                                "output is declared shape but a branch assigns a literal that \
+                                 is none: {why}"
                             ),
                         );
                     }
@@ -1376,12 +1545,14 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 // The subject therefore need not be established present, and
                 // a `null` among the `values` is an element of a list, a
                 // membership test for absence (N2).
-                self.check_expr(subject, facts, OPERAND);
+                let info = self.check_expr(subject, facts, OPERAND);
+                self.refuse_shape_as_text(&info, name);
                 if let Some(value) = value {
                     self.check_expr(value, facts, OPERAND);
                 }
                 for item in values.iter().flatten() {
-                    self.check_expr(item, facts, ABSENCE_ALLOWED);
+                    let info = self.check_expr(item, facts, ABSENCE_ALLOWED);
+                    self.refuse_shape_as_text(&info, name);
                 }
                 Info::present(Some(Ty::Boolean), &format!("the {name}"))
             }
@@ -1516,6 +1687,53 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
                 self.operand(date, facts, name);
                 Info::present(Some(Ty::Date), "the START_OF")
             }
+            ActionOperation::Overlaps { subject, value } => {
+                for (operand, role) in [(subject, "subject"), (value, "value")] {
+                    let info = self.operand(operand, facts, name);
+                    self.require_shape(&info, operand, role, name);
+                }
+                Info::present(Some(Ty::Boolean), "the OVERLAPS")
+            }
+        }
+    }
+
+    /// T3: a shape is not compared as text. `EQUALS` and `IN` are
+    /// structural, so on two shapes they would compare the well-known text
+    /// letter by letter: `POINT(1 1)` and `POINT (1 1)` are one place and two
+    /// texts. Comparing a shape with null, the absence test, is not this.
+    fn refuse_shape_as_text(&mut self, info: &Info, operation: &str) {
+        if info.ty == Some(Ty::Shape) {
+            self.report(
+                Rule::T3,
+                format!(
+                    "{} is a shape and is compared in {operation}, which compares the text of \
+                     a shape and not the place it describes; use OVERLAPS to test two shapes",
+                    info.describe
+                ),
+            );
+        }
+    }
+
+    /// T1: an operand of `OVERLAPS` is a shape. A shape arrives as a string
+    /// of well-known text, so a string passes as a date passes for an
+    /// ordering; a literal is held to the text it must be.
+    fn require_shape(&mut self, info: &Info, operand: &ActionValue, role: &str, operation: &str) {
+        match info.ty {
+            Some(Ty::Shape | Ty::String) | None => {}
+            Some(ty) => self.report(
+                Rule::T1,
+                format!(
+                    "{} is a {} and is the {role} of {operation}, which needs a shape",
+                    info.describe,
+                    ty.name()
+                ),
+            ),
+        }
+        if let Some(why) = unreadable_shape_literal(operand) {
+            self.report(
+                Rule::T1,
+                format!("the {role} of {operation} is not a shape: {why}"),
+            );
         }
     }
 
@@ -1585,6 +1803,8 @@ impl<'l, 'f> ArticleChecker<'l, 'f> {
             (false, false) => {
                 let left = self.check_expr(subject, facts, OPERAND);
                 let right = self.check_expr(value, facts, OPERAND);
+                self.refuse_shape_as_text(&left, name);
+                self.refuse_shape_as_text(&right, name);
                 if let (Some(l), Some(r)) = (left.ty, right.ty)
                     && !l.compatible(r)
                 {
@@ -1797,6 +2017,18 @@ fn is_literal_shaped(expr: &ActionValue) -> bool {
     match expr {
         ActionValue::Literal(value) => Ty::of_literal(value).is_some(),
         ActionValue::Operation(op) => matches!(op.as_ref(), ActionOperation::Record { .. }),
+    }
+}
+
+/// Why a string literal is no shape, or `None` when `expr` is no string
+/// literal (a reference, an operation, another kind of literal) or is one
+/// that reads as a shape.
+fn unreadable_shape_literal(expr: &ActionValue) -> Option<String> {
+    match expr {
+        ActionValue::Literal(Value::String(text)) if !is_reference(text) => {
+            crate::shape::parse(text).err()
+        }
+        _ => None,
     }
 }
 
@@ -4310,6 +4542,99 @@ actions:
         );
     }
 
+    const OVERLAPS_HEAD: &str = r#"
+parameters:
+  - name: locatie
+    type: shape
+  - name: gebied
+    type: shape
+  - name: perceel
+    type: shape
+    nullable: true
+  - name: oppervlakte
+    type: number
+  - name: omschrijving
+    type: string
+output:
+  - name: x
+    type: boolean
+"#;
+
+    fn overlaps(subject: &str, value: &str) -> String {
+        format!(
+            "{OVERLAPS_HEAD}actions:\n  - output: x\n    value:\n      operation: OVERLAPS\n      \
+             subject: {subject}\n      value: {value}\n"
+        )
+    }
+
+    #[test]
+    fn overlaps_takes_two_shapes_and_gives_a_boolean() {
+        assert_clean(&overlaps("$locatie", "$gebied"));
+        // A shape arrives as a string of WKT, so a string and a literal pass.
+        assert_clean(&overlaps("$omschrijving", "$gebied"));
+        assert_clean(&overlaps("POINT(1 1)", "$gebied"));
+        assert_only(
+            &overlaps("$oppervlakte", "$gebied"),
+            Rule::T1,
+            "'oppervlakte' is a number and is the subject of OVERLAPS, which needs a shape",
+        );
+        assert_only(
+            &overlaps("$locatie", "true"),
+            Rule::T1,
+            "the literal is a boolean and is the value of OVERLAPS",
+        );
+        assert_only(
+            &overlaps("$locatie", "langs de dijk"),
+            Rule::T1,
+            "the value of OVERLAPS is not a shape: 'langs de dijk' does not parse as WKT",
+        );
+        // The result is a boolean: assigning it to a number is not a literal
+        // mismatch, but deciding on it is allowed.
+        assert_clean(&format!(
+            "{OVERLAPS_HEAD}actions:\n  - output: x\n    value:\n      operation: AND\n      \
+             conditions:\n        - operation: OVERLAPS\n          subject: $locatie\n          \
+             value: $gebied\n"
+        ));
+    }
+
+    #[test]
+    fn overlaps_needs_a_shape_that_is_present() {
+        assert_only(
+            &overlaps("$perceel", "$gebied"),
+            Rule::N4,
+            "'perceel' may be absent and is used in OVERLAPS",
+        );
+    }
+
+    #[test]
+    fn a_literal_for_a_shape_output_parses_as_wkt() {
+        let shape_output = |value: &str| {
+            format!(
+                "output:\n  - name: gebied\n    type: shape\nactions:\n  - output: gebied\n    value: {value}\n"
+            )
+        };
+        assert_clean(&shape_output("POLYGON((0 0, 10 0, 10 10, 0 10, 0 0))"));
+        assert_only(
+            &shape_output("langs de dijk"),
+            Rule::T4,
+            "output is declared shape but is assigned a literal that is none: 'langs de dijk' \
+             does not parse as WKT",
+        );
+        assert_only(
+            &shape_output("12"),
+            Rule::T4,
+            "output is declared shape but is assigned a number literal",
+        );
+        assert_only(
+            &shape_output(
+                "\n      operation: IF\n      cases:\n        - when: true\n          then: \
+                 POINT(1 1)\n      default: nergens",
+            ),
+            Rule::T4,
+            "a branch assigns a literal that is none: 'nergens' does not parse as WKT",
+        );
+    }
+
     #[test]
     fn findings_display_names_law_article_location_and_rule() {
         let finding = check(N1_FAIL).into_iter().next().unwrap();
@@ -4318,5 +4643,169 @@ actions:
             text.starts_with("t article 1 output 'geen_huur': [N1] "),
             "{text}"
         );
+    }
+
+    #[test]
+    fn n5_a_nullable_implementation_of_a_combined_term_is_allowed() {
+        // With `combine: OR` (schema v0.8.23) a null says the implementation
+        // does not speak about the case; without it the required term has no
+        // value, which N5 refuses.
+        let wet = |combine: &str| {
+            ArticleBasedLaw::from_yaml_str(&format!(
+                "$id: wet\nregulatory_layer: WET\npublication_date: '2025-01-01'\narticles:\n  - \
+                 number: '1'\n    text: t\n    machine_readable:\n      open_terms:\n        - id: \
+                 verboden\n          type: boolean\n          required: true\n{combine}      \
+                 execution:\n        output:\n          - name: x\n            type: boolean\n        \
+                 actions:\n          - output: x\n            value: $verboden\n"
+            ))
+            .unwrap()
+        };
+        let plan = ArticleBasedLaw::from_yaml_str(
+            "$id: plan\nregulatory_layer: GEMEENTELIJKE_VERORDENING\npublication_date: \
+             '2025-01-01'\narticles:\n  - number: '1'\n    text: t\n    machine_readable:\n      \
+             implements:\n        - law: wet\n          article: '1'\n          open_term: verboden\n      \
+             execution:\n        output:\n          - name: verboden\n            type: boolean\n            \
+             nullable: true\n        actions:\n          - output: verboden\n            value: null\n",
+        )
+        .unwrap();
+
+        let combined = wet("          combine: OR\n");
+        let lookup = |id: &str| (id == "wet").then_some(&combined);
+        assert!(check_law(&plan, &lookup).is_empty());
+
+        let single = wet("");
+        let lookup = |id: &str| (id == "wet").then_some(&single);
+        assert_eq!(rules(&check_law(&plan, &lookup)), vec![Rule::N5]);
+    }
+
+    #[test]
+    fn a_shape_is_not_compared_as_text() {
+        let compare = |operation: &str| {
+            format!("{OVERLAPS_HEAD}actions:\n  - output: x\n    value:\n{operation}")
+        };
+        assert_only(
+            &compare("      operation: EQUALS\n      subject: $locatie\n      value: POINT(1 1)\n"),
+            Rule::T3,
+            "'locatie' is a shape and is compared in EQUALS, which compares the text of a shape \
+             and not the place it describes; use OVERLAPS to test two shapes",
+        );
+        // Against a text too: a shape reads as a string, so this would pass
+        // as an ordinary comparison of strings.
+        assert_only(
+            &compare(
+                "      operation: EQUALS\n      subject: $omschrijving\n      value: $gebied\n",
+            ),
+            Rule::T3,
+            "'gebied' is a shape and is compared in EQUALS",
+        );
+        assert_only(
+            &compare(
+                "      operation: IN\n      subject: $locatie\n      values:\n        - POINT(1 1)\n",
+            ),
+            Rule::T3,
+            "'locatie' is a shape and is compared in IN",
+        );
+        assert_only(
+            &compare(
+                "      operation: IN\n      subject: $omschrijving\n      values:\n        - $gebied\n",
+            ),
+            Rule::T3,
+            "'gebied' is a shape and is compared in IN",
+        );
+        // Whether a shape is there at all is another question.
+        assert_clean(&compare(
+            "      operation: NOT\n      value:\n        operation: EQUALS\n        subject: \
+             $perceel\n        value: null\n",
+        ));
+    }
+
+    /// A law whose one article leaves `verboden` to the regulation of a
+    /// place and reads the territory from `territory`.
+    fn located_law(territory: &str) -> ArticleBasedLaw {
+        ArticleBasedLaw::from_yaml_str(&format!(
+            "$id: plaatswet\nregulatory_layer: WET\npublication_date: '2025-01-01'\narticles:\n  \
+             - number: '1'\n    text: t\n    machine_readable:\n      open_terms:\n        - id: \
+             verboden\n          type: boolean\n          location: $locatie\n          territory: \
+             {territory}\n          combine: OR\n      execution:\n        parameters:\n          - \
+             name: locatie\n            type: shape\n            required: true\n        output:\n          \
+             - name: x\n            type: boolean\n        actions:\n          - output: x\n            \
+             value: $verboden\n"
+        ))
+        .unwrap()
+    }
+
+    /// A law `register` whose one article gives `output` of type `ty`, with
+    /// `parameters` as the names of the parameters it declares.
+    fn register_law(output: &str, ty: &str, parameters: &[&str]) -> ArticleBasedLaw {
+        let parameters: String = parameters
+            .iter()
+            .map(|name| format!("  - name: {name}\n    type: string\n"))
+            .collect();
+        let parameters = if parameters.is_empty() {
+            String::new()
+        } else {
+            format!("parameters:\n{parameters}")
+        };
+        law(
+            "register",
+            &format!(
+                "{parameters}input:\n  - name: in_register\n    type: {ty}\n    source: \
+                 {{}}\noutput:\n  - name: {output}\n    type: {ty}\nactions:\n  - output: \
+                 {output}\n    value: $in_register\n"
+            ),
+        )
+    }
+
+    #[test]
+    fn t5_a_territory_is_a_shape_output_asked_by_a_territory_code() {
+        let term = located_law("{regulation: register, output: grens}");
+        let findings_with = |register: &ArticleBasedLaw| {
+            let lookup = |id: &str| (id == "register").then_some(register);
+            check_law(&term, &lookup)
+        };
+        // A shape, asked by any of the three codes: fine.
+        for code in ["gemeente_code", "provincie_code", "waterschap_code"] {
+            let findings = findings_with(&register_law("grens", "shape", &[code]));
+            assert!(findings.is_empty(), "{code}: {findings:#?}");
+        }
+
+        let no_such_output = findings_with(&register_law("omtrek", "shape", &["gemeente_code"]));
+        assert_eq!(rules(&no_such_output), vec![Rule::T5]);
+        assert!(
+            no_such_output[0]
+                .message
+                .contains("the territory of 'verboden' is read from register#grens, and register has no output 'grens'"),
+            "{}",
+            no_such_output[0].message
+        );
+        assert_eq!(no_such_output[0].location, "open term 'verboden'");
+
+        let a_number = findings_with(&register_law("grens", "number", &["gemeente_code"]));
+        assert_eq!(rules(&a_number), vec![Rule::T5]);
+        assert!(
+            a_number[0]
+                .message
+                .contains("which is a number; a territory is a shape"),
+            "{}",
+            a_number[0].message
+        );
+
+        // Asked by nothing a regulation carries: every candidate would get
+        // the same territory.
+        for parameters in [&[][..], &["bsn"][..]] {
+            let findings = findings_with(&register_law("grens", "shape", parameters));
+            assert_eq!(rules(&findings), vec![Rule::T5], "{parameters:?}");
+            assert!(
+                findings[0].message.contains(
+                    "article 1 of register declares no parameter gemeente_code, provincie_code, \
+                     waterschap_code"
+                ),
+                "{}",
+                findings[0].message
+            );
+        }
+
+        // A law the checker cannot consult is a matter for run time.
+        assert!(check_law_alone(&term).is_empty());
     }
 }

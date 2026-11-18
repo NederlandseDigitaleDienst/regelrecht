@@ -217,7 +217,7 @@ class Parser {
 
   comparison: Rule = (pos) => this.rule('comparison', pos, () => {
     const out: Result[] = [];
-    const cmps = [['is meer dan', 'GREATER_THAN'], ['is minder dan', 'LESS_THAN'], ['is ten minste', 'GREATER_THAN_OR_EQUAL'], ['is ten hoogste', 'LESS_THAN_OR_EQUAL'], ['is', 'EQUALS']];
+    const cmps = [['is meer dan', 'GREATER_THAN'], ['is minder dan', 'LESS_THAN'], ['is ten minste', 'GREATER_THAN_OR_EQUAL'], ['is ten hoogste', 'LESS_THAN_OR_EQUAL'], ['is', 'EQUALS'], ['overlapt', 'OVERLAPS']];
     for (const [s, p] of this.arith(pos)) {
       for (const [w, op] of cmps) {
         const q = this.word(p, w);
@@ -260,6 +260,8 @@ class Parser {
     for (const [v, r] of this.arith(p)) {
       const e = this.word(r, 'is');
       if (e >= 0) out.push([{ operation: 'EQUALS', subject: s, value: v }, e]);
+      const o = this.word(r, 'overlapt');
+      if (o >= 0) out.push([{ operation: 'OVERLAPS', subject: s, value: v }, o]);
     }
     let q = this.word(p, 'niet');
     if (q >= 0) {

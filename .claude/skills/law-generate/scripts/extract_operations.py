@@ -144,6 +144,7 @@ def render_markdown(operations, layers, schema_version):
         "Collection": ["LIST"],
         "Date": ["AGE", "DATE_ADD", "DATE", "DAY_OF_WEEK", "DATE_DIFF",
                  "DATE_PART", "START_OF"],
+        "Spatial": ["OVERLAPS"],
     }
 
     op_map = {op["name"]: op for op in operations}

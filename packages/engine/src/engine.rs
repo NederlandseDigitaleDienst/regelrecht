@@ -123,6 +123,169 @@ pub struct OpenTermFilled {
     pub filled_by: FilledBy,
 }
 
+/// How one open term with a `location` or `combine: OR` (schema v0.8.23)
+/// was asked in an execution.
+///
+/// Such a term rests on more than its own article shows: on the territory
+/// of each candidate regulation, read from another law, and on what every
+/// implementation said, also the ones that did not decide the outcome. This
+/// record holds both, so two executions that differ only in a territory, or
+/// a term that came out false or unknown, can be told apart and explained
+/// afterwards.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct OpenTermAsked {
+    /// The law and article that declare the term.
+    pub law_id: String,
+    pub article: String,
+    /// The id of the open term.
+    pub term: String,
+    /// For a term with a `location`: the place of the case, as the text of
+    /// the shape it was given as. Absent when the location is unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location: Option<String>,
+    /// For a term whose location is unknown: the facts the location lacks.
+    /// The term is then unknown for lack of them, and no regulation was
+    /// held against a place.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub location_missing: Vec<String>,
+    /// For a term with a `location`: every competent candidate regulation
+    /// with a territory code, held against the location.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub territories: Vec<TerritoryTest>,
+    /// For a term with a `location`, when the territory of every candidate
+    /// regulation was read: whether the location is covered, that is,
+    /// whether no part of it lies outside the territories of the
+    /// regulations in scope taken together. A regulation in scope that is
+    /// not held against a territory holds everywhere and covers any
+    /// location. Absent when a territory is unknown or could not be read:
+    /// what such a territory covers is not known.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub location_covered: Option<bool>,
+    /// Every implementation that was asked, in the order it was asked, and
+    /// what it gave. With `combine: OR` that is every implementation in
+    /// scope; without it, the ones asked until one filled the term or
+    /// failed.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub answers: Vec<ImplementationAnswer>,
+    /// For a term with `combine: OR` whose location is not covered: what
+    /// the default of the term gave for the part of the location that lies
+    /// in no territory of a regulation in scope. It counts as one more
+    /// answer.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub default: Option<ImplementationGave>,
+}
+
+/// One candidate regulation held against the location of a case, for an open
+/// term with a `location` (schema v0.8.23).
+///
+/// Which regulation fills such a term depends on the territory of each
+/// candidate, which is read from the output of a law (`territory`) and so
+/// from whatever that law reads: a register, usually. Two executions with
+/// the same parameters and another register can give other outcomes, so each
+/// test is recorded: the code, where the territory came from, the value that
+/// was used (by the hash of its text) and whether the location overlapped
+/// it.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct TerritoryTest {
+    /// The candidate regulation.
+    pub law_id: String,
+    /// The territory code it carries (`gemeente_code`, `provincie_code` or
+    /// `waterschap_code`). The tests of a term come by this code, and then
+    /// by the regulation.
+    pub code: String,
+    /// Where the territory of that code was read: `<regulation>#<output>`,
+    /// as the term's `territory` names it.
+    pub source: String,
+    /// `sha256:` and the hash of the text of the territory that was used.
+    /// Absent when the territory is unknown.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub territory: Option<String>,
+    /// Whether the interiors of the location and the territory meet. Absent
+    /// when the territory is unknown or could not be read: the regulation
+    /// is then neither in scope nor out of it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub overlaps: Option<bool>,
+    /// Why the territory could not be read as a shape, where it could not.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// What one implementation of an open term gave when it was asked.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct ImplementationAnswer {
+    /// The implementing regulation and article.
+    pub law_id: String,
+    pub article: String,
+    pub gave: ImplementationGave,
+}
+
+/// The answer of one implementation of an open term.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ImplementationGave {
+    /// It says so.
+    True,
+    /// It says no.
+    False,
+    /// It gave null: it does not speak about the case.
+    Silent,
+    /// It cannot say, for lack of these facts.
+    Unknown { missing: Vec<String> },
+    /// It rests on a construct the format cannot express (RFC-012).
+    Untranslatable,
+    /// It gave this value, for a term that is no boolean: the value as the
+    /// trace writes it.
+    Value(String),
+    /// It failed, or gave something that is no boolean. Where another
+    /// implementation gave true the term is true all the same, and this is
+    /// where the failure is kept.
+    Failed { error: String },
+}
+
+impl ImplementationGave {
+    /// What `value` is as an answer: the answer an implementation gave when
+    /// it ran without failing.
+    pub(crate) fn of(value: &Value) -> Self {
+        match value {
+            Value::Bool(true) => ImplementationGave::True,
+            Value::Bool(false) => ImplementationGave::False,
+            Value::Null => ImplementationGave::Silent,
+            Value::Unknown(missing) => ImplementationGave::Unknown {
+                missing: missing.iter().map(|fact| fact.name.clone()).collect(),
+            },
+            Value::Untranslatable { .. } => ImplementationGave::Untranslatable,
+            other => ImplementationGave::Value(other.to_string()),
+        }
+    }
+
+    /// The answer in a few words, for a trace message.
+    pub(crate) fn describe(&self) -> String {
+        match self {
+            ImplementationGave::True => "gave true".to_string(),
+            ImplementationGave::False => "gave false".to_string(),
+            ImplementationGave::Silent => "was silent (null)".to_string(),
+            ImplementationGave::Unknown { missing } => {
+                format!("cannot say for lack of {}", missing.join(", "))
+            }
+            ImplementationGave::Untranslatable => "is untranslatable".to_string(),
+            ImplementationGave::Value(value) => format!("gave {value}"),
+            ImplementationGave::Failed { error } => format!("failed: {error}"),
+        }
+    }
+}
+
+impl ImplementationAnswer {
+    /// `<law> article <number> <what it gave>`, for a trace message.
+    pub(crate) fn describe(&self) -> String {
+        format!(
+            "{} article {} {}",
+            self.law_id,
+            self.article,
+            self.gave.describe()
+        )
+    }
+}
+
 /// One version of a regulation whose article ran in an execution: its
 /// `$id`, its `valid_from` and the hash of its content, as the engine
 /// loaded it. A record that keeps these refers to the law it rests on
@@ -192,6 +355,14 @@ pub struct ArticleResult {
     /// be listed twice, once per filler: an implementing article that reads
     /// the output it fills in reads it with the finding in its place.
     pub open_terms: Vec<OpenTermFilled>,
+    /// How each open term with a `location` or `combine: OR` was asked in
+    /// this execution: the place and whether the regulations in scope cover
+    /// it, the territories it was held against and what every
+    /// implementation gave. Also for a term that failed inside an
+    /// implementation whose failure another term took as an answer.
+    /// Populated by the service layer,
+    /// independently of tracing, so it reaches the receipt.
+    pub open_terms_asked: Vec<OpenTermAsked>,
     /// Every regulation version whose articles ran in this execution,
     /// nested calls included, once each, in the order they first ran.
     /// Populated by the service layer, independently of tracing. A cached
@@ -424,6 +595,7 @@ impl<'a> ArticleEngine<'a> {
             declaration_version_notes: Vec::new(),
             declarations_not_in_force: Vec::new(),
             open_terms: Vec::new(),
+            open_terms_asked: Vec::new(),
             regulations_read: Vec::new(),
         };
 
@@ -786,6 +958,10 @@ pub(crate) fn action_to_operation(
             value: require_value(operation)?,
         }),
         Operation::LessThanOrEqual => Ok(ActionOperation::LessThanOrEqual {
+            subject: require_subject(operation)?,
+            value: require_value(operation)?,
+        }),
+        Operation::Overlaps => Ok(ActionOperation::Overlaps {
             subject: require_subject(operation)?,
             value: require_value(operation)?,
         }),

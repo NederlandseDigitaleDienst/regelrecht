@@ -1,0 +1,33 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_goothoogteverordening_rechterdorp
+name: Testgoothoogteverordening Rechterdorp
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2024-07-01'
+valid_from: '2024-07-01'
+gemeente_code: GM9902
+officiele_titel: Goothoogteverordening gemeente Rechterdorp
+url: https://example.com/test_goothoogteverordening_rechterdorp
+
+# A second regulation of the fictional municipality Rechterdorp, with a date
+# of its own, so that it and the plan of Linkerdorp are not of one date.
+# The first version, older than the plan of Linkerdorp (2025-01-01).
+
+articles:
+  - number: '1'
+    url: https://example.com/test_goothoogteverordening_rechterdorp/1
+    text: >-
+      De goothoogte van een bouwwerk bedraagt ten hoogste 4 meter.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '6'
+          open_term: maximale_goothoogte
+          gelet_op: Gelet op artikel 6 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: maximale_goothoogte
+            type: number
+        actions:
+          - output: maximale_goothoogte
+            value: 4

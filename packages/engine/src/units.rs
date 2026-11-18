@@ -375,6 +375,12 @@ pub fn infer_operation_unit(
             check_children(&refs, symbols)?;
             Ok(Unit::Unknown)
         }
+        // A shape is measured in nothing; the operands are checked for nested
+        // arithmetic.
+        Overlaps { subject, value } => {
+            check_children(&[subject, value], symbols)?;
+            Ok(Unit::Unknown)
+        }
         // A row is measured in nothing, but its columns are checked.
         Record { fields } => {
             let refs: Vec<&ActionValue> = fields.values().collect();

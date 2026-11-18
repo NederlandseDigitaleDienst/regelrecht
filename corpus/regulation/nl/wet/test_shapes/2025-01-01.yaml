@@ -1,0 +1,90 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_shapes
+name: Testwet vormen
+regulatory_layer: WET
+bwb_id: BWBR9999925
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_shapes
+
+articles:
+  - number: '1'
+    url: https://example.com/test_shapes/1
+    text: >-
+      Als beperkingengebied wordt aangewezen de strook die op de bij deze wet
+      behorende kaart is aangegeven.
+    machine_readable:
+      # The designation is an output of type shape (schema v0.8.23): the
+      # strip stands as WKT in the action. The coordinates are made up and
+      # follow the form of the Rijksdriehoeksstelsel; the strip is 3000 by 50.
+      execution:
+        output:
+          - name: beperkingengebied
+            type: shape
+        actions:
+          - output: beperkingengebied
+            value: POLYGON((154000 463600, 157000 463600, 157000 463650, 154000 463650, 154000 463600))
+
+  - number: '2'
+    url: https://example.com/test_shapes/2
+    text: >-
+      Een locatie ligt in het beperkingengebied indien zij het gebied, bedoeld
+      in artikel 1, overlapt.
+    machine_readable:
+      # OVERLAPS is true when the interiors meet (DE-9IM T********): a
+      # shared edge or a point on the boundary does not count.
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The location of the activity, as WKT.
+        input:
+          - name: beperkingengebied
+            type: shape
+            source:
+              output: beperkingengebied
+        output:
+          - name: ligt_in_beperkingengebied
+            type: boolean
+        actions:
+          - output: ligt_in_beperkingengebied
+            value:
+              operation: OVERLAPS
+              subject: $location
+              value: $beperkingengebied
+
+  - number: '3'
+    url: https://example.com/test_shapes/3
+    text: >-
+      Een aanvraag raakt het beperkingengebied indien ten minste een van de
+      percelen waarop zij ziet, het gebied, bedoeld in artikel 1, overlapt.
+    machine_readable:
+      # A row is untyped, so no declaration stops a parcel without a shape
+      # at the boundary; OVERLAPS itself does (RFC-036).
+      execution:
+        parameters:
+          - name: percelen
+            type: array
+            required: true
+            description: The parcels of the application, each with a shape.
+        input:
+          - name: beperkingengebied
+            type: shape
+            source:
+              output: beperkingengebied
+        output:
+          - name: raakt_beperkingengebied
+            type: boolean
+        actions:
+          - output: raakt_beperkingengebied
+            value:
+              operation: FOREACH
+              collection: $percelen
+              as: perceel
+              body:
+                operation: OVERLAPS
+                subject: $perceel.vorm
+                value: $beperkingengebied
+              combine: OR

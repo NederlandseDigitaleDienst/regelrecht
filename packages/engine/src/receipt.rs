@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 
 use serde::Serialize;
 
-use crate::engine::{OpenTermFilled, OutputProvenance};
+use crate::engine::{OpenTermAsked, OpenTermFilled, OutputProvenance};
 use crate::resolver::{DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal};
 use crate::trace::PathNode;
 use crate::types::{Connectivity, LegalStatus, UntranslatableMode, Value};
@@ -139,6 +139,16 @@ pub struct ReceiptResults {
     /// two filled each, so the receipt shows what the outcome rests on.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub open_terms: Vec<OpenTermFilled>,
+    /// How each open term with a `location` or `combine: OR` was asked: the
+    /// place of the case, each candidate regulation's territory code with
+    /// where its territory was read, the hash of the territory that was
+    /// used and whether the location overlapped it, whether the
+    /// regulations in scope cover the location, and what every
+    /// implementation gave. A territory comes from the output of another
+    /// law, usually out of a register, so without this two receipts over
+    /// another register would read alike.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub open_terms_asked: Vec<OpenTermAsked>,
 }
 
 /// A value accepted from another organisation's engine (RFC-009).

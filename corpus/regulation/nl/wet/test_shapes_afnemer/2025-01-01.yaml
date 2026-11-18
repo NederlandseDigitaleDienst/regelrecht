@@ -1,0 +1,41 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_shapes_afnemer
+name: Testwet vormen afnemer
+regulatory_layer: WET
+bwb_id: BWBR9999926
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_shapes_afnemer
+
+articles:
+  - number: '1'
+    url: https://example.com/test_shapes_afnemer/1
+    text: >-
+      Het is verboden zonder vergunning een activiteit te verrichten op een
+      locatie in het beperkingengebied, bedoeld in artikel 1 van de Testwet
+      vormen.
+    machine_readable:
+      # This law designates no area itself: it reads the area the Testwet
+      # vormen designates and tests its own location against it.
+      execution:
+        parameters:
+          - name: location
+            type: shape
+            required: true
+            description: The location of the activity, as WKT.
+        input:
+          - name: beperkingengebied
+            type: shape
+            source:
+              regulation: test_shapes
+              output: beperkingengebied
+        output:
+          - name: vergunningplichtig
+            type: boolean
+        actions:
+          - output: vergunningplichtig
+            value:
+              operation: OVERLAPS
+              subject: $location
+              value: $beperkingengebied

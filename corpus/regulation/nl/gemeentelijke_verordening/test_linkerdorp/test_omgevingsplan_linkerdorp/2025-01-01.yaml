@@ -1,0 +1,191 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_omgevingsplan_linkerdorp
+name: Testomgevingsplan Linkerdorp
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: GM9901
+officiele_titel: Omgevingsplan gemeente Linkerdorp
+url: https://example.com/test_omgevingsplan_linkerdorp
+
+# A fictional municipality. Its territory is not in this file: it is the
+# boundary the Testwet grenzenregister gives for the code GM9901.
+
+articles:
+  - number: '1'
+    url: https://example.com/test_omgevingsplan_linkerdorp/1
+    text: >-
+      Het is verboden zonder omgevingsvergunning een bouwwerk te bouwen.
+    machine_readable:
+      # Two articles of this plan fill the same term: this article forbids
+      # building, article 2 felling. About any other activity the article
+      # says nothing, and that is null: not a "no", but silence.
+      implements:
+        - law: test_location_terms
+          article: '1'
+          open_term: verboden_in_omgevingsplan
+          gelet_op: Gelet op artikel 1 van de Testwet plaatsgebonden termen
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+        output:
+          - name: verboden_in_omgevingsplan
+            type: boolean
+            nullable: true
+        actions:
+          - output: verboden_in_omgevingsplan
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $activiteit
+                    value: bouwen
+                  then: true
+              default: null
+
+  - number: '2'
+    url: https://example.com/test_omgevingsplan_linkerdorp/2
+    text: >-
+      Het is verboden zonder omgevingsvergunning een houtopstand te vellen.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '1'
+          open_term: verboden_in_omgevingsplan
+          gelet_op: Gelet op artikel 1 van de Testwet plaatsgebonden termen
+      execution:
+        parameters:
+          - name: activiteit
+            type: string
+            required: true
+        output:
+          - name: verboden_in_omgevingsplan
+            type: boolean
+            nullable: true
+        actions:
+          - output: verboden_in_omgevingsplan
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $activiteit
+                    value: kappen
+                  then: true
+              default: null
+
+  - number: '3'
+    url: https://example.com/test_omgevingsplan_linkerdorp/3
+    text: >-
+      De bouwhoogte van een bouwwerk bedraagt ten hoogste 9 meter.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '3'
+          open_term: maximale_bouwhoogte
+          gelet_op: Gelet op artikel 3 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: maximale_bouwhoogte
+            type: number
+        actions:
+          - output: maximale_bouwhoogte
+            value: 9
+
+  - number: '4'
+    url: https://example.com/test_omgevingsplan_linkerdorp/4
+    text: >-
+      Het tarief voor het in behandeling nemen van een aanvraag bedraagt 100.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '4'
+          open_term: legestarief
+          gelet_op: Gelet op artikel 4 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: legestarief
+            type: number
+        actions:
+          - output: legestarief
+            value: 100
+
+  - number: '5'
+    url: https://example.com/test_omgevingsplan_linkerdorp/5
+    text: >-
+      Het is verboden een evenement te houden.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '5'
+          open_term: evenement_verboden
+          gelet_op: Gelet op artikel 5 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: evenement_verboden
+            type: boolean
+        actions:
+          - output: evenement_verboden
+            value: true
+
+  - number: '6'
+    url: https://example.com/test_omgevingsplan_linkerdorp/6
+    text: >-
+      Het is verboden een terras te exploiteren.
+    machine_readable:
+      # A second regulation that fills the terrace term, beside the one of
+      # Nergenshuizen: in Linkerdorp this plan decides, whatever is known of
+      # Nergenshuizen's territory.
+      implements:
+        - law: test_location_terms
+          article: '2'
+          open_term: terras_verboden
+          gelet_op: Gelet op artikel 2 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: terras_verboden
+            type: boolean
+        actions:
+          - output: terras_verboden
+            value: true
+
+  - number: '7'
+    url: https://example.com/test_omgevingsplan_linkerdorp/7
+    text: >-
+      De goothoogte van een bouwwerk bedraagt ten hoogste 6 meter.
+    machine_readable:
+      implements:
+        - law: test_location_terms
+          article: '6'
+          open_term: maximale_goothoogte
+          gelet_op: Gelet op artikel 6 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: maximale_goothoogte
+            type: number
+        actions:
+          - output: maximale_goothoogte
+            value: 6
+
+  - number: '8'
+    url: https://example.com/test_omgevingsplan_linkerdorp/8
+    text: >-
+      Het aanleggen van een steiger is toegestaan.
+    machine_readable:
+      # The plan says no: in Linkerdorp a jetty is not forbidden.
+      implements:
+        - law: test_location_terms
+          article: '7'
+          open_term: steiger_verboden
+          gelet_op: Gelet op artikel 7 van de Testwet plaatsgebonden termen
+      execution:
+        output:
+          - name: steiger_verboden
+            type: boolean
+        actions:
+          - output: steiger_verboden
+            value: false

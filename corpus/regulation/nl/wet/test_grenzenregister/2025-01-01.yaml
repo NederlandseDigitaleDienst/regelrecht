@@ -1,0 +1,39 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.23/schema/v0.8.23/schema.json
+$id: test_grenzenregister
+name: Testwet grenzenregister
+regulatory_layer: WET
+bwb_id: BWBR9999928
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_grenzenregister
+
+articles:
+  - number: '1'
+    url: https://example.com/test_grenzenregister/1
+    text: >-
+      De grens van een gemeente is de grens die voor die gemeente in het
+      grenzenregister is opgenomen.
+    machine_readable:
+      # This law plays the register of boundaries. The boundary of a
+      # municipality is a fact the register holds, so it comes in as an input
+      # resolved outside the YAML (source: {}) and goes out as the output
+      # that an open term names as its `territory`. A scenario gives the
+      # register as a data source bound to this law, keyed on gemeente_code.
+      execution:
+        parameters:
+          - name: gemeente_code
+            type: string
+            required: true
+            description: The code of the municipality whose boundary is asked.
+        input:
+          - name: grens_in_register
+            type: shape
+            source: {}
+            description: The boundary as the register holds it, as WKT.
+        output:
+          - name: grens_van_gemeente
+            type: shape
+        actions:
+          - output: grens_van_gemeente
+            value: $grens_in_register

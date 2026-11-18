@@ -64,6 +64,7 @@ A reader meets these constructs in a rulework or a running service whatever the 
 | RFC-054 | RegelRijm, a Dutch reading of an action tree (partially built: the reading and the editor pane, not yet the presenter) | [Shared Frontend Package](../components/frontend-shared#regelrijm-regelrijmindex), [Editor](../components/frontend) |
 | RFC-055 | Operations are defined per type (accepted, not yet built) | Backlog: the rules do not hold in the engine yet; [Law Format](../concepts/law-format) describes the operations as they work today, and a reference page rendered from the signature table comes with the implementation |
 | RFC-056 | A cell uses another cell's answer only with a legal basis (the check in the engine when it resolves a binding, `Call::decides_for`, the source of `Cell::consult` for a prefilled form) | [Chronolexography](../concepts/chronolexography#answers-of-other-cells) |
+| RFC-057 | A place in a law is a shape (the type `shape`, `OVERLAPS`, `location`, `territory` and `combine` on an open term) | [Law Format](../concepts/law-format#operations), [Inversion of Control](../concepts/inversion-of-control#the-regulation-of-a-place), [Schema](./schema) |
 
 ## Backlog
 
