@@ -770,7 +770,7 @@ elements:
             "{name: x, fill: {from: 'r#5#x'}}",
         );
         assert!(
-            e.contains("prefills 'x' in one element and fills it by the system"),
+            e.contains("both prefills 'x' and fills it by the system"),
             "{e}"
         );
         let e = twee(
