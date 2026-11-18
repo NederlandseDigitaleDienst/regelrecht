@@ -1,0 +1,39 @@
+---
+# Tier C: a reduction that reads the recorded instances of a fact an article
+# requires (schema v0.8.7, RFC-051, up to v0.8.17) and
+# picks the one in force with FOREACH combine ONLY.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.18/schema/v0.8.18/schema.json
+$id: test_conformance_reduction_facts
+regulatory_layer: REDUCTIE
+publication_date: '2026-10-18'
+valid_from: '2026-10-18'
+name: Testreductie vestiging
+url: https://example.invalid/reduction-facts
+articles:
+  - number: '1'
+    url: https://example.invalid/reduction-facts/1
+    text: De vestiging is die waarvan de dag het laatst ligt.
+    machine_readable:
+      execution:
+        input:
+          - name: vestigingen
+            type: array
+            source:
+              facts: test_conformance_fact#1#vestiging
+              description: De vastgelegde vestigingen van de school.
+        output:
+          - name: gemeente
+            type: string
+            nullable: true
+        actions:
+          - output: gemeente
+            value:
+              operation: FOREACH
+              collection: $vestigingen
+              as: vestiging
+              filter:
+                operation: EQUALS
+                subject: $vestiging.huidig
+                value: true
+              body: $vestiging.gemeente
+              combine: ONLY

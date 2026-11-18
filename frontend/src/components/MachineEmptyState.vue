@@ -1,5 +1,6 @@
-<script setup>
+<script setup lang="ts">
 import { computed, inject } from 'vue';
+import { ENRICH_PROVIDER_OPTIONS } from '../lib/enrichProviders';
 
 // De lege staat van de Machine- en YAML-panes, op één plek.
 //
@@ -13,42 +14,54 @@ import { computed, inject } from 'vue';
 //   1. reviewReady - er ligt een voorstel klaar om te beoordelen
 //   2. enriching   - er loopt een verrijking
 //   3. leeg        - niets, dus bied de twee manieren aan om te beginnen
-const props = defineProps({
+const props = withDefaults(defineProps<{
   /** Er staat een openstaande review-taak klaar voor deze wet. */
-  reviewReady: { type: Boolean, default: false },
+  reviewReady?: boolean;
   /** Het artikel waar die taak over gaat. Leeg bij een voorstel voor de hele
    *  wet. Staat in de tekst omdat de knop naar dat artikel navigeert, en dat
    *  hoeft niet het artikel te zijn dat je nu open hebt. */
-  reviewArticle: { type: String, default: '' },
+  reviewArticle?: string;
   /** Er loopt een verrijking voor deze wet (pending of processing). */
-  enriching: { type: Boolean, default: false },
+  enriching?: boolean;
   /** Verrijken is hier aan te vragen (of routeert naar login/traject). */
-  canEnrich: { type: Boolean, default: false },
+  canEnrich?: boolean;
   /** De machine-versie kan hier ter plekke worden aangemaakt (editor). */
-  canWriteHere: { type: Boolean, default: false },
+  canWriteHere?: boolean;
   /** Read-only context: bied een route naar de editor aan. */
-  canCreate: { type: Boolean, default: false },
+  canCreate?: boolean;
   /** Doel van die route; leeg laten zolang de gebruiker niet is ingelogd, dan
    *  gaat de klik door de login-popover in plaats van door de href. */
-  createHref: { type: String, default: undefined },
+  createHref?: string;
   /** Melding van de laatste mislukte verrijk-aanvraag. */
-  enrichError: { type: String, default: '' },
+  enrichError?: string;
   /** Wat er nog ontbreekt voordat verrijken hier kan: '' (niets, het gebeurt
    *  hier), 'login' of 'traject'. Stuurt de uitleg boven de knoppen en de vorm
    *  van het knoplabel. */
-  needs: { type: String, default: '' },
+  needs?: string;
+}>(), {
+  reviewReady: false,
+  reviewArticle: '',
+  enriching: false,
+  canEnrich: false,
+  canWriteHere: false,
+  canCreate: false,
+  createHref: undefined,
+  enrichError: '',
+  needs: '',
 });
 
-const emit = defineEmits([
-  'enrich',
+const emit = defineEmits<{
+  /** `provider` is set only when the user picked one from the menu; without
+   *  it the deployment's default runs. */
+  enrich: [button: EventTarget | null, provider?: string];
   /** Machine-versie hier ter plekke aanmaken. */
-  'write',
+  write: [];
   /** Naar de editor om hem daar aan te maken. Payload is het knopelement, zodat
    *  de ouder de login-popover eraan kan ankeren. */
-  'create',
-  'view-tasks',
-  'review',
-]);
+  create: [button: EventTarget | null];
+  'view-tasks': [];
+  review: [];
+}>();
 
 const onLoginTriggerPointerdown = inject('onLoginTriggerPointerdown', () => {});
 
@@ -115,8 +128,35 @@ const emptyText = computed(() => {
     :variant="enrichError ? 'alert' : undefined"
     :supporting-text="enrichError || (canEnrich ? emptyText : undefined)"
   >
+    <!-- Where the enrichment runs here, the chevron offers a choice of model
+         as an advanced option; the button itself runs the default. Where it
+         routes to login or a traject first there is nothing to choose yet. -->
+    <nldd-split-button
+      v-if="canEnrich && actsHere"
+      slot="actions"
+      appearance="secondary"
+      size="md"
+      icon="ai"
+      width="full"
+      data-testid="enrich-btn"
+      :text="enrichLabel"
+      @action-click="emit('enrich', $event.currentTarget)"
+    >
+      <nldd-menu slot="popup">
+        <nldd-menu-group text="Verrijk met">
+          <nldd-menu-item
+            v-for="option in ENRICH_PROVIDER_OPTIONS"
+            :key="option.id"
+            :text="option.label"
+            :details="option.model"
+            :data-testid="`enrich-with-${option.id}`"
+            @select="emit('enrich', null, option.id)"
+          ></nldd-menu-item>
+        </nldd-menu-group>
+      </nldd-menu>
+    </nldd-split-button>
     <nldd-button
-      v-if="canEnrich"
+      v-else-if="canEnrich"
       slot="actions"
       appearance="secondary"
       size="md"

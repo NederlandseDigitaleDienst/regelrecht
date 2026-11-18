@@ -31,7 +31,7 @@ const repo = dirname(docs);
 
 const script = join(repo, 'script', 'landing-laws.sh');
 // What the build imports and fetches; both have to exist for the run panel.
-const produced = [join(docs, 'src', 'lib', 'gherkin', 'index.js'), join(docs, 'public', 'laws', 'manifest.json')];
+const produced = [join(docs, 'src', 'lib', 'gherkin', 'index.ts'), join(docs, 'public', 'laws', 'manifest.json')];
 const ready = produced.every((p) => existsSync(p));
 
 if (!existsSync(script)) {

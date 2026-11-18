@@ -11,12 +11,12 @@ Context: $ARGUMENTS
 
 ## Overzicht
 
-Elke NLDD applicatie volgt een vaste hiërarchie van layout-componenten. De buitenste laag is altijd `nldd-app-view`, de binnenste laag bevat content-componenten.
+Elke NLDD applicatie volgt een vaste hiërarchie van layout-componenten. De buitenste laag is altijd `nldd-shell`, de binnenste laag bevat content-componenten.
 
 ### Met Split View
 
 ```
-nldd-app-view                                  ← verplichte root
+nldd-shell                                     ← verplichte root
   └── Split View                               ← layout keuze (kan genest worden)
       └── Split View Pane                      ← paneel binnen split view
           └── nldd-page OF nldd-container      ← page voor scrollbare content, container voor simpele content
@@ -29,7 +29,7 @@ nldd-app-view                                  ← verplichte root
 ### Zonder Split View
 
 ```
-nldd-app-view                          ← verplichte root
+nldd-shell                             ← verplichte root
   └── nldd-page                        ← enkele pagina
       ├── nldd-container slot="header" ← navigatie, titelbalk (altijd in container)
       ├── Page sections                ← content layout
@@ -41,19 +41,21 @@ nldd-app-view                          ← verplichte root
 
 ---
 
-## Laag 1: App View (verplicht)
+## Laag 1: Shell (verplicht)
 
 ```html
-<nldd-app-view background="default|tinted">
+<nldd-shell background="default|tinted">
   <!-- Eén split view OF één nldd-page -->
-</nldd-app-view>
+</nldd-shell>
 ```
 
 | Attribuut | Waarden | Beschrijving |
 |-----------|---------|--------------|
 | `background` | `default`, `tinted` | Cascade van `--context-parent-background-color` naar alle afstammelingen |
 
-**Regel:** `nldd-app-view` is altijd de root. Bevat exact één direct child: een split view of een `nldd-page`.
+**Regel:** `nldd-shell` is altijd de root. Bevat exact één direct child: een split view of een `nldd-page`.
+
+Tot `@nldd/design-system` 0.8.100 heette dit component `nldd-app-view`, met dezelfde API. Code van vóór die versie gebruikt nog de oude naam.
 
 ---
 
@@ -155,9 +157,9 @@ Verticale gelijke panelen gestapeld. Panelen die niet passen worden automatisch 
 Voor eenvoudige pagina's zonder navigatiepanelen.
 
 ```html
-<nldd-app-view>
+<nldd-shell>
   <nldd-page sticky-header>...</nldd-page>
-</nldd-app-view>
+</nldd-shell>
 ```
 
 ---
@@ -401,16 +403,16 @@ Sizes: `2`, `4`, `6`, `8`, `12`, `16`, `20`, `24`, `32`, `40`, `44`, `48`, `64`,
 
 Achtergrondkleur wordt gecascade via `--context-parent-background-color`:
 
-1. Stel `background` in op `nldd-app-view` voor de hele applicatie
+1. Stel `background` in op `nldd-shell` voor de hele applicatie
 2. Of stel `background` in op individuele `nldd-page` componenten per paneel
 3. Kinderen lezen de variabele automatisch
 
 ```html
 <!-- Hele app tinted -->
-<nldd-app-view background="tinted">...</nldd-app-view>
+<nldd-shell background="tinted">...</nldd-shell>
 
 <!-- Per paneel -->
-<nldd-app-view>
+<nldd-shell>
   <nldd-navigation-split-view>
     <nldd-split-view-pane slot="sidebar">
       <nldd-page background="tinted">...</nldd-page>
@@ -419,7 +421,7 @@ Achtergrondkleur wordt gecascade via `--context-parent-background-color`:
       <nldd-page background="default">...</nldd-page>
     </nldd-split-view-pane>
   </nldd-navigation-split-view>
-</nldd-app-view>
+</nldd-shell>
 ```
 
 ---
@@ -429,7 +431,7 @@ Achtergrondkleur wordt gecascade via `--context-parent-background-color`:
 ### Voorbeeld 1: Applicatie met navigatie
 
 ```html
-<nldd-app-view background="default">
+<nldd-shell background="default">
   <nldd-navigation-split-view>
     <!-- Sidebar met navigatie -->
     <nldd-split-view-pane slot="sidebar">
@@ -476,13 +478,13 @@ Achtergrondkleur wordt gecascade via `--context-parent-background-color`:
       </nldd-page>
     </nldd-split-view-pane>
   </nldd-navigation-split-view>
-</nldd-app-view>
+</nldd-shell>
 ```
 
 ### Voorbeeld 2: Eenvoudige pagina
 
 ```html
-<nldd-app-view>
+<nldd-shell>
   <nldd-page sticky-header>
     <nldd-top-navigation-bar
       slot="header"
@@ -516,13 +518,13 @@ Achtergrondkleur wordt gecascade via `--context-parent-background-color`:
       </nldd-rich-text>
     </nldd-container>
   </nldd-page>
-</nldd-app-view>
+</nldd-shell>
 ```
 
 ### Voorbeeld 3: Applicatie met toolbar
 
 ```html
-<nldd-app-view>
+<nldd-shell>
   <nldd-bar-split-view>
     <nldd-container slot="toolbar" sm-order="1" md-order="1">
       <nldd-tab-bar navigation responsive>
@@ -542,7 +544,7 @@ Achtergrondkleur wordt gecascade via `--context-parent-background-color`:
       </nldd-simple-section>
     </nldd-page>
   </nldd-bar-split-view>
-</nldd-app-view>
+</nldd-shell>
 ```
 
 ---
@@ -566,7 +568,7 @@ Heeft de app een zijnavigatie?
 │   └── nldd-stacked-split-view
 │
 └── Nee, gewoon één pagina
-    └── nldd-page direct in nldd-app-view
+    └── nldd-page direct in nldd-shell
 ```
 
 **Nesting:** Split views kunnen in elkaar genest worden. Plaats een geneste split view in een `nldd-split-view-pane` binnen het gewenste slot.

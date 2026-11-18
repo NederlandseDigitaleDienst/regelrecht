@@ -8,6 +8,7 @@
 
 import paper from '~/research/rules-as-executed.meta.json';
 import jurixPaper from '~/research/citizen-explanation.meta.json';
+import promisedPaper from '~/research/rules-as-promised.meta.json';
 import { joinAuthors } from '~/lib/authors';
 
 // The papers' titles, authors and dates come from the generated meta JSON
@@ -17,6 +18,7 @@ const paperTitle = `${paper.title}: ${paper.subtitle}`;
 const paperAuthors = paper.authors.join(' & ');
 const jurixTitle = `${jurixPaper.title}: ${jurixPaper.subtitle}`;
 const jurixAuthors = joinAuthors(jurixPaper.authors.map((a) => a.name), '&');
+const promisedAuthors = joinAuthors(promisedPaper.authors.map((a) => a.name), '&');
 function paperDate(locale: string, date = paper.date): string {
   return new Intl.DateTimeFormat(locale, {
     day: 'numeric',
@@ -426,6 +428,13 @@ export const content: Record<'nl' | 'en', LandingContent> = {
           meta: `Paper op ${jurixPaper.venue} • ${jurixAuthors} • ${paperDate('nl-NL', jurixPaper.date)}`,
           text: 'Een taalmodel kan een besluit van de engine aan een burger uitleggen, maar verzint er ook redenen bij. Het paper vergelijkt drie manieren om het model het spoor van de engine te geven, over vijf taalmodellen en drie wetten. Hoe strakker de structuur, hoe trouwer de uitleg aan het spoor; alleen geven burgers niet altijd de voorkeur aan de trouwste uitleg.',
           href: '/research/citizen-explanation',
+          linkLabel: 'paper (Engels)',
+        },
+        {
+          title: promisedPaper.title,
+          meta: `Paper op ${promisedPaper.venue} • ${promisedAuthors} • ${paperDate('nl-NL', promisedPaper.date)}`,
+          text: 'Tests voor een regelwerk halen hun verwachte uitkomst meestal bij wie het regelwerk schreef, en toetsen dus diens eigen lezing. Dit paper haalt ze uit de rekenvoorbeelden waarmee de regering het parlement laat zien wat een wet moet opleveren, en draait er vijftien tegen het corpus: elf geven het beloofde bedrag.',
+          href: '/research/rules-as-promised',
           linkLabel: 'paper (Engels)',
         },
         {
@@ -933,6 +942,13 @@ export const content: Record<'nl' | 'en', LandingContent> = {
           meta: `${jurixPaper.venue} paper • ${jurixAuthors} • ${paperDate('en-GB', jurixPaper.date)}`,
           text: "A language model can explain the engine's decision to a citizen, but it also invents reasons. The paper compares three ways of handing the model the engine's trace, across five language models and three Dutch laws. The more structured the input, the more faithful the explanation, yet citizens do not always prefer the most faithful explanation.",
           href: '/research/citizen-explanation',
+          linkLabel: 'paper',
+        },
+        {
+          title: promisedPaper.title,
+          meta: `${promisedPaper.venue} paper • ${promisedAuthors} • ${paperDate('en-GB', promisedPaper.date)}`,
+          text: "Tests for an encoded statute usually take their expected outcomes from whoever encoded it, so they check the encoder's own reading. This paper takes them from the worked examples with which the government shows parliament what a bill should yield, and runs fifteen against the corpus: eleven give the promised amount.",
+          href: '/research/rules-as-promised',
           linkLabel: 'paper',
         },
         {

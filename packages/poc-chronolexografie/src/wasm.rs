@@ -1,0 +1,293 @@
+//! The game in the browser: [`Spel`] behind wasm-bindgen, one [`Poc`] per
+//! tab.
+//!
+//! The page gives the bundle it was built with ([`crate::bundel`]) and calls
+//! one method per step. Every method answers in JSON text, as the HTTP API
+//! did before the app moved into the browser, and a refusal is a thrown
+//! `Error` with the cell's message. Structured arguments (`velden`,
+//! `bevindingen`, a saved game) come in as JSON text too, so a value reaches
+//! the cell exactly as the page wrote it, numbers and all.
+
+use std::collections::BTreeMap;
+
+use chrono::NaiveDate;
+use serde_json::{Map, Value};
+use wasm_bindgen::prelude::*;
+
+use crate::spel::{Antwoord, Spel};
+
+#[wasm_bindgen]
+pub struct Poc {
+    spel: Spel,
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[wasm_bindgen(js_namespace = console, js_name = error)]
+    fn console_error(message: &str);
+}
+
+/// A panic aborts the WebAssembly instance, and the page only sees that it
+/// stopped (api.js says so). The message goes to the console, so whoever
+/// looks there sees why.
+fn meld_panics() {
+    static EENMAAL: std::sync::Once = std::sync::Once::new();
+    EENMAAL.call_once(|| std::panic::set_hook(Box::new(|info| console_error(&info.to_string()))));
+}
+
+fn fout(e: impl std::fmt::Display) -> JsError {
+    JsError::new(&e.to_string())
+}
+
+fn antwoord(a: Antwoord) -> Result<String, JsError> {
+    let value = a.map_err(fout)?;
+    serde_json::to_string(&value).map_err(fout)
+}
+
+fn dag(datum: &str) -> Result<NaiveDate, JsError> {
+    datum
+        .parse()
+        .map_err(|e| fout(format!("'{datum}' is no date (YYYY-MM-DD): {e}")))
+}
+
+/// The JSON object `json` given as `naam`.
+fn kaart(naam: &str, json: &str) -> Result<Map<String, Value>, JsError> {
+    serde_json::from_str(json).map_err(|e| fout(format!("{naam}: {e}")))
+}
+
+#[wasm_bindgen]
+impl Poc {
+    /// The game on `bundel`, the JSON object `{ "<path>": "<text>" }` the
+    /// page was built with. A bundle that misses a file a case needs, or a
+    /// case the law does not support, fails here, before anything is shown.
+    ///
+    /// `bronnen`, if given, is the JSON list of the sources the page fetched
+    /// ([`crate::bundel::Bron`]). A source that is unavailable or broken
+    /// does not fail here: `casussen` says what became of it.
+    #[wasm_bindgen(constructor)]
+    pub fn new(bundel: &str, bronnen: Option<String>) -> Result<Poc, JsError> {
+        meld_panics();
+        let files: BTreeMap<String, String> =
+            serde_json::from_str(bundel).map_err(|e| fout(format!("the bundle: {e}")))?;
+        let bronnen: Vec<crate::bundel::Bron> = match bronnen.as_deref() {
+            Some(json) => {
+                serde_json::from_str(json).map_err(|e| fout(format!("the sources: {e}")))?
+            }
+            None => Vec::new(),
+        };
+        let (casussen, standen) = crate::bundel::met_bronnen(files, bronnen).map_err(fout)?;
+        Ok(Poc {
+            spel: Spel::met_bronnen(casussen, standen),
+        })
+    }
+
+    pub fn casussen(&self) -> Result<String, JsError> {
+        antwoord(self.spel.casussen())
+    }
+
+    pub fn casus(&mut self) -> Result<String, JsError> {
+        antwoord(self.spel.casus())
+    }
+
+    pub fn kies(&mut self, casus: &str) -> Result<String, JsError> {
+        antwoord(self.spel.kiezen(casus))
+    }
+
+    pub fn vormen(&mut self, datum: &str) -> Result<String, JsError> {
+        antwoord(self.spel.vormen(dag(datum)?))
+    }
+
+    pub fn kroniek(&mut self) -> Result<String, JsError> {
+        antwoord(self.spel.kroniek())
+    }
+
+    /// A submission under `artikel`; `op`: the decision it refers to, or
+    /// none.
+    pub fn indienen(
+        &mut self,
+        artikel: &str,
+        velden: &str,
+        datum: &str,
+        op: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.indienen(
+            artikel,
+            op.as_deref(),
+            &kaart("velden", velden)?,
+            dag(datum)?,
+        ))
+    }
+
+    /// The cell `cel` of the case, another or its own, records `feit`.
+    /// `verwijst_naar`: the record of `cel` the fact is about, by its id or
+    /// by its kenmerk in the begin of `cel`, or none.
+    pub fn vastleggen(
+        &mut self,
+        cel: &str,
+        feit: &str,
+        velden: &str,
+        datum: &str,
+        verwijst_naar: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.vastleggen_verwijzend(
+            cel,
+            feit,
+            &kaart("velden", velden)?,
+            verwijst_naar.as_deref(),
+            dag(datum)?,
+        ))
+    }
+
+    /// Decide on the submission `op`; `na`: a later record after which it
+    /// is decided once more, or none.
+    pub fn beslissen(
+        &mut self,
+        op: &str,
+        bevindingen: &str,
+        datum: &str,
+        na: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.beslissen(
+            op,
+            na.as_deref(),
+            &kaart("bevindingen", bevindingen)?,
+            dag(datum)?,
+        ))
+    }
+
+    /// What the sources give for fields of the application before it is
+    /// submitted: `bronnen` is the JSON object `{ "<field>":
+    /// "<regelwerk>#<article>#<output>" }`, `velden` what the form holds so
+    /// far.
+    pub fn voorinvullen(
+        &mut self,
+        bronnen: &str,
+        velden: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.voorinvullen(
+            &kaart("bronnen", bronnen)?,
+            &kaart("velden", velden)?,
+            dag(datum)?,
+        ))
+    }
+
+    #[wasm_bindgen(js_name = voorBeslissen)]
+    pub fn voor_beslissen(
+        &mut self,
+        op: &str,
+        oordeel: &str,
+        datum: &str,
+        na: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.voor_beslissen(
+            op,
+            na.as_deref(),
+            &kaart("oordeel", oordeel)?,
+            dag(datum)?,
+        ))
+    }
+
+    pub fn voorvertoning(
+        &mut self,
+        op: &str,
+        bevindingen: &str,
+        datum: &str,
+        na: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.voorvertoning(
+            op,
+            na.as_deref(),
+            &kaart("bevindingen", bevindingen)?,
+            dag(datum)?,
+        ))
+    }
+
+    /// A decision under `artikel` taken ex officio; `over`: the record it
+    /// is about, or none.
+    pub fn ambtshalve(
+        &mut self,
+        artikel: &str,
+        gegeven: &str,
+        datum: &str,
+        over: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(self.spel.ambtshalve(
+            artikel,
+            over.as_deref(),
+            &kaart("gegeven", gegeven)?,
+            dag(datum)?,
+        ))
+    }
+
+    pub fn toezenden(&mut self, besluit: &str, datum: &str) -> Result<String, JsError> {
+        antwoord(self.spel.toezenden(besluit, dag(datum)?))
+    }
+
+    /// What the cell `cel` (or the case's own) answers on `datum` for the
+    /// output `bron`, with the parameters `invoer`; nothing is recorded.
+    pub fn antwoord(
+        &mut self,
+        cel: Option<String>,
+        bron: &str,
+        invoer: &str,
+        datum: &str,
+    ) -> Result<String, JsError> {
+        antwoord(
+            self.spel
+                .antwoord(cel.as_deref(), bron, &kaart("invoer", invoer)?, dag(datum)?),
+        )
+    }
+
+    /// Log in through the case's login step as `gebruikersnaam`; `dienst`:
+    /// another service than the case's, or none. Nothing about the session
+    /// stays here.
+    pub fn inloggen(
+        &mut self,
+        gebruikersnaam: &str,
+        wachtwoord: &str,
+        datum: &str,
+        dienst: Option<String>,
+    ) -> Result<String, JsError> {
+        antwoord(
+            self.spel
+                .inloggen(gebruikersnaam, wachtwoord, dienst.as_deref(), dag(datum)?),
+        )
+    }
+
+    pub fn waarom(&mut self, id: &str) -> Result<String, JsError> {
+        antwoord(self.spel.waarom(id))
+    }
+
+    #[wasm_bindgen(js_name = watVolgt)]
+    pub fn wat_volgt(&mut self, id: &str) -> Result<String, JsError> {
+        antwoord(self.spel.wat_volgt(id))
+    }
+
+    #[wasm_bindgen(js_name = hoeBeantwoord)]
+    pub fn hoe_beantwoord(&mut self, id: &str, naam: &str) -> Result<String, JsError> {
+        antwoord(self.spel.hoe_beantwoord(id, naam))
+    }
+
+    pub fn reducties(&mut self, datum: &str) -> Result<String, JsError> {
+        antwoord(self.spel.reducties(dag(datum)?))
+    }
+
+    pub fn logboek(&mut self) -> Result<String, JsError> {
+        antwoord(self.spel.logboek())
+    }
+
+    pub fn reset(&mut self) -> Result<String, JsError> {
+        antwoord(self.spel.reset())
+    }
+
+    pub fn bewaren(&mut self) -> Result<String, JsError> {
+        antwoord(self.spel.bewaren())
+    }
+
+    pub fn herstellen(&mut self, bewaard: &str) -> Result<String, JsError> {
+        let bewaard: Value =
+            serde_json::from_str(bewaard).map_err(|e| fout(format!("the saved game: {e}")))?;
+        antwoord(self.spel.herstellen(bewaard))
+    }
+}

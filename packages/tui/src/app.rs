@@ -133,11 +133,7 @@ impl App {
         let corpus_branch = find_corpus_dir(&project_root).and_then(|d| {
             let b = git_branch(&d);
             // Only show separately if it differs from repo branch
-            if b != repo_branch {
-                Some(b)
-            } else {
-                None
-            }
+            if b != repo_branch { Some(b) } else { None }
         });
         let process_runner = ProcessRunner::new(project_root.clone());
         let engine_handle = EngineHandle::spawn(&project_root);

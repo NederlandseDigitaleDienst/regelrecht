@@ -1,32 +1,59 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, useId } from 'vue';
 import ScenarioParameterInput from './ScenarioParameterInput.vue';
 import AbsenceToggle from './AbsenceToggle.vue';
-import { NOT_NULLABLE_MESSAGE, nullAllowed, isNullText } from '../utils/nullability.js';
+import { NOT_NULLABLE_MESSAGE, nullAllowed, isNullText } from '../utils/nullability';
 
 let nextRowId = 0;
 
-const props = defineProps({
-  title: { type: String, required: true },
+/** A declared column, as the caller passes it in `fields`. */
+interface TableField {
+  name: string;
+  type?: string;
+  unit?: string | null;
+  nullable?: boolean;
+}
+
+/** A column as the table renders it: a declared field, or the key column. */
+interface TableColumn extends TableField {
+  isKey: boolean;
+}
+
+/** One row: a client-side `_id` plus one cell per column name. */
+interface TableRow {
+  _id?: string | number;
+  [cell: string]: unknown;
+}
+
+const props = withDefaults(defineProps<{
+  title: string;
   // The key column of a data source. `null` for a table that has no key,
   // such as the elements of a collection-valued parameter (RFC-016).
-  keyField: { type: String, default: 'bsn' },
-  fields: { type: Array, required: true },
-  modelValue: { type: Array, default: () => [] },
-  defaultExpanded: { type: Boolean, default: false },
-  readonly: { type: Boolean, default: false },
+  keyField?: string | null;
+  fields: TableField[];
+  modelValue?: TableRow[];
+  defaultExpanded?: boolean;
+  readonly?: boolean;
   // When the table is shown one level deep in a drill-in sheet there's no
   // accordion: the title is a plain heading and the body is always visible.
-  drilledIn: { type: Boolean, default: false },
+  drilledIn?: boolean;
+}>(), {
+  keyField: 'bsn',
+  modelValue: () => [],
+  defaultExpanded: false,
+  readonly: false,
+  drilledIn: false,
 });
 
-const emit = defineEmits(['update:modelValue']);
+const emit = defineEmits<{
+  'update:modelValue': [rows: TableRow[]];
+}>();
 
 const expanded = ref(props.defaultExpanded);
 
 const rows = computed({
   get: () => props.modelValue,
-  set: (val) => emit('update:modelValue', val),
+  set: (val: TableRow[]) => emit('update:modelValue', val),
 });
 
 function toggleExpand() {
@@ -34,10 +61,11 @@ function toggleExpand() {
 }
 
 function addRow() {
-  const newRow = { _id: ++nextRowId };
+  const newRow: TableRow = { _id: ++nextRowId };
   if (props.keyField) {
     newRow[props.keyField] = rows.value.length > 0
-      ? rows.value[0][props.keyField] || ''
+      // length > 0 was just checked, so row 0 exists.
+      ? rows.value[0]![props.keyField] || ''
       : '';
   }
   for (const field of props.fields) {
@@ -48,7 +76,7 @@ function addRow() {
   rows.value = [...rows.value, newRow];
 }
 
-function removeRow(index) {
+function removeRow(index: number) {
   const rk = rowKey(rows.value[index], index);
   const updated = [...rows.value];
   updated.splice(index, 1);
@@ -58,7 +86,7 @@ function removeRow(index) {
   }
 }
 
-function updateCell(rowIndex, fieldName, value) {
+function updateCell(rowIndex: number, fieldName: string, value: unknown) {
   const updated = rows.value.map((row, i) => {
     if (i !== rowIndex) return row;
     return { ...row, [fieldName]: value };
@@ -66,7 +94,11 @@ function updateCell(rowIndex, fieldName, value) {
   rows.value = updated;
 }
 
-function defaultForType(type) {
+function onBooleanChange(rowIndex: number, fieldName: string, event: Event) {
+  updateCell(rowIndex, fieldName, (event.target as HTMLSelectElement).value);
+}
+
+function defaultForType(type: string | undefined): string {
   switch (type) {
     case 'number':
     case 'amount':
@@ -101,11 +133,11 @@ function defaultForType(type) {
 // where typing `null` already works, and offering a control the law does
 // not vouch for would read as a claim the form cannot make.
 const isNullCell = isNullText;
-function cellDisplay(v) {
+function cellDisplay(v: unknown): unknown {
   if (isNullCell(v)) return 'null';
   return v === undefined ? '' : v;
 }
-function offersAbsenceToggle(col) {
+function offersAbsenceToggle(col: TableColumn): boolean {
   return col.nullable === true;
 }
 
@@ -114,22 +146,22 @@ function offersAbsenceToggle(col) {
 // for a statement the law does not allow) and marks the cell invalid until
 // the author types something else; the field itself keeps showing what was
 // typed, so the message points at the text it is about.
-const rejectedNull = ref(new Set());
+const rejectedNull = ref(new Set<string>());
 const errorIdPrefix = useId();
 
-function rowKey(row, rowIndex) {
+function rowKey(row: TableRow | undefined, rowIndex: number): string | number {
   return row?._id ?? rowIndex;
 }
-function cellKey(row, rowIndex, col) {
+function cellKey(row: TableRow | undefined, rowIndex: number, col: TableColumn): string {
   return `${rowKey(row, rowIndex)}:${col.name}`;
 }
-function cellErrorId(row, rowIndex, col) {
+function cellErrorId(row: TableRow, rowIndex: number, col: TableColumn): string {
   return `${errorIdPrefix}-${cellKey(row, rowIndex, col)}`;
 }
-function cellControlId(row, rowIndex, col) {
+function cellControlId(row: TableRow, rowIndex: number, col: TableColumn): string {
   return `${cellErrorId(row, rowIndex, col)}-control`;
 }
-function cellStore(rowIndex, col, v) {
+function cellStore(rowIndex: number, col: TableColumn, v: unknown) {
   const key = cellKey(rows.value[rowIndex], rowIndex, col);
   if (isNullCell(v) && !nullAllowed(col)) {
     rejectedNull.value.add(key);
@@ -143,25 +175,25 @@ function cellStore(rowIndex, col, v) {
 // holds a `null` (read from the feature file, or the column was re-typed as
 // non-nullable after the law's declaration arrived) that the law does not
 // allow. The stored value stays: it came from the file, a human decides.
-function cellInvalid(row, rowIndex, col) {
+function cellInvalid(row: TableRow, rowIndex: number, col: TableColumn): boolean {
   return rejectedNull.value.has(cellKey(row, rowIndex, col))
     || (isNullCell(row[col.name]) && !nullAllowed(col));
 }
 // The boolean dropdown: `null` is the stated absence, the empty option a
 // blank cell. The `null` option is offered only where the law allows it, and
 // kept while the cell holds one so the invalid state has something to show.
-function booleanCellValue(v) {
+function booleanCellValue(v: unknown): string {
   if (isNullCell(v)) return 'null';
   return v === undefined ? '' : String(v);
 }
-function offersNullOption(row, col) {
+function offersNullOption(row: TableRow, col: TableColumn): boolean {
   return nullAllowed(col) || isNullCell(row[col.name]);
 }
 
 // All columns: key field + declared fields (deduplicated)
 const allColumns = computed(() => {
-  const cols = [];
-  const seen = new Set();
+  const cols: TableColumn[] = [];
+  const seen = new Set<string>();
 
   if (props.keyField) {
     seen.add(props.keyField);
@@ -189,13 +221,12 @@ const showBody = computed(() => props.drilledIn || expanded.value);
     <!-- Header: accordion toggle, or a plain heading when drilled in -->
     <button v-if="!drilledIn" class="ds-block-toggle" :aria-expanded="expanded" @click="toggleExpand" type="button">
       <span class="ds-block-chevron" :class="{ 'ds-block-chevron--open': expanded }">&#9656;</span>
-      <nldd-title size="5" style="flex: 1; text-align: left;">
-        <span>{{ title }}</span>
-      </nldd-title>
+      <!-- Text, not a heading: a heading cannot sit inside a button. -->
+      <nldd-text size="display-5" style="flex: 1; text-align: left;">{{ title }}</nldd-text>
       <span class="ds-block-badge" v-if="rowCount > 0">{{ rowCount }}</span>
     </button>
     <template v-else>
-      <nldd-title size="3">
+      <nldd-title size="display-3">
         <h2>{{ title }}</h2>
       </nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
@@ -230,7 +261,7 @@ const showBody = computed(() => props.drilledIn || expanded.value);
                   :value="booleanCellValue(row[col.name])"
                   :aria-invalid="cellInvalid(row, ri, col) || undefined"
                   :aria-describedby="cellInvalid(row, ri, col) ? cellErrorId(row, ri, col) : undefined"
-                  @change="updateCell(ri, col.name, $event.target.value)"
+                  @change="onBooleanChange(ri, col.name, $event)"
                 >
                   <option value="true">true</option>
                   <option value="false">false</option>

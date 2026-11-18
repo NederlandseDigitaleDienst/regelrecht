@@ -1,13 +1,15 @@
-<script setup>
-defineProps({
-  currentPage: { type: Number, required: true },
-  totalPages: { type: Number, required: true },
-});
+<script setup lang="ts">
+defineProps<{
+  currentPage: number;
+  totalPages: number;
+}>();
 
-const emit = defineEmits(['page-change']);
+const emit = defineEmits<{
+  'page-change': [page: number];
+}>();
 
-function onPageChange(event) {
-  emit('page-change', event.detail.page);
+function onPageChange(event: Event) {
+  emit('page-change', (event as CustomEvent<{ page: number; href?: string }>).detail.page);
 }
 </script>
 

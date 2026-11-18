@@ -1,0 +1,506 @@
+[
+ {
+  "name": "Aanvraag wordt verleend",
+  "summary": "Een ouder vraagt verlof in februari, en het hoofd verleent het.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "Een ouder vraagt verlof voor de eerste week van februari 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "Het hoofd vindt het beroep van de ouder bijzonder genoeg.",
+    "todo": "Laat \"specifieke aard beroep ouder\" aan staan en klik op Besluit nemen.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Afwijzing, bezwaar en heroverweging: gegrond",
+  "summary": "Het hoofd weigert het verlof, maar na het bezwaar van de ouder krijgt de jongere bij heroverweging alsnog verlof.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "Een ouder vraagt verlof voor de eerste week van februari 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "Het hoofd vindt het beroep van de ouder niet bijzonder genoeg.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [
+     "specifieke aard beroep ouder: Nee"
+    ],
+    "seen": "Bij Aanvrager staat de aanvraag op Afgewezen.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-01",
+    "story": "De ouder maakt bezwaar, met een verklaring van de werkgever.",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-15",
+    "story": "Het hoofd beoordeelt het beroep bij de heroverweging anders.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [
+     "specifieke aard beroep ouder: Ja"
+    ],
+    "seen": "De beslissing staat onder Beslissingen op bezwaar.",
+    "expect": "hier hoort het bezwaar gegrond te zijn"
+   }
+  ]
+ },
+ {
+  "name": "Afwijzing, bezwaar en heroverweging: ongegrond",
+  "summary": "Een tweede verlof in hetzelfde schooljaar wordt geweigerd, en het bezwaar daartegen houdt geen stand.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "Een ouder vraagt verlof voor februari 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "Het hoofd beslist op de aanvraag.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Toegewezen: het verlof is verleend.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Nog een aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "De ouder vraagt in hetzelfde schooljaar nog verlof, in mei 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "eerste verlofdag: 10 mei 2027",
+     "laatste verlofdag: 14 mei 2027"
+    ],
+    "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de tweede aanvraag",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "Het hoofd beslist op de tweede aanvraag.",
+    "todo": "Klik bij de tweede aanvraag op Besluit nemen.",
+    "values": [],
+    "seen": "Afgewezen: de jongere kreeg dit schooljaar al verlof.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-01",
+    "story": "De ouder maakt bezwaar tegen de weigering.",
+    "todo": "Klik bij het besluit over de tweede aanvraag op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-15",
+    "story": "Het hoofd heroverweegt de weigering.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de bevinding staan en klik op Beslissen op bezwaar.",
+    "values": [],
+    "seen": "De beslissing staat onder Beslissingen op bezwaar.",
+    "expect": "hier hoort het bezwaar ongegrond te zijn"
+   }
+  ]
+ },
+ {
+  "name": "Bezwaar te laat: niet-ontvankelijk",
+  "summary": "De ouder maakt pas na de bezwaartermijn bezwaar, en dat wordt niet heroverwogen.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "Een ouder vraagt verlof voor februari 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "Het hoofd vindt het beroep van de ouder niet bijzonder genoeg.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [
+     "specifieke aard beroep ouder: Nee"
+    ],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-12-01",
+    "story": "De ouder maakt bezwaar, maar pas na de termijn van zes weken.",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "Het hoofd beslist op het bezwaar.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [],
+    "seen": "De beslissing staat onder Beslissingen op bezwaar.",
+    "expect": "hier hoort het bezwaar niet-ontvankelijk te zijn"
+   }
+  ]
+ },
+ {
+  "name": "Tweede bezwaar tegen een vervangen besluit",
+  "summary": "De ouder maakt twee keer bezwaar tegen hetzelfde besluit, en de cel vervangt een besluit maar één keer.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "Een ouder vraagt verlof voor februari 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "Het hoofd beslist op de aanvraag.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-01",
+    "story": "De ouder maakt bezwaar tegen het besluit.",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
+    "expect": null
+   },
+   {
+    "title": "Nog een bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-02",
+    "story": "Een dag later maakt de ouder nog een keer bezwaar tegen hetzelfde besluit.",
+    "todo": "Klik nog een keer bij hetzelfde besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Er staan twee bezwaren tegen hetzelfde besluit open, onder Bestuursorgaan.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op het eerste bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-15",
+    "story": "Het hoofd beslist op het eerste bezwaar.",
+    "todo": "Klik bij het eerste bezwaar op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [
+     "specifieke aard beroep ouder: Nee"
+    ],
+    "seen": "Gegrond: een weigering komt in de plaats van het besluit, en het tweede bezwaar staat nog open.",
+    "expect": "hier hoort het bezwaar gegrond te zijn"
+   },
+   {
+    "title": "Beslissen op het tweede bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-16",
+    "story": "Het hoofd beslist ook op het tweede bezwaar.",
+    "todo": "Klik bij het tweede bezwaar op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [
+     "specifieke aard beroep ouder: Nee"
+    ],
+    "seen": "De beslissing staat onder Beslissingen op bezwaar.",
+    "expect": "hier hoort de cel de stap te weigeren"
+   }
+  ]
+ },
+ {
+  "name": "Een herroepen verlof telt niet meer mee",
+  "summary": "Wordt het eerste verlof herroepen, dan telt het niet meer bij het tweede.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "Een ouder vraagt verlof A, voor februari 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "Het hoofd beslist op verlof A.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
+    "expect": "hier hoort het besluit de aanvraag toe te wijzen"
+   },
+   {
+    "title": "Nog een aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "De ouder vraagt verlof B, voor mei 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "eerste verlofdag: 10 mei 2027",
+     "laatste verlofdag: 14 mei 2027"
+    ],
+    "seen": "De tweede aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluiten op de tweede aanvraag",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "Het hoofd beslist op verlof B.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [],
+    "seen": "Afgewezen: de jongere kreeg dit schooljaar al verlof met de eerste aanvraag.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-01",
+    "story": "De ouder maakt bezwaar tegen het besluit over A.",
+    "todo": "Klik bij het besluit over de eerste aanvraag (A) op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-15",
+    "story": "Het hoofd heroverweegt het besluit over A.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen en dan op Beslissen op bezwaar.",
+    "values": [
+     "specifieke aard beroep ouder: Nee"
+    ],
+    "seen": "Gegrond: A is herroepen, en een weigering komt in de plaats.",
+    "expect": "hier hoort het bezwaar gegrond te zijn"
+   },
+   {
+    "title": "Bezwaar maken tegen B",
+    "tab": "aanvrager",
+    "date": "2026-11-20",
+    "story": "De ouder maakt bezwaar tegen de weigering van B.",
+    "todo": "Klik bij het besluit over de tweede aanvraag (B) op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op het bezwaar tegen B",
+    "tab": "bestuursorgaan",
+    "date": "2026-12-01",
+    "story": "Het hoofd heroverweegt de weigering van B.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de bevinding staan en klik op Beslissen op bezwaar.",
+    "values": [],
+    "seen": "De beslissing staat onder Beslissingen op bezwaar.",
+    "expect": "hier hoort het bezwaar gegrond te zijn"
+   }
+  ]
+ },
+ {
+  "name": "Verlof in de kerstvakantie: geweigerd zonder oordeel van het hoofd",
+  "summary": "Verlof in de kerstvakantie wordt geweigerd, omdat het vakantierooster van de school laat zien dat die dagen in een schoolvakantie vallen.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "Een ouder vraagt verlof voor drie dagen in de kerstvakantie.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "eerste verlofdag: 21 december 2026",
+     "laatste verlofdag: 23 december 2026"
+    ],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "Het hoofd beslist op de aanvraag.",
+    "todo": "Laat \"specifieke aard beroep ouder\" aan staan en klik op Besluit nemen.",
+    "values": [],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Verlof in een schooljaar dat de school nog niet kent: het hoofd oordeelt",
+  "summary": "Staat het schooljaar nog niet in het vakantierooster, dan vraagt het formulier het hoofd of het verlof buiten de schoolvakanties valt.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "Een ouder vraagt verlof in december 2027, een schooljaar dat de school nog niet kent.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [
+     "eerste verlofdag: 20 december 2027",
+     "laatste verlofdag: 22 december 2027"
+    ],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "Het hoofd oordeelt dat het verlof in de schoolvakantie valt.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [
+     "verlof valt buiten schoolvakanties volgens hoofd: Nee"
+    ],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   }
+  ]
+ },
+ {
+  "name": "Bezwaar ongegrond, beroep gegrond, nieuw besluit op bezwaar",
+  "summary": "Na een ongegrond bezwaar gaat de ouder in beroep; de rechter vernietigt en het hoofd beslist opnieuw.",
+  "steps": [
+   {
+    "title": "Aanvraag indienen",
+    "tab": "aanvrager",
+    "date": null,
+    "story": "Een ouder vraagt verlof voor februari 2027.",
+    "todo": "Klik op Aanvraag indienen.",
+    "values": [],
+    "seen": "De aanvraag staat onder Mijn aanvragen op In behandeling.",
+    "expect": null
+   },
+   {
+    "title": "Besluit nemen",
+    "tab": "bestuursorgaan",
+    "date": null,
+    "story": "Het hoofd vindt het beroep van de ouder niet bijzonder genoeg.",
+    "todo": "Klik onder Open aanvragen op Besluit nemen.",
+    "values": [
+     "specifieke aard beroep ouder: Nee"
+    ],
+    "seen": "Het besluit staat bij Aanvrager onder Mijn aanvragen.",
+    "expect": "hier hoort het besluit de aanvraag af te wijzen"
+   },
+   {
+    "title": "Bezwaar maken",
+    "tab": "aanvrager",
+    "date": "2026-11-01",
+    "story": "De ouder maakt bezwaar tegen de weigering.",
+    "todo": "Klik bij het besluit op Bezwaar maken en dan op Bezwaar indienen.",
+    "values": [],
+    "seen": "Het bezwaar staat bij Bestuursorgaan onder Open bezwaren.",
+    "expect": null
+   },
+   {
+    "title": "Beslissen op bezwaar",
+    "tab": "bestuursorgaan",
+    "date": "2026-11-15",
+    "story": "Het hoofd heroverweegt de weigering.",
+    "todo": "Klik onder Open bezwaren op Ontvankelijkheid toetsen, laat de bevinding staan en klik op Beslissen op bezwaar.",
+    "values": [],
+    "seen": "Ongegrond: de weigering blijft, en bij Aanvrager kun je nu in beroep gaan.",
+    "expect": "hier hoort het bezwaar ongegrond te zijn"
+   },
+   {
+    "title": "Beroep instellen",
+    "tab": "aanvrager",
+    "date": "2026-12-01",
+    "story": "De ouder gaat in beroep bij de rechtbank.",
+    "todo": "Klik bij de beslissing op bezwaar op Beroep instellen en dan op Beroepschrift indienen.",
+    "values": [],
+    "seen": "Het beroep staat bij Andere cellen onder Ingekomen beroepen.",
+    "expect": null
+   },
+   {
+    "title": "Uitspraak doen",
+    "tab": "andere",
+    "date": "2027-01-11",
+    "story": "De rechter vindt de motivering niet deugdelijk en vernietigt de beslissing.",
+    "todo": "Klik onder Ingekomen beroepen op Uitspraak doen.",
+    "values": [],
+    "seen": "De uitspraak staat onder Uitspraken.",
+    "expect": null
+   },
+   {
+    "title": "Toezenden",
+    "tab": "andere",
+    "date": null,
+    "story": "De rechtbank stuurt de uitspraak naar de school.",
+    "todo": "Klik bij de uitspraak op Toezenden aan OBS De Klimop.",
+    "values": [],
+    "seen": "De school legt de ontvangst vast (Awb 8:79), en onder Bestuursorgaan staat nu Na een uitspraak.",
+    "expect": null
+   },
+   {
+    "title": "Opnieuw beslissen",
+    "tab": "bestuursorgaan",
+    "date": "2027-01-18",
+    "story": "Het hoofd beslist opnieuw en vindt het beroep nu wel bijzonder.",
+    "todo": "Klik onder Na een uitspraak op Heroverwegen en dan op Opnieuw beslissen op bezwaar.",
+    "values": [
+     "specifieke aard beroep ouder: Ja"
+    ],
+    "seen": "De nieuwe beslissing op bezwaar staat onder Na een uitspraak.",
+    "expect": "hier hoort het bezwaar gegrond te zijn"
+   }
+  ]
+ }
+]

@@ -191,6 +191,6 @@ bewaakt, en ze falen met de sleutelnaam erbij:
   `Ofwiisd`). Die laatste fout maakten alle vier de vertalers, en geen andere
   controle ziet hem: zo'n string verschilt immers van het Nederlands.
 
-`MAX_IDENTICAL_SHARE` in `src/i18n/i18n.test.js` bewaakt hoeveel sleutels nog
+`MAX_IDENTICAL_SHARE` in `src/i18n/i18n.test.ts` bewaakt hoeveel sleutels nog
 letterlijk het Nederlands zijn. Dat getal hoort omlaag te gaan als er vertaald
 wordt, niet omhoog.

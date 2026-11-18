@@ -11,10 +11,12 @@
     "frontend-poc-portal",
     "frontend-poc-terugbetaalregimes",
     "frontend-poc-nieuwkomersbekostiging",
-    "frontend-poc-napp"
+    "frontend-poc-napp",
+    "packages/poc-chronolexografie/frontend"
   ],
   "overrides": {
     "brace-expansion": "^5.0.8",
-    "postcss": "^8.5.18"
+    "postcss": "^8.5.18",
+    "typescript": "~6.0.3"
   }
 }

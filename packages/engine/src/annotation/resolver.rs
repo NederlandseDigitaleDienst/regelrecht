@@ -656,16 +656,17 @@ mod tests {
         // "op een" must not be satisfied by the word-internal "...rop een"
         // (the bug an `ends_with` check would let through). Only the genuine
         // occurrence preceded by exactly "op een" should match.
-        let arts = vec![article(
-            "2",
-            "de stroop een zoetstof; recht op een zorgtoeslag",
-        )];
+        let text = "de stroop een zorgtoeslag; recht op een zorgtoeslag";
+        let arts = vec![article("2", text)];
         let sel = selector("zorgtoeslag", "op een ", "");
         let r = resolve(&sel, &arts);
-        assert!(r.is_found(), "expected the genuine 'op een ' occurrence");
+        assert!(
+            r.is_found(),
+            "expected only the genuine 'op een ' occurrence"
+        );
         let m = r.single().unwrap();
-        // It must be the second "zorgtoeslag"-context, not anchored via "stroop een".
-        assert_eq!(m.matched_text, "zorgtoeslag");
+        // The second "zorgtoeslag", not the one anchored via "stroop een".
+        assert_eq!(m.start, text.rfind("zorgtoeslag").unwrap());
     }
 
     #[test]
@@ -769,8 +770,7 @@ mod tests {
     fn both_prefix_and_suffix_have_to_match() {
         // The first occurrence has the right prefix but the wrong suffix. Only
         // the occurrence that matches both sides is the anchor.
-        let text =
-            "recht op een zorgtoeslag krachtens deze wet en recht op een zorgtoeslag van rechtswege";
+        let text = "recht op een zorgtoeslag krachtens deze wet en recht op een zorgtoeslag van rechtswege";
         let arts = vec![article("2", text)];
         let sel = selector("zorgtoeslag", "op een", "van rechtswege");
         let r = resolve(&sel, &arts);
@@ -872,8 +872,7 @@ mod tests {
 
     #[test]
     fn a_position_hint_with_the_wrong_suffix_is_rejected() {
-        let text =
-            "recht op een zorgtoeslag krachtens deze wet en recht op een zorgtoeslag van rechtswege";
+        let text = "recht op een zorgtoeslag krachtens deze wet en recht op een zorgtoeslag van rechtswege";
         let arts = vec![article("2", text)];
         let stale = text.find("zorgtoeslag").unwrap();
         let sel = hinted(

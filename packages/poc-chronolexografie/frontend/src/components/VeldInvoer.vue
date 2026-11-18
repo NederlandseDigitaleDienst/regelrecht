@@ -1,0 +1,65 @@
+<script setup>
+// Eén veld zoals de wet het vraagt: het type bepaalt het invoerelement, de
+// basis staat eronder. Een bedrag (`amount`) is een getal in de eenheid die
+// de wet ervoor rekent, zoals eurocent. Een leeg tekst- of datumveld is `undefined`: dan
+// laat de aanvraag het weg, en de cel noemt het in `missing` (Awb 4:5).
+// `herkomst` is the line under a prefilled field: which cell it comes from, or
+// that the applicant changed it (voorinvulling.js). A switch (yes or no) does
+// not show it: nldd-switch-field stands outside an nldd-form-field. A table
+// (an array with `kolommen`, schema v0.8.20) is a TabelInvoer.
+import { leesbaar } from '../state.js';
+import TabelInvoer from './TabelInvoer.vue';
+
+const props = defineProps({
+  veld: { type: Object, required: true },
+  modelValue: { type: [String, Number, Boolean, Array], default: undefined },
+  herkomst: { type: String, default: '' },
+});
+const emit = defineEmits(['update:modelValue']);
+
+const zet = (waarde) => emit('update:modelValue', waarde === '' ? undefined : waarde);
+const getal = (tekst) => {
+  const n = Number(String(tekst).replace(',', '.'));
+  return tekst === '' || Number.isNaN(n) ? undefined : n;
+};
+</script>
+
+<template>
+  <TabelInvoer
+    v-if="veld.type === 'array' && veld.kolommen"
+    :veld="veld"
+    :model-value="modelValue"
+    :herkomst="herkomst"
+    @update:model-value="emit('update:modelValue', $event)"
+  />
+  <nldd-switch-field
+    v-else-if="veld.type === 'boolean'"
+    :label="leesbaar(veld.naam)"
+    :checked="modelValue === true"
+    @change="zet($event.detail.checked)"
+  ></nldd-switch-field>
+  <nldd-form-field
+    v-else
+    :label="leesbaar(veld.naam)"
+    :supporting-label="veld.basis"
+    :optional="veld.mag_leeg"
+  >
+    <nldd-date-field
+      v-if="veld.type === 'date'"
+      :value="modelValue ?? ''"
+      @change="zet($event.detail.value)"
+    ></nldd-date-field>
+    <nldd-text-field
+      v-else-if="veld.type === 'number' || veld.type === 'amount'"
+      keyboard="decimal"
+      :value="modelValue ?? ''"
+      @input="zet(getal($event.target.value))"
+    ></nldd-text-field>
+    <nldd-text-field
+      v-else
+      :value="modelValue ?? ''"
+      @input="zet($event.target.value)"
+    ></nldd-text-field>
+    <nldd-form-field-help-text v-if="herkomst">{{ herkomst }}</nldd-form-field-help-text>
+  </nldd-form-field>
+</template>

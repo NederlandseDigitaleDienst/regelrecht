@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * InviteMembersSheet - het uitnodig-formulier in een eigen sheet, losgemaakt uit
  * TrajectMembersPane zodat het overal te openen is: zowel via de "Uitnodigen"-
@@ -11,13 +11,25 @@
  * useAddActions().triggerMembersChanged() zodat de pane herlaadt.
  */
 import { computed, nextTick, ref, watch } from 'vue';
-import { useTrajectMembers } from '../composables/useTrajectMembers.js';
-import { useAddActions } from '../composables/useAddActions.js';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import type { NLDDTokenField } from '@nldd/design-system/token-field';
+import { useTrajectMembers } from '../composables/useTrajectMembers';
+import type { FailedInvite } from '../composables/useTrajectMembers';
+import { useAddActions } from '../composables/useAddActions';
 
-const props = defineProps({
-  /** Traject to invite into (UUID id). */
-  trajectId: { type: String, default: null },
-});
+const props = withDefaults(
+  defineProps<{
+    /** Traject to invite into (UUID id). */
+    trajectId?: string | null;
+  }>(),
+  { trajectId: null },
+);
+
+/** The outcome of one invite batch, as inviteMany returns it. */
+interface InviteResult {
+  succeeded: string[];
+  failed: FailedInvite[];
+}
 
 const { inviteMany, trajectName, load } = useTrajectMembers();
 const { triggerMembersChanged } = useAddActions();
@@ -25,17 +37,18 @@ const { triggerMembersChanged } = useAddActions();
 // De helptekst noemt de trajectnaam; die komt uit dezelfde load als de ledenlijst.
 watch(() => props.trajectId, (id) => { if (id) load(id); }, { immediate: true });
 
-const inviteSheetEl = ref(null);
-const inviteInputRef = ref(null);
-const inviteEmails = ref([]); // committed tokens
+const inviteSheetEl = ref<NLDDSheet | null>(null);
+const inviteInputRef = ref<NLDDTokenField | null>(null);
+const inviteEmails = ref<string[]>([]); // committed tokens
 const invitePending = ref(''); // uncommitted input text
 const inviteRole = ref('contributor');
 const inviteBusy = ref(false);
-const inviteError = ref(null);
-const inviteResult = ref(null);
+const inviteError = ref<string | null>(null);
+const inviteResult = ref<InviteResult | null>(null);
 
-function onRoleChange(e) {
-  if (e.detail?.selected) inviteRole.value = e.detail.value;
+function onRoleChange(e: Event): void {
+  const detail = (e as CustomEvent<{ selected: boolean; value: string } | null>).detail;
+  if (detail?.selected) inviteRole.value = detail.value;
 }
 
 // Swap the form for the success view once every address in the batch went
@@ -50,7 +63,7 @@ const inviteSucceeded = computed(
 
 // Reset the form to its empty state and re-seed the (async-mounted) token field.
 // Shared by opening the sheet and by "Meer uitnodigen".
-async function resetInviteForm() {
+async function resetInviteForm(): Promise<void> {
   inviteEmails.value = [];
   invitePending.value = '';
   inviteRole.value = 'contributor';
@@ -60,19 +73,19 @@ async function resetInviteForm() {
   if (inviteInputRef.value) inviteInputRef.value.values = [];
 }
 
-async function show() {
+async function show(): Promise<void> {
   if (props.trajectId) load(props.trajectId);
   await resetInviteForm();
   inviteSheetEl.value?.show?.();
   await nextTick();
   inviteInputRef.value?.focus?.();
 }
-function closeInvite() {
+function closeInvite(): void {
   inviteSheetEl.value?.hide?.();
 }
 
 // "Meer uitnodigen" on the success view: swap it back for a fresh form.
-async function inviteAgain() {
+async function inviteAgain(): Promise<void> {
   await resetInviteForm();
   await nextTick();
   inviteInputRef.value?.focus?.();
@@ -81,16 +94,19 @@ async function inviteAgain() {
 // Token-field handlers. Besides tracking the committed tokens / pending text, they
 // clear the "voer een adres in" error as soon as the user acts, so the error and
 // invalid outline disappear the moment they start correcting it.
-function onEmailsChange(e) {
-  inviteEmails.value = e.detail?.values ?? inviteEmails.value;
+function onEmailsChange(e: Event): void {
+  inviteEmails.value = (e as CustomEvent<{ values?: string[] } | null>).detail?.values ?? inviteEmails.value;
   if (inviteError.value) inviteError.value = null;
 }
-function onEmailsInput(e) {
-  invitePending.value = e.detail?.value ?? invitePending.value;
+function onEmailsInput(e: Event): void {
+  invitePending.value = (e as CustomEvent<{ value?: string } | null>).detail?.value ?? invitePending.value;
   if (inviteError.value) inviteError.value = null;
 }
 
-async function submitInvite() {
+async function submitInvite(): Promise<void> {
+  // The traject can disappear while the sheet is open; then there is nothing to invite into.
+  const trajectId = props.trajectId;
+  if (!trajectId) return;
   inviteError.value = null;
   inviteResult.value = null;
   // Include the current (uncommitted) input text alongside the committed tokens,
@@ -107,7 +123,7 @@ async function submitInvite() {
   }
   inviteBusy.value = true;
   try {
-    const { succeeded, failed } = await inviteMany(props.trajectId, emails, inviteRole.value);
+    const { succeeded, failed } = await inviteMany(trajectId, emails, inviteRole.value);
     inviteResult.value = { succeeded, failed };
     // Elke geslaagde invite maakt een openstaande uitnodiging aan; sein de
     // ledenlijst (andere instance, in de pane) dat er iets veranderd is.
@@ -117,7 +133,7 @@ async function submitInvite() {
     invitePending.value = '';
     if (inviteInputRef.value) inviteInputRef.value.values = inviteEmails.value;
   } catch (e) {
-    inviteError.value = e.message || 'Uitnodigen mislukt';
+    inviteError.value = (e as Error).message || 'Uitnodigen mislukt';
   } finally {
     inviteBusy.value = false;
   }
@@ -128,15 +144,16 @@ defineExpose({ show });
 
 <template>
   <Teleport to="body">
-    <nldd-sheet ref="inviteSheetEl" placement="right" width="480px" full-height @close="closeInvite">
+    <nldd-sheet ref="inviteSheetEl" placement="right" width="480px" @close="closeInvite">
       <nldd-page sticky-header sticky-footer>
         <nldd-top-title-bar slot="header" text="Uitnodigen" dismiss-text="Annuleer" @dismiss="closeInvite"></nldd-top-title-bar>
         <nldd-simple-section width="full">
-          <!-- Success view: a new view in the sheet, shown once the whole batch was sent. -->
+          <!-- Success view: a new view in the sheet, shown once the whole batch was sent.
+               (inviteSucceeded implies inviteResult is set, hence the `!`.) -->
           <nldd-inline-dialog
             v-if="inviteSucceeded"
             variant="success"
-            :text="`${inviteResult.succeeded.length} uitnodiging${inviteResult.succeeded.length === 1 ? '' : 'en'} verstuurd`"
+            :text="`${inviteResult!.succeeded.length} uitnodiging${inviteResult!.succeeded.length === 1 ? '' : 'en'} verstuurd`"
             supporting-text="Toegang wordt actief bij de eerste login."
           >
             <nldd-button slot="actions" appearance="primary" size="md" width="full" text="Sluit" @click="closeInvite"></nldd-button>
@@ -179,15 +196,18 @@ defineExpose({ show });
               </nldd-form-field>
 
               <!-- Partial batch (a full success shows the success view above instead). -->
-              <div v-if="inviteResult" class="members-info">
-                <div v-if="inviteResult.succeeded.length">
+              <template v-if="inviteResult">
+                <nldd-spacer size="12"></nldd-spacer>
+                <nldd-text v-if="inviteResult.succeeded.length" size="sm" color="secondary">
                   {{ inviteResult.succeeded.length }} uitnodiging{{ inviteResult.succeeded.length === 1 ? '' : 'en' }} verstuurd. Toegang wordt actief bij de eerste login.
-                </div>
-                <div v-if="inviteResult.failed.length" class="members-invite-failed">
+                </nldd-text>
+                <nldd-spacer v-if="inviteResult.succeeded.length && inviteResult.failed.length" size="4"></nldd-spacer>
+                <nldd-text v-if="inviteResult.failed.length" size="sm" color="critical">
                   Mislukt:
                   <span v-for="(f, i) in inviteResult.failed" :key="f.email">{{ f.email }} ({{ f.message }}){{ i < inviteResult.failed.length - 1 ? ', ' : '' }}</span>
-                </div>
-              </div>
+                </nldd-text>
+                <nldd-spacer size="4"></nldd-spacer>
+              </template>
 
               <nldd-form-actions>
                 <nldd-button
@@ -206,15 +226,3 @@ defineExpose({ show });
     </nldd-sheet>
   </Teleport>
 </template>
-
-<style scoped>
-.members-info {
-  font-size: 13px;
-  color: var(--semantics-content-secondary-color, #555);
-  margin: 12px 0 4px;
-}
-.members-invite-failed {
-  color: var(--nldd-color-text-error, #c62828);
-  margin-top: 4px;
-}
-</style>

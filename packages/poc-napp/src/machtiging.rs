@@ -8,8 +8,8 @@
 //! the party register and the server-side scope enforcement, so that the
 //! changes in handlers.rs stay minimal.
 
-use axum::extract::{Query, State};
 use axum::Json;
+use axum::extract::{Query, State};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use sqlx::SqlitePool;
@@ -308,12 +308,16 @@ mod tests {
     #[tokio::test]
     async fn valideer_volledig_is_always_ok() {
         let pool = test_pool().await;
-        assert!(valideer(&pool, CENTRAAL, &Machtiging::Volledig)
-            .await
-            .is_ok());
-        assert!(valideer(&pool, ONBEKEND, &Machtiging::Volledig)
-            .await
-            .is_ok());
+        assert!(
+            valideer(&pool, CENTRAAL, &Machtiging::Volledig)
+                .await
+                .is_ok()
+        );
+        assert!(
+            valideer(&pool, ONBEKEND, &Machtiging::Volledig)
+                .await
+                .is_ok()
+        );
     }
 
     #[tokio::test]
@@ -323,9 +327,11 @@ mod tests {
         // Unknown legal entity: no branch machtigingen.
         assert!(valideer(&pool, ONBEKEND, &beperkt("GM0344")).await.is_err());
         // Decentrally organized: branches are their own legal entity.
-        assert!(valideer(&pool, DECENTRAAL_AFDELING, &beperkt("GM0344"))
-            .await
-            .is_err());
+        assert!(
+            valideer(&pool, DECENTRAAL_AFDELING, &beperkt("GM0344"))
+                .await
+                .is_err()
+        );
         // Centrally organized but no result in that area.
         assert!(valideer(&pool, CENTRAAL, &beperkt("XX9999")).await.is_err());
     }

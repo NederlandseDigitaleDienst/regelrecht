@@ -177,7 +177,7 @@ the same function, a quoted capture) that starts with `[` or `{` and parses as J
 becomes an Array/Object value. Needed for array- and object-typed register inputs
 (`kinderen_leeftijden`, `adres`). A cell that does not parse stays a string. Unit
 test `test_convert_json_array_and_object` in the same file (runs in the
-`bdd_table` test target). Mirrored in `packages/frontend-shared/src/gherkin/actions.js`
+`bdd_table` test target). Mirrored in `packages/frontend-shared/src/gherkin/actions.ts`
 (`parseValue`).
 
 ## Law and binding changes
@@ -369,7 +369,7 @@ backslash instead; no POC value has needed one.
 ### The demo application
 
 The portal derives the next question from the outcome's missing facts
-(`askedInputs.js`: `no_data` for a `kind: claim` input, `not_passed` for a form
+(`askedInputs.ts`: `no_data` for a `kind: claim` input, `not_passed` for a form
 parameter, required parameters first), passes no `null` for an unanswered
 form field, shows `null` as "geen" and an unknown as "onbekend" with
 "ontbreekt: ...", never takes an unknown verdict for a yes (tile: "Nog niet te
@@ -421,7 +421,7 @@ criterion derives any more as `STALE`; it never removes one. The `argument`
 criterion (a nullable variable passed to an optional parameter) fired nowhere.
 
 The demo's `bindings.yaml` and the laws are held together by
-`frontend-demo/src/data/bindings.test.js` (part of `npm test -w frontend-demo`):
+`frontend-demo/src/data/bindings.test.ts` (part of `npm test -w frontend-demo`):
 `absent: null`, or a `select_on` on a nullable variable, requires
 `nullable: true` on the input; every other scalar table input must not be
 nullable; an array input carries neither. Two mismatches came out of it, both

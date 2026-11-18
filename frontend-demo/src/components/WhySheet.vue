@@ -1,10 +1,11 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { explainWhy, toBlocks } from '../why/why.js';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import { explainWhy, toBlocks, type WhyErrorKind } from '../why/why';
 import { useI18n } from '../i18n/index.js';
 
 // The explanation of one outcome in plain language, written by a language
-// model from the calculation (see why/why.js and server/why.mjs). It streams
+// model from the calculation (see why/why.ts and server/why.mjs). It streams
 // in while it is written, so the reader sees the first sentence in a second or
 // two instead of a spinner for twenty.
 //
@@ -13,20 +14,25 @@ import { useI18n } from '../i18n/index.js';
 // portal a paraphrase that reads as confidently as the outcome has to say what
 // it is.
 
-const props = defineProps({
-  open: { type: Boolean, default: false },
-  law: { type: Object, default: null },
+const props = withDefaults(defineProps<{
+  open?: boolean;
+  // Only the name is read; the tile passes its LawEntry.
+  law?: { name?: string } | null;
   /** What the server needs; built by the tile, which knows the outcome. */
-  payload: { type: Object, default: null },
+  payload?: object | null;
+}>(), {
+  open: false,
+  law: null,
+  payload: null,
 });
-const emit = defineEmits(['close']);
+const emit = defineEmits<{ close: [] }>();
 const { t } = useI18n();
 
-const sheet = ref(null);
+const sheet = ref<NLDDSheet | null>(null);
 const text = ref('');
-const error = ref(null); // 'locked' | 'busy' | 'failed'
+const error = ref<WhyErrorKind | null>(null); // 'locked' | 'busy' | 'failed'
 const loading = ref(false);
-let controller = null;
+let controller: AbortController | null = null;
 
 const blocks = computed(() => toBlocks(text.value));
 
@@ -41,7 +47,8 @@ async function run() {
     await explainWhy(props.payload, { signal: own.signal, onText: (s) => { if (controller === own) text.value = s; } });
   } catch (e) {
     if (own.signal.aborted) return;
-    error.value = e?.kind ?? 'failed';
+    // A WhyError carries its kind; anything else is a plain failure.
+    error.value = (e as { kind?: WhyErrorKind } | null)?.kind ?? 'failed';
   } finally {
     if (controller === own) loading.value = false;
   }
@@ -81,7 +88,7 @@ const errorText = computed(() => (error.value ? t(`wet.tile.why.error.${error.va
                every new sentence. -->
           <nldd-rich-text v-if="blocks.length" aria-live="polite" :aria-busy="loading ? 'true' : 'false'">
             <template v-for="(b, i) in blocks" :key="i">
-              <ul v-if="b.items"><li v-for="(item, j) in b.items" :key="j">{{ item }}</li></ul>
+              <ul v-if="'items' in b"><li v-for="(item, j) in b.items" :key="j">{{ item }}</li></ul>
               <p v-else>{{ b.text }}</p>
             </template>
           </nldd-rich-text>

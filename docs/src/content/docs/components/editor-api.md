@@ -62,6 +62,10 @@ All public. These serve the corpus as loaded at startup, without any traject ove
 | GET | `/api/corpus/laws/{law_id}/annotations` |
 | POST | `/api/corpus/reload` (Admin) |
 
+At startup the global corpus loads every local source, the laws listed in `favorites.json` from the GitHub sources, and every law of a source marked `load_all`. The other laws of each GitHub source are indexed by path from one tree listing, so search finds them; their bodies are fetched from GitHub when someone opens one, and kept in a cache of at most 1024 bodies that a reload empties. Until then such a law has no name and never counts as enriched, so search matches it on its `$id` only. Anyone can open a law without an account, and each uncached body costs a call on the service token that trajecten also read with, so the global scope fetches at most 1000 bodies an hour (`GLOBAL_FETCHES_PER_HOUR`); past that an uncached law answers 503 until the hour is over. A GitHub source that fails to list is reported as `index_error` on `/api/sources`. A reload fetches again only the bodies that were loaded up front, plus any law it is asked for, and lists the sources again. The current version of a law is the one in force today among the versions loaded, across sources (see [Federated Corpus](/concepts/federated-corpus#how-it-works)).
+
+`/api/corpus/laws` (and its traject variant) filters with `q` (search: every word of the query must occur in the law's id or name, in any order, ignoring case and accents; a query without letters or digits finds nothing, and only its first 200 characters and 10 distinct words count), `ids` (exact ids), `source` (one source), `enriched=true` (only laws whose current version is enriched) and `loaded=true` (only laws whose body is loaded, the ones that carry a name; the editor asks for these to show display names). A search returns the best matches first, within each source in priority order: a law whose id or name is the query, then one that starts with it (as characters, so *wetboek* counts for *wet*), then one where every word sits at the start or end of a word (a Dutch compound such as *zorgverzekeringswet* ends in its head), then any other match. Laws whose body is loaded go before the rest of the same rank, then the shorter id. The total before the cap is in `X-Total-Count`. Each entry carries `enriched`, and, when the current version is not enriched but another version is, `enriched_version` with that version's date. A law from a source marked `enriched: false` never counts as enriched. A law from a GitHub source carries `source_url`, the folder of its current version on GitHub at the ref the source reads (inside a traject, the traject's branch for its own repository).
+
 ### Trajects
 
 Reader + account for reads, Writer + account for changes. Membership is checked in the handler.
@@ -78,10 +82,15 @@ Reader + account for reads, Writer + account for changes. Membership is checked 
 | DELETE | `/api/trajects/{id}/invites/{email}` | Owner only |
 | GET | `/api/trajects/{traject_ref}/integrity` | Integrity report over the traject's corpus repo |
 | GET | `/api/trajects/{traject_ref}/sources` | |
+| GET | `/api/trajects/{traject_ref}/runs` | The traject's harvests, enrichments and conversions, running or finished, newest first (at most 200), from every member. `?law_id=` narrows them to one law, `&bwb_id=` adds the harvest that fetched it. See below |
 | GET | `/api/trajects/{traject_ref}/favorites` | |
 | PUT, DELETE | `/api/trajects/{traject_ref}/favorites/{law_id}` | |
 
 Member roles are `owner` and `contributor`.
+
+A run belongs to a traject through the ref it was requested under, matched on the id part at its end, so the runs of a renamed traject stay with it. Each run carries its state, its timestamps, the name of the member who requested it, the last error, and for an enrichment the provider, the article counts from its result and how its review tasks were resolved, with a separate count of the open ones assigned to the member asking. The worker's progress note comes along only while a run is processing.
+
+With `law_id`, the list holds the runs whose `law_id` is that law's `$id` (its enrichments), plus, with `bwb_id`, the traject harvest that carries that BWB id: a harvest is requested before the law has an `$id`. The filter is applied in the query, so the cap of 200 counts that law's runs only.
 
 ### Traject corpus
 
@@ -101,7 +110,7 @@ The traject-scoped view of the corpus: the global corpus with the traject's own 
 | GET, PUT, DELETE | `.../corpus/laws/{law_id}/scenarios/{filename}` | Reader / Writer (1 MiB) |
 | GET, PUT | `.../corpus/laws/{law_id}/annotations` | Reader / Writer (1 MiB) |
 | POST | `.../corpus/laws/{law_id}/promote` | Writer; copy a law from the central corpus into the traject repo |
-| POST | `.../corpus/laws/{law_id}/enrich` | Writer; request an enrichment task |
+| POST | `.../corpus/laws/{law_id}/enrich` | Writer; request an enrichment task. An optional body `{"provider": "opencode"}` picks the provider; without it `TASK_ENRICH_PROVIDER` decides, and an unknown name returns 400 |
 | POST | `/api/trajects/{traject_ref}/corpus/harvest` | Writer; harvest a law into the traject via a task |
 | GET | `/api/trajects/{traject_ref}/corpus/documents` | Reader |
 | POST | `.../corpus/documents/upload` | Writer; PDF or Word, converted to markdown asynchronously (25 MiB) |
@@ -110,6 +119,12 @@ The traject-scoped view of the corpus: the global corpus with the traject's own 
 | GET, PUT, DELETE | `.../corpus/documents/{*doc_path}` | Reader / Writer (1 MiB) |
 
 `...` stands for `/api/trajects/{traject_ref}`.
+
+The first request to a traject after a restart builds its index, and every request waits for that build. After that the index is served from memory and refreshed in the background once it is a minute old. A later request waits only when the traject's own repository could not be listed and its own GitHub token can repair the index. The list of changed laws works the same way: when only a member's own GitHub token can read the traject repository, the first member past the minute lends that token to the background refresh and gets the previous list meanwhile.
+
+A build or a refresh lists the tree of each source, all sources at the same time and while the backends check their branches. A listing is kept per repository branch together with the commit it was taken at, and reused as long as the branch still points at that commit, so GitHub is only asked for the commit. The global corpus lists the central corpus at startup, which leaves a traject build only its own repository to list, and a refresh fetches a tree only after a new commit. Reusing a listing takes the commit, which GitHub shows only to someone who can read the repository.
+
+A law without notes gets an empty notes document (`annotations: []`) with status 200; a 404 means the law is not in the traject. Whether a law has notes comes from the tree listing of the index, at the repository root or at the older location under the source's subpath, so a law without notes costs no call to GitHub. A note saved through the editor counts at once; a notes file added to the repository some other way shows up with the next refresh.
 
 ### Tasks
 
@@ -128,7 +143,7 @@ Review tasks produced by asynchronous jobs, scoped to the account that requested
 | Method | Path | Gate |
 |--------|------|------|
 | GET | `/api/favorites` | Reader |
-| PUT, DELETE | `/api/favorites/{law_id}` | Writer |
+| PUT, DELETE | `/api/favorites/{law_id}` | Reader |
 | GET | `/api/user/settings` | Reader |
 | PUT | `/api/user/settings/{key}` | Writer (4 KiB body) |
 | GET | `/api/user/notes/{law_id}` | Reader + account |
@@ -180,7 +195,7 @@ From `main.rs`, `config.rs` and `packages/shared/src/telemetry.rs`.
 | `HOSTNAME` | set by the platform | Pod hostname. When it names a ZAD deployment, the proxy targets are derived from it and win over the two variables below. |
 | `PIPELINE_API_URL` | none | Pipeline-api base URL when `HOSTNAME` does not yield one (`http://<deployment>-pipelineapi:8000`) |
 | `HARVEST_ADMIN_URL` | none | Harvester-admin base URL when `HOSTNAME` does not yield one (`http://<deployment>-harvester-admin:8000`) |
-| `TASK_ENRICH_PROVIDER` | `claude` | LLM provider for enrichment tasks requested from a traject. Must be one of the pipeline's providers (`opencode`, `claude`); any other value stops startup. |
+| `TASK_ENRICH_PROVIDER` | `claude` | Default LLM provider for enrichment tasks requested from a traject; a request may name another. Must be one of the pipeline's providers (`opencode`, `claude`); any other value stops startup. |
 | `RUST_LOG` | `info` | Log filter |
 | `LOG_FORMAT` | text | `json` for one JSON object per log line |
 | `LOG_SPAN_EVENTS` | on for this service | Span-close timing lines; `none` turns them off |
@@ -234,7 +249,7 @@ just editor-api       # cargo run -p regelrecht-editor-api, no login
 just editor-sso       # same, with a real Keycloak login from .env.sso-local
 ```
 
-`STATIC_DIR` defaults to `static`, relative to `packages/`. For frontend work, `just dev editor` starts this API with a Vite dev server in front of it, logged in against the central Keycloak (it needs `.env.sso-local`). `just dev all` adds a local harvester-admin on port 8001 and points `HARVEST_ADMIN_URL` at it; without it the Corpusinwinning screens answer 503. See [Editor](./frontend).
+`STATIC_DIR` defaults to `static`, relative to `packages/`. The `just` recipes that run this API locally (`editor-api`, `editor-sso`, `dev`) set `CORPUS_REGISTRY_PATH` to the repository's `corpus-registry.yaml` and `STATIC_DIR` to `frontend/public`, where `favorites.json` lives, so a local run loads the same sources and favorites as the image. For frontend work, `just dev editor` starts this API with a Vite dev server in front of it, logged in against the central Keycloak (it needs `.env.sso-local`). `just dev all` adds a local harvester-admin on port 8001 and points `HARVEST_ADMIN_URL` at it; without it the Corpusinwinning screens answer 503. See [Editor](./frontend).
 
 ## Further reading
 

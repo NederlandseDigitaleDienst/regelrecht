@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import * as yaml from 'js-yaml';
 import { regimeVanCohort, cohortUitleg, COHORTGRENS } from '../src/lib/regimeFacts.js';
+import { scenarioRecord } from '../src/lib/scenarioRecord.js';
 import { dataDir } from './helpers/casusPaden.js';
 
 const PERSONAS = yaml.load(
@@ -78,29 +79,21 @@ describe('scenario-record', () => {
     }
   });
 
-  it('een samengesteld record heeft dezelfde velden', () => {
-    // Zoals ScenarioFormulier het opbouwt: euro's naar eurocent, jaartal naar
-    // een datum, procent naar een ratio.
-    const vorm = {
-      naam: 'Test', schuld: 20000, inkomen: 32000, partnerinkomen: 0,
-      huishoudtype: 'alleenstaand', startjaar: 2016, onderwijssoort: 'hbo',
-      lllk: false, geboortejaar: 1995, groei: 2,
-    };
-    const heeftPartner = vorm.huishoudtype.startsWith('paar');
-    const record = {
-      bsn: 'eigen-1', naam: vorm.naam, geboortejaar: vorm.geboortejaar,
-      omschrijving: 'Zelf toegevoegd scenario.',
-      huishoudtype: vorm.huishoudtype, heeft_partner: heeftPartner,
-      partnerinkomen: heeftPartner ? vorm.partnerinkomen * 100 : 0,
-      inkomen: vorm.inkomen * 100,
-      inkomensgroei: Math.round(vorm.groei * 10) / 1000,
-      schuld: vorm.schuld * 100,
-      eerste_studiefinanciering: `${vorm.startjaar}-09-01`,
-      onderwijssoort: vorm.onderwijssoort,
-      is_levenlanglerenkrediet: vorm.lllk,
-      keuzemomenten: [], eigen: true,
-    };
+  // Het formulier van ScenarioFormulier, in hele euro's en procenten.
+  const vorm = {
+    naam: 'Test', schuld: 20000, inkomen: 32000, partnerinkomen: 15000,
+    huishoudtype: 'alleenstaand', startjaar: 2016, onderwijssoort: 'hbo',
+    lllk: false, geboortejaar: 1995, groei: 2,
+  };
 
+  it('een samengesteld record heeft dezelfde velden', () => {
+    const record = scenarioRecord(vorm, 'eigen-1');
+
+    // Niet meer en niet minder dan een persona uit de YAML, op de markering
+    // `eigen` na.
+    const { eigen, ...rest } = record;
+    expect(eigen).toBe(true);
+    expect(Object.keys(rest).sort()).toEqual(Object.keys(PERSONAS[0]).sort());
     for (const veld of VERPLICHT) expect(record).toHaveProperty(veld);
     // Bedragen in eurocent, net als in de YAML.
     expect(record.schuld).toBe(2000000);
@@ -111,9 +104,12 @@ describe('scenario-record', () => {
   });
 
   it('rekent partnerinkomen alleen mee bij een partner', () => {
-    const zonder = { huishoudtype: 'alleenstaand' };
-    const met = { huishoudtype: 'paar_met_kind' };
-    expect(zonder.huishoudtype.startsWith('paar')).toBe(false);
-    expect(met.huishoudtype.startsWith('paar')).toBe(true);
+    const zonder = scenarioRecord(vorm, 'eigen-1');
+    expect(zonder.heeft_partner).toBe(false);
+    expect(zonder.partnerinkomen).toBe(0);
+
+    const met = scenarioRecord({ ...vorm, huishoudtype: 'paar_met_kind' }, 'eigen-1');
+    expect(met.heeft_partner).toBe(true);
+    expect(met.partnerinkomen).toBe(1500000);
   });
 });

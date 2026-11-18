@@ -21,14 +21,14 @@ machine_readable:
         stage: BESLUIT
   execution:
     output:
-      - name: bezwaartermijn_weken
+      - name: termijn_weken
         type: number
     actions:
-      - output: bezwaartermijn_weken
+      - output: termijn_weken
         value: 6
 ```
 
-When the Zorgtoeslagwet calculates a healthcare allowance and produces a *beschikking*, this Awb hook fires and adds `bezwaartermijn_weken: 6` to the result. The Zorgtoeslagwet does not mention the Awb or objection periods.
+When the Zorgtoeslagwet calculates a healthcare allowance and produces a *beschikking*, this Awb hook fires and adds `termijn_weken: 6` to the result. The Zorgtoeslagwet does not mention the Awb or objection periods.
 
 ## Hook points
 
@@ -51,7 +51,7 @@ execution:
 
 The engine builds a hook index at load time. When it encounters an article with a `produces` annotation, it checks the index for matching hooks and fires them.
 
-A hook can also apply to an application instead of a decision: `applies_to.submission: AANVRAAG` fires on every article whose `produces` says it establishes one ([RFC-045](/rfcs/rfc-045)). Awb 4:2 and 4:13 work this way; see [Chronolexography](/concepts/chronolexography#the-application-with-the-awb-on-it). When that article also decides on the application, `produces` lists the two, and a hook matches the item whose `type` it names. A staged run then fires the hooks on the application at the stage named after the kind, AANVRAAG, and the hooks on the decision at their own stages ([RFC-047](/rfcs/rfc-047)).
+A hook can also apply to an application instead of a decision: `applies_to.submission: AANVRAAG` fires on every article whose `produces` says it establishes one ([RFC-045](/rfcs/rfc-045)). Awb 4:2 and 4:13 work this way. When that article also decides on the application, `produces` lists the two, and a hook matches the item whose `type` it names. A staged run then fires the hooks on the application at the stage named after the kind, AANVRAAG, and the hooks on the decision at their own stages ([RFC-045](/rfcs/rfc-045)).
 
 ## The objection-deadline chain
 
@@ -59,9 +59,9 @@ Awb hooks compose into a chain:
 
 1. **Awb 3:46** (pre_actions hook, stage: BESLUIT) - sets `motivering_vereist: true`
 2. The target law's article runs and produces the decision
-3. **Awb 6:7** (post_actions hook, stage: BESLUIT) - sets `bezwaartermijn_weken: 6`
+3. **Awb 6:7** (post_actions hook, stage: BESLUIT) - sets `termijn_weken: 6`
 4. Later, when the decision is communicated (stage: BEKENDMAKING):
-5. **Awb 6:8** (post_actions hook, stage: BEKENDMAKING) - calculates `bezwaartermijn_startdatum` and `bezwaartermijn_einddatum` based on the notification date and the 6-week period from Awb 6:7
+5. **Awb 6:8** (post_actions hook, stage: BEKENDMAKING) - calculates `termijn_startdatum` and `termijn_einddatum` based on the notification date and the 6-week period from Awb 6:7
 
 ```yaml
 # Awb 6:8 - calculates start and end dates for the objection period
@@ -77,27 +77,27 @@ machine_readable:
         type: date
         required: true
     input:
-      - name: bezwaartermijn_weken
+      - name: termijn_weken
         type: number
         source:
           regulation: algemene_wet_bestuursrecht
-          output: bezwaartermijn_weken
+          output: termijn_weken
     output:
-      - name: bezwaartermijn_startdatum
+      - name: termijn_startdatum
         type: date
-      - name: bezwaartermijn_einddatum
+      - name: termijn_einddatum
         type: date
     actions:
-      - output: bezwaartermijn_startdatum
+      - output: termijn_startdatum
         value:
           operation: DATE_ADD
           date: $bekendmaking_datum
           days: 1
-      - output: bezwaartermijn_einddatum
+      - output: termijn_einddatum
         value:
           operation: DATE_ADD
           date: $bekendmaking_datum
-          weeks: $bezwaartermijn_weken
+          weeks: $termijn_weken
 ```
 
 ## Overrides (lex specialis)
@@ -112,13 +112,13 @@ machine_readable:
   overrides:
     - law: algemene_wet_bestuursrecht
       article: '6:7'
-      output: bezwaartermijn_weken
+      output: termijn_weken
   execution:
     output:
-      - name: bezwaartermijn_weken
+      - name: termijn_weken
         type: number
     actions:
-      - output: bezwaartermijn_weken
+      - output: termijn_weken
         value: 4
 ```
 
@@ -133,7 +133,7 @@ machine_readable:
   overrides:
     - law: algemene_wet_bestuursrecht
       article: '6:7'
-      output: bezwaartermijn_weken
+      output: termijn_weken
       voids: true
       legal_text_excerpt: "geen bezwaar mogelijk"
 ```
@@ -200,5 +200,6 @@ The engine yields between stages, returning accumulated outputs and indicating w
 - [Traceability](./traceability) - how hook and override nodes appear in an execution trace
 - [Temporal Validity and Dates](./temporal-and-dates) - the date arithmetic behind the objection-deadline chain
 - [RFC-007: Cross-Law Execution](/rfcs/rfc-007) - hooks and overrides specification
+- [Applications, Decisions and Objections](./administrative-procedures) - an Awb procedure in the law format
 - [RFC-008: Bestuursrecht/Awb](/rfcs/rfc-008) - the administrative procedure model
 - [Rules as Executed, section 4.9](/research/rules-as-executed#sec:modes) - the position paper's four execution modes, with the hook as the declared trigger of the reactive one

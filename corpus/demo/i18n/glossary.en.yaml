@@ -13,7 +13,7 @@
 # leest als een fout waar het Nederlandse label leest als iets dat nog niet
 # vertaald is.
 #
-# Afkortingen (BSN, AOW, KvK, Zvw) staan hier niet: die kent format.js al, en
+# Afkortingen (BSN, AOW, KvK, Zvw) staan hier niet: die kent format.ts al, en
 # twee plekken die het oneens kunnen worden is er een te veel.
 #
 # Let op bij het toevoegen: `null` kaal is geen woord maar leegte, en `true` en

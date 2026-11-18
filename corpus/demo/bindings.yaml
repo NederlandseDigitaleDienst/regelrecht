@@ -675,9 +675,9 @@ awb/bezwaar:
   # Losse scalaire inputs (art. 6:7/7:10): dezelfde tabel/rij als 'wet', maar los
   # gebonden zodat de wet 'nullable: true' erop kan zetten (niet declareerbaar op
   # een subveld van een object-input).
-  bezwaartermijn_weken:
+  termijn_weken:
     table: laws
-    field: bezwaartermijn_weken
+    field: termijn_weken
     select_on:
       - name: uuid
         value: $zaak.rulespec_uuid

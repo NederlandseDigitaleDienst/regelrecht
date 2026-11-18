@@ -19,6 +19,7 @@
 //! println!("Output: {:?}", result.outputs);
 //! ```
 
+use crate::answer::AnswerProvenance;
 use crate::article::{Action, ActionOperation, Article, ArticleBasedLaw};
 use crate::context::{LazyInputs, RuleContext};
 use crate::error::{EngineError, Result};
@@ -59,11 +60,14 @@ pub enum OutputProvenance {
 }
 
 /// Who filled an open term in an execution: a finding of the authority
-/// that decides it per case, or a regulation that implements it (RFC-050).
-/// A consumer reads here which of the two the outcome rests on, instead of
+/// that decides it per case, a regulation that implements it (RFC-045), or
+/// a policy article that binds it to the answer of one or more cells
+/// (RFC-048). A consumer reads here which the outcome rests on, instead of
 /// guessing from the value: a regulation can give what the authority found.
-/// Serialized as `"finding"` or as `{"regulation": {"law_id", "article"}}`,
-/// so the regulation's article does not collide with the declaring one.
+/// Serialized as `"finding"`, as `{"regulation": {"law_id", "article"}}`, so
+/// the regulation's article does not collide with the declaring one, or as
+/// `{"answer": {"law_id", "article", "answers": [...]}}`, with
+/// `"unanswered": [...]` beside the answers where an input got none.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FilledBy {
@@ -72,6 +76,38 @@ pub enum FilledBy {
     Finding,
     /// An article of a regulation that implements the term (`implements`).
     Regulation { law_id: String, article: String },
+    /// An article of a policy that implements the term and takes the named
+    /// answer of a cell (`source.reduction`): the binding, and every answer
+    /// it took that was not null, one per input that takes an answer, with
+    /// what each cell says it answered from, in the order the inputs were
+    /// asked. Inputs may take the answers of different cells (synthesis,
+    /// RFC-048). Where every cell was silent and nothing falls back, the
+    /// null answers; where no cell answered, none. `unanswered` lists each
+    /// input that got no answer, so the binding filled the term without it,
+    /// in the order the inputs were asked.
+    Answer {
+        law_id: String,
+        article: String,
+        answers: Vec<AnswerProvenance>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        unanswered: Vec<Unanswered>,
+    },
+}
+
+/// An answer a binding asked for and did not get (RFC-048 §2): no cell of
+/// the execution gives it, or the cell asked was silent. The input that
+/// takes it is then null, and the binding says what holds; this records
+/// that it happened, next to the answers that were given. A cell that
+/// answered null is silent too: its answer is also among the answers, as
+/// the null one.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Unanswered {
+    /// The name of the answer (`source.reduction`).
+    pub answer: String,
+    /// The input of the binding that takes it.
+    pub input: String,
+    /// Why there is none, as the trace of the input says it.
+    pub message: String,
 }
 
 /// One open term of one article that was filled in an execution, and by
@@ -85,6 +121,30 @@ pub struct OpenTermFilled {
     /// The id of the open term.
     pub term: String,
     pub filled_by: FilledBy,
+}
+
+/// One version of a regulation whose article ran in an execution: its
+/// `$id`, its `valid_from` and the hash of its content, as the engine
+/// loaded it. A record that keeps these refers to the law it rests on
+/// without copying it.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+pub struct RegulationRead {
+    pub law_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash: Option<String>,
+}
+
+impl RegulationRead {
+    /// The version `law` is.
+    pub fn of(law: &ArticleBasedLaw) -> Self {
+        Self {
+            law_id: law.id.clone(),
+            valid_from: law.valid_from.clone(),
+            hash: law.content_hash.clone(),
+        }
+    }
 }
 
 /// Result of article execution
@@ -132,6 +192,11 @@ pub struct ArticleResult {
     /// be listed twice, once per filler: an implementing article that reads
     /// the output it fills in reads it with the finding in its place.
     pub open_terms: Vec<OpenTermFilled>,
+    /// Every regulation version whose articles ran in this execution,
+    /// nested calls included, once each, in the order they first ran.
+    /// Populated by the service layer, independently of tracing. A cached
+    /// result was read earlier in the same execution and is listed then.
+    pub regulations_read: Vec<RegulationRead>,
 }
 
 /// Executes a single article's machine_readable.execution section.
@@ -359,6 +424,7 @@ impl<'a> ArticleEngine<'a> {
             declaration_version_notes: Vec::new(),
             declarations_not_in_force: Vec::new(),
             open_terms: Vec::new(),
+            regulations_read: Vec::new(),
         };
 
         tracing::debug!(
@@ -392,36 +458,36 @@ impl<'a> ArticleEngine<'a> {
             // An external (cross-law) reference can only be resolved by the
             // service layer. If it was not pre-resolved into parameters, this
             // standalone engine cannot proceed.
-            if let Some(regulation) = &source.regulation {
-                if !parameters.contains_key(&input.name) {
-                    return Err(EngineError::ExternalReferenceNotResolved {
-                        input_name: input.name.clone(),
-                        regulation: regulation.clone(),
-                        output: source.output.clone().unwrap_or_default(),
-                    });
-                }
+            if let Some(regulation) = &source.regulation
+                && !parameters.contains_key(&input.name)
+            {
+                return Err(EngineError::ExternalReferenceNotResolved {
+                    input_name: input.name.clone(),
+                    regulation: regulation.clone(),
+                    output: source.output.clone().unwrap_or_default(),
+                });
             }
-            // A call to an article (RFC-050) runs another article, which
+            // A call to an article (RFC-045) runs another article, which
             // only the service can do.
-            if let Some(target) = &source.article {
-                if !parameters.contains_key(&input.name) {
-                    return Err(EngineError::ExternalReferenceNotResolved {
-                        input_name: input.name.clone(),
-                        regulation: target.clone(),
-                        output: source.output.clone().unwrap_or_default(),
-                    });
-                }
+            if let Some(target) = &source.article
+                && !parameters.contains_key(&input.name)
+            {
+                return Err(EngineError::ExternalReferenceNotResolved {
+                    input_name: input.name.clone(),
+                    regulation: target.clone(),
+                    output: source.output.clone().unwrap_or_default(),
+                });
             }
             // The decisions taken under an article come from a data source
             // only (RFC-048); this engine has none, so they must be passed.
-            if let Some(decisions) = &source.decisions {
-                if !parameters.contains_key(&input.name) {
-                    return Err(EngineError::DataSourceError(format!(
-                        "input '{}' reads the decisions taken under {decisions}, and no data \
-                         source supplies them",
-                        input.name
-                    )));
-                }
+            // So do the recorded facts an article requires (RFC-051).
+            if let Some(read) = crate::load_check::chronicle_read(source)
+                && !parameters.contains_key(&input.name)
+            {
+                return Err(EngineError::DataSourceError(format!(
+                    "input '{}' reads {read}, and no data source supplies them",
+                    input.name
+                )));
             }
             // Internal (`source.output`) and empty (`source: {}`) inputs need no
             // action here: resolved by the service when present in parameters,
@@ -456,10 +522,10 @@ impl<'a> ArticleEngine<'a> {
 
         for (position, &index) in order.iter().enumerate() {
             let action = &actions[index];
-            if let (Some(outputs), Some(name)) = (outputs, &action.output) {
-                if !outputs.contains(name) {
-                    continue;
-                }
+            if let (Some(outputs), Some(name)) = (outputs, &action.output)
+                && !outputs.contains(name)
+            {
+                continue;
             }
 
             // An action without `output` is a computation with nowhere to
@@ -794,6 +860,7 @@ pub(crate) fn action_to_operation(
         // Operations not supported at action level
         Operation::If
         | Operation::List
+        | Operation::Record
         | Operation::ForEach
         | Operation::Age
         | Operation::DateAdd
@@ -1419,7 +1486,7 @@ articles:
 
     #[test]
     fn test_article_call_needs_the_service_unless_passed() {
-        // A call to an article (RFC-050) runs another article: this engine
+        // A call to an article (RFC-045) runs another article: this engine
         // cannot, so the input must be passed.
         let yaml = r#"
 $id: article_call_law
@@ -1468,8 +1535,10 @@ articles:
     #[test]
     fn test_decisions_come_from_parameters_only() {
         // This engine has no data source: decisions passed in are read,
-        // decisions not passed are an error (RFC-048).
+        // decisions not passed are an error (RFC-048). Up to schema
+        // v0.8.16 a reduction reads decisions (`source.decisions`).
         let yaml = r#"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.16/schema/v0.8.16/schema.json
 $id: reductie_test
 regulatory_layer: REDUCTIE
 publication_date: '2025-01-01'

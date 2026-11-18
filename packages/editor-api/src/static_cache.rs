@@ -25,7 +25,7 @@
 //! the predicate below errs toward `no-cache` whenever a name does not
 //! unambiguously carry a hash.
 
-use axum::http::header::{HeaderValue, CACHE_CONTROL};
+use axum::http::header::{CACHE_CONTROL, HeaderValue};
 use axum::http::{Response, StatusCode, Uri};
 
 /// One year, the maximum `max-age` RFC 9111 recommends anyone bother

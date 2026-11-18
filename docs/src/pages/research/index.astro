@@ -9,6 +9,7 @@ import Base from '~/layouts/Base.astro';
 import LinkCard from '~/components/LinkCard.astro';
 import paper from '~/research/rules-as-executed.meta.json';
 import jurixPaper from '~/research/citizen-explanation.meta.json';
+import promisedPaper from '~/research/rules-as-promised.meta.json';
 import { joinAuthors } from '~/lib/authors';
 
 const pathname = '/research/';
@@ -43,6 +44,14 @@ const items: ResearchItem[] = [
     linkLabel: 'paper',
   },
   {
+    title: promisedPaper.title,
+    meta: `${promisedPaper.venue} paper • ${joinAuthors(promisedPaper.authors.map((a) => a.name))} • ${promisedPaper.date_display}`,
+    // Opening of the abstract, verbatim (generated with the paper HTML).
+    text: promisedPaper.abstract_lead,
+    href: '/research/rules-as-promised',
+    linkLabel: 'paper',
+  },
+  {
     title: 'Rules as Executed: When machine-executable laws are published',
     meta: 'JURIX 2026 tutorial • Anne Schuth and Eelco Hotting • 8 December 2026',
     text: 'Ninety minutes with the demo in front of a room of researchers in law and computer science. We open Dutch statutes next to their executable specification, turn a threshold and watch who loses an allowance. Being argued with is the point.',
@@ -65,7 +74,7 @@ const items: ResearchItem[] = [
     lg-padding-bottom="96"
   >
     <nldd-container slot="left">
-      <nldd-title size="2">
+      <nldd-title size="display-2">
         <h1>Research</h1>
       </nldd-title>
       <nldd-spacer />
@@ -76,7 +85,7 @@ const items: ResearchItem[] = [
         </p>
       </nldd-rich-text>
     </nldd-container>
-    <nldd-collection slot="right" layout="grid" item-width="320px">
+    <nldd-collection slot="right" layout="grid" item-min-width="320px">
       {items.map((item) => <LinkCard lang="en" tinted headingLevel={2} {...item} />)}
     </nldd-collection>
   </nldd-one-third-two-thirds-section>

@@ -26,13 +26,15 @@ default:
 
 # --- WASM ---
 
-# Build WASM module for browser use
-wasm-build:
+# The wasm-bindgen CLI that matches packages/Cargo.lock, as a path on stdout
+#
+# Checked BEFORE the minutes-long cargo build of a recipe that uses it.
+[private]
+wasm-bindgen-cli:
     #!/usr/bin/env bash
     set -euo pipefail
-    # Find wasm-bindgen and check its version BEFORE the minutes-long cargo
-    # build. `cargo install` puts it in $CARGO_HOME/bin, which is not always on
-    # the PATH a recipe gets (cargo itself may be reachable through a symlink
+    # `cargo install` puts it in $CARGO_HOME/bin, which is not always on the
+    # PATH a recipe gets (cargo itself may be reachable through a symlink
     # elsewhere). The CLI must match the wasm-bindgen crate in Cargo.lock
     # exactly; the Docker build and CI enforce the same pin.
     locked=$(grep -A1 '^name = "wasm-bindgen"$' packages/Cargo.lock \
@@ -56,6 +58,13 @@ wasm-build:
       echo "  cargo install wasm-bindgen-cli --version $locked --locked --force" >&2
       exit 1
     fi
+    echo "$bindgen"
+
+# Build WASM module for browser use
+wasm-build:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bindgen=$({{just_executable()}} wasm-bindgen-cli)
     # Pin the target dir explicitly. A CLI --target-dir overrides any shared
     # [build] target-dir from `just dev-setup` (root .cargo/config.toml), so the
     # artifact always lands at packages/target — no metadata lookup (and no jq/
@@ -81,12 +90,13 @@ landing-laws:
 format:
     cd packages && cargo fmt --check --all
 
-# The features a deployed artefact or a `just` recipe actually turns on.
+# The features a deployed artefact or a `just` recipe actually turns on
+# (`poc-chronolexografie/wasm` is the browser build of that poc).
 # Deliberately not --all-features: that also builds `engine/wasm` and the two
 # `test-utils` features. Those still get compiled by `just test`, which does run
 # --all-features, so leaving them out here costs clippy coverage on that code
 # and nothing else.
-check_features := "regelrecht-engine/validate,regelrecht-corpus/annotation-validation"
+check_features := "regelrecht-engine/validate,regelrecht-corpus/annotation-validation,regelrecht-poc-chronolexografie/wasm"
 
 # Run clippy lints
 lint:
@@ -102,10 +112,12 @@ validate *FILES:
 
 # Validate the demo corpus (schema + type check, RFC-036/RFC-037)
 #
-# `validate` without arguments walks corpus/regulation only, so the eighty demo
-# laws would be seen by the pre-commit hook and by nothing else. This recipe
-# hands them to the same binary, so a law that stops type-checking is caught by
-# `just demo` and not first by a red scenario run.
+# `validate` without arguments walks corpus/regulation, the corpus of the
+# chronolexografie PoC and the fixtures of the cell's BDD suite only, so the
+# eighty demo laws would be seen by the pre-commit
+# hook and by nothing else. This recipe hands them to the same binary, so a law
+# that stops type-checking is caught by `just demo` and not first by a red
+# scenario run.
 [doc("Validate the demo corpus (schema + type check)")]
 validate-demo:
     find corpus/demo/regulation -name '*.yaml' ! -name '.*' -print0 \
@@ -138,6 +150,13 @@ deploy-filters-test:
 [doc("Check the GHCR cleanup safety rules")]
 ghcr-cleanup-test:
     node --test script/ghcr-cleanup.test.mjs
+
+# Pins the schema diff that .github/workflows/schema-diff.yml posts on a pull
+# request with a new schema version. Same reasoning as deploy-filters-test:
+# node's built-in runner, no dependency.
+[doc("Check the schema diff comment for a new schema version")]
+schema-diff-test:
+    node --test script/schema-diff.test.mjs
 
 # Pins the build-time asset precompression the editor image relies on. Same
 # reasoning as deploy-filters-test: node's built-in runner, no dependency.
@@ -193,6 +212,25 @@ nldd-slots:
 nldd-slots-test:
     node --test script/nldd-slots.test.mjs
 
+# A test that runs nowhere stays green because it never starts. This guard
+# reads what CI runs (workflow steps, pre-commit hooks, and the recipes and npm
+# scripts they reach) and fails on a test outside it, a crate no `cargo test`
+# covers, a feature file no BDD runner reads, and a skip without a reason.
+[doc("Check that every test runs somewhere in CI")]
+orphan-tests:
+    node script/check-orphan-tests.mjs
+
+[doc("Check the orphan-test guard")]
+orphan-tests-test:
+    node --test script/orphan-tests.test.mjs
+
+# The gate of the rust-idioms skill reports clippy findings on changed lines
+# only. Its diff parser and test-code check decide whether a finding is shown,
+# and a mistake there reads as a green gate.
+[doc("Check the rust-idioms gate")]
+book-lints-test:
+    node --test .claude/skills/rust-idioms/book-lints.test.mjs
+
 # De Awb staat in twee corpora en moet daar hetzelfde zeggen. Het overzetten
 # ging twee keer mis op een weggevallen laatste regel — één keer de termijn in
 # artikel 6:8, waardoor de einddatum van de bezwaartermijn gelijk werd aan de
@@ -218,6 +256,20 @@ service-map-check:
 dockerfile-consistency-test:
     node --test script/dockerfile-consistency.test.mjs
 
+# The browser jobs in ci.yml run in the Playwright image, whose browsers
+# belong to one Playwright release. Its tag has to follow the version the
+# lockfiles resolve, and Dependabot only bumps the lockfiles.
+[doc("Check that the Playwright CI image matches the lockfiles")]
+playwright-image-test:
+    node --test script/playwright-image.test.mjs
+
+# How the docs accessibility gate gets its .debs: the fallback over the
+# sources and the SHA256 check. `curl` and `dpkg` are stubs on PATH, so
+# nothing goes over the network and nothing is installed.
+[doc("Check the .deb install for the docs accessibility gate")]
+a11y-debs-test:
+    script/install-a11y-debs.test.sh
+
 # De poort die productie op een groene CI laat wachten. Zonder deze test is een
 # poort die alles doorlaat niet te onderscheiden van een die werkt; `gh` staat
 # hier als stub op PATH, dus er gaat geen verkeer naar GitHub.
@@ -240,7 +292,7 @@ preview-environments-test:
 # container-backed suites; on a machine without a daemon, swap `test` for
 # `test-no-docker`.
 [doc("Run all quality checks, exactly what CI runs (needs Docker)")]
-check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
+check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test orphan-tests orphan-tests-test book-lints-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
 
 # --- Tests ---
 
@@ -263,6 +315,25 @@ db_crates := "-p regelrecht-pipeline -p regelrecht-editor-api -p regelrecht-admi
 test:
     cd packages && {{ci_flags}} cargo test --workspace --all-features
 
+# The frontend unit tests and type checks, as the "Frontend tests" job in CI
+# runs them. Not part of `check`, which needs no npm dependencies; this one
+# installs the npm workspace on first use.
+[doc("Run the frontend unit tests and type checks")]
+frontend-test:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    source script/dev-lib.sh
+    dev_ensure_deps . "frontend tests"
+    npm test -w packages/frontend-shared
+    npm run typecheck -w packages/frontend-shared
+    npm test -w frontend
+    npm run typecheck -w frontend
+    npm test -w frontend-lawmaking
+    npm run typecheck -w frontend-lawmaking
+    npm test -w frontend-demo
+    npm run typecheck -w frontend-demo
+    npm test -w packages/poc-chronolexografie/frontend
+
 # Every test that needs no external services: the workspace minus the
 # container-backed crates. For a machine without a Docker daemon, and the
 # `unit` leg of the CI matrix.
@@ -277,11 +348,13 @@ test-db:
 # Run Rust BDD tests
 bdd:
     cd packages/engine && {{ci_flags}} cargo test --test bdd -- --nocapture
+    cd packages/cel && {{ci_flags}} cargo test --test bdd -- --nocapture
 
 # BDD met de acties van elk artikel omgekeerd: de volgorde in het bestand mag
 # geen uitkomst veranderen. CI draait de conformance- en demobucket zo ook.
 bdd-reversed:
     cd packages/engine && {{ci_flags}} BDD_REVERSE_ACTIONS=1 cargo test --test bdd -- --nocapture
+    cd packages/cel && {{ci_flags}} BDD_REVERSE_ACTIONS=1 cargo test --test bdd -- --nocapture
     cd packages/engine && {{ci_flags}} BDD_REVERSE_ACTIONS=1 BDD_BUCKET=corpus REGULATION_PATH="$(pwd)/../../corpus/demo/regulation" cargo test --test bdd -- --nocapture
 
 # Bucket A over de democorpus: REGULATION_PATH wijst wetten en scenario's naar corpus/demo.
@@ -294,6 +367,16 @@ bdd-reversed:
 bdd-demo:
     cd packages/engine && {{ci_flags}} BDD_BUCKET=corpus REGULATION_PATH="$(pwd)/../../corpus/demo/regulation" cargo test --test bdd -- --nocapture
     cd packages/engine && {{ci_flags}} REGULATION_PATH="$(pwd)/../../corpus/demo/regulation" cargo test --test awb_lifecycle
+
+# Bucket A over het corpus van de chronolexografie-poc: de gedeelde regelwerken
+# en die van elke casus (script/chrono-regulation-dirs.sh) samen, als één
+# corpus. De gegevens zijn verzonnen, dus rood is hier een echte fout.
+bdd-chrono:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    REGULATION_PATH="$(script/chrono-regulation-dirs.sh | sed "s|^|$PWD/|" | paste -sd:)"
+    export REGULATION_PATH
+    cd packages/engine && {{ci_flags}} BDD_BUCKET=corpus cargo test --test bdd -- --nocapture
 
 # Start the demo and open it. One command for anyone who just wants to see it:
 # it builds the engine to WASM, starts Vite and opens the browser on the
@@ -330,6 +413,8 @@ dev-demo: wasm-build
 #   just walkthrough check [take]    what a take sounds like, in numbers
 #   just walkthrough script [take]   a draft script per slide, for the cloned voice
 #   just walkthrough build           walkthrough.yaml -> what the demo plays
+#   just walkthrough translate <code> captions, slides and spoken text in another language
+#   just walkthrough dub <code>      that language in the cloned voice (ElevenLabs)
 #   just walkthrough publish <tag>   the media into a GitHub release (asks first)
 #   just walkthrough status          which takes there are, and how far along
 #   just walkthrough test            the pipeline's own tests
@@ -402,14 +487,14 @@ github-test:
 harvester-test:
     cd packages/harvester && {{ci_flags}} cargo test
 
-# Run pipeline unit tests. Five of these are container-backed and carry
-# #[ignore]; add `-- --ignored` to run those instead. The two CLI test
-# suites run the built binaries against temp directories and need no
-# Docker either, so they belong in this recipe, not only in the db-leg.
-[doc("Run pipeline unit tests (the container-backed ones are #[ignore]d)")]
+# Run pipeline unit tests. The suites in tests/ run in
+# `pipeline-integration-test`; `--lib` does not reach them, and most of them
+# need Docker. The CLI test suites run the built binaries against temp
+# directories and need no Docker, so they belong in this recipe as well.
+[doc("Run pipeline unit tests (no Docker; the container-backed suites are in pipeline-integration-test)")]
 pipeline-test:
     cd packages/pipeline && {{ci_flags}} cargo test --lib
-    cd packages/pipeline && {{ci_flags}} cargo test --test law_source_cli --test law_check_cli --test enrich_once_cli
+    cd packages/pipeline && {{ci_flags}} cargo test --test law_source_cli --test law_check_cli --test enrich_once_cli --test law_migrate_cli
 
 # Run pipeline integration tests (requires Docker for testcontainers)
 pipeline-integration-test:
@@ -500,9 +585,9 @@ mutants-diff BASE="origin/main":
     #!/usr/bin/env bash
     set -euo pipefail
     diff_file="$(mktemp -t mutants-diff-XXXXXX.diff)"
-    git -C packages diff --relative "{{BASE}}...HEAD" -- engine pipeline > "$diff_file"
+    git -C packages diff --relative "{{BASE}}...HEAD" -- engine pipeline cel > "$diff_file"
     if [ ! -s "$diff_file" ]; then
-        echo "Geen gewijzigde regels in packages/engine of packages/pipeline ten opzichte van {{BASE}}."
+        echo "Geen gewijzigde regels in packages/engine, packages/pipeline of packages/cel ten opzichte van {{BASE}}."
         exit 0
     fi
     cd packages
@@ -577,9 +662,15 @@ admin-test:
 
 # --- Editor API ---
 
+# The editor-api runs from packages/, where its defaults find no corpus
+# registry and no favorites.json, so a local run started with an empty corpus.
+# Point it at the repository's own files, as the Docker image does
+# (frontend/Dockerfile copies the same two to /app).
+editor_api_paths := "CORPUS_REGISTRY_PATH=../corpus-registry.yaml STATIC_DIR=../frontend/public"
+
 # Run editor API locally
 editor-api:
-    cd packages && cargo run --package regelrecht-editor-api
+    cd packages && {{ editor_api_paths }} cargo run --package regelrecht-editor-api
 
 # Run editor API with real SSO Rijk login (loads .env.sso-local; see auth-and-roles.md)
 editor-sso:
@@ -590,7 +681,7 @@ editor-sso:
         exit 1
     fi
     set -a; . ./.env.sso-local; set +a
-    cd packages && cargo run --package regelrecht-editor-api
+    cd packages && {{ editor_api_paths }} cargo run --package regelrecht-editor-api
 
 # Check editor API Rust code
 editor-api-check:
@@ -799,7 +890,7 @@ dev APP="all":
             # .env.sso-local inside the backgrounded shell so the OIDC /
             # DATABASE_URL / BASE_URL it sets scope to editor-api only.
             dev_start "editor-api (:8000, OIDC)" .dev-editor-api.log \
-              "set -a; . ./.env.sso-local; set +a; cd packages && ${harvest_admin_env}cargo run --package regelrecht-editor-api"
+              "set -a; . ./.env.sso-local; set +a; cd packages && {{ editor_api_paths }} ${harvest_admin_env}cargo run --package regelrecht-editor-api"
             dev_start "editor vite (:${editor_port})" .dev-editor.log \
               "cd frontend && API_PORT=8000 npx vite --port ${editor_port} --strictPort --host 0.0.0.0"
         fi
@@ -942,9 +1033,10 @@ poc-assets:
 
 # Bouw elke statische poc met zijn eigen basis, en zet alles klaar in .poc-static/
 #
-# De WASM-engine komt uit `just wasm-build`; copy-assets.js van elke poc stopt
-# met een duidelijke melding als die er niet is.
-poc-build: wasm-build poc-assets
+# De WASM-engine komt uit `just wasm-build`, chronolexografie uit `just
+# poc-chronolexografie-wasm`; copy-assets.js van elke poc stopt met een
+# duidelijke melding als die er niet is.
+poc-build: wasm-build poc-chronolexografie-wasm poc-assets
     #!/usr/bin/env bash
     set -euo pipefail
     rm -rf .poc-static
@@ -956,6 +1048,9 @@ poc-build: wasm-build poc-assets
     POC_BASE=/nieuwkomersbekostiging/ npm run build -w poc-nieuwkomersbekostiging
     mkdir -p .poc-static/nieuwkomersbekostiging
     cp -R frontend-poc-nieuwkomersbekostiging/dist/. .poc-static/nieuwkomersbekostiging/
+    POC_BASE=/chronolexografie/ npm run build -w poc-chronolexografie
+    mkdir -p .poc-static/chronolexografie
+    cp -R packages/poc-chronolexografie/frontend/dist/. .poc-static/chronolexografie/
 
 # Start het poc-portaal op http://localhost:8611
 #
@@ -970,14 +1065,46 @@ poc: poc-build
     #!/usr/bin/env bash
     set -euo pipefail
     echo "poc-portaal → http://localhost:8611"
-    echo "wachtwoorden: terugbetaalregimes/nieuwkomersbekostiging/napp = 'demo'"
+    echo "wachtwoorden: terugbetaalregimes/nieuwkomersbekostiging/napp/chronolexografie = 'demo'"
     POC_COOKIE_SECRET=lokale-ontwikkelsleutel-niet-geheim-0123 \
     POC_PW_TERUGBETAALREGIMES=demo \
     POC_PW_NIEUWKOMERSBEKOSTIGING=demo \
     POC_PW_NAPP=demo \
+    POC_PW_CHRONOLEXOGRAFIE=demo \
     POC_STATIC_DIR="$(pwd)/.poc-static" \
     POC_PORT=8611 \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-poc-portal
+
+# Bouw de chronolexografie-poc als WASM, naar packages/poc-chronolexografie/frontend/public/wasm/pkg
+#
+# De cel, de engine en het spel draaien in de browser van de bezoeker
+# (packages/poc-chronolexografie, feature `wasm`). copy-assets.js van de app
+# stopt met een duidelijke melding als dit er niet is.
+poc-chronolexografie-wasm:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    bindgen=$({{just_executable()}} wasm-bindgen-cli)
+    # Zelfde vaste target-map als wasm-build, om dezelfde reden.
+    cargo build --manifest-path packages/Cargo.toml --package regelrecht-poc-chronolexografie --features wasm --target wasm32-unknown-unknown --release --target-dir packages/target
+    "$bindgen" --target web --out-dir packages/poc-chronolexografie/frontend/public/wasm/pkg packages/target/wasm32-unknown-unknown/release/regelrecht_poc_chronolexografie.wasm
+
+# Start de chronolexografie-poc los, op de vite-dev-server (http://localhost:5410)
+#
+# Alles draait in de browser: elk tabblad speelt zijn eigen casus. Achter het
+# portaal komt hij uit `just poc`. Een casus uit een bron (`sources` in
+# pocs/registry.yaml) laadt lokaal zonder token met
+# POC_BRON_<NAAM>=<map met casussen/, regulation/ en cells/, of een manifest>.
+poc-chronolexografie: poc-chronolexografie-wasm
+    npm run dev -w poc-chronolexografie
+
+# Speel de scenario's van een bron op de chronolexografie-poc
+#
+# `bron` is het manifest of de map van de bron (POC_BRON), vanaf de wortel van
+# de repo; `uit` een map voor laden.json en een JSON per scenario
+# (POC_SCENARIOS_UIT). De test faalt met één regel per stap die afwijkt van
+# `uitkomst` of `uitvoer`. Vorm van de verslagen: docs, components/poc-portal.
+poc-chronolexografie-scenarios bron uit="":
+    POC_BRON="{{bron}}" POC_SCENARIOS_UIT="{{uit}}" cargo test --manifest-path packages/Cargo.toml --package regelrecht-poc-chronolexografie --test scenarios -- the_scenarios_of_the_source_in_poc_bron_play --nocapture
 
 # Start de beleidsassistent van één casus, naast `just poc` in een tweede terminal
 #

@@ -15,7 +15,7 @@
  * Fries. De vertaling hoort van een vertaler te komen (Afûk of de Fryske
  * Akademy doen dit voor overheden); tot die er is blijft dit staan.
  *
- * `i18n.test.js` telt hoeveel sleutels nog gelijk zijn aan het Nederlands en
+ * `i18n.test.ts` telt hoeveel sleutels nog gelijk zijn aan het Nederlands en
  * bewaakt dat dat aandeel daalt en niet stijgt.
  */
 export default {
@@ -474,7 +474,6 @@ export default {
   "sheet.edit.error.amount": "Folje in bedrach yn, bygelyks 1.250,00.",
   "sheet.edit.error.number": "Folje in getal yn.",
   "sheet.edit.error.date": "Folje in datum yn as JJJJ-MM-DD.",
-  "sheet.edit.error.json": "Dit is gjin jildige JSON.",
   "sheet.edit.error.reason.officer": "Jou in reden op; dy komt yn it dossier fan de saak.",
   "sheet.edit.error.reason.citizen": "Jou in reden op; dy sjocht de behanneler.",
   "sheet.change.label": "Wiziging trochjaan",
@@ -600,6 +599,7 @@ export default {
   "sim.skipped": "Net simulearre: {laws}.",
   "sim.skipped.law": "{name} (freget {missing})",
   "sim.tab.comparison": "Ferliking",
+  "sim.tab.label": "Simulaasjes",
   "sim.view.overview": "Oersjoch",
   "sim.view.breakdown": "Útsplitsing",
   "sim.view.population": "Populaasje",
@@ -745,6 +745,10 @@ export default {
   "harm.feature.is_hospitality": "Is horeka",
   "harm.feature.prepares_food": "Makket iten klear",
   "harm.feature.has_terrace": "Hat terras",
+  "harm.group.yes": "ja",
+  "harm.group.no": "nee",
+  "harm.group.rest": "Oare kombinaasjes",
+  "harm.group.everyone": "Elkenien",
   "harm.error.too_little_data": "Te min gegevens om in model te learen; draai in gruttere simulaasje.",
   "harm.error.no_numeric_feature": "Gjin numeryk skaaimerk om op te staffeljen.",
   "scenario.error.unknown_step": "Ûnbekende stap (net yn bdd/grammar.yaml)",
@@ -830,7 +834,6 @@ export default {
   "walkthrough.missing.title": "Noch gjin rûnlieding",
   "walkthrough.missing.body": "Dizze ferzje fan de demo hat gjin opnommen rûnlieding. De presintaasje en de demo sels wurkje wol.",
   "home.presentation.walkthrough": "Opnommen rûnlieding besjen",
-  "home.ways.label": "Hoe wolsto de demo sjen?",
   "home.ways.walkthrough.title": "Besjoch de rûnlieding",
   "home.ways.walkthrough.text": "Opnommen, mei stim. De demo spilet himsels ôf; do kinst skoftsje en sels fierder klikke. Sawat {minutes} minuten.",
   "home.ways.browse.title": "Sels omsjen",
@@ -847,6 +850,7 @@ export default {
   "walkthrough.transcript.play_from": "Ôfspylje fan {time} ôf",
   "recorder.no_endpoint": "De demo draait net yn opnamemodus. Start him mei `just walkthrough record`.",
   "walkthrough.dutch_only": "De rûnlieding is yn it Nederlânsk opnommen. De knoppen binne oerset. De demo, de dia's, de ûndertitels en de útskreaune tekst binne Nederlânsk, sadat se kloppe mei wat der sein wurdt.",
+  "walkthrough.dutch_voice": "De rûnlieding is yn it Nederlânsk ynsprutsen. De ûndertitels, de dia's en de demo binne oerset.",
   "walkthrough.more": "Mear",
   "walkthrough.view": "Werjefte",
   "walkthrough.captions": "Ûndertitels",
@@ -865,6 +869,8 @@ export default {
   "walkthrough.back_seconds": "{n} sekonden werom",
   "walkthrough.forward_seconds": "{n} sekonden foarút",
   "walkthrough.ai_voice": "De stim yn de haadstikken is makke mei AI, op basis fan de stim fan de presintator.",
+  "walkthrough.dubbed_voice": "De rûnlieding is yn it Nederlânsk opnommen. Wat jo hearre is in oersetting, útsprutsen troch in AI-stim op basis fan de stim fan de presintator.",
+  "walkthrough.original_voice": "Oarspronklike stim (Nederlânsk)",
   "recorder.mic.label": "Mikrofoan",
   "recorder.mic.test": "Mikrofoan teste",
   "recorder.mic.stop_test": "Test stopje",

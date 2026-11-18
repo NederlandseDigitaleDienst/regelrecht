@@ -25,8 +25,9 @@ page by its repo path; `docs/src/content/docs/operations/ci-cd.md` renders at
 `https://docs.regelrecht.rijks.app/operations/ci-cd`.
 
 When you change how the system works, update the docs page in the same pull
-request. When you find a fact here that the docs also state, move it there and
-leave a link: two copies drift.
+request, on the page of the concept the change belongs to ("One page, one
+concept" in the `docs-writing` skill). When you find a fact here that the docs
+also state, move it there and leave a link: two copies drift.
 
 ## Project Overview
 
@@ -88,6 +89,15 @@ in parentheses beside the new word.
 
 Code identifiers keep `law` (`law_id`, `ArticleBasedLaw`, the API routes, the
 WASM API, the Gherkin steps); werkpakket slugs keep their old words.
+
+## Code is English
+
+Identifiers, comments, test names and messages meant for developers are in
+English. Dutch belongs in text a user reads and where this file or a skill asks
+for it, such as commit subjects and PR descriptions. Dutch values in the data
+(schema values, law ids, YAML keys) stay as they are, and so do Dutch legal
+terms and names of concepts (`toeslagpartner`, `regelwerk`) unless a clear,
+unambiguous English equivalent exists.
 
 ## Development Setup
 
@@ -253,10 +263,13 @@ both: `corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml`.
   error instead of fixing it (PR #1579 replaced such an overlay with v0.7.1).
   The same holds more broadly: when a source of truth is wrong, fix the
   source, not a layer on top of it.
+- Een PR met een nieuwe schemaversie beschrijft de wijziging in gewone taal in
+  de PR-beschrijving; de schema-diff-comment toont de diff
+  (`docs/src/content/docs/operations/ci-cd.md#schema-diff-comment-on-prs-that-touch-schema`).
 
 ## De demo is meertalig
 
-`frontend-demo/` draait in het Nederlands, het Engels en het Fries.
+`frontend-demo/` draait in het Nederlands, het Engels, het Fries en het Frans.
 **Nederlands is de bron**: elke tekst staat eerst in `src/i18n/nl.js`, en de
 andere woordenboeken zijn er de vertaling van. Bewerk ze in dezelfde wijziging;
 een sleutel die maar in één bestand landt is een bug, geen halve klus.
@@ -264,29 +277,31 @@ een sleutel die maar in één bestand landt is een bug, geen halve klus.
 - **De talentabel in `src/i18n/index.js` is de enige bron.** Daar staat per taal
   zijn prefix, zijn `Intl`-tag, zijn naam in de eigen taal en zijn woordenboek.
   Een taal toevoegen is een regel in die tabel plus een pad per pagina in
-  `router.js`; zet nooit een taalcode los in een `===` of een objectsleutel,
+  `router.ts`; zet nooit een taalcode los in een `===` of een objectsleutel,
   want dat is precies wat een vierde taal stil Nederlands laat worden.
 - **Het Fries is vertaald maar nog niet nagekeken.** De vertaling komt van
   taalmodellen, niet van een vertaler. Wat een Friestalige revisor moet
   nakijken staat in `corpus/demo/i18n/REVIEW-fy.md`: de plekken waar de
   vertalers zelf zeiden dat ze het niet zeker wisten, met per geval wat er vast
   staat en wat niet. Vul die lijst aan wanneer je op zo'n plek stuit, in plaats
-  van de twijfel in een commit-bericht te laten zitten.
-  `MAX_IDENTICAL_SHARE` in `i18n.test.js` bewaakt dat het aandeel sleutels dat
+  van de twijfel in een commit-bericht te laten zitten. Het Frans is op
+  dezelfde manier vertaald en heeft zijn eigen lijst,
+  `corpus/demo/i18n/REVIEW-fr.md`.
+  `MAX_IDENTICAL_SHARE` in `i18n.test.ts` bewaakt dat het aandeel sleutels dat
   nog letterlijk het Nederlands is daalt en niet stijgt; dat getal gaat met de
   hand omlaag, met de reden in de commit.
 - **Een Fries woord houdt zijn diakriet, ook vooraan een zin.** `Ôfwiisd`, niet
   `Ofwiisd`. Zo'n fout haalt élke andere controle, want de tekst verschilt nog
   steeds van het Nederlands, en hij is toch fout. Alle vier de vertalers
-  maakten hem. `frisian.test.js` vangt hem nu; breid de stammenlijst daar uit
+  maakten hem. `frisian.test.ts` vangt hem nu; breid de stammenlijst daar uit
   als er een woord bijkomt.
 - **Paden bevatten geen teken dat gecodeerd moet worden.** Slugs worden vertaald
   (`/en/ruleworks`, `/fy/senarios`), maar een apostrof wordt `%27` en dat is het
   adres dat tijdens een presentatie op het scherm komt. Het Nederlands doet het
   al zo: het tabblad heet "Scenario's" en het pad is `/scenarios`.
-  `router.test.js` weigert een pad met zo'n teken.
+  `router.test.ts` weigert een pad met zo'n teken.
 - **Gherkin-stappen zijn de uitzondering op "een taal is een tabelregel".** De
-  sjablonen in `gherkinNl.js` zijn geschreven zinnen, geen tabelwaarde. Een taal
+  sjablonen in `gherkinNl.ts` zijn geschreven zinnen, geen tabelwaarde. Een taal
   zonder sjablonen toont de canonieke Engelse stap, mét Engelse sleutelwoorden:
   `Functionaliteit` boven een Engelse stap zou een taal suggereren die er niet
   is.
@@ -301,10 +316,10 @@ een sleutel die maar in één bestand landt is een bug, geen halve klus.
   `node scripts/i18n-bless.mjs`.** `en.sources.js` houdt per sleutel de
   vingerafdruk bij van het Nederlands waaruit vertaald is, zodat een vertaling
   die is blijven staan terwijl het origineel veranderde, opvalt. Zonder die
-  stap faalt `i18n.test.js`, mét de sleutelnamen en het commando erbij.
+  stap faalt `i18n.test.ts`, mét de sleutelnamen en het commando erbij.
 - **Adressen**: Nederlandse paden blijven zoals ze zijn, Engels staat onder
   `/en/` met vertaalde slugs (`/regelwerken` ↔ `/en/ruleworks`). De tabel staat in
-  `src/router.js`; een pagina spreek je aan op naam (`localeRouteName`), nooit
+  `src/router.ts`; een pagina spreek je aan op naam (`localeRouteName`), nooit
   op een letterlijk pad, anders belandt een Engelse bezoeker op een Nederlands
   tabblad.
 - **Wetteksten worden niet vertaald.** `article.text` is de geldende wettekst;
@@ -325,7 +340,7 @@ een sleutel die maar in één bestand landt is een bug, geen halve klus.
 - **Eigennamen blijven staan.** `Belastingdienst` is de naam van een orgaan,
   geen omschrijving; wie op "Tax Administration" zoekt vindt niets. Een
   Engelse toelichting tussen haakjes mag, vertalen niet.
-- **Opmaak loopt via `intlLocale()` in `src/data/format.js`**, nooit via een
+- **Opmaak loopt via `intlLocale()` in `src/data/format.ts`**, nooit via een
   hardgecodeerde taalcode. Een `Intl`-formatter legt zijn taal vast op het
   moment dat je hem maakt, dus eentje op moduleniveau blijft na een taalwissel
   in de oude taal formatteren.
@@ -337,6 +352,51 @@ een sleutel die maar in één bestand landt is een bug, geen halve klus.
   een andere vraag en dit is het antwoord daarop. Het bedrag blijft in beide
   talen in euro's; alleen de scheidingstekens en de plaats van het symbool
   verschillen.
+
+## Rust code
+
+Before you write, change or review Rust, read the `rust-idioms` skill. It holds
+idioms from *The Rust Programming Language* that the compiler does not enforce:
+ownership in signatures, panic versus `Result`, types that carry their
+invariants, function and module size, doc sections.
+
+The skill has a gate, `.claude/skills/rust-idioms/book-lints.mjs`, which runs
+clippy with the lints that match those rules and reports only the lines you
+changed. It is a check on your own lines and comes on top of `just check`,
+which stays what the pre-commit hooks and CI run.
+
+Where the skill and this repository differ, the repository wins:
+
+- The workspace lints warn on `unwrap_used`, `expect_used` and `panic`, and
+  `just lint` turns warnings into errors. Propagate the error. An `expect`
+  that truly cannot fail carries `#[allow(clippy::expect_used)]` and a comment
+  that says why.
+- `REVIEW.md` allows no panic on a path reachable during law execution.
+- A poisoned lock is recovered or reported in the way the surrounding crate
+  already does it, not left to panic.
+
+## Frontend code
+
+Frontends are Vue applications that follow Vue's own conventions: Vite to build,
+Vitest to test, single-file components, and composables or Pinia stores for
+shared state. The aim is TypeScript for code that runs in the browser (`.ts`,
+`<script setup lang="ts">`). The editor, lawmaking, the demo and
+`frontend-shared` are there; the PoC frontends are still JavaScript and will be
+migrated later, so keep new code in those in JavaScript until then. Scripts
+that run in plain Node, the modules they load, and generated files stay
+JavaScript. The setup is in `docs/src/content/docs/guide/frontend-code.md`.
+
+- In the editor, state the whole app shares goes in a Pinia setup store under
+  `src/stores/`; state of one open document goes in a composable each caller
+  creates (`useOpenLaw`). Component tests mount with `testingPinia()` to set
+  store state or stub actions. Details:
+  `docs/src/content/docs/components/frontend.md#state`.
+- Import a TypeScript module without its extension (`'./values'`). Plain Node
+  cannot resolve that, so a module that Node loads keeps its `.js`.
+- Prefer `unknown` and narrowing over `any`. An `any` or a non-null `!` gets a
+  comment saying why it is safe.
+- After moving or renaming a module, check the `vi.mock` paths that name it. A
+  stale path stops mocking without an error.
 
 ## Frontend / UI Components
 
@@ -376,6 +436,11 @@ corpus-poc/<slug>/          casus-regelgeving, data, varianten
 frontend-poc-<slug>/        de app
 ```
 
+Een poc waarvan de kern een Rust-crate is die als WASM in de browser draait,
+staat in één map: `packages/poc-<slug>/` met de app in `frontend/` ernaast
+(zo chronolexografie). Dat is een toegestane indeling naast de gewone, geen
+vervanging ervan.
+
 Een poc toevoegen of zijn status wijzigen: gebruik de **`poc-add`**-skill. Die
 kent de subpad-aanpassingen die een losse app nodig heeft en de plekken in de
 deploy die met de hand bij moeten.
@@ -392,9 +457,13 @@ Drie dingen om te weten voordat je hier iets aanraakt:
   doorgestuurde diepe link slaat het overzicht over, en een screenshot uit een
   poc reist zonder omringende tekst. Een uitgerekend bedrag ziet er even
   stellig uit, of het model nu doorgelopen is met juristen of niet.
-- **Wachtwoorden staan alleen in ZAD** (`zad env add -c poc POC_PW_<SLUG>`),
-  nooit in de repo. Het portaal weigert te starten als er één ontbreekt; een
-  poc in het register zonder wachtwoord zou anders voor iedereen open staan.
+- **Wachtwoorden staan alleen in ZAD**, nooit in de repo. Anne zet
+  `POC_PW_<SLUG>` als user env var op component `poc`, in de ZAD Operations
+  Manager; zad-cli heeft geen `env`-commando. Het portaal weigert te starten
+  als er een wachtwoord ontbreekt; een poc in het register zonder wachtwoord
+  zou anders voor iedereen open staan. Een preview kopieert de env vars van
+  productie bij het aanmaken, dus een preview van vóór het wachtwoord faalt
+  met `NoPassword`.
 
 De beleidsassistent in de OCW-pocs draait op de Claude Code CLI met Anne's
 eigen abonnementstoken (`CLAUDE_CODE_OAUTH_TOKEN`, uit `claude setup-token`).
@@ -543,6 +612,11 @@ against, is in `docs/src/content/docs/operations/ci-cd.md#the-claude-review-gate
   operates one as easily as a person, while it reads as a human judgement.
 - **Wait on the job's `status`, never on the number of review comments.** Zero
   comments means "still running" as often as "nothing to report".
+- **No review on the head commit? Start one by hand** with
+  `gh workflow run "Claude Code Review" -f pr=<n>`, then rerun the failed gate
+  (`gh run rerun <run id> --failed`); the gate takes that review over. Rerunning
+  an old `pull_request` run does not help, because it keeps the commit it was
+  started for. Toggling the PR to draft and back to ready also works.
 - **A PR that edits `.github/workflows/claude-code-review.yml` gets no automatic
   review**: the action skips itself when the file differs from the default
   branch, and the gate then blocks. Such a PR needs a human review and an admin
@@ -615,6 +689,10 @@ label. Add it only when someone needs a running preview; removing it (or
 closing the PR) deletes the preview. `deploy:<component>` labels force a
 component to build and do nothing without `deploy:preview`. Fork PRs never
 build.
+
+A preview sleeps 48 hours after its last deploy. Wake it with the `zad-wake`
+skill before a smoketest or `check-deployment`; how sleep-mode works is in
+`docs/src/content/docs/operations/deployment.md#sleeping-previews`.
 
 ### Cleanup
 

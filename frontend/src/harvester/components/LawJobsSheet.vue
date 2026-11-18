@@ -1,20 +1,31 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue';
 import { apiFetch } from '@regelrecht/frontend-shared';
-import { useLawJobsSheet } from '../composables/useLawJobsSheet.js';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import { useLawJobsSheet } from '../composables/useLawJobsSheet';
 import StatusBadge from './StatusBadge.vue';
-import { formatDate, jobSubtitle } from '../formatters.js';
+import { formatDate, jobSubtitle } from '../formatters';
+import type { Job } from '../composables/useJobs';
+import type { PaginatedResponse } from '../composables/usePollingFetch';
 
 const { isOpen, lawId, close } = useLawJobsSheet();
 
 const JOBS_LIMIT = 100;
 
-const sheetRef = ref(null);
-const jobs = ref([]);
+/** A code block in the detail view: the error, the result or the payload. */
+interface CodeSection {
+  title: string;
+  code: string;
+  wrap?: boolean;
+  language?: string;
+}
+
+const sheetRef = ref<NLDDSheet | null>(null);
+const jobs = ref<Job[]>([]);
 const totalJobs = ref(0);
 const loading = ref(false);
-const error = ref(null);
-const selectedJob = ref(null);
+const error = ref<string | null>(null);
+const selectedJob = ref<Job | null>(null);
 
 watch(isOpen, (open) => {
   if (open) {
@@ -54,11 +65,11 @@ async function loadJobs() {
       limit: String(JOBS_LIMIT),
     });
     const response = await apiFetch(`/api/harvest-admin/jobs?${params}`);
-    const body = await response.json();
+    const body = (await response.json()) as Partial<PaginatedResponse<Job>>;
     jobs.value = body.data ?? [];
     totalJobs.value = body.total ?? jobs.value.length;
   } catch (err) {
-    error.value = err.message;
+    error.value = (err as Error).message;
   } finally {
     loading.value = false;
   }
@@ -75,7 +86,7 @@ function onBack() {
 const infoFields = computed(() => {
   if (!selectedJob.value) return [];
   const j = selectedJob.value;
-  return [
+  return ([
     ['Job ID', j.id],
     ['Law ID', j.law_id],
     ['Type', j.job_type],
@@ -85,7 +96,7 @@ const infoFields = computed(() => {
     ['Created', formatDate(j.created_at)],
     ['Started', formatDate(j.started_at)],
     ['Completed', formatDate(j.completed_at)],
-  ].filter(([, value]) => value != null);
+  ] satisfies [string, string | number | null | undefined][]).filter(([, value]) => value != null);
 });
 
 const resultJson = computed(() =>
@@ -99,7 +110,7 @@ const payloadJson = computed(() =>
 const codeSections = computed(() => {
   const j = selectedJob.value;
   if (!j) return [];
-  const out = [];
+  const out: CodeSection[] = [];
   if (j.status === 'failed' && j.result?.error) {
     out.push({ title: 'Error', code: j.result.error, wrap: true });
   }
@@ -179,7 +190,7 @@ const codeSections = computed(() => {
         </nldd-simple-section>
 
         <nldd-simple-section v-else>
-          <nldd-title><h2>Job details</h2></nldd-title>
+          <nldd-title size="display-3"><h2>Job details</h2></nldd-title>
           <nldd-spacer size="8" />
 
           <nldd-list appearance="simple">
@@ -191,7 +202,7 @@ const codeSections = computed(() => {
                 width="full"
                 style="align-items: flex-end"
               >
-                <StatusBadge :status="value" size="md" />
+                <StatusBadge :status="String(value)" size="md" />
               </nldd-cell>
               <nldd-text-cell v-else :text="String(value)" horizontal-alignment="right" />
             </nldd-list-item>
@@ -199,7 +210,7 @@ const codeSections = computed(() => {
 
           <template v-for="section in codeSections" :key="section.title">
             <nldd-spacer size="16" />
-            <nldd-title size="6"><h3>{{ section.title }}</h3></nldd-title>
+            <nldd-title size="display-6"><h3>{{ section.title }}</h3></nldd-title>
             <nldd-spacer size="4" />
             <nldd-code-viewer :wrap="section.wrap || undefined" :language="section.language || undefined">{{ section.code }}</nldd-code-viewer>
           </template>

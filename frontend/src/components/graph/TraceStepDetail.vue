@@ -1,21 +1,29 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
-import { formatOutputValue, normalizeForCompare, matchStatus as _matchStatus } from '../../utils/outputFormat.js';
+import { formatOutputValue, normalizeForCompare, matchStatus as _matchStatus } from '../../utils/outputFormat';
+import type { TraceStep } from '../../lib/traceEdges';
 
-const props = defineProps({
-  step: { type: Object, default: null },
-  outputs: { type: Object, default: () => ({}) },
-  expectations: { type: Object, default: () => ({}) },
-});
+const props = withDefaults(
+  defineProps<{
+    step?: TraceStep | null;
+    outputs?: Record<string, unknown>;
+    expectations?: Record<string, unknown>;
+  }>(),
+  {
+    step: null,
+    outputs: () => ({}),
+    expectations: () => ({}),
+  },
+);
 
-function matchStatus(name, value) {
+function matchStatus(name: string, value: unknown) {
   return _matchStatus(name, value, props.expectations);
 }
 
 /** The step's result, carrying its declared unit when the law states one.
  *  Truncation wins over the unit: a value long enough to be cut is not one a
  *  currency form helps with. */
-function formatResult(step) {
+function formatResult(step: TraceStep): string {
   const shown = truncate(step.result);
   if (!step.unit || shown.endsWith('…')) return shown;
   return formatOutputValue(step.result, step.unit);
@@ -23,11 +31,11 @@ function formatResult(step) {
 
 // No unit here (see the note above Outputs), so formatOutputValue adds
 // nothing to a number; for an unknown outcome it appends the missing facts.
-function fmt(v) {
+function fmt(v: unknown): string {
   return formatOutputValue(v, null);
 }
 
-function truncate(v) {
+function truncate(v: unknown): string {
   const s = fmt(v);
   return s.length > 80 ? `${s.substring(0, 77)}…` : s;
 }

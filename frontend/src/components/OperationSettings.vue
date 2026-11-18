@@ -1,37 +1,89 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
 import {
   OPERATION_LABELS,
   collectAvailableVariables,
   derivedTitle,
-} from '../utils/operationTree.js';
+  type OperationNode,
+  type OperationTreeRow,
+} from '../utils/operationTree';
 import BreakableName from './BreakableName.vue';
 
-const props = defineProps({
-  operation: { type: Object, default: null },
-  article: { type: Object, default: null },
-  editable: { type: Boolean, default: false },
+/** The parts of an article this component reads (via collectAvailableVariables). */
+export interface OperationSettingsArticle {
+  machine_readable?: {
+    definitions?: Record<string, unknown> | null;
+    execution?: {
+      input?: { name: string }[] | null;
+      parameters?: { name: string }[] | null;
+      actions?: { output?: string }[] | null;
+    } | null;
+  } | null;
+}
+
+/**
+ * The operation node as this component writes it. The form stores whatever
+ * the author typed or picked (parseInputValue may give a number or boolean),
+ * also in `in`, `as` and `combine`, which OperationNode declares as strings.
+ */
+type EditableNode = Omit<OperationNode, 'in' | 'as' | 'combine'> & {
+  in?: unknown;
+  as?: unknown;
+  combine?: unknown;
+};
+
+/** Which slot of the node a value row reads and writes. */
+type ValueKind =
+  | 'subject' | 'value' | 'date_of_birth' | 'reference_date'
+  | 'from' | 'to' | 'in' | 'collection' | 'as' | 'filter' | 'body' | 'combine'
+  | 'values' | 'conditions' | 'case-when' | 'case-then' | 'default';
+
+/** One row of the value list, built by operationValues. */
+interface ValueRow {
+  _label: string;
+  _value: unknown;
+  _kind: ValueKind;
+  _index?: number;
+  _caseIndex?: number;
+}
+
+const props = withDefaults(defineProps<{
+  operation?: OperationTreeRow | null;
+  article?: OperationSettingsArticle | null;
+  editable?: boolean;
   // Suppress the read-only "Titel" row. The action sheet sets this at the
   // top level in edit mode, where the editable Output field takes that
   // first/name position instead (avoiding a duplicate name row).
-  hideTitleRow: { type: Boolean, default: false },
+  hideTitleRow?: boolean;
+}>(), {
+  operation: null,
+  article: null,
+  editable: false,
+  hideTitleRow: false,
 });
 
-const emit = defineEmits(['select-operation']);
+const emit = defineEmits<{
+  'select-operation': [node: OperationNode];
+}>();
 
 const availableVariables = computed(() => collectAvailableVariables(props.article));
 
+// RECORD keeps its operands in `fields`, which this panel cannot edit yet, so
+// it is offered only to show the type of a RECORD that is already there.
 const typeOptions = computed(() =>
-  Object.entries(OPERATION_LABELS).map(([key, label]) => ({ value: key, label }))
+  Object.entries(OPERATION_LABELS)
+    .filter(([key]) => key !== 'RECORD' || props.operation?.operation === 'RECORD')
+    .map(([key, label]) => ({ value: key, label }))
 );
 
 // Group variables by category with alphabetical sorting within each group,
 // matching the optgroup pattern used in EditSheet's source parameter dropdown.
 const variableGroups = computed(() => {
-  const groups = new Map();
+  const groups = new Map<string, { value: string; label: string }[]>();
   for (const v of availableVariables.value) {
     if (!groups.has(v.category)) groups.set(v.category, []);
-    groups.get(v.category).push({
+    // Set on the line above when missing.
+    groups.get(v.category)!.push({
       value: v.ref,
       label: v.name,
     });
@@ -50,7 +102,8 @@ const COMPARISON_OPS = new Set([
 const LOGICAL_OPS = new Set(['AND', 'OR']);
 const ARITHMETIC_OPS = new Set(['ADD', 'SUBTRACT', 'MULTIPLY', 'DIVIDE', 'MIN', 'MAX', 'CONCAT']);
 
-const isComparisonOp = computed(() => COMPARISON_OPS.has(props.operation?.operation));
+// `?? ''` only for the type: '' is not in the set, as undefined was not.
+const isComparisonOp = computed(() => COMPARISON_OPS.has(props.operation?.operation ?? ''));
 
 const canAddValue = computed(() => {
   if (!props.editable) return false;
@@ -79,7 +132,7 @@ const canAddValue = computed(() => {
 
 // Required structural fields whose minus button must be hidden so the user
 // cannot delete them and silently produce an invalid node.
-function canRemoveValue(val) {
+function canRemoveValue(val: ValueRow) {
   if (!props.editable) return false;
   const node = props.operation?.node;
   const op = props.operation?.operation;
@@ -107,12 +160,12 @@ function canRemoveValue(val) {
   return true;
 }
 
-const operationValues = computed(() => {
-  const node = props.operation?.node;
+const operationValues = computed((): ValueRow[] => {
+  const node: EditableNode | undefined = props.operation?.node;
   if (!node) return [];
 
   if (isComparisonOp.value) {
-    const vals = [];
+    const vals: ValueRow[] = [];
     vals.push({ _label: 'Onderwerp', _value: node.subject ?? '', _kind: 'subject' });
     if (node.operation !== 'NOT_NULL') {
       vals.push({ _label: 'Waarde', _value: node.value ?? '', _kind: 'value' });
@@ -143,7 +196,7 @@ const operationValues = computed(() => {
   // slots (RFC-016). `as` is an identifier and `combine` an enum from a fixed
   // list; neither is ever a nested operation.
   if (node.operation === 'FOREACH') {
-    const vals = [
+    const vals: ValueRow[] = [
       { _label: 'Verzameling', _value: node.collection ?? '', _kind: 'collection' },
       { _label: 'Naam per element', _value: node.as ?? '', _kind: 'as' },
     ];
@@ -161,7 +214,7 @@ const operationValues = computed(() => {
   // is semantic (IF is single-case, SWITCH is multi-case) and how the user
   // labels each branch.
   if (node.operation === 'IF' || node.operation === 'SWITCH') {
-    const vals = [];
+    const vals: ValueRow[] = [];
     const isSwitch = node.operation === 'SWITCH';
     if (Array.isArray(node.cases)) {
       node.cases.forEach((c, i) => {
@@ -181,17 +234,19 @@ const operationValues = computed(() => {
     return node.conditions.map((c, i) => ({ _label: `Conditie ${i + 1}`, _value: c, _kind: 'conditions', _index: i }));
   }
 
-  const vals = [];
+  const vals: ValueRow[] = [];
   if (node.subject != null) vals.push({ _label: 'Onderwerp', _value: node.subject, _kind: 'subject' });
   if (node.value !== undefined) vals.push({ _label: 'Waarde', _value: node.value, _kind: 'value' });
   return vals;
 });
 
-function isNestedOperation(val) {
-  return val != null && typeof val === 'object' && val.operation;
+// Not a type guard: it returns the `operation` value itself (truthy) rather
+// than a boolean, and templates bind that result directly.
+function isNestedOperation(val: unknown) {
+  return val != null && typeof val === 'object' && (val as { operation?: unknown }).operation;
 }
 
-function isLiteralValue(val) {
+function isLiteralValue(val: unknown) {
   return val === null || typeof val === 'number' || typeof val === 'boolean' || (typeof val === 'string' && !val.startsWith('$'));
 }
 
@@ -199,12 +254,13 @@ function isLiteralValue(val) {
 // own title when the author supplied one, falling back to the derived
 // expression. Keeps the dropdown label identical to the Titel row the user
 // sees after clicking "Bewerken" into that operation.
-function valueDropdownNestedOption(val) {
+function valueDropdownNestedOption(val: unknown) {
   if (!isNestedOperation(val)) return null;
-  return { value: '__nested__', label: `${val.title ?? derivedTitle(val)} (operatie)` };
+  const node = val as OperationNode;
+  return { value: '__nested__', label: `${node.title ?? derivedTitle(node)} (operatie)` };
 }
 
-function currentDropdownValue(val) {
+function currentDropdownValue(val: unknown) {
   if (isNestedOperation(val)) return '__nested__';
   if (typeof val === 'string' && val.startsWith('$')) return val;
   return String(val);
@@ -212,7 +268,7 @@ function currentDropdownValue(val) {
 
 // --- Mutation helpers ---
 
-function parseInputValue(str) {
+function parseInputValue(str: string) {
   if (str === 'true') return true;
   if (str === 'false') return false;
   const n = Number(str);
@@ -220,8 +276,8 @@ function parseInputValue(str) {
   return str;
 }
 
-function changeOperationType(newType) {
-  const node = props.operation?.node;
+function changeOperationType(newType: string) {
+  const node: EditableNode | undefined = props.operation?.node;
   if (!node) return;
   const oldType = node.operation;
   if (!newType || newType === oldType) return;
@@ -417,8 +473,8 @@ function changeOperationType(newType) {
   }
 }
 
-function applyValueMutation(val, newVal) {
-  const node = props.operation?.node;
+function applyValueMutation(val: ValueRow, newVal: unknown) {
+  const node: EditableNode | undefined = props.operation?.node;
   if (!node) return;
   if (val._kind === 'subject') node.subject = newVal;
   else if (val._kind === 'value') node.value = newVal;
@@ -432,23 +488,28 @@ function applyValueMutation(val, newVal) {
   else if (val._kind === 'body') node.body = newVal;
   else if (val._kind === 'filter') node.filter = newVal;
   else if (val._kind === 'combine') node.combine = newVal;
-  else if (val._kind === 'values' && val._index !== undefined) node.values[val._index] = newVal;
-  else if (val._kind === 'conditions' && val._index !== undefined) node.conditions[val._index] = newVal;
+  // A 'values' / 'conditions' row is only built from an array on this node,
+  // and without one this threw before, as it still does.
+  else if (val._kind === 'values' && val._index !== undefined) node.values![val._index] = newVal;
+  else if (val._kind === 'conditions' && val._index !== undefined) node.conditions![val._index] = newVal;
   else if (val._kind === 'default') node.default = newVal;
   else if (val._kind === 'case-when' && val._caseIndex !== undefined && Array.isArray(node.cases)) {
-    node.cases[val._caseIndex].when = newVal;
+    // _caseIndex is the index of this case when the row was built.
+    node.cases[val._caseIndex]!.when = newVal;
   } else if (val._kind === 'case-then' && val._caseIndex !== undefined && Array.isArray(node.cases)) {
-    node.cases[val._caseIndex].then = newVal;
+    node.cases[val._caseIndex]!.then = newVal;
   }
 }
 
-function updateValue(val, event) {
-  const newVal = parseInputValue(event.target?.value ?? event.detail?.value ?? '');
+function updateValue(val: ValueRow, event: Event) {
+  const target = event.target as { value?: string } | null;
+  const detail = (event as CustomEvent<{ value?: string } | undefined>).detail;
+  const newVal = parseInputValue(target?.value ?? detail?.value ?? '');
   applyValueMutation(val, newVal);
 }
 
-function updateDropdownValue(val, event) {
-  const selected = event.target.value;
+function updateDropdownValue(val: ValueRow, event: Event) {
+  const selected = (event.target as HTMLSelectElement).value;
   // The '__nested__' sentinel is just the current operation's own row in
   // the list - re-picking it means "keep the operation" (edit it via the
   // pencil), so it's a no-op. Picking anything else (a variable, literal,
@@ -466,7 +527,7 @@ function updateDropdownValue(val, event) {
 
 // The Type radio (Waarde / Operatie) only applies to value slots that can
 // hold either a literal or a nested operation - not subject/date pickers.
-function canChangeValueKind(val) {
+function canChangeValueKind(val: ValueRow) {
   return val._kind !== 'subject'
     && val._kind !== 'date_of_birth'
     && val._kind !== 'reference_date'
@@ -481,14 +542,14 @@ function canChangeValueKind(val) {
 // The actions menu only contains the Type group and Verwijder. When neither
 // applies (e.g. a comparison op's fixed subject/value), the menu would render
 // empty ("Geen opties beschikbaar"), so suppress the more-button entirely.
-function hasValueMenu(val) {
+function hasValueMenu(val: ValueRow) {
   return canChangeValueKind(val) || canRemoveValue(val);
 }
 
 // Switch a value between a literal and a nested operation, writing through
 // applyValueMutation so it lands in the correct slot for this _kind. The
 // default operation mirrors the old "Operatie toevoegen" shape.
-function changeValueKind(val, kind) {
+function changeValueKind(val: ValueRow, kind: 'value' | 'operatie') {
   const isOp = isNestedOperation(val._value);
   if (kind === 'operatie' && !isOp) {
     applyValueMutation(val, { operation: 'ADD', values: [] });
@@ -502,13 +563,13 @@ function changeValueKind(val, kind) {
   }
 }
 
-function readonlyValueText(val) {
+function readonlyValueText(val: ValueRow) {
   const v = val._value;
   if (v === null || v === undefined || v === '') return '(leeg)';
   // For a nested op: prefer the user-supplied title; fall back to the
   // derived expression. Mirrors the buildOperationTree title rule so the
   // Waarde row reads identically to the Titel row after clicking in.
-  if (isNestedOperation(v)) return v.title ?? derivedTitle(v);
+  if (isNestedOperation(v)) return (v as OperationNode).title ?? derivedTitle(v as OperationNode);
   // A YAML list renders as a value; String([...]) joins with a bare comma
   // ("a,b,c") which has no break opportunity and pushes the column width.
   // Use comma + space so it can wrap and reads naturally.
@@ -516,8 +577,8 @@ function readonlyValueText(val) {
   return String(v);
 }
 
-function removeValue(val) {
-  const node = props.operation?.node;
+function removeValue(val: ValueRow) {
+  const node: EditableNode | undefined = props.operation?.node;
   if (!node) return;
 
   if (val._kind === 'values' && val._index !== undefined && Array.isArray(node.values)) {
@@ -537,7 +598,7 @@ function removeValue(val) {
 }
 
 function addValue() {
-  const node = props.operation?.node;
+  const node: EditableNode | undefined = props.operation?.node;
   if (!node) return;
 
   // Don't inject values[] into nodes with structural value slots
@@ -564,7 +625,7 @@ function addValue() {
 <template>
   <template v-if="operation">
     <template v-if="String(operation.number).includes('.')">
-      <nldd-title size="4" class="operation-settings__title">
+      <nldd-title size="display-4" class="operation-settings__title">
         <h4>Operatie {{ operation.number }}</h4>
       </nldd-title>
       <nldd-spacer size="12"></nldd-spacer>
@@ -598,7 +659,7 @@ function addValue() {
               :key="`op-type-${operation.number}-${operation.operation}`"
               aria-label="Operatie type"
               :value="operation.operation"
-              @change="changeOperationType($event.target.value)"
+              @change="changeOperationType(($event.target as HTMLSelectElement).value)"
             >
               <option v-for="opt in typeOptions" :key="opt.value" :value="opt.value" :selected="opt.value === operation.operation">{{ opt.label }}</option>
             </select>
@@ -616,7 +677,7 @@ function addValue() {
         size="md"
         :data-testid="`op-value-${i}`"
         :button="!editable && isNestedOperation(val._value)"
-        @click="!editable && isNestedOperation(val._value) && emit('select-operation', val._value)"
+        @click="!editable && isNestedOperation(val._value) && emit('select-operation', val._value as OperationNode)"
       >
         <nldd-text-cell :text="val._label" :width="editable ? '120px' : 'fit-content'"></nldd-text-cell>
         <nldd-spacer-cell size="12"></nldd-spacer-cell>
@@ -672,13 +733,15 @@ function addValue() {
           </nldd-cell>
           <template v-if="isNestedOperation(val._value)">
             <nldd-spacer-cell size="8"></nldd-spacer-cell>
-            <nldd-icon-button
-              icon="edit"
-              text="Bewerken"
-              tooltip-timing="never"
-              appearance="neutral-tinted"
-              @click="emit('select-operation', val._value)"
-            ></nldd-icon-button>
+            <nldd-cell>
+              <nldd-icon-button
+                icon="edit"
+                text="Bewerken"
+                tooltip-timing="never"
+                appearance="neutral-tinted"
+                @click="emit('select-operation', val._value as OperationNode)"
+              ></nldd-icon-button>
+            </nldd-cell>
           </template>
           <template v-if="hasValueMenu(val)">
             <nldd-spacer-cell size="8"></nldd-spacer-cell>
@@ -686,32 +749,34 @@ function addValue() {
                  exact button instead of to whichever element happens to own a
                  matching id — two panes showing the same operation used to
                  collide. -->
-            <nldd-icon-button icon="more" text="Acties" tooltip-timing="never" appearance="neutral-tinted">
-              <nldd-menu slot="popup">
-                <nldd-menu-group v-if="canChangeValueKind(val)" text="Type">
+            <nldd-cell>
+              <nldd-icon-button icon="more" text="Acties" tooltip-timing="never" appearance="neutral-tinted">
+                <nldd-menu slot="popup">
+                  <nldd-menu-group v-if="canChangeValueKind(val)" text="Type">
+                    <nldd-menu-item
+                      type="radio"
+                      text="Waarde"
+                      :selected="!isNestedOperation(val._value) || undefined"
+                      @click.stop="changeValueKind(val, 'value')"
+                    ></nldd-menu-item>
+                    <nldd-menu-item
+                      type="radio"
+                      text="Operatie"
+                      :selected="isNestedOperation(val._value) || undefined"
+                      @click.stop="changeValueKind(val, 'operatie')"
+                    ></nldd-menu-item>
+                  </nldd-menu-group>
+                  <nldd-menu-divider v-if="canChangeValueKind(val) && canRemoveValue(val)"></nldd-menu-divider>
                   <nldd-menu-item
-                    type="radio"
-                    text="Waarde"
-                    :selected="!isNestedOperation(val._value) || undefined"
-                    @click.stop="changeValueKind(val, 'value')"
+                    v-if="canRemoveValue(val)"
+                    text="Verwijder"
+                    icon="delete"
+                    destructive
+                    @click.stop="removeValue(val)"
                   ></nldd-menu-item>
-                  <nldd-menu-item
-                    type="radio"
-                    text="Operatie"
-                    :selected="isNestedOperation(val._value) || undefined"
-                    @click.stop="changeValueKind(val, 'operatie')"
-                  ></nldd-menu-item>
-                </nldd-menu-group>
-                <nldd-menu-divider v-if="canChangeValueKind(val) && canRemoveValue(val)"></nldd-menu-divider>
-                <nldd-menu-item
-                  v-if="canRemoveValue(val)"
-                  text="Verwijder"
-                  icon="delete"
-                  destructive
-                  @click.stop="removeValue(val)"
-                ></nldd-menu-item>
-              </nldd-menu>
-            </nldd-icon-button>
+                </nldd-menu>
+              </nldd-icon-button>
+            </nldd-cell>
           </template>
         </template>
         <template v-else>

@@ -61,8 +61,9 @@ const PRUNED_DIRS: &[&str] = &[
 
 /// A discovered npm-workspace frontend.
 pub struct FrontendApp {
-    /// Short label used in node ids (the app directory's basename), e.g.
-    /// `frontend`, `frontend-lawmaking`, `frontend-shared`.
+    /// Short label used in node ids: the app directory's path under the
+    /// repository, without `packages/` and with `-` for `/`, e.g. `frontend`,
+    /// `frontend-shared`, `poc-chronolexografie-frontend`.
     pub short: String,
     /// Stable node id, `app:<short>`.
     pub node_id: String,
@@ -131,9 +132,23 @@ fn discover_apps(repo_root: &Path) -> Vec<FrontendApp> {
         let Some(pkg) = read_json(&dir.join("package.json")) else {
             continue;
         };
-        let Some(short) = dir.file_name().and_then(|s| s.to_str()) else {
+        // The directory's path under the repository, without `packages/` and
+        // with `-` for `/`: `frontend`, `frontend-shared`, and for a frontend
+        // inside a crate `poc-chronolexografie-frontend`. The name of the
+        // directory alone is not unique: that one is called `frontend` too.
+        let Some(short) = dir
+            .strip_prefix(repo_root)
+            .ok()
+            .and_then(|rel| rel.to_str())
+            .map(|rel| {
+                rel.strip_prefix("packages/")
+                    .unwrap_or(rel)
+                    .replace('/', "-")
+            })
+        else {
             continue;
         };
+        let short = short.as_str();
         let package_name = pkg
             .get("name")
             .and_then(Value::as_str)
@@ -433,8 +448,8 @@ fn app_source_files(app_dir: &Path) -> Vec<PathBuf> {
         collect_source_files(&src, &mut files);
     }
 
-    // Top-level entry modules that live outside `src/` (e.g. lawmaking's
-    // `main.js`), so an app whose bootstrap sits at its root is still covered.
+    // Top-level entry modules that live outside `src/` (a `main.js` next to
+    // `index.html`), so an app whose bootstrap sits at its root is still covered.
     for name in ["main", "index"] {
         for ext in JS_EXTS {
             let candidate = app_dir.join(format!("{name}.{ext}"));
@@ -545,14 +560,14 @@ fn resolve_imports(
         };
         for spec in &file.specifiers {
             if spec.starts_with('.') {
-                if let Some(target) = resolve_relative(dir, spec, file_by_abs) {
-                    if target != file.node_id {
-                        edges.push(Edge {
-                            from: file.node_id.clone(),
-                            to: target,
-                            kind: EdgeKind::Uses,
-                        });
-                    }
+                if let Some(target) = resolve_relative(dir, spec, file_by_abs)
+                    && target != file.node_id
+                {
+                    edges.push(Edge {
+                        from: file.node_id.clone(),
+                        to: target,
+                        kind: EdgeKind::Uses,
+                    });
                 }
             } else {
                 resolve_bare(apps, file, spec, file_by_abs, edges);
@@ -611,18 +626,16 @@ fn resolve_bare(
                 kind: EdgeKind::DependsOn,
             });
         }
-        if whole {
-            if let Some(entry) = &app.entry {
-                if let Some(target) = file_by_abs.get(entry) {
-                    if target != &file.node_id {
-                        edges.push(Edge {
-                            from: file.node_id.clone(),
-                            to: target.clone(),
-                            kind: EdgeKind::Uses,
-                        });
-                    }
-                }
-            }
+        if whole
+            && let Some(entry) = &app.entry
+            && let Some(target) = file_by_abs.get(entry)
+            && target != &file.node_id
+        {
+            edges.push(Edge {
+                from: file.node_id.clone(),
+                to: target.clone(),
+                kind: EdgeKind::Uses,
+            });
         }
         return;
     }

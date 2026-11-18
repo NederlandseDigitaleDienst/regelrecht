@@ -1,27 +1,29 @@
-<script setup>
-import { computed, ref, nextTick, onMounted, onBeforeUnmount, provide } from 'vue';
+<script setup lang="ts">
+import { computed, ref, nextTick, onMounted, onBeforeUnmount, provide, watch } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
+import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
+import type { NLDDPopover } from '@nldd/design-system/popover';
 import TrajectMenu from './components/TrajectMenu.vue';
 import MobileTrajectSheet from './components/MobileTrajectSheet.vue';
 import AboutSheet from './components/AboutSheet.vue';
 import SupportSheet from './components/SupportSheet.vue';
 import SettingsSheet from './components/SettingsSheet.vue';
-import { useAuth } from './composables/useAuth.js';
-import { useGithubAuth } from './composables/useGithubAuth.js';
-import { useTrajects } from './composables/useTrajects.js';
-import { useColorScheme } from './composables/useColorScheme.js';
-import { useSettingsSections } from './composables/useSettingsSections.js';
-import { useAddActions } from './composables/useAddActions.js';
+import NewMenuItems from './components/NewMenuItems.vue';
+import AccountMenuItems from './components/AccountMenuItems.vue';
+import { useAuth } from './composables/useAuth';
+import { useTrajectsStore } from './stores/trajects';
 import {
   lastHomePath,
   lastEditorPath,
   editorTabTarget as buildEditorTabTarget,
   homeTabTarget,
   isHomeSection,
-  rememberHarvesterOrigin,
-} from './composables/useLastVisitedRoute.js';
-import { useAppChrome, openSearch, onBarSearchKeydown } from './composables/useAppChrome.js';
-import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from './constants.js';
+} from './composables/useLastVisitedRoute';
+import { useAppChromeStore } from './stores/appChrome';
+import { useOpenScenariosStore } from './stores/openScenarios';
+import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from './constants';
+import type { OpenTab } from './lib/openTabsStorage';
 
 // Persistent shell that owns the shared chrome (tab-bar, search trigger,
 // TrajectMenu, settings menu) and a nested <router-view> for the editor /
@@ -29,75 +31,18 @@ import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from './constants.js';
 // switching between them swaps only the nested router-view - the shell
 // instance is reused, so the chrome never rebuilds (no refresh flash).
 
-const { authenticated, loading: authLoading, oidcConfigured, person, hasAnyRole, login, logout } = useAuth();
-// Only for the identity line in the account-menu header — linking itself lives
-// in the settings sheet. The login is shown only when writes actually go out
-// under it, otherwise it would misstate who authors the commit. `required` is
-// the effective answer (env var OR feature flag), which is why the flag is not
-// read here directly.
-const { status: githubStatus } = useGithubAuth();
-const showGithubLine = computed(
-  () =>
-    !!githubStatus.value?.configured &&
-    !!githubStatus.value?.required &&
-    !!githubStatus.value?.connected,
-);
-
-// Roles that may reach the harvester-admin "Corpusinwinning" section. Any harvester-*
-// tier (reader/writer/admin) or the spanning regelrecht-admin sees the menu
-// item; write actions inside the section are still enforced server-side by
-// the harvester-admin API. Composite-role expansion means a higher tier
-// already carries the lower ones, but we list all four so a directly-assigned
-// role can never be missed.
-const HARVESTER_ROLES = [
-  'harvester-reader',
-  'harvester-writer',
-  'harvester-admin',
-  'regelrecht-admin',
-];
-const canViewHarvesting = computed(
-  () => authenticated.value && hasAnyRole(HARVESTER_ROLES),
-);
-function goToHarvesting() {
-  // Remember where we came from so the harvester's back button returns here.
-  rememberHarvesterOrigin(route.fullPath);
-  router.push("/harvesting");
-}
-const { activeTrajectRef } = useTrajects();
-
-// Het kleurschema zit als submenu in dit menu en niet meer in de
-// instellingen-sheet: het is iets dat je even omzet, geen instelling die je
-// opzoekt. De radio's laten meteen zien welke aanstaat, wat een sheet pas na
-// openen doet.
-const { colorScheme, setColorScheme } = useColorScheme();
-const colorSchemeOptions = [
-  ['auto', 'Systeem', 'display'],
-  ['light', 'Licht', 'light-mode'],
-  ['dark', 'Donker', 'dark-mode'],
-];
-// `select` draagt geen payload; de gekozen waarde staat op het item zelf.
-function onColorSchemeSelect(e) {
-  const value = e.target?.getAttribute?.('value');
-  if (value) setColorScheme(value);
-}
-
-// Zonder Weergave houdt de sheet alleen secties over die achter een rol of een
-// omgevingsinstelling zitten. Is er niets van over, dan hoort het menu-item er
-// ook niet te staan: een "Instellingen" dat een lege sheet opent is erger dan
-// geen "Instellingen".
-const { hasContent: settingsHasContent } = useSettingsSections();
-// Universele "Toevoegen"-knop: vuurt intenties die LibraryView oppakt.
-const { triggerAddLaw, triggerNewWerkdoc, triggerUploadWerkdoc, triggerInviteMembers } = useAddActions();
+const { authenticated, loading: authLoading, oidcConfigured, person, login } = useAuth();
+const { activeTrajectRef } = storeToRefs(useTrajectsStore());
 
 // "Over RegelRecht" about sheet, opened from the account menu.
-const aboutSheet = ref(null);
+const aboutSheet = ref<InstanceType<typeof AboutSheet> | null>(null);
 function openAbout() {
   // Let the account menu popover close first, then raise the sheet.
   nextTick(() => aboutSheet.value?.show?.());
 }
 
 // "Help" sheet, opened from the account menu.
-const supportSheet = ref(null);
+const supportSheet = ref<InstanceType<typeof SupportSheet> | null>(null);
 function openSupport() {
   // Let the account menu popover close first, then raise the sheet.
   nextTick(() => supportSheet.value?.show?.());
@@ -106,7 +51,7 @@ function openSupport() {
 // Rejecting a proposal throws the seeded edit away, so it asks first. Owned
 // here because the Verwerp button lives in the changes bar; EditorView keeps
 // the actual reject logic.
-const rejectConfirm = ref(null);
+const rejectConfirm = ref<NLDDModalDialog | null>(null);
 function confirmReject() {
   rejectConfirm.value?.hide();
   editorActions.value?.reject?.();
@@ -115,7 +60,7 @@ function confirmReject() {
 // "Rond af, neem de rest niet over" sluit de hele verrijking af zonder de
 // resterende onderdelen te bekijken - destructiever dan één verwerping, dus
 // die vraagt het ook eerst.
-const rejectRestConfirm = ref(null);
+const rejectRestConfirm = ref<NLDDModalDialog | null>(null);
 function confirmRejectRest() {
   rejectRestConfirm.value?.hide();
   editorActions.value?.rejectRest?.();
@@ -140,7 +85,7 @@ const reviewNotice = computed(() => editorChanges.value?.reviewStatus ?? null);
 
 // "Instellingen" sheet, opened from the account menu. Owns Weergave, the panel
 // flags and the GitHub link — all of which used to hang off this menu directly.
-const settingsSheet = ref(null);
+const settingsSheet = ref<InstanceType<typeof SettingsSheet> | null>(null);
 function openSettings() {
   // Let the account menu popover close first, then raise the sheet.
   nextTick(() => settingsSheet.value?.show?.());
@@ -176,11 +121,11 @@ const editorTabHref = computed(() => router.resolve(editorTabTarget.value).href)
 // unauthenticated user straight to the SSO screen (an unannounced surprise),
 // intercept the Editor tab and first show a small login-warning popover anchored
 // to the clicked tab. Authenticated users navigate as before.
-const loginWarning = ref(null);
+const loginWarning = ref<NLDDPopover | null>(null);
 // Where the "Inloggen" button returns after SSO. Defaults to the editor tab;
 // callers (e.g. the Bibliotheek "Bewerken" button) point it at a specific
 // article so login lands straight on the page being edited.
-const loginRedirect = ref(null);
+const loginRedirect = ref<string | null>(null);
 
 // The login-warning popover is popover=auto: a re-tap on the trigger that opened
 // it light-dismisses it on pointerdown, but showLoginWarning would then reopen
@@ -196,7 +141,7 @@ provide('onLoginTriggerPointerdown', onLoginTriggerPointerdown);
 // Show the login-warning popover anchored to `anchorEl`. Provided to the nested
 // views so every editor entry point (the Editor tab, the Bibliotheek
 // "Bewerken" button) shows the same heads-up instead of bouncing to SSO.
-function showLoginWarning(anchorEl, redirectHref) {
+function showLoginWarning(anchorEl: EventTarget | null | undefined, redirectHref?: string | null) {
   if (!loginWarning.value) return;
   // Consume the pointerdown snapshot so a later programmatic call (no pointerdown,
   // e.g. gating on navigation) still shows instead of inheriting a stale flag.
@@ -209,7 +154,8 @@ function showLoginWarning(anchorEl, redirectHref) {
     return;
   }
   loginRedirect.value = redirectHref ?? editorTabHref.value;
-  loginWarning.value.anchorElement = anchorEl;
+  // Callers pass the clicked element (an event's currentTarget); assigned as is.
+  loginWarning.value.anchorElement = anchorEl as Element | null;
   loginWarning.value.show();
 }
 provide('showLoginWarning', showLoginWarning);
@@ -222,7 +168,7 @@ function goToAccountRequest() {
   router.push({ name: 'account-aanvragen' });
 }
 
-function onEditorTab(e) {
+function onEditorTab(e: Event) {
   if (!authenticated.value) {
     showLoginWarning(e.currentTarget);
     return;
@@ -231,7 +177,31 @@ function onEditorTab(e) {
 }
 
 // View-specific toolbar bits published by the active view.
-const { lastSavedPr, documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions, editorChanges, editorActions, libraryEmpty } = useAppChrome();
+const appChrome = useAppChromeStore();
+const { lastSavedPr, documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions, editorChanges, editorActions, libraryEmpty } = storeToRefs(appChrome);
+const { openSearch, openSearchAt, onBarSearchKeydown } = appChrome;
+
+// The toolbars' overflow-menu alternatives. A `select` there arrives on the
+// original menu item, which sits hidden in its collapsed toolbar item, so a
+// popover these open anchors to the toolbar instead of to that item.
+function overflowAnchor(e: Event): Element | null {
+  return (e.currentTarget as Element | null)?.closest?.('nldd-toolbar') ?? null;
+}
+function onEditorTabOverflow(e: Event) {
+  if (!authenticated.value) {
+    showLoginWarning(overflowAnchor(e));
+    return;
+  }
+  if (isLibraryRoute.value) router.push(editorTabTarget.value);
+}
+function openSearchFromOverflow(e: Event) {
+  openSearchAt(overflowAnchor(e));
+}
+// A menu item has no `target`; the PR opens in a new tab like its button, so
+// the editor state is not lost.
+function openLastSavedPr() {
+  if (lastSavedPr.value) window.open(lastSavedPr.value.url, '_blank', 'noopener');
+}
 
 // Just-in-time coach-mark on the toolbar search affordance: shown while the
 // library is empty (nothing curated yet). In the bare corpus it's app-driven and
@@ -242,8 +212,8 @@ const { lastSavedPr, documentTabs, activeDocumentTab, documentTabsTrajectRef, ta
 // resolve the active breakpoint and activate only the coach-mark whose control
 // is actually visible, never anchoring a popover to a hidden control.
 const viewport = ref('lg'); // 'sm' | 'md' | 'lg', aligned with the DS bar breakpoints
-let mdQuery = null;
-let lgQuery = null;
+let mdQuery: MediaQueryList | null = null;
+let lgQuery: MediaQueryList | null = null;
 // DS bar breakpoints, mirrored here for matchMedia. Keep in sync with
 // @nldd/design-system (src/assets/styles/breakpoints.ts): md >= 641px, lg >= 1008px.
 // If the DS shifts these thresholds, update them here too - otherwise the
@@ -260,6 +230,25 @@ onMounted(() => {
   mdQuery?.addEventListener?.('change', updateViewport);
   lgQuery?.addEventListener?.('change', updateViewport);
 });
+// Unsaved scenario edits live in memory and outlive the editor (leaving it
+// for Home keeps them, with their tabs), so the shell is where a reload or
+// closing the browser tab warns about them. The editor warns about its open
+// article itself. Registered only while there are edits, because a
+// beforeunload listener keeps some browsers from caching the page.
+const openScenarios = useOpenScenariosStore();
+function warnUnsavedScenarios(event: BeforeUnloadEvent) {
+  event.preventDefault();
+}
+watch(
+  () => openScenarios.anyDirty(),
+  (dirty) => {
+    if (dirty) window.addEventListener('beforeunload', warnUnsavedScenarios);
+    else window.removeEventListener('beforeunload', warnUnsavedScenarios);
+  },
+  { immediate: true },
+);
+onBeforeUnmount(() => window.removeEventListener('beforeunload', warnUnsavedScenarios));
+
 onBeforeUnmount(() => {
   mdQuery?.removeEventListener?.('change', updateViewport);
   lgQuery?.removeEventListener?.('change', updateViewport);
@@ -281,9 +270,9 @@ const searchHintActive = computed(
 const showSearchHintSm = computed(() => searchHintActive.value && viewport.value === 'sm');
 const showSearchHintMd = computed(() => searchHintActive.value && viewport.value === 'md');
 const showSearchHintLg = computed(() => searchHintActive.value && viewport.value === 'lg');
-function onSearchHintClose(e) {
+function onSearchHintClose(e: Event) {
   jitHiddenSession.value = true;
-  if (e?.detail?.reason === 'dismissed') {
+  if ((e as CustomEvent<{ reason?: string } | null> | undefined)?.detail?.reason === 'dismissed') {
     jitDismissed.value = true;
     try { localStorage.setItem(JIT_DISMISS_KEY, '1'); } catch { /* ignore */ }
   }
@@ -306,18 +295,57 @@ const hasDocumentTabs = computed(
 //
 // Map elements back to tabs by data-tab-key rather than by index - the bar
 // reorders its own DOM to keep the selected tab visible when tabs overflow.
-function onTabDismiss(e) {
+// The bar's `tab-dismiss` detail: the dismissed item and the one it selected.
+interface TabDismissDetail {
+  item?: HTMLElement | null;
+  nextItem?: HTMLElement | null;
+}
+
+async function onTabDismiss(e: Event) {
   const actions = tabActions.value;
   if (!actions) return;
-  const toTab = (el) =>
+  const detail = (e as CustomEvent<TabDismissDetail | null | undefined>).detail;
+  const toTab = (el: HTMLElement | null | undefined) =>
     documentTabs.value.find((t) => actions.key(t) === el?.dataset?.tabKey) ?? null;
-  const dismissed = toTab(e.detail?.item);
-  if (dismissed) actions.close(dismissed, toTab(e.detail?.nextItem));
+  const dismissed = toTab(detail?.item);
+  if (dismissed && !(await actions.close(dismissed, toTab(detail?.nextItem)))) restoreTabSelection();
+}
+
+// The dot on a tab with unsaved edits is only seen (design-system-gaps.css):
+// the supporting text says it too, so a screen reader hears it with the tab's
+// name. The mobile tab sheet says it with a tag instead.
+function tabSupportingText(tab: OpenTab): string | undefined {
+  const label = tabActions.value?.label(tab);
+  if (!label) return undefined;
+  if (!label.unsaved) return label.supportingText;
+  return label.supportingText ? `${label.supportingText} · niet opgeslagen` : 'Niet opgeslagen';
+}
+
+async function onTabClick(tab: OpenTab) {
+  const actions = tabActions.value;
+  if (actions && !(await actions.select(tab))) restoreTabSelection();
+}
+
+// The bar marks a clicked tab, or a closed tab's neighbour, as selected before
+// the editor answers. When the editor keeps the open article (the user chose
+// to keep unsaved edits), put the selection back on it. The bar keeps no
+// selection of its own beyond each item's `selected`, and Vue does not patch
+// a binding whose value did not change, so this sets it directly.
+const tabBarEl = ref<HTMLElement | null>(null);
+function restoreTabSelection() {
+  const actions = tabActions.value;
+  const active = activeDocumentTab.value;
+  const activeKey = actions && active ? actions.key(active) : null;
+  tabBarEl.value
+    ?.querySelectorAll<HTMLElement & { selected: boolean }>('nldd-document-tab-bar-item')
+    .forEach((item) => {
+      item.selected = item.dataset.tabKey === activeKey;
+    });
 }
 </script>
 
 <template>
-  <nldd-app-view>
+  <nldd-shell>
     <nldd-bar-split-view>
       <!-- Primary Bar: md only - search and settings as buttons. The bar-split-
            view draws the divider automatically where the bar group meets main:
@@ -328,15 +356,20 @@ function onTabDismiss(e) {
         <nldd-container padding="8">
           <nldd-toolbar size="md">
             <nldd-toolbar-item slot="start">
-              <nldd-tab-bar size="md" navigation>
+              <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
                 <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" text="Home"></nldd-tab-bar-item>
                 <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Editor"></nldd-tab-bar-item>
               </nldd-tab-bar>
+              <nldd-menu-group slot="overflow" text="Onderdelen">
+                <nldd-menu-item type="radio" text="Home" :selected="isLibraryRoute || undefined" @select="isLibraryRoute || router.push(libraryTabTarget)"></nldd-menu-item>
+                <nldd-menu-item type="radio" text="Editor" :selected="!isLibraryRoute || undefined" @select="onEditorTabOverflow"></nldd-menu-item>
+              </nldd-menu-group>
             </nldd-toolbar-item>
             <nldd-toolbar-item v-if="lastSavedPr" slot="end">
               <!-- Federated write-back indicator (editor only). New tab so the
                    editor state isn't lost. -->
               <nldd-button size="md" start-icon="external-link" :text="`PR #${lastSavedPr.number}`" :href="lastSavedPr.url" target="_blank" rel="noopener"></nldd-button>
+              <nldd-menu-item slot="overflow" icon="external-link" :text="`PR #${lastSavedPr.number}`" @select="openLastSavedPr"></nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end">
               <nldd-just-in-time-education
@@ -346,22 +379,16 @@ function onTabDismiss(e) {
                 supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
                 :active="showSearchHintMd || undefined"
                 :dismissable="trajectActive || undefined"
-                @nldd-close="onSearchHintClose"
+                @close="onSearchHintClose"
               >
                 <nldd-button data-search-trigger size="md" start-icon="search" text="Zoeken" @click="openSearch"></nldd-button>
               </nldd-just-in-time-education>
+              <nldd-menu-item slot="overflow" icon="search" text="Zoeken" @select="openSearchFromOverflow"></nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end" v-if="trajectActive || (!authLoading && oidcConfigured && !authenticated)">
               <nldd-icon-button size="md" icon="plus-small" text="Nieuw" tooltip-timing="never" expandable>
                 <nldd-menu v-if="trajectActive" slot="popup">
-                  <nldd-menu-item icon="new-book" text="Regelwerk toevoegen…" @select="triggerAddLaw"></nldd-menu-item>
-                  <nldd-menu-item icon="new-text-document" text="Werkdocument toevoegen">
-                    <nldd-menu>
-                      <nldd-menu-item icon="new-text-document" text="Nieuw document" @select="triggerNewWerkdoc"></nldd-menu-item>
-                      <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="triggerUploadWerkdoc"></nldd-menu-item>
-                    </nldd-menu>
-                  </nldd-menu-item>
-                  <nldd-menu-item icon="add-user" text="Leden uitnodigen…" @select="triggerInviteMembers"></nldd-menu-item>
+                  <NewMenuItems />
                 </nldd-menu>
                 <!-- Niet ingelogd: dezelfde "+" blijft staan als ontdekpunt, maar
                      opent een popover die uitnodigt in te loggen. Zelfde id als het
@@ -380,6 +407,16 @@ function onTabDismiss(e) {
                   </nldd-container>
                 </nldd-popover>
               </nldd-icon-button>
+              <nldd-menu-item slot="overflow" icon="plus-small" text="Nieuw">
+                <nldd-menu v-if="trajectActive">
+                  <NewMenuItems />
+                </nldd-menu>
+                <!-- Logged out: what the button's popover offers, as a menu. -->
+                <nldd-menu v-else>
+                  <nldd-menu-item icon="login" text="Inloggen" @select="login()"></nldd-menu-item>
+                  <nldd-menu-item icon="new-account" text="Account aanvragen" @select="goToAccountRequest"></nldd-menu-item>
+                </nldd-menu>
+              </nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end">
               <nldd-button-bar size="md">
@@ -388,43 +425,16 @@ function onTabDismiss(e) {
                 <nldd-icon-button size="md" :icon="authenticated ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
                   <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="inherit" icon-aligned decorative></nldd-avatar>
                 <nldd-menu slot="popup">
-                  <nldd-menu-item v-if="!authLoading && oidcConfigured && !authenticated" text="Inloggen" icon="login" @click="login()"></nldd-menu-item>
-                  <nldd-menu-item v-if="!authLoading && oidcConfigured && !authenticated" text="Account aanvragen" icon="new-account" @click="goToAccountRequest"></nldd-menu-item>
-                  <nldd-container v-if="!authLoading && authenticated" slot="header" padding-inline="16" padding-block="12">
-                    <nldd-identity :text="person?.name || person?.email">
-                      <span v-if="person?.name || showGithubLine" slot="supporting-text">
-                        <template v-if="person?.name">{{ person?.email }}</template>
-                        <br v-if="person?.name && showGithubLine">
-                        <template v-if="showGithubLine">GitHub: {{ githubStatus.github_login }}</template>
-                      </span>
-                    </nldd-identity>
-                  </nldd-container>
-                  <nldd-menu-divider v-if="!authLoading && oidcConfigured && !authenticated"></nldd-menu-divider>
-                  <nldd-menu-item text="Weergave" icon="appearance">
-                    <nldd-menu @select="onColorSchemeSelect">
-                      <nldd-menu-item
-                        v-for="[value, label, icon] in colorSchemeOptions"
-                        :key="value"
-                        type="radio"
-                        :value="value"
-                        :text="label"
-                        :icon="icon"
-                        :selected="colorScheme === value || undefined"
-                      ></nldd-menu-item>
-                    </nldd-menu>
-                  </nldd-menu-item>
-                  <nldd-menu-item v-if="settingsHasContent" text="Instellingen" icon="gear" @click="openSettings"></nldd-menu-item>
-                  <nldd-menu-item v-if="canViewHarvesting" text="Harvester" icon="harvest" @click.stop="goToHarvesting"></nldd-menu-item>
-                  <nldd-menu-divider></nldd-menu-divider>
-                  <nldd-menu-item text="Over RegelRecht" icon="info" @click="openAbout"></nldd-menu-item>
-                  <nldd-menu-item text="Help" icon="help" @click="openSupport"></nldd-menu-item>
-                  <template v-if="!authLoading && authenticated">
-                    <nldd-menu-divider></nldd-menu-divider>
-                    <nldd-menu-item text="Log uit" icon="logout" @click="logout"></nldd-menu-item>
-                  </template>
+                  <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
                 </nldd-menu>
                 </nldd-icon-button>
               </nldd-button-bar>
+              <TrajectMenu slot="overflow" menu-item />
+              <nldd-menu-item slot="overflow" icon="account" text="Account">
+                <nldd-menu>
+                  <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
+                </nldd-menu>
+              </nldd-menu-item>
             </nldd-toolbar-item>
           </nldd-toolbar>
         </nldd-container>
@@ -435,10 +445,14 @@ function onTabDismiss(e) {
         <nldd-container padding="8">
           <nldd-toolbar size="md">
             <nldd-toolbar-item slot="start">
-              <nldd-tab-bar size="md" navigation>
+              <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
                 <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" text="Home"></nldd-tab-bar-item>
                 <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Editor"></nldd-tab-bar-item>
               </nldd-tab-bar>
+              <nldd-menu-group slot="overflow" text="Onderdelen">
+                <nldd-menu-item type="radio" text="Home" :selected="isLibraryRoute || undefined" @select="isLibraryRoute || router.push(libraryTabTarget)"></nldd-menu-item>
+                <nldd-menu-item type="radio" text="Editor" :selected="!isLibraryRoute || undefined" @select="onEditorTabOverflow"></nldd-menu-item>
+              </nldd-menu-group>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="center" min-width="240px" width="33%" max-width="480px">
               <nldd-just-in-time-education
@@ -448,7 +462,7 @@ function onTabDismiss(e) {
                 supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
                 :active="showSearchHintLg || undefined"
                 :dismissable="trajectActive || undefined"
-                @nldd-close="onSearchHintClose"
+                @close="onSearchHintClose"
               >
                 <nldd-search-field
                   data-search-trigger
@@ -459,21 +473,16 @@ function onTabDismiss(e) {
                   @keydown="onBarSearchKeydown"
                 ></nldd-search-field>
               </nldd-just-in-time-education>
+              <nldd-menu-item slot="overflow" icon="search" text="Zoeken" @select="openSearchFromOverflow"></nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item v-if="lastSavedPr" slot="end">
               <nldd-button size="md" start-icon="external-link" :text="`PR #${lastSavedPr.number}`" :href="lastSavedPr.url" target="_blank" rel="noopener"></nldd-button>
+              <nldd-menu-item slot="overflow" icon="external-link" :text="`PR #${lastSavedPr.number}`" @select="openLastSavedPr"></nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end" v-if="trajectActive || (!authLoading && oidcConfigured && !authenticated)">
               <nldd-icon-button size="md" icon="plus-small" text="Nieuw" tooltip-timing="never" expandable>
                 <nldd-menu v-if="trajectActive" slot="popup">
-                  <nldd-menu-item icon="new-book" text="Regelwerk toevoegen…" @select="triggerAddLaw"></nldd-menu-item>
-                  <nldd-menu-item icon="new-text-document" text="Werkdocument toevoegen">
-                    <nldd-menu>
-                      <nldd-menu-item icon="new-text-document" text="Nieuw document" @select="triggerNewWerkdoc"></nldd-menu-item>
-                      <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="triggerUploadWerkdoc"></nldd-menu-item>
-                    </nldd-menu>
-                  </nldd-menu-item>
-                  <nldd-menu-item icon="add-user" text="Leden uitnodigen…" @select="triggerInviteMembers"></nldd-menu-item>
+                  <NewMenuItems />
                 </nldd-menu>
                 <nldd-popover v-else slot="popup" accessible-label="Toevoegen" width="320px">
                   <nldd-container padding="16">
@@ -488,6 +497,16 @@ function onTabDismiss(e) {
                   </nldd-container>
                 </nldd-popover>
               </nldd-icon-button>
+              <nldd-menu-item slot="overflow" icon="plus-small" text="Nieuw">
+                <nldd-menu v-if="trajectActive">
+                  <NewMenuItems />
+                </nldd-menu>
+                <!-- Logged out: what the button's popover offers, as a menu. -->
+                <nldd-menu v-else>
+                  <nldd-menu-item icon="login" text="Inloggen" @select="login()"></nldd-menu-item>
+                  <nldd-menu-item icon="new-account" text="Account aanvragen" @select="goToAccountRequest"></nldd-menu-item>
+                </nldd-menu>
+              </nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end">
               <nldd-button-bar size="md">
@@ -496,43 +515,16 @@ function onTabDismiss(e) {
                 <nldd-icon-button size="md" :icon="authenticated ? undefined : 'account'" text="Account" tooltip-timing="never" expandable>
                   <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="inherit" icon-aligned decorative></nldd-avatar>
                 <nldd-menu slot="popup">
-                  <nldd-menu-item v-if="!authLoading && oidcConfigured && !authenticated" text="Inloggen" icon="login" @click="login()"></nldd-menu-item>
-                  <nldd-menu-item v-if="!authLoading && oidcConfigured && !authenticated" text="Account aanvragen" icon="new-account" @click="goToAccountRequest"></nldd-menu-item>
-                  <nldd-container v-if="!authLoading && authenticated" slot="header" padding-inline="16" padding-block="12">
-                    <nldd-identity :text="person?.name || person?.email">
-                      <span v-if="person?.name || showGithubLine" slot="supporting-text">
-                        <template v-if="person?.name">{{ person?.email }}</template>
-                        <br v-if="person?.name && showGithubLine">
-                        <template v-if="showGithubLine">GitHub: {{ githubStatus.github_login }}</template>
-                      </span>
-                    </nldd-identity>
-                  </nldd-container>
-                  <nldd-menu-divider v-if="!authLoading && oidcConfigured && !authenticated"></nldd-menu-divider>
-                  <nldd-menu-item text="Weergave" icon="appearance">
-                    <nldd-menu @select="onColorSchemeSelect">
-                      <nldd-menu-item
-                        v-for="[value, label, icon] in colorSchemeOptions"
-                        :key="value"
-                        type="radio"
-                        :value="value"
-                        :text="label"
-                        :icon="icon"
-                        :selected="colorScheme === value || undefined"
-                      ></nldd-menu-item>
-                    </nldd-menu>
-                  </nldd-menu-item>
-                  <nldd-menu-item v-if="settingsHasContent" text="Instellingen" icon="gear" @click="openSettings"></nldd-menu-item>
-                  <nldd-menu-item v-if="canViewHarvesting" text="Harvester" icon="harvest" @click.stop="goToHarvesting"></nldd-menu-item>
-                  <nldd-menu-divider></nldd-menu-divider>
-                  <nldd-menu-item text="Over RegelRecht" icon="info" @click="openAbout"></nldd-menu-item>
-                  <nldd-menu-item text="Help" icon="help" @click="openSupport"></nldd-menu-item>
-                  <template v-if="!authLoading && authenticated">
-                    <nldd-menu-divider></nldd-menu-divider>
-                    <nldd-menu-item text="Log uit" icon="logout" @click="logout"></nldd-menu-item>
-                  </template>
+                  <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
                 </nldd-menu>
                 </nldd-icon-button>
               </nldd-button-bar>
+              <TrajectMenu slot="overflow" menu-item />
+              <nldd-menu-item slot="overflow" icon="account" text="Account">
+                <nldd-menu>
+                  <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
+                </nldd-menu>
+              </nldd-menu-item>
             </nldd-toolbar-item>
           </nldd-toolbar>
         </nldd-container>
@@ -545,11 +537,11 @@ function onTabDismiss(e) {
       <nldd-split-view-pane v-if="hasDocumentTabs" slot="document-tabs" above="md">
         <nldd-container padding-inline="8" padding-top="0" padding-bottom="8">
           <!-- Drag-reorder: the bar reorders its items visually and fires
-               nldd-reorder; without this listener that move never reaches
+               `reorder`; without this listener that move never reaches
                `openTabs`, so it was lost (reverted from localStorage) the next
                time the editor mounted. EditorView's `reorderTabs` mirrors the
                move into the array and persists it. -->
-          <!-- `tabdismiss` (the bar), not `dismiss` (the item): the bar picks
+          <!-- `tab-dismiss` (the bar), not `dismiss` (the item): the bar picks
                the replacement for a dismissed tab itself and hands it over as
                `nextItem`. See onTabDismiss. -->
           <!-- `:key` on the bar (the traject the tabs belong to, published WITH
@@ -563,21 +555,23 @@ function onTabDismiss(e) {
                No has-dismiss-button (the item renders its own dismiss button in
                0.8.44); accessible-label names the navigation landmark. -->
           <nldd-document-tab-bar
+            ref="tabBarEl"
             :key="documentTabsTrajectRef ?? ''"
             accessible-label="Open artikelen"
-            @nldd-reorder="tabActions.reorder($event.detail.fromIndex, $event.detail.toIndex)"
-            @tabdismiss="onTabDismiss"
+            @reorder="tabActions?.reorder($event.detail.fromIndex, $event.detail.toIndex)"
+            @tab-dismiss="onTabDismiss"
           >
             <nldd-document-tab-bar-item
               v-for="tab in documentTabs"
-              :key="`${documentTabsTrajectRef ?? ''}:${tabActions.key(tab)}`"
-              :data-tab-key="tabActions.key(tab)"
-              :text="`Artikel ${tab.articleNumber}`"
-              :supporting-text="tabActions.displayName(tab)"
-              :short-text="`Art. ${tab.articleNumber}`"
-              :short-supporting-text="tabActions.displayName(tab)"
-              :selected="activeDocumentTab && tabActions.key(activeDocumentTab) === tabActions.key(tab) || undefined"
-              @click="tabActions.select(tab)"
+              :key="`${documentTabsTrajectRef ?? ''}:${tabActions?.key(tab)}`"
+              :data-tab-key="tabActions?.key(tab)"
+              :data-unsaved="tabActions?.label(tab).unsaved || undefined"
+              :text="tabActions?.label(tab).text"
+              :supporting-text="tabSupportingText(tab)"
+              :short-text="tabActions?.label(tab).shortText"
+              :short-supporting-text="tabSupportingText(tab)"
+              :selected="activeDocumentTab && tabActions?.key(activeDocumentTab) === tabActions?.key(tab) || undefined"
+              @click="onTabClick(tab)"
             >
             </nldd-document-tab-bar-item>
           </nldd-document-tab-bar>
@@ -606,12 +600,12 @@ function onTabDismiss(e) {
 
       <!-- Wijzigingenbalk (editor only): one article-level bar with Opslaan +
            Wijzigingen-ongedaan (+ text undo/redo), replacing the per-pane save
-           footers. Published by EditorView via useAppChrome; shown only while
+           footers. Published by EditorView via the chrome store; shown only while
            the article has unsaved changes. Sits after `main` in the DOM, so on
            sm it lands above the two mobile bars and on md+ it's the bottom bar. -->
       <nldd-split-view-pane v-if="editorChanges && (editorChanges.dirty || editorChanges.review)" slot="changes-bar">
         <nldd-container padding="8" sm-padding-bottom="0">
-          <nldd-toolbar size="md" label="Wijzigingen">
+          <nldd-toolbar size="md" accessible-label="Wijzigingen">
             <!-- Undo en redo zijn losse knoppen: die gebruik je herhaald, en
                  dan is elke klik door een menu er één te veel. De discard is
                  destructief en houdt daarom z'n eigen chevron-knop, zodat hij
@@ -745,10 +739,14 @@ function onTabDismiss(e) {
         <nldd-container padding="8">
           <nldd-toolbar size="lg">
             <nldd-toolbar-item slot="start">
-              <nldd-tab-bar navigation>
+              <nldd-tab-bar navigation accessible-label="Onderdelen">
                 <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" icon="home" text="Home"></nldd-tab-bar-item>
                 <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" icon="edit" text="Editor"></nldd-tab-bar-item>
               </nldd-tab-bar>
+              <nldd-menu-group slot="overflow" text="Onderdelen">
+                <nldd-menu-item type="radio" icon="home" text="Home" :selected="isLibraryRoute || undefined" @select="isLibraryRoute || router.push(libraryTabTarget)"></nldd-menu-item>
+                <nldd-menu-item type="radio" icon="edit" text="Editor" :selected="!isLibraryRoute || undefined" @select="onEditorTabOverflow"></nldd-menu-item>
+              </nldd-menu-group>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end">
               <nldd-just-in-time-education
@@ -758,22 +756,16 @@ function onTabDismiss(e) {
                 supporting-text="Markeer een regelwerk als favoriet om het later snel terug te vinden."
                 :active="showSearchHintSm || undefined"
                 :dismissable="trajectActive || undefined"
-                @nldd-close="onSearchHintClose"
+                @close="onSearchHintClose"
               >
                 <nldd-icon-button data-search-trigger size="lg" icon="search" text="Zoeken" @click="openSearch"></nldd-icon-button>
               </nldd-just-in-time-education>
+              <nldd-menu-item slot="overflow" icon="search" text="Zoeken" @select="openSearchFromOverflow"></nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end" v-if="trajectActive || (!authLoading && oidcConfigured && !authenticated)">
               <nldd-icon-button size="lg" icon="plus-small" text="Nieuw" tooltip-timing="never">
                 <nldd-menu v-if="trajectActive" slot="popup">
-                  <nldd-menu-item icon="new-book" text="Regelwerk toevoegen…" @select="triggerAddLaw"></nldd-menu-item>
-                  <nldd-menu-item icon="new-text-document" text="Werkdocument toevoegen">
-                    <nldd-menu>
-                      <nldd-menu-item icon="new-text-document" text="Nieuw document" @select="triggerNewWerkdoc"></nldd-menu-item>
-                      <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="triggerUploadWerkdoc"></nldd-menu-item>
-                    </nldd-menu>
-                  </nldd-menu-item>
-                  <nldd-menu-item icon="add-user" text="Leden uitnodigen…" @select="triggerInviteMembers"></nldd-menu-item>
+                  <NewMenuItems />
                 </nldd-menu>
                 <nldd-popover v-else slot="popup" accessible-label="Toevoegen" width="320px">
                   <nldd-container padding="16">
@@ -788,47 +780,29 @@ function onTabDismiss(e) {
                   </nldd-container>
                 </nldd-popover>
               </nldd-icon-button>
+              <nldd-menu-item slot="overflow" icon="plus-small" text="Nieuw">
+                <nldd-menu v-if="trajectActive">
+                  <NewMenuItems />
+                </nldd-menu>
+                <!-- Logged out: what the button's popover offers, as a menu. -->
+                <nldd-menu v-else>
+                  <nldd-menu-item icon="login" text="Inloggen" @select="login()"></nldd-menu-item>
+                  <nldd-menu-item icon="new-account" text="Account aanvragen" @select="goToAccountRequest"></nldd-menu-item>
+                </nldd-menu>
+              </nldd-menu-item>
             </nldd-toolbar-item>
             <nldd-toolbar-item slot="end">
               <nldd-icon-button size="lg" :icon="authenticated ? undefined : 'account'" text="Account" tooltip-timing="never">
                 <nldd-avatar v-if="authenticated" slot="icon" :name="person?.name || person?.email" color="inherit" icon-aligned decorative></nldd-avatar>
                 <nldd-menu slot="popup">
-                  <nldd-menu-item v-if="!authLoading && oidcConfigured && !authenticated" text="Inloggen" icon="login" @click="login()"></nldd-menu-item>
-                  <nldd-menu-item v-if="!authLoading && oidcConfigured && !authenticated" text="Account aanvragen" icon="new-account" @click="goToAccountRequest"></nldd-menu-item>
-                  <nldd-container v-if="!authLoading && authenticated" slot="header" padding-inline="16" padding-block="12">
-                    <nldd-identity :text="person?.name || person?.email">
-                      <span v-if="person?.name || showGithubLine" slot="supporting-text">
-                        <template v-if="person?.name">{{ person?.email }}</template>
-                        <br v-if="person?.name && showGithubLine">
-                        <template v-if="showGithubLine">GitHub: {{ githubStatus.github_login }}</template>
-                      </span>
-                    </nldd-identity>
-                  </nldd-container>
-                  <nldd-menu-divider v-if="!authLoading && oidcConfigured && !authenticated"></nldd-menu-divider>
-                  <nldd-menu-item text="Weergave" icon="appearance">
-                    <nldd-menu @select="onColorSchemeSelect">
-                      <nldd-menu-item
-                        v-for="[value, label, icon] in colorSchemeOptions"
-                        :key="value"
-                        type="radio"
-                        :value="value"
-                        :text="label"
-                        :icon="icon"
-                        :selected="colorScheme === value || undefined"
-                      ></nldd-menu-item>
-                    </nldd-menu>
-                  </nldd-menu-item>
-                  <nldd-menu-item v-if="settingsHasContent" text="Instellingen" icon="gear" @click="openSettings"></nldd-menu-item>
-                  <nldd-menu-item v-if="canViewHarvesting" text="Harvester" icon="harvest" @click.stop="goToHarvesting"></nldd-menu-item>
-                  <nldd-menu-divider></nldd-menu-divider>
-                  <nldd-menu-item text="Over RegelRecht" icon="info" @click="openAbout"></nldd-menu-item>
-                  <nldd-menu-item text="Help" icon="help" @click="openSupport"></nldd-menu-item>
-                  <template v-if="!authLoading && authenticated">
-                    <nldd-menu-divider></nldd-menu-divider>
-                    <nldd-menu-item text="Log uit" icon="logout" @click="logout"></nldd-menu-item>
-                  </template>
+                  <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
                 </nldd-menu>
               </nldd-icon-button>
+              <nldd-menu-item slot="overflow" icon="account" text="Account">
+                <nldd-menu>
+                  <AccountMenuItems @settings="openSettings" @about="openAbout" @support="openSupport" @request-account="goToAccountRequest" />
+                </nldd-menu>
+              </nldd-menu-item>
             </nldd-toolbar-item>
           </nldd-toolbar>
         </nldd-container>
@@ -838,7 +812,7 @@ function onTabDismiss(e) {
     <AboutSheet ref="aboutSheet"></AboutSheet>
     <SupportSheet ref="supportSheet"></SupportSheet>
     <SettingsSheet ref="settingsSheet"></SettingsSheet>
-  </nldd-app-view>
+  </nldd-shell>
 
   <!-- Editor requires login: a heads-up popover anchored to the clicked Editor
        tab (sm/md/lg) so the SSO screen never appears unannounced. -->

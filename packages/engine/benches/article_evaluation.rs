@@ -3,7 +3,7 @@
 // `allow-*-in-tests` in clippy.toml only reaches `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use criterion::{criterion_group, criterion_main, Criterion};
+use criterion::{Criterion, criterion_group, criterion_main};
 use regelrecht_engine::{ArticleBasedLaw, ArticleEngine, LawLoad, Value};
 use std::collections::BTreeMap;
 use std::hint::black_box;

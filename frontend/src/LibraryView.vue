@@ -1,7 +1,12 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, shallowRef, nextTick, watch, watchEffect, onBeforeUnmount, inject } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter, onBeforeRouteUpdate, onBeforeRouteLeave } from 'vue-router';
-import * as yaml from 'js-yaml';
+import type { RouteLocationNormalized } from 'vue-router';
+import type { NLDDButton } from '@nldd/design-system/button';
+import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
+import type { NLDDSearchField } from '@nldd/design-system/search-field';
+import type { NLDDTabBarItem } from '@nldd/design-system/tab-bar';
 import ArticleText from './components/ArticleText.vue';
 import MachineReadable from './components/MachineReadable.vue';
 import YamlView from './components/YamlView.vue';
@@ -16,44 +21,103 @@ import TrajectMembersPane from './components/TrajectMembersPane.vue';
 import InviteMembersSheet from './components/InviteMembersSheet.vue';
 import TasksCategoriesPane from './components/TasksCategoriesPane.vue';
 import TasksListPane from './components/TasksListPane.vue';
+import RunsListPane from './components/RunsListPane.vue';
+import RunDetailSheet from './components/RunDetailSheet.vue';
 import TasksSidebarItem from './components/TasksSidebarItem.vue';
 import UploadConfirmDialog from './components/UploadConfirmDialog.vue';
-import { useAuth } from './composables/useAuth.js';
-import { useCorpusLaws } from './composables/useCorpusLaws.js';
+import { useAuth, ensureAuthReady } from './composables/useAuth';
+import {
+  readLocalFavorites,
+  toggleLocalFavorite,
+  moveLocalFavoritesToAccount,
+} from './composables/useLocalFavorites';
+import { useCorpus } from './corpus';
 // useEnrichState (bovenop useTaskActions), niet useTasks: LibraryView heeft
 // alleen gerichte refreshes nodig - na een geannuleerde job, na een eigen
 // aanvraag - en mag daarvoor niet de 30s-poll aanzetten (die hoort bij de
 // taken-componenten, en anonieme bezoekers pollen nooit).
-import { useEnrichState } from './composables/useEnrichState.js';
-import { lawFetchInit } from './composables/useLaw.js';
-import { useTrajects, refreshTrajects } from './composables/useTrajects.js';
-import { lawsListUrl, lawUrl, lawUploadUrl, changedLawsUrl, favoritesUrl, favoriteUrl } from './composables/corpusUrls.js';
-import { SUPPORT_EMAIL, paneChromeVisible } from './constants.js';
-import { registerSearchPopover, setLibraryEmpty, openSearch } from './composables/useAppChrome.js';
-import { homeTarget } from './composables/useLastVisitedRoute.js';
-import { useDocumentsManager } from './composables/useDocumentsManager.js';
-import { useTrajectDocumentJobs } from './composables/useTrajectDocumentJobs.js';
-import { useDocumentUpload } from './composables/useDocumentUpload.js';
-import { useAddActions } from './composables/useAddActions.js';
-import { useDocumentTaskReview } from './composables/useDocumentTaskReview.js';
-import { humanizeLawId } from './lib/lawName.js';
-import { sameTraject } from './lib/taskReview.js';
-import { apiFetch, apiFetchJson, ApiError } from './lib/apiFetch.js';
-import { uploadMultipart } from './lib/uploadMultipart.js';
-import { useLatest } from './lib/useLatest.js';
-import { holdRetryFloor, RETRY_MIN_SPINNER_MS } from './lib/retryFeedback.js';
+import { useEnrichState } from './composables/useEnrichState';
+import { useTrajectsStore } from './stores/trajects';
+import { useFeatureFlagsStore } from './stores/featureFlags';
+import { useScenarios } from './composables/useScenarios';
+import { lawUploadUrl, favoritesUrl, favoriteUrl } from './composables/corpusUrls';
+import { SUPPORT_EMAIL, paneChromeVisible } from './constants';
+import { useAppChromeStore } from './stores/appChrome';
+import { homeTarget } from './composables/useLastVisitedRoute';
+import { useDocumentsManager } from './composables/useDocumentsManager';
+import { useTrajectDocumentJobs } from './composables/useTrajectDocumentJobs';
+import { useDocumentUpload } from './composables/useDocumentUpload';
+import { useAddActions } from './composables/useAddActions';
+import { useDocumentTaskReview } from './composables/useDocumentTaskReview';
+import { useVirtualRows } from './composables/useVirtualRows';
+import type { PageScroller } from './composables/useVirtualRows';
+import { humanizeLawId, resolveLawName } from './lib/lawName';
+import { officialTextUrl } from './lib/searchResults';
+import { sameTraject } from './lib/taskReview';
+import { apiFetch, apiFetchJson, ApiError } from './lib/apiFetch';
+import { uploadMultipart } from './lib/uploadMultipart';
+import { useLatest } from './lib/useLatest';
+import { holdRetryFloor, RETRY_MIN_SPINNER_MS } from './lib/retryFeedback';
+import { singleParam } from './lib/routeParams';
+import type { RequestError } from './lib/apiFetch';
+import type { ExecutionAction, LawArticle, LawDocument } from './lib/lawFormat';
+import type { CorpusLaw } from './corpus';
+import type { RunningTaskJob } from './composables/useTasks';
+import type { UploadResult } from './lib/uploadMultipart';
 
-const { authenticated, login } = useAuth();
+/** What TasksCategoriesPane emits on `select` (its own key names). */
+interface CategorySelection {
+  categorie: string;
+  lawId: string | null;
+}
+
+/** A "Recent bekeken" entry as stored in localStorage. */
+interface RecentLaw {
+  law_id: string;
+  name: string;
+}
+
+/** One block of the primary sidebar. */
+interface SidebarSection {
+  key: string;
+  title: string;
+  laws: CorpusLaw[];
+  empty?: boolean;
+}
+
+/** A `legal_basis` entry of a rulework (the law format's keys). */
+interface LegalBasisEntry {
+  law_id: string;
+  article?: string | number | null;
+  description?: string | null;
+}
+
+/** The parsed rulework, with the extra top-level fields this view reads by name. */
+interface LibraryLawDocument extends LawDocument {
+  law_id?: string;
+  legal_basis?: LegalBasisEntry[];
+}
+
+/** A paused navigation or an in-view action waiting on the unsaved-changes guard. */
+type PendingLeave =
+  | { type: 'inview'; run: () => void }
+  | { type: 'route'; resolve: (proceed: boolean) => void };
+
+const { authenticated, loading: authLoading } = useAuth();
 
 // Provided by AppShell: shows the login-warning popover anchored to an element,
 // so "Bewerken" gates on login the same way the Editor tab does.
-const showLoginWarning = inject('showLoginWarning', null);
+const showLoginWarning = inject<((anchorEl: EventTarget | null | undefined, redirectHref?: string) => void) | null>(
+  'showLoginWarning',
+  null,
+);
 // Wire on the trigger's @pointerdown.capture so a re-tap on "Bewerken" toggles
 // the login warning closed instead of reopening it (see AppShell). No-op default.
 const onLoginTriggerPointerdown = inject('onLoginTriggerPointerdown', () => {});
 // The detail-pane "Bewerken" button, used as the popover anchor for edit
 // actions that don't originate from a click on the button itself.
-const editButton = ref(null);
+const editButton = ref<NLDDButton | null>(null);
+
 
 // Label of the back-button that returns to the Home sidebar from underlying
 // pages. Kept fixed as "Home" even though the sidebar's own heading is now
@@ -67,7 +131,27 @@ const router = useRouter();
 // Active traject (null = global browse). Derived from the URL via
 // `route.params.trajectRef`, so the new `library-traject` route makes the
 // bibliotheek traject-aware without any extra plumbing.
-const { activeTrajectRef, activeTraject } = useTrajects();
+const trajectsStore = useTrajectsStore();
+const { activeTrajectRef, activeTraject } = storeToRefs(trajectsStore);
+const { refreshTrajects } = trajectsStore;
+const { registerSearchPopover, setLibraryEmpty, openSearch } = useAppChromeStore();
+
+// Favorites without an account live in this browser (useLocalFavorites), in
+// Corpus juris only: a traject needs a login anyway. The sidebar says so, and
+// points at an account, which keeps them for good.
+// Only once /auth/status has answered: before that `authenticated` reads
+// false, and a logged-in user would see the browser's star.
+const localFavorites = computed(
+  () => !authLoading.value && !authenticated.value && !activeTrajectRef.value,
+);
+// The public account-request page; a top-level route outside this view. A
+// click that asks for a new tab or window keeps the link's own behavior.
+const accountRequestHref = computed(() => router.resolve({ name: 'account-aanvragen' }).href);
+function goToAccountRequest(event: MouseEvent) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  router.push({ name: 'account-aanvragen' });
+}
 
 // Primary-sidebar heading: the active traject's name, or 'Corpus juris' for the
 // public/global corpus (logged-out, or logged-in without a chosen traject).
@@ -82,15 +166,6 @@ const sidebarTitle = computed(() =>
 const sidebarLoadingText = computed(() =>
   activeTrajectRef.value ? 'Traject laden' : 'Corpus juris laden',
 );
-
-// "Account aanvragen" affordance for the favoriet login popover (mirrors the
-// editor/bewerken login popover in AppShell): to the public account-request
-// page. /account-aanvragen is a top-level route, so navigating there unmounts
-// the popover along with the shell.
-const accountRequestHref = computed(() => router.resolve({ name: 'account-aanvragen' }).href);
-function goToAccountRequest() {
-  router.push({ name: 'account-aanvragen' });
-}
 
 // --- Werkdocumenten (folded into Home) ----------------------------------
 // The active traject's werkdocumenten live inside Home: a "Werkdocumenten"
@@ -123,7 +198,7 @@ const enrichNeeds = computed(() => {
 
 const enrichError = ref('');
 
-async function enrichSelectedLaw(anchorEl) {
+async function enrichSelectedLaw(anchorEl: EventTarget | null, provider?: string) {
   if (!selectedLawId.value) return;
   if (!authenticated.value || !activeTrajectRef.value) {
     // openEditor regelt beide: login-popover op deze knop, of de editor-route
@@ -136,7 +211,7 @@ async function enrichSelectedLaw(anchorEl) {
     // requestEnrich ververst zelf de takenlijst, dus de pane staat daarna in de
     // bezig-staat. alreadyRunning heeft daarom geen eigen melding nodig: dat is
     // precies wat de pane dan toont.
-    const { alreadyRunning, tooMany } = await requestEnrich();
+    const { alreadyRunning, tooMany } = await requestEnrich(provider);
     if (tooMany) enrichError.value = 'Je hebt te veel verrijkingen tegelijk lopen.';
     else if (!alreadyRunning) enrichError.value = '';
   } catch {
@@ -146,7 +221,9 @@ async function enrichSelectedLaw(anchorEl) {
 
 const docsMgr = useDocumentsManager(
   activeTrajectRef,
-  () => conversionJobs.value.map((j) => j.target_path),
+  // A job without a target path reserves nothing: the manager only asks
+  // whether a given string path is reserved, so leaving the nulls out matches.
+  () => conversionJobs.value.map((j) => j.target_path).filter((p): p is string => p !== null),
 );
 const {
   documents: docList,
@@ -166,7 +243,7 @@ const hasOpenDoc = computed(() => !!openDocPath.value);
 // A conversion job has no .md to open yet; clicking its row "opens" it in the
 // main pane — a loading state while running, a failure + retry when failed.
 // This holds that job's target path; viewedJob resolves it to the job.
-const viewingJobPath = ref(null);
+const viewingJobPath = ref<string | null>(null);
 const viewedJob = computed(() => conversionJobs.value.find((j) => j.target_path === viewingJobPath.value));
 // A failure never stays in the polled jobs: the endpoint returns
 // pending/processing only (failures surface as a job_failed task instead - see
@@ -217,7 +294,7 @@ watch(conversionJobs, async (now, prev) => {
 // its job view (no fetch); anything else opens as a real document. On a fresh
 // deep-link the jobs aren't loaded yet, so a job path first opens as a doc and
 // the watcher above corrects it once the jobs arrive.
-function showWerkdocPath(p) {
+function showWerkdocPath(p: string | null) {
   if (!p) { viewingJobPath.value = null; closeDoc(); return; }
   // Al bewust op de job-weergave gezet (bijv. "Bekijk document" vanuit een
   // lopende taak, of de conversionJobs-watcher): behoud die, ook al is de
@@ -251,7 +328,9 @@ const {
   // op zijn eigen 30s-poll en staat de taak die je zojuist in gang zette er nog
   // niet in als je er meteen naartoe navigeert.
   refreshTasks();
-  if (!result?.targetPath) return;
+  // Only called on success; the failure branch of the union has no targetPath.
+  const targetPath = result?.ok ? result.targetPath : undefined;
+  if (!targetPath) return;
   // Vanuit de takenlijst ("Probeer opnieuw") staan we niet in werkdoc-modus, en
   // `showUploadedJob` zet alleen state die dáár rendert - de gebruiker zou dan
   // op zijn takenlijst blijven staan zonder enig teken dat de upload aankwam.
@@ -261,12 +340,12 @@ const {
     if (activeTrajectRef.value) {
       router.push({
         name: 'werkdocumenten-traject',
-        params: { trajectRef: activeTrajectRef.value, docPath: result.targetPath },
+        params: { trajectRef: activeTrajectRef.value, docPath: targetPath },
       });
     }
     return;
   }
-  showUploadedJob(result.targetPath);
+  showUploadedJob(targetPath);
 }, { confirm: true });
 // Poll conversion jobs only while the werkdocumenten sidebar is open.
 watch(
@@ -280,7 +359,7 @@ watch(
 onBeforeUnmount(() => docJobs.stopPolling());
 
 // Surface an upload failure in a modal (not inline); dismissing clears it.
-const uploadErrorModalEl = ref(null);
+const uploadErrorModalEl = ref<NLDDModalDialog | null>(null);
 watch(docUploadError, async (err) => {
   await nextTick();
   if (err) uploadErrorModalEl.value?.show?.();
@@ -290,16 +369,11 @@ function dismissUploadError() {
   docUploadError.value = null;
 }
 
-// Same modal treatment for a failed cancel: the job is still converting, so
-// leaving the user back at the list with no word would have the UI claim
-// something it didn't do.
-const jobCancelError = ref(null);
-const jobCancelErrorModalEl = ref(null);
-watch(jobCancelError, async (err) => {
-  await nextTick();
-  if (err) jobCancelErrorModalEl.value?.show?.();
-  else jobCancelErrorModalEl.value?.hide?.();
-});
+// A failed cancel gets a word too: the job is still converting, so leaving
+// the user back at the list with no word would have the UI claim something it
+// didn't do. A critical notification, which stays until dismissed: with one
+// way out there is nothing to choose, so it is no dialog.
+const jobCancelError = ref<string | null>(null);
 function dismissJobCancelError() {
   jobCancelError.value = null;
 }
@@ -314,7 +388,7 @@ function retryUpload() {
 // het resultaat komt terug als law_create-taak in het Taken-paneel. De
 // multipart-POST en foutclassificatie delen we met de werkdocument-upload
 // via `uploadMultipart`.
-async function uploadLawDocument(file) {
+async function uploadLawDocument(file: File): Promise<UploadResult> {
   if (!activeTrajectRef.value) {
     return { ok: false, error: 'Geen actief traject.', retryable: false };
   }
@@ -336,7 +410,7 @@ const {
 });
 // Zelfde modal-behandeling als de werkdocument-upload, met een eigen modal
 // zodat de retry-actie de juiste picker heropent.
-const lawUploadErrorModalEl = ref(null);
+const lawUploadErrorModalEl = ref<NLDDModalDialog | null>(null);
 watch(lawUploadError, async (err) => {
   await nextTick();
   if (err) lawUploadErrorModalEl.value?.show?.();
@@ -354,8 +428,8 @@ function retryLawUpload() {
 // De zoek-flow achter "Zoeken in het centrale corpus…": promoten kopieert de
 // wet naar de traject-repo, en voor een niet-gevonden wet start een BWB-id
 // een traject-scoped harvest via het taken-mechanisme (AddLawSheet).
-const addLawSheetRef = ref(null);
-const inviteMembersSheetRef = ref(null);
+const addLawSheetRef = ref<InstanceType<typeof AddLawSheet> | null>(null);
+const inviteMembersSheetRef = ref<InstanceType<typeof InviteMembersSheet> | null>(null);
 function openAddLawSearch() {
   addLawSheetRef.value?.show();
 }
@@ -374,7 +448,7 @@ watch(() => addActions.inviteMembers.value, () => inviteMembersSheetRef.value?.s
 
 // Werkdocument nieuw/upload vanuit de header: zorg eerst voor werkdoc-modus (de
 // nieuw-document-editor en de file-picker leven daar), voer daarna de actie uit.
-async function headerAddWerkdoc(kind) {
+async function headerAddWerkdoc(kind: 'new' | 'upload') {
   if (!isWerkdocMode.value) {
     goToWerkdocumenten();
     await nextTick();
@@ -383,9 +457,8 @@ async function headerAddWerkdoc(kind) {
   else onDocUpload();
 }
 // Na een geslaagde promote (via de AddLawSheet): index verversen (de wet staat
-// nu in de traject-repo) en de wet openen — dezelfde afronding als een
-// afgeronde harvest in de globale zoeker (onHarvestAvailable).
-async function onLawPromoted(lawId) {
+// nu in de traject-repo) en de wet openen.
+async function onLawPromoted(lawId: string) {
   await loadIndex();
   selectLaw(lawId);
 }
@@ -422,13 +495,13 @@ function goToWerkdocumenten() {
 // opens in main: "Beoordelen" navigates to the editor or the addressed
 // werkdocument.
 const isTakenMode = computed(() => route.name === 'taken-traject');
-const takenCategorie = computed(() => route.params.categorie || null);
+const takenCategorie = computed(() => singleParam(route.params.categorie) || null);
 // Only meaningful under `wet`; the route allows the segment either way, so pin
 // it here rather than let a stray /taken/alle/kieswet filter anything. Note the
 // param is `contextLawId`, not `lawId` - see the route comment: `lawId` would
 // make this view open the law as well as filter by it.
 const takenLawId = computed(() =>
-  takenCategorie.value === 'wet' ? (route.params.contextLawId || null) : null,
+  takenCategorie.value === 'wet' ? (singleParam(route.params.contextLawId) || null) : null,
 );
 function goToTaken() {
   if (!activeTrajectRef.value) return;
@@ -438,7 +511,7 @@ function goToTaken() {
 // job-weergave: een mislukte cancel mag niet stil blijven, want de rij blijft
 // dan staan terwijl de UI doet alsof er iets gebeurde. `useTasks` merkt de
 // verdwenen job pas op bij zijn volgende poll (30s), dus refresh meteen.
-async function onCancelTaskJob(job) {
+async function onCancelTaskJob(job: RunningTaskJob) {
   const res = await cancelConversionJob(job.job_id);
   if (!res?.ok) {
     jobCancelError.value = res?.error || 'Annuleren mislukt.';
@@ -453,25 +526,26 @@ async function onCancelTaskJob(job) {
 // "aan het converteren" en "mislukt". showWerkdocPath respecteert een al
 // gezette viewingJobPath, dus de job-weergave staat er meteen; de
 // conversionJobs-watcher bevestigt de job zodra de poll landt.
-function onViewTaskJob(path) {
+function onViewTaskJob(path: string) {
   if (!activeTrajectRef.value || !path) return;
   viewingJobPath.value = path;
   router.push({ name: 'werkdocumenten-traject', params: { trajectRef: activeTrajectRef.value, docPath: path } });
 }
 
-function goToTakenCategorie({ categorie, lawId }) {
+function goToTakenCategorie({ categorie, lawId }: CategorySelection) {
   if (!activeTrajectRef.value) return;
   router.push({
     name: 'taken-traject',
     params: { trajectRef: activeTrajectRef.value, categorie, contextLawId: lawId || undefined },
   });
 }
-// Titel van de gekozen categorie, voor zowel de top-title-bar als de kop in
-// main. Een wet-context draagt de weergavenaam (de route draagt alleen het
-// law_id); useCorpusLaws deelt zijn scope-cache met TasksCategoriesPane, dus
-// dit is geen tweede fetch.
-const { displayName: corpusLawName } = useCorpusLaws(activeTrajectRef);
-const TAKEN_TITELS = {
+// Title of the chosen category, for both the top title bar and the heading in
+// main. A law context carries the display name (the route carries only the
+// law_id); the corpus reader shares its names list with TasksCategoriesPane,
+// so this is not a second fetch.
+const corpus = useCorpus();
+const corpusLawName = corpus.displayName;
+const TAKEN_TITELS: Record<string, string> = {
   alle: 'Alle taken',
   prioriteit: 'Prioriteit',
   wachten: 'Wachten op',
@@ -495,7 +569,7 @@ const isInstellingenMode = computed(
   () => route.name === 'instellingen-traject' || isStructureCheck.value,
 );
 const instellingenTab = computed(
-  () => (isStructureCheck.value ? 'details' : route.params.tab || null),
+  () => (isStructureCheck.value ? 'details' : singleParam(route.params.tab) || null),
 );
 
 // True on the library routes proper (/trajecten/{ref} and /corpus/…) - i.e.
@@ -507,7 +581,7 @@ const instellingenTab = computed(
 const isLibraryMode = computed(
   () => !isWerkdocMode.value && !isInstellingenMode.value && !isTakenMode.value,
 );
-function goToInstellingen(tab) {
+function goToInstellingen(tab?: string) {
   if (!activeTrajectRef.value) return;
   router.push({ name: 'instellingen-traject', params: { trajectRef: activeTrajectRef.value, tab } });
 }
@@ -549,14 +623,14 @@ watch(docSelectedPath, (p) => {
 
 // Unsaved-changes guard for in-view document navigation (pick another document,
 // "nieuw", back). Mirrors the old WerkdocumentenView.
-const docNavGuardEl = ref(null);
-const docEditorEl = ref(null);
+const docNavGuardEl = ref<NLDDModalDialog | null>(null);
+const docEditorEl = ref<InstanceType<typeof DocumentEditor> | null>(null);
 // One guard, two triggers, one modal (blijven / opslaan / negeren): in-view
 // actions (pick another document, "nieuw", back) queue a `run` callback;
 // route-level leaves (pick a law, switch tab/traject, browser back) queue a
 // `resolve` for the paused navigation.
-let pendingLeave = null; // { type: 'inview', run } | { type: 'route', resolve }
-function guardedDocNavigate(run) {
+let pendingLeave: PendingLeave | null = null; // { type: 'inview', run } | { type: 'route', resolve }
+function guardedDocNavigate(run: () => void) {
   if (hasOpenDoc.value && docHasChanges.value) {
     pendingLeave = { type: 'inview', run };
     docNavGuardEl.value?.show?.();
@@ -566,7 +640,7 @@ function guardedDocNavigate(run) {
 }
 // Route guard: true = proceed now, Promise<boolean> = ask first (the modal
 // resolves it). Lets the open document's own URL sync (same doc) through.
-function guardDirtyDoc(to) {
+function guardDirtyDoc(to: RouteLocationNormalized): true | Promise<boolean> {
   // Guard ONLY when a werkdocument is actually open in werkdoc mode AND dirty -
   // i.e. exactly "an open, edited document, navigating away". Never on the
   // document list, never in corpus mode, never on a stale in-memory doc (the
@@ -576,12 +650,12 @@ function guardDirtyDoc(to) {
       && String(to.params.docPath || '') === (openDocPath.value || '')) {
     return true;
   }
-  return new Promise((resolve) => {
+  return new Promise<boolean>((resolve) => {
     pendingLeave = { type: 'route', resolve };
     docNavGuardEl.value?.show?.();
   });
 }
-function resolveDocGuard(proceed) {
+function resolveDocGuard(proceed: boolean) {
   const p = pendingLeave;
   pendingLeave = null;
   docNavGuardEl.value?.hide?.();
@@ -601,7 +675,7 @@ async function saveDocAndLeave() {
   if (!ok) return; // save failed - stay open, DocumentEditor shows the error
   resolveDocGuard(true);
 }
-function onDocSelect(path) {
+function onDocSelect(path: string | null) {
   // A conversion job (running or failed) has no .md to open: show its state in
   // the main pane instead of fetching (which would 404). The conversion watcher
   // opens the real document once a running job finishes.
@@ -611,7 +685,9 @@ function onDocSelect(path) {
     return;
   }
   if (path === openDocPath.value) return;
-  guardedDocNavigate(() => { viewingJobPath.value = null; openDoc(path); });
+  // A null path is a job row's (DocumentList emits a job's target_path), and
+  // took the job branch above; a document row always carries a path.
+  guardedDocNavigate(() => { viewingJobPath.value = null; openDoc(path as string); });
 }
 function onDocNew() {
   guardedDocNavigate(() => { viewingJobPath.value = null; startNewDoc(); });
@@ -622,7 +698,7 @@ function onDocNew() {
 // jobs watcher, or the failure) instead of leaving them on whatever was open.
 // `targetPath` comes from the upload response; only it knows where the
 // conversion will land. Same navigation as clicking the row, so same guard.
-function showUploadedJob(path) {
+function showUploadedJob(path: string) {
   guardedDocNavigate(() => { closeDoc(); viewingJobPath.value = path; });
 }
 // Cancel the conversion the user is currently viewing (from its loading view).
@@ -667,8 +743,8 @@ function onDocBack() {
 // `?task=<id>` on the werkdocumenten route:
 // show a document-conversion job_review task's proposed markdown as an
 // unsaved edit on the addressed document, the same way EditorView seeds a
-// law-review proposal into the article panes. Mirrors EditorView's
-// `useTaskReview` wiring; see the comment on useDocumentTaskReview.js for
+// law-review proposal into the article panes. Mirrors how
+// useProposalReview seeds a law proposal; see the comment on useDocumentTaskReview.ts for
 // why the fetch/resolve logic lives in the composable while the seeding
 // (this component's job, since it owns `docsMgr`) lives here.
 const {
@@ -684,7 +760,7 @@ const docReviewActive = computed(() => !!docReviewTask.value);
 // approve/reject null out `docReviewTask`, which would otherwise look
 // indistinguishable from "not loaded yet" and re-trigger against the task
 // we just resolved.
-let docReviewAttemptedForTaskId = null;
+let docReviewAttemptedForTaskId: string | null = null;
 
 const docReviewTaskIdParam = computed(() =>
   isWerkdocMode.value && typeof route.query.task === 'string' ? route.query.task : null,
@@ -823,7 +899,7 @@ async function rejectDocReview() {
 // try/catch: a failed resolve leaves the task open (by design - the assignee
 // still has to act on it) without crashing the save flow, which already
 // succeeded on the server.
-async function onDocSaved(savedPath) {
+async function onDocSaved(savedPath?: string | null) {
   if (!docReviewActive.value) return;
   const path = savedPath ?? openDocPath.value;
   const payload = docReviewTask.value?.payload;
@@ -846,14 +922,17 @@ const docReviewBannerVariant = computed(() => (docReviewLoadError.value ? 'criti
 // de pipeline weet dat (een .docx die pandoc niet aankon kan alsnog via het
 // taalmodel zijn gegaan). Een oudere taak draagt het veld niet; dan zwijgen we
 // erover in plaats van iets te beweren.
-const DOC_CONVERSION_ORIGIN = {
+const DOC_CONVERSION_ORIGIN: Record<string, string> = {
   llm: 'Omgezet met AI.',
   pandoc: 'Omgezet met pandoc, zonder AI.',
   pdftotext: 'Omgezet met pdftotext, zonder AI.',
 };
 const docReviewBannerSupportingText = computed(() => {
   if (docReviewLoadError.value) return docReviewLoadError.value;
-  const origin = DOC_CONVERSION_ORIGIN[docReviewTask.value?.payload?.converted_with];
+  // `converted_with` is a document-conversion field the shared payload type does not list.
+  const convertedWith = (docReviewTask.value?.payload as { converted_with?: string | null } | null | undefined)
+    ?.converted_with;
+  const origin = convertedWith ? DOC_CONVERSION_ORIGIN[convertedWith] : undefined;
   const action = 'Opslaan keurt het voorstel goed, Verwerpen wijst af.';
   return origin ? `${origin} ${action}` : action;
 });
@@ -861,14 +940,14 @@ const docReviewBannerSupportingText = computed(() => {
 // Keep the user's traject scope across in-app navigations. A traject with a law
 // stays on `library-traject`, a traject without one on `traject-home`; publicly,
 // a law drills into `corpus-juris`, otherwise the bare `home`. See homeTarget.
-function libraryRouteFor(params = {}) {
+function libraryRouteFor(params: { lawId?: string | null; articleNumber?: string } = {}) {
   return homeTarget({
     trajectRef: activeTrajectRef.value || undefined,
     lawId: params.lawId,
     articleNumber: params.articleNumber,
   });
 }
-function editorRouteFor(lawIdVal, articleNumber) {
+function editorRouteFor(lawIdVal: string | null, articleNumber: string | null | undefined) {
   // Without an active traject the editor isn't reachable directly - the
   // editor requires a traject. Send the user to the chooser, carrying the
   // law as query so it opens right after a traject is picked.
@@ -877,11 +956,11 @@ function editorRouteFor(lawIdVal, articleNumber) {
     : { name: 'editor', query: { law: lawIdVal || undefined, article: articleNumber || undefined } };
 }
 
-const laws = ref([]);
-const favorites = ref(null);
+const laws = ref<CorpusLaw[]>([]);
+const favorites = ref<Set<string> | null>(null);
 // Law ids edited in the active traject (branch-vs-base diff). `null` until
 // loaded / when no traject is active; a Set once the endpoint resolves.
-const changedLawIds = ref(null);
+const changedLawIds = ref<Set<string> | null>(null);
 // De sectie "In dit traject" toont wat dit traject zelf heeft aangeraakt: de
 // diff van de trajectbranch tegen zijn base. Bewerken en een wet hierheen
 // halen gaan allebei via het writable-own schrijfpad, dus allebei staan ze in
@@ -891,34 +970,61 @@ const changedLawIds = ref(null);
 // Boven TRAJECT_LAWS_COLLAPSED wordt het een muur tekst, dus dan de eerste
 // twintig met een uitklapknop.
 const TRAJECT_LAWS_COLLAPSED = 20;
+// Up to this many articles the article list renders every row; above it only
+// the rows in view (see useVirtualRows). Most regelwerken stay well under it.
+const ARTICLE_LIST_FULL_UP_TO = 200;
 // Staat de lijst uitgeklapt? Per traject, dus gereset bij een wissel.
 const trajectLawsExpanded = ref(false);
 // Alfabetisch op weergavenaam. De backend ordent op law_id, en dat is een
 // andere string dan wat de gebruiker leest.
 const trajectSectionLaws = computed(() => {
-  if (!activeTrajectRef.value || !changedLawIds.value?.size) return [];
+  const changed = changedLawIds.value;
+  if (!activeTrajectRef.value || !changed?.size) return [];
   return laws.value
-    .filter(law => changedLawIds.value.has(law.law_id))
+    .filter(law => changed.has(law.law_id))
     .sort((a, b) => displayName(a).localeCompare(displayName(b), 'nl'));
 });
 const loading = ref(true);
-const indexError = ref(null);
-const searchPopoverRef = ref(null);
+// Whatever the failed index load threw (an ApiError, or a network error).
+const indexError = ref<unknown>(null);
+const searchPopoverRef = ref<InstanceType<typeof SearchPopover> | null>(null);
 // The toolbar search control lives in the AppShell; register our popover so
 // the shell's search button/field opens it.
 registerSearchPopover(searchPopoverRef);
 
-const selectedLawId = ref(null);
+const selectedLawId = ref<string | null>(null);
+
+// The selected regelwerk's scenario files, in a traject: each opens in its own
+// editor tab. Without a traject there is nothing to edit them in.
+const featureFlags = useFeatureFlagsStore();
+const scenariosShown = computed(() => !!activeTrajectRef.value && featureFlags.isEnabled('panel.scenario_form'));
+const { scenarios: scenarioFiles } = useScenarios(
+  computed(() => (scenariosShown.value ? selectedLawId.value : null)),
+  activeTrajectRef,
+);
+function openScenarioFile(filename: string) {
+  if (!activeTrajectRef.value || !selectedLawId.value) return;
+  router.push({
+    name: 'editor-scenario-traject',
+    params: { trajectRef: activeTrajectRef.value, lawId: selectedLawId.value, filename },
+  });
+}
 // Which sidebar section the law was opened from, so only that instance is
 // highlighted (a law can sit in both Favorieten and Recent bekeken). Cleared on
 // non-sidebar selects (search / deep-link); highlightSection then falls back to
 // the law's first occurrence.
-const selectedSection = ref(null);
-const selectedLaw = shallowRef(null);
+const selectedSection = ref<string | null>(null);
+const selectedLaw = shallowRef<LibraryLawDocument | null>(null);
+// The law's YAML as the server sent it, for the YAML entry; cleared with the
+// parsed law.
+const selectedLawText = shallowRef('');
+watch(selectedLaw, (law) => {
+  if (!law) selectedLawText.value = '';
+});
 const selectedLawLoading = ref(false);
-const lawError = ref(null);
+const lawError = ref<RequestError | null>(null);
 
-const selectedArticleNumber = ref(null);
+const selectedArticleNumber = ref<string | null>(null);
 
 // De verrijk-/beoordeel-staat van de geselecteerde wet, gedeeld met EditorView:
 // wat de lege Machine-/YAML-pane meldt en waar zijn knoppen heen gaan. Hier en
@@ -949,10 +1055,10 @@ const {
 // corpus may not even have.
 const RECENT_LAWS_KEY = 'regelrecht-recent-laws';
 const MAX_RECENT_LAWS = 12;
-function recentLawsKey(trajectRef) {
+function recentLawsKey(trajectRef: string | null | undefined) {
   return `${RECENT_LAWS_KEY}:${trajectRef || 'corpus'}`;
 }
-function loadRecentLaws(trajectRef) {
+function loadRecentLaws(trajectRef: string | null | undefined): RecentLaw[] {
   try {
     const raw = JSON.parse(localStorage.getItem(recentLawsKey(trajectRef)) || '[]');
     return Array.isArray(raw) ? raw.filter(r => r && r.law_id) : [];
@@ -969,7 +1075,7 @@ const recentLaws = ref(loadRecentLaws(activeTrajectRef.value));
 watch(activeTrajectRef, (trajectRef) => {
   recentLaws.value = loadRecentLaws(trajectRef);
 });
-function recordRecentLaw(lawId, name) {
+function recordRecentLaw(lawId: string, name: string | null | undefined) {
   if (!lawId) return;
   const entry = { law_id: lawId, name: name || humanizeLawId(lawId) };
   recentLaws.value = [entry, ...recentLaws.value.filter(r => r.law_id !== lawId)].slice(0, MAX_RECENT_LAWS);
@@ -980,14 +1086,22 @@ function recordRecentLaw(lawId, name) {
 // Detail view (tekst/machine/yaml) is reflected in the URL hash so the
 // state is bookmarkable and shareable. English keys in the hash because
 // they're stable identifiers, not labels.
-const VIEW_TO_HASH = { tekst: '#text', machine: '#machine', yaml: '#yaml' };
-const HASH_TO_VIEW = { '#text': 'tekst', '#machine': 'machine', '#yaml': 'yaml' };
+const VIEW_TO_HASH: Record<string, string> = { tekst: '#text', machine: '#machine', yaml: '#yaml' };
+const HASH_TO_VIEW: Record<string, string> = { '#text': 'tekst', '#machine': 'machine', '#yaml': 'yaml' };
 
-const detailView = computed({
+// The detail views in tab order: the tab bar and its overflow alternative are
+// both rendered from this list.
+const DETAIL_VIEWS = [
+  { key: 'tekst', label: 'Tekst' },
+  { key: 'machine', label: 'Machine' },
+  { key: 'yaml', label: 'YAML' },
+];
+
+const detailView = computed<string>({
   get() {
     return HASH_TO_VIEW[route.hash] ?? 'tekst';
   },
-  set(value) {
+  set(value: string) {
     // Reject anything we don't recognise rather than silently stripping
     // the hash - every call site today hard-codes a literal, so an
     // unknown value is a programmer error. Warn in dev so a future
@@ -1005,19 +1119,58 @@ const detailView = computed({
     }
   },
 });
-// nldd-tab-bar fires `tabchange` on BOTH pointer click and arrow-key
+// nldd-tab-bar fires `tab-change` on BOTH pointer click and arrow-key
 // activation (content-switching tabs auto-activate on arrow - the ARIA
 // pattern). Driving detailView from this single event keeps the keyboard, the
 // selected tab, and the visible panel in lockstep; a per-item @click never
 // fired on arrow, which is why the highlight moved but the view lagged.
 // `:selected` stays the controlled-in binding so a hash-driven detailView
 // change (e.g. a deep link to #yaml) still reflects on the tabs.
-function onDetailTabChange(e) {
+function onDetailTabChange(e: CustomEvent<{ item?: NLDDTabBarItem } | null>) {
   const view = e.detail?.item?.dataset?.view;
   if (view) detailView.value = view;
 }
 
-const activeAction = ref(null);
+// --- Machine views in Corpus juris ------------------------------------------
+// Corpus juris shows a law's machine and YAML views only when its current
+// version is enriched, with a label that says it is an example and not
+// established; a text-only law shows its text, and says so when another
+// version does have a machine version. The list entry carries both facts
+// (`enriched`, `enriched_version`), so fetch it for the open law. A traject is
+// a place of work: there every law keeps all three views, as before. The
+// entry is fetched there too, for the GitHub link on Algemeen (`source_url`).
+const lawEntry = shallowRef<CorpusLaw | null>(null);
+const claimLawEntry = useLatest();
+// The traject is a trigger only: the corpus reader reads the active one.
+watch(
+  [selectedLawId, activeTrajectRef],
+  async ([lawId]) => {
+    const isCurrent = claimLawEntry();
+    lawEntry.value = null;
+    if (!lawId) return;
+    try {
+      const { laws: list } = await corpus.searchLaws({ ids: [lawId] });
+      if (isCurrent()) lawEntry.value = list.find((l) => l.law_id === lawId) ?? null;
+    } catch {
+      // Unknown, so treat it as text only: the safe side for a public page.
+    }
+  },
+  { immediate: true },
+);
+const showMachineViews = computed(() => !!activeTrajectRef.value || !!lawEntry.value?.enriched);
+// The view to render: a deep link to #machine on a text-only law shows the text.
+const shownDetailView = computed(() => (showMachineViews.value ? detailView.value : 'tekst'));
+const exampleSupportingText = computed(() => {
+  const source = lawEntry.value?.source_name;
+  return `De machineversie${source ? ` komt uit ${source} en` : ''} laat zien hoe dit regelwerk uitgevoerd kan worden. Ze is niet vastgesteld: de wettekst blijft leidend.`;
+});
+const otherEnrichedVersion = computed(() =>
+  !activeTrajectRef.value && lawEntry.value && !lawEntry.value.enriched
+    ? formatLawDate(lawEntry.value.enriched_version ?? null)
+    : null,
+);
+
+const activeAction = ref<ExecutionAction | null>(null);
 
 // Curated sidebar sections (in render order). Each entry is
 // `{ key, title, laws }`. Empty sections are never pushed, so the template
@@ -1040,12 +1193,13 @@ const activeAction = ref(null);
 // browse lives in the search popover.
 const sidebarSections = computed(() => {
   const list = laws.value;
-  const sections = [];
+  const sections: SidebarSection[] = [];
 
   // Favorieten eerst. Het is jouw bewuste selectie, en sinds die per traject
   // wordt bewaard hoort hij net zo bij deze plek als de sectie eronder.
-  if (favorites.value) {
-    const favList = list.filter(law => favorites.value.has(law.law_id));
+  const favs = favorites.value;
+  if (favs) {
+    const favList = list.filter(law => favs.has(law.law_id));
     if (favList.length > 0) {
       sections.push({ key: 'favorites', title: 'Favorieten', laws: favList });
     }
@@ -1143,7 +1297,8 @@ const INDEX_ERROR_MAX_CHARS = 600;
 // leaks; a human-readable sentence with JSON interpolated *inside* it does not
 // start with either and comes through, clamped to a clean length.
 const indexErrorSupportingText = computed(() => {
-  const body = indexError.value?.body;
+  const err = indexError.value;
+  const body = err && typeof err === 'object' ? (err as { body?: unknown }).body : undefined;
   if (typeof body === 'string') {
     const text = body.trim();
     if (text && !text.startsWith('<') && !text.startsWith('{')) {
@@ -1163,21 +1318,63 @@ onBeforeUnmount(() => setLibraryEmpty(false));
 
 const articles = computed(() => selectedLaw.value?.articles ?? []);
 
-// "Algemeen" rides the existing :articleNumber segment as a reserved value, so
-// deep-linking and the browser back button work without a new route. The
-// schema types article numbers as free-form strings, so a real article could
-// in theory be called 'algemeen' too; when that happens the real article wins
-// and the pane is simply not reachable for that law.
+// "Algemeen", "YAML" and "Verwerkingen" ride the existing :articleNumber
+// segment as reserved values, so deep-linking and the browser back button work
+// without a new route. The schema types article numbers as free-form strings,
+// so a real article could in theory be called 'algemeen' or 'yaml' too; when
+// that happens the real article wins and the pane is simply not reachable for
+// that law.
 const ALGEMEEN_KEY = 'algemeen';
-const isAlgemeen = computed(
-  () =>
-    selectedArticleNumber.value === ALGEMEEN_KEY &&
-    !articles.value.some((article) => article.number === ALGEMEEN_KEY),
-);
+const YAML_KEY = 'yaml';
+const VERWERKINGEN_KEY = 'verwerkingen';
+const LAW_PAGE_KEYS: readonly string[] = [ALGEMEEN_KEY, YAML_KEY, VERWERKINGEN_KEY];
+function isReservedEntry(key: string) {
+  return computed(
+    () =>
+      selectedArticleNumber.value === key &&
+      !articles.value.some((article) => String(article.number) === key),
+  );
+}
+const isAlgemeen = isReservedEntry(ALGEMEEN_KEY);
+// The whole file, for every law.
+const isYaml = isReservedEntry(YAML_KEY);
+// The runs of the law in this traject: its enrichments and the harvest that
+// fetched it. Runs belong to a traject, so outside one there is no such page.
+const isVerwerkingenEntry = isReservedEntry(VERWERKINGEN_KEY);
+const isVerwerkingen = computed(() => isVerwerkingenEntry.value && !!activeTrajectRef.value);
+// Algemeen, YAML or Verwerkingen: a page about the law as a whole, not one of
+// its articles.
+const isLawPage = computed(() => isAlgemeen.value || isYaml.value || isVerwerkingen.value);
+
+// A Verwerkingen address without a traject: switching to Corpus juris from the
+// page keeps the article segment, and a link can carry it too. Runs belong to a
+// traject, so show the law rather than "Artikel verwerkingen bestaat niet".
+// Waits for the law, so a real article called 'verwerkingen' still wins.
+watch([isVerwerkingenEntry, activeTrajectRef, selectedLaw], () => {
+  if (isVerwerkingenEntry.value && !activeTrajectRef.value && selectedLaw.value && selectedLawId.value) {
+    router.replace(libraryRouteFor({ lawId: selectedLawId.value }));
+  }
+});
+
+// The run whose details are open in the sheet over Verwerkingen. Not in the
+// route, like the open task in the task list; leaving the page closes it.
+const openRunId = ref<string | null>(null);
+watch(isVerwerkingen, (open) => {
+  if (!open) openRunId.value = null;
+});
+// The harvest that fetched the law carries its BWB id, not its $id.
+const selectedLawBwbId = computed(() => {
+  const bwbId = selectedLaw.value?.bwb_id;
+  return typeof bwbId === 'string' && bwbId ? bwbId : null;
+});
+// From a run to what is left to do: the open review tasks of this law.
+function goToRunTasks(lawId: string) {
+  goToTakenCategorie({ categorie: 'wet', lawId });
+}
 
 // A header field may be an internal reference like '#wet_naam': the value is
 // produced by an action in one of the articles, not written in the header.
-function resolveLawReference(value) {
+function resolveLawReference(value: unknown): unknown {
   if (typeof value !== 'string' || !value.startsWith('#')) return value ?? null;
   const outputName = value.slice(1);
   for (const article of articles.value) {
@@ -1190,13 +1387,8 @@ function resolveLawReference(value) {
   return null;
 }
 
-const lawName = computed(() => {
-  if (!selectedLaw.value) return '';
-  const nameRef = selectedLaw.value.name;
-  const resolved = resolveLawReference(nameRef);
-  if (resolved) return resolved;
-  return humanizeLawId(selectedLaw.value.$id || selectedLaw.value.law_id || '');
-});
+// The same name the editor shows: a reference resolves only to a literal string.
+const lawName = computed(() => (selectedLaw.value ? resolveLawName(selectedLaw.value as LawDocument) : ''));
 
 /**
  * Metadata for a law id from whatever the sidebar has loaded: the `?ids=` set
@@ -1208,7 +1400,7 @@ const lawName = computed(() => {
  * `name: '#output_ref'` - the backend resolves those into `display_name`, and
  * the humanized id is a different string entirely.
  */
-function indexedLaw(lawId) {
+function indexedLaw(lawId: string): CorpusLaw | null {
   return laws.value.find(l => l.law_id === lawId) ?? null;
 }
 
@@ -1237,7 +1429,7 @@ const lawTitle = computed(() =>
 // this watch fires again. That is a switch and not a visit: without the guard
 // below, every switch prepends the law you were already looking at to the list
 // of the corpus you just moved into, and the two lists converge again.
-let lastRecorded = { trajectRef: null, lawId: null };
+let lastRecorded: { trajectRef: string | null; lawId: string | null } = { trajectRef: null, lawId: null };
 watch([selectedLawId, lawName, indexedLawName], () => {
   const lawId = selectedLawId.value;
   if (!lawId) return;
@@ -1249,7 +1441,7 @@ watch([selectedLawId, lawName, indexedLawName], () => {
 }, { immediate: true });
 
 const selectedArticle = computed(() => {
-  if (!selectedArticleNumber.value || isAlgemeen.value) return null;
+  if (!selectedArticleNumber.value || isLawPage.value) return null;
   return articles.value.find(
     (a) => String(a.number) === String(selectedArticleNumber.value)
   ) ?? null;
@@ -1260,7 +1452,7 @@ const selectedArticle = computed(() => {
 // across the corpus only the first handful is filled everywhere. Identifiers
 // that belong to an external source (bwb_id, and the source url) stay out:
 // RegelRecht is meant to become the record itself, not a view onto another one.
-const REGULATORY_LAYER_LABELS = {
+const REGULATORY_LAYER_LABELS: Record<string, string> = {
   GRONDWET: 'Grondwet',
   WET: 'Wet',
   AMVB: 'Algemene maatregel van bestuur',
@@ -1277,7 +1469,7 @@ const REGULATORY_LAYER_LABELS = {
   REDUCTIE: 'Reductie',
 };
 
-function formatLawDate(value) {
+function formatLawDate(value: unknown): string | null {
   if (!value || typeof value !== 'string' || value.startsWith('#')) return null;
   // Parse the calendar date by hand: new Date('YYYY-MM-DD') means UTC
   // midnight, and formatting that in a timezone behind UTC renders the day
@@ -1300,7 +1492,7 @@ const algemeenRows = computed(() => {
   if (!law) return [];
   const rows = [
     { label: 'Naam', value: lawName.value || indexedLawName.value },
-    { label: 'Soort regeling', value: REGULATORY_LAYER_LABELS[law.regulatory_layer] || law.regulatory_layer },
+    { label: 'Soort regeling', value: REGULATORY_LAYER_LABELS[law.regulatory_layer as string] || law.regulatory_layer },
     { label: 'Officiële titel', value: law.officiele_titel },
     { label: 'Bevoegd gezag', value: resolveLawReference(law.competent_authority) },
     { label: 'Publicatiedatum', value: formatLawDate(law.publication_date) },
@@ -1320,6 +1512,42 @@ const algemeenRows = computed(() => {
   return rows.filter((row) => row.value);
 });
 
+// Where the law comes from: the published text, and the folder of versions
+// on GitHub when the law lives in a GitHub source.
+const algemeenLinks = computed(() => {
+  const law = selectedLaw.value;
+  if (!law) return [];
+  const links: { key: string; text: string; supportingText: string; href: string }[] = [];
+  // The law file's own `url` points at its version, but the file is written
+  // by people (traject members, the harvester), so only a web address may
+  // become a link; anything else falls back to the BWB id.
+  const official = webUrl(law.url) ?? (typeof law.bwb_id === 'string' && law.bwb_id ? webUrl(officialTextUrl(law.bwb_id)) : null);
+  if (official) {
+    links.push({ key: 'official', text: official.hostname, supportingText: 'Officiële tekst', href: official.href });
+  }
+  const sourceUrl = lawEntry.value?.source_url;
+  if (sourceUrl) {
+    links.push({
+      key: 'github',
+      text: 'GitHub',
+      supportingText: 'De map met de versies van dit regelwerk',
+      href: sourceUrl,
+    });
+  }
+  return links;
+});
+
+/** `value` as a URL when it is an http(s) address, else null. */
+function webUrl(value: unknown): URL | null {
+  if (typeof value !== 'string') return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' || url.protocol === 'http:' ? url : null;
+  } catch {
+    return null;
+  }
+}
+
 // `legal_basis` points at other laws in the corpus, so these become links.
 const algemeenLegalBasis = computed(() => selectedLaw.value?.legal_basis ?? []);
 
@@ -1327,7 +1555,7 @@ const algemeenLegalBasis = computed(() => selectedLaw.value?.legal_basis ?? []);
 // loaded law. Distinct from "no article selected" (where no article
 // number is in the URL).
 const articleNotFound = computed(() =>
-  !!(selectedLaw.value && selectedArticleNumber.value && !isAlgemeen.value && !selectedArticle.value)
+  !!(selectedLaw.value && selectedArticleNumber.value && !isLawPage.value && !selectedArticle.value)
 );
 
 // 404 means the law isn't in the active traject's corpus; the error UI shows a traject-specific message.
@@ -1381,7 +1609,7 @@ watchEffect(() => {
     : 'RegelRecht';
 });
 
-function displayName(law) {
+function displayName(law: CorpusLaw): string {
   // Prefer the API's resolved `display_name`: laws can have a dynamic
   // `name: "#output_ref"` in YAML that the backend resolves via the
   // matching action output. Without this check we'd render the raw
@@ -1391,9 +1619,10 @@ function displayName(law) {
   return humanizeLawId(law.law_id);
 }
 
-function articleDescription(article) {
+function articleDescription(article: LawArticle): string {
   if (!article.text) return '';
-  const firstLine = article.text.split('\n')[0].replace(/\*\*/g, '');
+  // split() always returns at least one element.
+  const firstLine = article.text.split('\n')[0]!.replace(/\*\*/g, '');
   return firstLine.length > 80 ? firstLine.slice(0, 80) + '...' : firstLine;
 }
 
@@ -1408,15 +1637,29 @@ function articleDescription(article) {
 // per traject zijn kunnen twee antwoorden het oneens zijn, en zonder deze
 // controle overschrijft een traag antwoord van het vórige traject dat van het
 // huidige.
-async function loadFavorites(trajectRef, isCurrent) {
+async function loadFavorites(trajectRef: string | null | undefined, isCurrent: () => boolean) {
+  // Settle the login state first: before /auth/status answers, `authenticated`
+  // reads false, and a logged-in user would briefly see the browser's set.
+  if (authLoading.value) {
+    await ensureAuthReady();
+    if (!isCurrent()) return;
+  }
+  // Not logged in: Corpus juris favorites live in this browser.
+  if (!authenticated.value) {
+    favorites.value = trajectRef ? new Set() : readLocalFavorites();
+    return;
+  }
   try {
-    const favIds = await apiFetchJson(favoritesUrl(trajectRef), {
+    // Logged in: whatever was starred in this browser goes to the account
+    // first, so the list below already holds it.
+    if (!trajectRef) await moveLocalFavoritesToAccount();
+    const favIds = await apiFetchJson<string[]>(favoritesUrl(trajectRef), {
       errorMessage: (status) => `Failed to load favorites: ${status}`,
     });
     if (!isCurrent()) return;
     favorites.value = new Set(favIds);
   } catch (e) {
-    // Not authenticated (401/403) or endpoint unavailable - no favorites.
+    // Endpoint unavailable (403, or 503 without a database) - no favorites.
     // Only server errors are worth a console trace.
     if (e instanceof ApiError && e.status >= 500) console.warn(e.message);
   }
@@ -1428,10 +1671,10 @@ async function loadFavorites(trajectRef, isCurrent) {
 // hidden instead of surfacing an error in the sidebar. The backend returns
 // an empty array (not an error) when nothing has been saved yet, which maps
 // to an empty Set and a hidden section all the same.
-async function fetchChangedLawIds(trajectRef) {
-  if (!trajectRef) return null;
+async function fetchChangedLawIds(): Promise<Set<string> | null> {
   try {
-    return new Set(await apiFetchJson(changedLawsUrl(trajectRef)));
+    const ids = await corpus.changedLaws();
+    return ids ? new Set(ids) : null;
   } catch {
     // Any failure (HTTP or network) just hides the section - see above.
     return null;
@@ -1443,8 +1686,8 @@ async function fetchChangedLawIds(trajectRef) {
 // `useLawPromote` and `AddLawSheet` already use). Federated sources are
 // deliberately left out: the central one is the full BWB corpus.
 //
-// Why not reuse `useCorpusLaws` (already instantiated above, and it does hold
-// `source_priority`): its list is the UNFILTERED route, which the backend
+// Why not reuse the corpus reader's names list (it does hold
+// `source_priority`): that list is the UNFILTERED route, which the backend
 // sorts by `law_id` across every source and then truncates at the limit. A
 // traject that federates the central BWB corpus can therefore lose its own
 // laws past that cap - they simply sort too late - and filtering the result on
@@ -1461,18 +1704,25 @@ async function fetchChangedLawIds(trajectRef) {
 //     threshold. In the last case `count` carries the number for the hint.
 //   - a fetch failure resolves to the same "no section", without an error in
 //     the menu: the same stance as `fetchChangedLawIds`.
-const togglingFavorites = ref(new Set());
+const togglingFavorites = ref(new Set<string>());
 
-// Star button when not logged in: the login nudge sits in the button's popup
-// slot, so the component anchors and toggles it. Logged in there is no popover
-// and the click marks the law.
 function onFavoriteClick() {
-  if (!authenticated.value) return;
   toggleFavorite(selectedLawId.value);
 }
 
-async function toggleFavorite(lawId) {
-  if (!authenticated.value || !lawId) return;
+async function toggleFavorite(lawId: string | null) {
+  if (!lawId) return;
+  // The login state decides where the favorite goes; until it is known, the
+  // star is not offered (see localFavorites).
+  if (authLoading.value) return;
+  // Not logged in: star in this browser, then refresh the sidebar so the law
+  // shows under Favorieten.
+  if (!authenticated.value) {
+    if (activeTrajectRef.value) return;
+    favorites.value = toggleLocalFavorite(lawId);
+    loadIndex();
+    return;
+  }
   if (togglingFavorites.value.has(lawId)) return;
 
   togglingFavorites.value.add(lawId);
@@ -1531,7 +1781,7 @@ async function loadIndex() {
     // its own branch. Both are id-only.
     const [, changedIds] = await Promise.all([
       loadFavorites(trajectRef, isCurrent),
-      fetchChangedLawIds(trajectRef),
+      fetchChangedLawIds(),
     ]);
     if (!isCurrent()) return;
     changedLawIds.value = changedIds;
@@ -1549,21 +1799,13 @@ async function loadIndex() {
       // Probe die status ook zonder ids, zodat de gebruiker de foutstatus
       // ziet in plaats van een normaal ogende lege bibliotheek.
       if (trajectRef) {
-        await apiFetch(lawsListUrl(trajectRef, 'limit=1'), {
-          errorMessage: (status) => `Failed to load corpus: ${status}`,
-        });
+        await corpus.searchLaws({ limit: 1 });
         if (!isCurrent()) return;
       }
       laws.value = [];
       return;
     }
-    const query = `ids=${encodeURIComponent([...ids].join(','))}&limit=1000`;
-    const res = await apiFetch(lawsListUrl(trajectRef, query), {
-      errorMessage: (status) => `Failed to load corpus: ${status}`,
-    });
-    // Gate before and after json(): skip parsing for stale 200s, and catch races during it.
-    if (!isCurrent()) return;
-    const corpusLaws = await res.json();
+    const { laws: corpusLaws } = await corpus.searchLaws({ ids: [...ids], limit: 1000 });
     if (!isCurrent()) return;
     laws.value = corpusLaws.sort((a, b) => a.law_id.localeCompare(b.law_id));
   } catch (e) {
@@ -1578,18 +1820,19 @@ async function loadIndex() {
 
 const claimLoadLaw = useLatest();
 
-async function loadLaw(lawId, { minLoadingMs = 0 } = {}) {
+async function loadLaw(lawId: string, { minLoadingMs = 0 }: { minLoadingMs?: number } = {}) {
   const isCurrent = claimLoadLaw();
   const startedAt = Date.now();
   let failed = false;
   try {
     selectedLawLoading.value = true;
-    const res = await apiFetch(lawUrl(activeTrajectRef.value, lawId), lawFetchInit);
-    // Gate before and after `res.text()`: skip the body read for stale 200s, and catch races during it.
+    // Fresh: the library shows what the traject holds now, including edits
+    // by others since this rulework was last opened here.
+    const body = await corpus.law(lawId, { fresh: true });
     if (!isCurrent()) return;
-    const text = await res.text();
-    if (!isCurrent()) return;
-    selectedLaw.value = yaml.load(text);
+    selectedLawText.value = body.rawYaml;
+    // Unchecked YAML: the types say what the view reads, nothing validates it.
+    selectedLaw.value = body.law as LibraryLawDocument | null;
     // selectedArticleNumber is set from the route on initial mount and via
     // onBeforeRouteUpdate; we don't validate here so an invalid number
     // surfaces as the articleNotFound error state instead of being silently
@@ -1598,7 +1841,9 @@ async function loadLaw(lawId, { minLoadingMs = 0 } = {}) {
     if (!isCurrent()) return;
     failed = true;
     selectedLaw.value = null;
-    lawError.value = e;
+    // The reader throws an ApiError (with status), a network failure a TypeError,
+    // a bad YAML body a YAMLException: all Errors.
+    lawError.value = e as RequestError;
   } finally {
     if (isCurrent()) {
       // On a failed retry, hold the spinner briefly so the click reads as
@@ -1656,7 +1901,7 @@ const editLawHref = computed(() => router.resolve(editLawTarget.value).href);
 // Editor requires login. Instead of letting the route guard bounce an
 // unauthenticated user to SSO, show the same login-warning popover the Editor
 // tab uses (anchored to `anchorEl`), returning to this article after login.
-function gateEditorLogin(anchorEl) {
+function gateEditorLogin(anchorEl: EventTarget | null | undefined) {
   showLoginWarning?.(anchorEl, editLawHref.value);
 }
 
@@ -1664,7 +1909,7 @@ function gateEditorLogin(anchorEl) {
 // button that was clicked - it anchors the login popover. Shared by "Bewerken"
 // and by the Machine/YAML empty-state "aanmaken" button: this pane is
 // read-only, so creating a machine-readable version means going to the editor.
-function openEditor(anchorEl) {
+function openEditor(anchorEl: EventTarget | null) {
   if (!authenticated.value) {
     gateEditorLogin(anchorEl);
     return;
@@ -1672,11 +1917,18 @@ function openEditor(anchorEl) {
   router.push(editLawTarget.value);
 }
 
-function onEditClick(e) {
+function onEditClick(e: MouseEvent) {
   openEditor(e.currentTarget);
 }
 
-function selectLaw(lawId, focusAfter = false) {
+// "Bewerken" from the toolbar's overflow menu. Its `select` arrives on the
+// original menu item, hidden in the collapsed toolbar item, so the login
+// heads-up anchors to the toolbar instead.
+function onEditOverflow(e: Event) {
+  openEditor((e.currentTarget as Element | null)?.closest?.('nldd-toolbar') ?? null);
+}
+
+function selectLaw(lawId: string, focusAfter = false) {
   // Default to no section context (search / programmatic); selectLawFromSection
   // re-sets it after this call for sidebar clicks.
   selectedSection.value = null;
@@ -1700,7 +1952,7 @@ function selectLaw(lawId, focusAfter = false) {
     nextTick(() => {
       const sectionSel = selectedSection.value ? `[data-section="${CSS.escape(selectedSection.value)}"]` : '';
       const item = document.querySelector(`${sectionSel}[data-law-id="${CSS.escape(lawId)}"]`);
-      const action = item?.shadowRoot?.querySelector('.list-item__action');
+      const action = item?.shadowRoot?.querySelector<HTMLElement>('.list-item__action');
       action?.focus?.();
     });
   }
@@ -1708,7 +1960,7 @@ function selectLaw(lawId, focusAfter = false) {
 
 // Sidebar click: record which section it came from, then select (keeping the
 // focus-restore that recent-reordering needs).
-function selectLawFromSection(lawId, sectionKey) {
+function selectLawFromSection(lawId: string, sectionKey: string) {
   selectLaw(lawId, sectionKey === 'recent');
   selectedSection.value = sectionKey;
 }
@@ -1729,7 +1981,7 @@ const highlightSection = computed(() => {
 // land on the authorizing article itself, instead of dropping the reader at
 // the law's front door to re-find it. A dangling article reference degrades
 // to the law's own empty state.
-function selectLawArticle(lawId, articleNumber) {
+function selectLawArticle(lawId: string, articleNumber: string | number | null | undefined) {
   if (!articleNumber) {
     selectLaw(lawId);
     return;
@@ -1746,14 +1998,17 @@ function selectLawArticle(lawId, articleNumber) {
   router.push(libraryRouteFor({ lawId, articleNumber: articleStr }));
 }
 
-function selectArticle(number) {
+function selectArticle(number: string | number) {
   const articleStr = String(number);
   if (articleStr === selectedArticleNumber.value) return;
   selectedArticleNumber.value = articleStr;
   activeAction.value = null;
+  // An article keeps the open tab (#machine, #yaml); Algemeen and YAML have no
+  // tabs, so their address carries none.
+  const lawPage = LAW_PAGE_KEYS.includes(articleStr);
   router.replace({
     ...libraryRouteFor({ lawId: selectedLawId.value, articleNumber: articleStr }),
-    hash: route.hash,
+    hash: lawPage ? '' : route.hash,
   });
 }
 
@@ -1761,11 +2016,19 @@ function selectAlgemeen() {
   selectArticle(ALGEMEEN_KEY);
 }
 
+function selectYaml() {
+  selectArticle(YAML_KEY);
+}
+
+function selectVerwerkingen() {
+  selectArticle(VERWERKINGEN_KEY);
+}
+
 // Article filter: a toolbar toggle reveals the field, so the list stays
 // undisturbed until someone asks for it.
 const articleFilterOpen = ref(false);
 const articleFilter = ref('');
-const articleFilterField = ref(null);
+const articleFilterField = ref<NLDDSearchField | null>(null);
 
 function toggleArticleFilter() {
   articleFilterOpen.value = !articleFilterOpen.value;
@@ -1778,7 +2041,7 @@ function toggleArticleFilter() {
 
 // Machine-uitvoerbaar = het artikel draagt een uitvoerbare regel, niet alleen
 // een definitie: `execution` is wat de engine kan draaien.
-function isMachineReadable(article) {
+function isMachineReadable(article: LawArticle): boolean {
   // The Machine tab renders whatever machine_readable holds, and a machine
   // version with only definitions (no execution yet) is still a machine
   // version - the tag and the filter follow that same notion.
@@ -1794,7 +2057,7 @@ const ARTICLE_FILTERS = [
 ];
 const articleTypeFilter = ref('alles');
 
-function setArticleTypeFilter(key) {
+function setArticleTypeFilter(key: string) {
   articleTypeFilter.value = key;
 }
 
@@ -1847,6 +2110,21 @@ const filteredArticles = computed(() => {
   });
 });
 
+// The article list of a large regelwerk renders only the rows in view: the
+// Wet op het financieel toezicht has 6,263 articles, and rendering them all
+// froze the library for minutes (see useVirtualRows).
+const lawPage = ref<(HTMLElement & Partial<PageScroller>) | null>(null);
+const articleList = ref<HTMLElement | null>(null);
+const {
+  active: articleListWindowed,
+  rows: articleRows,
+  listStyle: articleListStyle,
+} = useVirtualRows(filteredArticles, (article) => String(article.number), lawPage, articleList, {
+  threshold: ARTICLE_LIST_FULL_UP_TO,
+  estimate: 64,
+  margin: 800,
+});
+
 // Web Share is absent on most desktop browsers, so the button only appears
 // where the OS can actually take over. Checked once: it cannot change at runtime.
 const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
@@ -1857,7 +2135,7 @@ async function shareLaw() {
     await navigator.share({ title: lawName.value || lawTitle.value, url: window.location.href });
   } catch (err) {
     // An abort is the user closing the sheet, not a failure worth surfacing.
-    if (err?.name !== 'AbortError') console.warn('Delen is niet gelukt', err);
+    if ((err as Error | null | undefined)?.name !== 'AbortError') console.warn('Delen is niet gelukt', err);
   }
 }
 
@@ -1875,9 +2153,9 @@ async function shareLaw() {
  * `back` is the event fired by nldd-top-title-bar's back-button (not
  * `dismiss` - that's the X-style close button on the right).
  */
-function onPaneBack(e) {
+function onPaneBack(e: Event) {
   const path = e.composedPath();
-  const pane = path.find(el => el.tagName === 'NLDD-SPLIT-VIEW-PANE');
+  const pane = path.find((el): el is Element => (el as Element).tagName === 'NLDD-SPLIT-VIEW-PANE');
   if (!pane) return;
   const slot = pane.getAttribute('slot');
   // On any error state - corpus load failed (indexError) or this
@@ -1943,8 +2221,8 @@ onBeforeRouteUpdate(async (to) => {
     if (p !== docSelectedPath.value) showWerkdocPath(p);
   }
 
-  const newLawId = to.params.lawId;
-  const newArticle = to.params.articleNumber;
+  const newLawId = singleParam(to.params.lawId);
+  const newArticle = singleParam(to.params.articleNumber);
 
   if (!newLawId) {
     // Navigated to /library with no lawId - clear state. No auto-select:
@@ -1993,7 +2271,7 @@ onBeforeRouteLeave(async (to) => {
 // de view op "Geen selectie" staan terwijl de URL de wet wél noemde.
 //
 // Niet via selectLaw(): die doet een router.push naar de route waar we al zijn.
-watch(() => route.params.lawId, (lawId) => {
+watch(() => singleParam(route.params.lawId), (lawId) => {
   if (!lawId) {
     if (selectedLawId.value) {
       selectedLawId.value = null;
@@ -2015,26 +2293,14 @@ watch(() => route.params.lawId, (lawId) => {
   loadLaw(lawId);
 });
 
-// When a harvested law becomes available, reload the corpus and select it.
-async function onHarvestAvailable(slug) {
-  // Best-effort reload - a failure just means the index below may not
-  // include the fresh law yet.
-  await apiFetch('/api/corpus/reload', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ law_ids: [slug] }),
-  }).catch(() => {});
-  await loadIndex();
-  selectLaw(slug);
-}
-
 // Initial load from route
-if (route.params.lawId) {
-  selectedLawId.value = route.params.lawId;
+const initialLawId = singleParam(route.params.lawId);
+if (initialLawId) {
+  selectedLawId.value = initialLawId;
   if (route.params.articleNumber) {
     selectedArticleNumber.value = String(route.params.articleNumber);
   }
-  loadLaw(route.params.lawId);
+  loadLaw(initialLawId);
 }
 // Werkdocumenten deep-link on first load: restore the addressed document, or a
 // converting/failed job's view once the jobs load (the conversionJobs watcher).
@@ -2142,7 +2408,7 @@ watch(activeTrajectRef, () => {
               <nldd-top-title-bar v-if="!loading" slot="header" :text="sidebarTitle" collapse-anchor="home-titel"></nldd-top-title-bar>
 
               <nldd-simple-section width="full">
-                <nldd-title v-if="!loading" id="home-titel" size="3"><h3>{{ sidebarTitle }}</h3></nldd-title>
+                <nldd-title v-if="!loading" id="home-titel" size="display-3"><h3>{{ sidebarTitle }}</h3></nldd-title>
                 <nldd-spacer v-if="!loading" size="16"></nldd-spacer>
                 <nldd-activity-indicator v-if="loading" :text="sidebarLoadingText" show-text></nldd-activity-indicator>
                 <template v-else>
@@ -2165,7 +2431,7 @@ watch(activeTrajectRef, () => {
                         <nldd-spacer-cell size="8"></nldd-spacer-cell>
                         <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
                       </nldd-list-item>
-                      <TasksSidebarItem :current="isTakenMode" @click="goToTaken" />
+                      <TasksSidebarItem :current="isTakenMode" :traject-ref="activeTrajectRef" @click="goToTaken" />
                     </nldd-list>
                     <nldd-spacer size="24"></nldd-spacer>
                   </template>
@@ -2177,7 +2443,7 @@ watch(activeTrajectRef, () => {
                          curated groups read as distinct blocks. -->
                     <nldd-spacer v-if="sectionIndex > 0" size="24"></nldd-spacer>
                     <template v-if="section.title">
-                      <nldd-title size="5">
+                      <nldd-title size="display-5">
                         <h4>{{ section.title }}</h4>
                         <nldd-button
                           v-if="section.key === 'recent'"
@@ -2188,6 +2454,27 @@ watch(activeTrajectRef, () => {
                           @click="clearRecent"
                         ></nldd-button>
                       </nldd-title>
+                      <nldd-spacer size="8"></nldd-spacer>
+                    </template>
+                    <!-- Favorites without an account: say where they live and
+                         how they get lost, and what keeps them. -->
+                    <template v-if="section.key === 'favorites' && localFavorites">
+                      <nldd-banner
+                        data-testid="local-favorites-notice"
+                        size="sm"
+                        variant="warning"
+                        text="Alleen in deze browser"
+                        supporting-text="Wis je je browsergegevens of gebruik je een andere browser, dan zijn ze weg. Met een account bewaar je ze blijvend; ze gaan mee zodra je inlogt."
+                      >
+                        <nldd-button
+                          slot="actions"
+                          size="sm"
+                          appearance="secondary"
+                          text="Account aanvragen"
+                          :href="accountRequestHref"
+                          @click="goToAccountRequest"
+                        ></nldd-button>
+                      </nldd-banner>
                       <nldd-spacer size="8"></nldd-spacer>
                     </template>
                     <!-- Nog niets aangeraakt: de kop staat er al, hieronder
@@ -2267,7 +2554,7 @@ watch(activeTrajectRef, () => {
             <nldd-page sticky-header>
               <nldd-top-title-bar slot="header" text="Instellingen" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="instellingen-titel"></nldd-top-title-bar>
               <nldd-simple-section width="full">
-                <nldd-title id="instellingen-titel" size="3"><h3>Instellingen</h3></nldd-title>
+                <nldd-title id="instellingen-titel" size="display-3"><h3>Instellingen</h3></nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
                 <nldd-list appearance="simple">
                   <!-- Zelfde iconen als in TrajectMenu/MobileTrajectSheet: deze
@@ -2298,7 +2585,7 @@ watch(activeTrajectRef, () => {
             <nldd-page sticky-header>
               <nldd-top-title-bar slot="header" text="Taken" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="taken-titel"></nldd-top-title-bar>
               <nldd-simple-section width="full">
-                <nldd-title id="taken-titel" size="3"><h3>Taken</h3></nldd-title>
+                <nldd-title id="taken-titel" size="display-3"><h3>Taken</h3></nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
                 <TasksCategoriesPane
                   :traject-ref="activeTrajectRef"
@@ -2315,9 +2602,9 @@ watch(activeTrajectRef, () => {
             <nldd-page sticky-header>
               <nldd-top-title-bar slot="header" text="Werkdocumenten" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="werkdoc-titel"></nldd-top-title-bar>
               <nldd-simple-section width="full">
-                <nldd-title id="werkdoc-titel" size="3"><h3>Werkdocumenten</h3></nldd-title>
+                <nldd-title id="werkdoc-titel" size="display-3"><h3>Werkdocumenten</h3></nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
-                <nldd-toolbar label="Documentacties">
+                <nldd-toolbar accessible-label="Documentacties">
                   <nldd-toolbar-item slot="start">
                     <nldd-icon-button
                       icon="plus-small"
@@ -2330,11 +2617,15 @@ watch(activeTrajectRef, () => {
                         <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="onDocUpload"></nldd-menu-item>
                       </nldd-menu>
                     </nldd-icon-button>
+                    <nldd-menu-group slot="overflow" text="Document toevoegen">
+                      <nldd-menu-item icon="new-text-document" text="Nieuw document" @select="onDocNew"></nldd-menu-item>
+                      <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="onDocUpload"></nldd-menu-item>
+                    </nldd-menu-group>
                   </nldd-toolbar-item>
                 </nldd-toolbar>
                 <nldd-spacer size="16"></nldd-spacer>
                 <nldd-activity-indicator v-if="docsLoading && !docList.length && !conversionJobs.length" text="Documenten laden" show-text></nldd-activity-indicator>
-                <nldd-inline-dialog v-else-if="docsError" variant="alert" text="Documenten niet geladen" :supporting-text="docsError.message"></nldd-inline-dialog>
+                <nldd-inline-dialog v-else-if="docsError" variant="alert" text="Documenten niet geladen" :supporting-text="(docsError as Error).message"></nldd-inline-dialog>
                 <DocumentList v-else-if="docList.length || conversionJobs.length" :documents="docList" :jobs="conversionJobs" :selected-path="docSelectedPath" @select="onDocSelect"></DocumentList>
                 <nldd-inline-dialog v-else text="Geen werkdocumenten"></nldd-inline-dialog>
               </nldd-simple-section>
@@ -2346,7 +2637,7 @@ watch(activeTrajectRef, () => {
                so the navigation-split-view reflows to spatial mode and
                shows the sidebar (Wetten Browser) alongside main. -->
           <nldd-split-view-pane v-else-if="selectedLawId && !lawError" slot="secondary-sidebar" has-content>
-            <nldd-page sticky-header>
+            <nldd-page ref="lawPage" sticky-header>
               <nldd-top-title-bar
                 slot="header"
                 :text="paneChromeVisible(selectedLawLoading) ? lawTitle : undefined"
@@ -2355,56 +2646,56 @@ watch(activeTrajectRef, () => {
               ></nldd-top-title-bar>
 
               <nldd-simple-section width="full">
-                <nldd-title v-if="paneChromeVisible(selectedLawLoading)" id="wet-titel" size="3"><h3>{{ lawTitle }}</h3></nldd-title>
+                <nldd-title v-if="paneChromeVisible(selectedLawLoading)" id="wet-titel" size="display-3"><h3>{{ lawTitle }}</h3></nldd-title>
                 <nldd-spacer v-if="paneChromeVisible(selectedLawLoading)" size="16"></nldd-spacer>
                 <!-- Keyed on the chrome flag only, like the title above: the
                      favourite button runs entirely off `selectedLawId` (route)
                      + `favorites`, never the loaded law, so waiting for
                      `selectedLaw` only hid the toolbar during the load. -->
-                <nldd-toolbar v-if="paneChromeVisible(selectedLawLoading)" label="Regelwerkacties">
+                <nldd-toolbar v-if="paneChromeVisible(selectedLawLoading)" accessible-label="Regelwerkacties">
                   <!-- priority: hoger blijft langer staan, lager verdwijnt als
                        eerste in het overflow-menu. -->
-                  <nldd-toolbar-item slot="start" :priority="2">
+                  <nldd-toolbar-item v-if="authenticated || localFavorites" slot="start" :priority="2">
                     <nldd-icon-button
+                      appearance="neutral-base"
                       :icon="favorites?.has(selectedLawId) ? 'star-filled' : 'star'"
-                      :text="favorites?.has(selectedLawId) ? 'Verwijder uit favorieten' : 'Voeg toe aan favorieten'"
+                      :text="favorites?.has(selectedLawId)
+                        ? 'Verwijder uit favorieten'
+                        : localFavorites ? 'Voeg toe aan favorieten in deze browser' : 'Voeg toe aan favorieten'"
                       @click="onFavoriteClick"
-                    >
-                      <!-- In de popup-slot: het component ankert en toggelt de
-                           popover zelf, dus een tweede klik sluit hem weer.
-                           Alleen zinvol zolang je niet bent ingelogd. -->
-                      <nldd-popover
-                        v-if="!authenticated"
-                        slot="popup"
-                        accessible-label="Inloggen"
-                        width="320px"
-                      >
-                        <nldd-container padding="16">
-                          <nldd-inline-dialog
-                            icon="login"
-                            text="Log in om regelwerken als favoriet te markeren"
-                            supporting-text="Zodra je bent ingelogd kun je regelwerken bewaren en snel terugvinden."
-                          >
-                            <nldd-button slot="actions" appearance="primary" text="Inloggen" @click="login()"></nldd-button>
-                            <nldd-button slot="actions" appearance="secondary" text="Account aanvragen" :href="accountRequestHref" @click.prevent="goToAccountRequest"></nldd-button>
-                          </nldd-inline-dialog>
-                        </nldd-container>
-                      </nldd-popover>
-                    </nldd-icon-button>
+                    ></nldd-icon-button>
+                    <nldd-menu-item
+                      slot="overflow"
+                      :icon="favorites?.has(selectedLawId) ? 'star-filled' : 'star'"
+                      :text="favorites?.has(selectedLawId)
+                        ? 'Verwijder uit favorieten'
+                        : localFavorites ? 'Voeg toe aan favorieten in deze browser' : 'Voeg toe aan favorieten'"
+                      @select="onFavoriteClick"
+                    ></nldd-menu-item>
                   </nldd-toolbar-item>
                   <nldd-toolbar-item v-if="canShare" slot="start" :priority="1">
-                    <nldd-icon-button icon="share" text="Delen" @click="shareLaw"></nldd-icon-button>
+                    <nldd-icon-button appearance="neutral-base" icon="share" text="Delen" @click="shareLaw"></nldd-icon-button>
+                    <nldd-menu-item slot="overflow" icon="share" text="Delen" @select="shareLaw"></nldd-menu-item>
                   </nldd-toolbar-item>
                   <nldd-toolbar-item slot="end" :priority="4">
                     <nldd-icon-button
+                      appearance="neutral-base"
                       icon="search"
                       text="Artikelen zoeken"
                       :expanded="articleFilterOpen || undefined"
                       @click="toggleArticleFilter"
                     ></nldd-icon-button>
+                    <nldd-menu-item
+                      slot="overflow"
+                      type="checkbox"
+                      icon="search"
+                      text="Artikelen zoeken"
+                      :selected="articleFilterOpen || undefined"
+                      @select="toggleArticleFilter"
+                    ></nldd-menu-item>
                   </nldd-toolbar-item>
                   <nldd-toolbar-item slot="end" :priority="3">
-                    <nldd-icon-button icon="filter" text="Artikelen filteren">
+                    <nldd-icon-button appearance="neutral-base" icon="filter" text="Artikelen filteren">
                       <nldd-menu slot="popup">
                         <nldd-menu-item
                           v-for="option in ARTICLE_FILTERS"
@@ -2416,6 +2707,16 @@ watch(activeTrajectRef, () => {
                         ></nldd-menu-item>
                       </nldd-menu>
                     </nldd-icon-button>
+                    <nldd-menu-group slot="overflow" text="Artikelen filteren">
+                      <nldd-menu-item
+                        v-for="option in ARTICLE_FILTERS"
+                        :key="option.key"
+                        type="radio"
+                        :text="option.label"
+                        :selected="articleTypeFilter === option.key || undefined"
+                        @select="setArticleTypeFilter(option.key)"
+                      ></nldd-menu-item>
+                    </nldd-menu-group>
                   </nldd-toolbar-item>
                 </nldd-toolbar>
                 <nldd-spacer v-if="paneChromeVisible(selectedLawLoading)" size="16"></nldd-spacer>
@@ -2444,9 +2745,66 @@ watch(activeTrajectRef, () => {
                       <nldd-icon icon="chevron-right"></nldd-icon>
                     </nldd-icon-cell>
                   </nldd-list-item>
+                  <nldd-list-item data-testid="law-entry-yaml" size="md" button :current="isYaml || undefined" @click="selectYaml()">
+                    <nldd-icon-cell size="20">
+                      <nldd-icon icon="code-block"></nldd-icon>
+                    </nldd-icon-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-text-cell text="YAML"></nldd-text-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-icon-cell size="20">
+                      <nldd-icon icon="chevron-right"></nldd-icon>
+                    </nldd-icon-cell>
+                  </nldd-list-item>
+                  <!-- Runs belong to a traject; the corpus juris has none. -->
+                  <nldd-list-item
+                    v-if="activeTrajectRef"
+                    data-testid="law-entry-verwerkingen"
+                    size="md"
+                    button
+                    :current="isVerwerkingen || undefined"
+                    @click="selectVerwerkingen()"
+                  >
+                    <nldd-icon-cell size="20">
+                      <nldd-icon icon="history"></nldd-icon>
+                    </nldd-icon-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-text-cell text="Verwerkingen"></nldd-text-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-icon-cell size="20">
+                      <nldd-icon icon="chevron-right"></nldd-icon>
+                    </nldd-icon-cell>
+                  </nldd-list-item>
                 </nldd-list>
+                <template v-if="scenariosShown && scenarioFiles.length">
+                  <nldd-spacer size="24"></nldd-spacer>
+                  <nldd-title size="display-5">
+                    <h4>Scenario's</h4>
+                  </nldd-title>
+                  <nldd-spacer size="8"></nldd-spacer>
+                  <nldd-list appearance="simple" accessible-label="Scenario's van dit regelwerk">
+                    <nldd-list-item
+                      v-for="file in scenarioFiles"
+                      :key="file.filename"
+                      size="md"
+                      button
+                      :data-testid="`law-scenario-${file.filename}`"
+                      @click="openScenarioFile(file.filename)"
+                    >
+                      <nldd-icon-cell size="20">
+                        <nldd-icon icon="checklist"></nldd-icon>
+                      </nldd-icon-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-text-cell :text="file.filename" supporting-text="Openen in de editor"></nldd-text-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-icon-cell size="20">
+                        <nldd-icon icon="chevron-right"></nldd-icon>
+                      </nldd-icon-cell>
+                    </nldd-list-item>
+                  </nldd-list>
+                </template>
                 <nldd-spacer size="24"></nldd-spacer>
-                <nldd-title size="5">
+                <nldd-title size="display-5">
                   <h4>Artikelen</h4>
                 </nldd-title>
                 <nldd-spacer size="8"></nldd-spacer>
@@ -2470,10 +2828,13 @@ watch(activeTrajectRef, () => {
                     @click="resetArticleFilters"
                   ></nldd-button>
                 </nldd-inline-dialog>
-                <nldd-list v-else appearance="simple">
+                <nldd-list v-else ref="articleList" appearance="simple" :style="articleListStyle">
                   <nldd-list-item
-                    v-for="article in filteredArticles"
+                    v-for="{ item: article, index } in articleRows"
                     :key="article.number"
+                    :data-row-key="article.number"
+                    :aria-setsize="articleListWindowed ? filteredArticles.length : undefined"
+                    :aria-posinset="articleListWindowed ? index + 1 : undefined"
                     size="md"
                     button
                     :current="String(article.number) === String(selectedArticleNumber) || undefined"
@@ -2531,7 +2892,7 @@ watch(activeTrajectRef, () => {
                 :collapse-anchor="takenCategorie ? 'taken-pane-titel' : undefined"
               ></nldd-top-title-bar>
               <nldd-simple-section v-if="takenCategorie">
-                <nldd-title id="taken-pane-titel" size="3"><h3>{{ takenTitle }}</h3></nldd-title>
+                <nldd-title id="taken-pane-titel" size="display-3"><h3>{{ takenTitle }}</h3></nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
                 <TasksListPane
                   :traject-ref="activeTrajectRef"
@@ -2560,6 +2921,7 @@ watch(activeTrajectRef, () => {
                 <nldd-toolbar size="md">
                   <nldd-toolbar-item slot="start" class="job-back">
                     <nldd-icon-button icon="chevron-left" text="Terug naar werkdocumenten" tooltip-timing="never" @click="onDocBack"></nldd-icon-button>
+                    <nldd-menu-item slot="overflow" icon="chevron-left" text="Terug naar werkdocumenten" @select="onDocBack"></nldd-menu-item>
                   </nldd-toolbar-item>
                   <!-- Names the document here, where a document's name lives, so
                        the dialog below can stay about the conversion itself. The
@@ -2626,14 +2988,14 @@ watch(activeTrajectRef, () => {
           </nldd-split-view-pane>
 
           <!-- Main: Artikel Detail -->
-          <nldd-split-view-pane v-else slot="main" :has-content="selectedArticle || isAlgemeen || lawError || articleNotFound ? true : undefined">
+          <nldd-split-view-pane v-else slot="main" :has-content="selectedArticle || isLawPage || lawError || articleNotFound ? true : undefined">
             <nldd-page landmarks="page" sticky-header>
               <nldd-top-title-bar
                 slot="header"
-                :text="isAlgemeen ? 'Algemeen' : (selectedArticle ? `Artikel ${selectedArticle.number}` : undefined)"
-                :supporting-text="isAlgemeen || selectedArticle ? lawName : undefined"
+                :text="isAlgemeen ? 'Algemeen' : isYaml ? 'YAML' : isVerwerkingen ? 'Verwerkingen' : (selectedArticle ? `Artikel ${selectedArticle.number}` : undefined)"
+                :supporting-text="isLawPage || selectedArticle ? lawName : undefined"
                 :back-text="lawError ? LIBRARY_HOME_BACK_TEXT : (lawName || 'Terug')"
-                :collapse-anchor="isAlgemeen ? 'algemeen-titel' : (selectedArticle ? 'article-titel' : undefined)"
+                :collapse-anchor="isAlgemeen ? 'algemeen-titel' : isYaml ? 'yaml-titel' : isVerwerkingen ? 'verwerkingen-titel' : (selectedArticle ? 'article-titel' : undefined)"
               ></nldd-top-title-bar>
 
               <nldd-simple-section width="full" v-if="!selectedLawId">
@@ -2676,71 +3038,168 @@ watch(activeTrajectRef, () => {
                 </nldd-inline-dialog>
               </nldd-simple-section>
               <nldd-simple-section width="full" v-else-if="isAlgemeen">
-                <nldd-title id="algemeen-titel" size="3">
+                <nldd-title id="algemeen-titel" size="display-3">
                   <h3>Algemeen</h3>
                   <span slot="supporting-text">{{ lawName }}</span>
                 </nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
-                <nldd-list appearance="box-tinted" accessible-label="Algemene informatie">
-                  <nldd-list-item v-for="row in algemeenRows" :key="row.label">
-                    <nldd-text-cell :text="row.label" width="200px"></nldd-text-cell>
-                    <nldd-spacer-cell size="16"></nldd-spacer-cell>
-                    <nldd-text-cell :text="row.value"></nldd-text-cell>
-                  </nldd-list-item>
-                </nldd-list>
-                <template v-if="algemeenLegalBasis.length">
-                  <nldd-spacer size="24"></nldd-spacer>
-                  <nldd-title size="4">
-                    <h4>Grondslag</h4>
-                  </nldd-title>
-                  <nldd-spacer size="8"></nldd-spacer>
-                  <nldd-list appearance="simple">
-                    <nldd-list-item
-                      v-for="basis in algemeenLegalBasis"
-                      :key="`${basis.law_id}-${basis.article}`"
-                      size="md"
-                      button
-                      @click="selectLawArticle(basis.law_id, basis.article)"
-                    >
-                      <nldd-text-cell
-                        :text="basis.article ? `Artikel ${basis.article}` : humanizeLawId(basis.law_id)"
-                        :supporting-text="basis.description || (basis.article ? humanizeLawId(basis.law_id) : undefined)"
-                      ></nldd-text-cell>
-                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                      <nldd-icon-cell size="20">
-                        <nldd-icon icon="chevron-right"></nldd-icon>
-                      </nldd-icon-cell>
-                    </nldd-list-item>
-                  </nldd-list>
-                </template>
+                <!-- As wide as the article text, which nldd-rich-text centers
+                     at 720px (--primitives-area-720). The title stays left,
+                     as on an article. -->
+                <nldd-container horizontal-alignment="center">
+                  <nldd-container max-width="720px">
+                    <nldd-list appearance="box-tinted" accessible-label="Algemene informatie">
+                      <nldd-list-item v-for="row in algemeenRows" :key="row.label">
+                        <nldd-text-cell :text="row.label" width="200px"></nldd-text-cell>
+                        <nldd-spacer-cell size="16"></nldd-spacer-cell>
+                        <nldd-text-cell :text="row.value" horizontal-alignment="right"></nldd-text-cell>
+                      </nldd-list-item>
+                    </nldd-list>
+                    <template v-if="algemeenLinks.length">
+                      <nldd-spacer size="24"></nldd-spacer>
+                      <nldd-title size="display-4">
+                        <h4>Bronnen</h4>
+                      </nldd-title>
+                      <nldd-spacer size="8"></nldd-spacer>
+                      <nldd-list appearance="simple" accessible-label="Bronnen">
+                        <nldd-list-item
+                          v-for="link in algemeenLinks"
+                          :key="link.key"
+                          :data-testid="`algemeen-link-${link.key}`"
+                          size="md"
+                          :href="link.href"
+                          target="_blank"
+                        >
+                          <nldd-text-cell :text="link.text" :supporting-text="link.supportingText"></nldd-text-cell>
+                          <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                          <nldd-icon-cell size="20">
+                            <nldd-icon icon="external-link"></nldd-icon>
+                          </nldd-icon-cell>
+                        </nldd-list-item>
+                      </nldd-list>
+                    </template>
+                    <template v-if="algemeenLegalBasis.length">
+                      <nldd-spacer size="24"></nldd-spacer>
+                      <nldd-title size="display-4">
+                        <h4>Grondslag</h4>
+                      </nldd-title>
+                      <nldd-spacer size="8"></nldd-spacer>
+                      <nldd-list appearance="simple">
+                        <nldd-list-item
+                          v-for="basis in algemeenLegalBasis"
+                          :key="`${basis.law_id}-${basis.article}`"
+                          size="md"
+                          button
+                          @click="selectLawArticle(basis.law_id, basis.article)"
+                        >
+                          <nldd-text-cell
+                            :text="basis.article ? `Artikel ${basis.article}` : humanizeLawId(basis.law_id)"
+                            :supporting-text="basis.description || (basis.article ? humanizeLawId(basis.law_id) : undefined)"
+                          ></nldd-text-cell>
+                          <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                          <nldd-icon-cell size="20">
+                            <nldd-icon icon="chevron-right"></nldd-icon>
+                          </nldd-icon-cell>
+                        </nldd-list-item>
+                      </nldd-list>
+                    </template>
+                  </nldd-container>
+                </nldd-container>
+              </nldd-simple-section>
+              <nldd-simple-section width="full" v-else-if="isVerwerkingen">
+                <nldd-title id="verwerkingen-titel" size="display-3">
+                  <h3>Verwerkingen</h3>
+                  <span slot="supporting-text">{{ lawName }}</span>
+                </nldd-title>
+                <nldd-spacer size="16"></nldd-spacer>
+                <!-- As wide as Algemeen: centered at the 720px of the article
+                     text, with the title left. -->
+                <nldd-container horizontal-alignment="center">
+                  <nldd-container max-width="720px">
+                    <RunsListPane
+                      :traject-ref="activeTrajectRef"
+                      :law-id="selectedLawId"
+                      :bwb-id="selectedLawBwbId"
+                      @select="openRunId = $event"
+                    ></RunsListPane>
+                  </nldd-container>
+                </nldd-container>
+                <RunDetailSheet
+                  :job-id="openRunId"
+                  :law-name="lawName"
+                  @close="openRunId = null"
+                  @open-tasks="goToRunTasks"
+                ></RunDetailSheet>
+              </nldd-simple-section>
+              <nldd-simple-section width="full" v-else-if="isYaml">
+                <nldd-title id="yaml-titel" size="display-3">
+                  <h3>YAML</h3>
+                  <span slot="supporting-text">{{ lawName }}</span>
+                </nldd-title>
+                <nldd-spacer size="16"></nldd-spacer>
+                <nldd-code-viewer data-testid="law-yaml" language="yaml">{{ selectedLawText }}</nldd-code-viewer>
               </nldd-simple-section>
               <nldd-simple-section width="full" v-else-if="!selectedArticle">
                 <nldd-inline-dialog text="Selecteer een artikel"></nldd-inline-dialog>
               </nldd-simple-section>
               <template v-else>
                 <nldd-simple-section width="full">
-                  <nldd-title id="article-titel" size="3">
+                  <nldd-title id="article-titel" size="display-3">
                     <h3>Artikel {{ selectedArticle.number }}</h3>
                     <span slot="supporting-text">{{ lawName }}</span>
                   </nldd-title>
                   <nldd-spacer size="16"></nldd-spacer>
+                  <template v-if="!activeTrajectRef && lawEntry?.enriched">
+                    <nldd-banner
+                      data-testid="example-banner"
+                      variant="accent"
+                      size="sm"
+                      text="Voorbeeld, niet vastgesteld"
+                      :supporting-text="exampleSupportingText"
+                    ></nldd-banner>
+                    <nldd-spacer size="16"></nldd-spacer>
+                  </template>
+                  <template v-else-if="otherEnrichedVersion">
+                    <nldd-banner
+                      data-testid="other-version-banner"
+                      size="sm"
+                      text="Een andere versie heeft een machineversie"
+                      :supporting-text="`Deze versie heeft alleen de wettekst. De versie van ${otherEnrichedVersion} heeft ook een machineversie.`"
+                    ></nldd-banner>
+                    <nldd-spacer size="16"></nldd-spacer>
+                  </template>
                   <nldd-toolbar>
-                    <nldd-toolbar-item slot="start">
-                      <nldd-tab-bar size="md" @tabchange="onDetailTabChange">
-                        <nldd-tab-bar-item data-view="tekst" :current="detailView === 'tekst' || undefined" text="Tekst"></nldd-tab-bar-item>
-                        <nldd-tab-bar-item data-view="machine" :current="detailView === 'machine' || undefined" text="Machine"></nldd-tab-bar-item>
-                        <nldd-tab-bar-item data-view="yaml" :current="detailView === 'yaml' || undefined" text="YAML"></nldd-tab-bar-item>
+                    <nldd-toolbar-item v-if="showMachineViews" slot="start">
+                      <nldd-tab-bar size="md" accessible-label="Weergave" @tab-change="onDetailTabChange">
+                        <nldd-tab-bar-item
+                          v-for="v in DETAIL_VIEWS"
+                          :key="v.key"
+                          :data-view="v.key"
+                          :current="detailView === v.key || undefined"
+                          :text="v.label"
+                        ></nldd-tab-bar-item>
                       </nldd-tab-bar>
+                      <nldd-menu-group slot="overflow" text="Weergave">
+                        <nldd-menu-item
+                          v-for="v in DETAIL_VIEWS"
+                          :key="`overflow-${v.key}`"
+                          type="radio"
+                          :text="v.label"
+                          :selected="detailView === v.key || undefined"
+                          @select="detailView = v.key"
+                        ></nldd-menu-item>
+                      </nldd-menu-group>
                     </nldd-toolbar-item>
                     <nldd-toolbar-item slot="end">
                       <nldd-button ref="editButton" v-if="selectedLawId" appearance="secondary" text="Bewerken" :href="authenticated ? editLawHref : undefined" @click.prevent="onEditClick" @pointerdown.capture="onLoginTriggerPointerdown"></nldd-button>
+                      <nldd-menu-item v-if="selectedLawId" slot="overflow" icon="edit" text="Bewerken" @select="onEditOverflow"></nldd-menu-item>
                     </nldd-toolbar-item>
                   </nldd-toolbar>
                   <nldd-spacer size="24"></nldd-spacer>
                   <KeepAlive>
-                    <ArticleText v-if="detailView === 'tekst'" :article="selectedArticle" centered />
-                    <MachineReadable v-else-if="detailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" />
-                    <YamlView v-else-if="detailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" />
+                    <ArticleText v-if="shownDetailView === 'tekst'" :article="selectedArticle" centered />
+                    <MachineReadable v-else-if="shownDetailView === 'machine'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" @open-action="activeAction = $event" />
+                    <YamlView v-else-if="shownDetailView === 'yaml'" :article="selectedArticle" :can-create="!!selectedLawId" :can-enrich="canEnrich" :needs="enrichNeeds" :enriching="isEnriching" :review-ready="reviewReady" :review-article="reviewArticleForPane" :enrich-error="enrichError" :create-href="authenticated ? editLawHref : undefined" @create-mr="openEditor" @enrich="enrichSelectedLaw" @view-tasks="openTasksForLaw" @review="openReviewForLaw" />
                   </KeepAlive>
                 </nldd-simple-section>
               </template>
@@ -2759,7 +3218,6 @@ watch(activeTrajectRef, () => {
     <SearchPopover
       ref="searchPopoverRef"
       @select-law="(lawId) => selectLaw(lawId, true)"
-      @harvest-available="onHarvestAvailable"
     />
     <AddLawSheet
       ref="addLawSheetRef"
@@ -2823,17 +3281,13 @@ watch(activeTrajectRef, () => {
     </nldd-modal-dialog>
   </Teleport>
 
-  <Teleport to="body">
-    <nldd-modal-dialog
-      ref="jobCancelErrorModalEl"
-      variant="alert"
-      text="Annuleren mislukt"
-      :supporting-text="`De conversie loopt door op de achtergrond. ${jobCancelError || ''}`"
-      @close="dismissJobCancelError"
-    >
-      <nldd-button slot="actions" appearance="primary" text="Sluit" @click="dismissJobCancelError"></nldd-button>
-    </nldd-modal-dialog>
-  </Teleport>
+  <nldd-notification
+    v-if="jobCancelError"
+    variant="critical"
+    text="Annuleren mislukt"
+    :supporting-text="`De conversie loopt door op de achtergrond. ${jobCancelError}`"
+    @dismiss="dismissJobCancelError"
+  ></nldd-notification>
 </template>
 
 <style>

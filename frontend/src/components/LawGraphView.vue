@@ -1,6 +1,7 @@
-<script setup>
+<script setup lang="ts">
 import { computed, ref, toRef, markRaw, watch } from 'vue';
 import { VueFlow } from '@vue-flow/core';
+import type { GraphNode as FlowGraphNode, NodeMouseEvent, NodeTypesObject } from '@vue-flow/core';
 import { Background } from '@vue-flow/background';
 import { Controls } from '@vue-flow/controls';
 import { MiniMap } from '@vue-flow/minimap';
@@ -14,38 +15,60 @@ import LawNode from './graph/LawNode.vue';
 import LeafNode from './graph/LeafNode.vue';
 import TraceStepList from './graph/TraceStepList.vue';
 import TraceStepDetail from './graph/TraceStepDetail.vue';
-import { useLawGraph, rootOfId } from '../composables/useLawGraph.js';
-import { useTraceStepping } from '../composables/useTraceStepping.js';
-import { useColorScheme } from '../composables/useColorScheme.js';
-import { stepHasHighlights } from '../lib/traceEdges.js';
-import { lawUrl } from '../composables/corpusUrls.js';
-import { apiFetchText } from '../lib/apiFetch.js';
+import { useLawGraph, rootOfId } from '../composables/useLawGraph';
+import { useTraceStepping } from '../composables/useTraceStepping';
+import type { TraceSteppingOptions } from '../composables/useTraceStepping';
+import { useColorScheme } from '../composables/useColorScheme';
+import { stepHasHighlights } from '../lib/traceEdges';
+import type { TraceStep } from '../lib/traceEdges';
+import { useCorpus } from '../corpus';
+import type { RequestError } from '../lib/apiFetch';
 
-const props = defineProps({
-  lawId: { type: String, default: null },
-  // Latest scenario execution result (TraceResult). When set, the graph
-  // enters trace-stepping mode: step list + detail panel appear below
-  // the graph and nodes/edges get .trace-active/.trace-visited classes.
-  result: { type: Object, default: null },
-  // The scenario's entry output name - pins the "▶ start" marker to the
-  // matching output leaf on the root law.
-  outputName: { type: String, default: null },
-  expectations: { type: Object, default: () => ({}) },
-  /** Active traject ref - routes dependency reads through the
-   *  traject's backend so the graph mirrors what the editor pane shows. */
-  trajectRef: { type: String, default: null },
-});
+/** The engine's TraceResult: the trace read by useTraceStepping, plus the outputs. */
+type GraphTraceResult = NonNullable<TraceSteppingOptions['result']['value']> & {
+  outputs?: Record<string, unknown> | null;
+};
 
-async function fetchLawYaml(lawId) {
-  return apiFetchText(lawUrl(props.trajectRef, lawId), {
-    errorMessage: (status) => `Law '${lawId}' niet gevonden (${status})`,
-  });
+const props = withDefaults(
+  defineProps<{
+    lawId?: string | null;
+    // Latest scenario execution result (TraceResult). When set, the graph
+    // enters trace-stepping mode: step list + detail panel appear below
+    // the graph and nodes/edges get .trace-active/.trace-visited classes.
+    result?: GraphTraceResult | null;
+    // The scenario's entry output name - pins the "▶ start" marker to the
+    // matching output leaf on the root law.
+    outputName?: string | null;
+    expectations?: Record<string, unknown>;
+  }>(),
+  {
+    lawId: null,
+    result: null,
+    outputName: null,
+    expectations: () => ({}),
+  },
+);
+
+// Dependency reads go through the active traject, so the graph mirrors what
+// the editor pane shows.
+const corpus = useCorpus();
+async function fetchLawYaml(lawId: string) {
+  try {
+    return (await corpus.law(lawId)).rawYaml;
+  } catch (e) {
+    const status = (e as RequestError).status;
+    // An HTTP failure gets the message the graph shows; a network error keeps its own.
+    if (status === undefined) throw e;
+    throw new Error(`Law '${lawId}' niet gevonden (${status})`);
+  }
 }
 
+// Vue Flow types a node component against its full NodeProps; ours declare
+// only the props they read (useLawGraph gives every node a `data.label`).
 const nodeTypes = markRaw({
   law: LawNode,
   leaf: LeafNode,
-});
+} as NodeTypesObject);
 
 const { nodes, edges, loading, error, missingDeps } = useLawGraph({
   rootLawId: toRef(props, 'lawId'),
@@ -76,7 +99,14 @@ const {
 const hasTrace = computed(() => steps.value.length > 0);
 const filter = ref('highlights'); // 'highlights' | 'all'
 
-function stepIsVisible(step) {
+function onFilterChange(e: Event) {
+  const next =
+    (e as CustomEvent<{ value?: string } | null | undefined>).detail?.value ??
+    (e.target as { value?: string } | null)?.value;
+  if (next === 'highlights' || next === 'all') filter.value = next;
+}
+
+function stepIsVisible(step: TraceStep) {
   if (filter.value === 'all') return true;
   return stepHasHighlights(step);
 }
@@ -84,10 +114,11 @@ function stepIsVisible(step) {
 // Filter-aware nav: when the user has the "Met highlights" filter on,
 // Vorige/Volgende must skip context-only steps that aren't rendered in
 // the list - otherwise the counter advances onto a row that the user
-// can't see and the step list looks frozen.
+// can't see and the step list looks frozen. (The `!`s below index inside
+// the loop bounds.)
 function nextVisible() {
   for (let i = currentStepIdx.value + 1; i < steps.value.length; i++) {
-    if (stepIsVisible(steps.value[i])) {
+    if (stepIsVisible(steps.value[i]!)) {
       goto(i);
       return;
     }
@@ -95,7 +126,7 @@ function nextVisible() {
 }
 function prevVisible() {
   for (let i = currentStepIdx.value - 1; i >= 0; i--) {
-    if (stepIsVisible(steps.value[i])) {
+    if (stepIsVisible(steps.value[i]!)) {
       goto(i);
       return;
     }
@@ -103,13 +134,13 @@ function prevVisible() {
 }
 const hasNextVisible = computed(() => {
   for (let i = currentStepIdx.value + 1; i < steps.value.length; i++) {
-    if (stepIsVisible(steps.value[i])) return true;
+    if (stepIsVisible(steps.value[i]!)) return true;
   }
   return false;
 });
 const hasPrevVisible = computed(() => {
   for (let i = currentStepIdx.value - 1; i >= 0; i--) {
-    if (stepIsVisible(steps.value[i])) return true;
+    if (stepIsVisible(steps.value[i]!)) return true;
   }
   return false;
 });
@@ -118,16 +149,16 @@ const hasPrevVisible = computed(() => {
 
 // Which root law's edges are currently highlighted (inbound/outbound).
 // null = no highlight. Toggles off when the same law is clicked twice.
-const selectedRoot = ref(null);
+const selectedRoot = ref<string | null>(null);
 
 // Laws the user hid via the close button (visible but excluded).
-const hiddenLaws = ref(new Set());
+const hiddenLaws = ref(new Set<string>());
 
 // Reset local UI state when the underlying law changes - the hidden set /
 // selection shouldn't bleed into an unrelated graph.
 watch(() => props.lawId, () => {
   selectedRoot.value = null;
-  hiddenLaws.value = new Set();
+  hiddenLaws.value = new Set<string>();
 });
 
 const visibleNodes = computed(() => {
@@ -136,7 +167,7 @@ const visibleNodes = computed(() => {
   const active = activeNodeIds.value;
   const visited = visitedNodeIds.value;
   return nodes.value.map((n) => {
-    const classes = [];
+    const classes: string[] = [];
     if (n.class) classes.push(n.class);
     if (starts.has(n.id)) classes.push('trace-start');
     if (active.has(n.id)) classes.push('trace-active');
@@ -158,7 +189,7 @@ const visibleEdges = computed(() => {
     const sourceRoot = rootOfId(e.source);
     const targetRoot = rootOfId(e.target);
     const edgeHidden = hidden.has(sourceRoot) || hidden.has(targetRoot);
-    const classes = [];
+    const classes: string[] = [];
     if (highlight) {
       if (sourceRoot === highlight) classes.push('inbound');
       else if (targetRoot === highlight) classes.push('outbound');
@@ -169,7 +200,7 @@ const visibleEdges = computed(() => {
   });
 });
 
-function handleNodeClick({ node, event }) {
+function handleNodeClick({ node, event }: NodeMouseEvent) {
   // A11Y LIMITATION (tracked for PR3 polish): the close button on a root
   // law node is detected here by DOM sniffing the click target. Keyboard
   // activation (Enter/Space on a focused button) dispatches a synthetic
@@ -177,7 +208,8 @@ function handleNodeClick({ node, event }) {
   // but the close button has no independent activation path if Vue Flow
   // ever stops forwarding inner clicks via `node-click`. Wiring a proper
   // data-callback from the custom node component is deferred to PR3.
-  const target = event?.target;
+  // Duck-typed as before: anything with a closest() counts.
+  const target = event?.target as { closest?: Element['closest'] } | null | undefined;
   if (target && target.closest && target.closest('.close')) {
     hiddenLaws.value = new Set([...hiddenLaws.value, node.id]);
     if (selectedRoot.value === node.id) selectedRoot.value = null;
@@ -211,14 +243,16 @@ function resolveMiniMapMarkerColor() {
 resolveMiniMapMarkerColor();
 watch(colorScheme, resolveMiniMapMarkerColor);
 
-function miniMapNodeColor(node) {
-  if (!(node.class?.includes('root') && !node.hidden)) return 'transparent';
+function miniMapNodeColor(node: FlowGraphNode) {
+  // visibleNodes always sets `class` to a string or undefined.
+  const nodeClass = node.class as string | undefined;
+  if (!(nodeClass?.includes('root') && !node.hidden)) return 'transparent';
   return miniMapMarkerColor.value;
 }
 
 const currentStep = computed(() =>
   currentStepIdx.value >= 0 && currentStepIdx.value < steps.value.length
-    ? steps.value[currentStepIdx.value]
+    ? steps.value[currentStepIdx.value]! // index bounds-checked above
     : null,
 );
 </script>
@@ -256,39 +290,48 @@ const currentStep = computed(() =>
 
       <!-- Trace stepper - shown after a scenario runs -->
       <div v-if="hasTrace" class="law-graph-trace">
-        <div class="law-graph-trace__toolbar">
-          <button
-            type="button"
-            class="law-graph-trace__btn"
-            :disabled="!hasPrevVisible"
-            @click="prevVisible"
-          >◀ Vorige</button>
-          <button
-            type="button"
-            class="law-graph-trace__btn"
-            :disabled="!hasNextVisible"
-            @click="nextVisible"
-          >Volgende ▶</button>
-          <span class="law-graph-trace__counter">
-            Stap <strong>{{ currentStepIdx + 1 }}</strong> / {{ steps.length }}
-          </span>
-
-          <div class="law-graph-trace__filter">
-            <span>Filter:</span>
-            <button
-              type="button"
-              class="law-graph-trace__toggle"
-              :class="{ 'law-graph-trace__toggle--active': filter === 'highlights' }"
-              @click="filter = 'highlights'"
-            >Met highlights</button>
-            <button
-              type="button"
-              class="law-graph-trace__toggle"
-              :class="{ 'law-graph-trace__toggle--active': filter === 'all' }"
-              @click="filter = 'all'"
-            >Alles ({{ steps.length }})</button>
-          </div>
-        </div>
+        <nldd-container padding="8">
+          <nldd-toolbar size="md" accessible-label="Stappen van de uitvoering">
+            <nldd-toolbar-item slot="start" label="Vorige" :priority="3">
+              <nldd-button
+                start-icon="back"
+                text="Vorige"
+                appearance="secondary"
+                size="md"
+                :disabled="!hasPrevVisible || undefined"
+                @click="prevVisible"
+              ></nldd-button>
+              <nldd-menu-item slot="overflow" icon="back" text="Vorige stap" :disabled="!hasPrevVisible || undefined" @select="prevVisible"></nldd-menu-item>
+            </nldd-toolbar-item>
+            <nldd-toolbar-item slot="start" label="Volgende" :priority="3">
+              <nldd-button
+                end-icon="forward"
+                text="Volgende"
+                appearance="secondary"
+                size="md"
+                :disabled="!hasNextVisible || undefined"
+                @click="nextVisible"
+              ></nldd-button>
+              <nldd-menu-item slot="overflow" icon="forward" text="Volgende stap" :disabled="!hasNextVisible || undefined" @select="nextVisible"></nldd-menu-item>
+            </nldd-toolbar-item>
+            <nldd-toolbar-title slot="start" :text="`Stap ${currentStepIdx + 1} / ${steps.length}`"></nldd-toolbar-title>
+            <nldd-toolbar-item slot="end" label="Filter" :priority="2">
+              <nldd-segmented-control
+                size="md"
+                :value="filter"
+                accessible-label="Filter op stappen"
+                @change="onFilterChange"
+              >
+                <nldd-segmented-control-item value="highlights" text="Met highlights"></nldd-segmented-control-item>
+                <nldd-segmented-control-item value="all" :text="`Alles (${steps.length})`"></nldd-segmented-control-item>
+              </nldd-segmented-control>
+              <nldd-menu-group slot="overflow" text="Filter">
+                <nldd-menu-item type="radio" value="highlights" text="Met highlights" :selected="filter === 'highlights' || undefined" @select="filter = 'highlights'"></nldd-menu-item>
+                <nldd-menu-item type="radio" value="all" :text="`Alles (${steps.length})`" :selected="filter === 'all' || undefined" @select="filter = 'all'"></nldd-menu-item>
+              </nldd-menu-group>
+            </nldd-toolbar-item>
+          </nldd-toolbar>
+        </nldd-container>
 
         <div class="law-graph-trace__body">
           <div class="law-graph-trace__list">
@@ -369,49 +412,6 @@ const currentStep = computed(() =>
   background: var(--semantics-surfaces-background-color);
   color: var(--semantics-content-color);
   font-size: 13px;
-}
-
-.law-graph-trace__toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 12px;
-  border-bottom: 1px solid var(--semantics-dividers-color);
-  background: var(--primitives-color-donkergeel-100);
-}
-
-.law-graph-trace__btn,
-.law-graph-trace__toggle {
-  border: 1px solid var(--primitives-color-coolgray-400);
-  background: var(--semantics-surfaces-background-color);
-  color: var(--semantics-content-color);
-  border-radius: 4px;
-  padding: 2px 8px;
-  font-size: 12px;
-  cursor: pointer;
-  font-family: inherit;
-}
-.law-graph-trace__btn:hover:not(:disabled),
-.law-graph-trace__toggle:hover { background: var(--semantics-surfaces-tinted-background-color); }
-.law-graph-trace__btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.law-graph-trace__toggle--active {
-  border-color: var(--primitives-color-donkergeel-500);
-  background: var(--primitives-color-donkergeel-100);
-  color: var(--primitives-color-donkergeel-800);
-  font-weight: 600;
-}
-
-.law-graph-trace__counter { color: var(--semantics-content-secondary-color); }
-
-.law-graph-trace__filter {
-  margin-left: auto;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--semantics-content-secondary-color);
 }
 
 .law-graph-trace__body {

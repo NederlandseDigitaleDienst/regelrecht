@@ -1,32 +1,51 @@
-<script setup>
+<script setup lang="ts" generic="Row extends Record<string, unknown>">
 import StatusBadge from './StatusBadge.vue';
 import TableToolbar from './TableToolbar.vue';
-import { formatDate, formatCoverageScore, truncateUuid } from '../formatters.js';
-import { useTableFilters } from '../composables/useTableFilters.js';
+import { formatDate, formatCoverageScore, truncateUuid } from '../formatters';
+import { useTableFilters } from '../composables/useTableFilters';
+import type { SortOption, TableColumn } from '../constants';
 
-const props = defineProps({
-  columns: { type: Array, required: true },
-  data: { type: Array, required: true },
-  loading: { type: Boolean, default: false },
-  error: { type: String, default: null },
-  sort: { type: String, default: '' },
-  order: { type: String, default: 'desc' },
-  filters: { type: Object, default: () => ({}) },
-  clickableRows: { type: Boolean, default: false },
-  emptyText: { type: String, default: 'No data found' },
-  emptySupportingText: { type: String, default: '' },
-  sortOptions: { type: Array, default: null },
-});
+const props = withDefaults(
+  defineProps<{
+    columns: TableColumn<Row>[];
+    data: Row[];
+    loading?: boolean;
+    error?: string | null;
+    sort?: string;
+    order?: string;
+    filters?: Record<string, string>;
+    clickableRows?: boolean;
+    emptyText?: string;
+    emptySupportingText?: string;
+    sortOptions?: SortOption[] | null;
+  }>(),
+  {
+    loading: false,
+    error: null,
+    sort: '',
+    order: 'desc',
+    filters: () => ({}),
+    clickableRows: false,
+    emptyText: 'No data found',
+    emptySupportingText: '',
+    sortOptions: null,
+  },
+);
 
-const emit = defineEmits(['sort', 'filter-change', 'row-click']);
+const emit = defineEmits<{
+  sort: [key: string, order: string];
+  'filter-change': [key: string, value: string];
+  'row-click': [row: Row];
+}>();
 
 const { hasActiveFilters, clearFilters } = useTableFilters(() => props.filters, emit);
 
-function formatCellValue(value, key) {
+function formatCellValue(value: unknown, key: string): string | null {
   if (value === null || value === undefined || value === '') return null;
   if (key === 'id') return truncateUuid(value);
   if (key === 'coverage_score') return formatCoverageScore(value);
-  if (key.endsWith('_at')) return formatDate(value);
+  // `*_at` columns hold API timestamps (ISO strings).
+  if (key.endsWith('_at')) return formatDate(value as string | number | Date | null | undefined);
   return String(value);
 }
 </script>
@@ -92,7 +111,7 @@ function formatCellValue(value, key) {
               :width="col.width || 'stretch'"
               :min-width="col.minWidth"
             >
-              <StatusBadge :status="row[col.key] || 'unknown'" />
+              <StatusBadge :status="String(row[col.key] || 'unknown')" />
             </nldd-cell>
             <nldd-text-cell
               v-else-if="col.text"

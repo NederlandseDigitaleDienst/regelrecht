@@ -25,7 +25,7 @@ import {
   // Copied into this project rather than imported from the workspace; see
   // script/landing-laws.sh for why. The copy is remade on every build (npm
   // `prebuild`), so what ships is always current with the shared package.
-} from '~/lib/gherkin/index.js';
+} from '~/lib/gherkin';
 // The engine and the laws are loaded once per page and shared with the
 // scenario runner on /concepts/scenarios; see ~/scripts/engine.ts.
 import { prepare, corpusScenario } from './engine';

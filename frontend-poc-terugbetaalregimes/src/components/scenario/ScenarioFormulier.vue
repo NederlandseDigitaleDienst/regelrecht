@@ -8,7 +8,7 @@
   >
     <nldd-page>
       <nldd-container padding="24" gap="24">
-        <nldd-title :size="3">
+        <nldd-title heading-level="2" size="display-3">
           <span slot="overline">Voor beleidsmakers</span>
           <span>{{ bewerken ? 'Scenario aanpassen' : 'Scenario toevoegen' }}</span>
           <span slot="supporting-text">
@@ -51,7 +51,7 @@
               :key="`hh:${vorm.huishoudtype}`"
               size="sm"
               width="100%"
-              @change="vorm.huishoudtype = $event.detail?.value ?? vorm.huishoudtype"
+              @change="vorm.huishoudtype = $event.target.value ?? vorm.huishoudtype"
             >
               <select :value="vorm.huishoudtype" aria-label="Huishouden">
                 <option v-for="(label, key) in HUISHOUD" :key="key" :value="key">{{ label }}</option>
@@ -88,7 +88,7 @@
                 :key="`op:${vorm.onderwijssoort}`"
                 size="sm"
                 width="100%"
-                @change="vorm.onderwijssoort = $event.detail?.value ?? vorm.onderwijssoort"
+                @change="vorm.onderwijssoort = $event.target.value ?? vorm.onderwijssoort"
               >
                 <select :value="vorm.onderwijssoort" aria-label="Opleiding">
                   <option v-for="(label, key) in ONDERWIJS" :key="key" :value="key">{{ label }}</option>
@@ -198,6 +198,7 @@ import { ref, computed, watch, nextTick } from 'vue';
 import { runSimulation } from '../../composables/useSimulation.js';
 import { euro, euroWhole, regimeLabel, regimeColor } from '../../lib/format.js';
 import { regimeVanCohort, cohortUitleg } from '../../lib/regimeFacts.js';
+import { scenarioRecord } from '../../lib/scenarioRecord.js';
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -271,25 +272,7 @@ watch(() => props.open, async (open) => {
 const heeftPartner = computed(() => vorm.value.huishoudtype.startsWith('paar'));
 
 /** Het formulier als populatierecord, precies het schema uit personas.yaml. */
-const alsRecord = computed(() => ({
-  bsn: props.scenario?.bsn ?? `eigen-${Date.now()}`,
-  naam: vorm.value.naam.trim() || 'Naamloos scenario',
-  geboortejaar: vorm.value.geboortejaar,
-  omschrijving: 'Zelf toegevoegd scenario.',
-  huishoudtype: vorm.value.huishoudtype,
-  heeft_partner: heeftPartner.value,
-  partnerinkomen: heeftPartner.value ? Math.round(vorm.value.partnerinkomen * 100) : 0,
-  inkomen: Math.round(vorm.value.inkomen * 100),
-  inkomensgroei: Math.round(vorm.value.groei * 10) / 1000,
-  schuld: Math.round(vorm.value.schuld * 100),
-  eerste_studiefinanciering: `${vorm.value.startjaar}-09-01`,
-  onderwijssoort: vorm.value.onderwijssoort,
-  is_levenlanglerenkrediet: vorm.value.lllk,
-  // Welke keuzes zinvol zijn volgt uit de wet; de burgerview vult die lijst
-  // zelf aan op basis van wat er op dat moment mag.
-  keuzemomenten: [],
-  eigen: true,
-}));
+const alsRecord = computed(() => scenarioRecord(vorm.value, props.scenario?.bsn ?? `eigen-${Date.now()}`));
 
 const regime = computed(() => regimeVanCohort(alsRecord.value));
 
@@ -320,9 +303,12 @@ const voorbeeld = computed(() => {
   }
 });
 
+/** The number in a number field, or `huidig` while the field is empty (null since design system 0.18). */
 function num(event, huidig) {
-  const v = event.detail?.value ?? Number(event.target?.value);
-  return v === null || v === undefined || Number.isNaN(v) ? huidig : Number(v);
+  const v = event.detail?.value ?? event.target?.value;
+  if (v === null || v === undefined || v === '') return huidig;
+  const n = Number(v);
+  return Number.isNaN(n) ? huidig : n;
 }
 
 function opslaan() {

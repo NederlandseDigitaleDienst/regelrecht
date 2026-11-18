@@ -1,38 +1,68 @@
-<script setup>
+<script setup lang="ts">
 import TableToolbar from './TableToolbar.vue';
-import { GROUPED_COLUMNS } from '../constants.js';
-import { formatDate } from '../formatters.js';
-import { useTableFilters } from '../composables/useTableFilters.js';
+import { GROUPED_COLUMNS, type SortOption } from '../constants';
+import { formatDate } from '../formatters';
+import { useTableFilters } from '../composables/useTableFilters';
+import type { JobSummary } from '../composables/useJobs';
 
-const props = defineProps({
-  data: { type: Array, required: true },
-  loading: { type: Boolean, default: false },
-  error: { type: String, default: null },
-  sort: { type: String, default: '' },
-  order: { type: String, default: 'desc' },
-  filters: { type: Object, default: () => ({}) },
-  emptyText: { type: String, default: 'No data found' },
-  sortOptions: { type: Array, default: null },
-});
+const props = withDefaults(
+  defineProps<{
+    data: JobSummary[];
+    loading?: boolean;
+    error?: string | null;
+    sort?: string;
+    order?: string;
+    filters?: Record<string, string>;
+    emptyText?: string;
+    sortOptions?: SortOption[] | null;
+  }>(),
+  {
+    loading: false,
+    error: null,
+    sort: '',
+    order: 'desc',
+    filters: () => ({}),
+    emptyText: 'No data found',
+    sortOptions: null,
+  },
+);
 
-const emit = defineEmits(['sort', 'filter-change', 'view-jobs']);
+const emit = defineEmits<{
+  sort: [key: string, order: string];
+  'filter-change': [key: string, value: string];
+  'view-jobs': [lawId: string];
+}>();
 
 const { hasActiveFilters, clearFilters } = useTableFilters(() => props.filters, emit);
 
 const columns = GROUPED_COLUMNS;
 
-const STATUS_BAR_KEYS = ['completed', 'failed', 'processing', 'pending'];
+type StatusBarKey = 'completed' | 'failed' | 'processing' | 'pending';
 
-function statusSegments(group) {
+const STATUS_BAR_KEYS: StatusBarKey[] = ['completed', 'failed', 'processing', 'pending'];
+
+const STATUS_BAR_COLORS: Record<StatusBarKey, string> = {
+  completed: 'success',
+  failed: 'critical',
+  processing: 'accent',
+  pending: 'neutral',
+};
+
+function statusSegments(group: JobSummary) {
   const total = group.total_jobs || 0;
   if (total === 0) return [];
   return STATUS_BAR_KEYS
     .map((key) => ({ key, count: group[key] || 0 }))
-    .filter((seg) => seg.count > 0)
-    .map((seg) => ({ ...seg, percent: (seg.count / total) * 100 }));
+    .filter((seg) => seg.count > 0);
 }
 
-function statusBarTitle(group) {
+// A column's raw value, for columns without a text() formatter.
+function columnValue(group: JobSummary, key: string): unknown {
+  const row: Record<string, unknown> = group;
+  return row[key];
+}
+
+function statusBarTitle(group: JobSummary): string {
   return STATUS_BAR_KEYS
     .filter((key) => group[key] > 0)
     .map((key) => `${group[key]} ${key}`)
@@ -91,15 +121,23 @@ function statusBarTitle(group) {
             v-if="col.key === 'status_bar'"
             :width="col.width || 'stretch'"
           >
+            <!-- One tooltip for the whole bar, with every status in it. A
+                 segment with a tooltip-text or a name gets a tooltip of its
+                 own, and with it a tab stop inside the row's button. -->
             <nldd-tooltip :text="statusBarTitle(group)" placement="top" timing="instant">
-              <div class="status-bar">
-                <div
+              <nldd-progress-bar
+                variant="distribution"
+                value-display="none"
+                :max="group.total_jobs || 0"
+                :accessible-label="statusBarTitle(group)"
+              >
+                <nldd-progress-bar-segment-indicator
                   v-for="seg in statusSegments(group)"
                   :key="seg.key"
-                  :class="['status-bar__segment', `status-bar__segment--${seg.key}`]"
-                  :style="{ width: seg.percent + '%' }"
-                />
-              </div>
+                  :value="seg.count"
+                  :color="STATUS_BAR_COLORS[seg.key]"
+                ></nldd-progress-bar-segment-indicator>
+              </nldd-progress-bar>
             </nldd-tooltip>
           </nldd-cell>
           <nldd-text-cell
@@ -113,8 +151,8 @@ function statusBarTitle(group) {
           />
           <nldd-text-cell
             v-else
-            :text="group[col.key] != null ? String(group[col.key]) : '—'"
-            :color="group[col.key] != null ? 'content' : 'secondary'"
+            :text="columnValue(group, col.key) != null ? String(columnValue(group, col.key)) : '—'"
+            :color="columnValue(group, col.key) != null ? 'content' : 'secondary'"
             :width="col.width || 'stretch'"
             :min-width="col.minWidth"
             :horizontal-alignment="col.align"

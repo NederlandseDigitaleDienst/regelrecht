@@ -100,8 +100,7 @@ Feature: Collection operations
     # cannot carry a nested collection. Three households, of 100+200, 50, and
     # none.
     #
-    # The inner collection is read through the outer binding, which is the only
-    # way an outer variable reaches an inner iteration.
+    # The inner collection is read through the outer binding.
     When I evaluate "totaal_over_huishoudens" of "test_collections"
     Then output "totaal_over_huishoudens" equals 350
     # The outer level alone counts three, so the 350 above really did descend
@@ -117,3 +116,88 @@ Feature: Collection operations
     When I evaluate "hoogste_per_huishouden_totaal" of "test_collections"
     Then the execution fails
     Then the execution fails with "operand is null"
+
+  Scenario: An inner FOREACH compares its element with the outer one
+    Given the calculation date is "2025-01-01"
+    # The inner filter and body see the outer binding (a note of November
+    # 2026 on RFC-016). Of the first household, with threshold 150, only 200
+    # counts; of the second, with threshold 10, both 50 and 20; the third is
+    # empty.
+    When I evaluate "leden_boven_drempel" of "test_collections"
+    Then output "leden_boven_drempel" equals 3
+    # An inner binding with the name of the outer one wins inside the inner
+    # FOREACH: the highest contribution of the members, not a threshold.
+    When I evaluate "hoogste_eigen_bijdrage" of "test_collections"
+    Then output "hoogste_eigen_bijdrage" equals 200
+
+  # DISTINCT (schema v0.8.21) keeps each result once, in the order of its
+  # first occurrence; ONLY over that array gives the one value of several
+  # equal ones. Driven against the test law test_unieke_waarden.
+
+  Scenario: DISTINCT then ONLY gives the one value that every row holds
+    Given the calculation date is "2025-01-01"
+    Given parameter "inschrijvingen" is the collection:
+      | aanduiding |
+      | Noord      |
+      | Noord      |
+      | Noord      |
+    When I evaluate "aantal_unieke_aanduidingen" of "test_unieke_waarden"
+    Then output "aantal_unieke_aanduidingen" equals 1
+    When I evaluate "aanduiding" of "test_unieke_waarden"
+    Then output "aanduiding" equals "Noord"
+
+  Scenario: DISTINCT then ONLY refuses two different values
+    Given the calculation date is "2025-01-01"
+    Given parameter "inschrijvingen" is the collection:
+      | aanduiding |
+      | Noord      |
+      | Zuid       |
+      | Noord      |
+    When I evaluate "aantal_unieke_aanduidingen" of "test_unieke_waarden"
+    Then output "aantal_unieke_aanduidingen" equals 2
+    # ONLY stays strict: two different values are not one.
+    When I evaluate "aanduiding" of "test_unieke_waarden"
+    Then the execution fails with "ONLY takes at most one"
+
+  Scenario: DISTINCT over no rows is empty, and ONLY over that is absent
+    Given the calculation date is "2025-01-01"
+    Given parameter "inschrijvingen" is the collection:
+      | aanduiding |
+    When I evaluate "aantal_unieke_aanduidingen" of "test_unieke_waarden"
+    Then output "aantal_unieke_aanduidingen" equals 0
+    When I evaluate "aanduiding" of "test_unieke_waarden"
+    Then output "aanduiding" is absent
+
+  # RECORD builds a row with its own columns (schema v0.8.22): its
+  # references are resolved and its operations executed. As the body of a
+  # FOREACH without combine it gives an array of rows, read back here to a
+  # number. Driven against the test law test_rijen.
+
+  Scenario: A RECORD resolves its references and runs its operations
+    Given the calculation date is "2025-01-01"
+    Given parameter "afdelingen" is the collection:
+      | naam  | leden |
+      | Noord | 12    |
+      | Zuid  | 7     |
+    And parameter "nieuwe_leden" is 2
+    And parameter "afdeling" is "Zuid"
+    When I evaluate "aantal_rijen" of "test_rijen"
+    Then output "aantal_rijen" equals 2
+    When I evaluate "leden_van_afdeling" of "test_rijen"
+    Then output "leden_van_afdeling" equals 9
+
+  Scenario: An unknown value stays in its column of the RECORD
+    Given the calculation date is "2025-01-01"
+    Given parameter "afdelingen" is the collection:
+      | naam  | leden |
+      | Noord | 12    |
+    And parameter "afdeling" is "Noord"
+    # The rows are there; only the column that needs the missing fact is
+    # unknown, and reading it gives an unknown that names that fact. The other
+    # column of the same row stays readable.
+    When I evaluate "aantal_rijen" of "test_rijen"
+    Then output "aantal_rijen" equals 1
+    When I evaluate "rijen_van_afdeling" of "test_rijen"
+    Then output "rijen_van_afdeling" equals 1
+    When I evaluate "leden_van_afdeling" of "test_rijen"
+    Then output "leden_van_afdeling" is unknown for lack of "nieuwe_leden"

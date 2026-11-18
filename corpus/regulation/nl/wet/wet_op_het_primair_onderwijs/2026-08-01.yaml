@@ -1,0 +1,688 @@
+---
+# Een selectie: alleen de artikelen die het corpus gebruikt. Artikel 15 is de
+# legal_basis van de Regeling vaststelling schoolvakanties 2025–2030; de
+# artikelen 1, 8, 9 en 10 noemen de Leerplichtwet 1969 en de regeling in hun
+# tekst. De tekst en de metadata zijn zoals geharvest; de overige artikelen
+# van de wet staan niet in dit regelwerk.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.5/schema/v0.8.5/schema.json
+$id: wet_op_het_primair_onderwijs
+regulatory_layer: WET
+publication_date: '2026-10-06'
+valid_from: '2026-08-01'
+bwb_id: BWBR0003420
+url: https://wetten.overheid.nl/BWBR0003420/2026-08-01
+preamble:
+  text: >-
+    Wij Beatrix, bij de gratie Gods, Koningin der Nederlanden, Prinses van Oranje-Nassau, enz. enz. enz.
+
+
+    Allen, die deze zullen zien of horen lezen, saluut! doen te weten:
+
+
+    Alzo Wij in overweging genomen hebben, dat het ter bevordering van
+
+
+    een ononderbroken ontwikkeling van de leerlingen, gewenst is de afzonderlijke onderwijsvormen kleuteronderwijs en
+    gewoon lager onderwijs samen te voegen tot een onderwijsvorm die gericht is op een doorlopend ontwikkelingsproces
+    van de leerlingen;
+
+
+    Zo is het, dat Wij, de Raad van State gehoord, en met gemeen overleg der Staten-Generaal, hebben goedgevonden en
+    verstaan, gelijk Wij goedvinden en verstaan bij deze:
+  url: https://wetten.overheid.nl/BWBR0003420/2026-08-01#ArtikelAanhef
+articles:
+  - number: '1'
+    text: |-
+      In deze wet wordt verstaan onder:
+
+      *Onze Minister:*
+
+      Onze Minister van Onderwijs, Cultuur en Wetenschap;
+
+      *inspectie of inspecteur:*
+
+      de inspectie, bedoeld in de [Wet op het onderwijstoezicht][ref1], voor zover belast met taken op het gebied van
+      het basisonderwijs;
+
+      *school:*
+
+      een basisschool of een speciale school voor basisonderwijs, tenzij het tegendeel blijkt;
+
+      *basisschool:*
+
+      een school waar basisonderwijs wordt gegeven, niet zijnde een speciale school voor basisonderwijs;
+
+      *speciale school voor basisonderwijs:*
+
+      een school waar basisonderwijs wordt gegeven aan kinderen voor wie vaststaat dat overwegend een zodanige
+      orthopedagogische en orthodidactische benadering aangewezen is, dat zij althans gedurende enige tijd op een
+      speciale school voor basisonderwijs moeten worden opgevangen;
+
+      *school voor speciaal onderwijs:*
+
+      een school voor speciaal onderwijs als bedoeld in [artikel 1 van de Wet op de expertisecentra][ref2];
+
+      *school voor speciaal en voortgezet speciaal onderwijs:*
+
+      een school voor speciaal en voortgezet speciaal onderwijs als bedoeld in
+      [artikel 1 van de Wet op de expertisecentra][ref3];
+
+      *school voor voortgezet speciaal onderwijs:*
+
+      een school voor voortgezet speciaal onderwijs als bedoeld in [artikel 1 van de Wet op de expertisecentra][ref4];
+
+      *instelling voor speciaal en voortgezet speciaal onderwijs:*
+
+      een instelling voor speciaal en voortgezet speciaal onderwijs als bedoeld in
+      [artikel 8, eerste lid, tweede en derde volzin, van de Wet op de expertisecentra][ref5];
+
+      *openbare school:*
+
+      a. een door een of meer gemeenten, al dan niet te zamen met een of meer privaatrechtelijke rechtspersonen met
+      volledige rechtsbevoegdheid in stand gehouden school;
+
+      b. een door een openbare rechtspersoon als bedoeld in [artikel 47][ref6] in stand gehouden school; dan wel
+
+      c. een door een stichting als bedoeld in [artikel 17][ref7] of [artikel 48][ref8] in stand gehouden school;
+
+      *bijzondere school:*
+
+      door een natuurlijk persoon of een privaatrechtelijke rechtspersoon, niet zijnde een stichting als bedoeld in
+      [artikel 48][ref9], in stand gehouden school;
+
+      *openbare rechtspersoon:*
+
+      een rechtspersoon die krachtens publiekrecht is ingesteld als bedoeld in [artikel 47][ref10];
+
+      *nevenvestiging:*
+
+      deel van een school, dat op de plaats waar het onderwijs wordt gegeven voordat het een deel van de school werd als
+      zelfstandige school functioneerde;
+
+      *bevoegd gezag van volgens deze wet bekostigde scholen:* voor wat betreft
+
+      a. een openbare school:
+
+      1°. het college van burgemeester en wethouders, voor zover de raad niet anders bepaalt, en, indien de raad dit
+      besluit, met inachtneming van door hem te stellen regelen;
+
+      2°. het krachtens de desbetreffende gemeenschappelijke regeling bevoegde orgaan;
+
+      3°. de openbare rechtspersoon, bedoeld in [artikel 47][ref11]; dan wel
+
+      4°. de stichting, bedoeld in [artikel 17][ref12] of [artikel 48][ref13];
+
+      b. een bijzondere school: de rechtspersoon bedoeld in [artikel 55][ref14];
+
+      c. een samenwerkingsschool: de stichting, bedoeld in [artikel 17d][ref15];
+
+      *burgerservicenummer:*
+
+      burgerservicenummer als bedoeld in
+      [artikel 1, onderdeel b, van de Wet algemene bepalingen burgerservicenummer][ref16];
+
+      *persoonsgebonden nummer:*
+
+      het burgerservicenummer dan wel het door Onze Minister uitgegeven onderwijsnummer, bedoeld in
+      [artikel 40b, vierde lid][ref17];
+
+      *ouders*:
+
+      ouders, voogden of verzorgers;
+
+      *schooljaar*:
+
+      het tijdvak van 1 augustus tot en met 31 juli daaraanvolgend;
+
+      *samenwerkingsverband:*
+
+      een samenwerkingsverband als bedoeld in [artikel 18a, tweede lid][ref18] of een landelijk samenwerkingsverband als
+      bedoeld in artikel 18a, vijftiende lid, tenzij het tegendeel blijkt;
+
+      *personeel*:
+
+      a. de benoemde directeur, het personeel benoemd in een functie voor het geven van onderwijs, het
+      personeel benoemd in een andere functie dan het geven van onderwijs, het personeel dat is benoemd voor het
+      verrichten van werkzaamheden ten behoeve van meer dan een school of meer dan een school als bedoeld in de
+      [Wet op de expertisecentra][ref19], waaronder begrepen de leden van het bestuur van die scholen die zijn benoemd
+      door een raad van toezicht als bedoeld in [artikel 17c, derde lid][ref20], voor zover die leden mede zijn benoemd
+      op basis van een arbeidsovereenkomst of een akte van aanstelling;
+
+      b. het onder a bedoelde personeel dat zonder benoeming is tewerkgesteld, tenzij het betreft de toepassing van de
+      [artikelen 33][ref21], [33a][ref22], [34][ref23], [38][ref24], [52][ref25], [53, eerste en tweede lid][ref26],
+      [59, eerste tot en met vierde lid][ref27], [60 tot en met 62][ref28] en [68][ref29], voor zover niet anders is
+      bepaald, en de toepassing van daarmee verband houdende wettelijke bepalingen;
+
+      *schoolbegeleiding:*
+
+      activiteiten ten behoeve van de schoolorganisatie of het onderwijs aan een school die dienen tot begeleiding,
+      ontwikkeling, advisering, informatieverstrekking en evaluatie, alsmede activiteiten tot bevordering van een
+      optimale schoolloopbaan van leerlingen;
+
+      *Vroegschoolse educatie:*
+
+      uitvoering van een programma, gericht op het verbeteren van de voorwaarden voor het met succes doorstromen in het
+      basisonderwijs, dat wordt verzorgd in groep 1 en 2 van een basisschool als vervolg op de voorschoolse educatie,
+      bedoeld in [artikel 1.1 van de Wet kinderopvang][ref30];
+
+      *register onderwijsdeelnemers:*
+
+      register onderwijsdeelnemers als bedoeld in [artikel 4 van de Wet register onderwijsdeelnemers][ref31];
+
+      *ondersteuningsaanbod van de school:*
+
+      een beschrijving van de voorzieningen die zijn getroffen voor leerlingen die extra ondersteuning behoeven;
+
+      *basisondersteuningsvoorzieningen:*
+
+      voorzieningen voor leerlingen met een ondersteuningsbehoefte die op alle vestigingen van scholen behorend tot een
+      samenwerkingsverband aanwezig zijn;
+
+      *afdeling:*
+
+      een afdeling als bedoeld in [artikel 85a][ref32];
+
+      *verklaring omtrent het gedrag:*
+
+      verklaring omtrent het gedrag als bedoeld in de [Wet justitiële en strafvorderlijke gegevens][ref33];
+
+      *richtlijn (EU) 2024/1346:*
+
+      [richtlijn 2024/1346/EU](32024L1346) van het Europees Parlement en de Raad van de Europese Unie van 14 mei 2024 tot
+      vaststelling van normen voor de opvang van verzoekers om internationale bescherming.
+
+
+      [ref1]: https://wetten.overheid.nl/BWBR0013800
+      [ref2]: https://wetten.overheid.nl/BWBR0003549#Artikel1
+      [ref3]: https://wetten.overheid.nl/BWBR0003549#Artikel1
+      [ref4]: https://wetten.overheid.nl/BWBR0003549#Artikel1
+      [ref5]: https://wetten.overheid.nl/BWBR0003549#Artikel8
+      [ref6]: https://wetten.overheid.nl/BWBR0003420#Artikel47
+      [ref7]: https://wetten.overheid.nl/BWBR0003420#Artikel17
+      [ref8]: https://wetten.overheid.nl/BWBR0003420#Artikel48
+      [ref9]: https://wetten.overheid.nl/BWBR0003420#Artikel48
+      [ref10]: https://wetten.overheid.nl/BWBR0003420#Artikel47
+      [ref11]: https://wetten.overheid.nl/BWBR0003420#Artikel47
+      [ref12]: https://wetten.overheid.nl/BWBR0003420#Artikel17
+      [ref13]: https://wetten.overheid.nl/BWBR0003420#Artikel48
+      [ref14]: https://wetten.overheid.nl/BWBR0003420#Artikel55
+      [ref15]: https://wetten.overheid.nl/BWBR0003420#Artikel17d
+      [ref16]: https://wetten.overheid.nl/BWBR0022428#Artikel1
+      [ref17]: https://wetten.overheid.nl/BWBR0003420#Artikel40b
+      [ref18]: https://wetten.overheid.nl/BWBR0003420#Artikel18a
+      [ref19]: https://wetten.overheid.nl/BWBR0003549
+      [ref20]: https://wetten.overheid.nl/BWBR0003420#Artikel17c
+      [ref21]: https://wetten.overheid.nl/BWBR0003420#Artikel33
+      [ref22]: https://wetten.overheid.nl/BWBR0003420#Artikel33a
+      [ref23]: https://wetten.overheid.nl/BWBR0003420#Artikel34
+      [ref24]: https://wetten.overheid.nl/BWBR0003420#Artikel38
+      [ref25]: https://wetten.overheid.nl/BWBR0003420#Artikel52
+      [ref26]: https://wetten.overheid.nl/BWBR0003420#Artikel53
+      [ref27]: https://wetten.overheid.nl/BWBR0003420#Artikel59
+      [ref28]: https://wetten.overheid.nl/BWBR0003420#Artikel60
+      [ref29]: https://wetten.overheid.nl/BWBR0003420#Artikel68
+      [ref30]: https://wetten.overheid.nl/BWBR0017017#Artikel1.1
+      [ref31]: https://wetten.overheid.nl/BWBR0042012#Artikel4
+      [ref32]: https://wetten.overheid.nl/BWBR0003420#Artikel85a
+      [ref33]: https://wetten.overheid.nl/BWBR0014194
+    url: https://wetten.overheid.nl/BWBR0003420/2026-08-01#Artikel1
+    references:
+      - id: ref1
+        bwb_id: BWBR0013800
+      - id: ref2
+        bwb_id: BWBR0003549
+        artikel: '1'
+      - id: ref3
+        bwb_id: BWBR0003549
+        artikel: '1'
+      - id: ref4
+        bwb_id: BWBR0003549
+        artikel: '1'
+      - id: ref5
+        bwb_id: BWBR0003549
+        artikel: '8'
+      - id: ref6
+        bwb_id: BWBR0003420
+        artikel: '47'
+        hoofdstuk: I
+        afdeling: '2'
+      - id: ref7
+        bwb_id: BWBR0003420
+        artikel: '17'
+        hoofdstuk: I
+        paragraaf: '1'
+        afdeling: '1'
+      - id: ref8
+        bwb_id: BWBR0003420
+        artikel: '48'
+        hoofdstuk: I
+        afdeling: '2'
+      - id: ref9
+        bwb_id: BWBR0003420
+        artikel: '48'
+        hoofdstuk: I
+        afdeling: '2'
+      - id: ref10
+        bwb_id: BWBR0003420
+        artikel: '47'
+        hoofdstuk: I
+        afdeling: '2'
+      - id: ref11
+        bwb_id: BWBR0003420
+        artikel: '47'
+        hoofdstuk: I
+        afdeling: '2'
+      - id: ref12
+        bwb_id: BWBR0003420
+        artikel: '17'
+        hoofdstuk: I
+        paragraaf: '1'
+        afdeling: '1'
+      - id: ref13
+        bwb_id: BWBR0003420
+        artikel: '48'
+        hoofdstuk: I
+        afdeling: '2'
+      - id: ref14
+        bwb_id: BWBR0003420
+        artikel: '55'
+        hoofdstuk: I
+        afdeling: '3'
+      - id: ref15
+        bwb_id: BWBR0003420
+        artikel: 17d
+        hoofdstuk: I
+        paragraaf: '1'
+        afdeling: '1'
+      - id: ref16
+        bwb_id: BWBR0022428
+        artikel: '1'
+      - id: ref17
+        bwb_id: BWBR0003420
+        artikel: 40b
+        hoofdstuk: I
+        paragraaf: '4'
+        afdeling: '1'
+      - id: ref18
+        bwb_id: BWBR0003420
+        artikel: 18a
+        hoofdstuk: I
+        paragraaf: '2'
+        afdeling: '1'
+      - id: ref19
+        bwb_id: BWBR0003549
+      - id: ref20
+        bwb_id: BWBR0003420
+        artikel: 17c
+        hoofdstuk: I
+        paragraaf: '1'
+        afdeling: '1'
+      - id: ref21
+        bwb_id: BWBR0003420
+        artikel: '33'
+        hoofdstuk: I
+        paragraaf: '3'
+        afdeling: '1'
+      - id: ref22
+        bwb_id: BWBR0003420
+        artikel: 33a
+        hoofdstuk: I
+        paragraaf: '3'
+        afdeling: '1'
+      - id: ref23
+        bwb_id: BWBR0003420
+        artikel: '34'
+        hoofdstuk: I
+        paragraaf: '3'
+        afdeling: '1'
+      - id: ref24
+        bwb_id: BWBR0003420
+        artikel: '38'
+        hoofdstuk: I
+        paragraaf: '3'
+        afdeling: '1'
+      - id: ref25
+        bwb_id: BWBR0003420
+        artikel: '52'
+        hoofdstuk: I
+        afdeling: '2'
+      - id: ref26
+        bwb_id: BWBR0003420
+        artikel: '53'
+        hoofdstuk: I
+        afdeling: '2'
+      - id: ref27
+        bwb_id: BWBR0003420
+        artikel: '59'
+        hoofdstuk: I
+        afdeling: '3'
+      - id: ref28
+        bwb_id: BWBR0003420
+        artikel: '60'
+        hoofdstuk: I
+        afdeling: '3'
+      - id: ref29
+        bwb_id: BWBR0003420
+        artikel: '68'
+        hoofdstuk: I
+        afdeling: '2'
+      - id: ref30
+        bwb_id: BWBR0017017
+        artikel: '1.1'
+      - id: ref31
+        bwb_id: BWBR0042012
+        artikel: '4'
+      - id: ref32
+        bwb_id: BWBR0003420
+        artikel: 85a
+        hoofdstuk: I
+        paragraaf: '1'
+        afdeling: '2'
+      - id: ref33
+        bwb_id: BWBR0014194
+  - number: '8'
+    text: |-
+      1 Het onderwijs wordt zodanig ingericht dat de leerlingen een ononderbroken ontwikkelingsproces kunnen doorlopen.
+      Het wordt afgestemd op de voortgang in de ontwikkeling van de leerlingen.
+
+      2 Het onderwijs richt zich in elk geval op de emotionele en de verstandelijke ontwikkeling, en op het ontwikkelen
+      van creativiteit, op het verwerven van noodzakelijke kennis en van sociale, culturele en lichamelijke vaardigheden.
+
+      3 Het onderwijs bevordert actief burgerschap en sociale cohesie op doelgerichte en samenhangende wijze, waarbij het
+      onderwijs zich in ieder geval herkenbaar richt op:
+
+      a. het bijbrengen van respect voor en kennis van de basiswaarden van de democratische rechtsstaat, zoals verankerd
+      in de [Grondwet][ref1], en de universeel geldende fundamentele rechten en vrijheden van de mens, en het handelen
+      naar deze basiswaarden op school;
+
+      b. het ontwikkelen van de sociale en maatschappelijke competenties die de leerling in staat stellen deel uit te
+      maken van en bij te dragen aan de pluriforme, democratische Nederlandse samenleving; en
+
+      c. het bijbrengen van kennis over en respect voor verschillen in godsdienst, levensovertuiging, politieke
+      gezindheid, afkomst, geslacht, handicap of seksuele gerichtheid alsmede de waarde dat gelijke gevallen gelijk
+      behandeld worden.
+
+      3a Het bevoegd gezag draagt zorg voor een schoolcultuur die in overeenstemming is met de waarden, bedoeld in het
+      derde lid, onderdeel a, creëert een omgeving waarin leerlingen worden gestimuleerd actief te oefenen met de omgang
+      met en het handelen naar deze waarden en draagt voorts zorg voor een omgeving waarin leerlingen en personeel zich
+      veilig en geaccepteerd weten, ongeacht de in het derde lid, onder c, genoemde verschillen.
+
+      4 Ten aanzien van leerlingen die extra ondersteuning behoeven, is het onderwijs gericht op individuele begeleiding
+      die is afgestemd op de behoeften van de leerling. Zo nodig treedt het bevoegd gezag daarbij in overleg met:
+
+      a. het college van burgemeester en wethouders van de gemeente waar de leerling zijn woonplaats heeft als bedoeld in
+      [artikel 1.1. van de Jeugdwet][ref2],
+
+      b. een instantie die jeugdgezondheidszorg uitvoert als bedoeld in [artikel 5 van de Wet publieke gezondheid][ref3],
+
+      c. een instantie die maatschappelijke ondersteuning biedt als bedoeld in
+      [artikel 1, eerste lid, onder g, 2°, van de Wet maatschappelijke ondersteuning][ref4],
+
+      d. een zorgaanbieder als bedoeld in
+      [artikel 1, eerste lid, onder j, van de Algemene Wet Bijzondere Ziektekosten][ref5] of
+
+      e. een zorgaanbieder die geneeskundige geestelijke gezondheidszorg levert welke behoort tot de prestaties
+      omschreven bij of krachtens de [Zorgverzekeringswet][ref6].
+
+      5
+
+      6 Het onderwijs aan een speciale school voor basisonderwijs is er tevens op gericht leerlingen waar mogelijk tot
+      het volgen van onderwijs in basisscholen of scholen voor voortgezet onderwijs te brengen.
+
+      7 Het onderwijs wordt zodanig ingericht dat:
+
+      a. de leerlingen in beginsel binnen een tijdvak van 8 aaneensluitende schooljaren de school kunnen doorlopen;
+
+      b. de leerlingen in 8 schooljaren ten minste 7.520 uren onderwijs ontvangen, met dien verstande dat:
+
+      1°. de leerlingen in de eerste 4 schooljaren ten minste 3.520 uren onderwijs en in de laatste 4 schooljaren ten
+      minste 3.760 uren onderwijs ontvangen, en
+
+      2°. aan de leerlingen in de laatste 6 schooljaren ten hoogste 7 weken van het schooljaar 4 dagen per week onderwijs
+      wordt gegeven, die evenwichtig zijn verdeeld over het schooljaar, bij een schoolweek van in beginsel niet minder
+      dan 5 dagen onderwijs; en
+
+      c. de onderwijsactiviteiten evenwichtig over de dag worden verdeeld, tenzij afwijking van deze verdeling van belang
+      is in verband met activiteiten in het kader van het voorkomen en bestrijden van onderwijsachterstanden.
+
+      8 Het onderwijs wordt zodanig ingericht dat leerlingen die in verband met ziekte thuis verblijven dan wel zijn
+      opgenomen in een ziekenhuis, op adequate wijze voldoende onderwijs kunnen genieten.
+
+      9 Het onderwijs wordt zodanig ingericht dat daarbij op structurele en herkenbare wijze aandacht wordt besteed aan
+      het bestrijden van achterstanden in het bijzonder in de beheersing van de Nederlandse taal, waarin ook door middel
+      van vroegschoolse educatie kan worden voorzien.
+
+      10 De inspectie kan op verzoek van het bevoegd gezag ermee instemmen dat om lichamelijke of psychische redenen voor
+      individuele leerlingen wordt afgeweken van het zevende lid, onderdeel b.
+
+
+      [ref1]: https://wetten.overheid.nl/BWBR0001840
+      [ref2]: https://wetten.overheid.nl/BWBR0034925#Artikel1.1
+      [ref3]: https://wetten.overheid.nl/BWBR0024705#Artikel5
+      [ref4]: https://wetten.overheid.nl/BWBR0020031#Artikel1
+      [ref5]: https://wetten.overheid.nl/BWBR0002614#Artikel1
+      [ref6]: https://wetten.overheid.nl/BWBR0018450
+    url: https://wetten.overheid.nl/BWBR0003420/2026-08-01#Artikel8
+    references:
+      - id: ref1
+        bwb_id: BWBR0001840
+      - id: ref2
+        bwb_id: BWBR0034925
+        artikel: '1.1'
+      - id: ref3
+        bwb_id: BWBR0024705
+        artikel: '5'
+      - id: ref4
+        bwb_id: BWBR0020031
+        artikel: '1'
+      - id: ref5
+        bwb_id: BWBR0002614
+        artikel: '1'
+      - id: ref6
+        bwb_id: BWBR0018450
+  - number: '9'
+    text: |-
+      1 Het onderwijs is op doelgerichte en samenhangende wijze gericht op het realiseren van de kerndoelen.
+
+      2 Een kerndoel, alsmede de uitwerking daarvan, wordt, met inachtneming van
+      [artikel 8, eerste tot en met derde lid][ref1], bij algemene maatregel van bestuur vastgesteld als een na te
+      streven inhoudelijke doelstelling voor het onderwijsprogramma, gericht op het verwerven van kennis, inzicht of
+      vaardigheden of het opdoen van ervaringen door leerlingen.
+
+      3 De kerndoelen hebben betrekking op lezen, schrijven en rekenen.
+
+      4 Het primair onderwijs omvat verder:
+
+      a. Nederlandse taal;
+
+      b. rekenen en wiskunde;
+
+      c.
+
+      d.
+
+      e. Engelse taal;
+
+      f. geschiedenis en staatsinrichting;
+
+      g. geestelijke stromingen;
+
+      h. sociale redzaamheid, gezond gedrag en gedrag in het verkeer;
+
+      i. aardrijkskunde;
+
+      j. biologie;
+
+      k. natuur;
+
+      l. techniek;
+
+      m. muziek, beeldende vormgeving en dans, theater of film; en
+
+      n. lichamelijke oefening.
+
+      5 Voor de onderwerpen genoemd in het vierde lid worden eveneens kerndoelen vastgesteld.
+
+      6 Het onderwijs in lichamelijke oefening wordt gespreid verzorgd over alle schooljaren en beslaat in een schooljaar
+      gemiddeld ten minste 1,5 uur per schoolweek.
+
+      7 Het onderwijs kan naast de onderwijsactiviteiten, bedoeld in het eerste lid, tevens onderwijs in de Duitse taal
+      of de Franse taal omvatten.
+
+      8 Op de scholen in de provincie Fryslân wordt tevens onderwijs gegeven in de Friese taal. Gedeputeerde staten
+      kunnen op aanvraag van het bevoegd gezag gedeeltelijke of volledige ontheffing van deze verplichting verlenen.
+      Gedeputeerde staten stellen in een beleidsregel criteria vast voor die gedeeltelijke en volledige ontheffing. De
+      vaststelling geschiedt niet eerder dan nadat gedeputeerde staten overleg hebben gevoerd met het Friese primair
+      onderwijs.
+
+      9 Ten aanzien van de onderwijsactiviteit, bedoeld in het achtste lid, stellen provinciale staten van Fryslân
+      in afwijking van het tweede lid bij verordening kerndoelen Friese taal vast. De vaststelling geschiedt niet
+      eerder dan nadat gedeputeerde staten overleg hebben gevoerd met het Friese primair onderwijs. De verordening
+      behoeft de goedkeuring van Onze Minister. Indien Onze Minister voornemens is goedkeuring te onthouden, verzoekt
+      hij de Onderwijsraad een advies uit te brengen. Het verzoek bevat een omschrijving van de onderwerpen waarover
+      advies wordt verwacht. Het advies wordt binnen zes weken uitgebracht aan Onze Minister en wordt bekend gemaakt.
+      Onze Minister informeert beide Kamers der Staten-Generaal over zijn voornemen om al dan niet goed te keuren.
+      [Paragraaf 4.1.3.3 van de Algemene wet bestuursrecht][ref2] is niet van overeenkomstige toepassing.
+
+      10 Onze Minister kan goedkeuring als bedoeld in het negende lid in ieder geval onthouden indien aan de volgende
+      voorwaarden, waarvoor gedeputeerde staten gegevens aandragen, niet wordt voldaan:
+
+      a. het bestaan van voldoende draagvlak in het Friese primair onderwijs voor de voorgelegde kerndoelen Friese taal;
+
+      b. dat de kerndoelen Friese taal niet meer inspanningen van het Friese primair onderwijs vergen dan het aandeel van
+      het onderwijs in de Friese taal binnen het totaal aan onderwijsactiviteiten rechtvaardigt.
+
+      11 Onze Minister kan goedkeuring als bedoeld in het negende lid in ieder geval onthouden indien de kerndoelen
+      Friese taal geen aandacht schenken aan:
+
+      a. het zich mondeling uitdrukken in het Fries en het verstaan van de Fries gesproken taal,
+
+      b. het zich schriftelijk uitdrukken in het Fries en het verwerven van informatie uit in het Fries gestelde teksten,
+
+      c. bevordering van het begrip van de Friese taal, en
+
+      d. het ontwikkelen van een positieve houding ten aanzien van het gebruik van het Fries.
+
+      12 Het bevoegd gezag hanteert de kerndoelen bij zijn onderwijsactiviteiten als aan het einde van het basisonderwijs
+      te bereiken doelstellingen. Indien de eerste volzin niet kan worden toegepast voor een leerling vanwege zijn
+      handicap, wordt in het ontwikkelingsperspectief, bedoeld in [artikel 40a][ref3], aangegeven welke vervangende
+      onderwijsdoelen worden gehanteerd.
+
+      13 Indien een bevoegd gezag van een bijzondere school dringend bedenkingen heeft tegen de krachtens het tweede
+      of negende lid vastgestelde kerndoelen, kan het bevoegd gezag eigen kerndoelen voor de school vaststellen. Deze
+      kerndoelen zijn van gelijk niveau als de krachtens het tweede of negende lid vastgestelde kerndoelen. Het bevoegd
+      gezag zendt de vastgestelde kerndoelen aan de inspecteur.
+
+      14 Bij de verzorging van het onderwijs op basis van de kerndoelen voor Nederlandse taal en
+      rekenen en wiskunde, neemt het bevoegd gezag, met inachtneming van [artikel 8, eerste lid][ref4],
+      de referentieniveaus Nederlandse taal en de referentieniveaus rekenen, bedoeld in
+      [artikel 2, tweede lid, aanhef en onderdeel a, van de Wet referentieniveaus Nederlandse taal en rekenen][ref5],
+      als uitgangspunt.
+
+      15
+
+      16 Het onderwijs wordt gegeven in het Nederlands. Daar waar naast de Nederlandse taal, de Friese taal of een
+      streektaal in levend gebruik is, kan de Friese taal of de streektaal mede als voertaal bij het onderwijs worden
+      gebruikt. Voor de opvang in en de aansluiting bij het Nederlandse onderwijs van leerlingen met een niet-Nederlandse
+      culturele achtergrond kan de taal van het land van oorsprong mede als voertaal bij het onderwijs worden gebruikt,
+      overeenkomstig een door het bevoegd gezag vastgestelde gedragscode.
+
+      17 In afwijking van het zestiende lid kan een deel van het onderwijs worden gegeven in de Engelse, Duitse of Franse
+      taal tot ten hoogste een bij algemene maatregel van bestuur vast te stellen percentage per schooljaar.
+
+      18 In afwijking van het zestiende lid, eerste volzin, kan het onderwijs aan een afdeling als bedoeld in
+      [artikel 85a][ref6] worden gegeven in de Engelse taal, mits ten minste 10% van het aantal uren, bedoeld in
+      [artikel 8, zevende lid][ref7], wordt gegeven in het Nederlands of wordt besteed aan de Nederlandse taal.
+
+      19 Onze Minister kan in bijzondere gevallen op aanvraag van het bevoegd gezag besluiten toe te staan dat wordt
+      afgeweken van de krachtens het tweede lid vastgestelde kerndoelen. De toestemming wordt verleend voor een bepaald
+      tijdvak; zij kan voorwaarden bevatten.
+
+      20 De voordracht voor een krachtens het tweede lid vast te stellen algemene maatregel van bestuur wordt niet eerder
+      gedaan dan vier weken nadat het ontwerp aan beide Kamers der Staten-Generaal is overgelegd.
+
+      21 Onze Minister zendt iedere tien jaar aan de Staten-Generaal een verslag over de noodzaak tot herziening van de
+      krachtens het tweede lid vastgestelde kerndoelen en betrekt daarbij het advies van de Onderwijsraad, bedoeld in
+      [artikel 2, eerste lid, onderdeel c, van de Wet op de Onderwijsraad][ref8].
+
+
+      [ref1]: https://wetten.overheid.nl/BWBR0003420#Artikel8
+      [ref2]: https://wetten.overheid.nl/BWBR0005537#Paragraaf4.1.3.3
+      [ref3]: https://wetten.overheid.nl/BWBR0003420#Artikel40a
+      [ref4]: https://wetten.overheid.nl/BWBR0003420#Artikel8
+      [ref5]: https://wetten.overheid.nl/BWBR0027679#Artikel2
+      [ref6]: https://wetten.overheid.nl/BWBR0003420#Artikel85a
+      [ref7]: https://wetten.overheid.nl/BWBR0003420#Artikel8
+      [ref8]: https://wetten.overheid.nl/BWBR0008683#Artikel2
+    url: https://wetten.overheid.nl/BWBR0003420/2026-08-01#Artikel9
+    references:
+      - id: ref1
+        bwb_id: BWBR0003420
+        artikel: '8'
+        hoofdstuk: I
+        paragraaf: '1'
+        afdeling: '1'
+      - id: ref2
+        bwb_id: BWBR0005537
+        paragraaf: 4.1.3.3
+      - id: ref3
+        bwb_id: BWBR0003420
+        artikel: 40a
+        hoofdstuk: I
+        paragraaf: '4'
+        afdeling: '1'
+      - id: ref4
+        bwb_id: BWBR0003420
+        artikel: '8'
+        hoofdstuk: I
+        paragraaf: '1'
+        afdeling: '1'
+      - id: ref5
+        bwb_id: BWBR0027679
+        artikel: '2'
+      - id: ref6
+        bwb_id: BWBR0003420
+        artikel: 85a
+        hoofdstuk: I
+        paragraaf: '1'
+        afdeling: '2'
+      - id: ref7
+        bwb_id: BWBR0003420
+        artikel: '8'
+        hoofdstuk: I
+        paragraaf: '1'
+        afdeling: '1'
+      - id: ref8
+        bwb_id: BWBR0008683
+        artikel: '2'
+  - number: '10'
+    text: |-
+      Het bevoegd gezag draagt zorg voor de kwaliteit van het onderwijs op de school. Onder zorg dragen voor de kwaliteit
+      van het onderwijs wordt in elk geval verstaan het naleven van de bij of krachtens deze wet gegeven voorschriften en
+      het uitvoeren van het stelsel van kwaliteitszorg, bedoeld in [artikel 12, vierde lid][ref1].
+
+
+      [ref1]: https://wetten.overheid.nl/BWBR0003420#Artikel12
+    url: https://wetten.overheid.nl/BWBR0003420/2026-08-01#Artikel10
+    references:
+      - id: ref1
+        bwb_id: BWBR0003420
+        artikel: '12'
+        hoofdstuk: I
+        paragraaf: '1'
+        afdeling: '1'
+  - number: '15'
+    text: >-
+      1 Indien een leerling gedurende een deel van het onderwijsprogramma onderwijs ontvangt op een andere school, op
+      een school voor speciaal onderwijs, op een school voor speciaal en voortgezet speciaal onderwijs, dan wel op een
+      instelling voor speciaal en voortgezet speciaal onderwijs telt de tijd gedurende welke de leerling dit onderwijs
+      ontvangt mee voor het aantal uren onderwijs dat de leerling ten minste moet ontvangen.
+
+
+      2 Bij ministeriële regeling kunnen voorschriften worden vastgesteld omtrent vakanties. Daarbij kunnen begin en eind
+      van vakanties worden vastgesteld die niet voor alle scholen gelijk behoeven te zijn.
+
+
+      3 Bij algemene maatregel van bestuur kunnen voorschriften worden gegeven omtrent de uitvoering van het eerste lid
+      alsmede omtrent de aard en de eisen aan de scholen en instellingen, bedoeld in het eerste lid.
+    url: https://wetten.overheid.nl/BWBR0003420/2026-08-01#Artikel15

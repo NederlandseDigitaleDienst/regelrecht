@@ -1,0 +1,11 @@
+// The tests, their support code and the scripts. They import package code,
+// which is then checked with these options; the libs come from the app config.
+{
+  "extends": "./tsconfig.app.json",
+  "include": ["src/**/*.test.ts", "src/regelrijm/test-support/**/*.ts", "scripts/**/*.ts"],
+  "exclude": [],
+  "compilerOptions": {
+    "types": ["node"],
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.node.tsbuildinfo"
+  }
+}

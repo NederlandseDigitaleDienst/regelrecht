@@ -39,10 +39,10 @@ impl SplitStrategy for LeafSplitStrategy {
         }
 
         // Respect max depth if set
-        if let Some(max_depth) = context.max_depth {
-            if context.depth >= max_depth {
-                return true;
-            }
+        if let Some(max_depth) = context.max_depth
+            && context.depth >= max_depth
+        {
+            return true;
         }
 
         true
@@ -50,26 +50,24 @@ impl SplitStrategy for LeafSplitStrategy {
 
     fn get_number(&self, node: Node<'_, '_>, spec: &ElementSpec) -> Option<String> {
         // Try primary number source first
-        if let Some(source) = spec.number_source.as_deref() {
-            if let Some(nr_node) = find_by_path(node, source) {
-                let nr = get_text(nr_node);
-                if let Some(cleaned) = self.clean_number(&nr) {
-                    return Some(cleaned);
-                }
+        if let Some(source) = spec.number_source.as_deref()
+            && let Some(nr_node) = find_by_path(node, source)
+        {
+            let nr = get_text(nr_node);
+            if let Some(cleaned) = self.clean_number(&nr) {
+                return Some(cleaned);
             }
         }
 
         // Fallback: try label attribute for artikel elements (used by repealed articles)
         // Repealed articles ("Vervallen") often lack <kop><nr> but retain the label attribute
         // Example: <artikel label="Artikel 4"> with text "Vervallen"
-        if spec.tag == "artikel" {
-            if let Some(label) = node.attribute("label") {
-                if let Some(nr) = label.strip_prefix("Artikel ") {
-                    if let Some(cleaned) = self.clean_number(nr) {
-                        return Some(cleaned);
-                    }
-                }
-            }
+        if spec.tag == "artikel"
+            && let Some(label) = node.attribute("label")
+            && let Some(nr) = label.strip_prefix("Artikel ")
+            && let Some(cleaned) = self.clean_number(nr)
+        {
+            return Some(cleaned);
         }
 
         None
@@ -146,174 +144,125 @@ mod tests {
     }
 
     #[test]
-    fn test_leaf_strategy_get_number_simple() {
-        let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("lid").with_number_source("lidnr");
-
-        let xml = "<lid><lidnr>1.</lidnr></lid>";
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(strategy.get_number(node, &spec), Some("1".to_string()));
-    }
-
-    #[test]
-    fn test_leaf_strategy_get_number_nested() {
-        let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("artikel").with_number_source("kop/nr");
-
-        let xml = "<artikel><kop><nr>5</nr></kop></artikel>";
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(strategy.get_number(node, &spec), Some("5".to_string()));
-    }
-
-    #[test]
-    fn test_leaf_strategy_get_number_no_source() {
-        let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("lijst"); // No number_source
-
-        let xml = "<lijst/>";
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(strategy.get_number(node, &spec), None);
-    }
-
-    #[test]
-    fn test_leaf_strategy_get_number_degree_symbol() {
-        let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("li").with_number_source("li.nr");
-
-        // Dutch lists often use degree symbol: "1°", "2°"
-        let xml = "<li><li.nr>1°</li.nr></li>";
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(strategy.get_number(node, &spec), Some("1".to_string()));
-    }
-
-    #[test]
-    fn test_leaf_strategy_get_number_whitespace() {
-        let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("lid").with_number_source("lidnr");
-
-        let xml = "<lid><lidnr>  2.  </lidnr></lid>";
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(strategy.get_number(node, &spec), Some("2".to_string()));
-    }
-
-    #[test]
-    fn test_leaf_strategy_get_number_bullet_only() {
-        let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("li").with_number_source("li.nr");
-
-        // Bullet-only markers (used for formula variables like A, B in Participatiewet)
-        // should be treated as unnumbered, so content is extracted inline
-        let xml = "<li><li.nr>•</li.nr></li>";
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(strategy.get_number(node, &spec), None);
-    }
-
-    #[test]
-    fn test_leaf_strategy_get_number_bullet_with_whitespace() {
-        let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("li").with_number_source("li.nr");
-
-        // Bullet with surrounding whitespace should also be filtered
-        let xml = "<li><li.nr>  •  </li.nr></li>";
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(strategy.get_number(node, &spec), None);
-    }
-
-    #[test]
-    fn test_leaf_strategy_get_number_asterisk_to_bis() {
-        let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("artikel").with_number_source("kop/nr");
-
-        // Asterisk suffix should be transformed to "_bis"
-        // This is used for Dutch "overgangsartikelen" (transition provisions)
-        let xml = "<artikel><kop><nr>78ee*</nr></kop></artikel>";
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(
-            strategy.get_number(node, &spec),
-            Some("78ee_bis".to_string())
+    fn test_leaf_strategy_get_number() {
+        /// (case, tag, number_source, xml, expected)
+        type Case = (
+            &'static str,
+            &'static str,
+            Option<&'static str>,
+            &'static str,
+            Option<&'static str>,
         );
-    }
+        let cases: &[Case] = &[
+            (
+                "simple",
+                "lid",
+                Some("lidnr"),
+                "<lid><lidnr>1.</lidnr></lid>",
+                Some("1"),
+            ),
+            (
+                "nested path",
+                "artikel",
+                Some("kop/nr"),
+                "<artikel><kop><nr>5</nr></kop></artikel>",
+                Some("5"),
+            ),
+            ("no number source", "lijst", None, "<lijst/>", None),
+            // Dutch lists often use degree symbol: "1°", "2°"
+            (
+                "degree symbol",
+                "li",
+                Some("li.nr"),
+                "<li><li.nr>1°</li.nr></li>",
+                Some("1"),
+            ),
+            (
+                "whitespace",
+                "lid",
+                Some("lidnr"),
+                "<lid><lidnr>  2.  </lidnr></lid>",
+                Some("2"),
+            ),
+            // Bullet-only markers (used for formula variables like A, B in Participatiewet)
+            // should be treated as unnumbered, so content is extracted inline
+            (
+                "bullet only",
+                "li",
+                Some("li.nr"),
+                "<li><li.nr>•</li.nr></li>",
+                None,
+            ),
+            (
+                "bullet with whitespace",
+                "li",
+                Some("li.nr"),
+                "<li><li.nr>  •  </li.nr></li>",
+                None,
+            ),
+            // Asterisk suffix should be transformed to "_bis"
+            // This is used for Dutch "overgangsartikelen" (transition provisions)
+            (
+                "asterisk to _bis",
+                "artikel",
+                Some("kop/nr"),
+                "<artikel><kop><nr>78ee*</nr></kop></artikel>",
+                Some("78ee_bis"),
+            ),
+            // Period is stripped first, then asterisk is transformed
+            (
+                "asterisk with period",
+                "lid",
+                Some("lidnr"),
+                "<lid><lidnr>1*.</lidnr></lid>",
+                Some("1_bis"),
+            ),
+            (
+                "no asterisk unchanged",
+                "artikel",
+                Some("kop/nr"),
+                "<artikel><kop><nr>78ee</nr></kop></artikel>",
+                Some("78ee"),
+            ),
+            // Repealed articles ("Vervallen") often lack <kop><nr> but have label attribute
+            // The strategy should fall back to extracting the number from label
+            (
+                "label fallback",
+                "artikel",
+                Some("kop/nr"),
+                r#"<artikel label="Artikel 4"><al>Vervallen</al></artikel>"#,
+                Some("4"),
+            ),
+            (
+                "label fallback, complex number",
+                "artikel",
+                Some("kop/nr"),
+                r#"<artikel label="Artikel 16a"><al>Vervallen</al></artikel>"#,
+                Some("16a"),
+            ),
+            // When both kop/nr and label exist, kop/nr should take precedence
+            (
+                "kop/nr over label",
+                "artikel",
+                Some("kop/nr"),
+                r#"<artikel label="Artikel 99"><kop><nr>5</nr></kop></artikel>"#,
+                Some("5"),
+            ),
+        ];
 
-    #[test]
-    fn test_leaf_strategy_get_number_asterisk_with_period() {
         let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("lid").with_number_source("lidnr");
+        for &(case, tag, source, xml, expected) in cases {
+            let spec = match source {
+                Some(source) => ElementSpec::new(tag).with_number_source(source),
+                None => ElementSpec::new(tag),
+            };
+            let doc = Document::parse(xml).unwrap();
 
-        // Asterisk with trailing period: "1*." -> "1_bis"
-        // Period is stripped first, then asterisk is transformed
-        let xml = "<lid><lidnr>1*.</lidnr></lid>";
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(strategy.get_number(node, &spec), Some("1_bis".to_string()));
-    }
-
-    #[test]
-    fn test_leaf_strategy_get_number_no_asterisk_unchanged() {
-        let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("artikel").with_number_source("kop/nr");
-
-        // Regular article numbers should not be affected
-        let xml = "<artikel><kop><nr>78ee</nr></kop></artikel>";
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(strategy.get_number(node, &spec), Some("78ee".to_string()));
-    }
-
-    #[test]
-    fn test_leaf_strategy_get_number_from_label_fallback() {
-        let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("artikel").with_number_source("kop/nr");
-
-        // Repealed articles ("Vervallen") often lack <kop><nr> but have label attribute
-        // The strategy should fall back to extracting the number from label
-        let xml = r#"<artikel label="Artikel 4"><al>Vervallen</al></artikel>"#;
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(strategy.get_number(node, &spec), Some("4".to_string()));
-    }
-
-    #[test]
-    fn test_leaf_strategy_get_number_from_label_complex() {
-        let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("artikel").with_number_source("kop/nr");
-
-        // Complex article numbers like "16a" should also work via label fallback
-        let xml = r#"<artikel label="Artikel 16a"><al>Vervallen</al></artikel>"#;
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(strategy.get_number(node, &spec), Some("16a".to_string()));
-    }
-
-    #[test]
-    fn test_leaf_strategy_prefers_kop_nr_over_label() {
-        let strategy = LeafSplitStrategy;
-        let spec = ElementSpec::new("artikel").with_number_source("kop/nr");
-
-        // When both kop/nr and label exist, kop/nr should take precedence
-        let xml = r#"<artikel label="Artikel 5"><kop><nr>5</nr></kop></artikel>"#;
-        let doc = Document::parse(xml).unwrap();
-        let node = doc.root_element();
-
-        assert_eq!(strategy.get_number(node, &spec), Some("5".to_string()));
+            assert_eq!(
+                strategy.get_number(doc.root_element(), &spec).as_deref(),
+                expected,
+                "{case}"
+            );
+        }
     }
 }

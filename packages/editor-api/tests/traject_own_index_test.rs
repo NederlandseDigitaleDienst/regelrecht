@@ -23,78 +23,38 @@
 //!    traject-index op `source_priority: 0` en is de source gezond
 //!    (`index_error: null`, `law_count: 1`).
 //!
-//! GitHub wordt gespeeld door wiremock via de proces-brede
-//! `GITHUB_API_BASE`-seam — daarom staan beide scenario's in ÉÉN test
-//! (zelfde afweging als `promote_user_token_write_test.rs`).
+//! GitHub wordt gespeeld door wiremock; de `GithubSettings` die de test in de
+//! app-state zet, wijzen de clients daarheen.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::sync::Arc;
+mod common;
+
+use common::{
+    add_central_seed, app_state_with_github, github_settings, insert_traject, seed_account,
+    session_for, traject_ref,
+};
 
 use axum::extract::{Extension, Path, Query, State};
 use axum::http::HeaderMap;
 use pretty_assertions::assert_eq;
 use sqlx::PgPool;
-use tokio::sync::{Mutex, RwLock};
-use tower_sessions::Session;
-use tower_sessions_memory_store::MemoryStore;
 use uuid::Uuid;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
-use regelrecht_auth::handlers::{
-    SESSION_KEY_EMAIL, SESSION_KEY_EMAIL_VERIFIED, SESSION_KEY_NAME, SESSION_KEY_SUB,
-};
 use regelrecht_corpus::dto::PaginationParams;
 use regelrecht_editor_api::accounts::AccountRecord;
-use regelrecht_editor_api::config::AppConfig;
 use regelrecht_editor_api::corpus_handlers::{
     list_traject_corpus_laws, list_traject_sources, promote_corpus_law,
 };
 use regelrecht_editor_api::github_oauth::{self, GithubOAuth};
-use regelrecht_editor_api::state::{AppState, CorpusState};
-use regelrecht_editor_api::traject_corpus::TrajectCorpusCache;
 
 use regelrecht_pipeline::test_utils::TestDb;
 
 const LAW_ID: &str = "wet_voorbeeld_promotie";
 const OWN_BRANCH: &str = "traject-voorbeeld";
 const OWN_SUBPATH: &str = "corpus/regulation";
-
-fn state_with_user_token_mode(pool: PgPool, oauth: GithubOAuth) -> AppState {
-    AppState {
-        corpus: Arc::new(RwLock::new(CorpusState::empty())),
-        oidc_client: None,
-        end_session_url: None,
-        config: Arc::new(AppConfig {
-            oidc: None,
-            base_url: None,
-            github_oauth: Some(oauth),
-            task_enrich_provider: "claude".to_string(),
-        }),
-        http_client: regelrecht_auth::http_client(),
-        pool: Some(pool),
-        pipeline_api_url: None,
-        harvest_admin_url: None,
-        reload_lock: Arc::new(Mutex::new(())),
-        integrity: Default::default(),
-        trajects: Arc::new(TrajectCorpusCache::new()),
-    }
-}
-
-async fn seed_account(pool: &PgPool, email: &str) -> (Uuid, String) {
-    let sub = format!("sub-{email}");
-    let (id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO accounts (person_sub, email, name) VALUES ($1, $2, $3) RETURNING id",
-    )
-    .bind(&sub)
-    .bind(email)
-    .bind("Test User")
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    (id, sub)
-}
 
 /// Traject zoals deployed: GitHub writable-own op een user-gekozen repo
 /// (auth_ref zonder geconfigureerd `CORPUS_AUTH_*_TOKEN`-env → server-side
@@ -106,23 +66,7 @@ async fn seeded_traject(
     own_repo_name: &str,
     seed_dir: &std::path::Path,
 ) -> Uuid {
-    let (traject_id,): (Uuid,) = sqlx::query_as(
-        "INSERT INTO trajects (name, description, scope, created_by)
-         VALUES ('Test', '', '', $1) RETURNING id",
-    )
-    .bind(owner_id)
-    .fetch_one(pool)
-    .await
-    .unwrap();
-    sqlx::query(
-        "INSERT INTO traject_members (traject_id, account_id, role)
-         VALUES ($1, $2, 'owner')",
-    )
-    .bind(traject_id)
-    .bind(owner_id)
-    .execute(pool)
-    .await
-    .unwrap();
+    let traject_id = insert_traject(pool, owner_id).await;
     sqlx::query(
         "INSERT INTO traject_corpus_sources
          (traject_id, source_id, name, source_type,
@@ -140,38 +84,8 @@ async fn seeded_traject(
     .execute(pool)
     .await
     .unwrap();
-    sqlx::query(
-        "INSERT INTO traject_corpus_sources
-         (traject_id, source_id, name, source_type, local_path,
-          priority, scopes, is_writable_own)
-         VALUES ($1, 'central-seed', 'Centrale Corpus', 'local'::corpus_source_type, $2,
-                 2, '[]'::jsonb, FALSE)",
-    )
-    .bind(traject_id)
-    .bind(seed_dir.to_string_lossy().to_string())
-    .execute(pool)
-    .await
-    .unwrap();
+    add_central_seed(pool, traject_id, seed_dir).await;
     traject_id
-}
-
-fn traject_ref(traject_id: Uuid) -> String {
-    format!("test-{}", &traject_id.to_string()[..8])
-}
-
-async fn session_for(sub: &str) -> Session {
-    let session = Session::new(None, Arc::new(MemoryStore::default()), None);
-    session.insert(SESSION_KEY_SUB, sub).await.unwrap();
-    session.insert(SESSION_KEY_NAME, "Test User").await.unwrap();
-    session
-        .insert(SESSION_KEY_EMAIL, "alice@test.local")
-        .await
-        .unwrap();
-    session
-        .insert(SESSION_KEY_EMAIL_VERIFIED, true)
-        .await
-        .unwrap();
-    session
 }
 
 /// Volledige wet-map in het centrale corpus: twee versies plus één
@@ -277,23 +191,25 @@ fn ids_query() -> Query<PaginationParams> {
         q: None,
         ids: Some(LAW_ID.to_string()),
         source: None,
+        enriched: false,
+        loaded: false,
     })
 }
 
-/// Eén test voor beide scenario's: de `GITHUB_API_BASE`-override is
-/// proces-breed, dus parallelle tests met elk een eigen mockserver zouden
-/// elkaars fetchers verhangen.
 #[tokio::test]
 async fn traject_index_shows_promoted_law_and_surfaces_failed_own_scans() {
     let server = MockServer::start().await;
-    std::env::set_var("GITHUB_API_BASE", server.uri());
 
     let db = TestDb::new().await;
     let central = tempfile::tempdir().unwrap();
     write_central_law(central.path());
 
     let oauth = GithubOAuth::for_tests(true); // user-token-schrijfmodus aan
-    let state = state_with_user_token_mode(db.pool.clone(), oauth.clone());
+    let state = app_state_with_github(
+        Some(db.pool.clone()),
+        Some(oauth.clone()),
+        github_settings(&server.uri(), &[]),
+    );
 
     let (owner_id, sub) = seed_account(&db.pool, "alice@test.local").await;
     let account = AccountRecord {
@@ -490,6 +406,4 @@ async fn traject_index_shows_promoted_law_and_surfaces_failed_own_scans() {
         .expect("writable-own source ontbreekt in /sources");
     assert_eq!(own.law_count, 1, "de gepromote wet telt mee in de index");
     assert_eq!(own.index_error, None, "gezonde scan → geen index_error");
-
-    std::env::remove_var("GITHUB_API_BASE");
 }

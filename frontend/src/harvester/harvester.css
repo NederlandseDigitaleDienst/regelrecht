@@ -28,34 +28,6 @@
   color: var(--semantics-content-secondary-color);
 }
 
-/* Segmented job-status distribution bar (grouped jobs view) */
-.status-bar {
-  display: flex;
-  width: 100%;
-  height: 8px;
-  border-radius: var(--primitives-corner-radius-xs);
-  overflow: hidden;
-  background: var(--primitives-color-neutral-100);
-}
-
-.status-bar__segment {
-  height: 100%;
-  min-width: 2px;
-}
-
-.status-bar__segment--pending {
-  background: light-dark(var(--primitives-color-neutral-150), var(--primitives-color-neutral-250));
-}
-.status-bar__segment--processing {
-  background: light-dark(var(--primitives-color-accent-500), var(--primitives-color-accent-400));
-}
-.status-bar__segment--completed {
-  background: light-dark(var(--primitives-color-success-450), var(--primitives-color-success-550));
-}
-.status-bar__segment--failed {
-  background: var(--primitives-color-critical-450);
-}
-
 /* Daily jobs charts (Overzicht) - ECharts needs an explicit height to render. */
 .daily-jobs-chart {
   height: 260px;

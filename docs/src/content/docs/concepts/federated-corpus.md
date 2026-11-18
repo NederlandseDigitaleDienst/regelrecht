@@ -44,10 +44,15 @@ Each source declares:
 - **Where** to find the regulations (a GitHub repository or local directory)
 - **Scope** (jurisdiction claims, like `gemeente_code: GM0363` for Amsterdam)
 - **Priority** (lower number = higher priority, used when the same law appears in multiple sources)
+- Optionally **`enriched: false`**: the source's regulations never carry `machine_readable` content, so the editor never reports one of them as enriched and never reads their bodies to find out. The central corpus is text only on purpose and carries this flag.
+- Optionally **`load_all: true`**: the editor's public library (Corpus juris) loads every regulation in the source, not only the listed ones in `favorites.json`. Meant for a small source, such as a repository of example rulework.
+- Optionally **`library_only: true`**: the source feeds only the editor's public library. A new traject does not copy it into its own sources, so example rulework, which the library labels as an example, never enters traject work without that label.
 
 ## How it works
 
 The corpus library merges laws from all registered sources into a single corpus at load time. When the same law appears in more than one source, the source with the lowest priority value wins (`SourceMap` in `packages/corpus/src/source_map.rs`); two sources with equal priority and the same `$id` are an error. Scopes do not filter which laws load or apply.
+
+Priority settles which source supplies a *version*. A version for another date is a different version, so the engine loads the versions of every source and picks the one in force on the calculation date. The editor's public library shows a regulation the same way: of the versions it has loaded, the one in force today is current, whichever source supplies it, and priority only decides between two sources that supply the same date. It does not fetch a regulation from GitHub that a local source already provides, so a local copy still hides the central versions of that regulation there. Inside a traject the traject's own repository still wins outright, so its edits stay the current version there.
 
 Scopes are claims, and the loader checks them against what a source delivers. It warns when a scoped source provides a regulation for a different municipality or water board, when it provides a national regulation (a decentral source can fill in national law but not replace it), and when it provides a regulation whose `regulatory_layer` it does not recognize. The check covers every version a source supplies, including one from a source that loses on priority. It reads the regulation body, so a GitHub source that is only enumerated by path, without fetching the files, is not checked. The check warns and does not refuse.
 

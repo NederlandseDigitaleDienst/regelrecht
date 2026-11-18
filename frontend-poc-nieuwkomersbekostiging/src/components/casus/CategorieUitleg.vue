@@ -1,5 +1,5 @@
 <template>
-  <nldd-list appearance="box">
+  <nldd-list appearance="box-tinted">
     <nldd-list-item v-for="stap in stappen" :key="stap.label">
       <nldd-icon-cell :icon="stap.icon" :color="stap.color ?? 'content'"></nldd-icon-cell>
       <nldd-text-cell :text="stap.label" :supporting-text="stap.uitleg"></nldd-text-cell>

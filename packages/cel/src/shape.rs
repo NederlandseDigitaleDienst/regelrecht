@@ -3,7 +3,7 @@
 //! The engine names the articles that take part in a submission
 //! ([`LawExecutionService::submission`]): the article that establishes it and
 //! the hooks on it. What they ask is what the application holds: the
-//! parameters the submission item lists when `produces` is a list (RFC-047),
+//! parameters the submission item lists when `produces` is a list (RFC-045 §1),
 //! every parameter of the establishing article in the object form, and every
 //! parameter of each hook. But one: a `produces.moment` on one of them names
 //! the moment that counts,
@@ -11,13 +11,14 @@
 //! part of the application (RFC-045); the cell fills it, not the applicant.
 //! And what a hook on the submission outputs, such as whether an objection
 //! came in on time (Awb 6:9), is what the submission gives, not what it
-//! asks (RFC-050).
+//! asks (RFC-045).
 
 use chrono::NaiveDate;
-use regelrecht_engine::{Article, LawExecutionService, ParameterType};
+use regelrecht_engine::{Article, Authority, LawExecutionService, ParameterType};
+use regelrecht_law_model::{ArticleRequirement, Column, Parameter, stored};
 use serde::Serialize;
 
-use crate::error::{refused, setup, Result};
+use crate::error::{Result, refused, setup};
 
 /// A parameter of an article that takes part in the submission.
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -32,9 +33,25 @@ pub struct Field {
     /// take part. Two articles that ask the same datum with the same type
     /// make one field, resting on both.
     pub declared_by: Vec<String>,
+    /// The columns of each row of a table (schema v0.8.20): only on a field
+    /// of type `array` that declares them. Two articles that ask the same
+    /// table ask it with the same columns.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<Column>>,
 }
 
 impl Field {
+    /// The field parameter `p` of article `declared_by` asks for.
+    pub fn of(p: &Parameter, declared_by: String) -> Self {
+        Field {
+            name: p.name.clone(),
+            type_: p.param_type,
+            nullable: p.is_nullable(),
+            declared_by: vec![declared_by],
+            columns: p.columns.clone(),
+        }
+    }
+
     /// The article that asks it first.
     pub fn first_declared_by(&self) -> &str {
         self.declared_by.first().map_or("", String::as_str)
@@ -63,7 +80,7 @@ pub struct Shape {
     pub article: String,
     /// The outputs of the establishing article: executing them runs it.
     /// Empty when the article follows a procedure: its outputs are then the
-    /// decision on the application (RFC-047), and recording the application
+    /// decision on the application (RFC-045 §4), and recording the application
     /// runs only the hooks, at [`Shape::stage`].
     pub outputs: Vec<String>,
     /// The stage of the article's procedure at which the hooks on the
@@ -77,18 +94,18 @@ pub struct Shape {
     pub fields: Vec<Field>,
     pub moment: Option<Moment>,
     /// The article whose decision the application asks for,
-    /// `<regulation>#<article>` (`requests`, RFC-047); `None` when the law
+    /// `<regulation>#<article>` (`requests`, RFC-045 §1); `None` when the law
     /// names none.
     pub requests: Option<String>,
     /// The outputs of the hooks on the submission: what recording it gives.
     /// A parameter of that name is no field; a decision takes it from the
-    /// chronolexogram's `outputs` (RFC-050).
+    /// chronolexogram's `outputs` (RFC-046).
     pub given: Vec<String>,
 }
 
 impl Shape {
     /// The establishing article, `<regulation>#<article>`.
-    pub fn grondslag(&self) -> String {
+    pub fn basis(&self) -> String {
         format!("{}#{}", self.law_id, self.article)
     }
 
@@ -146,7 +163,7 @@ pub fn derive(
         }
         // The establishing article contributes what its submission
         // contains: in the list form of `produces` the item's own
-        // `parameters`, in the object form every parameter (RFC-047). A
+        // `parameters`, in the object form every parameter (RFC-045 §1). A
         // hook contributes every parameter it declares.
         let item = found.get_submission().filter(|_| part.hook_point.is_none());
         if let Some(item) = item.filter(|_| shape.stage.is_none()) {
@@ -164,13 +181,11 @@ pub fn derive(
             {
                 continue;
             }
-            let field = Field {
-                name: p.name.clone(),
-                type_: p.param_type,
-                nullable: p.is_nullable(),
-                declared_by: vec![declared_by.clone()],
-            };
-            add_field(&mut shape.fields, field, &reference)?;
+            add_field(
+                &mut shape.fields,
+                Field::of(p, declared_by.clone()),
+                &reference,
+            )?;
         }
         if let Some(m) = found.get_produced().into_iter().find_map(|p| p.moment()) {
             if let Some(other) = &shape.moment {
@@ -180,17 +195,22 @@ pub fn derive(
                 )));
             }
             if let Some(name) = &m.parameter {
-                match execution.parameters.iter().flatten().find(|p| &p.name == name) {
+                match execution
+                    .parameters
+                    .iter()
+                    .flatten()
+                    .find(|p| &p.name == name)
+                {
                     None => {
                         return Err(setup(format!(
                             "{declared_by}: the moment is parameter '{name}', which it does not declare"
-                        )))
+                        )));
                     }
                     Some(p) if p.param_type != ParameterType::Date => {
                         return Err(setup(format!(
                             "{declared_by}: the moment is parameter '{name}', which is a {:?}, not a Date",
                             p.param_type
-                        )))
+                        )));
                     }
                     Some(_) => {}
                 }
@@ -219,10 +239,23 @@ pub fn derive(
 
 /// Add `field` to `fields`. Two articles that ask the same datum make one
 /// field, resting on both; it can be absent only if both say so. A different
-/// type is an error in the law: one chronolexogram cannot hold both.
+/// type, or a table with other columns, is an error in the law: one
+/// chronolexogram cannot hold both.
 pub(crate) fn add_field(fields: &mut Vec<Field>, field: Field, reference: &str) -> Result<()> {
     match fields.iter_mut().find(|f| f.name == field.name) {
         None => fields.push(field),
+        Some(f)
+            if f.type_ == field.type_
+                && !same_columns(f.columns.as_deref(), field.columns.as_deref()) =>
+        {
+            return Err(setup(format!(
+                "{reference}: '{}' is declared by {} and by {} with other columns; \
+                 one chronolexogram cannot hold both",
+                field.name,
+                f.first_declared_by(),
+                field.first_declared_by()
+            )));
+        }
         Some(f) if f.type_ == field.type_ => {
             f.nullable &= field.nullable;
             for by in field.declared_by {
@@ -238,10 +271,188 @@ pub(crate) fn add_field(fields: &mut Vec<Field>, field: Field, reference: &str) 
                 field.name,
                 f.first_declared_by(),
                 field.first_declared_by()
-            )))
+            )));
         }
     }
     Ok(())
+}
+
+/// Whether two fields hold the same table: the same column names with the
+/// same types, in the same order. A column's description is no part of it.
+fn same_columns(a: Option<&[Column]>, b: Option<&[Column]>) -> bool {
+    match (a, b) {
+        (None, None) => true,
+        (Some(a), Some(b)) => {
+            a.len() == b.len()
+                && a.iter()
+                    .zip(b)
+                    .all(|(x, y)| x.name == y.name && x.column_type == y.column_type)
+        }
+        _ => false,
+    }
+}
+
+/// The article and the fact name of a fact reference
+/// `<regulation>#<article>#<fact>` (schema v0.8.7, RFC-051).
+pub fn split_fact(fact: &str) -> Result<(&str, &str)> {
+    if !regelrecht_law_model::is_fact_reference(fact) {
+        return Err(refused(format!(
+            "'{fact}' is no <regulation>#<article>#<fact>"
+        )));
+    }
+    fact.rsplit_once('#')
+        .ok_or_else(|| refused(format!("'{fact}' is no <regulation>#<article>#<fact>")))
+}
+
+/// The fields of an executogram of the fact `fact`
+/// (`<regulation>#<article>#<fact>`, schema v0.8.7, RFC-051), in the law in
+/// force on `day`: the parameters the article's `requires` entry for that
+/// fact lists, with their types, as the fields of an application are the
+/// parameters its item lists. Refused when the article has no version in
+/// force on `day` or does not require that fact.
+///
+/// With `recorder`, the cell of that authority is about to record an
+/// instance: refused first when the fact names who establishes it
+/// (`competent_authority`, schema v0.8.8, RFC-051) and does not name this
+/// cell. A fact without one may be recorded by any cell.
+pub fn fact_fields(
+    service: &LawExecutionService,
+    fact: &str,
+    day: NaiveDate,
+    recorder: Option<&Authority>,
+) -> Result<Vec<Field>> {
+    let (basis, _) = split_fact(fact)?;
+    let (article, required) = required_fact(service, fact, day)?;
+    if let Some(authority) = recorder {
+        refuse_incompetent_fact(required, fact, authority)?;
+    }
+    required
+        .parameters
+        .iter()
+        .flatten()
+        .map(|field| {
+            if [
+                crate::reading::ROW_ID,
+                crate::reading::ROW_BASIS,
+                crate::reading::ROW_REFERS_TO,
+            ]
+            .contains(&field.as_str())
+            {
+                return Err(setup(format!(
+                    "{fact}: the fact holds a field '{field}'; its row gives the executogram's \
+                     own id, its article or what it refers to under that name"
+                )));
+            }
+            let p = article
+                .get_parameters()
+                .iter()
+                .find(|p| &p.name == field)
+                .ok_or_else(|| {
+                    setup(format!(
+                        "{fact}: the fact holds '{field}', which is no parameter"
+                    ))
+                })?;
+            Ok(Field::of(p, basis.to_string()))
+        })
+        .collect()
+}
+
+/// The article of `fact` in force on `day` and its `requires` entry for
+/// that fact. Refused when the article has no version in force on `day` or
+/// does not require that fact.
+pub(crate) fn required_fact<'s>(
+    service: &'s LawExecutionService,
+    fact: &str,
+    day: NaiveDate,
+) -> Result<(&'s Article, &'s ArticleRequirement)> {
+    let (basis, name) = split_fact(fact)?;
+    let (law_id, number) = basis
+        .split_once('#')
+        .ok_or_else(|| refused(format!("'{basis}' is no <regulation>#<article>")))?;
+    let article = article_on(service, law_id, number, day)
+        .ok_or_else(|| refused(format!("{basis} has no version in force on {day}")))?;
+    let required = article.required_fact(name).ok_or_else(|| {
+        refused(format!(
+            "{basis} requires no fact '{name}' (requires, fact) on {day}"
+        ))
+    })?;
+    Ok((article, required))
+}
+
+/// The facts of `article` of `law_id` that name `authority` as who
+/// establishes them (`competent_authority`), as `<law>#<article>#<fact>`.
+pub fn facts_established_by(law_id: &str, article: &Article, authority: &Authority) -> Vec<String> {
+    article
+        .get_requires()
+        .iter()
+        .filter(|r| names(r, authority))
+        .filter_map(|r| r.fact.as_ref())
+        .map(|fact| format!("{law_id}#{}#{fact}", article.number))
+        .collect()
+}
+
+/// The fact in which the cell of `receiver` records that it received `fact`,
+/// a fact another cell established: the fact of the same article, on `day`,
+/// that holds the same parameters and names `receiver` as who establishes it.
+/// `None` when the article requires no such fact.
+pub fn receipt_of(
+    service: &LawExecutionService,
+    fact: &str,
+    day: NaiveDate,
+    receiver: &Authority,
+) -> Result<Option<String>> {
+    let (basis, name) = split_fact(fact)?;
+    let (article, required) = required_fact(service, fact, day)?;
+    if names(required, receiver) {
+        return Ok(None);
+    }
+    Ok(article
+        .get_requires()
+        .iter()
+        .filter(|r| r.fact.as_deref() != Some(name) && r.parameters == required.parameters)
+        .find(|r| names(r, receiver))
+        .and_then(|r| r.fact.as_ref())
+        .map(|receipt| format!("{basis}#{receipt}")))
+}
+
+/// Whether the `requires` entry `required` names `authority` as who
+/// establishes its fact.
+fn names(required: &ArticleRequirement, authority: &Authority) -> bool {
+    required
+        .competent_authority
+        .as_ref()
+        .and_then(|competent| competent.named())
+        .is_some_and(|named| authority.is_named_by(named))
+}
+
+/// Refuse to record `fact` in the cell of `authority` when its `requires`
+/// entry names who establishes it and does not name this cell.
+fn refuse_incompetent_fact(
+    required: &ArticleRequirement,
+    fact: &str,
+    authority: &Authority,
+) -> Result<()> {
+    let Some(named) = required
+        .competent_authority
+        .as_ref()
+        .and_then(|competent| competent.named())
+    else {
+        return Ok(());
+    };
+    if authority.is_named_by(named) {
+        return Ok(());
+    }
+    let names: Vec<String> = named.iter().map(|n| format!("'{}'", n.name)).collect();
+    Err(refused(format!(
+        "{fact} is established by {}, and the cell is '{}'{}",
+        names.join(" or "),
+        authority.name,
+        authority
+            .category
+            .as_deref()
+            .map(|c| format!(" ({c})"))
+            .unwrap_or_default()
+    )))
 }
 
 pub(crate) fn article_on<'s>(
@@ -260,20 +471,34 @@ pub(crate) fn article_on<'s>(
 /// be absent (RFC-036): an application may leave it empty (Awb 4:5 asks to
 /// complete it; it is still an application). An amount is in whole
 /// eurocents. A date is written `YYYY-MM-DD`, and only so. A decision is a
-/// decision value `{grondslag, fields, findings, outputs}` (schema
+/// decision value `{basis, fields, findings, outputs}` (schema
 /// v0.8.4): an article reference and three objects, with `taken_on` where
-/// the cell gave it ([`is_decision_value`]), and nothing else.
+/// the cell gave it ([`is_decision_value`]), and nothing else. A table is an
+/// array of rows that each fit its columns ([`fits_columns`]).
 pub fn fits(field: &Field, value: &serde_json::Value) -> bool {
     use serde_json::Value as J;
     match (field.type_, value) {
         (_, J::Null) => field.nullable,
+        (ParameterType::Array, J::Array(rows)) => field
+            .columns
+            .as_deref()
+            .is_none_or(|columns| rows.iter().all(|row| fits_columns(columns, row))),
+        (type_, value) => fits_type(type_, value),
+    }
+}
+
+/// Whether `value`, which is not null, is a value of type `type_`; an array
+/// of any rows fits an array.
+fn fits_type(type_: ParameterType, value: &serde_json::Value) -> bool {
+    use serde_json::Value as J;
+    match (type_, value) {
         (ParameterType::String, J::String(_)) => true,
         (ParameterType::Number, J::Number(_)) => true,
-        // A decimal as the chronicle holds it ([`crate::encoding`]): only a
+        // A decimal as the chronicle holds it ([`stored`]): only a
         // stored value, as one a decision holds; a supplied value that holds
         // the key is refused first.
         (ParameterType::Number, J::Object(_)) => matches!(
-            crate::encoding::from_json(value),
+            stored::from_stored(value),
             Ok(regelrecht_engine::Value::Decimal(_))
         ),
         (ParameterType::Amount, J::Number(n)) => n.is_i64() || n.is_u64(),
@@ -287,11 +512,26 @@ pub fn fits(field: &Field, value: &serde_json::Value) -> bool {
     }
 }
 
-/// Whether `value` is a decision value `{grondslag, fields, findings,
+/// Whether `row` is a row of a table with `columns` (schema v0.8.20): an
+/// object that holds no other key than a column, each value of the column's
+/// type or null. A row lacking a column holds null there.
+fn fits_columns(columns: &[Column], row: &serde_json::Value) -> bool {
+    let Some(row) = row.as_object() else {
+        return false;
+    };
+    row.iter().all(|(name, value)| {
+        columns
+            .iter()
+            .find(|c| &c.name == name)
+            .is_some_and(|c| value.is_null() || fits_type(c.column_type, value))
+    })
+}
+
+/// Whether `value` is a decision value `{basis, fields, findings,
 /// outputs}`: the article that decided (`<regulation>#<article>`), and
 /// three objects. A decision the cell gives from its chronicle also holds
 /// `taken_on`: the article of the submission it was taken on, also
-/// `<regulation>#<article>` (RFC-050). A value an article gives
+/// `<regulation>#<article>` (RFC-045 §6). A value an article gives
 /// (`source.article`) holds no `taken_on`. Nothing else.
 pub(crate) fn is_decision_value(value: &serde_json::Map<String, serde_json::Value>) -> bool {
     let reference = |key: &str| {
@@ -303,7 +543,7 @@ pub(crate) fn is_decision_value(value: &serde_json::Map<String, serde_json::Valu
     };
     let taken_on = !value.contains_key("taken_on") || reference("taken_on");
     value.len() == 4 + usize::from(value.contains_key("taken_on"))
-        && reference("grondslag")
+        && reference("basis")
         && taken_on
         && ["fields", "findings", "outputs"]
             .iter()

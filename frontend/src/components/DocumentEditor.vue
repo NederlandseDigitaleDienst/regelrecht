@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * DocumentEditor - the active-document editor, driven by a useDocumentsManager
  * instance passed in as `manager`. Renders:
@@ -14,6 +14,10 @@
  * their common nldd-page ancestor and reflects its state onto the controls.
  */
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import type { Ref, WatchSource } from 'vue';
+import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import type { NLDDTextField } from '@nldd/design-system/text-field';
 import {
   reconcile,
   onListChange,
@@ -29,13 +33,22 @@ import {
   runCommand,
   onToolbarState,
   attachOverflowSelectListener,
-} from '../lib/editorToolbar.js';
-import { paneChromeVisible } from '../constants.js';
+} from '../lib/editorToolbar';
+import { paneChromeVisible } from '../constants';
+import type { useDocumentsManager } from '../composables/useDocumentsManager';
 
-const props = defineProps({
-  manager: { type: Object, required: true },
-});
-const emit = defineEmits(['deleted', 'back', 'saved']);
+type DocumentsManager = ReturnType<typeof useDocumentsManager>;
+
+const props = defineProps<{
+  // `& object` keeps the runtime prop check at `Object`: the compiler cannot
+  // resolve ReturnType and would otherwise drop the check.
+  manager: DocumentsManager & object;
+}>();
+const emit = defineEmits<{
+  deleted: [];
+  back: [];
+  saved: [path: string | null];
+}>();
 
 const m = props.manager;
 const {
@@ -96,15 +109,15 @@ const showFormattingToolbar = computed(
 // common nldd-page ancestor. The overflow menu-items are cloned into
 // document.body (losing their listeners); a single delegated `select` listener
 // runs their action.
-const editorSectionEl = ref(null);
-let statePage = null;
+const editorSectionEl = ref<HTMLElement | null>(null);
+let statePage: Element | null = null;
 onMounted(() => {
   attachOverflowSelectListener();
   statePage = editorSectionEl.value?.closest('nldd-page') ?? null;
-  statePage?.addEventListener('nldd-text-editor-state', onToolbarState);
+  statePage?.addEventListener('state-change', onToolbarState);
 });
 onUnmounted(() => {
-  statePage?.removeEventListener('nldd-text-editor-state', onToolbarState);
+  statePage?.removeEventListener('state-change', onToolbarState);
 });
 
 // --- Saving ---
@@ -131,7 +144,7 @@ async function saveDocument() {
 // (returns whether the save succeeded, so the parent only leaves on success).
 defineExpose({ saveDocument });
 
-function handleKeydown(e) {
+function handleKeydown(e: KeyboardEvent) {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
     e.preventDefault();
     saveDocument();
@@ -139,8 +152,8 @@ function handleKeydown(e) {
 }
 
 // --- Rename sheet ---
-const renameSheetEl = ref(null);
-const renameFieldEl = ref(null);
+const renameSheetEl = ref<NLDDSheet | null>(null);
+const renameFieldEl = ref<NLDDTextField | null>(null);
 async function openRename() {
   titleDraft.value = displayTitle(currentPath.value);
   titleError.value = null;
@@ -173,7 +186,7 @@ async function onConfirmDelete() {
 }
 
 // --- Imperative dialogs: show/hide a modal from a reactive source ---
-function bindModal(source, modalRef) {
+function bindModal(source: WatchSource<unknown>, modalRef: Ref<NLDDModalDialog | null>) {
   watch(source, async (v) => {
     await nextTick();
     const el = modalRef.value;
@@ -183,16 +196,16 @@ function bindModal(source, modalRef) {
   });
 }
 
-const deleteModalEl = ref(null);
+const deleteModalEl = ref<NLDDModalDialog | null>(null);
 bindModal(pendingDeletePath, deleteModalEl);
 
-const saveErrorModalEl = ref(null);
-bindModal(saveError, saveErrorModalEl);
+// A failed save or delete has one way out, so it is a critical notification
+// (it stays until dismissed) rather than a dialog with nothing to choose.
 function dismissSaveError() {
   saveError.value = null;
 }
 
-const conflictModalEl = ref(null);
+const conflictModalEl = ref<NLDDModalDialog | null>(null);
 bindModal(conflict, conflictModalEl);
 function dismissConflict() {
   conflict.value = null;
@@ -212,8 +225,6 @@ async function conflictOverwrite() {
   if (result?.ok) emit('saved', savedPath);
 }
 
-const deleteNoticeModalEl = ref(null);
-bindModal(deleteNotice, deleteNoticeModalEl);
 function dismissDeleteNotice() {
   deleteNotice.value = null;
 }
@@ -230,6 +241,7 @@ function dismissDeleteNotice() {
              uses. :not([hidden]) yields to the toolbar's own overflow hiding. -->
         <nldd-toolbar-item slot="start" class="wd-back">
           <nldd-icon-button icon="chevron-left" text="Terug naar werkdocumenten" tooltip-timing="never" @click="$emit('back')"></nldd-icon-button>
+          <nldd-menu-item slot="overflow" icon="chevron-left" text="Terug naar werkdocumenten" @select="$emit('back')"></nldd-menu-item>
         </nldd-toolbar-item>
         <!-- Document title with an integrated xs action button; its rename/delete
              menu is teleported to body and anchored to it by id. -->
@@ -257,6 +269,7 @@ function dismissDeleteNotice() {
             :loading="saving || undefined"
             @click="saveDocument"
           ></nldd-button>
+          <nldd-menu-item slot="overflow" icon="save" text="Opslaan" :disabled="saving || undefined" @select="saveDocument"></nldd-menu-item>
         </nldd-toolbar-item>
         <nldd-toolbar-item v-if="hasChanges" slot="end">
           <nldd-icon-button size="md" icon="more" text="Meer" tooltip-timing="never">
@@ -264,6 +277,7 @@ function dismissDeleteNotice() {
               <nldd-menu-item text="Maak alle wijzigingen ongedaan" icon="undo" @click="undoChanges"></nldd-menu-item>
             </nldd-menu>
           </nldd-icon-button>
+          <nldd-menu-item slot="overflow" text="Maak alle wijzigingen ongedaan" icon="undo" @select="undoChanges"></nldd-menu-item>
         </nldd-toolbar-item>
       </nldd-toolbar>
     </nldd-container>
@@ -282,7 +296,7 @@ function dismissDeleteNotice() {
         <nldd-banner v-if="deletedRemotely" variant="warning" :text="deletedRemotely"></nldd-banner>
         <!-- Hybrid Markdown editor: live-styled source, no separate preview. -->
         <nldd-text-editor
-          appearance="simple"
+          embedded
           :rows="12"
           resize="auto"
           :value="currentBody"
@@ -308,7 +322,7 @@ function dismissDeleteNotice() {
           type="checkbox"
           variant="icon"
           accessible-label="Nadruk"
-          @change="(e) => reconcile(e.currentTarget, ['bold', 'italic', 'strikethrough'], e.detail.values)"
+          @change="(e: Event) => reconcile(e.currentTarget, ['bold', 'italic', 'strikethrough'], (e as CustomEvent<{ values: string[] }>).detail.values)"
         >
           <nldd-segmented-control-item value="bold" text="Vet" icon="bold"></nldd-segmented-control-item>
           <nldd-segmented-control-item value="italic" text="Cursief" icon="italic"></nldd-segmented-control-item>
@@ -321,7 +335,7 @@ function dismissDeleteNotice() {
         </nldd-menu-group>
       </nldd-toolbar-item>
       <nldd-toolbar-item slot="start" label="Code" priority="3">
-        <nldd-toggle-button data-group="code" variant="icon" icon="code" accessible-label="Code" @change="(e) => runCommand(e, 'inlineCode')"></nldd-toggle-button>
+        <nldd-toggle-button data-group="code" variant="icon" icon="code" accessible-label="Code" @change="(e: Event) => runCommand(e, 'inlineCode')"></nldd-toggle-button>
         <nldd-menu-item slot="overflow" type="checkbox" value="inlineCode" text="Code" icon="code"></nldd-menu-item>
       </nldd-toolbar-item>
       <nldd-toolbar-item slot="start" label="Link" priority="5">
@@ -329,7 +343,7 @@ function dismissDeleteNotice() {
         <nldd-menu-item slot="overflow" type="checkbox" value="link" text="Link" icon="link"></nldd-menu-item>
       </nldd-toolbar-item>
       <nldd-toolbar-item slot="start" label="Citaat" priority="4">
-        <nldd-toggle-button data-group="quote" variant="icon" icon="text-quote" accessible-label="Citaat" @change="(e) => runCommand(e, 'quote')"></nldd-toggle-button>
+        <nldd-toggle-button data-group="quote" variant="icon" icon="text-quote" accessible-label="Citaat" @change="(e: Event) => runCommand(e, 'quote')"></nldd-toggle-button>
         <nldd-menu-item slot="overflow" type="checkbox" value="quote" text="Citaat" icon="text-quote"></nldd-menu-item>
       </nldd-toolbar-item>
       <nldd-toolbar-item slot="start" label="Lijst" priority="7">
@@ -462,18 +476,14 @@ function dismissDeleteNotice() {
 
   <!-- Action-failure dialogs (shown imperatively from reactive state). -->
   <Teleport to="body">
-    <nldd-modal-dialog ref="saveErrorModalEl" variant="alert" text="Opslaan mislukt" :supporting-text="saveError?.message || undefined" @close="dismissSaveError">
-      <nldd-button slot="actions" appearance="primary" text="Oké" @click="dismissSaveError"></nldd-button>
-    </nldd-modal-dialog>
+    <nldd-notification v-if="saveError" variant="critical" text="Opslaan mislukt" :supporting-text="saveError.message || undefined" @dismiss="dismissSaveError"></nldd-notification>
 
     <nldd-modal-dialog ref="conflictModalEl" variant="alert" text="Document is gewijzigd" :supporting-text="conflict || undefined" @close="dismissConflict">
       <nldd-button slot="actions" text="Server-versie laden" @click="conflictReload"></nldd-button>
       <nldd-button slot="actions" appearance="primary" text="Lokaal overschrijven" @click="conflictOverwrite"></nldd-button>
     </nldd-modal-dialog>
 
-    <nldd-modal-dialog ref="deleteNoticeModalEl" variant="alert" text="Verwijderen mislukt" :supporting-text="deleteNotice || undefined" @close="dismissDeleteNotice">
-      <nldd-button slot="actions" appearance="primary" text="Oké" @click="dismissDeleteNotice"></nldd-button>
-    </nldd-modal-dialog>
+    <nldd-notification v-if="deleteNotice" variant="critical" text="Verwijderen mislukt" :supporting-text="deleteNotice" @dismiss="dismissDeleteNotice"></nldd-notification>
 
     <nldd-modal-dialog
       ref="deleteModalEl"

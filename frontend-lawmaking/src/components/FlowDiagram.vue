@@ -92,24 +92,28 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref, watch, nextTick } from 'vue';
 import FlowNode from './FlowNode.vue';
 import FlowConnection from './FlowConnection.vue';
+import type { Branch, Connection, Phase, PlacedStage, Stage, TimelineMarker } from '../data/types';
 
-const props = defineProps({
-  stages: { type: Array, required: true },
-  branches: { type: Array, required: true },
-  connections: { type: Array, required: true },
-  phases: { type: Array, default: null },
-  timeline: { type: Array, default: null },
-  activeStep: { type: Number, default: -1 },
-  selectedId: { type: String, default: null },
-});
+const props = withDefaults(
+  defineProps<{
+    stages: Stage[];
+    branches: Branch[];
+    connections: Connection[];
+    phases?: Phase[] | null;
+    timeline?: TimelineMarker[] | null;
+    activeStep?: number;
+    selectedId?: string | null;
+  }>(),
+  { phases: null, timeline: null, activeStep: -1, selectedId: null },
+);
 
-defineEmits(['select-stage']);
+defineEmits<{ 'select-stage': [id: string] }>();
 
-const container = ref(null);
+const container = ref<HTMLElement | null>(null);
 const scale = ref(1);
 
 const columnWidth = 220;
@@ -121,10 +125,10 @@ const CROSS_COL_GAP = 2;
 /**
  * Auto-layout: compute row positions from step order and connections.
  */
-const layoutStages = computed(() => {
+const layoutStages = computed((): PlacedStage[] => {
   const sorted = [...props.stages].sort((a, b) => a.step - b.step);
-  const rowMap = new Map();
-  const colLastRow = new Map();
+  const rowMap = new Map<string, number>();
+  const colLastRow = new Map<number, number>();
   let globalLastRow = -1;
 
   for (const stage of sorted) {
@@ -154,13 +158,20 @@ const layoutStages = computed(() => {
     globalLastRow = Math.max(globalLastRow, row);
   }
 
-  return sorted.map((s) => ({ ...s, row: rowMap.get(s.id) ?? s.row ?? 0 }));
+  return sorted.map((s) => ({ ...s, row: rowMap.get(s.id) ?? 0 }));
 });
 
-const layoutBranches = computed(() => {
+/** A branch or phase whose rows are known, so it can be drawn. */
+type Rows = { startRow: number; endRow: number };
+
+const layoutBranches = computed((): (Branch & Rows)[] => {
   return props.branches.map((branch) => {
     const branchStages = layoutStages.value.filter((s) => s.branch === branch.id);
-    if (branchStages.length === 0) return branch;
+    // A branch without stages is drawn at opacity 0 (see branchOpacity), so
+    // its rows only need to be numbers. No dataset has one today.
+    if (branchStages.length === 0) {
+      return { ...branch, startRow: branch.startRow ?? 0, endRow: branch.endRow ?? 0 };
+    }
     const rows = branchStages.map((s) => s.row);
     return {
       ...branch,
@@ -198,14 +209,17 @@ defineExpose({ zoomIn, zoomOut, resetView });
 watch(() => props.activeStep, (step) => {
   if (step < 0 || !container.value) return;
   nextTick(() => {
+    // The diagram may have unmounted before the tick.
+    const el = container.value;
+    if (!el) return;
     // Find the highest-row active node at this step
     const activeNodes = layoutStages.value.filter((s) => s.step === step);
     if (activeNodes.length === 0) return;
     const maxActiveRow = Math.max(...activeNodes.map((s) => s.row));
     const targetY = (50 + maxActiveRow * rowHeight) * scale.value;
-    const containerRect = container.value.getBoundingClientRect();
+    const containerRect = el.getBoundingClientRect();
     const scrollTarget = targetY - containerRect.height * 0.6;
-    container.value.scrollTo({
+    el.scrollTo({
       top: Math.max(0, scrollTarget),
       behavior: 'smooth',
     });
@@ -242,10 +256,11 @@ const resolvedPhases = computed(() => {
 });
 
 const visiblePhases = computed(() => {
-  return resolvedPhases.value.filter((p) => {
-    if (p.startRow === undefined || p.endRow === undefined) return false;
+  return resolvedPhases.value.filter((p): p is Phase & Rows => {
+    const { startRow, endRow } = p;
+    if (startRow === undefined || endRow === undefined) return false;
     const phaseStages = layoutStages.value.filter(
-      (s) => s.row >= p.startRow && s.row <= p.endRow
+      (s) => s.row >= startRow && s.row <= endRow
     );
     if (phaseStages.length === 0) return false;
     const minStep = Math.min(...phaseStages.map((s) => s.step));
@@ -253,14 +268,14 @@ const visiblePhases = computed(() => {
   });
 });
 
-function branchOpacity(branch) {
+function branchOpacity(branch: Branch): number {
   const branchStages = layoutStages.value.filter((s) => s.branch === branch.id);
   if (branchStages.length === 0) return 0;
   const minStep = Math.min(...branchStages.map((s) => s.step));
   return props.activeStep >= minStep ? 1 : 0;
 }
 
-function isConnectionActive(conn) {
+function isConnectionActive(conn: Connection): boolean {
   const fromStage = layoutStages.value.find((s) => s.id === conn.from);
   const toStage = layoutStages.value.find((s) => s.id === conn.to);
   if (!fromStage || !toStage) return false;

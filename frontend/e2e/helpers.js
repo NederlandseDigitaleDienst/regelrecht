@@ -1,3 +1,4 @@
+import { expect } from '@playwright/test';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
 import * as yaml from 'js-yaml';
@@ -25,7 +26,7 @@ const TEST_PERSON = {
 };
 
 // Minimal traject the mocked `/api/trajects` list/detail returns. `ref` MUST
-// match `TEST_TRAJECT_REF` so `useTrajects` resolves the active traject and
+// match `TEST_TRAJECT_REF` so the trajecten store resolves the active traject and
 // `trajectMissing` stays false; the id is any UUID whose last 8 hex chars match
 // the ref's suffix (the backend resolver keys off those).
 const TEST_TRAJECT = {
@@ -84,7 +85,7 @@ export async function clearOpenTabsStorage(page) {
  * Mock the auth + traject endpoints so the `requiresAuth`, traject-scoped
  * editor routes mount under Playwright without a real backend or SSO. The
  * router guard awaits `/auth/status` (served as authenticated here), and
- * `useTrajects` needs the active ref present in the `/api/trajects` list.
+ * the trajecten store needs the active ref present in the `/api/trajects` list.
  *
  * The traject detail handler only answers the bare `/api/trajects/{id}`
  * endpoint and falls through for its `/corpus/...` sub-routes, leaving those
@@ -104,7 +105,7 @@ export async function mockAuthedEditor(page) {
       }),
     }),
   );
-  // GET /api/trajects - the membership list `useTrajects` reads.
+  // GET /api/trajects - the membership list the trajecten store reads.
   await page.route('**/api/trajects', (route) =>
     route.fulfill({
       status: 200,
@@ -427,38 +428,85 @@ export async function selectSheetDropdown(page, labelText, value) {
   }, value);
 }
 
+const SCENARIO_SHEET = '[data-testid="scenario-status-sheet"]';
+
 /**
- * Poll a scenario card's result sheet until it reports the wanted status
- * ("Mislukt" / "Geslaagd"). Scenarios auto-execute sequentially once their
- * dependency laws finish loading, and the overview cards carry no pass/fail
- * badge, so we (re)open the result sheet and read its outcome, retrying until
- * execution has produced one. The result sheet reads fresh data from the
- * scenario form on every open, so re-clicking picks up a later run. Throws with
- * the last-seen sheet text if the status never appears within `timeout`.
+ * Open the sheet behind the scenario status in the Machine pane's toolbar.
+ * A busy status button (before the first run is in) ignores a click.
  * @param {import('@playwright/test').Page} page
- * @param {string} title - substring of the scenario card's name
+ */
+export async function openScenarioSheet(page) {
+  const button = page.locator('[data-testid="scenario-status-btn"]');
+  const sheet = page.locator(SCENARIO_SHEET);
+  await button.waitFor({ timeout: 60_000 });
+  await expect(button).not.toHaveAttribute('loading', '', { timeout: 60_000 });
+  await expect(async () => {
+    if ((await sheet.getAttribute('open')) === null) await button.click();
+    await expect(sheet).toHaveAttribute('open', '', { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
+}
+
+/** Close the scenario sheet with its title bar's Sluit, as a user would. */
+export async function closeScenarioSheet(page) {
+  const sheet = page.locator(SCENARIO_SHEET);
+  if ((await sheet.getAttribute('open')) === null) return;
+  await sheet.locator('nldd-top-title-bar').evaluate((el) =>
+    el.dispatchEvent(new CustomEvent('dismiss', { bubbles: true, composed: true })),
+  );
+  await expect(sheet).not.toHaveAttribute('open', '');
+}
+
+/** The row of a scenario in the open sheet, with the passed ones opened up. */
+async function scenarioRowInSheet(page, title) {
+  const sheet = page.locator(SCENARIO_SHEET);
+  const passed = sheet.locator('[data-testid$="-passed"]');
+  if ((await passed.count()) > 0 && (await passed.first().getAttribute('expanded')) === null) {
+    await passed.first().click();
+  }
+  return sheet.locator('nldd-list-item').filter({ hasText: title }).first();
+}
+
+/**
+ * Wait until a scenario reports the wanted status ("Mislukt" / "Geslaagd") in
+ * the sheet behind the scenario status in the Machine pane's toolbar. The
+ * editor runs every scenario once its dependency laws are loaded, and again
+ * after each edit to the regelwerk; a scenario's badge says its status in its
+ * accessible label. Throws with the last status if the wanted one never
+ * appears within `timeout`.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} title - substring of the scenario's name
  * @param {string} want - 'Mislukt' or 'Geslaagd'
  * @param {number} [timeout]
  */
 export async function expectScenarioResult(page, title, want, timeout = 60_000) {
-  const card = page.locator('nldd-card').filter({ hasText: title });
-  await card.waitFor({ state: 'visible', timeout: 30_000 });
+  await openScenarioSheet(page);
   const deadline = Date.now() + timeout;
-  let lastText = '';
-  while (Date.now() < deadline) {
-    await card.getByRole('button', { name: 'Resultaat' }).click();
-    const sheet = openSheet(page);
-    await sheet.waitFor({ state: 'visible', timeout: 10_000 });
-    await page.waitForTimeout(500);
-    if ((await sheet.getByText(want, { exact: false }).count()) > 0) {
-      return;
+  let last = '';
+  try {
+    while (Date.now() < deadline) {
+      // A scenario that passes moves into the passed group: look it up anew.
+      const row = await scenarioRowInSheet(page, title);
+      last = (await row.locator('nldd-badge').getAttribute('accessible-label', { timeout: 1000 }).catch(() => null)) ?? '';
+      if (last === want) return;
+      await page.waitForTimeout(500);
     }
-    lastText = (await sheet.innerText().catch(() => '')) || lastText;
-    // Close and retry - a later auto-execute pass may have produced a result.
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(1000);
+  } finally {
+    // The spec goes on with the editor, not with this sheet over it.
+    await closeScenarioSheet(page);
   }
-  throw new Error(`scenario "${title}" never reported "${want}". Last sheet text:\n${lastText}`);
+  throw new Error(`scenario "${title}" never reported "${want}". Last status: "${last}"`);
+}
+
+/**
+ * Open a scenario in its tab from the sheet behind the scenario status in the
+ * Machine pane's toolbar.
+ * @param {import('@playwright/test').Page} page
+ * @param {string} title - substring of the scenario's name
+ */
+export async function openScenarioFromStatus(page, title) {
+  await openScenarioSheet(page);
+  const row = await scenarioRowInSheet(page, title);
+  await row.click();
 }
 
 /**

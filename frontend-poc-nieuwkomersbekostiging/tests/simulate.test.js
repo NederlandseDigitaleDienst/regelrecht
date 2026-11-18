@@ -55,8 +55,15 @@ const HANDELINGEN = {
   budget: { regeling_po: 10_000_000, regeling_vo: 10_000_000, uitvoering: 1 },
 };
 
+/**
+ * De kwartalen en de aftrek zelf rekent de stub-engine na; dat zij kloppen
+ * met de regeling staat tegen de echte engine in nieuwkomers_po.feature
+ * (casus C1 en C3). Wat hier getest wordt is de tijdlijn eromheen:
+ * evaluateLeerlingTimeline loopt elke peildatum af en neemt de engine-velden
+ * per peildatum over.
+ */
 describe('persona-tijdlijn', () => {
-  it('C1 telt acht kwartalen vanaf 1 juli 2024, vier hoog en vier laag', () => {
+  it('loopt de peildata af en neemt per peildatum de velden telt, jaar en bedrag van de engine over (C1)', () => {
     const engine = createStubEngine();
     const tl = evaluateLeerlingTimeline(engine, C1, peildataTussen('2024-04-01', '2026-10-01'));
     const tellend = tl.filter((t) => t.telt).map((t) => t.peildatum);
@@ -69,7 +76,7 @@ describe('persona-tijdlijn', () => {
     expect(tl.find((t) => t.peildatum === '2024-07-01').bedrag).toBe(Math.round(BEDRAG_ASIEL_JAAR / 4));
   });
 
-  it('C3 krijgt twee kwartalen aftrek voor de vierde verjaardag', () => {
+  it('neemt de aftrek van de engine over en telt pas vanaf de eerste tellende peildatum (C3)', () => {
     const engine = createStubEngine();
     const tl = evaluateLeerlingTimeline(engine, C3, peildataTussen('2024-07-01', '2026-10-01'));
     expect(tl[0].aftrek_kwartalen).toBe(2);

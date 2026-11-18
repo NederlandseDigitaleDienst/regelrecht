@@ -431,12 +431,16 @@ articles:
         );
         // The broken file is NOT in the map — it must never be recorded
         // as "implements nothing".
-        assert!(!outcome
-            .files
-            .contains_key("regulation/nl/wet/wet_kapot/2025-01-01.yaml"));
-        assert!(outcome
-            .files
-            .contains_key("regulation/nl/wet/wet_ok/2025-01-01.yaml"));
+        assert!(
+            !outcome
+                .files
+                .contains_key("regulation/nl/wet/wet_kapot/2025-01-01.yaml")
+        );
+        assert!(
+            outcome
+                .files
+                .contains_key("regulation/nl/wet/wet_ok/2025-01-01.yaml")
+        );
     }
 
     /// Restores the mode of a directory the test made unreadable. A
@@ -521,9 +525,11 @@ articles:
             walk[0]
         );
         // The readable half is still indexed.
-        assert!(outcome
-            .files
-            .contains_key("regulation/nl/wet/wet_ok/2025-01-01.yaml"));
+        assert!(
+            outcome
+                .files
+                .contains_key("regulation/nl/wet/wet_ok/2025-01-01.yaml")
+        );
     }
 
     #[test]

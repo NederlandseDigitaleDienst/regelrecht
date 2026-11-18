@@ -32,6 +32,12 @@ on:
         required: false
         type: string
         default: ''
+      # Cache of only the dependency stage (`deps`), written by
+      # warm-buildcache.yml. Empty for images without the Rust workspace.
+      deps-cache-scope:
+        required: false
+        type: string
+        default: ''
     outputs:
       image-tag:
         description: Docker image tags
@@ -112,7 +118,9 @@ jobs:
           #
           # ignore-error omdat een mislukte export anders de hele buildstap
           # laat falen; fork-PR's mogen niet naar GHCR schrijven.
-          cache-from: type=registry,ref=ghcr.io/${{ steps.ns.outputs.owner }}/regelrecht-buildcache:${{ inputs.cache-scope != '' && inputs.cache-scope || 'default' }}
+          cache-from: |
+            type=registry,ref=ghcr.io/${{ steps.ns.outputs.owner }}/regelrecht-buildcache:${{ inputs.cache-scope != '' && inputs.cache-scope || 'default' }}
+            ${{ inputs.deps-cache-scope != '' && format('type=registry,ref=ghcr.io/{0}/regelrecht-buildcache:{1}-deps', steps.ns.outputs.owner, inputs.deps-cache-scope) || '' }}
           cache-to: ${{ github.ref == 'refs/heads/main' && format('type=registry,ref=ghcr.io/{0}/regelrecht-buildcache:{1},mode=max,ignore-error=true', steps.ns.outputs.owner, inputs.cache-scope != '' && inputs.cache-scope || 'default') || '' }}
           secrets: |
             GITHUB_TOKEN=${{ secrets.GITHUB_TOKEN }}

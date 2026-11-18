@@ -1,8 +1,8 @@
-<script setup>
+<script setup lang="ts">
 import { watch } from 'vue';
-import { useLawEntries } from '../composables/useLawEntries.js';
-import { useNewHarvestJob } from '../composables/useNewHarvestJob.js';
-import { LAW_ENTRY_COLUMNS, LAW_ENTRY_SORT_OPTIONS } from '../constants.js';
+import { useLawEntries } from '../composables/useLawEntries';
+import { useNewHarvestJob } from '../composables/useNewHarvestJob';
+import { LAW_ENTRY_COLUMNS, LAW_ENTRY_SORT_OPTIONS } from '../constants';
 import DataTable from '../components/DataTable.vue';
 import StatusBadge from '../components/StatusBadge.vue';
 import RowActions from '../components/RowActions.vue';

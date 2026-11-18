@@ -205,9 +205,7 @@ mod tests {
     use wiremock::{Mock, MockServer, ResponseTemplate};
 
     fn client_for(server: &MockServer) -> GithubClient {
-        // `with_base_url` overrides whatever GITHUB_API_BASE might be, so this
-        // test is independent of process env.
-        GithubClient::new().unwrap().with_base_url(server.uri())
+        GithubClient::from_base(Some(&server.uri())).unwrap()
     }
 
     #[tokio::test]

@@ -1,5 +1,5 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use regelrecht_engine::operations::{evaluate_value, execute_operation, ValueResolver};
+use criterion::{Criterion, criterion_group, criterion_main};
+use regelrecht_engine::operations::{ValueResolver, evaluate_value, execute_operation};
 use regelrecht_engine::{ActionOperation, ActionValue, Case, Value};
 use std::collections::HashMap;
 use std::hint::black_box;

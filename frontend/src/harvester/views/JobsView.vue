@@ -1,11 +1,12 @@
-<script setup>
+<script setup lang="ts">
 import { watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useJobs } from '../composables/useJobs.js';
-import { useJobDetail } from '../composables/useJobDetail.js';
-import { useNewHarvestJob } from '../composables/useNewHarvestJob.js';
-import { useLawJobsSheet } from '../composables/useLawJobsSheet.js';
-import { JOB_COLUMNS, JOB_SORT_OPTIONS, GROUPED_SORT_OPTIONS } from '../constants.js';
+import { singleQuery } from '../../lib/routeParams';
+import { useJobs, type Job, type JobSummary } from '../composables/useJobs';
+import { useJobDetail } from '../composables/useJobDetail';
+import { useNewHarvestJob } from '../composables/useNewHarvestJob';
+import { useLawJobsSheet } from '../composables/useLawJobsSheet';
+import { JOB_COLUMNS, JOB_SORT_OPTIONS, GROUPED_SORT_OPTIONS } from '../constants';
 import DataTable from '../components/DataTable.vue';
 import GroupedTable from '../components/GroupedTable.vue';
 import DetailPanel from '../components/DetailPanel.vue';
@@ -46,27 +47,31 @@ watch(lawJobsSheetOpen, (open) => {
 });
 
 // Handle incoming law_id query param (runs synchronously during setup)
-if (route.query.law_id) {
-  setLawIdFilter(route.query.law_id);
-  openLawJobs(route.query.law_id);
+const initialLawId = singleQuery(route.query.law_id);
+if (initialLawId) {
+  setLawIdFilter(initialLawId);
+  openLawJobs(initialLawId);
 }
 
 const { lastJobCreated, open: openNewHarvestJob } = useNewHarvestJob();
 watch(lastJobCreated, () => refresh());
 
-function onViewChange(event) {
-  const value = event.detail?.value;
+// nldd-segmented-control's `change`, forwarded by ViewToggle.
+function onViewChange(event: Event) {
+  const value = (event as CustomEvent<{ value?: string } | undefined>).detail?.value;
   if (value && value !== viewMode.value) toggleViewMode();
 }
 </script>
 
 <template>
   <!-- Flat view -->
+  <!-- `data` holds the rows of the current view mode: jobs when flat, per-law
+       summaries when grouped (switching modes clears it first). -->
   <DataTable
     v-if="viewMode === 'flat'"
     :columns="JOB_COLUMNS"
     :sort-options="JOB_SORT_OPTIONS"
-    :data="data"
+    :data="data as Job[]"
     :loading="loading"
     :error="error"
     :sort="sort"
@@ -105,7 +110,7 @@ function onViewChange(event) {
   <GroupedTable
     v-else
     :sort-options="GROUPED_SORT_OPTIONS"
-    :data="data"
+    :data="data as JobSummary[]"
     :loading="loading"
     :error="error"
     :sort="sort"

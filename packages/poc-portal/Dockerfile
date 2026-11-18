@@ -10,7 +10,8 @@
 # manier te doen. Wijzigt de ene, dan de andere ook —
 # script/dockerfile-consistency.test.mjs bewaakt de workspace-kant daarvan.
 
-# Stage 1a: WASM-engine voor de browser-pocs.
+# Stage 1a: WASM voor de browser-pocs: de engine, en chronolexografie (de cel,
+# de engine en het spel, packages/poc-chronolexografie).
 # Rust version: keep in sync with rust-toolchain.toml (source of truth).
 FROM rust:1.96-alpine@sha256:a41f7740f8b45d45795624eec13a8b42263cc700f19f7e4e86e04d3dda08a479 AS wasm-builder
 RUN apk add --no-cache musl-dev curl
@@ -48,13 +49,24 @@ RUN set -eu; \
       exit 1; \
     fi
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+COPY packages/cel/ cel/
 COPY packages/engine/ engine/
 COPY packages/law-model/ law-model/
+COPY packages/poc-chronolexografie/ poc-chronolexografie/
 COPY packages/shared/ shared/
+# The tests of chronolexografie load a source with the portal's own loader, a
+# dev-dependency on poc-portal. Cargo reads the manifest of every dependency,
+# dev ones too, and the portal with its own dependencies is not in this stage;
+# the WASM build needs none of it, so the line goes.
+RUN grep -q '^regelrecht-poc-portal = ' poc-chronolexografie/Cargo.toml && \
+    sed -i '/^regelrecht-poc-portal = /d' poc-chronolexografie/Cargo.toml
 RUN cargo build --target wasm32-unknown-unknown --release --features wasm -p regelrecht-engine && \
     wasm-bindgen --target web --out-dir /wasm-pkg \
       target/wasm32-unknown-unknown/release/regelrecht_engine.wasm
+RUN cargo build --target wasm32-unknown-unknown --release --features wasm -p regelrecht-poc-chronolexografie && \
+    wasm-bindgen --target web --out-dir /wasm-chronolexografie \
+      target/wasm32-unknown-unknown/release/regelrecht_poc_chronolexografie.wasm
 
 # Stage 1b: de frontends — het portaal zelf plus elke statische poc.
 FROM node:26-alpine@sha256:2d984a15c9b54fd0aeb608b8e0d0d83529eb34d2966db27a1fb4f1edc3d298a3 AS frontend-builder
@@ -66,11 +78,12 @@ COPY frontend-lawmaking/package.json frontend-lawmaking/
 COPY frontend-poc-portal/package.json frontend-poc-portal/
 COPY frontend-poc-terugbetaalregimes/package.json frontend-poc-terugbetaalregimes/
 COPY frontend-poc-nieuwkomersbekostiging/package.json frontend-poc-nieuwkomersbekostiging/
+COPY packages/poc-chronolexografie/frontend/package.json packages/poc-chronolexografie/frontend/
 RUN npm ci --ignore-scripts
 
 # De bron van het gedeelde pakket. npm ci hierboven legt alleen de symlink in
 # node_modules; zonder deze kopie staat daar een lege map en valt de build om
-# op de imports uit de pocs (Paneel, de Gherkin-runner, useBewaardeStand).
+# op de imports uit de pocs (Panel, de Gherkin-runner, usePersistedState).
 COPY packages/frontend-shared/ packages/frontend-shared/
 
 # Het portaal: alleen het ontwerpsysteem voor zijn eigen twee pagina's.
@@ -86,6 +99,16 @@ COPY frontend-poc-nieuwkomersbekostiging/ frontend-poc-nieuwkomersbekostiging/
 COPY --from=wasm-builder /wasm-pkg/ frontend/public/wasm/pkg/
 RUN POC_BASE=/terugbetaalregimes/ npm run build -w poc-terugbetaalregimes
 RUN POC_BASE=/nieuwkomersbekostiging/ npm run build -w poc-nieuwkomersbekostiging
+
+# chronolexografie draait helemaal in de browser. De bundel die de app
+# meekrijgt, is de map bij `corpus` in pocs/registry.yaml, het eigen corpus
+# van de poc (scripts/copy-assets.js); hier gaan het register en dat corpus
+# mee.
+COPY pocs/ pocs/
+COPY packages/poc-chronolexografie/corpus/ packages/poc-chronolexografie/corpus/
+COPY packages/poc-chronolexografie/frontend/ packages/poc-chronolexografie/frontend/
+COPY --from=wasm-builder /wasm-chronolexografie/ packages/poc-chronolexografie/frontend/public/wasm/pkg/
+RUN POC_BASE=/chronolexografie/ npm run build -w poc-chronolexografie
 
 # De enige runtime-dependency van de beleidsassistent. Los geïnstalleerd en niet
 # als workspace-member: hij draait naast het portaal in de runtime-trap, niet in
@@ -124,7 +147,7 @@ COPY packages/Cargo.lock packages/Cargo.toml ./
 # hoeft te vinden. De grep-assertie valt om als de members-array ooit op één
 # regel wordt gezet — dan zou de sed er stilletjes langs lopen.
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-chronolexografie"/d; /"tui"/d' Cargo.toml
 COPY packages/auth/ auth/
 COPY packages/corpus/ corpus/
 # regelrecht-corpus hangt aan github; het portaal gebruikt uit corpus alleen
@@ -138,11 +161,16 @@ COPY pocs/ /pocs/
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage 4: de binary.
-FROM chef AS builder
+FROM chef AS deps
 COPY packages/Cargo.lock ./
 COPY --from=planner /build/Cargo.toml ./Cargo.toml
 COPY --from=planner /build/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
+
+# Up to here only the dependencies, as a stage of its own: warm-buildcache.yml
+# builds just this stage on every push to main, so the cook layer is in the
+# cache before the next PR needs it, whether or not main deploys.
+FROM deps AS builder
 # `cargo chef cook` schrijft de workspace-Cargo.toml zonder
 # `[workspace.lints]`, wat members met `[lints] workspace = true` breekt.
 COPY --from=planner /build/Cargo.toml ./Cargo.toml
@@ -159,6 +187,13 @@ COPY schema/ /schema/
 # poc-portal embed pocs/registry.yaml op dezelfde manier: include_str! vanuit
 # poc-portal/src/ met drie niveaus omhoog, dus /pocs/registry.yaml.
 COPY pocs/ /pocs/
+# The commit this image is built from, reported at GET /_version. deploy.yml
+# passes github.sha; src/version.rs checks it at compile time and turns
+# anything that is not a full lowercase SHA (including an empty value in a
+# local build) into "unknown". Declared after the COPYs and right before the
+# build, so a new commit invalidates only this layer and the cook layer stays
+# cached.
+ARG REGELRECHT_COMMIT=
 RUN find . -name '*.rs' -exec touch {} + && \
     cargo build --release --bin regelrecht-poc-portal
 
@@ -198,6 +233,7 @@ COPY --from=frontend-builder /app/frontend-poc-portal/dist /app/static/_assets
 # vite uitspuugt.
 COPY --from=frontend-builder /app/frontend-poc-terugbetaalregimes/dist /app/static/terugbetaalregimes
 COPY --from=frontend-builder /app/frontend-poc-nieuwkomersbekostiging/dist /app/static/nieuwkomersbekostiging
+COPY --from=frontend-builder /app/packages/poc-chronolexografie/frontend/dist /app/static/chronolexografie
 
 # De beleidsassistent: één server, per casus zijn eigen MCP-tools en prompt.
 COPY packages/poc-assistent/ /app/assistent/

@@ -42,11 +42,30 @@
 #                het echte onderwerp, achter het wachtwoord. Optioneel.
 #   soort        `statisch` (uit dit image geserveerd) of `proxy` (doorgestuurd
 #                naar een ander ZAD-component).
-#   bron         bij `statisch`: de npm-workspace die de dist bouwt.
+#   bron         bij `statisch`: de npm-workspace die de dist bouwt. Meestal
+#                in frontend-poc-<slug>/; een poc met een eigen WASM-crate
+#                heeft zijn app in packages/poc-<slug>/frontend/.
 #   upstream     bij `proxy`: de ZAD-componentnaam, bereikt op
 #                http://{deployment}-{upstream}:8000
 #   corpus       de mappen met casus-regelgeving die dit image meeneemt.
 #   assistent    true als de beleidsassistent voor deze casus aanstaat.
+#   sources      bij `statisch`: corpora die de poc laadt terwijl hij draait,
+#                niet in de build. Het portaal haalt per bron de map `path`
+#                van `branch` op met het token in de env-var `token_env` (de
+#                naam, nooit de waarde) en serveert haar achter het
+#                wachtwoord op /<slug>/bron/<name>. `path` mag ook een
+#                manifest zijn (een .yaml-bestand) dat de bron maakt uit
+#                mappen elders op de branch (Manifest in
+#                packages/poc-portal/src/bron.rs). Een nieuwe commit op die
+#                branch staat er na hooguit een minuut, zonder build. Lokaal
+#                neemt de map of het manifest in POC_BRON_<NAME> de plaats
+#                van de branch in, zonder token. `verborgen: true` (standaard
+#                false) zet de casussen van deze bron niet op het
+#                keuzescherm van de poc. Hun eigen adres werkt wel, en wie
+#                de poc opent met `?alle-casussen`, ziet ze in die browser
+#                terug. Het gaat om zichtbaarheid, niet om toegang: wie het
+#                wachtwoord heeft, kan de bron gewoon ophalen.
+#                Zie de pagina van het poc-portaal in de docs.
 #   tags         INTERN. Korte labels: departement, uitvoerder, het beleidsveld.
 #                Samen wijzen ze het dossier aan, ook waar de publieke helft
 #                dat bewust niet doet.
@@ -138,3 +157,60 @@ pocs:
       De Napp bestaat niet en de Wet op de politieke partijen is een
       wetsvoorstel; de wettekst hier is een uitvoerbare reconstructie, geen
       geldend recht. Partijen, aanvragen en besluiten zijn verzonnen.
+
+  - slug: chronolexografie
+    titel: Een uitvoeringsproces dat zichzelf terugleest
+    samenvatting: >-
+      Een verkenning van een aanvraag, het besluit erop en het bezwaar
+      ertegen, om te zien hoe een uitvoerder vastlegt wat er gebeurde en dat
+      bij een volgend besluit weer terugleest. Je kiest een van vier
+      processen om na te spelen.
+    titel_intern: Chronolexografie in casussen
+    samenvatting_intern: >-
+      Een uitvoeringsproces bij een fictieve uitvoerder, uitgevoerd door de
+      cel uit packages/cel: aanvraag met de Awb-haken, besluit met het
+      waarom, bezwaar en heroverweging (Awb 7:11), de kroniek en de reductie
+      die de cel erover draait (RFC-045, RFC-046 en RFC-048). De bezoeker
+      kiest een casus. Vakantieverlof (Leerplichtwet 1969 artikel 13a) speelt
+      bij een school. De gehandicaptenparkeerkaart (BABW artikel 49) en de
+      bedrijfsparkeervergunning spelen bij een gemeente; die laatste onder
+      een fictieve parkeerverordening naar het model van Delft, met de Kamer
+      van Koophandel als cel die uit het handelsregister antwoordt. Het
+      voorschot op de zorgtoeslag (Awir artikel 15 en 16) speelt bij de
+      Dienst Toeslagen. Een vijfde casus, een fictieve subsidie bij de Napp, komt
+      uit de NAPP-bron (sources hieronder). Die casus staat niet op het
+      keuzescherm en opent op haar eigen adres, alleen waar het portaal de
+      bron kan ophalen. Per casus noemt de app de cel en het artikel; de rest leidt zij zo veel
+      mogelijk af uit de wet.
+    soort: statisch
+    bron: poc-chronolexografie
+    # De bundel die de app in de browser draait: het eigen corpus van de
+    # poc, met de casussen, de regelwerken die hun cellen draaien en de
+    # cellen zelf, met hun reducties. Daarin staan kopieën van de wetten die
+    # de casussen draaien, zodat werk aan de poc het regelrecht-corpus niet
+    # raakt. De test every_directory_of_the_corpus_is_one_a_case_needs in
+    # packages/poc-chronolexografie/src/bundel.rs houdt dat er niets in staat
+    # wat geen casus nodig heeft.
+    corpus:
+      - packages/poc-chronolexografie/corpus
+    # De NAPP-casus staat met haar regelingen, de Awb incluis, en cel in
+    # deze bron, niet in deze repository; zij draait alleen op de bron, niet
+    # op het corpus hierboven (src/bundel.rs, met_bronnen).
+    sources:
+      - name: napp
+        github:
+          owner: NederlandseDigitaleDienst
+          repo: regelrecht-corpus-NAPP
+          branch: integratie/analistenportaal
+          path: chronolex/napp/bron.yaml
+        token_env: NAPP_CORPUS_TOKEN
+        # Alleen voor wie bij de NAPP-verkenning betrokken is: de casus staat
+        # niet op het keuzescherm, wel op haar eigen adres.
+        verborgen: true
+    assistent: false
+    tags: [Leerplichtwet, BABW, parkeerverordening, zorgtoeslag, AWB, chronolexografie]
+    status: verkenning
+    voorbehoud: >-
+      De verordening, het beleid, de werking van de cellen en alle gegevens
+      zijn verzonnen, en geen model is juridisch getoetst. Wat je vastlegt,
+      verdwijnt als je het tabblad sluit.

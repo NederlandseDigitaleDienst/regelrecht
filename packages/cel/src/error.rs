@@ -16,6 +16,13 @@ pub enum Error {
     /// The engine failed.
     #[error("engine: {0}")]
     Engine(#[from] regelrecht_engine::EngineError),
+    /// A value cannot be stored, read back or compared
+    /// ([`regelrecht_law_model::stored`]): a damaged decimal, a record the
+    /// engine resolved or computed that holds the decimal key (a supplied
+    /// one is refused before), an integer against a decimal of the same
+    /// value.
+    #[error("value: {0}")]
+    Stored(#[from] regelrecht_law_model::stored::StoredError),
     /// Reading or writing the chronicle failed.
     #[error("chronicle: {0}")]
     Io(#[from] std::io::Error),

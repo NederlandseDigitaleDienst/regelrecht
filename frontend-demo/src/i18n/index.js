@@ -5,13 +5,13 @@
  * a translation of it, and `en.sources.js` records which Dutch string each
  * translation was made from, so a changed original shows up as a stale
  * translation instead of silently keeping an old English sentence. See
- * `i18n.test.js` for what that buys.
+ * `i18n.test.ts` for what that buys.
  *
  * Shaped after `useColorScheme()` from @regelrecht/frontend-shared, which this
  * app already consumes: a module-level ref, a readonly accessor, and writes
  * that go through one setter. The locale deliberately is NOT a component-scoped
  * value, because the strings are needed in plain modules that have no setup()
- * — `format.js` (imported by its own tests), `delegation.js`, `stats.js`.
+ * — `format.ts` (imported by its own tests), `delegation.ts`, `stats.ts`.
  * That is also the reason this is not vue-i18n: its `useI18n()` only works
  * inside a component, so every one of those modules would need the parallel
  * `global.t` API instead.
@@ -22,6 +22,7 @@
  */
 import { computed, ref } from 'vue';
 import en from './en.js';
+import fr from './fr.js';
 import fy from './fy.js';
 import nl from './nl.js';
 
@@ -50,6 +51,9 @@ export const LOCALES = [
   // Nederlandse tekst. Zie de kop van dat bestand voor waarom daar geen
   // machinevertaling staat.
   { code: 'fy', prefix: '/fy', intl: 'fy-NL', label: 'Frysk', dict: fy },
+  // Frans is vertaald door een taalmodel en nog niet nagekeken; zie
+  // corpus/demo/i18n/REVIEW-fr.md.
+  { code: 'fr', prefix: '/fr', intl: 'fr-FR', label: 'Français', dict: fr },
 ];
 
 export const DEFAULT_LOCALE = 'nl';

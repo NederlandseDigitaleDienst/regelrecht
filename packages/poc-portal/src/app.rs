@@ -3,20 +3,22 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+use axum::Router;
 use axum::body::Body;
 use axum::extract::{Path, Request, State};
-use axum::http::{header, HeaderValue, StatusCode, Uri};
+use axum::http::{HeaderValue, StatusCode, Uri, header};
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{get, post};
-use axum::Router;
 use tower::ServiceExt as _;
 use tower_http::services::{ServeDir, ServeFile};
 
-use crate::config::{upstream_url, Config};
+use crate::bron::{Bron, BronFout};
+use crate::config::{Config, upstream_url};
 use crate::gate;
 use crate::pagina;
 use crate::proxy;
 use crate::registry::{Poc, Soort};
+use crate::version;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -25,18 +27,30 @@ pub struct AppState {
     pub upstreams: Arc<HashMap<String, String>>,
     /// Base URL of the beleidsassistent per slug that has one.
     pub assistenten: Arc<HashMap<String, String>>,
+    /// The sources per PoC, by `(slug, name)` ([`crate::bron`]).
+    pub bronnen: Arc<HashMap<(String, String), Bron>>,
+    /// Fetches a source's tarball; `None` if the client could not be built,
+    /// and then every source on GitHub answers 502.
+    pub github: Option<Arc<regelrecht_github::GithubClient>>,
     pub http: reqwest::Client,
 }
 
 impl AppState {
+    /// Build the state, reading upstreams, assistants and source folders from
+    /// the process environment.
     pub fn new(config: Config) -> Self {
+        Self::with_env(config, |key| std::env::var(key).ok())
+    }
+
+    /// [`AppState::new`] with every variable read through `env`.
+    pub fn with_env(config: Config, env: impl Fn(&str) -> Option<String>) -> Self {
         let mut upstreams = HashMap::new();
         for poc in &config.registry.pocs {
             if poc.soort != Soort::Proxy {
                 continue;
             }
-            let env = format!("POC_UPSTREAM_{}", poc.slug.to_uppercase().replace('-', "_"));
-            match upstream_url(config.deployment.as_deref(), poc, std::env::var(env).ok()) {
+            let key = format!("POC_UPSTREAM_{}", poc.slug.to_uppercase().replace('-', "_"));
+            match upstream_url(config.deployment.as_deref(), poc, env(&key)) {
                 Some(url) => {
                     tracing::info!(slug = %poc.slug, url = %url, "proxied PoC");
                     upstreams.insert(poc.slug.clone(), url);
@@ -57,26 +71,48 @@ impl AppState {
             if !poc.assistent {
                 continue;
             }
-            let env = format!(
+            let key = format!(
                 "POC_ASSISTENT_{}",
                 poc.slug.to_uppercase().replace('-', "_")
             );
-            match std::env::var(&env) {
-                Ok(url) if !url.trim().is_empty() => {
+            match env(&key) {
+                Some(url) if !url.trim().is_empty() => {
                     tracing::info!(slug = %poc.slug, url = %url, "beleidsassistent");
                     assistenten.insert(poc.slug.clone(), url);
                 }
                 _ => tracing::info!(
                     slug = %poc.slug,
-                    "geen beleidsassistent ({env} niet gezet); /api antwoordt 503"
+                    "geen beleidsassistent ({key} niet gezet); /api antwoordt 503"
                 ),
             }
         }
+
+        // Where each source comes from is read once, here: a local folder
+        // (POC_BRON_<NAME>), the branch with its token, or neither.
+        let mut bronnen = HashMap::new();
+        for poc in &config.registry.pocs {
+            for source in &poc.sources {
+                bronnen.insert(
+                    (poc.slug.clone(), source.name.clone()),
+                    Bron::new(source, &env),
+                );
+            }
+        }
+        let github =
+            match regelrecht_github::GithubClient::from_base(env("GITHUB_API_BASE").as_deref()) {
+                Ok(c) => Some(Arc::new(c)),
+                Err(e) => {
+                    tracing::error!(error = %e, "no GitHub client; sources on GitHub answer 502");
+                    None
+                }
+            };
 
         Self {
             config: Arc::new(config),
             upstreams: Arc::new(upstreams),
             assistenten: Arc::new(assistenten),
+            bronnen: Arc::new(bronnen),
+            github,
             http: reqwest::Client::new(),
         }
     }
@@ -89,6 +125,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/health", get(|| async { "OK" }))
+        .route(version::VERSION_PATH, get(version::version))
         .route("/_toegang/{slug}", post(toegang))
         .nest_service("/_assets", ServeDir::new(format!("{static_root}/_assets")))
         .fallback(
@@ -141,6 +178,18 @@ async fn poc_request(State(state): State<AppState>, request: Request) -> Respons
             Html(pagina::inloggen(poc, &path, false)),
         )
             .into_response();
+    }
+
+    // Een bron van deze poc (`sources` in het register), achter hetzelfde
+    // wachtwoord: het portaal haalt haar op met het token, de browser ziet
+    // dat nooit.
+    // Alleen een bron uit het register; elk ander pad blijft van de poc.
+    let bron = rest
+        .strip_prefix("/bron/")
+        .map(|naam| (slug.to_string(), naam.trim_end_matches('/').to_string()))
+        .and_then(|sleutel| state.bronnen.get(&sleutel));
+    if let Some(bron) = bron {
+        return serveer_bron(&state, bron).await;
     }
 
     // De beleidsassistent draait als eigen proces naast dit portaal (hij spawnt
@@ -207,6 +256,25 @@ fn heeft_toegang(state: &AppState, poc: &Poc, request: &Request) -> bool {
                     time::OffsetDateTime::now_utc(),
                 )
         })
+}
+
+/// A source as JSON, never cached by the browser: the portal holds the copy
+/// ([`crate::bron::Cache`]). Not configured here is 503, a failed fetch
+/// without a copy 502, each with the reason as text.
+async fn serveer_bron(state: &AppState, bron: &Bron) -> Response {
+    let uitkomst = bron.geef(state.github.as_deref()).await;
+    let no_store = [(header::CACHE_CONTROL, "no-store")];
+    match uitkomst {
+        Ok(o) => (no_store, axum::Json(&*o)).into_response(),
+        Err(e) => {
+            let status = match e {
+                BronFout::NietBeschikbaar(_) => StatusCode::SERVICE_UNAVAILABLE,
+                BronFout::Ophalen(_) => StatusCode::BAD_GATEWAY,
+            };
+            tracing::warn!(source = %bron.naam, error = %e, "source not served");
+            (status, no_store, e.to_string()).into_response()
+        }
+    }
 }
 
 /// Handle the password form.
@@ -292,12 +360,13 @@ fn percent_decode(s: &str) -> String {
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
     while i < bytes.len() {
-        if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Ok(b) = u8::from_str_radix(&String::from_utf8_lossy(&bytes[i + 1..i + 3]), 16) {
-                out.push(b);
-                i += 3;
-                continue;
-            }
+        if bytes[i] == b'%'
+            && i + 2 < bytes.len()
+            && let Ok(b) = u8::from_str_radix(&String::from_utf8_lossy(&bytes[i + 1..i + 3]), 16)
+        {
+            out.push(b);
+            i += 3;
+            continue;
         }
         out.push(bytes[i]);
         i += 1;
@@ -310,7 +379,11 @@ async fn serve_static(static_root: &str, poc: &Poc, rest: &str, request: Request
     let slug = &poc.slug;
     let dir = format!("{static_root}/{slug}");
     let index = ServeFile::new(format!("{dir}/index.html"));
-    let files = ServeDir::new(&dir).not_found_service(index);
+    // A path without an extension is a page of the PoC's own router (a deep
+    // link such as `/chronolexografie/<case>/<scenario>`), answered with its
+    // index and 200. A missing file keeps its 404, with the index as body as
+    // before.
+    let page = is_page_path(rest);
 
     // The PoC is built with `base: /<slug>/`, so its own asset URLs already
     // carry the prefix. Strip it here so the file lookup is relative to the
@@ -327,13 +400,29 @@ async fn serve_static(static_root: &str, poc: &Poc, rest: &str, request: Request
         .unwrap_or_else(|_| Uri::from_static("/"));
     let request = Request::from_parts(parts.0, parts.1);
 
-    let response = files
-        .oneshot(request)
-        .await
-        .map(|r| r.map(Body::new))
-        .unwrap_or_else(|e| match e {});
+    let files = ServeDir::new(&dir);
+    let response = if page {
+        files
+            .fallback(index)
+            .oneshot(request)
+            .await
+            .map(|r| r.map(Body::new))
+    } else {
+        files
+            .not_found_service(index)
+            .oneshot(request)
+            .await
+            .map(|r| r.map(Body::new))
+    }
+    .unwrap_or_else(|e| match e {});
 
     injecteer_strip(response, poc).await
+}
+
+/// Whether `path` names a page rather than a file: its last segment has no
+/// extension.
+fn is_page_path(path: &str) -> bool {
+    !path.rsplit('/').next().unwrap_or_default().contains('.')
 }
 
 /// Splice the portal's notice into an HTML response from a PoC.

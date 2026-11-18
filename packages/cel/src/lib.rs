@@ -10,16 +10,18 @@
 //! run, and appends one chronolexogram to the chronicle ([`chronicle`]).
 //!
 //! The decision on an application is a second chronolexogram ([`decision`],
-//! RFC-047). It refers to the application; where each value comes from
-//! follows from the law and that reference. The cell reads its chronicle
-//! back through its reductions ([`reading`], RFC-048): rulework of the kind
-//! `REDUCTIE` that it keeps itself, whose outputs answer the decision's
-//! inputs by name.
+//! RFC-046). It refers to the application; where each value comes from follows
+//! from the law and that reference. The cell reads its chronicle back through
+//! its reductions ([`reading`], RFC-048): rulework of the kind `REDUCTIE` the
+//! cell keeps in its directory (`reductions`), whose outputs it gives as named
+//! answers (`cel.yaml`, [`identity`]). The policy of the deciding authority
+//! binds an open term of the law to such an answer.
 //!
-//! A submission may refer to a decision (RFC-050): a field of type
+//! A submission may refer to a decision (RFC-045 §6): a field of type
 //! `decision` holds it, and the deciding article gets its decision value.
 //! A decision output of the deciding article is a decision taken in turn,
-//! which the cell records too ([`cell`]). A submission that refers to a
+//! which the cell keeps as part of the decision that took it: one act, one
+//! record ([`cell`]). A submission that refers to a
 //! decision, such as an objection, is decided like any other: the law says
 //! what it holds and how it is decided, and the cell knows no article that
 //! does this.
@@ -27,14 +29,18 @@
 pub mod cell;
 pub mod chronicle;
 pub mod decision;
-pub mod encoding;
 pub mod error;
+pub mod files;
+pub mod identity;
 pub mod reading;
 pub mod shape;
+pub mod versions;
 
-pub use cell::Cell;
-pub use chronicle::{Chronicle, Gram, GramMoment};
+pub use cell::{Cell, Reference};
+pub use chronicle::{Afschrift, Chronicle, EXECUTOGRAM, Gram, GramMoment, Received};
 pub use decision::{DecisionShape, Input, Source};
 pub use error::{Error, Result};
-pub use reading::Reduction;
+pub use files::{Bundle, Disk, Files};
+pub use reading::{Binding, Term};
 pub use shape::{Field, Moment, Shape};
+pub use versions::{LawChange, LawSince};

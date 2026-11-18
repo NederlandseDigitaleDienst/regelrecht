@@ -1,0 +1,102 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
+$id: voorbeeld_vergunning_inlogstap
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+# FICTIEF. Een testregeling voor de inlogstap (tests/bron-inlogstap): een
+# bedrijf vraagt een vergunning aan na het inloggen bij een erkende dienst, en
+# het loket verleent haar als die dienst bij een authenticatie op of vóór de
+# dag van ontvangst de machtiging voor deze dienst bevestigde (artikel 2).
+url: https://example.invalid/voorbeeld_vergunning_inlogstap
+name: Voorbeeldvergunning met inloggen (fictieve testbron)
+competent_authority:
+  name: Voorbeeldloket vergunningen
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF. Het loket verleent op aanvraag van een bedrijf een vergunning,
+      als een erkende dienst verklaarde dat wie de aanvraag indiende, namens
+      het bedrijf mag optreden voor deze dienst.
+    url: https://example.invalid/voorbeeld_vergunning_inlogstap#1
+    machine_readable:
+      open_terms:
+        - id: vertegenwoordiging_bevestigd
+          type: boolean
+          required: false
+          competent_authority:
+            - name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+              type: INSTANCE
+          description: >-
+            Of de erkende dienst op of vóór de dag van ontvangst verklaarde dat
+            wie inlogde, namens het bedrijf mag optreden voor deze dienst.
+          default:
+            actions:
+              - output: vertegenwoordiging_bevestigd
+                value: false
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: voorbeeld_vergunning_inlogstap#1
+            parameters:
+              - kvk_nummer
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - vergunning_verleend
+        parameters:
+          - name: kvk_nummer
+            type: string
+            description: Het nummer dat de Kamer van Koophandel het bedrijf toekende.
+          # De cel vult de dag van ontvangst met de dag waarop zij de aanvraag
+          # vastlegde (Awb 4:13), zoals bij de bedrijfsparkeervergunning.
+          - name: datum_ontvangst
+            type: date
+            description: De dag waarop het loket de aanvraag ontving.
+        output:
+          - name: vergunning_verleend
+            type: boolean
+            description: Of het loket de vergunning verleent.
+        actions:
+          - output: vergunning_verleend
+            value: $vertegenwoordiging_bevestigd
+  - number: '2'
+    text: >-
+      FICTIEF. Of de erkende dienst de machtiging bevestigde, ontleent het
+      loket aan het antwoord van de cel van die dienst. De dienst heeft in de
+      dienstencatalogus het nummer
+      urn:etoegang:DV:00000009999999997000:services:1.
+    url: https://example.invalid/voorbeeld_vergunning_inlogstap#2
+    machine_readable:
+      # Het nummer van de dienst is verzonnen, in de vorm van een ServiceID
+      # van eHerkenning; het OIN erin bestaat niet.
+      definitions:
+        dienst_voorbeeldvergunning:
+          value: urn:etoegang:DV:00000009999999997000:services:1
+      implements:
+        - law: voorbeeld_vergunning_inlogstap
+          article: '1'
+          open_term: vertegenwoordiging_bevestigd
+      execution:
+        parameters:
+          - name: kvk_nummer
+            type: string
+          - name: datum_ontvangst
+            type: date
+        input:
+          - name: antwoord_vertegenwoordiging
+            type: boolean
+            nullable: true
+            source:
+              reduction: vertegenwoordiging_bevestigd
+              parameters:
+                kvk_nummer: $kvk_nummer
+                dienst: $dienst_voorbeeldvergunning
+                peildatum: $datum_ontvangst
+        output:
+          - name: vertegenwoordiging_bevestigd
+            type: boolean
+            nullable: true
+        actions:
+          - output: vertegenwoordiging_bevestigd
+            value: $antwoord_vertegenwoordiging

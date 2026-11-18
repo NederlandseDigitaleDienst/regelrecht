@@ -1,24 +1,33 @@
-<script setup>
+<script setup lang="ts">
 // Presentational werkdocumenten list for the Home werkdocumenten sidebar: each
 // row is a button that selects the document in place (emits `select`). Creating
 // a new document is a toolbar action above the list, not a row here.
 // In-progress / failed conversion jobs (from an upload) render as rows too, until
 // the resulting .md lands in `documents`.
 import { computed } from 'vue';
+import type { DocumentEntry } from '../composables/useTrajectDocuments';
+import type { DocumentJob } from '../composables/useTrajectDocumentJobs';
 
-const props = defineProps({
-  documents: { type: Array, default: () => [] },
-  // Running / failed document-conversion jobs, shown as pending rows.
-  jobs: { type: Array, default: () => [] },
-  // Highlight the open document.
-  selectedPath: { type: String, default: null },
-});
-defineEmits(['select']);
+const props = withDefaults(
+  defineProps<{
+    documents?: DocumentEntry[];
+    // Running / failed document-conversion jobs, shown as pending rows.
+    jobs?: DocumentJob[];
+    // Highlight the open document.
+    selectedPath?: string | null;
+  }>(),
+  {
+    documents: () => [],
+    jobs: () => [],
+    selectedPath: null,
+  },
+);
+defineEmits<{ select: [path: string | null] }>();
 
-function title(path) {
+function title(path: string | null): string {
   return path ? path.replace(/\.md$/, '') : '';
 }
-function jobTitle(job) {
+function jobTitle(job: DocumentJob): string {
   return title(job.target_path || 'document');
 }
 
@@ -27,10 +36,14 @@ function jobTitle(job) {
 // Sorting jobs in place — rather than pinning them on top — keeps a converting
 // row from jumping to a new position the moment it finishes and turns into a
 // real document.
+type Row =
+  | { type: 'job'; key: string; job: DocumentJob; sortKey: string }
+  | { type: 'doc'; key: string; doc: DocumentEntry; sortKey: string };
+
 const rows = computed(() => {
-  const items = [
-    ...props.jobs.map((job) => ({ type: 'job', key: `job-${job.id}`, job, sortKey: jobTitle(job) })),
-    ...props.documents.map((doc) => ({ type: 'doc', key: doc.path, doc, sortKey: title(doc.path) })),
+  const items: Row[] = [
+    ...props.jobs.map((job): Row => ({ type: 'job', key: `job-${job.id}`, job, sortKey: jobTitle(job) })),
+    ...props.documents.map((doc): Row => ({ type: 'doc', key: doc.path, doc, sortKey: title(doc.path) })),
   ];
   return items.sort((a, b) => a.sortKey.localeCompare(b.sortKey, 'nl', { numeric: true }));
 });

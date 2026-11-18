@@ -20,16 +20,16 @@ import { reactive, ref, computed } from 'vue';
 import { b } from '../basePad.js';
 import * as yaml from 'js-yaml';
 import { patchDefinitionValue } from '../lib/yamlPatch.js';
-import { bewaarStand, leesStand } from '../composables/useBewaardeStand.js';
+import { writePersisted, readPersisted } from '../composables/useBewaardeStand.js';
 import {
-  browserVarianten,
+  browserVariants,
   browserVariantYaml,
-  bewaarVariant as bewaarBrowserVariant,
-  werkVariantBij as werkBrowserVariantBij,
-  verwijderVariant as verwijderBrowserVariant,
-  controleerDrift,
+  saveVariant as saveBrowserVariant,
+  updateVariant as updateBrowserVariant,
+  deleteVariant as deleteBrowserVariant,
+  checkDrift,
   isBrowserVariant,
-} from '@regelrecht/frontend-shared/browserVarianten.js';
+} from '@regelrecht/frontend-shared/browserVariants';
 
 // De wet die de simulatie daadwerkelijk raadpleegt; alleen die hoeft een
 // editor/diff te krijgen. De overige (WML, besluit, regelingen, werkinstructie)
@@ -53,7 +53,7 @@ const repoVariants = ref([]);
 // varianten met de zelf bewaarde erachteraan. Eén lijst, zodat geen enkele
 // aanroeper hoeft te weten waar een variant vandaan komt; alleen de tekst
 // komt bij een eigen variant uit de browser in plaats van uit een fetch.
-const variants = computed(() => [...repoVariants.value, ...browserVarianten()]);
+const variants = computed(() => [...repoVariants.value, ...browserVariants()]);
 
 let engineRef = null;
 
@@ -108,7 +108,7 @@ async function initStore(engine, lawIndex) {
 
   // Werkversie van de vorige keer terugzetten, maar alleen als die variant er
   // nog is: een branch kan intussen verwijderd of hernoemd zijn.
-  const bewaard = leesStand('werkversie', null);
+  const bewaard = readPersisted('werkversie', null);
   if (bewaard && variants.value.some((v) => v.id === bewaard)) {
     await setWerkversie(bewaard);
   }
@@ -343,7 +343,7 @@ async function setWerkversie(variantId = null) {
   // Onthouden waarop je bewerkt, zodat een ververs je niet terugzet op
   // huidig recht. De bewerkingen zelf bewaren we niet; die horen in een
   // variant-branch.
-  bewaarStand('werkversie', variantId ?? null);
+  writePersisted('werkversie', variantId ?? null);
   if (!variantId) {
     removeExtraDocs();
     for (const path of docPaths.value) {
@@ -395,7 +395,7 @@ function editedFilesForBrowserVariant() {
     const d = docs[path];
     const nieuw = extraPaths.has(path);
     if (!nieuw && d.currentYaml === d.baseYaml) continue;
-    out.push({ pad: path, yaml: d.currentYaml, origineel: nieuw ? null : d.baseYaml });
+    out.push({ path, yaml: d.currentYaml, original: nieuw ? null : d.baseYaml });
   }
   return out;
 }
@@ -412,17 +412,17 @@ function editedFilesForBrowserVariant() {
  */
 async function bewaarAlsBrowserVariant(titel) {
   const bestanden = editedFilesForBrowserVariant();
-  const variant = bewaarBrowserVariant({
-    titel,
-    bestanden,
-    basis: werkversie.value,
+  const variant = saveBrowserVariant({
+    title: titel,
+    files: bestanden,
+    base: werkversie.value,
     // Ook de ingecheckte id's, zodat een eigen variant er nooit een overschaduwt.
-    bestaandeIds: variants.value.map((v) => v.id),
+    takenIds: variants.value.map((v) => v.id),
   });
   try {
     await setWerkversie(variant.id);
   } catch (e) {
-    verwijderBrowserVariant(variant.id);
+    deleteBrowserVariant(variant.id);
     // De activering is halverwege gestrand, dus de engine draagt nu een
     // mengsel. Terug naar de basis, die altijd laadt.
     await setWerkversie(null).catch(() => {});
@@ -448,7 +448,7 @@ async function werkWerkversieBij() {
   if (!isBrowserVariant(id)) {
     throw new Error('Alleen een eigen variant is bij te werken.');
   }
-  const { variant, herstel } = werkBrowserVariantBij(id, { bestanden: editedFilesForBrowserVariant() });
+  const { variant, restore } = updateBrowserVariant(id, { files: editedFilesForBrowserVariant() });
   try {
     // Opnieuw activeren wist de losse bewerkingen: die zitten nu in de variant
     // zelf. Zonder dit zou "Terugzetten" ze daarna alsnog weggooien terwijl ze
@@ -459,7 +459,7 @@ async function werkWerkversieBij() {
     // valt hier niets weg te gooien: deze variant bestond al en de vorige
     // inhoud is net overschreven. Die gaat terug, en de werkversie laadt hem
     // opnieuw, zodat er geen variant achterblijft die nooit meer opent.
-    herstel();
+    restore();
     await setWerkversie(id).catch(async () => { await setWerkversie(null).catch(() => {}); });
     throw e;
   }
@@ -473,7 +473,7 @@ async function werkWerkversieBij() {
  */
 async function verwijderEigenVariant(id) {
   const wasWerkversie = werkversie.value === id;
-  const weg = verwijderBrowserVariant(id);
+  const weg = deleteBrowserVariant(id);
   if (weg && wasWerkversie) await setWerkversie(null);
   else if (weg) version.value++;
   return weg;
@@ -481,12 +481,12 @@ async function verwijderEigenVariant(id) {
 
 /**
  * Is het corpus gewijzigd sinds deze eigen variant is bewaard? Geeft
- * `{ afgedreven, paden, onbekend }`; voor een ingecheckte variant altijd
+ * `{ drifted, paths, unknown }`; voor een ingecheckte variant altijd
  * "niets aan de hand", want die beweegt met de repo mee.
  */
 function variantDrift(id) {
-  if (!isBrowserVariant(id)) return { afgedreven: false, paden: [], onbekend: false };
-  return controleerDrift(id, (pad) => docs[pad]?.baseYaml);
+  if (!isBrowserVariant(id)) return { drifted: false, paths: [], unknown: false };
+  return checkDrift(id, (pad) => docs[pad]?.baseYaml);
 }
 
 /**

@@ -158,7 +158,7 @@ watch(kvk, laad);
         <NBanner v-if="fout" variant="critical" text="Er ging iets mis" :supporting-text="fout" />
 
         <template v-if="partij">
-          <nldd-title size="2">
+          <nldd-title size="display-2">
             <span slot="overline">KvK-nummer {{ partij.kvk_nummer }}</span>
             <h2>{{ partij.naam }}</h2>
             <div slot="actions">
@@ -214,7 +214,7 @@ watch(kvk, laad);
 
           <nldd-spacer size="16"></nldd-spacer>
 
-          <nldd-title size="3"><h3>Verkiezingsuitslagen</h3></nldd-title>
+          <nldd-title size="display-3"><h3>Verkiezingsuitslagen</h3></nldd-title>
           <nldd-spacer size="4"></nldd-spacer>
           <nldd-rich-text>
             <p>
@@ -228,7 +228,7 @@ watch(kvk, laad);
 
           <template v-if="uitslagenPerOrgaan.length">
             <template v-for="groep in uitslagenPerOrgaan" :key="groep.orgaan">
-              <nldd-title size="4"><h4>{{ groep.label }}</h4></nldd-title>
+              <nldd-title size="display-4"><h4>{{ groep.label }}</h4></nldd-title>
               <nldd-spacer size="8"></nldd-spacer>
               <nldd-table
                 columns="minmax(200px,1fr) 130px 140px 100px"
@@ -282,7 +282,7 @@ watch(kvk, laad);
         @close="bewerkOpen = false"
       >
         <nldd-container padding="24" gap="16">
-          <nldd-title size="3">
+          <nldd-title size="display-3">
             <span slot="overline">KvK-nummer {{ kvk }}</span>
             <h3>Koppeling bewerken</h3>
           </nldd-title>

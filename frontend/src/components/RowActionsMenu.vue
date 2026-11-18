@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * Compact row-actions control: a single "more" icon-button that opens a
  * menu with Edit + Delete. Replaces the inline "Bewerk" button + "—"
@@ -10,14 +10,21 @@
  * delete-confirmation flow. The test-id props are forwarded onto the
  * matching menu-items so existing data-testid selectors keep working.
  */
-defineProps({
+withDefaults(defineProps<{
   // Accessible label / tooltip for the trigger (e.g. "Acties voor input bsn").
-  accessibleLabel: { type: String, default: 'Acties' },
-  editTestid: { type: String, default: undefined },
-  deleteTestid: { type: String, default: undefined },
+  accessibleLabel?: string;
+  editTestid?: string;
+  deleteTestid?: string;
+}>(), {
+  accessibleLabel: 'Acties',
+  editTestid: undefined,
+  deleteTestid: undefined,
 });
 
-defineEmits(['edit', 'delete']);
+defineEmits<{
+  edit: [];
+  delete: [];
+}>();
 </script>
 
 <template>

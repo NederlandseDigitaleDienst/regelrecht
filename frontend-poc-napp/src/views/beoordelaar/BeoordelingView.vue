@@ -219,7 +219,7 @@ onMounted(laad);
         ></nldd-button>
         <nldd-spacer size="16"></nldd-spacer>
 
-        <nldd-title size="2">
+        <nldd-title size="display-2">
           <span slot="overline">Jaaraanvraag {{ item.aanvraag.subsidiejaar }} · KVK {{ item.aanvraag.kvk_nummer }}</span>
           <h2>{{ item.aanvraag.partij_naam }}</h2>
         </nldd-title>
@@ -227,9 +227,9 @@ onMounted(laad);
 
         <nldd-one-half-one-half-section padding-block="0">
           <div slot="left">
-            <nldd-title size="4"><h3>Eigen opgaven</h3></nldd-title>
+            <nldd-title size="display-4"><h3>Eigen opgaven</h3></nldd-title>
             <nldd-spacer size="12"></nldd-spacer>
-            <nldd-list appearance="box">
+            <nldd-list appearance="box-tinted">
               <nldd-list-item size="sm">
                 <nldd-text-cell text="Onderdelen in deze aanvraag" color="secondary"></nldd-text-cell>
                 <nldd-text-cell :text="String(item.aanvraag.componenten.length)" horizontal-alignment="right"></nldd-text-cell>
@@ -249,9 +249,9 @@ onMounted(laad);
             </nldd-list>
             <nldd-spacer size="24"></nldd-spacer>
 
-            <nldd-title size="4"><h3>Transparantieverklaringen (art. 5)</h3></nldd-title>
+            <nldd-title size="display-4"><h3>Transparantieverklaringen (art. 5)</h3></nldd-title>
             <nldd-spacer size="12"></nldd-spacer>
-            <nldd-list appearance="box">
+            <nldd-list appearance="box-tinted">
               <nldd-list-item v-for="v in verklaringen" :key="v.label" size="sm">
                 <nldd-icon-cell
                   :icon="v.ok ? 'check-mark-circle' : 'dismiss-circle'"
@@ -265,7 +265,7 @@ onMounted(laad);
 
             <template v-if="item.besluit">
               <nldd-spacer size="24"></nldd-spacer>
-              <nldd-title size="4"><h3>Verloop</h3></nldd-title>
+              <nldd-title size="display-4"><h3>Verloop</h3></nldd-title>
               <nldd-spacer size="12"></nldd-spacer>
               <LifecycleTimeline :aanvraag="item.aanvraag" :besluit="item.besluit" :bezwaar="item.bezwaar" />
               <nldd-spacer size="16"></nldd-spacer>
@@ -288,7 +288,7 @@ onMounted(laad);
 
             <template v-if="item.betaalopdracht">
               <nldd-spacer size="24"></nldd-spacer>
-              <nldd-title size="4">
+              <nldd-title size="display-4">
                 <h3>Voorschot (art. 16/17 Wpp)</h3>
                 <div slot="actions">
                   <nldd-tag
@@ -298,7 +298,7 @@ onMounted(laad);
                 </div>
               </nldd-title>
               <nldd-spacer size="12"></nldd-spacer>
-              <nldd-list appearance="box">
+              <nldd-list appearance="box-tinted">
                 <nldd-list-item size="sm">
                   <nldd-text-cell text="Bedrag (80% van rechtswege)" color="secondary"></nldd-text-cell>
                   <nldd-text-cell :text="euro(item.betaalopdracht.bedrag)" horizontal-alignment="right"></nldd-text-cell>
@@ -336,7 +336,7 @@ onMounted(laad);
 
             <template v-if="item.bezwaar">
               <nldd-spacer size="24"></nldd-spacer>
-              <nldd-title size="4">
+              <nldd-title size="display-4">
                 <h3>Bezwaar (Awb hoofdstuk 6/7)</h3>
                 <div slot="actions">
                   <nldd-tag
@@ -346,7 +346,7 @@ onMounted(laad);
                 </div>
               </nldd-title>
               <nldd-spacer size="12"></nldd-spacer>
-              <nldd-list appearance="box">
+              <nldd-list appearance="box-tinted">
                 <nldd-list-item size="sm">
                   <nldd-text-cell text="Indiener" color="secondary"></nldd-text-cell>
                   <nldd-text-cell :text="item.bezwaar.naam_indiener" horizontal-alignment="right"></nldd-text-cell>
@@ -405,7 +405,7 @@ onMounted(laad);
                   </nldd-form-field>
                   <nldd-spacer size="8"></nldd-spacer>
                   <nldd-button
-                    appearance="neutral"
+                    appearance="neutral-tinted"
                     text="Afzien van horen"
                     :disabled="bezig || undefined"
                     @click="registreerHoren(false)"
@@ -457,7 +457,7 @@ onMounted(laad);
           </div>
 
           <div slot="right">
-            <nldd-title size="4">
+            <nldd-title size="display-4">
               <h3>{{ item.besluit ? 'Besluit' : 'Uitkomst volgens de wet' }}</h3>
             </nldd-title>
             <nldd-spacer size="12"></nldd-spacer>
@@ -472,7 +472,7 @@ onMounted(laad);
               />
               <nldd-spacer size="16"></nldd-spacer>
 
-              <nldd-list appearance="box">
+              <nldd-list appearance="box-tinted">
                 <nldd-list-item v-for="g in samenvattingPerGroep" :key="g.naam" size="sm">
                   <nldd-text-cell
                     :text="g.naam"
@@ -502,7 +502,7 @@ onMounted(laad);
               ></nldd-button>
 
               <nldd-spacer size="24"></nldd-spacer>
-              <nldd-title size="5"><h4>Specificatie per onderdeel</h4></nldd-title>
+              <nldd-title size="display-5"><h4>Specificatie per onderdeel</h4></nldd-title>
               <nldd-spacer size="8"></nldd-spacer>
               <nldd-table
                 columns="minmax(180px,1fr) 70px 110px 130px"
@@ -532,9 +532,9 @@ onMounted(laad);
 
               <template v-if="landelijkeDelen">
                 <nldd-spacer size="16"></nldd-spacer>
-                <nldd-title size="5"><h4>Landelijke subsidie in delen (art. 14)</h4></nldd-title>
+                <nldd-title size="display-5"><h4>Landelijke subsidie in delen (art. 14)</h4></nldd-title>
                 <nldd-spacer size="8"></nldd-spacer>
-                <nldd-list appearance="box">
+                <nldd-list appearance="box-tinted">
                   <nldd-list-item v-for="d in landelijkeDelen" :key="d.label" size="sm">
                     <nldd-text-cell :text="d.label" color="secondary"></nldd-text-cell>
                     <nldd-text-cell :text="euro(d.bedrag)" horizontal-alignment="right"></nldd-text-cell>

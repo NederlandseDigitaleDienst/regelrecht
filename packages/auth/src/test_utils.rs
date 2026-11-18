@@ -6,11 +6,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+use axum::Router;
 use axum::body::Body;
 use axum::extract::Query;
 use axum::http::StatusCode;
 use axum::routing::get;
-use axum::Router;
 use tower::ServiceExt;
 use tower_sessions::Session;
 

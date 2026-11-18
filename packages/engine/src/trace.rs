@@ -29,6 +29,7 @@
 //! let trace = builder.build();
 //! ```
 
+use crate::answer::AnswerProvenance;
 use crate::types::{PathNodeType, ResolveType, TypeSpec, Value};
 use regelrecht_law_model::{Article, ArticleBasedLaw, ProvisionReference};
 use serde::{Deserialize, Serialize};
@@ -166,6 +167,12 @@ pub struct PathNode {
     /// show an amount as euros instead of a bare count of cents.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub type_spec: Option<ValueTypeSpec>,
+
+    /// On the node of a named answer a binding took (`source.reduction`,
+    /// RFC-048): who answered and from what. How the answer came about is
+    /// not in this trace; the answerer explains it on request.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub answer: Option<AnswerProvenance>,
 }
 
 /// Unit and precision of a value that has been computed (RFC-039).
@@ -354,6 +361,7 @@ impl PathNode {
             uri: None,
             source: None,
             type_spec: None,
+            answer: None,
         }
     }
 
@@ -514,11 +522,11 @@ impl PathNode {
         }
 
         // Add duration if present (and significant)
-        if let Some(duration) = self.duration_us {
-            if duration >= 100 {
-                // Only show if >= 0.1ms
-                line.push_str(&format!(" ({}μs)", duration));
-            }
+        if let Some(duration) = self.duration_us
+            && duration >= 100
+        {
+            // Only show if >= 0.1ms
+            line.push_str(&format!(" ({duration}μs)"));
         }
 
         lines.push(line);
@@ -915,14 +923,14 @@ fn missing_names(missing: &[crate::types::MissingFact]) -> String {
 /// order they were asked, rather than the object as a dict.
 fn format_outputs(output_names: &str, result: &Value) -> String {
     let names: Vec<&str> = output_names.split(", ").collect();
-    if let (true, Value::Object(obj)) = (names.len() > 1, result) {
-        if names.iter().all(|name| obj.contains_key(*name)) {
-            return names
-                .iter()
-                .map(|name| format!("{} = {}", name, format_value_display(&obj[*name])))
-                .collect::<Vec<_>>()
-                .join(", ");
-        }
+    if let (true, Value::Object(obj)) = (names.len() > 1, result)
+        && names.iter().all(|name| obj.contains_key(*name))
+    {
+        return names
+            .iter()
+            .map(|name| format!("{} = {}", name, format_value_display(&obj[*name])))
+            .collect::<Vec<_>>()
+            .join(", ");
     }
     format!("{} = {}", output_names, format_value_display(result))
 }
@@ -1019,6 +1027,16 @@ fn format_node_id(path: &[usize]) -> String {
     id
 }
 
+/// Give `node` and every node under it the `node_id` of its place, `path`.
+fn renumber(node: &mut PathNode, path: &mut Vec<usize>) {
+    node.node_id = Some(format_node_id(path));
+    for (index, child) in node.children.iter_mut().enumerate() {
+        path.push(index);
+        renumber(child, path);
+        path.pop();
+    }
+}
+
 /// Builder for constructing execution traces using a stack-based approach.
 ///
 /// The builder maintains a stack of nodes being constructed. As execution
@@ -1044,11 +1062,16 @@ impl Default for TraceBuilder {
 
 impl TraceBuilder {
     /// Create a new TraceBuilder with tracing enabled and timing.
+    ///
+    /// Under WebAssembly it times nothing, as [`TraceBuilder::new_untimed`]:
+    /// `Instant::now()` panics on `wasm32-unknown-unknown`, which has no
+    /// clock, so a traced evaluation there would abort. `duration_us` is
+    /// absent under WebAssembly either way (RFC-039).
     pub fn new() -> Self {
         Self {
             stack: Vec::new(),
             enabled: true,
-            timed: true,
+            timed: !cfg!(target_arch = "wasm32"),
         }
     }
 
@@ -1202,6 +1225,18 @@ impl TraceBuilder {
         }
     }
 
+    /// Set who answered the open term of the current node, and from what
+    /// (RFC-048).
+    pub fn set_answer(&mut self, answer: AnswerProvenance) {
+        if !self.enabled {
+            return;
+        }
+
+        if let Some(current) = self.stack.last_mut() {
+            current.node.answer = Some(answer);
+        }
+    }
+
     /// Set where the current node's value came from (RFC-039).
     pub fn set_source(&mut self, source: ValueSource) {
         if !self.enabled {
@@ -1241,6 +1276,23 @@ impl TraceBuilder {
             return None;
         }
         self.stack.last().and_then(|s| s.node.node_id.as_deref())
+    }
+
+    /// Make `node`, a trace built in another execution, a child of the
+    /// current node, such as how a cell came to the answer the engine asked
+    /// it for (RFC-048). Its `node_id`s are given anew from its place here,
+    /// so every id stays unique in the tree. No-op without a current node.
+    pub fn adopt(&mut self, mut node: PathNode) {
+        if !self.enabled {
+            return;
+        }
+        let Some(parent) = self.stack.last_mut() else {
+            return;
+        };
+        let mut path = parent.path.clone();
+        path.push(parent.node.children.len());
+        renumber(&mut node, &mut path);
+        parent.node.children.push(node);
     }
 
     /// Pop the current node from the stack, making it a child of the parent.
@@ -2422,5 +2474,34 @@ articles:
             requirement_verdict(Value::Array(vec![])).ends_with("Requirement NOT met"),
             "an empty array is falsy"
         );
+    }
+
+    #[test]
+    fn an_adopted_trace_hangs_under_the_current_node_with_ids_of_its_place() {
+        let built = PathNode::new(PathNodeType::Article, "elders")
+            .with_node_id("n")
+            .with_child(PathNode::new(PathNodeType::Operation, "PROJECTION").with_node_id("n0"));
+        let mut tb = TraceBuilder::new_untimed();
+        tb.push("root", PathNodeType::Article);
+        tb.push("eerste", PathNodeType::Resolve);
+        tb.pop();
+        tb.push("antwoord", PathNodeType::Resolve);
+        tb.adopt(built.clone());
+        tb.pop();
+        let root = tb.build().expect("a root");
+        let answer = &root.children[1];
+        assert_eq!(answer.node_id.as_deref(), Some("n1"));
+        let adopted = &answer.children[0];
+        assert_eq!(adopted.name, "elders");
+        assert_eq!(adopted.node_id.as_deref(), Some("n1.0"));
+        assert_eq!(adopted.children[0].node_id.as_deref(), Some("n1.0.0"));
+
+        // A disabled builder, or one without a current node, adopts nothing.
+        let mut off = TraceBuilder::disabled();
+        off.adopt(built.clone());
+        assert!(off.build().is_none());
+        let mut empty = TraceBuilder::new_untimed();
+        empty.adopt(built);
+        assert!(empty.build().is_none());
     }
 }

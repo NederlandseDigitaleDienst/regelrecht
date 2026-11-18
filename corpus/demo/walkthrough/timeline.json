@@ -305,7 +305,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -313,7 +313,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -368,13 +368,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-11",
-         "bezwaartermijn_startdatum": "2026-10-01"
+         "termijn_einddatum": "2026-11-11",
+         "termijn_startdatum": "2026-10-01"
         },
         "parameters": {
          "aanvraag_datum": "2026-09-30",
@@ -398,7 +398,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -572,7 +572,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -580,7 +580,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -635,13 +635,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-11",
-         "bezwaartermijn_startdatum": "2026-10-01"
+         "termijn_einddatum": "2026-11-11",
+         "termijn_startdatum": "2026-10-01"
         },
         "parameters": {
          "aanvraag_datum": "2026-09-30",
@@ -665,7 +665,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -839,7 +839,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -847,7 +847,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -902,13 +902,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-11",
-         "bezwaartermijn_startdatum": "2026-10-01"
+         "termijn_einddatum": "2026-11-11",
+         "termijn_startdatum": "2026-10-01"
         },
         "parameters": {
          "aanvraag_datum": "2026-09-30",
@@ -932,7 +932,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -1106,7 +1106,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -1114,7 +1114,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -1169,13 +1169,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-11",
-         "bezwaartermijn_startdatum": "2026-10-01"
+         "termijn_einddatum": "2026-11-11",
+         "termijn_startdatum": "2026-10-01"
         },
         "parameters": {
          "aanvraag_datum": "2026-09-30",
@@ -1199,7 +1199,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -1372,7 +1372,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -1380,7 +1380,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -1435,13 +1435,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-11",
-         "bezwaartermijn_startdatum": "2026-10-01"
+         "termijn_einddatum": "2026-11-11",
+         "termijn_startdatum": "2026-10-01"
         },
         "parameters": {
          "aanvraag_datum": "2026-09-30",
@@ -1465,7 +1465,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -1643,7 +1643,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -1651,7 +1651,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -1706,13 +1706,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-11",
-         "bezwaartermijn_startdatum": "2026-10-01"
+         "termijn_einddatum": "2026-11-11",
+         "termijn_startdatum": "2026-10-01"
         },
         "parameters": {
          "aanvraag_datum": "2026-09-30",
@@ -1736,7 +1736,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -1916,7 +1916,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -1924,7 +1924,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -1979,13 +1979,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-11",
-         "bezwaartermijn_startdatum": "2026-10-01"
+         "termijn_einddatum": "2026-11-11",
+         "termijn_startdatum": "2026-10-01"
         },
         "parameters": {
          "aanvraag_datum": "2026-09-30",
@@ -2009,7 +2009,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -2189,7 +2189,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -2197,7 +2197,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -2252,13 +2252,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-11",
-         "bezwaartermijn_startdatum": "2026-10-01"
+         "termijn_einddatum": "2026-11-11",
+         "termijn_startdatum": "2026-10-01"
         },
         "parameters": {
          "aanvraag_datum": "2026-09-30",
@@ -2282,7 +2282,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -2459,7 +2459,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -2467,7 +2467,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -2522,13 +2522,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-11",
-         "bezwaartermijn_startdatum": "2026-10-01"
+         "termijn_einddatum": "2026-11-11",
+         "termijn_startdatum": "2026-10-01"
         },
         "parameters": {
          "aanvraag_datum": "2026-09-30",
@@ -2552,7 +2552,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -2730,7 +2730,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -2738,7 +2738,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -2793,13 +2793,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-11",
-         "bezwaartermijn_startdatum": "2026-10-01"
+         "termijn_einddatum": "2026-11-11",
+         "termijn_startdatum": "2026-10-01"
         },
         "parameters": {
          "aanvraag_datum": "2026-09-30",
@@ -2823,7 +2823,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -3005,7 +3005,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 165412,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -3051,13 +3051,13 @@
         "contextual_law": "zorgtoeslagwet",
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "hoogte_toeslag": 165412,
          "is_verzekerde_zorgtoeslag": true,
          "motivering_vereist": true,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-22",
-         "bezwaartermijn_startdatum": "2026-10-12"
+         "termijn_einddatum": "2026-11-22",
+         "termijn_startdatum": "2026-10-12"
         },
         "parameters": {
          "aanvraag_datum": "2026-10-11",
@@ -3118,7 +3118,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -3182,7 +3182,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -3364,7 +3364,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -3428,7 +3428,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -3610,7 +3610,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -3618,7 +3618,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -3673,13 +3673,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-22",
-         "bezwaartermijn_startdatum": "2026-10-12"
+         "termijn_einddatum": "2026-11-22",
+         "termijn_startdatum": "2026-10-12"
         },
         "parameters": {
          "aanvraag_datum": "2026-10-11",
@@ -3704,7 +3704,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -3888,7 +3888,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -3896,7 +3896,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -3951,13 +3951,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-22",
-         "bezwaartermijn_startdatum": "2026-10-12"
+         "termijn_einddatum": "2026-11-22",
+         "termijn_startdatum": "2026-10-12"
         },
         "parameters": {
          "aanvraag_datum": "2026-10-11",
@@ -3982,7 +3982,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -4152,7 +4152,7 @@
        },
        "claimedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -4160,7 +4160,7 @@
        },
        "verifiedResult": {
         "basishuur": 23801,
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "is_gerechtigd": true,
         "motivering_vereist": true,
         "subsidiebedrag": 40695,
@@ -4215,13 +4215,13 @@
         "current_stage": "BEZWAAR",
         "accumulated_outputs": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
          "voldoet_aan_voorwaarden": true,
-         "bezwaartermijn_einddatum": "2026-11-11",
-         "bezwaartermijn_startdatum": "2026-10-01"
+         "termijn_einddatum": "2026-11-11",
+         "termijn_startdatum": "2026-10-01"
         },
         "parameters": {
          "aanvraag_datum": "2026-09-30",
@@ -4245,7 +4245,7 @@
         "bsn": "999100001"
        },
        "claimedResult": {
-        "bezwaartermijn_weken": 6,
+        "termijn_weken": 6,
         "hoogte_toeslag": 212812,
         "is_verzekerde_zorgtoeslag": true,
         "motivering_vereist": true,
@@ -8042,7 +8042,7 @@
     "max": 4894,
     "anchor": {
      "tag": "div",
-     "text": "║ ║ │ │ └──Result: bezwaartermijn_weken = 6",
+     "text": "║ ║ │ │ └──Result: termijn_weken = 6",
      "index": 0,
      "at": 0.493
     },
@@ -12583,7 +12583,11 @@
       "nth": 0
      }
     ],
-    "value": "I"
+    "value": "I",
+    "values": {
+     "en": "I",
+     "fr": "J"
+    }
    },
    {
     "t": 912.428,
@@ -12604,7 +12608,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik"
+    "value": "Ik",
+    "values": {
+     "en": "I ",
+     "fr": "Je"
+    }
    },
    {
     "t": 912.572,
@@ -12625,7 +12633,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik "
+    "value": "Ik ",
+    "values": {
+     "en": "I ",
+     "fr": "Je"
+    }
    },
    {
     "t": 912.708,
@@ -12646,7 +12658,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik h"
+    "value": "Ik h",
+    "values": {
+     "en": "I n",
+     "fr": "Je "
+    }
    },
    {
     "t": 912.843,
@@ -12667,7 +12683,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik he"
+    "value": "Ik he",
+    "values": {
+     "en": "I no",
+     "fr": "Je n"
+    }
    },
    {
     "t": 912.895,
@@ -12688,7 +12708,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb"
+    "value": "Ik heb",
+    "values": {
+     "en": "I no ",
+     "fr": "Je n'"
+    }
    },
    {
     "t": 913.071,
@@ -12709,7 +12733,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb "
+    "value": "Ik heb ",
+    "values": {
+     "en": "I no l",
+     "fr": "Je n'a"
+    }
    },
    {
     "t": 913.244,
@@ -12730,7 +12758,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb m"
+    "value": "Ik heb m",
+    "values": {
+     "en": "I no lo",
+     "fr": "Je n'ai"
+    }
    },
    {
     "t": 913.344,
@@ -12751,7 +12783,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mi"
+    "value": "Ik heb mi",
+    "values": {
+     "en": "I no lo",
+     "fr": "Je n'ai"
+    }
    },
    {
     "t": 913.492,
@@ -12772,7 +12808,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mij"
+    "value": "Ik heb mij",
+    "values": {
+     "en": "I no lon",
+     "fr": "Je n'ai "
+    }
    },
    {
     "t": 913.707,
@@ -12793,7 +12833,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn"
+    "value": "Ik heb mijn",
+    "values": {
+     "en": "I no long",
+     "fr": "Je n'ai p"
+    }
    },
    {
     "t": 913.885,
@@ -12814,7 +12858,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn "
+    "value": "Ik heb mijn ",
+    "values": {
+     "en": "I no longe",
+     "fr": "Je n'ai pl"
+    }
    },
    {
     "t": 914.026,
@@ -12835,7 +12883,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn o"
+    "value": "Ik heb mijn o",
+    "values": {
+     "en": "I no longer",
+     "fr": "Je n'ai plu"
+    }
    },
    {
     "t": 914.174,
@@ -12856,7 +12908,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn on"
+    "value": "Ik heb mijn on",
+    "values": {
+     "en": "I no longer",
+     "fr": "Je n'ai plu"
+    }
    },
    {
     "t": 914.224,
@@ -12877,7 +12933,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn ond"
+    "value": "Ik heb mijn ond",
+    "values": {
+     "en": "I no longer ",
+     "fr": "Je n'ai plus"
+    }
    },
    {
     "t": 914.342,
@@ -12898,7 +12958,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onde"
+    "value": "Ik heb mijn onde",
+    "values": {
+     "en": "I no longer r",
+     "fr": "Je n'ai plus "
+    }
    },
    {
     "t": 914.418,
@@ -12919,7 +12983,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onder"
+    "value": "Ik heb mijn onder",
+    "values": {
+     "en": "I no longer ru",
+     "fr": "Je n'ai plus m"
+    }
    },
    {
     "t": 914.517,
@@ -12940,7 +13008,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn ondern"
+    "value": "Ik heb mijn ondern",
+    "values": {
+     "en": "I no longer run",
+     "fr": "Je n'ai plus mo"
+    }
    },
    {
     "t": 914.615,
@@ -12961,7 +13033,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onderne"
+    "value": "Ik heb mijn onderne",
+    "values": {
+     "en": "I no longer run ",
+     "fr": "Je n'ai plus mon"
+    }
    },
    {
     "t": 914.749,
@@ -12982,7 +13058,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn ondernem"
+    "value": "Ik heb mijn ondernem",
+    "values": {
+     "en": "I no longer run ",
+     "fr": "Je n'ai plus mon"
+    }
    },
    {
     "t": 914.951,
@@ -13003,7 +13083,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn ondernemi"
+    "value": "Ik heb mijn ondernemi",
+    "values": {
+     "en": "I no longer run m",
+     "fr": "Je n'ai plus mon "
+    }
    },
    {
     "t": 915.078,
@@ -13024,7 +13108,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn ondernemin"
+    "value": "Ik heb mijn ondernemin",
+    "values": {
+     "en": "I no longer run my",
+     "fr": "Je n'ai plus mon e"
+    }
    },
    {
     "t": 915.19,
@@ -13045,7 +13133,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onderneming"
+    "value": "Ik heb mijn onderneming",
+    "values": {
+     "en": "I no longer run my ",
+     "fr": "Je n'ai plus mon en"
+    }
    },
    {
     "t": 915.274,
@@ -13066,7 +13158,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onderneming "
+    "value": "Ik heb mijn onderneming ",
+    "values": {
+     "en": "I no longer run my b",
+     "fr": "Je n'ai plus mon ent"
+    }
    },
    {
     "t": 915.419,
@@ -13087,7 +13183,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onderneming n"
+    "value": "Ik heb mijn onderneming n",
+    "values": {
+     "en": "I no longer run my b",
+     "fr": "Je n'ai plus mon ent"
+    }
    },
    {
     "t": 915.451,
@@ -13108,7 +13208,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onderneming ni"
+    "value": "Ik heb mijn onderneming ni",
+    "values": {
+     "en": "I no longer run my bu",
+     "fr": "Je n'ai plus mon entr"
+    }
    },
    {
     "t": 915.502,
@@ -13129,7 +13233,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onderneming nie"
+    "value": "Ik heb mijn onderneming nie",
+    "values": {
+     "en": "I no longer run my bus",
+     "fr": "Je n'ai plus mon entre"
+    }
    },
    {
     "t": 915.546,
@@ -13150,7 +13258,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onderneming niet"
+    "value": "Ik heb mijn onderneming niet",
+    "values": {
+     "en": "I no longer run my busi",
+     "fr": "Je n'ai plus mon entrep"
+    }
    },
    {
     "t": 915.651,
@@ -13171,7 +13283,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onderneming niet "
+    "value": "Ik heb mijn onderneming niet ",
+    "values": {
+     "en": "I no longer run my busin",
+     "fr": "Je n'ai plus mon entrepr"
+    }
    },
    {
     "t": 915.815,
@@ -13192,7 +13308,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onderneming niet m"
+    "value": "Ik heb mijn onderneming niet m",
+    "values": {
+     "en": "I no longer run my busine",
+     "fr": "Je n'ai plus mon entrepri"
+    }
    },
    {
     "t": 915.924,
@@ -13213,7 +13333,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onderneming niet me"
+    "value": "Ik heb mijn onderneming niet me",
+    "values": {
+     "en": "I no longer run my busine",
+     "fr": "Je n'ai plus mon entrepri"
+    }
    },
    {
     "t": 916.091,
@@ -13234,7 +13358,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onderneming niet mee"
+    "value": "Ik heb mijn onderneming niet mee",
+    "values": {
+     "en": "I no longer run my busines",
+     "fr": "Je n'ai plus mon entrepris"
+    }
    },
    {
     "t": 916.14,
@@ -13255,7 +13383,11 @@
       "nth": 0
      }
     ],
-    "value": "Ik heb mijn onderneming niet meer"
+    "value": "Ik heb mijn onderneming niet meer",
+    "values": {
+     "en": "I no longer run my business",
+     "fr": "Je n'ai plus mon entreprise"
+    }
    },
    {
     "t": 919.387,
@@ -13952,7 +14084,11 @@
       "nth": 0
      }
     ],
-    "value": "D"
+    "value": "D",
+    "values": {
+     "en": "T",
+     "fr": "C"
+    }
    },
    {
     "t": 1093.365,
@@ -13973,7 +14109,11 @@
       "nth": 0
      }
     ],
-    "value": "Di"
+    "value": "Di",
+    "values": {
+     "en": "Thi",
+     "fr": "Ce "
+    }
    },
    {
     "t": 1093.519,
@@ -13994,7 +14134,11 @@
       "nth": 0
      }
     ],
-    "value": "Dit"
+    "value": "Dit",
+    "values": {
+     "en": "This",
+     "fr": "Ce n"
+    }
    },
    {
     "t": 1093.686,
@@ -14015,7 +14159,11 @@
       "nth": 0
      }
     ],
-    "value": "Dit "
+    "value": "Dit ",
+    "values": {
+     "en": "This ",
+     "fr": "Ce n'e"
+    }
    },
    {
     "t": 1096.983,
@@ -14036,7 +14184,11 @@
       "nth": 0
      }
     ],
-    "value": "Dit k"
+    "value": "Dit k",
+    "values": {
+     "en": "This is",
+     "fr": "Ce n'es"
+    }
    },
    {
     "t": 1097.175,
@@ -14057,7 +14209,11 @@
       "nth": 0
      }
     ],
-    "value": "Dit kl"
+    "value": "Dit kl",
+    "values": {
+     "en": "This is ",
+     "fr": "Ce n'est "
+    }
    },
    {
     "t": 1097.407,
@@ -14078,7 +14234,11 @@
       "nth": 0
      }
     ],
-    "value": "Dit klo"
+    "value": "Dit klo",
+    "values": {
+     "en": "This is no",
+     "fr": "Ce n'est p"
+    }
    },
    {
     "t": 1097.47,
@@ -14099,7 +14259,11 @@
       "nth": 0
      }
     ],
-    "value": "Dit klop"
+    "value": "Dit klop",
+    "values": {
+     "en": "This is not",
+     "fr": "Ce n'est pa"
+    }
    },
    {
     "t": 1097.569,
@@ -14120,7 +14284,11 @@
       "nth": 0
      }
     ],
-    "value": "Dit klopt"
+    "value": "Dit klopt",
+    "values": {
+     "en": "This is not ",
+     "fr": "Ce n'est pas "
+    }
    },
    {
     "t": 1097.944,
@@ -14141,7 +14309,11 @@
       "nth": 0
      }
     ],
-    "value": "Dit klopt "
+    "value": "Dit klopt ",
+    "values": {
+     "en": "This is not co",
+     "fr": "Ce n'est pas c"
+    }
    },
    {
     "t": 1100.271,
@@ -14162,7 +14334,11 @@
       "nth": 0
      }
     ],
-    "value": "Dit klopt n"
+    "value": "Dit klopt n",
+    "values": {
+     "en": "This is not cor",
+     "fr": "Ce n'est pas cor"
+    }
    },
    {
     "t": 1100.346,
@@ -14183,7 +14359,11 @@
       "nth": 0
      }
     ],
-    "value": "Dit klopt ni"
+    "value": "Dit klopt ni",
+    "values": {
+     "en": "This is not corr",
+     "fr": "Ce n'est pas corr"
+    }
    },
    {
     "t": 1100.386,
@@ -14204,7 +14384,11 @@
       "nth": 0
      }
     ],
-    "value": "Dit klopt nie"
+    "value": "Dit klopt nie",
+    "values": {
+     "en": "This is not correc",
+     "fr": "Ce n'est pas correc"
+    }
    },
    {
     "t": 1100.469,
@@ -14225,7 +14409,11 @@
       "nth": 0
      }
     ],
-    "value": "Dit klopt niet"
+    "value": "Dit klopt niet",
+    "values": {
+     "en": "This is not correct",
+     "fr": "Ce n'est pas correct"
+    }
    },
    {
     "t": 1101.378,
@@ -16220,7 +16408,9 @@
    }
   ],
   "captions": {
-   "nl": "main-439993bb3640.nl.vtt"
+   "nl": "main-439993bb3640.nl.vtt",
+   "en": "main-0001f51386f0.en.vtt",
+   "fr": "main-f251ddb929b3.fr.vtt"
   },
   "pieces": [
    {
@@ -16445,7 +16635,531 @@
     "to": 1290.2,
     "at": 1219.766
    }
-  ]
+  ],
+  "i18n": {
+   "en": {
+    "slides": [
+     {
+      "kind": "title",
+      "title": "RegelRecht",
+      "subtitle": "from law to digital effect",
+      "footer": "Netherlands Digital Service"
+     },
+     {
+      "kind": "statement",
+      "overline": "Today",
+      "lines": [
+       "Every implementing organisation",
+       "has its **own reading** of the law",
+       "that has spent decades landing in **its own software**"
+      ]
+     },
+     {
+      "kind": "statement",
+      "overline": "The result",
+      "lines": [
+       "No overview",
+       "Unpredictable",
+       "Unmanageable"
+      ]
+     },
+     {
+      "kind": "statement",
+      "overline": "What if",
+      "lines": [
+       "We **start with the law**",
+       "Make it **machine-executable**",
+       "Publish it **openly**"
+      ]
+     },
+     {
+      "kind": "section",
+      "title": "RegelRecht demo",
+      "lines": [
+       "A complete story, not a finished product",
+       "We make policy by doing"
+      ]
+     },
+     {
+      "kind": "demo",
+      "overline": "The rulework",
+      "title": "The law as a rulework",
+      "lead": "Per article the statutory text, and below it how it works.",
+      "bullets": [
+       "**Parameter**: for whom, a BSN.",
+       "**Actions**: the conditions and the calculation.",
+       "**Input** from other laws: insured (Zvw), detained (Pbw)."
+      ],
+      "route": "/regelwerken",
+      "highlight": ".yaml-tree"
+     },
+     {
+      "kind": "demo",
+      "overline": "Coherence",
+      "title": "Laws hang together",
+      "lead": "Healthcare allowance depends on being insured, and that on detention.",
+      "bullets": [
+       "Follow the line from law to law.",
+       "Same name, different definition: the machine points to the right one.",
+       "Overview of what changes along with an amendment."
+      ],
+      "route": "/graaf",
+      "decks": [
+       "merijn"
+      ]
+     },
+     {
+      "kind": "demo",
+      "overline": "Testing",
+      "title": "The law tested, in plain language",
+      "lead": "Examples from the explanatory memorandum, run.",
+      "bullets": [
+       "**Run** gives a trace: which law, which data.",
+       "Under 18 it stops early: data minimisation.",
+       "A language model makes the first version; a lawyer reviews."
+      ],
+      "route": "/scenarios",
+      "decks": [
+       "merijn"
+      ]
+     },
+     {
+      "kind": "demo",
+      "overline": "Policy",
+      "title": "What does an amendment do to everyone?",
+      "lead": "All laws at once on a population.",
+      "bullets": [
+       "Disposable income, with all the interplay between laws.",
+       "Computing an amendment: the default premium goes up.",
+       "Compare before and after, before anyone votes."
+      ],
+      "route": "/simulatie"
+     },
+     {
+      "kind": "demo",
+      "overline": "The citizen",
+      "title": "One citizen, Merijn",
+      "lead": "Self-employed in home care, a single parent with two young children.",
+      "bullets": [
+       "Everything he is entitled to, computed live by the law itself.",
+       "Every fact traces back to the register that supplied it.",
+       "A fact wrong? He corrects it, a case officer assesses it."
+      ],
+      "route": "/portaal",
+      "profile": "merijn",
+      "highlight": "nldd-card",
+      "decks": [
+       "merijn"
+      ]
+     },
+     {
+      "kind": "demo",
+      "overline": "Applying",
+      "title": "Asking only what government does not know",
+      "lead": "The law computes with what is already there, and asks only when it gets stuck.",
+      "bullets": [
+       "Housing benefit does not know the rent. That is the only question, at that moment.",
+       "After every answer the law computes again.",
+       "Check, declare, submit. Without a ten-page form."
+      ],
+      "route": "/portaal",
+      "highlight": "[data-highlight=\"complete-data\"]",
+      "decks": [
+       "merijn"
+      ]
+     },
+     {
+      "kind": "demo",
+      "overline": "The case officer",
+      "title": "The same right, the other side of the desk",
+      "lead": "The application arrives with the calculation the citizen saw.",
+      "bullets": [
+       "The engine recomputes it against the registered data.",
+       "The citizen's corrections are waiting to be assessed.",
+       "Grant or refuse, with reasons; an objection comes back through the portal."
+      ],
+      "route": "/zaaksysteem",
+      "decks": [
+       "merijn"
+      ]
+     },
+     {
+      "kind": "demo",
+      "overline": "The entrepreneur",
+      "title": "An entrepreneur, Claudia",
+      "lead": "Director of Café Noon in Rotterdam West, a café with its own small brewery and a terrace.",
+      "bullets": [
+       "The same engine, other laws: local by-laws, alcohol, food safety, excise duty, precario tax.",
+       "The terrace permit asks for location and area; once it is granted, the precario tax computes with it.",
+       "The municipality, the food authority and the enterprise agency in one overview, without having to ask each other anything."
+      ],
+      "route": "/portaal",
+      "profile": "claudia"
+     },
+     {
+      "kind": "closing",
+      "overline": "RegelRecht demo",
+      "title": "From law to digital effect",
+      "lines": [
+       "A complete story, **not a finished product**",
+       "We make policy **by doing**"
+      ],
+      "link": {
+       "href": "https://regelrecht.rijks.app",
+       "label": "regelrecht.rijks.app"
+      }
+     },
+     {
+      "kind": "demo",
+      "overline": "The citizen",
+      "title": "One citizen, Merijn",
+      "lead": "Everything Merijn is entitled to, computed by the law itself.",
+      "bullets": [
+       "The same data as in the trace just now.",
+       "Apply for healthcare allowance: granted straight away.",
+       "Not a calculator, but the rule the Dienst Toeslagen also computes with."
+      ],
+      "route": "/portaal",
+      "profile": "merijn"
+     },
+     {
+      "kind": "demo",
+      "overline": "Applying",
+      "title": "Asking only what government does not know",
+      "lead": "Housing benefit asks only for the rent and the service costs.",
+      "bullets": [
+       "Is a data item wrong? Merijn corrects it.",
+       "The amount is computed straight away.",
+       "A caseworker assesses the amendment."
+      ],
+      "route": "/portaal",
+      "profile": "merijn"
+     },
+     {
+      "kind": "demo",
+      "overline": "Frequently asked question",
+      "title": "Can't this be done proactively?",
+      "lead": "Technically, maybe, but the government doesn't know everything.",
+      "bullets": [
+       "An inheritance is in no register.",
+       "Granting wrongly means repaying later.",
+       "That calls for political choices."
+      ],
+      "route": "/portaal",
+      "profile": "merijn"
+     },
+     {
+      "kind": "demo",
+      "overline": "The case officer",
+      "title": "The same right, the other side of the desk",
+      "lead": "The application arrives with the calculation Merijn saw.",
+      "bullets": [
+       "Approve or reject the amendment.",
+       "Grant or reject, with reasons."
+      ],
+      "route": "/zaaksysteem",
+      "profile": "merijn"
+     },
+     {
+      "kind": "demo",
+      "overline": "Object",
+      "title": "The Awb is a rulework too",
+      "lead": "Whether an objection is possible is in the rulework, not in the screen.",
+      "bullets": [
+       "Interpreted once, usable everywhere.",
+       "Also for other procedural laws: Archiefwet, AVG, Woo."
+      ],
+      "route": "/portaal",
+      "profile": "merijn"
+     },
+     {
+      "kind": "closing",
+      "overline": "RegelRecht demo",
+      "title": "From law to digital effect",
+      "lines": [
+       "A complete story, **not a finished product**",
+       "We make policy **by doing**"
+      ],
+      "link": {
+       "href": "https://regelrecht.rijks.app",
+       "label": "regelrecht.rijks.app"
+      },
+      "profile": "merijn"
+     }
+    ]
+   },
+   "fr": {
+    "slides": [
+     {
+      "kind": "title",
+      "title": "RegelRecht",
+      "subtitle": "de la loi à sa mise en œuvre numérique",
+      "footer": "Service numérique néerlandais"
+     },
+     {
+      "kind": "statement",
+      "overline": "Aujourd'hui",
+      "lines": [
+       "Chaque organisme d'exécution",
+       "a sa **propre lecture** de la loi",
+       "qui, depuis des décennies, aboutit dans un **logiciel propre**"
+      ]
+     },
+     {
+      "kind": "statement",
+      "overline": "Le résultat",
+      "lines": [
+       "Pas de vue d'ensemble",
+       "Imprévisible",
+       "Ingérable"
+      ]
+     },
+     {
+      "kind": "statement",
+      "overline": "Et si",
+      "lines": [
+       "On **partait de la loi**",
+       "On la rendait **exécutable par machine**",
+       "On la publiait **ouvertement**"
+      ]
+     },
+     {
+      "kind": "section",
+      "title": "Démo RegelRecht",
+      "lines": [
+       "Une histoire complète, pas un produit fini",
+       "Nous construisons les politiques par la pratique"
+      ]
+     },
+     {
+      "kind": "demo",
+      "overline": "La réglementation",
+      "title": "La loi comme réglementation",
+      "lead": "Pour chaque article, le texte de loi, et en dessous, son fonctionnement.",
+      "bullets": [
+       "**Parameter** : pour qui, un BSN.",
+       "**Actions** : les conditions et le calcul.",
+       "**Input** issu d'autres lois : assuré (Zvw), détenu (Pbw)."
+      ],
+      "route": "/regelwerken",
+      "highlight": ".yaml-tree"
+     },
+     {
+      "kind": "demo",
+      "overline": "Cohérence",
+      "title": "Les lois sont liées",
+      "lead": "L'allocation de soins de santé dépend du fait d'être assuré, et cela dépend de la détention.",
+      "bullets": [
+       "Suivez le fil de loi en loi.",
+       "Même nom, autre définition : la machine renvoie à la bonne.",
+       "Vue d'ensemble de ce qui change en même temps lors d'une modification."
+      ],
+      "route": "/graaf",
+      "decks": [
+       "merijn"
+      ]
+     },
+     {
+      "kind": "demo",
+      "overline": "Tester",
+      "title": "La loi testée, en langage courant",
+      "lead": "Exemples tirés de l'exposé des motifs, exécutés.",
+      "bullets": [
+       "**Exécuter** donne une trace : quelle loi, quelle donnée.",
+       "En dessous de 18 ans, cela s'arrête tôt : minimisation des données.",
+       "Un modèle de langage produit la première version ; un juriste la vérifie."
+      ],
+      "route": "/scenarios",
+      "decks": [
+       "merijn"
+      ]
+     },
+     {
+      "kind": "demo",
+      "overline": "Politique publique",
+      "title": "Que fait une modification à tout le monde ?",
+      "lead": "Toutes les lois à la fois sur une population.",
+      "bullets": [
+       "Revenu disponible, avec toute l'interaction entre les lois.",
+       "Chiffrer une modification : la prime standard augmente.",
+       "Comparez avant et après, avant qu'on ne vote."
+      ],
+      "route": "/simulatie"
+     },
+     {
+      "kind": "demo",
+      "overline": "Le citoyen",
+      "title": "Un citoyen, Merijn",
+      "lead": "Indépendant dans les soins à domicile, parent isolé avec deux jeunes enfants.",
+      "bullets": [
+       "Tout ce à quoi il a droit, calculé en direct par la loi elle-même.",
+       "Chaque donnée remonte au registre qui l'a fournie.",
+       "Une donnée est fausse ? Il la corrige, un gestionnaire l'examine."
+      ],
+      "route": "/portaal",
+      "profile": "merijn",
+      "highlight": "nldd-card",
+      "decks": [
+       "merijn"
+      ]
+     },
+     {
+      "kind": "demo",
+      "overline": "La demande",
+      "title": "Ne demander que ce que l'administration ignore",
+      "lead": "La loi calcule avec ce qui existe déjà, et ne pose une question que lorsqu'elle bloque.",
+      "bullets": [
+       "L'allocation logement ne connaît pas le loyer. C'est la seule question, à ce moment-là.",
+       "Après chaque réponse, la loi recalcule.",
+       "Vérifier, déclarer, déposer. Sans formulaire de dix pages."
+      ],
+      "route": "/portaal",
+      "highlight": "[data-highlight=\"complete-data\"]",
+      "decks": [
+       "merijn"
+      ]
+     },
+     {
+      "kind": "demo",
+      "overline": "Le gestionnaire",
+      "title": "Le même droit, de l'autre côté du guichet",
+      "lead": "La demande arrive avec le calcul que le citoyen a vu.",
+      "bullets": [
+       "Le moteur le recalcule avec les données enregistrées.",
+       "Les corrections du citoyen attendent d'être examinées.",
+       "Accorder ou refuser, avec motivation ; une réclamation revient par le portail."
+      ],
+      "route": "/zaaksysteem",
+      "decks": [
+       "merijn"
+      ]
+     },
+     {
+      "kind": "demo",
+      "overline": "L'entrepreneuse",
+      "title": "Une entrepreneuse, Claudia",
+      "lead": "Dirigeante du Café Noon à Rotterdam-West, un café avec sa propre petite brasserie et une terrasse.",
+      "bullets": [
+       "Le même moteur, d'autres lois : règlement local, alcool, sécurité alimentaire, accises, precario.",
+       "Le permis de terrasse demande l'emplacement et la surface ; une fois accordé, la taxe precario en tient compte.",
+       "La commune, l'autorité alimentaire et l'agence des entreprises en une seule vue, sans avoir à se consulter."
+      ],
+      "route": "/portaal",
+      "profile": "claudia"
+     },
+     {
+      "kind": "closing",
+      "overline": "Démo RegelRecht",
+      "title": "De la loi à sa mise en œuvre numérique",
+      "lines": [
+       "Une histoire complète, **pas un produit fini**",
+       "Nous construisons les politiques **par la pratique**"
+      ],
+      "link": {
+       "href": "https://regelrecht.rijks.app",
+       "label": "regelrecht.rijks.app"
+      }
+     },
+     {
+      "kind": "demo",
+      "overline": "Le citoyen",
+      "title": "Un citoyen, Merijn",
+      "lead": "Tout ce à quoi Merijn a droit, calculé par la loi elle-même.",
+      "bullets": [
+       "Les mêmes données que dans la trace de tout à l'heure.",
+       "Demander l'allocation de soins de santé : accordée directement.",
+       "Pas un outil de calcul, mais la règle avec laquelle la Dienst Toeslagen calcule aussi."
+      ],
+      "route": "/portaal",
+      "profile": "merijn"
+     },
+     {
+      "kind": "demo",
+      "overline": "La demande",
+      "title": "Ne demander que ce que l'administration ignore",
+      "lead": "L'allocation logement ne demande que le loyer et les charges.",
+      "bullets": [
+       "Une donnée est inexacte ? Merijn la corrige.",
+       "Le montant se calcule immédiatement.",
+       "Un agent examine la modification."
+      ],
+      "route": "/portaal",
+      "profile": "merijn"
+     },
+     {
+      "kind": "demo",
+      "overline": "Question fréquente",
+      "title": "Ne peut-on pas le faire de manière proactive ?",
+      "lead": "Techniquement peut-être, mais l'administration ne sait pas tout.",
+      "bullets": [
+       "Un héritage ne figure dans aucun registre.",
+       "Accorder à tort, c'est devoir rembourser plus tard.",
+       "Cela suppose des choix politiques."
+      ],
+      "route": "/portaal",
+      "profile": "merijn"
+     },
+     {
+      "kind": "demo",
+      "overline": "Le gestionnaire",
+      "title": "Le même droit, de l'autre côté du guichet",
+      "lead": "La demande arrive avec le calcul que Merijn a vu.",
+      "bullets": [
+       "Approuver ou rejeter la modification.",
+       "Accorder ou rejeter, avec motivation."
+      ],
+      "route": "/zaaksysteem",
+      "profile": "merijn"
+     },
+     {
+      "kind": "demo",
+      "overline": "Réclamation",
+      "title": "L'Awb aussi est une réglementation",
+      "lead": "La possibilité de réclamation figure dans la réglementation, pas à l'écran.",
+      "bullets": [
+       "Interprétée une fois, utilisable partout.",
+       "Aussi pour d'autres lois de procédure : Archiefwet, AVG, Woo."
+      ],
+      "route": "/portaal",
+      "profile": "merijn"
+     },
+     {
+      "kind": "closing",
+      "overline": "Démo RegelRecht",
+      "title": "De la loi à sa mise en œuvre numérique",
+      "lines": [
+       "Une histoire complète, **pas un produit fini**",
+       "Nous construisons les politiques **par la pratique**"
+      ],
+      "link": {
+       "href": "https://regelrecht.rijks.app",
+       "label": "regelrecht.rijks.app"
+      },
+      "profile": "merijn"
+     }
+    ]
+   }
+  },
+  "dub": {
+   "en": {
+    "audio": {
+     "src": "main-voice-en-d571c0afcacc.m4a",
+     "sha256": "d571c0afcaccb56418162b5b9da5230fa0b00b4e833c550d13e402004b9db01b",
+     "bytes": 12395821
+    },
+    "captions": "main-1dbf843ee43f.en.dub.vtt",
+    "basis": "ab3a450d694e931d"
+   },
+   "fr": {
+    "audio": {
+     "src": "main-voice-fr-639769977149.m4a",
+     "sha256": "6397699771493d83651a0d9f21475a4641f351aa6b5ad994246ac70a994ca688",
+     "bytes": 12120940
+    },
+    "captions": "main-c13b1a9190c9.fr.dub.vtt",
+    "basis": "ab3a450d694e931d"
+   }
+  }
  },
  "faq": [
   {
@@ -16681,7 +17395,7 @@
         },
         "claimedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -16689,7 +17403,7 @@
         },
         "verifiedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -16744,13 +17458,13 @@
          "current_stage": "BEZWAAR",
          "accumulated_outputs": {
           "basishuur": 23801,
-          "bezwaartermijn_weken": 6,
+          "termijn_weken": 6,
           "is_gerechtigd": true,
           "motivering_vereist": true,
           "subsidiebedrag": 40695,
           "voldoet_aan_voorwaarden": true,
-          "bezwaartermijn_einddatum": "2026-11-11",
-          "bezwaartermijn_startdatum": "2026-10-01"
+          "termijn_einddatum": "2026-11-11",
+          "termijn_startdatum": "2026-10-01"
          },
          "parameters": {
           "aanvraag_datum": "2026-09-30",
@@ -16774,7 +17488,7 @@
          "bsn": "999100001"
         },
         "claimedResult": {
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "hoogte_toeslag": 212812,
          "is_verzekerde_zorgtoeslag": true,
          "motivering_vereist": true,
@@ -16940,7 +17654,7 @@
         },
         "claimedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -16948,7 +17662,7 @@
         },
         "verifiedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -17003,13 +17717,13 @@
          "current_stage": "BEZWAAR",
          "accumulated_outputs": {
           "basishuur": 23801,
-          "bezwaartermijn_weken": 6,
+          "termijn_weken": 6,
           "is_gerechtigd": true,
           "motivering_vereist": true,
           "subsidiebedrag": 40695,
           "voldoet_aan_voorwaarden": true,
-          "bezwaartermijn_einddatum": "2026-11-11",
-          "bezwaartermijn_startdatum": "2026-10-01"
+          "termijn_einddatum": "2026-11-11",
+          "termijn_startdatum": "2026-10-01"
          },
          "parameters": {
           "aanvraag_datum": "2026-09-30",
@@ -17033,7 +17747,7 @@
          "bsn": "999100001"
         },
         "claimedResult": {
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "hoogte_toeslag": 212812,
          "is_verzekerde_zorgtoeslag": true,
          "motivering_vereist": true,
@@ -17188,7 +17902,9 @@
    ],
    "pauses": [],
    "captions": {
-    "nl": "faq-open-normen-5192975f8e4a.nl.vtt"
+    "nl": "faq-open-normen-5192975f8e4a.nl.vtt",
+    "en": "faq-open-normen-f90ab9a2ff01.en.vtt",
+    "fr": "faq-open-normen-8e69fbe59958.fr.vtt"
    },
    "pieces": [
     {
@@ -17221,7 +17937,379 @@
      "to": 145.8667,
      "at": 92.5
     }
-   ]
+   ],
+   "i18n": {
+    "en": {
+     "slides": [
+      {
+       "kind": "title",
+       "title": "RegelRecht",
+       "subtitle": "from law to digital effect",
+       "footer": "Netherlands Digital Service"
+      },
+      {
+       "kind": "statement",
+       "overline": "Today",
+       "lines": [
+        "Every organisation",
+        "has its **own reading** of the law",
+        "which lands in **its own software**"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "The result",
+       "lines": [
+        "No overview",
+        "Unpredictable",
+        "Unmanageable"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "What if",
+       "lines": [
+        "We **start with the law**",
+        "Make it **machine-executable**",
+        "Publish it **openly**"
+       ]
+      },
+      {
+       "kind": "section",
+       "title": "RegelRecht demo",
+       "lines": [
+        "A complete story, not a finished product",
+        "We make policy by doing"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "The rulework",
+       "title": "The law as a rulework",
+       "lead": "The legal text and the executable rule sit side by side, article by article.",
+       "bullets": [
+        "Every article has a **machine_readable** part: what goes in, what comes out, and how.",
+        "A reference to another law is explicit, not a copied amount.",
+        "The same rulework runs in the editor, in this portal and in the simulation."
+       ],
+       "route": "/regelwerken",
+       "highlight": ".yaml-tree"
+      },
+      {
+       "kind": "demo",
+       "overline": "Coherence",
+       "title": "Laws hang together",
+       "lead": "Whether you are insured depends on detention; whether you get healthcare allowance depends on being insured.",
+       "bullets": [
+        "Per law: which data come from registers, which from other laws, and what comes out.",
+        "Every line is a real reference from the law, with this person's value on it.",
+        "Change a law and you see at once who it touches."
+       ],
+       "route": "/graaf",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Testing",
+       "title": "The law tested, in plain language",
+       "lead": "A scenario describes a person and what the law should produce for them.",
+       "bullets": [
+        "Given a 17-year-old, no healthcare allowance. Given a single person on a low income, yes.",
+        "The same scenarios run here in the browser and in the build pipeline.",
+        "Change the law and you see which scenario falls over."
+       ],
+       "route": "/scenarios",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Policy",
+       "title": "What does it do to two thousand people?",
+       "lead": "A generated population through every scheme, with the real laws.",
+       "bullets": [
+        "Who meets the conditions, for how much, broken down by age, income and household.",
+        "Turn a threshold in the law and see the difference, before it takes effect.",
+        "For businesses too: permits, reporting duties, precario tax."
+       ],
+       "route": "/simulatie"
+      },
+      {
+       "kind": "demo",
+       "overline": "The citizen",
+       "title": "One citizen, Merijn",
+       "lead": "Self-employed in home care, a single parent with two young children.",
+       "bullets": [
+        "Everything he is entitled to, computed live by the law itself.",
+        "Every fact traces back to the register that supplied it.",
+        "A fact wrong? He corrects it, a case officer assesses it."
+       ],
+       "route": "/portaal",
+       "profile": "merijn",
+       "highlight": "nldd-card",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Applying",
+       "title": "Asking only what government does not know",
+       "lead": "The law computes with what is already there, and asks only when it gets stuck.",
+       "bullets": [
+        "Housing benefit does not know the rent. That is the only question, at that moment.",
+        "After every answer the law computes again.",
+        "Check, declare, submit. Without a ten-page form."
+       ],
+       "route": "/portaal",
+       "highlight": "[data-highlight=\"complete-data\"]",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "The case officer",
+       "title": "The same right, the other side of the desk",
+       "lead": "The application arrives with the calculation the citizen saw.",
+       "bullets": [
+        "The engine recomputes it against the registered data.",
+        "The citizen's corrections are waiting to be assessed.",
+        "Grant or refuse, with reasons; an objection comes back through the portal."
+       ],
+       "route": "/zaaksysteem",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "The entrepreneur",
+       "title": "An entrepreneur, Claudia",
+       "lead": "Director of Café Noon in Rotterdam West, a café with its own small brewery and a terrace.",
+       "bullets": [
+        "The same engine, other laws: local by-laws, alcohol, food safety, excise duty, precario tax.",
+        "The terrace permit asks for location and area; once it is granted, the precario tax computes with it.",
+        "The municipality, the food authority and the enterprise agency in one overview, without having to ask each other anything."
+       ],
+       "route": "/portaal",
+       "profile": "claudia"
+      },
+      {
+       "kind": "closing",
+       "overline": "RegelRecht demo",
+       "title": "From law to digital effect",
+       "lines": [
+        "A complete story, **not a finished product**",
+        "We make policy **by doing**"
+       ],
+       "link": {
+        "href": "https://regelrecht.rijks.app",
+        "label": "regelrecht.rijks.app"
+       }
+      }
+     ],
+     "question": "What happens to open norms?"
+    },
+    "fr": {
+     "slides": [
+      {
+       "kind": "title",
+       "title": "RegelRecht",
+       "subtitle": "de la loi à sa mise en œuvre numérique",
+       "footer": "Service numérique néerlandais"
+      },
+      {
+       "kind": "statement",
+       "overline": "Aujourd'hui",
+       "lines": [
+        "Chaque organisation",
+        "a sa **propre lecture** de la loi",
+        "traduite dans **son propre logiciel**"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "Le résultat",
+       "lines": [
+        "Pas de vue d'ensemble",
+        "Imprévisible",
+        "Ingérable"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "Et si",
+       "lines": [
+        "On **partait de la loi**",
+        "On la rendait **exécutable par machine**",
+        "On la publiait **ouvertement**"
+       ]
+      },
+      {
+       "kind": "section",
+       "title": "Démo RegelRecht",
+       "lines": [
+        "Une histoire complète, pas un produit fini",
+        "Nous construisons les politiques par la pratique"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "La réglementation",
+       "title": "La loi comme réglementation",
+       "lead": "Le texte de loi et la règle exécutable sont côte à côte, article par article.",
+       "bullets": [
+        "Chaque article a une partie **machine_readable** : ce qui entre, ce qui sort, et comment.",
+        "Un renvoi à une autre loi est explicite, pas la copie d'un montant.",
+        "La même réglementation s'exécute dans l'éditeur, dans ce portail et dans la simulation."
+       ],
+       "route": "/regelwerken",
+       "highlight": ".yaml-tree"
+      },
+      {
+       "kind": "demo",
+       "overline": "Cohérence",
+       "title": "Les lois sont liées",
+       "lead": "Qui est assuré dépend de la détention ; qui reçoit l'allocation de soins de santé dépend de l'assurance.",
+       "bullets": [
+        "Par loi : quelles données viennent des registres, lesquelles d'autres lois, ce qui en sort.",
+        "Chaque ligne est un vrai renvoi de la loi, avec la valeur pour cette personne.",
+        "Une loi change ? Vous voyez aussitôt qui est concerné."
+       ],
+       "route": "/graaf",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Tester",
+       "title": "La loi testée, en langage courant",
+       "lead": "Les scénarios décrivent une personne et ce que la loi doit produire pour elle.",
+       "bullets": [
+        "Soit un jeune de 17 ans : pas d'allocation de soins de santé. Soit une personne seule à bas revenu : oui.",
+        "Les mêmes scénarios s'exécutent ici dans le navigateur et dans la chaîne d'intégration.",
+        "Qui modifie la loi voit quel scénario échoue."
+       ],
+       "route": "/scenarios",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Politique publique",
+       "title": "Quel effet sur deux mille personnes ?",
+       "lead": "Une population générée passe par tous les dispositifs, avec les vraies lois.",
+       "bullets": [
+        "Qui remplit les conditions, pour combien, ventilé par âge, revenu et ménage.",
+        "Ajustez un seuil de la loi et voyez la différence, avant son entrée en vigueur.",
+        "Aussi pour les entreprises : permis, obligations de déclaration, precario."
+       ],
+       "route": "/simulatie"
+      },
+      {
+       "kind": "demo",
+       "overline": "Le citoyen",
+       "title": "Un citoyen, Merijn",
+       "lead": "Indépendant dans les soins à domicile, parent isolé avec deux jeunes enfants.",
+       "bullets": [
+        "Tout ce à quoi il a droit, calculé en direct par la loi elle-même.",
+        "Chaque donnée remonte au registre qui l'a fournie.",
+        "Une donnée est fausse ? Il la corrige, un gestionnaire l'examine."
+       ],
+       "route": "/portaal",
+       "profile": "merijn",
+       "highlight": "nldd-card",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "La demande",
+       "title": "Ne demander que ce que l'administration ignore",
+       "lead": "La loi calcule avec ce qui existe déjà, et ne pose une question que lorsqu'elle bloque.",
+       "bullets": [
+        "L'allocation logement ne connaît pas le loyer. C'est la seule question, à ce moment-là.",
+        "Après chaque réponse, la loi recalcule.",
+        "Vérifier, déclarer, déposer. Sans formulaire de dix pages."
+       ],
+       "route": "/portaal",
+       "highlight": "[data-highlight=\"complete-data\"]",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Le gestionnaire",
+       "title": "Le même droit, de l'autre côté du guichet",
+       "lead": "La demande arrive avec le calcul que le citoyen a vu.",
+       "bullets": [
+        "Le moteur le recalcule avec les données enregistrées.",
+        "Les corrections du citoyen attendent d'être examinées.",
+        "Accorder ou refuser, avec motivation ; une réclamation revient par le portail."
+       ],
+       "route": "/zaaksysteem",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "L'entrepreneuse",
+       "title": "Une entrepreneuse, Claudia",
+       "lead": "Dirigeante du Café Noon à Rotterdam-West, un café avec sa propre petite brasserie et une terrasse.",
+       "bullets": [
+        "Le même moteur, d'autres lois : règlement local, alcool, sécurité alimentaire, accises, precario.",
+        "Le permis de terrasse demande l'emplacement et la surface ; une fois accordé, la taxe precario en tient compte.",
+        "La commune, l'autorité alimentaire et l'agence des entreprises en une seule vue, sans avoir à se consulter."
+       ],
+       "route": "/portaal",
+       "profile": "claudia"
+      },
+      {
+       "kind": "closing",
+       "overline": "Démo RegelRecht",
+       "title": "De la loi à sa mise en œuvre numérique",
+       "lines": [
+        "Une histoire complète, **pas un produit fini**",
+        "Nous construisons les politiques **par la pratique**"
+       ],
+       "link": {
+        "href": "https://regelrecht.rijks.app",
+        "label": "regelrecht.rijks.app"
+       }
+      }
+     ],
+     "question": "Qu'advient-il des normes ouvertes ?"
+    }
+   },
+   "dub": {
+    "en": {
+     "audio": {
+      "src": "faq-open-normen-voice-en-98cff687b405.m4a",
+      "sha256": "98cff687b405beecd5a04ebffa6aad2684ccbf7ea4929a1df39454a988bb0334",
+      "bytes": 1170527
+     },
+     "captions": "faq-open-normen-ffed0a23c197.en.dub.vtt",
+     "basis": "517eb022e4f82ee8"
+    },
+    "fr": {
+     "audio": {
+      "src": "faq-open-normen-voice-fr-47d237d7f013.m4a",
+      "sha256": "47d237d7f013c588c37e3163b01278418d57b554dfab4b1766ec80bf37c3a3dc",
+      "bytes": 1195709
+     },
+     "captions": "faq-open-normen-ed9dd2462735.fr.dub.vtt",
+     "basis": "517eb022e4f82ee8"
+    }
+   }
   },
   {
    "id": "juridisch-bindend",
@@ -17456,7 +18544,7 @@
         },
         "claimedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -17464,7 +18552,7 @@
         },
         "verifiedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -17519,13 +18607,13 @@
          "current_stage": "BEZWAAR",
          "accumulated_outputs": {
           "basishuur": 23801,
-          "bezwaartermijn_weken": 6,
+          "termijn_weken": 6,
           "is_gerechtigd": true,
           "motivering_vereist": true,
           "subsidiebedrag": 40695,
           "voldoet_aan_voorwaarden": true,
-          "bezwaartermijn_einddatum": "2026-11-11",
-          "bezwaartermijn_startdatum": "2026-10-01"
+          "termijn_einddatum": "2026-11-11",
+          "termijn_startdatum": "2026-10-01"
          },
          "parameters": {
           "aanvraag_datum": "2026-09-30",
@@ -17549,7 +18637,7 @@
          "bsn": "999100001"
         },
         "claimedResult": {
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "hoogte_toeslag": 212812,
          "is_verzekerde_zorgtoeslag": true,
          "motivering_vereist": true,
@@ -17715,7 +18803,7 @@
         },
         "claimedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -17723,7 +18811,7 @@
         },
         "verifiedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -17778,13 +18866,13 @@
          "current_stage": "BEZWAAR",
          "accumulated_outputs": {
           "basishuur": 23801,
-          "bezwaartermijn_weken": 6,
+          "termijn_weken": 6,
           "is_gerechtigd": true,
           "motivering_vereist": true,
           "subsidiebedrag": 40695,
           "voldoet_aan_voorwaarden": true,
-          "bezwaartermijn_einddatum": "2026-11-11",
-          "bezwaartermijn_startdatum": "2026-10-01"
+          "termijn_einddatum": "2026-11-11",
+          "termijn_startdatum": "2026-10-01"
          },
          "parameters": {
           "aanvraag_datum": "2026-09-30",
@@ -17808,7 +18896,7 @@
          "bsn": "999100001"
         },
         "claimedResult": {
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "hoogte_toeslag": 212812,
          "is_verzekerde_zorgtoeslag": true,
          "motivering_vereist": true,
@@ -17977,7 +19065,9 @@
    ],
    "pauses": [],
    "captions": {
-    "nl": "faq-juridisch-bindend-aab335f0f7b1.nl.vtt"
+    "nl": "faq-juridisch-bindend-aab335f0f7b1.nl.vtt",
+    "en": "faq-juridisch-bindend-7eb0e898826b.en.vtt",
+    "fr": "faq-juridisch-bindend-6c4fc485de8b.fr.vtt"
    },
    "pieces": [
     {
@@ -17998,7 +19088,379 @@
      "to": 208.5,
      "at": 54.567
     }
-   ]
+   ],
+   "i18n": {
+    "en": {
+     "slides": [
+      {
+       "kind": "title",
+       "title": "RegelRecht",
+       "subtitle": "from law to digital effect",
+       "footer": "Netherlands Digital Service"
+      },
+      {
+       "kind": "statement",
+       "overline": "Today",
+       "lines": [
+        "Every organisation",
+        "has its **own reading** of the law",
+        "which lands in **its own software**"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "The result",
+       "lines": [
+        "No overview",
+        "Unpredictable",
+        "Unmanageable"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "What if",
+       "lines": [
+        "We **start with the law**",
+        "Make it **machine-executable**",
+        "Publish it **openly**"
+       ]
+      },
+      {
+       "kind": "section",
+       "title": "RegelRecht demo",
+       "lines": [
+        "A complete story, not a finished product",
+        "We make policy by doing"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "The rulework",
+       "title": "The law as a rulework",
+       "lead": "The legal text and the executable rule sit side by side, article by article.",
+       "bullets": [
+        "Every article has a **machine_readable** part: what goes in, what comes out, and how.",
+        "A reference to another law is explicit, not a copied amount.",
+        "The same rulework runs in the editor, in this portal and in the simulation."
+       ],
+       "route": "/regelwerken",
+       "highlight": ".yaml-tree"
+      },
+      {
+       "kind": "demo",
+       "overline": "Coherence",
+       "title": "Laws hang together",
+       "lead": "Whether you are insured depends on detention; whether you get healthcare allowance depends on being insured.",
+       "bullets": [
+        "Per law: which data come from registers, which from other laws, and what comes out.",
+        "Every line is a real reference from the law, with this person's value on it.",
+        "Change a law and you see at once who it touches."
+       ],
+       "route": "/graaf",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Testing",
+       "title": "The law tested, in plain language",
+       "lead": "A scenario describes a person and what the law should produce for them.",
+       "bullets": [
+        "Given a 17-year-old, no healthcare allowance. Given a single person on a low income, yes.",
+        "The same scenarios run here in the browser and in the build pipeline.",
+        "Change the law and you see which scenario falls over."
+       ],
+       "route": "/scenarios",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Policy",
+       "title": "What does it do to two thousand people?",
+       "lead": "A generated population through every scheme, with the real laws.",
+       "bullets": [
+        "Who meets the conditions, for how much, broken down by age, income and household.",
+        "Turn a threshold in the law and see the difference, before it takes effect.",
+        "For businesses too: permits, reporting duties, precario tax."
+       ],
+       "route": "/simulatie"
+      },
+      {
+       "kind": "demo",
+       "overline": "The citizen",
+       "title": "One citizen, Merijn",
+       "lead": "Self-employed in home care, a single parent with two young children.",
+       "bullets": [
+        "Everything he is entitled to, computed live by the law itself.",
+        "Every fact traces back to the register that supplied it.",
+        "A fact wrong? He corrects it, a case officer assesses it."
+       ],
+       "route": "/portaal",
+       "profile": "merijn",
+       "highlight": "nldd-card",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Applying",
+       "title": "Asking only what government does not know",
+       "lead": "The law computes with what is already there, and asks only when it gets stuck.",
+       "bullets": [
+        "Housing benefit does not know the rent. That is the only question, at that moment.",
+        "After every answer the law computes again.",
+        "Check, declare, submit. Without a ten-page form."
+       ],
+       "route": "/portaal",
+       "highlight": "[data-highlight=\"complete-data\"]",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "The case officer",
+       "title": "The same right, the other side of the desk",
+       "lead": "The application arrives with the calculation the citizen saw.",
+       "bullets": [
+        "The engine recomputes it against the registered data.",
+        "The citizen's corrections are waiting to be assessed.",
+        "Grant or refuse, with reasons; an objection comes back through the portal."
+       ],
+       "route": "/zaaksysteem",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "The entrepreneur",
+       "title": "An entrepreneur, Claudia",
+       "lead": "Director of Café Noon in Rotterdam West, a café with its own small brewery and a terrace.",
+       "bullets": [
+        "The same engine, other laws: local by-laws, alcohol, food safety, excise duty, precario tax.",
+        "The terrace permit asks for location and area; once it is granted, the precario tax computes with it.",
+        "The municipality, the food authority and the enterprise agency in one overview, without having to ask each other anything."
+       ],
+       "route": "/portaal",
+       "profile": "claudia"
+      },
+      {
+       "kind": "closing",
+       "overline": "RegelRecht demo",
+       "title": "From law to digital effect",
+       "lines": [
+        "A complete story, **not a finished product**",
+        "We make policy **by doing**"
+       ],
+       "link": {
+        "href": "https://regelrecht.rijks.app",
+        "label": "regelrecht.rijks.app"
+       }
+      }
+     ],
+     "question": "Is this legally binding?"
+    },
+    "fr": {
+     "slides": [
+      {
+       "kind": "title",
+       "title": "RegelRecht",
+       "subtitle": "de la loi à sa mise en œuvre numérique",
+       "footer": "Service numérique néerlandais"
+      },
+      {
+       "kind": "statement",
+       "overline": "Aujourd'hui",
+       "lines": [
+        "Chaque organisation",
+        "a sa **propre lecture** de la loi",
+        "traduite dans **son propre logiciel**"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "Le résultat",
+       "lines": [
+        "Pas de vue d'ensemble",
+        "Imprévisible",
+        "Ingérable"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "Et si",
+       "lines": [
+        "On **partait de la loi**",
+        "On la rendait **exécutable par machine**",
+        "On la publiait **ouvertement**"
+       ]
+      },
+      {
+       "kind": "section",
+       "title": "Démo RegelRecht",
+       "lines": [
+        "Une histoire complète, pas un produit fini",
+        "Nous construisons les politiques par la pratique"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "La réglementation",
+       "title": "La loi comme réglementation",
+       "lead": "Le texte de loi et la règle exécutable sont côte à côte, article par article.",
+       "bullets": [
+        "Chaque article a une partie **machine_readable** : ce qui entre, ce qui sort, et comment.",
+        "Un renvoi à une autre loi est explicite, pas la copie d'un montant.",
+        "La même réglementation s'exécute dans l'éditeur, dans ce portail et dans la simulation."
+       ],
+       "route": "/regelwerken",
+       "highlight": ".yaml-tree"
+      },
+      {
+       "kind": "demo",
+       "overline": "Cohérence",
+       "title": "Les lois sont liées",
+       "lead": "Qui est assuré dépend de la détention ; qui reçoit l'allocation de soins de santé dépend de l'assurance.",
+       "bullets": [
+        "Par loi : quelles données viennent des registres, lesquelles d'autres lois, ce qui en sort.",
+        "Chaque ligne est un vrai renvoi de la loi, avec la valeur pour cette personne.",
+        "Une loi change ? Vous voyez aussitôt qui est concerné."
+       ],
+       "route": "/graaf",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Tester",
+       "title": "La loi testée, en langage courant",
+       "lead": "Les scénarios décrivent une personne et ce que la loi doit produire pour elle.",
+       "bullets": [
+        "Soit un jeune de 17 ans : pas d'allocation de soins de santé. Soit une personne seule à bas revenu : oui.",
+        "Les mêmes scénarios s'exécutent ici dans le navigateur et dans la chaîne d'intégration.",
+        "Qui modifie la loi voit quel scénario échoue."
+       ],
+       "route": "/scenarios",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Politique publique",
+       "title": "Quel effet sur deux mille personnes ?",
+       "lead": "Une population générée passe par tous les dispositifs, avec les vraies lois.",
+       "bullets": [
+        "Qui remplit les conditions, pour combien, ventilé par âge, revenu et ménage.",
+        "Ajustez un seuil de la loi et voyez la différence, avant son entrée en vigueur.",
+        "Aussi pour les entreprises : permis, obligations de déclaration, precario."
+       ],
+       "route": "/simulatie"
+      },
+      {
+       "kind": "demo",
+       "overline": "Le citoyen",
+       "title": "Un citoyen, Merijn",
+       "lead": "Indépendant dans les soins à domicile, parent isolé avec deux jeunes enfants.",
+       "bullets": [
+        "Tout ce à quoi il a droit, calculé en direct par la loi elle-même.",
+        "Chaque donnée remonte au registre qui l'a fournie.",
+        "Une donnée est fausse ? Il la corrige, un gestionnaire l'examine."
+       ],
+       "route": "/portaal",
+       "profile": "merijn",
+       "highlight": "nldd-card",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "La demande",
+       "title": "Ne demander que ce que l'administration ignore",
+       "lead": "La loi calcule avec ce qui existe déjà, et ne pose une question que lorsqu'elle bloque.",
+       "bullets": [
+        "L'allocation logement ne connaît pas le loyer. C'est la seule question, à ce moment-là.",
+        "Après chaque réponse, la loi recalcule.",
+        "Vérifier, déclarer, déposer. Sans formulaire de dix pages."
+       ],
+       "route": "/portaal",
+       "highlight": "[data-highlight=\"complete-data\"]",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Le gestionnaire",
+       "title": "Le même droit, de l'autre côté du guichet",
+       "lead": "La demande arrive avec le calcul que le citoyen a vu.",
+       "bullets": [
+        "Le moteur le recalcule avec les données enregistrées.",
+        "Les corrections du citoyen attendent d'être examinées.",
+        "Accorder ou refuser, avec motivation ; une réclamation revient par le portail."
+       ],
+       "route": "/zaaksysteem",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "L'entrepreneuse",
+       "title": "Une entrepreneuse, Claudia",
+       "lead": "Dirigeante du Café Noon à Rotterdam-West, un café avec sa propre petite brasserie et une terrasse.",
+       "bullets": [
+        "Le même moteur, d'autres lois : règlement local, alcool, sécurité alimentaire, accises, precario.",
+        "Le permis de terrasse demande l'emplacement et la surface ; une fois accordé, la taxe precario en tient compte.",
+        "La commune, l'autorité alimentaire et l'agence des entreprises en une seule vue, sans avoir à se consulter."
+       ],
+       "route": "/portaal",
+       "profile": "claudia"
+      },
+      {
+       "kind": "closing",
+       "overline": "Démo RegelRecht",
+       "title": "De la loi à sa mise en œuvre numérique",
+       "lines": [
+        "Une histoire complète, **pas un produit fini**",
+        "Nous construisons les politiques **par la pratique**"
+       ],
+       "link": {
+        "href": "https://regelrecht.rijks.app",
+        "label": "regelrecht.rijks.app"
+       }
+      }
+     ],
+     "question": "Est-ce juridiquement contraignant ?"
+    }
+   },
+   "dub": {
+    "en": {
+     "audio": {
+      "src": "faq-juridisch-bindend-voice-en-c5038f1d5cef.m4a",
+      "sha256": "c5038f1d5cef9bcaff2de2720cc442d7221aa9660bbbd732f642d76b6f038200",
+      "bytes": 570649
+     },
+     "captions": "faq-juridisch-bindend-a3656b72c05a.en.dub.vtt",
+     "basis": "faee8e1fb96ab545"
+    },
+    "fr": {
+     "audio": {
+      "src": "faq-juridisch-bindend-voice-fr-c3eb75d63644.m4a",
+      "sha256": "c3eb75d6364418ee9f7f9281532cbf709625dedd2a52cf7be36706feeec9b11d",
+      "bytes": 556481
+     },
+     "captions": "faq-juridisch-bindend-5a9d526bb72e.fr.dub.vtt",
+     "basis": "faee8e1fb96ab545"
+    }
+   }
   },
   {
    "id": "volgorde-artikelen",
@@ -18235,7 +19697,7 @@
         },
         "claimedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -18243,7 +19705,7 @@
         },
         "verifiedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -18298,13 +19760,13 @@
          "current_stage": "BEZWAAR",
          "accumulated_outputs": {
           "basishuur": 23801,
-          "bezwaartermijn_weken": 6,
+          "termijn_weken": 6,
           "is_gerechtigd": true,
           "motivering_vereist": true,
           "subsidiebedrag": 40695,
           "voldoet_aan_voorwaarden": true,
-          "bezwaartermijn_einddatum": "2026-11-11",
-          "bezwaartermijn_startdatum": "2026-10-01"
+          "termijn_einddatum": "2026-11-11",
+          "termijn_startdatum": "2026-10-01"
          },
          "parameters": {
           "aanvraag_datum": "2026-09-30",
@@ -18328,7 +19790,7 @@
          "bsn": "999100001"
         },
         "claimedResult": {
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "hoogte_toeslag": 212812,
          "is_verzekerde_zorgtoeslag": true,
          "motivering_vereist": true,
@@ -18494,7 +19956,7 @@
         },
         "claimedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -18502,7 +19964,7 @@
         },
         "verifiedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -18557,13 +20019,13 @@
          "current_stage": "BEZWAAR",
          "accumulated_outputs": {
           "basishuur": 23801,
-          "bezwaartermijn_weken": 6,
+          "termijn_weken": 6,
           "is_gerechtigd": true,
           "motivering_vereist": true,
           "subsidiebedrag": 40695,
           "voldoet_aan_voorwaarden": true,
-          "bezwaartermijn_einddatum": "2026-11-11",
-          "bezwaartermijn_startdatum": "2026-10-01"
+          "termijn_einddatum": "2026-11-11",
+          "termijn_startdatum": "2026-10-01"
          },
          "parameters": {
           "aanvraag_datum": "2026-09-30",
@@ -18587,7 +20049,7 @@
          "bsn": "999100001"
         },
         "claimedResult": {
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "hoogte_toeslag": 212812,
          "is_verzekerde_zorgtoeslag": true,
          "motivering_vereist": true,
@@ -19234,7 +20696,9 @@
    ],
    "pauses": [],
    "captions": {
-    "nl": "faq-volgorde-artikelen-e51e6b89224a.nl.vtt"
+    "nl": "faq-volgorde-artikelen-e51e6b89224a.nl.vtt",
+    "en": "faq-volgorde-artikelen-70740fcc095c.en.vtt",
+    "fr": "faq-volgorde-artikelen-0f31d2b38023.fr.vtt"
    },
    "pieces": [
     {
@@ -19255,7 +20719,379 @@
      "to": 109.1333,
      "at": 94.367
     }
-   ]
+   ],
+   "i18n": {
+    "en": {
+     "slides": [
+      {
+       "kind": "title",
+       "title": "RegelRecht",
+       "subtitle": "from law to digital effect",
+       "footer": "Netherlands Digital Service"
+      },
+      {
+       "kind": "statement",
+       "overline": "Today",
+       "lines": [
+        "Every organisation",
+        "has its **own reading** of the law",
+        "which lands in **its own software**"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "The result",
+       "lines": [
+        "No overview",
+        "Unpredictable",
+        "Unmanageable"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "What if",
+       "lines": [
+        "We **start with the law**",
+        "Make it **machine-executable**",
+        "Publish it **openly**"
+       ]
+      },
+      {
+       "kind": "section",
+       "title": "RegelRecht demo",
+       "lines": [
+        "A complete story, not a finished product",
+        "We make policy by doing"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "The rulework",
+       "title": "The law as a rulework",
+       "lead": "The legal text and the executable rule sit side by side, article by article.",
+       "bullets": [
+        "Every article has a **machine_readable** part: what goes in, what comes out, and how.",
+        "A reference to another law is explicit, not a copied amount.",
+        "The same rulework runs in the editor, in this portal and in the simulation."
+       ],
+       "route": "/regelwerken",
+       "highlight": ".yaml-tree"
+      },
+      {
+       "kind": "demo",
+       "overline": "Coherence",
+       "title": "Laws hang together",
+       "lead": "Whether you are insured depends on detention; whether you get healthcare allowance depends on being insured.",
+       "bullets": [
+        "Per law: which data come from registers, which from other laws, and what comes out.",
+        "Every line is a real reference from the law, with this person's value on it.",
+        "Change a law and you see at once who it touches."
+       ],
+       "route": "/graaf",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Testing",
+       "title": "The law tested, in plain language",
+       "lead": "A scenario describes a person and what the law should produce for them.",
+       "bullets": [
+        "Given a 17-year-old, no healthcare allowance. Given a single person on a low income, yes.",
+        "The same scenarios run here in the browser and in the build pipeline.",
+        "Change the law and you see which scenario falls over."
+       ],
+       "route": "/scenarios",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Policy",
+       "title": "What does it do to two thousand people?",
+       "lead": "A generated population through every scheme, with the real laws.",
+       "bullets": [
+        "Who meets the conditions, for how much, broken down by age, income and household.",
+        "Turn a threshold in the law and see the difference, before it takes effect.",
+        "For businesses too: permits, reporting duties, precario tax."
+       ],
+       "route": "/simulatie"
+      },
+      {
+       "kind": "demo",
+       "overline": "The citizen",
+       "title": "One citizen, Merijn",
+       "lead": "Self-employed in home care, a single parent with two young children.",
+       "bullets": [
+        "Everything he is entitled to, computed live by the law itself.",
+        "Every fact traces back to the register that supplied it.",
+        "A fact wrong? He corrects it, a case officer assesses it."
+       ],
+       "route": "/portaal",
+       "profile": "merijn",
+       "highlight": "nldd-card",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Applying",
+       "title": "Asking only what government does not know",
+       "lead": "The law computes with what is already there, and asks only when it gets stuck.",
+       "bullets": [
+        "Housing benefit does not know the rent. That is the only question, at that moment.",
+        "After every answer the law computes again.",
+        "Check, declare, submit. Without a ten-page form."
+       ],
+       "route": "/portaal",
+       "highlight": "[data-highlight=\"complete-data\"]",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "The case officer",
+       "title": "The same right, the other side of the desk",
+       "lead": "The application arrives with the calculation the citizen saw.",
+       "bullets": [
+        "The engine recomputes it against the registered data.",
+        "The citizen's corrections are waiting to be assessed.",
+        "Grant or refuse, with reasons; an objection comes back through the portal."
+       ],
+       "route": "/zaaksysteem",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "The entrepreneur",
+       "title": "An entrepreneur, Claudia",
+       "lead": "Director of Café Noon in Rotterdam West, a café with its own small brewery and a terrace.",
+       "bullets": [
+        "The same engine, other laws: local by-laws, alcohol, food safety, excise duty, precario tax.",
+        "The terrace permit asks for location and area; once it is granted, the precario tax computes with it.",
+        "The municipality, the food authority and the enterprise agency in one overview, without having to ask each other anything."
+       ],
+       "route": "/portaal",
+       "profile": "claudia"
+      },
+      {
+       "kind": "closing",
+       "overline": "RegelRecht demo",
+       "title": "From law to digital effect",
+       "lines": [
+        "A complete story, **not a finished product**",
+        "We make policy **by doing**"
+       ],
+       "link": {
+        "href": "https://regelrecht.rijks.app",
+        "label": "regelrecht.rijks.app"
+       }
+      }
+     ],
+     "question": "Does the order of articles matter?"
+    },
+    "fr": {
+     "slides": [
+      {
+       "kind": "title",
+       "title": "RegelRecht",
+       "subtitle": "de la loi à sa mise en œuvre numérique",
+       "footer": "Service numérique néerlandais"
+      },
+      {
+       "kind": "statement",
+       "overline": "Aujourd'hui",
+       "lines": [
+        "Chaque organisation",
+        "a sa **propre lecture** de la loi",
+        "traduite dans **son propre logiciel**"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "Le résultat",
+       "lines": [
+        "Pas de vue d'ensemble",
+        "Imprévisible",
+        "Ingérable"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "Et si",
+       "lines": [
+        "On **partait de la loi**",
+        "On la rendait **exécutable par machine**",
+        "On la publiait **ouvertement**"
+       ]
+      },
+      {
+       "kind": "section",
+       "title": "Démo RegelRecht",
+       "lines": [
+        "Une histoire complète, pas un produit fini",
+        "Nous construisons les politiques par la pratique"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "La réglementation",
+       "title": "La loi comme réglementation",
+       "lead": "Le texte de loi et la règle exécutable sont côte à côte, article par article.",
+       "bullets": [
+        "Chaque article a une partie **machine_readable** : ce qui entre, ce qui sort, et comment.",
+        "Un renvoi à une autre loi est explicite, pas la copie d'un montant.",
+        "La même réglementation s'exécute dans l'éditeur, dans ce portail et dans la simulation."
+       ],
+       "route": "/regelwerken",
+       "highlight": ".yaml-tree"
+      },
+      {
+       "kind": "demo",
+       "overline": "Cohérence",
+       "title": "Les lois sont liées",
+       "lead": "Qui est assuré dépend de la détention ; qui reçoit l'allocation de soins de santé dépend de l'assurance.",
+       "bullets": [
+        "Par loi : quelles données viennent des registres, lesquelles d'autres lois, ce qui en sort.",
+        "Chaque ligne est un vrai renvoi de la loi, avec la valeur pour cette personne.",
+        "Une loi change ? Vous voyez aussitôt qui est concerné."
+       ],
+       "route": "/graaf",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Tester",
+       "title": "La loi testée, en langage courant",
+       "lead": "Les scénarios décrivent une personne et ce que la loi doit produire pour elle.",
+       "bullets": [
+        "Soit un jeune de 17 ans : pas d'allocation de soins de santé. Soit une personne seule à bas revenu : oui.",
+        "Les mêmes scénarios s'exécutent ici dans le navigateur et dans la chaîne d'intégration.",
+        "Qui modifie la loi voit quel scénario échoue."
+       ],
+       "route": "/scenarios",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Politique publique",
+       "title": "Quel effet sur deux mille personnes ?",
+       "lead": "Une population générée passe par tous les dispositifs, avec les vraies lois.",
+       "bullets": [
+        "Qui remplit les conditions, pour combien, ventilé par âge, revenu et ménage.",
+        "Ajustez un seuil de la loi et voyez la différence, avant son entrée en vigueur.",
+        "Aussi pour les entreprises : permis, obligations de déclaration, precario."
+       ],
+       "route": "/simulatie"
+      },
+      {
+       "kind": "demo",
+       "overline": "Le citoyen",
+       "title": "Un citoyen, Merijn",
+       "lead": "Indépendant dans les soins à domicile, parent isolé avec deux jeunes enfants.",
+       "bullets": [
+        "Tout ce à quoi il a droit, calculé en direct par la loi elle-même.",
+        "Chaque donnée remonte au registre qui l'a fournie.",
+        "Une donnée est fausse ? Il la corrige, un gestionnaire l'examine."
+       ],
+       "route": "/portaal",
+       "profile": "merijn",
+       "highlight": "nldd-card",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "La demande",
+       "title": "Ne demander que ce que l'administration ignore",
+       "lead": "La loi calcule avec ce qui existe déjà, et ne pose une question que lorsqu'elle bloque.",
+       "bullets": [
+        "L'allocation logement ne connaît pas le loyer. C'est la seule question, à ce moment-là.",
+        "Après chaque réponse, la loi recalcule.",
+        "Vérifier, déclarer, déposer. Sans formulaire de dix pages."
+       ],
+       "route": "/portaal",
+       "highlight": "[data-highlight=\"complete-data\"]",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Le gestionnaire",
+       "title": "Le même droit, de l'autre côté du guichet",
+       "lead": "La demande arrive avec le calcul que le citoyen a vu.",
+       "bullets": [
+        "Le moteur le recalcule avec les données enregistrées.",
+        "Les corrections du citoyen attendent d'être examinées.",
+        "Accorder ou refuser, avec motivation ; une réclamation revient par le portail."
+       ],
+       "route": "/zaaksysteem",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "L'entrepreneuse",
+       "title": "Une entrepreneuse, Claudia",
+       "lead": "Dirigeante du Café Noon à Rotterdam-West, un café avec sa propre petite brasserie et une terrasse.",
+       "bullets": [
+        "Le même moteur, d'autres lois : règlement local, alcool, sécurité alimentaire, accises, precario.",
+        "Le permis de terrasse demande l'emplacement et la surface ; une fois accordé, la taxe precario en tient compte.",
+        "La commune, l'autorité alimentaire et l'agence des entreprises en une seule vue, sans avoir à se consulter."
+       ],
+       "route": "/portaal",
+       "profile": "claudia"
+      },
+      {
+       "kind": "closing",
+       "overline": "Démo RegelRecht",
+       "title": "De la loi à sa mise en œuvre numérique",
+       "lines": [
+        "Une histoire complète, **pas un produit fini**",
+        "Nous construisons les politiques **par la pratique**"
+       ],
+       "link": {
+        "href": "https://regelrecht.rijks.app",
+        "label": "regelrecht.rijks.app"
+       }
+      }
+     ],
+     "question": "L'ordre des articles a-t-il de l'importance ?"
+    }
+   },
+   "dub": {
+    "en": {
+     "audio": {
+      "src": "faq-volgorde-artikelen-voice-en-442dd5aa399f.m4a",
+      "sha256": "442dd5aa399f8ab4afb359c2ce309e905d20f414299dff44724a4f820126c770",
+      "bytes": 945646
+     },
+     "captions": "faq-volgorde-artikelen-a1c16ac33727.en.dub.vtt",
+     "basis": "36fc7f281afdb032"
+    },
+    "fr": {
+     "audio": {
+      "src": "faq-volgorde-artikelen-voice-fr-1462f3bfd517.m4a",
+      "sha256": "1462f3bfd517688d7f6b8ae1aabfd523f51dd2fee7b30c6b768448d7c6e2a123",
+      "bytes": 914021
+     },
+     "captions": "faq-volgorde-artikelen-a772be1c80f4.fr.dub.vtt",
+     "basis": "36fc7f281afdb032"
+    }
+   }
   },
   {
    "id": "vertaling-klopt",
@@ -19490,7 +21326,7 @@
         },
         "claimedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -19498,7 +21334,7 @@
         },
         "verifiedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -19553,13 +21389,13 @@
          "current_stage": "BEZWAAR",
          "accumulated_outputs": {
           "basishuur": 23801,
-          "bezwaartermijn_weken": 6,
+          "termijn_weken": 6,
           "is_gerechtigd": true,
           "motivering_vereist": true,
           "subsidiebedrag": 40695,
           "voldoet_aan_voorwaarden": true,
-          "bezwaartermijn_einddatum": "2026-11-11",
-          "bezwaartermijn_startdatum": "2026-10-01"
+          "termijn_einddatum": "2026-11-11",
+          "termijn_startdatum": "2026-10-01"
          },
          "parameters": {
           "aanvraag_datum": "2026-09-30",
@@ -19583,7 +21419,7 @@
          "bsn": "999100001"
         },
         "claimedResult": {
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "hoogte_toeslag": 212812,
          "is_verzekerde_zorgtoeslag": true,
          "motivering_vereist": true,
@@ -19749,7 +21585,7 @@
         },
         "claimedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -19757,7 +21593,7 @@
         },
         "verifiedResult": {
          "basishuur": 23801,
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "is_gerechtigd": true,
          "motivering_vereist": true,
          "subsidiebedrag": 40695,
@@ -19812,13 +21648,13 @@
          "current_stage": "BEZWAAR",
          "accumulated_outputs": {
           "basishuur": 23801,
-          "bezwaartermijn_weken": 6,
+          "termijn_weken": 6,
           "is_gerechtigd": true,
           "motivering_vereist": true,
           "subsidiebedrag": 40695,
           "voldoet_aan_voorwaarden": true,
-          "bezwaartermijn_einddatum": "2026-11-11",
-          "bezwaartermijn_startdatum": "2026-10-01"
+          "termijn_einddatum": "2026-11-11",
+          "termijn_startdatum": "2026-10-01"
          },
          "parameters": {
           "aanvraag_datum": "2026-09-30",
@@ -19842,7 +21678,7 @@
          "bsn": "999100001"
         },
         "claimedResult": {
-         "bezwaartermijn_weken": 6,
+         "termijn_weken": 6,
          "hoogte_toeslag": 212812,
          "is_verzekerde_zorgtoeslag": true,
          "motivering_vereist": true,
@@ -21425,7 +23261,9 @@
    ],
    "pauses": [],
    "captions": {
-    "nl": "faq-vertaling-klopt-1c5dc4f89c7c.nl.vtt"
+    "nl": "faq-vertaling-klopt-1c5dc4f89c7c.nl.vtt",
+    "en": "faq-vertaling-klopt-a42bf2b0069e.en.vtt",
+    "fr": "faq-vertaling-klopt-250f13b1bba1.fr.vtt"
    },
    "pieces": [
     {
@@ -21482,7 +23320,379 @@
      "to": 369.1,
      "at": 118.033
     }
-   ]
+   ],
+   "i18n": {
+    "en": {
+     "slides": [
+      {
+       "kind": "title",
+       "title": "RegelRecht",
+       "subtitle": "from law to digital effect",
+       "footer": "Netherlands Digital Service"
+      },
+      {
+       "kind": "statement",
+       "overline": "Today",
+       "lines": [
+        "Every organisation",
+        "has its **own reading** of the law",
+        "which lands in **its own software**"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "The result",
+       "lines": [
+        "No overview",
+        "Unpredictable",
+        "Unmanageable"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "What if",
+       "lines": [
+        "We **start with the law**",
+        "Make it **machine-executable**",
+        "Publish it **openly**"
+       ]
+      },
+      {
+       "kind": "section",
+       "title": "RegelRecht demo",
+       "lines": [
+        "A complete story, not a finished product",
+        "We make policy by doing"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "The rulework",
+       "title": "The law as a rulework",
+       "lead": "The legal text and the executable rule sit side by side, article by article.",
+       "bullets": [
+        "Every article has a **machine_readable** part: what goes in, what comes out, and how.",
+        "A reference to another law is explicit, not a copied amount.",
+        "The same rulework runs in the editor, in this portal and in the simulation."
+       ],
+       "route": "/regelwerken",
+       "highlight": ".yaml-tree"
+      },
+      {
+       "kind": "demo",
+       "overline": "Coherence",
+       "title": "Laws hang together",
+       "lead": "Whether you are insured depends on detention; whether you get healthcare allowance depends on being insured.",
+       "bullets": [
+        "Per law: which data come from registers, which from other laws, and what comes out.",
+        "Every line is a real reference from the law, with this person's value on it.",
+        "Change a law and you see at once who it touches."
+       ],
+       "route": "/graaf",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Testing",
+       "title": "The law tested, in plain language",
+       "lead": "A scenario describes a person and what the law should produce for them.",
+       "bullets": [
+        "Given a 17-year-old, no healthcare allowance. Given a single person on a low income, yes.",
+        "The same scenarios run here in the browser and in the build pipeline.",
+        "Change the law and you see which scenario falls over."
+       ],
+       "route": "/scenarios",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Policy",
+       "title": "What does it do to two thousand people?",
+       "lead": "A generated population through every scheme, with the real laws.",
+       "bullets": [
+        "Who meets the conditions, for how much, broken down by age, income and household.",
+        "Turn a threshold in the law and see the difference, before it takes effect.",
+        "For businesses too: permits, reporting duties, precario tax."
+       ],
+       "route": "/simulatie"
+      },
+      {
+       "kind": "demo",
+       "overline": "The citizen",
+       "title": "One citizen, Merijn",
+       "lead": "Self-employed in home care, a single parent with two young children.",
+       "bullets": [
+        "Everything he is entitled to, computed live by the law itself.",
+        "Every fact traces back to the register that supplied it.",
+        "A fact wrong? He corrects it, a case officer assesses it."
+       ],
+       "route": "/portaal",
+       "profile": "merijn",
+       "highlight": "nldd-card",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Applying",
+       "title": "Asking only what government does not know",
+       "lead": "The law computes with what is already there, and asks only when it gets stuck.",
+       "bullets": [
+        "Housing benefit does not know the rent. That is the only question, at that moment.",
+        "After every answer the law computes again.",
+        "Check, declare, submit. Without a ten-page form."
+       ],
+       "route": "/portaal",
+       "highlight": "[data-highlight=\"complete-data\"]",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "The case officer",
+       "title": "The same right, the other side of the desk",
+       "lead": "The application arrives with the calculation the citizen saw.",
+       "bullets": [
+        "The engine recomputes it against the registered data.",
+        "The citizen's corrections are waiting to be assessed.",
+        "Grant or refuse, with reasons; an objection comes back through the portal."
+       ],
+       "route": "/zaaksysteem",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "The entrepreneur",
+       "title": "An entrepreneur, Claudia",
+       "lead": "Director of Café Noon in Rotterdam West, a café with its own small brewery and a terrace.",
+       "bullets": [
+        "The same engine, other laws: local by-laws, alcohol, food safety, excise duty, precario tax.",
+        "The terrace permit asks for location and area; once it is granted, the precario tax computes with it.",
+        "The municipality, the food authority and the enterprise agency in one overview, without having to ask each other anything."
+       ],
+       "route": "/portaal",
+       "profile": "claudia"
+      },
+      {
+       "kind": "closing",
+       "overline": "RegelRecht demo",
+       "title": "From law to digital effect",
+       "lines": [
+        "A complete story, **not a finished product**",
+        "We make policy **by doing**"
+       ],
+       "link": {
+        "href": "https://regelrecht.rijks.app",
+        "label": "regelrecht.rijks.app"
+       }
+      }
+     ],
+     "question": "How do we know the translation is correct?"
+    },
+    "fr": {
+     "slides": [
+      {
+       "kind": "title",
+       "title": "RegelRecht",
+       "subtitle": "de la loi à sa mise en œuvre numérique",
+       "footer": "Service numérique néerlandais"
+      },
+      {
+       "kind": "statement",
+       "overline": "Aujourd'hui",
+       "lines": [
+        "Chaque organisation",
+        "a sa **propre lecture** de la loi",
+        "traduite dans **son propre logiciel**"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "Le résultat",
+       "lines": [
+        "Pas de vue d'ensemble",
+        "Imprévisible",
+        "Ingérable"
+       ]
+      },
+      {
+       "kind": "statement",
+       "overline": "Et si",
+       "lines": [
+        "On **partait de la loi**",
+        "On la rendait **exécutable par machine**",
+        "On la publiait **ouvertement**"
+       ]
+      },
+      {
+       "kind": "section",
+       "title": "Démo RegelRecht",
+       "lines": [
+        "Une histoire complète, pas un produit fini",
+        "Nous construisons les politiques par la pratique"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "La réglementation",
+       "title": "La loi comme réglementation",
+       "lead": "Le texte de loi et la règle exécutable sont côte à côte, article par article.",
+       "bullets": [
+        "Chaque article a une partie **machine_readable** : ce qui entre, ce qui sort, et comment.",
+        "Un renvoi à une autre loi est explicite, pas la copie d'un montant.",
+        "La même réglementation s'exécute dans l'éditeur, dans ce portail et dans la simulation."
+       ],
+       "route": "/regelwerken",
+       "highlight": ".yaml-tree"
+      },
+      {
+       "kind": "demo",
+       "overline": "Cohérence",
+       "title": "Les lois sont liées",
+       "lead": "Qui est assuré dépend de la détention ; qui reçoit l'allocation de soins de santé dépend de l'assurance.",
+       "bullets": [
+        "Par loi : quelles données viennent des registres, lesquelles d'autres lois, ce qui en sort.",
+        "Chaque ligne est un vrai renvoi de la loi, avec la valeur pour cette personne.",
+        "Une loi change ? Vous voyez aussitôt qui est concerné."
+       ],
+       "route": "/graaf",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Tester",
+       "title": "La loi testée, en langage courant",
+       "lead": "Les scénarios décrivent une personne et ce que la loi doit produire pour elle.",
+       "bullets": [
+        "Soit un jeune de 17 ans : pas d'allocation de soins de santé. Soit une personne seule à bas revenu : oui.",
+        "Les mêmes scénarios s'exécutent ici dans le navigateur et dans la chaîne d'intégration.",
+        "Qui modifie la loi voit quel scénario échoue."
+       ],
+       "route": "/scenarios",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Politique publique",
+       "title": "Quel effet sur deux mille personnes ?",
+       "lead": "Une population générée passe par tous les dispositifs, avec les vraies lois.",
+       "bullets": [
+        "Qui remplit les conditions, pour combien, ventilé par âge, revenu et ménage.",
+        "Ajustez un seuil de la loi et voyez la différence, avant son entrée en vigueur.",
+        "Aussi pour les entreprises : permis, obligations de déclaration, precario."
+       ],
+       "route": "/simulatie"
+      },
+      {
+       "kind": "demo",
+       "overline": "Le citoyen",
+       "title": "Un citoyen, Merijn",
+       "lead": "Indépendant dans les soins à domicile, parent isolé avec deux jeunes enfants.",
+       "bullets": [
+        "Tout ce à quoi il a droit, calculé en direct par la loi elle-même.",
+        "Chaque donnée remonte au registre qui l'a fournie.",
+        "Une donnée est fausse ? Il la corrige, un gestionnaire l'examine."
+       ],
+       "route": "/portaal",
+       "profile": "merijn",
+       "highlight": "nldd-card",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "La demande",
+       "title": "Ne demander que ce que l'administration ignore",
+       "lead": "La loi calcule avec ce qui existe déjà, et ne pose une question que lorsqu'elle bloque.",
+       "bullets": [
+        "L'allocation logement ne connaît pas le loyer. C'est la seule question, à ce moment-là.",
+        "Après chaque réponse, la loi recalcule.",
+        "Vérifier, déclarer, déposer. Sans formulaire de dix pages."
+       ],
+       "route": "/portaal",
+       "highlight": "[data-highlight=\"complete-data\"]",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "Le gestionnaire",
+       "title": "Le même droit, de l'autre côté du guichet",
+       "lead": "La demande arrive avec le calcul que le citoyen a vu.",
+       "bullets": [
+        "Le moteur le recalcule avec les données enregistrées.",
+        "Les corrections du citoyen attendent d'être examinées.",
+        "Accorder ou refuser, avec motivation ; une réclamation revient par le portail."
+       ],
+       "route": "/zaaksysteem",
+       "decks": [
+        "merijn"
+       ]
+      },
+      {
+       "kind": "demo",
+       "overline": "L'entrepreneuse",
+       "title": "Une entrepreneuse, Claudia",
+       "lead": "Dirigeante du Café Noon à Rotterdam-West, un café avec sa propre petite brasserie et une terrasse.",
+       "bullets": [
+        "Le même moteur, d'autres lois : règlement local, alcool, sécurité alimentaire, accises, precario.",
+        "Le permis de terrasse demande l'emplacement et la surface ; une fois accordé, la taxe precario en tient compte.",
+        "La commune, l'autorité alimentaire et l'agence des entreprises en une seule vue, sans avoir à se consulter."
+       ],
+       "route": "/portaal",
+       "profile": "claudia"
+      },
+      {
+       "kind": "closing",
+       "overline": "Démo RegelRecht",
+       "title": "De la loi à sa mise en œuvre numérique",
+       "lines": [
+        "Une histoire complète, **pas un produit fini**",
+        "Nous construisons les politiques **par la pratique**"
+       ],
+       "link": {
+        "href": "https://regelrecht.rijks.app",
+        "label": "regelrecht.rijks.app"
+       }
+      }
+     ],
+     "question": "Comment savoir si la traduction est fidèle ?"
+    }
+   },
+   "dub": {
+    "en": {
+     "audio": {
+      "src": "faq-vertaling-klopt-voice-en-2eed57dc81d4.m4a",
+      "sha256": "2eed57dc81d431a49d30c6e9be023857cd37231cee57c05082d80b97c5387652",
+      "bytes": 1313546
+     },
+     "captions": "faq-vertaling-klopt-d6bd9b3b00c4.en.dub.vtt",
+     "basis": "a0ac32a2e7678cfd"
+    },
+    "fr": {
+     "audio": {
+      "src": "faq-vertaling-klopt-voice-fr-5cc1f86024e4.m4a",
+      "sha256": "5cc1f86024e478f9118e2fb7c16f3220577b0f423d2560c613a0471d6172626e",
+      "bytes": 1369097
+     },
+     "captions": "faq-vertaling-klopt-651071abfff3.fr.dub.vtt",
+     "basis": "a0ac32a2e7678cfd"
+    }
+   }
   }
  ],
  "bumpers": {
@@ -21502,5 +23712,52 @@
     "duration": 3.0
    }
   ]
+ },
+ "locales": [
+  "nl",
+  "en",
+  "fr"
+ ],
+ "dub": {
+  "en": {
+   "bumpers": {
+    "wait": [
+     {
+      "src": "bumper-wait-en-23f28f87b3a6.m4a",
+      "sha256": "23f28f87b3a6a870ba10d2113b8163360db77160ea60c0f04cdd76e28f89b784",
+      "bytes": 34613,
+      "duration": 2.72
+     }
+    ],
+    "resume": [
+     {
+      "src": "bumper-resume-en-3f9432630c0f.m4a",
+      "sha256": "3f9432630c0fef664d6b23686cc774bb159d41ed358f3bb0cf80ea7438b27f45",
+      "bytes": 22927,
+      "duration": 1.76
+     }
+    ]
+   }
+  },
+  "fr": {
+   "bumpers": {
+    "wait": [
+     {
+      "src": "bumper-wait-fr-f7f21dae5acc.m4a",
+      "sha256": "f7f21dae5accf05af75caa91713cf4e60f63bd81c87274e93e1298b09608c114",
+      "bytes": 33488,
+      "duration": 2.64
+     }
+    ],
+    "resume": [
+     {
+      "src": "bumper-resume-fr-2f2bb892f383.m4a",
+      "sha256": "2f2bb892f3833f86f3e070995726ff736b0f7e09c9d94751d6f6c3c62311c16a",
+      "bytes": 21651,
+      "duration": 1.68
+     }
+    ]
+   }
+  }
  }
 }

@@ -21,8 +21,8 @@ use uuid::Uuid;
 
 use regelrecht_shared::RegulatoryLayer;
 
-use crate::document_convert::{extension_for, try_deterministic_convert, Upload};
-use crate::enrich::{run_llm_subprocess, EnrichConfig, EnrichPayload, SessionAction};
+use crate::document_convert::{Upload, extension_for, try_deterministic_convert};
+use crate::enrich::{EnrichConfig, EnrichPayload, SessionAction, run_llm_subprocess};
 use crate::error::{PipelineError, Result};
 use crate::job_queue::{self, CreateJobRequest};
 use crate::models::{Job, JobType, Priority};

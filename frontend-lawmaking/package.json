@@ -6,15 +6,23 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test src/data/*.test.mjs"
+    "typecheck": "vue-tsc --build",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
-    "@nldd/design-system": "^0.8.94",
+    "@nldd/design-system": "^0.22.0",
     "@regelrecht/frontend-shared": "*",
     "vue": "^3.5.43"
   },
   "devDependencies": {
+    "@tsconfig/node24": "^24.0.5",
+    "@types/node": "^26.6.5",
     "@vitejs/plugin-vue": "^6.0.10",
-    "vite": "^8.3.4"
+    "@vue/tsconfig": "^0.9.1",
+    "typescript": "~6.0.3",
+    "vite": "^8.3.4",
+    "vitest": "^5.0.5",
+    "vue-tsc": "^3.3.13"
   }
 }

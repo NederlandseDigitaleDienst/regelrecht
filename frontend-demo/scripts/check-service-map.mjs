@@ -3,9 +3,10 @@
  *
  * The organisation used to sit in the law file itself, which meant a new law
  * carried its own answer. Now it lives in `services.yaml` under `laws:`, and
- * a law that is missing there silently gets `service: null`: no logo, no
- * colour, no group heading, and no error. This check is what replaces the
- * guarantee the old field gave for free.
+ * the app counts on every law having one: logo, colour and group heading come
+ * from it. This check is what replaces the guarantee the old field gave for
+ * free; copy-demo-corpus.mjs refuses such a law as well, as a last stop before
+ * the data reaches the app.
  *
  * It also holds the map to real organisations, and refuses an entry for a law
  * that no longer exists, so the map cannot rot in either direction.

@@ -1,0 +1,25 @@
+---
+# Only a REDUCTIE reads the recorded facts (schema v0.8.7, RFC-051).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.7/schema/v0.8.7/schema.json
+$id: test_conformance_facts_outside_reduction
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-10-18'
+valid_from: '2026-10-18'
+url: https://example.invalid/facts
+articles:
+  - number: '1'
+    text: De vestigingen zijn de vastgelegde vestigingen van de school.
+    url: https://example.invalid/facts/1
+    machine_readable:
+      execution:
+        input:
+          - name: vestigingen
+            type: array
+            source:
+              facts: test_conformance_fact#1#vestiging
+        output:
+          - name: alle_vestigingen
+            type: array
+        actions:
+          - output: alle_vestigingen
+            value: $vestigingen

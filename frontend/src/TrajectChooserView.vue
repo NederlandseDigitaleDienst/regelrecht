@@ -1,8 +1,11 @@
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, watchEffect } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
-import { useTrajects, refreshTrajects } from './composables/useTrajects.js';
-import { lastHomePath, homeTarget } from './composables/useLastVisitedRoute.js';
+import { singleQuery } from './lib/routeParams';
+import { useTrajectsStore } from './stores/trajects';
+import type { TrajectSummary } from './stores/trajects';
+import { lastHomePath, homeTarget } from './composables/useLastVisitedRoute';
 
 // Trajectkeuze-pagina - de landing wanneer de editor (of een traject-scoped
 // bibliotheek) een traject vereist. Hier kies je een bestaand traject of ga je
@@ -13,7 +16,9 @@ import { lastHomePath, homeTarget } from './composables/useLastVisitedRoute.js';
 // eigen top-title-bar met terugknop naar de bibliotheek.
 const route = useRoute();
 const router = useRouter();
-const { trajects, loading, error } = useTrajects();
+const trajectsStore = useTrajectsStore();
+const { trajects, loading, error } = storeToRefs(trajectsStore);
+const { refreshTrajects } = trajectsStore;
 
 // Set when the editor (or a traject-scoped view) redirected here because the
 // requested traject is missing/inaccessible - see EditorView's trajectMissing.
@@ -43,9 +48,9 @@ function goBack() {
 // Where picking a traject takes you, from `sectie` (default editor): the
 // library or editor traject-scoped route, carrying the law/article the user was
 // heading for so they land on their intended destination.
-function trajectTarget(trajectRef) {
-  const lawId = route.query.law || undefined;
-  const articleNumber = route.query.article || undefined;
+function trajectTarget(trajectRef: string) {
+  const lawId = singleQuery(route.query.law) || undefined;
+  const articleNumber = singleQuery(route.query.article) || undefined;
   // `sectie=library` came from the Home section; editor otherwise. Home splits
   // into traject-home / library-traject on whether a law is carried.
   return route.query.sectie === 'library'
@@ -53,7 +58,7 @@ function trajectTarget(trajectRef) {
     : { name: 'editor-traject', params: { trajectRef, lawId, articleNumber } };
 }
 
-function selectTraject(t) {
+function selectTraject(t: TrajectSummary) {
   // `t.ref` serialises to null when the backend builds a TrajectSummary
   // without fill_ref() - refuse to navigate (same guard as TrajectMenu).
   if (!t.ref) {
@@ -68,8 +73,8 @@ function openCreate() {
   router.push({ name: 'editor-nieuw-traject', query: route.query });
 }
 
-function trajectSupportingText(t) {
-  const parts = [];
+function trajectSupportingText(t: TrajectSummary) {
+  const parts: string[] = [];
   if (t.status === 'afgerond') parts.push('Afgerond');
   if (t.description) parts.push(t.description);
   return parts.join(' - ') || undefined;
@@ -77,7 +82,7 @@ function trajectSupportingText(t) {
 </script>
 
 <template>
-  <nldd-app-view>
+  <nldd-shell>
     <nldd-page sticky-header>
       <nldd-top-title-bar
         slot="header"
@@ -88,7 +93,7 @@ function trajectSupportingText(t) {
       ></nldd-top-title-bar>
 
       <nldd-simple-section width="800px">
-        <nldd-title id="kies-traject-titel" size="3"><h3>Trajecten</h3></nldd-title>
+        <nldd-title id="kies-traject-titel" size="display-3"><h3>Trajecten</h3></nldd-title>
         <nldd-spacer size="16"></nldd-spacer>
         <template v-if="trajectMissing">
           <nldd-banner
@@ -145,5 +150,5 @@ function trajectSupportingText(t) {
 
       <nldd-page-footer slot="footer"></nldd-page-footer>
     </nldd-page>
-  </nldd-app-view>
+  </nldd-shell>
 </template>

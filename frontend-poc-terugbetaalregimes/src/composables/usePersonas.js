@@ -8,13 +8,13 @@
 import { ref, computed } from 'vue';
 import * as yaml from 'js-yaml';
 import { b } from '../basePad.js';
-import { leesStand, bewaarStand } from './useBewaardeStand.js';
+import { readPersisted, writePersisted } from './useBewaardeStand.js';
 
 const uitYaml = ref([]);
 // Zelf toegevoegde scenario's. Ze overleven een ververs maar gaan niet naar de
 // repo: een scenario is een sessievondst, geen brongegeven. Wie er een wil
 // bewaren voor iedereen, plakt hem met "Kopieer als YAML" in personas.yaml.
-const eigen = ref(leesStand('scenarios.eigen', []));
+const eigen = ref(readPersisted('scenarios.eigen', []));
 const personas = computed(() => [...uitYaml.value, ...eigen.value]);
 const loaded = ref(false);
 const loadError = ref(null);
@@ -39,7 +39,7 @@ async function fetchPersonas() {
 }
 
 function bewaarEigen() {
-  bewaarStand('scenarios.eigen', eigen.value);
+  writePersisted('scenarios.eigen', eigen.value);
 }
 
 /** Toevoegen of, als het bsn al bestaat, bijwerken. */

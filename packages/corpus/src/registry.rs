@@ -74,27 +74,27 @@ impl CorpusRegistry {
 
         let mut sources = manifest.sources;
 
-        if let Some(local_path) = local_override_path {
-            if local_path.exists() {
-                let local_content = std::fs::read_to_string(local_path).map_err(|e| {
+        if let Some(local_path) = local_override_path
+            && local_path.exists()
+        {
+            let local_content = std::fs::read_to_string(local_path).map_err(|e| {
+                CorpusError::Config(format!(
+                    "Failed to read local override {}: {}",
+                    local_path.display(),
+                    e
+                ))
+            })?;
+
+            let local_manifest: RegistryManifest = serde_yaml_ng::from_str(&local_content)
+                .map_err(|e| {
                     CorpusError::Config(format!(
-                        "Failed to read local override {}: {}",
+                        "Failed to parse local override {}: {}",
                         local_path.display(),
                         e
                     ))
                 })?;
 
-                let local_manifest: RegistryManifest = serde_yaml_ng::from_str(&local_content)
-                    .map_err(|e| {
-                        CorpusError::Config(format!(
-                            "Failed to parse local override {}: {}",
-                            local_path.display(),
-                            e
-                        ))
-                    })?;
-
-                sources = merge_sources(sources, local_manifest.sources);
-            }
+            sources = merge_sources(sources, local_manifest.sources);
         }
 
         // Sort by priority (lowest value = highest priority)
@@ -177,15 +177,22 @@ impl CorpusRegistry {
     /// Uses the Trees API (1 call per GitHub source) to discover paths,
     /// then fetches only the files matching `law_ids`. This keeps startup
     /// fast and avoids burning rate limits on thousands of unused files.
+    /// A source marked `load_all` is the exception: it is small by design,
+    /// so every law in it is fetched.
+    ///
+    /// # Errors
+    ///
+    /// When the GitHub client cannot be built, a local source or a fetched
+    /// file does not load, a token lookup fails, or a fetch fails.
     #[cfg(feature = "github")]
     pub async fn load_favorites_async(
         &self,
         law_ids: &std::collections::HashSet<String>,
-        auth_file: Option<&Path>,
+        github_settings: &crate::GithubSettings,
         today: &str,
     ) -> Result<SourceMap> {
         let mut map = SourceMap::new(today);
-        let client = regelrecht_github::GithubClient::new()?;
+        let client = github_settings.client()?;
 
         // Determine which law_ids are NOT already covered by local sources,
         // so we only fetch what's missing from GitHub.
@@ -198,22 +205,35 @@ impl CorpusRegistry {
             map.laws().map(|l| l.law_id.clone()).collect();
         let missing: std::collections::HashSet<String> =
             law_ids.difference(&local_ids).cloned().collect();
+        let any_load_all = self
+            .sources
+            .iter()
+            .any(|s| s.load_all && matches!(s.source_type, SourceType::GitHub { .. }));
 
-        if missing.is_empty() {
+        if missing.is_empty() && !any_load_all {
             tracing::info!("all favorites available locally, skipping GitHub fetch");
             return Ok(map);
         }
 
         for source in &self.sources {
             if let SourceType::GitHub { github } = &source.source_type {
-                let token = crate::auth::CredentialResolver::new(auth_file)
+                // A `load_all` source is fetched whole; any other only for the
+                // listed laws that no local source already provides.
+                let filter = if source.load_all {
+                    None
+                } else {
+                    Some(&missing)
+                };
+                let token = github_settings
+                    .credentials()
                     .resolve_source(source)?
                     .into_token();
                 match crate::github::fetch_source_filtered(
                     &client,
+                    github_settings.tree_listings(),
                     github,
                     token.as_deref(),
-                    &missing,
+                    filter,
                     today,
                 )
                 .await?
@@ -266,13 +286,18 @@ impl CorpusRegistry {
     /// to enumerate (non-fatal, mirroring [`load_all_sources_async`]) — the
     /// error string travels with the id so callers can surface *why* a
     /// source's laws are missing instead of only showing a zero law count.
+    ///
+    /// # Errors
+    ///
+    /// When the GitHub client cannot be built; a source that fails is
+    /// reported in the returned list instead.
     #[cfg(feature = "github")]
     pub async fn index_all_sources_async(
         &self,
-        auth_file: Option<&Path>,
+        github_settings: &crate::GithubSettings,
         today: &str,
     ) -> Result<(SourceMap, Vec<SourceIndexFailure>)> {
-        self.index_all_sources_with_override(auth_file, None, today)
+        self.index_all_sources_with_override(github_settings, None, today)
             .await
     }
 
@@ -281,20 +306,32 @@ impl CorpusRegistry {
     /// user's token here so the writable-own repo can be enumerated when
     /// the server has no token for it. See the override type for the
     /// containment rules (single source, server token wins, never stored).
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::index_all_sources_async`].
     #[cfg(feature = "github")]
     pub async fn index_all_sources_with_override(
         &self,
-        auth_file: Option<&Path>,
+        github_settings: &crate::GithubSettings,
         scan_override: Option<ScanTokenOverride<'_>>,
         today: &str,
     ) -> Result<(SourceMap, Vec<SourceIndexFailure>)> {
         let mut map = SourceMap::new(today);
-        let client = regelrecht_github::GithubClient::new()?;
+        let client = github_settings.client()?;
         let mut failed: Vec<SourceIndexFailure> = Vec::new();
 
-        for source in &self.sources {
+        // List every GitHub source at once: each listing is a round trip or
+        // two, and none depends on another. The map is filled afterwards in
+        // source order, so priorities resolve exactly as when listing one by
+        // one.
+        let listings = futures::future::join_all(self.sources.iter().map(|source| {
+            Self::list_one_source(&client, source, github_settings, scan_override, today)
+        }))
+        .await;
+        for (source, listed) in self.sources.iter().zip(listings) {
             if let Err(e) =
-                Self::index_one_source(&mut map, &client, source, auth_file, scan_override).await
+                listed.and_then(|listing| Self::index_one_source(&mut map, source, listing))
             {
                 tracing::warn!(
                     source_id = %source.id,
@@ -328,46 +365,71 @@ impl CorpusRegistry {
         Ok((map, failed))
     }
 
-    /// Index a single source: load local content eagerly, but enumerate a
-    /// GitHub source's laws by path only (no body fetch). Factored out so one
-    /// source's failure is skipped, not fatal.
+    /// List a GitHub source's laws by path only (no body fetch). `None` for
+    /// a local source, which [`Self::index_one_source`] loads itself, and
+    /// for an unchanged tree (HTTP 304).
     #[cfg(feature = "github")]
-    async fn index_one_source(
-        map: &mut SourceMap,
+    async fn list_one_source(
         client: &regelrecht_github::GithubClient,
         source: &Source,
-        auth_file: Option<&Path>,
+        github_settings: &crate::GithubSettings,
         scan_override: Option<ScanTokenOverride<'_>>,
+        today: &str,
+    ) -> Result<Option<crate::github::SourceListing>> {
+        let SourceType::GitHub { github } = &source.source_type else {
+            return Ok(None);
+        };
+        // `resolve_source` honours `strict_auth`: the scan of a
+        // traject's writable-own repo resolves with exactly the same
+        // rules as its push path, so a repo the server can push to is
+        // also a repo the server can index (and vice versa — no more
+        // "promote succeeded but the index reads with a different
+        // token and comes back empty").
+        let mut token = github_settings
+            .credentials()
+            .resolve_source(source)?
+            .into_token();
+        // Only when the server resolves NO token may the per-call
+        // override authenticate this scan — and only for the one
+        // source it was issued for. A configured service token always
+        // wins (mirroring the request-bound read fallback), and the
+        // override never reaches any other (seed) source.
+        if token.is_none()
+            && let Some(o) = scan_override.filter(|o| o.source_id == source.id)
+        {
+            token = Some(o.token.to_string());
+        }
+        // `None` only for a ref that resolves to no commit and whose
+        // listing by ref then comes back 304 (see `list_yaml_files`).
+        crate::github::list_source_law_paths(
+            client,
+            github_settings.tree_listings(),
+            github,
+            token.as_deref(),
+            today,
+        )
+        .await
+    }
+
+    /// Index a single source into `map`: load a local source's content
+    /// eagerly, or add a GitHub source's `listing` by path. Factored out so
+    /// one source's failure is skipped, not fatal.
+    #[cfg(feature = "github")]
+    fn index_one_source(
+        map: &mut SourceMap,
+        source: &Source,
+        listing: Option<crate::github::SourceListing>,
     ) -> Result<()> {
         match &source.source_type {
             SourceType::Local { .. } => {
                 map.load_source(source)?;
             }
             SourceType::GitHub { github } => {
-                // `resolve_source` honours `strict_auth`: the scan of a
-                // traject's writable-own repo resolves with exactly the same
-                // rules as its push path, so a repo the server can push to is
-                // also a repo the server can index (and vice versa — no more
-                // "promote succeeded but the index reads with a different
-                // token and comes back empty").
-                let mut token = crate::auth::CredentialResolver::new(auth_file)
-                    .resolve_source(source)?
-                    .into_token();
-                // Only when the server resolves NO token may the per-call
-                // override authenticate this scan — and only for the one
-                // source it was issued for. A configured service token always
-                // wins (mirroring the request-bound read fallback), and the
-                // override never reaches any other (seed) source.
-                if token.is_none() {
-                    if let Some(o) = scan_override.filter(|o| o.source_id == source.id) {
-                        token = Some(o.token.to_string());
-                    }
-                }
-                let today = map.reference_date().to_string();
-                for (law_id, path, sha) in
-                    crate::github::list_source_law_paths(client, github, token.as_deref(), &today)
-                        .await?
-                {
+                let Some(listing) = listing else {
+                    return Ok(());
+                };
+                map.record_sidecars(&source.id, listing.sidecars);
+                for (law_id, path, sha) in listing.laws {
                     map.load_metadata_entry(
                         &law_id,
                         &path,
@@ -381,6 +443,117 @@ impl CorpusRegistry {
             }
         }
         Ok(())
+    }
+}
+
+impl CorpusRegistry {
+    /// Add every law of each GitHub source to `map` by path only (no body),
+    /// for the laws `map` does not hold yet. The editor's public library loads
+    /// the bodies of a few laws up front ([`Self::load_favorites_async`]) and
+    /// uses this to make the rest of each source findable; a body is fetched
+    /// when someone opens the law.
+    ///
+    /// Skipped, so what was loaded stays as it is: a source marked `load_all`
+    /// (already loaded whole), a law the same source already supplied, and a
+    /// law a local source provides (a local copy hides the GitHub versions of
+    /// that law, as in [`Self::load_favorites_async`]). A law the map refuses
+    /// (two sources at equal priority) is logged and left out rather than
+    /// failing the source; call this after [`SourceMap::prefer_version_in_force`],
+    /// whose insert refuses such a law before recording it as a version. Returns a [`SourceIndexFailure`] per source that
+    /// could not be enumerated.
+    #[cfg(feature = "github")]
+    pub async fn index_github_sources_into(
+        &self,
+        map: &mut SourceMap,
+        github_settings: &crate::GithubSettings,
+    ) -> Vec<SourceIndexFailure> {
+        let mut failed = Vec::new();
+        let client = match github_settings.client() {
+            Ok(client) => client,
+            Err(e) => {
+                for source in &self.sources {
+                    if matches!(source.source_type, SourceType::GitHub { .. }) && !source.load_all {
+                        failed.push(SourceIndexFailure {
+                            source_id: source.id.clone(),
+                            error: e.to_string(),
+                        });
+                    }
+                }
+                return failed;
+            }
+        };
+        let local_ids: std::collections::HashSet<&str> = self
+            .sources
+            .iter()
+            .filter(|s| matches!(s.source_type, SourceType::Local { .. }))
+            .map(|s| s.id.as_str())
+            .collect();
+        let today = map.reference_date().to_string();
+
+        for source in &self.sources {
+            let SourceType::GitHub { github } = &source.source_type else {
+                continue;
+            };
+            if source.load_all {
+                continue;
+            }
+            let listed = async {
+                let token = github_settings
+                    .credentials()
+                    .resolve_source(source)?
+                    .into_token();
+                crate::github::list_source_law_paths(
+                    &client,
+                    github_settings.tree_listings(),
+                    github,
+                    token.as_deref(),
+                    &today,
+                )
+                .await
+            }
+            .await;
+            let paths = match listed {
+                Ok(paths) => paths,
+                Err(e) => {
+                    tracing::warn!(source_id = %source.id, error = %e, "failed to index corpus source, skipping");
+                    failed.push(SourceIndexFailure {
+                        source_id: source.id.clone(),
+                        error: e.to_string(),
+                    });
+                    continue;
+                }
+            };
+            let mut added = 0usize;
+            let Some(paths) = paths else {
+                continue;
+            };
+            for (law_id, path, sha) in paths.laws {
+                let held = map.get_law_versions(&law_id).is_some_and(|versions| {
+                    versions.iter().any(|v| {
+                        v.source_id == source.id || local_ids.contains(v.source_id.as_str())
+                    })
+                });
+                if held {
+                    continue;
+                }
+                match map.load_metadata_entry(
+                    &law_id,
+                    &path,
+                    github.path.as_deref(),
+                    &source.id,
+                    &source.name,
+                    source.priority,
+                    sha.as_deref(),
+                ) {
+                    Ok(()) => added += 1,
+                    Err(e) => {
+                        tracing::warn!(source_id = %source.id, law_id = %law_id, error = %e, "law left out of the index");
+                    }
+                }
+            }
+            tracing::info!(source_id = %source.id, added, "indexed corpus source by path");
+        }
+        failed
     }
 }
 

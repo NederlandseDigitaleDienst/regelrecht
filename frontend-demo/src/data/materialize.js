@@ -45,7 +45,12 @@
  * @property {Record<string, string>} inputTypes  input name -> declared type
  */
 
-/** Read the parameters and input types of a parsed law document. */
+/**
+ * Read the parameters and input types of a parsed law document.
+ *
+ * @param {any} doc  a parsed law document
+ * @returns {LawShape}
+ */
 export function lawShape(doc) {
   const parameters = new Set();
   const inputTypes = {};
@@ -321,7 +326,7 @@ export function materialiseRecord(shape, lawBindings, params, rowsFor, context =
  *   resolver answers for cross-law inputs a `select_on` refers to; `paramsFor`
  *   supplies further parameters known for one key (an application form's
  *   answers), so bindings that select on them find their row
- * @returns {Array<{law: string, service: string, keyField: string, records: object[]}>}
+ * @returns {Array<{law: string, service: string, keyField: string, records: Array<Record<string, unknown>>}>}
  */
 export function materialiseAll(laws, bindings, rowsFor, keyValues, context = {}) {
   const out = [];
@@ -385,7 +390,13 @@ export function tablesFromProfiles(profilesDoc) {
   return (service, table) => tables.get(`${service} ${table}`) ?? [];
 }
 
-/** Collect every distinct value of `column` across all tables of a rowsFor set. */
+/**
+ * Collect every distinct value of `column` across all tables of a rowsFor set.
+ *
+ * @param {Array<Array<Record<string, unknown>>>} rowsForTables
+ * @param {string[]} columns
+ * @returns {Record<string, string[]>}  column -> its distinct values, as text
+ */
 export function collectKeyValues(rowsForTables, columns) {
   const out = {};
   for (const column of columns) {

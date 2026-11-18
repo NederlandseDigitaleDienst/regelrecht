@@ -1,0 +1,12 @@
+// Three programs, one per environment, as in frontend-lawmaking (which follows
+// create-vue): the app (browser), the config files (Node) and the tests
+// (Vitest). `vue-tsc --build` checks all three. JavaScript files are allowed
+// while the app is converted, and are not checked.
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.node.json" },
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.vitest.json" }
+  ]
+}

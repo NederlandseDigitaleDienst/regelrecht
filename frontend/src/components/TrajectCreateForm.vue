@@ -1,6 +1,8 @@
-<script setup>
+<script setup lang="ts">
 import { computed, ref } from 'vue';
-import { deriveAuthRef, tokenEnvName as tokenEnvNameFor } from '../lib/corpusAuth.js';
+import type { NLDDTextField } from '@nldd/design-system/text-field';
+import { deriveAuthRef, tokenEnvName as tokenEnvNameFor } from '../lib/corpusAuth';
+import type { CreateTrajectRequest } from '../stores/trajects';
 
 // Gedeeld aanmaakformulier voor een traject - gebruikt door de
 // TrajectMenu-sheet en de /editor/nieuw-traject-pagina. Gebouwd op de
@@ -11,17 +13,39 @@ import { deriveAuthRef, tokenEnvName as tokenEnvNameFor } from '../lib/corpusAut
 // `submit`-event. De host valideert via `buildPayload()` (exposed) en
 // krijgt `{ payload }` of `{ error }` terug; `reset()` maakt de velden
 // leeg.
-defineProps({
-  // Foutmelding van de host (validatie of mislukte create) - boven de
-  // acties getoond zodat de melding bij de velden staat.
-  error: { type: String, default: null },
-  // Create-call onderweg: toont de busy-regel en blokkeert de knop.
-  busy: { type: Boolean, default: false },
-});
+withDefaults(
+  defineProps<{
+    // Foutmelding van de host (validatie of mislukte create) - boven de
+    // acties getoond zodat de melding bij de velden staat.
+    error?: string | null;
+    // Create-call onderweg: toont de busy-regel en blokkeert de knop.
+    busy?: boolean;
+  }>(),
+  { error: null, busy: false },
+);
 
-const emit = defineEmits(['submit']);
+const emit = defineEmits<{ submit: [] }>();
 
-function emptyForm() {
+/** The form's field state; the repo keys match CreateTrajectRequest. */
+interface CreateFormState {
+  name: string;
+  description: string;
+  useCustomRepo: boolean;
+  repo_owner: string;
+  repo_name: string;
+  base_branch: string;
+  repo_path: string;
+}
+
+/** The fields bound to a text input. */
+type TextFieldKey = Exclude<keyof CreateFormState, 'useCustomRepo'>;
+
+/** What buildPayload() hands the host: a request body, or a validation error. */
+type BuildPayloadResult =
+  | { payload: CreateTrajectRequest; error?: undefined }
+  | { payload?: undefined; error: string };
+
+function emptyForm(): CreateFormState {
   return {
     name: '',
     description: '',
@@ -41,7 +65,7 @@ function emptyForm() {
 }
 
 const form = ref(emptyForm());
-const nameFieldEl = ref(null);
+const nameFieldEl = ref<NLDDTextField | null>(null);
 
 // Showing the exact env-var name saves the operator from deriving it by hand.
 // The derivation itself lives in lib/corpusAuth.js, next to the test that pins
@@ -64,12 +88,12 @@ const tokenEnvName = computed(() => {
 // ref and so no env-var to point the operator at.
 const repoIsCompleet = computed(() => Boolean(tokenEnvName.value));
 
-function reset() {
+function reset(): void {
   form.value = emptyForm();
 }
 
 // The host focuses the first field once the sheet/page has opened.
-function focus() {
+function focus(): void {
   nameFieldEl.value?.focus?.();
 }
 
@@ -78,13 +102,13 @@ function focus() {
 // so existing flows are unchanged for users who don't need a custom
 // repo. Returns { payload } on success or { error } when validation
 // fails.
-function buildPayload() {
+function buildPayload(): BuildPayloadResult {
   if (!form.value.name.trim()) {
     return { error: 'Naam is verplicht' };
   }
   // `scope` is vervallen als apart veld (zit inhoudelijk in de
   // beschrijving); de backend default 'm naar een lege string.
-  const payload = {
+  const payload: CreateTrajectRequest = {
     name: form.value.name.trim(),
     description: form.value.description,
   };
@@ -117,9 +141,12 @@ defineExpose({ reset, buildPayload, focus });
 // <input>/<textarea> element, so target.value is set; some custom-element
 // variants dispatch a custom event with detail.value. Read both to stay
 // robust across NDD versions (matches the pattern in EditSheet.vue).
-function bind(field) {
-  return (event) =>
-    (form.value[field] = event.target?.value ?? event.detail?.value ?? form.value[field]);
+function bind(field: TextFieldKey) {
+  return (event: Event) =>
+    (form.value[field] =
+      (event.target as HTMLInputElement | null)?.value ??
+      (event as CustomEvent<{ value?: string } | null>).detail?.value ??
+      form.value[field]);
 }
 </script>
 

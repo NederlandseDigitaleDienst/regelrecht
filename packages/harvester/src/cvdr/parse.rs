@@ -13,7 +13,7 @@
 use roxmltree::Document;
 
 use crate::error::Result;
-use crate::splitting::{create_dutch_law_hierarchy, LeafSplitStrategy, SplitContext, SplitEngine};
+use crate::splitting::{LeafSplitStrategy, SplitContext, SplitEngine, create_dutch_law_hierarchy};
 use crate::types::Article;
 use crate::xml::{find_by_path, get_tag_name, get_text};
 

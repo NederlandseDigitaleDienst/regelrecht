@@ -1,9 +1,11 @@
-<script setup>
-defineProps({
-  value: { type: String, required: true },
-});
+<script setup lang="ts">
+defineProps<{
+  value: string;
+}>();
 
-defineEmits(['change']);
+defineEmits<{
+  change: [event: Event];
+}>();
 </script>
 
 <template>

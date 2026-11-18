@@ -88,15 +88,18 @@ export const COMPONENTS = {
   },
   // napp draait als eigen, niet-gepubliceerd component; het portaal proxyt
   // ernaartoe. Eigen image, dus eigen filter.
+  //
+  // Alleen wat napp zelf gebruikt. Het register in pocs/ kopieert het image
+  // niet, en napp gebruikt frontend-shared niet: het image neemt alleen de
+  // package.json mee voor de workspace-brede `npm ci`, net als de lock en de
+  // manifesten van de andere frontends. Die laten we bewust weg; een
+  // npm-bump die napp raakt, rolt pas uit met de volgende napp-wijziging.
+  // Een te ruim filter kost hier meer dan een build: napp deelt in ZAD
+  // `persistent-storage` met de enrich-worker, en elke uitrol van napp
+  // herstart die worker en breekt een lopende verrijking af (#1844).
   'poc-napp': {
     crate: 'regelrecht-poc-napp',
-    paths: [
-      'pocs/',
-      'corpus-poc/napp/',
-      'frontend-poc-napp/',
-      'packages/frontend-shared/',
-      'packages/poc-napp/Dockerfile',
-    ],
+    paths: ['corpus-poc/napp/', 'frontend-poc-napp/', 'packages/poc-napp/Dockerfile'],
   },
   // Het poc-portaal bakt de statische pocs in zijn eigen image, dus het raakt
   // ook aan hun frontends en hun casus-corpus. De crate-kant volgt uit de graaf,
@@ -110,8 +113,13 @@ export const COMPONENTS = {
   // kopieert het wel (poc-portal/Dockerfile). Zonder deze regel bouwt een
   // wijziging aan de assistent geen image en blijft productie stil op de oude
   // staan — precies de fout die dit script hoort uit te bannen.
+  //
+  // chronolexografie draait als WASM in de browser: het image bouwt de crate
+  // (met de cel) en bundelt het eigen corpus van de poc, met de casussen, de
+  // regelwerken en de cellen. Dat corpus en de app staan in de map van de
+  // crate, dus de graaf vindt ze; hieronder staat er niets voor.
   poc: {
-    crate: ['regelrecht-poc-portal', 'regelrecht-engine'],
+    crate: ['regelrecht-poc-portal', 'regelrecht-engine', 'regelrecht-poc-chronolexografie'],
     paths: [
       'pocs/',
       'corpus-poc/',

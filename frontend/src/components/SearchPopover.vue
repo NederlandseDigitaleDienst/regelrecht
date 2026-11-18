@@ -1,28 +1,30 @@
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue';
-import { useBwbSearch, MIN_QUERY_LENGTH } from '../composables/useBwbSearch.js';
-import { useBwbHarvest } from '../composables/useBwbHarvest.js';
-import { useAuth } from '../composables/useAuth.js';
-import { useTrajects } from '../composables/useTrajects.js';
-import { lawsListUrl } from '../composables/corpusUrls.js';
-import { apiFetchJson } from '../lib/apiFetch.js';
-import { useLatest } from '../lib/useLatest.js';
-import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from '../constants.js';
+import { useRouter } from 'vue-router';
+import type { NLDDPopover } from '@nldd/design-system/popover';
+import { useBwbSearch, MIN_QUERY_LENGTH } from '../composables/useBwbSearch';
+import { useCorpus, type CorpusLaw } from '../corpus';
+import { useAuth } from '../composables/useAuth';
+import { homeTarget } from '../composables/useLastVisitedRoute';
+import { groupBySource, otherSourceLabel, pickSuggestions, officialTextUrl } from '../lib/searchResults';
+import { useLatest } from '../lib/useLatest';
+import { SEARCH_PLACEHOLDER, SEARCH_ACCESSIBLE_LABEL } from '../constants';
 
 // Override the list's built-in search-field placeholder (i18n default "Zoeken")
 // so this popover stays in sync with the main search-field in AppShell.
-const listTranslations = { 'components.list.search-placeholder-text': SEARCH_PLACEHOLDER };
+const listTranslations = { 'components.list.search-placeholder-label': SEARCH_PLACEHOLDER };
 
-const emit = defineEmits(['select-law', 'harvest-available']);
+const emit = defineEmits<{
+  'select-law': [lawId: string];
+}>();
 
-const { activeTrajectRef } = useTrajects();
+/** The listbox's own `input` event: the search value on `detail`. */
+type ValueEvent = Event & { detail?: { value?: string } | null };
+
+const corpus = useCorpus();
+const router = useRouter();
 
 const { results: bwbResults, loading: bwbLoading, search: searchBwb, clear: clearBwb } = useBwbSearch();
-const {
-  harvestStatus, harvestSlugs, hasActiveHarvests,
-  requestHarvest, isAvailable, isPolling, isTerminal,
-  statusText, statusIcon,
-} = useBwbHarvest();
 const { authenticated, oidcConfigured, login } = useAuth();
 
 const needsLogin = computed(() => oidcConfigured.value && !authenticated.value);
@@ -32,7 +34,7 @@ const search = ref('');
 // against MIN_QUERY_LENGTH, so the hints in the template have to compare the
 // same thing, or "ab " says "no results" instead of "type more".
 const searchTerm = computed(() => search.value.trim());
-const popoverRef = ref(null);
+const popoverRef = ref<NLDDPopover | null>(null);
 const useCenteredPosition = ref(true);
 // md only: popover anchors below the trigger button - clicking outside closes
 // it, so an explicit Sluit button is just clutter. On sm (full-height sheet)
@@ -54,7 +56,7 @@ const pendingSearch = ref('');
 const BREAKPOINT_MD_MIN = 641;
 const BREAKPOINT_LG_MIN = 1008;
 
-function displayName(law) {
+function displayName(law: CorpusLaw) {
   // Prefer the API's resolved `display_name`: laws can have a dynamic
   // `name: "#output_ref"` in YAML that the backend resolves via the
   // matching action output. Without this check we'd render the raw
@@ -67,9 +69,8 @@ function displayName(law) {
 // Results of the server-side corpus search (`?q=`). The corpus index can
 // hold thousands of laws, so the popover queries the backend rather than
 // filtering a preloaded client-side list - that's the only way the search
-// can reach every law, not just the first page. Ordered private-repo-first
-// by the backend; `sortedLaws` keeps that order as a flat option list.
-const serverLaws = ref([]);
+// can reach every law, not just the first page.
+const serverLaws = ref<CorpusLaw[]>([]);
 // True while a corpus query is in flight, so the UI shows a spinner instead
 // of briefly flashing "no results" (which would wrongly trigger the external
 // fallback) before the response lands.
@@ -78,30 +79,122 @@ const searching = ref(false);
 // distinct from "0 results" so a backend failure surfaces an error instead of
 // silently masquerading as "no match" and cascading to the external fallback.
 const searchFailed = ref(false);
+// How many laws matched in all, from X-Total-Count. The backend sorts by
+// source priority and caps the list, so when this exceeds what came back, the
+// last source's count may be short (and a source past the cap is missing).
+const totalMatches = ref(0);
+
+// Search goes through the sources in order and shows the first one with
+// matches, named in the toolbar ("Gevonden in ..."): the traject's own repo,
+// then the example rulework, then the central corpus. Each other source with
+// matches gets a row ("Ook 3 resultaten in ...") that switches to it, so a hit
+// in a higher source never hides the rest. Only when no source has a match
+// does the search go out to wetten.overheid.nl.
+const sourceGroups = computed(() => groupBySource(serverLaws.value));
+// The source picked through one of those rows; runQuery clears it, so a new
+// query starts over at the first source.
+const chosenSourceId = ref<string | null>(null);
+const shownGroup = computed(
+  () => sourceGroups.value.find((g) => g.sourceId === chosenSourceId.value) ?? sourceGroups.value[0] ?? null,
+);
+const shownLaws = computed(() => shownGroup.value?.laws ?? []);
+const resultsCapped = computed(() => totalMatches.value > serverLaws.value.length);
+const otherSources = computed(() => {
+  const last = sourceGroups.value[sourceGroups.value.length - 1];
+  return sourceGroups.value
+    .filter((g) => g !== shownGroup.value)
+    .map((g) => ({ ...g, label: otherSourceLabel(g, resultsCapped.value && g === last) }));
+});
+function chooseSource(sourceId: string) {
+  chosenSourceId.value = sourceId;
+}
+
+// Suggestions for someone not logged in, with an empty search field: a few
+// laws from Corpus juris (favorites.json, injected at build time), picked
+// anew each time the popover opens. They are links, not rows of the list, so
+// they do not read as search results.
+const SUGGESTION_COUNT = 5;
+const suggestions = ref<CorpusLaw[]>([]);
+const showSuggestions = computed(() => !authenticated.value && searchTerm.value.length === 0);
+
+/** The address of a suggested law: it is always in Corpus juris. */
+function suggestionHref(lawId: string) {
+  return router.resolve(homeTarget({ lawId })).href;
+}
 
 /**
- * Flat option list for the listbox, ordered by source priority (lower =
- * higher priority, so the traject's own writable repo at priority 0 sorts
- * above the seeded central corpus). Array.sort is stable, so laws keep their
- * backend relevance order within a source. The grouping the old popover did
- * with per-source headers is now carried per row: each option shows its
- * `source_name` as supporting-text (see the template). The external
- * wetten.overheid.nl fallback only kicks in when the corpus has no match.
+ * A plain click opens the law in place, through selectLaw, so the popover
+ * closes and focus lands on the law. A click that asks for a new tab or window
+ * keeps the link's own behavior.
  */
-const sortedLaws = computed(() =>
-  [...serverLaws.value].sort(
-    (a, b) =>
-      (a.source_priority ?? Number.MAX_SAFE_INTEGER) -
-      (b.source_priority ?? Number.MAX_SAFE_INTEGER),
-  ),
-);
+function onSuggestionClick(event: MouseEvent, lawId: string) {
+  if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  event.preventDefault();
+  selectLaw(lawId);
+}
+const claimSuggestions = useLatest();
+async function loadSuggestions() {
+  const isCurrent = claimSuggestions();
+  // Drop the previous handful first, so a quick click cannot land on a link
+  // that is about to be replaced.
+  suggestions.value = [];
+  const ids = pickSuggestions(__SUGGESTED_LAW_IDS__, SUGGESTION_COUNT);
+  if (ids.length === 0) return;
+  try {
+    // From the active traject: inside one, an id it does not have is dropped below.
+    const { laws: found } = await corpus.searchLaws({ ids });
+    if (!isCurrent()) return;
+    // Keep the random order; drop an id the corpus does not have (yet).
+    suggestions.value = ids
+      .map((id) => found.find((l) => l.law_id === id))
+      .filter((l): l is CorpusLaw => !!l);
+  } catch {
+    if (isCurrent()) suggestions.value = [];
+  }
+}
+
+// The heading above the list, saying what the rows below are: the source
+// they come from in title type, with a small line above it ("Gevonden in").
+interface ResultHeading {
+  overline?: string;
+  text: string;
+  supportingText?: string;
+}
+
+// Under the heading when the backend cut this source's list short. The cap
+// counts across sources, ordered by priority, so only the last source can be
+// cut; its total is what the others leave of the overall count. A search is
+// ranked, so the rows shown are its best ones and a longer query finds the
+// rest; a list without a search term is not ranked and gets no note.
+const cappedNote = computed(() => {
+  const group = shownGroup.value;
+  const groups = sourceGroups.value;
+  if (!resultsCapped.value || !group || group !== groups[groups.length - 1]) return undefined;
+  if (searchTerm.value.length === 0) return undefined;
+  const elsewhere = groups.filter((g) => g !== group).reduce((n, g) => n + g.laws.length, 0);
+  const total = (totalMatches.value - elsewhere).toLocaleString('nl-NL');
+  return `De beste ${group.laws.length} van ${total} resultaten. Typ meer om te verfijnen.`;
+});
+const resultHeading = computed<ResultHeading | null>(() => {
+  if (showSuggestions.value && suggestions.value.length) return { text: 'Suggesties' };
+  if (shownGroup.value) {
+    return { overline: 'Gevonden in', text: shownGroup.value.sourceName, supportingText: cappedNote.value };
+  }
+  if (bwbResults.value.length) {
+    return { overline: 'Niet in de bibliotheek, wel op', text: 'wetten.overheid.nl' };
+  }
+  return null;
+});
 
 // Debounce the corpus query so we don't fire a request per keystroke, and
 // guard against out-of-order responses with a latest-claim.
 const claimSearch = useLatest();
-let debounceTimer = null;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
-watch(search, (q) => {
+watch(search, runQuery);
+
+function runQuery(q: string) {
+  chosenSourceId.value = null;
   clearBwb();
   searchFailed.value = false;
   if (debounceTimer) clearTimeout(debounceTimer);
@@ -113,20 +206,21 @@ watch(search, (q) => {
     // fire a spurious BWB search.
     claimSearch();
     serverLaws.value = [];
+    totalMatches.value = 0;
     searching.value = false;
     return;
   }
   searching.value = true;
   debounceTimer = setTimeout(() => runCorpusSearch(term), 200);
-});
+}
 
-async function runCorpusSearch(term) {
+async function runCorpusSearch(term: string) {
   const isCurrent = claimSearch();
   try {
-    const url = lawsListUrl(activeTrajectRef.value, `q=${encodeURIComponent(term)}&limit=60`);
-    const laws = await apiFetchJson(url);
+    const { laws, total } = await corpus.searchLaws({ q: term, limit: 60 });
     if (!isCurrent()) return; // a newer query superseded this one
     serverLaws.value = laws;
+    totalMatches.value = total;
     searchFailed.value = false;
     // No match anywhere in the corpus → offer the external wetten.overheid.nl
     // search (unless the user must log in first to reach it).
@@ -137,26 +231,11 @@ async function runCorpusSearch(term) {
     // fallback, which would mask the failure with unrelated results.
     if (isCurrent()) {
       serverLaws.value = [];
+      totalMatches.value = 0;
       searchFailed.value = true;
     }
   } finally {
     if (isCurrent()) searching.value = false;
-  }
-}
-
-function bwbItemClick(result) {
-  if (needsLogin.value) {
-    login();
-    return;
-  }
-  const status = harvestStatus.value[result.bwb_id];
-  if (status === 'loading') return;
-  const slug = harvestSlugs.value[result.bwb_id];
-  if (isAvailable(status) && slug) {
-    emit('harvest-available', slug);
-    close();
-  } else if (!status || isTerminal(status)) {
-    requestHarvest(result.bwb_id);
   }
 }
 
@@ -171,8 +250,8 @@ function close() {
  * filter internally, so we drive the corpus query straight off it. The watch
  * on `search` debounces and runs the backend query.
  */
-function onListInput(e) {
-  search.value = e.detail?.value ?? '';
+function onListInput(e: Event) {
+  search.value = (e as ValueEvent).detail?.value ?? '';
 }
 
 /**
@@ -183,7 +262,7 @@ function onListInput(e) {
  * synchronous `input` event the clear path emits. Mirrors how Safari/Spotlight
  * handle Esc in search inputs.
  */
-function onListKeydown(e) {
+function onListKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape' && !e.defaultPrevented) close();
 }
 
@@ -205,9 +284,9 @@ function onPopoverClose() {
 // dispatches 'close'. By emitting after that, the parent's "focus the opened
 // law" (scheduled on its own nextTick) runs last and wins - so focus lands on
 // the law instead of snapping back to the search trigger.
-let pendingSelectLawId = null;
+let pendingSelectLawId: string | null = null;
 
-function selectLaw(lawId) {
+function selectLaw(lawId: string) {
   pendingSelectLawId = lawId;
   close();
 }
@@ -314,7 +393,7 @@ onBeforeUnmount(() => {
  * initial query in the popover. Stashed in `pendingSearch` and applied by
  * onPopoverOpen (the listbox's input only exists once it's rendered).
  */
-async function show(anchorEl, initialSearch = '', event) {
+async function show(anchorEl?: EventTarget | null, initialSearch = '', event?: Event) {
   if (!popoverRef.value) return;
   // A second click on the trigger closes again. The triggers live in the app
   // shell and this popover in the routed view, so the button is not the
@@ -329,7 +408,8 @@ async function show(anchorEl, initialSearch = '', event) {
   //
   // Only for a plain re-trigger: type-to-open passes a character and should
   // keep the popover open and seed it.
-  const pointerDriven = (event?.detail ?? 0) > 0;
+  // A click or key event (UIEvent) carries `detail`: the click count, 0 for a keyboard activation.
+  const pointerDriven = ((event as UIEvent | undefined)?.detail ?? 0) > 0;
   const wasOpen = pointerDriven
     ? wasOpenOnPointerdown
     : (popoverRef.value.matches?.(':popover-open') ?? false);
@@ -337,7 +417,8 @@ async function show(anchorEl, initialSearch = '', event) {
     close();
     return;
   }
-  if (anchorEl) popoverRef.value.anchorElement = anchorEl;
+  // Callers pass the trigger element (the event's currentTarget).
+  if (anchorEl) popoverRef.value.anchorElement = anchorEl as Element;
   pendingSearch.value = initialSearch;
   applyBreakpointLayout();
   // Wait for Vue to propagate the new `centered` / `top` / `width` props
@@ -369,13 +450,15 @@ async function show(anchorEl, initialSearch = '', event) {
  */
 function onPopoverOpen() {
   const list = popoverRef.value?.querySelector('nldd-list');
-  const input = list?.shadowRoot?.querySelector('.list__search-field-input');
+  const input = list?.shadowRoot?.querySelector<HTMLInputElement>('.list__search-field-input');
   if (input) {
     input.value = pendingSearch.value;
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.focus();
   }
   pendingSearch.value = '';
+  // A fresh handful each time, so a returning visitor sees other laws too.
+  if (!authenticated.value) loadSuggestions();
 }
 
 defineExpose({ show });
@@ -426,6 +509,39 @@ defineExpose({ show });
              blijven staan. Weghalen zodra de listbox zijn zoekveld zelf houdt. -->
         <nldd-list-item hidden></nldd-list-item>
 
+        <!-- Below the search field: the heading of the list below, naming its
+             source, and the suggestions. -->
+        <div v-if="resultHeading" slot="toolbar">
+          <!-- A title rather than rich text: nldd-rich-text is a prose
+               container with inline-size containment, so in this flex row it
+               took no width of its own and the line got cut off. -->
+          <nldd-title
+            v-if="resultHeading"
+            data-testid="search-result-label"
+            size="display-6"
+            heading-level="2"
+            :overline="resultHeading.overline"
+            :text="resultHeading.text"
+            :supporting-text="resultHeading.supportingText"
+          ></nldd-title>
+          <!-- Suggestions: with an empty field and no login, a few laws from
+               Corpus juris to start from. -->
+          <template v-if="showSuggestions && suggestions.length">
+            <nldd-spacer size="8"></nldd-spacer>
+            <nldd-link-group accessible-label="Suggesties">
+              <nldd-link
+                v-for="law in suggestions"
+                :key="law.law_id"
+                :data-law-id="law.law_id"
+                data-testid="search-suggestion"
+                :href="suggestionHref(law.law_id)"
+                :text="displayName(law)"
+                @click="onSuggestionClick($event, law.law_id)"
+              ></nldd-link>
+            </nldd-link-group>
+          </template>
+        </div>
+
         <!-- Op md anchort de popover naast de trigger - naast de popover
              klikken sluit 'm. Op sm (full-height sheet) en lg (centered
              overlay) heeft de gebruiker een expliciete sluit-knop nodig. -->
@@ -437,43 +553,59 @@ defineExpose({ show });
           @click="close"
         ></nldd-button>
 
-        <!-- Interne corpus-treffers: platte lijst, eigen repo eerst (op
-             bron-prioriteit), met de bron als ondertitel per rij. Rijen
-             navigeren alleen naar de wet; promoten naar het traject kan
-             uitsluitend via de "Regelwerk toevoegen"-flow (AddLawSheet). -->
+        <!-- Matches from the first source that has any; the toolbar names it.
+             Rows only navigate to the law; adding one to a traject goes
+             through "Regelwerk toevoegen" (AddLawSheet). A law whose current
+             version has a machine version is marked as an article is in the
+             article list. -->
         <nldd-list-item
-          v-for="law in sortedLaws"
+          v-for="law in shownLaws"
           :key="law.law_id"
           :data-law-id="law.law_id"
           size="md"
           button
           @click="selectLaw(law.law_id)"
         >
-          <nldd-text-cell
-            :text="displayName(law)"
-            :supporting-text="law.source_name || undefined"
-          ></nldd-text-cell>
+          <nldd-text-cell>
+            {{ displayName(law) }}
+            <nldd-tag v-if="law.enriched" size="sm" color="accent">Machine</nldd-tag>
+          </nldd-text-cell>
         </nldd-list-item>
 
-        <!-- Externe wetten.overheid.nl-treffers (alleen wanneer de corpus niets
-             vond): één optie per resultaat met z'n harvest-status. -->
+        <!-- The other sources with matches, one row each; a click shows that
+             source's matches instead. -->
+        <nldd-list-item
+          v-for="group in otherSources"
+          :key="`source-${group.sourceId}`"
+          data-testid="search-other-source"
+          size="md"
+          button
+          @click="chooseSource(group.sourceId)"
+        >
+          <nldd-text-cell :text="group.label"></nldd-text-cell>
+          <nldd-icon-cell size="20">
+            <nldd-icon icon="chevron-right"></nldd-icon>
+          </nldd-icon-cell>
+        </nldd-list-item>
+
+        <!-- wetten.overheid.nl matches (only when no source in the library
+             had one): a link to the official text, in a new tab. A click
+             does not fetch the law into the library. -->
         <nldd-list-item
           v-for="result in bwbResults"
           :key="result.bwb_id"
+          data-testid="search-official-text"
           size="md"
-          button
-          :disabled="harvestStatus[result.bwb_id] === 'loading'
-            || isPolling(harvestStatus[result.bwb_id])
-            || undefined"
-          @click="bwbItemClick(result)"
+          :href="officialTextUrl(result.bwb_id)"
+          target="_blank"
         >
           <nldd-text-cell
             :text="result.title"
-            :supporting-text="statusText(result.bwb_id, `${result.type} - ${result.bwb_id}`)"
+            :supporting-text="`${result.type} · ${result.bwb_id}`"
           ></nldd-text-cell>
           <nldd-spacer-cell size="8"></nldd-spacer-cell>
           <nldd-icon-cell size="20">
-            <nldd-icon :icon="statusIcon(result.bwb_id)"></nldd-icon>
+            <nldd-icon icon="external-link"></nldd-icon>
           </nldd-icon-cell>
         </nldd-list-item>
 
@@ -496,7 +628,7 @@ defineExpose({ show });
             v-else-if="needsLogin && searchTerm.length >= MIN_QUERY_LENGTH"
             icon="login"
             text="Log in om externe bronnen te doorzoeken"
-            supporting-text="Inloggen is vereist om wetten op te halen van wetten.overheid.nl"
+            supporting-text="Log in om ook op wetten.overheid.nl te zoeken."
           >
             <nldd-button slot="actions" appearance="primary" text="Inloggen" @click="login()"></nldd-button>
           </nldd-inline-dialog>

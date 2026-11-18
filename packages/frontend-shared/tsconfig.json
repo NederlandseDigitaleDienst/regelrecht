@@ -1,0 +1,10 @@
+// Two programs, as in the editor: the package code (browser) and the code
+// that runs under Node (the tests through Vitest, the scripts through tsx).
+// `vue-tsc --build` checks both.
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.node.json" }
+  ]
+}

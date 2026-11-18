@@ -1,23 +1,23 @@
-<script setup>
+<script setup lang="ts">
 /**
  * The recorder's controls, shown in dev with `?record` in the address.
  *
  * A take is recorded the way it is played back: in Dutch, with the deck as a
  * rail next to the demo (zelfstandig). The player replays the actions in the
- * live demo, so what matters most is the action log (capture.js); the video
+ * live demo, so what matters most is the action log (capture.ts); the video
  * of the window is kept for the phone and for a shareable MP4. The panel
  * leaves the screen while a take runs: the tab title shows that it records,
  * Shift+X marks a slip and Shift+R stops.
  */
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { useDemo } from '../store/demoStore.js';
-import { usePresentation } from '../presentation/usePresentation.js';
+import { useDemo } from '../store/demoStore';
+import { usePresentation, type PresentationMode } from '../presentation/usePresentation';
 import { adoptLocale, currentLocale, useI18n } from '../i18n/index.js';
-import { captureActions } from './capture.js';
-import { levelPercent, levelVerdict, listInputs, mic, startTest, stopTest } from './micCheck.js';
-import { cam, lightVerdict, listCameras, startCamTest, stopCamTest } from './camCheck.js';
-import { hasSnapshots, logEvent, markFlub, recorder, rememberSnapshot, snapshotFor, startRecording, stopRecording } from './recorder.js';
+import { captureActions } from './capture';
+import { levelPercent, levelVerdict, listInputs, mic, startTest, stopTest } from './micCheck';
+import { cam, lightVerdict, listCameras, startCamTest, stopCamTest } from './camCheck';
+import { hasSnapshots, logEvent, markFlub, recorder, rememberSnapshot, snapshotFor, startRecording, stopRecording } from './recorder';
 
 const { t } = useI18n();
 const router = useRouter();
@@ -28,20 +28,21 @@ const startAt = ref(0);
 const restore = ref(hasSnapshots());
 const slides = computed(() => p.slides.value ?? []);
 
-const cleanups = [];
-let previousMode = null;
-let previousTitle = null;
-let previousLocale = null;
+const cleanups: (() => void)[] = [];
+let previousMode: PresentationMode | null = null;
+let previousTitle: string | null = null;
+let previousLocale: ReturnType<typeof currentLocale> | null = null;
 
-function plain(value) {
+function plain<T>(value: T): T {
   return JSON.parse(JSON.stringify(value));
 }
 
-function editable(e) {
-  return (e.composedPath?.() ?? []).some((n) => n?.matches?.('input, textarea, select, [contenteditable]'));
+function editable(e: Event) {
+  // The path also holds the document and the window, which have no `matches`.
+  return (e.composedPath?.() ?? []).some((n) => (n as Partial<Element> | null)?.matches?.('input, textarea, select, [contenteditable]'));
 }
 
-function onKey(e) {
+function onKey(e: KeyboardEvent) {
   if (e.key === 'X' && e.shiftKey && !editable(e)) {
     e.preventDefault();
     markFlub();
@@ -71,23 +72,24 @@ function listen() {
 }
 
 function unlisten() {
-  while (cleanups.length) cleanups.pop()();
+  // The loop condition guarantees pop() returns a function.
+  while (cleanups.length) cleanups.pop()!();
 }
 
 async function toggleTest() {
   if (mic.testing) stopTest();
   else await startTest().catch((e) => (recorder.error = String(e?.message ?? e)));
 }
-async function pickInput(id) {
+async function pickInput(id: string) {
   mic.deviceId = id;
   if (mic.testing) await startTest();
 }
 onMounted(() => listInputs().catch(() => {}));
 onUnmounted(stopTest);
 
-const preview = ref(null);
+const preview = ref<HTMLVideoElement | null>(null);
 watch(
-  () => [cam.stream, preview.value],
+  () => [cam.stream, preview.value] as const,
   ([stream, el]) => {
     if (el && el.srcObject !== stream) el.srcObject = stream;
   },
@@ -96,7 +98,7 @@ async function toggleCamTest() {
   if (cam.testing) stopCamTest();
   else await startCamTest().catch((e) => (recorder.error = String(e?.message ?? e)));
 }
-async function pickCamera(id) {
+async function pickCamera(id: string) {
   cam.deviceId = id;
   if (cam.testing) await startCamTest();
 }
@@ -168,7 +170,12 @@ watch(
   },
 );
 
-function onGlobalKey(e) {
+/** The value of the `<select>` a change event came from. */
+function selectValue(e: Event): string {
+  return (e.target as HTMLSelectElement).value;
+}
+
+function onGlobalKey(e: KeyboardEvent) {
   // Shift+R stops, so the presenter never has to reach for the mouse in the
   // middle of a sentence (and the panel is off screen anyway).
   if (e.key === 'R' && e.shiftKey && !editable(e)) {
@@ -194,7 +201,7 @@ onUnmounted(() => {
           <nldd-text size="md">{{ t('recorder.title') }}</nldd-text>
           <nldd-form-field :label="t('recorder.start_at')">
             <nldd-dropdown width="full">
-              <select :value="startAt" @change="startAt = Number($event.target.value)">
+              <select :value="startAt" @change="startAt = Number(selectValue($event))">
                 <option v-for="(s, i) in slides" :key="i" :value="i">{{ i + 1 }}. {{ s.title ?? s.lines?.[0]?.replaceAll('**', '') ?? '' }}</option>
               </select>
             </nldd-dropdown>
@@ -204,7 +211,7 @@ onUnmounted(() => {
                when it is turned up afterwards. -->
           <nldd-form-field :label="t('recorder.mic.label')">
             <nldd-dropdown width="full">
-              <select :value="mic.deviceId" @change="pickInput($event.target.value)">
+              <select :value="mic.deviceId" @change="pickInput(selectValue($event))">
                 <option v-for="d in mic.devices" :key="d.id" :value="d.id">{{ d.label }}</option>
               </select>
             </nldd-dropdown>
@@ -220,7 +227,7 @@ onUnmounted(() => {
           <template v-if="recorder.withCamera">
             <nldd-form-field v-if="cam.devices.length > 1" :label="t('recorder.cam.label')">
               <nldd-dropdown width="full">
-                <select :value="cam.deviceId" @change="pickCamera($event.target.value)">
+                <select :value="cam.deviceId" @change="pickCamera(selectValue($event))">
                   <option v-for="d in cam.devices" :key="d.id" :value="d.id">{{ d.label }}</option>
                 </select>
               </nldd-dropdown>

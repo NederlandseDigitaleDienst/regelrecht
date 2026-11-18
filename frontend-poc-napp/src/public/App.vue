@@ -1,5 +1,5 @@
 <template>
-  <nldd-app-view>
+  <nldd-shell>
     <router-view />
-  </nldd-app-view>
+  </nldd-shell>
 </template>

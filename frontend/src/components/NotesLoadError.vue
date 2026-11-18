@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * Pane-level failure of the committed-notes resolve: the sidecar fetch, the
  * engine load or the resolver itself threw (e.g. the viewed law version is
@@ -11,8 +11,11 @@
  */
 import { computed } from 'vue';
 
-const props = defineProps({
-  error: { type: [Object, String], default: null },
+const props = withDefaults(defineProps<{
+  // An Error (or Error-like object) or a bare string.
+  error?: { message?: string } | string | null;
+}>(), {
+  error: null,
 });
 
 const supportingText = computed(() => {

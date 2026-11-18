@@ -208,6 +208,27 @@ mod tests {
         assert!(layer_rank(&RegulatoryLayer::EuRichtlijn) < layer_rank(&RegulatoryLayer::Wet));
     }
 
+    /// A one-article law; only the fields priority looks at vary.
+    fn law(id: &str, layer: &str, valid_from: Option<&str>) -> ArticleBasedLaw {
+        let valid_from = valid_from.map_or(String::new(), |d| format!("valid_from: '{d}'\n"));
+        ArticleBasedLaw::from_yaml_str(&format!(
+            "$id: {id}\nregulatory_layer: {layer}\npublication_date: '2025-01-01'\n\
+             {valid_from}articles:\n  - number: '1'\n    text: Test\n"
+        ))
+        .unwrap()
+    }
+
+    fn candidates<'a>(laws: &[&'a ArticleBasedLaw]) -> Vec<Candidate<'a>> {
+        laws.iter()
+            .map(|law| Candidate {
+                law,
+                article_number: "1".to_string(),
+            })
+            .collect()
+    }
+
+    const REGELING: &str = "MINISTERIELE_REGELING";
+
     #[test]
     fn test_resolve_candidate_empty() {
         let candidates: Vec<Candidate> = vec![];
@@ -216,66 +237,21 @@ mod tests {
 
     #[test]
     fn test_resolve_candidate_single() {
-        let law = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: test_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-articles:
-  - number: '1'
-    text: Test
-"#,
-        )
-        .unwrap();
+        let law = law("test_regulation", REGELING, None);
 
-        let candidates = vec![Candidate {
-            law: &law,
-            article_number: "1".to_string(),
-        }];
-
-        let (winner, reason) = resolve_candidate(&candidates).unwrap().unwrap();
+        let (winner, reason) = resolve_candidate(&candidates(&[&law])).unwrap().unwrap();
         assert_eq!(winner.id, "test_regulation");
         assert_eq!(reason, "only candidate (test_regulation)");
     }
 
     #[test]
     fn test_resolve_candidate_lex_superior() {
-        let wet = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: higher_law
-regulatory_layer: WET
-publication_date: '2025-01-01'
-articles:
-  - number: '1'
-    text: Higher law article
-"#,
-        )
-        .unwrap();
+        let wet = law("higher_law", "WET", None);
+        let regeling = law("lower_regulation", REGELING, None);
 
-        let regeling = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: lower_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-articles:
-  - number: '1'
-    text: Lower regulation article
-"#,
-        )
-        .unwrap();
-
-        let candidates = vec![
-            Candidate {
-                law: &regeling,
-                article_number: "1".to_string(),
-            },
-            Candidate {
-                law: &wet,
-                article_number: "1".to_string(),
-            },
-        ];
-
-        let (winner, reason) = resolve_candidate(&candidates).unwrap().unwrap();
+        let (winner, reason) = resolve_candidate(&candidates(&[&regeling, &wet]))
+            .unwrap()
+            .unwrap();
         assert_eq!(winner.id, "higher_law");
         // The full sentence matters: the loser's layer must be the loser's,
         // not a repeat of the winner's — that distinction is what lex
@@ -288,44 +264,12 @@ articles:
 
     #[test]
     fn test_resolve_candidate_lex_posterior() {
-        let older = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: older_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2024-01-01'
-valid_from: '2024-01-01'
-articles:
-  - number: '1'
-    text: Older regulation
-"#,
-        )
-        .unwrap();
+        let older = law("older_regulation", REGELING, Some("2024-01-01"));
+        let newer = law("newer_regulation", REGELING, Some("2025-01-01"));
 
-        let newer = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: newer_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-valid_from: '2025-01-01'
-articles:
-  - number: '1'
-    text: Newer regulation
-"#,
-        )
-        .unwrap();
-
-        let candidates = vec![
-            Candidate {
-                law: &older,
-                article_number: "1".to_string(),
-            },
-            Candidate {
-                law: &newer,
-                article_number: "1".to_string(),
-            },
-        ];
-
-        let (winner, reason) = resolve_candidate(&candidates).unwrap().unwrap();
+        let (winner, reason) = resolve_candidate(&candidates(&[&older, &newer]))
+            .unwrap()
+            .unwrap();
         assert_eq!(winner.id, "newer_regulation");
         // Full-sentence assert: the loser's date must be the loser's own
         // valid_from, not a repeat of the winner's.
@@ -340,31 +284,8 @@ articles:
     /// `valid_from` is later than that of the higher layer.
     #[test]
     fn test_compare_lower_layer_loses_despite_newer_date() {
-        let wet = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: higher_law
-regulatory_layer: WET
-publication_date: '2024-01-01'
-valid_from: '2024-01-01'
-articles:
-  - number: '1'
-    text: Higher law article
-"#,
-        )
-        .unwrap();
-
-        let regeling = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: lower_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-valid_from: '2025-01-01'
-articles:
-  - number: '1'
-    text: Lower regulation article
-"#,
-        )
-        .unwrap();
+        let wet = law("higher_law", "WET", Some("2024-01-01"));
+        let regeling = law("lower_regulation", REGELING, Some("2025-01-01"));
 
         assert_eq!(
             compare_law_priority(&regeling, &wet).unwrap(),
@@ -381,31 +302,8 @@ articles:
     /// Lex posterior in both directions: the older law loses to the newer one.
     #[test]
     fn test_compare_older_date_loses_at_same_layer() {
-        let older = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: older_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2024-01-01'
-valid_from: '2024-01-01'
-articles:
-  - number: '1'
-    text: Older regulation
-"#,
-        )
-        .unwrap();
-
-        let newer = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: newer_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-valid_from: '2025-01-01'
-articles:
-  - number: '1'
-    text: Newer regulation
-"#,
-        )
-        .unwrap();
+        let older = law("older_regulation", REGELING, Some("2024-01-01"));
+        let newer = law("newer_regulation", REGELING, Some("2025-01-01"));
 
         assert_eq!(
             compare_law_priority(&older, &newer).unwrap(),
@@ -423,31 +321,8 @@ articles:
     /// to pick one rather than silently preferring an argument position.
     #[test]
     fn test_compare_same_layer_and_date_is_ambiguous() {
-        let one = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: regulation_one
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-valid_from: '2025-01-01'
-articles:
-  - number: '1'
-    text: First regulation
-"#,
-        )
-        .unwrap();
-
-        let two = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: regulation_two
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-valid_from: '2025-01-01'
-articles:
-  - number: '1'
-    text: Second regulation
-"#,
-        )
-        .unwrap();
+        let one = law("regulation_one", REGELING, Some("2025-01-01"));
+        let two = law("regulation_two", REGELING, Some("2025-01-01"));
 
         for (a, b) in [(&one, &two), (&two, &one)] {
             let err = compare_law_priority(a, b).expect_err(
@@ -464,44 +339,10 @@ articles:
     /// never gets an arbitrary winner from an unresolvable pair.
     #[test]
     fn test_resolve_candidate_ambiguous_is_error() {
-        let one = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: regulation_one
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-valid_from: '2025-01-01'
-articles:
-  - number: '1'
-    text: First regulation
-"#,
-        )
-        .unwrap();
+        let one = law("regulation_one", REGELING, Some("2025-01-01"));
+        let two = law("regulation_two", REGELING, Some("2025-01-01"));
 
-        let two = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: regulation_two
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-valid_from: '2025-01-01'
-articles:
-  - number: '1'
-    text: Second regulation
-"#,
-        )
-        .unwrap();
-
-        let candidates = vec![
-            Candidate {
-                law: &one,
-                article_number: "1".to_string(),
-            },
-            Candidate {
-                law: &two,
-                article_number: "1".to_string(),
-            },
-        ];
-
-        let err = resolve_candidate(&candidates).unwrap_err();
+        let err = resolve_candidate(&candidates(&[&one, &two])).unwrap_err();
         assert!(
             err.to_string().contains("Ambiguous priority"),
             "Expected an ambiguity error, got: {err}"
@@ -512,44 +353,12 @@ articles:
     /// even when it is already the incumbent best.
     #[test]
     fn test_resolve_candidate_lex_posterior_newest_first() {
-        let newer = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: newer_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-valid_from: '2025-01-01'
-articles:
-  - number: '1'
-    text: Newer regulation
-"#,
-        )
-        .unwrap();
+        let newer = law("newer_regulation", REGELING, Some("2025-01-01"));
+        let older = law("older_regulation", REGELING, Some("2024-01-01"));
 
-        let older = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: older_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2024-01-01'
-valid_from: '2024-01-01'
-articles:
-  - number: '1'
-    text: Older regulation
-"#,
-        )
-        .unwrap();
-
-        let candidates = vec![
-            Candidate {
-                law: &newer,
-                article_number: "1".to_string(),
-            },
-            Candidate {
-                law: &older,
-                article_number: "1".to_string(),
-            },
-        ];
-
-        let (winner, reason) = resolve_candidate(&candidates).unwrap().unwrap();
+        let (winner, reason) = resolve_candidate(&candidates(&[&newer, &older]))
+            .unwrap()
+            .unwrap();
         assert_eq!(winner.id, "newer_regulation");
         // The incumbent kept its seat, so no comparison sentence was written.
         assert_eq!(reason, "only candidate (newer_regulation)");
@@ -557,43 +366,10 @@ articles:
 
     #[test]
     fn test_resolve_candidate_missing_valid_from_is_error() {
-        let without_date = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: no_date_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2024-01-01'
-articles:
-  - number: '1'
-    text: No valid_from
-"#,
-        )
-        .unwrap();
+        let without_date = law("no_date_regulation", REGELING, None);
+        let with_date = law("dated_regulation", REGELING, Some("2025-01-01"));
 
-        let with_date = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: dated_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-valid_from: '2025-01-01'
-articles:
-  - number: '1'
-    text: Has valid_from
-"#,
-        )
-        .unwrap();
-
-        let candidates = vec![
-            Candidate {
-                law: &without_date,
-                article_number: "1".to_string(),
-            },
-            Candidate {
-                law: &with_date,
-                article_number: "1".to_string(),
-            },
-        ];
-
-        let err = resolve_candidate(&candidates).unwrap_err();
+        let err = resolve_candidate(&candidates(&[&without_date, &with_date])).unwrap_err();
         assert!(
             err.to_string().contains("no valid_from date"),
             "Expected error about missing valid_from, got: {}",
@@ -603,44 +379,10 @@ articles:
 
     #[test]
     fn test_resolve_candidate_unresolved_reference_is_error() {
-        let with_ref = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: ref_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-valid_from: '#datum_inwerkingtreding'
-articles:
-  - number: '1'
-    text: Has unresolved reference
-"#,
-        )
-        .unwrap();
+        let with_ref = law("ref_regulation", REGELING, Some("#datum_inwerkingtreding"));
+        let with_date = law("dated_regulation", REGELING, Some("2025-01-01"));
 
-        let with_date = ArticleBasedLaw::from_yaml_str(
-            r#"
-$id: dated_regulation
-regulatory_layer: MINISTERIELE_REGELING
-publication_date: '2025-01-01'
-valid_from: '2025-01-01'
-articles:
-  - number: '1'
-    text: Has valid_from
-"#,
-        )
-        .unwrap();
-
-        let candidates = vec![
-            Candidate {
-                law: &with_ref,
-                article_number: "1".to_string(),
-            },
-            Candidate {
-                law: &with_date,
-                article_number: "1".to_string(),
-            },
-        ];
-
-        let err = resolve_candidate(&candidates).unwrap_err();
+        let err = resolve_candidate(&candidates(&[&with_ref, &with_date])).unwrap_err();
         assert!(
             err.to_string().contains("unresolved valid_from reference"),
             "Expected error about unresolved reference, got: {}",

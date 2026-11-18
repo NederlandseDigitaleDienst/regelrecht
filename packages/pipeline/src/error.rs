@@ -49,7 +49,9 @@ pub enum PipelineError {
     #[error("{0}")]
     LlmNotPermitted(String),
 
-    #[error("base drift for {yaml_path}: base branch {base} changed (was {expected}, now {actual}); human review / re-enrich required")]
+    #[error(
+        "base drift for {yaml_path}: base branch {base} changed (was {expected}, now {actual}); human review / re-enrich required"
+    )]
     BaseDrift {
         yaml_path: String,
         base: String,

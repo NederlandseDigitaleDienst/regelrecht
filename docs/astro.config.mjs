@@ -39,6 +39,9 @@ export default defineConfig({
     // erin stond (chronolexogram-types, de afleiding van de rechtsmiddel-route,
     // het `blauwe_knop`-blok) staat in RFC-022 en blijft daar staan.
     '/concepts/cjib-blauwe-knop-source-proposal': '/rfcs/rfc-022',
+    // De open punten van chronolexografie zijn een deelpagina geworden en
+    // heten nu open questions.
+    '/concepts/chronolexography-open-points': '/concepts/chronolexography/open-questions',
   },
   integrations: [
     mdx(),

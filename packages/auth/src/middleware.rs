@@ -9,11 +9,11 @@ use openidconnect::core::CoreErrorResponseType;
 use openidconnect::{OAuth2TokenResponse, RefreshToken, RequestTokenError, StandardErrorResponse};
 use tower_sessions::Session;
 
-use crate::handlers::{
-    access_token_ttl_secs, extract_realm_roles, unix_now, SESSION_KEY_AUTHENTICATED,
-    SESSION_KEY_REFRESH_TOKEN, SESSION_KEY_ROLES, SESSION_KEY_SUB, SESSION_KEY_TOKEN_EXPIRES_AT,
-};
 use crate::OidcAppState;
+use crate::handlers::{
+    SESSION_KEY_AUTHENTICATED, SESSION_KEY_REFRESH_TOKEN, SESSION_KEY_ROLES, SESSION_KEY_SUB,
+    SESSION_KEY_TOKEN_EXPIRES_AT, access_token_ttl_secs, extract_realm_roles, unix_now,
+};
 
 type RequireRoleFuture = Pin<Box<dyn Future<Output = Result<Response, StatusCode>> + Send>>;
 
@@ -357,10 +357,10 @@ mod tests {
     use super::*;
     use crate::config::OidcConfig;
     use crate::oidc::ConfiguredClient;
+    use axum::Router;
     use axum::body::Body;
     use axum::middleware as axum_middleware;
     use axum::routing::get;
-    use axum::Router;
     use std::sync::Arc;
     use tower::ServiceExt;
     use tower_sessions::SessionManagerLayer;

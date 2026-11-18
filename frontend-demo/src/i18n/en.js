@@ -90,7 +90,7 @@ export default {
   'format.missing_from_law': 'details from {law}',
 
   // ---- simulation: dimensions and groups ----------------------------------
-  // The group names themselves are keys in stats.js and stay Dutch; this is
+  // The group names themselves are keys in stats.ts and stay Dutch; this is
   // only what they are called on screen.
   'sim.dimension.age': 'Age',
   'sim.dimension.income': 'Income',
@@ -540,7 +540,6 @@ export default {
   'sheet.edit.error.amount': 'Enter an amount, for example 1,250.00.',
   'sheet.edit.error.number': 'Enter a number.',
   'sheet.edit.error.date': 'Enter a date as YYYY-MM-DD.',
-  'sheet.edit.error.json': 'This is not valid JSON.',
   'sheet.edit.error.reason.officer': 'Give a reason; it goes into the case file.',
   'sheet.edit.error.reason.citizen': 'Give a reason; the case officer reads it.',
 
@@ -572,7 +571,7 @@ export default {
   'sheet.change.done.to_portal': 'To my schemes',
   'sheet.change.done.another': 'Report another change',
 
-  // the kinds of change and their fields (data/changeWizard.js)
+  // the kinds of change and their fields (data/changeWizard.ts)
   'sheet.change.type.inkomen': 'My income or assets',
   'sheet.change.type.inkomen.description': 'Pay, profit, benefit, savings or debts',
   'sheet.change.group.box1': 'Box 1 — work and home',
@@ -676,6 +675,7 @@ export default {
 
   // ---- simulation: the main panel -----------------------------------------
   'sim.tab.comparison': 'Comparison',
+  'sim.tab.label': 'Simulations',
   'sim.view.overview': 'Overview',
   'sim.view.breakdown': 'Breakdown',
   'sim.view.population': 'Population',
@@ -841,6 +841,10 @@ export default {
   'harm.feature.is_hospitality': 'Is a hospitality business',
   'harm.feature.prepares_food': 'Prepares food',
   'harm.feature.has_terrace': 'Has a terrace',
+  'harm.group.yes': 'yes',
+  'harm.group.no': 'no',
+  'harm.group.rest': 'Other combinations',
+  'harm.group.everyone': 'Everyone',
   'harm.error.too_little_data': 'Too little data to learn a model; run a larger simulation.',
   'harm.error.no_numeric_feature': 'No numeric feature to build brackets on.',
 
@@ -935,7 +939,6 @@ export default {
   'walkthrough.missing.title': 'No walkthrough yet',
   'walkthrough.missing.body': 'This version of the demo has no recorded walkthrough. The presentation and the demo itself do work.',
   'home.presentation.walkthrough': 'Watch the recorded walkthrough',
-  'home.ways.label': 'How do you want to see the demo?',
   'home.ways.walkthrough.title': 'Watch the walkthrough',
   'home.ways.walkthrough.text': 'Recorded, with a voice. The demo plays itself; you can pause and click on yourself. About {minutes} minutes.',
   'home.ways.browse.title': 'Look around yourself',
@@ -952,6 +955,7 @@ export default {
   'walkthrough.transcript.play_from': 'Play from {time}',
   'recorder.no_endpoint': 'The demo is not running in recording mode. Start it with `just walkthrough record`.',
   'walkthrough.dutch_only': 'The walkthrough was recorded in Dutch. The controls are translated. The demo, the slides, the captions and the transcript are in Dutch, so they match what is said.',
+  'walkthrough.dutch_voice': 'The walkthrough was recorded in Dutch. The captions, the slides and the demo are in English.',
   'walkthrough.more': 'More',
   'walkthrough.view': 'Display',
   'walkthrough.captions': 'Captions',
@@ -970,6 +974,8 @@ export default {
   'walkthrough.back_seconds': 'Back {n} seconds',
   'walkthrough.forward_seconds': 'Forward {n} seconds',
   'walkthrough.ai_voice': "The voice in the chapters is generated with AI, from the presenter's own voice.",
+  'walkthrough.dubbed_voice': "The walkthrough was recorded in Dutch. What you hear is a translation, spoken by an AI voice based on the presenter's own.",
+  'walkthrough.original_voice': 'Original voice (Dutch)',
   'recorder.mic.label': 'Microphone',
   'recorder.mic.test': 'Test microphone',
   'recorder.mic.stop_test': 'Stop test',

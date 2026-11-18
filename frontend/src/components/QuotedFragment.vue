@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * QuotedFragment — the one place the "quoted fragment" pattern for notes lives.
  * Shows the annotated text in italic with a little sentence-aware context around
@@ -8,9 +8,21 @@
  *
  * Feed it a `quoteContext()` result; it renders nothing when there is no quote.
  */
-defineProps({
+
+/** The part of a quoteContext() result this component reads. */
+interface QuotedFragmentParts {
+  quote?: string;
+  before?: string;
+  after?: string;
+  ellipsisBefore?: string;
+  ellipsisAfter?: string;
+}
+
+withDefaults(defineProps<{
   // { quote, before, after, ellipsisBefore, ellipsisAfter } from quoteContext().
-  fragment: { type: Object, default: null },
+  fragment?: QuotedFragmentParts | null;
+}>(), {
+  fragment: null,
 });
 </script>
 

@@ -1,16 +1,41 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
 import { useRouter } from 'vue-router';
-import { RE_HARVESTABLE_STATUSES, ENRICHABLE_STATUSES } from '../constants.js';
+import { RE_HARVESTABLE_STATUSES, ENRICHABLE_STATUSES } from '../constants';
 import { apiFetch } from '@regelrecht/frontend-shared';
+import { NLDDNotification, type NotificationVariant } from '@nldd/design-system/notification';
+import type { LawEntry } from '../composables/useLawEntries';
+import { providerLabel } from '../../lib/enrichProviders';
 
-const props = defineProps({
-  row: { type: Object, required: true },
-});
+const props = defineProps<{
+  row: LawEntry;
+}>();
 
-const emit = defineEmits(['action-complete']);
+const emit = defineEmits<{
+  'action-complete': [];
+}>();
+
+/** The response of POST /harvest-jobs (`CreateJobResponse` in packages/admin/src/handlers.rs). */
+interface HarvestJobCreated {
+  job_id: string;
+}
+
+/** The response of POST /enrich-jobs (`CreateEnrichResponse` in packages/admin/src/handlers.rs). */
+interface EnrichJobsCreated {
+  job_ids: string[];
+  providers: string[];
+}
 
 const router = useRouter();
+
+// Feedback goes to a design-system notification, not alert(): alert() blocks
+// the whole page until it is clicked away. Raised from code because this
+// component sits in a table row, and a notification moves itself out of the
+// element tree the framework rendered it in. A critical one stays until
+// dismissed; the others leave on their own.
+function notify(variant: NotificationVariant, text: string, supportingText?: string) {
+  NLDDNotification.show({ variant, text, supportingText });
+}
 
 function onViewJobs() {
   router.push({ name: 'jobs', query: { law_id: props.row.law_id } });
@@ -34,14 +59,14 @@ async function onHarvest() {
     if (response.status === 401) return;
     if (response.status === 409) {
       const text = await response.text().catch(() => '');
-      alert(text || 'A harvest job for this law is already pending or processing.');
+      notify('warning', 'Not harvested', text || 'A harvest job for this law is already pending or processing.');
       return;
     }
-    const result = await response.json();
-    alert(`Created harvest job: ${result.job_id}`);
+    const result = (await response.json()) as HarvestJobCreated;
+    notify('success', 'Created harvest job', result.job_id);
     emit('action-complete');
   } catch (err) {
-    alert('Harvest failed: ' + err.message);
+    notify('critical', 'Harvest failed', (err as Error).message);
   }
 }
 
@@ -56,14 +81,14 @@ async function onEnrich() {
     if (response.status === 401) return;
     if (response.status === 409) {
       const text = await response.text().catch(() => '');
-      alert(text || 'Enrich jobs for this law are already pending or processing.');
+      notify('warning', 'Not enriched', text || 'Enrich jobs for this law are already pending or processing.');
       return;
     }
-    const result = await response.json();
-    alert(`Created ${result.job_ids.length} enrich job(s) for ${result.providers.join(', ')}`);
+    const result = (await response.json()) as EnrichJobsCreated;
+    notify('success', `Created ${result.job_ids.length} enrich job(s)`, result.providers.map(providerLabel).join(', '));
     emit('action-complete');
   } catch (err) {
-    alert('Enrich failed: ' + err.message);
+    notify('critical', 'Enrich failed', (err as Error).message);
   }
 }
 
@@ -76,7 +101,7 @@ async function onResetExhausted() {
     if (response.status === 401) return;
     emit('action-complete');
   } catch (err) {
-    alert('Reset failed: ' + err.message);
+    notify('critical', 'Reset failed', (err as Error).message);
   }
 }
 </script>

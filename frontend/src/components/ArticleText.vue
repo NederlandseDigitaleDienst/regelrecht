@@ -1,13 +1,22 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
-import { renderArticleHtml } from '../composables/useArticleMarkdown.js';
+import { renderArticleHtml } from '../composables/useArticleMarkdown';
 
-const props = defineProps({
-  article: { type: Object, default: null },
-  raw: { type: Boolean, default: false },
+/** The part of an article this component reads. */
+interface ArticleWithText {
+  text?: string | null;
+}
+
+const props = withDefaults(defineProps<{
+  article?: ArticleWithText | null;
+  raw?: boolean;
   // Center the rich-text column. Opt-in so the library reading view can
   // center while the editor's read-only pane stays left-aligned.
-  centered: { type: Boolean, default: false },
+  centered?: boolean;
+}>(), {
+  article: null,
+  raw: false,
+  centered: false,
 });
 
 // marked + DOMPurify pipeline (useArticleMarkdown): same list nesting and

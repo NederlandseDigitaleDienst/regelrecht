@@ -60,6 +60,8 @@ For each component in the response:
 - **Has recent logs**: pod is running
 - **Empty logs (0 lines) on a component that should be deployed**: pod is NOT running — likely image pull error or quota issue
 
+Empty logs on every component of a `prN` preview can also mean it is asleep (previews sleep 48 hours after their last deploy). Wake it with the `zad-wake` skill and check again before looking for another cause.
+
 ### 5. Check image availability
 
 If pods aren't running, verify the images exist:

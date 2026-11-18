@@ -70,13 +70,13 @@ pub async fn download_bytes(client: &Client, url: &str, max_size: u64) -> Result
                 let response = response.error_for_status()?;
 
                 // Check Content-Length header before downloading
-                if let Some(content_length) = response.content_length() {
-                    if content_length > max_size {
-                        return Err(HarvesterError::ResponseTooLarge {
-                            max_bytes: max_size,
-                            actual_bytes: content_length,
-                        });
-                    }
+                if let Some(content_length) = response.content_length()
+                    && content_length > max_size
+                {
+                    return Err(HarvesterError::ResponseTooLarge {
+                        max_bytes: max_size,
+                        actual_bytes: content_length,
+                    });
                 }
 
                 let bytes = response.bytes().await?;

@@ -1,6 +1,6 @@
 /**
  * Dev-server endpoint that receives a walkthrough take from the recorder
- * (src/walkthrough/recorder.js) and writes it to `.walkthrough/takes/<take>/`
+ * (src/walkthrough/recorder.ts) and writes it to `.walkthrough/takes/<take>/`
  * at the repository root.
  *
  * Only in `vite serve`: the production image has no such endpoint and the

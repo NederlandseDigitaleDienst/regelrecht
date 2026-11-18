@@ -2,7 +2,7 @@
   <nldd-page>
     <nldd-simple-section>
       <div class="intro-kop">
-        <nldd-title :size="1">
+        <nldd-title heading-level="1" size="display-1">
           <span slot="overline">Voor beleidsmakers</span>
           <span>Eén leerling door de regeling</span>
         </nldd-title>
@@ -36,7 +36,7 @@
       <nldd-simple-section background="tinted">
         <div class="persona-kaart">
           <div>
-            <nldd-title :size="3"><span>{{ selected.naam }}</span></nldd-title>
+            <nldd-title heading-level="2" size="display-3"><span>{{ selected.naam }}</span></nldd-title>
             <p class="omschrijving">{{ selected.omschrijving }}</p>
           </div>
           <dl class="feiten">
@@ -53,7 +53,7 @@
            voor komt, en de herleiding eronder is waar je heen gaat als je hem
            niet gelooft. -->
       <nldd-simple-section>
-        <nldd-title :size="4">
+        <nldd-title heading-level="2" size="display-4">
           <span>Regelingen vergelijken per peildatum</span>
           <span slot="supporting-text">Per kwartaal: telt de leerling, in welke categorie en welk jaar, tegen welk bedrag (25% van het jaarbedrag). Huidig recht staat altijd links; elke gekozen regeling komt daarnaast.</span>
         </nldd-title>
@@ -70,7 +70,7 @@
       </nldd-simple-section>
 
       <nldd-simple-section>
-        <nldd-title :size="4">
+        <nldd-title heading-level="2" size="display-4">
           <span>Waarom deze leerling meetelt, en hoe vaak</span>
           <span slot="supporting-text">Van de gegevens in ROD naar de categorie (asielzoeker of overige vreemdeling) en het aantal kwartalen dat bekostigd wordt, onder huidig recht.</span>
         </nldd-title>
@@ -108,7 +108,7 @@ import CategorieUitleg from '../components/casus/CategorieUitleg.vue';
 import PeildataTijdlijn from '../components/casus/PeildataTijdlijn.vue';
 import BerekeningSheet from '../components/casus/BerekeningSheet.vue';
 import { datumLabel, sectorLabel, variantVanaf } from '../lib/nieuwkomerFacts.js';
-import { bewaardeRef } from '../composables/useBewaardeStand.js';
+import { persistedRef } from '../composables/useBewaardeStand.js';
 
 const { ready, initError, lawIndex, initEngine } = useEngine();
 const { initStore, version, variants, werkversie, changeCount } = useLawStore();
@@ -119,7 +119,7 @@ const selected = ref(null);
 // Meerdere regelingen tegelijk, net als op het beleidstabblad: de impact van
 // varianten op één leerling is pas te zien als ze naast elkaar staan, niet als
 // je ze twee aan twee moet vergelijken. Huidig recht staat altijd links.
-const variantIds = bewaardeRef('casussen.varianten', []);
+const variantIds = persistedRef('casussen.varianten', []);
 const variantVanafDatum = computed(() => {
   // De vroegste ingangsdatum onder de gekozen varianten: daarvoor zijn alle
   // kolommen per definitie gelijk.

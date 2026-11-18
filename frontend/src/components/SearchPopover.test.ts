@@ -1,0 +1,600 @@
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import type { Mock, MockInstance } from 'vitest';
+import { mount } from '@vue/test-utils';
+import type { VueWrapper } from '@vue/test-utils';
+import { nextTick } from 'vue';
+import SearchPopover from './SearchPopover.vue';
+import { MIN_QUERY_LENGTH } from '../composables/useBwbSearch';
+import type { CorpusLaw, CorpusTransport, LawListQuery } from '../corpus';
+import { installTestCorpus } from '../test-utils/corpusSetup';
+
+/** The part of a Response apiFetch reads; the stubs return only this. */
+interface StubResponse {
+  ok: boolean;
+  status?: number;
+  headers?: Headers;
+  json?: () => Promise<unknown>;
+}
+type FetchStub = (url: string | URL | Request, init?: RequestInit) => Promise<StubResponse>;
+
+/** The stubbed global fetch, typed as the stub it is rather than as `fetch`. */
+const fetchMock = () => vi.mocked(fetch) as unknown as Mock<FetchStub>;
+
+/**
+ * Setup state the tests reach through `wrapper.vm`. Only `show` is exposed;
+ * test-utils proxies the rest of the setup state onto `vm`.
+ */
+interface SearchPopoverInternals {
+  search: string;
+  shownLaws: CorpusLaw[];
+  resultHeading: { overline?: string; text: string; supportingText?: string } | null;
+  searchFailed: boolean;
+  useCenteredPosition: boolean;
+  isAnchored: boolean;
+}
+const internals = (wrapper: VueWrapper) => wrapper.vm as unknown as SearchPopoverInternals;
+
+/** The (not upgraded, under happy-dom) popover element, with the members the tests replace. */
+interface PopoverStub {
+  show: () => void;
+  hide: () => void;
+  matches: (selector: string) => boolean;
+  reposition: () => unknown;
+  anchorElement: Element | null;
+}
+const popoverEl = (wrapper: VueWrapper) => wrapper.find('nldd-popover').element as PopoverStub;
+
+// SearchPopover queries the corpus server-side (the law list with `q`) and
+// orders the response into a flat option list (private repo first). We drive
+// it via `wrapper.vm` and assert on the `shownLaws` computed. The corpus is the
+// in-memory one; the global fetch stub only answers auth, the external
+// wetten.overheid.nl search and promote.
+//
+// useAuth and the router are mocked so the component mounts without a router.
+// The traject-scoped tests make a traject active per test (vi.hoisted so the
+// hoisted mock factory can reference the route).
+const routeMock = vi.hoisted((): { params: Record<string, string> } => ({ params: {} }));
+// useRouter only resolves the address of a suggested law.
+vi.mock('vue-router', () => ({
+  useRoute: () => routeMock,
+  useRouter: () => ({
+    resolve: (loc: { params: { lawId: string } }) => ({ href: `/corpus-juris/${loc.params.lawId}` }),
+  }),
+}));
+
+// Central corpus (priority 2) listed before the private traject repo
+// (priority 0) to prove the sort order comes from source_priority, not
+// response order. Source name/law id are anonymized fixtures, not real repos.
+const LAWS: CorpusLaw[] = [
+  {
+    law_id: 'besluit_zorgverzekering',
+    source_id: 'central',
+    source_name: 'Centrale Regelrecht Corpus',
+    source_priority: 2,
+  },
+  {
+    law_id: 'besluit_zorgverzekering_example',
+    source_id: 'traject-own',
+    source_name: 'example-org/regelrecht-corpus-example',
+    source_priority: 0,
+  },
+];
+
+/** Every read of the law list, passed through to the in-memory corpus unless a test overrides it. */
+let listSpy: MockInstance<CorpusTransport['list']>;
+
+/**
+ * Install a corpus whose law list is `list`, with `active` as the active
+ * traject (null: the global corpus), and spy on its list reads.
+ */
+function useCorpusList(list: CorpusLaw[], active: string | null = null) {
+  const { transport } = installTestCorpus({ [active ?? '']: { list } }, active);
+  listSpy = vi.spyOn(transport, 'list');
+}
+
+/** The search queries (those with `q`) that reached the corpus. */
+function searchQueries(): LawListQuery[] {
+  return listSpy.mock.calls.map(([, query]) => query).filter((q) => q.q !== undefined);
+}
+
+beforeEach(() => {
+  routeMock.params = {};
+  useCorpusList(LAWS);
+  vi.stubGlobal(
+    'fetch',
+    vi.fn<FetchStub>(async (url) => {
+      const u = String(url);
+      if (u.includes('/auth/status')) return { ok: false, json: async () => ({}) };
+      return { ok: true, json: async () => [] };
+    }),
+  );
+});
+
+// Wait past the 200ms input debounce plus the awaited fetch.
+const settle = () => new Promise((r) => setTimeout(r, 300));
+
+describe('SearchPopover server-side search', () => {
+  it('shows the matches of the first source in order, and names it', async () => {
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgverzekering';
+    await nextTick();
+    await settle();
+    await nextTick();
+
+    // The private traject repo (priority 0) is searched before the central
+    // corpus (priority 2), so only its match shows, under its name.
+    expect(internals(wrapper).shownLaws.map((l) => l.law_id)).toEqual([
+      'besluit_zorgverzekering_example',
+    ]);
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'example-org/regelrecht-corpus-example',
+    });
+  });
+
+  it('offers the matches of the other sources in a row, and switches to them', async () => {
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgverzekering';
+    await nextTick();
+    await settle();
+    await nextTick();
+
+    const row = wrapper.find('[data-testid="search-other-source"]');
+    expect(row.find('nldd-text-cell').attributes('text')).toBe(
+      'Ook 1 resultaat in Centrale Regelrecht Corpus',
+    );
+
+    await row.trigger('click');
+    expect(internals(wrapper).shownLaws.map((l) => l.law_id)).toEqual(['besluit_zorgverzekering']);
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'Centrale Regelrecht Corpus',
+    });
+    // And back: the first source now has the row.
+    expect(
+      wrapper.find('[data-testid="search-other-source"] nldd-text-cell').attributes('text'),
+    ).toBe('Ook 1 resultaat in example-org/regelrecht-corpus-example');
+  });
+
+  it('starts over at the first source for a new query', async () => {
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgverzekering';
+    await nextTick();
+    await settle();
+    await nextTick();
+    await wrapper.find('[data-testid="search-other-source"]').trigger('click');
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'Centrale Regelrecht Corpus',
+    });
+
+    // A different query that matches both sources again.
+    internals(wrapper).search = 'besluit zorgverzekering';
+    await nextTick();
+    await settle();
+    await nextTick();
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'example-org/regelrecht-corpus-example',
+    });
+  });
+
+  it('marks the last source count as a lower bound when the backend capped the list', async () => {
+    // The backend found 80 matches but returned only these two.
+    listSpy.mockResolvedValue({ laws: LAWS, total: 80 });
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgverzekering';
+    await nextTick();
+    await settle();
+    await nextTick();
+
+    expect(
+      wrapper.find('[data-testid="search-other-source"] nldd-text-cell').attributes('text'),
+    ).toBe('Ook 1+ resultaten in Centrale Regelrecht Corpus');
+    // The first source's list is complete: no note under its heading.
+    const heading = () => wrapper.get('[data-testid="search-result-label"]');
+    expect(heading().attributes('supporting-text')).toBeUndefined();
+    // The last source is the one the cap cut short; its heading says so, with
+    // what the other source leaves of the total.
+    await wrapper.find('[data-testid="search-other-source"]').trigger('click');
+    expect(heading().attributes('supporting-text')).toBe(
+      'De beste 1 van 79 resultaten. Typ meer om te verfijnen.',
+    );
+  });
+
+  it('falls through to the next source when the first has no match', async () => {
+    useCorpusList(LAWS.slice(0, 1));
+    const wrapper = mount(SearchPopover);
+    await searchFor(wrapper, 'zorgverzekering');
+
+    expect(internals(wrapper).shownLaws.map((l) => l.law_id)).toEqual(['besluit_zorgverzekering']);
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Gevonden in',
+      text: 'Centrale Regelrecht Corpus',
+    });
+  });
+
+  it('queries the backend with the q parameter (not a client-side filter)', async () => {
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'kieswet';
+    await nextTick();
+    await settle();
+
+    expect(searchQueries().map((q) => q.q)).toEqual(['kieswet']);
+  });
+
+  it('debounces: a single query fires one corpus request', async () => {
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'z';
+    await nextTick();
+    internals(wrapper).search = 'zo';
+    await nextTick();
+    internals(wrapper).search = 'zorg';
+    await nextTick();
+    await settle();
+
+    expect(searchQueries().map((q) => q.q)).toEqual(['zorg']);
+  });
+
+  it('clearing the query discards an in-flight corpus fetch (no stale results)', async () => {
+    // Make the corpus search hang so we can clear the input mid-flight.
+    let resolveCorpus: (() => void) | undefined;
+    listSpy.mockImplementation(() => new Promise((r) => {
+      resolveCorpus = () => r({ laws: LAWS, total: LAWS.length });
+    }));
+
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorg';
+    await nextTick();
+    await settle(); // debounce fires; the corpus fetch is now pending
+
+    // Clear before the fetch resolves, then let the stale fetch settle.
+    internals(wrapper).search = '';
+    await nextTick();
+    resolveCorpus!(); // set when the pending corpus fetch started
+    await settle();
+    await nextTick();
+
+    // The cleared term's response must not repopulate the list, and no
+    // wetten.overheid.nl search should have been fired for it.
+    expect(internals(wrapper).shownLaws).toEqual([]);
+    const bwbCalls = fetchMock().mock.calls
+      .map((c) => String(c[0]))
+      .filter((u) => u.includes('/harvest/search'));
+    expect(bwbCalls).toHaveLength(0);
+  });
+
+  it('a backend error surfaces as failed, not a cascade to the external fallback', async () => {
+    installTestCorpus({ '': { list: LAWS, failures: { list: 500 } } });
+
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorg';
+    await nextTick();
+    await settle();
+    await nextTick();
+
+    expect(internals(wrapper).searchFailed).toBe(true);
+    expect(internals(wrapper).shownLaws).toEqual([]);
+    const bwbCalls = fetchMock().mock.calls
+      .map((c) => String(c[0]))
+      .filter((u) => u.includes('/harvest/search'));
+    expect(bwbCalls).toHaveLength(0);
+  });
+
+  it('renders no promote buttons outside a traject (global corpus scope)', async () => {
+    const wrapper = mount(SearchPopover);
+    await searchFor(wrapper, 'zorgverzekering');
+
+    expect(wrapper.findAll('nldd-list-item[data-law-id]')).toHaveLength(1);
+    expect(promoteButtons(wrapper)).toHaveLength(0);
+  });
+});
+
+// Fictieve traject-ref (publiek testbestand, geen echte repo/traject-namen).
+const TRAJECT_REF = 'voorbeeld-abcd1234';
+
+async function searchFor(wrapper: VueWrapper, term: string) {
+  internals(wrapper).search = term;
+  await nextTick();
+  await settle();
+  await nextTick();
+}
+
+function promoteButtons(wrapper: VueWrapper) {
+  return wrapper
+    .findAll('nldd-button')
+    .filter((b) => b.attributes('text') === 'Toevoegen aan traject');
+}
+
+// De "Toevoegen aan traject"-knop is bewust uit de zoekresultaten verwijderd:
+// promoten van een wet uit het centrale corpus kan uitsluitend via de
+// expliciete "Wet toevoegen"-flow (AddLawSheet). Deze tests pinnen dat de
+// knop óók binnen een traject niet (terug)verschijnt.
+describe('SearchPopover zonder "Toevoegen aan traject" in zoekresultaten', () => {
+  beforeEach(() => {
+    routeMock.params = { trajectRef: TRAJECT_REF };
+    useCorpusList(LAWS, TRAJECT_REF);
+  });
+
+  it('shows no promote button inside a traject; the label names the source', async () => {
+    const wrapper = mount(SearchPopover);
+    await searchFor(wrapper, 'zorgverzekering');
+
+    const rows = wrapper.findAll('nldd-list-item[data-law-id]');
+    expect(rows.map((r) => r.attributes('data-law-id'))).toEqual(['besluit_zorgverzekering_example']);
+    expect(promoteButtons(wrapper)).toHaveLength(0);
+    const heading = wrapper.get('[data-testid="search-result-label"]');
+    expect(heading.attributes('overline')).toBe('Gevonden in');
+    expect(heading.attributes('text')).toBe('example-org/regelrecht-corpus-example');
+  });
+
+  it('a row click only navigates (select-law), nothing is promoted', async () => {
+    const wrapper = mount(SearchPopover);
+    await searchFor(wrapper, 'zorgverzekering');
+
+    await wrapper
+      .get('nldd-list-item[data-law-id="besluit_zorgverzekering_example"]')
+      .trigger('click');
+    // select-law wordt uitgesteld tot de popover dicht is (deferral).
+    await wrapper.get('nldd-popover').trigger('close');
+
+    expect(wrapper.emitted('select-law')).toEqual([['besluit_zorgverzekering_example']]);
+    expect(wrapper.emitted('promoted')).toBeUndefined();
+    const promoteCalls = fetchMock().mock.calls.filter(
+      (c) => String(c[0]).includes('/promote') && c[1]?.method === 'POST',
+    );
+    expect(promoteCalls).toHaveLength(0);
+  });
+});
+
+describe('SearchPopover: tweede klik op de trigger sluit', () => {
+  // De triggers staan in de app-shell en deze popover in de routed view, dus
+  // de knop is niet de invoker van de popover en de browser levert geen toggle.
+  // show() doet dat zelf; zonder die stap opende een tweede klik alleen opnieuw
+  // en leek er niets te gebeuren.
+  function mountMetPopoverStub() {
+    const wrapper = mount(SearchPopover);
+    const el = popoverEl(wrapper);
+    const state = { open: false };
+    el.show = () => {
+      state.open = true;
+    };
+    el.hide = () => {
+      state.open = false;
+    };
+    // happy-dom kent :popover-open niet; stub 'm zoals het echte component 'm zou melden.
+    el.matches = (selector) => selector === ':popover-open' && state.open;
+    return { wrapper, state };
+  }
+
+  it('sluit bij een tweede show() zonder zoektekst', async () => {
+    const { wrapper, state } = mountMetPopoverStub();
+    await wrapper.vm.show(document.createElement('button'));
+    expect(state.open).toBe(true);
+    await wrapper.vm.show(document.createElement('button'));
+    expect(state.open).toBe(false);
+  });
+
+  it('houdt hem open bij type-to-open, want dat is geen her-trigger', async () => {
+    const { wrapper, state } = mountMetPopoverStub();
+    await wrapper.vm.show(document.createElement('button'));
+    await wrapper.vm.show(document.createElement('button'), 'a');
+    expect(state.open).toBe(true);
+  });
+});
+
+describe('SearchPopover volgt het breakpoint terwijl hij openstaat', () => {
+  // Zonder dit blijft een open popover in de layout van het vorige breakpoint
+  // hangen: een lg-gecentreerd paneel dat op md los in beeld zweeft, of een
+  // md-geankerd paneel dat nog naar een knop wijst die inmiddels het brede
+  // zoekveld is. Sluiten bij resize zou simpeler zijn maar gooit weg wat de
+  // gebruiker aan het typen was.
+  function stubMatchMedia(breedte: { waarde: number }) {
+    const luisteraars = new Set<() => void>();
+    vi.stubGlobal('matchMedia', (query: string) => {
+      const min = Number(/min-width:\s*(\d+)/.exec(query)?.[1] ?? 0);
+      const max = Number(/max-width:\s*(\d+)/.exec(query)?.[1] ?? Infinity);
+      const mql = {
+        get matches() {
+          return breedte.waarde >= min && breedte.waarde <= max;
+        },
+        addEventListener: (_: string, fn: () => void) => luisteraars.add(fn),
+        removeEventListener: (_: string, fn: () => void) => luisteraars.delete(fn),
+      };
+      return mql;
+    });
+    return { verander: (nieuw: number) => {
+      breedte.waarde = nieuw;
+      for (const fn of luisteraars) fn();
+    } };
+  }
+
+  it('wisselt van gecentreerd naar geankerd als lg naar md gaat', async () => {
+    const breedte = { waarde: 1280 };
+    const { verander } = stubMatchMedia(breedte);
+    const wrapper = mount(SearchPopover);
+    const el = popoverEl(wrapper);
+    el.show = () => {};
+    el.matches = () => true;
+    el.reposition = vi.fn();
+
+    await wrapper.vm.show(document.createElement('button'));
+    expect(internals(wrapper).useCenteredPosition).toBe(true);
+    expect(internals(wrapper).isAnchored).toBe(false);
+
+    verander(768);
+    await nextTick();
+    expect(internals(wrapper).useCenteredPosition).toBe(false);
+    expect(internals(wrapper).isAnchored).toBe(true);
+    expect(el.reposition).toHaveBeenCalled();
+  });
+
+  it('herankert naar de trigger die in het nieuwe breakpoint zichtbaar is', async () => {
+    // Elk viewport toont zijn eigen trigger en verbergt de andere. Zonder
+    // herankeren wijst de popover na een resize naar een element van nul bij
+    // nul en parkeert Floating UI 'm linksboven.
+    const verborgen = document.createElement('div');
+    verborgen.setAttribute('data-search-trigger', '');
+    // Only width and height are read (visibleTrigger, syncToViewport).
+    verborgen.getBoundingClientRect = () => ({ width: 0, height: 0 }) as DOMRect;
+    const zichtbaar = document.createElement('div');
+    zichtbaar.setAttribute('data-search-trigger', '');
+    zichtbaar.getBoundingClientRect = () => ({ width: 120, height: 40 }) as DOMRect;
+    document.body.append(verborgen, zichtbaar);
+
+    const breedte = { waarde: 1280 };
+    const { verander } = stubMatchMedia(breedte);
+    const wrapper = mount(SearchPopover);
+    const el = popoverEl(wrapper);
+    const staat = { open: false };
+    el.show = () => {
+      staat.open = true;
+    };
+    el.matches = (selector) => selector === ':popover-open' && staat.open;
+    el.reposition = vi.fn();
+
+    await wrapper.vm.show(verborgen);
+    expect(el.anchorElement).toBe(verborgen);
+
+    verander(768);
+    await nextTick();
+    expect(el.anchorElement).toBe(zichtbaar);
+
+    verborgen.remove();
+    zichtbaar.remove();
+  });
+
+  it('laat een gesloten popover met rust', async () => {
+    const breedte = { waarde: 1280 };
+    const { verander } = stubMatchMedia(breedte);
+    const wrapper = mount(SearchPopover);
+    const el = popoverEl(wrapper);
+    el.matches = () => false;
+    el.reposition = vi.fn();
+
+    verander(768);
+    await nextTick();
+    expect(el.reposition).not.toHaveBeenCalled();
+  });
+});
+
+// De hint zei "minimaal twee letters" terwijl er pas vanaf drie tekens gezocht
+// wordt (MIN_QUERY_LENGTH, en de pipeline-api weigert korter ook). Drie is de
+// bedoeling: de constante, de AddLawSheet-hint en de backend zeggen het alle
+// drie. Deze tests binden de tekst aan het gedrag.
+describe('SearchPopover: minimale zoeklengte', () => {
+  const WORDS: Record<number, string> = { 3: 'drie' };
+
+  function emptyTexts(wrapper: VueWrapper) {
+    return wrapper.findAll('nldd-inline-dialog').map((d) => d.attributes('text'));
+  }
+
+  const corpusCalls = searchQueries;
+
+  it('noemt het aantal tekens waarbij het zoeken echt begint', async () => {
+    expect(WORDS[MIN_QUERY_LENGTH], `voeg ${MIN_QUERY_LENGTH} toe aan WORDS`).toBeDefined();
+    const wrapper = mount(SearchPopover);
+    await searchFor(wrapper, 'a'.repeat(MIN_QUERY_LENGTH - 1));
+    expect(corpusCalls()).toEqual([]);
+    expect(emptyTexts(wrapper)).toContain(`Typ minimaal ${WORDS[MIN_QUERY_LENGTH]} tekens om te zoeken`);
+  });
+
+  it('zoekt vanaf dat aantal, en toont de hint dan niet meer', async () => {
+    const wrapper = mount(SearchPopover);
+    await searchFor(wrapper, 'a'.repeat(MIN_QUERY_LENGTH));
+    expect(corpusCalls()).toHaveLength(1);
+    expect(emptyTexts(wrapper).some((t) => t?.startsWith('Typ minimaal'))).toBe(false);
+  });
+
+  it('telt spaties aan het eind niet mee, net als het zoeken zelf', async () => {
+    const wrapper = mount(SearchPopover);
+    await searchFor(wrapper, `${'a'.repeat(MIN_QUERY_LENGTH - 1)}   `);
+    expect(corpusCalls()).toEqual([]);
+    expect(emptyTexts(wrapper)).toContain(`Typ minimaal ${WORDS[MIN_QUERY_LENGTH]} tekens om te zoeken`);
+  });
+});
+
+describe('SearchPopover: laws with a machine version', () => {
+  it('marks a match whose current version is enriched with a Machine tag', async () => {
+    useCorpusList([
+      { law_id: 'wet_a', display_name: 'Wet A', source_id: 'central', source_name: 'Centraal', enriched: true },
+      { law_id: 'wet_b', display_name: 'Wet B', source_id: 'central', source_name: 'Centraal', enriched: false },
+    ]);
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'wet';
+    await nextTick();
+    await settle();
+    await nextTick();
+    const tagIn = (id: string) => wrapper.get(`nldd-list-item[data-law-id="${id}"]`).find('nldd-tag');
+    expect(tagIn('wet_a').text()).toBe('Machine');
+    expect(tagIn('wet_b').exists()).toBe(false);
+  });
+
+  it('no longer offers a filter on enriched laws, and never asks for one', async () => {
+    const wrapper = mount(SearchPopover);
+    internals(wrapper).search = 'zorgtoeslag';
+    await nextTick();
+    await settle();
+    expect(wrapper.find('nldd-checkbox-field').exists()).toBe(false);
+    // The list query has no enriched filter at all.
+    expect(searchQueries()).toEqual([{ q: 'zorgtoeslag', limit: 60 }]);
+  });
+});
+
+describe('SearchPopover: suggestions and wetten.overheid.nl', () => {
+  it('suggests five laws from Corpus juris when not logged in and the field is empty', async () => {
+    useCorpusList(__SUGGESTED_LAW_IDS__.map((law_id) => ({ law_id, display_name: law_id })));
+    const wrapper = mount(SearchPopover);
+    await wrapper.get('nldd-popover').trigger('open');
+    await settle();
+
+    // Links in a link group, not rows of the result list.
+    const links = wrapper.findAll('nldd-link-group [data-testid="search-suggestion"]');
+    expect(links).toHaveLength(5);
+    expect(wrapper.find('nldd-list-item[data-testid="search-suggestion"]').exists()).toBe(false);
+    const ids = links.map((r) => r.attributes('data-law-id'));
+    expect(ids.every((id) => __SUGGESTED_LAW_IDS__.includes(id as string))).toBe(true);
+    const [plain, newTab] = links;
+    if (!plain || !newTab) throw new Error('expected suggestion links');
+    expect(plain.attributes('href')).toBe(`/corpus-juris/${ids[0]}`);
+    expect(internals(wrapper).resultHeading).toEqual({ text: 'Suggesties' });
+
+    // A plain click opens the law in place, once the popover has closed; a
+    // click that asks for a new tab is left to the link.
+    const newTabClick = new MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true });
+    newTab.element.dispatchEvent(newTabClick);
+    expect(newTabClick.defaultPrevented).toBe(false);
+    const plainClick = new MouseEvent('click', { bubbles: true, cancelable: true });
+    plain.element.dispatchEvent(plainClick);
+    expect(plainClick.defaultPrevented).toBe(true);
+    await wrapper.get('nldd-popover').trigger('close');
+    expect(wrapper.emitted('select-law')).toEqual([[ids[0]]]);
+  });
+
+  it('links a wetten.overheid.nl match to its official text', async () => {
+    fetchMock().mockImplementation(async (url) => {
+      const u = String(url);
+      if (u.includes('/harvest/search')) {
+        return {
+          ok: true,
+          json: async () => [{ bwb_id: 'BWBR0000001', title: 'Voorbeeldwet', type: 'wet' }],
+        };
+      }
+      return { ok: true, json: async () => [] };
+    });
+    const wrapper = mount(SearchPopover);
+    await searchFor(wrapper, 'voorbeeldwet');
+    // The external search has its own debounce on top of the corpus one.
+    await vi.waitFor(() => {
+      expect(wrapper.find('[data-testid="search-official-text"]').exists()).toBe(true);
+    }, { timeout: 3000 });
+
+    const row = wrapper.get('[data-testid="search-official-text"]');
+    expect(row.attributes('href')).toBe('https://wetten.overheid.nl/BWBR0000001');
+    expect(row.attributes('target')).toBe('_blank');
+    expect(internals(wrapper).resultHeading).toEqual({
+      overline: 'Niet in de bibliotheek, wel op',
+      text: 'wetten.overheid.nl',
+    });
+  });
+});

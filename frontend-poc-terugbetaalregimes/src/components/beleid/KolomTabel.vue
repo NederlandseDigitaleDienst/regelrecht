@@ -3,13 +3,13 @@
     <div class="kt-head">
       <!-- De kolomkeuze staat bij de kolommen die hij vult, niet in het
            linkerpaneel waar alleen staat wat je wijzigt. -->
-      <kolommen-menu
-        :varianten="variants"
-        :gekozen="selectedVariants"
+      <column-menu
+        :variants="variants"
+        :selected="selectedVariants"
         :max="MAX_VARIANTEN"
-        :titel="kortTitel"
-        voet="Tonen, niet bewerken. Geldt ook voor de persona's."
-        @update:gekozen="selectedVariants = $event"
+        :title-of="kortTitel"
+        footer="Tonen, niet bewerken. Geldt ook voor de persona's."
+        @update:selected="selectedVariants = $event"
       />
       <nldd-segmented-control size="sm" :value="detail" @change="detail = $event.detail?.value ?? detail">
         <nldd-segmented-control-item value="kern" text="Kern"></nldd-segmented-control-item>
@@ -86,7 +86,7 @@
 
 <script setup>
 import { ref, computed } from 'vue';
-import KolommenMenu from '@regelrecht/frontend-shared/components/KolommenMenu.vue';
+import ColumnMenu from '@regelrecht/frontend-shared/components/ColumnMenu.vue';
 import { useLawStore, kortTitel } from '../../engine/lawStore.js';
 import { number, euroCompact, percent, regimeLabel, urenCompact } from '../../lib/format.js';
 import { KOLOM_BASIS, usePopulation, MAX_VARIANTEN } from '../../composables/usePopulation.js';

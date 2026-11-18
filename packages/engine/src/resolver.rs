@@ -494,7 +494,7 @@ fn list_findings(findings: &[crate::typecheck::Finding]) -> String {
 }
 
 /// Whether `law` reads `law_id`: an input that takes one of its outputs or
-/// calls one of its articles by a fixed reference (RFC-050), or an article
+/// calls one of its articles by a fixed reference (RFC-045 §6), or an article
 /// that implements one of its open terms. These are the places where the
 /// type check consults another law (RFC-037, N5, T5).
 fn references_law(law: &ArticleBasedLaw, law_id: &str) -> bool {
@@ -547,9 +547,16 @@ impl RuleResolver {
         // RFC-036: an unknown is produced by resolution, never written by a
         // law. Refuse a document that carries the serialized sentinel.
         crate::load_check::reject_unknown_literals(&law)?;
-        // RFC-047: a law that produces several things in one article divides
+        // RFC-045: a law that produces several things in one article divides
         // its outputs over them without ambiguity.
         crate::load_check::reject_ambiguous_produces(&law)?;
+        // RFC-051: a fact an article requires holds parameters it declares.
+        crate::load_check::reject_malformed_facts(&law)?;
+        // Schema v0.8.20: a parameter that declares columns is a table.
+        crate::load_check::reject_malformed_columns(&law)?;
+        // Schema v0.8.14: a projection sits in a reduction and sets its own state.
+        crate::load_check::reject_malformed_projection(&law)?;
+        crate::load_check::reject_unknown_state(&law)?;
 
         // RFC-036/RFC-037: hold the law to its own declarations before it can
         // run, so the editor sees the same findings as `just validate`. The
@@ -571,6 +578,16 @@ impl RuleResolver {
                 list_findings(&findings)
             )));
         }
+
+        // Schema v0.8.16: the steps of a reduction on v0.8.16 or later fit
+        // the laws they name, as far as those are loaded; a reduction on
+        // v0.8.15 or earlier is checked only when it plays. Only a reduction
+        // is refused for this:
+        // a law that arrives later always loads, whatever a reduction loaded
+        // before it expects of it, and the play holds that reduction to the
+        // law in force on the calculation date.
+        crate::load_check::check_projection_wiring(&law, &lookup)
+            .map_err(|why| EngineError::LoadError(format!("law '{}' {why}", law.id)))?;
 
         // RFC-037: the loaded set is well-typed whatever the order the laws
         // arrived in. A law already loaded that reads this one (an input with
@@ -639,13 +656,14 @@ impl RuleResolver {
         // allows besides a date: a `#`-reference (RFC-001). Anything else is a
         // typo, and a typo here reads in `select_in` as "this version has no
         // start date", which puts it in force on every date there is.
-        if let Some(valid_from) = &law.valid_from {
-            if !is_internal_reference(valid_from) && parse_date(valid_from).is_err() {
-                return Err(EngineError::LoadError(format!(
-                    "law '{law_id}': valid_from '{valid_from}' is neither a valid date \
+        if let Some(valid_from) = &law.valid_from
+            && !is_internal_reference(valid_from)
+            && parse_date(valid_from).is_err()
+        {
+            return Err(EngineError::LoadError(format!(
+                "law '{law_id}': valid_from '{valid_from}' is neither a valid date \
                      (YYYY-MM-DD) nor an internal reference (#...)"
-                )));
-            }
+            )));
         }
 
         Self::check_hook_filters(&law)?;
@@ -917,10 +935,10 @@ impl RuleResolver {
         let candidate = candidate.ok_or(SelectionReason::NotYetInForce)?;
 
         // Upper bound (inclusive): in force iff reference_date <= valid_to.
-        if let Some(valid_to) = candidate.valid_to.as_ref().and_then(|s| parse_date(s).ok()) {
-            if reference_date > valid_to {
-                return Err(SelectionReason::EndedOn(valid_to));
-            }
+        if let Some(valid_to) = candidate.valid_to.as_ref().and_then(|s| parse_date(s).ok())
+            && reference_date > valid_to
+        {
+            return Err(SelectionReason::EndedOn(valid_to));
         }
         Ok(candidate)
     }
@@ -943,16 +961,31 @@ impl RuleResolver {
         let law = self.get_law_for_date(law_id, reference_date)?;
         // Try indexed lookup first (O(1)), fall back to linear scan
         let index_key = format!("{}\0{}", law_id, output);
-        if let Some(article_number) = self.output_index.get(&index_key) {
-            if let Some(article) = law.find_article_by_number(article_number) {
-                // Verify the article in this version actually has the output
-                if article.has_output(output) {
-                    return Some(article);
-                }
+        if let Some(article_number) = self.output_index.get(&index_key)
+            && let Some(article) = law.find_article_by_number(article_number)
+        {
+            // Verify the article in this version actually has the output
+            if article.has_output(output) {
+                return Some(article);
             }
         }
         // Fallback: linear scan (handles version-specific differences)
         law.find_article_by_output(output)
+    }
+
+    /// Whether two scoped laws hold for the same territory: both carry scope
+    /// fields, and the same ones with the same values. Two national laws do
+    /// not count; for them `matches_scope` already holds.
+    fn shares_territory(a: &ArticleBasedLaw, b: &ArticleBasedLaw) -> bool {
+        let fields = |law: &ArticleBasedLaw| {
+            (
+                law.gemeente_code.clone(),
+                law.provincie_code.clone(),
+                law.waterschap_code.clone(),
+            )
+        };
+        let territory = fields(a);
+        territory != (None, None, None) && territory == fields(b)
     }
 
     /// Find all implementations of an open term, resolved by priority.
@@ -1098,6 +1131,8 @@ impl RuleResolver {
         // Resolve each candidate to actual (law, article) references
         let mut candidates: Vec<Candidate> = Vec::new();
         let mut lookup = ImplementationLookup::default();
+        // The declaring law, to recognise candidates of its own territory.
+        let declarer = self.get_law_for_date(law_id, reference_date);
 
         for entry in candidate_entries {
             // Version filter. A regulation that is not in force on this date
@@ -1131,8 +1166,15 @@ impl RuleResolver {
             // Scope filtering: check all scope fields on the candidate law against
             // the execution parameters. A scoped regulation (e.g., with gemeente_code
             // or provincie_code) only matches when the execution scope contains the
-            // same value. Unscoped regulations (national) always match.
-            if !Self::matches_scope(law, scope) {
+            // same value. Unscoped regulations (national) always match. The
+            // regulation that declares the term matches too: the scope picks
+            // which regulation applies to a case, and that one already does.
+            // So does a regulation scoped to the same territory as the one that
+            // declares the term, such as the college's nadere regels under a
+            // verordening of the same municipality.
+            let of_the_declarers_territory =
+                declarer.is_some_and(|declarer| Self::shares_territory(declarer, law));
+            if law.id != law_id && !of_the_declarers_territory && !Self::matches_scope(law, scope) {
                 tracing::debug!(
                     candidate = %entry.law_id,
                     "Skipping: scope fields do not match execution parameters"
@@ -1142,25 +1184,25 @@ impl RuleResolver {
 
             // Delegation gate: a layer the declaring article did not authorise
             // is not a weaker candidate but no candidate at all.
-            if let Some(expected) = delegation_type {
-                if !Self::matches_delegation(law, law_id, open_term_id, expected)? {
-                    tracing::debug!(
-                        candidate = %entry.law_id,
-                        candidate_layer = %law.regulatory_layer.as_str(),
-                        delegation_type = %expected,
-                        "Skipping: regulatory_layer is not the layer the open term delegates to"
-                    );
-                    lookup.refusals.push(DelegationRefusal {
-                        declaring_law: law_id.to_string(),
-                        declaring_article: article.to_string(),
-                        open_term: open_term_id.to_string(),
-                        required_layer: expected.to_string(),
-                        refused_law: law.id.clone(),
-                        refused_article: entry.article_number.clone(),
-                        refused_layer: law.regulatory_layer.as_str().to_string(),
-                    });
-                    continue;
-                }
+            if let Some(expected) = delegation_type
+                && !Self::matches_delegation(law, law_id, open_term_id, expected)?
+            {
+                tracing::debug!(
+                    candidate = %entry.law_id,
+                    candidate_layer = %law.regulatory_layer.as_str(),
+                    delegation_type = %expected,
+                    "Skipping: regulatory_layer is not the layer the open term delegates to"
+                );
+                lookup.refusals.push(DelegationRefusal {
+                    declaring_law: law_id.to_string(),
+                    declaring_article: article.to_string(),
+                    open_term: open_term_id.to_string(),
+                    required_layer: expected.to_string(),
+                    refused_law: law.id.clone(),
+                    refused_article: entry.article_number.clone(),
+                    refused_layer: law.regulatory_layer.as_str().to_string(),
+                });
+                continue;
             }
 
             let Some(art) = law
@@ -1227,10 +1269,10 @@ impl RuleResolver {
                 .implementations
                 .iter()
                 .position(|(law, _)| law.id == winner_law.id);
-            if let Some(idx) = winner_idx {
-                if idx != 0 {
-                    lookup.implementations.swap(0, idx);
-                }
+            if let Some(idx) = winner_idx
+                && idx != 0
+            {
+                lookup.implementations.swap(0, idx);
             }
         }
 
@@ -1447,95 +1489,99 @@ impl RuleResolver {
 
         // Add new index entries from the most recent version
         // Access law_versions directly to avoid borrowing self through get_law()
-        if let Some(versions) = self.law_versions.get(law_id) {
-            if let Some(law) = versions.first() {
-                // Procedure index (top-level)
-                if let Some(procedures) = &law.procedure {
-                    for proc_def in procedures {
-                        let key = (
+        if let Some(versions) = self.law_versions.get(law_id)
+            && let Some(law) = versions.first()
+        {
+            // Procedure index (top-level)
+            if let Some(procedures) = &law.procedure {
+                for proc_def in procedures {
+                    let key = (
+                        proc_def.applies_to.legal_character.clone(),
+                        proc_def.id.clone(),
+                    );
+                    self.procedure_index
+                        .insert(key, (proc_def.clone(), law_id.to_string()));
+
+                    if proc_def.default.unwrap_or(false) {
+                        self.procedure_defaults.insert(
                             proc_def.applies_to.legal_character.clone(),
                             proc_def.id.clone(),
                         );
-                        self.procedure_index
-                            .insert(key, (proc_def.clone(), law_id.to_string()));
+                    }
+                }
+            }
 
-                        if proc_def.default.unwrap_or(false) {
-                            self.procedure_defaults.insert(
-                                proc_def.applies_to.legal_character.clone(),
-                                proc_def.id.clone(),
-                            );
+            for article in &law.articles {
+                // Output index
+                if let Some(exec) = article.get_execution_spec()
+                    && let Some(outputs) = &exec.output
+                {
+                    for output in outputs {
+                        self.output_index.insert(
+                            format!("{}\0{}", law_id, output.name),
+                            article.number.clone(),
+                        );
+                    }
+                }
+
+                // Implements index (IoC). A reduction fills no term: its
+                // cell gives it as a named answer (RFC-048), and the
+                // loader refuses `implements` on one
+                // (`reject_removed_constructs`).
+                let reduction = law.regulatory_layer == RegulatoryLayer::Reductie;
+                if let Some(impl_decls) = article.get_implements().filter(|_| !reduction) {
+                    for decl in impl_decls {
+                        let key = (
+                            decl.law.clone(),
+                            decl.article.clone(),
+                            decl.open_term.clone(),
+                        );
+                        let entry = LawArticleRef {
+                            law_id: law_id.to_string(),
+                            article_number: article.number.clone(),
+                        };
+                        let candidates = self.implements_index.entry(key).or_default();
+                        if !candidates.contains(&entry) {
+                            candidates.push(entry);
                         }
                     }
                 }
 
-                for article in &law.articles {
-                    // Output index
-                    if let Some(exec) = article.get_execution_spec() {
-                        if let Some(outputs) = &exec.output {
-                            for output in outputs {
-                                self.output_index.insert(
-                                    format!("{}\0{}", law_id, output.name),
-                                    article.number.clone(),
-                                );
-                            }
-                        }
+                // Hooks index. A hook with neither a legal_character nor
+                // a submission never gets here: `load_law` refuses the
+                // law, because there is no honest key to file it under
+                // (see `check_hook_filters`).
+                if let Some(hook_decls) = article.get_hooks() {
+                    for decl in hook_decls {
+                        let f = &decl.applies_to;
+                        let target = match (&f.legal_character, &f.submission) {
+                            (Some(lc), _) => HookTarget::Decision(lc.clone()),
+                            (None, Some(kind)) => HookTarget::Submission(kind.clone()),
+                            (None, None) => continue,
+                        };
+                        let entry = HookEntry {
+                            law_id: law_id.to_string(),
+                            article_number: article.number.clone(),
+                            filter: f.clone(),
+                        };
+                        self.hooks_index
+                            .entry((decl.hook_point, target))
+                            .or_default()
+                            .push(entry);
                     }
+                }
 
-                    // Implements index (IoC)
-                    if let Some(impl_decls) = article.get_implements() {
-                        for decl in impl_decls {
-                            let key = (
-                                decl.law.clone(),
-                                decl.article.clone(),
-                                decl.open_term.clone(),
-                            );
-                            let entry = LawArticleRef {
-                                law_id: law_id.to_string(),
-                                article_number: article.number.clone(),
-                            };
-                            let candidates = self.implements_index.entry(key).or_default();
-                            if !candidates.contains(&entry) {
-                                candidates.push(entry);
-                            }
-                        }
-                    }
-
-                    // Hooks index. A hook with neither a legal_character nor
-                    // a submission never gets here: `load_law` refuses the
-                    // law, because there is no honest key to file it under
-                    // (see `check_hook_filters`).
-                    if let Some(hook_decls) = article.get_hooks() {
-                        for decl in hook_decls {
-                            let f = &decl.applies_to;
-                            let target = match (&f.legal_character, &f.submission) {
-                                (Some(lc), _) => HookTarget::Decision(lc.clone()),
-                                (None, Some(kind)) => HookTarget::Submission(kind.clone()),
-                                (None, None) => continue,
-                            };
-                            let entry = HookEntry {
-                                law_id: law_id.to_string(),
-                                article_number: article.number.clone(),
-                                filter: f.clone(),
-                            };
-                            self.hooks_index
-                                .entry((decl.hook_point, target))
-                                .or_default()
-                                .push(entry);
-                        }
-                    }
-
-                    // Overrides index
-                    if let Some(ovr_decls) = article.get_overrides() {
-                        for decl in ovr_decls {
-                            let key = (decl.law.clone(), decl.article.clone(), decl.output.clone());
-                            let entry = LawArticleRef {
-                                law_id: law_id.to_string(),
-                                article_number: article.number.clone(),
-                            };
-                            let candidates = self.overrides_index.entry(key).or_default();
-                            if !candidates.contains(&entry) {
-                                candidates.push(entry);
-                            }
+                // Overrides index
+                if let Some(ovr_decls) = article.get_overrides() {
+                    for decl in ovr_decls {
+                        let key = (decl.law.clone(), decl.article.clone(), decl.output.clone());
+                        let entry = LawArticleRef {
+                            law_id: law_id.to_string(),
+                            article_number: article.number.clone(),
+                        };
+                        let candidates = self.overrides_index.entry(key).or_default();
+                        if !candidates.contains(&entry) {
+                            candidates.push(entry);
                         }
                     }
                 }
@@ -1973,14 +2019,18 @@ articles:
         assert_eq!(article.number, "1");
 
         // Non-existent output
-        assert!(resolver
-            .get_article_by_output("test_law", "nonexistent", None)
-            .is_none());
+        assert!(
+            resolver
+                .get_article_by_output("test_law", "nonexistent", None)
+                .is_none()
+        );
 
         // Non-existent law
-        assert!(resolver
-            .get_article_by_output("nonexistent", "test_output", None)
-            .is_none());
+        assert!(
+            resolver
+                .get_article_by_output("nonexistent", "test_output", None)
+                .is_none()
+        );
     }
 
     #[test]
@@ -2005,9 +2055,11 @@ articles:
         assert!(!resolver.unload_law("test_law")); // Already removed
 
         // Output index should also be removed
-        assert!(resolver
-            .get_article_by_output("test_law", "test_output", None)
-            .is_none());
+        assert!(
+            resolver
+                .get_article_by_output("test_law", "test_output", None)
+                .is_none()
+        );
     }
 
     #[test]
@@ -2039,29 +2091,18 @@ articles:
         assert_eq!(law.articles[0].number, "2");
 
         // Old output should be gone
-        assert!(resolver
-            .get_article_by_output("test_law", "test_output", None)
-            .is_none());
+        assert!(
+            resolver
+                .get_article_by_output("test_law", "test_output", None)
+                .is_none()
+        );
 
         // New output should exist
-        assert!(resolver
-            .get_article_by_output("test_law", "new_output", None)
-            .is_some());
-    }
-
-    #[test]
-    fn test_resolver_law_count_limit() {
-        // Test that we can't exceed the maximum law count
-        // Note: This test uses a smaller limit to avoid long test times
-        let mut resolver = RuleResolver::new();
-
-        // Load a law to verify basic functionality
-        resolver.load_from_yaml(make_test_law()).unwrap();
-        assert_eq!(resolver.law_count(), 1);
-
-        // Verify replacement doesn't count towards limit
-        resolver.load_from_yaml(make_test_law()).unwrap();
-        assert_eq!(resolver.law_count(), 1); // Should still be 1 (replacement)
+        assert!(
+            resolver
+                .get_article_by_output("test_law", "new_output", None)
+                .is_some()
+        );
     }
 
     #[test]
@@ -2175,26 +2216,32 @@ articles:
             .unwrap();
 
         // In force before and on the (inclusive) end date.
-        assert!(resolver
-            .get_law_for_date(
-                "test_law",
-                Some(NaiveDate::from_ymd_opt(2023, 6, 1).unwrap())
-            )
-            .is_some());
-        assert!(resolver
-            .get_law_for_date(
-                "test_law",
-                Some(NaiveDate::from_ymd_opt(2023, 12, 31).unwrap())
-            )
-            .is_some());
+        assert!(
+            resolver
+                .get_law_for_date(
+                    "test_law",
+                    Some(NaiveDate::from_ymd_opt(2023, 6, 1).unwrap())
+                )
+                .is_some()
+        );
+        assert!(
+            resolver
+                .get_law_for_date(
+                    "test_law",
+                    Some(NaiveDate::from_ymd_opt(2023, 12, 31).unwrap())
+                )
+                .is_some()
+        );
 
         // No longer in force the day after valid_to.
-        assert!(resolver
-            .get_law_for_date(
-                "test_law",
-                Some(NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
-            )
-            .is_none());
+        assert!(
+            resolver
+                .get_law_for_date(
+                    "test_law",
+                    Some(NaiveDate::from_ymd_opt(2024, 1, 1).unwrap())
+                )
+                .is_none()
+        );
     }
 
     #[test]
@@ -2223,12 +2270,14 @@ articles:
 
         // After the newer version has ended: the law is no longer in force.
         // It must NOT resurrect the older open-ended version (RFC-019 §2).
-        assert!(resolver
-            .get_law_for_date(
-                "test_law",
-                Some(NaiveDate::from_ymd_opt(2025, 6, 1).unwrap())
-            )
-            .is_none());
+        assert!(
+            resolver
+                .get_law_for_date(
+                    "test_law",
+                    Some(NaiveDate::from_ymd_opt(2025, 6, 1).unwrap())
+                )
+                .is_none()
+        );
     }
 
     #[test]
@@ -2262,9 +2311,11 @@ articles:
             ))
         );
         // In force.
-        assert!(resolver
-            .get_law_for_date_result("test_law", NaiveDate::from_ymd_opt(2023, 6, 1).unwrap())
-            .is_ok());
+        assert!(
+            resolver
+                .get_law_for_date_result("test_law", NaiveDate::from_ymd_opt(2023, 6, 1).unwrap())
+                .is_ok()
+        );
     }
 
     #[test]
@@ -3601,6 +3652,20 @@ publication_date: '2025-01-01'
     }
 
     #[test]
+    fn test_resolver_limit_rejects_a_new_law() {
+        let mut resolver = resolver_at_law_limit();
+
+        let result = resolver.load_from_yaml(&make_numbered_law(config::MAX_LOADED_LAWS, None));
+
+        assert!(
+            matches!(result, Err(EngineError::LoadError(_))),
+            "a new law at the limit must be rejected, got {result:?}"
+        );
+        assert_eq!(resolver.version_count(), config::MAX_LOADED_LAWS);
+        assert!(!resolver.has_law(&format!("filler_law_{}", config::MAX_LOADED_LAWS)));
+    }
+
+    #[test]
     fn test_resolver_limit_rejects_new_version_of_existing_law() {
         // A second version of an already-loaded law is a *new* law in the
         // registry: it adds memory, so it must hit the limit like any other.
@@ -3781,6 +3846,193 @@ articles:
         let mut scope = HashMap::new();
         scope.insert(field.to_string(), Value::String(code.to_string()));
         scope
+    }
+
+    /// A scoped regulation fills an open term of its own whatever the scope:
+    /// the scope picks which municipality's regulation applies to a case,
+    /// and a regulation whose article declares the term already applies. A
+    /// hardship clause in a verordening that sets aside one of its own
+    /// articles is such a case.
+    #[test]
+    fn test_find_implementations_a_scoped_law_fills_its_own_term() {
+        let mut resolver = RuleResolver::new();
+        resolver
+            .load_from_yaml(
+                r#"
+$id: verordening_met_hardheidsclausule
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: 'GM0363'
+articles:
+  - number: '1'
+    text: Het college weigert, tenzij artikel 2 anders bepaalt.
+    machine_readable:
+      open_terms:
+        - id: buiten_toepassing
+          type: boolean
+          required: true
+      execution:
+        output:
+          - name: geweigerd
+            type: boolean
+        actions:
+          - output: geweigerd
+            value:
+              operation: NOT
+              value: $buiten_toepassing
+  - number: '2'
+    text: Het college kan artikel 1 buiten toepassing laten.
+    machine_readable:
+      implements:
+        - law: verordening_met_hardheidsclausule
+          article: '1'
+          open_term: buiten_toepassing
+      execution:
+        output:
+          - name: buiten_toepassing
+            type: boolean
+        actions:
+          - output: buiten_toepassing
+            value: true
+"#,
+            )
+            .unwrap();
+        for scope in [HashMap::new(), scope_of("gemeente_code", "GM0599")] {
+            let found = resolver
+                .find_implementations(
+                    "verordening_met_hardheidsclausule",
+                    "1",
+                    open_term(
+                        &resolver,
+                        "verordening_met_hardheidsclausule",
+                        "1",
+                        "buiten_toepassing",
+                    ),
+                    None,
+                    &scope,
+                )
+                .unwrap()
+                .implementations;
+            assert_eq!(found.len(), 1, "scope {scope:?}");
+            assert_eq!(found[0].1.number, "2");
+        }
+    }
+
+    /// A regulation of the same municipality fills a term that its
+    /// verordening declares, also without a scope, like the verordening
+    /// itself (the college's nadere regels); one of another municipality does
+    /// not.
+    #[test]
+    fn test_find_implementations_a_law_of_the_same_territory_fills_the_term() {
+        let mut resolver = RuleResolver::new();
+        resolver
+            .load_from_yaml(
+                r#"
+$id: verordening_gm0363
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: 'GM0363'
+articles:
+  - number: '1'
+    text: Het college stelt het tarief vast.
+    machine_readable:
+      open_terms:
+        - id: tarief
+          type: number
+          required: true
+      execution:
+        output:
+          - name: bedrag
+            type: number
+        actions:
+          - output: bedrag
+            value: $tarief
+"#,
+            )
+            .unwrap();
+        for (id, code) in [
+            ("nadere_regels_gm0363", "GM0363"),
+            ("nadere_regels_gm0599", "GM0599"),
+        ] {
+            resolver
+                .load_from_yaml(&format!(
+                    r#"
+$id: {id}
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+gemeente_code: '{code}'
+articles:
+  - number: '1'
+    text: Het tarief is 7.
+    machine_readable:
+      implements:
+        - law: verordening_gm0363
+          article: '1'
+          open_term: tarief
+      execution:
+        output:
+          - name: tarief
+            type: number
+        actions:
+          - output: tarief
+            value: 7
+"#
+                ))
+                .unwrap();
+        }
+        // A run without a gemeente_code, as a cell makes one.
+        let found = resolver
+            .find_implementations(
+                "verordening_gm0363",
+                "1",
+                open_term(&resolver, "verordening_gm0363", "1", "tarief"),
+                None,
+                &HashMap::new(),
+            )
+            .unwrap()
+            .implementations;
+        let ids: Vec<&str> = found.iter().map(|(law, _)| law.id.as_str()).collect();
+        assert_eq!(ids, ["nadere_regels_gm0363"]);
+    }
+
+    /// Two laws share a territory only when both carry scope fields and those
+    /// fields are equal; two national laws do not.
+    #[test]
+    fn test_shares_territory() {
+        let law = |id: &str, scope: &str| {
+            ArticleBasedLaw::from_yaml_str(&format!(
+                r#"
+$id: {id}
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+{scope}
+articles:
+  - number: '1'
+    text: Tekst.
+"#
+            ))
+            .unwrap()
+        };
+        let national = law("a", "");
+        let gm = law("b", "gemeente_code: 'GM0363'");
+        let gm_other = law("c", "gemeente_code: 'GM0599'");
+        let pv = law("d", "provincie_code: 'PV27'");
+        let ws = law("e", "waterschap_code: 'WS0653'");
+        let ws_other = law("f", "waterschap_code: 'WS0155'");
+        let shares = RuleResolver::shares_territory;
+        assert!(!shares(&national, &national));
+        assert!(!shares(&national, &gm));
+        assert!(!shares(&gm, &national));
+        assert!(shares(&gm, &gm));
+        assert!(!shares(&gm, &gm_other));
+        assert!(shares(&pv, &pv));
+        assert!(!shares(&pv, &gm));
+        assert!(shares(&ws, &ws));
+        assert!(!shares(&ws, &ws_other));
     }
 
     /// A waterschapsverordening only implements an open term for its own
@@ -4077,9 +4329,11 @@ articles:
         assert_eq!(hooks[0].law_id, "hookwet");
 
         assert!(resolver.find_procedure("BESCHIKKING", None).is_some());
-        assert!(resolver
-            .find_procedure("BESCHIKKING", Some("beschikking"))
-            .is_some());
+        assert!(
+            resolver
+                .find_procedure("BESCHIKKING", Some("beschikking"))
+                .is_some()
+        );
     }
 
     /// Unloading one law must remove exactly that law's index entries and leave
@@ -4137,9 +4391,11 @@ articles:
 
         // Procedures: the unloaded law's procedure is gone, the other remains.
         assert!(resolver.find_procedure("BESCHIKKING", None).is_none());
-        assert!(resolver
-            .find_procedure("ALGEMEEN_VERBINDEND_VOORSCHRIFT", None)
-            .is_some());
+        assert!(
+            resolver
+                .find_procedure("ALGEMEEN_VERBINDEND_VOORSCHRIFT", None)
+                .is_some()
+        );
     }
 
     // -------------------------------------------------------------------------
@@ -4342,12 +4598,16 @@ articles:
             .unwrap();
 
         // The default is found by character, and by its own name.
-        assert!(resolver
-            .find_procedure_reported("BESCHIKKING", None)
-            .is_ok());
-        assert!(resolver
-            .find_procedure_reported("BESCHIKKING", Some("beschikking"))
-            .is_ok());
+        assert!(
+            resolver
+                .find_procedure_reported("BESCHIKKING", None)
+                .is_ok()
+        );
+        assert!(
+            resolver
+                .find_procedure_reported("BESCHIKKING", Some("beschikking"))
+                .is_ok()
+        );
 
         // A named procedure that no law defines is a different answer.
         assert_eq!(
@@ -4453,9 +4713,13 @@ articles:
             .unwrap();
 
         // On a date the newest version covers, the index speaks for it.
-        assert!(resolver
-            .declarations_from_another_version(Some(NaiveDate::from_ymd_opt(2025, 6, 1).unwrap()))
-            .is_empty());
+        assert!(
+            resolver
+                .declarations_from_another_version(Some(
+                    NaiveDate::from_ymd_opt(2025, 6, 1).unwrap()
+                ))
+                .is_empty()
+        );
 
         // On a date the older version covers, it does not.
         let notes = resolver
@@ -4640,9 +4904,11 @@ articles:
         assert_eq!(by_id.id, "beschikking");
 
         // Unknown procedure id, and unknown legal character.
-        assert!(resolver
-            .find_procedure("BESCHIKKING", Some("nope"))
-            .is_none());
+        assert!(
+            resolver
+                .find_procedure("BESCHIKKING", Some("nope"))
+                .is_none()
+        );
         assert!(resolver.find_procedure("ONBEKEND", None).is_none());
     }
 

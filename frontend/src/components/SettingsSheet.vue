@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // "Instellingen" — the account settings sheet, opened from the account menu.
 //
 // Collects what used to be submenus of that menu (Weergave, Functies) plus the
@@ -13,34 +13,39 @@
 // The composables backing this are singletons, so the sheet reads them
 // directly instead of taking the whole set as props.
 import { computed, ref } from 'vue';
-import { useFeatureFlags } from '../composables/useFeatureFlags.js';
-import { useGithubAuth } from '../composables/useGithubAuth.js';
-import { useSettingsSections } from '../composables/useSettingsSections.js';
+import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
+import type { NLDDPopover } from '@nldd/design-system/popover';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import type { NLDDSwitch } from '@nldd/design-system/switch';
+import { useFeatureFlagsStore } from '../stores/featureFlags';
+import { useGithubAuth } from '../composables/useGithubAuth';
+import { useSettingsSections } from '../composables/useSettingsSections';
 
-const sheetEl = ref(null);
+const sheetEl = ref<NLDDSheet | null>(null);
 
-function show() {
+function show(): void {
   sheetEl.value?.show?.();
 }
-function hide() {
+function hide(): void {
   sheetEl.value?.hide?.();
 }
 
 defineExpose({ show, hide });
 
-const { isEnabled, toggle: toggleFlag } = useFeatureFlags();
+const featureFlags = useFeatureFlagsStore();
 const {
   status: githubStatus,
   connect: connectGithub,
   disconnect: disconnectGithub,
 } = useGithubAuth();
 
-const editorPanelFlags = [
+const editorPanelFlags: [key: string, label: string][] = [
   ['panel.article_text', 'Tekst editor'],
   ['panel.machine_readable', 'Machine editor'],
   ['panel.scenario_form', 'Scenario editor'],
   ['panel.yaml_editor', 'YAML editor'],
   ['panel.notes', 'Notities'],
+  ['panel.regelrijm', 'RegelRijm (experimenteel)'],
 ];
 
 // De sectie-poorten staan in useSettingsSections, want AppShell stelt dezelfde
@@ -59,13 +64,13 @@ const githubConfigured = computed(() => signedIn.value && !!githubStatus.value?.
 // They differ when the deployment forces it through config; then the switch
 // would be a control that changes nothing, so it makes way for a plain line.
 const githubRequired = computed(() => !!githubStatus.value?.required);
-const githubEnforced = computed(() => isEnabled('github.user_oauth'));
+const githubEnforced = computed(() => featureFlags.isEnabled('github.user_oauth'));
 const githubForcedByConfig = computed(() => githubRequired.value && !githubEnforced.value);
 const githubConnected = computed(() => !!githubStatus.value?.connected);
 
-function onPanelFlagChange(key, event) {
+function onPanelFlagChange(key: string, event: Event): void {
   // Follow the store rather than the switch's own DOM state.
-  if (event.detail.checked !== isEnabled(key)) toggleFlag(key);
+  if ((event as CustomEvent<{ checked: boolean }>).detail.checked !== featureFlags.isEnabled(key)) featureFlags.toggle(key);
 }
 
 // Enabling `github.user_oauth` is not a personal display preference like the
@@ -75,41 +80,43 @@ function onPanelFlagChange(key, event) {
 // GitHub account (an unlinked user's save 428s into the connect flow).
 // Intercept the enable with an explicit confirmation. Disabling restores the
 // pre-existing service-token behaviour and stays a plain toggle.
-const enforcementConfirm = ref(null);
-const enforcementSwitch = ref(null);
+const enforcementConfirm = ref<NLDDPopover | null>(null);
+const enforcementSwitch = ref<NLDDSwitch | null>(null);
 
-function onEnforcementChange(event) {
-  if (!isEnabled('github.user_oauth')) {
+function onEnforcementChange(event: Event): void {
+  // The change event comes from the nldd-switch itself.
+  const target = event.target as NLDDSwitch;
+  if (!featureFlags.isEnabled('github.user_oauth')) {
     // Revert the switch: it flipped itself, and the flag only actually turns
     // on once the confirmation is accepted.
-    event.target.checked = false;
+    target.checked = false;
     if (enforcementConfirm.value) {
-      enforcementConfirm.value.anchorElement = enforcementSwitch.value || event.target;
+      enforcementConfirm.value.anchorElement = enforcementSwitch.value || target;
       enforcementConfirm.value.show();
     }
     return;
   }
-  toggleFlag('github.user_oauth');
+  featureFlags.toggle('github.user_oauth');
 }
 
-function confirmUserOauthEnforcement() {
+function confirmUserOauthEnforcement(): void {
   enforcementConfirm.value?.hide();
-  toggleFlag('github.user_oauth');
+  featureFlags.toggle('github.user_oauth');
 }
 
 // Release the anchor when the popover closes (confirm, cancel, or light
 // dismiss): nldd-popover toggles itself on every subsequent click on its
 // anchor element, so a stale anchor makes the switch reopen it.
-function onEnforcementConfirmClose() {
+function onEnforcementConfirmClose(): void {
   if (enforcementConfirm.value) enforcementConfirm.value.anchorElement = null;
 }
 
 // Disconnecting revokes the token at GitHub and, with the flag on, makes the
 // next traject save fail with a 428 — so it asks first instead of firing on
 // the click.
-const disconnectConfirm = ref(null);
+const disconnectConfirm = ref<NLDDModalDialog | null>(null);
 
-function confirmDisconnect() {
+function confirmDisconnect(): void {
   disconnectConfirm.value?.hide();
   disconnectGithub();
 }
@@ -117,7 +124,7 @@ function confirmDisconnect() {
 
 <template>
   <Teleport to="body">
-    <nldd-sheet ref="sheetEl" placement="right" width="480px" full-height @close="hide">
+    <nldd-sheet ref="sheetEl" placement="right" width="480px" @close="hide">
       <nldd-page sticky-header>
         <nldd-top-title-bar
           slot="header"
@@ -130,7 +137,7 @@ function confirmDisconnect() {
 
           <template v-if="showKoppelingen">
             <nldd-spacer size="24"></nldd-spacer>
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h2>Koppelingen</h2>
             </nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
@@ -138,7 +145,7 @@ function confirmDisconnect() {
               <nldd-list-item>
                 <nldd-text-cell
                   text="GitHub"
-                  :supporting-text="githubConnected ? githubStatus.github_login : 'Niet gekoppeld'"
+                  :supporting-text="githubConnected ? githubStatus?.github_login : 'Niet gekoppeld'"
                 ></nldd-text-cell>
                 <nldd-cell>
                   <nldd-button
@@ -161,7 +168,7 @@ function confirmDisconnect() {
 
           <template v-if="isAdmin">
             <nldd-spacer size="24"></nldd-spacer>
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h2>Beheer</h2>
               <span slot="supporting-text">Geldt voor alle gebruikers en trajecten in deze installatie.</span>
             </nldd-title>
@@ -172,7 +179,7 @@ function confirmDisconnect() {
                 <nldd-cell>
                   <nldd-switch
                     :accessible-label="label"
-                    :checked="isEnabled(key) || undefined"
+                    :checked="featureFlags.isEnabled(key) || undefined"
                     @change="onPanelFlagChange(key, $event)"
                   ></nldd-switch>
                 </nldd-cell>

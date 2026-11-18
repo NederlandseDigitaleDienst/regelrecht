@@ -1,5 +1,7 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
+import type { MarkingCluster } from '../composables/useMarkingClusters';
+import { providerLabel } from '../../lib/enrichProviders';
 
 // The backlog, read off the corpus: markings grouped by the change that would
 // resolve them. One marking is an observation; the same change wanted by four
@@ -22,12 +24,20 @@ import { computed } from 'vue';
 //      closed pair: two shapes to recognise, not two words to read.
 //   5. Exceptions on the right, and only when true: the enricher hint, and
 //      "beoordeeld". Anything that holds for most rows is left unsaid.
-const props = defineProps({
-  clusters: { type: Array, default: () => [] },
-  loading: { type: Boolean, default: false },
-});
+const props = withDefaults(
+  defineProps<{
+    clusters?: MarkingCluster[];
+    loading?: boolean;
+  }>(),
+  {
+    clusters: () => [],
+    loading: false,
+  },
+);
 
-defineEmits(['select']);
+defineEmits<{
+  select: [cluster: MarkingCluster];
+}>();
 
 // A cluster of one is the interesting case, not the boring one. `resolved_by`
 // is free text, so two agents asking for the same change in different words
@@ -43,17 +53,18 @@ const singletons = computed(() => props.clusters.filter((c) => c.markings === 1)
 // It only says something when there was another provider to disagree. With one
 // provider in the corpus every cluster has exactly one, and a hint that fires
 // on all of them is not a signal, it is decoration.
-function providerHint(cluster) {
+function providerHint(cluster: MarkingCluster): string | null {
   const providers = cluster.providers || [];
-  if (providers.length !== 1) return null;
+  const only = providers[0];
+  if (providers.length !== 1 || !only) return null;
   if ((cluster.providers_on_these_laws ?? 0) < 2) return null;
-  return `alleen ${providers[0]}`;
+  return `alleen ${providerLabel(only)}`;
 }
 
 // Where the change bites. Articles before laws reads naturally, and the
 // ranking already leans on laws: three articles inside one law may be that
 // law's peculiarity, while three spread over three laws is the format.
-function reachText(cluster) {
+function reachText(cluster: MarkingCluster): string {
   const laws = cluster.laws === 1 ? '1 wet' : `${cluster.laws} wetten`;
   const articles = cluster.articles === 1 ? '1 artikel' : `${cluster.articles} artikelen`;
   return `${articles} in ${laws}`;
@@ -61,12 +72,12 @@ function reachText(cluster) {
 
 // A closed pair, so a badge reads faster than a word: two shapes to recognise
 // rather than two labels to parse.
-const KIND = {
+const KIND: Record<string, { text: string; color: string }> = {
   operation: { text: 'bewerking', color: 'accent' },
   model: { text: 'formaat', color: 'neutral' },
 };
 
-function kind(cluster) {
+function kind(cluster: MarkingCluster): { text: string; color: string } {
   return KIND[cluster.resolution] || { text: cluster.resolution, color: 'neutral' };
 }
 </script>
@@ -78,7 +89,7 @@ function kind(cluster) {
          the padding, so nothing here needs custom CSS. -->
     <nldd-card>
       <nldd-container padding="16">
-        <nldd-title size="5"><h2>Wat het formaat mist</h2></nldd-title>
+        <nldd-title size="display-5"><h2>Wat het formaat mist</h2></nldd-title>
         <nldd-spacer size="4" />
         <nldd-rich-text>
           <p>

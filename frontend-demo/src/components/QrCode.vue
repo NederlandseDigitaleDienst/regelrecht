@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
 import qrcode from 'qrcode-generator';
 
@@ -9,14 +9,18 @@ import qrcode from 'qrcode-generator';
 // Geen design-system-component: het systeem heeft geen QR-component, en een
 // QR-code is geen stijlkeuze maar een tekening met een vaste betekenis.
 
-const props = defineProps({
+const props = withDefaults(defineProps<{
   /** De tekst die gecodeerd wordt; hier altijd een absolute URL. */
-  value: { type: String, required: true },
+  value: string;
   /** Foutcorrectie. 'M' verdraagt ~15% schade en houdt de code klein genoeg. */
-  errorCorrection: { type: String, default: 'M' },
+  errorCorrection?: 'L' | 'M' | 'Q' | 'H';
   /** Stille marge in modules. De specificatie schrijft er vier voor. */
-  quietZone: { type: Number, default: 4 },
-  accessibleLabel: { type: String, default: '' },
+  quietZone?: number;
+  accessibleLabel?: string;
+}>(), {
+  errorCorrection: 'M',
+  quietZone: 4,
+  accessibleLabel: '',
 });
 
 // `0` laat de generator zelf het kleinste type kiezen dat de tekst aankan.
@@ -39,7 +43,7 @@ const path = computed(() => {
   const code = qr.value;
   const n = code.getModuleCount();
   const offset = props.quietZone;
-  const parts = [];
+  const parts: string[] = [];
   for (let row = 0; row < n; row++) {
     let runStart = -1;
     for (let col = 0; col <= n; col++) {

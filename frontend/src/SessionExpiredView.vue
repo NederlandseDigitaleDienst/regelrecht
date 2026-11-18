@@ -1,7 +1,7 @@
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { useAuth } from './composables/useAuth.js';
+import { useAuth } from './composables/useAuth';
 
 // Bare "you're logged out" page (top-level route, no app-chrome). Reached when
 // the session expired: both the router guard (on a protected route) and the
@@ -41,7 +41,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <nldd-app-view>
+  <nldd-shell>
     <nldd-page>
       <nldd-simple-section width="600px">
         <nldd-inline-dialog
@@ -54,5 +54,5 @@ onMounted(() => {
         </nldd-inline-dialog>
       </nldd-simple-section>
     </nldd-page>
-  </nldd-app-view>
+  </nldd-shell>
 </template>

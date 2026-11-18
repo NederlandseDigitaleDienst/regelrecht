@@ -210,7 +210,7 @@ The set is short on purpose. An operation earns its place when a real law needs 
 
 `produces` states what executing the article yields in legal terms. Article 3 is a `TOETS`: it tests a condition, and its outcome feeds the decision article 2 takes. Article 2 declares a `BESCHIKKING`, and that difference matters to the engine. The legal character selects which procedural hooks fire, such as the objection period the Awb attaches to a beschikking, so an article's outcome and the procedure around it both depend on this declaration. [Hooks and Reactive Execution](/concepts/hooks-and-reactive-execution#the-produces-annotation) explains the mechanism, and the [glossary](/reference/glossary#legal-character) defines each value.
 
-An article that yields more than one thing writes `produces` as a list, one item per thing (schema v0.8.1). Each item says what it is with `type`, a kind of submission or a legal character. Leerplichtwet 1969 art. 13a establishes the application for leave and decides on it. The application lists the parameters it contains under `parameters` and names the decision it asks for with `requests`; the decision lists its outputs under `outputs`. The [decision on the application](/concepts/chronolexography#the-decision-on-the-application) shows it, and [RFC-047](/rfcs/rfc-047) gives the rules.
+An article that yields more than one thing writes `produces` as a list, one item per thing (schema v0.8.1). Each item says what it is with `type`, a kind of submission or a legal character. Leerplichtwet 1969 art. 13a establishes the application for leave and decides on it. The application lists the parameters it contains under `parameters` and names the decision it asks for with `requests`; the decision lists its outputs under `outputs`. [RFC-045](/rfcs/rfc-045) shows it and gives the rules.
 
 #### Derived data
 
@@ -231,7 +231,15 @@ produces:
 
 The difference matters when a decision is compared with another, as on objection (Awb 7:11). The validity of the card runs from the day of issue. If the college takes the decision anew on another day, the end date differs, although the college decides the same thing. Only the outputs count.
 
-Every output of an article belongs to exactly one item, under `outputs` or `derived`. The loader refuses an output no item lists, a name under `derived` that is no output of the article, and `derived` on a submission. So a forgotten or misspelled output fails instead of quietly becoming derived data ([RFC-050](/rfcs/rfc-050)).
+Every output of an article belongs to at most one item, under `outputs` or `derived`. A submission without `outputs` yields none; a decision without `outputs` yields every output no other item lists. An output that belongs to no item is not part of the decision; another article reads it through `source.regulation` ([RFC-045](/rfcs/rfc-045)).
+
+#### What the loader checks
+
+- One item per `type`, and at most one decision.
+- No parameter or output the article does not have, and no output given to two items.
+- No output that belongs to no item, unless a decision beside it lists its own outputs. A forgotten or misspelled output fails instead of quietly becoming derived data.
+- `derived` names outputs of the article, and never sits on a submission.
+- `requests` sits on a submission only. Within the same law it must name an article that takes a decision; one to another law is checked when it is used, since that law may load later.
 
 ## Type Specifications
 

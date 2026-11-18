@@ -18,8 +18,8 @@
   </div>
 </template>
 
-<script setup>
-import { legend } from '../data/flowConstants.js';
+<script setup lang="ts">
+import { legend } from '../data/flowConstants';
 </script>
 
 <style scoped>

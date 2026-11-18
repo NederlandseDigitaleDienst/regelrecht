@@ -1,16 +1,17 @@
-<script setup>
+<script setup lang="ts">
 // "Help" — a short support sheet opened from the account menu. Points
 // users at the support inbox when they run into something. Exposes show()/hide()
 // so the shell can drive it from the menu item.
 import { ref } from 'vue';
-import { SUPPORT_EMAIL } from '../constants.js';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import { SUPPORT_EMAIL } from '../constants';
 
-const sheetEl = ref(null);
+const sheetEl = ref<NLDDSheet | null>(null);
 
-function show() {
+function show(): void {
   sheetEl.value?.show?.();
 }
-function hide() {
+function hide(): void {
   sheetEl.value?.hide?.();
 }
 
@@ -19,7 +20,7 @@ defineExpose({ show, hide });
 
 <template>
   <Teleport to="body">
-    <nldd-sheet ref="sheetEl" placement="right" width="480px" full-height @close="hide">
+    <nldd-sheet ref="sheetEl" placement="right" width="480px" @close="hide">
       <nldd-page sticky-header>
         <nldd-top-title-bar slot="header" text="Help" dismiss-text="Sluit" @dismiss="hide"></nldd-top-title-bar>
         <nldd-simple-section width="full">

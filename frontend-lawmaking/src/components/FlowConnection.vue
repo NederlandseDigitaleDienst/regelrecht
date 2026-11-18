@@ -10,21 +10,25 @@
   />
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
+import type { Connection, PlacedStage } from '../data/types';
 
-const props = defineProps({
-  connection: { type: Object, required: true },
-  stages: { type: Array, required: true },
-  isActive: { type: Boolean, default: false },
-  columnWidth: { type: Number, default: 220 },
-  rowHeight: { type: Number, default: 80 },
-});
+const props = withDefaults(
+  defineProps<{
+    connection: Connection;
+    stages: PlacedStage[];
+    isActive?: boolean;
+    columnWidth?: number;
+    rowHeight?: number;
+  }>(),
+  { isActive: false, columnWidth: 220, rowHeight: 80 },
+);
 
 const offsetX = 80;
 const offsetY = 50;
 
-function getPos(stageId) {
+function getPos(stageId: string): { x: number; y: number } {
   const stage = props.stages.find((s) => s.id === stageId);
   if (!stage) return { x: 0, y: 0 };
   return {

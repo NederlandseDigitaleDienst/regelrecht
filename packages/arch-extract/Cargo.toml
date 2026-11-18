@@ -9,7 +9,7 @@
 [package]
 name = "regelrecht-arch-extract"
 version = "0.1.0"
-edition = "2021"
+edition.workspace = true
 authors = ["MinBZK <noreply@minbzk.nl>"]
 description = "Generates the code-derived architecture model (model.json) for the regelrecht workspace"
 license = "EUPL-1.2"

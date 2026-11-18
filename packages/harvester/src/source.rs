@@ -8,7 +8,7 @@ use async_trait::async_trait;
 use reqwest::Client;
 
 use crate::config::{
-    lokaleregelgeving_url, validate_bwb_id, validate_cvdr_id, DEFAULT_MAX_RESPONSE_SIZE,
+    DEFAULT_MAX_RESPONSE_SIZE, lokaleregelgeving_url, validate_bwb_id, validate_cvdr_id,
 };
 use crate::error::{HarvesterError, Result};
 use crate::types::Law;
@@ -188,19 +188,5 @@ mod tests {
             source.public_url("CVDR681386"),
             "https://lokaleregelgeving.overheid.nl/CVDR681386"
         );
-    }
-
-    #[test]
-    fn bwb_source_default_max_size() {
-        let source = BwbSource::default();
-        assert!(source.max_size_mb.is_none());
-    }
-
-    #[test]
-    fn bwb_source_custom_max_size() {
-        let source = BwbSource {
-            max_size_mb: Some(200),
-        };
-        assert_eq!(source.max_size_mb, Some(200));
     }
 }

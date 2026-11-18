@@ -37,8 +37,8 @@ if (!glossary) {
   process.exit(1);
 }
 
-// Dezelfde afkortingenlijst als format.js. Bewust gedupliceerd en niet
-// geïmporteerd: format.js hangt aan Vue en aan de i18n-module, en dit script
+// Dezelfde afkortingenlijst als format.ts. Bewust gedupliceerd en niet
+// geïmporteerd: format.ts hangt aan Vue en aan de i18n-module, en dit script
 // draait waar geen frontend-afhankelijkheden staan.
 const ABBREVIATIONS = new Map([
   ['agp', 'AGP'], ['aow', 'AOW'], ['bsn', 'BSN'], ['bbz', 'Bbz'], ['brp', 'BRP'],

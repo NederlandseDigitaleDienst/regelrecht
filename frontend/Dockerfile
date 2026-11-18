@@ -52,7 +52,7 @@ RUN set -eu; \
 # When adding a new workspace member that this image does NOT build, add it
 # to this exclusion list as well; otherwise chef will fail to find its source.
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"auth"/d; /"corpus"/d; /"editor-api"/d; /"github"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"poc-chronolexografie"/d; /"tui"/d' Cargo.toml
 COPY packages/engine/ engine/
 COPY packages/law-model/ law-model/
 COPY packages/shared/ shared/
@@ -117,7 +117,7 @@ COPY packages/Cargo.lock packages/Cargo.toml ./
 # When adding a new workspace member that this image does NOT build, add it
 # to this exclusion list as well; otherwise chef will fail to find its source.
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"cel"/d; /"poc-napp"/d; /"poc-portal"/d; /"poc-chronolexografie"/d; /"tui"/d' Cargo.toml
 COPY packages/auth/ auth/
 COPY packages/editor-api/ editor-api/
 COPY packages/corpus/ corpus/
@@ -130,11 +130,16 @@ COPY packages/shared/ shared/
 RUN cargo chef prepare --recipe-path recipe.json
 
 # Stage 4: Build Rust binary (deps cached separately from source)
-FROM chef AS builder
+FROM chef AS deps
 COPY packages/Cargo.lock ./
 COPY --from=planner /build/Cargo.toml ./Cargo.toml
 COPY --from=planner /build/recipe.json recipe.json
 RUN cargo chef cook --release --recipe-path recipe.json
+
+# Up to here only the dependencies, as a stage of its own: warm-buildcache.yml
+# builds just this stage on every push to main, so the cook layer is in the
+# cache before the next PR needs it, whether or not main deploys.
+FROM deps AS builder
 # `cargo chef cook` rewrites the workspace Cargo.toml without
 # `[workspace.lints]`, which breaks members that declare `[lints] workspace
 # = true`. Re-COPY the real workspace manifest before the final build.
@@ -162,7 +167,7 @@ RUN find . -name '*.rs' -exec touch {} + && \
     cargo build --release --bin regelrecht-editor-api
 
 # Stage 5: Runtime
-FROM alpine:3.24@sha256:294b683cb724975bec92580e1e685676bd4b50bda910ddb8c51d4cabeaec77e6
+FROM alpine:3.24@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
 RUN apk add --no-cache ca-certificates git && \
     addgroup -S app && adduser -S app -G app
 

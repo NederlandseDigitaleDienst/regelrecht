@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::process;
 
 use jsonschema::Validator;
-use regelrecht_engine::annotation::{law_id_from_source, resolve, SkipReason, TextQuoteSelector};
+use regelrecht_engine::annotation::{SkipReason, TextQuoteSelector, law_id_from_source, resolve};
 use regelrecht_engine::article::{ArticleBasedLaw, LawLoad};
 
 const ANNOTATION_SCHEMA: &str = include_str!("../../../../schema/v0.5.3/annotation-schema.json");
@@ -104,7 +104,9 @@ fn main() {
     }
 
     if warnings > 0 {
-        eprintln!("\n{warnings} warning(s). Orphaned/ambiguous notes and unknown tags do not fail the build (RFC-018).");
+        eprintln!(
+            "\n{warnings} warning(s). Orphaned/ambiguous notes and unknown tags do not fail the build (RFC-018)."
+        );
     }
     if failed {
         process::exit(1);
@@ -225,10 +227,8 @@ fn tagging_values(note: &serde_json::Value) -> Vec<String> {
     };
     for body in bodies {
         let is_tag = body.get("purpose").and_then(|p| p.as_str()) == Some("tagging");
-        if is_tag {
-            if let Some(v) = body.get("value").and_then(|v| v.as_str()) {
-                out.push(v.to_string());
-            }
+        if is_tag && let Some(v) = body.get("value").and_then(|v| v.as_str()) {
+            out.push(v.to_string());
         }
     }
     out
@@ -333,12 +333,11 @@ fn collect_law_yaml(dir: &Path, law_id: &str, out: &mut Vec<PathBuf>) {
             // Parse the top-level `$id` rather than substring-matching the
             // file: a comment or a nested string containing "$id: x" would
             // otherwise produce a false positive.
-            if let Ok(content) = std::fs::read_to_string(&p) {
-                if let Ok(doc) = serde_yaml_ng::from_str::<serde_json::Value>(&content) {
-                    if doc.get("$id").and_then(|v| v.as_str()) == Some(law_id) {
-                        out.push(p);
-                    }
-                }
+            if let Ok(content) = std::fs::read_to_string(&p)
+                && let Ok(doc) = serde_yaml_ng::from_str::<serde_json::Value>(&content)
+                && doc.get("$id").and_then(|v| v.as_str()) == Some(law_id)
+            {
+                out.push(p);
             }
         }
     }

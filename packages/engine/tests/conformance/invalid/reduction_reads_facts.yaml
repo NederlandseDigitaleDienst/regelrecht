@@ -1,0 +1,32 @@
+---
+# Since schema v0.8.19 a reduction reads the aggregates of recorded facts
+# (`source.projections`), not the facts themselves (`source.facts`).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: test_conformance_reduction_reads_facts
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-09'
+valid_from: '2026-11-09'
+name: Testreductie vestiging
+url: https://example.invalid/reduction-reads-facts
+articles:
+  - number: '1'
+    url: https://example.invalid/reduction-reads-facts/1
+    text: De vastgelegde vestigingen van de school.
+    machine_readable:
+      execution:
+        input:
+          - name: vestigingen
+            type: array
+            source:
+              facts: test_conformance_fact#1#vestiging
+        output:
+          - name: aantal
+            type: number
+        actions:
+          - output: aantal
+            value:
+              operation: FOREACH
+              collection: $vestigingen
+              as: vestiging
+              body: 1
+              combine: ADD

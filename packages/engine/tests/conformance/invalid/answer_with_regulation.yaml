@@ -1,0 +1,34 @@
+---
+# An answer of a cell stands alone: no regulation beside it (schema v0.8.9, RFC-048).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
+$id: test_conformance_answer_with_regulation
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-10-22'
+valid_from: '2026-10-22'
+url: https://example.invalid/policy
+competent_authority:
+  name: Het hoofd van een testschool
+articles:
+  - number: '1'
+    text: Het hoofd ontleent het aan het antwoord van zijn cel.
+    url: https://example.invalid/policy/1
+    machine_readable:
+      implements:
+        - law: wet_fictief
+          article: '1'
+          open_term: al_verleend
+      execution:
+        input:
+          - name: antwoord
+            type: boolean
+            nullable: true
+            source:
+              reduction: verlof_al_verleend
+              regulation: wet_fictief
+        output:
+          - name: al_verleend
+            type: boolean
+            nullable: true
+        actions:
+          - output: al_verleend
+            value: $antwoord

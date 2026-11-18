@@ -17,21 +17,21 @@
     </nldd-segmented-control>
 
 
-    <optimalisatiepad-chart
+    <optimization-path-chart
       v-if="modus === 'doel' && pad.length"
-      :pad="pad"
-      :reeksen="reeksen"
-      :as-titels="['%']"
-      :as-formatters="[(v) => `${v}%`]"
-      :gekozen="gekozenPunt"
-      @kies="kiesPunt"
+      :measurements="pad"
+      :series="reeksen"
+      :axis-titles="['%']"
+      :axis-formatters="[(v) => `${v}%`]"
+      :selected="gekozenPunt"
+      @select="kiesPunt"
     />
 
     <!-- Wat er op de aangeklikte meting stond, met de mogelijkheid die
          tussenstand over te nemen zonder op convergentie te wachten. -->
     <div v-if="gekozenStand" class="as-punt">
       <div class="as-punt-kop">
-        <strong>Meting {{ gekozenStand.iteratie }}</strong>
+        <strong>Meting {{ gekozenStand.iteration }}</strong>
         <span>{{ percent(gekozenStand.pct, 1) }} betalingsproblemen<span v-if="gekozenStand.n">, n={{ gekozenStand.n }}</span></span>
         <nldd-icon-button icon="remove" size="sm" accessible-label="Sluit deze meting" @click="gekozenPunt = null"></nldd-icon-button>
       </div>
@@ -192,7 +192,7 @@
 </template>
 
 <script setup>
-import { formatToolCall } from '@regelrecht/frontend-shared/formatToolCall.js';
+import { formatToolCall } from '@regelrecht/frontend-shared/formatToolCall';
 import { watch, ref, computed, nextTick, onMounted, onUnmounted } from 'vue';
 import { useAssistent } from '../../composables/useAssistent.js';
 import { useLawStore } from '../../engine/lawStore.js';
@@ -200,8 +200,8 @@ import { percent } from '../../lib/format.js';
 import { resolveToken } from '../../lib/tokens.js';
 import { b } from '../../basePad.js';
 import { VOORBEELDEN } from '../../lib/assistentVoorbeelden.js';
-import { bewaardeRef } from '../../composables/useBewaardeStand.js';
-import OptimalisatiepadChart from '@regelrecht/frontend-shared/components/OptimalisatiepadChart.vue';
+import { persistedRef } from '../../composables/useBewaardeStand.js';
+import OptimizationPathChart from '@regelrecht/frontend-shared/components/OptimizationPathChart.vue';
 
 // Geen `metrics`-emit meer. De assistent meet met een eigen n op een eigen
 // tussenstand; die cijfers naast de tegels zetten zou de doorrekening van de
@@ -271,9 +271,9 @@ const placeholder = computed(() => ({
 
 /** Eén reeks: het aandeel debiteuren met betalingsproblemen, in procenten. */
 const reeksen = [{
-  sleutel: 'pct',
+  key: 'pct',
   label: 'betalingsproblemen',
-  kleur: resolveToken('--semantics-content-accent-color', '#154273'),
+  color: resolveToken('--semantics-content-accent-color', '#154273'),
   formatter: (v) => `${v}%`,
 }];
 
@@ -297,7 +297,7 @@ const voorbeelden = computed(() => VOORBEELDEN[modus.value] ?? []);
  * gebruikt; daarna weet de bezoeker wat hier kan en is het blok in de weg.
  * Het onthouden loopt via de bewaarde stand, dus het overleeft een ververs.
  */
-const voorbeeldenGebruikt = bewaardeRef('assistent.voorbeeldenGezien', false);
+const voorbeeldenGebruikt = persistedRef('assistent.voorbeeldenGezien', false);
 const voorbeeldenOpen = ref(!voorbeeldenGebruikt.value);
 
 /** Zet het voorbeeld in het veld; versturen doet de gebruiker zelf. */
@@ -437,7 +437,7 @@ function neemStandOver(stand) {
   const aantal = stand.wijzigingen.length - mislukt.length;
   feed.value.push({
     type: mislukt.length ? 'fout' : 'tekst',
-    tekst: `Meting ${stand.iteratie} overgenomen in ${werkversieLabel.value}: ${aantal} van de ${stand.wijzigingen.length} wijzigingen.`,
+    tekst: `Meting ${stand.iteration} overgenomen in ${werkversieLabel.value}: ${aantal} van de ${stand.wijzigingen.length} wijzigingen.`,
     melding: mislukt.length ? `Niet overgenomen: ${mislukt.join('; ')}.` : undefined,
   });
   gekozenPunt.value = null;
@@ -528,7 +528,7 @@ function verwerkEvent(ev) {
     } else if (ev.type === 'vraag') {
       // Hier staat de assistent stil tot er iemand antwoordt, dus dit is de
       // melding die het meest oplevert.
-      meld('vraag', 'De beleidsassistent wacht op een keuze.');
+      meld('question', 'De beleidsassistent wacht op een keuze.');
       openVraag.value = ev;
       aangevinkt.value = [];
       feed.value.push({ type: 'vraag', vraag: ev.vraag });
@@ -563,8 +563,8 @@ function verwerkEvent(ev) {
       feed.value.push({ type: 'simulatie', doel: ev.doel, n: ev.n, pct });
       if (ev.doel === 'populatie' && pct !== null) {
         pad.value.push({
-          iteratie: pad.value.length + 1,
-          waarden: { pct: Math.round(pct * 1000) / 10 },
+          iteration: pad.value.length + 1,
+          values: { pct: Math.round(pct * 1000) / 10 },
           // De stand waarop deze meting rust, zodat het punt aanklikbaar is.
           pct,
           n: ev.n ?? null,
@@ -575,7 +575,7 @@ function verwerkEvent(ev) {
     } else if (ev.type === 'beurt_klaar' || ev.type === 'klaar') {
       // Wie op een andere pagina staat hoort dit te weten; daar is het paneel
       // niet in beeld en blijft hij anders wachten op iets dat al gebeurd is.
-      meld('klaar', ev.type === 'klaar'
+      meld('done', ev.type === 'klaar'
         ? 'De beleidsassistent is klaar.'
         : 'De beleidsassistent heeft een antwoord.');
       // beurt_klaar komt na elk antwoord, klaar pas als het gesprek sluit.

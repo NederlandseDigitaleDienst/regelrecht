@@ -1,0 +1,27 @@
+---
+# A law reads no chronicle: only a REDUCTIE reads the recorded facts
+# (schema v0.8.9, RFC-048, RFC-051).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.9/schema/v0.8.9/schema.json
+$id: test_conformance_facts_in_law
+regulatory_layer: WET
+bwb_id: BWBR0000001
+publication_date: '2026-10-22'
+valid_from: '2026-10-22'
+url: https://example.invalid/law
+articles:
+  - number: '1'
+    text: De vestigingen zijn de vastgelegde vestigingen.
+    url: https://example.invalid/law/1
+    machine_readable:
+      execution:
+        input:
+          - name: vestigingen
+            type: array
+            source:
+              facts: wet_fictief#1#vestiging
+        output:
+          - name: alle_vestigingen
+            type: array
+        actions:
+          - output: alle_vestigingen
+            value: $vestigingen

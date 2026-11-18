@@ -85,7 +85,7 @@ stateDiagram-v2
     Processing --> Completed: complete_job
     Processing --> Pending: fail_job (retries left)
     Processing --> Failed: fail_job (max attempts reached)
-    Processing --> Pending: reap_orphaned_jobs (timeout)
+    Processing --> Pending: reap_orphaned_jobs (heartbeat stale)
     Processing --> Failed: reap_orphaned_jobs (no retries)
 ```
 
@@ -97,7 +97,21 @@ When a job fails and has attempts remaining (`attempts < max_attempts`), it retu
 
 ### Orphan Reaping
 
-Jobs stuck in `Processing` beyond the orphan timeout (default: 30 minutes) are reset to `Pending` or marked `Failed`, which is how a crashed worker is handled.
+A worker that holds a job records a heartbeat on it every 30 seconds
+(`heartbeat_at`), from the moment it claims the job until it is done. A job in
+`Processing` whose last heartbeat is older than the orphan timeout (default 5
+minutes) is reset to `Pending` or marked `Failed`. That is how a crashed or
+restarted worker is handled.
+
+How long a job has been running does not count: a worker that keeps beating
+keeps its job, and the job timeout (`WORKER_JOB_TIMEOUT_SECS`) decides when it
+gives up. The heartbeat itself stops 10 minutes after the job timeout, so a
+worker that is alive but stuck (a hung `git push`) loses its job to the reaper
+instead of holding it until the pod restarts. A database outage longer than
+the orphan timeout also costs the jobs in flight, because no heartbeat lands
+while the database is down. Before the heartbeat, the
+reaper measured from `started_at`, so a run still working past the orphan
+timeout was put back to `Pending` and its result refused when it finished.
 
 ## Law Status Tracking
 
@@ -168,15 +182,19 @@ Two mechanisms pull in further laws, each with its own limit:
 The enrich worker:
 1. Polls the queue for pending enrich jobs, within the hourly budget (`ENRICH_HOURLY_LIMIT`)
 2. Spawns an LLM CLI process to generate `machine_readable` sections
-3. Tracks progress via `.enrichment-progress.json` (polled every 10s)
+3. Writes progress to the job every 10 seconds (see [Progress and stalls](#progress-and-stalls))
 4. Computes coverage score (the stored `law_entries.coverage_score` is the cumulative fraction of articles with `machine_readable`; the per-run delta rides in the job result)
 5. Pushes the result to a per-provider branch (`enrich/` followed by the provider name, `opencode` or `claude`) for review
 
-The hourly budget fails closed. Without `ENRICH_HOURLY_LIMIT`, or with `0`, the
-worker enriches nothing, so a forgotten variable cannot spend a subscription on
-the whole corpus. The cap counts runs for the worker's own `LLM_PROVIDER` per
-clock hour (Europe/Amsterdam), and because it is counted in the `jobs` table it
-survives a restart.
+The hourly budget applies to the `claude` provider, which runs on a personal
+subscription token, whatever the worker's own `LLM_PROVIDER` is: a user picks
+the provider per enrichment in the editor. It counts claude runs per clock hour
+(Europe/Amsterdam), and because it is counted in the `jobs` table it survives a
+restart. Once the claude runs of the hour are used up, claude jobs wait for the
+next hour and the worker keeps running jobs for other providers. The `opencode`
+provider (VLAM) has no cap for now. The budget fails closed: without
+`ENRICH_HOURLY_LIMIT`, or with `0`, no claude job runs, so a forgotten variable
+cannot spend the subscription on the whole corpus.
 
 ### Large laws and agent sessions
 
@@ -218,13 +236,154 @@ The reasoning behind both, including why a window follows document order rather
 than "the next articles without `machine_readable`", is in the doc comments on
 `plan_chunk` and `SessionReuse` in `enrich.rs`.
 
+### Progress and stalls
+
+The claude provider runs with `--output-format stream-json`, so the worker
+reads each event as it happens: assistant turns, tool calls, a partial event
+per token, and the closing `result` with the token use. Every 10 seconds the
+worker writes `jobs.progress` with two parts:
+
+- at the top level, the note the agent writes before each step (`phase`,
+  `step`, `total_steps`), as before;
+- under `worker`, what the worker saw: the current call (`translate` or a
+  gate), how long it has run, how long ago the agent last wrote anything, the
+  number of turns and tool calls, the last few tool calls (`Edit
+  laws/…/law.yaml`), and how many of the law's articles carry
+  `machine_readable` so far. The tool summary names the tool and what it works
+  on, never the text it writes.
+
+The job detail sheet on the Harvester page shows this while a job runs, and
+keeps the last state on a job that stopped. That is the place to look when a
+run times out: the error itself also ends with a line on what the agent did
+last. When the claude CLI exits with an error, such as an API call that kept
+failing, the error also carries the reason the CLI gave in its closing
+`result` event. The CLI writes nothing to stderr in that case, so without it
+the job would only say `exit status: 1`.
+
+A claude call that writes nothing for `ENRICH_AGENT_IDLE_SECS` (default 600)
+is stopped as stalled, and fails like a timeout, with the same retries. With
+partial events on, a long answer arrives as a stream of events, so silence
+means no token at all. The limit is generous because an API retry after an
+overload is silent for a while too. `0` turns the check off. The check leaves
+opencode alone, because it writes an event per finished part and can be quiet
+for longer, and it leaves the document and law conversions alone, because a
+converter run through Bash is silent while it works.
+
+With `ENRICH_WINDOW_CONCURRENCY` above 1 the windows of a job share one view
+of the agent: the counts add up, and the stall check fires only once every
+window has gone quiet.
+
+### Definitions and units
+
+The `law-generate` skill writes every constant in `definitions` in the
+structured form, with a `type` and, for a quantity, a `type_spec.unit`
+(RFC-023). Money is `type: amount` with `unit: eurocent`.
+
+The deterministic check `definition-type` reports a definition that holds a
+number without a `type`, because nothing then says whether 0.137 is a share or
+a factor, or whether 3971900 is cents. Its findings go back to the agent as a
+feedback round.
+
 ### LLM Providers
 
 `LLM_PROVIDER` selects `opencode` (the default) or `claude`. The binary and model
 come from `OPENCODE_PATH` / `OPENCODE_MODEL` or `CLAUDE_PATH` / `CLAUDE_MODEL`,
-with `LLM_PATH` and `LLM_MODEL` as the fallback for either.
+with `LLM_PATH` and `LLM_MODEL` as the fallback for either. `LLM_PROVIDER` is the
+worker's default: a job that names a provider in its payload runs on that one,
+which is how the editor lets a user pick a model per enrichment.
+
+The `opencode` provider talks to VLAM, the language model API of SSC-ICT, and
+the editor shows it under that name. Its model lives in
+`packages/pipeline/opencode.json`; the model is `kimi-k3-prepaid`. The only
+route to VLAM is the platform service `vlam` on ZAD, which puts `VLAM_API_URL`
+(a proxy into VLAM) in the pod. At startup the enrich worker writes opencode's
+user configuration with `$VLAM_API_URL/v1` as the endpoint. Without that
+service the provider has no endpoint, and the worker logs a warning. The key
+comes from SSC-ICT, not from ZAD, and is set as `VLAM_API_KEY`; the worker
+writes it to opencode's `auth.json`, readable by the worker alone. It does this
+only where the image's `opencode.json` exists, so a worker started on a
+developer's machine leaves their home alone. `enrich-once` never does it and
+runs on the opencode configuration and credentials the developer already has.
+
+Before the worker starts, the image's entrypoint logs `VLAM check` lines: the
+model as VLAM lists it, the result of one short chat call, and whether the
+model answers a call that offers it a tool. Together they show on every deploy
+whether the key works and whether the model can do the tool calls an
+enrichment depends on.
+
+The chat call is asked three times: plainly, with `reasoning_effort: low`, and
+with `chat_template_kwargs: {thinking: false}`. Each line gives the completion
+tokens and whether the reasoning came back in a field of its own, by length
+only. A server that ignores a setting answers as if it were absent, so two
+lines with the same token count do not prove the setting was rejected.
+
+opencode sends the model's output limit (`limit.output` in `opencode.json`,
+32000 for Kimi K3) as `max_tokens` on every call, and the chat call in the
+check asks for the same limit, so a deploy also shows whether VLAM accepts it.
+32000 is also opencode's own ceiling: a higher limit needs
+`OPENCODE_EXPERIMENTAL_OUTPUT_TOKEN_MAX` as well as `limit.output`.
+
+Kimi K3 reasons before it acts, and the reasoning counts against that limit.
+VLAM reports it as zero reasoning tokens all the same: answering `OK` costs
+some sixty completion tokens. A step that runs into the limit ends without
+finishing what it was writing, and opencode then stops as if the work were
+done. The worker warns on `agent step cut off by the output limit`, and the
+error of a run that produced nothing says how many steps were cut off.
+
+Every opencode step is logged with why it ended, the tokens it used, and how
+many characters it wrote as text, as reasoning and as tool arguments
+(`text_chars`, `reasoning_chars`, `tool_input_chars`). Counting needs
+opencode's `--thinking`, which the worker passes; without it opencode leaves
+reasoning out of its output. Characters are not tokens (count three to four
+per token), but the split says where a cut-off step's output went:
+
+- Large `reasoning_chars`: the model was still thinking.
+- Large `text_chars`: it was writing prose, or reasoning inline. If the startup
+  check says VLAM returns no separate reasoning field, reasoning arrives as
+  text.
+- A tool call the limit interrupted shows up as `invalid` with a large
+  `tool_input_chars` on the cut-off step (opencode repairs the half-written
+  call into that tool, with the partial arguments in its error), or as
+  `<tool> (error)` with no arguments just after it.
+
+What differs between the two CLIs lives in one dialect per provider, under
+`packages/pipeline/src/agent/`: the command line, what a line of output means,
+and whether a call can continue a session, stalls when it goes quiet, or names
+its model. Starting the process and watching it is the same for both. The tests
+play recorded output of each provider through it, from
+`packages/pipeline/tests/fixtures/agent-streams/`; the opencode recordings there
+are still assembled by hand
+([#1895](https://github.com/NederlandseDigitaleDienst/regelrecht/issues/1895)).
 
 The LLM subprocess runs with a stripped environment (allowlisted vars only) for security.
+
+The image pins the claude CLI (`packages/pipeline/Dockerfile`, version
+2.1.303). The CLI is a native binary: the image installs the platform package
+`@anthropic-ai/claude-code-linux-x64-musl` and links its binary as `claude`,
+because the wrapper package `@anthropic-ai/claude-code` only puts the binary in
+place from a postinstall script, which the install skips.
+
+The claude provider runs Opus 5.5 (`claude-opus-5-5`) unless `CLAUDE_MODEL` or
+`LLM_MODEL` names another model. Left to itself the CLI picks a model from its
+version and the subscription behind the token, and that choice moved from Opus
+to Sonnet without a change on our side. The stripped environment keeps the
+CLI's own variables (`ANTHROPIC_MODEL`, `CLAUDE_CODE_EFFORT_LEVEL`) out.
+Without `LLM_EFFORT` the CLI picks the effort too; that depends on a
+server-side setting, and the CLI reports it nowhere.
+The CLI does report the model, in the `init` event at the start of the
+stream-json output. The worker records it: per call in the job result's
+`agent_calls`, as `models` on the result, as `model` in `.enrichment.yaml`
+(which said `default` when no model was set), and in the progress the
+Harvester page shows while a job runs.
+
+opencode writes neither an `init` event nor a closing total. For the model the
+worker records the one opencode was told to use. When neither `OPENCODE_MODEL`
+nor `LLM_MODEL` names one, the enrich worker takes it from `opencode.json`.
+The usage of a call is the sum of its steps' `step_finish` events, with
+reasoning tokens counted as output. An opencode call never continues a session, so an opencode
+job runs with `session_reuse: off` whatever `ENRICH_SESSION_REUSE` says: every
+call is recorded as cold, and no feedback prompt tells it that it wrote the file
+earlier in the same conversation.
 
 ## Configuration
 
@@ -239,7 +398,7 @@ The LLM subprocess runs with a stripped environment (allowlisted vars only) for 
 | `WORKER_POLL_INTERVAL_SECS` | 5 | Queue poll interval |
 | `WORKER_MAX_POLL_INTERVAL_SECS` | 60 | Max backoff interval |
 | `WORKER_JOB_TIMEOUT_SECS` | 1200 (20 min) | Job execution timeout |
-| `WORKER_ORPHAN_TIMEOUT_SECS` | 1800 (30 min) | Orphan detection timeout |
+| `WORKER_ORPHAN_TIMEOUT_SECS` | 300 (5 min) | How long a processing job may go without a heartbeat before it is reaped; at least 120 |
 | `WORKER_MAX_CONSECUTIVE_RESOURCE_FAILURES` | 5 | Consecutive fork or out-of-memory failures after which the worker exits, so the platform restarts it with a clean process table |
 | `EXHAUSTED_THRESHOLD` | 10 | Consecutive failures after which a law becomes `harvest_exhausted` or `enrich_exhausted` |
 | `RELATED_HARVEST_MAX_DEPTH` | 2 | Depth up to which related legislation from enrichment is harvested |
@@ -262,13 +421,14 @@ without one.
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
-| `ENRICH_HOURLY_LIMIT` | 0 (paused) | Enrich runs per clock hour for this worker's provider; must be set for the worker to enrich at all |
+| `ENRICH_HOURLY_LIMIT` | 0 (claude paused) | Claude enrich runs per clock hour; must be set for claude jobs to run at all. opencode runs are not capped |
 | `ENRICH_NIGHT_MULTIPLIER` | 1 | Multiplier on the hourly limit between 00:00 and 08:00 (Europe/Amsterdam) |
 | `ENRICH_AUTO_ENQUEUE` | off | `true` (or `1`, `yes`, `on`) makes a completed harvest queue enrich jobs; otherwise enrichment is requested explicitly through `POST /api/enrich-jobs` on the [Harvester Admin](./admin) API |
 | `LLM_PROVIDER` | `opencode` | `opencode` or `claude` |
 | `LLM_PATH`, `LLM_MODEL` | none | Fallback binary and model for either provider |
-| `OPENCODE_PATH`, `OPENCODE_MODEL` | `opencode`, provider default | Binary and model for opencode |
-| `CLAUDE_PATH`, `CLAUDE_MODEL` | `claude`, provider default | Binary and model for claude |
+| `OPENCODE_PATH`, `OPENCODE_MODEL` | the opencode binary, provider default | Binary and model for opencode. Unless this or `LLM_PATH` is set, the entrypoint in the image sets the path to the platform build for the CPU (with or without AVX2) |
+| `VLAM_API_KEY` | none | Key for VLAM, used by the opencode provider |
+| `CLAUDE_PATH`, `CLAUDE_MODEL` | `claude`, `claude-opus-5-5` | Binary and model for claude |
 | `LLM_EFFORT` | none | Reasoning effort passed to the provider (`claude --effort`) |
 | `LLM_TIMEOUT_SECS` | 600 (10 min) | Ceiling per agent call |
 | `CLAUDE_CODE_OAUTH_TOKEN` | none | Subscription token for the claude provider; several comma-separated tokens are rotated over time |
@@ -281,6 +441,7 @@ without one.
 | `ENRICH_WINDOW_CONCURRENCY` | 1 | Windows run side by side, each in its own copy of the checkout and its own agent session |
 | `ENRICH_CONTEXT_BRIEF` | on | `0` withholds the context brief the worker writes beside the law |
 | `ENRICH_MAX_RSS_MB` | 3500 | Memory ceiling for the agent subprocess |
+| `ENRICH_AGENT_IDLE_SECS` | 600 | Stop a claude call that writes nothing for this long; `0` turns it off |
 | `CODE_COMMIT` | empty | Commit of the running image, recorded in the enrichment metadata |
 
 `LLM_TIMEOUT_SECS` is a ceiling per agent call, and one run makes several: a

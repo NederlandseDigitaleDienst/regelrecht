@@ -107,7 +107,7 @@ profiles:
     sidebar_laws: [verordening_precariobelasting/gemeenten]
     # Wat Café Noon in zijn accijnsaangifte opgaf: het huisbier dat de eigen
     # brouwerij verliet. De accijnswet vraagt dat als parameters; hiermee rekent
-    # de tegel meteen (data/declarations.js). Een kleine brouwerij produceerde
+    # de tegel meteen (data/declarations.ts). Een kleine brouwerij produceerde
     # in het vorige jaar niet meer dan 200.000 hl (art. 7 lid 2).
     declarations:
       wet_op_de_accijns/accijnsplicht_alcohol:

@@ -1,0 +1,60 @@
+---
+/*
+ * "Testing the Rules as Executed against the Rules as Promised", the JURIX
+ * 2026 paper, rendered in full. Everything under src/research/rules-as-promised.*
+ * is generated from the paper's camera-ready LaTeX source by convert-html.py,
+ * which lives next to that source in the research repository
+ * (jurix-testsuite/): the body HTML, the outline headings, and the meta JSON
+ * with title, authors and abstract that this page, the research index and the
+ * landing tile read. This page only supplies the byline; ResearchPaper is the
+ * shell. There is no PDF button yet: the typeset paper appears in the
+ * proceedings, and pdfHref can link there once they are out.
+ */
+import Base from '~/layouts/Base.astro';
+import ResearchPaper from '~/components/ResearchPaper.astro';
+import { joinAuthors } from '~/lib/authors';
+import paperHtml from '~/research/rules-as-promised.html?raw';
+import headings from '~/research/rules-as-promised.headings.json';
+import meta from '~/research/rules-as-promised.meta.json';
+
+const pathname = '/research/rules-as-promised';
+const title = `${meta.title} · RegelRecht`;
+const authors = joinAuthors(meta.authors.map((a) => a.name));
+const description =
+  `${meta.venue} paper by ${authors}: testing encoded statutes against the ` +
+  'worked examples the government gives parliament.';
+---
+
+<Base
+  lang="en"
+  kind="docs"
+  pathname={pathname}
+  title={title}
+  description={description}
+>
+  <ResearchPaper title={meta.title} headings={headings} html={paperHtml}>
+    <p>
+      {
+        meta.authors.map((author) => (
+          <Fragment>
+            <strong>{author.name}</strong>,{' '}
+            <em>{author.affiliations.join('; ')}</em>
+            <br />
+          </Fragment>
+        ))
+      }
+      {meta.kind}, {meta.venue}, {meta.date_display}<br />
+      {meta.status}
+    </p>
+    <p>
+      <small>
+        {
+          meta.authors
+            .filter((author) => author.note)
+            .map((author) => author.note)
+            .join(' ')
+        }
+      </small>
+    </p>
+  </ResearchPaper>
+</Base>

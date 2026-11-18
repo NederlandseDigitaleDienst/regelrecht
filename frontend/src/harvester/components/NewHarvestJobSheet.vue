@@ -1,12 +1,14 @@
-<script setup>
+<script setup lang="ts">
 import { nextTick, ref, watch } from 'vue';
 import { apiFetch } from '@regelrecht/frontend-shared';
-import { useNewHarvestJob } from '../composables/useNewHarvestJob.js';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import type { NLDDTextField } from '@nldd/design-system/text-field';
+import { useNewHarvestJob } from '../composables/useNewHarvestJob';
 
 const { isOpen, close, notifyCreated } = useNewHarvestJob();
 
-const sheetRef = ref(null);
-const inputRef = ref(null);
+const sheetRef = ref<NLDDSheet | null>(null);
+const inputRef = ref<NLDDTextField | null>(null);
 const submitting = ref(false);
 const errorId = ref('');
 const networkError = ref('');
@@ -24,19 +26,19 @@ watch(isOpen, async (open) => {
   }
 });
 
-function getFieldValue(el) {
+function getFieldValue(el: NLDDTextField): string {
   if (el.value != null && el.value !== '') return el.value;
   const inner = el.shadowRoot?.querySelector('input');
   return inner?.value ?? '';
 }
 
-function setFieldValue(el, val) {
+function setFieldValue(el: NLDDTextField, val: string) {
   el.value = val;
   const inner = el.shadowRoot?.querySelector('input');
   if (inner) inner.value = val;
 }
 
-async function submit({ keepOpen = false } = {}) {
+async function submit({ keepOpen = false }: { keepOpen?: boolean } = {}) {
   if (submitting.value) return;
   const el = inputRef.value;
   if (!el) return;
@@ -79,7 +81,7 @@ async function submit({ keepOpen = false } = {}) {
       close();
     }
   } catch (err) {
-    networkError.value = err.message || 'Unknown error';
+    networkError.value = (err as Error).message || 'Unknown error';
     errorId.value = 'harvest-network-error';
     el.focus?.();
   } finally {

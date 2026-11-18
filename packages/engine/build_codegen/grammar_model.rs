@@ -54,6 +54,36 @@ pub fn load_grammar(path: &std::path::Path) -> Grammar {
         .unwrap_or_else(|e| panic!("invalid grammar yaml {}: {e}", path.display()))
 }
 
+/// A base grammar with the steps of an extension appended, such as the cell's
+/// own steps (`packages/cel/bdd/grammar.yaml`) on top of the canonical
+/// language. The extension takes the base's value typing and declares none of
+/// its own, so a step means the same in both; a step id it repeats is an
+/// error. Only the cell's build script calls it.
+#[allow(dead_code)]
+pub fn load_grammar_extended(base: &std::path::Path, extension: &std::path::Path) -> Grammar {
+    let mut grammar = load_grammar(base);
+    let extra = load_grammar(extension);
+    let typing = &extra.value_typing;
+    if !(typing.quoted.is_empty() && typing.bare.is_empty() && typing.table_cell.is_empty()) {
+        panic!(
+            "grammar {} declares value_typing; an extension takes the base's",
+            extension.display()
+        );
+    }
+    for step in extra.steps {
+        if grammar.steps.iter().any(|s| s.id == step.id) {
+            panic!(
+                "grammar {} repeats step id '{}' of {}",
+                extension.display(),
+                step.id,
+                base.display()
+            );
+        }
+        grammar.steps.push(step);
+    }
+    grammar
+}
+
 /// True when the step has at least one numeric arg (forces a regex binding).
 pub fn needs_regex(step: &Step) -> bool {
     step.args.iter().any(|a| a.ty == "number")

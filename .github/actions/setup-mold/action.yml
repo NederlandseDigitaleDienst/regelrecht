@@ -1,0 +1,42 @@
+---
+name: Setup mold
+description: >-
+  Install the mold linker from its GitHub release into /usr/local, verified
+  against a pinned sha256. Linux x86_64 only.
+
+# The release binary from GitHub, not apt: `apt-get update` alone took 30 to
+# 110 s on the runners. Skipping apt also skips its GPG verification, and
+# release assets are mutable, so the tarball is checked against a pinned
+# sha256 before extraction; a mismatch fails the job.
+#
+# /usr/bin/ld stays untouched (the old rui314/setup-mold make-default: false):
+# only the -fuse-ld=mold link-arg from packages/.cargo/config.toml, or the
+# RUSTFLAGS that repeat it, picks mold.
+#
+# 2.42.1 is the last C++ release; 3.0 is a rewrite in Rust and gets its own
+# bump. Bumping MOLD_VERSION requires updating MOLD_SHA256 too: take the
+# x86_64-linux asset's digest from `gh release view v<ver> --repo rui314/mold
+# --json assets` and check it against a sha256sum of your own download.
+
+runs:
+  using: composite
+  steps:
+    - name: Install mold
+      shell: bash
+      env:
+        MOLD_VERSION: 2.42.1
+        MOLD_SHA256: 6ff270c9bf07d2bec5c98aa324eb7c4daf6a1a4d815c05ff1708049616047855
+      run: |
+        set -euo pipefail
+        if [ "$(uname -s)-$(uname -m)" != Linux-x86_64 ]; then
+          echo "::error::setup-mold only pins the x86_64-linux tarball, not $(uname -s)-$(uname -m)"
+          exit 1
+        fi
+        tarball="$RUNNER_TEMP/mold-$MOLD_VERSION.tar.gz"
+        curl -fsSL --retry 5 --retry-all-errors --connect-timeout 10 -o "$tarball" \
+          "https://github.com/rui314/mold/releases/download/v$MOLD_VERSION/mold-$MOLD_VERSION-x86_64-linux.tar.gz"
+        echo "$MOLD_SHA256  $tarball" | sha256sum -c -
+        if [ "$(id -u)" = 0 ]; then SUDO=; else SUDO=sudo; fi
+        $SUDO tar -C /usr/local --strip-components=1 --no-overwrite-dir -xzf "$tarball"
+        rm -f "$tarball"
+        mold --version

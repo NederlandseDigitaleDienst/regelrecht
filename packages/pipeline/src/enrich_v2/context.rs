@@ -47,7 +47,7 @@ use std::path::{Path, PathBuf};
 
 use serde_yaml_ng::Value;
 
-use super::assemble::{split_number, AssembledArticle, DefinitionScope, LawContext, Placement};
+use super::assemble::{AssembledArticle, DefinitionScope, LawContext, Placement, split_number};
 
 /// File the worker writes beside the law for the agent to read.
 ///

@@ -16,7 +16,8 @@ import '~/styles/research.css';
 
 interface Props {
   title: string;
-  subtitle: string;
+  /** Left out for a paper without one. */
+  subtitle?: string;
   /**
    * Where the typeset paper is, and what the button says about it. Left out
    * while there is no published PDF to point at.
@@ -75,9 +76,9 @@ const discussionUrl =
   md-padding-bottom="64"
   lg-padding-bottom="96"
 >
-  <nldd-title slot="header" size="1">
+  <nldd-title slot="header" size="display-1">
     <h1>{title}</h1>
-    <p slot="supporting-text">{subtitle}</p>
+    {subtitle && <p slot="supporting-text">{subtitle}</p>}
   </nldd-title>
   {/*
     The sidebar carries what belongs to the paper as a whole: where to get it,

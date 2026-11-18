@@ -4,7 +4,7 @@
     <div slot="pane-1" class="pane pane-left">
       <nldd-page landmarks="page">
         <div class="pane-inner">
-          <nldd-title :size="2">
+          <nldd-title heading-level="1" size="display-2">
             <span slot="overline">Voor beleidsmakers</span>
             <span>Terugbetaalregimes: draaien aan de wet</span>
           </nldd-title>
@@ -15,7 +15,7 @@
           <nldd-banner v-else-if="!ready" variant="accent">Rekenmachine wordt geladen…</nldd-banner>
 
           <template v-if="ready">
-            <paneel titel="Wet bijstellen" :subtitel="`Percentages, voeten en termijnen van ${werkversieLabel}. Elke wijziging rekent de werkversie opnieuw door.`" :samenvatting="bijstellenSamenvatting" :badge="hasChanges ? `${changeCount} bewerkt` : ''">
+            <panel title="Wet bijstellen" :subtitle="`Percentages, voeten en termijnen van ${werkversieLabel}. Elke wijziging rekent de werkversie opnieuw door.`" :summary="bijstellenSamenvatting" :badge="hasChanges ? `${changeCount} bewerkt` : ''">
               <parameter-panel />
               <details class="geavanceerd">
                 <summary>Geavanceerd: YAML rechtstreeks bewerken</summary>
@@ -31,26 +31,26 @@
                   ></nldd-button>
                 </div>
               </details>
-            </paneel>
+            </panel>
 
             <!-- Loopt er een gesprek, dan staat dit paneel open. Je komt terug op
                  deze pagina om te zien wat de assistent doet; dan is dichtgeklapt
                  precies het verkeerde. -->
-            <paneel titel="Beleidsassistent" subtitel="Een instructie of doel in gewone taal; de assistent wijzigt de werkversie en rekent door." samenvatting="instructie of doel" :badge="assistentLoopt ? 'bezig' : ''" :open="assistentLoopt">
+            <panel title="Beleidsassistent" subtitle="Een instructie of doel in gewone taal; de assistent wijzigt de werkversie en rekent door." summary="instructie of doel" :badge="assistentLoopt ? 'bezig' : ''" :open="assistentLoopt">
               <assistent-panel />
-            </paneel>
+            </panel>
 
-            <paneel titel="Uitvoeringslastmodel" subtitel="Handelingen × minuten × tarief. Wat DUO het kost staat in euro's, wat het debiteuren kost in uren." :samenvatting="uitvoeringSamenvatting" :badge="handelingenGewijzigd ? 'aangepast' : ''">
+            <panel title="Uitvoeringslastmodel" subtitle="Handelingen × minuten × tarief. Wat DUO het kost staat in euro's, wat het debiteuren kost in uren." :summary="uitvoeringSamenvatting" :badge="handelingenGewijzigd ? 'aangepast' : ''">
               <handelingen-panel />
-            </paneel>
+            </panel>
 
-            <paneel titel="Populatie" subtitel="Eén vaste steekproef van synthetische debiteuren, gewogen naar de echte aantallen. Beide kolommen rekenen met dezelfde debiteuren." :samenvatting="populatieSamenvatting">
+            <panel title="Populatie" subtitle="Eén vaste steekproef van synthetische debiteuren, gewogen naar de echte aantallen. Beide kolommen rekenen met dezelfde debiteuren." :summary="populatieSamenvatting">
               <population-controls />
-            </paneel>
+            </panel>
 
-            <paneel titel="Varianten uit de Stand van de Uitvoering" subtitel="De vier beleidsvarianten als branches, met de kostenraming uit de brief." :samenvatting="`${variants.length} varianten · werkversie ${werkversieLabel}`">
+            <panel title="Varianten uit de Stand van de Uitvoering" subtitle="De vier beleidsvarianten als branches, met de kostenraming uit de brief." :summary="`${variants.length} varianten · werkversie ${werkversieLabel}`">
               <varianten-lijst />
-            </paneel>
+            </panel>
           </template>
         </div>
       </nldd-page>
@@ -61,7 +61,7 @@
       <nldd-page background="tinted" accessible-label="Effecten">
         <div class="pane-inner">
           <div class="kop-rij">
-            <nldd-title :size="3">
+            <nldd-title heading-level="2" size="display-3">
               <span>{{ werkversie || hasChanges ? `Effecten: huidig recht naast ${kolomLabel}` : 'Effecten onder huidig recht' }}</span>
               <span slot="supporting-text">{{ hasChanges ? `${werkversieLabel} met ${changeCount} bewerkt${changeCount === 1 ? '' : 'e'} document${changeCount === 1 ? '' : 'en'}; de pijlen en de grafiek vergelijken met huidig recht.` : werkversie ? 'De variant zoals hij op de branch staat, vergeleken met huidig recht.' : 'Wijzig links een parameter of kies een variant als werkversie; dan komt huidig recht ernaast te staan.' }}</span>
             </nldd-title>
@@ -70,7 +70,7 @@
 
           <template v-if="ready">
             <section class="block">
-              <nldd-title :size="4">
+              <nldd-title heading-level="3" size="display-4">
                 <span>De posten per kolom</span>
                 <span slot="supporting-text">Wat de regeling doet met de OCW-begroting, wat debiteuren ervan merken en welke volumes bij DUO landen. Vink links varianten aan om ze als kolom toe te voegen.</span>
               </nldd-title>
@@ -78,7 +78,7 @@
             </section>
 
             <section class="block">
-              <nldd-title :size="4">
+              <nldd-title heading-level="3" size="display-4">
                 <span>Populatie</span>
                 <span slot="supporting-text">De tegels zijn kengetallen onder {{ kolomLabel }}. De grafiek eronder zet dezelfde kolommen als de tabel naast elkaar, per terugbetaalregime.</span>
               </nldd-title>
@@ -103,7 +103,7 @@ import { usePersonas } from '../composables/usePersonas.js';
 import { usePopulation } from '../composables/usePopulation.js';
 import { usePopulatieAannames } from '../composables/usePopulatieAannames.js';
 import { number, euroCompact } from '../lib/format.js';
-import Paneel from '@regelrecht/frontend-shared/components/Paneel.vue';
+import Panel from '@regelrecht/frontend-shared/components/Panel.vue';
 import ParameterPanel from '../components/beleid/ParameterPanel.vue';
 import KolomTabel from '../components/beleid/KolomTabel.vue';
 import MetricTiles from '../components/beleid/MetricTiles.vue';

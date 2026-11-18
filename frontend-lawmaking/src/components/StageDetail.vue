@@ -46,21 +46,26 @@
   </Teleport>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, watch, nextTick } from 'vue';
+import type { Stage } from '../data/types';
 
-const props = defineProps({
-  stage: { type: Object, default: null },
-});
+/** The two methods of `nldd-sheet` this component calls. */
+interface SheetElement extends HTMLElement {
+  show(): void;
+  hide(): void;
+}
 
-const emit = defineEmits(['close']);
+const props = withDefaults(defineProps<{ stage?: Stage | null }>(), { stage: null });
 
-const sheetEl = ref(null);
+const emit = defineEmits<{ close: [] }>();
+
+const sheetEl = ref<SheetElement | null>(null);
 
 // `shownStage` keeps the last stage rendered while the sheet plays its close
 // animation, so the panel never flashes empty on dismiss. It is cleared only
 // once the sheet's `close` event confirms the animation finished.
-const shownStage = ref(null);
+const shownStage = ref<Stage | null>(null);
 
 // Drive the imperative nldd-sheet open/close from the `stage` prop so the
 // parent stays declarative (`:stage` / `@close`).

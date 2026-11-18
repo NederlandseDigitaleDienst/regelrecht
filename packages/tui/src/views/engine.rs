@@ -182,11 +182,11 @@ impl EngineView {
                 self.law_list_state.select(Some(i.saturating_sub(1)));
             }
             KeyCode::Enter => {
-                if let Some(i) = self.law_list_state.selected() {
-                    if let Some(law_id) = self.laws.get(i) {
-                        engine.send(EngineCommand::GetLawInfo(law_id.clone()));
-                        self.focus = Focus::OutputList;
-                    }
+                if let Some(i) = self.law_list_state.selected()
+                    && let Some(law_id) = self.laws.get(i)
+                {
+                    engine.send(EngineCommand::GetLawInfo(law_id.clone()));
+                    self.focus = Focus::OutputList;
                 }
             }
             KeyCode::Char('g') => self.law_list_state.select(Some(0)),
@@ -257,13 +257,13 @@ impl EngineView {
                 }
             }
             KeyCode::Char(':') => {
-                if !self.editing_date {
-                    if let Some(param) = self.params.get_mut(self.param_cursor) {
-                        if param.value.is_empty() && !param.name.is_empty() {
-                            return; // colon is separator, don't add
-                        }
-                        param.value.push(':');
+                if !self.editing_date
+                    && let Some(param) = self.params.get_mut(self.param_cursor)
+                {
+                    if param.value.is_empty() && !param.name.is_empty() {
+                        return; // colon is separator, don't add
                     }
+                    param.value.push(':');
                 }
             }
             KeyCode::Char(c) => {

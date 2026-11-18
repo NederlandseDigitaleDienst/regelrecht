@@ -1,5 +1,5 @@
 //! An application names the decision it asks for with `requests` (schema
-//! v0.8.1, RFC-047). The engine follows the reference both ways: from an
+//! v0.8.1, RFC-045). The engine follows the reference both ways: from an
 //! application to its decision, and from a decision to the applications that
 //! ask for it.
 

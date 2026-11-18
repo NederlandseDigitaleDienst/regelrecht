@@ -1,23 +1,25 @@
-<script setup>
+<script setup lang="ts">
 import { ref, watchEffect } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
+import { singleQuery } from './lib/routeParams';
 import TrajectCreateForm from './components/TrajectCreateForm.vue';
-import { createTraject } from './composables/useTrajects.js';
-import { homeTarget } from './composables/useLastVisitedRoute.js';
+import { useTrajectsStore } from './stores/trajects';
+import { homeTarget } from './composables/useLastVisitedRoute';
 
-// Nieuw-traject-pagina - bereikbaar vanaf de trajectkeuze-pagina. Gebruikt
-// hetzelfde gedeelde formulier als de TrajectMenu-sheet; na het aanmaken ga je
-// direct de editor (of traject-scoped bibliotheek) in op het nieuwe traject,
-// met een eventueel meegekregen wet (query `law`/`article`) voorgeselecteerd.
+// New-traject page, reached from the traject chooser. It uses the same shared
+// form as the TrajectMenu sheet; after creating, you go straight into the
+// editor (or the traject-scoped library) of the new traject, with a law passed
+// along (query `law`/`article`) preselected.
 //
-// Top-level route (geen AppShell-child): geen app-chrome. De pagina draagt z'n
-// eigen top-title-bar met terugknop naar de trajectkeuze.
+// Top-level route (not an AppShell child): no app chrome. The page carries its
+// own top title bar with a back button to the traject chooser.
 const route = useRoute();
 const router = useRouter();
+const { createTraject } = useTrajectsStore();
 
-const formEl = ref(null);
+const formEl = ref<InstanceType<typeof TrajectCreateForm> | null>(null);
 const createBusy = ref(false);
-const createError = ref(null);
+const createError = ref<string | null>(null);
 
 watchEffect(() => {
   document.title = 'Nieuw traject · RegelRecht';
@@ -30,14 +32,17 @@ function goBack() {
 
 async function submitCreate() {
   createError.value = null;
-  const { payload, error } = formEl.value.buildPayload();
+  // The form is rendered unconditionally and fires the submit that calls this,
+  // so the template ref is set.
+  const { payload, error } = formEl.value!.buildPayload();
   if (error) {
     createError.value = error;
     return;
   }
   createBusy.value = true;
   try {
-    const created = await createTraject(payload);
+    // buildPayload returns a payload whenever it returns no error.
+    const created = await createTraject(payload!);
     // Mirror the TrajectMenu guard: the backend's `create` handler always
     // calls `fill_ref()`, but a half-filled TrajectSummary would otherwise
     // navigate to `/editor/undefined/...` and silently no-op.
@@ -47,15 +52,16 @@ async function submitCreate() {
         'Traject aangemaakt maar kon niet worden geopend. Ga terug en selecteer het.';
       return;
     }
-    const lawId = route.query.law || undefined;
-    const articleNumber = route.query.article || undefined;
+    const lawId = singleQuery(route.query.law) || undefined;
+    const articleNumber = singleQuery(route.query.article) || undefined;
     await router.push(
       route.query.sectie === 'library'
         ? homeTarget({ trajectRef: created.ref, lawId, articleNumber })
         : { name: 'editor-traject', params: { trajectRef: created.ref, lawId, articleNumber } },
     );
   } catch (e) {
-    createError.value = e.message || 'Aanmaken mislukt';
+    // Same property read as before; createTraject rejects with a RequestError.
+    createError.value = (e as { message?: string }).message || 'Aanmaken mislukt';
   } finally {
     createBusy.value = false;
   }
@@ -63,7 +69,7 @@ async function submitCreate() {
 </script>
 
 <template>
-  <nldd-app-view>
+  <nldd-shell>
     <nldd-page sticky-header>
       <nldd-top-title-bar
         slot="header"
@@ -74,7 +80,7 @@ async function submitCreate() {
       ></nldd-top-title-bar>
 
       <nldd-simple-section width="800px">
-        <nldd-title id="nieuw-traject-titel" size="3"><h3>Nieuw traject</h3></nldd-title>
+        <nldd-title id="nieuw-traject-titel" size="display-3"><h3>Nieuw traject</h3></nldd-title>
         <nldd-spacer size="16"></nldd-spacer>
         <TrajectCreateForm ref="formEl"
           :busy="createBusy"
@@ -85,5 +91,5 @@ async function submitCreate() {
 
       <nldd-page-footer slot="footer"></nldd-page-footer>
     </nldd-page>
-  </nldd-app-view>
+  </nldd-shell>
 </template>

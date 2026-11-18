@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * AddLawSheet - "Regelwerk toevoegen" vanuit een traject, in één flow, gepresenteerd
  * als sheet (rechts; op klein scherm een bottom-sheet). Vervangt de eerdere
@@ -24,34 +24,50 @@
  * nldd-simple-section, footer) spiegelt EditSheet.vue en NewHarvestJobSheet.vue.
  */
 import { ref, computed, watch, nextTick } from 'vue';
-import { useBwbSearch, MIN_QUERY_LENGTH } from '../composables/useBwbSearch.js';
-import { useTrajects } from '../composables/useTrajects.js';
-import { useLawPromote } from '../composables/useLawPromote.js';
-import { lawsListUrl, trajectHarvestUrl } from '../composables/corpusUrls.js';
-import { apiFetch, apiFetchJson, ApiError } from '../lib/apiFetch.js';
-import { useLatest } from '../lib/useLatest.js';
+import { storeToRefs } from 'pinia';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import type { NLDDTextField } from '@nldd/design-system/text-field';
+import { useBwbSearch, MIN_QUERY_LENGTH } from '../composables/useBwbSearch';
+import { useCorpus, type CorpusLaw } from '../corpus';
+import { useTrajectsStore } from '../stores/trajects';
+import { useLawPromote } from '../composables/useLawPromote';
+import { trajectHarvestUrl } from '../composables/corpusUrls';
+import { apiFetch, ApiError } from '../lib/apiFetch';
+import { useLatest } from '../lib/useLatest';
 
-const emit = defineEmits(['promoted', 'harvest-requested', 'upload-requested']);
+const emit = defineEmits<{
+  promoted: [lawId: string];
+  'harvest-requested': [bwbId: string];
+  'upload-requested': [];
+}>();
 
-const { activeTrajectRef, activeTraject } = useTrajects();
+/** An nldd input event: the value is on `detail` (CustomEvent) or on the target. */
+type ValueEvent = Event & { detail?: { value?: string } | null };
+
+/** A traject-scoped harvest request's state, per bwb_id. */
+type HarvestRequestState = 'busy' | 'requested' | 'conflict' | 'error';
+
+const { activeTrajectRef, activeTraject } = storeToRefs(useTrajectsStore());
+const corpus = useCorpus();
 const { results: bwbResults, loading: bwbLoading, search: searchBwb, clear: clearBwb } = useBwbSearch();
 
 const search = ref('');
-const sheetRef = ref(null);
-const searchInputRef = ref(null);
+const sheetRef = ref<NLDDSheet | null>(null);
+const searchInputRef = ref<NLDDTextField | null>(null);
 
 // 'search' | 'upload' - twee losse routes, gescheiden met een segmented control
 // bovenin. Zonder die scheiding hing het uploaden als een full-width knop onder
 // de zoeker, wat als submit-actie van het zoekformulier las.
-const mode = ref('search');
-function onModeChange(e) {
-  const next = e.detail?.value ?? e.target?.value;
+const mode = ref<'search' | 'upload'>('search');
+function onModeChange(e: Event) {
+  const event = e as ValueEvent;
+  const next = event.detail?.value ?? (event.target as { value?: string } | null)?.value;
   if (next === 'search' || next === 'upload') mode.value = next;
 }
 
 // Corpus-treffers (traject-gefedereerd: eigen repo + centrale seed) voor de
 // huidige zoekterm.
-const centralLaws = ref([]);
+const centralLaws = ref<CorpusLaw[]>([]);
 const searching = ref(false);
 const searchFailed = ref(false);
 
@@ -88,9 +104,9 @@ const {
 } = useLawPromote(activeTrajectRef);
 
 // Per bwb_id: 'busy' | 'requested' | 'conflict' | 'error'.
-const harvestState = ref({});
+const harvestState = ref<Record<string, HarvestRequestState>>({});
 
-function displayName(law) {
+function displayName(law: CorpusLaw) {
   if (law.display_name) return law.display_name;
   if (law.name) return law.name;
   return law.law_id.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
@@ -128,7 +144,7 @@ const hasRows = computed(
 );
 
 const claimSearch = useLatest();
-let debounceTimer = null;
+let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
 watch(search, (q) => {
   clearBwb();
@@ -146,15 +162,13 @@ watch(search, (q) => {
   debounceTimer = setTimeout(() => runSearch(term), 200);
 });
 
-async function runSearch(term) {
+async function runSearch(term: string) {
   const isCurrent = claimSearch();
   try {
     // Traject-scoped zoekopdracht: dekt de volledige centrale seed (het
     // traject federeert die) en de eigen repo. source_priority 0 = de eigen
     // schrijfbare repo -> al in het traject, niet promoteerbaar.
-    const laws = await apiFetchJson(
-      lawsListUrl(activeTrajectRef.value, `q=${encodeURIComponent(term)}&limit=60`),
-    );
+    const { laws } = await corpus.searchLaws({ q: term, limit: 60 });
     if (!isCurrent()) return;
     centralLaws.value = laws;
     setLawsFromSearch(laws);
@@ -172,11 +186,11 @@ async function runSearch(term) {
   }
 }
 
-function isInTraject(law) {
+function isInTraject(law: CorpusLaw) {
   return isLawIdInTraject(law.law_id);
 }
 
-async function promote(law) {
+async function promote(law: CorpusLaw) {
   const outcome = await promoteLaw(law.law_id);
   if (outcome === 'done') {
     emit('promoted', law.law_id);
@@ -184,7 +198,7 @@ async function promote(law) {
   }
 }
 
-async function requestTrajectHarvest(bwbId, lawName) {
+async function requestTrajectHarvest(bwbId: string, lawName?: string) {
   if (!activeTrajectRef.value) return;
   const state = harvestState.value[bwbId];
   if (state === 'busy' || state === 'requested') return;
@@ -205,7 +219,7 @@ async function requestTrajectHarvest(bwbId, lawName) {
   }
 }
 
-function harvestStatusText(bwbId, fallback) {
+function harvestStatusText(bwbId: string, fallback?: string) {
   switch (harvestState.value[bwbId]) {
     case 'busy':
       return 'Aanvragen…';
@@ -234,11 +248,12 @@ function requestUpload() {
   emit('upload-requested');
 }
 
-function onSearchInput(e) {
-  search.value = e.detail?.value ?? e.target?.value ?? '';
+function onSearchInput(e: Event) {
+  const event = e as ValueEvent;
+  search.value = event.detail?.value ?? (event.target as { value?: string } | null)?.value ?? '';
 }
 
-function onKeydown(e) {
+function onKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape' && !e.defaultPrevented) close();
 }
 
@@ -270,7 +285,6 @@ defineExpose({ show });
     placement="right"
     width="480px"
     accessible-label="Regelwerk toevoegen aan traject"
-    sm-full-height
     @close="onSheetClose"
   >
       <nldd-page sticky-header>
@@ -347,7 +361,9 @@ defineExpose({ show });
             </nldd-list-item>
 
             <!-- Direct getypt BWB-id: traject-harvest zonder externe zoeker. -->
-            <nldd-list-item v-if="showDirectBwbRow" size="md" :data-bwb-id="bwbIdQuery">
+            <!-- `&& bwbIdQuery` changes nothing at runtime (showDirectBwbRow already
+                 requires it); it narrows bwbIdQuery to a string for the type checker. -->
+            <nldd-list-item v-if="showDirectBwbRow && bwbIdQuery" size="md" :data-bwb-id="bwbIdQuery">
               <nldd-icon-cell size="20"><nldd-icon icon="harvest"></nldd-icon></nldd-icon-cell>
               <nldd-spacer-cell size="8"></nldd-spacer-cell>
               <nldd-text-cell
@@ -360,7 +376,7 @@ defineExpose({ show });
                   size="sm"
                   appearance="primary"
                   text="Ophalen naar traject"
-                  :disabled="['busy', 'requested'].includes(harvestState[bwbIdQuery]) || undefined"
+                  :disabled="['busy', 'requested'].includes(harvestState[bwbIdQuery] ?? '') || undefined"
                   @click="requestTrajectHarvest(bwbIdQuery)"
                 ></nldd-button>
               </nldd-cell>
@@ -385,7 +401,7 @@ defineExpose({ show });
                   size="sm"
                   appearance="primary"
                   text="Ophalen naar traject"
-                  :disabled="['busy', 'requested'].includes(harvestState[result.bwb_id]) || undefined"
+                  :disabled="['busy', 'requested'].includes(harvestState[result.bwb_id] ?? '') || undefined"
                   @click="requestTrajectHarvest(result.bwb_id, result.title)"
                 ></nldd-button>
               </nldd-cell>
@@ -421,19 +437,22 @@ defineExpose({ show });
                papier) staat; de conversie-naar-wet-keten levert het resultaat
                als review-taak. -->
           <template v-else>
-            <nldd-form-field
-              label="Upload een document"
-              supporting-label="PDF of Word. Bij deze conversie leest AI het document: er is geen route naar een regelwerk zonder taalmodel. De keten zet het om naar een eerste opzet van het regelwerk en verrijkt die; het resultaat komt terug als review-taak bij Taken."
+            <!-- No form field: the button is no input, it asks LibraryView
+                 to open its file picker. -->
+            <nldd-inline-dialog
+              horizontal-alignment="left"
+              text="Upload een document"
+              supporting-text="PDF of Word. Bij deze conversie leest AI het document: er is geen route naar een regelwerk zonder taalmodel. De keten zet het om naar een eerste opzet van het regelwerk en verrijkt die; het resultaat komt terug als review-taak bij Taken."
             >
               <nldd-button
-                size="md"
+                slot="actions"
                 appearance="secondary"
                 start-icon="upload-to-cloud"
                 text="Bestand kiezen…"
                 data-testid="add-law-upload"
                 @click="requestUpload"
               ></nldd-button>
-            </nldd-form-field>
+            </nldd-inline-dialog>
           </template>
         </nldd-simple-section>
       </nldd-page>

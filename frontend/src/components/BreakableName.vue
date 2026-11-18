@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
 
 /**
@@ -15,9 +15,9 @@ import { computed } from 'vue';
  *
  * Read-only display only - editable fields keep the raw value.
  */
-const props = defineProps({
-  name: { type: String, required: true },
-});
+const props = defineProps<{
+  name: string;
+}>();
 
 // 'a_b_c' → ['a', 'b', 'c']. Rendered as: a + <wbr> + '_b' + <wbr> + '_c'
 const segments = computed(() => String(props.name).split('_'));

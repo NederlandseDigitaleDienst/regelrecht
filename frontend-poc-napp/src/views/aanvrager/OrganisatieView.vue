@@ -141,14 +141,14 @@ watch(() => session.aanvrager, laadAlles);
 
     <template v-else-if="session.aanvrager">
       <nldd-simple-section width="820px">
-        <nldd-title size="2">
+        <nldd-title size="display-2">
           <span slot="overline">{{ session.aanvrager.partij_naam }} · KVK {{ session.aanvrager.kvk_nummer }}</span>
           <h2>Mijn organisatie</h2>
         </nldd-title>
         <nldd-spacer size="24"></nldd-spacer>
 
         <!-- Registratie: de koppeling in het partijregister van de Napp -->
-        <nldd-title size="3"><h3>Registratie</h3></nldd-title>
+        <nldd-title size="display-3"><h3>Registratie</h3></nldd-title>
         <nldd-spacer size="8"></nldd-spacer>
         <nldd-rich-text>
           <p>
@@ -158,7 +158,7 @@ watch(() => session.aanvrager, laadAlles);
           </p>
         </nldd-rich-text>
         <nldd-spacer size="12"></nldd-spacer>
-        <nldd-list v-if="registratie?.partij" appearance="box">
+        <nldd-list v-if="registratie?.partij" appearance="box-tinted">
           <nldd-list-item size="sm">
             <nldd-text-cell text="Geregistreerde aanduiding" color="secondary"></nldd-text-cell>
             <nldd-text-cell :text="registratie.partij.naam" horizontal-alignment="right"></nldd-text-cell>
@@ -195,7 +195,7 @@ watch(() => session.aanvrager, laadAlles);
 
         <!-- Rekening voor uitbetaling: één per rechtspersoon (art. 27 Wpp) -->
         <nldd-spacer size="40"></nldd-spacer>
-        <nldd-title size="3">
+        <nldd-title size="display-3">
           <h3>Rekening voor uitbetaling</h3>
           <div
             v-if="rekening?.in_register && !beperkteMachtiging"
@@ -224,7 +224,7 @@ watch(() => session.aanvrager, laadAlles);
           <nldd-spacer size="12"></nldd-spacer>
         </template>
 
-        <nldd-list appearance="box">
+        <nldd-list appearance="box-tinted">
           <nldd-list-item size="md">
             <nldd-title-cell
               :text="rekening?.iban ?? 'Nog niet opgegeven'"
@@ -274,7 +274,7 @@ watch(() => session.aanvrager, laadAlles);
         @close="rekeningOpen = false"
       >
         <nldd-container padding="24" gap="16">
-          <nldd-title size="3">
+          <nldd-title size="display-3">
             <span slot="overline">{{ session.aanvrager?.partij_naam }}</span>
             <h3>Rekening voor uitbetaling</h3>
           </nldd-title>

@@ -1,0 +1,40 @@
+[package]
+name = "regelrecht-poc-chronolexografie"
+version = "0.1.0"
+edition.workspace = true
+authors = ["MinBZK <noreply@minbzk.nl>"]
+description = "PoC: een uitvoeringsproces naspelen op de cel van een fictieve uitvoerder, per casus (vakantieverlof, gehandicaptenparkeerkaart, bedrijfsparkeervergunning, zorgtoeslag), als WASM in de browser"
+license = "EUPL-1.2"
+repository = "https://github.com/NederlandseDigitaleDienst/regelrecht"
+publish = false
+
+[lib]
+name = "regelrecht_poc_chronolexografie"
+path = "src/lib.rs"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+regelrecht-cel = { path = "../cel" }
+regelrecht-engine = { path = "../engine" }
+regelrecht-law-model = { path = "../law-model" }
+chrono.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml_ng.workspace = true
+
+[dev-dependencies]
+# A source as the portal serves it, from a folder or a manifest (the tests in
+# src/bundel.rs).
+regelrecht-poc-portal = { path = "../poc-portal" }
+
+[dependencies.wasm-bindgen]
+version = "0.2"
+optional = true
+
+[features]
+# The game behind wasm-bindgen, for the browser (src/wasm.rs). `just
+# poc-chronolexografie-wasm` builds it for wasm32-unknown-unknown.
+wasm = ["dep:wasm-bindgen"]
+
+[lints]
+workspace = true

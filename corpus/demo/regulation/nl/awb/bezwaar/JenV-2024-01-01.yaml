@@ -56,7 +56,7 @@ articles:
           # Losse getypeerde inputs voor art. 6:7 en 7:10: een subveld van het object-input
           # 'wet' kan geen nullable krijgen, terwijl deze termijnen wel legitiem afwezig
           # kunnen zijn (dan geldt de wettelijke standaardtermijn).
-          - name: bezwaartermijn_weken
+          - name: termijn_weken
             type: number
             nullable: true
             source: {}
@@ -176,9 +176,9 @@ articles:
                     operation: NOT
                     value:
                       operation: EQUALS
-                      subject: $bezwaartermijn_weken
+                      subject: $termijn_weken
                       value: null
-                  then: $bezwaartermijn_weken
+                  then: $termijn_weken
               default: $default_termijn_bezwaar_weken
             legal_basis:
               law: Algemene wet bestuursrecht

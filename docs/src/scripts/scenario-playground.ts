@@ -23,7 +23,7 @@ import {
   matchStep,
   typedArgs,
   ExecutionContext,
-} from '~/lib/gherkin/index.js';
+} from '~/lib/gherkin';
 import { prepare } from './engine';
 
 type Status = 'passed' | 'failed' | 'skipped';

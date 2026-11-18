@@ -88,19 +88,23 @@
   </g>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
-import { branchColors, typeColors } from '../data/flowConstants.js';
+import { branchColors, typeColors } from '../data/flowConstants';
+import type { PlacedStage } from '../data/types';
 
-const props = defineProps({
-  stage: { type: Object, required: true },
-  isActive: { type: Boolean, default: false },
-  isSelected: { type: Boolean, default: false },
-  columnWidth: { type: Number, default: 220 },
-  rowHeight: { type: Number, default: 80 },
-});
+const props = withDefaults(
+  defineProps<{
+    stage: PlacedStage;
+    isActive?: boolean;
+    isSelected?: boolean;
+    columnWidth?: number;
+    rowHeight?: number;
+  }>(),
+  { isActive: false, isSelected: false, columnWidth: 220, rowHeight: 80 },
+);
 
-defineEmits(['select']);
+defineEmits<{ select: [id: string] }>();
 
 const radius = 10;
 

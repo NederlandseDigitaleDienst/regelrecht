@@ -65,7 +65,7 @@ steps:
     datatable: true
 
   # What an authority found for this case (`decided_per_case_by`), apart
-  # from the parameters, keyed by the id of the open term (RFC-050). The
+  # from the parameters, keyed by the id of the open term (RFC-045). The
   # engine applies each to every article in the execution that leaves that
   # term to an authority per case; one that none asks is an error. Rows
   # read as a parameter table does.

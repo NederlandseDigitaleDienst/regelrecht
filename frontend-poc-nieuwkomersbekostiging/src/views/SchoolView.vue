@@ -2,13 +2,13 @@
   <nldd-page>
     <nldd-simple-section>
       <div class="intro-kop">
-        <nldd-title :size="1">
+        <nldd-title heading-level="1" size="display-1">
           <span slot="overline">Voor scholen</span>
           <span>Het Bestand Nieuwkomers van één school</span>
         </nldd-title>
         <div class="kop-rechts">
           <nldd-form-field label="School">
-            <nldd-dropdown :key="`${schoolId}:${schoolGroepen.length}`" size="sm" width="360px" @change="schoolId = $event.detail?.value ?? schoolId">
+            <nldd-dropdown :key="`${schoolId}:${schoolGroepen.length}`" size="sm" width="360px" @change="schoolId = $event.target.value ?? schoolId">
               <select :value="schoolId ?? ''" aria-label="Kies een school">
                 <option v-if="!schoolId" value="" disabled>Kies een school…</option>
                 <optgroup v-for="groep in schoolGroepen" :key="groep.label" :label="groep.label">
@@ -18,7 +18,7 @@
             </nldd-dropdown>
           </nldd-form-field>
           <nldd-form-field label="Peildatum">
-            <nldd-dropdown :key="`${peildatum}:${peildata.length}`" size="sm" width="220px" @change="peildatum = $event.detail?.value ?? peildatum">
+            <nldd-dropdown :key="`${peildatum}:${peildata.length}`" size="sm" width="220px" @change="peildatum = $event.target.value ?? peildatum">
               <select :value="peildatum" aria-label="Peildatum">
                 <option v-for="pd in peildata" :key="pd" :value="pd">{{ datumLabel(pd) }}</option>
               </select>
@@ -43,7 +43,7 @@
            variant van huidig recht onderscheidt. De leerlingenlijst is de
            onderbouwing en staat eronder. -->
       <nldd-simple-section>
-        <nldd-title :size="4">
+        <nldd-title heading-level="2" size="display-4">
           <span>Wat er uit het bestand volgt</span>
           <span slot="supporting-text">Drempel, formulieren, deadline en het geld voor deze peildatum.</span>
         </nldd-title>
@@ -61,7 +61,7 @@
 
       <nldd-simple-section background="tinted">
         <div class="school-kop">
-          <nldd-title :size="3">
+          <nldd-title heading-level="2" size="display-3">
             <span>{{ schoolId }}</span>
             <span slot="supporting-text">{{ sectorLabel(sector) }} · {{ pupils.length }} nieuwkomers in de periode · {{ ist.entry.in_bestand }} in het bestand op {{ datumLabel(peildatum) }} (klaar op de {{ bestandDatum(peildatum).slice(8) }}e in Mijn DUO)</span>
           </nldd-title>
@@ -75,7 +75,7 @@
       </nldd-simple-section>
 
       <nldd-simple-section>
-        <nldd-title :size="4">
+        <nldd-title heading-level="2" size="display-4">
           <span>Handelingen voor deze school op deze peildatum</span>
           <span slot="supporting-text">Welke stappen, hoeveel minuten, en wat dat kost tegen het uurtarief.</span>
         </nldd-title>
@@ -112,7 +112,7 @@ import VariantSwitcher from '../components/VariantSwitcher.vue';
 import BestandNieuwkomers from '../components/school/BestandNieuwkomers.vue';
 import AanvraagKaart from '../components/school/AanvraagKaart.vue';
 import HandelingenLijst from '../components/school/HandelingenLijst.vue';
-import { bewaardeRef } from '../composables/useBewaardeStand.js';
+import { persistedRef } from '../composables/useBewaardeStand.js';
 import {
   LAW_WERKINSTRUCTIE,
   datumLabel,
@@ -129,17 +129,17 @@ const { engineFor } = useColumnEngines();
 const { records, jaren, ensureRecords } = useSimulation();
 const { fetchHandelingen, ensureVariantDoc, handelingenFor } = useHandelingen();
 
-const schoolId = bewaardeRef('school.id', null);
+const schoolId = persistedRef('school.id', null);
 // 1 januari 2028: de eerste peildatum waarop de varianten gelden. Stond op
 // 2025-10-01, de eerste peildatum met leerlingen in het bestand, maar daar valt
 // een variant per definitie samen met huidig recht — twee identieke kolommen,
 // wat als een fout leest in plaats van als "geldt hier nog niet".
 //
-// Geen `geldig`-controle erbij: een bewaarde keuze wint van de standaard, en
+// Geen `isValid`-controle erbij: een bewaarde keuze wint van de standaard, en
 // dat hoort zo. Wie zelf een eerdere peildatum kiest, meent dat. Alleen wie de
 // pagina eerder opende houdt 2025-10-01 tot hij de keuze zelf verzet.
-const peildatum = bewaardeRef('school.peildatum', '2028-01-01');
-const variantId = bewaardeRef('school.variant', null);
+const peildatum = persistedRef('school.peildatum', '2028-01-01');
+const variantId = persistedRef('school.variant', null);
 const bestandKolom = ref('ist');
 const ist = ref(null);
 const variant = ref(null);

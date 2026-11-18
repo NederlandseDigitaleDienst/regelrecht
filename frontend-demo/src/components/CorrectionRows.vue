@@ -1,7 +1,7 @@
-<script setup>
-import { fieldSpec, formatValue, humanize } from '../data/format.js';
+<script setup lang="ts">
+import { fieldSpec, formatValue, humanize } from '../data/format';
 import { useI18n } from '../i18n/index.js';
-import { useDemo } from '../store/demoStore.js';
+import { useDemo, type DemoClaim } from '../store/demoStore';
 
 // The rows of a corrections list in the case system: what the citizen (or the
 // caseworker) changed, why, with what evidence, and the decision or the buttons
@@ -14,27 +14,29 @@ import { useDemo } from '../store/demoStore.js';
 // evidence; and the decision buttons. The clause itself and the file size are
 // in the supporting text, so the tags stay short enough for a 320px inspector.
 
-const props = defineProps({
-  claims: { type: Array, required: true },
+const props = withDefaults(defineProps<{
+  claims: DemoClaim[];
   /** Optional: where a correction comes from (persona, law), for a list that spans cases. */
-  origin: { type: Function, default: null },
+  origin?: ((cl: DemoClaim) => string) | null;
+}>(), {
+  origin: null,
 });
 
 const { t } = useI18n();
 const demo = useDemo();
 const { corpus } = demo;
 
-function spec(cl) {
+function spec(cl: DemoClaim) {
   return fieldSpec(corpus.value?.lawById(cl.lawId)?.doc, cl.input);
 }
-function text(cl) {
+function text(cl: DemoClaim) {
   return `${humanize(cl.input)}: ${formatValue(cl.oldValue, spec(cl))} → **${formatValue(cl.newValue, spec(cl))}**`;
 }
 /** A citizen's correction the caseworker still has to approve or reject. */
-function awaitsDecision(cl) {
+function awaitsDecision(cl: DemoClaim) {
   return cl.claimant !== 'BEHANDELAAR' && cl.status === 'PENDING';
 }
-function formatSize(bytes) {
+function formatSize(bytes: number) {
   if (!Number.isFinite(bytes)) return '';
   return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} kB`;
 }

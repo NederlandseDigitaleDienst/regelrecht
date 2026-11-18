@@ -4,7 +4,7 @@
     <div slot="pane-1" class="pane pane-left">
       <nldd-page landmarks="page">
         <div class="pane-inner">
-          <nldd-title :size="2">
+          <nldd-title heading-level="1" size="display-2">
             <span slot="overline">Voor beleidsmakers</span>
             <span>Nieuwkomersbekostiging: regeling en uitvoering</span>
           </nldd-title>
@@ -18,12 +18,12 @@
           <nldd-banner v-else-if="!ready" variant="accent">Rekenmachine wordt geladen…</nldd-banner>
 
           <template v-if="ready">
-            <paneel :titel="`Regeling bijstellen`" :subtitel="`Bedragen, duur en drempel van ${werkversieLabel}. Elke wijziging rekent de werkversiekolom opnieuw.`" :samenvatting="bijstellenSamenvatting" :badge="hasChanges ? `${changeCount} bewerkt` : ''">
+            <panel :title="`Regeling bijstellen`" :subtitle="`Bedragen, duur en drempel van ${werkversieLabel}. Elke wijziging rekent de werkversiekolom opnieuw.`" :summary="bijstellenSamenvatting" :badge="hasChanges ? `${changeCount} bewerkt` : ''">
               <parameter-panel />
               <details class="geavanceerd">
                 <summary>Geavanceerd: YAML rechtstreeks bewerken</summary>
                 <div class="geav-row">
-                  <nldd-dropdown :key="`ye:${editableDocs.length}:${yamlKeuze}`" size="sm" width="420px" @change="yamlKeuze = $event.detail?.value ?? yamlKeuze">
+                  <nldd-dropdown :key="`ye:${editableDocs.length}:${yamlKeuze}`" size="sm" width="420px" @change="yamlKeuze = $event.target.value ?? yamlKeuze">
                     <select :value="yamlKeuze ?? ''" aria-label="Document om als YAML te bewerken">
                       <option v-for="d in editableDocs" :key="d.entry.path" :value="d.entry.path">{{ d.entry.name }} (geldig vanaf {{ String(d.entry.valid_from ?? '').slice(0, 4) }})</option>
                     </select>
@@ -31,26 +31,26 @@
                   <nldd-button text="Open in YAML-editor" start-icon="code" appearance="secondary" size="sm" :disabled="!yamlKeuze ? true : undefined" @click="openYaml(yamlKeuze)"></nldd-button>
                 </div>
               </details>
-            </paneel>
+            </panel>
 
-            <paneel titel="Budgetneutraal" subtitel="Wat kan er veranderen zonder dat het meer geld kost? Zoekt het bedrag waarbij de werkversie evenveel uitgeeft als huidig recht." samenvatting="zoekt een bedrag">
+            <panel title="Budgetneutraal" subtitle="Wat kan er veranderen zonder dat het meer geld kost? Zoekt het bedrag waarbij de werkversie evenveel uitgeeft als huidig recht." summary="zoekt een bedrag">
               <budgetneutraal-panel />
-            </paneel>
+            </panel>
 
             <!-- Loopt er een gesprek, dan staat dit paneel open. Je komt terug op
                  deze pagina om te zien wat de assistent doet; dan is dichtgeklapt
                  precies het verkeerde. -->
-            <paneel titel="Beleidsassistent" subtitel="Een instructie of doel in gewone taal; de assistent wijzigt de werkversie en rekent door." samenvatting="instructie of doel" :badge="assistentLoopt ? 'bezig' : ''" :open="assistentLoopt">
+            <panel title="Beleidsassistent" subtitle="Een instructie of doel in gewone taal; de assistent wijzigt de werkversie en rekent door." summary="instructie of doel" :badge="assistentLoopt ? 'bezig' : ''" :open="assistentLoopt">
               <assistent-panel />
-            </paneel>
+            </panel>
 
-            <paneel titel="Uitvoeringslastmodel" subtitel="Handelingen × minuten × tarief per partij, investeringen en budget. Bijstellen is direct zichtbaar." :samenvatting="uitvoeringSamenvatting" :badge="hasOverrides ? 'aangepast' : ''">
+            <panel title="Uitvoeringslastmodel" subtitle="Handelingen × minuten × tarief per partij, investeringen en budget. Bijstellen is direct zichtbaar." :summary="uitvoeringSamenvatting" :badge="hasOverrides ? 'aangepast' : ''">
               <handelingen-panel />
-            </paneel>
+            </panel>
 
-            <paneel titel="Populatie" subtitel="Eén vaste steekproef van synthetische leerlingen, gewogen naar de echte instroom. Alle kolommen rekenen met dezelfde leerlingen." :samenvatting="populatieSamenvatting" :badge="popGewijzigd ? 'aangepast' : ''">
+            <panel title="Populatie" subtitle="Eén vaste steekproef van synthetische leerlingen, gewogen naar de echte instroom. Alle kolommen rekenen met dezelfde leerlingen." :summary="populatieSamenvatting" :badge="popGewijzigd ? 'aangepast' : ''">
               <population-controls />
-            </paneel>
+            </panel>
           </template>
         </div>
       </nldd-page>
@@ -61,7 +61,7 @@
       <nldd-page background="tinted" accessible-label="Rekeningen">
         <div class="pane-inner">
           <div class="kop-rij">
-            <nldd-title :size="3">
+            <nldd-title heading-level="2" size="display-3">
               <span>Twee rekeningen naast elkaar</span>
               <span slot="supporting-text">Wat de regeling kost (bedragen aan scholen) en wat de uitvoering kost (handelingen bij scholen en DUO, plus investering).</span>
             </nldd-title>
@@ -99,13 +99,13 @@
               />
             </section>
 
-            <paneel titel="Huidig recht in cijfers" samenvatting="kengetallen per jaar">
+            <panel title="Huidig recht in cijfers" summary="kengetallen per jaar">
               <metric-tiles :metrics="istMetrics" />
-            </paneel>
+            </panel>
 
-            <paneel titel="Plausibiliteit" samenvatting="simulatie naast factsheet en realisatie">
+            <panel title="Plausibiliteit" summary="simulatie naast factsheet en realisatie">
               <plausibiliteit-tabel :metrics="istMetrics" :distributions="distributions" />
-            </paneel>
+            </panel>
           </template>
         </div>
       </nldd-page>
@@ -123,7 +123,7 @@ import { useLawStore } from '../engine/lawStore.js';
 import { useSimulation } from '../composables/useSimulation.js';
 import { useHandelingen } from '../composables/useHandelingen.js';
 import { number } from '../lib/format.js';
-import Paneel from '@regelrecht/frontend-shared/components/Paneel.vue';
+import Panel from '@regelrecht/frontend-shared/components/Panel.vue';
 import ParameterPanel from '../components/beleid/ParameterPanel.vue';
 import HandelingenPanel from '../components/beleid/HandelingenPanel.vue';
 import BudgetneutraalPanel from '../components/beleid/BudgetneutraalPanel.vue';

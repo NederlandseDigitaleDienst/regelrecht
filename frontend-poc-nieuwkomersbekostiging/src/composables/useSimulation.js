@@ -18,7 +18,7 @@ import { aggregate, terugverdientijd, verschil } from '../sim/metrics.js';
 import { useLawStore } from '../engine/lawStore.js';
 import { useHandelingen } from './useHandelingen.js';
 import { usePopulatie } from './usePopulatie.js';
-import { bewaardeRef } from './useBewaardeStand.js';
+import { persistedRef } from './useBewaardeStand.js';
 import { patchDefinitionValue, readDefinitionValue } from '../lib/yamlPatch.js';
 import { DEFAULT_JAREN } from '../lib/nieuwkomerFacts.js';
 
@@ -32,12 +32,12 @@ export const MAX_VARIANTEN = 3;
 // ---- Instellingen ----------------------------------------------------------
 // Bewaard, zodat een ververs je keuzes niet wegvaagt. De uitkomsten hieronder
 // niet: die zijn afgeleid en worden opnieuw berekend.
-const n = bewaardeRef('populatie.n', 2000); // acht instroomjaren; onder 2000 records wordt de stand per jaar te grillig
-const seed = bewaardeRef('populatie.seed', 42);
+const n = persistedRef('populatie.n', 2000); // acht instroomjaren; onder 2000 records wordt de stand per jaar te grillig
+const seed = persistedRef('populatie.seed', 42);
 const jaren = ref([...DEFAULT_JAREN]);
 const index = ref({}); // jaar -> indexfactor op de bedragen (1.02 = +2%)
-const autoRecompute = bewaardeRef('populatie.auto', true);
-const selectedVariants = bewaardeRef('kolommen', []); // variant-id's, max MAX_VARIANTEN
+const autoRecompute = persistedRef('populatie.auto', true);
+const selectedVariants = persistedRef('kolommen', []); // variant-id's, max MAX_VARIANTEN
 
 // ---- Toestand --------------------------------------------------------------
 const records = shallowRef([]);

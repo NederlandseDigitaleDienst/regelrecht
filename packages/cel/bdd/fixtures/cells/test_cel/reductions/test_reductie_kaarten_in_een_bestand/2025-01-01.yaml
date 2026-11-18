@@ -1,0 +1,59 @@
+---
+# FICTIEF. A reduction of the cell's BDD suite (schema v0.8.19) with an
+# aggregate and its read model in one file, each article named. Article
+# verlening plays one aggregate per decision on an application under article
+# 1 of test_chronicle_effects; article aantal_kaarten reads those aggregates
+# by naming that article in its own file
+# (test_reductie_kaarten_in_een_bestand#verlening).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$id: test_reductie_kaarten_in_een_bestand
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_kaarten_in_een_bestand
+name: Kaarten in een bestand (testreductie)
+
+articles:
+  - number: verlening
+    url: https://example.com/test_reductie_kaarten_in_een_bestand/verlening
+    text: >-
+      FICTIEF. Per besluit op een aanvraag: of het een kaart verstrekt.
+    machine_readable:
+      projection:
+        per: test_chronicle_effects#1#BESCHIKKING
+        state:
+          - name: kaart
+            type: boolean
+        steps:
+          - record: test_chronicle_effects#1#BESCHIKKING
+            actions:
+              - output: kaart
+                value: $record.kaart_verleend
+  - number: aantal_kaarten
+    url: https://example.com/test_reductie_kaarten_in_een_bestand/aantal_kaarten
+    text: >-
+      FICTIEF. Hoeveel kaarten de aanvrager kreeg.
+    machine_readable:
+      execution:
+        parameters:
+          - name: aanvrager
+            type: string
+        input:
+          - name: verleningen
+            type: array
+            source:
+              projections: test_reductie_kaarten_in_een_bestand#verlening
+              where:
+                aanvrager: $aanvrager
+        output:
+          - name: kaarten_in_een_bestand
+            type: number
+        actions:
+          - output: kaarten_in_een_bestand
+            value:
+              operation: FOREACH
+              collection: $verleningen
+              as: verlening
+              filter: $verlening.kaart
+              body: 1
+              combine: ADD

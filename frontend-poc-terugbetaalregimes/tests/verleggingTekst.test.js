@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { verleggingEffect, heroOnderregel } from '../src/lib/burgerTekst.js';
+import { budgetSignaal, draagkrachtmetingIsKeuze, verleggingEffect, heroOnderregel } from '../src/lib/burgerTekst.js';
 
 /**
  * De zinnen over peiljaarverlegging moeten volgen uit de doorrekening, niet
@@ -66,7 +66,9 @@ describe('verleggingEffect', () => {
  * schakelaar bij iedereen (of bij niemand) zonder dat een bouwtest faalt.
  */
 describe('draagkrachtmeting als keuze', () => {
-  const isKeuze = (vanToepassingZonderAanvraag) => vanToepassingZonderAanvraag === false;
+  // De doorrekening zonder aanvraag, zoals InkomenWatAls hem maakt.
+  const isKeuze = (vanToepassing) =>
+    draagkrachtmetingIsKeuze({ timeline: [{ draagkrachtmeting_van_toepassing: vanToepassing }] });
 
   it('is een keuze als de meting zonder aanvraag niet van toepassing is', () => {
     expect(isKeuze(false)).toBe(true);
@@ -79,6 +81,8 @@ describe('draagkrachtmeting als keuze', () => {
   it('toont niets bij een onbekende uitkomst', () => {
     expect(isKeuze(null)).toBe(false);
     expect(isKeuze(undefined)).toBe(false);
+    expect(draagkrachtmetingIsKeuze(null)).toBe(false);
+    expect(draagkrachtmetingIsKeuze({ timeline: [] })).toBe(false);
   });
 });
 
@@ -124,14 +128,24 @@ describe('heroOnderregel', () => {
  * daar stond eerder de generieke tekst.
  */
 describe('waarschuwing over het budget', () => {
-  const soort = (capaciteit) => (!capaciteit ? 'inkomen-te-laag' : 'bedrag-te-hoog');
+  const kwame = { betalingsprobleem: true, maandbedrag: 873 };
 
   it('meldt bij capaciteit nul dat het inkomen tekortschiet', () => {
-    expect(soort(0)).toBe('inkomen-te-laag');
-    expect(soort(null)).toBe('inkomen-te-laag');
+    for (const afloscapaciteit of [0, null]) {
+      const s = budgetSignaal({ ...kwame, afloscapaciteit });
+      expect(s.variant).toBe('warning');
+      expect(s.tekst).toContain('Je inkomen is te laag');
+      expect(s.tekst).not.toContain('minder kunt betalen');
+    }
   });
 
   it('meldt bij ruimte dat het bedrag erboven ligt', () => {
-    expect(soort(29912)).toBe('bedrag-te-hoog');
+    const s = budgetSignaal({ ...kwame, afloscapaciteit: 29912 });
+    expect(s.tekst).toContain('Dit maandbedrag ligt boven');
+    expect(s.tekst).toContain('minder kunt betalen');
+  });
+
+  it('zegt niets zonder betalingsprobleem', () => {
+    expect(budgetSignaal({ betalingsprobleem: false, afloscapaciteit: 0, maandbedrag: 873 })).toBeNull();
   });
 });

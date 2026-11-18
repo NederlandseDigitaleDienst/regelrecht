@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * UploadConfirmDialog - de bevestigingsstap tussen "bestand gekozen" en
  * "bestand verstuurd" bij een werkdocument-upload.
@@ -14,6 +14,7 @@
  * `lib/uploadFormats.js`), niet uit een lijst hier.
  */
 import { ref, computed, watch, nextTick } from 'vue';
+import type { NLDDModalDialog } from '@nldd/design-system/modal-dialog';
 import {
   loadUploadFormats,
   classifyUpload,
@@ -21,16 +22,24 @@ import {
   DETERMINISTIC,
   LLM_ONLY,
   UNKNOWN,
-} from '../lib/uploadFormats.js';
+} from '../lib/uploadFormats';
+import type { UploadFormats } from '../lib/uploadFormats';
 
-const props = defineProps({
-  /** Het gekozen bestand dat op bevestiging wacht; `null` = dialoog dicht. */
-  file: { type: Object, default: null },
-});
-const emit = defineEmits(['confirm', 'cancel']);
+const props = withDefaults(
+  defineProps<{
+    /** Het gekozen bestand dat op bevestiging wacht; `null` = dialoog dicht. */
+    // Only `name` is read; callers pass a File.
+    file?: { name: string } | null;
+  }>(),
+  { file: null },
+);
+const emit = defineEmits<{
+  confirm: [choice: { allowLlm: boolean }];
+  cancel: [];
+}>();
 
-const dialogEl = ref(null);
-const formats = ref(null);
+const dialogEl = ref<NLDDModalDialog | null>(null);
+const formats = ref<UploadFormats | null>(null);
 const allowLlm = ref(false);
 
 const filename = computed(() => props.file?.name ?? '');
@@ -93,6 +102,10 @@ function onConfirm() {
 function onClose() {
   if (props.file) emit('cancel');
 }
+
+function onAllowLlmChange(event: Event) {
+  allowLlm.value = (event as CustomEvent<{ checked: boolean }>).detail.checked;
+}
 </script>
 
 <template>
@@ -112,7 +125,7 @@ function onClose() {
             data-testid="upload-confirm-llm"
             label="Omzetten met AI toestaan"
             :checked="allowLlm || undefined"
-            @change="allowLlm = $event.detail.checked"
+            @change="onAllowLlmChange"
           ></nldd-checkbox-field>
         </template>
       </nldd-container>

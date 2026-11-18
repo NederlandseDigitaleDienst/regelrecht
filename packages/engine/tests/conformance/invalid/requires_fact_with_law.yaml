@@ -1,0 +1,24 @@
+---
+# A fact the article requires names no other provision in the same entry
+# (schema v0.8.7, RFC-051).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.7/schema/v0.8.7/schema.json
+$id: test_conformance_fact_with_law
+regulatory_layer: WET
+bwb_id: BWBR9999997
+publication_date: '2026-10-20'
+valid_from: '2026-10-20'
+url: https://example.invalid/fact-with-law
+articles:
+  - number: '1'
+    url: https://example.invalid/fact-with-law/1
+    text: Het bevoegd gezag legt vast in welke gemeente de school gevestigd is.
+    machine_readable:
+      requires:
+        - fact: vestiging
+          law: andere_wet
+          parameters:
+            - gemeente
+      execution:
+        parameters:
+          - name: gemeente
+            type: string

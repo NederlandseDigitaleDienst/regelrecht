@@ -1,18 +1,18 @@
-// Verhuisd naar @regelrecht/frontend-shared. Deze shim zet de casusnaam die de
-// sleutelprefix bepaalt en houdt de imports van deze app werkend.
+// Moved to @regelrecht/frontend-shared. This shim sets the case name that
+// decides the key prefix, and keeps this app's imports working.
 //
-// De casus staat hier en niet in het gedeelde bestand omdat de twee OCW-pocs
-// hosted achter hetzelfde portaal op dezelfde origin draaien; zonder eigen
-// prefix zouden ze elkaars keuzes lezen.
-import { stelCasusIn } from '@regelrecht/frontend-shared/useBewaardeStand.js';
+// The case is set here and not in the shared file because the two OCW PoCs
+// run hosted behind the same portal on the same origin; without a prefix of
+// their own they would read each other's choices.
+import { setCase } from '@regelrecht/frontend-shared/usePersistedState';
 
-stelCasusIn('terugbetaalregimes');
+setCase('terugbetaalregimes');
 
 export {
-  bewaardeRef,
-  leesStand,
-  bewaarStand,
-  beschermSleutel,
-  wisStand,
-  heeftBewaardeStand,
-} from '@regelrecht/frontend-shared/useBewaardeStand.js';
+  persistedRef,
+  readPersisted,
+  writePersisted,
+  protectKey,
+  resetPersistedState,
+  hasPersistedState,
+} from '@regelrecht/frontend-shared/usePersistedState';

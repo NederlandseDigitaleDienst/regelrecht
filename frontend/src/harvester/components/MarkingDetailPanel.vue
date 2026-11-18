@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * MarkingDetailPanel - right-side sheet showing one marking (schema v0.7.0)
  * in full. DetailPanel.vue is job-shaped (hardcoded job fields), so this is a
@@ -12,38 +12,55 @@
  */
 import { computed, ref, watch } from 'vue';
 import StatusBadge from './StatusBadge.vue';
-import { formatDate } from '../formatters.js';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import { formatDate } from '../formatters';
+import type { Marking } from '../composables/useMarkings';
+import { providerLabel } from '../../lib/enrichProviders';
 
-const props = defineProps({
-  row: { type: Object, default: null },
-  isOpen: { type: Boolean, default: false },
-});
+const props = withDefaults(
+  defineProps<{
+    row?: Marking | null;
+    isOpen?: boolean;
+  }>(),
+  {
+    row: null,
+    isOpen: false,
+  },
+);
 
-const emit = defineEmits(['close']);
+const emit = defineEmits<{
+  close: [];
+}>();
 
-const sheetRef = ref(null);
+/** A long free-text field, shown as its own section. */
+interface TextSection {
+  title: string;
+  code: string;
+}
+
+const sheetRef = ref<NLDDSheet | null>(null);
 
 watch(() => props.isOpen, (open) => {
   if (open) sheetRef.value?.show();
   else sheetRef.value?.hide();
 });
 
-const RESOLUTION_LABEL = {
+const RESOLUTION_LABEL: Record<string, string> = {
   operation: 'bewerking ontbreekt',
   model: 'formaat mist een vorm',
 };
 
 const infoFields = computed(() => {
   if (!props.row) return [];
-  return [
+  return ([
     ['Wet', props.row.law_name || props.row.law_id],
     ['Wet-id', props.row.law_id],
     ['Artikel', props.row.article],
     ['Soort', RESOLUTION_LABEL[props.row.resolution] || props.row.resolution],
-    ['Provider', props.row.provider],
+    ['Provider', props.row.provider && providerLabel(props.row.provider)],
     ['Verrijkingsjob', props.row.enrich_job_id],
     ['Gevonden', formatDate(props.row.created_at)],
-  ].filter(([, value]) => value != null);
+  ] satisfies [string, string | null | undefined][]).filter(([, value]) => value != null);
 });
 
 // An empty target is a claim rather than a blank: the article stays
@@ -58,7 +75,7 @@ const targetText = computed(() => {
 const textSections = computed(() => {
   const r = props.row;
   if (!r) return [];
-  const out = [];
+  const out: TextSection[] = [];
   if (r.about) out.push({ title: 'Wat niet uitdrukbaar is', code: r.about });
   if (r.resolved_by) out.push({ title: 'Wat het zou oplossen', code: r.resolved_by });
   if (r.legal_text_excerpt) {
@@ -110,7 +127,7 @@ function onSheetClose() {
 
           <template v-for="section in textSections" :key="section.title">
             <nldd-spacer size="16" />
-            <nldd-title size="6"><h3>{{ section.title }}</h3></nldd-title>
+            <nldd-title size="display-6"><h3>{{ section.title }}</h3></nldd-title>
             <nldd-spacer size="4" />
             <nldd-code-viewer wrap>{{ section.code }}</nldd-code-viewer>
           </template>

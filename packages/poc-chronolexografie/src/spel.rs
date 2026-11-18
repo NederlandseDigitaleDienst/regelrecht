@@ -1,0 +1,396 @@
+//! The game one visitor plays: one handler per step of [`crate::kern`],
+//! apart from how the app reaches them ([`crate::wasm`] in the browser, the
+//! tests natively).
+//!
+//! The app plays one case at a time (a casus: a cell and the article that
+//! establishes the application). [`Spel::casussen`] lists them,
+//! [`Spel::kiezen`] chooses one and starts its cell ([`Corpus::cell`]: an
+//! empty chronicle, or what the case's cell recorded before the first
+//! scenario), and every other step works on the chosen case; without a
+//! choice it says so. The state is the visitor's own: every browser tab
+//! holds a [`Spel`] of its own, so one visitor's reset leaves another's game
+//! alone. [`Spel::reset`] starts the chronicle of the chosen case anew.
+
+use chrono::NaiveDate;
+use regelrecht_cel::{Error, Gram};
+use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value, json};
+
+use crate::bundel::BronStand;
+use crate::inlogstap;
+use crate::kern::{self, Cellen, Corpus};
+
+/// The chosen case, its cell and the other cells of its sphere.
+struct Gekozen {
+    casus: usize,
+    cell: Cellen,
+}
+
+/// The cases to choose from, and the one chosen with its cells.
+pub struct Spel {
+    casussen: Vec<Corpus>,
+    /// What became of each source the page gave ([`crate::bundel::met_bronnen`]).
+    bronnen: Vec<BronStand>,
+    gekozen: Option<Gekozen>,
+}
+
+/// What can go wrong in a step, as the app shows it. What the cell or the
+/// engine refuses is the visitor's to correct, as is a step before a case is
+/// chosen, or a case that does not exist.
+#[derive(Debug)]
+pub enum Fout {
+    Cel(Error),
+    /// No case is chosen yet.
+    GeenCasus,
+    /// There is no case by that id.
+    OnbekendeCasus(String),
+    /// An answer that cannot be serialized, or a request or a saved game
+    /// that cannot be read.
+    Intern(String),
+}
+
+impl From<Error> for Fout {
+    fn from(e: Error) -> Self {
+        Self::Cel(e)
+    }
+}
+
+impl std::fmt::Display for Fout {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Cel(e) => write!(f, "{e}"),
+            Self::GeenCasus => write!(f, "no case is chosen: choose one first"),
+            Self::OnbekendeCasus(id) => write!(f, "there is no case '{id}'"),
+            Self::Intern(e) => write!(f, "{e}"),
+        }
+    }
+}
+
+pub type Antwoord = std::result::Result<Value, Fout>;
+
+fn ok(value: impl Serialize) -> Antwoord {
+    serde_json::to_value(value).map_err(|e| Fout::Intern(e.to_string()))
+}
+
+/// A game as [`Spel::bewaren`] gives it and [`Spel::herstellen`] takes it
+/// back: the chosen case and the chronicle of each of its cells.
+#[derive(Serialize, Deserialize)]
+struct Bewaard {
+    casus: String,
+    kronieken: Vec<Vec<Gram>>,
+}
+
+impl Spel {
+    /// The app with `casussen` to choose from, and none chosen yet.
+    pub fn new(casussen: Vec<Corpus>) -> Self {
+        Self::met_bronnen(casussen, Vec::new())
+    }
+
+    /// The app with `casussen`, some of them from sources, and what became
+    /// of each source, to show next to the cases.
+    pub fn met_bronnen(casussen: Vec<Corpus>, bronnen: Vec<BronStand>) -> Self {
+        Self {
+            casussen,
+            bronnen,
+            gekozen: None,
+        }
+    }
+
+    /// Run `stap` on the chosen case and its cell.
+    fn met<T>(
+        &mut self,
+        stap: impl FnOnce(&Corpus, &mut Cellen) -> kern::Result<T>,
+    ) -> Result<T, Fout> {
+        let spel = self.gekozen.as_mut().ok_or(Fout::GeenCasus)?;
+        let corpus = &self.casussen[spel.casus];
+        Ok(stap(corpus, &mut spel.cell)?)
+    }
+
+    fn positie(&self, id: &str) -> Result<usize, Fout> {
+        self.casussen
+            .iter()
+            .position(|c| c.casus.id == id)
+            .ok_or_else(|| Fout::OnbekendeCasus(id.to_string()))
+    }
+
+    /// The cases to choose from, which is chosen, and what became of each
+    /// source.
+    pub fn casussen(&self) -> Antwoord {
+        let gekozen = self
+            .gekozen
+            .as_ref()
+            .map(|g| self.casussen[g.casus].casus.id.clone());
+        let kaarten: Vec<Value> = self.casussen.iter().map(Corpus::kaart).collect();
+        ok(json!({ "casussen": kaarten, "gekozen": gekozen, "bronnen": self.bronnen }))
+    }
+
+    /// The chosen case, as the app shows it.
+    pub fn casus(&mut self) -> Antwoord {
+        ok(self.met(|c, _| Ok(c.beschrijving()))?)
+    }
+
+    /// Choose a case: its cell starts anew ([`Corpus::cell`]).
+    pub fn kiezen(&mut self, id: &str) -> Antwoord {
+        let i = self.positie(id)?;
+        let corpus = &self.casussen[i];
+        let cell = corpus.cell()?;
+        let beschrijving = corpus.beschrijving();
+        self.gekozen = Some(Gekozen { casus: i, cell });
+        ok(beschrijving)
+    }
+
+    pub fn vormen(&mut self, datum: NaiveDate) -> Antwoord {
+        ok(self.met(|c, cell| kern::vormen(c, cell, datum))?)
+    }
+
+    pub fn kroniek(&mut self) -> Antwoord {
+        ok(self.met(|c, cell| {
+            // The other cells of the sphere, each with its own chronicle
+            // (RFC-048), under the names the case file gives them.
+            let andere: Vec<Value> = cell
+                .andere
+                .iter()
+                .zip(&c.casus.andere_cellen)
+                .map(|(andere, a)| {
+                    json!({
+                        "cel": andere.recording_actor(),
+                        "cel_naam": a.cel_naam,
+                        "grammen": andere.grams(),
+                    })
+                })
+                .collect();
+            Ok(json!({
+                "cel": cell.recording_actor(),
+                "grammen": cell.grams(),
+                "andere": andere,
+            }))
+        })?)
+    }
+
+    /// What the sources give for fields of the application before it is
+    /// submitted ([`kern::voorinvullen`]): per field in `bronnen` its value
+    /// and where it comes from. Nothing is recorded.
+    ///
+    /// # Errors
+    ///
+    /// As [`kern::voorinvullen`], and when no case is chosen.
+    pub fn voorinvullen(
+        &mut self,
+        bronnen: &Map<String, Value>,
+        velden: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::voorinvullen(c, cell, bronnen, velden, datum))?)
+    }
+
+    /// A submission under `artikel`, referring to the decision `op` if
+    /// given ([`kern::indienen`]).
+    pub fn indienen(
+        &mut self,
+        artikel: &str,
+        op: Option<&str>,
+        velden: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::indienen(c, cell, artikel, op, velden, datum))?)
+    }
+
+    /// The cell `cel` of the case, another or its own, records the fact
+    /// `feit` (`<regulation>#<article>#<fact>`) ([`kern::vastleggen`]).
+    pub fn vastleggen(
+        &mut self,
+        cel: &str,
+        feit: &str,
+        velden: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        self.vastleggen_verwijzend(cel, feit, velden, None, datum)
+    }
+
+    /// [`Spel::vastleggen`], for a fact about the record of `cel` that
+    /// `verwijst_naar` names, by its id or by its kenmerk in the begin of
+    /// `cel` ([`kern::vastleggen_verwijzend`]).
+    pub fn vastleggen_verwijzend(
+        &mut self,
+        cel: &str,
+        feit: &str,
+        velden: &Map<String, Value>,
+        verwijst_naar: Option<&str>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| {
+            kern::vastleggen_verwijzend(c, cell, cel, feit, velden, verwijst_naar, datum)
+        })?)
+    }
+
+    /// Decide on the submission `op`, after the record `na` if given, with
+    /// the deciding authority's findings for this case (RFC-045 §5,
+    /// [`kern::beslissen`]).
+    pub fn beslissen(
+        &mut self,
+        op: &str,
+        na: Option<&str>,
+        bevindingen: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::beslissen(c, cell, op, na, bevindingen, datum))?)
+    }
+
+    /// What deciding on the submission `op` would come to with what the
+    /// authority judges on the deciding article itself (`oordeel`) and no
+    /// finding anew, and what it can find anew ([`kern::voor_beslissen`]).
+    pub fn voor_beslissen(
+        &mut self,
+        op: &str,
+        na: Option<&str>,
+        oordeel: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::voor_beslissen(c, cell, op, na, oordeel, datum))?)
+    }
+
+    /// Decide on the submission `op` in the two steps the page takes
+    /// ([`kern::toetsen_en_beslissen`]).
+    ///
+    /// # Errors
+    ///
+    /// As [`kern::toetsen_en_beslissen`], and when no case is chosen.
+    pub fn toetsen_en_beslissen(
+        &mut self,
+        op: &str,
+        na: Option<&str>,
+        gegeven: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::toetsen_en_beslissen(c, cell, op, na, gegeven, datum))?)
+    }
+
+    /// A preview ([`kern::voorvertoning`]): `{ voorlopig }` or, when the
+    /// cell refuses (a finding not given yet), `{ geweigerd }`, and in both
+    /// the terms the authority judges because a policy leaves them to it
+    /// for this case (`stil`). Any other error fails as in any step.
+    pub fn voorvertoning(
+        &mut self,
+        op: &str,
+        na: Option<&str>,
+        bevindingen: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::voorvertoning(c, cell, op, na, bevindingen, datum))?)
+    }
+
+    /// A decision under `artikel` taken ex officio, about the record `over`
+    /// if given ([`kern::ambtshalve`]).
+    pub fn ambtshalve(
+        &mut self,
+        artikel: &str,
+        over: Option<&str>,
+        gegeven: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| kern::ambtshalve(c, cell, artikel, over, gegeven, datum))?)
+    }
+
+    /// The cell that holds the decision `besluit` sends a copy of it to the
+    /// cell whose decision it concerns ([`kern::toezenden`]).
+    pub fn toezenden(&mut self, besluit: &str, datum: NaiveDate) -> Antwoord {
+        ok(self.met(|c, cell| kern::toezenden(c, cell, besluit, datum))?)
+    }
+
+    /// What the cell `cel` of the case, or without one the case's own cell,
+    /// answers on `datum` for the output `bron` with the parameters `invoer`
+    /// ([`kern::antwoord`]). Nothing is recorded.
+    ///
+    /// # Errors
+    ///
+    /// As [`kern::antwoord`], and when no case is chosen.
+    pub fn antwoord(
+        &mut self,
+        cel: Option<&str>,
+        bron: &str,
+        invoer: &Map<String, Value>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| {
+            let cel = cel.unwrap_or(&c.casus.cel);
+            kern::antwoord(c, cell, cel, bron, invoer, datum)
+        })?)
+    }
+
+    /// Log in through the case's login step ([`inlogstap::inloggen`]): the
+    /// assertion, or why the service refused. Who is logged in stays with
+    /// the caller.
+    ///
+    /// # Errors
+    ///
+    /// As [`inlogstap::inloggen`], and when no case is chosen.
+    pub fn inloggen(
+        &mut self,
+        gebruikersnaam: &str,
+        wachtwoord: &str,
+        dienst: Option<&str>,
+        datum: NaiveDate,
+    ) -> Antwoord {
+        ok(self.met(|c, cell| {
+            inlogstap::inloggen(c, cell, gebruikersnaam, wachtwoord, dienst, datum)
+        })?)
+    }
+
+    pub fn waarom(&mut self, id: &str) -> Antwoord {
+        ok(self.met(|c, cell| kern::waarom(c, cell, id))?)
+    }
+
+    /// What follows from the submission `id` ([`kern::wat_volgt`]).
+    pub fn wat_volgt(&mut self, id: &str) -> Antwoord {
+        ok(self.met(|c, cell| kern::wat_volgt(c, cell, id))?)
+    }
+
+    pub fn hoe_beantwoord(&mut self, id: &str, naam: &str) -> Antwoord {
+        ok(self.met(|c, cell| kern::hoe_beantwoord(c, cell, id, naam))?)
+    }
+
+    pub fn reducties(&mut self, datum: NaiveDate) -> Antwoord {
+        ok(self.met(|c, cell| kern::reducties(c, cell, datum))?)
+    }
+
+    pub fn logboek(&mut self) -> Antwoord {
+        ok(self.met(|c, cell| Ok(json!({ "handelingen": kern::logboek(c, cell)? })))?)
+    }
+
+    /// Start the chronicle of the chosen case anew, from what its cells
+    /// know before the first scenario.
+    pub fn reset(&mut self) -> Antwoord {
+        let grammen = self.met(|c, cell| {
+            *cell = c.cell()?;
+            Ok(cell.grams().to_vec())
+        })?;
+        ok(json!({ "grammen": grammen }))
+    }
+
+    /// The game so far, to keep across a reload: the chosen case and the
+    /// chronicle of each of its cells.
+    pub fn bewaren(&mut self) -> Antwoord {
+        let bewaard = self.met(|c, cell| {
+            Ok(Bewaard {
+                casus: c.casus.id.clone(),
+                kronieken: cell.kronieken(),
+            })
+        })?;
+        ok(bewaard)
+    }
+
+    /// Play on with a game [`Spel::bewaren`] gave: its case is chosen, with
+    /// the chronicles it held ([`Corpus::herstellen`]). A game that does not
+    /// read, or whose chronicles the cells refuse, is an error, and the
+    /// choice stays as it was.
+    pub fn herstellen(&mut self, bewaard: Value) -> Antwoord {
+        let bewaard: Bewaard = serde_json::from_value(bewaard)
+            .map_err(|e| Fout::Intern(format!("the saved game does not read: {e}")))?;
+        let i = self.positie(&bewaard.casus)?;
+        let corpus = &self.casussen[i];
+        let cell = corpus.herstellen(bewaard.kronieken)?;
+        let beschrijving = corpus.beschrijving();
+        self.gekozen = Some(Gekozen { casus: i, cell });
+        ok(beschrijving)
+    }
+}

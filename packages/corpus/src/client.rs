@@ -1530,15 +1530,19 @@ mod tests {
         client.ensure_repo().await.unwrap();
 
         // law_a should be present
-        assert!(repo_path
-            .join("regulation/nl/wet/law_a/2025-01-01.yaml")
-            .exists());
+        assert!(
+            repo_path
+                .join("regulation/nl/wet/law_a/2025-01-01.yaml")
+                .exists()
+        );
         // features should be present
         assert!(repo_path.join("features/law_a.feature").exists());
         // law_b should NOT be present (excluded by sparse checkout)
-        assert!(!repo_path
-            .join("regulation/nl/wet/law_b/2025-01-01.yaml")
-            .exists());
+        assert!(
+            !repo_path
+                .join("regulation/nl/wet/law_b/2025-01-01.yaml")
+                .exists()
+        );
     }
 
     /// A bare repo shaped like the real corpus: the directory is named after

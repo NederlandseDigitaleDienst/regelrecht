@@ -84,11 +84,68 @@ Routing a value through `collection` is the only way into an inner iteration. A 
 | `AND` | True if every result is truthy | `true` |
 | `MIN` | Lowest value | `null` |
 | `MAX` | Highest value | `null` |
+| `ONLY` | The one result, of any type; an error when there are more | `null` |
+| `DISTINCT` | The unique results as an array, in the order each first occurs | `[]` |
 | omitted | The results as an array | `[]` |
 
-These five are the aggregations legal text performs: *het totaal van*, *indien ten minste een van*, *indien aan alle*, *het laagste of hoogste van*. `SUBTRACT`, `MULTIPLY` and `DIVIDE` are not offered, because subtracting a list leaves open what it is subtracted from. A law that needs one can omit `combine` and apply the arithmetic to the resulting array.
+The first five are the aggregations legal text performs: *het totaal van*, *indien ten minste een van*, *indien aan alle*, *het laagste of hoogste van*. `ONLY` (schema v0.8.6) is for a reduction that picks one record, such as the place where a school is established on a day ([RFC-048](/rfcs/rfc-048)). It refuses two rather than take the first, because the order of a collection is nothing a law relies on. `SUBTRACT`, `MULTIPLY` and `DIVIDE` are not offered, because subtracting a list leaves open what it is subtracted from. A law that needs one can omit `combine` and apply the arithmetic to the resulting array.
+
+`DISTINCT` (schema v0.8.21) keeps each result once. Two results are the same when `EQUALS` would call them equal. Numbers, amounts, strings, dates and booleans compare by value, so `42` and `42.0` are one number. Rows compare field by field, lists element by element and in order. Results of different types differ, so the string `"1"` and the number `1` both stay. A date is the exception: its string form and its reference-date object are the same day. Two rows or lists that hold `12` and `12.0` in the same place are an error, as they are for `EQUALS`, even when another field already tells them apart. Whether the two numbers are alike depends on where they came from, and the data has to settle that. `null` counts as a value and stays once. Dropping it would let a later `ONLY` pick the one other value and hide that a row holds none. An unknown anywhere in a result, also inside a row, makes the whole array unknown, because nobody can say whether that result equals another. The filter runs first, so `DISTINCT` sees only the elements it lets through.
+
+`ONLY` stays strict, and the two compose. Sometimes several rows should all hold the same value, such as the name a register records on each registration. `DISTINCT` collects the values, and `ONLY` over that array gives the one value. Two different values are an error, and no rows give `null`:
+
+```yaml
+- output: unieke_aanduidingen
+  value:
+    operation: FOREACH
+    collection: $inschrijvingen
+    as: inschrijving
+    body: $inschrijving.aanduiding
+    combine: DISTINCT
+- output: aanduiding
+  value:
+    operation: FOREACH
+    collection: $unieke_aanduidingen
+    as: kandidaat
+    body: $kandidaat
+    combine: ONLY
+```
 
 Two of the empty cases deserve attention. `MIN` and `MAX` return `null` rather than a number, because there is no lowest value of nothing; the law has to handle that. `AND` returns `true` by vacuous truth, so a law that must not read "no items" as "all conditions met" has to check for emptiness itself.
+
+## Building a table
+
+Sometimes the result has to keep its elements apart: one row per element, with a few named values each. A decision that lists, per school, the school and the number of pupils it is funded for is such a table. Since schema v0.8.22, `RECORD` builds one row. Each key of `fields` names a column, and each value is an operand like any other, so a `$`-reference is resolved and an operation is executed. As the body of a `FOREACH` without `combine`, it gives an array of rows:
+
+```yaml
+output:
+  - name: leerlingen_per_school
+    type: array
+    columns:
+      - name: school
+        type: string
+      - name: leerlingen
+        type: number
+actions:
+  - output: leerlingen_per_school
+    value:
+      operation: FOREACH
+      collection: $scholen
+      as: s
+      body:
+        operation: RECORD
+        fields:
+          school: $s.naam
+          leerlingen:
+            operation: ADD
+            values: [$s.leerlingen, $s.nieuwkomers]
+```
+
+An output of type `array` may declare `columns`, as a parameter can since v0.8.20. The loader then checks every `RECORD` the article writes for that output against these columns. Such a `RECORD` is the body of a `FOREACH` without `combine` or with `DISTINCT`, or an item of a `LIST`. An `IF` counts too, both where it gives a row and where it gives such a table. A `RECORD` names exactly the declared columns. Write `null` for a column that has no value. Where the type check knows the type of a value (a literal, a declared name, a comparison), that type has to match the column. A field of the element, such as `$s.naam`, is not typed, so nothing is claimed there. A table put together another way, such as an `ADD` of two lists or an array taken whole from a reference, is not checked.
+
+A row is a container, like a `LIST`. An unknown value stays in its column, and whatever reads the row meets it there ([RFC-036](/rfcs/rfc-036)); the other columns stay readable. A [marked construct](./markings) in any column makes the whole row untranslatable, because a row with a gap in it would look complete.
+
+Column names follow the pattern of a column declaration: lowercase letters, digits and underscores, starting with a letter or an underscore. A name may not start with two underscores, which the engine keeps for its own markers. The loader refuses `RECORD` in a file that declares v0.8.21 or earlier. An object written in the place of an operand is not a row, and the schema does not allow it.
 
 ## Counting
 
@@ -140,7 +197,7 @@ A collection longer than 1000 elements is an error, and nesting is bounded by th
 
 The bound is what keeps termination intact. The position paper [Rules as Executed](/research/rules-as-executed#sec:opset) predates this operation: it says the format has no aggregation over collections, because the operation set grows only when encoding real law runs into a limit, and it announces that bounded aggregation, which preserves termination, will be added that way. `FOREACH` is that addition, in schema v0.5.7. The paper is left as written; the [note on its page](/research/rules-as-executed#since-publication) records the change.
 
-Under [quantities](/rfcs/rfc-023) the result carries the unit of `body`: summing eurocents yields eurocents, and `MIN` and `MAX` preserve it the same way. `AND` and `OR` produce a boolean, and without `combine` the result is an array, so neither carries a unit.
+Under [quantities](/rfcs/rfc-023) the result carries the unit of `body`: summing eurocents yields eurocents, and `MIN` and `MAX` preserve it the same way. `AND` and `OR` produce a boolean, and without `combine` or with `DISTINCT` the result is an array, so neither carries a unit.
 
 Every iteration appears in the [execution trace](./execution-provenance) with its index and the value the body produced, or the element itself where the filter skipped it, under a node reporting how many elements were evaluated and how many were skipped. A total that shows only itself is not an explanation of how it was reached.
 

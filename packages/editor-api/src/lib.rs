@@ -13,6 +13,7 @@ pub mod crypto;
 pub mod enrich_review;
 pub mod feature_flags;
 pub mod github_oauth;
+mod law_search;
 pub mod state;
 pub mod task_requests;
 pub mod traject_corpus;

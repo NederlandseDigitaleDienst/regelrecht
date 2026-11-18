@@ -123,9 +123,9 @@ maintenance:
 
 localisation:
   localisationReady: true
-  # Frisian (fy) is left out on purpose: the demo carries a Frisian translation,
-  # but it is machine-translated and still awaits review by a Frisian speaker
-  # (corpus/demo/i18n/REVIEW-fy.md). Add it here once that review is done.
+  # Frisian (fy) and French (fr) are left out on purpose: the demo carries both,
+  # but they are machine-translated and still await review by a native speaker
+  # (corpus/demo/i18n/REVIEW-fy.md, REVIEW-fr.md). Add each once its review is done.
   availableLanguages:
     - nl
     - en

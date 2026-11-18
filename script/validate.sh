@@ -8,17 +8,29 @@ set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
-# If no files given, validate all regulation YAML files, and the reductions
-# kept with each cell (corpus/cells, RFC-048): rulework in the same format,
-# but no regulation, so the corpus loaders leave them out.
+# If no files given, validate all regulation YAML files, the corpus of the
+# chronolexografie PoC: its regulation (script/chrono-regulation-dirs.sh) and
+# its reductions, which sit with their cell or with none under cells/
+# (RFC-048), and the fixtures of the cell's BDD suite (packages/cel/bdd), laid
+# out the same way: a regulation directory and the reductions of a cell.
 if [ $# -eq 0 ]; then
+    # A plain assignment, so a failing script stops this one under `set -e`.
+    CHRONO_DIRS=$("$REPO_ROOT/script/chrono-regulation-dirs.sh")
     FILES=()
     while IFS= read -r -d '' f; do
         FILES+=("$f")
     # Exclude dot-prefixed sidecars (e.g. .enrichment.yaml, .enrichment-result.yaml)
     # — enrichment metadata/result envelopes, not law files. `find -name '*.yaml'`
     # matches leading-dot names, so filter them out explicitly.
-    done < <(find "$REPO_ROOT/corpus/regulation" "$REPO_ROOT/corpus/cells" -name '*.yaml' ! -name '.*' -print0 | sort -z)
+    done < <({
+        find "$REPO_ROOT/corpus/regulation" -name '*.yaml' ! -name '.*' -print0
+        while IFS= read -r dir; do
+            find "$REPO_ROOT/$dir" -name '*.yaml' ! -name '.*' -print0
+        done <<< "$CHRONO_DIRS"
+        find "$REPO_ROOT/packages/poc-chronolexografie/corpus/cells" -path '*/reductions/*' -name '*.yaml' -print0
+        find "$REPO_ROOT/packages/cel/bdd/fixtures/regulation" -name '*.yaml' ! -name '.*' -print0
+        find "$REPO_ROOT/packages/cel/bdd/fixtures/cells" -path '*/reductions/*' -name '*.yaml' -print0
+    } | sort -z)
     set -- "${FILES[@]}"
 fi
 

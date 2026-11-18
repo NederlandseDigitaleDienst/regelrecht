@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // Het structuurrapport van een traject, in een bottom-sheet.
 //
 // De URL is de open-stand: de route `traject-structuur-controle` opent deze
@@ -11,18 +11,22 @@
 // keer dat je de sheet opent een verse controle draait - wat je van een
 // controle ook verwacht.
 import { nextTick, ref, watch } from 'vue';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
 import TrajectIntegrityPane from './TrajectIntegrityPane.vue';
 
-const props = defineProps({
-  /** Traject-ref uit de URL (`{slug}-{8hex}`). */
-  trajectRef: { type: String, default: null },
-  /** Staat de route die deze sheet toont? */
-  open: { type: Boolean, default: false },
-});
+const props = withDefaults(
+  defineProps<{
+    /** Traject-ref uit de URL (`{slug}-{8hex}`). */
+    trajectRef?: string | null;
+    /** Staat de route die deze sheet toont? */
+    open?: boolean;
+  }>(),
+  { trajectRef: null, open: false },
+);
 
-const emit = defineEmits(['close']);
+const emit = defineEmits<{ close: [] }>();
 
-const sheetRef = ref(null);
+const sheetRef = ref<NLDDSheet | null>(null);
 
 watch(
   () => props.open,

@@ -82,15 +82,16 @@ const gekozenPunt = ref(null);
 
 /**
  * Meldingen voor wie niet op de beleidspagina staat. Elk item is
- * `{ id, soort, tekst }`; de app haalt ze weg zodra ze gezien zijn.
+ * `{ id, kind, text }` (de vorm die AssistantNotices leest); de app haalt ze
+ * weg zodra ze gezien zijn.
  */
 const meldingen = ref([]);
 let meldingTeller = 0;
 
 /** Zet een melding klaar, en stuur er een systeemnotificatie bij als dat mag. */
-function meld(soort, tekst) {
-  meldingen.value = [...meldingen.value, { id: ++meldingTeller, soort, tekst }];
-  toonNotificatie(tekst);
+function meld(kind, text) {
+  meldingen.value = [...meldingen.value, { id: ++meldingTeller, kind, text }];
+  toonNotificatie(text);
 }
 
 /** Haal een gelezen melding weg. */

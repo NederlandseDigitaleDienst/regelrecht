@@ -8,7 +8,7 @@
   >
     <nldd-page>
       <div class="ds-content">
-        <nldd-title :size="3">
+        <nldd-title heading-level="2" size="display-3">
           <span slot="overline">Wetswijziging</span>
           <span>{{ heading }}</span>
         </nldd-title>
@@ -19,29 +19,29 @@
 
         <template v-else>
           <section v-if="defChanges.length" class="ds-block">
-            <nldd-title :size="5"><span>Gewijzigde parameters</span></nldd-title>
+            <nldd-title heading-level="3" size="display-5"><span>Gewijzigde parameters</span></nldd-title>
             <ul class="ds-defs">
               <li v-for="(c, i) in defChanges" :key="i">
                 <span class="ds-art">artikel {{ c.article }}</span>
                 <code>{{ c.name }}</code>:
-                <span class="ds-old">{{ c.oud }}</span>
+                <span class="ds-old">{{ c.before }}</span>
                 <nldd-icon icon="arrow-right" size="16"></nldd-icon>
-                <span class="ds-new">{{ c.nieuw }}</span>
+                <span class="ds-new">{{ c.after }}</span>
               </li>
             </ul>
           </section>
 
           <section v-if="tekstChanges.length" class="ds-block">
-            <nldd-title :size="5"><span>Gewijzigde wettekst</span></nldd-title>
+            <nldd-title heading-level="3" size="display-5"><span>Gewijzigde wettekst</span></nldd-title>
             <div v-for="(c, i) in tekstChanges" :key="i" class="ds-tekst">
               <span class="ds-art">artikel {{ c.article }}</span>
-              <p class="ds-tekst-oud">{{ c.oud }}</p>
-              <p class="ds-tekst-nieuw">{{ c.nieuw }}</p>
+              <p class="ds-tekst-oud">{{ c.before }}</p>
+              <p class="ds-tekst-nieuw">{{ c.after }}</p>
             </div>
           </section>
 
           <section v-for="d in fileDiffs" :key="d.lawPath" class="ds-block">
-            <nldd-title :size="5"><span>{{ d.docName }}</span></nldd-title>
+            <nldd-title heading-level="3" size="display-5"><span>{{ d.docName }}</span></nldd-title>
             <div class="ds-diff">
               <div
                 v-for="(line, i) in d.lines"

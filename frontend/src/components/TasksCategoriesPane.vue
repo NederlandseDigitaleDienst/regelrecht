@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * TasksCategoriesPane - het categorie-panel van Taken (secondary sidebar van
  * Home). Navigatie, geen inhoud: de gekozen categorie opent zijn takenlijst in
@@ -13,7 +13,7 @@
  * Contexten zijn volledig data-gedreven, Werkdocumenten net zo goed als de
  * wetten: een context bestaat zolang er werk over ligt en verdwijnt daarna. Ligt
  * er niets meer, dan valt het hele blok weg - inclusief de kop, die anders boven
- * een ingang naar een lege lijst zou hangen. Wetsnamen via useCorpusLaws (de
+ * een ingang naar een lege lijst zou hangen. Wetsnamen via de corpuslezer (de
  * payload draagt alleen het rauwe law_id); die valt zelf al terug op
  * humanizeLawId voor een wet buiten het actieve corpus.
  *
@@ -27,9 +27,9 @@
  * zelfde afspraak als TasksSidebarItem/TasksListPane. Samen gemount blijft het
  * één interval (consumers-teller in useTasks).
  */
-import { computed, toRef } from 'vue';
-import { useTasks } from '../composables/useTasks.js';
-import { useCorpusLaws } from '../composables/useCorpusLaws.js';
+import { computed } from 'vue';
+import { useTrajectTasks } from '../composables/useTasks';
+import { useCorpus } from '../corpus';
 import {
   categoryCounts,
   lawContexts,
@@ -38,18 +38,27 @@ import {
   WACHTEN,
   WERKDOCUMENTEN,
   WET,
-} from '../lib/taskCategories.js';
+} from '../lib/taskCategories';
 
-const props = defineProps({
-  trajectRef: { type: String, default: null },
-  categorie: { type: String, default: null },
-  lawId: { type: String, default: null },
-});
+const props = withDefaults(
+  defineProps<{
+    trajectRef?: string | null;
+    categorie?: string | null;
+    lawId?: string | null;
+  }>(),
+  { trajectRef: null, categorie: null, lawId: null },
+);
 
-const emit = defineEmits(['select']);
+// The `select` payload; `categorie` is the key LibraryView destructures.
+interface CategorySelection {
+  categorie: string;
+  lawId: string | null;
+}
 
-const { tasks, running } = useTasks();
-const { displayName } = useCorpusLaws(toRef(props, 'trajectRef'));
+const emit = defineEmits<{ select: [selection: CategorySelection] }>();
+
+const { tasks, running } = useTrajectTasks(() => props.trajectRef);
+const { displayName } = useCorpus();
 
 const counts = computed(() => categoryCounts(tasks.value, running.value));
 const laws = computed(() => lawContexts(tasks.value, running.value, displayName));
@@ -62,11 +71,11 @@ const hasContexten = computed(() => hasWerkdocumenten.value || laws.value.length
 
 // Een wet-context is alleen geselecteerd bij een exacte match op law_id;
 // "Wetten" zelf alleen zonder law_id, anders lichten beide tegelijk op.
-function isSelected(categorie, lawId = null) {
+function isSelected(categorie: string, lawId: string | null = null): boolean {
   return props.categorie === categorie && (props.lawId ?? null) === lawId;
 }
 
-function select(categorie, lawId = null) {
+function select(categorie: string, lawId: string | null = null): void {
   emit('select', { categorie, lawId });
 }
 </script>
@@ -152,7 +161,7 @@ function select(categorie, lawId = null) {
        Anders staat er een kop boven een ingang die naar een lege lijst leidt. -->
   <template v-if="hasContexten">
     <nldd-spacer size="24"></nldd-spacer>
-    <nldd-title size="5"><h3>Contexten</h3></nldd-title>
+    <nldd-title size="display-5"><h3>Contexten</h3></nldd-title>
     <nldd-spacer size="8"></nldd-spacer>
 
     <nldd-list appearance="simple">

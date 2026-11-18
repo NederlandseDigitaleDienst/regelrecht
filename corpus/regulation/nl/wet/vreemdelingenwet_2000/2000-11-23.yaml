@@ -48,11 +48,11 @@ articles:
       overrides:
         - law: algemene_wet_bestuursrecht
           article: '6:7'
-          output: bezwaartermijn_weken
+          output: termijn_weken
       execution:
         output:
-          - name: bezwaartermijn_weken
+          - name: termijn_weken
             type: number
         actions:
-          - output: bezwaartermijn_weken
+          - output: termijn_weken
             value: 4

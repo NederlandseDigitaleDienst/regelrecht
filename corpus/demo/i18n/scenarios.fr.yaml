@@ -1,0 +1,716 @@
+---
+# Franse titels van de features en scenario's uit het democorpus.
+#
+# Vertaald door een taalmodel en nog niet nagekeken door een Franstalige
+# revisor. Wat die moet nakijken staat in `corpus/demo/i18n/REVIEW-fr.md`:
+# de plekken waar de vertaling twijfelde, met per geval wat vast staat en
+# wat niet.
+#
+# De `.feature`-bestanden zelf blijven Nederlands, en dat is geen
+# nalatigheid: de Rust-runner en de browser-runner lezen dezelfde bestanden,
+# en `just bdd-demo` toetst erop. Een titel vertalen waar hij staat zou dus
+# een testsuite raken om een scherm te veranderen.
+#
+# De sleutel is de Nederlandse titel zelf. Een titel die hier ontbreekt
+# blijft Nederlands staan; de stappen eronder zijn canoniek Engels en dragen
+# de inhoud, dus dat is een schoonheidsfout en geen gat.
+#
+# Verwijzingen naar wetsartikelen zijn met opzet niet "vertaald" maar in hun
+# eigen vorm gelaten: (artikel 2:28 lid 4) wordt (article 2:28, alinéa 4),
+# want dat nummer is de vindplaats in de wet en niet een woord.
+#
+# Een waarde die anders te lang wordt, of een dubbele punt met een spatie
+# erachter bevat (Frans zet een spatie vóór de dubbele punt), staat als
+# gevouwen blok (`>-`); YAML plakt die regels weer met een spatie aaneen,
+# dus de titel komt er ongewijzigd uit. Een sléútel kan niet gevouwen
+# worden, dus die staat altijd op één regel; daarom raakt de limiet alleen
+# de waarde.
+
+titles:
+  AIO-aanvulling - Aanvullende inkomensvoorziening ouderen (art. 47a): >-
+    Complément AIO - Complément de revenu pour les personnes âgées (art. 47a)
+  AOW Gegevens - Pensioengerechtigde leeftijd: Données AOW - Âge de la retraite
+  AOW Leeftijdsbepaling - Pensioengerechtigde leeftijd (art. 7a): Détermination de l'âge AOW - Âge de la retraite (art. 7a)
+  AOW Pensioen Berekening 2025: Calcul de la pension AOW 2025
+  AOW-gerechtigde met laag tarief: Bénéficiaire de l'AOW au taux réduit
+  APK-keuringsinstantie is bestuursorgaan (B-orgaan): >-
+    L'organisme de contrôle technique APK est une autorité administrative (B-orgaan)
+  AWB Article 1:1 - Bestuursorgaan Definition: Awb article 1:1 - Définition de l'autorité administrative (bestuursorgaan)
+  Adres zonder woonfunctie maar met laag aantal bewoners - geen signaal: >-
+    Adresse sans fonction résidentielle mais avec peu d'occupants - pas de signal
+  Afwijzing - een beheerder voldoet niet aan de eisen (artikel 2:28 lid 4 aanhef): >-
+    Refus - un gérant ne remplit pas les conditions (article 2:28, alinéa 4, phrase introductive)
+  Afwijzing - ernstig gevaar volgens Bibob-advies: Refus - danger grave selon l'avis Bibob
+  Afwijzing - ernstig gevaar volgens Bibob-advies (Wet Bibob artikel 3): >-
+    Refus - danger grave selon l'avis Bibob (Wet Bibob article 3)
+  Afwijzing - exploitant is 18 jaar (significant onder minimumleeftijd): >-
+    Refus - l'exploitant a 18 ans (nettement en dessous de l'âge minimum)
+  Afwijzing - exploitant is 20 jaar (niet voldaan aan artikel 8 lid 1 onder a): >-
+    Refus - l'exploitant a 20 ans (article 8, alinéa 1, point a, non rempli)
+  Afwijzing - exploitant staat onder curatele (artikel 2:28 lid 4): >-
+    Refus - l'exploitant est sous curatelle (article 2:28, alinéa 4)
+  Afwijzing - exploitant staat onder curatele (artikel 8 lid 1 onder c): >-
+    Refus - l'exploitant est sous curatelle (article 8, alinéa 1, point c)
+  Afwijzing - exploitant te jong bij drank- en horecawetvergunning (20 jaar, vereist 21+): >-
+    Refus - exploitant trop jeune pour une licence drank- en horecawet (20 ans, 21+ requis)
+  Afwijzing - geen geldige VOG exploitant (artikel 2:28 lid 4): >-
+    Refus - pas de VOG valable pour l'exploitant (article 2:28, alinéa 4)
+  Afwijzing - geen geldige exploitatievergunning (artikel 2:28): >-
+    Refus - pas d'autorisation d'exploitation valable (article 2:28)
+  Afwijzing - gevraagde oppervlakte groter dan beschikbare ruimte: Refus - surface demandée supérieure à l'espace disponible
+  Afwijzing - gewenste sluitingstijd 01:00 doordeweeks later dan toegestaan (23:00): >-
+    Refus - heure de fermeture souhaitée de 01:00 en semaine, plus tard que l'heure autorisée (23:00)
+  Afwijzing - gewenste sluitingstijd weekend later dan toegestaan: >-
+    Refus - heure de fermeture souhaitée le week-end plus tardive que l'heure autorisée
+  Afwijzing - horecacategorie niet toegestaan in gebiedsplan (artikel 2:28b): >-
+    Refus - catégorie d'établissement non autorisée dans le plan de secteur (article 2:28b)
+  Afwijzing - onderneming is uitgeschreven uit handelsregister: >-
+    Refus - l'entreprise a été radiée du registre du commerce (handelsregister)
+  Afwijzing - onvoldoende obstakelvrije ruimte (1.5m < 1.8m minimum): Refus - passage libre insuffisant (1.5m < 1.8m minimum)
+  Afwijzing - verkeerde BGT-functie oppervlak (rijbaan i.p.v. voetpad): >-
+    Refus - mauvaise fonction BGT de la surface (chaussée au lieu de trottoir)
+  Afwijzing - vloeroppervlakte horecalokaliteit kleiner dan 35 m2 (artikel 10 lid 2): >-
+    Refus - surface de la salle de l'établissement inférieure à 35 m2 (article 10, alinéa 2)
+  Afwijzing - vloeroppervlakte net onder minimum (34 m2): Refus - surface juste en dessous du minimum (34 m2)
+  Afwijzing - weigeringsgrond onbekend door ontbrekend register (artikel 2:28 lid 5 onder h t/m k): >-
+    Refus - motif de refus inconnu faute de registre (article 2:28, alinéa 5, points h à k)
+  Alcoholvrij bier is geen accijnsgoed: La bière sans alcool n'est pas un produit soumis à accise
+  Algemene Rekenkamer is geen bestuursorgaan (expliciet uitgezonderd): >-
+    L'Algemene Rekenkamer n'est pas une autorité administrative (exclue expressément)
+  Algemene volmacht geeft volledige rechten (LEZEN, CLAIMS_INDIENEN, BESLUITEN_ONTVANGEN): >-
+    Une procuration générale confère tous les droits (LEZEN, CLAIMS_INDIENEN, BESLUITEN_ONTVANGEN)
+  Algemene wet bestuursrecht - Beroepmogelijkheid en Termijnen: Algemene wet bestuursrecht - Possibilité de recours et délais
+  Alle administratieve eisen voldaan: Toutes les exigences administratives sont remplies
+  Alleen algemene dosis opgegeven (andere waarden niet ingevuld): >-
+    Seule la dose générale est indiquée (autres valeurs non renseignées)
+  Alleenstaande met inkomen boven grens krijgt geen kindgebonden budget: >-
+    Une personne isolée dont le revenu dépasse le plafond ne reçoit pas de budget lié aux enfants
+  Alleenstaande met kind en hoger inkomen: Personne isolée avec un enfant et un revenu plus élevé
+  Alleenstaande met kind krijgt basisbedrag: Une personne isolée avec un enfant reçoit le montant de base
+  Alleenstaande met laag inkomen en hogere huur: Personne isolée à faible revenu et au loyer plus élevé
+  Alleenstaande met laag inkomen heeft recht op zorgtoeslag: >-
+    Une personne isolée à faible revenu a droit à l'allocation de soins de santé
+  Alleenstaande met laag inkomen krijgt maximaal kindgebonden budget: >-
+    Une personne isolée à faible revenu reçoit le budget lié aux enfants maximal
+  Alleenstaande met recht op bijstand heeft kostendelersnorm 1.0: >-
+    Une personne isolée ayant droit à l'aide sociale a une norme de partage des frais de 1.0
+  Alleenstaande met vermogen boven de grens heeft geen aanspraak op zorgtoeslag: >-
+    Une personne isolée dont le patrimoine dépasse le plafond n'a pas droit à l'allocation de soins de santé
+  Alleenstaande met volledige AOW en geen ander inkomen heeft geen aanvulling nodig: >-
+    Une personne isolée avec une AOW complète et sans autre revenu n'a pas besoin de complément
+  Alleenstaande ouder met 1 kind krijgt basisbedrag + ALO-kop: >-
+    Un parent isolé avec 1 enfant reçoit le montant de base + ALO-kop
+  Alleenstaande ouder met jonge kinderen heeft recht op kinderopvangtoeslag: >-
+    Un parent isolé avec de jeunes enfants a droit à l'allocation pour la garde d'enfants
+  Anw - Nabestaandenuitkering: Anw - Prestation de survivant
+  Archiefwet 1995 - Beheer en openbaarheid van archiefbescheiden: >-
+    Archiefwet 1995 - Gestion et communicabilité des documents d'archives
+  BV met deponeringsplicht - deadline is twaalf maanden na boekjaareinde: >-
+    BV soumise à l'obligation de dépôt - échéance douze mois après la clôture de l'exercice
+  Basishuur wordt naar boven afgerond op hele euro's: Le loyer de base est arrondi à l'euro supérieur
+  Bedrijf met niet-voedings SBI maar serveert wel voedsel - verplichting geldt: >-
+    Entreprise avec un code SBI non alimentaire mais qui sert des aliments - l'obligation s'applique
+  Beeindigd gezag wordt niet meegenomen: Une autorité parentale terminée n'est pas prise en compte
+  Beeindigd mentorschap geeft geen actieve delegaties: Un mentorat terminé ne donne pas de délégations actives
+  Beeindigde curatele - persoon is weer handelingsbekwaam: >-
+    Curatelle terminée - la personne a de nouveau la capacité juridique
+  Beeindigde curatele met status BEEINDIGD geeft geen delegaties: >-
+    Une curatelle terminée avec le statut BEEINDIGD ne donne pas de délégations
+  Beeindigende zelfstandige krijgt uitloopbijstand zonder bedrijfskapitaal: >-
+    Un indépendant qui cesse son activité reçoit une aide sociale de cessation sans capital d'exploitation
+  Beginnende zelfstandige na WW-uitkering krijgt 36 maanden bijstand: >-
+    Un indépendant débutant après une allocation WW reçoit 36 mois d'aide sociale
+  Beginnende zelfstandige zonder WW-uitkering krijgt geen bijstand: >-
+    Un indépendant débutant sans allocation WW ne reçoit pas d'aide sociale
+  Beginnende zelfstandige zonder eigen WW maar met echtgenoot met WW krijgt bijstand: >-
+    Un indépendant débutant sans WW propre mais dont le conjoint perçoit la WW reçoit l'aide sociale
+  Beherend vennoot van CV heeft delegatie: L'associé commandité d'une CV a une délégation
+  Belastingdienst meldt twijfel over adres - genereert signaal type MELDING: >-
+    La Belastingdienst signale un doute sur une adresse - génère un signal de type MELDING
+  Belastingplichtig - klein terras 20 m² (onder vrijstellingsdrempel): >-
+    Assujetti - petite terrasse de 20 m² (sous le seuil d'exonération)
+  Belastingplichtig - terras 80 m² (boven vrijstellingsdrempel): >-
+    Assujetti - terrasse de 80 m² (au-dessus du seuil d'exonération)
+  Belastingplichtig - terras precies 50 m² (op vrijstellingsdrempel): >-
+    Assujetti - terrasse d'exactement 50 m² (au seuil d'exonération)
+  Bepalen HACCP-voedselveiligheidsverplichting: Détermination de l'obligation de sécurité alimentaire HACCP
+  Bepalen accijnsplicht en tarief voor alcoholhoudende dranken: >-
+    Détermination de l'assujettissement aux accises et du taux pour les boissons alcoolisées
+  Bepalen adviesplicht ICT-projecten: Détermination de l'obligation d'avis pour les projets informatiques
+  Bepalen kiesrecht Tweede Kamer: Détermination du droit de vote pour la Tweede Kamer
+  Bepalen precariobelasting voor terras op openbare grond Rotterdam: >-
+    Détermination de la taxe d'occupation du domaine public (precariobelasting) pour une terrasse à Rotterdam
+  Bepalen recht op Alcoholwetvergunning horeca Rotterdam: >-
+    Détermination du droit à une licence Alcoholwet pour un établissement de restauration à Rotterdam
+  Bepalen recht op Exploitatievergunning horeca Rotterdam: >-
+    Détermination du droit à une autorisation d'exploitation pour un établissement de restauration à Rotterdam
+  Bepalen recht op Terrasvergunning horeca Rotterdam: >-
+    Détermination du droit à une autorisation de terrasse pour un établissement de restauration à Rotterdam
+  Bepalen recht op bijstand Amsterdam: Détermination du droit à l'aide sociale à Amsterdam
+  Bepalen recht op bijstand landelijk: Détermination du droit à l'aide sociale au niveau national
+  Bepalen recht op bijstand voor zelfstandigen (Bbz 2004): >-
+    Détermination du droit à l'aide sociale pour les indépendants (Bbz 2004)
+  Berekening Huurtoeslag: Calcul de l'allocation logement (huurtoeslag)
+  Berekening Inkomstenbelasting: Calcul de l'impôt sur le revenu
+  Berekening Kinderopvangtoeslag: Calcul de l'allocation pour la garde d'enfants (kinderopvangtoeslag)
+  Berekening Kindgebonden Budget: Calcul du budget lié aux enfants (kindgebonden budget)
+  Berekening Werkgeversbijdrage Zorgverzekeringswet 2024: >-
+    Calcul de la cotisation patronale au titre de la Zorgverzekeringswet 2024
+  Berekening Werkloosheidsuitkering (WW): Calcul de l'allocation chômage (WW)
+  Berekening Zorgtoeslag 2024: Calcul de l'allocation de soins de santé (zorgtoeslag) 2024
+  Berekening Zorgtoeslag 2025: Calcul de l'allocation de soins de santé (zorgtoeslag) 2025
+  Berekening box 3 partnerinkomen zonder dubbele heffingsvrije voet: >-
+    Calcul du revenu du partenaire en box 3 sans double abattement
+  Berekening inkomstenbelasting voor alleenstaande met inkomen uit verschillende boxen: >-
+    Calcul de l'impôt sur le revenu d'une personne isolée ayant des revenus dans plusieurs boxes
+  Berekening inkomstenbelasting voor gepensioneerde met AOW: Calcul de l'impôt sur le revenu d'un retraité percevant l'AOW
+  Berekening inkomstenbelasting voor werkende ouder met heffingskortingen: >-
+    Calcul de l'impôt sur le revenu d'un parent actif avec crédits d'impôt
+  Berekening met decimalen in bruto loon: Calcul avec des décimales dans le salaire brut
+  Beroep mogelijk na afwijzende beslissing op bezwaar: Recours possible après une décision de rejet sur réclamation
+  Besluit basisveiligheidsnormen stralingsbescherming: >-
+    Besluit basisveiligheidsnormen stralingsbescherming (normes de base en radioprotection)
+  Besluit kerninstallaties, splijtstoffen en ertsen: >-
+    Besluit kerninstallaties, splijtstoffen en ertsen (installations nucléaires, matières fissiles et minerais)
+  Bestuurder van BV heeft delegatie: L'administrateur d'une BV a une délégation
+  Bestuurder van Coöperatie heeft delegatie: L'administrateur d'une Coöperatie a une délégation
+  Bestuurder van NV heeft delegatie: L'administrateur d'une NV a une délégation
+  Bestuurder van Stichting heeft delegatie: L'administrateur d'une Stichting a une délégation
+  Bestuurder van Vereniging heeft delegatie: L'administrateur d'une Vereniging a une délégation
+  Bewind ingegaan voor peildatum is actief: Une administration commencée avant la date de référence est active
+  Bewind is beeindigd door datum_einde in het verleden: L'administration est terminée par un datum_einde dans le passé
+  Bewind is beeindigd door status BEEINDIGD: L'administration est terminée par le statut BEEINDIGD
+  Bewind met einddatum na peildatum is nog actief: >-
+    Une administration dont la date de fin suit la date de référence est encore active
+  Bewind met toekomstige einddatum is nog actief: Une administration avec une date de fin future est encore active
+  Bewindvoerder heeft actief volledig bewind voor rechthebbende: >-
+    L'administrateur exerce une administration complète active pour le bénéficiaire
+  Bewindvoerder heeft meerdere actieve WSNP-zaken: L'administrateur a plusieurs dossiers WSNP actifs
+  Bewindvoerder krijgt volledige rechten voor financiele zaken (Art. 1:441 BW): >-
+    L'administrateur reçoit tous les droits pour les affaires financières (art. 1:441 BW)
+  Bewindvoerder met meerdere rechthebbenden: Administrateur avec plusieurs bénéficiaires
+  Bezit van splijtstoffen met te hoge stralingsdosis: Détention de matières fissiles avec une dose de rayonnement trop élevée
+  Bibob-advies Landelijk Bureau Bibob: Avis Bibob du Landelijk Bureau Bibob
+  Bibob-advies met financieringsrisico (witwassen): Avis Bibob avec un risque de financement (blanchiment)
+  Bibob-advies met relatie tot strafbare feiten: Avis Bibob avec un lien avec des infractions pénales
+  Bibob-advies uitgebracht - ernstig gevaar (weigering mogelijk): Avis Bibob rendu - danger grave (refus possible)
+  Bibob-advies uitgebracht - ernstig gevaar maar weigering niet proportioneel: >-
+    Avis Bibob rendu - danger grave mais refus non proportionné
+  Bibob-advies uitgebracht - geen gevaar gebleken: Avis Bibob rendu - aucun danger constaté
+  Bibob-advies uitgebracht - mindere mate van gevaar: Avis Bibob rendu - danger de moindre degré
+  Bibob-advies voor horecavergunning: Avis Bibob pour une autorisation d'établissement de restauration
+  Bibob-advies voor natuurlijk persoon (exploitant): Avis Bibob pour une personne physique (exploitant)
+  Bibob-advies voor vastgoedtransactie: Avis Bibob pour une transaction immobilière
+  Bier met een gebroken alcoholpercentage rondt naar beneden af: >-
+    Pour la bière, un titre alcoométrique fractionnaire est arrondi vers le bas
+  Bier tegen het gewone tarief van artikel 7 lid 1: Bière au taux normal de l'article 7, alinéa 1
+  Bijna 18 - nog minderjarig: Presque 18 ans - encore mineur
+  Bijzondere volmacht geeft beperkte rechten (alleen LEZEN): >-
+    Une procuration spéciale confère des droits limités (LEZEN seulement)
+  Broer is WGBO vertegenwoordiger voor wilsonbekwame zus: >-
+    Le frère est représentant WGBO de sa sœur hors d'état d'exprimer sa volonté
+  Burgerlijk Wetboek Beschermingsbewind (BW 1:431-449): Burgerlijk Wetboek administration protectrice (BW 1:431-449)
+  Burgerlijk Wetboek Curatele (BW 1:378-391): Burgerlijk Wetboek curatelle (BW 1:378-391)
+  Burgerlijk Wetboek Executeur (BW 4:144-150): Burgerlijk Wetboek exécuteur testamentaire (BW 4:144-150)
+  Burgerlijk Wetboek Gezag - Delegation provider for minors: >-
+    Burgerlijk Wetboek autorité parentale - Source de délégations pour les mineurs
+  Burgerlijk Wetboek Handelingsonbekwaamheid (BW 1:378-391): Burgerlijk Wetboek incapacité juridique (BW 1:378-391)
+  Burgerlijk Wetboek Mentorschap (BW 1:450-462): Burgerlijk Wetboek mentorat (BW 1:450-462)
+  Burgerlijk Wetboek Minderjarigheid - Handelingsbekwaamheid: Burgerlijk Wetboek minorité - Capacité juridique
+  Burgerlijk Wetboek Volmacht (BW 3:60-79): Burgerlijk Wetboek procuration (BW 3:60-79)
+  CJIB meldt twijfel over adres - genereert signaal type MELDING: >-
+    Le CJIB signale un doute sur une adresse - génère un signal de type MELDING
+  CTIVD is geen bestuursorgaan (lid 2 onder h): La CTIVD n'est pas une autorité administrative (alinéa 2, point h)
+  Combinatie van actief en beeindigd bewind: Combinaison d'administrations active et terminée
+  Combinatie van melding en profiel - signaal type blijft MELDING: >-
+    Combinaison d'un signalement et d'un profil - le type de signal reste MELDING
+  Commanditair vennoot van CV heeft GEEN delegatie: L'associé commanditaire d'une CV n'a PAS de délégation
+  Commissaris heeft geen vertegenwoordigingsbevoegdheid: >-
+    Un membre du conseil de surveillance n'a pas de pouvoir de représentation
+  Complex ICT-project ZBO met hoge kosten valt onder adviesplicht: >-
+    Un projet informatique complexe d'un ZBO à coût élevé est soumis à l'obligation d'avis
+  Curatele met einddatum in het verleden geeft geen delegaties: >-
+    Une curatelle dont la date de fin est passée ne donne pas de délégations
+  Curatele met einddatum in verleden - persoon is weer handelingsbekwaam: >-
+    Curatelle dont la date de fin est passée - la personne a de nouveau la capacité juridique
+  Curatele met toekomstige einddatum - nog handelingsonbekwaam: >-
+    Curatelle avec une date de fin future - encore juridiquement incapable
+  Curatele met toekomstige einddatum is nog actief: Une curatelle avec une date de fin future est encore active
+  Curator beheert meerdere failliete boedels: Le curateur de faillite gère plusieurs masses de faillite
+  Curator heeft actief faillissement natuurlijk persoon: >-
+    Le curateur de faillite a une faillite active d'une personne physique
+  Curator heeft actief faillissement rechtspersoon: Le curateur de faillite a une faillite active d'une personne morale
+  Curator heeft actieve curatele voor curandus: Le curateur exerce une curatelle active pour la personne protégée
+  Curator krijgt juiste rechten voor boedelbeheer: Le curateur de faillite reçoit les bons droits pour la gestion de la masse
+  Curator met meerdere curandussen heeft meerdere delegaties: >-
+    Un curateur ayant plusieurs personnes protégées a plusieurs délégations
+  Curator met mix van actieve en opgeheven faillissementen: >-
+    Curateur de faillite avec un mélange de faillites actives et clôturées
+  Curator met opgeheven faillissement heeft geen actieve delegatie: >-
+    Un curateur de faillite dont la faillite est clôturée n'a pas de délégation active
+  Dakloze met briefadres krijgt extra woonkostentoeslag: >-
+    Un sans-abri avec une adresse postale reçoit un supplément pour frais de logement
+  Deeltijd werkloosheid (minimaal 5 uur minder): Chômage partiel (au moins 5 heures de moins)
+  Direct beroep bij uitgebreide voorbereidingsprocedure: Recours direct dans la procédure de préparation étendue
+  Directeur van NV heeft delegatie: Le directeur d'une NV a une délégation
+  Directeur-grootaandeelhouder (DGA) met gebruikelijk loon: Dirigeant-actionnaire majoritaire (DGA) avec salaire usuel
+  'Document blijvend bewaren: niet voor vernietiging, moet overgebracht, wordt openbaar': >-
+    Conservation définitive d'un document : pas de destruction, transfert obligatoire, devient public
+  Document mag niet vernietigd worden als selectielijst niet is gepubliceerd: >-
+    Un document ne peut pas être détruit si la liste de sélection n'est pas publiée
+  Document mag niet vernietigd worden als selectielijst niet is vastgesteld: >-
+    Un document ne peut pas être détruit si la liste de sélection n'est pas arrêtée
+  Document met korte beperking wordt openbaar na termijn: >-
+    Un document soumis à une restriction courte devient public après le délai
+  Document met privacybeperking blijft beperkt na 75 jaar bij ministerbesluit: >-
+    Un document soumis à une restriction pour la vie privée reste restreint après 75 ans par décision ministérielle
+  Document met privacybeperking is niet openbaar binnen de termijn: >-
+    Un document soumis à une restriction pour la vie privée n'est pas public pendant le délai
+  Document met privacybeperking wordt openbaar na 75 jaar: >-
+    Un document soumis à une restriction pour la vie privée devient public après 75 ans
+  Document met staatsbelang beperking en ministerraadsbesluit blijft beperkt na 75 jaar: >-
+    Un document soumis à une restriction pour l'intérêt de l'État et à une décision du conseil des ministres reste restreint
+    après 75 ans
+  Document met staatsbelang beperking zonder ministerraadsbesluit wordt openbaar na 75 jaar: >-
+    Un document soumis à une restriction pour l'intérêt de l'État sans décision du conseil des ministres devient public après
+    75 ans
+  Document niet op selectielijst mag niet vernietigd worden: >-
+    Un document absent de la liste de sélection ne peut pas être détruit
+  Document op selectielijst mag nog niet vernietigd worden voor einde bewaartermijn: >-
+    Un document figurant sur la liste de sélection ne peut pas encore être détruit avant la fin de la durée de conservation
+  Document op selectielijst mag vernietigd worden na bewaartermijn: >-
+    Un document figurant sur la liste de sélection peut être détruit après la durée de conservation
+  'Document tijdelijk bewaren: voor vernietiging na 10 jaar': >-
+    Conservation temporaire d'un document : à détruire après 10 ans
+  Document van 19 jaar oud hoeft nog niet overgebracht te worden: Un document de 19 ans ne doit pas encore être transféré
+  Document van 21 jaar oud moet overgebracht worden: Un document de 21 ans doit être transféré
+  Document voor vernietiging wordt niet overgebracht: Un document destiné à la destruction n'est pas transféré
+  Dosis buiten locatie overschrijdt limiet (>0.1 mSv/jaar): La dose hors du site dépasse la limite (>0.1 mSv/an)
+  Echtgenoot die niet wenst op te treden is geen WGBO vertegenwoordiger (art. 7:465 lid 3 BW): >-
+    Un conjoint qui ne souhaite pas agir n'est pas représentant WGBO (art. 7:465, alinéa 3, BW)
+  Echtgenoot is WGBO vertegenwoordiger voor wilsonbekwame partner: >-
+    Le conjoint est représentant WGBO de son partenaire hors d'état d'exprimer sa volonté
+  Eenmanszaak heeft geen deponeringsplicht: Une entreprise individuelle n'a pas d'obligation de dépôt
+  Effectieve dosis net op de limiet (1 mSv/jaar): Dose efficace exactement à la limite (1 mSv/an)
+  Effectieve dosis overschrijdt algemene limiet (>1 mSv/jaar): La dose efficace dépasse la limite générale (>1 mSv/an)
+  Eis sociale hygiëne Alcoholwet artikel 8 lid 3 en 4: Exigence d'hygiène sociale Alcoholwet article 8, alinéas 3 et 4
+  Emissie per reizigerskilometer is nul zonder gereisde kilometers: >-
+    L'émission par voyageur-kilomètre est nulle sans kilomètres parcourus
+  Emissie per reizigerskilometer wordt berekend per mobiliteitssoort: >-
+    L'émission par voyageur-kilomètre est calculée par mode de mobilité
+  Executeur heeft actieve nalatenschap: L'exécuteur testamentaire a une succession active
+  Executeur heeft benoeming afgewezen: L'exécuteur testamentaire a refusé sa nomination
+  Executeur heeft correct rechten voor nalatenschap beheer: >-
+    L'exécuteur testamentaire a les bons droits pour gérer la succession
+  Executeur met meerdere actieve nalatenschappen: Exécuteur testamentaire avec plusieurs successions actives
+  Executeur met mix van actieve en afgewikkelde nalatenschappen: >-
+    Exécuteur testamentaire avec un mélange de successions actives et liquidées
+  Executeurschap met einddatum in de toekomst blijft actief: >-
+    Une exécution testamentaire avec une date de fin future reste active
+  Executeurschap met einddatum in het verleden is niet meer actief: >-
+    Une exécution testamentaire dont la date de fin est passée n'est plus active
+  Exploitatie van kerninstallatie met alle voorwaarden voldaan: >-
+    Exploitation d'une installation nucléaire avec toutes les conditions remplies
+  Faillissementswet Curator (Fw Art. 64-71): Faillissementswet curateur de faillite (Fw art. 64-71)
+  Faillissementswet WSNP Bewindvoerder (Fw Titel III): Faillissementswet administrateur WSNP (Fw Titel III)
+  Financiële zekerheid te laag: Garantie financière trop faible
+  Formule lid 2 geeft een verhoging van drie maanden als V minstens 0,25 is: >-
+    La formule de l'alinéa 2 donne une hausse de trois mois si V est au moins égal à 0,25
+  Formule lid 2 geeft geen verhoging als V kleiner is dan 0,25: >-
+    La formule de l'alinéa 2 ne donne aucune hausse si V est inférieur à 0,25
+  Geboren in 1960 valt onder lid 1 onder n (67 jaar), niet onder de formule van lid 2: >-
+    Né en 1960 : relève de l'alinéa 1, point n (67 ans), et non de la formule de l'alinéa 2
+  Gedeeltelijk bewind - beperkt tot specifieke goederen: Administration partielle - limitée à des biens déterminés
+  Gedetineerde persoon mag wel stemmen: Une personne détenue peut voter
+  Gedistilleerd met een gebroken alcoholpercentage rondt naar beneden af: >-
+    Pour les spiritueux, un titre alcoométrique fractionnaire est arrondi vers le bas
+  Geen Bibob-advies aangevraagd - verlening niet belemmerd: Aucun avis Bibob demandé - la délivrance n'est pas entravée
+  Geen beoordeling verouderde technologie zonder technologiebeschrijving: >-
+    Pas d'évaluation de technologie obsolète sans description de la technologie
+  Geen beroep mogelijk zonder afwijzende beslissing op bezwaar: >-
+    Pas de recours possible sans décision de rejet sur réclamation
+  Geen beveiligingsplan: Pas de plan de sécurité
+  Geen kinderbijslag betekent geen kindgebonden budget: Sans allocations familiales, pas de budget lié aux enfants
+  Geen noodplan: Pas de plan d'urgence
+  Geen ontheffings- of AFM-register - reden vrijstelling onbekend: >-
+    Pas de registre des dérogations ni de l'AFM - motif d'exemption inconnu
+  Gemachtigde heeft delegatie: Le mandataire a une délégation
+  Gemeente is bestuursorgaan (A-orgaan): La commune est une autorité administrative (A-orgaan)
+  Gemengde rollen - alleen bevoegde functies krijgen delegatie: >-
+    Rôles mixtes - seules les fonctions habilitées reçoivent une délégation
+  Gepensioneerde met beschikbare premieregeling: Retraité avec un régime à cotisations définies
+  Gepensioneerde met eindloonregeling: Retraité avec un régime fondé sur le dernier salaire
+  Gepensioneerde met middelloonregeling: Retraité avec un régime fondé sur le salaire moyen
+  Geregistreerd partner is WGBO vertegenwoordiger voor wilsonbekwame partner: >-
+    Le partenaire enregistré est représentant WGBO de son partenaire hors d'état d'exprimer sa volonté
+  Gevestigde zelfstandige krijgt bijstand ongeacht aantal gewerkte uren: >-
+    Un indépendant établi reçoit l'aide sociale quel que soit le nombre d'heures travaillées
+  Gevestigde zelfstandige krijgt bijstand ongeacht vermogen (vermogen is geen lid-1-toets): >-
+    Un indépendant établi reçoit l'aide sociale quel que soit son patrimoine (le patrimoine n'est pas un critère de l'alinéa
+    1)
+  Gevestigde zelfstandige met levensvatbaar bedrijf krijgt bijstand: >-
+    Un indépendant établi dont l'entreprise est viable reçoit l'aide sociale
+  Gevestigde zelfstandige met niet-levensvatbaar bedrijf krijgt geen bijstand: >-
+    Un indépendant établi dont l'entreprise n'est pas viable ne reçoit pas d'aide sociale
+  Gevolmachtigde heeft actieve algemene volmacht: Le mandataire a une procuration générale active
+  Gevolmachtigde heeft actieve bijzondere volmacht: Le mandataire a une procuration spéciale active
+  Gevolmachtigde met een actieve en een herroepen volmacht: >-
+    Mandataire avec une procuration active et une procuration révoquée
+  Gevolmachtigde met meerdere volmachten van verschillende volmachtgevers: >-
+    Mandataire avec plusieurs procurations de différents mandants
+  Gezamenlijk gezag - ouder heeft delegatie: Autorité parentale conjointe - le parent a une délégation
+  Gezin met meerdere soorten opvang: Famille avec plusieurs types de garde
+  Grootouder is WGBO vertegenwoordiger voor wilsonbekwaam kleinkind (art. 7:465 lid 3 BW): >-
+    Le grand-parent est représentant WGBO de son petit-enfant hors d'état d'exprimer sa volonté (art. 7:465, alinéa 3, BW)
+  Grootverbruiker zonder woonfunctie boven de elektriciteitsdrempel heeft energiebesparings- en informatieplicht: >-
+    Un gros consommateur sans fonction résidentielle au-dessus du seuil d'électricité a une obligation d'économie d'énergie
+    et d'information
+  Handelen vraagt geen AGP-vergunning: Le commerce ne requiert pas d'autorisation AGP
+  Handelingsbekwame heeft SELF delegatie met volledige rechten: >-
+    Une personne juridiquement capable a une délégation SELF avec tous les droits
+  Handelingsonbekwame heeft SELF delegatie met alleen leesrecht: >-
+    Une personne juridiquement incapable a une délégation SELF avec un droit de lecture seul
+  Handelsregisterwet - Jaarrekening Deponeringsplicht: Handelsregisterwet - Obligation de dépôt des comptes annuels
+  Havenbedrijf Rotterdam is geen bestuursorgaan (privatized port authority): >-
+    Le Havenbedrijf Rotterdam n'est pas une autorité administrative (autorité portuaire privatisée)
+  Herroepen volmacht geeft geen bevoegdheid: Une procuration révoquée ne confère aucun pouvoir
+  Het minimumbedrag geldt per hectoliter, ook bij een grote partij: >-
+    Le montant minimum s'applique par hectolitre, même pour un lot important
+  Hoge algemene dosis met alleen algemene waarde opgegeven: Dose générale élevée, seule la valeur générale étant indiquée
+  Hoog aantal bewoners maar met woonfunctie - geen signaal: >-
+    Nombre élevé d'occupants mais avec fonction résidentielle - pas de signal
+  Horecabedrijf (SBI 56102) met hygiënecode - voldoet aan verplichting: >-
+    Établissement de restauration (SBI 56102) avec code d'hygiène - remplit l'obligation
+  Huiddosis overschrijdt limiet (>50 mSv/jaar): La dose à la peau dépasse la limite (>50 mSv/an)
+  Huishouden van drie kostendelende personen heeft kostendelersnorm 0.43: >-
+    Un ménage de trois personnes partageant les frais a une norme de partage des frais de 0.43
+  Huishouden van vijf of meer kostendelende personen heeft geen bekende kostendelersnorm: >-
+    Un ménage de cinq personnes ou plus partageant les frais n'a pas de norme de partage des frais connue
+  ICT-project ZBO van €6 miljoen valt onder adviesplicht: >-
+    Un projet informatique d'un ZBO de 6 millions d'euros est soumis à l'obligation d'avis
+  ICT-project gemeente van €10 miljoen valt niet onder adviesplicht: >-
+    Un projet informatique communal de 10 millions d'euros n'est pas soumis à l'obligation d'avis
+  ICT-project ministerie van €10 miljoen valt onder adviesplicht: >-
+    Un projet informatique ministériel de 10 millions d'euros est soumis à l'obligation d'avis
+  ICT-project ministerie van €4 miljoen valt niet onder adviesplicht: >-
+    Un projet informatique ministériel de 4 millions d'euros n'est pas soumis à l'obligation d'avis
+  ICT-project politie van €5 miljoen valt precies op drempel: >-
+    Un projet informatique de la police de 5 millions d'euros se situe exactement au seuil
+  ICT-project rechterlijke macht van €8 miljoen valt onder adviesplicht: >-
+    Un projet informatique du pouvoir judiciaire de 8 millions d'euros est soumis à l'obligation d'avis
+  IT-bedrijf - geen levensmiddelenbedrijf: Entreprise informatique - pas une entreprise du secteur alimentaire
+  Inactief gezag wordt niet meegenomen: Une autorité parentale inactive n'est pas prise en compte
+  Inactieve volmacht geeft geen bevoegdheid: Une procuration inactive ne confère aucun pouvoir
+  Informatieplicht Energiebesparing: Obligation d'information sur les économies d'énergie
+  Ingeschreven in het Register sociale hygiëne (artikel 8 lid 3): Inscrit au Register sociale hygiëne (article 8, alinéa 3)
+  Kernenergiewet Vergunningverlening Splijtstoffen: Kernenergiewet délivrance d'autorisations pour les matières fissiles
+  Kind is WGBO vertegenwoordiger voor wilsonbekwame ouder: >-
+    L'enfant est représentant WGBO de son parent hors d'état d'exprimer sa volonté
+  Kind met handlichting - ouder heeft beperkte rechten: Enfant émancipé (handlichting) - le parent a des droits limités
+  Kind van 18 jaar of ouder wordt niet meegenomen: Un enfant de 18 ans ou plus n'est pas pris en compte
+  Kind van 5 jaar heeft alleen leesrecht: Un enfant de 5 ans n'a qu'un droit de lecture
+  Kind woont buiten Nederland zonder ministeriële regeling houdt de woonlandfactor op 100: >-
+    Un enfant vivant hors des Pays-Bas sans arrêté ministériel maintient le facteur pays de résidence à 100
+  Kind woont in Nederland telt volledig mee voor de woonlandfactor: >-
+    Un enfant vivant aux Pays-Bas compte entièrement pour le facteur pays de résidence
+  Kledingwinkel - geen levensmiddelenbedrijf: Magasin de vêtements - pas une entreprise du secteur alimentaire
+  Kleine brouwerij betaalt het verlaagde tarief van artikel 7 lid 2: >-
+    Une petite brasserie paie le taux réduit de l'article 7, alinéa 2
+  Kleinkind is WGBO vertegenwoordiger voor wilsonbekwame grootouder (art. 7:465 lid 3 BW): >-
+    Le petit-enfant est représentant WGBO de son grand-parent hors d'état d'exprimer sa volonté (art. 7:465, alinéa 3, BW)
+  Landelijke Aanpak Adreskwaliteit (LAA): Landelijke Aanpak Adreskwaliteit (LAA)
+  Levensgezel is WGBO vertegenwoordiger (gelijk aan partner in hierarchie): >-
+    Le compagnon de vie est représentant WGBO (au même rang que le partenaire dans la hiérarchie)
+  Maat in Maatschap heeft delegatie: L'associé d'une maatschap a une délégation
+  Machtigingenwet - Delegation provider for KVK: Machtigingenwet - Source de délégations pour la KvK
+  Maximale WW-uitkering bij hoog inkomen: Allocation WW maximale en cas de revenu élevé
+  Meerdere dosislimieten overschreden: Plusieurs limites de dose dépassées
+  Meerdere eisen niet voldaan: Plusieurs exigences non remplies
+  Meerdere weigeringsgronden tegelijk (hoge dosis en geen financiële zekerheid): >-
+    Plusieurs motifs de refus à la fois (dose élevée et absence de garantie financière)
+  Meerderjarige (19 jaar) heeft volledige rechten: Un majeur (19 ans) a tous les droits
+  Mentor heeft actief mentorschap: Le mentor exerce un mentorat actif
+  Mentor met meerdere betrokkenen: Mentor avec plusieurs personnes concernées
+  Mentor met mix van actief en beeindigd mentorschap: Mentor avec un mélange de mentorats actifs et terminés
+  Mentorschap met einddatum in de toekomst is nog actief: Un mentorat avec une date de fin future est encore actif
+  Minderjarige (14 jaar) heeft alleen leesrecht: Un mineur (14 ans) n'a qu'un droit de lecture
+  Minderjarige (17 jaar) met handlichting heeft volledige rechten: >-
+    Un mineur émancipé (17 ans, handlichting) a tous les droits
+  Minimale financiële zekerheid precies voldoende: Garantie financière minimale tout juste suffisante
+  Ministeriële ontheffing verleend - vrijstelling lid 5: Dérogation ministérielle accordée - exemption de l'alinéa 5
+  Mix van actieve en beeindigde curatele: Mélange de curatelles actives et terminées
+  Mix van actieve en voltooide WSNP-zaken - alleen actieve tellen mee: >-
+    Mélange de dossiers WSNP actifs et achevés - seuls les actifs comptent
+  Mix van minderjarige en meerderjarige kinderen: Mélange d'enfants mineurs et majeurs
+  Mousserende wijn betaalt hetzelfde als niet-mousserende: Le vin mousseux paie autant que le vin non mousseux
+  Nabestaande die AOW-leeftijd heeft bereikt: Survivant ayant atteint l'âge AOW
+  Nabestaande met arbeidsongeschiktheid 45% of meer: Survivant avec une incapacité de travail de 45 % ou plus
+  Nabestaande met inkomen boven vrijlating: Survivant avec un revenu supérieur au montant exonéré
+  Nabestaande met kind onder 18 jaar zonder inkomen: Survivant avec un enfant de moins de 18 ans et sans revenu
+  Nabestaande van niet-verzekerde partner: Survivant d'un partenaire non assuré
+  Nabestaande zonder kinderen en zonder arbeidsongeschiktheid: Survivant sans enfants et sans incapacité de travail
+  Nalatenschap is afgewikkeld (status AFGEWIKKELD): La succession est liquidée (statut AFGEWIKKELD)
+  Nationale Ombudsman is geen bestuursorgaan (expliciet uitgezonderd): >-
+    La Nationale Ombudsman n'est pas une autorité administrative (exclue expressément)
+  Neef/nicht is geen geldige WGBO vertegenwoordiger: Un neveu ou une nièce n'est pas un représentant WGBO valable
+  Net 18 geworden - meerderjarig: Tout juste 18 ans - majeur
+  Niet belastingplichtig - geen actieve terrasvergunning: Non assujetti - pas d'autorisation de terrasse active
+  Niet belastingplichtig - geen terras: Non assujetti - pas de terrasse
+  Niet belastingplichtig - locatie niet op openbare weg: Non assujetti - emplacement hors de la voie publique
+  Niet ingeschreven en wel bemoeienis met de bedrijfsvoering (uitzondering geldt niet): >-
+    Non inscrit et intervient dans la gestion de l'établissement (l'exception ne s'applique pas)
+  Niet ingeschreven, geen schriftelijke verklaring (uitzondering geldt niet): >-
+    Non inscrit, pas de déclaration écrite (l'exception ne s'applique pas)
+  Niet ingeschreven, maar uitzondering lid 4 van toepassing: Non inscrit, mais l'exception de l'alinéa 4 s'applique
+  Nieuwe kerninstallatie zonder financiële zekerheid: Nouvelle installation nucléaire sans garantie financière
+  Normaal adres zonder meldingen of profielen - geen signaal: Adresse normale sans signalements ni profils - pas de signal
+  Notaris met publieke bevoegdheid is bestuursorgaan (B-orgaan): >-
+    Un notaire investi d'un pouvoir public est une autorité administrative (B-orgaan)
+  Onbekend woonland telt niet als woonland buiten Nederland: >-
+    Un pays de résidence inconnu ne compte pas comme pays de résidence hors des Pays-Bas
+  Ondernemer met actieve inschrijving heeft delegatie: Un entrepreneur avec une inscription active a une délégation
+  Ondernemer met meerdere bedrijven heeft meerdere delegaties: >-
+    Un entrepreneur avec plusieurs entreprises a plusieurs délégations
+  Onvoldoende deskundigen: Experts en nombre insuffisant
+  Ook het verlaagde tarief van lid 2 kent hetzelfde minimum per hectoliter: >-
+    Le taux réduit de l'alinéa 2 connaît aussi le même minimum par hectolitre
+  Openbaar lichaam is bestuursorgaan (A-orgaan): >-
+    Une personne morale de droit public est une autorité administrative (A-orgaan)
+  Opvang niet geregistreerd in het LRK geeft geen aanspraak: Une garde non inscrite au LRK n'ouvre pas de droit
+  Organisatie met 100 werknemers is verplicht te rapporteren: Une organisation de 100 salariés est tenue de déclarer
+  Organisatie met 99 werknemers is niet verplicht te rapporteren: Une organisation de 99 salariés n'est pas tenue de déclarer
+  Organisatie met publieke bevoegdheid niet bij wet is geen bestuursorgaan: >-
+    Une organisation dont le pouvoir public ne découle pas de la loi n'est pas une autorité administrative
+  Organisatie rapporteert reisgegevens en CO2-uitstoot: >-
+    L'organisation déclare ses données de déplacement et ses émissions de CO2
+  Organisatie zonder mobiliteitsvergoeding hoeft niet te rapporteren: >-
+    Une organisation sans indemnité de mobilité n'est pas tenue de déclarer
+  Ouder is WGBO vertegenwoordiger voor wilsonbekwaam meerderjarig kind: >-
+    Le parent est représentant WGBO de son enfant majeur hors d'état d'exprimer sa volonté
+  Ouder met BSO en overschrijding van het maximale uurtarief: >-
+    Parent avec accueil périscolaire (BSO) et dépassement du tarif horaire maximal
+  Ouder met meerdere kinderen heeft meerdere delegaties: Un parent avec plusieurs enfants a plusieurs délégations
+  Ouder met ouderlijk gezag heeft delegatie: Un parent investi de l'autorité parentale a une délégation
+  Oudere zelfstandige (geboren voor 1960) met niet-levensvatbaar bedrijf krijgt onbeperkte bijstand: >-
+    Un indépendant âgé (né avant 1960) dont l'entreprise n'est pas viable reçoit une aide sociale illimitée
+  Oudere zelfstandige geboren na 1960 komt niet in aanmerking als oudere: >-
+    Un indépendant âgé né après 1960 n'est pas éligible en tant que personne âgée
+  Oudere zelfstandige krijgt bijstand ongeacht vermogen (vermogen is geen lid-1-toets): >-
+    Un indépendant âgé reçoit l'aide sociale quel que soit son patrimoine (le patrimoine n'est pas un critère de l'alinéa 1)
+  Oudere zelfstandige met minder dan 10 jaar ondernemerschap komt niet in aanmerking: >-
+    Un indépendant âgé ayant moins de 10 ans d'activité d'entrepreneur n'est pas éligible
+  Ouderparticipatiecrèche in de aanloopperiode geeft geen aanspraak: >-
+    Une crèche parentale en période de démarrage n'ouvre pas de droit
+  "Over de jaargrens: wie in december 18 werd, telt in januari mee": >-
+    Au passage de l'année : qui a eu 18 ans en décembre compte en janvier
+  Overbrenging kan niet opgeschort worden als de machtiging geen verleningsdatum heeft: >-
+    Le transfert ne peut pas être suspendu si l'autorisation n'a pas de date de délivrance
+  Overbrenging kan niet opgeschort worden als de machtiging ouder is dan tien jaar: >-
+    Le transfert ne peut pas être suspendu si l'autorisation date de plus de dix ans
+  Overbrenging kan niet opgeschort worden zonder machtiging: Le transfert ne peut pas être suspendu sans autorisation
+  Overbrenging kan opgeschort worden bij veelvuldig gebruik met machtiging binnen de termijn: >-
+    Le transfert peut être suspendu en cas d'usage fréquent avec une autorisation dans le délai
+  Overgebracht document zonder beperking is openbaar: Un document transféré sans restriction est public
+  Paar met 2 kinderen krijgt aangepast bedrag zonder ALO-kop: Un couple avec 2 enfants reçoit un montant ajusté sans ALO-kop
+  Partner die geen verzekerde is geeft de helft van de zorgtoeslag: >-
+    Un partenaire non assuré donne droit à la moitié de l'allocation de soins de santé
+  Partner onder AOW-leeftijd geeft recht op toeslag: Un partenaire n'ayant pas l'âge AOW ouvre droit à l'allocation
+  Partner werkt minder dan vereiste uren, geen recht op toeslag: >-
+    Le partenaire travaille moins que les heures requises, pas de droit à l'allocation
+  Patient is wilsbekwaam - geen WGBO vertegenwoordiging: >-
+    Le patient est en état d'exprimer sa volonté - pas de représentation WGBO
+  Pensioengerechtigde leeftijd in 2020 volgt uit de tabel van lid 1 onder h/i: >-
+    L'âge de la retraite en 2020 découle du tableau de l'alinéa 1, points h/i
+  Pensioengerechtigde leeftijd in 2024 volgt uit de tabel van lid 1 onder m: >-
+    L'âge de la retraite en 2024 découle du tableau de l'alinéa 1, point m
+  Pensioengerechtigde leeftijd in 2025 volgt uit het register (lid 1 onder n, untranslatable): >-
+    L'âge de la retraite en 2025 découle du registre (alinéa 1, point n, untranslatable)
+  Pensioenwet - Pensioenuitkering berekening: Pensioenwet - Calcul de la prestation de pension
+  Persoon boven 18 heeft recht op zorgtoeslag: Une personne de plus de 18 ans a droit à l'allocation de soins de santé
+  Persoon is geen WSNP bewindvoerder: La personne n'est pas administrateur WSNP
+  Persoon is geen bewindvoerder - geen registraties: La personne n'est pas administrateur - aucune inscription
+  Persoon is geen executeur: La personne n'est pas exécuteur testamentaire
+  Persoon is geen mentor: La personne n'est pas mentor
+  Persoon is vertegenwoordiger voor meerdere wilsonbekwame familieleden: >-
+    La personne représente plusieurs membres de sa famille hors d'état d'exprimer leur volonté
+  Persoon met Nederlandse nationaliteit van 18+ mag stemmen: >-
+    Une personne de nationalité néerlandaise de 18 ans ou plus peut voter
+  Persoon met gemengde verzekeringsjaren ontvangt gedeeltelijk pensioen: >-
+    Une personne aux années d'assurance mixtes reçoit une pension partielle
+  Persoon met medische ontheffing krijgt bijstand zonder re-integratieverplichting: >-
+    Une personne bénéficiant d'une dispense médicale reçoit l'aide sociale sans obligation de réinsertion
+  Persoon met partner ontvangt lager basisbedrag: Une personne avec partenaire reçoit un montant de base plus bas
+  Persoon met studiefinanciering heeft recht op zorgtoeslag: >-
+    Une personne bénéficiant d'une aide aux études a droit à l'allocation de soins de santé
+  Persoon met uitsluiting kiesrecht mag niet stemmen: Une personne privée du droit de vote ne peut pas voter
+  Persoon met volledige opbouw ontvangt volledig pensioen: >-
+    Une personne aux droits entièrement constitués reçoit une pension complète
+  Persoon met zowel wilsbekwame als wilsonbekwame familieleden: >-
+    Personne ayant des membres de sa famille en état et hors d'état d'exprimer leur volonté
+  Persoon nog niet pensioengerechtigd: Personne n'ayant pas encore l'âge de la retraite
+  Persoon onder 18 heeft geen recht op huurtoeslag: Une personne de moins de 18 ans n'a pas droit à l'allocation logement
+  Persoon onder 18 heeft geen recht op zorgtoeslag: >-
+    Une personne de moins de 18 ans n'a pas droit à l'allocation de soins de santé
+  Persoon onder 18 mag niet stemmen: Une personne de moins de 18 ans ne peut pas voter
+  Persoon onder curatele is handelingsonbekwaam: Une personne sous curatelle est juridiquement incapable
+  Persoon werkzaam in Nederlandse openbare dienst op Sint Maarten mag wel stemmen: >-
+    Une personne employée dans le service public néerlandais à Sint Maarten peut voter
+  Persoon woonachtig in Aruba zonder tien jaar ingezetenschap of openbare dienst mag niet stemmen: >-
+    Une personne résidant à Aruba sans dix ans de résidence ni service public ne peut pas voter
+  Persoon woonachtig in Curacao met tien jaar ingezetenschap mag wel stemmen: >-
+    Une personne résidant à Curaçao depuis dix ans peut voter
+  Persoon woonachtig in Nederland mag wel stemmen, ongeacht ingezetenschapsduur: >-
+    Une personne résidant aux Pays-Bas peut voter, quelle que soit la durée de résidence
+  Persoon zonder Nederlandse nationaliteit mag niet stemmen: Une personne sans la nationalité néerlandaise ne peut pas voter
+  Persoon zonder actieve onderneming krijgt geen Bbz: Une personne sans entreprise active ne reçoit pas de Bbz
+  Persoon zonder curatele is handelingsbekwaam: Une personne qui n'est pas sous curatelle est juridiquement capable
+  Persoon zonder curatele-registraties heeft geen delegaties: >-
+    Une personne sans inscription de curatelle n'a pas de délégations
+  Persoon zonder curator-registraties heeft geen delegaties: Une personne sans inscription de curateur n'a pas de délégations
+  Persoon zonder familierelatie met wilsonbekwame heeft geen WGBO vertegenwoordiging: >-
+    Une personne sans lien familial avec une personne hors d'état d'exprimer sa volonté n'a pas de représentation WGBO
+  Persoon zonder gezagsrelaties heeft geen delegaties: Une personne sans relation d'autorité parentale n'a pas de délégations
+  Persoon zonder inkomen is toch bijdrageplichtig (art. 41 onvoorwaardelijk): >-
+    Une personne sans revenu est tout de même redevable de la cotisation (art. 41 inconditionnel)
+  Persoon zonder inschrijvingen heeft geen delegaties: Une personne sans inscriptions n'a pas de délégations
+  Persoon zonder pensioenkapitaal: Personne sans capital de pension
+  Persoon zonder volmacht-registratie is geen gevolmachtigde: >-
+    Une personne sans inscription de procuration n'est pas mandataire
+  Privaat bedrijf zonder publieke bevoegdheid is geen bestuursorgaan: >-
+    Une entreprise privée sans pouvoir public n'est pas une autorité administrative
+  Procureur-generaal bij de Hoge Raad is geen bestuursorgaan (lid 2 onder g): >-
+    Le procureur général près la Hoge Raad n'est pas une autorité administrative (alinéa 2, point g)
+  Produceren zonder AGP-vergunning voldoet niet aan de vergunningsplicht: >-
+    Produire sans autorisation AGP ne satisfait pas à l'obligation d'autorisation
+  Profiel "Overbewoning" - hoog aantal bewoners op adres zonder woonfunctie: >-
+    Profil « Surpeuplement » - nombre élevé d'occupants à une adresse sans fonction résidentielle
+  Provincie is bestuursorgaan (A-orgaan): La province est une autorité administrative (A-orgaan)
+  Raad van State is geen bestuursorgaan (lid 2 onder d): >-
+    Le Raad van State n'est pas une autorité administrative (alinéa 2, point d)
+  Rechtbank is geen bestuursorgaan (rechterlijk orgaan): >-
+    Le tribunal n'est pas une autorité administrative (organe juridictionnel)
+  Restaurant (SBI 56101) zonder HACCP-systeem - voldoet niet: Restaurant (SBI 56101) sans système HACCP - non conforme
+  Rijksorgaan is bestuursorgaan (A-orgaan): Un organe de l'État central est une autorité administrative (A-orgaan)
+  Ruim voldoende financiële zekerheid en deskundigen: Garantie financière et experts largement suffisants
+  Sanietnamen bevatten WSNP Boedel prefix: Les noms des débiteurs contiennent le préfixe WSNP Boedel
+  Schriftelijk gemachtigde is WGBO vertegenwoordiger (art. 7:465 lid 3 BW): >-
+    Le mandataire désigné par écrit est représentant WGBO (art. 7:465, alinéa 3, BW)
+  Standaard bijstandsuitkering voor alleenstaande: Prestation d'aide sociale standard pour une personne isolée
+  Stichting met beperkte bevoegdheid: Fondation à pouvoir limité
+  Stichting met wettelijke toezichtstaak is bestuursorgaan (B-orgaan): >-
+    Une fondation investie d'une mission légale de surveillance est une autorité administrative (B-orgaan)
+  Stralingsdosis onder alle limieten: Dose de rayonnement sous toutes les limites
+  Succesvolle aanvraag - afwijkende vergunningsduur bij de vergunning bepaald (lid 2): >-
+    Demande acceptée - durée d'autorisation différente fixée dans l'autorisation (alinéa 2)
+  Succesvolle aanvraag - alle eisen artikel 8 en 10 voldaan: >-
+    Demande acceptée - toutes les exigences des articles 8 et 10 remplies
+  Succesvolle aanvraag - alle voorwaarden voldaan (met drank- en horecawetvergunning): >-
+    Demande acceptée - toutes les conditions remplies (avec licence drank- en horecawet)
+  Succesvolle aanvraag - grenswaarde obstakelvrije ruimte (precies 1.8m): >-
+    Demande acceptée - valeur limite du passage libre (exactement 1.8m)
+  Succesvolle aanvraag - precies 21 jaar (grenswaarde artikel 8 lid 1 onder a): >-
+    Demande acceptée - exactement 21 ans (valeur limite de l'article 8, alinéa 1, point a)
+  Succesvolle aanvraag - precies 35 m2 vloeroppervlakte (grenswaarde artikel 10 lid 2): >-
+    Demande acceptée - exactement 35 m2 de surface (valeur limite de l'article 10, alinéa 2)
+  Succesvolle aanvraag - standaard terras voor het pand: Demande acceptée - terrasse standard devant l'établissement
+  Supermarkt (SBI 4711) met eigen HACCP-plan - voldoet: Supermarché (SBI 4711) avec son propre plan HACCP - conforme
+  TIB is geen bestuursorgaan (lid 2 onder i): La TIB n'est pas une autorité administrative (alinéa 2, point i)
+  Te hoog inkomen voor huurtoeslag: Revenu trop élevé pour l'allocation logement
+  Te jonge persoon is nog niet AOW-gerechtigd: Une personne trop jeune n'a pas encore droit à l'AOW
+  Toeslagen meldt twijfel over adres - genereert signaal type MELDING: >-
+    Toeslagen signale un doute sur l'adresse - génère un signal de type MELDING
+  Toezending aan AFM - vrijstelling lid 8: Transmission à l'AFM - exemption de l'alinéa 8
+  Transport van ertsen met lage stralingsdosis: Transport de minerais avec une faible dose de rayonnement
+  Transport van splijtstoffen met voldoende dosis en financiële zekerheid: >-
+    Transport de matières fissiles avec une dose et une garantie financière conformes
+  Tussenproduct boven 15%vol valt onder het hoge tarief van artikel 11d: >-
+    Un produit intermédiaire de plus de 15%vol relève du taux élevé de l'article 11d
+  Tweede Kamer is geen bestuursorgaan (volksvertegenwoordiging): >-
+    La Tweede Kamer n'est pas une autorité administrative (assemblée élue)
+  Tweeverdieners met hoger inkomen ontvangen lagere toeslag: >-
+    Un couple à deux revenus plus élevés reçoit une allocation plus faible
+  Uitgezonderd orgaan is toch bestuursorgaan voor ambtenarenrechtelijk besluit over eigen personeel (lid 3): >-
+    Un organe exclu est tout de même une autorité administrative pour une décision de droit de la fonction publique sur son
+    propre personnel (alinéa 3)
+  Uitkeringsinstantie met 60% overheidsfinanciering is geen bestuursorgaan: >-
+    Un organisme de prestations financé à 60 % par l'État n'est pas une autorité administrative
+  Uitkeringsinstantie met 70% financiering maar eigen criteria is geen bestuursorgaan: >-
+    Un organisme de prestations financé à 70 % mais avec ses propres critères n'est pas une autorité administrative
+  Uitkeringsinstantie met 70% overheidsfinanciering is bestuursorgaan: >-
+    Un organisme de prestations financé à 70 % par l'État est une autorité administrative
+  Uitkeringsinstantie met precies 66.67% financiering is bestuursorgaan: >-
+    Un organisme de prestations financé à exactement 66.67 % est une autorité administrative
+  Verlopen volmacht geeft geen bevoegdheid: Une procuration expirée ne confère aucun pouvoir
+  Vermogen boven grens betekent geen kindgebonden budget: Un patrimoine supérieur au plafond exclut le budget lié aux enfants
+  Verouderde technologie te beoordelen bij oprichting nieuwe installatie (art. 15b lid 2): >-
+    Technologie obsolète à évaluer lors de la création d'une nouvelle installation (art. 15b, alinéa 2)
+  Vervroegd pensioen bij lagere pensioenleeftijd: Retraite anticipée avec un âge de pension plus bas
+  Volmacht geldig vanaf ingangsdatum wordt correct geregistreerd: >-
+    Une procuration valable à partir de sa date de prise d'effet est correctement enregistrée
+  Volmacht met toekomstige einddatum is nog actief: Une procuration avec une date de fin future est encore active
+  Voltooide WSNP met schone lei - bewindvoerder heeft geen actieve delegaties meer: >-
+    WSNP achevée avec effacement des dettes - l'administrateur n'a plus de délégations actives
+  Voogd heeft delegatie: Le tuteur a une délégation
+  Voor het leven benoemde ambtenaar bij de Raad van State blijft uitgezonderd (lid 3 terug-uitzondering): >-
+    Un fonctionnaire nommé à vie au Raad van State reste exclu (contre-exception de l'alinéa 3)
+  Voorzitter van Vereniging heeft delegatie: Le président d'une association a une délégation
+  Vreemdeling zonder EU-, permanente of nareis-vergunning en zonder AMvB-gelijkstelling heeft geen recht: >-
+    Un étranger sans titre de séjour UE, permanent ou de regroupement familial et sans assimilation par AMvB n'a pas de droit
+  Vreemdelingenzaak loopt via de rechtbank als categorie, niet als vaste naam: >-
+    Une affaire d'étrangers passe par le tribunal en tant que catégorie, non en tant que nom fixe
+  WGBO Vertegenwoordiger (BW 7:465): Représentant WGBO (BW 7:465)
+  WGBO vertegenwoordiger krijgt volledige medische beslissingsrechten: >-
+    Le représentant WGBO reçoit tous les droits de décision médicale
+  WPM Rapportageverplichting: Obligation de déclaration WPM
+  WSNP beeindigd zonder schone lei: WSNP terminée sans effacement des dettes
+  WSNP bewindvoerder heeft actieve schuldsanering: L'administrateur WSNP gère un assainissement de dettes actif
+  WSNP bewindvoerder heeft correcte rechten voor boedelbeheer: >-
+    L'administrateur WSNP a les bons droits pour la gestion de la masse
+  WSNP met einddatum in de toekomst is nog actief: Une WSNP avec une date de fin future est encore active
+  WSNP standaardduur van 18 maanden: Durée standard de la WSNP de 18 mois
+  Wapensysteem defensie van €20 miljoen valt niet onder adviesplicht: >-
+    Un système d'armes de la défense de 20 millions d'euros n'est pas soumis à l'obligation d'avis
+  Waterschap is bestuursorgaan (A-orgaan): Le waterschap est une autorité administrative (A-orgaan)
+  Weigering wegens onvoldoende beveiliging (art. 15b lid 1 onder c): >-
+    Refus pour sécurité insuffisante (art. 15b, alinéa 1, point c)
+  Werknemer boven AOW-leeftijd krijgt geen WW: Un salarié ayant dépassé l'âge AOW ne reçoit pas de WW
+  Werknemer met hoog inkomen - aftopping op maximum bijdrage-inkomen: >-
+    Salarié à revenu élevé - plafonnement au revenu de cotisation maximal
+  Werknemer met hoog tarief (werkgeversheffing): Salarié au taux élevé (prélèvement employeur)
+  Werknemer met inkomen boven maximum: Salarié dont le revenu dépasse le maximum
+  Werknemer met inkomen net onder maximum: Salarié dont le revenu est juste sous le maximum
+  Werknemer met inkomen precies op maximum: Salarié dont le revenu est exactement au maximum
+  Werknemer met laag inkomen (minimumloon): Salarié à faible revenu (salaire minimum)
+  Werknemer met modaal inkomen - volledige berekening: Salarié au revenu modal - calcul complet
+  Werknemer met nul inkomen: Salarié sans revenu
+  Werknemer met te weinig arbeidsverleden krijgt geen WW: Un salarié sans passé professionnel suffisant ne reçoit pas de WW
+  Werknemer met voldoende arbeidsverleden krijgt WW: Un salarié avec un passé professionnel suffisant reçoit la WW
+  Werknemer met zeer hoog inkomen - maximale werkgeversbijdrage: Salarié à revenu très élevé - cotisation patronale maximale
+  Werknemer met ziektewet krijgt geen WW: Un salarié qui perçoit une prestation Ziektewet ne reçoit pas de WW
+  Werknemer parttime - proportioneel inkomen: Salarié à temps partiel - revenu proportionnel
+  Wetgevende macht is geen bestuursorgaan (lid 2 onder a): >-
+    Le pouvoir législatif n'est pas une autorité administrative (alinéa 2, point a)
+  Wie in de maand van de rekendatum 18 wordt, telt pas de maand erna mee: >-
+    Qui atteint 18 ans dans le mois de la date de calcul ne compte qu'à partir du mois suivant
+  Wie in de maand voor de rekendatum 18 werd, telt mee: Qui a eu 18 ans dans le mois précédant la date de calcul compte
+  Wijn boven 8,5%vol valt onder het hoge tarief van artikel 10: >-
+    Le vin de plus de 8,5%vol relève du taux élevé de l'article 10
+  Wijn tot en met 8,5%vol valt onder het lage tarief van artikel 10: >-
+    Le vin jusqu'à 8,5%vol inclus relève du taux réduit de l'article 10
+  Woonfunctie op het BAG-adres is uitgezonderd van de energiebesparingsplicht: >-
+    Une fonction résidentielle à l'adresse BAG est exemptée de l'obligation d'économie d'énergie
+  ZBO met publieke bevoegdheid is bestuursorgaan (B-orgaan): >-
+    Un ZBO investi d'un pouvoir public est une autorité administrative (B-orgaan)
+  ZZP-er met laag inkomen krijgt aanvullende bijstand en startkapitaal: >-
+    Un indépendant sans salariés (ZZP) à faible revenu reçoit une aide sociale complémentaire et un capital de démarrage
+  ZZP-er met voldoende inkomen krijgt geen bijstand: >-
+    Un indépendant sans salariés (ZZP) au revenu suffisant ne reçoit pas d'aide sociale
+  Zeer hoge financiële zekerheid maar geen plannen: Garantie financière très élevée mais pas de plans
+  Zeer lage stralingsdosis (optimalisatie): Très faible dose de rayonnement (optimisation)
+  Zelfstandige zonder werkgever: Indépendant sans employeur
+  Zorgtoeslag vanaf de maand na de achttiende verjaardag: >-
+    Allocation de soins de santé à partir du mois suivant le dix-huitième anniversaire
+  Zorgverzekeringswet - Inkomensafhankelijke bijdrage: Zorgverzekeringswet - Cotisation liée au revenu
+  Zus is WGBO vertegenwoordiger voor wilsonbekwame broer: >-
+    La sœur est représentante WGBO de son frère hors d'état d'exprimer sa volonté
+  Zwak bier valt terug op het minimumbedrag: La bière légère retombe sur le montant minimum

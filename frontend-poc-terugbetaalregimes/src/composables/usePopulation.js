@@ -19,7 +19,7 @@ import { generatePopulation } from '../sim/population.js';
 import { aggregate } from '../sim/metrics.js';
 import { useLawStore, kortTitel } from '../engine/lawStore.js';
 import { usePopulatieAannames } from './usePopulatieAannames.js';
-import { bewaardeRef } from './useBewaardeStand.js';
+import { persistedRef } from './useBewaardeStand.js';
 import { b } from '../basePad.js';
 
 const { baseLawYamls, lawYamlsFor, version, variants, werkversie, werkversieLabel } = useLawStore();
@@ -33,10 +33,10 @@ export const MAX_VARIANTEN = 3;
 // ---- Instellingen ----------------------------------------------------------
 // Bewaard, zodat een ververs je keuzes niet wegvaagt. De uitkomsten hieronder
 // niet: die zijn afgeleid en worden opnieuw berekend.
-const n = bewaardeRef('populatie.n', 500); // elke debiteur loopt tot 35 jaar door de wet; 500 records rekenen in een halve minuut
-const seed = bewaardeRef('populatie.seed', 42);
-const autoRecompute = bewaardeRef('populatie.auto', true);
-const selectedVariants = bewaardeRef('kolommen', []); // variant-id's die als kolom naast huidig recht staan
+const n = persistedRef('populatie.n', 500); // elke debiteur loopt tot 35 jaar door de wet; 500 records rekenen in een halve minuut
+const seed = persistedRef('populatie.seed', 42);
+const autoRecompute = persistedRef('populatie.auto', true);
+const selectedVariants = persistedRef('kolommen', []); // variant-id's die als kolom naast huidig recht staan
 
 // ---- Toestand --------------------------------------------------------------
 const records = shallowRef([]);
@@ -164,6 +164,8 @@ const handelingenGewijzigd = computed(
 );
 
 function stelMinutenIn(id, minuten) {
+  // An emptied number field reports null; Number(null) would store 0 minutes.
+  if (minuten === null || minuten === undefined || minuten === '') return;
   const n = Number(minuten);
   if (!Number.isFinite(n) || n < 0) return;
   handelingenOverrides.minuten[id] = n;

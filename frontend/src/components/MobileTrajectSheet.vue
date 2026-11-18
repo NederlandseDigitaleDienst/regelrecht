@@ -1,11 +1,15 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue';
+import { storeToRefs } from 'pinia';
 import { useRoute, useRouter } from 'vue-router';
-import { useTrajects } from '../composables/useTrajects.js';
-import { useAuth } from '../composables/useAuth.js';
-import { useLoginToChooser } from '../composables/useLoginToChooser.js';
-import { homeTarget, trajectSwitchTarget } from '../composables/useLastVisitedRoute.js';
-import { useAppChrome } from '../composables/useAppChrome.js';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import { useTrajectsStore } from '../stores/trajects';
+import type { TrajectSummary } from '../stores/trajects';
+import type { OpenTab } from '../lib/openTabsStorage';
+import { useAuth } from '../composables/useAuth';
+import { useLoginToChooser } from '../composables/useLoginToChooser';
+import { homeTarget, trajectSwitchTarget } from '../composables/useLastVisitedRoute';
+import { useAppChromeStore } from '../stores/appChrome';
 import TrajectCreateForm from './TrajectCreateForm.vue';
 
 // Mobiele (sm) samenvoeging van de traject-knop en de artikel-tabbladen-knop:
@@ -13,9 +17,11 @@ import TrajectCreateForm from './TrajectCreateForm.vue';
 // menu-acties + traject-switcher + nieuw traject) en - in de editor - een
 // "Artikelen"-lijst (de open tabbladen). md/lg houden TrajectMenu + de
 // document-tab-bar. Hergebruikt dezelfde composables/handlers als TrajectMenu.
-const { trajects, activeTrajectRef, activeTraject, loading, createTraject } = useTrajects();
+const trajectsStore = useTrajectsStore();
+const { trajects, activeTrajectRef, activeTraject, loading } = storeToRefs(trajectsStore);
+const { createTraject } = trajectsStore;
 const { authenticated } = useAuth();
-const { documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions } = useAppChrome();
+const { documentTabs, activeDocumentTab, documentTabsTrajectRef, tabActions } = storeToRefs(useAppChromeStore());
 const route = useRoute();
 const router = useRouter();
 
@@ -23,10 +29,10 @@ const router = useRouter();
 // section + law/article (shared composable, see also TrajectMenu).
 const loginToChooser = useLoginToChooser();
 
-const sheetEl = ref(null);
-const sheetMode = ref('list'); // 'list' | 'create'
+const sheetEl = ref<NLDDSheet | null>(null);
+const sheetMode = ref<'list' | 'create'>('list'); // 'list' | 'create'
 
-// Editor = de editor-view publiceert open tabbladen via useAppChrome.
+// In the editor, the editor view publishes its open tabs through the chrome store.
 const hasArticles = computed(() => documentTabs.value.length > 0 && !!tabActions.value);
 
 // --- Knoptekst: in de editor het actieve artikel · wet, met het traject als
@@ -34,7 +40,8 @@ const hasArticles = computed(() => documentTabs.value.length > 0 && !!tabActions
 const buttonText = computed(() => {
   const tab = activeDocumentTab.value;
   if (tab && tabActions.value) {
-    return `Artikel ${tab.articleNumber} · ${tabActions.value.displayName(tab)}`;
+    const label = tabActions.value.label(tab);
+    return `${label.text} · ${label.supportingText}`;
   }
   if (activeTraject.value) return activeTraject.value.name;
   if (menuLoading.value) return 'Trajecten';
@@ -58,15 +65,15 @@ const sheetTitle = computed(() => {
   return 'Trajecten';
 });
 
-function openSheet() {
+function openSheet(): void {
   sheetMode.value = 'list';
   sheetEl.value?.show();
 }
-function closeSheet() {
+function closeSheet(): void {
   sheetEl.value?.hide();
 }
 // Reset naar de lijst zodat een volgende opening niet in create-modus blijft.
-function onSheetClose() {
+function onSheetClose(): void {
   sheetMode.value = 'list';
 }
 
@@ -76,13 +83,13 @@ function onSheetClose() {
 // geen document proberen te openen dat daar niet bestaat. De editor toont de
 // eigen opgeslagen tabbladen van het nieuwe traject in de balk zonder er een te
 // openen. Zie trajectSwitchTarget.
-async function goToTraject(trajectRef) {
+async function goToTraject(trajectRef: string): Promise<void> {
   await router.push(trajectSwitchTarget(route.name, trajectRef));
 }
 
 // Switch to the traject-less global corpus ("Corpus juris") - a peer of the
 // trajecten in the switcher. Closes the sheet and carries the open law.
-function goToCorpusJuris() {
+function goToCorpusJuris(): void {
   closeSheet();
   if (!activeTrajectRef.value) return; // already on Corpus juris
   router.push(homeTarget({
@@ -91,7 +98,7 @@ function goToCorpusJuris() {
   }));
 }
 
-async function selectTraject(t) {
+async function selectTraject(t: TrajectSummary): Promise<void> {
   if (!t.ref) {
     console.warn('MobileTrajectSheet: traject has no ref', t);
     return;
@@ -102,14 +109,14 @@ async function selectTraject(t) {
 }
 
 // --- Traject-acties (sluiten dan openen - geen sheet-over-sheet) ---
-function openDocuments() {
+function openDocuments(): void {
   closeSheet();
   if (activeTrajectRef.value) {
     router.push({ name: 'werkdocumenten-traject', params: { trajectRef: activeTrajectRef.value } });
   }
 }
 
-function openTaken() {
+function openTaken(): void {
   closeSheet();
   if (activeTrajectRef.value) {
     router.push({ name: 'taken-traject', params: { trajectRef: activeTrajectRef.value } });
@@ -117,32 +124,35 @@ function openTaken() {
 }
 
 // Open the active traject's settings (details / leden) in Home.
-function goToInstellingen(tab) {
+// The template calls it without a tab, which opens the settings' default tab.
+function goToInstellingen(tab?: string): void {
   closeSheet();
   if (!activeTrajectRef.value) return;
   router.push({ name: 'instellingen-traject', params: { trajectRef: activeTrajectRef.value, tab } });
 }
 
 // --- Nieuw traject: het gedeelde formulier in dezelfde sheet ---
-const createFormEl = ref(null);
+const createFormEl = ref<InstanceType<typeof TrajectCreateForm> | null>(null);
 const createBusy = ref(false);
-const createError = ref(null);
-async function startCreate() {
+const createError = ref<string | null>(null);
+async function startCreate(): Promise<void> {
   createError.value = null;
   sheetMode.value = 'create';
   await nextTick();
   createFormEl.value?.reset();
 }
-async function submitCreate() {
+async function submitCreate(): Promise<void> {
   createError.value = null;
-  const { payload, error } = createFormEl.value.buildPayload();
+  // The form emits `submit` itself, so it is mounted.
+  const { payload, error } = createFormEl.value!.buildPayload();
   if (error) {
     createError.value = error;
     return;
   }
   createBusy.value = true;
   try {
-    const created = await createTraject(payload);
+    // buildPayload returns a payload whenever it returns no error.
+    const created = await createTraject(payload!);
     if (!created.ref) {
       // A half-filled summary would navigate to /editor/undefined; surface it
       // and keep the sheet open instead of silently closing after a real
@@ -155,37 +165,42 @@ async function submitCreate() {
     closeSheet();
     await goToTraject(created.ref);
   } catch (e) {
-    createError.value = e.message || 'Aanmaken mislukt';
+    createError.value = (e as Error).message || 'Aanmaken mislukt';
   } finally {
     createBusy.value = false;
   }
 }
 
 // --- Artikelen (open tabbladen), zelfde acties als de oude DocumentTabsSheet ---
-function tabText(tab) {
-  return `Artikel ${tab.articleNumber}`;
+function tabText(tab: OpenTab): string {
+  return tabActions.value?.label(tab).text ?? '';
 }
-function tabSupporting(tab) {
-  return tabActions.value?.displayName(tab);
+function tabSupporting(tab: OpenTab): string | undefined {
+  return tabActions.value?.label(tab).supportingText;
 }
-function isActiveTab(tab) {
+function tabUnsaved(tab: OpenTab): boolean {
+  return !!tabActions.value?.label(tab).unsaved;
+}
+function isActiveTab(tab: OpenTab): boolean {
   const active = activeDocumentTab.value;
   return !!(active && tabActions.value && tabActions.value.key(active) === tabActions.value.key(tab));
 }
-function selectTab(tab) {
+function selectTab(tab: OpenTab): void {
   closeSheet();
-  tabActions.value?.select(tab);
+  // The sheet shows the active tab from the editor's state, so a switch the
+  // editor refuses (unsaved edits the user kept) needs nothing put back here.
+  void tabActions.value?.select(tab);
 }
-function closeTab(tab) {
-  tabActions.value?.close(tab);
+function closeTab(tab: OpenTab): void {
+  void tabActions.value?.close(tab);
 }
 // Reorder is tijdelijk uitgeschakeld op sm (drag-bugs). De editor exposeert
 // `tabActions.reorder` nog, dus opnieuw inschakelen = `reorderable`
-// @nldd-reorder + de drag-handle-cells terugzetten op de Artikelen-lijst.
+// @reorder + de reorder-handle-cells terugzetten op de Artikelen-lijst.
 
 // Sluit de sheet zodra het scherm groter dan sm wordt (md+ heeft eigen chrome).
-let breakpointQuery = null;
-function onBreakpointChange(e) {
+let breakpointQuery: MediaQueryList | null = null;
+function onBreakpointChange(e: MediaQueryListEvent): void {
   if (e.matches) closeSheet();
 }
 onMounted(() => {
@@ -276,7 +291,7 @@ onBeforeUnmount(() => {
                sheet header. -->
           <template v-if="activeTraject">
             <nldd-spacer size="24"></nldd-spacer>
-            <nldd-title size="5"><h2>Trajecten</h2></nldd-title>
+            <nldd-title size="display-5"><h2>Trajecten</h2></nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
           </template>
           <nldd-list appearance="box-tinted">
@@ -317,14 +332,15 @@ onBeforeUnmount(() => {
 
           <!-- Lijst 2: Artikelen (editor met open tabbladen). Reorder staat
                tijdelijk uit op sm - eerst nog wat drag-bugs oplossen. -->
+          <!-- hasArticles implies tabActions is set, hence the `!` below. -->
           <template v-if="hasArticles">
             <nldd-spacer size="24"></nldd-spacer>
-            <nldd-title size="5"><h2>Artikelen</h2></nldd-title>
+            <nldd-title size="display-5"><h2>Artikelen</h2></nldd-title>
             <nldd-spacer size="8"></nldd-spacer>
             <nldd-list appearance="box-tinted">
               <nldd-list-item
                 v-for="tab in documentTabs"
-                :key="`${documentTabsTrajectRef ?? ''}:${tabActions.key(tab)}`"
+                :key="`${documentTabsTrajectRef ?? ''}:${tabActions!.key(tab)}`"
                 size="md"
                 button
                 :current="isActiveTab(tab) || undefined"
@@ -335,6 +351,9 @@ onBeforeUnmount(() => {
                 <nldd-spacer-cell v-else size="20"></nldd-spacer-cell>
                 <nldd-spacer-cell size="8"></nldd-spacer-cell>
                 <nldd-text-cell :text="tabText(tab)" :supporting-text="tabSupporting(tab)"></nldd-text-cell>
+                <nldd-cell v-if="tabUnsaved(tab)" width="fit-content">
+                  <nldd-tag size="sm" color="warning" text="Niet opgeslagen"></nldd-tag>
+                </nldd-cell>
                 <nldd-spacer-cell size="8"></nldd-spacer-cell>
                 <nldd-cell>
                   <nldd-icon-button

@@ -29,7 +29,7 @@ function verseOpslag() {
 async function laadOpslag() {
   vi.resetModules();
   const stand = await import('../src/composables/useBewaardeStand.js');
-  return { stand, varianten: await import('@regelrecht/frontend-shared/browserVarianten.js') };
+  return { stand, varianten: await import('@regelrecht/frontend-shared/browserVariants') };
 }
 
 describe('een zelf bewaarde variant', () => {
@@ -52,9 +52,9 @@ describe('een zelf bewaarde variant', () => {
     const bewerkt = patchDefinitionValue(basisYaml, '6.10', 'voet_ratio_overig_sf35', 1.2);
     expect(bewerkt).not.toBe(basisYaml);
 
-    const variant = varianten.bewaarVariant({
-      titel: 'Voet naar 120%',
-      bestanden: [{ pad: LAW_PATH, yaml: bewerkt, origineel: basisYaml }],
+    const variant = varianten.saveVariant({
+      title: 'Voet naar 120%',
+      files: [{ path: LAW_PATH, yaml: bewerkt, original: basisYaml }],
     });
 
     // Wat de lawStore doet bij het activeren: de bewaarde tekst over de basis
@@ -76,24 +76,24 @@ describe('een zelf bewaarde variant', () => {
     const { varianten } = await laadOpslag();
     const basisYaml = 'articles: []\n';
 
-    const v = varianten.bewaarVariant({
-      titel: 'Met uitgangspunt',
-      bestanden: [{ pad: LAW_PATH, yaml: 'articles: [{}]\n', origineel: basisYaml }],
+    const v = varianten.saveVariant({
+      title: 'Met uitgangspunt',
+      files: [{ path: LAW_PATH, yaml: 'articles: [{}]\n', original: basisYaml }],
     });
 
-    expect(varianten.controleerDrift(v.id, () => basisYaml).afgedreven).toBe(false);
-    expect(varianten.controleerDrift(v.id, () => 'articles: [{iets: anders}]\n').afgedreven).toBe(true);
+    expect(varianten.checkDrift(v.id, () => basisYaml).drifted).toBe(false);
+    expect(varianten.checkDrift(v.id, () => 'articles: [{iets: anders}]\n').drifted).toBe(true);
   });
 
   it('overleeft een ververs met zijn YAML erin', async () => {
     const eerste = await laadOpslag();
-    eerste.varianten.bewaarVariant({
-      titel: 'Blijft',
-      bestanden: [{ pad: LAW_PATH, yaml: 'articles: []\n', origineel: 'articles: []\n' }],
+    eerste.varianten.saveVariant({
+      title: 'Blijft',
+      files: [{ path: LAW_PATH, yaml: 'articles: []\n', original: 'articles: []\n' }],
     });
 
     const opnieuw = await laadOpslag();
-    const [v] = opnieuw.varianten.browserVarianten();
+    const [v] = opnieuw.varianten.browserVariants();
 
     expect(v).toBeTruthy();
     expect(opnieuw.varianten.browserVariantYaml(v.id, LAW_PATH)).toBe('articles: []\n');

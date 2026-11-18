@@ -1,11 +1,12 @@
-<script setup>
+<script setup lang="ts">
 import { computed, onActivated, onMounted, watch } from 'vue';
-import { deckFor, usePresentation } from '../presentation/usePresentation.js';
-import { useDemo } from '../store/demoStore.js';
+import { deckFor, usePresentation } from '../presentation/usePresentation';
+import { useDemo } from '../store/demoStore';
 import { useI18n } from '../i18n/index.js';
 import { useRouter } from 'vue-router';
-import { localeRouteName } from '../router.js';
-import { useWalkthrough } from '../walkthrough/useWalkthrough.js';
+import { localeRouteName } from '../router';
+import type { SlideConfig } from '../data/loadCorpus';
+import { useWalkthrough } from '../walkthrough/useWalkthrough';
 
 // The Presentatie tab starts the deck. The deck itself is an overlay
 // (PresentationDeck.vue, mounted by App.vue) that covers the screen for the
@@ -50,7 +51,7 @@ watch(ready, startWhenReady);
 // Een dia zonder eigen soort is er een die de demo opent; die heet naar de demo
 // zelf, dezelfde sleutel als het menu in de werkbalk.
 const SLIDE_KINDS = new Set(['title', 'statement', 'closing', 'section']);
-function kindLabel(s) {
+function kindLabel(s: SlideConfig) {
   return SLIDE_KINDS.has(s.kind) ? t(`home.presentation.kind.${s.kind}`) : t('app.demo.label');
 }
 </script>
@@ -58,7 +59,7 @@ function kindLabel(s) {
 <template>
   <nldd-page>
     <nldd-simple-section width="720px">
-      <nldd-title slot="header" size="2">
+      <nldd-title slot="header" size="display-2">
         <span slot="overline">{{ t('home.presentation.overline') }}</span>
         <h1>{{ t('home.presentation.title') }}</h1>
         <span slot="supporting-text">{{ t('home.presentation.subtitle') }}</span>
@@ -72,10 +73,10 @@ function kindLabel(s) {
            zonder presentator (de opgenomen rondleiding). Los op een rij
            stonden ze door elkaar, en "Zelfstandig" naast "rondleiding" las als
            hetzelfde. -->
-      <nldd-collection layout="grid" item-width="300px">
+      <nldd-collection layout="grid" item-min-width="300px">
         <nldd-card>
           <nldd-container padding="16" gap="12">
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h2>{{ t('home.presentation.how.title') }}</h2>
             </nldd-title>
             <!-- De modus bepaalt of de dia's náást de demo blijven staan. In de
@@ -91,7 +92,7 @@ function kindLabel(s) {
               <nldd-segmented-control-item value="zaal" :text="t('home.presentation.mode.zaal')"></nldd-segmented-control-item>
               <nldd-segmented-control-item value="zelfstandig" :text="t('home.presentation.mode.zelfstandig')"></nldd-segmented-control-item>
             </nldd-segmented-control>
-            <nldd-rich-text size="sm" spacing="tight">
+            <nldd-rich-text spacing="tight">
               <p v-html="modeHelp"></p>
               <p v-html="keyHelp"></p>
             </nldd-rich-text>
@@ -101,10 +102,10 @@ function kindLabel(s) {
              versie, met stem. Alleen als deze build er een heeft. -->
         <nldd-card v-if="walkthrough">
           <nldd-container padding="16" gap="12">
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h2>{{ t('home.presentation.watch.title') }}</h2>
             </nldd-title>
-            <nldd-rich-text size="sm" spacing="tight">
+            <nldd-rich-text spacing="tight">
               <p>{{ t('home.presentation.watch.text') }}</p>
             </nldd-rich-text>
             <nldd-button appearance="secondary" start-icon="video-camera" :text="t('home.presentation.walkthrough')" @click="openWalkthrough"></nldd-button>
@@ -112,7 +113,7 @@ function kindLabel(s) {
         </nldd-card>
       </nldd-collection>
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="4">
+      <nldd-title size="display-4">
         <h2>{{ t('home.presentation.slides.label') }}</h2>
         <span slot="supporting-text">{{ t('home.presentation.slides.hint') }}</span>
       </nldd-title>

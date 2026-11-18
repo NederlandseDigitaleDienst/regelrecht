@@ -2,7 +2,7 @@
   <nldd-page>
     <nldd-simple-section>
       <div class="intro-kop">
-        <nldd-title :size="1">
+        <nldd-title heading-level="1" size="display-1">
           <span slot="overline">Voor burgers</span>
           <span>Jouw studieschuld</span>
         </nldd-title>
@@ -61,7 +61,7 @@
 
       <!-- Wat je zou kunnen aanpassen; niets doen is er altijd één van -->
       <nldd-simple-section background="tinted">
-        <nldd-title :size="3">
+        <nldd-title heading-level="2" size="display-3">
           <span>Dit zou je kunnen aanpassen</span>
           <span slot="supporting-text">
             Je hoeft niets te doen. Laat je alles staan, dan blijft het bedrag hierboven gelden. Zet hieronder iets
@@ -156,7 +156,7 @@
 
       <!-- De uitkomst staat niet op zichzelf -->
       <nldd-simple-section>
-        <nldd-title :size="3">
+        <nldd-title heading-level="2" size="display-3">
           <span>Wat dit nog meer raakt</span>
           <span slot="supporting-text">Andere regelingen kijken naar hetzelfde inkomen.</span>
         </nldd-title>
@@ -201,8 +201,9 @@ import InkomenWatAls from '../components/burger/InkomenWatAls.vue';
 import ToeslagenSignaal from '../components/burger/ToeslagenSignaal.vue';
 import RegimeTabel from '../components/burger/RegimeTabel.vue';
 import { euro } from '../lib/format.js';
-import { bewaarStand, leesStand } from '../composables/useBewaardeStand.js';
-import { heroOnderregel } from '../lib/burgerTekst.js';
+import { writePersisted, readPersisted } from '../composables/useBewaardeStand.js';
+import { budgetSignaal, heroOnderregel } from '../lib/burgerTekst.js';
+import { isPersonaWissel, keuzesBijBinnenkomst } from '../lib/personaKeuze.js';
 
 const { ready, initError, lawIndex, initEngine } = useEngine();
 const { initStore, version, werkversie, werkversieLabel, changeCount } = useLawStore();
@@ -223,7 +224,7 @@ onMounted(async () => {
     // Was je vorige keer iemand anders, dan kom je daar weer terug, inclusief
     // de keuzes die je toen had aangezet.
     if (!selected.value && personas.value.length) {
-      const bewaardBsn = leesStand('burger.bsn', null);
+      const bewaardBsn = readPersisted('burger.bsn', null);
       const eerder = bewaardBsn && personas.value.find((p) => p.bsn === bewaardBsn);
       selectPersona(eerder ?? personas.value[0]);
     }
@@ -233,18 +234,15 @@ onMounted(async () => {
 });
 
 function selectPersona(persona) {
-  if (!persona) return;
-  // De persona-switcher stuurt ook een select-event bij het synchroniseren van
-  // de dropdown, dus zonder deze controle zou elke render de keuzes wissen.
-  // Alleen een échte wissel telt als "nieuwe situatie".
-  if (selected.value?.bsn === persona.bsn) return;
+  // Alleen een échte wissel telt als "nieuwe situatie" (zie isPersonaWissel).
+  if (!isPersonaWissel(selected.value, persona)) return;
 
   selected.value = persona;
-  bewaarStand('burger.bsn', persona.bsn ?? null);
+  writePersisted('burger.bsn', persona.bsn ?? null);
   // Keuzes die je eerder bij deze persoon aanzette komen terug; bij iemand
   // anders begin je met diens eigen uitgangspunt.
-  const bewaard = leesStand(`burger.keuzes.${persona.bsn}`, null);
-  choices.value = { ...defaultChoices(persona), ...(bewaard ?? {}) };
+  const bewaard = readPersisted(`burger.keuzes.${persona.bsn}`, null);
+  choices.value = keuzesBijBinnenkomst(defaultChoices(persona), bewaard);
 }
 
 /**
@@ -306,23 +304,7 @@ const signaal = computed(() => {
     }
   }
 
-  if (t0.betalingsprobleem) {
-    // Capaciteit nul betekent: na de vaste lasten volgens het
-    // Nibud-referentiebudget blijft er niets over. Dan helpt "kijk of je
-    // minder kunt betalen" niet, want ook een lager bedrag knelt. Bij een
-    // bedrag van een paar euro is die tekst bovendien ongeloofwaardig.
-    if (!t0.afloscapaciteit) {
-      return {
-        variant: 'warning',
-        tekst: `Je inkomen is te laag voor de vaste lasten die het Nibud voor jouw huishouden rekent. Ook ${euro(t0.maandbedrag)} per maand is dan lastig. Kom je er niet uit, neem dan contact op met DUO of met schuldhulpverlening in je gemeente.`,
-      };
-    }
-    return {
-      variant: 'warning',
-      tekst: `Dit maandbedrag ligt boven wat je volgens het Nibud kunt missen (ongeveer ${euro(t0.afloscapaciteit)} per maand). Kijk bij je keuzes of je minder kunt betalen.`,
-    };
-  }
-  return null;
+  return budgetSignaal(t0);
 });
 
 /** Wat de burger heeft aangezet, in de woorden van de wet ("een aanvraag indienen"). */
@@ -390,7 +372,7 @@ const verstuurTekst = computed(() => {
 
 function onChoiceUpdate(newChoices) {
   choices.value = newChoices;
-  if (selected.value) bewaarStand(`burger.keuzes.${selected.value.bsn}`, newChoices);
+  if (selected.value) writePersisted(`burger.keuzes.${selected.value.bsn}`, newChoices);
   aanvraagOpen.value = false; // een nieuwe keuze vraagt om een nieuwe bevestiging
 }
 

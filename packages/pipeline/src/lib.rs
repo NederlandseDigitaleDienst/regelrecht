@@ -28,6 +28,13 @@
 //! - `traject_harvest`: schrijft in een werkdirectory en ketent een
 //!   taak-flow-enrich — raakt zelf geen traject-repo aan.
 
+pub(crate) mod agent;
+pub mod agent_activity;
+// Two attributes rather than `all(test, unix)`, as in `enrich.rs`: cargo-mutants
+// skips a module marked with a plain `#[cfg(test)]`.
+#[cfg(test)]
+#[cfg(unix)]
+mod agent_stream_fixtures;
 pub mod api;
 mod api_state;
 pub mod config;
@@ -50,17 +57,18 @@ pub mod tasks;
 #[cfg(feature = "test-utils")]
 pub mod test_utils;
 pub mod traject_harvest;
+pub mod traject_runs;
 pub mod untranslatables;
 pub mod worker;
 
 pub use api_state::ApiState;
 
 pub use config::{PipelineConfig, WorkerConfig};
-pub use db::{create_pool, ensure_schema, MIGRATION_LOCK_KEY};
+pub use db::{MIGRATION_LOCK_KEY, create_pool, ensure_schema};
 pub use enrich::{
-    progress_file_path, EnrichConfig, EnrichPayload, EnrichResult, EnrichmentMetadata,
+    ENRICH_PROVIDERS, EnrichConfig, EnrichPayload, EnrichResult, EnrichmentMetadata,
     EnrichmentResultEnvelope, LlmProvider, LlmRunner, ProcessLlmRunner, RelatedLegislation,
-    ENRICH_PROVIDERS,
+    progress_file_path,
 };
 pub use error::PipelineError;
 pub use harvest::{HarvestPayload, HarvestResult, MAX_HARVEST_DEPTH};

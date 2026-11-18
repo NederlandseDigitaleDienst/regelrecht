@@ -2,7 +2,7 @@
  * useColorScheme — dark/light/auto picker for the architecture explorer.
  *
  * A standalone port of the shared frontend composable
- * (`packages/frontend-shared/src/useColorScheme.js`): it owns applying the
+ * (`packages/frontend-shared/src/useColorScheme.ts`): it owns applying the
  * chosen theme to `<html data-scheme>` and persists the choice in
  * localStorage. 'auto' is encoded as the *absence* of the attribute so the
  * OS-level `prefers-color-scheme` media query takes over. The explorer is a

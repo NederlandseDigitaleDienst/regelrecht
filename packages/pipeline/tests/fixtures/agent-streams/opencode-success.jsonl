@@ -1,0 +1,15 @@
+# ASSEMBLED, NOT CAPTURED. Built from the hand-written opencode events in the
+# pipeline's unit tests (agent_activity.rs, enrich.rs), because no recorded
+# opencode/VLAM transcript exists yet. Replace it with a real one; see the
+# follow-up issue #1895. Expected values in the tests are taken
+# from these lines, so a real transcript changes the numbers, not the tests'
+# shape.
+# Two model steps: read the law, then edit it. opencode names no model and
+# writes no closing total; a call's usage is the sum of its step_finish events.
+{"type":"step_start","part":{"type":"step-start"}}
+{"type":"tool_use","part":{"type":"tool","tool":"read","state":{"status":"completed","input":{"filePath":"law.yaml"}}}}
+{"type":"step_finish","part":{"reason":"tool-calls","cost":0.0123,"tokens":{"input":40000,"output":900,"reasoning":5100,"cache":{"read":30000,"write":10}}}}
+{"type":"step_start","part":{"type":"step-start"}}
+{"type":"tool_use","part":{"type":"tool","tool":"edit","state":{"status":"completed","input":{"filePath":"law.yaml","oldString":"a","newString":"b"}}}}
+{"type":"text","part":{"text":"Done."}}
+{"type":"step_finish","part":{"reason":"stop","cost":0.002,"tokens":{"input":41000,"output":300,"reasoning":0,"cache":{"read":39000,"write":0}}}}

@@ -14,33 +14,62 @@ use chrono::NaiveDate;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-use crate::encoding;
-use crate::error::{refused, setup, Result};
+use crate::error::{Result, refused, setup};
+use regelrecht_engine::RegulationRead;
+use regelrecht_law_model::stored;
+
+/// The `kind` of an executogram: the record of a fact an article requires
+/// (RFC-051). The fact itself is named under `fact`.
+pub const EXECUTOGRAM: &str = "EXECUTOGRAM";
 
 /// A chronolexogram (`Gram` for short): one recorded application or
-/// objection, or the decision on one, as the law describes it.
+/// objection, the decision on one, or an executogram (RFC-051), as the law
+/// describes it.
 ///
 /// The chronolexogram does not repeat the law. Its establishing article and the
 /// day it was recorded name the law version in force; the provisions each field
-/// and output rest on follow from that version.
+/// and output rest on follow from that version. A submission or a decision
+/// also refers to each regulation version it was taken under, by `$id`,
+/// `valid_from` and content hash (`law_versions`), so a replay can tell that
+/// the corpus changed since.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct Gram {
     /// Its own id, a uuid v7.
     pub id: String,
     /// What the law says arises, in its own word: the kind of the
     /// submission (`produces.submission.kind`), such as `AANVRAAG` or
-    /// `BEZWAAR`, or the
+    /// `BEZWAAR`, the
     /// legal character of a decision (`produces.legal_character`), such as
-    /// `BESCHIKKING`.
+    /// `BESCHIKKING`, or [`EXECUTOGRAM`] for an executogram.
     pub kind: String,
     /// The article that establishes it or decides, `<regulation>#<article>`
-    /// (RFC-022 `grondslag`).
-    pub grondslag: String,
+    /// (RFC-022 `basis`); for an executogram, the article that requires
+    /// the fact it records (RFC-051).
+    pub basis: String,
+    /// For an executogram, the fact it records, by the name the article
+    /// gives it in `requires` (schema v0.8.7, RFC-051). Absent otherwise.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fact: Option<String>,
     /// The chronolexogram it refers to: for a decision, the application or
-    /// objection it is taken on (RFC-047, RFC-050); for an objection, the
-    /// decision it contests.
+    /// objection it is taken on (RFC-045 §7); for an objection, the
+    /// decision it contests; for the receipt of a copy, the decision of this
+    /// cell the copy concerns (RFC-053). Absent for any other executogram
+    /// (RFC-051), and for a submission that refers to a copy: that one
+    /// holds `received`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub refers_to: Option<String>,
+    /// What came in from another cell (RFC-053): for a submission that
+    /// contests a decision of another cell, the decision of which it holds
+    /// a copy; for the receipt of a copy, the chronolexogram the copy is
+    /// of. The cell keeps what it received, not a live link.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub received: Option<Received>,
+    /// For a decision taken again on a submission already decided on, the
+    /// later chronolexogram that refers to the earlier decision and lets
+    /// the cell decide again, such as the receipt of a judgment that
+    /// annulled it (RFC-053).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub after: Option<String>,
     /// The cell that recorded it (RFC-022 `recording_actor`).
     pub recording_actor: String,
     /// The day the cell recorded it.
@@ -52,32 +81,73 @@ pub struct Gram {
     /// What the application holds: the values supplied, and `null` for a
     /// field left out that can be absent, as the engine received them.
     pub fields: BTreeMap<String, Value>,
-    /// For a decision: the names of the fields that hold a finding of the
-    /// deciding authority for this case (RFC-050). A term the engine reports
-    /// only a regulation filled is not named here: the regulation decided
-    /// it, also where it gives what the authority found
-    /// (`ArticleResult::open_terms`). A term a finding also filled stays
-    /// named, as where the regulation read the finding, and so does a
-    /// finding the decision did not read. The report is read by the term's
-    /// id, across every article the decision runs.
-    #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub findings: Vec<String>,
+    // Which fields hold a finding of the deciding authority is not stored:
+    // a replay of the decision says so ([`crate::Cell::findings`]).
     /// Fields that cannot be absent and that the application left out. An
     /// incomplete application is still recorded (Awb 4:5).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub missing: Vec<String>,
-    /// What executing the establishing article gave: its own outputs and
-    /// those of the hooks on the submission, such as the last day of the
-    /// decision period (Awb 4:13).
+    /// The outputs of a decision. A submission holds none: what its article
+    /// and the hooks on it give, such as the last day of the decision period
+    /// (Awb 4:13), follows from its fields and the law of its day, and the
+    /// cell computes it when asked ([`crate::Cell::submission_outputs`]).
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub outputs: BTreeMap<String, Value>,
+    /// The regulation versions whose articles ran when the cell recorded
+    /// it, each once, and the reductions that answered it: a reference to
+    /// the law it rests on, not a copy of it. Empty for an executogram and a
+    /// receipt, which run no article, and for a record from before the cell
+    /// kept them.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub law_versions: Vec<RegulationRead>,
 }
 
 impl Gram {
-    /// The value it holds under `name`: a field, or else an output (what a
-    /// hook on a submission gave, RFC-050).
+    /// The value it holds under `name`: a field, or else an output.
     pub fn held(&self, name: &str) -> Option<&Value> {
         self.fields.get(name).or_else(|| self.outputs.get(name))
     }
+
+    /// The day of its moment, if `name` is the parameter the law names for
+    /// it (RFC-045).
+    pub fn moment_on(&self, name: &str) -> Option<NaiveDate> {
+        self.moment
+            .as_ref()
+            .filter(|m| m.parameter.as_deref() == Some(name))
+            .map(|m| m.on)
+    }
+}
+
+/// A chronolexogram of another cell, as a cell that received a copy of it
+/// names it (RFC-053).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Received {
+    /// The cell that recorded it (its `recording_actor`).
+    pub from: String,
+    /// Its id in the chronicle of that cell.
+    pub id: String,
+}
+
+/// A copy of a decision that a cell hands to another (RFC-053): the
+/// chronolexogram as the source recorded it, its decision value as the
+/// source builds it from a replay in its own cell, and what the
+/// submission it was taken on had received, if anything. Only the source
+/// makes one ([`crate::Cell::afschrift`]); the receiving cell cannot replay
+/// the decision and keeps the copy as the document it got.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct Afschrift {
+    /// The cell that made the copy, which recorded the decision.
+    pub from: String,
+    /// The decision as recorded.
+    pub gram: Gram,
+    /// Its decision value `{basis, taken_on, fields, findings,
+    /// outputs}` (RFC-045 §6).
+    pub value: Value,
+    /// The decision of another cell that the submission it was taken on
+    /// contests, as that submission received it: for a judgment, the
+    /// decision of the administrative body the appeal was against.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub about: Option<Received>,
 }
 
 /// The moment that counts for a chronolexogram, as recorded.
@@ -103,10 +173,10 @@ pub struct Chronicle {
 }
 
 /// Whether the values `gram` holds read back as engine values
-/// ([`encoding::from_json`]): a damaged decimal is an error.
+/// ([`stored::from_stored`]): a damaged decimal is an error.
 fn readable(gram: &Gram) -> Result<()> {
     for value in gram.fields.values().chain(gram.outputs.values()) {
-        encoding::from_json(value)
+        stored::from_stored(value)
             .map_err(|e| setup(format!("chronolexogram '{}': {e}", gram.id)))?;
     }
     Ok(())
@@ -145,8 +215,30 @@ impl Chronicle {
         Ok(chronicle)
     }
 
+    /// A chronicle in memory that holds `grams`, in order. They must keep
+    /// the rules of [`Chronicle::append`], and their values read back as
+    /// [`Chronicle::open`] reads them.
+    pub fn in_memory_with(grams: Vec<Gram>) -> Result<Self> {
+        let mut chronicle = Self::in_memory();
+        for gram in grams {
+            readable(&gram)?;
+            chronicle.check(&gram)?;
+            chronicle.grams.push(gram);
+        }
+        Ok(chronicle)
+    }
+
     pub fn grams(&self) -> &[Gram] {
         &self.grams
+    }
+
+    /// The same chronolexograms, in a chronicle in memory: what is appended
+    /// to the copy stays out of this chronicle and its file.
+    pub(crate) fn in_memory_copy(&self) -> Self {
+        Self {
+            path: None,
+            grams: self.grams.clone(),
+        }
     }
 
     /// Append a chronolexogram: to the file first (if there is one), then to
@@ -159,10 +251,8 @@ impl Chronicle {
         Ok(&self.grams[self.grams.len() - 1])
     }
 
-    /// Append `grams` together: all of them, or none. Such as the decision
-    /// on an objection and the new decision that takes the place of the
-    /// revoked one (RFC-050), which half written would leave a revocation
-    /// without its replacement.
+    /// Append `grams` together: all of them, or none, so a batch half
+    /// written never reaches the file.
     pub fn append_all(&mut self, grams: Vec<Gram>) -> Result<&[Gram]> {
         let before = self.grams.len();
         for gram in &grams {

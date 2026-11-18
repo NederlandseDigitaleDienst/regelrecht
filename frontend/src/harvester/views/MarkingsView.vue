@@ -1,8 +1,8 @@
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue';
-import { useMarkings } from '../composables/useMarkings.js';
-import { useMarkingClusters } from '../composables/useMarkingClusters.js';
-import { MARKING_COLUMNS, MARKING_SORT_OPTIONS } from '../constants.js';
+import { useMarkings, type Marking } from '../composables/useMarkings';
+import { useMarkingClusters, type MarkingCluster } from '../composables/useMarkingClusters';
+import { MARKING_COLUMNS, MARKING_SORT_OPTIONS } from '../constants';
 import DataTable from '../components/DataTable.vue';
 import StatusBadge from '../components/StatusBadge.vue';
 import PaginationControls from '../components/PaginationControls.vue';
@@ -24,10 +24,10 @@ const {
 } = useMarkingClusters(filterParams);
 
 // Read-only detail: no polling needed, unlike the jobs sheet.
-const selected = ref(null);
+const selected = ref<Marking | null>(null);
 const detailOpen = ref(false);
 
-function openDetail(row) {
+function openDetail(row: Marking) {
   selected.value = row;
   detailOpen.value = true;
 }
@@ -45,7 +45,7 @@ function closeDetail() {
 //
 // A cluster that names no change (`resolved_by` is nullable) can only be
 // narrowed by resolution, which is honest: there is nothing else to match on.
-function focusCluster(cluster) {
+function focusCluster(cluster: MarkingCluster) {
   // One update, one request. Two `setFilter` calls would race: each fires its
   // own un-awaited refresh, and the first would go out with only `resolution`
   // set.
@@ -60,7 +60,7 @@ function focusCluster(cluster) {
 // a different set than the rows under it until the next poll tick. A count
 // that groups something other than the visible rows is worse than no count:
 // nothing about the page looks wrong while it happens.
-function onFilterChange(key, value) {
+function onFilterChange(key: string, value: string) {
   setFilter(key, value);
   refreshClusters();
 }

@@ -20,7 +20,7 @@
     // dit script draait vóór de bundle en kan niets importeren. `index.test.js`
     // leest deze regel terug en vergelijkt hem met `LOCALES`, zodat de twee niet
     // uit elkaar kunnen lopen zonder dat er iets rood wordt.
-    var PREFIXED = [['en', '/en'], ['fy', '/fy']];
+    var PREFIXED = [['en', '/en'], ['fy', '/fy'], ['fr', '/fr']];
     try {
       var path = location.pathname;
       var here = null;
@@ -49,6 +49,6 @@
 </head>
 <body>
   <div id="app" style="height: 100%;"></div>
-  <script type="module" src="/main.js"></script>
+  <script type="module" src="/src/main.ts"></script>
 </body>
 </html>

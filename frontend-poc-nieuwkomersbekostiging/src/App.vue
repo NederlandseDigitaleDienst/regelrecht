@@ -1,5 +1,5 @@
 <template>
-  <nldd-app-view>
+  <nldd-shell>
     <div class="app-frame">
       <nldd-skip-link text="Direct naar de inhoud">
       <nldd-top-navigation-bar
@@ -41,18 +41,18 @@
       </nldd-skip-link>
       <!-- Meldingen van de assistent: hier en niet in het paneel, want op de
            andere pagina's is dat paneel niet gemonteerd. -->
-      <assistent-meldingen
-        :meldingen="meldingen"
-        :op-assistent-pagina="route.name === 'beleid'"
-        naar-label="Naar de assistent"
-        @wis="wisMelding"
-        @ga="router.push('/beleid')"
+      <assistant-notices
+        :notices="meldingen"
+        :on-assistant-page="route.name === 'beleid'"
+        go-to-label="Naar de assistent"
+        @dismiss="wisMelding"
+        @go="router.push('/beleid')"
       />
       <main id="hoofdinhoud" class="app-main" tabindex="-1">
         <router-view />
       </main>
     </div>
-  </nldd-app-view>
+  </nldd-shell>
 </template>
 
 <script setup>
@@ -61,7 +61,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { useThema } from './composables/useThema.js';
 import { b } from './basePad.js';
 import WerkversieBalk from './components/WerkversieBalk.vue';
-import AssistentMeldingen from '@regelrecht/frontend-shared/components/AssistentMeldingen.vue';
+import AssistantNotices from '@regelrecht/frontend-shared/components/AssistantNotices.vue';
 import { useAssistent } from './composables/useAssistent.js';
 
 const route = useRoute();
@@ -79,7 +79,7 @@ const themaTekst = computed(() => (thema.value === 'donker' ? 'Licht' : 'Donker'
 .app-frame {
   display: flex;
   flex-direction: column;
-  /* nldd-app-view clipt zijn inhoud (overflow hidden in de shadow DOM);
+  /* nldd-shell clipt zijn inhoud (overflow hidden in de shadow DOM);
      het kind moet zelf scrollen. Vaste hoogte + scrollende main. */
   height: 100vh;
 }

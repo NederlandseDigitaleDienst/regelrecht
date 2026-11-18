@@ -1,6 +1,6 @@
 //! Types for the article splitting system.
 
-use crate::types::{format_reference_definitions, Article, Reference};
+use crate::types::{Article, Reference, format_reference_definitions};
 
 /// Declarative specification of an element in the hierarchy.
 ///

@@ -13,6 +13,7 @@ const LANGUAGE_LINES = {
   nl: '',
   en: 'Schrijf je antwoord in het Engels (British English), in dezelfde eenvoudige stijl. Namen van wetten en organisaties blijven Nederlands.',
   fy: 'Schrijf je antwoord in het Fries (Frysk), in dezelfde eenvoudige stijl. Namen van wetten en organisaties blijven Nederlands.',
+  fr: 'Schrijf je antwoord in het Frans, in dezelfde eenvoudige stijl. Namen van wetten en organisaties blijven Nederlands.',
 };
 
 export const LOCALES = Object.keys(LANGUAGE_LINES);

@@ -1,7 +1,7 @@
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue';
-import { centsToEuros, eurosToCents } from '../utils/currency.js';
-import { isNullText } from '../utils/nullability.js';
+import { centsToEuros, eurosToCents } from '../utils/currency';
+import { isNullText } from '../utils/nullability';
 
 // Generic, datatype-driven scenario input control. Given a declared datatype
 // (and optional unit), it renders the matching NDD component and emits a
@@ -13,22 +13,33 @@ import { isNullText } from '../utils/nullability.js';
 // (engine execute + Gherkin re-serialisation) accept real JS types - so we
 // coerce to the right type on the way out. See ScenarioForm.execute() and
 // formMapper.syncEditedValues().
-const props = defineProps({
+const props = withDefaults(defineProps<{
   /** Declared datatype: string | number | boolean | amount | date */
-  type: { type: String, default: 'string' },
+  type?: string;
   /** type_spec.unit for amounts (e.g. 'eurocent' | 'euro'); null when unannotated */
-  unit: { type: String, default: null },
+  unit?: string | null;
   /** Raw stored value (string or already-typed) */
-  value: { default: '' },
+  value?: unknown;
   /** Parameter name (used as the boolean switch label) */
-  name: { type: String, default: '' },
+  name?: string;
   /** Mark the field invalid */
-  invalid: { type: Boolean, default: false },
+  invalid?: boolean;
   /** Ids of the nldd-validation-items this value fails, set as `unmet` on the control */
-  unmet: { type: String, default: undefined },
+  unmet?: string;
+}>(), {
+  type: 'string',
+  unit: null,
+  // A factory: `value` is typed `unknown`, so withDefaults wants one; Vue calls it
+  // for an untyped prop, which yields the same '' the runtime default gave.
+  value: () => '',
+  name: '',
+  invalid: false,
+  unmet: undefined,
 });
 
-const emit = defineEmits(['update']);
+const emit = defineEmits<{
+  update: [value: unknown];
+}>();
 
 // A stated absence (RFC-036): the value is the word `null`, or a JS null
 // from a typed record. It shows as the word `null`, in a text control
@@ -60,13 +71,30 @@ const displayValue = computed(() => {
   }
 });
 
-function emitNumber(detailValue) {
+function emitNumber(detailValue: unknown) {
   emit('update', detailValue === '' || detailValue == null ? '' : Number(detailValue));
 }
 
-function emitAmount(detailValue) {
+function emitAmount(detailValue: unknown) {
   if (detailValue === '' || detailValue == null) return emit('update', '');
   emit('update', isEurocent.value ? eurosToCents(detailValue) : Number(detailValue));
+}
+
+// The nldd-* fields' events, read the way the inline handlers did: a text
+// field's value from its target (falling back to a CustomEvent detail), a
+// number field's and a switch's from the detail.
+type FieldEvent = Event & { detail?: { value?: unknown; checked?: unknown } | null };
+
+function onTextInput(event: FieldEvent) {
+  emit('update', (event.target as { value?: unknown } | null)?.value ?? event.detail?.value ?? '');
+}
+
+function onDateInput(event: FieldEvent) {
+  emit('update', event.detail?.value ?? '');
+}
+
+function onSwitchChange(event: FieldEvent) {
+  emit('update', Boolean(event.detail?.checked));
 }
 </script>
 
@@ -78,7 +106,7 @@ function emitAmount(detailValue) {
     :invalid="invalid || undefined"
     :unmet="invalid ? unmet : undefined"
     value="null"
-    @input="emit('update', $event.target?.value ?? $event.detail?.value ?? '')"
+    @input="onTextInput"
   ></nldd-text-field>
 
   <!-- boolean -> switch (consistent with EditSheet's boolean control) -->
@@ -87,7 +115,7 @@ function emitAmount(detailValue) {
     :checked="displayValue ? true : undefined"
     :invalid="invalid || undefined"
     :unmet="invalid ? unmet : undefined"
-    @change="emit('update', Boolean($event.detail?.checked))"
+    @change="onSwitchChange"
   >{{ name }}</nldd-switch-field>
 
   <!-- amount -> number-field; enters euros (eurocent unit) or raw otherwise.
@@ -101,8 +129,8 @@ function emitAmount(detailValue) {
     step="0.01"
     width="full"
     hide-spin-buttons
-    @input="emitAmount($event.detail?.value)"
-    @change="emitAmount($event.detail?.value)"
+    @input="(e: FieldEvent) => emitAmount(e.detail?.value)"
+    @change="(e: FieldEvent) => emitAmount(e.detail?.value)"
   ></nldd-number-field>
 
   <!-- number -> number-field -->
@@ -113,20 +141,22 @@ function emitAmount(detailValue) {
     :unmet="invalid ? unmet : undefined"
     width="full"
     hide-spin-buttons
-    @input="emitNumber($event.detail?.value)"
-    @change="emitNumber($event.detail?.value)"
+    @input="(e: FieldEvent) => emitNumber(e.detail?.value)"
+    @change="(e: FieldEvent) => emitNumber(e.detail?.value)"
   ></nldd-number-field>
 
-  <!-- date -> native date picker via text-field -->
-  <nldd-text-field
+  <!-- date -> date-field: ISO (yyyy-mm-dd) in and out, '' while the typed
+       date is not complete. Typing fires `input`; a date picked in the
+       calendar fires only `change`, so both are handled. -->
+  <nldd-date-field
     v-else-if="type === 'date'"
-    size="md"
-    type="date"
     :invalid="invalid || undefined"
     :unmet="invalid ? unmet : undefined"
     :value="displayValue"
-    @input="emit('update', $event.target?.value ?? $event.detail?.value ?? '')"
-  ></nldd-text-field>
+    width="full"
+    @input="onDateInput"
+    @change="onDateInput"
+  ></nldd-date-field>
 
   <!-- string (fallback) -->
   <nldd-text-field
@@ -135,6 +165,6 @@ function emitAmount(detailValue) {
     :invalid="invalid || undefined"
     :unmet="invalid ? unmet : undefined"
     :value="displayValue"
-    @input="emit('update', $event.target?.value ?? $event.detail?.value ?? '')"
+    @input="onTextInput"
   ></nldd-text-field>
 </template>

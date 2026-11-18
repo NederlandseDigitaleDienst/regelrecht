@@ -1,77 +1,146 @@
-<script setup>
-import { computed, inject, ref, toRef, watch, nextTick } from 'vue';
-import { humanize } from '../utils/outputFormat.js';
-import { decisionOf } from '@regelrecht/frontend-shared/produces.js';
-import { useCorpusLaws } from '../composables/useCorpusLaws.js';
+<script setup lang="ts">
+import { isRawDefinition, type ExecutionAction, type ExecutionField, type MachineReadableSection, type RawDefinition } from '../lib/lawFormat';
+import { formatDefinitionValue } from '../lib/definitionForm';
+import { computed, inject, ref, watch, nextTick } from 'vue';
+import { humanize } from '../utils/outputFormat';
+import { decisionOf } from '@regelrecht/frontend-shared/produces';
+import type { Decision, ProducedItem } from '@regelrecht/frontend-shared/produces';
+import { useCorpus } from '../corpus';
 import BreakableName from './BreakableName.vue';
 import RowActionsMenu from './RowActionsMenu.vue';
 import MachineEmptyState from './MachineEmptyState.vue';
+import RegelRijmPane from '../regelrijm/RegelRijmPane.vue';
+import type { LinkedFragment } from '../regelrijm/regelrijmLinks';
+import type { Path } from '@regelrecht/frontend-shared/regelrijm/index';
+import { useFeatureFlagsStore } from '../stores/featureFlags';
 
-const props = defineProps({
-  article: { type: Object, default: null },
-  editable: { type: Boolean, default: false },
+// Law-format shapes (schema/latest/schema.json), only the fields read here.
+
+/** A definition written as an object, with its value and type_spec. */
+interface DefinitionObject {
+  value?: unknown;
+  type_spec?: { unit?: string } | null;
+}
+
+/** The article prop: only the fields this component reads. */
+interface MachineReadableArticle {
+  number?: string | number;
+  machine_readable?: MachineReadableSection | null;
+}
+
+type ItemSection = 'parameter' | 'input' | 'output' | 'action';
+
+/** Payload of `open-edit`: an existing item to edit, or a new one to add. */
+type OpenEditPayload =
+  | { section: 'definition'; key: string; rawDef: RawDefinition }
+  | { section: 'parameter' | 'input' | 'output'; index: number; data: ExecutionField }
+  | { section: 'add-definition' | 'add-parameter' | 'add-input' | 'add-output'; isNew: true };
+
+/** Payload of `delete`: the section plus the identity of the row. */
+type DeletePayload =
+  | { section: 'definition'; key: string }
+  | { section: ItemSection; index: number };
+
+/** A staged delete: the payload plus the label the confirmation shows. */
+type PendingDelete = DeletePayload & { label: string };
+
+/** The subset of the nldd-modal-dialog element used here; see the watcher. */
+interface ModalDialogElement extends HTMLElement {
+  show?: () => void;
+  hide?: () => void;
+}
+
+const props = withDefaults(defineProps<{
+  article?: MachineReadableArticle | null;
+  editable?: boolean;
   /** True when the in-memory machine_readable differs from the saved copy */
-  dirty: { type: Boolean, default: false },
+  dirty?: boolean;
   /** True while a save PUT is in flight */
-  saving: { type: Boolean, default: false },
+  saving?: boolean;
   /** Error from the most recent save attempt (Error instance or null) */
-  /** Active traject ref - scopes the corpus-laws lookup so display
-   *  names reflect the traject's view (including its in-progress edits). */
-  trajectRef: { type: String, default: null },
   /** Read-only context: offer a button that opens the editor so the missing
    *  machine-readable version can be created there. Ignored when `editable`,
    *  which seeds it in place instead. */
-  canCreate: { type: Boolean, default: false },
+  canCreate?: boolean;
   /** Whether an enrichment can be requested here. The run covers the whole
    *  law, not just this article, so the empty state says so. */
-  canEnrich: { type: Boolean, default: false },
+  canEnrich?: boolean;
   /** Doorgegeven aan MachineEmptyState: '' | 'login' | 'traject'. */
-  needs: { type: String, default: '' },
+  needs?: string;
   /** An enrichment for this law is already pending or processing. The empty
    *  state then reports that instead of offering the buttons again. */
-  enriching: { type: Boolean, default: false },
+  enriching?: boolean;
   /** Message from the most recent failed enrich request, shown in place of
    *  the supporting text. */
-  enrichError: { type: String, default: '' },
+  enrichError?: string;
   /** Er staat een openstaande review-taak klaar voor deze wet. */
-  reviewReady: { type: Boolean, default: false },
-  reviewArticle: { type: String, default: '' },
+  reviewReady?: boolean;
+  reviewArticle?: string;
   /** Anchor target for that button. Leave unset when the user isn't logged
    *  in, so the click gates on the login popover instead of the href. */
-  createHref: { type: String, default: undefined },
+  createHref?: string;
+  /** Show the actions as RegelRijm readings (with flag `panel.regelrijm`).
+   *  Only the editor sets it: it is the view that handles `navigate`. */
+  regelrijm?: boolean;
+  /** For the RegelRijm reading: the law the article
+   *  belongs to, so a name in the reading leads to the rule computing it. */
+  law?: Record<string, unknown> | null;
+  lawId?: string | null;
+  /** Output → fragments of the article text that linking notes tie to it. */
+  links?: ReadonlyMap<string, LinkedFragment[]>;
+}>(), {
+  article: null,
+  editable: false,
+  dirty: false,
+  saving: false,
+  canCreate: false,
+  canEnrich: false,
+  needs: '',
+  enriching: false,
+  enrichError: '',
+  reviewReady: false,
+  reviewArticle: '',
+  createHref: undefined,
+  regelrijm: false,
+  law: null,
+  lawId: null,
+  links: () => new Map(),
 });
 
-const { displayName: lawDisplayName } = useCorpusLaws(toRef(props, 'trajectRef'));
+const { displayName: lawDisplayName } = useCorpus();
 
 // Provided by AppShell; see LibraryView's "Bewerken" button.
 const onLoginTriggerPointerdown = inject('onLoginTriggerPointerdown', () => {});
 
-const emit = defineEmits([
-  'open-action',
-  'open-edit',
-  'init-mr',
+const emit = defineEmits<{
+  /** `path` selects a part of the action in the sheet. */
+  'open-action': [action: ExecutionAction, path?: Path];
+  /** RegelRijm: a name leads to the article that computes it. */
+  'navigate': [target: { lawId: string; articleNumber: string }];
+  'open-edit': [payload: OpenEditPayload];
+  'init-mr': [];
   /** Ask for a generated proposal instead of writing one by hand. */
-  'enrich',
+  'enrich': [trigger: EventTarget | null, provider?: string];
   /** Open the task list filtered to this law, while a run is pending. */
-  'view-tasks',
+  'view-tasks': [];
   /** Open review-modus voor de klaarstaande taak. */
-  'review',
+  'review': [];
   /**
    * Read-only empty state: the user wants the machine-readable version
    * created, which only the editor can do. Payload is the button element, so
    * the parent can anchor the login popover to it.
    */
-  'create-mr',
-  'add-action',
+  'create-mr': [trigger: EventTarget | null];
+  'add-action': [];
   // The Machine-pane "Opslaan" button - a real backend save of the law.
-  'save',
+  'save': [];
   /**
    * Patch a single machine_readable field in place (no backend save, just
    * marks the model dirty). Same `{ section, key, data }` shape the parent's
    * handleSave dispatches on - used for inline edits like the produces
    * dropdowns. Distinct from `save` (which is the law PUT).
    */
-  'patch',
+  'patch': [payload: { section: 'produces'; key: string; data: string | null }];
   /**
    * Delete a single item from the machine_readable. Payload shape mirrors
    * `open-edit` so the parent's `handleSave`/`handleDelete` can dispatch on
@@ -82,18 +151,20 @@ const emit = defineEmits([
    *   { section: 'output', index: 1 }
    *   { section: 'action', index: 0 }
    */
-  'delete',
-]);
+  'delete': [payload: DeletePayload];
+}>();
 
-const mr = computed(() => props.article?.machine_readable ?? null);
+const mr = computed<MachineReadableSection | null>(() => props.article?.machine_readable ?? null);
 const execution = computed(() => mr.value?.execution ?? null);
 
 const definitions = computed(() => {
   const defs = mr.value?.definitions;
   if (!defs) return [];
   return Object.entries(defs).map(([name, def]) => {
-    const val = typeof def === 'object' ? def.value : def;
-    const unit = typeof def === 'object' ? def.type_spec?.unit : undefined;
+    // A YAML-null definition (`foo: ~`) is a bare null value, not an object.
+    const isObject = def !== null && typeof def === 'object';
+    const val = isObject ? (def as DefinitionObject).value : def;
+    const unit = isObject ? (def as DefinitionObject).type_spec?.unit : undefined;
     // Per-token parts for read-only display: a list keeps its raw items
     // (each wrapped in <wbr>-breakable tokens), a scalar is the formatted
     // single value. Lets long underscore identifiers wrap instead of
@@ -108,7 +179,7 @@ const definitions = computed(() => {
 // itself, as written, or in a list (schema v0.8.1) the item with a decision
 // `type`. The fields below show and edit it; EditorView patches the same
 // item.
-const produces = computed(() => {
+const produces = computed<ProducedItem | Decision | null>(() => {
   const raw = execution.value?.produces;
   if (raw == null) return null;
   if (!Array.isArray(raw)) return raw;
@@ -130,10 +201,10 @@ const hasDecision = computed(() => {
 //
 // That is not hypothetical: RECHTSPOSITIE was added to legal_character in
 // schema v0.5.9 (RFC-038) and this list was not updated, so the editor could
-// not set it on a law for the whole of that release. Current as of v0.6.0.
+// not set it on a law for the whole of that release. Current as of v0.8.22.
 const LEGAL_CHARACTERS = [
   'BESCHIKKING', 'TOETS', 'WAARDEBEPALING', 'BESLUIT_VAN_ALGEMENE_STREKKING', 'INFORMATIEF',
-  'RECHTSPOSITIE',
+  'RECHTSPOSITIE', 'UITSPRAAK',
 ];
 const DECISION_TYPES = [
   'TOEKENNING', 'AFWIJZING', 'GOEDKEURING', 'GEEN_BESLUIT',
@@ -143,7 +214,7 @@ const DECISION_TYPES = [
 
 // Mutations live in the parent; emit a save with the produces section.
 // An empty selection clears the key (data: null).
-function updateProduces(key, value) {
+function updateProduces(key: string, value: string) {
   emit('patch', { section: 'produces', key, data: value === '' ? null : value });
 }
 
@@ -174,46 +245,42 @@ const outputs = computed(() =>
 );
 
 const actions = computed(() => execution.value?.actions ?? []);
+// Behind `panel.regelrijm` the actions come first, as RegelRijm readings: the
+// way into the article's rules, instead of a list of output names at the end.
+const featureFlags = useFeatureFlagsStore();
+const regelrijm = computed(() => props.regelrijm && featureFlags.isEnabled('panel.regelrijm'));
 
-function formatValue(val, unit) {
-  if (typeof val === 'number') {
-    if (unit === 'eurocent') {
-      return (val / 100).toLocaleString('nl-NL', { style: 'currency', currency: 'EUR' });
-    }
-    if (val > 0 && val < 1 && !unit) {
-      return (val * 100).toLocaleString('nl-NL', { maximumFractionDigits: 3 }) + '%';
-    }
-  }
-  // A list definition value (YAML sequence) renders here; String([...])
-  // joins with a bare comma ("a,b,c") which has no break opportunity and
-  // pushes the column width. Use comma + space so it can wrap.
-  if (Array.isArray(val)) return val.join(', ');
-  return String(val);
+function onProducesChange(key: string, event: Event) {
+  updateProduces(key, (event.target as HTMLSelectElement).value);
 }
 
+// Formatting follows the unit and nothing else; see lib/definitionForm.
+const formatValue = formatDefinitionValue;
+
 // structuredClone throws DataCloneError on Vue reactive proxies; YAML data is JSON-safe.
-function snapshot(value) {
-  return JSON.parse(JSON.stringify(value));
+function snapshot<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T;
 }
 
 // Open edit sheet for existing items
-function editDef(name) {
+function editDef(name: string) {
   const rawDef = mr.value?.definitions?.[name];
-  if (rawDef == null) return;
+  // `== null` is the old check; the guard only tells the type what is left.
+  if (rawDef == null || !isRawDefinition(rawDef)) return;
   emit('open-edit', { section: 'definition', key: name, rawDef: snapshot(rawDef) });
 }
 
-function editParam(index) {
+function editParam(index: number) {
   const p = execution.value?.parameters?.[index];
   if (p) emit('open-edit', { section: 'parameter', index, data: snapshot(p) });
 }
 
-function editInput(index) {
+function editInput(index: number) {
   const raw = execution.value?.input?.[index];
   if (raw) emit('open-edit', { section: 'input', index, data: snapshot(raw) });
 }
 
-function editOutput(index) {
+function editOutput(index: number) {
   const raw = execution.value?.output?.[index];
   if (raw) emit('open-edit', { section: 'output', index, data: snapshot(raw) });
 }
@@ -223,7 +290,7 @@ function editOutput(index) {
 // The parent (EditorApp) is the source of truth for machineReadable,
 // so all mutations live there. The modal-dialog confirmation is here
 // because there is no undo yet.
-const SECTION_LABELS = {
+const SECTION_LABELS: Record<DeletePayload['section'], string> = {
   definition: 'definitie',
   parameter: 'parameter',
   input: 'input',
@@ -231,8 +298,8 @@ const SECTION_LABELS = {
   action: 'actie',
 };
 
-const pendingDelete = ref(null);
-const deleteModalEl = ref(null);
+const pendingDelete = ref<PendingDelete | null>(null);
+const deleteModalEl = ref<ModalDialogElement | null>(null);
 const pendingSectionLabel = computed(
   () => (pendingDelete.value ? SECTION_LABELS[pendingDelete.value.section] ?? '' : ''),
 );
@@ -251,26 +318,26 @@ watch(pendingDelete, async (val) => {
   }
 });
 
-function deleteDef(name) {
+function deleteDef(name: string) {
   pendingDelete.value = { section: 'definition', key: name, label: `definitie '${name}'` };
 }
 
-function deleteParam(index) {
+function deleteParam(index: number) {
   const p = parameters.value[index];
   pendingDelete.value = { section: 'parameter', index, label: `parameter '${p?.name ?? index}'` };
 }
 
-function deleteInput(index) {
+function deleteInput(index: number) {
   const i = inputs.value[index];
   pendingDelete.value = { section: 'input', index, label: `input '${i?.name ?? index}'` };
 }
 
-function deleteOutput(index) {
+function deleteOutput(index: number) {
   const o = outputs.value[index];
   pendingDelete.value = { section: 'output', index, label: `output '${o?.name ?? index}'` };
 }
 
-function deleteAction(index) {
+function deleteAction(index: number) {
   const a = actions.value[index];
   pendingDelete.value = { section: 'action', index, label: `actie '${a?.output ?? index}'` };
 }
@@ -326,7 +393,7 @@ function addOutput() {
     :can-create="canCreate"
     :create-href="createHref"
     :enrich-error="enrichError"
-    @enrich="emit('enrich', $event)"
+    @enrich="(trigger: EventTarget | null, provider?: string) => emit('enrich', trigger, provider)"
     @write="emit('init-mr')"
     @create="emit('create-mr', $event)"
     @view-tasks="emit('view-tasks')"
@@ -334,6 +401,20 @@ function addOutput() {
   ></MachineEmptyState>
 
   <div v-else data-testid="machine-readable">
+    <template v-if="regelrijm && (actions.length || editable)">
+      <RegelRijmPane
+        :article="article"
+        :law="law"
+        :law-id="lawId"
+        :editable="editable"
+        :links="links"
+        @open-action="(action, path) => emit('open-action', action, path)"
+        @navigate="emit('navigate', $event)"
+        @add-action="emit('add-action')"
+        @delete-action="deleteAction"
+      />
+      <nldd-spacer size="16"></nldd-spacer>
+    </template>
     <!-- Metadata: produces -->
     <nldd-list v-if="produces" appearance="box-tinted">
       <nldd-list-item v-if="produces.legal_character || editable" size="md">
@@ -345,7 +426,7 @@ function addOutput() {
               :key="`lc-${article?.number}`"
               aria-label="Juridische basis"
               :value="produces.legal_character || ''"
-              @change="updateProduces('legal_character', $event.target.value)"
+              @change="onProducesChange('legal_character', $event)"
             >
               <option value="">(geen)</option>
               <!-- Preserve a value the hardcoded enum doesn't know (e.g. a
@@ -371,7 +452,7 @@ function addOutput() {
               :key="`dt-${article?.number}`"
               aria-label="Besluit-type"
               :value="produces.decision_type || ''"
-              @change="updateProduces('decision_type', $event.target.value)"
+              @change="onProducesChange('decision_type', $event)"
             >
               <option value="">(geen)</option>
               <!-- Same as legal_character: keep an out-of-enum value
@@ -391,7 +472,7 @@ function addOutput() {
     <!-- Definities -->
     <template v-if="definitions.length || editable">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-definitions"><h5>Definities</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-definitions"><h5>Definities</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="def in definitions" :key="def.name" size="md">
@@ -419,6 +500,7 @@ function addOutput() {
           <nldd-cell v-if="editable">
             <RowActionsMenu
               :accessible-label="`Acties voor definitie ${def.name}`"
+              :edit-testid="`def-${def.name}-edit-btn`"
               :delete-testid="`def-${def.name}-delete-btn`"
               @edit="editDef(def.name)"
               @delete="deleteDef(def.name)"
@@ -436,7 +518,7 @@ function addOutput() {
     <!-- Parameters -->
     <template v-if="parameters.length || editable">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-parameters"><h5>Parameters</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-parameters"><h5>Parameters</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="(param, index) in parameters" :key="param.name" size="md">
@@ -462,7 +544,7 @@ function addOutput() {
     <!-- Inputs -->
     <template v-if="inputs.length || editable">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-inputs"><h5>Inputs</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-inputs"><h5>Inputs</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="(input, index) in inputs" :key="input.name" :data-testid="`input-row-${input.name}`" size="md">
@@ -491,7 +573,7 @@ function addOutput() {
     <!-- Outputs -->
     <template v-if="outputs.length || editable">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-outputs"><h5>Outputs</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-outputs"><h5>Outputs</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item v-for="(output, index) in outputs" :key="output.name" size="md">
@@ -514,10 +596,10 @@ function addOutput() {
       </nldd-list>
     </template>
 
-    <!-- Acties -->
-    <template v-if="actions.length || editable">
+    <!-- Acties (with the flag panel.regelrijm: first, as readings) -->
+    <template v-if="!regelrijm && (actions.length || editable)">
       <nldd-spacer size="16"></nldd-spacer>
-      <nldd-title size="5" data-testid="section-actions"><h5>Acties</h5></nldd-title>
+      <nldd-title size="display-5" data-testid="section-actions"><h5>Acties</h5></nldd-title>
       <nldd-spacer size="8"></nldd-spacer>
       <nldd-list appearance="box-tinted">
         <nldd-list-item

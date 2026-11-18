@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * NoteCreator - the note authoring form (RFC-018 write path, steps 3-5).
  *
@@ -12,41 +12,90 @@
  * highlights live alongside committed ones.
  */
 import { ref, computed, watch, onMounted } from 'vue';
-import { buildSelector, cpToUtf16 } from '../composables/useTextSelection.js';
-import { useAmbiguityVocabulary } from '../composables/useAmbiguityVocabulary.js';
-import { documentsListUrl } from '../composables/corpusUrls.js';
-import { apiFetchJson } from '../lib/apiFetch.js';
-import { useAuth } from '../composables/useAuth.js';
-import { quoteContext } from '../lib/quoteContext.js';
+import type { NLDDTextEditor } from '@nldd/design-system/text-editor';
+import { buildSelector, cpToUtf16 } from '../composables/useTextSelection';
+import type { NoteResolver } from '../composables/useTextSelection';
+import type { Note } from '../composables/useNotes';
+import { useAmbiguityVocabulary } from '../composables/useAmbiguityVocabulary';
+import { documentsListUrl } from '../composables/corpusUrls';
+import { apiFetchJson } from '../lib/apiFetch';
+import { useAuth } from '../composables/useAuth';
+import { quoteContext } from '../lib/quoteContext';
 import QuotedFragment from './QuotedFragment.vue';
 
-const props = defineProps({
+/** A [start, end) code-point range into the article text. */
+interface CodePointRange {
+  start: number;
+  end: number;
+}
+
+/** The part of an article this component reads (law-format keys). */
+interface LinkableArticle {
+  number?: string | number;
+  machine_readable?: {
+    execution?: { output?: ({ name?: string } | null)[] | null } | null;
+    definitions?: Record<string, unknown> | null;
+  } | null;
+}
+
+/** A link target chosen in the form. */
+interface NoteLink {
+  type: 'element' | 'document';
+  value: string;
+  label: string;
+}
+
+/** The part of a W3C annotation body that prefill() reads. */
+interface NoteBodyPart {
+  purpose?: string;
+  value?: string;
+  source?: string;
+}
+
+/** A token-field `change` event: the selected values on `detail`. */
+type ValuesEvent = Event & { detail?: { values?: string[] } | null };
+/** A switch-field `change` event: the state on `detail` or on the target. */
+type CheckedEvent = Event & { detail?: { checked?: boolean } | null };
+
+const props = withDefaults(defineProps<{
   // Raw (code-point) char range into rawText, or null when closed.
-  range: { type: Object, default: null },
-  rawText: { type: String, default: '' },
-  lawId: { type: String, default: '' },
+  range?: CodePointRange | null;
+  rawText?: string;
+  lawId?: string;
   // The selected article object, for the linking target picker.
-  article: { type: Object, default: null },
+  article?: LinkableArticle | null;
   // Loaded WASM engine (resolveNote) for selector uniqueness validation.
-  engine: { type: Object, default: null },
+  engine?: NoteResolver | null;
   // `valid_from` of the law version on screen, so uniqueness is validated in
   // the text being annotated instead of the newest loaded version. Empty
   // means "latest" (a law without valid_from).
-  validFrom: { type: String, default: '' },
+  validFrom?: string;
   // Active traject ref. Required to surface the "Document" link mode -
   // without a traject there is no documents folder to pick from.
-  trajectRef: { type: String, default: '' },
+  trajectRef?: string;
   // When set, the form opens in EDIT mode pre-filled from this existing draft
   // note (its body/tag/link/workflow). The parent replaces the draft on save.
-  initialNote: { type: Object, default: null },
+  initialNote?: Note | null;
+}>(), {
+  range: null,
+  rawText: '',
+  lawId: '',
+  article: null,
+  engine: null,
+  validFrom: '',
+  trajectRef: '',
+  initialNote: null,
 });
 
 const isEditing = computed(() => !!props.initialNote);
 
-const emit = defineEmits(['create', 'cancel']);
+const emit = defineEmits<{
+  create: [note: Note, share: boolean];
+  cancel: [];
+}>();
 
 // The comment field, autofocused when the form opens so the user can type at once.
-const commentFieldEl = ref(null);
+const commentFieldEl = ref<NLDDTextEditor | null>(null);
 
 // The note's author is the signed-in user - id for traceability, name for
 // display. Not a free-text choice.
@@ -59,10 +108,10 @@ const commentText = ref('');
 // elements and/or traject documents, mixed freely. Each becomes a
 // `SpecificResource` linking body. Shape: { type: 'element'|'document', value,
 // label }. A token-field adds them from one type-tagged, filterable list.
-const links = ref([]);
-const documentOptions = ref([]);
-const documentsLoadError = ref(null);
-const ambiguityTags = ref([]);
+const links = ref<NoteLink[]>([]);
+const documentOptions = ref<string[]>([]);
+const documentsLoadError = ref<Error | null>(null);
+const ambiguityTags = ref<string[]>([]);
 // Task modelling with two switches instead of one status picker: whether this
 // note is a task for the author, and (only then) whether it is done. Derived
 // into the W3C workflow: not a task -> 'none'; task open -> 'open'; task done ->
@@ -80,8 +129,8 @@ const { items: ambiguityItems } = useAmbiguityVocabulary();
 // Ambiguity labels are multi-select via nldd-token-field: the whole vocabulary is
 // slotted as options (the field hides already-picked ones) and it emits the full
 // selected id list on every change.
-function onTagsChange(e) {
-  ambiguityTags.value = e.detail?.values ?? [];
+function onTagsChange(e: Event) {
+  ambiguityTags.value = (e as ValuesEvent).detail?.values ?? [];
 }
 
 // Lazy-load the traject's documents the first time the form opens with
@@ -91,14 +140,15 @@ async function fetchDocumentOptions() {
   if (!props.trajectRef) return;
   documentsLoadError.value = null;
   try {
-    const json = await apiFetchJson(documentsListUrl(props.trajectRef), {
-      errorMessage: (status) => `HTTP ${status}`,
+    const json = await apiFetchJson<{ documents?: { path: string }[] } | null>(documentsListUrl(props.trajectRef), {
+      errorMessage: (status: number) => `HTTP ${status}`,
     });
     documentOptions.value = Array.isArray(json?.documents)
       ? json.documents.map((d) => d.path)
       : [];
   } catch (e) {
-    documentsLoadError.value = e;
+    // apiFetchJson rejects with an Error (ApiError, or a network TypeError).
+    documentsLoadError.value = e as Error;
     documentOptions.value = [];
   }
 }
@@ -109,7 +159,7 @@ async function fetchDocumentOptions() {
 const linkableElements = computed(() => {
   const mr = props.article?.machine_readable;
   if (!mr) return [];
-  const names = new Set();
+  const names = new Set<string>();
   for (const o of mr.execution?.output ?? []) {
     if (o?.name) names.add(o.name);
   }
@@ -123,10 +173,10 @@ const linkableElements = computed(() => {
 // the kind. The token-field hides already-picked options itself.
 const linkOptions = computed(() => {
   const els = linkableElements.value.map((el) => ({
-    key: `el:${el}`, type: 'element', value: el, label: el, icon: 'code',
+    key: `el:${el}`, type: 'element' as const, value: el, label: el, icon: 'code',
   }));
   const docs = (props.trajectRef ? documentOptions.value : []).map((p) => ({
-    key: `doc:${p}`, type: 'document', value: p, label: p, icon: 'file',
+    key: `doc:${p}`, type: 'document' as const, value: p, label: p, icon: 'file',
   }));
   return [...els, ...docs];
 });
@@ -134,8 +184,8 @@ const linkOptions = computed(() => {
 // structured links, reusing existing entries so a link's label survives even if
 // its option is no longer in the current list.
 const linkValues = computed(() => links.value.map((l) => (l.type === 'element' ? 'el:' : 'doc:') + l.value));
-function onLinksChange(e) {
-  const keys = e.detail?.values ?? [];
+function onLinksChange(e: Event) {
+  const keys = (e as ValuesEvent).detail?.values ?? [];
   const existing = new Map(links.value.map((l) => [(l.type === 'element' ? 'el:' : 'doc:') + l.value, l]));
   links.value = keys
     .map((key) => {
@@ -143,14 +193,17 @@ function onLinksChange(e) {
       const opt = linkOptions.value.find((o) => o.key === key);
       return opt ? { type: opt.type, value: opt.value, label: opt.label } : null;
     })
-    .filter(Boolean);
+    .filter((l): l is NoteLink => Boolean(l));
 }
 
 // Selector for the current selection, recomputed when the range changes.
 // buildSelector grows prefix/suffix until the resolver finds it uniquely;
 // `status` drives the warning shown below the quote.
+// Without an article number a match cannot be checked against the selected
+// article, so there is no selector (and nothing to save) until there is one.
 const selectorResult = computed(() => {
-  if (!props.range || !props.rawText || !props.engine || !props.lawId) {
+  const articleNumber = props.article?.number;
+  if (!props.range || !props.rawText || !props.engine || !props.lawId || articleNumber == null) {
     return null;
   }
   return buildSelector(
@@ -158,7 +211,7 @@ const selectorResult = computed(() => {
     props.range,
     props.lawId,
     props.engine,
-    props.article?.number,
+    articleNumber,
     props.validFrom || null,
   );
 });
@@ -203,7 +256,7 @@ watch(canSave, (ok) => {
 // Rendered as sheet content (the parent sheet owns visibility). When a range is
 // present, autofocus the comment field and refresh the documents list; clear the
 // form when it goes away.
-function applyRange(range) {
+function applyRange(range: CodePointRange | null) {
   if (range) {
     requestAnimationFrame(() => commentFieldEl.value?.focus?.());
     fetchDocumentOptions().catch(() => {});
@@ -237,17 +290,18 @@ onMounted(() => {
 // EDIT mode: seed the form fields from an existing note's W3C body so the user
 // tweaks rather than retypes. Best-effort reverse of buildBody() - comment, tag,
 // link (element vs document) and workflow.
-function prefill(note) {
-  const body = note?.body;
+function prefill(note: Note) {
+  // Notes are not validated (see Note), so the body shape is assumed here.
+  const body = note?.body as NoteBodyPart | (NoteBodyPart | null)[] | null | undefined;
   const bodies = Array.isArray(body) ? body : body ? [body] : [];
   commentText.value = bodies.find((b) => b?.purpose === 'commenting')?.value ?? '';
   ambiguityTags.value = bodies
-    .filter((b) => b?.purpose === 'tagging' && b?.value)
+    .filter((b): b is NoteBodyPart & { value: string } => b?.purpose === 'tagging' && !!b?.value)
     .map((b) => b.value);
   const docPrefix = 'regelrecht://doc/';
   links.value = bodies
-    .filter((b) => b?.purpose === 'linking' && b?.source)
-    .map((b) => {
+    .filter((b): b is NoteBodyPart & { source: string } => b?.purpose === 'linking' && !!b?.source)
+    .map((b): NoteLink => {
       const src = b.source;
       if (src.startsWith(docPrefix)) {
         const rest = src.slice(docPrefix.length);
@@ -265,8 +319,9 @@ function prefill(note) {
 }
 
 // Toggling "task" off also clears "done" - a non-task has no status.
-function onTaskChange(e) {
-  isTask.value = e.detail?.checked ?? e.target?.checked ?? false;
+function onTaskChange(e: Event) {
+  const event = e as CheckedEvent;
+  isTask.value = event.detail?.checked ?? (event.target as { checked?: boolean } | null)?.checked ?? false;
   if (!isTask.value) taskDone.value = false;
 }
 
@@ -291,12 +346,13 @@ function save() {
     return;
   }
   showValidationError.value = false;
-  const note = {
+  const note: Note = {
     type: 'Annotation',
     motivation: primaryMotivation(),
     target: {
       source: `regelrecht://${props.lawId}`,
-      selector: selectorResult.value.selector,
+      // canSave is false without a selector result, so it is set here.
+      selector: selectorResult.value!.selector,
     },
     body: buildBody(),
   };
@@ -439,7 +495,6 @@ const statusInfo = computed(() => {
         <nldd-form-field>
           <nldd-text-editor
             ref="commentFieldEl"
-            appearance="input-field"
             :rows="3"
             resize="auto"
             :value="commentText"

@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * One daily-jobs chart (stacked succeeded/failed bars + added line) for a
  * single job type. Data comes in as plain entries; colors are resolved from
@@ -16,8 +16,11 @@ import {
   LegendComponent,
 } from 'echarts/components';
 import VChart from 'vue-echarts';
-import { buildDailyJobsOption } from '../charts/dailyJobsChart.js';
-import { resolveChartColors } from '../charts/chartColors.js';
+import {
+  buildDailyJobsOption,
+  type DailyJobsEntry,
+} from '../charts/dailyJobsChart';
+import { resolveChartColors, type ChartColors } from '../charts/chartColors';
 
 use([
   CanvasRenderer,
@@ -28,17 +31,17 @@ use([
   LegendComponent,
 ]);
 
-const props = defineProps({
-  title: { type: String, required: true },
-  entries: { type: Array, required: true },
-});
+const props = defineProps<{
+  title: string;
+  entries: DailyJobsEntry[];
+}>();
 
-const colors = shallowRef(null);
+const colors = shallowRef<ChartColors | null>(null);
 
 // resolveChartColors returns null while the design system's color-scheme
 // hasn't been applied yet (light-dark() would resolve to black then); retry a
 // few frames until it lands.
-let retryFrame = null;
+let retryFrame: number | null = null;
 function refreshColors(attemptsLeft = 30) {
   if (retryFrame) {
     cancelAnimationFrame(retryFrame);
@@ -56,8 +59,8 @@ function refreshColors(attemptsLeft = 30) {
   }
 }
 
-let schemeObserver = null;
-let darkMedia = null;
+let schemeObserver: MutationObserver | null = null;
+let darkMedia: MediaQueryList | null | undefined = null;
 const onSchemeChange = () => refreshColors();
 onMounted(() => {
   refreshColors();
@@ -83,7 +86,7 @@ const option = computed(() =>
 <template>
   <nldd-card>
     <nldd-container padding="16">
-      <nldd-title size="6">
+      <nldd-title size="display-6">
         <h3>{{ title }}</h3>
       </nldd-title>
       <nldd-spacer size="12"></nldd-spacer>

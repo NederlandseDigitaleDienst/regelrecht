@@ -101,7 +101,7 @@ function exampleImage(key: string): ImageMetadata {
       >
         <nldd-box>
           <nldd-container sm-padding="16" md-padding="24" lg-padding="32">
-            <nldd-title size="2">
+            <nldd-title size="display-2">
               <h1 id="rr-signup-title">{t.signup.pageTitle}</h1>
             </nldd-title>
             <nldd-spacer size="24" />
@@ -124,7 +124,7 @@ function exampleImage(key: string): ImageMetadata {
           md-padding-top="16"
           lg-padding-top="24"
         >
-          <nldd-title size="1" color="inherit">
+          <nldd-title size="display-1" color="inherit">
             <h1>{t.hero.title}</h1>
           </nldd-title>
           <nldd-spacer size="16" />
@@ -160,7 +160,7 @@ function exampleImage(key: string): ImageMetadata {
           md-padding-top="64"
           lg-padding-top="96"
         >
-          <nldd-title size="2">
+          <nldd-title size="display-2">
             <h2>{t.whatIsIt.title}</h2>
           </nldd-title>
           <nldd-spacer size="8" />
@@ -168,11 +168,11 @@ function exampleImage(key: string): ImageMetadata {
             <p>{t.whatIsIt.lede}</p>
           </nldd-rich-text>
           <nldd-spacer size="24" />
-          <nldd-collection layout="grid" item-width="320px">
+          <nldd-collection layout="grid" item-min-width="320px">
             {t.whatIsIt.cards.map((c) => (
               <nldd-card background="tinted" accessible-label={c.h}>
                 <nldd-container padding="20">
-                  <nldd-title size="3">
+                  <nldd-title size="display-3">
                     <h3>{c.h}</h3>
                   </nldd-title>
                   <nldd-spacer size="8" />
@@ -195,7 +195,7 @@ function exampleImage(key: string): ImageMetadata {
             md-padding-block="64"
             lg-padding-block="96"
           >
-            <nldd-title size="2">
+            <nldd-title size="display-2">
               <h2>{t.jobs.title}</h2>
             </nldd-title>
             <nldd-spacer size="8" />
@@ -203,7 +203,7 @@ function exampleImage(key: string): ImageMetadata {
               <p>{t.jobs.lede}</p>
             </nldd-rich-text>
             <nldd-spacer size="24" />
-            <nldd-collection layout="horizontal-scroll" item-width="480px">
+            <nldd-collection layout="horizontal-scroll" item-min-width="480px">
               {t.jobs.items.map((job) => (
                 <nldd-card accessible-label={`${t.jobs.vacancyTag}: ${job.title}`}>
                   <nldd-container padding="20">
@@ -212,7 +212,7 @@ function exampleImage(key: string): ImageMetadata {
                       <nldd-tag color="brand" size="md">{job.organisation}</nldd-tag>
                     </nldd-container>
                     <nldd-spacer size="16" />
-                    <nldd-title size="3">
+                    <nldd-title size="display-3">
                       <h3>{job.title}</h3>
                     </nldd-title>
                     <nldd-spacer size="16" />
@@ -280,7 +280,7 @@ function exampleImage(key: string): ImageMetadata {
           md-padding-bottom="64"
           lg-padding-bottom="96"
         >
-          <nldd-title size="2">
+          <nldd-title size="display-2">
             <h2>{t.whyImportant.title}</h2>
           </nldd-title>
           <nldd-spacer size="8" />
@@ -291,14 +291,14 @@ function exampleImage(key: string): ImageMetadata {
           {t.whyImportant.problemSolutions.map((ps, i) => (
             <Fragment>
               {i > 0 && <nldd-spacer size="24" />}
-              <nldd-collection layout="grid" item-width="480px">
+              <nldd-collection layout="grid" item-min-width="480px">
                 <nldd-card background="tinted" accessible-label={ps.problemTitle}>
                   <nldd-container padding="20">
                     <nldd-tag color="critical" size="md">
                       {lang === 'en' ? 'The problem' : 'Het probleem'}
                     </nldd-tag>
                     <nldd-spacer size="8" />
-                    <nldd-title size="3">
+                    <nldd-title size="display-3">
                       <h3>{ps.problemTitle}</h3>
                     </nldd-title>
                     <nldd-spacer size="8" />
@@ -313,7 +313,7 @@ function exampleImage(key: string): ImageMetadata {
                       {lang === 'en' ? 'Possible direction' : 'Mogelijke richting'}
                     </nldd-tag>
                     <nldd-spacer size="8" />
-                    <nldd-title size="3">
+                    <nldd-title size="display-3">
                       <h3>{ps.solutionTitle}</h3>
                     </nldd-title>
                     <nldd-spacer size="8" />
@@ -335,7 +335,7 @@ function exampleImage(key: string): ImageMetadata {
           md-padding-block="64"
           lg-padding-block="96"
         >
-          <nldd-title size="2">
+          <nldd-title size="display-2">
             <h2>{t.howItWorks.title}</h2>
           </nldd-title>
           <nldd-spacer size="8" />
@@ -346,7 +346,7 @@ function exampleImage(key: string): ImageMetadata {
           <nldd-list dividers="never">
             {t.howItWorks.steps.map((step, i, arr) => (
               <nldd-list-item>
-                <nldd-timeline-track-cell
+                <nldd-step-cell
                   size="md"
                   text={String(i + 1)}
                   position={
@@ -356,7 +356,7 @@ function exampleImage(key: string): ImageMetadata {
                 <nldd-spacer-cell size="16" />
                 <nldd-cell width="full" vertical-alignment="top">
                   <nldd-spacer size="8" />
-                  <nldd-title size="5">
+                  <nldd-title size="display-5">
                     <h3>{step.title}</h3>
                   </nldd-title>
                   <nldd-spacer size="4" />
@@ -376,15 +376,15 @@ function exampleImage(key: string): ImageMetadata {
           md-padding-block="64"
           lg-padding-block="96"
         >
-          <nldd-title size="2">
+          <nldd-title size="display-2">
             <h2>{t.tools.title}</h2>
           </nldd-title>
           <nldd-spacer size="24" />
-          <nldd-collection layout="grid" item-width="320px">
+          <nldd-collection layout="grid" item-min-width="320px">
             {t.tools.items.map((tool) => (
               <nldd-card background="tinted" accessible-label={tool.title}>
                 <nldd-container padding="20">
-                  <nldd-title size="3">
+                  <nldd-title size="display-3">
                     <h3>{tool.title}</h3>
                   </nldd-title>
                   {tool.meta && (
@@ -424,7 +424,7 @@ function exampleImage(key: string): ImageMetadata {
           md-padding-block="64"
           lg-padding-block="96"
         >
-          <nldd-title size="2">
+          <nldd-title size="display-2">
             <h2>{t.example.title}</h2>
           </nldd-title>
           <nldd-spacer size="8" />
@@ -482,15 +482,15 @@ function exampleImage(key: string): ImageMetadata {
           md-padding-block="64"
           lg-padding-block="96"
         >
-          <nldd-title size="2">
+          <nldd-title size="display-2">
             <h2>{t.innovation.title}</h2>
           </nldd-title>
           <nldd-spacer size="24" />
-          <nldd-collection layout="grid" item-width="420px">
+          <nldd-collection layout="grid" item-min-width="420px">
             {t.innovation.cards.map((c) => (
               <nldd-card background="tinted" accessible-label={c.h}>
                 <nldd-container padding="20">
-                  <nldd-title size="3">
+                  <nldd-title size="display-3">
                     <h3>{c.h}</h3>
                   </nldd-title>
                   <nldd-spacer size="8" />
@@ -511,7 +511,7 @@ function exampleImage(key: string): ImageMetadata {
           md-padding-block="64"
           lg-padding-block="96"
         >
-          <nldd-title size="2">
+          <nldd-title size="display-2">
             <h2>{t.research.title}</h2>
           </nldd-title>
           <nldd-spacer size="8" />
@@ -519,7 +519,7 @@ function exampleImage(key: string): ImageMetadata {
             <p>{t.research.lede}</p>
           </nldd-rich-text>
           <nldd-spacer size="24" />
-          <nldd-collection layout="grid" item-width="320px">
+          <nldd-collection layout="grid" item-min-width="320px">
             {t.research.items.map((item) => (
               <LinkCard lang={lang} tinted {...item} />
             ))}
@@ -536,11 +536,11 @@ function exampleImage(key: string): ImageMetadata {
           md-padding-bottom="40"
           lg-padding-bottom="48"
         >
-          <nldd-title size="2">
+          <nldd-title size="display-2">
             <h2>{t.references.title}</h2>
           </nldd-title>
           <nldd-spacer size="24" />
-          <nldd-collection layout="horizontal-scroll" item-width="320px">
+          <nldd-collection layout="horizontal-scroll" item-min-width="320px">
             {t.references.items.map((ref) => (
               <LinkCard lang={lang} {...ref} />
             ))}
@@ -558,7 +558,7 @@ function exampleImage(key: string): ImageMetadata {
           md-padding-block="64"
           lg-padding-block="96"
         >
-          <nldd-title size="2">
+          <nldd-title size="display-2">
             <h2>{t.roadmap.title}</h2>
           </nldd-title>
           <nldd-spacer size="8" />
@@ -566,11 +566,11 @@ function exampleImage(key: string): ImageMetadata {
             <p>{t.roadmap.lede}</p>
           </nldd-rich-text>
           <nldd-spacer size="24" />
-          <nldd-collection layout="grid" item-width="320px">
+          <nldd-collection layout="grid" item-min-width="320px">
             {roadmapFases.map((fase) => (
               <nldd-card background="tinted" accessible-label={`${fase.naam}: ${fase.ondertitel}`}>
                 <nldd-container padding="20">
-                  <nldd-title size="3">
+                  <nldd-title size="display-3">
                     <h3>{fase.naam}</h3>
                     <p slot="supporting-text">{fase.ondertitel}</p>
                   </nldd-title>
@@ -603,7 +603,7 @@ function exampleImage(key: string): ImageMetadata {
           md-padding-block="64"
           lg-padding-block="96"
         >
-          <nldd-title size="2">
+          <nldd-title size="display-2">
             <h2>{t.faq.title}</h2>
           </nldd-title>
           <nldd-spacer size="24" />
@@ -611,7 +611,7 @@ function exampleImage(key: string): ImageMetadata {
             {t.faq.items.map((item) => (
               <nldd-card background="tinted" accessible-label={item.q}>
                 <nldd-container padding="20">
-                  <nldd-title size="3">
+                  <nldd-title size="display-3">
                     <h3>{item.q}</h3>
                   </nldd-title>
                   <nldd-spacer size="12" />
@@ -639,7 +639,7 @@ function exampleImage(key: string): ImageMetadata {
           md-padding-block="64"
           lg-padding-block="96"
         >
-          <nldd-title size="2">
+          <nldd-title size="display-2">
             <h2>{t.feedback.title}</h2>
           </nldd-title>
           <nldd-spacer size="8" />

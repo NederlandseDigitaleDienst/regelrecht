@@ -965,9 +965,14 @@ articles:
       [ref3]: https://wetten.overheid.nl/BWBR0002628#Artikel4c
     url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
     machine_readable:
+      # Bevoegd gezag (RFC-002): het hoofd verleent het verlof (lid 1 en 2).
+      # Het beantwoordt ook de open begrippen hieronder die het per aanvraag
+      # oordeelt; geen ervan noemt zelf een ander.
+      competent_authority:
+        name: het hoofd
+        type: CATEGORY
       # Wat het hoofd naast de aanvraag nodig heeft om te beslissen. Geen
-      # parameters: die vormen de aanvraag (RFC-045), op een na (eenmaal per
-      # schooljaar, bij de parameters).
+      # parameters: die vormen de aanvraag (RFC-045).
       open_terms:
         # Lid 2: "de eerste twee lesweken van het schooljaar". Wanneer het
         # schooljaar van een school begint, zegt deze wet niet; dat staat in
@@ -995,8 +1000,17 @@ articles:
             Of een van de in artikel 2, eerste lid, bedoelde personen een beroep
             heeft van zo specifieke aard dat de jongere niet binnen de
             schoolvakanties met hen op vakantie kan gaan (artikel 11, onder f).
-        # Voor nu een oordeel van het hoofd bij het besluit; de school kent
-        # haar vakanties. Het is geen veld van de aanvraag.
+        # Het hoofd oordeelt het per aanvraag; het is geen veld van de
+        # aanvraag. Welke de schoolvakanties zijn, zegt deze wet niet: de
+        # Regeling vaststelling schoolvakanties 2025–2030 stelt de kerst-,
+        # mei- en zomervakantie vast (artikel 15, tweede lid, van de Wet op
+        # het primair onderwijs), en de school stelt haar herfst- en
+        # voorjaarsvakantie zelf vast. In de cel van de school koppelt het
+        # beleid van het hoofd het begrip aan het antwoord van de cel, die het
+        # uit die vakanties haalt (RFC-048, RFC-051), zodat niemand het hoeft
+        # te oordelen; kent de cel een vakantie niet, dan zegt dat beleid dat
+        # het hoofd oordeelt. Geen default: zonder antwoord en zonder oordeel
+        # faalt het besluit.
         - id: verlof_valt_buiten_schoolvakanties
           type: boolean
           required: true
@@ -1004,9 +1018,30 @@ articles:
           description: >-
             Of het gevraagde verlof buiten de schoolvakanties valt (artikel 11,
             onder f).
+        # Lid 2: "kan door het hoofd slechts eenmaal ... per schooljaar worden
+        # verleend". Of het hoofd de jongere dit schooljaar al verlof
+        # verleende, stelt het hoofd vast; het weet het uit zijn eigen
+        # besluiten. Hoe het die terugleest, zegt deze wet niet, en het is geen
+        # veld van de aanvraag. In de cel van de school koppelt het beleid van
+        # het hoofd het begrip aan het antwoord van de cel, uit zijn besluiten
+        # (RFC-048), ook als 7:11 dit artikel opnieuw aanroept; zonder
+        # antwoord stelt het hoofd het volgens dat beleid zelf vast. Geen
+        # default: een ontbrekend antwoord verleent geen tweede verlof. Eigen
+        # keuze: het schooljaar van het verlof is dat van de eerste
+        # verlofdag. De eerste lesdag hierboven komt uit het beleid dat geldt
+        # op de dag van het besluit; verlof in het volgende schooljaar wordt
+        # zo getoetst aan de eerste lesdag van het lopende, tot het besluit in
+        # dat volgende valt.
+        - id: verlof_al_verleend_in_schooljaar
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd (artikel 13a, tweede lid)
+          description: >-
+            Of het hoofd de jongere in het schooljaar van het gevraagde verlof
+            al verlof als bedoeld in het eerste lid verleende.
       execution:
         # Lid 1: het hoofd verleent verlof "op aanvraag". Dit artikel brengt
-        # twee dingen voort (RFC-047). De aanvraag (RFC-045), waar de Awb op
+        # twee dingen voort (RFC-045 §1). De aanvraag, waar de Awb op
         # haakt, met wat zij bevat en het besluit dat zij vraagt (Awb 4:2 lid
         # 1, onder c). En het verlenen of weigeren, een beschikking (Awb 1:3)
         # die de procedure van de Awb volgt, met de uitvoer die daarbij hoort.
@@ -1024,10 +1059,9 @@ articles:
               - verlof_raakt_eerste_twee_lesweken
               - verlof_verleend
         parameters:
-          # De eerste drie zijn de inhoud van de aanvraag (produces hierboven).
-          # Naam en adres van de aanvrager vraagt Awb 4:2 erbij. Wat het hoofd
-          # verder nodig heeft om te beslissen, staat bij de open begrippen
-          # hierboven, en in de laatste parameter.
+          # De inhoud van de aanvraag (produces hierboven). Naam en adres van
+          # de aanvrager vraagt Awb 4:2 erbij. Wat het hoofd verder nodig heeft
+          # om te beslissen, staat bij de open begrippen hierboven.
           - name: bsn_jongere
             type: string
             description: Burgerservicenummer van de jongere voor wie verlof wordt gevraagd.
@@ -1037,21 +1071,6 @@ articles:
           - name: laatste_verlofdag
             type: date
             description: Laatste dag waarop de jongere de school niet bezoekt.
-          # Lid 2: "kan door het hoofd slechts eenmaal ... per schooljaar worden
-          # verleend". Of het hoofd de jongere dit schooljaar al verlof
-          # verleende, weet het uit zijn eigen besluiten. Hoe het die
-          # terugleest, zegt deze wet niet. Het is geen veld van de aanvraag;
-          # de cel van de school leidt het af uit haar kroniek (RFC-048). Eigen
-          # keuze: het schooljaar van het verlof is dat van de eerste
-          # verlofdag. De eerste lesdag hierboven komt uit het beleid dat
-          # geldt op de dag van het besluit; verlof in het volgende schooljaar
-          # wordt zo getoetst aan de eerste lesdag van het lopende, tot het
-          # besluit in dat volgende valt.
-          - name: verlof_al_verleend_in_schooljaar
-            type: boolean
-            description: >-
-              Of het hoofd de jongere in het schooljaar van het gevraagde verlof
-              al verlof als bedoeld in het eerste lid verleende.
         output:
           - name: verlofdagen
             type: number

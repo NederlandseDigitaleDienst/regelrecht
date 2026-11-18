@@ -1,7 +1,9 @@
 .git
 .worktrees
 target
-node_modules
+# Every node_modules, not only the root one: a workspace can hold its own
+# (vue-tsc keeps its cache there, and npm nests a version it cannot hoist).
+**/node_modules
 features
 frontend
 # Keep the editor frontend's manifest: the admin and lawmaking image builds run

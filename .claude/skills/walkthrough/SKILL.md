@@ -105,7 +105,7 @@ niet.
 
 - **Een gemiste klik** (`verify` meldt hem): kijk in `events.json` naar
   het `target`. Een id met een uuid erin of een teller wordt al genegeerd
-  (`generatedId` in `locator.js`); een tekst die per corpus verschilt
+  (`generatedId` in `locator.ts`); een tekst die per corpus verschilt
   wordt na de halve wachttijd losser gezocht. Is het iets anders, repareer
   dan de locator, niet de opname.
 - **Een scroll die op de verkeerde plek landt**: een scroll draagt een
@@ -197,6 +197,35 @@ niet.
   Pas ze aan in `slides:` van `walkthrough.yaml`, per dia-index, **kort**,
   en zo dat ze volgen wat er gezegd wordt. De zaal-deck in
   `corpus/demo/demo-config.yaml` blijft daarbuiten.
+
+## Een andere taal inspreken
+
+De rondleiding in een andere taal, in de gekloonde stem van de presentator.
+De klok blijft de Nederlandse: elke zin klinkt in het tijdvak van de
+Nederlandse zin, dus `verify` en de klikken veranderen niet. Hoe en waarom:
+`docs/src/content/docs/components/demo.md`, sectie *In another language*.
+
+1. **Eén keer**: een kloon op ElevenLabs, de sleutel in `.walkthrough/.env`,
+   de id uit `just walkthrough voices` onder `voice.voice_id` in
+   `walkthrough.yaml`. Per taal een blok onder `voice.dub.<code>`; zonder dat
+   blok krijgt een taal alleen ondertitels.
+2. `just walkthrough build` (schrijft `sentences.json`), dan
+   `just walkthrough translate <code>`: vult `spoken:` in
+   `corpus/demo/i18n/walkthrough.<code>.yaml` aan, met per zin een woordbudget.
+3. **Eerst één vraag** (`just walkthrough dub <code> --track faq-open-normen`)
+   en laat de presentator luisteren voor je het hoofdspoor doet (~15.000
+   tekens). `--provider say` probeert de route zonder account.
+4. `just walkthrough dub <code>`. Lees de meldingen: "te lang" noemt de zin
+   die niet in zijn tijdvak past. Maak hem korter in `spoken:` en draai `dub`
+   opnieuw; de cache maakt alleen de gewijzigde zinnen (en hun buren) opnieuw.
+5. `bumpers:` in hetzelfde bestand voor de tussenzinnen ("Go ahead, I'll
+   wait."), met de hand.
+6. Luisteren op `/en/tour` (of de pagina van die taal), dan `publish`.
+
+Een nieuwe build houdt een dub zolang de Nederlandse zinnen en hun tijden
+gelijk zijn; anders meldt hij dat `dub` opnieuw moet. Een nieuwe taal kan pas
+als de demo zelf in die taal draait. Doe dan eerst één testzin: spreekt het
+model de taal echt, of Nederlands met een accent?
 
 ## Publiceren
 

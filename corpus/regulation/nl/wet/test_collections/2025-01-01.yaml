@@ -156,8 +156,7 @@ articles:
         actions:
           # Geneste FOREACH. De binnenste `collection` leest $huishouden, want
           # die wordt geëvalueerd in de scope waar de binnenste FOREACH staat.
-          # De binnenste `body` ziet $huishouden niet: een child-context begint
-          # met een lege local scope.
+          # Ook de binnenste `body` en `filter` zien $huishouden (artikel 4).
           - output: totaal_over_huishoudens
             value:
               operation: FOREACH
@@ -222,3 +221,66 @@ articles:
                 body: $lid.bijdrage
                 combine: MAX
               combine: ADD
+
+  - number: '4'
+    url: https://example.com/test_collections/4
+    text: >-
+      Per huishouden tellen de leden van wie de bijdrage hoger is dan de
+      drempel van dat huishouden.
+    machine_readable:
+      # De binnenste `filter` vergelijkt het lid met het buitenste element
+      # ($huishouden.drempel). Heet het binnenste element net als het
+      # buitenste, dan wint het binnenste: `hoogste_eigen_bijdrage` leest
+      # met $huishouden de leden, niet het huishouden.
+      definitions:
+        huishoudens:
+          value:
+            - drempel: 150
+              leden:
+                - bijdrage: 100
+                - bijdrage: 200
+            - drempel: 10
+              leden:
+                - bijdrage: 50
+                - bijdrage: 20
+            - drempel: 0
+              leden: []
+      execution:
+        output:
+          - name: leden_boven_drempel
+            type: number
+          - name: hoogste_eigen_bijdrage
+            type: number
+        actions:
+          - output: leden_boven_drempel
+            value:
+              operation: FOREACH
+              collection: $huishoudens
+              as: huishouden
+              body:
+                operation: FOREACH
+                collection: $huishouden.leden
+                as: lid
+                filter:
+                  operation: GREATER_THAN
+                  subject: $lid.bijdrage
+                  value: $huishouden.drempel
+                body: 1
+                combine: ADD
+              combine: ADD
+          - output: hoogste_eigen_bijdrage
+            value:
+              operation: FOREACH
+              collection: $huishoudens
+              as: huishouden
+              filter:
+                operation: GREATER_THAN
+                subject: $huishouden.drempel
+                value: 0
+              body:
+                operation: FOREACH
+                collection: $huishouden.leden
+                as: huishouden
+                body: $huishouden.bijdrage
+                combine: MAX
+              combine: MAX

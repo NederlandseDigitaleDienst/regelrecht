@@ -20,7 +20,7 @@ import { fileURLToPath } from 'node:url';
 
 const DOCS_DIR = fileURLToPath(new URL('..', import.meta.url));
 const DIST = join(DOCS_DIR, 'dist');
-const ORIGIN = 'http://localhost:4173';
+const ORIGIN = 'http://127.0.0.1:4173';
 
 // Walk dist for every index.html (→ a route) and every top-level *.html.
 function collectRoutes(dir) {
@@ -94,6 +94,24 @@ function scopeRoutes(allRoutes) {
   return [...selected].sort();
 }
 
+// A11Y_SHARD=K/N keeps every N-th selected route, starting at the K-th, so CI
+// can split the gate over N jobs that each start their own Chromium (sharing
+// one browser is what `concurrency` broke, see below). Unset means 1/1. A
+// malformed value stops the script: silently checking every page, or none,
+// would hide that the split is wrong.
+function parseShard(raw) {
+  if (raw === undefined || raw.trim() === '') return [1, 1];
+  const match = /^(\d+)\/(\d+)$/.exec(raw.trim());
+  const [k, n] = match ? [Number(match[1]), Number(match[2])] : [NaN, NaN];
+  if (!(Number.isInteger(k) && Number.isInteger(n) && k >= 1 && k <= n)) {
+    console.error(`A11Y_SHARD expects K/N with 1 <= K <= N, got ${JSON.stringify(raw)}.`);
+    process.exit(1);
+  }
+  return [k, n];
+}
+
+const [shardK, shardN] = parseShard(process.env.A11Y_SHARD);
+
 const routes = collectRoutes(DIST);
 if (routes.length === 0) {
   console.error('No routes found in dist/. Run `astro build` first.');
@@ -101,7 +119,8 @@ if (routes.length === 0) {
 }
 
 const scoped = scopeRoutes(routes);
-const checked = scoped ?? routes;
+const selected = scoped ?? routes;
+const checked = selected.filter((_, i) => i % shardN === shardK - 1);
 
 const config = {
   defaults: {
@@ -160,8 +179,9 @@ const config = {
 
 const out = join(DOCS_DIR, '.pa11yci');
 writeFileSync(out, JSON.stringify(config, null, 2) + '\n');
+const shardNote = shardN > 1 ? `, shard ${shardK}/${shardN} of ${selected.length}` : '';
 console.log(
   scoped
-    ? `Wrote ${out} with ${checked.length} of ${routes.length} routes (beperkt tot de gewijzigde pagina's; runners: htmlcs + axe).`
-    : `Wrote ${out} with ${checked.length} routes (volledige site; runners: htmlcs + axe).`,
+    ? `Wrote ${out} with ${checked.length} of ${routes.length} routes (beperkt tot de gewijzigde pagina's${shardNote}; runners: htmlcs + axe).`
+    : `Wrote ${out} with ${checked.length} routes (volledige site${shardNote}; runners: htmlcs + axe).`,
 );

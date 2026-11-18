@@ -1,0 +1,107 @@
+[
+  {
+    "depth": 2,
+    "slug": "abstract",
+    "text": "Abstract"
+  },
+  {
+    "depth": 2,
+    "slug": "sec:intro",
+    "text": "1 Introduction"
+  },
+  {
+    "depth": 2,
+    "slug": "sec:oracle",
+    "text": "2 The Oracle in the Parliamentary Record"
+  },
+  {
+    "depth": 2,
+    "slug": "sec:record",
+    "text": "3 A Census of Worked Examples"
+  },
+  {
+    "depth": 2,
+    "slug": "sec:mining",
+    "text": "4 Mining Examples into Scenarios"
+  },
+  {
+    "depth": 2,
+    "slug": "sec:drafting",
+    "text": "5 Drafting Under the Oracle"
+  },
+  {
+    "depth": 2,
+    "slug": "sec:suite",
+    "text": "6 One Dossier, Audited"
+  },
+  {
+    "depth": 3,
+    "slug": "the-household-promised-zero",
+    "text": "The household promised zero"
+  },
+  {
+    "depth": 3,
+    "slug": "an-expectation-pinned-to-the-encoding",
+    "text": "An expectation pinned to the encoding"
+  },
+  {
+    "depth": 3,
+    "slug": "a-reverse-pass-that-misfired",
+    "text": "A reverse pass that misfired"
+  },
+  {
+    "depth": 3,
+    "slug": "rounding-enacted-in-the-neighboring-statute",
+    "text": "Rounding enacted in the neighboring statute"
+  },
+  {
+    "depth": 2,
+    "slug": "sec:experiment",
+    "text": "7 Measuring a Suite by Seeding Faults"
+  },
+  {
+    "depth": 2,
+    "slug": "sec:cannot",
+    "text": "8 Three Limits of the Oracle"
+  },
+  {
+    "depth": 3,
+    "slug": "they-are-shallow",
+    "text": "They are shallow"
+  },
+  {
+    "depth": 3,
+    "slug": "they-go-stale",
+    "text": "They go stale"
+  },
+  {
+    "depth": 3,
+    "slug": "they-stop-at-the-open-norms",
+    "text": "They stop at the open norms"
+  },
+  {
+    "depth": 2,
+    "slug": "sec:dossier",
+    "text": "9 Where a Maintained Suite Belongs"
+  },
+  {
+    "depth": 2,
+    "slug": "sec:related",
+    "text": "10 Related Work"
+  },
+  {
+    "depth": 2,
+    "slug": "sec:conclusion",
+    "text": "11 Conclusion"
+  },
+  {
+    "depth": 2,
+    "slug": "acknowledgements",
+    "text": "Acknowledgements"
+  },
+  {
+    "depth": 2,
+    "slug": "references",
+    "text": "References"
+  }
+]

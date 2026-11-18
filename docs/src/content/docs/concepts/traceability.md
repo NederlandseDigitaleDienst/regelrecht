@@ -104,11 +104,11 @@ The zorgtoeslag law leaves `standaardpremie` open; it does not state the number.
 ║   ║   ╙──Computing motivering_vereist
 ...
 ║   ╙──HOOK: Hook PostActions on BESCHIKKING stage BESLUIT → algemene_wet_bestuursrecht:6:7
-║       ╙──Computing bezwaartermijn_weken
-║           └──Result: bezwaartermijn_weken = 6
+║       ╙──Computing termijn_weken
+║           └──Result: termijn_weken = 6
 ```
 
-Neither the zorgtoeslag law nor the Awb references the other. Because the zorgtoeslag decision is a *beschikking*, two Awb articles fire on it: 3:46 adds the duty to give reasons (`motivering_vereist`), and 6:7 adds the six-week objection period (`bezwaartermijn_weken`). These are [reactive](./hooks-and-reactive-execution) outputs, and in the receipt they carry a `Reactive` provenance tag rather than `Direct`. (Where a more specific law shortens that period, an `Override` node appears instead; the Vreemdelingenwet's four-week term is the worked example on the hooks page.)
+Neither the zorgtoeslag law nor the Awb references the other. Because the zorgtoeslag decision is a *beschikking*, two Awb articles fire on it: 3:46 adds the duty to give reasons (`motivering_vereist`), and 6:7 adds the six-week objection period (`termijn_weken`). These are [reactive](./hooks-and-reactive-execution) outputs, and in the receipt they carry a `Reactive` provenance tag rather than `Direct`. (Where a more specific law shortens that period, an `Override` node appears instead; the Vreemdelingenwet's four-week term is the worked example on the hooks page.)
 
 ### Operation branches
 

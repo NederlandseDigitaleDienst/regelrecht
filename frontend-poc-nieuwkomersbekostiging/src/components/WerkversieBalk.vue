@@ -5,7 +5,7 @@
       <!-- Eigen varianten apart gegroepeerd: ze zien er in een uitkomst net zo
            stellig uit als een variant uit het dossier, terwijl ze van de
            gebruiker zelf komen en alleen in deze browser staan. -->
-      <nldd-dropdown :key="`wv:${werkversie}:${variants.length}:${herteken}`" size="sm" width="360px" @change="kies($event.detail?.value ?? '')">
+      <nldd-dropdown :key="`wv:${werkversie}:${variants.length}:${herteken}`" size="sm" width="360px" @change="kies($event.target.value ?? '')">
         <select :value="werkversie ?? ''" aria-label="Kies de werkversie: wat je bewerkt">
           <option value="">Huidig recht (basis)</option>
           <option v-for="v in dossierVarianten" :key="v.id" :value="v.id">{{ kortTitel(v) }}</option>
@@ -53,7 +53,7 @@
       Hiermee vergeet de demo je keuzes: de gekozen kolommen, de werkversie, welke casus en school je bekijkt en de
       instellingen van de populatie. De wet zelf en de opgeslagen varianten blijven staan.
       <span class="wv-knoppen">
-        <nldd-button size="sm" text="Wis en begin opnieuw" appearance="primary" @click="wisStand"></nldd-button>
+        <nldd-button size="sm" text="Wis en begin opnieuw" appearance="primary" @click="resetPersistedState"></nldd-button>
         <nldd-button size="sm" text="Annuleren" appearance="neutral-transparent" @click="opnieuwOpen = false"></nldd-button>
       </span>
     </nldd-banner>
@@ -122,7 +122,7 @@ import { useEngine } from '../engine/useEngine.js';
 import { useLawStore, kortTitel } from '../engine/lawStore.js';
 import { useSimulation } from '../composables/useSimulation.js';
 import DiffSheet from './beleid/DiffSheet.vue';
-import { wisStand, heeftBewaardeStand } from '../composables/useBewaardeStand.js';
+import { resetPersistedState, hasPersistedState } from '../composables/useBewaardeStand.js';
 
 const { ready } = useEngine();
 const {
@@ -136,7 +136,7 @@ const diffOpen = ref(false);
 const wisselNaar = ref(null); // '' = huidig recht, anders variant-id; null = geen wissel gevraagd
 const herteken = ref(0); // bumpen zet de keuzelijst terug op de werkversie na annuleren
 const opnieuwOpen = ref(false);
-const ietsBewaard = heeftBewaardeStand();
+const ietsBewaard = hasPersistedState();
 const opslaanOpen = ref(false);
 const verwijderOpen = ref(false);
 const titel = ref('');
@@ -157,7 +157,7 @@ const eigenVarianten = computed(() => variants.value.filter((v) => isBrowserVari
  */
 const driftPaden = computed(() => {
   version.value;
-  return werkversie.value ? variantDrift(werkversie.value).paden : [];
+  return werkversie.value ? variantDrift(werkversie.value).paths : [];
 });
 
 function kies(value) {

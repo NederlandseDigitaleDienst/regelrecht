@@ -31,8 +31,12 @@ async fn main() {
         panic!("Scenarios directory not found: {}", scenarios_dir.display());
     }
 
+    // Cucumber telt een stap zonder definitie als *skipped*, en `run_and_exit`
+    // faalt alleen op mislukte stappen. Zonder `fail_on_skipped` blijft een
+    // herformuleerde `Then` groen terwijl hij niets meer toetst.
     world::NappWorld::cucumber()
         .max_concurrent_scenarios(1)
+        .fail_on_skipped()
         .with_default_cli()
         .run_and_exit(scenarios_dir)
         .await;

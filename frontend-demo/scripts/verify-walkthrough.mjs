@@ -10,7 +10,14 @@
  * (which applies all of its actions, fast) and reports each action whose
  * element was not found, per chapter, in two window sizes. A chapter with a
  * miss is replayed once at the recorded pace before it counts, so a slow
- * machine does not turn the check red.
+ * machine does not turn the check red. Every other language the walkthrough
+ * plays in (`locales` in the timeline) is checked too, in the first window
+ * size: there the replay finds each element through the demo's translations,
+ * and a label without one shows up here as a miss.
+ *
+ *   --locale CODE   check only that language (while working on a translation)
+ *   --shard K/N     check only every N-th (size, language) run, starting at
+ *                   the K-th; CI splits the check over N jobs this way
  *
  *   node frontend-demo/scripts/verify-walkthrough.mjs [--url URL] [--size WxH ...]
  *
@@ -32,10 +39,18 @@ const timelinePath = resolve(appRoot, '..', 'corpus', 'demo', 'walkthrough', 'ti
 const PORT = 7413;
 
 function args(argv) {
-  const out = { url: null, sizes: [] };
+  const out = { url: null, sizes: [], locale: null, shard: [1, 1] };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--url') out.url = argv[++i];
     else if (argv[i] === '--size') out.sizes.push(argv[++i]);
+    else if (argv[i] === '--locale') out.locale = argv[++i];
+    else if (argv[i] === '--shard') {
+      const [k, n] = String(argv[++i]).split('/').map(Number);
+      if (!(Number.isInteger(k) && Number.isInteger(n) && k >= 1 && k <= n)) {
+        throw new Error(`--shard verwacht K/N met 1 <= K <= N, kreeg ${argv[i]}`);
+      }
+      out.shard = [k, n];
+    }
   }
   if (!out.sizes.length) out.sizes = ['1600x1000', '1280x800'];
   return out;
@@ -77,7 +92,8 @@ async function launch() {
   const { chromium } = await import('playwright');
   // Muted: a voice out of nowhere in someone's meeting is not a test result.
   const opts = { headless: true, args: ['--mute-audio'] };
-  // On a laptop the installed Chrome is there already; CI installs Chromium.
+  // On a laptop the installed Chrome is there already; CI runs in the
+  // Playwright image, which carries Chromium.
   if (!process.env.CI) {
     try {
       return await chromium.launch({ ...opts, channel: 'chrome' });
@@ -88,17 +104,33 @@ async function launch() {
   return chromium.launch(opts);
 }
 
-async function verify(browser, base, timeline, size) {
+async function verify(browser, base, timeline, size, locale = 'nl') {
   const [width, height] = size.split('x').map(Number);
   const page = await browser.newPage({ viewport: { width, height } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
   const tracks = [['main', null, timeline.main], ...(timeline.faq ?? []).map((f) => [`faq-${f.id}`, f.id, f])];
+  // The walkthrough's address in `locale`, from the app's own route table.
+  const pathOf = async (faqId) => {
+    if (locale === 'nl') return `/rondleiding${faqId ? `/${faqId}` : ''}`;
+    if (!page.url().startsWith(base)) {
+      await page.goto(`${base}/rondleiding`);
+      await page.waitForFunction(() => window.__rrReplay?.replay.active, null, { timeout: 120_000 });
+    }
+    return page.evaluate(([code, id]) => window.__rrReplay.pathFor(code, id), [locale, faqId]);
+  };
+  const label = locale === 'nl' ? size : `${size}, ${locale}`;
   let missed = 0;
   for (const [name, faqId, track] of tracks) {
-    await page.goto(`${base}/rondleiding${faqId ? `/${faqId}` : ''}`);
+    await page.goto(`${base}${await pathOf(faqId)}`);
     await page.waitForFunction(() => window.__rrReplay?.replay.active, null, { timeout: 120_000 });
-    console.log(`${name} (${size})`);
+    const playing = await page.evaluate(() => window.__rrReplay.replay.demoLocale);
+    if (playing !== locale) {
+      console.log(`${name} (${label}): de demo speelt in ${playing}, niet in ${locale}`);
+      missed += 1;
+      continue;
+    }
+    console.log(`${name} (${label})`);
     let seen = 0;
     let seenLoose = 0;
     for (const [i, c] of track.chapters.entries()) {
@@ -125,7 +157,7 @@ async function verify(browser, base, timeline, size) {
       const loose = (await page.evaluate(() => window.__rrReplay.replay.loose.map((m) => ({ t: m.t, type: m.type, what: m.what })))).slice(seenLoose);
       seenLoose += loose.length;
       const path = await page.evaluate(() => location.pathname);
-      const slide = c.slide?.title ?? `dia ${c.slideIndex + 1}`;
+      const slide = `${c.slide?.title ?? `dia ${c.slideIndex + 1}`}${locale === 'nl' ? '' : ` [${locale}]`}`;
       const mark = fresh.length ? `${fresh.length} gemist: ${fresh.map((m) => `${m.type} @ ${m.t.toFixed(1)}s`).join(', ')}` : 'ok';
       console.log(`  ${i}. ${slide}  ${c.start.toFixed(0)}-${c.end.toFixed(0)}s  ${path}  ${mark}`);
       // Found, but only with the numbers in its description masked: probably
@@ -155,7 +187,7 @@ async function main() {
     console.log('walkthrough: geen timeline.json, niets te controleren');
     return 0;
   }
-  const { url, sizes } = args(process.argv.slice(2));
+  const { url, sizes, locale, shard } = args(process.argv.slice(2));
   const timeline = JSON.parse(readFileSync(timelinePath, 'utf8'));
   // The replay waits for the voice to load; the video it never plays.
   await fetchMedia({ audioOnly: true });
@@ -164,8 +196,15 @@ async function main() {
   try {
     await waitFor(`${base}/rondleiding`, 120_000);
     const browser = await launch();
+    const runs = [];
+    if (!locale || locale === 'nl') for (const size of sizes) runs.push([size, 'nl']);
+    const others = (timeline.locales ?? []).filter((l) => l !== 'nl' && (!locale || l === locale));
+    for (const code of others) runs.push([sizes[0], code]);
+    const [k, n] = shard;
     let failed = 0;
-    for (const size of sizes) failed += await verify(browser, base, timeline, size);
+    for (const [i, [size, code]] of runs.entries()) {
+      if (i % n === k - 1) failed += await verify(browser, base, timeline, size, code);
+    }
     await browser.close();
     return failed ? 1 : 0;
   } finally {

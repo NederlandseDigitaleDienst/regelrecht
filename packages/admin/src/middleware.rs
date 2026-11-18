@@ -2,8 +2,8 @@ use std::future::Future;
 use std::pin::Pin;
 
 use axum::extract::{Request, State};
-use axum::http::header;
 use axum::http::Method;
+use axum::http::header;
 use axum::middleware::Next;
 use axum::response::Response;
 use sha2::{Digest, Sha256};
@@ -11,8 +11,8 @@ use subtle::ConstantTimeEq;
 use tower_sessions::Session;
 
 pub use regelrecht_auth::middleware::refresh_session_token;
-pub use regelrecht_auth::security_headers::{security_headers, API_CSP};
-use regelrecht_auth::{check_session_role, RoleCheck};
+pub use regelrecht_auth::security_headers::{API_CSP, security_headers};
+use regelrecht_auth::{RoleCheck, check_session_role};
 
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -46,28 +46,28 @@ pub fn require_auth(
     move |State(state): State<AppState>, session: Session, request: Request, next: Next| {
         Box::pin(async move {
             // Check bearer token first (fast path for programmatic access).
-            if let Some(ref key_hash) = state.config.api_key_hash {
-                if let Some(token) = extract_bearer_token(&request) {
-                    // Compare SHA-256 digests in constant time to prevent
-                    // timing leaks of both key content and length.
-                    let token_hash = Sha256::digest(token.as_bytes());
-                    let token_matches = token_hash.ct_eq(key_hash).into();
-                    if token_matches {
-                        if !API_KEY_ALLOWED_METHODS.contains(request.method()) {
-                            tracing::warn!(
-                                method = %request.method(),
-                                uri = %request.uri(),
-                                "API key auth: method not allowed"
-                            );
-                            return Err(ApiError::Forbidden("method not allowed".to_string()));
-                        }
-                        return Ok(next.run(request).await);
+            if let Some(ref key_hash) = state.config.api_key_hash
+                && let Some(token) = extract_bearer_token(&request)
+            {
+                // Compare SHA-256 digests in constant time to prevent
+                // timing leaks of both key content and length.
+                let token_hash = Sha256::digest(token.as_bytes());
+                let token_matches = token_hash.ct_eq(key_hash).into();
+                if token_matches {
+                    if !API_KEY_ALLOWED_METHODS.contains(request.method()) {
+                        tracing::warn!(
+                            method = %request.method(),
+                            uri = %request.uri(),
+                            "API key auth: method not allowed"
+                        );
+                        return Err(ApiError::Forbidden("method not allowed".to_string()));
                     }
-                    // Invalid bearer token — reject immediately, don't fall
-                    // through to session (a wrong token is a deliberate signal).
-                    tracing::warn!(uri = %request.uri(), "API key auth: invalid bearer token");
-                    return Err(ApiError::Unauthorized("invalid bearer token".to_string()));
+                    return Ok(next.run(request).await);
                 }
+                // Invalid bearer token — reject immediately, don't fall
+                // through to session (a wrong token is a deliberate signal).
+                tracing::warn!(uri = %request.uri(), "API key auth: invalid bearer token");
+                return Err(ApiError::Unauthorized("invalid bearer token".to_string()));
             }
 
             // Fall through to OIDC/session authentication.
@@ -137,11 +137,11 @@ mod tests {
     use super::*;
     use crate::config::AppConfig;
     use crate::state::AppState;
+    use axum::Router;
     use axum::body::Body;
     use axum::http::StatusCode;
     use axum::middleware as axum_middleware;
     use axum::routing::get;
-    use axum::Router;
     use regelrecht_auth::{SESSION_KEY_AUTHENTICATED, SESSION_KEY_ROLES};
     use sqlx::postgres::PgPoolOptions;
     use std::sync::Arc;

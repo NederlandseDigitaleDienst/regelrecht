@@ -1,0 +1,54 @@
+---
+# Testcasus van de testbron voor voorinvullen (src/bundel.rs, tests/spel.rs).
+# FICTIEF: een loket schrijft een vereniging in op het nummer dat een register
+# haar gaf; de aanvraag noemt de naam, die het formulier voorinvult uit dat
+# register (ui_spec.yaml), en het bestuur, een tabel die het formulier op
+# dezelfde manier voorinvult.
+cel: voorbeeld_loket
+artikel: voorbeeld_inschrijving#1
+corpus:
+  - regulation/nl/uitvoeringsbeleid/voorbeeld_inschrijving
+  - regulation/nl/uitvoeringsbeleid/voorbeeld_register
+  - regulation/nl/wet/algemene_wet_bestuursrecht
+uitkomst: ingeschreven
+titel: Voorbeeldinschrijving
+cel_naam: Voorbeeldloket
+speeldatum: 2026-10-21
+# Wie inlogt: de aanvrager kiest een inschrijving uit de kroniek van het
+# register, en het nummer daarvan gaat in het veld nummer van de aanvraag.
+inloggen:
+  feit: voorbeeld_register#1#vereniging_ingeschreven
+  sleutel: nummer
+  veld: nummer
+  naam: naam
+voorbeeld:
+  aanvraag:
+    nummer: '00000001'
+  bevindingen: {}
+andere_cellen:
+  - cel: voorbeeld_register
+    cel_naam: Voorbeeldregister
+    begin:
+      datum: 2026-02-02
+      executogrammen:
+        - feit: voorbeeld_register#1#vereniging_ingeschreven
+          velden:
+            nummer: '00000001'
+            naam: Vereniging Voorbeeld
+        - feit: voorbeeld_register#2#bestuur_vastgesteld
+          velden:
+            nummer: '00000001'
+            bestuur:
+              - {naam: Lid Een, functie: voorzitter, sinds: '2026-01-01', vergoeding: 12500}
+              - {naam: Lid Twee, functie: penningmeester, sinds: '2026-01-15', vergoeding: null}
+        - feit: voorbeeld_register#1#vereniging_ingeschreven
+          datum: 2026-11-02
+          velden:
+            nummer: '00000002'
+            naam: Vereniging Later
+        - feit: voorbeeld_register#1#vereniging_ingeschreven
+          datum: 2026-11-03
+          velden:
+            nummer: '00000001'
+            naam: Vereniging Voorbeeld Hernoemd
+scenarios: []

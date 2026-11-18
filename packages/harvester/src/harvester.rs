@@ -4,12 +4,12 @@ use roxmltree::Document;
 
 use reqwest::Client;
 
-use crate::config::{validate_bwb_id, validate_date, wetten_url, DEFAULT_MAX_RESPONSE_SIZE};
+use crate::config::{DEFAULT_MAX_RESPONSE_SIZE, validate_bwb_id, validate_date, wetten_url};
 use crate::content::download_content_xml;
 use crate::error::Result;
-use crate::splitting::{create_dutch_law_hierarchy, LeafSplitStrategy, SplitContext, SplitEngine};
+use crate::splitting::{LeafSplitStrategy, SplitContext, SplitEngine, create_dutch_law_hierarchy};
 use crate::types::{Law, Preamble};
-use crate::wti::download_wti;
+use crate::wti::{WtiParseResult, download_wti};
 use crate::xml::{find_bijlage_context, find_by_path, find_children, get_tag_name, get_text};
 
 /// Download and parse a Dutch law.
@@ -59,8 +59,29 @@ pub async fn download_law_with_max_size(
     // Download content XML
     let content_xml = download_content_xml(client, bwb_id, date, max_size_bytes).await?;
 
+    parse_law(wti_result, &content_xml, bwb_id, date)
+}
+
+/// Build a `Law` from parsed WTI metadata and downloaded content XML.
+///
+/// This is the offline half of [`download_law_with_max_size`]: everything after
+/// the downloads. It is public so the pipeline can be tested on fixture files.
+///
+/// Callers must pass a `bwb_id` and `date` that already passed
+/// [`validate_bwb_id`] and [`validate_date`]; both feed the generated article
+/// URLs. `bwb_id` should be the id the WTI was fetched for, which normally
+/// equals `wti_result.metadata.bwb_id`; this function does not check that.
+///
+/// # Errors
+/// Returns an error if the content XML cannot be parsed.
+pub fn parse_law(
+    wti_result: WtiParseResult,
+    content_xml: &str,
+    bwb_id: &str,
+    date: &str,
+) -> Result<Law> {
     // Parse articles from content
-    let parsed = parse_articles(&content_xml, bwb_id, date)?;
+    let parsed = parse_articles(content_xml, bwb_id, date)?;
 
     // Combine warnings from WTI parsing and content parsing
     let mut warnings = wti_result.warnings;
@@ -154,12 +175,12 @@ fn extract_aanhef(doc: &Document<'_>, bwb_id: &str, date: &str) -> Option<Preamb
     let mut parts: Vec<String> = Vec::new();
 
     // Extract <wij> element
-    if let Some(wij) = find_children(aanhef, "wij").next() {
-        if let Some(text) = wij.text() {
-            let trimmed = text.trim();
-            if !trimmed.is_empty() {
-                parts.push(trimmed.to_string());
-            }
+    if let Some(wij) = find_children(aanhef, "wij").next()
+        && let Some(text) = wij.text()
+    {
+        let trimmed = text.trim();
+        if !trimmed.is_empty() {
+            parts.push(trimmed.to_string());
         }
     }
 

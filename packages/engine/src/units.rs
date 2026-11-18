@@ -375,6 +375,12 @@ pub fn infer_operation_unit(
             check_children(&refs, symbols)?;
             Ok(Unit::Unknown)
         }
+        // A row is measured in nothing, but its columns are checked.
+        Record { fields } => {
+            let refs: Vec<&ActionValue> = fields.values().collect();
+            check_children(&refs, symbols)?;
+            Ok(Unit::Unknown)
+        }
         // A FOREACH carries the unit of its body: summing eurocents over a
         // collection yields eurocents. ADD/MIN/MAX preserve it the way IF
         // preserves the shared unit of its branches; AND/OR reduce to a boolean,
@@ -396,8 +402,15 @@ pub fn infer_operation_unit(
             }
             let body_unit = infer_unit(body, symbols)?;
             Ok(match combine {
-                Some(CombineOp::Add) | Some(CombineOp::Min) | Some(CombineOp::Max) => body_unit,
-                Some(CombineOp::And) | Some(CombineOp::Or) | None => Unit::Unknown,
+                Some(CombineOp::Add)
+                | Some(CombineOp::Min)
+                | Some(CombineOp::Max)
+                | Some(CombineOp::Only) => body_unit,
+                // DISTINCT keeps the elements apart, in an array like no
+                // combine at all.
+                Some(CombineOp::And) | Some(CombineOp::Or) | Some(CombineOp::Distinct) | None => {
+                    Unit::Unknown
+                }
             })
         }
         Age {
@@ -479,15 +492,15 @@ pub fn check_law(law: &crate::article::ArticleBasedLaw) -> Vec<UnitFinding> {
         if let Some(actions) = &exec.actions {
             for action in actions {
                 let output = action.output.clone().unwrap_or_default();
-                if let Some(expr) = &action.value {
-                    if let Err(e) = infer_unit(expr, &symbols) {
-                        findings.push(UnitFinding {
-                            article: article_no.clone(),
-                            output,
-                            is_error: true,
-                            message: e.to_string(),
-                        });
-                    }
+                if let Some(expr) = &action.value
+                    && let Err(e) = infer_unit(expr, &symbols)
+                {
+                    findings.push(UnitFinding {
+                        article: article_no.clone(),
+                        output,
+                        is_error: true,
+                        message: e.to_string(),
+                    });
                 }
             }
         }
@@ -496,22 +509,22 @@ pub fn check_law(law: &crate::article::ArticleBasedLaw) -> Vec<UnitFinding> {
         // have *already opted into* unit annotations. A fully un-annotated
         // article stays silent (the opt-in cornerstone), so `just validate`
         // isn't flooded with warnings about laws nobody has started annotating.
-        if symbols.has_any_unit() {
-            if let Some(outputs) = &exec.output {
-                for o in outputs {
-                    let has_unit = o
-                        .type_spec
-                        .as_ref()
-                        .and_then(|t| t.unit.as_deref())
-                        .is_some();
-                    if matches!(o.output_type, ParameterType::Amount) && !has_unit {
-                        findings.push(UnitFinding {
-                            article: article_no.clone(),
-                            output: o.name.clone(),
-                            is_error: false,
-                            message: "no unit declared".to_string(),
-                        });
-                    }
+        if symbols.has_any_unit()
+            && let Some(outputs) = &exec.output
+        {
+            for o in outputs {
+                let has_unit = o
+                    .type_spec
+                    .as_ref()
+                    .and_then(|t| t.unit.as_deref())
+                    .is_some();
+                if matches!(o.output_type, ParameterType::Amount) && !has_unit {
+                    findings.push(UnitFinding {
+                        article: article_no.clone(),
+                        output: o.name.clone(),
+                        is_error: false,
+                        message: "no unit declared".to_string(),
+                    });
                 }
             }
         }
@@ -605,13 +618,15 @@ mod tests {
             Unit::Eurocent
         );
         // amount × amount is meaningless → error
-        assert!(combine(
-            AlgebraOp::Multiply,
-            "MULTIPLY",
-            Unit::Eurocent,
-            Unit::Eurocent
-        )
-        .is_err());
+        assert!(
+            combine(
+                AlgebraOp::Multiply,
+                "MULTIPLY",
+                Unit::Eurocent,
+                Unit::Eurocent
+            )
+            .is_err()
+        );
     }
 
     #[test]
@@ -639,13 +654,15 @@ mod tests {
             .unwrap(),
             Unit::Unknown
         );
-        assert!(combine(
-            AlgebraOp::Comparison,
-            "GREATER_THAN",
-            Unit::Eurocent,
-            Unit::Euro
-        )
-        .is_err());
+        assert!(
+            combine(
+                AlgebraOp::Comparison,
+                "GREATER_THAN",
+                Unit::Eurocent,
+                Unit::Euro
+            )
+            .is_err()
+        );
     }
 
     fn lit(v: impl Into<Value>) -> ActionValue {
@@ -702,8 +719,14 @@ mod tests {
     fn infer_foreach_add_keeps_the_body_unit() {
         // Summing eurocents over a collection yields eurocents. Losing that
         // would disable euro/eurocent checking for every aggregated total,
-        // which is the confusion RFC-023 exists to catch.
-        for combine in [CombineOp::Add, CombineOp::Min, CombineOp::Max] {
+        // which is the confusion RFC-023 exists to catch. The one element
+        // ONLY picks keeps its unit too.
+        for combine in [
+            CombineOp::Add,
+            CombineOp::Min,
+            CombineOp::Max,
+            CombineOp::Only,
+        ] {
             let op = foreach_over(var("premie"), Some(combine));
             assert_eq!(
                 infer_operation_unit(&op, &symbols()).unwrap(),
@@ -715,9 +738,14 @@ mod tests {
 
     #[test]
     fn infer_foreach_boolean_and_array_results_have_no_unit() {
-        // AND/OR reduce to a boolean, and without `combine` the result is an
-        // array. Neither is measured in anything.
-        for combine in [Some(CombineOp::And), Some(CombineOp::Or), None] {
+        // AND/OR reduce to a boolean, and without `combine` or with DISTINCT
+        // the result is an array. Neither is measured in anything.
+        for combine in [
+            Some(CombineOp::And),
+            Some(CombineOp::Or),
+            Some(CombineOp::Distinct),
+            None,
+        ] {
             let op = foreach_over(var("premie"), combine);
             assert_eq!(
                 infer_operation_unit(&op, &symbols()).unwrap(),
@@ -862,6 +890,14 @@ mod tests {
         let list = ActionOperation::List { items: vec![bad()] };
         assert!(matches!(
             infer_operation_unit(&list, &symbols()),
+            Err(EngineError::UnitMismatch { .. })
+        ));
+
+        let record = ActionOperation::Record {
+            fields: [("a".to_string(), bad())].into_iter().collect(),
+        };
+        assert!(matches!(
+            infer_operation_unit(&record, &symbols()),
             Err(EngineError::UnitMismatch { .. })
         ));
     }

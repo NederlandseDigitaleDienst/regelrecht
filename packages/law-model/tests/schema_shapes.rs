@@ -120,10 +120,10 @@ articles:
         .and_then(|mr| mr.competent_authority.as_ref())
         .expect("authority is parsed");
     match authority {
-        CompetentAuthority::Structured {
+        CompetentAuthority::Structured(regelrecht_law_model::NamedAuthority {
             name,
             authority_type,
-        } => {
+        }) => {
             assert_eq!(name, "het college");
             assert_eq!(
                 *authority_type,

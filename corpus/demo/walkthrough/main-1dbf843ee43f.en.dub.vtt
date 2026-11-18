@@ -1,0 +1,1336 @@
+WEBVTT
+
+1
+00:00:00.981 --> 00:00:04.821
+Laws have been translated into
+software by hand for decades.
+
+2
+00:00:05.963 --> 00:00:10.963
+Every implementing organisation has its
+own interpretation of the law, and a large
+
+3
+00:00:10.963 --> 00:00:13.963
+part of that interpretation
+ends up in software.
+
+4
+00:00:13.955 --> 00:00:19.355
+That has gone on for years, decades in some
+cases, and countless amendments and new
+
+5
+00:00:19.355 --> 00:00:22.675
+bills end up stacked on top
+of each other in software.
+
+6
+00:00:24.826 --> 00:00:27.327
+As a result, there is
+no overview any more.
+
+7
+00:00:27.327 --> 00:00:31.887
+It's unclear which piece of software relates
+to which piece of legislation, and the
+
+8
+00:00:31.887 --> 00:00:33.450
+other way round.
+
+9
+00:00:33.450 --> 00:00:37.951
+Which in turn makes it unpredictable
+how that software works.
+
+10
+00:00:37.951 --> 00:00:42.511
+Not only for citizens and businesses on the
+receiving end of that software, but also
+
+11
+00:00:42.511 --> 00:00:47.391
+for policymakers, for civil servants who
+work with it, and even for IT people, the
+
+12
+00:00:47.391 --> 00:00:48.671
+ones who build it.
+
+13
+00:00:54.554 --> 00:00:59.354
+It becomes unmanageable to change that
+software, people no longer dare, and no
+
+14
+00:00:59.354 --> 00:01:01.594
+longer know the effect of a change.
+
+15
+00:01:06.497 --> 00:01:11.057
+RegelRecht asks: what if we start
+with the law, make the law itself
+
+16
+00:01:11.057 --> 00:01:14.676
+machine-executable, and
+publish that openly?
+
+17
+00:01:14.676 --> 00:01:18.956
+I'm Anne Schuth, staff engineer at RegelRecht,
+and I'll be giving the demo for about
+
+18
+00:01:18.956 --> 00:01:20.596
+the next quarter of an hour.
+
+19
+00:01:23.700 --> 00:01:25.180
+This isn't static.
+
+20
+00:01:25.180 --> 00:01:28.460
+You can stop at any moment
+and click around yourself.
+
+21
+00:01:30.462 --> 00:01:34.544
+On the left, questions
+I get very often appear.
+
+22
+00:01:34.544 --> 00:01:37.059
+You can click them to get answers.
+
+23
+00:01:37.059 --> 00:01:38.560
+Done.
+
+24
+00:01:38.560 --> 00:01:41.840
+It's working software, but
+not a finished product.
+
+25
+00:01:42.950 --> 00:01:45.468
+So it's not meant to
+ever go into production.
+
+26
+00:01:45.392 --> 00:01:49.791
+And we do this from a policy
+department, so we make policy by doing.
+
+27
+00:01:49.715 --> 00:01:54.155
+We start at the very back end, with a
+rulework, in this case for the healthcare
+
+28
+00:01:54.155 --> 00:01:54.995
+allowance.
+
+29
+00:01:55.839 --> 00:02:00.022
+Here we see a machine-executable
+version of the healthcare allowance.
+
+30
+00:02:00.022 --> 00:02:03.864
+Not the whole law, only article 2 and 4.
+
+31
+00:02:03.864 --> 00:02:08.544
+Here's article 2, the whole article,
+so here we see the full text.
+
+32
+00:02:08.467 --> 00:02:13.395
+And below it we see machine-readable,
+the machine-executable part of that law.
+
+33
+00:02:13.395 --> 00:02:15.016
+Dat is onze interpretatie.
+
+34
+00:02:15.016 --> 00:02:19.552
+And what we see here is that it
+starts with a parameter, namely BSN.
+
+35
+00:02:19.478 --> 00:02:22.860
+Well, someone must be
+old enough and insured.
+
+36
+00:02:22.860 --> 00:02:26.940
+Well, someone must at least be
+of minimum age and be insured.
+
+37
+00:02:28.083 --> 00:02:30.560
+And then we see the amount
+of healthcare allowance.
+
+38
+00:02:30.485 --> 00:02:36.565
+That's a whole calculation I won't go into,
+but below we see Operation Add: adding
+
+39
+00:02:36.565 --> 00:02:41.016
+income to partner income, to compare
+it with the threshold income.
+
+40
+00:02:41.016 --> 00:02:44.536
+What I skipped over just now
+is something we call inputs.
+
+41
+00:02:45.941 --> 00:02:48.661
+Those are really references to other laws.
+
+42
+00:02:49.465 --> 00:02:53.349
+For example, 'is insured',
+one of the conditions.
+
+43
+00:02:53.349 --> 00:02:54.309
+From another law.
+
+44
+00:02:54.309 --> 00:02:58.213
+So the act points to insured,
+per the health insurance act.
+
+45
+00:02:58.133 --> 00:03:01.859
+So we can click through to the health
+insurance act, and we'll do that now, and then
+
+46
+00:03:01.859 --> 00:03:03.824
+we see what it means to be insured.
+
+47
+00:03:03.756 --> 00:03:08.476
+Someone is insured, that's an output
+here, if they have insurance or treaty
+
+48
+00:03:08.476 --> 00:03:11.436
+insurance and if they're not in detention.
+
+49
+00:03:13.221 --> 00:03:17.494
+And being in detention is again an input,
+as we see here, from the penitentiary
+
+50
+00:03:17.494 --> 00:03:18.607
+principles act.
+
+51
+00:03:18.535 --> 00:03:22.737
+And we can go there too, and then we
+see what it means to be detained.
+
+52
+00:03:22.737 --> 00:03:27.657
+Namely, you're in a penitentiary or a
+remand centre, and you're confined or
+
+53
+00:03:27.657 --> 00:03:29.881
+temporarily absent.
+
+54
+00:03:29.881 --> 00:03:33.801
+And so you see that to calculate healthcare
+allowance, the entitlement and the
+
+55
+00:03:33.801 --> 00:03:37.001
+amount, you need a whole
+series of legislation.
+
+56
+00:03:40.047 --> 00:03:42.308
+And actually, it's a graph.
+
+57
+00:03:42.308 --> 00:03:46.408
+And once you have laws machine-executable,
+you can also visualise that.
+
+58
+00:03:46.333 --> 00:03:49.576
+Then you can see that those laws
+are connected to each other.
+
+59
+00:03:49.576 --> 00:03:54.136
+I'll zoom in a bit, but here you see,
+for example, the healthcare allowance.
+
+60
+00:03:57.282 --> 00:04:01.922
+Let's see, here we see 'is
+insured', we can follow that line.
+
+61
+00:04:03.568 --> 00:04:07.842
+Then we reach the Health Insurance Act and
+see 'is detained', and follow that line
+
+62
+00:04:07.842 --> 00:04:08.483
+too.
+
+63
+00:04:08.412 --> 00:04:09.772
+We see that here.
+
+64
+00:04:10.655 --> 00:04:14.095
+Then we see the determination
+of the detention status.
+
+65
+00:04:14.906 --> 00:04:19.186
+And here we actually see the whole system
+of legislation needed to arrive at the
+
+66
+00:04:19.186 --> 00:04:20.691
+healthcare allowance.
+
+67
+00:04:20.691 --> 00:04:24.611
+If I click this, we see all the legislation
+we currently have in the proof of
+
+68
+00:04:24.611 --> 00:04:25.651
+concept.
+
+69
+00:04:26.776 --> 00:04:28.456
+That's quite a queue.
+
+70
+00:04:29.858 --> 00:04:32.018
+Have a guess which one this might be.
+
+71
+00:04:33.847 --> 00:04:35.847
+Feel free to look around yourself.
+
+72
+00:04:37.671 --> 00:04:42.631
+You can click around, zoom in, zoom out
+and follow the lines to see how law and
+
+73
+00:04:42.631 --> 00:04:44.151
+regulation connect.
+
+74
+00:04:47.983 --> 00:04:49.594
+We'll pick up shortly.
+
+75
+00:04:49.594 --> 00:04:53.514
+One question I get a lot here
+is how we deal with ambiguity.
+
+76
+00:04:59.941 --> 00:05:05.021
+So if two definitions with the same name
+appear somewhere in this network, partner
+
+77
+00:05:05.021 --> 00:05:07.461
+income is a common one, or household.
+
+78
+00:05:14.288 --> 00:05:17.168
+And they do occur, you
+could go and look for them.
+
+79
+00:05:19.115 --> 00:05:25.115
+So in different places, in different laws,
+partner income or household is defined in
+
+80
+00:05:25.115 --> 00:05:26.235
+different ways.
+
+81
+00:05:28.163 --> 00:05:31.303
+And we humans find that really annoying.
+
+82
+00:05:31.303 --> 00:05:35.367
+But for machines it doesn't matter, as
+long as you keep pointing to the right
+
+83
+00:05:35.367 --> 00:05:36.070
+definition.
+
+84
+00:05:35.992 --> 00:05:40.552
+What you see here can be generated
+automatically once you have machine-executable
+
+85
+00:05:40.552 --> 00:05:42.232
+law and regulation.
+
+86
+00:05:45.561 --> 00:05:50.361
+And this is already quite useful for legal
+analysts, legislative lawyers, anyone
+
+87
+00:05:50.361 --> 00:05:54.441
+working with law and regulation, because
+it shows what is all connected and what
+
+88
+00:05:54.441 --> 00:05:56.681
+might break if you change something.
+
+89
+00:06:04.761 --> 00:06:09.403
+Once your law is machine-executable,
+you can also do the following.
+
+90
+00:06:09.403 --> 00:06:13.083
+What we're looking at here
+are scenarios, cases.
+
+91
+00:06:14.244 --> 00:06:19.284
+And those cases are very often described in
+the explanatory memorandum, for example.
+
+92
+00:06:22.290 --> 00:06:27.810
+So a law goes to Parliament, or a bill, or
+an amendment, and usually an explanatory
+
+93
+00:06:27.810 --> 00:06:29.810
+memorandum is sent along with it.
+
+94
+00:06:31.156 --> 00:06:36.519
+And that explanatory memorandum describes
+how the law should work in specific cases.
+
+95
+00:06:36.440 --> 00:06:41.720
+Sometimes even a whole table with properties
+of people or households, businesses,
+
+96
+00:06:41.720 --> 00:06:43.880
+showing how the law should apply to them.
+
+97
+00:06:45.867 --> 00:06:48.690
+The intended way the law would work.
+
+98
+00:06:48.690 --> 00:06:52.290
+So you can take such a case from
+its explanatory memorandum.
+
+99
+00:06:53.476 --> 00:06:54.820
+And it looks like this.
+
+100
+00:06:54.820 --> 00:06:59.618
+So we see a person with a
+fictional BSN, fictional wage.
+
+101
+00:06:59.618 --> 00:07:03.658
+And when the healthcare allowance act is
+executed, this should be the healthcare
+
+102
+00:07:03.658 --> 00:07:07.881
+allowance in euro cents per
+year for this specific case.
+
+103
+00:07:07.881 --> 00:07:11.608
+Now, what we can do, and this is why
+it's called machine-executable law and
+
+104
+00:07:11.608 --> 00:07:13.472
+regulation, is run it.
+
+105
+00:07:13.403 --> 00:07:18.443
+And what we get is what we call a trace of
+the law being executed on this specific
+
+106
+00:07:18.443 --> 00:07:19.003
+case.
+
+107
+00:07:20.205 --> 00:07:23.746
+Here, for example, we
+see the law executing.
+
+108
+00:07:23.746 --> 00:07:27.426
+To determine the healthcare
+allowance for the BSN we just saw.
+
+109
+00:07:28.731 --> 00:07:33.171
+And a bit further down, we see the Health
+Insurance Act was executed to determine
+
+110
+00:07:33.171 --> 00:07:35.518
+whether someone is insured.
+
+111
+00:07:35.518 --> 00:07:39.607
+And further down still, we recognise
+the Penitentiary Principles Act, used to
+
+112
+00:07:39.607 --> 00:07:41.651
+determine whether someone is detained.
+
+113
+00:07:41.583 --> 00:07:45.227
+In this case, this person is not detained.
+
+114
+00:07:45.227 --> 00:07:47.600
+So it simply carries on.
+
+115
+00:07:47.600 --> 00:07:52.160
+And then all the way down, quite a scroll,
+we see the amount of healthcare allowance
+
+116
+00:07:52.160 --> 00:07:56.400
+in euro cents per year, which here
+matches what we saw in this case.
+
+117
+00:08:04.805 --> 00:08:07.950
+Under 18, no healthcare allowance.
+
+118
+00:08:07.950 --> 00:08:10.273
+So this is another scenario.
+
+119
+00:08:10.273 --> 00:08:14.033
+And when we run it, we see the
+trace has become much shorter.
+
+120
+00:08:15.081 --> 00:08:20.668
+For example, we see this person is 17,
+and that stops it from going any further.
+
+121
+00:08:20.668 --> 00:08:22.076
+That was one condition.
+
+122
+00:08:22.012 --> 00:08:25.794
+Someone had to be at least
+the minimum age, which was 18.
+
+123
+00:08:25.794 --> 00:08:27.074
+So it stops there.
+
+124
+00:08:27.074 --> 00:08:31.234
+So this person does not meet the conditions,
+so the amount of healthcare allowance
+
+125
+00:08:31.234 --> 00:08:36.247
+is not determined, and sensitive data points,
+such as whether they are in detention,
+
+126
+00:08:36.247 --> 00:08:37.794
+are not even looked at.
+
+127
+00:08:42.741 --> 00:08:46.981
+So there is a kind of data
+minimisation built in automatically.
+
+128
+00:08:47.876 --> 00:08:50.276
+Feel free to have a look around here too.
+
+129
+00:08:53.158 --> 00:08:56.918
+You can play with those scenarios
+yourself and follow the traces.
+
+130
+00:08:58.968 --> 00:09:04.008
+One of the questions I often get, or have
+often had, is how we actually arrive at
+
+131
+00:09:04.008 --> 00:09:05.528
+those ruleworks.
+
+132
+00:09:09.426 --> 00:09:14.506
+The short answer is that we use generative
+AI to turn legislation and regulations
+
+133
+00:09:14.506 --> 00:09:16.386
+into a rulework like that.
+
+134
+00:09:18.825 --> 00:09:23.785
+We use generative AI to turn the
+explanatory memorandum into a scenario.
+
+135
+00:09:25.454 --> 00:09:29.134
+Then we run the scenario and
+find out it doesn't work yet.
+
+136
+00:09:30.235 --> 00:09:33.056
+So some things did not pass.
+
+137
+00:09:33.056 --> 00:09:37.576
+And we take the output, the results, the
+things that go wrong, and give it to the
+
+138
+00:09:37.576 --> 00:09:39.616
+language model to go another round.
+
+139
+00:09:40.539 --> 00:09:45.200
+So again a rulework is pulled
+out, again a scenario.
+
+140
+00:09:45.200 --> 00:09:49.881
+Then it runs again until, at some
+point, everything shows as passed.
+
+141
+00:09:49.881 --> 00:09:54.201
+That's the point where we'd hand it to
+a legal analyst or legislative lawyer.
+
+142
+00:09:55.210 --> 00:09:58.410
+So that would be the starting point
+for a lawyer to look at how the
+
+143
+00:09:58.410 --> 00:10:03.130
+machine-executable law and regulation works,
+and whether it does what it should and
+
+144
+00:10:03.130 --> 00:10:06.090
+implements the law and
+regulation the way we want.
+
+145
+00:10:08.438 --> 00:10:12.838
+Once you make laws machine-executable,
+you can do all sorts of things.
+
+146
+00:10:12.782 --> 00:10:15.662
+You can also run it on
+several people at once.
+
+147
+00:10:17.646 --> 00:10:22.389
+So in the scenarios, we ran the
+law on one individual at a time.
+
+148
+00:10:22.389 --> 00:10:26.949
+And here we're running it on a
+population, in this case 50 people.
+
+149
+00:10:28.654 --> 00:10:34.590
+Average age 54, 36% partnered,
+40% tenants, 18% with children,
+
+150
+00:10:34.590 --> 00:10:38.012
+4% students, income 41,000 euros.
+
+151
+00:10:37.942 --> 00:10:43.142
+It's a fairly small population, so not
+very realistic, but sampled from CBS
+
+152
+00:10:43.142 --> 00:10:44.342
+statistics.
+
+153
+00:10:50.812 --> 00:10:56.092
+Once you have all the laws, which we see
+below, so here we see social assistance,
+
+154
+00:10:56.092 --> 00:11:01.772
+income-related contribution, ZVW, health
+insurance act, income tax, voting
+
+155
+00:11:01.772 --> 00:11:05.212
+rights, House of Representatives,
+et cetera, et cetera.
+
+156
+00:11:06.188 --> 00:11:10.988
+Once all those laws are machine-executable
+and run on such a population, you can
+
+157
+00:11:10.988 --> 00:11:12.668
+calculate things like this.
+
+158
+00:11:13.541 --> 00:11:16.885
+Disposable income, so what you
+keep at the end of the month.
+
+159
+00:11:16.885 --> 00:11:22.411
+So income minus tax plus the allowances
+and benefits the laws grant.
+
+160
+00:11:22.411 --> 00:11:26.235
+That also factors in all the
+interaction between laws.
+
+161
+00:11:26.235 --> 00:11:29.819
+So you might get more somewhere,
+and less somewhere else.
+
+162
+00:11:29.819 --> 00:11:32.856
+And you see that in amounts like these.
+
+163
+00:11:32.856 --> 00:11:36.936
+Once laws are executable, you can
+look at the effect of amendments.
+
+164
+00:11:40.943 --> 00:11:45.423
+For example, an amendment to the default
+premium of the healthcare allowance.
+
+165
+00:11:46.481 --> 00:11:51.041
+If we roughly double it and run a simulation
+on the same population, we see what
+
+166
+00:11:51.041 --> 00:11:53.041
+happens and can compare them.
+
+167
+00:11:57.610 --> 00:12:01.690
+So here we see the comparison between the
+default situation and the one with the
+
+168
+00:12:01.690 --> 00:12:03.530
+default premium changed.
+
+169
+00:12:04.842 --> 00:12:09.442
+So here, for example, disposable
+income per month goes up from 4720 to
+
+170
+00:12:09.442 --> 00:12:13.722
+4775 euros.
+
+171
+00:12:19.321 --> 00:12:23.241
+And if you have to vote, say you're in
+the House of Representatives voting on an
+
+172
+00:12:23.241 --> 00:12:28.201
+amendment changing that default premium,
+it's very useful to have this: the effect
+
+173
+00:12:28.201 --> 00:12:30.281
+of an amendment to the
+healthcare allowance.
+
+174
+00:12:33.761 --> 00:12:37.121
+We see the healthcare allowance
+act goes up considerably.
+
+175
+00:12:43.405 --> 00:12:47.645
+Apparently people are being cut somewhere
+else, and you want to know that.
+
+176
+00:12:48.766 --> 00:12:52.926
+Here you can have a click around yourself,
+maybe try out some other law amendments
+
+177
+00:12:52.926 --> 00:12:54.766
+and make different comparisons.
+
+178
+00:12:58.433 --> 00:13:02.535
+And you can zoom in on how this
+breaks down within a population.
+
+179
+00:13:02.535 --> 00:13:07.855
+So here you can see, for example, how it
+breaks down by age, by income, by whether
+
+180
+00:13:07.855 --> 00:13:12.375
+you have a partner, whether you rent
+or own, and whether you have children.
+
+181
+00:13:15.378 --> 00:13:17.219
+So feel free to look around.
+
+182
+00:13:17.219 --> 00:13:18.819
+We'll pick up shortly.
+
+183
+00:13:20.387 --> 00:13:24.889
+Once you make laws machine-executable,
+you can do this too.
+
+184
+00:13:24.889 --> 00:13:28.089
+What we see here is a
+kind of My government.
+
+185
+00:13:31.012 --> 00:13:34.932
+And what we actually see
+here, let me reset the demo.
+
+186
+00:13:35.794 --> 00:13:38.674
+What we see here is a portal for Merijn.
+
+187
+00:13:42.501 --> 00:13:44.598
+We also have Claudia's portal.
+
+188
+00:13:44.523 --> 00:13:49.563
+But Merijn, for example, may be entitled
+to child budget, healthcare allowance,
+
+189
+00:13:49.563 --> 00:13:52.363
+Amsterdam social assistance, and so on.
+
+190
+00:13:53.691 --> 00:13:56.414
+Here we see all the laws
+again that we saw earlier.
+
+191
+00:13:56.414 --> 00:14:01.374
+Take that healthcare allowance: we see
+exactly the trace we just saw, but only the
+
+192
+00:14:01.374 --> 00:14:03.962
+data points from that trace.
+
+193
+00:14:03.962 --> 00:14:08.066
+So here, for example, we see
+that Merijn is not in detention.
+
+194
+00:14:08.066 --> 00:14:10.229
+From the Penitentiary Principles Act.
+
+195
+00:14:10.229 --> 00:14:14.474
+Merijn checks the data,
+agrees, and applies.
+
+196
+00:14:14.474 --> 00:14:16.739
+And it's granted straight away.
+
+197
+00:14:16.739 --> 00:14:20.979
+So the Dienst Toeslagen at the back end,
+the competent authority for the Healthcare
+
+198
+00:14:20.979 --> 00:14:24.505
+Allowance Act, grants
+this amount immediately.
+
+199
+00:14:24.505 --> 00:14:28.785
+That's possible because the application
+was made with machine-executable law and
+
+200
+00:14:28.785 --> 00:14:33.705
+regulation for the healthcare allowance,
+and Dienst Toeslagen uses exactly the same
+
+201
+00:14:33.705 --> 00:14:37.474
+machine-executable law and
+regulation at the back end.
+
+202
+00:14:37.474 --> 00:14:42.034
+In other words, this isn't the calculator,
+but the real interpretation of law and
+
+203
+00:14:42.034 --> 00:14:43.154
+regulation.
+
+204
+00:14:44.062 --> 00:14:45.982
+Housing benefit differs slightly.
+
+205
+00:14:45.982 --> 00:14:51.022
+Merijn has to supply some data, like
+the rent and eligible service costs.
+
+206
+00:14:54.349 --> 00:14:57.055
+And that's 302.96 euros.
+
+207
+00:14:56.991 --> 00:15:01.154
+And then Merijn perhaps thinks,
+hey, I expected a bit more.
+
+208
+00:15:01.154 --> 00:15:05.747
+And if he looks more closely, he also
+sees that his income is completely wrong.
+
+209
+00:15:05.673 --> 00:15:08.730
+He clicks again and sees
+business profit listed.
+
+210
+00:15:08.655 --> 00:15:12.975
+Last year Merijn may have had a
+business, but I no longer have mine.
+
+211
+00:15:17.460 --> 00:15:20.161
+Perhaps with a deregistration at the KVK.
+
+212
+00:15:20.161 --> 00:15:22.323
+Well, Merijn submits that.
+
+213
+00:15:22.323 --> 00:15:24.051
+So, Merijn submits.
+
+214
+00:15:24.051 --> 00:15:29.331
+We also see the amount go
+up, from 302 to 406.95
+
+215
+00:15:29.331 --> 00:15:30.451
+euros.
+
+216
+00:15:30.371 --> 00:15:34.450
+Now Merijn can apply for this,
+and it may need to be assessed.
+
+217
+00:15:34.450 --> 00:15:39.010
+As the government, we may want to look at
+that change in Merijn's income, in the KVK
+
+218
+00:15:39.010 --> 00:15:40.610
+deregistration proof.
+
+219
+00:15:45.112 --> 00:15:49.192
+We also see that the healthcare allowance
+Merijn already applied for, and was
+
+220
+00:15:49.192 --> 00:15:51.992
+granted, no longer actually matches.
+
+221
+00:15:53.760 --> 00:15:59.165
+That healthcare allowance was also based
+on income, and Merijn has changed that.
+
+222
+00:15:59.165 --> 00:16:04.125
+So Merijn may want to amend that application
+too, and it may need assessing, because
+
+223
+00:16:04.125 --> 00:16:08.685
+an official still has to review the
+underlying supporting document, the KVK
+
+224
+00:16:08.685 --> 00:16:10.045
+deregistration.
+
+225
+00:16:11.910 --> 00:16:15.350
+This is a moment when people often ask
+whether this couldn't have been done
+
+226
+00:16:15.350 --> 00:16:16.550
+proactively.
+
+227
+00:16:19.161 --> 00:16:24.841
+This demo comes from a field lab on
+proactive services, in December 2024.
+
+228
+00:16:27.428 --> 00:16:30.319
+And that is exactly the reason
+to start working on this.
+
+229
+00:16:30.250 --> 00:16:34.450
+Once we can calculate entitlement to
+healthcare allowance and its amount with
+
+230
+00:16:34.450 --> 00:16:39.130
+machine-executable legislation,
+couldn't we also grant it proactively?
+
+231
+00:16:43.281 --> 00:16:48.481
+The short answer: technically perhaps,
+but it's not always desirable, because we
+
+232
+00:16:48.481 --> 00:16:50.881
+don't know everything about applicants.
+
+233
+00:16:55.831 --> 00:17:00.551
+The longer answer: to grant directly, we
+would need to know everything about an
+
+234
+00:17:00.551 --> 00:17:01.591
+applicant.
+
+235
+00:17:03.999 --> 00:17:06.581
+For example, whether
+someone inherited money.
+
+236
+00:17:06.581 --> 00:17:10.861
+With all the data the government holds, it
+may look like you qualify for healthcare
+
+237
+00:17:10.861 --> 00:17:13.861
+allowance, but the government
+doesn't know everything.
+
+238
+00:17:15.028 --> 00:17:18.948
+If you've just received an inheritance,
+say, that affects your entitlement to
+
+239
+00:17:18.948 --> 00:17:21.268
+healthcare allowance and its amount.
+
+240
+00:17:25.056 --> 00:17:29.536
+And if we had granted it directly, you
+could end up having to repay all of it.
+
+241
+00:17:31.181 --> 00:17:33.013
+So that requires choices.
+
+242
+00:17:32.943 --> 00:17:37.503
+It requires political choices, and perhaps
+legislative changes, for this to be done
+
+243
+00:17:37.503 --> 00:17:38.703
+reliably.
+
+244
+00:17:42.237 --> 00:17:46.917
+So Merijn has made these two applications,
+and then there's perhaps a case system,
+
+245
+00:17:46.917 --> 00:17:50.637
+here for Dienst Toeslagen, but it
+could be another organisation too.
+
+246
+00:17:54.323 --> 00:17:57.363
+They see Merijn's two
+applications in detail.
+
+247
+00:17:58.625 --> 00:18:02.625
+And then he sees, for example,
+that Merijn made a change here.
+
+248
+00:18:03.587 --> 00:18:06.316
+Profit fell from 25,000 to zero.
+
+249
+00:18:06.248 --> 00:18:08.209
+Approve or reject.
+
+250
+00:18:08.209 --> 00:18:11.809
+Or the whole application
+can be granted or rejected.
+
+251
+00:18:12.711 --> 00:18:17.191
+This official weighs it very carefully,
+explains why this doesn't add up, and
+
+252
+00:18:17.191 --> 00:18:18.471
+rejects it.
+
+253
+00:18:24.006 --> 00:18:26.607
+And for Merijn, that would look like this.
+
+254
+00:18:26.607 --> 00:18:30.927
+His housing benefit application
+is rejected, and he can object.
+
+255
+00:18:33.609 --> 00:18:38.249
+Objecting is of course another law coming
+into play: the General Administrative Law
+
+256
+00:18:38.249 --> 00:18:39.451
+Act.
+
+257
+00:18:39.451 --> 00:18:43.771
+And that General Administrative
+Law Act is also machine-executable.
+
+258
+00:18:45.353 --> 00:18:46.814
+And we can see that too.
+
+259
+00:18:46.814 --> 00:18:49.374
+Here we see the objection, for example.
+
+260
+00:18:51.112 --> 00:18:53.354
+Then we see when you can object.
+
+261
+00:18:53.354 --> 00:18:58.114
+So where in the healthcare allowance law
+the amount was an output, here we see that
+
+262
+00:18:58.114 --> 00:19:00.234
+objection possible is an output.
+
+263
+00:19:01.388 --> 00:19:05.823
+And we see, for example, that the law the
+decision came from must not be a generally
+
+264
+00:19:05.823 --> 00:19:10.257
+binding regulation, not a policy rule,
+not a preparatory decision of another act,
+
+265
+00:19:10.257 --> 00:19:13.763
+and must result in a decision or
+a decision of general application.
+
+266
+00:19:13.695 --> 00:19:16.255
+And you must not have objected before.
+
+267
+00:19:16.255 --> 00:19:21.295
+So you see that more procedural legislation,
+like the Awb, or this part of it, I
+
+268
+00:19:21.295 --> 00:19:24.415
+should say, can also be
+made machine-executable.
+
+269
+00:19:27.313 --> 00:19:29.112
+And that it can work along.
+
+270
+00:19:29.034 --> 00:19:34.717
+So the block here, objection possible or
+object, is perhaps in this user interface,
+
+271
+00:19:34.717 --> 00:19:36.220
+in this piece of software.
+
+272
+00:19:36.220 --> 00:19:41.020
+But the logic behind it, the business logic
+that decides whether someone can object,
+
+273
+00:19:41.020 --> 00:19:43.100
+sits in a rulework like this.
+
+274
+00:19:45.405 --> 00:19:49.885
+And that means you only have to interpret
+a piece of the Awb once, make it
+
+275
+00:19:49.885 --> 00:19:53.405
+machine-executable once, to
+make it work everywhere.
+
+276
+00:19:56.475 --> 00:19:59.355
+The legislation we see here, for example.
+
+277
+00:20:00.858 --> 00:20:06.138
+That applies not just to the Awb, but
+perhaps to other procedural legislation too,
+
+278
+00:20:06.138 --> 00:20:11.338
+like the Archives Act, the GDPR or
+the Woo, or rather, parts of all those
+
+279
+00:20:11.338 --> 00:20:12.298
+laws.
+
+280
+00:20:13.787 --> 00:20:18.827
+But you can go quite far in making procedural
+legislation machine-executable too.
+
+281
+00:20:21.262 --> 00:20:22.823
+This is where I want to stop.
+
+282
+00:20:22.823 --> 00:20:25.703
+That was RegelRecht:
+law to digital effect.
+
+283
+00:20:25.703 --> 00:20:28.391
+A complete story, not a finished product.
+
+284
+00:20:28.327 --> 00:20:30.996
+What we do is make policy by doing.
+
+285
+00:20:30.929 --> 00:20:32.425
+The demo is open.
+
+286
+00:20:32.350 --> 00:20:33.470
+Try it yourself.
+
+287
+00:20:33.470 --> 00:20:36.072
+Click around, or try it yourself.
+
+288
+00:20:36.072 --> 00:20:40.232
+And read more about what we
+do at regelrecht.rijks.app.

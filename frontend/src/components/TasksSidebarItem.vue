@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * TasksSidebarItem - het "Taken"-item in de primary sidebar van Home, met
  * badge. Eigen component zodat `useTasks()` (start de gedeelde 30s-poll bij de
@@ -15,14 +15,16 @@
  * bedoeling.
  */
 import { computed } from 'vue';
-import { useTasks } from '../composables/useTasks.js';
-import { isPrioriteit } from '../lib/taskCategories.js';
+import { useTrajectTasks } from '../composables/useTasks';
+import { isPrioriteit } from '../lib/taskCategories';
 
-defineProps({
-  current: { type: Boolean, default: false },
-});
+const props = withDefaults(
+  defineProps<{ current?: boolean; trajectRef?: string | null }>(),
+  { current: false, trajectRef: null },
+);
 
-const { tasks } = useTasks();
+// Only this traject's tasks: the badge points at the panel, which shows no others.
+const { tasks } = useTrajectTasks(() => props.trajectRef);
 
 // Uit de lijst geteld, niet uit `open_count`: dat is het servertotaal van álle
 // open taken en zegt niets over prioriteit. De lijst is server-side op 100

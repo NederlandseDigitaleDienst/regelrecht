@@ -11,7 +11,7 @@
  * attribuut zodat `prefers-color-scheme` het overneemt. De keuze staat onder
  * `rr-theme` in localStorage.
  *
- * Waarom niet packages/frontend-shared/src/useColorScheme.js: dat is Vue, en
+ * Waarom niet packages/frontend-shared/src/useColorScheme.ts: dat is Vue, en
  * deze twee pagina's worden in Rust gerenderd (packages/poc-portal/src/pagina.rs).
  * Waarom geen inline <script> in de pagina: POC_CSP staat `script-src 'self'`
  * zonder unsafe-inline.
@@ -20,7 +20,7 @@ const SLEUTEL = 'rr-theme';
 const THEMAS = ['systeem', 'licht', 'donker'];
 
 // Onder `rr-theme` staan twee schrijfwijzen naast elkaar: de Vue-apps schrijven
-// 'auto' (packages/frontend-shared/src/useColorScheme.js) en de docs-site
+// 'auto' (packages/frontend-shared/src/useColorScheme.ts) en de docs-site
 // 'system' (docs/src/layouts/Base.astro). Allebei lezen, zodat een keuze in de
 // editor of in de docs hier niet stil genegeerd wordt.
 const UIT_OPSLAG = { auto: 'systeem', system: 'systeem', light: 'licht', dark: 'donker' };

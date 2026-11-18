@@ -1,7 +1,7 @@
-<script setup>
+<script setup lang="ts">
 import { watchEffect } from 'vue';
 import { useRouter } from 'vue-router';
-import { SUPPORT_EMAIL } from './constants.js';
+import { SUPPORT_EMAIL } from './constants';
 
 // Account-aanvraagpagina — bereikbaar vanaf de login-warning-popover (de
 // "Account aanvragen"-knop). Legt uit wie nu een account kan krijgen en hoe.
@@ -28,7 +28,7 @@ function goBack() {
 </script>
 
 <template>
-  <nldd-app-view>
+  <nldd-shell>
     <nldd-page sticky-header>
       <nldd-top-title-bar
         slot="header"
@@ -39,7 +39,7 @@ function goBack() {
       ></nldd-top-title-bar>
 
       <nldd-simple-section width="720px">
-        <nldd-title id="account-aanvragen-titel" size="2"><h1>Account aanvragen</h1></nldd-title>
+        <nldd-title id="account-aanvragen-titel" size="display-2"><h1>Account aanvragen</h1></nldd-title>
         <nldd-spacer size="8"></nldd-spacer>
 
         <nldd-rich-text>
@@ -59,5 +59,5 @@ function goBack() {
 
       <nldd-page-footer slot="footer"></nldd-page-footer>
     </nldd-page>
-  </nldd-app-view>
+  </nldd-shell>
 </template>

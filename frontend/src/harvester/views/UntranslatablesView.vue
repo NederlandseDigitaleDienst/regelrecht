@@ -1,7 +1,7 @@
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue';
-import { useUntranslatables } from '../composables/useUntranslatables.js';
-import { UNTRANSLATABLE_COLUMNS, UNTRANSLATABLE_SORT_OPTIONS } from '../constants.js';
+import { useUntranslatables, type Untranslatable } from '../composables/useUntranslatables';
+import { UNTRANSLATABLE_COLUMNS, UNTRANSLATABLE_SORT_OPTIONS } from '../constants';
 import DataTable from '../components/DataTable.vue';
 import StatusBadge from '../components/StatusBadge.vue';
 import PaginationControls from '../components/PaginationControls.vue';
@@ -15,10 +15,10 @@ const {
 } = useUntranslatables();
 
 // Read-only detail: no polling needed, unlike the jobs sheet.
-const selected = ref(null);
+const selected = ref<Untranslatable | null>(null);
 const detailOpen = ref(false);
 
-function openDetail(row) {
+function openDetail(row: Untranslatable) {
   selected.value = row;
   detailOpen.value = true;
 }

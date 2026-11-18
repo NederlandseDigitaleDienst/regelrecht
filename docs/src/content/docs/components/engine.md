@@ -180,7 +180,7 @@ Laws declare `open_terms` that other regulations fill via `implements`, by deleg
 
 1. Indexes all `implements` declarations at law load time
 2. Looks up the implementations of an `open_term` when an operation first reads it
-3. Filters by temporal validity (`calculation_date`) and scope (`gemeente_code`, etc.)
+3. Filters by temporal validity (`calculation_date`) and scope (`gemeente_code`, etc.). An article of the regulation that declares the term passes the scope filter: that regulation already applies to the case
 4. Resolves conflicts via **lex superior** (higher layer wins) then **lex posterior** (newer date wins)
 5. Falls back to the `default` if no implementation found; a default reads the earlier terms of its article as it reaches them
 
@@ -269,6 +269,8 @@ The engine enforces fixed limits, set in `packages/engine/src/config.rs`, so tha
 Three more bound the fuzzy search that anchors a note to law text. The sliding-window match is cubic in the quote length and runs synchronously in the browser, so `MAX_FUZZY_QUOTE_CHARS` (120), `MAX_FUZZY_SCAN_CHARS` (250,000 characters of law text per resolve) and `MAX_FUZZY_SCORED_WINDOWS` (10,000) cap it. A search that hits one of them reports the note as `Skipped` rather than as not found, which keeps "not searched" apart from "not there".
 
 `SUPPORTED_SCHEMAS` lists the schema versions this engine build accepts. A law whose `$schema` names a version outside that list is refused at load time, with an error that lists the supported versions. A law without `$schema` is not checked against the list.
+
+The list holds every schema version in the repository, and the engine runs them all on one code path: `just validate` checks a rulework against the schema its `$schema` names, and the engine has no behavior per version. Not every version was issued for use. Some held a construct that was later rejected, and others were replaced before anything used them. The engine does not support such a construct: a rulework that uses one is refused at load, and the error names the replacement. A rulework that reads `source.executograms`, for example, is told to use `source.facts`.
 
 ## Execution Receipt
 

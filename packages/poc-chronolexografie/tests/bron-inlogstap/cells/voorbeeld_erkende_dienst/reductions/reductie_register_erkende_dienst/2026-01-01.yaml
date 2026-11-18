@@ -1,0 +1,183 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
+$id: reductie_register_erkende_dienst
+regulatory_layer: REDUCTIE
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+# FICTIEF. De reductie van de erkende dienst over haar register (artikel 1 tot
+# en met 3 van voorbeeld_register_erkende_dienst): per middel en per
+# machtiging een aggregaat, en wat de dienst daaruit weet over een
+# gebruikersnaam en een dienst. De cel leest haar kroniek zoals die op de dag
+# van de vraag is, dus een intrekking van later telt dan nog niet. Artikel 4
+# van het register bindt de uitvoer.
+url: https://example.invalid/reductie_register_erkende_dienst
+name: Register van de erkende dienst (fictieve testreductie)
+articles:
+  - number: middel
+    text: Geen regelgeving. Per uitgegeven middel de gebruikersnaam, het pseudoniem en het niveau.
+    url: https://example.invalid/reductie_register_erkende_dienst#middel
+    machine_readable:
+      projection:
+        per: voorbeeld_register_erkende_dienst#1#middel_uitgegeven
+        state:
+          - name: pseudoniem
+            type: string
+          - name: betrouwbaarheidsniveau
+            type: string
+        steps:
+          - record: voorbeeld_register_erkende_dienst#1#middel_uitgegeven
+            actions:
+              - output: pseudoniem
+                value: $record.pseudoniem
+              - output: betrouwbaarheidsniveau
+                value: $record.betrouwbaarheidsniveau
+  - number: machtiging
+    text: >-
+      Geen regelgeving. Per geregistreerde machtiging de onderneming, het
+      niveau en de dag waarop de dienst haar introk, leeg zolang zij geldt.
+    url: https://example.invalid/reductie_register_erkende_dienst#machtiging
+    machine_readable:
+      projection:
+        per: voorbeeld_register_erkende_dienst#2#machtiging_geregistreerd
+        state:
+          - name: kvk_nummer
+            type: string
+          - name: betrouwbaarheidsniveau
+            type: string
+          - name: datum_intrekking
+            type: date
+        steps:
+          - record: voorbeeld_register_erkende_dienst#2#machtiging_geregistreerd
+            actions:
+              - output: kvk_nummer
+                value: $record.kvk_nummer
+              - output: betrouwbaarheidsniveau
+                value: $record.betrouwbaarheidsniveau
+          # Een intrekking verwijst naar de registratie (refers_to).
+          - record: voorbeeld_register_erkende_dienst#3#machtiging_ingetrokken
+            actions:
+              - output: datum_intrekking
+                value: $record.datum_intrekking
+  - number: register
+    text: >-
+      Geen regelgeving. Of de houder van het middel met deze gebruikersnaam
+      een machtiging voor de dienst heeft die niet is ingetrokken, namens
+      welke onderneming, met welk pseudoniem en op welk niveau: het laagste
+      van middel en machtiging. Zonder middel of zonder zo'n machtiging is er
+      geen.
+    url: https://example.invalid/reductie_register_erkende_dienst#register
+    machine_readable:
+      execution:
+        parameters:
+          - name: gebruikersnaam
+            type: string
+          - name: dienst
+            type: string
+        input:
+          # `where` kiest op de velden van het vastgelegde feit.
+          - name: middelen
+            type: array
+            source:
+              projections: reductie_register_erkende_dienst#middel
+              where:
+                gebruikersnaam: $gebruikersnaam
+          - name: machtigingen
+            type: array
+            source:
+              projections: reductie_register_erkende_dienst#machtiging
+              where:
+                gebruikersnaam: $gebruikersnaam
+                dienst: $dienst
+        output:
+          - name: pseudoniem_in_register
+            type: string
+            nullable: true
+          - name: niveau_middel
+            type: number
+            nullable: true
+          # Eén geldige machtiging per gebruikersnaam en dienst: bij meer
+          # weet de dienst niet namens wie, en weigert de reductie (ONLY).
+          - name: kvk_nummer_in_register
+            type: string
+            nullable: true
+          - name: niveau_machtiging
+            type: number
+            nullable: true
+          - name: machtiging_in_register
+            type: boolean
+          - name: niveau_in_register
+            type: string
+            nullable: true
+        actions:
+          - output: pseudoniem_in_register
+            value:
+              operation: FOREACH
+              collection: $middelen
+              as: m
+              body: $m.pseudoniem
+              combine: ONLY
+          # Niveaus als getal: 1 voor laag, 2 voor substantieel, 3 voor hoog.
+          - output: niveau_middel
+            value:
+              operation: FOREACH
+              collection: $middelen
+              as: m
+              body:
+                operation: IF
+                cases:
+                  - when: {operation: EQUALS, subject: $m.betrouwbaarheidsniveau, value: hoog}
+                    then: 3
+                  - when: {operation: EQUALS, subject: $m.betrouwbaarheidsniveau, value: substantieel}
+                    then: 2
+                default: 1
+              combine: ONLY
+          - output: kvk_nummer_in_register
+            value:
+              operation: FOREACH
+              collection: $machtigingen
+              as: g
+              filter: {operation: EQUALS, subject: $g.datum_intrekking, value: null}
+              body: $g.kvk_nummer
+              combine: ONLY
+          - output: niveau_machtiging
+            value:
+              operation: FOREACH
+              collection: $machtigingen
+              as: g
+              filter: {operation: EQUALS, subject: $g.datum_intrekking, value: null}
+              body:
+                operation: IF
+                cases:
+                  - when: {operation: EQUALS, subject: $g.betrouwbaarheidsniveau, value: hoog}
+                    then: 3
+                  - when: {operation: EQUALS, subject: $g.betrouwbaarheidsniveau, value: substantieel}
+                    then: 2
+                default: 1
+              combine: ONLY
+          - output: machtiging_in_register
+            value:
+              operation: AND
+              conditions:
+                - operation: NOT
+                  value: {operation: EQUALS, subject: $pseudoniem_in_register, value: null}
+                - operation: NOT
+                  value: {operation: EQUALS, subject: $kvk_nummer_in_register, value: null}
+          - output: niveau_in_register
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $machtiging_in_register, value: false}
+                  then: null
+                - when:
+                    operation: OR
+                    conditions:
+                      - {operation: EQUALS, subject: $niveau_middel, value: 1}
+                      - {operation: EQUALS, subject: $niveau_machtiging, value: 1}
+                  then: laag
+                - when:
+                    operation: OR
+                    conditions:
+                      - {operation: EQUALS, subject: $niveau_middel, value: 2}
+                      - {operation: EQUALS, subject: $niveau_machtiging, value: 2}
+                  then: substantieel
+              default: hoog

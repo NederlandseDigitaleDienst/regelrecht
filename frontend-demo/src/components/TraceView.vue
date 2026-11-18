@@ -1,18 +1,20 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { traceLaws } from '../data/traceLaws.js';
-import { paletteColor } from '../data/palette.js';
-import { useDemo } from '../store/demoStore.js';
+import { traceLaws } from '../data/traceLaws';
+import { paletteColor } from '../data/palette';
+import { useDemo } from '../store/demoStore';
 import { useI18n } from '../i18n/index.js';
 
 // The engine's text trace, with each law in its own colour and a bar to step
 // from one law to the next. A presenter walks it law by law on a hall screen
 // (zorgtoeslagwet, then the Zvw, then the penitentiaire beginselenwet), and in
 // two thousand lines of box drawing the handover from one law to the next is
-// what the audience needs to see. traceLaws.js says which line belongs where.
+// what the audience needs to see. traceLaws.ts says which line belongs where.
 
-const props = defineProps({
-  text: { type: String, default: '' },
+const props = withDefaults(defineProps<{
+  text?: string;
+}>(), {
+  text: '',
 });
 const { t } = useI18n();
 const { corpus } = useDemo();
@@ -23,42 +25,45 @@ const parsed = computed(() => traceLaws(props.text, (id) => !!corpus.value?.lawB
  * for text. The primitives flip in the dark scheme, so -700 is a dark ink on
  * white and a light one on the dark surface without a rule per scheme.
  */
-const colorOf = (law) => {
+const colorOf = (law: string): Record<string, string> | undefined => {
   const i = parsed.value.laws.indexOf(law);
   if (i < 0) return undefined;
   return { '--law-color': paletteColor(i), '--law-ink': paletteColor(i, 700) };
 };
-const nameOf = (law) => corpus.value?.lawById(law)?.name ?? law;
+// A line with `start` always has its `law` (see traceLaws), hence `line.law!` in the template.
+const nameOf = (law: string) => corpus.value?.lawById(law)?.name ?? law;
 
 /** Index into `parsed.sections` of the handover in view; -1 before the first jump. */
 const current = ref(-1);
-const lineEls = ref([]);
-const nav = ref(null);
+// Filled by the `:ref` callback on each line `<div>`; null once a line unmounts.
+const lineEls = ref<(HTMLElement | null)[]>([]);
+const nav = ref<HTMLElement | null>(null);
 watch(() => props.text, () => {
   current.value = -1;
 });
 
-async function show(section) {
+async function show(section: number) {
   current.value = section;
   await nextTick();
-  const el = lineEls.value[parsed.value.sections[section]];
+  const line = parsed.value.sections[section];
+  const el = line === undefined ? undefined : lineEls.value[line];
   if (!el) return;
   // Below the bar that stays on top; it wraps onto a second row when the
   // trace crosses many laws, so its height is measured, not assumed.
   el.style.scrollMarginTop = `${(nav.value?.offsetHeight ?? 0) + 16}px`;
   el.scrollIntoView({ block: 'start', behavior: 'smooth' });
 }
-function step(delta) {
+function step(delta: number) {
   const n = parsed.value.sections.length;
   if (!n) return;
   show(Math.min(n - 1, Math.max(0, current.value + delta)));
 }
 /** The next place this law takes over, after the one in view; wraps round. */
-function jumpTo(law) {
+function jumpTo(law: string) {
   const { sections, lines } = parsed.value;
-  const order = sections.map((line, i) => ({ line, i })).filter(({ line }) => lines[line].law === law);
+  const order = sections.map((line, i) => ({ line, i })).filter(({ line }) => lines[line]!.law === law); // `sections` holds indices into `lines`
   if (!order.length) return;
-  show((order.find(({ i }) => i > current.value) ?? order[0]).i);
+  show((order.find(({ i }) => i > current.value) ?? order[0]!).i); // non-empty: checked above
 }
 const currentLine = computed(() => (current.value < 0 ? -1 : parsed.value.sections[current.value]));
 </script>
@@ -84,10 +89,10 @@ const currentLine = computed(() => (current.value < 0 ? -1 : parsed.value.sectio
       <div
         v-for="(line, i) in parsed.lines"
         :key="i"
-        :ref="(el) => (lineEls[i] = el)"
+        :ref="(el) => (lineEls[i] = el as HTMLElement | null)"
         :class="['trace-view__line', { 'trace-view__line--start': line.start, 'trace-view__line--current': i === currentLine }]"
         :style="line.law ? colorOf(line.law) : undefined"
-      >{{ line.text }}<span v-if="line.start" class="trace-view__badge">{{ nameOf(line.law) }}</span></div>
+      >{{ line.text }}<span v-if="line.start" class="trace-view__badge">{{ nameOf(line.law!) }}</span></div>
     </div>
   </div>
 </template>

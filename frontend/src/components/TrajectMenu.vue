@@ -1,27 +1,39 @@
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue';
-import { useRoute, useRouter } from 'vue-router';
-import { useTrajects } from '../composables/useTrajects.js';
-import { useAuth } from '../composables/useAuth.js';
-import { useLoginToChooser } from '../composables/useLoginToChooser.js';
-import { homeTarget, trajectSwitchTarget } from '../composables/useLastVisitedRoute.js';
+import { storeToRefs } from 'pinia';
+import { isNavigationFailure, useRoute, useRouter } from 'vue-router';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
+import { useTrajectsStore } from '../stores/trajects';
+import type { TrajectSummary } from '../stores/trajects';
+import { useAuth } from '../composables/useAuth';
+import { useLoginToChooser } from '../composables/useLoginToChooser';
+import { homeTarget, trajectSwitchTarget } from '../composables/useLastVisitedRoute';
 import TrajectCreateForm from './TrajectCreateForm.vue';
 
-const props = defineProps({
-  // Mobile presentation: stretch the trigger button to the full toolbar
-  // width with left-aligned content.
-  fullWidth: { type: Boolean, default: false },
-});
+const props = withDefaults(
+  defineProps<{
+    // Mobile presentation: stretch the trigger button to the full toolbar
+    // width with left-aligned content.
+    fullWidth?: boolean;
+    // Render as a menu item with the same choices in a submenu instead of a
+    // button: the alternative a toolbar shows in its overflow menu. The
+    // toolbar copies it into that menu and sends `select` on to this
+    // original, so its items act on `select`, not on `click`.
+    menuItem?: boolean;
+  }>(),
+  { fullWidth: false, menuItem: false },
+);
 
-const emit = defineEmits(['switched']);
+// The toolbar places the menu-item form with `slot="overflow"`; the component
+// has two roots (the trigger and the teleported sheet), so the attributes are
+// bound on the trigger explicitly.
+defineOptions({ inheritAttrs: false });
 
-const {
-  trajects,
-  activeTrajectRef,
-  activeTraject,
-  loading,
-  createTraject,
-} = useTrajects();
+const emit = defineEmits<{ switched: [trajectRef: string] }>();
+
+const trajectsStore = useTrajectsStore();
+const { trajects, activeTrajectRef, activeTraject, loading } = storeToRefs(trajectsStore);
+const { createTraject } = trajectsStore;
 // Auth gates the menu: logged-in users get the traject switcher; everyone
 // else gets a popover explaining that trajecten unlock after login.
 const { authenticated } = useAuth();
@@ -36,19 +48,19 @@ const loginToChooser = useLoginToChooser();
 // login-popover): naar de publieke aanvraagpagina. /account-aanvragen is een
 // top-level route, dus de popover verdwijnt met de shell.
 const accountRequestHref = computed(() => router.resolve({ name: 'account-aanvragen' }).href);
-function goToAccountRequest() {
+function goToAccountRequest(): void {
   router.push({ name: 'account-aanvragen' });
 }
 
 // Open the active traject's werkdocumenten (now folded into Home, not a sheet).
-function goToWerkdocumenten() {
+function goToWerkdocumenten(): void {
   if (!activeTrajectRef.value) return;
   router.push({ name: 'werkdocumenten-traject', params: { trajectRef: activeTrajectRef.value } });
 }
 
 // Open the active traject's taken - the same Home panel the sidebar's
 // Taken item opens, reachable without going back to Home first.
-function goToTaken() {
+function goToTaken(): void {
   if (!activeTrajectRef.value) return;
   router.push({ name: 'taken-traject', params: { trajectRef: activeTrajectRef.value } });
 }
@@ -57,11 +69,12 @@ function goToTaken() {
 // but mutually exclusive with them, so it lives in the same switcher. Carries
 // the open law so you land on the same law, globally (homeTarget's no-traject
 // shapes). Editing from here still routes through the chooser (editorRouteFor).
-function goToCorpusJuris() {
-  router.push(homeTarget({
+async function goToCorpusJuris(): Promise<void> {
+  const failure = await router.push(homeTarget({
     lawId: route.params.lawId || undefined,
     articleNumber: route.params.articleNumber || undefined,
   }));
+  if (isNavigationFailure(failure)) restoreTrajectSelection();
 }
 
 /**
@@ -73,8 +86,25 @@ function goToCorpusJuris() {
  * shows the new traject's own saved tabs in the bar without auto-opening one.
  * Per-tab state: a switch here only affects this tab, never other open tabs.
  */
-async function goToTraject(trajectRef) {
-  await router.push(trajectSwitchTarget(route.name, trajectRef));
+// Resolves to whether the switch happened: the editor can keep the user
+// where they are when leaving would lose unsaved edits.
+async function goToTraject(trajectRef: string): Promise<boolean> {
+  const failure = await router.push(trajectSwitchTarget(route.name, trajectRef));
+  if (!isNavigationFailure(failure)) return true;
+  restoreTrajectSelection();
+  return false;
+}
+
+// The menu marks a chosen traject selected before the navigation runs. When
+// the navigation does not happen, put the mark back on the active traject;
+// Vue does not patch a binding whose value did not change.
+const trajectGroupEl = ref<HTMLElement | null>(null);
+function restoreTrajectSelection(): void {
+  trajectGroupEl.value
+    ?.querySelectorAll<HTMLElement & { selected: boolean }>('nldd-menu-item[type="radio"]')
+    .forEach((item) => {
+      item.selected = (item.dataset.trajectRef || null) === (activeTrajectRef.value ?? null);
+    });
 }
 
 
@@ -97,12 +127,12 @@ const activeLabel = computed(() => {
 // Veldenstate en validatie leven in het gedeelde TrajectCreateForm
 // (zelfde formulier als de /editor/nieuw-traject-pagina); de sheet bezit
 // alleen submit, busy-state en navigatie.
-const sheetEl = ref(null);
-const createFormEl = ref(null);
+const sheetEl = ref<NLDDSheet | null>(null);
+const createFormEl = ref<InstanceType<typeof TrajectCreateForm> | null>(null);
 const showCreate = ref(false);
 
 const createBusy = ref(false);
-const createError = ref(null);
+const createError = ref<string | null>(null);
 
 // nldd-sheet exposes imperative show()/hide(); mirror showCreate into those
 // calls so the sheet animates instead of mounting/unmounting (matches the
@@ -118,24 +148,24 @@ watch(showCreate, async (v) => {
   }
 });
 
-function openCreate() {
+function openCreate(): void {
   createError.value = null;
   createFormEl.value?.reset();
   showCreate.value = true;
 }
 
 // Open the active traject's settings (details / leden) in Home.
-function goToInstellingen(tab) {
+function goToInstellingen(tab: string): void {
   if (!activeTrajectRef.value) return;
   router.push({ name: 'instellingen-traject', params: { trajectRef: activeTrajectRef.value, tab } });
 }
 
-function closeCreate() {
+function closeCreate(): void {
   if (createBusy.value) return;
   showCreate.value = false;
 }
 
-async function selectTraject(t) {
+async function selectTraject(t: TrajectSummary): Promise<void> {
   // `t.ref` is a server-supplied `Option<String>` and serialises to
   // `null` when a `TrajectSummary` is built without calling
   // `fill_ref()`. Refuse to navigate - silently routing to
@@ -147,14 +177,14 @@ async function selectTraject(t) {
     return;
   }
   if (t.ref === activeTrajectRef.value) return;
-  await goToTraject(t.ref);
-  emit('switched', t.ref);
+  if (await goToTraject(t.ref)) emit('switched', t.ref);
 }
 
-async function submitCreate() {
+async function submitCreate(): Promise<void> {
   createError.value = null;
   // Validatie en request-body komen uit het gedeelde formulier.
-  const { payload, error } = createFormEl.value.buildPayload();
+  // The form emits `submit` itself, so it is mounted.
+  const { payload, error } = createFormEl.value!.buildPayload();
   if (error) {
     createError.value = error;
     return;
@@ -162,7 +192,8 @@ async function submitCreate() {
 
   createBusy.value = true;
   try {
-    const created = await createTraject(payload);
+    // buildPayload returns a payload whenever it returns no error.
+    const created = await createTraject(payload!);
     showCreate.value = false;
     // Jump straight into the new traject - same per-tab navigation as
     // selecting from the dropdown. Mirror the `selectTraject` guard:
@@ -174,10 +205,9 @@ async function submitCreate() {
       console.warn('TrajectMenu: created traject has no ref', created);
       return;
     }
-    await goToTraject(created.ref);
-    emit('switched', created.ref);
+    if (await goToTraject(created.ref)) emit('switched', created.ref);
   } catch (e) {
-    createError.value = e.message || 'Aanmaken mislukt';
+    createError.value = (e as Error).message || 'Aanmaken mislukt';
   } finally {
     createBusy.value = false;
   }
@@ -186,7 +216,81 @@ async function submitCreate() {
 </script>
 
 <template>
+  <nldd-menu-item
+    v-if="menuItem"
+    v-bind="$attrs"
+    icon="traject"
+    :text="activeLabel"
+    :disabled="menuLoading || undefined"
+  >
+    <nldd-menu v-if="authenticated">
+      <nldd-menu-item
+        v-if="activeTraject"
+        text="Werkdocumenten"
+        icon="documents"
+        @select="goToWerkdocumenten"
+      ></nldd-menu-item>
+      <nldd-menu-item
+        v-if="activeTraject"
+        text="Taken"
+        icon="tasks"
+        @select="goToTaken"
+      ></nldd-menu-item>
+      <nldd-menu-item v-if="activeTraject" text="Instellingen" icon="settings">
+        <nldd-menu>
+          <nldd-menu-item
+            text="Algemeen"
+            icon="traject"
+            @select="goToInstellingen('details')"
+          ></nldd-menu-item>
+          <nldd-menu-item
+            text="Leden"
+            icon="person-2"
+            @select="goToInstellingen('leden')"
+          ></nldd-menu-item>
+        </nldd-menu>
+      </nldd-menu-item>
+      <nldd-menu-group ref="trajectGroupEl" text="Trajecten">
+        <nldd-menu-item
+          type="radio"
+          data-traject-ref=""
+          :selected="!activeTrajectRef || undefined"
+          text="Corpus juris"
+          @select="goToCorpusJuris"
+        ></nldd-menu-item>
+        <nldd-menu-item
+          v-for="t in trajects"
+          :key="t.id"
+          type="radio"
+          :data-traject-ref="t.ref ?? ''"
+          :selected="t.ref === activeTrajectRef || undefined"
+          :text="`${t.name}${t.status === 'afgerond' ? ' (afgerond)' : ''}`"
+          @select="selectTraject(t)"
+        ></nldd-menu-item>
+        <nldd-menu-item
+          text="Nieuw traject…"
+          icon="plus"
+          @select="openCreate"
+        ></nldd-menu-item>
+      </nldd-menu-group>
+    </nldd-menu>
+    <!-- Not logged in: what the button's popover offers, as a menu. -->
+    <nldd-menu v-else>
+      <nldd-menu-item
+        text="Inloggen"
+        icon="login"
+        @select="loginToChooser"
+      ></nldd-menu-item>
+      <nldd-menu-item
+        text="Account aanvragen"
+        icon="new-account"
+        @select="goToAccountRequest"
+      ></nldd-menu-item>
+    </nldd-menu>
+  </nldd-menu-item>
   <nldd-button
+    v-else
+    v-bind="$attrs"
     data-testid="traject-menu-trigger"
     size="md"
     expandable
@@ -285,16 +389,17 @@ async function submitCreate() {
   </nldd-button>
 
   <!-- Teleport the sheet out of the toolbar so it doesn't inherit the
-       toolbar's positioning / clipping. Matches the ScenarioBuilder
-       pattern. Each TrajectMenu instance (md/lg/sm) teleports its own
-       sheet to body but only one is active per breakpoint, so they
-       don't visually collide. -->
+       toolbar's positioning / clipping, as the scenario screen does
+       with its result sheet. Every TrajectMenu instance (the buttons in the md, lg and
+       mobile bars and their menu-item alternatives in the toolbar overflow
+       menus) teleports its own sheet to body. Only the instance whose
+       "Nieuw traject…" was chosen opens its sheet, so they don't visually
+       collide. -->
   <Teleport to="body">
     <nldd-sheet
       ref="sheetEl"
       placement="right"
       width="520px"
-      full-height
       @close="closeCreate"
     >
       <nldd-page sticky-header>

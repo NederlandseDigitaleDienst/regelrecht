@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 /**
  * NoteCard — the inner rendering of a single note: comment (rich-text), author
  * identity, and a per-note action toolbar (edit / share / delete). Shared by the
@@ -9,23 +9,46 @@
  * inner content — the caller wraps it in a card/container as needed.
  */
 import { computed } from 'vue';
+import type { Note } from '../composables/useNotes';
 
-const props = defineProps({
-  note: { type: Object, required: true },
+/** The part of a note body this card reads (W3C TextualBody or SpecificResource). */
+interface NoteBody {
+  value?: string;
+  source?: string;
+}
+
+/** A note creator: the { id, name } shape, or a legacy plain string. */
+type NoteCreator = { name?: string } | string;
+
+const props = withDefaults(defineProps<{
+  note: Note;
   // Whether the signed-in user has traject write access (needed to share).
-  canEdit: { type: Boolean, default: false },
+  canEdit?: boolean;
   // A share is in flight — disables the share button.
-  saving: { type: Boolean, default: false },
+  saving?: boolean;
+}>(), {
+  canEdit: false,
+  saving: false,
 });
-defineEmits(['edit', 'share', 'delete']);
+defineEmits<{
+  edit: [event: Event];
+  share: [];
+  delete: [];
+}>();
 
 // The note's primary body value: the comment, or a linked source.
 const detailText = computed(() => {
-  const body = Array.isArray(props.note?.body) ? props.note.body[0] : props.note?.body;
+  // Notes are not validated (see Note), so the body shape is assumed here.
+  const noteBody = props.note?.body as NoteBody | NoteBody[] | null | undefined;
+  const body = Array.isArray(noteBody) ? noteBody[0] : noteBody;
   return body?.value || body?.source || '';
 });
 // Author display name, tolerating the { id, name } shape and legacy strings.
-const creatorName = computed(() => props.note?.creator?.name ?? props.note?.creator ?? '');
+const creatorName = computed(() => {
+  const creator = props.note?.creator as NoteCreator | null | undefined;
+  // `.name` on a legacy string is undefined, so it falls through to the string.
+  return (creator as { name?: string } | null | undefined)?.name ?? creator ?? '';
+});
 // A draft lives in this browser's localStorage, so it is the user's by
 // construction: deletable, and shareable when a traject is active. Committed
 // notes are not __draft, so they carry no actions here.
@@ -44,7 +67,7 @@ const canShare = computed(() => isDraft.value && props.canEdit);
   </template>
   <template v-if="canShare || canDelete">
     <nldd-spacer size="8"></nldd-spacer>
-    <nldd-toolbar size="md" label="Notitie-acties">
+    <nldd-toolbar size="md" accessible-label="Notitie-acties">
       <nldd-toolbar-item v-if="canDelete" slot="start" label="Bewerken">
         <nldd-icon-button
           icon="edit"

@@ -59,7 +59,7 @@
 /* CSS Custom Properties - aligned with @nldd/design-system design tokens.
    The mono fallback names 'JetBrains Mono' (the design-system monospace face,
    already registered + loaded via the `@nldd/design-system/styles` import in
-   main.js); it only applies if the primitives token is ever absent. */
+   src/main.ts); it only applies if the primitives token is ever absent. */
 :root {
   --rr-font-family-sans: 'RijksSansVF', system-ui, sans-serif;
   --rr-font-family-serif: 'RijksoverheidSerif', Georgia, serif;

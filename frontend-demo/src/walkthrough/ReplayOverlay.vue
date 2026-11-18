@@ -1,15 +1,16 @@
-<script setup>
+<script setup lang="ts">
 /**
  * What lies over the live demo while a walkthrough runs: the presenter in a
  * circle, the captions, the cursor that shows where the presenter clicks, and
  * the transcript panel. Also the player's keys.
  */
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue';
+import type { NLDDSheet } from '@nldd/design-system/sheet';
 import { useViewerI18n } from '../i18n/index.js';
-import { usePresentation } from '../presentation/usePresentation.js';
-import { PLAYER_KEYS, audioTime, backToMain, currentTrack, replay, seek, togglePlay } from './replay.js';
-import { MEDIA_BASE, camVisible, cueAt, followerCorrection, formatTime, nextChapterStart, previousChapterStart } from './timeline.js';
-import { camSlot, transcript } from './chrome.js';
+import { usePresentation } from '../presentation/usePresentation';
+import { PLAYER_KEYS, audioTime, backToMain, chapterSlide, currentTrack, questionOf, replay, seek, togglePlay } from './replay';
+import { MEDIA_BASE, camVisible, cueAt, followerCorrection, formatTime, nextChapterStart, previousChapterStart } from './timeline';
+import { camSlot, transcript } from './chrome';
 
 const { t, locale } = useViewerI18n();
 const p = usePresentation();
@@ -25,7 +26,7 @@ const full = computed(() => p.isFull.value);
  * large, next to the slide, instead of a corner of the screen. Once a slide
  * opens the demo it shrinks back.
  */
-const face = computed(() => full.value && camVisible(track.value, replay.now));
+const face = computed(() => full.value && !replay.dubbed && camVisible(track.value, replay.now));
 // The deck lives outside this component; a class on <html> lets its slide
 // make room for the face (presentation.css).
 watch(face, (on) => document.documentElement.classList.toggle('rr-face', on), { immediate: true });
@@ -33,8 +34,8 @@ onUnmounted(() => document.documentElement.classList.remove('rr-face'));
 
 // ---- the bubble -------------------------------------------------------------------
 
-const cam = ref(null);
-const camStyle = ref({});
+const cam = ref<HTMLVideoElement | null>(null);
+const camStyle = ref<Record<string, string>>({});
 
 /** Lay the bubble over its spot in the rail; on a full slide the stylesheet places it. */
 function placeCam() {
@@ -47,7 +48,7 @@ let lastSync = 0;
 function loop() {
   const c = cam.value;
   if (c && replay.restoring && !c.paused) c.pause();
-  if (c && replay.camOn && !replay.restoring && camVisible(track.value, replay.now) && performance.now() - lastSync > 250) {
+  if (c && replay.camOn && !replay.dubbed && !replay.restoring && camVisible(track.value, replay.now) && performance.now() - lastSync > 250) {
     lastSync = performance.now();
     const fix = followerCorrection(audioTime(), c.currentTime, replay.speed);
     if (fix.seek != null) c.currentTime = fix.seek;
@@ -61,7 +62,7 @@ function loop() {
 
 // ---- the top layer ---------------------------------------------------------------------
 
-const pointerLayer = ref(null);
+const pointerLayer = ref<HTMLElement | null>(null);
 function raise() {
   const el = pointerLayer.value;
   if (!el?.showPopover) return;
@@ -78,7 +79,7 @@ onMounted(raise);
 // The cover while a jump restores the demo: a layer of its own, because the
 // pointer layer is aria-hidden and its status message has to be heard. Raised
 // again as the restore goes on, above a sheet or dialog it opens.
-const restoreLayer = ref(null);
+const restoreLayer = ref<HTMLElement | null>(null);
 function raiseCover() {
   const el = restoreLayer.value;
   if (!el?.showPopover) return;
@@ -101,7 +102,7 @@ watch(
 
 // ---- the transcript ------------------------------------------------------------------
 
-const sheet = ref(null);
+const sheet = ref<NLDDSheet | null>(null);
 watch(
   () => transcript.open,
   (open) => (open ? sheet.value?.show?.() : sheet.value?.hide?.()),
@@ -111,7 +112,7 @@ const chapters = computed(() =>
     const end = all[i + 1]?.start ?? Infinity;
     return {
       start: c.start,
-      title: c.slide?.title ?? c.slide?.lines?.[0]?.replaceAll('**', '') ?? t('walkthrough.chapter', { n: i + 1 }),
+      title: chapterSlide(track.value, c)?.title ?? chapterSlide(track.value, c)?.lines?.[0]?.replaceAll('**', '') ?? t('walkthrough.chapter', { n: i + 1 }),
       text: replay.cues
         .filter((q) => q.start >= c.start && q.start < end)
         .map((q) => q.text.replace(/\n/g, ' '))
@@ -119,18 +120,19 @@ const chapters = computed(() =>
     };
   }),
 );
-function playFrom(at) {
+function playFrom(at: number) {
   transcript.open = false;
   seek(at, { play: true });
 }
 
 // ---- keys ------------------------------------------------------------------------------
 
-function pathHas(e, selector) {
-  return (e.composedPath?.() ?? []).some((n) => n?.matches?.(selector));
+function pathHas(e: Event, selector: string) {
+  // The path also holds the document and the window, which have no `matches`.
+  return (e.composedPath?.() ?? []).some((n) => (n as Partial<Element> | null)?.matches?.(selector));
 }
 
-function onKey(e) {
+function onKey(e: KeyboardEvent) {
   if (!replay.active || e.metaKey || e.ctrlKey || e.altKey || transcript.open) return;
   if (!PLAYER_KEYS.has(e.key)) return;
   // A menu keeps its keys.
@@ -185,7 +187,7 @@ onUnmounted(() => {
   <div class="wt-chrome overlay" :class="{ full, face }">
     <video
       v-if="track?.cam"
-      v-show="replay.camOn && !replay.restoring && camVisible(track, replay.now)"
+      v-show="replay.camOn && !replay.dubbed && !replay.restoring && camVisible(track, replay.now)"
       ref="cam"
       class="cam"
       :style="camStyle"
@@ -207,7 +209,7 @@ onUnmounted(() => {
     </svg>
     <span v-for="r in replay.restoring ? [] : replay.ripples" :key="r.id" class="ripple" :style="{ left: `${r.x}px`, top: `${r.y}px` }" aria-hidden="true"></span>
 
-    <p v-if="cue" class="caption" lang="nl" aria-hidden="true">{{ cue.text }}</p>
+    <p v-if="cue" class="caption" :lang="replay.captionsLang" aria-hidden="true">{{ cue.text }}</p>
     </div>
     <div v-if="replay.restoring" ref="restoreLayer" popover="manual" class="restoring">
       <nldd-activity-indicator show-text :text="t('walkthrough.restoring')" timing="instant" size="48"></nldd-activity-indicator>
@@ -216,11 +218,11 @@ onUnmounted(() => {
     <nldd-sheet ref="sheet" placement="right" width="560px" :accessible-label="t('walkthrough.transcript.title')" @close="transcript.open = false">
       <nldd-page>
         <nldd-container slot="header" padding="12">
-          <nldd-top-title-bar :text="t('walkthrough.transcript.title')" :supporting-text="replay.faq?.question" :dismiss-text="t('walkthrough.transcript.close')" @dismiss="transcript.open = false"></nldd-top-title-bar>
+          <nldd-top-title-bar :text="t('walkthrough.transcript.title')" :supporting-text="replay.faq ? questionOf(replay.faq) : undefined" :dismiss-text="t('walkthrough.transcript.close')" @dismiss="transcript.open = false"></nldd-top-title-bar>
         </nldd-container>
-        <nldd-container padding="16" gap="24" lang="nl">
+        <nldd-container padding="16" gap="24" :lang="replay.captionsLang">
           <nldd-container v-for="(c, i) in chapters" :key="i" padding="0" gap="8">
-            <nldd-title size="5">
+            <nldd-title size="display-5">
               <h2>{{ c.title }}</h2>
             </nldd-title>
             <nldd-rich-text v-if="c.text" spacing="tight">

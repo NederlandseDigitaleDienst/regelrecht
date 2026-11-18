@@ -133,24 +133,28 @@ test('de handmatige paden buiten de graaf blijven werken', () => {
   assert.equal(namesOf(['frontend/src/main.ts']).editor, true);
   assert.equal(namesOf(['frontend/src/main.ts']).lawmaking, false);
 
-  // frontend-shared zit in elk image dat een frontend bouwt. De twee
-  // poc-images hoorden hier vanaf het begin bij en stonden er niet in: ze
-  // kopiëren het pakket wel en draaien `npm ci` op dezelfde lock.
+  // frontend-shared zit in elk image dat een frontend bouwt. Het portaal
+  // hoorde hier vanaf het begin bij en stond er niet in: het kopieert het
+  // pakket wel en draait `npm ci` op dezelfde lock.
   const shared = namesOf(['packages/frontend-shared/src/auth.ts']);
   assert.equal(shared.editor, true);
   assert.equal(shared.admin, true);
   assert.equal(shared.lawmaking, true);
   assert.equal(shared.demo, true);
   assert.equal(shared.poc, true);
-  assert.equal(shared['poc-napp'], true);
+
+  // napp gebruikt frontend-shared niet. Een uitrol van napp herstart de
+  // enrich-worker (#1844), dus het pakket mag hem niet raken.
+  assert.equal(shared['poc-napp'], false);
+  assert.equal(namesOf(['packages/frontend-shared/package.json'])['poc-napp'], false);
 });
 
 test('het poc-portaal volgt zijn register, zijn corpus en zijn frontends', () => {
   // Het register bepaalt wat het portaal serveert en welke wachtwoorden het
-  // verwacht, dus het raakt beide images.
+  // verwacht. Het napp-image kopieert het niet, dus napp blijft staan.
   const register = namesOf(['pocs/registry.yaml']);
   assert.equal(register.poc, true);
-  assert.equal(register['poc-napp'], true);
+  assert.equal(register['poc-napp'], false);
 
   // Het portaal bakt heel corpus-poc/ in; napp alleen zijn eigen wetten. Een
   // wijziging in de napp-casus raakt daarom allebei.
@@ -171,6 +175,35 @@ test('het poc-portaal volgt zijn register, zijn corpus en zijn frontends', () =>
   // En de statische pocs alleen in het portaal.
   assert.equal(namesOf(['frontend-poc-terugbetaalregimes/src/App.vue']).poc, true);
   assert.equal(namesOf(['frontend-poc-terugbetaalregimes/src/App.vue'])['poc-napp'], false);
+});
+
+test('chronolexografie volgt zijn eigen corpus en zijn frontend', () => {
+  // chronolexografie draait als WASM in de browser en zit in het poc-image.
+  // Zijn corpus (de casussen, de gedeelde regelwerken, die van elke casus en
+  // de cellen) staat in de map van de crate, dus de graaf vindt het.
+  assert.equal('poc-chronolexografie' in COMPONENTS, false);
+  const corpus = 'packages/poc-chronolexografie/corpus';
+  for (const pad of [
+    `${corpus}/casussen/bedrijfsparkeervergunning.yaml`,
+    `${corpus}/casussen/vakantieverlof/regulation/nl/wet/leerplichtwet_1969/2026-08-01.yaml`,
+    `${corpus}/regulation/nl/wet/algemene_wet_bestuursrecht/2021-07-01.yaml`,
+    `${corpus}/cells/obs_de_klimop/cel.yaml`,
+    `${corpus}/cells/reductions/reductie_algemene_wet_bestuursrecht/2026-01-01.yaml`,
+    'packages/poc-chronolexografie/frontend/src/App.vue',
+  ]) {
+    const geraakt = namesOf([pad]);
+    assert.equal(geraakt.poc, true, pad);
+    assert.equal(geraakt['poc-napp'], false, pad);
+  }
+
+  // De crate en de cel volgen uit de graaf.
+  assert.equal(namesOf(['packages/poc-chronolexografie/src/kern.rs']).poc, true);
+  assert.equal(namesOf(['packages/cel/src/cell.rs']).poc, true);
+
+  // Het regelrecht-corpus raakt het niet, ook niet de wetten waarvan de poc
+  // een kopie heeft.
+  assert.equal(namesOf(['corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml']).poc, false);
+  assert.equal(namesOf(['corpus/regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml']).poc, false);
 });
 
 test('een engine-wijziging bouwt het poc-image, want dat bakt de engine als WASM', () => {

@@ -1,0 +1,49 @@
+---
+# FICTIEF. A reduction of the cell's BDD suite over test_bedrijfsvergunning:
+# how many permits of a company count on the day the question names. It
+# reads the aggregates of test_reductie_vergunning_per_besluit of that
+# company and passes them with the day to article 2 of the law (schema
+# v0.8.17), so the fold depends on the chronicle alone and the day is
+# compared when the question is answered.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.17/schema/v0.8.17/schema.json
+$id: test_reductie_geldige_vergunningen_op_peildatum
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_reductie_geldige_vergunningen_op_peildatum
+name: Geldige vergunningen op een peildatum (testreductie)
+
+articles:
+  - number: '1'
+    url: https://example.com/test_reductie_geldige_vergunningen_op_peildatum/1
+    text: >-
+      FICTIEF. Het aantal vergunningen van een bedrijf dat op de peildatum
+      meetelt.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bedrijf
+            type: string
+          - name: peildatum
+            type: date
+        input:
+          - name: vergunningen
+            type: array
+            source:
+              projections: test_reductie_vergunning_per_besluit
+              where:
+                bedrijf: $bedrijf
+          - name: aantal
+            type: number
+            source:
+              regulation: test_bedrijfsvergunning
+              output: aantal_geldig
+              parameters:
+                vergunningen: $vergunningen
+                peildatum: $peildatum
+        output:
+          - name: aantal_geldige_vergunningen
+            type: number
+        actions:
+          - output: aantal_geldige_vergunningen
+            value: $aantal

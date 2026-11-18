@@ -1,23 +1,129 @@
 name: Claude Code Review
 
+# A dispatch run has no pull request in its payload; the title names the PR so
+# the merge gate can find the run. The gate does not trust this title: it only
+# narrows the search, the trusted record is the review job's name (see below).
+run-name: >-
+  ${{ github.event_name == 'workflow_dispatch'
+  && format('Claude Code Review: PR #{0}', inputs.pr)
+  || github.event.pull_request.title }}
+
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
+  # Re-review by hand: `gh workflow run "Claude Code Review" -f pr=<n>`.
+  # The run executes this file from the default branch and reviews the PR's
+  # current head, resolved through the API. A rerun of a pull_request run
+  # cannot do that: it keeps the original payload, and with it the old commit.
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: Nummer van de pull request die opnieuw gereviewd moet worden
+        required: true
+        type: number
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+# No workflow-level concurrency. Cancelling whole runs also cancelled their
+# merge gate, and a payload-based skip decision let a run that skipped the
+# review cancel the only run that would have done it (PR 1801). Concurrency now
+# sits on `claude-review` alone, keyed on facts `target` fetched at run time.
 
 jobs:
-  # A cross-repo PR gets no secrets, so CLAUDE_CODE_OAUTH_TOKEN is empty there and
-  # the action can only fail. Skip instead, and let review-gate report that.
-  # Compare full_name rather than reading `head.repo.fork`: inside a fork of this
-  # repo its own PRs are not cross-repo and do have secrets.
+  # Decides from the API, at run time, whether there is something to review and
+  # which commit that is. The payload is not good enough: a `synchronize` event
+  # for a push made just before "ready for review" still says `draft: true`, and
+  # a `ready_for_review` event can carry the commit from before that push.
+  target:
+    name: Resolve the commit to review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      review: ${{ steps.resolve.outputs.review }}
+      pr: ${{ steps.resolve.outputs.pr }}
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - name: Resolve the pull request and its head commit
+        id: resolve
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          EVENT_NAME: ${{ github.event_name }}
+          PR: ${{ github.event.pull_request.number || inputs.pr }}
+          EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -uo pipefail
+          # Not being able to look is an error on any event: a green job with a
+          # skipped review would hide it.
+          fail() {
+            echo "::error title=Claude review::$1"
+            exit 1
+          }
+          # A manual run was asked for explicitly, so a refusal is an error. On a
+          # pull_request event it is the normal outcome for drafts and forks.
+          refuse() {
+            if [ "$EVENT_NAME" = workflow_dispatch ]; then
+              echo "::error title=Claude review::$1"
+              exit 1
+            fi
+            echo "::notice title=Claude review::$1"
+            echo "review=false" >>"$GITHUB_OUTPUT"
+            exit 0
+          }
+          [[ "$PR" =~ ^[1-9][0-9]*$ ]] || fail "'${PR}' is geen nummer van een pull request."
+          pr=$(gh api "repos/${REPO}/pulls/${PR}") ||
+            fail "Pull request ${PR} is niet op te halen, dus niet vast te stellen of er iets te reviewen is. Draai deze run opnieuw."
+          field() { jq -r "${1} // \"\"" <<<"$pr"; }
+          head_sha=$(field '.head.sha')
+          [ "$(field '.state')" = open ] || refuse "Pull request ${PR} is niet open."
+          # Same rules as before: a cross-repo PR gets no secrets, a draft is not
+          # ready, and dependabot goes through claude-dependabot.yml. Compare
+          # full_name rather than `head.repo.fork`: inside a fork of this repo its
+          # own PRs are not cross-repo and do have secrets.
+          [ "$(field '.head.repo.full_name')" = "$REPO" ] ||
+            refuse "Pull request ${PR} komt uit een andere repository; die krijgt geen secrets en dus geen automatische review."
+          [ "$(field '.draft')" != true ] ||
+            refuse "Pull request ${PR} staat op draft; de review volgt bij 'ready for review'."
+          [ "$(field '.user.login')" != 'dependabot[bot]' ] ||
+            refuse "Pull request ${PR} komt van dependabot en loopt via claude-dependabot.yml."
+          [[ "$head_sha" =~ ^[0-9a-f]{40}$ ]] ||
+            fail "De head-commit van pull request ${PR} is niet uit de API te lezen. Draai deze run opnieuw."
+          # A run for a commit that is no longer the head does not review: its gate
+          # reports on that old commit, and the gate on the new head judges the
+          # new one (and blocks with instructions if nothing reviews it).
+          if [ "$EVENT_NAME" = pull_request ] && [ "$head_sha" != "$EVENT_HEAD_SHA" ]; then
+            refuse "Deze run is voor commit ${EVENT_HEAD_SHA}, maar pull request ${PR} staat inmiddels op ${head_sha}. Deze run reviewt daarom niet; de poort op ${head_sha} beoordeelt die commit."
+          fi
+          echo "Te reviewen: pull request ${PR} op commit ${head_sha}."
+          {
+            echo "review=true"
+            echo "pr=${PR}"
+            echo "sha=${head_sha}"
+          } >>"$GITHUB_OUTPUT"
+
+  # The job name is what the merge gate reads. On a pull_request run it stays
+  # `claude-review`. On a dispatch run it also names the PR and the commit:
+  # that run's own head is the default branch, and this name is the only record
+  # of what it reviewed that the gate can read and that only the default-branch
+  # copy of this file can write. Keep it in step with `dispatch_job_name` in
+  # script/await-claude-review.sh; the test suite binds the two.
   claude-review:
-    if: >-
-      ${{ !github.event.pull_request.draft &&
-          github.event.pull_request.head.repo.full_name == github.repository &&
-          github.event.pull_request.user.login != 'dependabot[bot]' }}
+    name: >-
+      ${{ github.event_name == 'workflow_dispatch'
+      && format('claude-review (PR #{0} @ {1})', needs.target.outputs.pr, needs.target.outputs.sha)
+      || 'claude-review' }}
+    needs: target
+    if: needs.target.outputs.review == 'true'
+    # One review per pull request at a time, whichever event started it: a
+    # newer push or a manual run replaces the review in progress. A run that
+    # has nothing to review gets a group of its own, so even if GitHub weighs
+    # concurrency before `if:`, it cannot cancel a review.
+    concurrency:
+      group: >-
+        ${{ github.workflow }}-pr-${{ needs.target.outputs.review == 'true'
+        && needs.target.outputs.pr || github.run_id }}
+      cancel-in-progress: true
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -26,10 +132,36 @@ jobs:
       id-token: write
 
     steps:
+      # A pull_request run checks out the test merge, as before. A dispatch run
+      # checks out the head commit that `target` resolved, not its own ref.
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
         with:
           fetch-depth: 1
+          ref: ${{ github.event_name == 'workflow_dispatch' && needs.target.outputs.sha || '' }}
+
+      # On a pull_request event the review action restores these paths from the
+      # base branch itself, because the CLI reads them at startup and the PR
+      # controls them. On a dispatch event it does not (there is no PR in the
+      # payload), so do it here, from the default-branch commit this run runs.
+      # The list is SENSITIVE_PATHS from the action's restore-config.ts, plus
+      # AGENTS.md (which CLAUDE.md imports) and the comment script the next
+      # steps execute: this job runs with the default branch's cache scope and
+      # OIDC subject, so it must not execute code from the PR.
+      - name: Restore Claude configuration from the default branch
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          TRUSTED_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git fetch --depth=1 origin "$TRUSTED_SHA"
+          for path in .claude .mcp.json .claude.json .gitmodules .ripgreprc CLAUDE.md CLAUDE.local.md .husky \
+            AGENTS.md script/claude-review-comments.sh; do
+            rm -rf -- "$path"
+            if git cat-file -e "${TRUSTED_SHA}:${path}" 2>/dev/null; then
+              git checkout "$TRUSTED_SHA" -- "$path"
+            fi
+          done
 
       # Opruimen gebeurt ná de review, niet ervoor. Wat hier gebeurt is alleen
       # vastleggen wat er staat: de ids om straks op te ruimen, en de teksten om
@@ -43,18 +175,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
+          PR: ${{ needs.target.outputs.pr }}
         run: script/claude-review-comments.sh snapshot
 
       - name: Run Claude Code Review
         id: claude-review
-        uses: anthropics/claude-code-action@756cc22e19660d20e8cc9496b4f242475a7f7790  # v1
+        uses: anthropics/claude-code-action@374f254f5efaf968abfe15d399fd90972e8138b9  # v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           use_sticky_comment: true
           claude_args: "--allowedTools Bash,Read,Glob,Grep"
           prompt: |
-            Review PR #${{ github.event.pull_request.number }} in ${{ github.repository }}.
+            Review PR #${{ needs.target.outputs.pr }} in ${{ github.repository }}, at head
+            commit ${{ needs.target.outputs.sha }}.
 
             Read `REVIEW.md` for the project context, review dimensions, severity scale, and
             skip rules. Follow those guidelines strictly.
@@ -92,6 +225,23 @@ jobs:
 
             If there are no issues, say so briefly. Do not pad the review with praise or filler.
 
+            ## Post the review yourself
+
+            Nothing you write as your final answer reaches the pull request: this workflow
+            does not post it. Post the review with the GitHub CLI, which is authenticated:
+
+            - The summary comment, always, also when there is nothing to report:
+              `gh pr comment ${{ needs.target.outputs.pr }} --repo ${{ github.repository }} --body-file <file>`.
+              With no findings it says so and names in one line what you checked.
+            - Each inline comment: `gh api repos/${{ github.repository }}/pulls/${{ needs.target.outputs.pr }}/comments
+              -F body=@<file> -f commit_id=${{ needs.target.outputs.sha }} -f path=<path> -F line=<line> -f side=RIGHT`.
+              Take `<line>` from the `+` side of `gh pr diff ${{ needs.target.outputs.pr }}`, not from the
+              files on disk, which may be a merge with the base branch. A finding the API refuses
+              goes into the summary comment instead.
+
+            The merge gate blocks a review that left nothing on the pull request, so a
+            review that is not posted counts as no review.
+
             ## The Critical marker is read by a machine
 
             The merge gate `Claude review completed` searches this comment, your inline
@@ -126,7 +276,7 @@ jobs:
         if: steps.claude-review.outputs.execution_file != ''
         env:
           EXECUTION_FILE: ${{ steps.claude-review.outputs.execution_file }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          HEAD_SHA: ${{ needs.target.outputs.sha }}
         run: |
           echo "De review-actie is uitgevoerd; uitvoerbestand: ${EXECUTION_FILE}"
           {
@@ -145,14 +295,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
+          PR: ${{ needs.target.outputs.pr }}
         run: script/claude-review-comments.sh clean-up
 
-  # The merge gate. Unlike claude-review this job has no `if:` — it must run and
-  # report on every PR, cross-repo and dependabot included, because a required
-  # check that never reports blocks such a PR forever.
+  # The merge gate. Unlike claude-review it runs on every pull_request event,
+  # cross-repo and dependabot included, because a required check that never
+  # reports blocks such a PR forever. A dispatch run has no PR to report on (its
+  # checks land on the default branch); the gate of the PR picks that review up.
   review-gate:
     name: Claude review completed
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     # Ruim boven de ~10 minuten die de review kost, zodat een trage run niet
     # onterecht rood wordt; het script stopt zelf eerder met een duidelijke melding.

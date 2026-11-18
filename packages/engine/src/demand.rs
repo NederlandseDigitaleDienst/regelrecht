@@ -10,7 +10,7 @@
 //! so the walk goes through [`crate::article::ActionOperation::operands`], which is exhaustive
 //! over the operation variants.
 
-use crate::article::{foreach_binding, Action, ActionOperation, ActionValue, Article};
+use crate::article::{Action, ActionOperation, ActionValue, Article, foreach_binding};
 use crate::types::Value;
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -69,6 +69,69 @@ pub(crate) fn required_outputs_with(
         }
     }
     required
+}
+
+/// Every name `output` of `article` reads, through the actions that compute
+/// it and the outputs of the article they read in turn
+/// ([`required_outputs`]).
+pub(crate) fn output_reads(article: &Article, output: &str) -> BTreeSet<String> {
+    let actions = article
+        .get_execution_spec()
+        .and_then(|e| e.actions.as_deref())
+        .unwrap_or_default();
+    let needed = required_outputs(actions, &[output]);
+    actions
+        .iter()
+        .filter(|a| a.output.as_ref().is_some_and(|o| needed.contains(o)))
+        .flat_map(referenced_names)
+        .collect()
+}
+
+/// What the binding `article` reads to fill the term `output`: the names
+/// the actions for `output` read, through the other outputs they read in
+/// turn, and through the parameters of the inputs among those names (an
+/// input whose `source` passes `$name` reads `name`). The walk does not enter
+/// another output named in `terms`: that output is a term of its own, filled
+/// with what it reads itself, and a term that builds on it takes its value,
+/// not its sources.
+pub(crate) fn term_reads(
+    article: &Article,
+    output: &str,
+    terms: &BTreeSet<&str>,
+) -> BTreeSet<String> {
+    let actions = article
+        .get_execution_spec()
+        .and_then(|e| e.actions.as_deref())
+        .unwrap_or_default();
+    let mut reads = BTreeSet::new();
+    let mut seen = BTreeSet::from([output.to_string()]);
+    let mut pending = vec![output.to_string()];
+    while let Some(name) = pending.pop() {
+        let by_actions = actions
+            .iter()
+            .filter(|a| a.output.as_deref() == Some(name.as_str()))
+            .flat_map(referenced_names);
+        let by_inputs = article
+            .get_inputs()
+            .iter()
+            .filter(|input| input.name == name)
+            .filter_map(|input| input.source.as_ref()?.parameters.as_ref())
+            .flat_map(|parameters| parameters.values())
+            .filter_map(|value| value.strip_prefix('$'))
+            .map(|path| path.split('.').next().unwrap_or(path).to_string());
+        for read in by_actions.chain(by_inputs) {
+            // Another term's output is its value, not a read of its sources,
+            // also where an input carries the same name (`leden: $leden`).
+            if read != output && terms.contains(read.as_str()) {
+                continue;
+            }
+            if seen.insert(read.clone()) {
+                pending.push(read.clone());
+            }
+            reads.insert(read);
+        }
+    }
+    reads
 }
 
 /// The order to run `actions` in: every action after the actions producing
@@ -177,11 +240,20 @@ pub(crate) fn reference_base(reference: &str) -> Option<&str> {
 /// FOREACH's own output is reported as a cycle. With `as` no field is bound
 /// by its own name (RFC-049), so every other bare name is a real reference.
 pub(crate) fn referenced_names(action: &Action) -> BTreeSet<String> {
-    let mut names = BTreeSet::new();
+    referenced_paths(action)
+        .iter()
+        .map(|path| path.split('.').next().unwrap_or(path).to_string())
+        .collect()
+}
+
+/// Every `$path` an action refers to, whole and without the `$` (`$a.b`
+/// gives `a.b`), under the same rules as [`referenced_names`].
+pub(crate) fn referenced_paths(action: &Action) -> BTreeSet<String> {
+    let mut paths = BTreeSet::new();
     action
         .operands()
-        .for_each(|operand| visit_value(operand, &BTreeSet::new(), &mut names));
-    names
+        .for_each(|operand| visit_value(operand, &BTreeSet::new(), &mut paths));
+    paths
 }
 
 fn visit_value(value: &ActionValue, bound: &BTreeSet<&str>, names: &mut BTreeSet<String>) {
@@ -213,8 +285,8 @@ fn visit_value(value: &ActionValue, bound: &BTreeSet<&str>, names: &mut BTreeSet
 fn visit_literal(literal: &Value, bound: &BTreeSet<&str>, names: &mut BTreeSet<String>) {
     match literal {
         Value::String(s) => names.extend(
-            reference_base(s)
-                .filter(|name| !bound.contains(name))
+            s.strip_prefix('$')
+                .filter(|_| reference_base(s).is_some_and(|name| !bound.contains(name)))
                 .map(str::to_string),
         ),
         Value::Array(items) => items
