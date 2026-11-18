@@ -20,7 +20,7 @@ The editor is a Vue 3 single-page app in `frontend/`. It browses the corpus, hol
 
 ### The shell
 
-`AppShell.vue` holds the chrome that survives a switch between sections: the Home/Editor tab bar, the search field (a button below the `lg` breakpoint), the "+" menu, the traject menu and the account menu. Switching tabs swaps only the nested `<router-view>`, so the chrome is not rebuilt. In the editor the shell also renders the document tab bar of open articles, and a "PR #N" link to the pull request that the last save in the traject wrote to.
+`AppShell.vue` holds the chrome that survives a switch between sections: the Home/Editor tab bar, the search field (a button below the `lg` breakpoint), the "+" menu, the traject menu and the account menu. Switching tabs swaps only the nested `<router-view>`, so the chrome is not rebuilt. In the editor the shell also renders the document tab bar of open articles and scenario files, and a "PR #N" link to the pull request that the last save in the traject wrote to.
 
 - **"+" menu**: inside a traject it offers *Regelwerk toevoegen*, *Werkdocument toevoegen* (new or upload) and *Leden uitnodigen*. Logged out, the same button opens a prompt to log in or request an account.
 - **Traject menu** (`TrajectMenu.vue`, `MobileTrajectSheet.vue` on small screens): switch traject or go to the traject chooser.
@@ -39,7 +39,7 @@ Every Home route renders `LibraryView.vue`, which uses a navigation split view: 
 | `/` | The public corpus (*Corpus juris*). The sidebar lists *Favorieten* and *Recent bekeken*. Without a login, favorites are kept in this browser (`useLocalFavorites`); the section says so, warns that clearing the browser data loses them, and links to *Account aanvragen*. At the first load after login they move to the account and leave the browser; one that fails to save stays for the next try. In a traject favorites need a login. |
 | `/corpus-juris/{lawId}/{article?}` | A law from the public corpus: articles in the secondary sidebar, the article in main. Above the articles sit two entries, also on the traject route below: *Algemeen* (`article` = `algemeen`), the law's details with links to its published text (its `url` when that is a web address, else its BWB id) and its folder on GitHub, and *YAML* (`article` = `yaml`), the whole file. A law whose current version is enriched gets *Tekst*, *Machine* and *YAML* tabs under a banner that says the machine version is an example and not established; any other law shows its text only, with a note when another version does have a machine version. |
 | `/trajecten/{ref}` | The traject landing. The sidebar adds *Instellingen*, *Werkdocumenten* and *Taken*, and the section *In dit traject*. |
-| `/trajecten/{ref}/corpus/{lawId}/{article?}` | A law as the traject has it, read through `/api/trajects/{ref}/corpus/...`. |
+| `/trajecten/{ref}/corpus/{lawId}/{article?}` | A law as the traject has it, read through `/api/trajects/{ref}/corpus/...`. Below *Algemeen* and *YAML* sits a third entry, *Verwerkingen* (`article` = `verwerkingen`), the law's runs in the traject. Above the articles, a *Scenario's* heading lists the rulework's feature files; each opens in its own editor tab. |
 | `/trajecten/{ref}/werkdocumenten/{docPath?}` | The traject's werkdocumenten: the document list in the secondary sidebar, the Markdown editor in main. |
 | `/trajecten/{ref}/instellingen/{details\|leden}` | Traject settings: *Algemeen* (name, description, status, your role; delete or leave) and *Leden* (members, roles, pending invites). |
 | `/trajecten/{ref}/structuur-controle` | The *Algemeen* settings pane with the structure report open as a sheet over it. |
@@ -49,7 +49,9 @@ A traject ref has the form `{slug}-{8 hex}`. The router pins that pattern in eve
 
 **Werkdocumenten** are Markdown documents stored in the traject's own repository, under `documents/{ref}/`. A new one opens empty in the editor. An upload is converted to Markdown by a pipeline job; before it starts, a confirmation step asks whether a language model may be used for the conversion. Conversions still running show above the document list, and a failed one becomes a task.
 
-**Taken** lists open tasks under *Prioriteit*, *Wachten op* and *Alle taken*, then *Werkdocumenten* and one entry per law that tasks refer to. A category without tasks is not shown. Tasks come from pipeline jobs started for the traject: a harvest, an enrichment or a document conversion ends in a review task, and a job that fails leaves a failure task. A task never opens in the main pane itself; *Beoordelen* goes to the editor or the werkdocument it concerns.
+**Taken** lists open tasks under *Prioriteit*, *Wachten op* and *Alle taken*, then *Werkdocumenten* and one entry per law that tasks refer to. A category without tasks is not shown. Tasks come from pipeline jobs started for the traject: a harvest, an enrichment or a document conversion ends in a review task, and a job that fails leaves a failure task. *Alle taken* is one list, oldest first by the hour, with the law or *Werkdocumenten* under each row and the running jobs below the tasks; within an hour it goes by the name of the law and then by article number, so the tasks of one enrichment stay together. The other categories group tasks under a heading per law, with *Werkdocumenten* first and a group that holds a failed task above the rest, and sort a law's tasks by article number. Clicking a task opens its details in a sheet: what it concerns, when it arrived, and what the run behind it came to (the model, how many articles became executable, how the review of its other proposals stands). A review offers *Beoordelen*, a link to the article in the editor or the werkdocument, and *Verwerpen*, which asks first; a failure shows its error message with *Probeer opnieuw* and *Markeer als gedaan*. The other actions of a row sit in a separate menu next to it.
+
+**Verwerkingen**, an entry of a law inside a traject, lists the runs about that law, by any member: its enrichments and the harvest that fetched it into the traject. What is still going sits above what is done, each with its outcome, when it ran and who started it, in a column as wide as *Algemeen*. A run opens its details in a sheet, as a task does: how long it took, the language model, how many articles became executable, how the review of its proposals went, and the full error of a failed run, in a table laid out like the one on *Algemeen*. An enrichment links to its open proposals under *Taken* when they are yours to review; review tasks go to whoever requested the run, so for someone else's the details say whose they are. The list refreshes every 10 seconds while something runs and every minute otherwise. Conversions of werkdocumenten belong to no law and have no such page; a failed one shows up as a task.
 
 **Structuurcontrole** (`TrajectIntegrityPane.vue`) reports what is wrong with how the traject corpus is laid out, with a remedy per finding. The case that prompted it: the law index reads a law id from the directory name, while the editor switches to the `$id` in the YAML after loading, and when those differ everything after it fails with "not found". The report loads on opening and on *Opnieuw controleren*, not periodically.
 
@@ -59,15 +61,15 @@ A traject ref has the form `{slug}-{8 hex}`. The router pins that pattern in eve
 
 ### Editor
 
-`/trajecten/{ref}/editor/{lawId?}/{article?}` renders `EditorView.vue`. There is no editor outside a traject: `/editor`, the old `/editor/{lawId}` links and `/editor.html` all redirect to the traject chooser, carrying the law along so it opens after the choice.
+`/trajecten/{ref}/editor/{lawId?}/{article?}` renders `EditorView.vue`, and so does `/trajecten/{ref}/editor/{lawId}/scenarios/{file}`, a scenario file in its own tab (see [Scenario tabs](#scenario-tabs)). There is no editor outside a traject: `/editor`, the old `/editor/{lawId}` links and `/editor.html` all redirect to the traject chooser, carrying the law along so it opens after the choice.
 
-The editor is a side-by-side split view with one pane per view. Each pane has a menu to switch its view and to move it left or right. The pane layout is kept in `localStorage`.
+The editor is a side-by-side split view with one pane per view. Each pane has a menu to switch its view and to move it left or right. The pane layout is kept in `localStorage`. A new layout has every pane except *Scenario's*, whose status sits in the *Machine* toolbar. A layout saved before that change loses the *Scenario's* pane once; a pane added back afterwards stays.
 
 | View | Content |
 |------|---------|
 | *Tekst* | The article text, editable for users with write access, with a formatting toolbar (bold, italic, list type). Selecting text starts a note. |
-| *Machine* | The `machine_readable` section as a structured view. `EditSheet.vue` and `ActionSheet.vue` edit definitions, inputs, outputs and actions. Behind `panel.regelrijm` the article's actions come first, each as Dutch text ([RFC-054](/rfcs/rfc-054)) with the article text that linking notes tie to it; a name leads to the rule that computes it, *Actie openen* opens `ActionSheet.vue`. |
-| *Scenario's* | `ScenarioBuilder.vue`: the law's Gherkin scenarios, run in the browser. Per scenario, *Resultaat* opens the execution trace and *Graaf* the cross-law graph with the trace laid over it (`LawGraphView.vue`). |
+| *Machine* | The `machine_readable` section as a structured view. `EditSheet.vue` and `ActionSheet.vue` edit definitions, inputs, outputs and actions. Behind `panel.regelrijm` the article's actions come first, each as Dutch text ([RFC-054](/rfcs/rfc-054)) with the article text that linking notes tie to it; a name leads to the rule that computes it, *Actie openen* opens `ActionSheet.vue`. Its toolbar shows the status of the rulework's scenarios as an icon and a count: the failed ones in red, all of them in green when all passed, and otherwise passed out of all ("18/21"). Clicking it opens a sheet with the same list as the *Scenario's* pane; choosing a scenario opens it in its tab. `src/scenario/useLawScenarios.ts` runs them, once for the editor; the sheet and the pane read the same runs. |
+| *Scenario's* | `ScenarioStatusPane.vue`: the rulework's Gherkin scenarios, read only, with the status of a run in the browser against the rulework as it is being edited, unsaved edits included. The scenarios that failed, expect nothing or have not run are listed one by one; the passed ones sit behind one row that opens up. Clicking a scenario opens its file in a scenario tab. |
 | *YAML* | The raw YAML in a code editor. A parse error shows under it; if the engine refuses the YAML, a banner says so above the panes. |
 | *Notities* | All notes on the article, and the drafts that have not been saved yet. |
 
@@ -75,7 +77,17 @@ A law without a `machine_readable` section shows an empty state in *Machine* and
 
 The rulework on screen and the unsaved edits to it live in `src/composables/useOpenLaw.ts`, which also loads and saves it. The panes edit the article in three forms: its text, its `machine_readable` as a structure, and the same section as YAML. The module keeps those in step and resets them from the saved article whenever the article, rulework or traject changes. The action sheet edits a copy of the action, which joins the article only when the sheet saves.
 
-Only the selected article's edits are kept, so leaving it loses them. The editor asks first: switching tabs, articles, ruleworks or trajecten, closing the article's tab, browser back and forward, and leaving the editor all open a dialog with *Blijf hier* and *Wijzigingen weggooien*. Reloading or closing the browser tab gets the browser's own prompt instead. A review proposal that nobody has edited is not counted, because the editor places it again when the reviewer returns.
+Only the selected article's edits are kept, so leaving it loses them. The editor asks first: switching to another article, rulework or traject, closing the article's tab, browser back and forward, and leaving the editor all open a dialog with *Blijf hier* and *Wijzigingen weggooien*. Moving to a scenario tab of the same rulework is not leaving: the article and its edits stay open behind it. Reloading or closing the browser tab gets the browser's own prompt instead. A review proposal that nobody has edited is not counted, because the editor places it again when the reviewer returns.
+
+#### Scenario tabs
+
+A scenario file opens in a tab of its own, from the *Scenario's* pane or from the rulework on Home. The tab shows `ScenarioScreen.vue`: the file's scenarios on the left with their status, the form of the selected scenario, and its result next to it. The result is the execution trace. *Graaf* opens the cross-law graph with the trace laid over it (`LawGraphView.vue`) in a sheet over the full width, because the graph does not fit in the result pane. When the window is too narrow for the result pane, *Bekijk resultaat* opens it as a sheet. `?scenario=<naam>` in the URL names the scenario shown. When several scenarios in a file share a name, the tab warns: such a link opens the first of them, and keeping names apart is up to the author.
+
+A scenario tab belongs to its rulework, so opening one opens that rulework, and the scenarios run against it with its unsaved edits. The engine holds every saved version of the open rulework, with the edited one in place of its saved copy, so a scenario runs on the version in force on its calculation date. When the engine refuses the edited version, the rulework leaves the engine and its scenarios fail with the reason, rather than run on a saved version. A scenario runs the rulework its `When` step names, which can be another one than the file's folder; the screen says so.
+
+The file and its unsaved edits live in `src/scenario/openScenario.ts`, one per file, kept by the `openScenarios` store so the edits survive a switch to another tab. Next to an article the editor runs the same copy: it runs the tab's unsaved edits and says it does. A run and a save read a scenario's values through one conversion (`src/scenario/inputs.ts`): the run applies the edits the way a save writes them, so the editor runs what the saved file will say.
+
+A tab with unsaved edits, article or scenario file, has a dot in its corner, and its supporting text adds *niet opgeslagen*, so a screen reader says it as well. Closing a scenario tab with unsaved edits, switching traject, and reloading ask first; switching tabs does not, because nothing is lost.
 
 ### Top-level pages
 
@@ -106,7 +118,7 @@ The list in `packages/editor-api/src/feature_flags.rs` is also the allow-list: t
 |-----|---------|--------|
 | `panel.article_text` | on | Offers the *Tekst* pane in the editor. |
 | `panel.machine_readable` | on | Offers the *Machine* pane. |
-| `panel.scenario_form` | on | Offers the *Scenario's* pane. |
+| `panel.scenario_form` | on | Offers the *Scenario's* pane, the scenario status in the *Machine* toolbar, the scenario files on Home and the scenario tabs. Off, a scenario URL opens its rulework. |
 | `panel.yaml_editor` | on | Offers the *YAML* pane. |
 | `panel.notes` | on | Offers the *Notities* pane. |
 | `panel.regelrijm` | off | Reads the actions in *Machine* as RegelRijm text (experimental). |
@@ -143,7 +155,7 @@ The UI is built from `@nldd/design-system` web components (element prefix `nldd-
 | **Actions & overlays** | `nldd-button`, `nldd-icon-button`, `nldd-button-group`, `nldd-inline-dialog`, `nldd-modal-dialog`, `nldd-sheet` |
 | **Content** | `nldd-rich-text`, `nldd-code-viewer`, `nldd-code-editor`, `nldd-title`, `nldd-tag` |
 
-App-level CSS is small. `frontend/css/main.css` holds a few resets and the `--color-primary` token (`#154273`). Two feature stylesheets sit next to their code: `src/harvester/harvester.css` for the dashboard and `src/components/graph/graph-styles.css` for the law graph.
+App-level CSS is small. `frontend/css/main.css` holds a few resets and the `--color-primary` token (`#154273`). `src/styles/design-system-gaps.css` holds what the design system does not offer yet, one commented rule per gap; today that is the dot on a document tab with unsaved edits. Its rules attach to an element's tag and a data attribute, never to its shadow DOM, and `e2e/scenario-tab.spec.js` checks that the dot is still drawn. Check this file after a design-system upgrade, and drop a rule once the design system covers it. Two feature stylesheets sit next to their code: `src/harvester/harvester.css` for the dashboard and `src/components/graph/graph-styles.css` for the law graph.
 
 ## Vue components
 
@@ -154,7 +166,8 @@ Besides the views in `src/` (`AppShell.vue`, `LibraryView.vue`, `EditorView.vue`
 | `ArticleText.vue` / `ArticleTextEditor.vue` | Render and edit article text |
 | `MachineReadable.vue` / `MachineEmptyState.vue` | Machine-readable view, and the empty state with enrichment |
 | `EditSheet.vue` / `ActionSheet.vue` / `OperationSettings.vue` | Editing definitions, actions and operations |
-| `ScenarioBuilder.vue` / `ScenarioForm.vue` | Scenario list and authoring |
+| `ScenarioScreen.vue` / `ScenarioForm.vue` / `ScenarioResult.vue` | A scenario tab: the scenario list, the form of one scenario, and its result |
+| `ScenarioStatusPane.vue` | The read-only *Scenario's* pane, also shown in the sheet behind the scenario status in the *Machine* toolbar |
 | `ExecutionTraceView.vue` / `LawGraphView.vue` (+ `graph/`) | Execution trace and cross-law graph |
 | `NoteCreator.vue` / `NoteCard.vue` | Stand-off notes (RFC-018) |
 | `RegelRijmPane.vue` / `RegelRijmText.vue` (in `src/regelrijm/`) | The RegelRijm readings at the top of *Machine* and the token text they show (RFC-054) |
@@ -167,8 +180,8 @@ Besides the views in `src/` (`AppShell.vue`, `LibraryView.vue`, `EditorView.vue`
 
 Where state lives depends on who shares it.
 
-- State the whole app shares lives in a Pinia setup store under `src/stores/`. So far these are the feature flags (`featureFlags.ts`), the user's trajecten with the active one (`trajects.ts`), what the views publish to the shell (`appChrome.ts`), and the verdicts on an enrichment under review, which have to outlive moving from article to article (`enrichVerdicts.ts`). `main.ts` installs Pinia and starts loading the flags and the traject list; a store does nothing on import.
-- State of one open document lives in a composable each caller creates, such as `useOpenLaw` for the rulework open in the editor and `useProposalReview` for deciding on a generated proposal for it. Every open document has its own, so it is not a store.
+- State the whole app shares lives in a Pinia setup store under `src/stores/`. So far these are the feature flags (`featureFlags.ts`), the user's trajecten with the active one (`trajects.ts`), what the views publish to the shell (`appChrome.ts`), the verdicts on an enrichment under review, which have to outlive moving from article to article (`enrichVerdicts.ts`), and the open scenario files, whose unsaved edits outlive a tab switch (`openScenarios.ts`). `main.ts` installs Pinia and starts loading the flags and the traject list; a store does nothing on import.
+- State of one open document lives in a composable each caller creates, such as `useOpenLaw` for the rulework open in the editor and `useProposalReview` for deciding on a generated proposal for it. Every open document has its own, so it is not a store. An open scenario file is kept differently, because the scenario tab and the scenario status next to an article both read it, and its edits outlive either of them, so `createOpenScenario` makes the document and the `openScenarios` store keeps one per file.
 - Rulework content goes through the corpus reader (see [Data loading](#data-loading)).
 
 Other shared state still sits in module-level singletons under `src/composables/`, such as `useTasks.ts` and `useAddActions.ts`. Each moves to a store when someone changes it; there is no separate conversion.

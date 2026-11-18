@@ -29,6 +29,7 @@
 // opens a scenario and the browser's back and forward walk the choices.
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { api } from './api.js';
+import { getoond } from './herkomst.js';
 import { artikelNaam } from './logboek.js';
 import { melding } from './melding.js';
 import { current, followAddress, navigate, toChoice, unknown } from './navigation.js';
@@ -39,6 +40,7 @@ import AndereCellenTab from './components/AndereCellenTab.vue';
 import BestuursorgaanTab from './components/BestuursorgaanTab.vue';
 import CasusKeuze from './components/CasusKeuze.vue';
 import HerkomstSheet from './components/HerkomstSheet.vue';
+import InlogScherm from './components/InlogScherm.vue';
 import KroniekTab from './components/KroniekTab.vue';
 import LogboekTab from './components/LogboekTab.vue';
 import NaUitspraak from './components/NaUitspraak.vue';
@@ -51,6 +53,16 @@ import UitlegPagina from './presentation/UitlegPagina.vue';
 import { KORT, useKort } from './presentation/useKort.js';
 import { useUitleg } from './presentation/useUitleg.js';
 import { startIndex, usePresentation } from './presentation/usePresentation.js';
+import { useAlleCasussen } from './verborgen.js';
+import { toonInKroniek } from './verwijzingen.js';
+import { inlogScherm, wisSessie } from './sessie.js';
+
+// The login screen of a case with a login step (InlogScherm.vue) takes the
+// place of the app while it is open, as a redirect to the service would.
+// The tab and the game stay as they were.
+const inloggenOpen = computed(
+  () => inlogScherm.value && !!state.vormen?.aanvraag?.inloggen?.inlogstap,
+);
 
 // Het tabblad Andere cellen staat er alleen bij een casus met andere cellen
 // (RFC-048).
@@ -83,7 +95,10 @@ onMounted(async () => {
 const presentation = usePresentation();
 const uitleg = useUitleg();
 const kort = useKort();
+const alleCasussen = useAlleCasussen();
 onMounted(() => {
+  // `?alle-casussen` holds for this browser, not for the address: read it and take it off.
+  alleCasussen.follow();
   const i = startIndex(window.location.search, presentation.total.value);
   if (i !== null) presentation.start(i);
   // The pages belong to the choice screen; on a case's address they give way.
@@ -124,18 +139,26 @@ const subtitle = computed(
   () => `De cel van ${state.casus?.cel_naam} · ${artikel.value} · bestuursorgaan: ${state.casus?.rol}`,
 );
 
-// Een link in het logboek naar een chronolexogram opent het in de kroniek.
-function naarKroniek(id) {
-  state.inKroniek = id;
-  tab.value = 'kroniek';
-}
+// A link to a chronolexogram, from the log or from a reference of another
+// one (verwijzingen.js), opens it in the Kroniek tab, also from the sheet.
+// Synchronous, because KroniekTab.vue clears the request once it shows the
+// gram, and a watcher that ran after that would see nothing to do.
+watch(
+  () => state.inKroniek,
+  (id) => {
+    if (!id) return;
+    getoond.value = null;
+    tab.value = 'kroniek';
+  },
+  { flush: 'sync' },
+);
 
 // In a scenario, starting over begins that scenario again, as the guide's
 // own button does: the play date back on its first day, the tab Aanvrager and
 // the guide open.
 async function opnieuw() {
   if (state.scenario) await restart();
-  else await stap(() => api.reset());
+  else if (await stap(() => api.reset())) wisSessie(state.casus.id);
 }
 
 // The guide of the scenario that began, if it has one.
@@ -146,13 +169,20 @@ const split = ref(null);
 // Whether the split view put the inspector in a sheet, for lack of room.
 const asSheet = ref(false);
 let observer = null;
-onMounted(() => {
-  observer = new MutationObserver(() => {
-    asSheet.value = split.value?.hasAttribute('inspector-auto-hidden') ?? false;
-  });
-  observer.observe(split.value, { attributes: true, attributeFilter: ['inspector-auto-hidden'] });
-  asSheet.value = split.value.hasAttribute('inspector-auto-hidden');
-});
+// The split view is new each time the login screen gave way to the app again.
+watch(
+  split,
+  (el) => {
+    observer?.disconnect();
+    if (!el) return;
+    observer = new MutationObserver(() => {
+      asSheet.value = el.hasAttribute('inspector-auto-hidden');
+    });
+    observer.observe(el, { attributes: true, attributeFilter: ['inspector-auto-hidden'] });
+    asSheet.value = el.hasAttribute('inspector-auto-hidden');
+  },
+  { flush: 'post' },
+);
 onBeforeUnmount(() => observer?.disconnect());
 
 // The split view decides inline or sheet after its next layout, a frame
@@ -216,7 +246,8 @@ function toTab(id) {
   <!-- The layout of the editor (frontend/src/AppShell.vue): the bars across
        the full width in an nldd-bar-split-view, the content under them in its
        main pane, here a navigation split view with the guide as inspector. -->
-  <nldd-shell>
+  <InlogScherm v-if="inloggenOpen" />
+  <nldd-shell v-else>
     <nldd-bar-split-view>
       <nldd-split-view-pane slot="title-bar">
         <nldd-container padding="8">
@@ -338,7 +369,7 @@ function toTab(id) {
                 </template>
                 <AndereCellenTab v-else-if="tab === 'andere'" />
                 <KroniekTab v-else-if="tab === 'kroniek'" />
-                <LogboekTab v-else @kroniek="naarKroniek" />
+                <LogboekTab v-else @kroniek="toonInKroniek" />
               </template>
             </nldd-page>
           </nldd-split-view-pane>

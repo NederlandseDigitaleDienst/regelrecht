@@ -18,6 +18,7 @@ use crate::gate;
 use crate::pagina;
 use crate::proxy;
 use crate::registry::{Poc, Soort};
+use crate::version;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -124,6 +125,7 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/", get(index))
         .route("/health", get(|| async { "OK" }))
+        .route(version::VERSION_PATH, get(version::version))
         .route("/_toegang/{slug}", post(toegang))
         .nest_service("/_assets", ServeDir::new(format!("{static_root}/_assets")))
         .fallback(

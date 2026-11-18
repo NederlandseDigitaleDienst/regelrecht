@@ -35,6 +35,13 @@ describe('ScenarioParameterInput', () => {
       });
     }
 
+    // A date field is by default only as wide as a date; the text and number
+    // fields next to it fill their cell, so the date field must too.
+    it('makes the date field as wide as its cell, like the number field', () => {
+      expect(mountInput({ type: 'date', value: '' }).find('nldd-date-field').attributes('width')).toBe('full');
+      expect(mountInput({ type: 'number', value: '' }).find('nldd-number-field').attributes('width')).toBe('full');
+    });
+
     it('falls back to text-field for an unknown type', () => {
       const wrapper = mountInput({ type: 'mystery', value: '' });
       expect(wrapper.find('nldd-text-field').exists()).toBe(true);

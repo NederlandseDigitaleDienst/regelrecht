@@ -187,6 +187,13 @@ COPY schema/ /schema/
 # poc-portal embed pocs/registry.yaml op dezelfde manier: include_str! vanuit
 # poc-portal/src/ met drie niveaus omhoog, dus /pocs/registry.yaml.
 COPY pocs/ /pocs/
+# The commit this image is built from, reported at GET /_version. deploy.yml
+# passes github.sha; src/version.rs checks it at compile time and turns
+# anything that is not a full lowercase SHA (including an empty value in a
+# local build) into "unknown". Declared after the COPYs and right before the
+# build, so a new commit invalidates only this layer and the cook layer stays
+# cached.
+ARG REGELRECHT_COMMIT=
 RUN find . -name '*.rs' -exec touch {} + && \
     cargo build --release --bin regelrecht-poc-portal
 

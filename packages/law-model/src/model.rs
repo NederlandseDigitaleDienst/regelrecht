@@ -297,6 +297,23 @@ pub struct Parameter {
     pub temporal: Option<Temporal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legal_basis: Option<ProvisionReference>,
+    /// Only on a parameter of type `array` (schema v0.8.20): the columns of
+    /// each row. A projection that fills an array of its state from it
+    /// declares the same columns.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<Column>>,
+}
+
+/// One column of an array of rows (schema v0.8.20): its name and the scalar
+/// type of its values. A row lacking the column holds null there.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Column {
+    pub name: String,
+    #[serde(rename = "type")]
+    pub column_type: ParameterType,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub description: Option<String>,
 }
 
 impl Parameter {
@@ -360,6 +377,11 @@ pub struct Output {
     pub temporal: Option<Temporal>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub legal_basis: Option<ProvisionReference>,
+    /// Only on an output of type `array` (schema v0.8.22): the columns of
+    /// each row. The type check holds a row the article builds for this
+    /// output with `RECORD` to them.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<Column>>,
 }
 
 impl Output {
@@ -812,6 +834,12 @@ pub enum ActionOperation {
     },
     #[serde(rename = "LIST")]
     List { items: Vec<ActionValue> },
+    /// A row with its own columns (schema v0.8.22): each key of `fields`
+    /// names a column, each value is the expression for it.
+    #[serde(rename = "RECORD")]
+    Record {
+        fields: BTreeMap<String, ActionValue>,
+    },
     /// Iterate over a collection, evaluating `body` per element (RFC-016).
     ///
     /// The only operation that *defines* a variable rather than reading one:
@@ -915,6 +943,12 @@ pub enum CombineOp {
     /// as the record in force on a day, where a lowest or highest of a
     /// string or a date is not defined.
     Only,
+    /// The unique results, in the order each first occurs (schema v0.8.21).
+    /// Two results are the same when `EQUALS` says so: a number, string,
+    /// date or boolean by value, a row or list deeply. Null is a value and
+    /// stays once. An empty collection gives an empty array. One value from
+    /// several equal ones is `ONLY` over this result.
+    Distinct,
 }
 
 impl CombineOp {
@@ -927,6 +961,7 @@ impl CombineOp {
             CombineOp::Min => "MIN",
             CombineOp::Max => "MAX",
             CombineOp::Only => "ONLY",
+            CombineOp::Distinct => "DISTINCT",
         }
     }
 }
@@ -992,6 +1027,7 @@ impl ActionOperation {
                 .chain(values.iter().flatten())
                 .collect(),
             ActionOperation::List { items } => items.iter().collect(),
+            ActionOperation::Record { fields } => fields.values().collect(),
             ActionOperation::Foreach {
                 collection,
                 body,
@@ -1046,6 +1082,7 @@ impl ActionOperation {
             ActionOperation::In { .. } => "IN",
             ActionOperation::NotIn { .. } => "NOT_IN",
             ActionOperation::List { .. } => "LIST",
+            ActionOperation::Record { .. } => "RECORD",
             ActionOperation::Foreach { .. } => "FOREACH",
             ActionOperation::Age { .. } => "AGE",
             ActionOperation::DateAdd { .. } => "DATE_ADD",
@@ -1906,15 +1943,39 @@ pub struct StateProperty {
     pub name: String,
     #[serde(rename = "type")]
     pub property_type: ParameterType,
+    /// Since schema v0.8.20: whether the property may hold null, as
+    /// `nullable` on a parameter, input or output (RFC-036). A nullable
+    /// boolean, number or amount starts as null. A string or a date may hold
+    /// null whatever this says, as before; an array never does.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub nullable: Option<bool>,
+    /// Only and always with type `array` (schema v0.8.20): the columns of
+    /// each row, so the property holds a table.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub columns: Option<Vec<Column>>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub description: Option<String>,
 }
 
 impl StateProperty {
-    /// The value before the first record: false for a boolean, 0 for a
-    /// number or an amount, null for a string or a date.
+    /// Whether the property may hold null: when it says so (`nullable`,
+    /// schema v0.8.20), and always for a string or a date, whose start value
+    /// is null.
+    pub fn is_nullable(&self) -> bool {
+        self.nullable == Some(true)
+            || matches!(
+                self.property_type,
+                ParameterType::String | ParameterType::Date
+            )
+    }
+
+    /// The value before the first record: an empty list for an array, null
+    /// for a nullable property ([`Self::is_nullable`]), and otherwise false
+    /// for a boolean and 0 for a number or an amount.
     pub fn start(&self) -> Value {
         match self.property_type {
+            ParameterType::Array => Value::Array(Vec::new()),
+            _ if self.is_nullable() => Value::Null,
             ParameterType::Boolean => Value::Bool(false),
             ParameterType::Number | ParameterType::Amount => Value::Int(0),
             _ => Value::Null,
@@ -2437,6 +2498,16 @@ pub struct ArticleBasedLaw {
 }
 
 impl ArticleBasedLaw {
+    /// The authorities the regulation names as its holder in its root
+    /// `competent_authority`, such as the body whose policy it is. Empty
+    /// when it names none, or names a reference instead.
+    pub fn holder(&self) -> &[NamedAuthority] {
+        self.competent_authority
+            .as_ref()
+            .and_then(CompetentAuthority::named)
+            .unwrap_or_default()
+    }
+
     /// Extract schema version (e.g., "v0.5.0") from the `$schema` URL.
     ///
     /// Looks for a `/vN.N.N` pattern (semver with v prefix) in the URL,

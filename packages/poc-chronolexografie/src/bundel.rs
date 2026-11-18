@@ -34,6 +34,11 @@ use serde::{Deserialize, Serialize};
 use crate::casus::Casus;
 use crate::casus::{Regelwerken, casussen as lees_casussen};
 use crate::kern::{Corpus, Result};
+use crate::ui_spec;
+
+/// Where a source holds its UI spec: at its root, where the portal puts
+/// the file its manifest names (`UI_SPEC` in poc-portal, `bron.rs`).
+pub const UI_SPEC: &str = "ui_spec.yaml";
 
 /// This crate's corpus, under the repository root: the cases under
 /// `casussen`, the regelwerken under `regulation/nl` and the cells under
@@ -159,6 +164,19 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         Bundle::new(alles).map_err(|e| Error::Setup(format!("source '{}': {e}", bron.naam)))?,
     );
     let roots = [wortel.clone()];
+    // A UI spec that does not read costs the prefill and the views beside a
+    // decision, not the cases: they play with empty forms, and the source
+    // says why.
+    let spec = match bron.bestanden.get(UI_SPEC).map(|t| ui_spec::lees(t)) {
+        Some(Ok(spec)) => spec,
+        Some(Err(e)) => {
+            stand.meldingen.push(format!(
+                "{UI_SPEC}: {e}; the forms are not prefilled and no answers show beside a decision"
+            ));
+            ui_spec::UiSpec::default()
+        }
+        None => ui_spec::UiSpec::default(),
+    };
     let regelwerken = Regelwerken::load(&*bundle, &roots)?;
     stand
         .meldingen
@@ -168,7 +186,11 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         casus.bron = Some(bron.naam.clone());
         let id = casus.id.clone();
         match Corpus::load(bundle.clone(), &roots, &regelwerken, casus) {
-            Ok(c) => uit.push(c),
+            Ok(mut c) => {
+                c.prefill = spec.prefill.clone();
+                c.weergaven = spec.weergaven.clone();
+                uit.push(c);
+            }
             Err(e) => stand.fouten.push(format!("case '{id}': {e}")),
         }
     }
@@ -410,18 +432,30 @@ mod tests {
         }
     }
 
+    /// The form of the application of the chosen case on `dag`: the form of
+    /// the submission its article establishes (`vormen.indieningen`).
+    fn aanvraagvorm(spel: &mut crate::spel::Spel, dag: chrono::NaiveDate) -> serde_json::Value {
+        let artikel = spel.casus().unwrap()["artikel"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        spel.vormen(dag).unwrap()["indieningen"][&artikel].clone()
+    }
+
     /// Play the case `id` as its example says: apply, and decide with the
     /// example findings; the decision's outputs.
     fn speel(spel: &mut crate::spel::Spel, id: &str) -> serde_json::Value {
         let casus = spel.kiezen(id).unwrap();
         let map = |v: &serde_json::Value| v.as_object().cloned().unwrap_or_default();
         let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let artikel = casus["artikel"].as_str().unwrap();
         let gram = spel
-            .aanvragen(&map(&casus["voorbeeld"]["aanvraag"]), dag)
+            .indienen(artikel, None, &map(&casus["voorbeeld"]["aanvraag"]), dag)
             .unwrap();
         let besluit = spel
-            .besluiten(
+            .beslissen(
                 gram["id"].as_str().unwrap(),
+                None,
                 &map(&casus["voorbeeld"]["bevindingen"]),
                 dag,
             )
@@ -437,6 +471,512 @@ mod tests {
         assert_eq!(lijst["bronnen"][0]["naam"], "voorbeeld");
         let outputs = speel(&mut spel, "voorbeeld_subsidie");
         assert_eq!(outputs["subsidie_verleend"], serde_json::json!(true));
+    }
+
+    /// The test source in `tests/bron-voorinvullen`, with a copy of the Awb:
+    /// a register cell answers the name at a number, and its UI spec
+    /// prefills the application's name from it.
+    fn voorinvullen_bron() -> Bron {
+        let mut bestanden =
+            uit_map(&repo().join("packages/poc-chronolexografie/tests/bron-voorinvullen"));
+        bestanden.extend(awb());
+        Bron {
+            naam: "voorinvullen".into(),
+            versie: Some("abc1234".into()),
+            bestanden,
+            ..Bron::default()
+        }
+    }
+
+    /// The game on `bron` with its case `voorbeeld_inschrijving` chosen: the
+    /// game, the case and its playing date.
+    fn voorinvullen_spel(bron: Bron) -> (crate::spel::Spel, serde_json::Value, chrono::NaiveDate) {
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let casus = spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        (spel, casus, dag)
+    }
+
+    const NAAM_UIT_REGISTER: &str = "voorbeeld_inschrijving#2#naam_volgens_register";
+    const BESTUUR_UIT_REGISTER: &str = "voorbeeld_inschrijving#3#bestuur_volgens_register";
+
+    /// A field that holds a table (schema v0.8.20) gives the form its
+    /// columns, and the register prefills it with the rows it recorded.
+    #[test]
+    fn a_table_field_gives_the_form_its_columns_and_is_prefilled() {
+        let (mut spel, casus, dag) = voorinvullen_spel(voorinvullen_bron());
+        let vormen = aanvraagvorm(&mut spel, dag);
+        let velden = vormen["velden"].as_array().unwrap();
+        let bestuur = velden.iter().find(|v| v["naam"] == "bestuur").unwrap();
+        assert_eq!(bestuur["type"], "array");
+        assert_eq!(bestuur["mag_leeg"], true);
+        assert_eq!(
+            bestuur["kolommen"],
+            serde_json::json!([
+                { "naam": "naam", "type": "string" },
+                { "naam": "functie", "type": "string" },
+                { "naam": "sinds", "type": "date" },
+                { "naam": "vergoeding", "type": "amount" },
+            ])
+        );
+        // A field without columns names none.
+        let nummer = velden.iter().find(|v| v["naam"] == "nummer").unwrap();
+        assert!(nummer.get("kolommen").is_none(), "{nummer}");
+
+        let bronnen = vormen["prefill"].as_object().unwrap().clone();
+        let invoer = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+        let ingevuld = spel.voorinvullen(&bronnen, &invoer, dag).unwrap();
+        assert_eq!(
+            ingevuld["bestuur"]["waarde"],
+            serde_json::json!([
+                { "naam": "Lid Een", "functie": "voorzitter", "sinds": "2026-01-01", "vergoeding": 12500 },
+                { "naam": "Lid Twee", "functie": "penningmeester", "sinds": "2026-01-15", "vergoeding": null },
+            ])
+        );
+        assert_eq!(
+            ingevuld["bestuur"]["herkomst"][0]["door"],
+            "voorbeeld_register"
+        );
+
+        // What the form submits with that table is an application the cell
+        // records: the rows fit the columns.
+        let mut aanvraag = invoer.clone();
+        aanvraag.insert("bestuur".into(), ingevuld["bestuur"]["waarde"].clone());
+        let artikel = casus["artikel"].as_str().unwrap().to_string();
+        spel.indienen(&artikel, None, &aanvraag, dag).unwrap();
+        // A row with a column the law does not declare is refused.
+        aanvraag.insert("bestuur".into(), serde_json::json!([{ "onbekend": 1 }]));
+        let e = spel.indienen(&artikel, None, &aanvraag, dag).unwrap_err();
+        assert!(
+            e.to_string().contains("bestuur") && e.to_string().contains("onbekend"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn the_form_of_a_case_from_a_source_names_what_its_ui_spec_prefills() {
+        let (mut spel, casus, dag) = voorinvullen_spel(voorinvullen_bron());
+        let vormen = aanvraagvorm(&mut spel, dag);
+        assert_eq!(
+            vormen["prefill"],
+            serde_json::json!({
+                "naam_opgegeven": NAAM_UIT_REGISTER,
+                "bestuur": BESTUUR_UIT_REGISTER,
+                "aanhef": "voorbeeld_inschrijving#4#aanhef",
+                "referentie": "voorbeeld_inschrijving#4#referentie",
+            })
+        );
+        // What the form then asks: the name from the register cell.
+        let bronnen = vormen["prefill"].as_object().unwrap().clone();
+        let velden = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+        let ingevuld = spel.voorinvullen(&bronnen, &velden, dag).unwrap();
+        assert_eq!(ingevuld["naam_opgegeven"]["waarde"], "Vereniging Voorbeeld");
+        assert_eq!(
+            ingevuld["naam_opgegeven"]["herkomst"][0]["door"],
+            "voorbeeld_register"
+        );
+    }
+
+    /// A field the form leaves empty and the law lets be null reaches a
+    /// source as null, as the scenarios pass it: "no abbreviation", not an
+    /// unknown value. A field the law does not let be null stays out, and a
+    /// source that reads it gives an unknown value (RFC-036).
+    #[test]
+    fn an_empty_field_the_law_lets_be_null_reaches_a_source_as_null() {
+        let (mut spel, casus, dag) = voorinvullen_spel(voorinvullen_bron());
+        let vormen = aanvraagvorm(&mut spel, dag);
+        let bronnen = vormen["prefill"].as_object().unwrap().clone();
+        let invoer = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+        assert!(!invoer.contains_key("afkorting"), "{invoer:?}");
+        let ingevuld = spel.voorinvullen(&bronnen, &invoer, dag).unwrap();
+        assert_eq!(ingevuld["aanhef"]["waarde"], "Geacht bestuur");
+        assert_eq!(ingevuld["referentie"]["waarde"]["__unknown"], true);
+        assert_eq!(
+            ingevuld["referentie"]["waarde"]["missing"][0]["name"],
+            "kenmerk"
+        );
+        // A value the applicant gives still counts.
+        let mut met_afkorting = invoer.clone();
+        met_afkorting.insert("afkorting".into(), serde_json::json!("VV"));
+        let ingevuld = spel.voorinvullen(&bronnen, &met_afkorting, dag).unwrap();
+        assert_eq!(
+            ingevuld["aanhef"]["waarde"],
+            "Geacht bestuur, met afkorting"
+        );
+    }
+
+    /// The login field stays out when it is empty, even when the law lets it
+    /// be absent: a source that reads it gives an unknown value, rather than
+    /// answering for an applicant without a number.
+    #[test]
+    fn an_empty_login_field_stays_out_of_the_sources() {
+        let mut bron = voorinvullen_bron();
+        let pad = "regulation/nl/uitvoeringsbeleid/voorbeeld_inschrijving/2026-01-01.yaml";
+        // The login field `nummer` may be absent here, and the reference of
+        // article 4 reads it instead of the case's own mark.
+        let mut tekst = bron.bestanden[pad].clone();
+        for (was, wordt) in [
+            (
+                "          - name: nummer\n            type: string\n            description: Het nummer",
+                "          - name: nummer\n            type: string\n            required: false\n            nullable: true\n            description: Het nummer",
+            ),
+            (
+                "          - name: kenmerk\n            type: string\n            required: false\n        output:",
+                "          - name: nummer\n            type: string\n            required: false\n            nullable: true\n        output:",
+            ),
+            (
+                "            value: $kenmerk\n",
+                "            value: $nummer\n",
+            ),
+            (
+                "          - name: referentie\n            type: string\n        actions:",
+                "          - name: referentie\n            type: string\n            nullable: true\n        actions:",
+            ),
+        ] {
+            assert!(tekst.contains(was), "{was}");
+            tekst = tekst.replace(was, wordt);
+        }
+        bron.bestanden.insert(pad.into(), tekst);
+        let (mut spel, _, dag) = voorinvullen_spel(bron);
+        let vormen = aanvraagvorm(&mut spel, dag);
+        let bronnen = vormen["prefill"].as_object().unwrap().clone();
+        let ingevuld = spel
+            .voorinvullen(&bronnen, &serde_json::Map::new(), dag)
+            .unwrap();
+        // Not null, as for an applicant without a number: unknown.
+        assert_eq!(
+            ingevuld["referentie"]["waarde"]["missing"][0]["name"], "nummer",
+            "{}",
+            ingevuld["referentie"]
+        );
+    }
+
+    /// The application the form submits holds an empty field the law lets
+    /// be null as null, as a scenario's step does, so free play and a
+    /// scenario record the same application.
+    #[test]
+    fn an_application_holds_an_empty_field_the_law_lets_be_null_as_null() {
+        let (mut spel, casus, dag) = voorinvullen_spel(voorinvullen_bron());
+        let invoer = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+        let artikel = casus["artikel"].as_str().unwrap().to_string();
+        let gram =
+            serde_json::to_value(spel.indienen(&artikel, None, &invoer, dag).unwrap()).unwrap();
+        assert_eq!(gram["fields"]["afkorting"], serde_json::Value::Null);
+        assert!(
+            gram["fields"]
+                .as_object()
+                .unwrap()
+                .contains_key("afkorting"),
+            "{gram}"
+        );
+        assert!(
+            !gram["fields"].as_object().unwrap().contains_key("kenmerk"),
+            "{gram}"
+        );
+    }
+
+    #[test]
+    fn a_case_without_a_ui_spec_prefills_nothing() {
+        let (alle, standen) = met_bronnen(gebundeld(), vec![voorbeeld()]).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_subsidie").unwrap();
+        let vormen = aanvraagvorm(&mut spel, "2026-10-21".parse().unwrap());
+        assert_eq!(vormen["prefill"], serde_json::json!({}));
+    }
+
+    /// A UI spec whose list of elements has a name the poc does not know
+    /// prefills nothing, and the source says so instead of keeping quiet.
+    #[test]
+    fn a_ui_spec_without_elements_is_reported_on_the_source() {
+        let mut bron = voorinvullen_bron();
+        bron.bestanden.insert(
+            "ui_spec.yaml".into(),
+            "element:\n  - {id: UI1, fields: [{name: naam_opgegeven}]}\n".into(),
+        );
+        let (_, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
+        let melding = standen[0].meldingen.join("\n");
+        assert!(
+            melding.contains("ui_spec.yaml") && melding.contains("no `elements`"),
+            "{melding}"
+        );
+    }
+
+    #[test]
+    fn a_source_prefills_from_a_ui_spec_per_field() {
+        let mut bron = voorinvullen_bron();
+        bron.bestanden.insert(
+            "ui_spec.yaml".into(),
+            format!(
+                "elements:\n  - id: UI1\n    fields:\n      - {{name: naam_opgegeven, fill: {{from: '{NAAM_UIT_REGISTER}'}}}}\n      - {{name: kanaal, fill: {{by: system}}}}\n"
+            ),
+        );
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].meldingen.is_empty(), "{:?}", standen[0]);
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let vormen = aanvraagvorm(&mut spel, "2026-10-21".parse().unwrap());
+        assert_eq!(
+            vormen["prefill"]
+                .as_object()
+                .map(|m| m.keys().cloned().collect::<Vec<_>>()),
+            Some(vec!["naam_opgegeven".to_string()])
+        );
+    }
+
+    #[test]
+    fn a_ui_spec_that_prefills_a_field_twice_costs_the_prefill_not_the_cases() {
+        let mut bron = voorinvullen_bron();
+        bron.bestanden.insert(
+            "ui_spec.yaml".into(),
+            "elementen:\n  - {id: UI1, prefill: {naam_opgegeven: 'a#1#x'}}\n  - {id: UI5, prefill: {naam_opgegeven: 'a#1#y'}}\n".into(),
+        );
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fout.is_none(), "{:?}", standen[0]);
+        let melding = standen[0].meldingen.join("\n");
+        assert!(
+            melding.contains("ui_spec.yaml") && melding.contains("UI5"),
+            "{melding}"
+        );
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let vormen = aanvraagvorm(&mut spel, "2026-10-21".parse().unwrap());
+        assert_eq!(vormen["prefill"], serde_json::json!({}));
+    }
+
+    /// The case names who logs in: the applicant picks a record of the fact
+    /// in a cell of the case, as the cell knows it on the day, and its key
+    /// goes into the field of the application.
+    #[test]
+    fn the_form_offers_the_records_of_the_login_fact_known_on_the_day() {
+        let (alle, standen) = met_bronnen(gebundeld(), vec![voorinvullen_bron()]).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let vormen = aanvraagvorm(&mut spel, "2026-10-21".parse().unwrap());
+        let inloggen = &vormen["inloggen"];
+        assert_eq!(inloggen["veld"], "nummer");
+        assert_eq!(inloggen["sleutel"], "nummer");
+        assert_eq!(inloggen["naam"], "naam");
+        assert_eq!(
+            inloggen["keuzes"],
+            serde_json::json!([{
+                "waarde": "00000001",
+                "naam": "Vereniging Voorbeeld",
+                "cel": "voorbeeld_register",
+                "vastgelegd_op": "2026-02-02",
+                "velden": { "nummer": "00000001", "naam": "Vereniging Voorbeeld" },
+            }])
+        );
+        // Later the register knows the second one too.
+        let later = aanvraagvorm(&mut spel, "2026-11-02".parse().unwrap());
+        let keuzes = later["inloggen"]["keuzes"].as_array().unwrap();
+        assert_eq!(keuzes.len(), 2);
+        assert_eq!(keuzes[1]["naam"], "Vereniging Later");
+        // A key recorded again offers one choice, with what was recorded last.
+        let daarna = aanvraagvorm(&mut spel, "2026-11-03".parse().unwrap());
+        let keuzes = daarna["inloggen"]["keuzes"].as_array().unwrap();
+        let namen: Vec<&str> = keuzes.iter().map(|k| k["naam"].as_str().unwrap()).collect();
+        assert_eq!(namen, ["Vereniging Later", "Vereniging Voorbeeld Hernoemd"]);
+    }
+
+    #[test]
+    fn a_case_without_a_login_offers_none() {
+        let (alle, standen) = met_bronnen(gebundeld(), vec![voorbeeld()]).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_subsidie").unwrap();
+        let vormen = aanvraagvorm(&mut spel, "2026-10-21".parse().unwrap());
+        assert_eq!(vormen["inloggen"], serde_json::Value::Null);
+    }
+
+    /// A case of this crate keeps its UI spec in its own directory. In the
+    /// business parking permit the applicant logs in as an authentication
+    /// of the accredited service, and the form prefills the name and the
+    /// address the trade register gives for the number of whoever logs in.
+    #[test]
+    fn a_case_of_this_crate_prefills_from_its_own_ui_spec_after_the_login() {
+        let (alle, standen) = met_bronnen(gebundeld(), Vec::new()).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let casus = spel.kiezen("bedrijfsparkeervergunning").unwrap();
+        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let vormen = aanvraagvorm(&mut spel, dag);
+        let inloggen = &vormen["inloggen"];
+        assert_eq!(
+            inloggen["feit"],
+            "wet_digitale_overheid#15#authenticatie_verricht"
+        );
+        assert_eq!(inloggen["veld"], "kvk_nummer");
+        let kapsalon = inloggen["keuzes"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|k| k["waarde"] == "99990077")
+            .unwrap();
+        assert_eq!(kapsalon["cel"], "erkende_dienst_inlogmiddel");
+        assert_eq!(kapsalon["velden"]["betrouwbaarheidsniveau"], "substantieel");
+        let bronnen = vormen["prefill"].as_object().unwrap().clone();
+        assert_eq!(
+            bronnen.keys().collect::<Vec<_>>(),
+            ["adres_aanvrager", "naam_aanvrager"]
+        );
+        for (kvk, naam, adres) in [
+            (
+                "99990011",
+                "Bakkerij De Wilg",
+                "Kerkstraat 1, 7711 AB Wilgendaal",
+            ),
+            (
+                "99990077",
+                "Kapsalon De Krul",
+                "Kerkstraat 5, 7711 AB Wilgendaal",
+            ),
+        ] {
+            let velden = serde_json::json!({ "kvk_nummer": kvk });
+            let ingevuld = spel
+                .voorinvullen(&bronnen, velden.as_object().unwrap(), dag)
+                .unwrap();
+            assert_eq!(ingevuld["naam_aanvrager"]["waarde"], naam);
+            assert_eq!(ingevuld["adres_aanvrager"]["waarde"], adres);
+            assert_eq!(
+                ingevuld["naam_aanvrager"]["herkomst"][0]["door"],
+                "kamer_van_koophandel"
+            );
+        }
+    }
+
+    /// Two logins on one day are no error: of that day the lowest level
+    /// counts, since which login carried the application does not show.
+    #[test]
+    fn of_two_logins_on_the_day_of_receipt_the_lowest_level_counts() {
+        // Both orders: low first catches a rule that takes the last login of
+        // the day, high first one that takes the first.
+        for volgorde in [["laag", "hoog"], ["hoog", "laag"]] {
+            let (alle, standen) = met_bronnen(gebundeld(), Vec::new()).unwrap();
+            let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+            let casus = spel.kiezen("bedrijfsparkeervergunning").unwrap();
+            let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+            for niveau in volgorde {
+                let velden = serde_json::json!({
+                    "kvk_nummer": "99990011",
+                    "pseudoniem": "ps-a71c0e",
+                    "dienst": "urn:etoegang:DV:00000009999999999000:services:1",
+                    "betrouwbaarheidsniveau": niveau,
+                    "datum_authenticatie": casus["speeldatum"],
+                });
+                spel.vastleggen(
+                    "erkende_dienst_inlogmiddel",
+                    "wet_digitale_overheid#15#authenticatie_verricht",
+                    velden.as_object().unwrap(),
+                    dag,
+                )
+                .unwrap();
+            }
+            let aanvraag = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+            let artikel = casus["artikel"].as_str().unwrap();
+            let gram = spel.indienen(artikel, None, &aanvraag, dag).unwrap();
+            let besluit = spel
+                .beslissen(
+                    gram["id"].as_str().unwrap(),
+                    None,
+                    &serde_json::Map::new(),
+                    dag,
+                )
+                .unwrap();
+            assert_eq!(
+                besluit["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"], false,
+                "{volgorde:?}: {besluit}"
+            );
+            // Refused for the level, not on another ground.
+            let id = besluit["besluit"]["id"].as_str().unwrap();
+            let waarom = spel.waarom(id).unwrap().to_string();
+            assert!(
+                waarom.contains("betrouwbaarheidsniveau_authenticatie")
+                    && waarom.contains("\"laag\""),
+                "{volgorde:?}: {waarom}"
+            );
+        }
+    }
+
+    /// The decision asks the accredited service whether it confirmed the
+    /// authorisation for this service, and the why of the decision names
+    /// the cell that answered. The hair salon is authorised for another
+    /// service only, so the college refuses.
+    #[test]
+    fn the_why_of_a_refusal_names_the_accredited_service_that_answered() {
+        let (alle, standen) = met_bronnen(gebundeld(), Vec::new()).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        let casus = spel.kiezen("bedrijfsparkeervergunning").unwrap();
+        let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
+        let mut aanvraag = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+        aanvraag.insert("kvk_nummer".into(), "99990077".into());
+        let artikel = casus["artikel"].as_str().unwrap();
+        let gram = spel.indienen(artikel, None, &aanvraag, dag).unwrap();
+        let id = gram["id"].as_str().unwrap().to_string();
+        let besluit = spel
+            .beslissen(&id, None, &serde_json::Map::new(), dag)
+            .unwrap();
+        let id = besluit["besluit"]["id"].as_str().unwrap();
+        assert_eq!(
+            besluit["besluit"]["outputs"]["bedrijfsparkeervergunning_verleend"],
+            false
+        );
+        let waarom = spel.waarom(id).unwrap().to_string();
+        assert!(
+            waarom.contains("erkende_dienst_inlogmiddel")
+                && waarom.contains("vertegenwoordiging_bevestigd"),
+            "{waarom}"
+        );
+    }
+
+    #[test]
+    fn a_login_on_a_field_the_form_does_not_ask_or_a_key_the_fact_does_not_hold_is_refused() {
+        for (was, wat, verwacht) in [
+            (
+                "veld: nummer",
+                "veld: elders",
+                "'elders', which is no field of the application",
+            ),
+            (
+                "sleutel: nummer",
+                "sleutel: bestaat_niet",
+                "holds no 'bestaat_niet'",
+            ),
+            (
+                "naam: naam",
+                "naam: bestaat_niet",
+                "holds no 'bestaat_niet'",
+            ),
+        ] {
+            let mut bron = voorinvullen_bron();
+            let pad = "casussen/voorbeeld_inschrijving.yaml";
+            let tekst = bron.bestanden[pad].replace(&format!("  {was}\n"), &format!("  {wat}\n"));
+            bron.bestanden.insert(pad.into(), tekst);
+            let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+            let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+            spel.kiezen("voorbeeld_inschrijving").unwrap();
+            let e = spel.vormen("2026-10-21".parse().unwrap()).unwrap_err();
+            assert!(e.to_string().contains(verwacht), "{wat}: {e}");
+        }
+    }
+
+    /// A field the UI spec prefills that the form of this case does not
+    /// ask is no field of its form: another case of the source may ask it.
+    #[test]
+    fn a_field_the_form_does_not_ask_is_left_out() {
+        let mut bron = voorinvullen_bron();
+        bron.bestanden.insert(
+            "ui_spec.yaml".into(),
+            format!("elementen:\n  - prefill: {{naam_opgegeven: '{NAAM_UIT_REGISTER}', elders: 'a#1#x'}}\n"),
+        );
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        let mut spel = crate::spel::Spel::met_bronnen(alle, standen);
+        spel.kiezen("voorbeeld_inschrijving").unwrap();
+        let vormen = aanvraagvorm(&mut spel, "2026-10-21".parse().unwrap());
+        assert_eq!(
+            vormen["prefill"],
+            serde_json::json!({ "naam_opgegeven": NAAM_UIT_REGISTER })
+        );
     }
 
     /// With `POC_BRON_NAPP` set to a local source folder or manifest (as for `just
@@ -476,7 +1016,11 @@ mod tests {
         assert_eq!(c.casus.bron.as_deref(), Some("voorbeeld"));
         // The regulation, the cell and the objection from the source.
         assert_eq!(c.afleiding.regelwerken[0], "voorbeeld_bron_subsidie");
-        assert_eq!(c.afleiding.objection_law, "algemene_wet_bestuursrecht");
+        assert!(
+            c.afleiding
+                .indiening("algemene_wet_bestuursrecht#7:11")
+                .is_some()
+        );
         assert_eq!(c.afleiding.rol, "Voorbeeldautoriteit");
         assert!(c.cell().is_ok());
         assert_eq!(
@@ -505,7 +1049,7 @@ mod tests {
     #[test]
     fn an_unavailable_source_leaves_the_other_cases_alone() {
         let weg = Bron {
-            naam: "napp".into(),
+            naam: "voorbeeld".into(),
             fout: Some("bron niet beschikbaar".into()),
             ..Bron::default()
         };
@@ -681,20 +1225,23 @@ articles:
         let casus = spel.kiezen("voorbeeld_subsidie").unwrap();
         let dag = casus["speeldatum"].as_str().unwrap().parse().unwrap();
         let vormen = spel.vormen(dag).unwrap();
-        let gevraagd: Vec<&str> = vormen["besluit"]["bevindingen"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|v| v["naam"].as_str().unwrap())
-            .collect();
+        let gevraagd: Vec<&str> =
+            vormen["besluiten"][casus["besluit"].as_str().unwrap()]["bevindingen"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|v| v["naam"].as_str().unwrap())
+                .collect();
         assert_eq!(gevraagd, ["partij_geregistreerd", "motivering"]);
         let aanvraag = casus["voorbeeld"]["aanvraag"].as_object().cloned().unwrap();
-        let gram = spel.aanvragen(&aanvraag, dag).unwrap();
+        let artikel = casus["artikel"].as_str().unwrap();
+        let gram = spel.indienen(artikel, None, &aanvraag, dag).unwrap();
         let gegeven =
             serde_json::json!({"partij_geregistreerd": true, "motivering": "geregistreerd"});
         let besluit = spel
-            .besluiten(
+            .beslissen(
                 gram["id"].as_str().unwrap(),
+                None,
                 gegeven.as_object().unwrap(),
                 dag,
             )
@@ -788,10 +1335,10 @@ articles:
     #[test]
     fn a_source_runs_its_own_copy_of_an_id_of_this_crate() {
         let mut bron = voorbeeld();
-        let awb = "regulation/nl/wet/algemene_wet_bestuursrecht/1994-01-01.yaml";
+        let awb = "regulation/nl/wet/algemene_wet_bestuursrecht/2021-07-01.yaml";
         let tekst = bron.bestanden.remove(awb).unwrap();
         bron.bestanden
-            .insert("regulation/nl/wet/awb_kopie/1994-01-01.yaml".into(), tekst);
+            .insert("regulation/nl/wet/awb_kopie/2021-07-01.yaml".into(), tekst);
         let casus = "casussen/voorbeeld_subsidie.yaml";
         let tekst = bron.bestanden[casus].replace(
             "regulation/nl/wet/algemene_wet_bestuursrecht",
@@ -817,11 +1364,33 @@ articles:
 
     #[test]
     fn a_regelwerk_outside_the_corpus_of_a_case_does_not_count() {
-        // The Awb is in the source, but not in the corpus of the case.
-        let fout = fout_van_voorbeeld(|t| {
-            t.replace("  - regulation/nl/wet/algemene_wet_bestuursrecht\n", "")
-        });
-        assert!(fout.contains("BEZWAAR"), "{fout}");
+        // The Awb is in the source, but not in the corpus of the case: the
+        // case loads, and its law establishes no objection, so it has none.
+        // No rule of the harness asks for one.
+        let mut bron = voorbeeld();
+        let casus = "casussen/voorbeeld_subsidie.yaml";
+        let tekst =
+            bron.bestanden[casus].replace("  - regulation/nl/wet/algemene_wet_bestuursrecht\n", "");
+        assert_ne!(tekst, bron.bestanden[casus]);
+        bron.bestanden.insert(casus.into(), tekst);
+        let (alle, standen) = met_bronnen(gebundeld(), vec![bron]).unwrap();
+        assert!(standen[0].fouten.is_empty(), "{:?}", standen[0]);
+        let c = alle
+            .iter()
+            .find(|c| c.casus.id == "voorbeeld_subsidie")
+            .expect("the case of the source");
+        assert!(
+            !c.afleiding
+                .regelwerken
+                .contains(&"algemene_wet_bestuursrecht".to_string())
+        );
+        let soorten: Vec<&str> = c
+            .afleiding
+            .indieningen
+            .iter()
+            .map(|i| i.soort.as_str())
+            .collect();
+        assert_eq!(soorten, ["AANVRAAG"]);
     }
 
     #[test]

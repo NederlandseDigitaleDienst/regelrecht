@@ -297,14 +297,14 @@ class Parser {
     return out;
   });
 
-  // FOREACH with ADD/MIN/MAX/ONLY/no combine: arithmetic level, because its
+  // FOREACH with ADD/MIN/MAX/ONLY/DISTINCT/no combine: arithmetic level, because its
   // optional trailing `waarvoor` keeps it from being closed.
   aggregate: Rule = (pos) => {
     const C = this.closed;
     const local = this.localName;
     const filter: Rule = (p) => [[undefined, p], ...this.seq(p, ['waarvoor', C], (f) => f)];
     const out: Result[] = [];
-    const forms: [string, string | undefined][] = [['de som van', 'ADD'], ['de kleinste waarde van', 'MIN'], ['de grootste waarde van', 'MAX'], ['de enige waarde van', 'ONLY'], ['de lijst van', undefined]];
+    const forms: [string, string | undefined][] = [['de som van', 'ADD'], ['de kleinste waarde van', 'MIN'], ['de grootste waarde van', 'MAX'], ['de enige waarde van', 'ONLY'], ['de unieke waarden van', 'DISTINCT'], ['de lijst van', undefined]];
     for (const [w, combine] of forms) {
       out.push(...this.seq(pos, [w, C, 'over elke', local, 'in', C, filter], (b, x, c, f) => {
         const n: Operation = { operation: 'FOREACH', collection: c, as: x, body: b };
@@ -461,6 +461,21 @@ class Parser {
       if (q >= 0) for (const [vals, r] of this.parenList(q)) out.push([{ operation: op, values: vals }, r]);
     }
     out.push(...this.seq(pos, ['het deel van', C, 'boven', C], (a, b) => ({ operation: 'MAX', values: [0, { operation: 'SUBTRACT', values: [a, b] }] })));
+    // RECORD: `de rij ( kolom: waarde; … )`.
+    const column: Rule<[string, unknown]> = (p) => {
+      const tk = this.t[p];
+      const m = tk && tk.t === 'w' ? /^([a-z_][a-z0-9_]*):$/.exec(tk.m[0]) : null;
+      if (!m) return [];
+      return this.expr(p + 1).map(([v, r]): Result<[string, unknown]> => [[m[1]!, v], r]);
+    };
+    const rowStart = this.word(pos, 'de rij');
+    const rowOpen = rowStart >= 0 ? this.word(rowStart, '(') : -1;
+    if (rowOpen >= 0) {
+      for (const [cols, p] of this.sepBy(rowOpen, column, ';', 1)) {
+        const r = this.word(p, ')');
+        if (r >= 0) out.push([{ operation: 'RECORD', fields: Object.fromEntries(cols as [string, unknown][]) }, r]);
+      }
+    }
     let q = this.word(pos, 'de lijst');
     if (q >= 0 && this.word(q, 'van') < 0) for (const [vals, r] of this.parenList(q)) out.push([{ operation: 'LIST', items: vals }, r]);
     // FOREACH

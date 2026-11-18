@@ -116,6 +116,13 @@ repos:
         pass_filenames: false
         files: ^(script/dev-lib(\.test)?\.sh|packages/\.cargo/config\.toml)$
 
+      - id: setup-sccache-tests
+        name: Een onbereikbare build-cache zet sccache uit in plaats van de job te laten falen
+        entry: .github/actions/setup-sccache/start-server.test.sh
+        language: system
+        pass_filenames: false
+        files: ^\.github/actions/setup-sccache/
+
       - id: werkpakket-gate-tests
         name: Merge-poort op een genoemd werkpakket doet wat hij belooft
         entry: script/require-werkpakket.test.sh
@@ -131,6 +138,20 @@ repos:
         language: system
         pass_filenames: false
         files: ^(script/(linkify|require)-werkpakket(\.test)?\.sh|\.github/workflows/werkpakket-gate\.yml)$
+
+      - id: schema-diff-tests
+        name: Schemadiff toont wat een nieuwe schemaversie verandert
+        entry: just schema-diff-test
+        language: system
+        pass_filenames: false
+        files: ^(script/schema-diff(\.test)?\.mjs|\.github/workflows/schema-diff\.yml)$
+
+      - id: schema-diff-comment-tests
+        name: Schemadiff-comment wordt bijgewerkt, niet verdubbeld
+        entry: script/schema-diff-comment.test.sh
+        language: system
+        pass_filenames: false
+        files: ^(script/schema-diff-comment(\.test)?\.sh|\.github/workflows/schema-diff\.yml)$
 
       - id: private-repo-guard-tests
         name: Push-guard van de stelselanalyse laat alleen een privérepo door

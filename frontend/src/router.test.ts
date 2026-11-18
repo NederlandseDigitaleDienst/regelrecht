@@ -139,6 +139,17 @@ describe('route disambiguation (traject vs no-traject)', () => {
     });
   });
 
+  it('opens a scenario file in the editor, on the same component as an article', () => {
+    const scenario = router.resolve(`/trajecten/${REF}/editor/wet_a/scenarios/basis.feature?scenario=Eerste`);
+    expect(scenario.name).toBe('editor-scenario-traject');
+    expect(scenario.params).toMatchObject({ trajectRef: REF, lawId: 'wet_a', filename: 'basis.feature' });
+    expect(scenario.query.scenario).toBe('Eerste');
+    const article = router.resolve(`/trajecten/${REF}/editor/wet_a/2`);
+    expect(article.name).toBe('editor-traject');
+    // One component: switching tabs between the two keeps the editor mounted.
+    expect(scenario.matched.at(-1)?.components?.default).toBe(article.matched.at(-1)?.components?.default);
+  });
+
   it('mirrors the same split for the editor routes', () => {
     expect(router.resolve(`/trajecten/${REF}/editor/foo`).name).toBe('editor-traject');
     // The chooser lives at its own section-neutral URL (/trajecten); the bare

@@ -5,3 +5,8 @@
 # artikelen noemen de Dienst bij naam (competent_authority). De gegevens in
 # deze cel zijn verzonnen.
 name: Dienst Toeslagen
+# Welke antwoorden de cel geeft, en uit welke eigen reductie (reductions/,
+# RFC-048): wat de Dienst op een voorschot betaalde. Het fictieve beleid over
+# de betaling van het voorschot neemt het antwoord.
+answers:
+  betaald_op_voorschot: reductie_uitbetaling_voorschot

@@ -281,6 +281,10 @@ jobs:
       dockerfile: packages/poc-portal/Dockerfile
       cache-scope: poc
       deps-cache-scope: poc-portal
+      # Reported at GET /_version (packages/poc-portal/src/version.rs). On a
+      # pull request this is GitHub's test-merge commit, which is what the
+      # checkout in build-image.yml builds.
+      build-args: REGELRECHT_COMMIT=${{ github.sha }}
 
   build-docs:
     needs: [changes, ci-green]

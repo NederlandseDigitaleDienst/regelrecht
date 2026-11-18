@@ -375,6 +375,12 @@ pub fn infer_operation_unit(
             check_children(&refs, symbols)?;
             Ok(Unit::Unknown)
         }
+        // A row is measured in nothing, but its columns are checked.
+        Record { fields } => {
+            let refs: Vec<&ActionValue> = fields.values().collect();
+            check_children(&refs, symbols)?;
+            Ok(Unit::Unknown)
+        }
         // A FOREACH carries the unit of its body: summing eurocents over a
         // collection yields eurocents. ADD/MIN/MAX preserve it the way IF
         // preserves the shared unit of its branches; AND/OR reduce to a boolean,
@@ -400,7 +406,11 @@ pub fn infer_operation_unit(
                 | Some(CombineOp::Min)
                 | Some(CombineOp::Max)
                 | Some(CombineOp::Only) => body_unit,
-                Some(CombineOp::And) | Some(CombineOp::Or) | None => Unit::Unknown,
+                // DISTINCT keeps the elements apart, in an array like no
+                // combine at all.
+                Some(CombineOp::And) | Some(CombineOp::Or) | Some(CombineOp::Distinct) | None => {
+                    Unit::Unknown
+                }
             })
         }
         Age {
@@ -728,9 +738,14 @@ mod tests {
 
     #[test]
     fn infer_foreach_boolean_and_array_results_have_no_unit() {
-        // AND/OR reduce to a boolean, and without `combine` the result is an
-        // array. Neither is measured in anything.
-        for combine in [Some(CombineOp::And), Some(CombineOp::Or), None] {
+        // AND/OR reduce to a boolean, and without `combine` or with DISTINCT
+        // the result is an array. Neither is measured in anything.
+        for combine in [
+            Some(CombineOp::And),
+            Some(CombineOp::Or),
+            Some(CombineOp::Distinct),
+            None,
+        ] {
             let op = foreach_over(var("premie"), combine);
             assert_eq!(
                 infer_operation_unit(&op, &symbols()).unwrap(),
@@ -875,6 +890,14 @@ mod tests {
         let list = ActionOperation::List { items: vec![bad()] };
         assert!(matches!(
             infer_operation_unit(&list, &symbols()),
+            Err(EngineError::UnitMismatch { .. })
+        ));
+
+        let record = ActionOperation::Record {
+            fields: [("a".to_string(), bad())].into_iter().collect(),
+        };
+        assert!(matches!(
+            infer_operation_unit(&record, &symbols()),
             Err(EngineError::UnitMismatch { .. })
         ));
     }

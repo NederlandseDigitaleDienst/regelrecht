@@ -1,0 +1,15 @@
+---
+# Testcel van de testbron voor de inlogstap. FICTIEF: een erkende dienst voor
+# bedrijfs- en organisatiemiddelen (artikel 15 van de Wet digitale overheid).
+# Haar register (voorbeeld_register_erkende_dienst) zegt bij een inlog of er
+# een geldige machtiging is; een geslaagde inlog legt zij vast als het feit
+# authenticatie_verricht, en reductie_authenticatie beantwoordt daaruit de
+# vraag van het loket.
+name: Erkende dienst voor bedrijfs- en organisatiemiddelen
+answers:
+  vertegenwoordiging_bevestigd: reductie_authenticatie
+  betrouwbaarheidsniveau_authenticatie: reductie_authenticatie
+  machtiging_in_register: reductie_register_erkende_dienst
+  kvk_nummer_in_register: reductie_register_erkende_dienst
+  pseudoniem_in_register: reductie_register_erkende_dienst
+  niveau_in_register: reductie_register_erkende_dienst

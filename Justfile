@@ -151,6 +151,13 @@ deploy-filters-test:
 ghcr-cleanup-test:
     node --test script/ghcr-cleanup.test.mjs
 
+# Pins the schema diff that .github/workflows/schema-diff.yml posts on a pull
+# request with a new schema version. Same reasoning as deploy-filters-test:
+# node's built-in runner, no dependency.
+[doc("Check the schema diff comment for a new schema version")]
+schema-diff-test:
+    node --test script/schema-diff.test.mjs
+
 # Pins the build-time asset precompression the editor image relies on. Same
 # reasoning as deploy-filters-test: node's built-in runner, no dependency.
 [doc("Check the editor's build-time asset precompression")]
@@ -1099,10 +1106,20 @@ poc-chronolexografie-wasm:
 # Start de chronolexografie-poc los, op de vite-dev-server (http://localhost:5410)
 #
 # Alles draait in de browser: elk tabblad speelt zijn eigen casus. Achter het
-# portaal komt hij uit `just poc`. De NAPP-casus komt uit een bron; lokaal
-# zonder token met POC_BRON_NAPP=<map met casussen/, regulation/ en cells/>.
+# portaal komt hij uit `just poc`. Een casus uit een bron (`sources` in
+# pocs/registry.yaml) laadt lokaal zonder token met
+# POC_BRON_<NAAM>=<map met casussen/, regulation/ en cells/, of een manifest>.
 poc-chronolexografie: poc-chronolexografie-wasm
     npm run dev -w poc-chronolexografie
+
+# Speel de scenario's van een bron op de chronolexografie-poc
+#
+# `bron` is het manifest of de map van de bron (POC_BRON), vanaf de wortel van
+# de repo; `uit` een map voor laden.json en een JSON per scenario
+# (POC_SCENARIOS_UIT). De test faalt met één regel per stap die afwijkt van
+# `uitkomst` of `uitvoer`. Vorm van de verslagen: docs, components/poc-portal.
+poc-chronolexografie-scenarios bron uit="":
+    POC_BRON="{{bron}}" POC_SCENARIOS_UIT="{{uit}}" cargo test --manifest-path packages/Cargo.toml --package regelrecht-poc-chronolexografie --test scenarios -- the_scenarios_of_the_source_in_poc_bron_play --nocapture
 
 # Start de beleidsassistent van één casus, naast `just poc` in een tweede terminal
 #

@@ -389,8 +389,8 @@ async function submitCreate(): Promise<void> {
   </nldd-button>
 
   <!-- Teleport the sheet out of the toolbar so it doesn't inherit the
-       toolbar's positioning / clipping. Matches the ScenarioBuilder
-       pattern. Every TrajectMenu instance (the buttons in the md, lg and
+       toolbar's positioning / clipping, as the scenario screen does
+       with its result sheet. Every TrajectMenu instance (the buttons in the md, lg and
        mobile bars and their menu-item alternatives in the toolbar overflow
        menus) teleports its own sheet to body. Only the instance whose
        "Nieuw traject…" was chosen opens its sheet, so they don't visually

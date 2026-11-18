@@ -2,6 +2,7 @@ import { readFileSync } from 'fs';
 import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
 import { bouwGids, guideFor, invoerRegels } from '../src/scenarioGuides.js';
+import { progress } from '../src/scenarioProgress.js';
 
 // The guides are built from the scenarios of the case YAML; these tests
 // check that every scenario of every case gives a guide the panel can show.
@@ -21,6 +22,12 @@ describe.each(CASUSSEN)('the guides of %s', (id) => {
 
   it('has a guide for every scenario, by its name', () => {
     expect(list.map((g) => g?.name)).toEqual(c.scenarios.map((s) => s.naam));
+  });
+
+  it('gives every action a step of its own', () => {
+    c.scenarios.forEach((s, i) =>
+      expect(list[i].steps, s.naam).toHaveLength(s.stappen.filter((x) => typeof x === 'object').length),
+    );
   });
 
   it('sums up each scenario in one sentence', () => {
@@ -120,6 +127,135 @@ describe('bouwGids', () => {
     expect(g.steps[0].done(k(2))).toBe(false);
     expect(g.steps[0].done(k(3))).toBe(true);
   });
+
+  it("puts a record of the case's own cell on the authority's tab", () => {
+    const feit = 'wet#4#leges_betaald';
+    const casus = { cel: 'dienst', begin: { executogrammen: [{ feit }] }, andere_cellen: [] };
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [
+          { stap: 'vastleggen', feit, invoer: { bedrag: 5000 } },
+          { stap: 'vastleggen', cel: 'dienst', feit },
+        ],
+      },
+      casus,
+    );
+    expect(g.steps.map((s) => s.tab)).toEqual(['bestuursorgaan', 'bestuursorgaan']);
+    expect(g.steps[0].seen).toContain('bestuursorgaan');
+    // The begin of the case's own cell counts before the scenario.
+    const k = (n) => ({ executogrammen: (f) => (f === 'leges_betaald' ? n : 0) });
+    expect(g.steps[0].done(k(1))).toBe(false);
+    expect(g.steps[0].done(k(2))).toBe(true);
+    expect(g.steps.map((s) => [s.vooraf, s.keer])).toEqual([
+      [1, 1],
+      [1, 2],
+    ]);
+  });
+
+  it('counts the records of a fact per cell and per article', () => {
+    const casus = {
+      cel: 'dienst',
+      begin: { executogrammen: [{ feit: 'wet#4#melding' }] },
+      andere_cellen: [{ cel: 'bank', begin: { executogrammen: [{ feit: 'wet#4#melding' }, { feit: 'wet#4#melding' }] } }],
+    };
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [
+          { stap: 'vastleggen', cel: 'bank', feit: 'wet#4#melding' },
+          { stap: 'vastleggen', feit: 'wet#4#melding' },
+          { stap: 'vastleggen', feit: 'wet#5#melding' },
+          { stap: 'vastleggen', feit: 'wet#4#melding' },
+        ],
+      },
+      casus,
+    );
+    expect(g.steps.map((s) => [s.vooraf, s.keer])).toEqual([
+      [2, 1],
+      [1, 1],
+      [0, 1],
+      [1, 2],
+    ]);
+  });
+
+  it('makes a check step done once its play date is reached', () => {
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [{ stap: 'toetsen', datum: '2026-03-02', antwoorden: [{ bron: 'b#1#x', verwacht: 0 }] }],
+      },
+      { cel: 'dienst', andere_cellen: [] },
+    );
+    const [toets] = g.steps;
+    expect(toets.tab).toBe('bestuursorgaan');
+    expect(toets.done({ datum: '2026-03-01' })).toBe(false);
+    expect(toets.done({ datum: '2026-03-02' })).toBe(true);
+  });
+
+  it('makes an ex officio step done once its article has as many decisions as the scenario took', () => {
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [
+          { stap: 'ambtshalve', artikel: 'w#3' },
+          { stap: 'ambtshalve', artikel: 'w#4' },
+          { stap: 'ambtshalve', artikel: 'w#3' },
+        ],
+      },
+      { cel: 'dienst', andere_cellen: [] },
+    );
+    const tel = (per) => ({ ambtshalve: (a) => per[a] ?? 0 });
+    expect(g.steps.map((s) => s.tab)).toEqual(['bestuursorgaan', 'bestuursorgaan', 'bestuursorgaan']);
+    expect(g.steps.map((s) => s.done(tel({ 'w#3': 1, 'w#4': 1 })))).toEqual([true, true, false]);
+    expect(g.steps.map((s) => s.done(tel({ 'w#3': 2 })))).toEqual([true, false, true]);
+  });
+
+  it('makes a refused ex officio step done once the cell refused it', () => {
+    const g = bouwGids(
+      { naam: 'x', stappen: [{ stap: 'ambtshalve', artikel: 'w#2', uitkomst: 'geweigerd' }] },
+      { cel: 'dienst', andere_cellen: [] },
+    );
+    const [s] = g.steps;
+    const k = (refusals, n = 0) => ({ refusals, ambtshalve: () => n });
+    expect(s.done(k([]))).toBe(false);
+    expect(s.done(k(["no cell of the case 'x' takes the decision of w#2 ex officio"]))).toBe(true);
+    expect(s.expect.check(k([], 1))).toBe(false);
+  });
+
+  it('does not count a refused ex officio step towards the steps after it', () => {
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [
+          { stap: 'ambtshalve', artikel: 'w#3' },
+          { stap: 'ambtshalve', artikel: 'w#3', uitkomst: 'geweigerd' },
+          { stap: 'ambtshalve', artikel: 'w#3' },
+        ],
+      },
+      { cel: 'dienst', andere_cellen: [] },
+    );
+    const k = { refusals: ['the decision of w#3 refers to x, which is no chronolexogram'], ambtshalve: () => 2 };
+    expect(g.steps.map((s) => s.done(k))).toEqual([true, true, true]);
+  });
+
+  it('carries the answers a step expects, with the play date to ask them on', () => {
+    const antwoorden = [{ bron: 'beleid#1#betaalde_leges', verwacht: 5000 }];
+    const g = bouwGids(
+      {
+        naam: 'x',
+        stappen: [
+          { stap: 'aanvraag', datum: '2026-02-09' },
+          { stap: 'besluit', antwoorden },
+        ],
+      },
+      { cel: 'dienst', speeldatum: '2026-02-02', andere_cellen: [] },
+    );
+    expect(g.steps.map((s) => [s.antwoordDatum, s.antwoorden])).toEqual([
+      ['2026-02-09', []],
+      ['2026-02-09', antwoorden],
+    ]);
+  });
 });
 
 describe('guideFor', () => {
@@ -130,10 +266,91 @@ describe('guideFor', () => {
     expect(guideFor(c, naam)).toBe(guideFor(c, naam));
   });
 
-  it('has none for a case from a source, plain-text steps, an unknown scenario or no case', () => {
-    expect(guideFor({ ...c, bron: 'napp' }, naam)).toBeNull();
+  it('has none for a scenario of text alone, an unknown scenario or no case', () => {
     expect(guideFor({ id: 'x', scenarios: [{ naam, stappen: ['Klik op Aanvraag indienen.'] }] }, naam)).toBeNull();
     expect(guideFor(c, 'Bestaat niet')).toBeNull();
     expect(guideFor(null, naam)).toBeNull();
+  });
+});
+
+// A case from a source (FICTIEF), the fixtures of the scenario test and of
+// the prefill, as the app gets it: with the name of its source.
+const bronCasus = (map, id) => ({
+  id,
+  bron: 'voorbeeld',
+  ...load(readFileSync(new URL(`../../tests/${map}/casussen/${id}.yaml`, import.meta.url), 'utf8')),
+});
+
+describe('the guide of a case from a source', () => {
+  const c = bronCasus('bron-scenarios', 'voorbeeld_subsidie');
+
+  it('has a guide for every scenario, with a step per action', () => {
+    for (const s of c.scenarios) {
+      const g = guideFor(c, s.naam);
+      expect(g?.name, s.naam).toBe(s.naam);
+      expect(g.steps.map((x) => x.stap), s.naam).toEqual(s.stappen.filter((x) => typeof x === 'object'));
+      for (const x of g.steps) {
+        expect(TABS, s.naam).toContain(x.tab);
+        expect(x.title, s.naam).toBeTruthy();
+        expect(x.todo, s.naam).toBeTruthy();
+      }
+    }
+  });
+
+  it('checks what the scenario expects of its steps', () => {
+    const g = guideFor(c, 'Bezwaar: gegrond');
+    expect(g.steps.map((x) => x.expect?.text ?? null)).toEqual([
+      null,
+      'hier hoort het besluit de aanvraag af te wijzen',
+      null,
+      'hier hoort het bezwaar gegrond te zijn',
+    ]);
+    expect(g.steps[1].values).toEqual(['partij geregistreerd: Nee']);
+  });
+
+  it('keeps a step of text readable, as an instruction with the next action and no check of its own', () => {
+    const g = guideFor(c, 'Bezwaar: gegrond');
+    expect(g.steps).toHaveLength(4);
+    expect(g.steps[0].notes).toEqual(['Een stap als tekst; de speler slaat haar over.']);
+    expect(g.steps.slice(1).every((x) => x.notes.length === 0)).toBe(true);
+    // The step of text does not hold the scenario up: one application is the first step done.
+    expect(progress(g, { aanvragen: 1, decided: [] }).current).toBe(1);
+  });
+
+  it('gives a line of text after the last action to the end', () => {
+    const g = bouwGids({ naam: 'x', stappen: [{ stap: 'aanvraag' }, 'Kijk in de kroniek.'] });
+    expect(g.steps).toHaveLength(1);
+    expect(g.after).toEqual(['Kijk in de kroniek.']);
+  });
+
+  it('refuses a step of a kind it does not know, rather than skip it', () => {
+    expect(() => bouwGids({ naam: 'x', stappen: [{ stap: 'onbekend' }] })).toThrow(/unknown step 'onbekend'/);
+  });
+});
+
+describe('the guide of a case with a login step', () => {
+  const c = bronCasus('bron-inlogstap', 'voorbeeld_inlogstap');
+  const feiten = (n) => ({ executogrammen: (f) => (f === 'authenticatie_verricht' ? n : 0), refusals: [] });
+
+  it('has a step on the tab Aanvrager for every login', () => {
+    const g = guideFor(c, 'Inloggen lukt en de vergunning wordt verleend');
+    expect(g.steps[0]).toMatchObject({ title: 'Inloggen', tab: 'aanvrager', values: ['gebruikersnaam: bakker'] });
+  });
+
+  it('is done with a login once the service recorded one more authentication', () => {
+    const g = guideFor(c, 'Inloggen lukt en de vergunning wordt verleend');
+    expect(g.steps[0].done(feiten(0))).toBe(false);
+    expect(g.steps[0].done(feiten(1))).toBe(true);
+  });
+
+  it('is done with a refused login once the screen kept the refusal, and warns when it got in', () => {
+    const g = guideFor(c, 'Na intrekking komt de bloemist niet meer binnen');
+    const weigering = g.steps[3];
+    expect(weigering.title).toBe('Opnieuw inloggen');
+    expect(weigering.done(feiten(1))).toBe(false);
+    expect(weigering.done({ ...feiten(1), refusals: ['login refused: geen_machtiging'] })).toBe(true);
+    // A second authentication is the login that should have been refused.
+    expect(weigering.done(feiten(2))).toBe(true);
+    expect(weigering.expect.check(feiten(2))).toBe(false);
   });
 });

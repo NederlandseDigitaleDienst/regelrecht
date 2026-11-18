@@ -4,16 +4,16 @@
  * Verifies the demo flow the editor was built for:
  *   1. Open wet_op_de_zorgtoeslag in the editor.
  *   2. Observe the *Minderjarige heeft geen recht op zorgtoeslag* scenario is
- *      failing (its result sheet reports "Mislukt") - the age check isn't in
- *      the law's machine_readable, so a minor still qualifies.
+ *      failing (the read-only scenario pane tags it "Mislukt") - the age check
+ *      isn't in the law's machine_readable, so a minor still qualifies.
  *   3. Edit article 2's machine_readable via the YAML pane to add a leeftijd
- *      input + an age condition to the existing AND.
- *   4. ScenarioBuilder auto-reexecutes against the edited YAML.
- *   5. Observe the scenario result is now passing ("Geslaagd").
+ *      input + an age condition to the existing AND, without saving.
+ *   4. The scenario pane runs again against the edited YAML.
+ *   5. Observe the scenario now passes ("Geslaagd").
  *
  * This is the smoke-test for the propagation chain:
  *   machineReadable edit → currentLawYaml computed → engine reload →
- *   ScenarioBuilder lawYaml prop → dependency reload → auto-execute.
+ *   scenario pane lawYaml prop → dependency reload → run.
  *
  * All corpus laws, the scenarios list, the scenario feature file, and the
  * PUT save endpoint are mocked from the on-disk corpus directory so the
@@ -57,10 +57,8 @@ test.describe('Edit → re-execute loop', () => {
     await gotoEditor(page, 'wet_op_de_zorgtoeslag', '2');
 
     // Initial state: the scenario is failing (age check not in the law), so
-    // its result sheet reports "Mislukt".
+    // the pane tags it "Mislukt".
     await expectScenarioResult(page, MINOR, 'Mislukt');
-    await page.keyboard.press('Escape');
-    await page.waitForTimeout(300);
 
     // Grab the current YAML (article 2's machine_readable), parse it,
     // surgically add the leeftijd input and the age condition, and write it
@@ -108,10 +106,8 @@ test.describe('Edit → re-execute loop', () => {
     // scenarios against the edited law.
     await setYamlPane(page, editedYaml);
 
-    // Allow the engine + dependency reload + scenario re-run to complete, then
-    // re-open the result sheet: the minor now fails the age check, so the AND
-    // is false and the scenario passes ("Geslaagd").
-    await page.waitForTimeout(1000);
+    // Once the engine, the dependencies and the run have caught up, the minor
+    // fails the age check, so the AND is false and the scenario passes.
     await expectScenarioResult(page, MINOR, 'Geslaagd');
   });
 });

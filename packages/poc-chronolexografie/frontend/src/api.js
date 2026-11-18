@@ -16,7 +16,7 @@
  * binnen, omdat Vite geen imports uit public/ toestaat (zoals useEngine.js in
  * frontend-poc-terugbetaalregimes).
  */
-import { haalBronnen } from './bronnen.js';
+import { haalBronnen, leesBronLijst } from './bronnen.js';
 
 const b = (pad) => import.meta.env.BASE_URL + String(pad).replace(/^\//, '');
 
@@ -33,14 +33,24 @@ async function tekst(url) {
  */
 export const bestanden = async () => JSON.parse(await tekst(b('/bundel.json')));
 
+let lijst = null;
 let bronnen = null;
+
+/**
+ * The sources the build names, `{ naam, verborgen }`, read once per tab: the
+ * choice screen leaves out the cases of a hidden one (verborgen.js).
+ */
+export function bronLijst() {
+  lijst ??= leesBronLijst(b('/bronnen.json'));
+  return lijst;
+}
 
 /**
  * The sources, fetched once per tab: the cell gets them when it loads, and
  * the sheet of an article reads its text from them for a case from a source.
  */
 export function opgehaaldeBronnen() {
-  bronnen ??= haalBronnen(b('/bronnen.json'), (naam) => b(`/bron/${encodeURIComponent(naam)}`));
+  bronnen ??= bronLijst().then((l) => haalBronnen(l, (naam) => b(`/bron/${encodeURIComponent(naam)}`)));
   return bronnen;
 }
 
@@ -63,6 +73,7 @@ function poc() {
     } catch (e) {
       // A next step tries again, the sources included.
       laden = null;
+      lijst = null;
       bronnen = null;
       throw new Error(`the cell did not load: ${e?.message ?? e}`);
     }
@@ -99,37 +110,54 @@ export const api = {
   kies: (casus) => roep((p) => p.kies(casus)),
   vormen: (datum) => roep((p) => p.vormen(datum)),
   kroniek: () => roep((p) => p.kroniek()),
-  aanvragen: (velden, datum) => roep((p) => p.aanvragen(json(velden), datum)),
-  // Een andere cel van de casus legt een handeling vast, zoals de GGD een
-  // geneeskundig onderzoek (RFC-048). `verwijstNaar` is het kenmerk van een
-  // eerder record in het begin van die cel waarover het feit gaat, of null.
+  // What the sources give per field of the application before anything is
+  // submitted (voorinvulling.js): `bronnen` per field
+  // `<regelwerk>#<article>#<output>`. Nothing is recorded.
+  voorinvullen: (bronnen, velden, datum) =>
+    roep((p) => p.voorinvullen(json(bronnen), json(velden), datum)),
+  // De generieke stappen: het spel noemt geen stap van een procedure. Welke
+  // indieningen er zijn en wie erop beslist, leidt het af uit de wet
+  // (`casus.indieningen`, `casus.ambtshalve`); awb.js speelt er de stappen
+  // van de Awb mee zoals de pagina ze toont.
+  // Een indiening onder `artikel`, die verwijst naar besluit `op`, of geen.
+  indienen: (artikel, velden, datum, op = null) =>
+    roep((p) => p.indienen(artikel, json(velden), datum, op ?? undefined)),
+  // Een cel van de casus legt een feit vast: een andere cel, zoals de GGD een
+  // geneeskundig onderzoek (RFC-048), of de eigen cel, zoals een betaling op
+  // haar besluit. `verwijstNaar` is het record van die cel waarover het feit
+  // gaat (zijn id, of zijn kenmerk in het begin van de cel), of null.
   vastleggen: (cel, feit, velden, datum, verwijstNaar = null) =>
     roep((p) => p.vastleggen(cel, feit, json(velden), datum, verwijstNaar ?? undefined)),
-  besluiten: (op, bevindingen, datum) => roep((p) => p.besluiten(op, json(bevindingen), datum)),
+  // Beslissen op indiening `op`; `na` is een later record waarna opnieuw
+  // wordt beslist, zoals de ontvangst van een uitspraak.
+  beslissen: (op, bevindingen, datum, na = null) =>
+    roep((p) => p.beslissen(op, json(bevindingen), datum, na ?? undefined)),
+  // Wat beslissen op `op` zou geven met wat het bestuursorgaan over het
+  // beslissende artikel zelf oordeelt (`oordeel`) en zonder nieuwe
+  // bevindingen, en wat het opnieuw kan vinden.
+  voorBeslissen: (op, oordeel, datum, na = null) =>
+    roep((p) => p.voorBeslissen(op, json(oordeel), datum, na ?? undefined)),
   // Wat het besluit zou worden, op een kopie van de cel: er wordt niets
   // vastgelegd. Een weigering van de cel komt terug als `{ geweigerd }`.
-  voorvertoningBesluit: (op, bevindingen, datum) =>
-    roep((p) => p.voorvertoningBesluit(op, json(bevindingen), datum)),
-  bezwaren: (besluit, velden, datum) => roep((p) => p.bezwaren(besluit, json(velden), datum)),
-  heroverweging: (bezwaar, datum) => roep((p) => p.heroverweging(bezwaar, datum)),
-  beslissenOpBezwaar: (op, bevindingen, datum) =>
-    roep((p) => p.beslissenOpBezwaar(op, json(bevindingen), datum)),
-  voorvertoningOpBezwaar: (op, bevindingen, datum) =>
-    roep((p) => p.voorvertoningOpBezwaar(op, json(bevindingen), datum)),
-  // Het beroep bij de bestuursrechter (RFC-053): de aanvrager stelt het in,
-  // de rechtbank doet uitspraak en zendt die toe, en het bestuursorgaan
-  // beslist opnieuw op het bezwaar.
-  beroepInstellen: (besluit, velden, datum) =>
-    roep((p) => p.beroepInstellen(besluit, json(velden), datum)),
-  uitspraakDoen: (op, bevindingen, datum) => roep((p) => p.uitspraakDoen(op, json(bevindingen), datum)),
-  voorvertoningUitspraak: (op, bevindingen, datum) =>
-    roep((p) => p.voorvertoningUitspraak(op, json(bevindingen), datum)),
-  toezenden: (uitspraak, datum) => roep((p) => p.toezenden(uitspraak, datum)),
-  heroverwegingNaUitspraak: (ontvangst) => roep((p) => p.heroverwegingNaUitspraak(ontvangst)),
-  opnieuwBeslissenOpBezwaar: (ontvangst, bevindingen, datum) =>
-    roep((p) => p.opnieuwBeslissenOpBezwaar(ontvangst, json(bevindingen), datum)),
-  voorvertoningNaUitspraak: (ontvangst, bevindingen, datum) =>
-    roep((p) => p.voorvertoningNaUitspraak(ontvangst, json(bevindingen), datum)),
+  voorvertoning: (op, bevindingen, datum, na = null) =>
+    roep((p) => p.voorvertoning(op, json(bevindingen), datum, na ?? undefined)),
+  // Een besluit dat een cel ambtshalve neemt onder `artikel`, over record
+  // `over` of geen.
+  ambtshalve: (artikel, gegeven, datum, over = null) =>
+    roep((p) => p.ambtshalve(artikel, json(gegeven), datum, over ?? undefined)),
+  // De cel die besluit `besluit` nam, zendt er een afschrift van naar de cel
+  // over wier besluit het gaat.
+  toezenden: (besluit, datum) => roep((p) => p.toezenden(besluit, datum)),
+  // Wat cel `cel` (of de eigen cel, bij null) op `datum` antwoordt voor
+  // `bron` (`<regelwerk>#<artikel>#<uitvoer>`), met de parameters `invoer`,
+  // zoals een formulier wordt voorgevuld: `{ bron, waarde, herkomst }`. Er
+  // wordt niets vastgelegd.
+  antwoord: (cel, bron, invoer, datum) => roep((p) => p.antwoord(cel ?? undefined, bron, json(invoer), datum)),
+  // Log in through the login step of the case (inlogstap.js): the assertion
+  // (`uitkomst: 'ingelogd'`) or why the service refused (`'geweigerd'`).
+  // The page keeps who is logged in; the cell does not (sessie.js).
+  inloggen: (gebruikersnaam, wachtwoord, datum, dienst = null) =>
+    roep((p) => p.inloggen(gebruikersnaam, wachtwoord, datum, dienst ?? undefined)),
   logboek: () => roep((p) => p.logboek()),
   reset: () => roep((p) => p.reset()),
   // Het spel tot nu toe (de casus en de kroniek van elke cel), om een

@@ -66,7 +66,8 @@ pub enum OutputProvenance {
 /// guessing from the value: a regulation can give what the authority found.
 /// Serialized as `"finding"`, as `{"regulation": {"law_id", "article"}}`, so
 /// the regulation's article does not collide with the declaring one, or as
-/// `{"answer": {"law_id", "article", "answers": [...]}}`.
+/// `{"answer": {"law_id", "article", "answers": [...]}}`, with
+/// `"unanswered": [...]` beside the answers where an input got none.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum FilledBy {
@@ -81,12 +82,32 @@ pub enum FilledBy {
     /// what each cell says it answered from, in the order the inputs were
     /// asked. Inputs may take the answers of different cells (synthesis,
     /// RFC-048). Where every cell was silent and nothing falls back, the
-    /// null answers; where no cell answered, none.
+    /// null answers; where no cell answered, none. `unanswered` lists each
+    /// input that got no answer, so the binding filled the term without it,
+    /// in the order the inputs were asked.
     Answer {
         law_id: String,
         article: String,
         answers: Vec<AnswerProvenance>,
+        #[serde(default, skip_serializing_if = "Vec::is_empty")]
+        unanswered: Vec<Unanswered>,
     },
+}
+
+/// An answer a binding asked for and did not get (RFC-048 §2): no cell of
+/// the execution gives it, or the cell asked was silent. The input that
+/// takes it is then null, and the binding says what holds; this records
+/// that it happened, next to the answers that were given. A cell that
+/// answered null is silent too: its answer is also among the answers, as
+/// the null one.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct Unanswered {
+    /// The name of the answer (`source.reduction`).
+    pub answer: String,
+    /// The input of the binding that takes it.
+    pub input: String,
+    /// Why there is none, as the trace of the input says it.
+    pub message: String,
 }
 
 /// One open term of one article that was filled in an execution, and by
@@ -100,6 +121,30 @@ pub struct OpenTermFilled {
     /// The id of the open term.
     pub term: String,
     pub filled_by: FilledBy,
+}
+
+/// One version of a regulation whose article ran in an execution: its
+/// `$id`, its `valid_from` and the hash of its content, as the engine
+/// loaded it. A record that keeps these refers to the law it rests on
+/// without copying it.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, serde::Serialize, serde::Deserialize)]
+pub struct RegulationRead {
+    pub law_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub valid_from: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub hash: Option<String>,
+}
+
+impl RegulationRead {
+    /// The version `law` is.
+    pub fn of(law: &ArticleBasedLaw) -> Self {
+        Self {
+            law_id: law.id.clone(),
+            valid_from: law.valid_from.clone(),
+            hash: law.content_hash.clone(),
+        }
+    }
 }
 
 /// Result of article execution
@@ -147,6 +192,11 @@ pub struct ArticleResult {
     /// be listed twice, once per filler: an implementing article that reads
     /// the output it fills in reads it with the finding in its place.
     pub open_terms: Vec<OpenTermFilled>,
+    /// Every regulation version whose articles ran in this execution,
+    /// nested calls included, once each, in the order they first ran.
+    /// Populated by the service layer, independently of tracing. A cached
+    /// result was read earlier in the same execution and is listed then.
+    pub regulations_read: Vec<RegulationRead>,
 }
 
 /// Executes a single article's machine_readable.execution section.
@@ -374,6 +424,7 @@ impl<'a> ArticleEngine<'a> {
             declaration_version_notes: Vec::new(),
             declarations_not_in_force: Vec::new(),
             open_terms: Vec::new(),
+            regulations_read: Vec::new(),
         };
 
         tracing::debug!(
@@ -809,6 +860,7 @@ pub(crate) fn action_to_operation(
         // Operations not supported at action level
         Operation::If
         | Operation::List
+        | Operation::Record
         | Operation::ForEach
         | Operation::Age
         | Operation::DateAdd

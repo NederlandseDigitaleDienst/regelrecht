@@ -1,0 +1,8 @@
+---
+# FICTIEF. The cell of tests/procedure-zonder-awb: the service the fictional
+# law names as who decides.
+name: Fictieve dienst
+# The answer of the service's own reduction (reductions/, RFC-048): the fees
+# it received and did not refund.
+answers:
+  betaalde_leges: reductie_leges

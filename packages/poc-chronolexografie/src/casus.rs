@@ -6,13 +6,13 @@
 //! in this case ([`Casus::corpus`]). The cell is the organisation as it is;
 //! the corpus is a choice of the case. Everything else is derived from the
 //! law, within that corpus ([`Afleiding`]): which regelwerken the cell
-//! runs, which article
-//! establishes the objection, and what the deciding role is called. What the
-//! law does not say is in the case file with the reason (`uitkomst`), next to
-//! the text a visitor reads: a description, example values for the forms and
-//! the scenarios.
+//! runs, which submissions they establish and which cell decides on each,
+//! which decisions a cell takes ex officio, and what the deciding role is
+//! called. What the law does not say is in the case file with the reason
+//! (`uitkomst`), next to the text a visitor reads: a description, example
+//! values for the forms and the scenarios.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use chrono::NaiveDate;
@@ -72,11 +72,60 @@ pub struct Casus {
     /// The other cells the case takes along (RFC-048): those the engine may
     /// ask for a value another actor establishes, where the law makes them
     /// competent. Each records what it knows before the first scenario.
-    /// The court is one of them, for a case that plays the appeal
-    /// ([`Beroep::rechter`]); without one the case ends at the objection.
+    /// A cell that decides on a submission is one of them where the law
+    /// names it as who decides ([`Indiening::cel`]), as the court decides on
+    /// an appeal; without such a cell the case does not play that
+    /// submission.
     #[serde(default)]
     pub andere_cellen: Vec<AndereCel>,
+    /// Who logs in to apply, where the case has a login ([`Inloggen`]).
+    #[serde(default)]
+    pub inloggen: Option<Inloggen>,
     pub scenarios: Vec<Scenario>,
+}
+
+/// Logging in to apply, without a real means of login. `feit`
+/// (`<regelwerk>#<article>#<fact>`) is the fact a cell of the case records at
+/// a login, such as the authentication an accredited service records, and
+/// the value of its field `sleutel` goes into the field `veld` of the
+/// application.
+///
+/// Without [`Inloggen::inlogstap`] the applicant picks a record of that fact
+/// from the chronicle; `naam` is the field of the record the choice shows.
+/// With it, the applicant logs in through a simulated login step
+/// ([`Inlogstap`]), and the form reads who is logged in from the session the
+/// browser keeps, never from a chronicle.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Inloggen {
+    pub feit: String,
+    pub sleutel: String,
+    pub veld: String,
+    #[serde(default)]
+    pub naam: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub inlogstap: Option<Inlogstap>,
+}
+
+/// A simulated login step, as an accredited service such as eHerkenning
+/// offers one (`crate::inlogstap`). The applicant gives a user name and the
+/// password of the PoC; the cell `cel` answers the output `toegang`
+/// (`<regelwerk>#<article>#<output>`, a boolean) of an article of its own
+/// policy, with the parameters `gebruikersnaam` and `dienst` and the day of
+/// the login. The other outputs of that article are the claims of the
+/// assertion. When it grants access, the cell records [`Inloggen::feit`] with
+/// those claims; when not, it records nothing. `dienst` is the service the
+/// applicant logs in for. `middel`, the fact of a means of login the cell
+/// issued (`<regelwerk>#<article>#<fact>` with a field `gebruikersnaam`),
+/// names the user names the login screen lists.
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Inlogstap {
+    pub cel: String,
+    pub toegang: String,
+    pub dienst: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub middel: Option<String>,
 }
 
 impl Casus {
@@ -104,10 +153,27 @@ impl Casus {
 
     /// That every reference to an earlier record names one: a kenmerk is
     /// unique within the case, an executogram of a begin refers to an
-    /// earlier one of that begin, and a record step refers to one in the
-    /// begin of the cell that records it. Only a record step refers.
+    /// earlier one of that begin, and a step refers to the record of an
+    /// earlier step of its scenario or, for a record step, to one in the
+    /// begin of the cell that records it. A record step refers to a
+    /// decision or another record, never to a submission. Only a record
+    /// step, a decision step and a generic step give their record a
+    /// kenmerk.
     pub fn verwijzingen_kloppen(&self) -> Result<()> {
-        let fout = |m: String| Err(Error::Setup(format!("case '{}': {m}", self.id)));
+        self.inlogstap_instelling_klopt()?;
+        let begin = self.begin_verwijzingen_kloppen()?;
+        for scenario in &self.scenarios {
+            self.stappen_verwijzingen_kloppen(scenario, &begin)?;
+        }
+        Ok(())
+    }
+
+    fn fout<T>(&self, m: &str) -> Result<T> {
+        Err(Error::Setup(format!("case '{}': {m}", self.id)))
+    }
+
+    /// The references within each begin, and the kenmerken the begins give.
+    fn begin_verwijzingen_kloppen(&self) -> Result<BTreeSet<&str>> {
         let mut gezien = BTreeSet::new();
         for (cel, begin) in self.begins() {
             let mut eerder = BTreeSet::new();
@@ -115,52 +181,374 @@ impl Casus {
                 if let Some(naar) = &e.verwijst_naar
                     && !eerder.contains(naar.as_str())
                 {
-                    return fout(format!(
+                    return self.fout(&format!(
                         "the begin of '{cel}' refers to '{naar}', which is the kenmerk of no \
                          earlier executogram of that begin"
                     ));
                 }
                 if let Some(k) = &e.kenmerk {
                     if !gezien.insert(k.as_str()) {
-                        return fout(format!("the kenmerk '{k}' is given twice"));
+                        return self.fout(&format!("the kenmerk '{k}' is given twice"));
                     }
                     eerder.insert(k.as_str());
                 }
             }
         }
-        for scenario in &self.scenarios {
-            for stap in &scenario.stappen {
-                let Stap::Handeling(h) = stap else { continue };
-                let Some(naar) = &h.verwijst_naar else {
-                    continue;
-                };
-                let waar = format!("a step of the scenario '{}'", scenario.naam);
-                if h.stap != Soort::Vastleggen {
-                    return fout(format!(
-                        "{waar} refers to '{naar}', but only a record step (vastleggen) refers \
-                         to an earlier record"
+        Ok(gezien)
+    }
+
+    /// The references of the steps of `scenario`, with `begin` the
+    /// kenmerken of the begins.
+    fn stappen_verwijzingen_kloppen(
+        &self,
+        scenario: &Scenario,
+        begin: &BTreeSet<&str>,
+    ) -> Result<()> {
+        // Per kenmerk of an earlier step, that step's kind and cell.
+        let mut stappen: BTreeMap<&str, EerdereStap<'_>> = BTreeMap::new();
+        // The play date of the step before.
+        let mut dag = self.speeldatum;
+        for stap in &scenario.stappen {
+            let Stap::Handeling(h) = stap else { continue };
+            let waar = format!("a step of the scenario '{}'", scenario.naam);
+            self.antwoorden_kloppen(h, &waar)?;
+            if h.stap == Soort::Toetsen {
+                self.toetsstap_klopt(h, dag, &waar)?;
+            }
+            if h.stap == Soort::Inloggen {
+                self.inlogstap_klopt(h, &waar)?;
+            }
+            if let Some(d) = h.datum {
+                dag = d;
+            }
+            if h.stap.is_generiek() {
+                self.generieke_stap_klopt(h, &stappen, &waar)?;
+            } else {
+                self.stap_klopt(h, &stappen, &waar)?;
+            }
+            if let Some(k) = &h.kenmerk {
+                if begin.contains(k.as_str()) {
+                    return self.fout(&format!(
+                        "{waar} gives the kenmerk '{k}', which an executogram of a begin gives"
                     ));
                 }
-                let Some(cel) = h
-                    .cel
-                    .as_deref()
-                    .filter(|c| self.andere_cellen.iter().any(|a| a.cel == *c))
-                else {
-                    return fout(format!(
-                        "{waar} refers to '{naar}', but names no other cell of the case that \
-                         records it"
-                    ));
+                let cel = match h.stap {
+                    Soort::Vastleggen => self.vastleggende_cel(h),
+                    Soort::Besluit => Some(self.cel.as_str()),
+                    _ => None,
                 };
-                if self.met_kenmerk(cel, naar).is_none() {
-                    return fout(format!(
-                        "{waar} refers to '{naar}', which is the kenmerk of no executogram in the \
-                         begin of '{cel}'"
-                    ));
+                let eerder = EerdereStap { soort: h.stap, cel };
+                if stappen.insert(k.as_str(), eerder).is_some() {
+                    return self.fout(&format!("{waar} gives the kenmerk '{k}' twice"));
                 }
+            }
+            // After the step's own kenmerk: an answer is asked once the step
+            // is done, so it may name the step's own record.
+            self.antwoord_kenmerken_kloppen(h, scenario, &stappen, &waar)?;
+        }
+        Ok(())
+    }
+
+    /// A check step (`toetsen`) only checks answers, on a day of its own: it
+    /// names its play date, no earlier than `vorige`, the play date of the
+    /// step before, and it acts on nothing and fills in nothing.
+    fn toetsstap_klopt(&self, h: &Handeling, vorige: NaiveDate, waar: &str) -> Result<()> {
+        match h.datum {
+            None => {
+                return self.fout(&format!(
+                    "{waar} is a check step (toetsen) without the day it checks on (datum)"
+                ));
+            }
+            Some(d) if d < vorige => {
+                return self.fout(&format!(
+                    "{waar} is a check step (toetsen) on {d}, before the play date {vorige} of \
+                     the step before it"
+                ));
+            }
+            Some(_) => {}
+        }
+        if h.antwoorden.is_empty() {
+            return self.fout(&format!(
+                "{waar} is a check step (toetsen) without answers to check (antwoorden)"
+            ));
+        }
+        let handelt = h.cel.is_some()
+            || h.feit.is_some()
+            || h.op.is_some()
+            || h.verwijst_naar.is_some()
+            || !h.invoer.is_empty()
+            || h.uitkomst.is_some()
+            || !h.uitvoer.is_empty();
+        if handelt {
+            return self.fout(&format!(
+                "{waar} is a check step (toetsen) that names a cell, a fact, a record, values \
+                 or an outcome; a check step only checks answers (antwoorden)"
+            ));
+        }
+        Ok(())
+    }
+
+    /// The login step of the case, if it has one, names another cell of the
+    /// case, and its access output and means of login have the form
+    /// `<regelwerk>#<article>#<name>`. Whether they exist, the cell says when
+    /// it answers.
+    fn inlogstap_instelling_klopt(&self) -> Result<()> {
+        let Some(stap) = self.inloggen.as_ref().and_then(|i| i.inlogstap.as_ref()) else {
+            return Ok(());
+        };
+        if !self.andere_cellen.iter().any(|a| a.cel == stap.cel) {
+            return self.fout(&format!(
+                "the login step names the cell '{}', which is no other cell of the case",
+                stap.cel
+            ));
+        }
+        for (wat, bron) in std::iter::once(("toegang", &stap.toegang))
+            .chain(stap.middel.iter().map(|m| ("middel", m)))
+        {
+            if bron.split('#').count() != 3 || bron.split('#').any(str::is_empty) {
+                return self.fout(&format!(
+                    "the login step gives as {wat} '{bron}', which is no \
+                     <regelwerk>#<article>#<name>"
+                ));
             }
         }
         Ok(())
     }
+
+    /// A login step (`inloggen`) logs in through the case's login step
+    /// ([`Inlogstap`]): it names the user name under `invoer`, and at most the
+    /// password and the service besides, and acts on nothing else. It
+    /// expects no outcome, or that the login is refused.
+    fn inlogstap_klopt(&self, h: &Handeling, waar: &str) -> Result<()> {
+        if self
+            .inloggen
+            .as_ref()
+            .and_then(|i| i.inlogstap.as_ref())
+            .is_none()
+        {
+            return self.fout(&format!(
+                "{waar} is a login step (inloggen), but the case has no login step \
+                 (inloggen.inlogstap)"
+            ));
+        }
+        if !h.invoer.get("gebruikersnaam").is_some_and(Value::is_string) {
+            return self.fout(&format!(
+                "{waar} is a login step (inloggen) without the user name it logs in with \
+                 (invoer.gebruikersnaam)"
+            ));
+        }
+        if let Some(ander) = h
+            .invoer
+            .keys()
+            .find(|k| !["gebruikersnaam", "wachtwoord", "dienst"].contains(&k.as_str()))
+        {
+            return self.fout(&format!(
+                "{waar} is a login step (inloggen) with '{ander}'; it takes only \
+                 gebruikersnaam, wachtwoord and dienst"
+            ));
+        }
+        let handelt = h.cel.is_some()
+            || h.feit.is_some()
+            || h.op.is_some()
+            || h.verwijst_naar.is_some()
+            || !h.uitvoer.is_empty();
+        if handelt {
+            return self.fout(&format!(
+                "{waar} is a login step (inloggen) that names a cell, a fact, a record or \
+                 outputs; a login step only logs in"
+            ));
+        }
+        if h.uitkomst.is_some_and(|u| u != Uitkomst::Geweigerd) {
+            return self.fout(&format!(
+                "{waar} is a login step (inloggen) that expects an outcome other than \
+                 geweigerd"
+            ));
+        }
+        Ok(())
+    }
+
+    /// Each kenmerk a parameter of an answer of `h` names (`{kenmerk: ...}`,
+    /// [`Antwoord::kenmerken`]) is that of this step or an earlier step of
+    /// `scenario`, in `stappen`.
+    fn antwoord_kenmerken_kloppen(
+        &self,
+        h: &Handeling,
+        scenario: &Scenario,
+        stappen: &BTreeMap<&str, EerdereStap<'_>>,
+        waar: &str,
+    ) -> Result<()> {
+        for k in h.antwoorden.iter().flat_map(Antwoord::kenmerken) {
+            if stappen.contains_key(k) {
+                continue;
+            }
+            let later = scenario
+                .stappen
+                .iter()
+                .any(|s| matches!(s, Stap::Handeling(l) if l.kenmerk.as_deref() == Some(k)));
+            let wat = if later {
+                "the kenmerk of a later step; an answer can only name a record made by then"
+            } else {
+                "the kenmerk of no step of that scenario"
+            };
+            return self.fout(&format!(
+                "{waar} expects an answer whose parameters name '{k}', which is {wat}"
+            ));
+        }
+        Ok(())
+    }
+
+    /// A generic step names what it acts on: its article, or the record of
+    /// an earlier step of `stappen`.
+    fn generieke_stap_klopt(
+        &self,
+        h: &Handeling,
+        stappen: &BTreeMap<&str, EerdereStap<'_>>,
+        waar: &str,
+    ) -> Result<()> {
+        for naar in [&h.verwijst_naar, &h.na].into_iter().flatten() {
+            if !stappen.contains_key(naar.as_str()) {
+                return self.fout(&format!(
+                    "{waar} refers to '{naar}', which is the kenmerk of no earlier step of that \
+                     scenario"
+                ));
+            }
+        }
+        let ontbreekt = match h.stap {
+            Soort::Indienen | Soort::Ambtshalve if h.artikel.is_none() => {
+                Some("the article it acts under")
+            }
+            Soort::Beslissen | Soort::Afschrift if h.verwijst_naar.is_none() => {
+                Some("the record it acts on (verwijst_naar)")
+            }
+            _ => None,
+        };
+        if let Some(wat) = ontbreekt {
+            return self.fout(&format!("{waar} is a step {:?} without {wat}", h.stap));
+        }
+        let te_veel = match h.stap {
+            Soort::Beslissen | Soort::Afschrift if h.artikel.is_some() => {
+                Some("an article: the record it acts on says which")
+            }
+            Soort::Indienen | Soort::Ambtshalve | Soort::Afschrift if h.na.is_some() => {
+                Some("`na`: only a decision is taken again after a record")
+            }
+            _ => None,
+        };
+        if let Some(wat) = te_veel {
+            return self.fout(&format!("{waar} is a step {:?} with {wat}", h.stap));
+        }
+        Ok(())
+    }
+
+    /// A step of the Awb procedure: only a decision and a record step give
+    /// a kenmerk, and only a record step refers, to the record of an
+    /// earlier step of `stappen` that is no submission, or to one in the
+    /// begin of the cell that records it.
+    fn stap_klopt(
+        &self,
+        h: &Handeling,
+        stappen: &BTreeMap<&str, EerdereStap<'_>>,
+        waar: &str,
+    ) -> Result<()> {
+        if h.na.is_some() || h.artikel.is_some() {
+            return self.fout(&format!(
+                "{waar} gives an article or `na`; only a generic step (indienen, beslissen, \
+                 ambtshalve, afschrift) does"
+            ));
+        }
+        if h.kenmerk.is_some() && !matches!(h.stap, Soort::Besluit | Soort::Vastleggen) {
+            return self.fout(&format!(
+                "{waar} gives a kenmerk; only a generic step, a decision (besluit) or a record \
+                 step (vastleggen) does"
+            ));
+        }
+        let Some(naar) = &h.verwijst_naar else {
+            return Ok(());
+        };
+        if h.stap != Soort::Vastleggen {
+            return self.fout(&format!(
+                "{waar} refers to '{naar}', but only a record step (vastleggen) or a generic \
+                 step refers to an earlier record"
+            ));
+        }
+        let Some(cel) = self.vastleggende_cel(h) else {
+            return self.fout(&format!(
+                "{waar} refers to '{naar}', but names no cell of the case that records it"
+            ));
+        };
+        match stappen.get(naar.as_str()) {
+            Some(EerdereStap {
+                soort: Soort::Indienen,
+                ..
+            }) => self.fout(&format!(
+                "{waar} refers to '{naar}', the kenmerk of a submission; a fact refers to a \
+                 decision or to another record, since one that refers to a submission would \
+                 read as a decision on it"
+            )),
+            // A decision of the case's cell or a record of a known cell is in
+            // that cell's chronicle; which cell a generic step acts in, the
+            // law says, and the cell checks it when the step plays.
+            Some(EerdereStap {
+                cel: Some(ander), ..
+            }) if *ander != cel => self.fout(&format!(
+                "{waar} refers to '{naar}', a record in the chronicle of '{ander}'; a fact \
+                 refers to a record in the chronicle of the cell that records it, '{cel}'"
+            )),
+            Some(_) => Ok(()),
+            None if self.met_kenmerk(cel, naar).is_some() => Ok(()),
+            None => self.fout(&format!(
+                "{waar} refers to '{naar}', which is the kenmerk of no earlier step of that \
+                 scenario and of no executogram in the begin of '{cel}'"
+            )),
+        }
+    }
+
+    /// The cell that the record step `h` records in: the one it names, or
+    /// without one the case's own cell. `None` when it names a cell that is
+    /// not of the case.
+    pub fn vastleggende_cel<'c>(&'c self, h: &'c Handeling) -> Option<&'c str> {
+        self.cel_van(h.cel.as_deref())
+    }
+
+    /// The cell `cel` names, or without one the case's own cell. `None`
+    /// when it names a cell that is not of the case.
+    pub fn cel_van<'c>(&'c self, cel: Option<&'c str>) -> Option<&'c str> {
+        match cel {
+            None => Some(&self.cel),
+            Some(c) if c == self.cel || self.andere_cellen.iter().any(|a| a.cel == c) => Some(c),
+            Some(_) => None,
+        }
+    }
+
+    /// Each answer the step `h` expects names a cell of the case and an
+    /// output as `<regelwerk>#<article>#<output>`.
+    fn antwoorden_kloppen(&self, h: &Handeling, waar: &str) -> Result<()> {
+        for a in &h.antwoorden {
+            if self.cel_van(a.cel.as_deref()).is_none() {
+                return self.fout(&format!(
+                    "{waar} expects an answer of '{}', which is no cell of the case",
+                    a.cel.as_deref().unwrap_or_default()
+                ));
+            }
+            if a.bron.split('#').count() != 3 || a.bron.split('#').any(str::is_empty) {
+                return self.fout(&format!(
+                    "{waar} expects an answer of '{}', which is no \
+                     <regelwerk>#<article>#<output>",
+                    a.bron
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+/// A step of a scenario that gave its record a kenmerk: its kind, and the
+/// cell whose chronicle holds that record where the case file says so (a
+/// record step, a decision of the case's cell).
+#[derive(Debug, Clone, Copy)]
+struct EerdereStap<'c> {
+    soort: Soort,
+    cel: Option<&'c str>,
 }
 
 /// Another cell of the case: its directory under `cells/` of the corpus, its name
@@ -224,6 +612,10 @@ pub struct Voorbeeld {
     pub bevindingen: Map<String, Value>,
     #[serde(default)]
     pub bezwaar: Map<String, Value>,
+    /// What the authority judges on the admissibility of an objection
+    /// (Awb 7:11 with 6:11 and 8:1), which the form starts with.
+    #[serde(default)]
+    pub beslissing_op_bezwaar: Map<String, Value>,
     /// The beroepschrift (Awb 6:5).
     #[serde(default)]
     pub beroep: Map<String, Value>,
@@ -245,10 +637,12 @@ pub struct Scenario {
     pub eind: String,
 }
 
-/// A step of a scenario. A case of this crate gives each step as an action
-/// with its values and text ([`Handeling`]), and the guide beside the page
-/// (frontend/src/scenarioGuides.js) shows it. A case from a source gives its
-/// steps as instruction text, and has no guide.
+/// A step of a scenario: an action with its values and text ([`Handeling`]),
+/// or a line of text. The guide beside the page
+/// (frontend/src/scenarioGuides.js) shows the actions as its steps, for a
+/// case of this crate and a case from a source alike, and a line of text as
+/// an instruction with the next action, or, after the last action, with the
+/// end of the scenario. A scenario of text alone has no guide.
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 pub enum Stap {
@@ -276,6 +670,23 @@ impl<'de> Deserialize<'de> for Stap {
 #[serde(deny_unknown_fields)]
 pub struct Handeling {
     pub stap: Soort,
+    /// For [`Soort::Indienen`] and [`Soort::Ambtshalve`]: the article the
+    /// step acts under, `<law>#<article>`.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub artikel: Option<String>,
+    /// The name the scenario gives the record this step makes, so that a
+    /// later step can act on it ([`Handeling::verwijst_naar`]). Unique
+    /// within the scenario, and no kenmerk of a [`Begin`]. A generic step,
+    /// a decision ([`Soort::Besluit`]) and a record step
+    /// ([`Soort::Vastleggen`]) give one.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kenmerk: Option<String>,
+    /// For [`Soort::Beslissen`]: the [`Handeling::kenmerk`] of a later
+    /// record that refers to the last decision on the submission, such as
+    /// the receipt of a judgment that annulled it; the decision is then
+    /// taken once more, after it (`Cell::decide_after`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub na: Option<String>,
     /// The title of the step in the guide; without one, the guide names it
     /// after its kind.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -292,16 +703,26 @@ pub struct Handeling {
     /// the last application, an appeal on the last decision on objection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub op: Option<usize>,
-    /// For [`Soort::Vastleggen`]: the other cell that records, and the fact
-    /// it records (`<regulation>#<article>#<fact>`).
+    /// For [`Soort::Vastleggen`]: the cell that records, another cell of
+    /// the case or the case's own, and the fact it records
+    /// (`<regulation>#<article>#<fact>`). Without a cell, the case's own
+    /// cell records ([`Casus::vastleggende_cel`]).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cel: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub feit: Option<String>,
-    /// For [`Soort::Vastleggen`]: the [`BeginExecutogram::kenmerk`] of the
-    /// record in the recording cell's [`Begin`] that this fact is about
-    /// (`refers_to`, schema v0.8.17), such as the registration a correction
-    /// corrects.
+    /// For [`Soort::Vastleggen`]: the record this fact is about
+    /// (`refers_to`, schema v0.8.17), in the chronicle of the cell that
+    /// records it. That is the record of an earlier step of the scenario
+    /// by its [`Handeling::kenmerk`], such as the decision a payment is
+    /// made on, or one in that cell's [`Begin`] by its
+    /// [`BeginExecutogram::kenmerk`], such as the registration a correction
+    /// corrects. Never a submission: a record that refers to one reads as a
+    /// decision on it. For a generic step ([`Soort::is_generiek`]): the
+    /// [`Handeling::kenmerk`] of an earlier step of the scenario whose
+    /// record this step acts on: the decision a submission refers to, the
+    /// submission a decision is taken on, the record an ex officio decision
+    /// is about, or the decision a copy is sent of.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub verwijst_naar: Option<String>,
     /// The values the step fills in, under the names the law gives the
@@ -317,6 +738,13 @@ pub struct Handeling {
     /// the new decision a decision on objection takes in its place.
     #[serde(default, skip_serializing_if = "Map::is_empty")]
     pub uitvoer: Map<String, Value>,
+    /// Answers a cell of the case gives once the step is done, on its play
+    /// date, with the value the scenario expects ([`Antwoord`]), such as
+    /// what a payment leaves outstanding: an answer of a reduction, which no
+    /// decision holds. A check step ([`Soort::Toetsen`]) has these and
+    /// nothing else.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub antwoorden: Vec<Antwoord>,
     /// What happens in the case at this step, in one sentence, as the guide
     /// shows it above what the visitor does. Optional, so a source without
     /// it still loads.
@@ -331,21 +759,100 @@ pub struct Handeling {
     pub gezien: Option<String>,
 }
 
-/// What a visitor does in a step, one form each.
+/// An answer a scenario expects of a cell: the output `bron`
+/// (`<regelwerk>#<article>#<output>`) as the cell computes it on the play
+/// date of the step (`Cell::consult`), with the parameters `invoer`. The
+/// source is a law or the cell's own policy, never a reduction: a cell takes
+/// what a reduction gives only through a binding (RFC-056). Without `cel`,
+/// the case's own cell answers. A parameter written as `{kenmerk: <naam>}`
+/// takes the id of the record of that step of the scenario
+/// ([`Antwoord::kenmerken`]).
+#[derive(Debug, Clone, Deserialize, Serialize)]
+#[serde(deny_unknown_fields)]
+pub struct Antwoord {
+    pub bron: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cel: Option<String>,
+    #[serde(default, skip_serializing_if = "Map::is_empty")]
+    pub invoer: Map<String, Value>,
+    pub verwacht: Value,
+}
+
+impl Antwoord {
+    /// The kenmerken the parameters of the answer name: a parameter written
+    /// as `{kenmerk: <naam>}` takes the id of the record of the step of the
+    /// scenario with that kenmerk, such as the decision whose balance the
+    /// answer gives.
+    pub fn kenmerken(&self) -> impl Iterator<Item = &str> {
+        self.invoer.values().filter_map(kenmerk_van)
+    }
+}
+
+/// The kenmerk `waarde` names when it is written as `{kenmerk: <naam>}`, a
+/// reference to the record of a step of the scenario.
+pub fn kenmerk_van(waarde: &Value) -> Option<&str> {
+    waarde
+        .as_object()
+        .filter(|o| o.len() == 1)?
+        .get("kenmerk")?
+        .as_str()
+}
+
+/// What a visitor does in a step.
+///
+/// The first four are generic: they name no step of a procedure, and the
+/// law says what each does, under the article the step names or on the
+/// record it refers to. A case whose procedure is not the Awb's writes its
+/// scenarios in these. The others are the steps of the Awb procedure as
+/// the guide beside the page (frontend/src/scenarioGuides.js) shows them;
+/// the harness plays them through the same generic steps.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Soort {
+    /// A submission under [`Handeling::artikel`], referring to the decision
+    /// [`Handeling::verwijst_naar`] names, if any.
+    Indienen,
+    /// A decision on the submission [`Handeling::verwijst_naar`] names,
+    /// under the article that submission asks a decision of.
+    Beslissen,
+    /// A decision under [`Handeling::artikel`] on no submission, about the
+    /// record [`Handeling::verwijst_naar`] names, if any.
+    Ambtshalve,
+    /// The cell that took the decision [`Handeling::verwijst_naar`] names
+    /// sends a copy of it to the cell whose decision it concerns.
+    Afschrift,
     Aanvraag,
     Besluit,
     Bezwaar,
     BeslissingOpBezwaar,
-    /// Another cell records a fact (RFC-051), such as the GGD an advice.
+    /// A cell of the case records a fact (RFC-051): another cell, such as
+    /// the GGD an advice, or the case's own cell, such as the authority
+    /// that records a payment on its decision.
     Vastleggen,
     Beroep,
     Uitspraak,
     Toezenden,
     /// The authority decides on the objection again after a judgment.
     OpnieuwBeslissen,
+    /// The applicant logs in through the case's login step
+    /// ([`Inlogstap`]), with the user name under [`Handeling::invoer`]. What
+    /// the login asserts holds for the steps after it, until the next login
+    /// step.
+    Inloggen,
+    /// Nothing is done: on the step's play date the scenario checks the
+    /// answers it expects of a cell ([`Handeling::antwoorden`]), such as the
+    /// interest that is due the day after a payment came too late.
+    Toetsen,
+}
+
+impl Soort {
+    /// Whether this is a generic step, which names no step of a procedure.
+    pub fn is_generiek(self) -> bool {
+        matches!(
+            self,
+            Self::Indienen | Self::Beslissen | Self::Ambtshalve | Self::Afschrift
+        )
+    }
 }
 
 /// What a step comes to.
@@ -710,14 +1217,17 @@ pub struct Afleiding {
     /// that its item names, which may be the application itself.
     pub decision_law: String,
     pub decision: String,
-    /// The article that establishes the objection (`type: BEZWAAR`), and
-    /// decides on it: Awb 7:11 for both cases.
-    pub objection_law: String,
-    pub objection: String,
-    /// For a case with a court: the article that establishes the appeal
-    /// (`type: BEROEP`) and decides on it, Awb 8:70, and the fact in which
-    /// the cell records the receipt of a judgment ([`Beroep`]).
-    pub beroep: Option<Beroep>,
+    /// Every submission the regelwerken of the case establish that a cell of
+    /// the case decides on ([`Indiening`]): the application first, then the
+    /// others by article. Which ones there are, and on what each refers to,
+    /// follows from the law (`produces`, `requests`, `competent_authority`),
+    /// not from the app: for the Awb that is the objection (7:11) and the
+    /// appeal (8:70), the latter only in a case with a court.
+    pub indieningen: Vec<Indiening>,
+    /// The articles whose decision no submission of the regelwerken asks
+    /// for, and that a cell of the case takes ex officio ([`Ambtshalve`]),
+    /// such as a withdrawal.
+    pub ambtshalve: Vec<Ambtshalve>,
     /// Who decides: the competent authority of the article that takes the
     /// decision, or else the holder of its rulework (RFC-002), as the app
     /// names it ("het hoofd", "het college van burgemeester en wethouders").
@@ -726,19 +1236,42 @@ pub struct Afleiding {
     pub regelwerken: Vec<String>,
 }
 
-/// What follows from the law and the cell for an appeal.
+impl Afleiding {
+    /// The submission established by `artikel` (`<law>#<article>`).
+    pub fn indiening(&self, artikel: &str) -> Option<&Indiening> {
+        self.indieningen.iter().find(|i| i.artikel == artikel)
+    }
+}
+
+/// A submission a regelwerk of the case establishes, as the law makes it:
+/// under which article, of which kind, which decision it asks for, and the
+/// cell of the case that records it and decides on it.
 #[derive(Debug, Clone, Serialize)]
-pub struct Beroep {
-    pub law: String,
-    pub article: String,
-    /// The fact the law requires whose parameters are all outputs of the
-    /// judgment, `<law>#<article>#<fact>`: what the cell records when it
-    /// receives a copy of one (`Cell::record_receipt`).
-    pub ontvangst: String,
-    /// The court: the other cell of the case that the competent authority of
-    /// the article that decides on the appeal names ("de bestuursrechter",
-    /// on Awb 8:70).
-    pub rechter: String,
+pub struct Indiening {
+    /// The article that establishes it, `<law>#<article>`.
+    pub artikel: String,
+    /// Its kind, as `produces` names it (`AANVRAAG`, `BEZWAAR`, `BEROEP`).
+    pub soort: String,
+    /// The article whose decision it asks for (`requests`).
+    pub besluit: String,
+    /// The cell that records it and decides on it: the one the competent
+    /// authority of [`Indiening::besluit`] names, by its recording actor.
+    pub cel: String,
+    /// For a decision of another cell than the case's own: the fact in
+    /// which the case's cell records the receipt of a copy of it
+    /// (`<law>#<article>#<fact>`), when the law requires one whose
+    /// parameters a copy holds ([`ontvangst`]).
+    pub ontvangst: Option<String>,
+}
+
+/// An article whose decision a cell of the case takes ex officio: no
+/// submission among the regelwerken of the case asks for it.
+#[derive(Debug, Clone, Serialize)]
+pub struct Ambtshalve {
+    /// The article, `<law>#<article>`.
+    pub artikel: String,
+    /// The cell that takes it, by its recording actor.
+    pub cel: String,
 }
 
 /// Derive from the law what `casus` needs, with its `cells`: its own and the
@@ -795,13 +1328,9 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
         i += 1;
     }
 
-    let (objection_law, objection) = vestigt(regelwerken, &casus.id, &gevonden, "BEZWAAR")?;
-    let beroep = beroep(
-        regelwerken,
-        &casus.id,
-        &gevonden,
-        cells.get(1..).unwrap_or_default(),
-    )?;
+    let besluit = format!("{decision_law}#{decision}");
+    let indieningen = indieningen(regelwerken, casus, &gevonden, cells, &besluit)?;
+    let ambtshalve = ambtshalve(regelwerken, &casus.id, &gevonden, cells)?;
 
     let werk = regelwerken
         .get(&decision_law)
@@ -818,64 +1347,201 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
         article: article.to_string(),
         decision_law,
         decision,
-        objection_law,
-        objection,
-        beroep,
+        indieningen,
+        ambtshalve,
         rol,
         regelwerken: gevonden,
     })
 }
 
-/// The appeal, for a case with a court among its `andere` cells: the
-/// article that establishes it, the fact of its receipt, and the court, the
-/// one cell the competent authority of that article names. A case
-/// plays no appeal without other cells, without an article among its
-/// regelwerken that establishes an appeal (who the court is follows from
-/// that article), or when none of the other cells is the court.
-fn beroep(
+/// The newest version of the article `artikel` (`<law>#<article>`) among
+/// the regelwerken.
+fn artikel<'r>(regelwerken: &'r Regelwerken, artikel: &str) -> Option<&'r Article> {
+    let (law, number) = artikel.split_once('#')?;
+    regelwerken
+        .get(law)?
+        .nieuwste()
+        .articles
+        .iter()
+        .find(|a| a.number == number)
+}
+
+/// The cell of `cells` (the case's own first) that decides under
+/// `besluit` (`<law>#<article>`): the one its competent authority names
+/// ([`bevoegd`]), or the case's own where it names none. `None` when it
+/// names an authority that no cell of the case is, such as the court in a
+/// case without one; two cells it names are an error.
+fn beslissende_cel<'c>(
+    regelwerken: &Regelwerken,
+    casus: &str,
+    besluit: &str,
+    cells: &[&'c Cell],
+) -> Result<Option<&'c Cell>> {
+    let bevoegd = besluit
+        .split_once('#')
+        .and_then(|(law, article)| bevoegd(regelwerken.get(law)?.nieuwste(), article));
+    let Some(bevoegd) = bevoegd else {
+        return Ok(cells.first().copied());
+    };
+    let mut genoemd = cells
+        .iter()
+        .filter(|c| c.authority().is_named_by(std::slice::from_ref(&bevoegd)));
+    match (genoemd.next(), genoemd.next()) {
+        (None, _) => Ok(None),
+        (Some(c), None) => Ok(Some(*c)),
+        (Some(a), Some(b)) => Err(Error::Setup(format!(
+            "case '{casus}': both '{}' and '{}' are {}, who decides under {besluit}",
+            a.recording_actor(),
+            b.recording_actor(),
+            bevoegd.name
+        ))),
+    }
+}
+
+/// Every submission an article of the regelwerken `gevonden` establishes
+/// whose decision a cell of the case takes ([`Indiening`]): the case's own
+/// application first, decided by the case's cell, then the others in the
+/// order of their articles. A submission whose deciding authority is no
+/// cell of the case is not one the case plays.
+fn indieningen(
+    regelwerken: &Regelwerken,
+    casus: &Casus,
+    gevonden: &[String],
+    cells: &[&Cell],
+    besluit: &str,
+) -> Result<Vec<Indiening>> {
+    let eigen = cells
+        .first()
+        .ok_or_else(|| Error::Setup(format!("case '{}' has no cell", casus.id)))?;
+    let mut gevestigd: BTreeSet<(String, String, String)> = BTreeSet::new();
+    for id in gevonden {
+        let Some(werk) = regelwerken.get(id) else {
+            continue;
+        };
+        for a in werk.nieuwste().articles.iter() {
+            let eigen_artikel = format!("{id}#{}", a.number);
+            let (Some(soort), Some(gevraagd)) = (
+                a.get_submission().and_then(|s| s.submission_kind()),
+                a.requested_decision(&eigen_artikel),
+            ) else {
+                continue;
+            };
+            gevestigd.insert((eigen_artikel, soort.to_string(), gevraagd));
+        }
+    }
+    let aanvraag = gevestigd
+        .iter()
+        .find(|(a, _, _)| *a == casus.artikel)
+        .cloned()
+        .ok_or_else(|| {
+            Error::Setup(format!(
+                "case '{}': {} establishes no submission",
+                casus.id, casus.artikel
+            ))
+        })?;
+    let mut uit = vec![Indiening {
+        artikel: aanvraag.0.clone(),
+        soort: aanvraag.1.clone(),
+        besluit: besluit.to_string(),
+        cel: eigen.recording_actor().to_string(),
+        ontvangst: None,
+    }];
+    for (artikel, soort, gevraagd) in gevestigd.into_iter().filter(|x| *x != aanvraag) {
+        let Some(cel) = beslissende_cel(regelwerken, &casus.id, &gevraagd, cells)? else {
+            continue;
+        };
+        let ontvangst = if cel.recording_actor() == eigen.recording_actor() {
+            None
+        } else {
+            ontvangst(regelwerken, &casus.id, gevonden, &gevraagd)?
+        };
+        uit.push(Indiening {
+            artikel,
+            soort,
+            besluit: gevraagd,
+            cel: cel.recording_actor().to_string(),
+            ontvangst,
+        });
+    }
+    Ok(uit)
+}
+
+/// The articles of the regelwerken `gevonden` whose decision no submission
+/// of those regelwerken asks for, and that a cell of the case takes
+/// ([`beslissende_cel`]). An article that takes a decision in turn (an
+/// output of type `decision`) needs the submission it is taken on, so it is
+/// none; neither is an article whose decision another article reads
+/// (`source.regulation` with `output`), nor one of a legal character no
+/// procedure among those regelwerken applies to, such as a TOETS: it is
+/// taken within the decision that reads it.
+fn ambtshalve(
     regelwerken: &Regelwerken,
     casus: &str,
     gevonden: &[String],
-    andere: &[&Cell],
-) -> Result<Option<Beroep>> {
-    if andere.is_empty() {
-        return Ok(None);
-    }
-    // Without an article that establishes the appeal there is no appeal to
-    // play, whatever the other cells are.
-    let Some((law, article)) = vestigend(regelwerken, casus, gevonden, "BEROEP")? else {
-        return Ok(None);
-    };
-    let werk = regelwerken
-        .get(&law)
-        .ok_or_else(|| Error::Setup(format!("'{law}' is not in the corpus")))?;
-    let bevoegd = bevoegd(werk.nieuwste(), &article).ok_or_else(|| {
-        Error::Setup(format!(
-            "case '{casus}': {law}#{article} names no one who decides on the appeal"
-        ))
-    })?;
-    let wie = &bevoegd.name;
-    let mut rechters = andere
-        .iter()
-        .filter(|c| c.authority().is_named_by(std::slice::from_ref(&bevoegd)));
-    let rechter = match (rechters.next(), rechters.next()) {
-        (None, _) => return Ok(None),
-        (Some(r), None) => r.recording_actor().to_string(),
-        (Some(a), Some(b)) => {
-            return Err(Error::Setup(format!(
-                "case '{casus}': both '{}' and '{}' are {wie}",
-                a.recording_actor(),
-                b.recording_actor()
-            )));
+    cells: &[&Cell],
+) -> Result<Vec<Ambtshalve>> {
+    let mut gevraagd: BTreeSet<String> = BTreeSet::new();
+    let mut gelezen: BTreeSet<String> = BTreeSet::new();
+    for id in gevonden {
+        for a in regelwerken.get(id).into_iter().flat_map(|w| w.artikelen()) {
+            if let Some(g) = a.requested_decision(&format!("{id}#{}", a.number)) {
+                gevraagd.insert(g);
+            }
+            for source in a.get_inputs().iter().filter_map(|i| i.source.as_ref()) {
+                if let (Some(law), Some(output)) = (&source.regulation, &source.output)
+                    && let Some(werk) = regelwerken.get(law)
+                    && let Some(b) = werk.nieuwste().find_article_by_output(output)
+                {
+                    gelezen.insert(format!("{law}#{}", b.number));
+                }
+            }
         }
-    };
-    let ontvangst = ontvangst(regelwerken, casus, gevonden, &law, &article)?;
-    Ok(Some(Beroep {
-        law,
-        article,
-        ontvangst,
-        rechter,
-    }))
+    }
+    // A decision follows the stages of the procedure for its legal
+    // character (RFC-045 §5); one without is taken only within another.
+    let met_procedure: BTreeSet<&str> = gevonden
+        .iter()
+        .filter_map(|id| regelwerken.get(id))
+        .flat_map(|w| &w.versies)
+        .flat_map(|(_, law)| law.procedure.iter().flatten())
+        .map(|p| p.applies_to.legal_character.as_str())
+        .collect();
+    let mut uit = Vec::new();
+    for id in gevonden {
+        let Some(werk) = regelwerken.get(id) else {
+            continue;
+        };
+        if werk.is_reductie() {
+            continue;
+        }
+        for a in werk.nieuwste().articles.iter() {
+            let artikel = format!("{id}#{}", a.number);
+            let Some(besluit) = a.get_decision() else {
+                continue;
+            };
+            let neemt_in_de_plaats = a.outputs_of(besluit).iter().any(|o| {
+                a.find_output(o)
+                    .is_some_and(|o| o.output_type == regelrecht_law_model::ParameterType::Decision)
+            });
+            let zonder_procedure = besluit
+                .legal_character()
+                .is_none_or(|lc| !met_procedure.contains(lc));
+            if gevraagd.contains(&artikel)
+                || gelezen.contains(&artikel)
+                || neemt_in_de_plaats
+                || zonder_procedure
+            {
+                continue;
+            }
+            if let Some(cel) = beslissende_cel(regelwerken, casus, &artikel, cells)? {
+                uit.push(Ambtshalve {
+                    artikel,
+                    cel: cel.recording_actor().to_string(),
+                });
+            }
+        }
+    }
+    Ok(uit)
 }
 
 /// The article whose decision the application under `law#article` asks
@@ -905,68 +1571,16 @@ fn gevraagd_besluit(
             "case '{casus}': {eigen} establishes no application that asks for a decision"
         ))
     })?;
-    let neemt = doel.split_once('#').and_then(|(l, a)| {
-        let werk = regelwerken.get(l)?;
-        werk.nieuwste()
-            .articles
-            .iter()
-            .any(|x| x.number == a && x.get_decision().is_some())
-            .then(|| (l.to_string(), a.to_string()))
-    });
+    let neemt = artikel(regelwerken, &doel)
+        .filter(|a| a.get_decision().is_some())
+        .and_then(|_| doel.split_once('#'))
+        .map(|(l, a)| (l.to_string(), a.to_string()));
     neemt.ok_or_else(|| {
         Error::Setup(format!(
             "case '{casus}': {eigen} asks for the decision of {doel}, which its corpus does not \
              hold as an article that takes a decision"
         ))
     })
-}
-
-/// The one article among the regelwerken `gevonden` whose `produces` lists a
-/// submission of the kind `soort`: the objection (`BEZWAAR`) or the appeal
-/// (`BEROEP`), each established by the article that decides on it.
-fn vestigt(
-    regelwerken: &Regelwerken,
-    casus: &str,
-    gevonden: &[String],
-    soort: &str,
-) -> Result<(String, String)> {
-    vestigend(regelwerken, casus, gevonden, soort)?.ok_or_else(|| {
-        Error::Setup(format!(
-            "case '{casus}': no regelwerk it runs establishes a submission {soort}"
-        ))
-    })
-}
-
-/// The one article among the regelwerken in `gevonden` that establishes a
-/// submission of the kind `soort`, if any; two are an error.
-fn vestigend(
-    regelwerken: &Regelwerken,
-    casus: &str,
-    gevonden: &[String],
-    soort: &str,
-) -> Result<Option<(String, String)>> {
-    let mut artikelen = BTreeSet::new();
-    for id in gevonden {
-        if let Some(werk) = regelwerken.get(id) {
-            for a in werk.artikelen() {
-                if a.get_produced()
-                    .into_iter()
-                    .any(|p| p.submission_kind() == Some(soort))
-                {
-                    artikelen.insert((id.clone(), a.number.clone()));
-                }
-            }
-        }
-    }
-    let mut artikelen = artikelen.into_iter();
-    match (artikelen.next(), artikelen.next()) {
-        (Some(b), None) => Ok(Some(b)),
-        (None, _) => Ok(None),
-        (Some(a), Some(b)) => Err(Error::Setup(format!(
-            "case '{casus}': both {}#{} and {}#{} establish a submission {soort}",
-            a.0, a.1, b.0, b.1
-        ))),
-    }
 }
 
 /// The inputs the stages of the procedures of `law` require for the legal
@@ -993,19 +1607,22 @@ fn fasen<'r>(regelwerken: &'r Regelwerken, law: &str, artikelen: &[&Article]) ->
         .collect()
 }
 
-/// The fact in which a cell records the receipt of a judgment under
-/// `law#article`, as `<law>#<article>#<fact>`: the one fact an article of
-/// the regelwerken `gevonden` requires whose parameters are all outputs of
-/// that decision or inputs a stage of the procedure for its legal character
-/// requires (such as the day of the judgment), so a copy of the judgment
-/// holds each by name (Awb 8:79, `afschrift_van_de_uitspraak`).
+/// The fact in which a cell records the receipt of a copy of a decision
+/// under `besluit` (`<law>#<article>`), as `<law>#<article>#<fact>`: the one
+/// fact an article of the regelwerken `gevonden` requires whose parameters
+/// are all outputs of that decision or inputs a stage of the procedure for
+/// its legal character requires (such as the day of a judgment), so a copy
+/// holds each by name (Awb 8:79, `afschrift_van_de_uitspraak`). None when
+/// no fact does; two are an error.
 fn ontvangst(
     regelwerken: &Regelwerken,
     casus: &str,
     gevonden: &[String],
-    law: &str,
-    article: &str,
-) -> Result<String> {
+    besluit: &str,
+) -> Result<Option<String>> {
+    let Some((law, article)) = besluit.split_once('#') else {
+        return Ok(None);
+    };
     let artikelen: Vec<&Article> = regelwerken
         .get(law)
         .into_iter()
@@ -1037,13 +1654,10 @@ fn ontvangst(
     }
     let mut feiten = feiten.into_iter();
     match (feiten.next(), feiten.next()) {
-        (Some(f), None) => Ok(f),
-        (None, _) => Err(Error::Setup(format!(
-            "case '{casus}': no regelwerk it runs requires a fact that holds the judgment of {law}#{article}"
-        ))),
         (Some(a), Some(b)) => Err(Error::Setup(format!(
-            "case '{casus}': both {a} and {b} hold the judgment of {law}#{article}"
+            "case '{casus}': both {a} and {b} hold the decision of {law}#{article}"
         ))),
+        (f, _) => Ok(f),
     }
 }
 
@@ -1274,21 +1888,152 @@ mod tests {
             &format!("[{}]", inschrijving("a")),
             &vastleggen("register", "b"),
         );
-        assert!(fout(&c).contains("refers to 'b', which is the kenmerk of no executogram"));
+        assert!(fout(&c).contains("refers to 'b', which is the kenmerk of no earlier step"));
     }
 
     #[test]
-    fn a_step_that_refers_from_a_cell_that_does_not_record_is_refused() {
+    fn a_record_step_without_a_cell_records_in_the_case_s_own_cell() {
+        let c = casus(&format!("[{}]", inschrijving("a")), "[]");
+        let h = |yaml: &str| serde_yaml_ng::from_str::<Handeling>(yaml).unwrap();
+        assert_eq!(
+            c.vastleggende_cel(&h("{stap: vastleggen}")),
+            Some("gemeente")
+        );
+        assert_eq!(
+            c.vastleggende_cel(&h("{stap: vastleggen, cel: gemeente}")),
+            Some("gemeente")
+        );
+        assert_eq!(
+            c.vastleggende_cel(&h("{stap: vastleggen, cel: register}")),
+            Some("register")
+        );
+        assert_eq!(
+            c.vastleggende_cel(&h("{stap: vastleggen, cel: elders}")),
+            None
+        );
+    }
+
+    #[test]
+    fn a_step_that_refers_to_the_begin_of_another_cell_is_refused() {
+        // 'a' is in the begin of the register, not of the case's own cell.
+        for stappen in [
+            vastleggen("gemeente", "a"),
+            "[{stap: vastleggen, verwijst_naar: a}]".to_string(),
+        ] {
+            let c = casus(&format!("[{}]", inschrijving("a")), &stappen);
+            assert!(
+                fout(&c).contains("of no executogram in the begin of 'gemeente'"),
+                "{}",
+                fout(&c)
+            );
+        }
         let c = casus(
             &format!("[{}]", inschrijving("a")),
-            &vastleggen("gemeente", "a"),
+            &vastleggen("elders", "a"),
         );
-        assert!(fout(&c).contains("names no other cell of the case"));
+        assert!(fout(&c).contains("names no cell of the case"));
+    }
+
+    #[test]
+    fn the_own_cell_records_a_fact_about_an_earlier_decision_or_record() {
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: aanvraag}}, {{stap: besluit, kenmerk: besluit}}, \
+                 {{stap: vastleggen, feit: '{FEIT}', kenmerk: betaling, verwijst_naar: besluit}}, \
+                 {{stap: vastleggen, cel: gemeente, feit: '{CORRECTIE}', verwijst_naar: betaling}}]"
+            ),
+        );
+        c.verwijzingen_kloppen().unwrap();
+    }
+
+    #[test]
+    fn a_record_step_that_refers_to_a_submission_is_refused() {
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: indienen, artikel: 'wet#1', kenmerk: aanvraag}}, \
+                 {{stap: vastleggen, feit: '{FEIT}', verwijst_naar: aanvraag}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("the kenmerk of a submission"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    #[test]
+    fn a_record_step_that_refers_to_a_record_of_another_cell_is_refused() {
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: aanvraag}}, {{stap: besluit, kenmerk: besluit}}, \
+                 {{stap: vastleggen, cel: register, feit: '{FEIT}', verwijst_naar: besluit}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("a record in the chronicle of 'gemeente'"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: vastleggen, cel: register, feit: '{FEIT}', kenmerk: r}}, \
+                 {{stap: vastleggen, feit: '{CORRECTIE}', verwijst_naar: r}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("a record in the chronicle of 'register'"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    #[test]
+    fn a_record_step_that_refers_to_a_later_step_is_refused() {
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: vastleggen, feit: '{FEIT}', verwijst_naar: besluit}}, \
+                 {{stap: aanvraag}}, {{stap: besluit, kenmerk: besluit}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("the kenmerk of no earlier step"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    #[test]
+    fn a_step_kenmerk_that_a_begin_gives_is_refused() {
         let c = casus(
             &format!("[{}]", inschrijving("a")),
-            "[{stap: vastleggen, verwijst_naar: a}]",
+            "[{stap: aanvraag}, {stap: besluit, kenmerk: a}]",
         );
-        assert!(fout(&c).contains("names no other cell of the case"));
+        assert!(
+            fout(&c).contains("which an executogram of a begin gives"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    #[test]
+    fn only_a_decision_a_record_step_or_a_generic_step_gives_a_kenmerk() {
+        let c = casus("[]", "[{stap: aanvraag, kenmerk: a}]");
+        assert!(
+            fout(&c).contains("gives a kenmerk; only a generic step"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus("[]", "[{stap: besluit, artikel: 'wet#1'}]");
+        assert!(
+            fout(&c).contains("gives an article or `na`"),
+            "{}",
+            fout(&c)
+        );
     }
 
     #[test]
@@ -1297,6 +2042,189 @@ mod tests {
             &format!("[{}]", inschrijving("a")),
             "[{stap: aanvraag, verwijst_naar: a}]",
         );
-        assert!(fout(&c).contains("only a record step (vastleggen) refers"));
+        assert!(fout(&c).contains("only a record step (vastleggen) or a generic step refers"));
+    }
+
+    #[test]
+    fn an_expected_answer_names_a_cell_of_the_case_and_an_output() {
+        let c = casus(
+            "[]",
+            "[{stap: aanvraag, antwoorden: [{bron: 'beleid#1#saldo', verwacht: 0}, \
+             {bron: 'beleid#1#saldo', cel: register, invoer: {x: 1}, verwacht: 0}]}]",
+        );
+        c.verwijzingen_kloppen().unwrap();
+        let c = casus(
+            "[]",
+            "[{stap: aanvraag, antwoorden: [{bron: 'beleid#1#saldo', cel: elders, verwacht: 0}]}]",
+        );
+        assert!(
+            fout(&c).contains("'elders', which is no cell of the case"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus(
+            "[]",
+            "[{stap: aanvraag, antwoorden: [{bron: 'beleid#saldo', verwacht: 0}]}]",
+        );
+        assert!(
+            fout(&c).contains("which is no <regelwerk>#<article>#<output>"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    #[test]
+    fn a_check_step_only_checks_answers() {
+        let c = casus(
+            "[]",
+            "[{stap: toetsen, datum: 2026-02-01, antwoorden: [{bron: 'beleid#1#saldo', verwacht: 0}]}]",
+        );
+        c.verwijzingen_kloppen().unwrap();
+        let c = casus("[]", "[{stap: toetsen, datum: 2026-02-01}]");
+        assert!(
+            fout(&c).contains("without answers to check"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus(
+            "[]",
+            "[{stap: toetsen, datum: 2026-02-01, invoer: {x: 1}, antwoorden: [{bron: 'beleid#1#saldo', verwacht: 0}]}]",
+        );
+        assert!(
+            fout(&c).contains("a check step only checks answers"),
+            "{}",
+            fout(&c)
+        );
+        let toets = "antwoorden: [{bron: 'beleid#1#saldo', verwacht: 0}]";
+        let c = casus("[]", &format!("[{{stap: toetsen, {toets}}}]"));
+        assert!(
+            fout(&c).contains("without the day it checks on"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: aanvraag, datum: 2026-03-01}}, {{stap: toetsen, datum: 2026-02-01, {toets}}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("before the play date 2026-03-01"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    #[test]
+    fn an_answer_names_a_record_by_the_kenmerk_of_this_or_an_earlier_step() {
+        let antwoord =
+            "antwoorden: [{bron: 'beleid#1#saldo', invoer: {besluit: {kenmerk: b}}, verwacht: 0}]";
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: aanvraag}}, {{stap: besluit, kenmerk: b, {antwoord}}}, {{stap: toetsen, datum: 2026-02-01, {antwoord}}}]"
+            ),
+        );
+        c.verwijzingen_kloppen().unwrap();
+        let c = casus(
+            "[]",
+            &format!(
+                "[{{stap: toetsen, datum: 2026-02-01, {antwoord}}}, {{stap: aanvraag}}, {{stap: besluit, kenmerk: b}}]"
+            ),
+        );
+        assert!(
+            fout(&c).contains("'b', which is the kenmerk of a later step"),
+            "{}",
+            fout(&c)
+        );
+        let c = casus(
+            "[]",
+            &format!("[{{stap: toetsen, datum: 2026-02-01, {antwoord}}}]"),
+        );
+        assert!(
+            fout(&c).contains("'b', which is the kenmerk of no step"),
+            "{}",
+            fout(&c)
+        );
+    }
+
+    /// A case with a login step through the cell `register` (`toegang`
+    /// as given), playing `stappen`.
+    fn met_inlogstap(toegang: &str, cel: &str, stappen: &str) -> Casus {
+        let mut c = casus("[]", stappen);
+        c.inloggen = Some(Inloggen {
+            feit: "wdo#15#authenticatie_verricht".into(),
+            sleutel: "kvk_nummer".into(),
+            veld: "kvk_nummer".into(),
+            naam: None,
+            inlogstap: Some(Inlogstap {
+                cel: cel.into(),
+                toegang: toegang.into(),
+                dienst: "dienst-1".into(),
+                middel: None,
+            }),
+        });
+        c
+    }
+
+    const TOEGANG: &str = "register_beleid#4#toegang_verleend";
+
+    #[test]
+    fn a_login_step_with_a_user_name_holds() {
+        let stap = "[{stap: inloggen, invoer: {gebruikersnaam: a, wachtwoord: b, dienst: c}}, \
+                    {stap: inloggen, invoer: {gebruikersnaam: a}, uitkomst: geweigerd}]";
+        met_inlogstap(TOEGANG, "register", stap)
+            .verwijzingen_kloppen()
+            .unwrap();
+    }
+
+    #[test]
+    fn a_login_step_that_does_more_than_log_in_is_refused() {
+        for (stap, verwacht) in [
+            ("{stap: inloggen}", "without the user name"),
+            (
+                "{stap: inloggen, invoer: {gebruikersnaam: 1}}",
+                "without the user name",
+            ),
+            (
+                "{stap: inloggen, invoer: {gebruikersnaam: a, kvk_nummer: '1'}}",
+                "with 'kvk_nummer'",
+            ),
+            (
+                "{stap: inloggen, cel: register, invoer: {gebruikersnaam: a}}",
+                "names a cell, a fact",
+            ),
+            (
+                "{stap: inloggen, op: 1, invoer: {gebruikersnaam: a}}",
+                "names a cell, a fact",
+            ),
+            (
+                "{stap: inloggen, invoer: {gebruikersnaam: a}, uitvoer: {x: 1}}",
+                "names a cell, a fact",
+            ),
+            (
+                "{stap: inloggen, invoer: {gebruikersnaam: a}, uitkomst: toegewezen}",
+                "an outcome other than geweigerd",
+            ),
+        ] {
+            let c = met_inlogstap(TOEGANG, "register", &format!("[{stap}]"));
+            assert!(fout(&c).contains(verwacht), "{stap}: {}", fout(&c));
+        }
+    }
+
+    #[test]
+    fn a_login_step_names_another_cell_and_an_output() {
+        let c = met_inlogstap(TOEGANG, "gemeente", "[]");
+        assert!(
+            fout(&c).contains("no other cell of the case"),
+            "{}",
+            fout(&c)
+        );
+        let c = met_inlogstap("register_beleid#toegang", "register", "[]");
+        assert!(
+            fout(&c).contains("no <regelwerk>#<article>#<name>"),
+            "{}",
+            fout(&c)
+        );
     }
 }

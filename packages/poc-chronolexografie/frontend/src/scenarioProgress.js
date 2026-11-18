@@ -12,6 +12,7 @@ import { isOntvangst } from './beroep.js';
 import {
   aanvragen,
   besluitOp,
+  besluitenOnder,
   bezwaarBasis,
   isBesluit,
   state,
@@ -24,7 +25,9 @@ export function counts() {
     (g) => isBesluit(g) && g.basis === bezwaarBasis(),
   );
   const uit = (g) => g.outputs ?? {};
-  const andere = state.andere.flatMap((a) => a.grammen);
+  // Every cell's records, the case's own among them: its own cell records a
+  // fact too, such as a payment on its decision.
+  const alle = [...state.grammen, ...state.andere.flatMap((a) => a.grammen)];
   return {
     aanvragen: aanvragen().length,
     // Per application that has a decision, in order: whether it grants.
@@ -44,15 +47,19 @@ export function counts() {
     beroepen: state.rechter.filter((g) => g.kind === 'BEROEP').length,
     uitspraken: state.rechter.filter((g) => g.kind === 'UITSPRAAK').length,
     ontvangsten: state.grammen.filter(isOntvangst).length,
-    /** Executograms of fact `fact` in the other cells whose fields match `velden`. */
+    /** Executograms of fact `fact` in every cell whose fields match `velden`. */
     executogrammen: (fact, velden = {}) =>
-      andere.filter(
+      alle.filter(
         (g) =>
           g.kind === 'EXECUTOGRAM' &&
           g.fact === fact &&
           Object.entries(velden).every(([k, v]) => g.fields?.[k] === v),
       ).length,
+    /** Decisions of the case's cell under `artikel` that no submission asked for. */
+    ambtshalve: (artikel) => besluitenOnder(artikel).length,
     refusals: state.refusals,
+    // The play date: a check step (toetsen) is done once it is reached.
+    datum: state.datum,
   };
 }
 

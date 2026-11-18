@@ -15,13 +15,13 @@ use regelrecht_cel::{
     Cell, Disk, EXECUTOGRAM, Error, Files, Gram, Reference, Source, decision, reading, shape,
 };
 use regelrecht_engine::{
-    ArticleResult, Authority, EngineError, FilledBy, LawExecutionService, OpenTermFilled,
-    ParameterType, PathNode, PathNodeType,
+    AnswerProvenance, ArticleResult, Authority, EngineError, FilledBy, LawExecutionService,
+    OpenTermFilled, ParameterType, PathNode, PathNodeType,
 };
 use regelrecht_law_model::stored;
 use serde_json::{Map, Value, json};
 
-use crate::casus::{Afleiding, Beroep, Casus, Regelwerken, afleiden, casussen};
+use crate::casus::{Afleiding, Casus, Indiening, Regelwerken, afleiden, casussen};
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -46,6 +46,14 @@ pub struct Corpus {
     /// Where the cell directories are read from: the disk, or the bundle a
     /// browser holds.
     files: Arc<dyn Files>,
+    /// Per field of an application, the source the form prefills it from
+    /// (`<regelwerk>#<article>#<output>`): what the UI spec of the case's
+    /// source says ([`crate::ui_spec`]), or for a case of this crate its own
+    /// ([`eigen_ui_spec`]). Empty without one.
+    pub prefill: BTreeMap<String, String>,
+    /// The views the same UI spec puts beside each decision of the case's
+    /// cell ([`crate::ui_spec::Weergave`]). Empty without one.
+    pub weergaven: Vec<crate::ui_spec::Weergave>,
 }
 
 /// The cell of the case and the other cells of its sphere (RFC-048). It
@@ -121,6 +129,44 @@ impl Cellen {
         Ok((cell, sfeer))
     }
 
+    /// The cell `cel` of the case, the case's own or another, to record in,
+    /// with every other cell of the case as its sphere.
+    pub fn splits_voor(&mut self, cel: &str) -> Result<(&mut Cell, Vec<&Cell>)> {
+        if self.eigen.recording_actor() == cel {
+            Ok(self.splits())
+        } else {
+            self.splits_op(cel)
+        }
+    }
+
+    /// [`Cellen::splits_voor`] to read.
+    pub fn voor(&self, cel: &str) -> Result<(&Cell, Vec<&Cell>)> {
+        if self.eigen.recording_actor() == cel {
+            Ok((&self.eigen, self.sfeer()))
+        } else {
+            self.op(cel)
+        }
+    }
+
+    /// The cell whose chronicle holds the record `id`, by its recording
+    /// actor.
+    pub fn houder(&self, id: &str) -> Result<&str> {
+        std::iter::once(&self.eigen)
+            .chain(&self.andere)
+            .find(|c| c.grams().iter().any(|g| g.id == id))
+            .map(Cell::recording_actor)
+            .ok_or_else(|| Error::Refused(format!("no cell of this case holds '{id}'")))
+    }
+
+    /// The record `id`, in whichever cell of the case holds it.
+    pub fn gram(&self, id: &str) -> Result<&Gram> {
+        std::iter::once(&self.eigen)
+            .chain(&self.andere)
+            .flat_map(|c| c.grams())
+            .find(|g| g.id == id)
+            .ok_or_else(|| Error::Refused(format!("no cell of this case holds '{id}'")))
+    }
+
     /// Copies of every cell with the chronicle in memory, to try a decision
     /// on ([`Cell::sandbox`]).
     pub fn sandbox(&self) -> Self {
@@ -190,6 +236,8 @@ impl Corpus {
             cell_dir,
             andere_dirs,
             files,
+            prefill: BTreeMap::new(),
+            weergaven: Vec::new(),
         })
     }
 
@@ -198,7 +246,8 @@ impl Corpus {
         Self::alle_in(Arc::new(Disk), &[root.to_path_buf()], casus_dir)
     }
 
-    /// Every case in `casus_dir` on the corpus at `roots`, all in `files`.
+    /// Every case in `casus_dir` on the corpus at `roots`, all in `files`,
+    /// each with the prefill and the views of its own UI spec ([`eigen_ui_spec`]).
     pub fn alle_in(
         files: Arc<dyn Files>,
         roots: &[PathBuf],
@@ -207,7 +256,13 @@ impl Corpus {
         let regelwerken = Regelwerken::load(&*files, roots)?;
         casussen(&*files, casus_dir)?
             .into_iter()
-            .map(|c| Self::load(files.clone(), roots, &regelwerken, c))
+            .map(|c| {
+                let spec = eigen_ui_spec(&*files, casus_dir, &c.id)?;
+                let mut corpus = Self::load(Arc::clone(&files), roots, &regelwerken, c)?;
+                corpus.prefill = spec.prefill;
+                corpus.weergaven = spec.weergaven;
+                Ok(corpus)
+            })
             .collect()
     }
 
@@ -317,12 +372,42 @@ impl Corpus {
             .map(String::as_str)
     }
 
-    /// The appeal of the case, or a refusal for a case without a court.
-    fn beroep(&self) -> Result<&Beroep> {
-        self.afleiding
-            .beroep
-            .as_ref()
-            .ok_or_else(|| Error::Refused(format!("the case '{}' has no court", self.casus.id)))
+    /// The submission that `artikel` establishes in this case, or a
+    /// refusal for an article that establishes none a cell of the case
+    /// decides on.
+    fn indiening(&self, artikel: &str) -> Result<&Indiening> {
+        self.afleiding.indiening(artikel).ok_or_else(|| {
+            Error::Refused(format!(
+                "{artikel} establishes no submission that a cell of the case '{}' decides on",
+                self.casus.id
+            ))
+        })
+    }
+
+    /// The article whose decision the submission `op` asks for, as
+    /// `(law, article)`: the one [`Indiening::besluit`] names for the article
+    /// that established it.
+    fn gevraagd(&self, cellen: &Cellen, op: &str) -> Result<(&str, &str)> {
+        let ingediend = cellen.gram(op)?;
+        let indiening = self.indiening(&ingediend.basis).map_err(|_| {
+            Error::Refused(format!(
+                "'{op}' is no submission a cell of this case decides on: it is a {} under {}",
+                ingediend.kind, ingediend.basis
+            ))
+        })?;
+        basis(&indiening.besluit)
+    }
+
+    /// The name of the cell `cel` as the visitor reads it.
+    pub fn cel_naam<'a>(&'a self, cel: &'a str) -> &'a str {
+        if cel == self.casus.cel {
+            return &self.casus.cel_naam;
+        }
+        self.casus
+            .andere_cellen
+            .iter()
+            .find(|a| a.cel == cel)
+            .map_or(cel, |a| a.cel_naam.as_str())
     }
 
     /// The paths of the cells the case runs under `cells/` of the corpus: its own,
@@ -341,14 +426,6 @@ impl Corpus {
         Ok(service)
     }
 
-    fn law(&self) -> &str {
-        &self.afleiding.law
-    }
-
-    fn article(&self) -> &str {
-        &self.afleiding.article
-    }
-
     /// The law and article whose decision the application asks for.
     fn decision_law(&self) -> &str {
         &self.afleiding.decision_law
@@ -358,26 +435,32 @@ impl Corpus {
         &self.afleiding.decision
     }
 
-    fn awb(&self) -> &str {
-        &self.afleiding.objection_law
-    }
-
-    fn objection(&self) -> &str {
-        &self.afleiding.objection
-    }
-
     /// The case as the app shows it: its text and scenarios, and what
     /// follows from the law.
     pub fn beschrijving(&self) -> Value {
         let c = &self.casus;
         let a = &self.afleiding;
-        // The court: the other cell that the law makes the one who decides
-        // on the appeal ([`Beroep::rechter`]).
-        let rechter = a
-            .beroep
-            .as_ref()
-            .and_then(|b| c.andere_cellen.iter().find(|x| x.cel == b.rechter))
-            .map(|r| json!({ "cel": r.cel, "cel_naam": r.cel_naam }));
+        // Per submission and per decision taken ex officio, the cell that
+        // decides, by the name the case gives it.
+        let indieningen: Vec<Value> = a
+            .indieningen
+            .iter()
+            .map(|i| {
+                json!({
+                    "artikel": i.artikel,
+                    "soort": i.soort,
+                    "besluit": i.besluit,
+                    "cel": i.cel,
+                    "cel_naam": self.cel_naam(&i.cel),
+                    "ontvangst": i.ontvangst,
+                })
+            })
+            .collect();
+        let ambtshalve: Vec<Value> = a
+            .ambtshalve
+            .iter()
+            .map(|x| json!({ "artikel": x.artikel, "cel": x.cel, "cel_naam": self.cel_naam(&x.cel) }))
+            .collect();
         json!({
             "id": c.id,
             "bron": c.bron,
@@ -389,12 +472,12 @@ impl Corpus {
             "voorbeeld": c.voorbeeld,
             "begin": c.begin,
             "andere_cellen": c.andere_cellen,
+            "inloggen": c.inloggen,
             "scenarios": c.scenarios,
+            "artikel": c.artikel,
             "besluit": format!("{}#{}", a.decision_law, a.decision),
-            "beslissing_op_bezwaar": format!("{}#{}", a.objection_law, a.objection),
-            "rechter": rechter,
-            "beroep": a.beroep.as_ref().map(|b| format!("{}#{}", b.law, b.article)),
-            "ontvangst": a.beroep.as_ref().map(|b| b.ontvangst.clone()),
+            "indieningen": indieningen,
+            "ambtshalve": ambtshalve,
             "rol": a.rol,
             "regelwerken": self.regelwerken.iter().map(|(id, naam, map)| json!({
                 "id": id,
@@ -431,6 +514,13 @@ fn cel_dir(files: &dyn Files, roots: &[PathBuf], cel: &str) -> PathBuf {
         .unwrap_or_else(|| Path::new("cells").join(cel))
 }
 
+/// `<law>#<article>` as `(law, article)`.
+fn basis(artikel: &str) -> Result<(&str, &str)> {
+    artikel
+        .split_once('#')
+        .ok_or_else(|| Error::Setup(format!("'{artikel}' names no article")))
+}
+
 /// The object `v` as a map; a value that is no object is an error.
 fn object(v: Value) -> Result<Map<String, Value>> {
     match v {
@@ -439,14 +529,22 @@ fn object(v: Value) -> Result<Map<String, Value>> {
     }
 }
 
-/// A field as the forms show it.
+/// A field as the forms show it. A table (schema v0.8.20) also names its
+/// columns, each with its name and type; a row may leave any of them empty.
 fn veld(field: &shape::Field) -> Value {
-    json!({
-        "naam": field.name,
-        "type": field.type_,
-        "mag_leeg": field.nullable,
-        "basis": field.first_declared_by(),
-    })
+    let mut veld = Map::new();
+    veld.insert("naam".into(), json!(field.name));
+    veld.insert("type".into(), json!(field.type_));
+    veld.insert("mag_leeg".into(), json!(field.nullable));
+    veld.insert("basis".into(), json!(field.first_declared_by()));
+    if let Some(columns) = &field.columns {
+        let kolommen = columns
+            .iter()
+            .map(|c| json!({ "naam": c.name, "type": c.column_type }))
+            .collect();
+        veld.insert("kolommen".into(), Value::Array(kolommen));
+    }
+    Value::Object(veld)
 }
 
 /// The fields of a submission that its submitter fills: not a field of
@@ -540,49 +638,269 @@ fn eigen_velden(service: &LawExecutionService, gram: &Gram) -> Vec<String> {
         .collect()
 }
 
-/// What the law asks on `on`: the fields of the application, the deciding
-/// authority's findings on it and the fields of the objection. All of it is
-/// derived from the law, for this cell: a term the cell answers from its
-/// chronicle is no finding of the authority, so the form does not ask it. An
-/// objection does not change the application; a smaller request is a new
-/// application. What the authority finds anew on an objection follows from
-/// the contested decision ([`heroverweging`]).
+/// What the law asks on `on`, per article: the fields of each submission
+/// the case's regelwerken establish (`indieningen`), and per decision what
+/// the authority that takes it finds and gives (`besluiten`), for a
+/// decision on a submission and for one taken ex officio alike. All of it
+/// is derived from the law, for this cell: a term the cell answers from its
+/// chronicle is no finding of the authority, so the form does not ask it. A
+/// submission that refers to a decision does not change what that decision
+/// was taken on; a smaller request is a new application. What the
+/// authority finds anew on such a submission follows from the decision it
+/// refers to ([`voor_beslissen`]).
 pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
     let service = corpus.service()?;
     let beantwoord = cell.gebonden(&service, on);
-    let aanvraag = shape::derive(&service, corpus.law(), corpus.article(), on)?;
-    let besluit = decision::derive(&service, corpus.decision_law(), corpus.decision(), on)?;
-    let bezwaar = shape::derive(&service, corpus.awb(), corpus.objection(), on)?;
-    let op_bezwaar = decision::derive(&service, corpus.awb(), corpus.objection(), on)?;
     let moment = |s: &shape::Shape| {
         s.moment
             .as_ref()
             .map(|m| json!({ "parameter": m.parameter, "basis": m.declared_by }))
     };
-    // The form asks the findings of the deciding article itself. One that a
-    // policy leaves to the authority where its cell is silent, it asks only
-    // when the preview shows the case reaches it ([`voorvertonen`]).
-    // What the authority supplies, such as a parameter of a hook on the
-    // decision, it gives in the same form: the cell splits the two
-    // ([`decide`]).
-    let wie = cell.eigen.authority();
-    let mut bevindingen: Vec<Value> = eigen_oordelen(&besluit, wie)
-        .map(|t| veld(&decision::finding_field(t)))
-        .collect();
-    // Not one the policy fills, nor one by the name of a finding: the cell
-    // refuses those as a value of the authority.
-    bevindingen.extend(
-        besluit
-            .inputs
+    let mut indieningen = Map::new();
+    let mut besluiten = Map::new();
+    for i in &corpus.afleiding.indieningen {
+        let (law, article) = basis(&i.artikel)?;
+        let vorm = shape::derive(&service, law, article, on)?;
+        let mut indiening = json!({
+            "soort": vorm.kind,
+            "basis": vorm.basis(),
+            "velden": in_te_vullen(&vorm),
+            "moment": moment(&vorm),
+            "besluit": i.besluit,
+            "cel": i.cel,
+        });
+        // The application of the case: who the applicant can log in as
+        // ([`inloggen`]), and the fields the UI spec prefills, each with its
+        // source ([`voorinvullen`]).
+        if i.artikel == corpus.casus.artikel {
+            indiening["inloggen"] = inloggen(corpus, cell, &service, &vorm, on)?;
+            indiening["prefill"] = json!(
+                corpus
+                    .prefill
+                    .iter()
+                    .filter(|(veld, _)| vraagt(&vorm, veld))
+                    .collect::<BTreeMap<_, _>>()
+            );
+        }
+        indieningen.insert(i.artikel.clone(), indiening);
+        if !besluiten.contains_key(&i.besluit) {
+            let vorm = besluit_vorm(
+                corpus,
+                &service,
+                cell,
+                &beantwoord,
+                &i.besluit,
+                &i.cel,
+                false,
+                on,
+            )?;
+            besluiten.insert(i.besluit.clone(), vorm);
+        }
+    }
+    for a in &corpus.afleiding.ambtshalve {
+        let vorm = besluit_vorm(
+            corpus,
+            &service,
+            cell,
+            &beantwoord,
+            &a.artikel,
+            &a.cel,
+            true,
+            on,
+        )?;
+        besluiten.insert(a.artikel.clone(), vorm);
+    }
+    Ok(json!({
+        "indieningen": indieningen,
+        "besluiten": besluiten,
+        "andere_cellen": handelingen(&service, corpus, cell, on)?,
+        "eigen": eigen_handelingen(&service, corpus, cell, on)?,
+        "per_besluit": weergaven(&service, corpus, on),
+        "eigen_velden": std::iter::once(&cell.eigen)
+            .chain(&cell.andere)
+            .flat_map(|c| c.grams())
+            .map(|g| (g.id.clone(), json!(eigen_velden(&service, g))))
+            .collect::<Map<String, Value>>(),
+    }))
+}
+
+/// The views the UI spec puts beside each decision of the case's cell
+/// ([`crate::ui_spec::Weergave`]), with what the law in force on `on` says of
+/// each source: per answer its output's type, unit and description and the
+/// parameters its article takes, and per field the element asks the
+/// parameter of an answer's article by that name. What the law does not hold
+/// is no error that stops the page: the answer or field carries it as `fout`.
+fn weergaven(service: &LawExecutionService, corpus: &Corpus, on: NaiveDate) -> Vec<Value> {
+    corpus
+        .weergaven
+        .iter()
+        .map(|w| {
+            let antwoorden: Vec<Value> = w
+                .antwoorden
+                .iter()
+                .map(|a| antwoord_vorm(service, a, on))
+                .collect();
+            let velden: Vec<Value> = w
+                .gevraagd
+                .iter()
+                .map(|naam| gevraagd_veld(service, &w.antwoorden, naam, on))
+                .collect();
+            json!({ "naam": w.naam, "antwoorden": antwoorden, "velden": velden })
+        })
+        .collect()
+}
+
+/// The article of `bron` (`<regelwerk>#<article>#<output>`) in the law in
+/// force on `on`, or why there is none.
+fn bron_artikel<'s>(
+    service: &'s LawExecutionService,
+    bron: &str,
+    on: NaiveDate,
+) -> std::result::Result<&'s regelrecht_law_model::Article, String> {
+    let mut delen = bron.splitn(3, '#');
+    let (Some(law), Some(nummer)) = (delen.next(), delen.next()) else {
+        return Err(format!("'{bron}' names no article"));
+    };
+    service
+        .resolver()
+        .get_law_for_date(law, Some(on))
+        .ok_or_else(|| format!("'{law}' is not in force on {on}"))?
+        .find_article_by_number(nummer)
+        .ok_or_else(|| format!("'{law}' has no article {nummer} on {on}"))
+}
+
+/// One answer of a view as the page shows it: the source with its output's
+/// type, unit and description and the parameters its article takes, or with
+/// `fout` when the law holds no such output or the article takes no
+/// parameter by the name of `besluit`.
+fn antwoord_vorm(
+    service: &LawExecutionService,
+    a: &crate::ui_spec::Antwoord,
+    on: NaiveDate,
+) -> Value {
+    let mut uit = json!({ "veld": a.veld, "bron": a.bron, "besluit": a.besluit });
+    let naam = a.bron.rsplit('#').next().unwrap_or_default();
+    let gevonden = bron_artikel(service, &a.bron, on).and_then(|art| {
+        let output = art
+            .get_outputs()
             .iter()
-            .filter(|i| {
-                i.source == Source::Supplied
-                    && i.field.type_ != ParameterType::Decision
-                    && !besluit.filled(&i.field.name)
-                    && besluit.finding(&i.field.name, wie).is_none()
-            })
-            .map(|i| veld(&i.field)),
-    );
+            .find(|o| o.name == naam)
+            .ok_or_else(|| format!("{} has no output '{naam}'", a.bron))?;
+        if !art.get_parameters().iter().any(|p| p.name == a.besluit) {
+            return Err(format!("{} takes no parameter '{}'", a.bron, a.besluit));
+        }
+        Ok((art, output))
+    });
+    match gevonden {
+        Ok((art, output)) => {
+            uit["type"] = json!(output.output_type);
+            uit["eenheid"] = json!(output.type_spec.as_ref().and_then(|t| t.unit.as_deref()));
+            uit["beschrijving"] = json!(output.description);
+            uit["parameters"] = json!(
+                art.get_parameters()
+                    .iter()
+                    .map(|p| &p.name)
+                    .collect::<Vec<_>>()
+            );
+        }
+        Err(e) => uit["fout"] = json!(e),
+    }
+    uit
+}
+
+/// A field a view asks, as a form field: the parameter `naam` of the first
+/// article among `antwoorden` that takes one, or a field with `fout` when
+/// none does. The authority may leave it empty; the article says what
+/// follows.
+fn gevraagd_veld(
+    service: &LawExecutionService,
+    antwoorden: &[crate::ui_spec::Antwoord],
+    naam: &str,
+    on: NaiveDate,
+) -> Value {
+    let gevonden = antwoorden.iter().find_map(|a| {
+        let art = bron_artikel(service, &a.bron, on).ok()?;
+        let p = art.get_parameters().iter().find(|p| p.name == naam)?;
+        let (basis, _) = a.bron.rsplit_once('#')?;
+        Some((p, basis))
+    });
+    match gevonden {
+        Some((p, basis)) => json!({
+            "naam": naam,
+            "type": p.param_type,
+            "mag_leeg": true,
+            "basis": basis,
+            "beschrijving": p.description,
+        }),
+        None => json!({
+            "naam": naam,
+            "fout": format!("no source of the view takes a parameter '{naam}'"),
+        }),
+    }
+}
+
+/// The form of the decision under `artikel` that the cell `cel` takes, on a
+/// submission or `ex_officio`: what its authority finds, where each input
+/// comes from (`invoer`) and its outputs.
+///
+/// The case's own cell is asked the findings of the deciding article
+/// itself. One that a policy leaves to the authority where its cell is
+/// silent, the form asks only when the preview shows the case reaches it
+/// ([`voorvertonen`]). What the authority supplies, such as a parameter of
+/// a hook on the decision, it gives in the same form: the cell splits the
+/// two ([`decide`]). Another cell, which decides on a submission against a
+/// decision of the case's cell, also finds what the articles its decision
+/// reads ask of it ([`oordelen_van_een_andere_cel`]), and what the decisions of
+/// the case's cell ask when it takes one in their place
+/// ([`opnieuw_te_beoordelen`]).
+#[allow(clippy::too_many_arguments)]
+fn besluit_vorm(
+    corpus: &Corpus,
+    service: &LawExecutionService,
+    cell: &Cellen,
+    beantwoord: &[reading::Binding],
+    artikel: &str,
+    cel: &str,
+    ex_officio: bool,
+    on: NaiveDate,
+) -> Result<Value> {
+    let (law, article) = basis(artikel)?;
+    let besluit = if ex_officio {
+        decision::derive_ex_officio(service, law, article, on)?
+    } else {
+        decision::derive(service, law, article, on)?
+    };
+    let (beslisser, _) = cell.voor(cel)?;
+    let wie = beslisser.authority();
+    let mut bevindingen: Vec<Value> = if cel == cell.eigen.recording_actor() {
+        let mut eigen: Vec<Value> = eigen_oordelen(&besluit, wie)
+            .map(|t| veld(&decision::finding_field(t)))
+            .collect();
+        // Not one the policy fills, nor one by the name of a finding: the
+        // cell refuses those as a value of the authority.
+        eigen.extend(
+            besluit
+                .inputs
+                .iter()
+                .filter(|i| {
+                    i.source == Source::Supplied
+                        && i.field.type_ != ParameterType::Decision
+                        && !besluit.filled(&i.field.name)
+                        && besluit.finding(&i.field.name, wie).is_none()
+                })
+                .map(|i| veld(&i.field)),
+        );
+        eigen
+    } else {
+        oordelen_van_een_andere_cel(service, &besluit, wie, on)?
+    };
+    if cel != cell.eigen.recording_actor() {
+        for field in opnieuw_te_beoordelen(corpus, service, on)? {
+            if !bevindingen.iter().any(|v| v["naam"] == field.name) {
+                bevindingen.push(veld(&field));
+            }
+        }
+    }
     let mut herkomst: Vec<Value> = besluit
         .inputs
         .iter()
@@ -613,83 +931,165 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
         };
         herkomst.push(json!({ "naam": t.id, "bron": bron }));
     }
-    let mut vormen = json!({
-        "aanvraag": {
-            "soort": aanvraag.kind,
-            "basis": aanvraag.basis(),
-            "velden": in_te_vullen(&aanvraag),
-            "moment": moment(&aanvraag),
-        },
-        "besluit": {
-            "soort": besluit.kind,
-            "basis": besluit.basis(),
-            "bevindingen": bevindingen,
-            "invoer": herkomst,
-            "uitvoer": besluit.outputs,
-        },
-        "bezwaar": {
-            "soort": bezwaar.kind,
-            "basis": bezwaar.basis(),
-            "velden": in_te_vullen(&bezwaar),
-            "moment": moment(&bezwaar),
-        },
-        "beslissing_op_bezwaar": {
-            "soort": op_bezwaar.kind,
-            "basis": op_bezwaar.basis(),
-            "uitvoer": op_bezwaar.outputs,
-        },
-        "andere_cellen": handelingen(&service, corpus, cell, on)?,
-        "eigen_velden": std::iter::once(&cell.eigen)
-            .chain(&cell.andere)
-            .flat_map(|c| c.grams())
-            .map(|g| (g.id.clone(), json!(eigen_velden(&service, g))))
-            .collect::<Map<String, Value>>(),
-    });
-    if let Some(b) = &corpus.afleiding.beroep {
-        let beroep = shape::derive(&service, &b.law, &b.article, on)?;
-        let uitspraak = decision::derive(&service, &b.law, &b.article, on)?;
-        let (rechter, _) = cell.op(&b.rechter)?;
-        let mut bevindingen =
-            oordelen_van_de_rechter(&service, &uitspraak, rechter.authority(), on)?;
-        for field in opnieuw_te_beoordelen(corpus, &service, on)? {
-            if !bevindingen.iter().any(|v| v["naam"] == field.name) {
-                bevindingen.push(veld(&field));
-            }
-        }
-        vormen["beroep"] = json!({
-            "soort": beroep.kind,
-            "basis": beroep.basis(),
-            "velden": in_te_vullen(&beroep),
-            "moment": moment(&beroep),
-        });
-        vormen["uitspraak"] = json!({
-            "soort": uitspraak.kind,
-            "basis": uitspraak.basis(),
-            "bevindingen": bevindingen,
-            "uitvoer": uitspraak.outputs,
-        });
-    }
-    Ok(vormen)
+    Ok(json!({
+        "soort": besluit.kind,
+        "basis": besluit.basis(),
+        "cel": cel,
+        "ambtshalve": ex_officio,
+        "bevindingen": bevindingen,
+        "invoer": herkomst,
+        "uitvoer": besluit.outputs,
+    }))
 }
 
-/// What the court judges when it decides the case itself (Awb 8:72 lid 3
-/// onder b): it calls the contested decision on objection anew, and that
-/// calls the case's decision anew. Their findings are then the court's,
-/// since its judgment takes the place of the decision, also those a policy
-/// leaves to the authority where its cell is silent: the court has no such
-/// chronicle, so there the policy's cell is silent, and the court
-/// supplements the facts itself (8:69 lid 3). So every term that takes a
-/// finding counts, whoever answers it in the decision itself.
+/// What the poc reads from the UI spec a case of this crate keeps in its own
+/// directory, `<casus_dir>/<id>/ui_spec.yaml`, in the form of a source's
+/// ([`crate::ui_spec`]). Empty without one.
+///
+/// # Errors
+///
+/// A UI spec that does not read. Unlike a source's, it is part of this
+/// crate, so it stops the cases of this crate from loading rather than
+/// leaving the form empty, as a broken regelwerk of the crate does.
+fn eigen_ui_spec(files: &dyn Files, casus_dir: &Path, id: &str) -> Result<crate::ui_spec::UiSpec> {
+    let pad = casus_dir.join(id).join(crate::bundel::UI_SPEC);
+    if !files.is_file(&pad) {
+        return Ok(crate::ui_spec::UiSpec::default());
+    }
+    let fout =
+        |e: &dyn std::fmt::Display| Error::Setup(format!("case '{id}', {}: {e}", pad.display()));
+    let tekst = files.read(&pad).map_err(|e| fout(&e))?;
+    crate::ui_spec::lees(&tekst).map_err(|e| fout(&e))
+}
+
+/// Whether the application form of `aanvraag` asks the field `naam`: a
+/// field of the application, and not a decision it refers to.
+fn vraagt(aanvraag: &shape::Shape, naam: &str) -> bool {
+    aanvraag
+        .fields
+        .iter()
+        .any(|f| f.name == naam && f.type_ != ParameterType::Decision)
+}
+
+/// Who the applicant can log in as on `on`, where the case has a login
+/// ([`crate::casus::Inloggen`]): the field of the application the login
+/// fills, the fields of the fact that hold the key and the name, and per key
+/// the latest record of the login fact in a cell of the case, as that cell
+/// knows it on `on`: the key as text, the name it shows, the cell, the day it
+/// was recorded and what it holds. In the order they were recorded. A record
+/// without the key offers nothing. `null` without a login.
+fn inloggen(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    service: &LawExecutionService,
+    aanvraag: &shape::Shape,
+    on: NaiveDate,
+) -> Result<Value> {
+    let Some(login) = &corpus.casus.inloggen else {
+        return Ok(Value::Null);
+    };
+    if !vraagt(aanvraag, &login.veld) {
+        return Err(Error::Refused(format!(
+            "the case logs in on '{}', which is no field of the application",
+            login.veld
+        )));
+    }
+    let velden = shape::fact_fields(service, &login.feit, on, None)?;
+    for naam in std::iter::once(&login.sleutel).chain(&login.naam) {
+        if !velden.iter().any(|f| &f.name == naam) {
+            return Err(Error::Refused(format!(
+                "the login fact {} holds no '{naam}'",
+                login.feit
+            )));
+        }
+    }
+    // With a login step, the form reads who is logged in from the session
+    // the browser keeps; the chronicle offers no choice.
+    if login.inlogstap.is_some() {
+        return Ok(json!({
+            "veld": login.veld,
+            "feit": login.feit,
+            "sleutel": login.sleutel,
+            "inlogstap": crate::inlogstap::aanbod(corpus, cellen, on)?,
+        }));
+    }
+    let (basis, feit) = shape::split_fact(&login.feit)?;
+    let mut vastleggingen: Vec<(&Cell, &Gram, String)> = std::iter::once(&cellen.eigen)
+        .chain(&cellen.andere)
+        .flat_map(|cel| cel.grams().iter().map(move |g| (cel, g)))
+        .filter(|(_, g)| {
+            g.kind == EXECUTOGRAM
+                && g.basis == basis
+                && g.fact.as_deref() == Some(feit)
+                && g.recorded_on <= on
+        })
+        .filter_map(|(cel, g)| {
+            let sleutel = match g.fields.get(&login.sleutel)? {
+                Value::Null => return None,
+                Value::String(s) => s.clone(),
+                ander => ander.to_string(),
+            };
+            Some((cel, g, sleutel))
+        })
+        .collect();
+    // The latest record per key: a key that logs in again shows what was
+    // recorded then.
+    vastleggingen.sort_by_key(|(_, g, _)| g.recorded_on);
+    let mut laatste: BTreeMap<&str, usize> = BTreeMap::new();
+    for (i, (_, _, sleutel)) in vastleggingen.iter().enumerate() {
+        laatste.insert(sleutel, i);
+    }
+    let mut gekozen: Vec<usize> = laatste.into_values().collect();
+    gekozen.sort_unstable();
+    let keuzes: Vec<Value> = gekozen
+        .into_iter()
+        .map(|i| {
+            let (cel, g, sleutel) = &vastleggingen[i];
+            json!({
+                "waarde": sleutel,
+                "naam": login.naam.as_ref().and_then(|n| g.fields.get(n)),
+                "cel": cel.recording_actor(),
+                "vastgelegd_op": g.recorded_on,
+                "velden": g.fields,
+            })
+        })
+        .collect();
+    Ok(json!({
+        "veld": login.veld,
+        "feit": login.feit,
+        "sleutel": login.sleutel,
+        "naam": login.naam,
+        "keuzes": keuzes,
+    }))
+}
+
+/// What another cell judges when it takes a decision in the place of one
+/// of the case's cell (Awb 8:72 lid 3 onder b, for the court): its decision
+/// calls the decisions of the case's cell anew, the decision on a
+/// submission against a decision as much as the decision on an
+/// application. Their findings are then that cell's, since its decision
+/// takes the place of theirs, also those a policy leaves to the authority
+/// where its cell is silent: the other cell has no such chronicle, so there
+/// the policy's cell is silent, and it supplements the facts itself (8:69
+/// lid 3). So every term that takes a finding counts, whoever answers it in
+/// the decision itself. Those are the decisions of every submission the
+/// case's cell decides on.
 fn opnieuw_te_beoordelen(
     corpus: &Corpus,
     service: &LawExecutionService,
     on: NaiveDate,
 ) -> Result<Vec<shape::Field>> {
     let mut uit: Vec<shape::Field> = Vec::new();
-    for shape in [
-        decision::derive(service, corpus.awb(), corpus.objection(), on)?,
-        decision::derive(service, corpus.decision_law(), corpus.decision(), on)?,
-    ] {
+    let mut gezien: Vec<&str> = Vec::new();
+    // The later submissions first, as the decision on them calls the
+    // earlier ones anew.
+    for i in corpus.afleiding.indieningen.iter().rev() {
+        if i.cel != corpus.casus.cel || gezien.contains(&i.besluit.as_str()) {
+            continue;
+        }
+        gezien.push(&i.besluit);
+        let (law, article) = basis(&i.besluit)?;
+        let shape = decision::derive(service, law, article, on)?;
         for t in shape.terms.iter().filter(|t| t.asks_finding()) {
             if !uit.iter().any(|f| f.name == t.id) {
                 uit.push(decision::finding_field(t));
@@ -705,7 +1105,7 @@ fn opnieuw_te_beoordelen(
 /// engine says ([`LawExecutionService::decision_terms`]). Those the deciding
 /// article asks only when it reads that article: 8:70 reads 8:72 for a
 /// well-founded appeal. Each has its article as `basis`.
-fn oordelen_van_de_rechter(
+fn oordelen_van_een_andere_cel(
     service: &LawExecutionService,
     shape: &decision::DecisionShape,
     wie: &Authority,
@@ -765,70 +1165,176 @@ fn handelingen(
 ) -> Result<Vec<Value>> {
     let mut uit = Vec::new();
     for (cell, andere) in cellen.andere.iter().zip(&corpus.casus.andere_cellen) {
-        let mut feiten: Vec<String> = Vec::new();
-        // Only a reduction reads a chronicle (RFC-048).
-        for (_, reduction) in reducties_in(&|id: &str| service.resolver().get_law(id), &[cell]) {
-            for article in &reduction.articles {
-                let gelezen = article
-                    .get_inputs()
-                    .iter()
-                    .filter_map(|input| input.source.as_ref()?.facts.clone());
-                // The aggregates a read model reads, and a projection of the
-                // reduction itself (schema v0.8.14 to v0.8.16).
-                let gelezen_aggregaten: Vec<_> = article
-                    .get_inputs()
-                    .iter()
-                    .filter_map(|input| input.source.as_ref()?.projections.as_deref())
-                    .filter_map(|reference| aggregaat_artikelen(service, reference, on))
-                    .flat_map(|(_, artikelen)| artikelen)
-                    .collect();
-                let gespeeld = std::iter::once(article)
-                    .chain(gelezen_aggregaten)
-                    .filter_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
-                    .flat_map(|p| {
-                        p.per_basis_and_kind()
-                            .into_iter()
-                            .chain(p.steps.iter().map(|s| s.basis_and_kind()))
-                    })
-                    .flat_map(|(basis, kind)| {
-                        feiten_van_record(service, basis, kind, on).unwrap_or_default()
-                    });
-                for f in gelezen.chain(gespeeld) {
-                    if !feiten.contains(&f) {
-                        feiten.push(f);
-                    }
-                }
+        let mut feiten = gelezen_feiten(service, cell, on);
+        for f in benoemde_feiten(service, corpus, cell, on) {
+            if !feiten.contains(&f) {
+                feiten.push(f);
             }
-        }
-        for (id, _, _) in &corpus.regelwerken {
-            for article in service
-                .resolver()
-                .get_law(id)
-                .iter()
-                .flat_map(|w| &w.articles)
-            {
-                for f in shape::facts_established_by(id, article, cell.authority()) {
-                    if !feiten.contains(&f) {
-                        feiten.push(f);
-                    }
-                }
-            }
-        }
-        let mut acts = Vec::new();
-        for feit in feiten {
-            let velden: Vec<Value> = shape::fact_fields(service, &feit, on, None)?
-                .iter()
-                .map(veld)
-                .collect();
-            acts.push(json!({ "feit": feit, "velden": velden }));
         }
         uit.push(json!({
             "cel": cell.recording_actor(),
             "cel_naam": andere.cel_naam,
-            "handelingen": acts,
+            "handelingen": met_velden(service, feiten, on)?,
         }));
     }
     Ok(uit)
+}
+
+/// What the case's own cell records by hand while it handles the case, such
+/// as a payment on its decision: the facts of the regelwerken of the case
+/// that name it as who establishes them, without those it records as the
+/// receipt of a fact of another cell ([`afleveren`]) or of a copy of a
+/// decision. A fact that names no one, the case's cell does not record
+/// during the case, unlike another cell: the law has to give it that task.
+/// Each fact comes with its fields, as for another cell ([`handelingen`]).
+fn eigen_handelingen(
+    service: &LawExecutionService,
+    corpus: &Corpus,
+    cellen: &Cellen,
+    on: NaiveDate,
+) -> Result<Value> {
+    let eigen = &cellen.eigen;
+    // The receipt of a copy of a decision of another cell arrives with the
+    // copy (`Indiening::ontvangst`). No such fact in this crate's corpus names
+    // an authority, so this guards a regelwerk that does.
+    let afschriften: Vec<&str> = corpus
+        .afleiding
+        .indieningen
+        .iter()
+        .filter_map(|i| i.ontvangst.as_deref())
+        .collect();
+    let mut feiten = Vec::new();
+    for feit in benoemde_feiten(service, corpus, eigen, on) {
+        if !afschriften.contains(&feit.as_str())
+            && !is_ontvangst(service, &feit, eigen.authority(), on)?
+        {
+            feiten.push(feit);
+        }
+    }
+    Ok(json!({
+        "cel": eigen.recording_actor(),
+        "cel_naam": corpus.casus.cel_naam,
+        "handelingen": met_velden(service, feiten, on)?,
+    }))
+}
+
+/// The facts whose executograms the reductions of `cell` read: a reduction
+/// is the only regelwerk that reads a chronicle (RFC-048).
+fn gelezen_feiten(service: &LawExecutionService, cell: &Cell, on: NaiveDate) -> Vec<String> {
+    let mut feiten: Vec<String> = Vec::new();
+    for (_, reduction) in reducties_in(&|id: &str| service.resolver().get_law(id), &[cell]) {
+        for article in &reduction.articles {
+            let gelezen = article
+                .get_inputs()
+                .iter()
+                .filter_map(|input| input.source.as_ref()?.facts.clone());
+            // The aggregates a read model reads, and a projection of the
+            // reduction itself (schema v0.8.14 to v0.8.16).
+            let gelezen_aggregaten: Vec<_> = article
+                .get_inputs()
+                .iter()
+                .filter_map(|input| input.source.as_ref()?.projections.as_deref())
+                .filter_map(|reference| aggregaat_artikelen(service, reference, on))
+                .flat_map(|(_, artikelen)| artikelen)
+                .collect();
+            let gespeeld = std::iter::once(article)
+                .chain(gelezen_aggregaten)
+                .filter_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
+                .flat_map(|p| {
+                    p.per_basis_and_kind()
+                        .into_iter()
+                        .chain(p.steps.iter().map(|s| s.basis_and_kind()))
+                })
+                .flat_map(|(basis, kind)| {
+                    feiten_van_record(service, basis, kind, on).unwrap_or_default()
+                });
+            for f in gelezen.chain(gespeeld) {
+                if !feiten.contains(&f) {
+                    feiten.push(f);
+                }
+            }
+        }
+    }
+    feiten
+}
+
+/// The facts of the regelwerken of the case in force on `on` that name
+/// `cell` as who establishes them (`competent_authority`).
+fn benoemde_feiten(
+    service: &LawExecutionService,
+    corpus: &Corpus,
+    cell: &Cell,
+    on: NaiveDate,
+) -> Vec<String> {
+    let mut feiten: Vec<String> = Vec::new();
+    for (id, _, _) in &corpus.regelwerken {
+        for article in service
+            .resolver()
+            .get_law_for_date(id, Some(on))
+            .iter()
+            .flat_map(|w| &w.articles)
+        {
+            for f in shape::facts_established_by(id, article, cell.authority()) {
+                if !feiten.contains(&f) {
+                    feiten.push(f);
+                }
+            }
+        }
+    }
+    feiten
+}
+
+/// Whether the cell of `authority` records `feit` as the receipt of another
+/// fact of the same article ([`shape::receipt_of`]), as the municipality
+/// records the advice the GGD sent it. Such a fact arrives on its own.
+fn is_ontvangst(
+    service: &LawExecutionService,
+    feit: &str,
+    authority: &Authority,
+    on: NaiveDate,
+) -> Result<bool> {
+    let (basis, _) = shape::split_fact(feit)?;
+    let Some((law, nummer)) = basis.split_once('#') else {
+        return Ok(false);
+    };
+    let Some(article) = service
+        .resolver()
+        .get_law_for_date(law, Some(on))
+        .and_then(|l| l.find_article_by_number(nummer))
+    else {
+        return Ok(false);
+    };
+    for ander in article
+        .get_requires()
+        .iter()
+        .filter_map(|r| r.fact.as_deref())
+    {
+        let ander = format!("{basis}#{ander}");
+        if ander != feit
+            && shape::receipt_of(service, &ander, on, authority)?.as_deref() == Some(feit)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Each fact of `feiten` with the fields the article that requires it lists.
+fn met_velden(
+    service: &LawExecutionService,
+    feiten: Vec<String>,
+    on: NaiveDate,
+) -> Result<Vec<Value>> {
+    feiten
+        .into_iter()
+        .map(|feit| {
+            let velden: Vec<Value> = shape::fact_fields(service, &feit, on, None)?
+                .iter()
+                .map(veld)
+                .collect();
+            Ok(json!({ "feit": feit, "velden": velden }))
+        })
+        .collect()
 }
 
 /// The facts (`<regulation>#<article>#<fact>`) whose executograms a step or
@@ -863,10 +1369,16 @@ fn feiten_van_record(
     )
 }
 
-/// Another cell of the sphere records an executogram of the fact `feit`
-/// (`<regulation>#<article>#<fact>`) on `on` (RFC-051), such as the
-/// GGD recording its advice. The case's own cell records nothing itself:
-/// what the fact sends it arrives on its own ([`afleveren`]).
+/// A cell of the case records an executogram of the fact `feit`
+/// (`<regulation>#<article>#<fact>`) on `on` (RFC-051): another cell of the
+/// sphere, such as the GGD recording its advice, or the case's own cell
+/// while it handles the case, such as a payment on its decision. What the
+/// fact of another cell sends the case's cell arrives on its own
+/// ([`afleveren`]).
+///
+/// # Errors
+///
+/// As [`vastleggen_verwijzend`].
 pub fn vastleggen(
     corpus: &Corpus,
     cellen: &mut Cellen,
@@ -878,10 +1390,20 @@ pub fn vastleggen(
     vastleggen_verwijzend(corpus, cellen, cel, feit, velden, None, on)
 }
 
-/// [`vastleggen`], for a fact about the record in the begin of `cel` that
-/// the case names `verwijst_naar` ([`crate::casus::BeginExecutogram::kenmerk`]):
-/// the executogram refers to it (`refers_to`, schema v0.8.17), as a
-/// correction refers to the registration it corrects.
+/// [`vastleggen`], for a fact about an earlier record in the chronicle of
+/// `cel` (`refers_to`, schema v0.8.17), as a correction refers to the
+/// registration it corrects and a payment to the decision it is made on.
+/// `verwijst_naar` names that record by its id, or by the kenmerk the case
+/// gives it in the begin of `cel`
+/// ([`crate::casus::BeginExecutogram::kenmerk`]).
+///
+/// # Errors
+///
+/// Refused when the form offers `cel` no such fact ([`vormen`]): a cell
+/// not of the case, a fact that names another authority, or for the case's
+/// own cell a fact that names no one or that it records as a receipt. Also
+/// when `verwijst_naar` names no record of `cel`, or names a submission, and
+/// whatever the cell refuses ([`Cell::record_executogram_referring`]).
 pub fn vastleggen_verwijzend(
     corpus: &Corpus,
     cellen: &mut Cellen,
@@ -893,22 +1415,26 @@ pub fn vastleggen_verwijzend(
 ) -> Result<Gram> {
     // Only a fact the form offers this cell.
     let service = corpus.service()?;
-    let mag = handelingen(&service, corpus, cellen, on)?
-        .into_iter()
-        .any(|c| {
-            c["cel"] == cel
-                && c["handelingen"]
-                    .as_array()
-                    .is_some_and(|h| h.iter().any(|h| h["feit"] == feit))
-        });
+    let eigen = cel == cellen.eigen.recording_actor();
+    let aangeboden = if eigen {
+        vec![eigen_handelingen(&service, corpus, cellen, on)?]
+    } else {
+        handelingen(&service, corpus, cellen, on)?
+    };
+    let mag = aangeboden.iter().any(|c| {
+        c["cel"] == cel
+            && c["handelingen"]
+                .as_array()
+                .is_some_and(|h| h.iter().any(|h| h["feit"] == feit))
+    });
     if !mag {
         return Err(Error::Refused(format!(
-            "'{cel}' records no fact '{feit}': it is no other cell of this case, or that cell does \
-             not record that fact"
+            "'{cel}' records no fact '{feit}': it is no cell of this case, or the law does not \
+             give that cell that fact to record"
         )));
     }
     let refers_to = match verwijst_naar {
-        Some(kenmerk) => Some(verwezen(corpus, cellen, cel, kenmerk)?),
+        Some(naar) => Some(verwezen(corpus, cellen, cel, naar)?),
         None => None,
     };
     let refers_to = refers_to.as_deref();
@@ -926,18 +1452,37 @@ pub fn vastleggen_verwijzend(
     leg_vast(&service, cellen, cel, feit, velden, refers_to, on)
 }
 
-/// The id of the record that the other cell `cel` made of the executogram
-/// of its begin with `kenmerk`. A chronicle starts with its begin
-/// ([`Corpus::cell`]), so the record is at the executogram's place in it;
-/// a record there of another fact or with other values is a chronicle of
-/// another begin, such as a game saved before the case file changed.
-fn verwezen(corpus: &Corpus, cellen: &Cellen, cel: &str, kenmerk: &str) -> Result<String> {
-    let (i, e) = corpus.casus.met_kenmerk(cel, kenmerk).ok_or_else(|| {
+/// The id of the record of `cel` that `naar` names: a record of its
+/// chronicle by its id, or else the record that cell made of the executogram
+/// of its begin with the kenmerk `naar`. A chronicle starts with its begin
+/// ([`Corpus::cell`]), so that record is at the executogram's place in it; a
+/// record there of another fact or with other values is a chronicle of
+/// another begin, such as a game saved before the case file changed. A
+/// submission is refused: a record that refers to one reads as a decision on
+/// it.
+fn verwezen(corpus: &Corpus, cellen: &Cellen, cel: &str, naar: &str) -> Result<String> {
+    let (cell, _) = cellen.voor(cel)?;
+    if let Some(g) = cell.grams().iter().find(|g| g.id == naar) {
+        let indiening = corpus
+            .afleiding
+            .indieningen
+            .iter()
+            .any(|i| i.artikel == g.basis && i.soort == g.kind);
+        if indiening {
+            return Err(Error::Refused(format!(
+                "'{naar}' is a submission ({}); a fact refers to a decision or to another \
+                 record, since one that refers to a submission would read as a decision on it",
+                g.kind
+            )));
+        }
+        return Ok(g.id.clone());
+    }
+    let (i, e) = corpus.casus.met_kenmerk(cel, naar).ok_or_else(|| {
         Error::Refused(format!(
-            "'{kenmerk}' is the kenmerk of no executogram in the begin of '{cel}'"
+            "'{naar}' is no record in the chronicle of '{cel}' and the kenmerk of no executogram \
+             in its begin"
         ))
     })?;
-    let (cell, _) = cellen.op(cel)?;
     cell.grams()
         .get(i)
         .filter(|g| {
@@ -950,14 +1495,15 @@ fn verwezen(corpus: &Corpus, cellen: &Cellen, cel: &str, kenmerk: &str) -> Resul
         .ok_or_else(|| {
             Error::Refused(format!(
                 "the chronicle of '{cel}' does not start with its begin: no record of '{}' for \
-                 '{kenmerk}'",
+                 '{naar}'",
                 e.feit
             ))
         })
 }
 
-/// The cell `cel` records `feit`, and what that sends the case's cell arrives
-/// ([`afleveren`]).
+/// The cell `cel` records `feit`. What the fact of another cell sends the
+/// case's cell arrives ([`afleveren`]); the case's own cell sends itself
+/// nothing.
 fn leg_vast(
     service: &LawExecutionService,
     cellen: &mut Cellen,
@@ -967,13 +1513,12 @@ fn leg_vast(
     refers_to: Option<&str>,
     on: NaiveDate,
 ) -> Result<Gram> {
-    let cell = cellen
-        .andere
-        .iter_mut()
-        .find(|c| c.recording_actor() == cel)
-        .ok_or_else(|| Error::Refused(format!("'{cel}' is no other cell of this case")))?;
+    let eigen = cel == cellen.eigen.recording_actor();
+    let (cell, _) = cellen.splits_voor(cel)?;
     let gram = cell.record_executogram_referring(service, feit, velden, refers_to, on)?;
-    afleveren(service, &mut cellen.eigen, &gram)?;
+    if !eigen {
+        afleveren(service, &mut cellen.eigen, &gram)?;
+    }
     Ok(gram)
 }
 
@@ -1001,24 +1546,198 @@ fn afleveren(service: &LawExecutionService, eigen: &mut Cell, gram: &Gram) -> Re
     Ok(())
 }
 
-/// The applicant applies: record the application under the case's article,
-/// received on `on`.
-pub fn aanvragen(
+/// A submission under `artikel` (`<law>#<article>`), received on `on`, in
+/// the chronicle of the cell that decides on it ([`Indiening::cel`]). It
+/// refers to the decision `op` when given (RFC-045 §7): one in the same
+/// chronicle, or else a copy of it that the cell holding it makes
+/// ([`Cell::afschrift`], RFC-053), as an appeal reaches the court with a
+/// copy of the contested decision. Which submissions there are, and who
+/// decides on each, follows from the law ([`crate::casus::afleiden`]); the
+/// harness names none of them. Whether such a submission is admissible, the
+/// decision on it says, not this step.
+///
+/// # Errors
+///
+/// Refused when `artikel` establishes no submission a cell of the case
+/// decides on, when no cell holds `op`, and whatever the cell refuses
+/// ([`Cell::record_submission`], [`Cell::afschrift`]).
+pub fn indienen(
     corpus: &Corpus,
-    cell: &mut Cellen,
+    cellen: &mut Cellen,
+    artikel: &str,
+    op: Option<&str>,
     velden: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Gram> {
-    let (cell, sfeer) = cell.splits();
-    cell.record_submission(
-        &mut corpus.service()?,
-        &sfeer,
-        corpus.law(),
-        corpus.article(),
-        None,
-        velden,
-        on,
-    )
+    let cel = corpus.indiening(artikel)?.cel.clone();
+    let (law, article) = basis(artikel)?;
+    let mut service = corpus.service()?;
+    let houder = op.map(|op| cellen.houder(op)).transpose()?;
+    let afschrift = match (op, houder) {
+        (Some(op), Some(houder)) if houder != cel => {
+            let (cell, sfeer) = cellen.voor(houder)?;
+            Some(cell.afschrift(&mut service, &sfeer, op)?)
+        }
+        _ => None,
+    };
+    let reference = match (&afschrift, op) {
+        (Some(afschrift), _) => Some(Reference::Received(afschrift)),
+        (None, Some(op)) => Some(Reference::Local(op)),
+        (None, None) => None,
+    };
+    let (cell, sfeer) = cellen.splits_voor(&cel)?;
+    cell.record_submission(&mut service, &sfeer, law, article, reference, velden, on)
+}
+
+/// What the sources give for fields of the application before it is
+/// submitted, as the case's cell and the other cells of the case know things
+/// on `on`. `bronnen` names per field its source, an output of an article as
+/// `<regelwerk>#<article>#<output>`; `velden` are what the form holds so far,
+/// such as the number the applicant logged in with, and the source gets those
+/// that are among its parameters ([`Cell::consult`]). Per field the value and
+/// where it comes from: the source, and each cell that answered with the
+/// answer, the reduction and its version, and how far it read its chronicle.
+/// A cell that gives nothing leaves the value empty and the origin too.
+/// Nothing is recorded: what the applicant submits is what the application
+/// holds, prefilled or not.
+///
+/// A field the form leaves empty and the law lets be absent reaches the
+/// sources as `null`, as the cell records it in the application
+/// ([`met_lege_velden`]): an empty abbreviation is no abbreviation, not an
+/// unknown value. A field that cannot be absent stays out, and a source that
+/// reads it gives an unknown value (RFC-036). So does the login field: an
+/// applicant who has not logged in is no applicant without a number.
+///
+/// A source that gives nothing on what the form holds leaves its field empty
+/// with the reason (`fout`), and the other fields are filled: one the engine
+/// cannot run yet, such as without the number the applicant has not logged
+/// in with, and one the cell refuses ([`Cell::consult`]), such as an output
+/// its article does not have. The sources come from a UI spec the poc does
+/// not keep, so one wrong source does not take the form down.
+///
+/// # Errors
+///
+/// Refused when a source is no text; when the article of the case
+/// establishes no submission on `on`; and when the corpus does not load or
+/// a value a source gave cannot be stored.
+pub fn voorinvullen(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    bronnen: &Map<String, Value>,
+    velden: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Value> {
+    let service = corpus.service()?;
+    let inloggen = corpus.casus.inloggen.as_ref().map(|i| i.veld.as_str());
+    let velden = met_lege_velden(&service, &corpus.casus.artikel, inloggen, velden, on)?;
+    let sfeer = cellen.sfeer();
+    let mut uit = Map::new();
+    for (veld, bron) in bronnen {
+        let Some(bron) = bron.as_str() else {
+            return Err(Error::Refused(format!(
+                "the source of '{veld}' is {bron}, not '<regelwerk>#<article>#<output>'"
+            )));
+        };
+        let ingevuld = match cellen.eigen.consult(&service, &sfeer, bron, &velden, on) {
+            Ok(result) => uit_bron(&result, bron)?,
+            // This field stays empty, with the reason; the others are filled.
+            Err(e) => {
+                json!({ "bron": bron, "waarde": null, "herkomst": [], "fout": e.to_string() })
+            }
+        };
+        uit.insert(veld.clone(), ingevuld);
+    }
+    Ok(Value::Object(uit))
+}
+
+/// What the cell `cel` of the case answers on `on` for the output `bron`
+/// (`<regelwerk>#<article>#<output>`) with the parameters `invoer`, as a
+/// form is prefilled ([`Cell::consult`]): the value, and each cell that
+/// answered with something. A scenario checks such an answer, such as what
+/// a payment leaves outstanding, where no decision holds it.
+///
+/// # Errors
+///
+/// Refused when `cel` is no cell of the case, and whatever
+/// [`Cell::consult`] refuses: a reduction or the policy of another
+/// authority as the source (RFC-056), an output or article that does not
+/// exist on `on`, or a parameter the engine misses.
+pub fn antwoord(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    cel: &str,
+    bron: &str,
+    invoer: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Value> {
+    let service = corpus.service()?;
+    let (cell, sfeer) = cellen.voor(cel)?;
+    let result = cell.consult(&service, &sfeer, bron, invoer, on)?;
+    uit_bron(&result, bron)
+}
+
+/// `velden` with each field of the form of the application under `artikel`
+/// that it leaves out and that the law lets be absent, as `null`: what the cell
+/// records for such a field when the application comes in
+/// ([`Cell::record_submission`]). A field that cannot be absent stays out.
+/// Two fields stay out as well: one of type `decision`, which the form does
+/// not ask (`in_te_vullen`), and the login field `inloggen`, which is empty
+/// until the applicant logs in.
+fn met_lege_velden(
+    service: &LawExecutionService,
+    artikel: &str,
+    inloggen: Option<&str>,
+    velden: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Map<String, Value>> {
+    let (law, article) = basis(artikel)?;
+    let vorm = shape::derive(service, law, article, on)?;
+    let mut uit = velden.clone();
+    for veld in vorm.fields.iter().filter(|f| {
+        f.nullable && f.type_ != ParameterType::Decision && Some(f.name.as_str()) != inloggen
+    }) {
+        uit.entry(veld.name.clone()).or_insert(Value::Null);
+    }
+    Ok(uit)
+}
+
+/// What `result`, the output `bron` consulted ([`Cell::consult`]), gives a
+/// field: the value, and each cell that answered with something.
+fn uit_bron(result: &ArticleResult, bron: &str) -> Result<Value> {
+    // `consult` checked the source, so its last part is the output.
+    let output = bron.rsplit_once('#').map_or(bron, |(_, o)| o);
+    let waarde = result
+        .outputs
+        .get(output)
+        .map(stored::to_stored)
+        .transpose()?
+        .unwrap_or(Value::Null);
+    let herkomst: Vec<Value> = result
+        .trace
+        .as_ref()
+        .map(beantwoord)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|node| node.result.as_ref().is_some_and(|r| !r.is_null()))
+        .filter_map(|node| node.answer.as_ref())
+        .map(herkomst)
+        .collect();
+    Ok(json!({ "bron": bron, "waarde": waarde, "herkomst": herkomst }))
+}
+
+/// Where a cell's answer comes from, as the app shows it: the cell, the
+/// answer, the reduction with its article and version, and how far the cell
+/// read its chronicle.
+fn herkomst(answer: &AnswerProvenance) -> Value {
+    json!({
+        "door": answer.answerer,
+        "antwoord": answer.answer,
+        "reductie": answer.law_id,
+        "artikel": answer.article,
+        "geldig_vanaf": answer.valid_from,
+        "gelezen": answer.records_read,
+        "tot_en_met": answer.last_record,
+    })
 }
 
 /// Why a decision came out as it did, as the cell explains it
@@ -1109,8 +1828,9 @@ fn antwoorden_van(node: &PathNode) -> Vec<&PathNode> {
 }
 
 /// Why the decision `id` came out as it did ([`Waarom`]).
-pub fn waarom(corpus: &Corpus, cell: &Cellen, id: &str) -> Result<Waarom> {
-    waarom_in(corpus, cell, &cell.sfeer(), id)
+pub fn waarom(corpus: &Corpus, cellen: &Cellen, id: &str) -> Result<Waarom> {
+    let (cell, sfeer) = cellen.voor(cellen.houder(id)?)?;
+    waarom_in(corpus, cell, &sfeer, id)
 }
 
 /// What follows from the submission `id`, in the chronicle of any cell of
@@ -1151,17 +1871,11 @@ fn waarom_in(corpus: &Corpus, cell: &Cell, sfeer: &[&Cell], id: &str) -> Result<
             // The case's cell explains its own answers; another cell's
             // reasoning is its own (RFC-048).
             let keer = keer(&gevraagd, node).filter(|_| answer.answerer == cell.recording_actor());
-            antwoorden.push(json!({
-                "begrip": begrip,
-                "antwoord": answer.answer,
-                "keer": keer,
-                "waarde": waarde,
-                "door": answer.answerer,
-                "reductie": answer.law_id,
-                "geldig_vanaf": answer.valid_from,
-                "gelezen": answer.records_read,
-                "tot_en_met": answer.last_record,
-            }));
+            let mut antwoord = herkomst(answer);
+            antwoord["begrip"] = json!(begrip);
+            antwoord["keer"] = json!(keer);
+            antwoord["waarde"] = json!(waarde);
+            antwoorden.push(antwoord);
         }
     }
     Ok(Waarom {
@@ -1811,37 +2525,21 @@ pub fn hoe_beantwoord(corpus: &Corpus, cell: &Cellen, id: &str, antwoord: &str) 
     Ok(json!({ "besluit": id, "antwoord": antwoord, "antwoorden": uit }))
 }
 
-/// A decision on an application, and why it came out so.
+/// A decision, and why it came out so: the one record the cell keeps, the
+/// decisions it took in turn and holds as its values (`in_de_plaats`), the
+/// findings the engine reported as asked by no article and that were left
+/// out (`niet_gevraagd`), and the explanation ([`waarom`]).
 #[derive(Debug, serde::Serialize)]
 pub struct Besluit {
     pub besluit: Gram,
+    /// Per output of type `decision` that holds a decision: that decision,
+    /// with the day of the decision that holds it, as a decision of its own
+    /// would have. Such as the new decision a decision on objection puts in
+    /// the place of the revoked one (Awb 7:11 lid 2): which output that is,
+    /// the law says by its type, not the harness by its name.
+    pub in_de_plaats: Map<String, Value>,
+    pub niet_gevraagd: Vec<String>,
     pub waarom: Waarom,
-}
-
-/// Decide on the submission `op` under `law_id#article` with the deciding
-/// authority's `bevindingen` (RFC-045 §5): the one decision the cell
-/// records, which holds a decision it takes in turn as its value.
-fn beslissen(
-    corpus: &Corpus,
-    cell: &mut Cellen,
-    law_id: &str,
-    article: &str,
-    op: &str,
-    bevindingen: &Map<String, Value>,
-    on: NaiveDate,
-) -> Result<Vec<Gram>> {
-    let (cell, sfeer) = cell.splits();
-    decide(
-        cell,
-        &mut corpus.service()?,
-        &sfeer,
-        law_id,
-        article,
-        op,
-        None,
-        bevindingen,
-        on,
-    )
 }
 
 /// Decide on the submission `op` under `law_id#article`, after `after` when
@@ -1871,137 +2569,385 @@ fn decide(
     })
 }
 
-/// The deciding authority decides on the application `aanvraag` with its findings.
-pub fn besluiten(
+/// The cell that holds the submission `op` decides on it, under the article
+/// whose decision it asks for ([`Corpus::gevraagd`]), after `na` when given
+/// ([`Cell::decide_after`]): once more, after a later record that refers to
+/// the last decision on it, such as the receipt of a judgment that annulled
+/// that decision. `bevindingen` is what the authority gives.
+///
+/// For another cell than the case's own, a finding the engine reports as
+/// asked by no article is left out and named under `niet_gevraagd`: its
+/// form asks the findings of every article its decision may read, and of
+/// the decisions of the case's cell it may take anew ([`besluit_vorm`]),
+/// while the decision reads some only in some cases, as Awb 8:70 reads 8:72
+/// only for a well-founded appeal. The form of the case's own cell asks
+/// only what its deciding article asks, so there such a finding is the
+/// authority's mistake, and the cell refuses it. Any refusal records
+/// nothing.
+///
+/// # Errors
+///
+/// Refused when no cell holds `op` or it is no submission of this case, and
+/// whatever the cell refuses ([`Cell::decide`], [`Cell::decide_after`]).
+pub fn beslissen(
     corpus: &Corpus,
-    cell: &mut Cellen,
-    aanvraag: &str,
+    cellen: &mut Cellen,
+    op: &str,
+    na: Option<&str>,
     bevindingen: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Besluit> {
-    let besluit = beslissen(
-        corpus,
-        cell,
-        corpus.decision_law(),
-        corpus.decision(),
-        aanvraag,
-        bevindingen,
-        on,
-    )?
-    .remove(0);
-    let waarom = waarom(corpus, cell, &besluit.id)?;
-    Ok(Besluit { besluit, waarom })
+    let (law, article) = corpus.gevraagd(cellen, op)?;
+    let cel = cellen.houder(op)?.to_string();
+    let laat_weg = cel != cellen.eigen.recording_actor();
+    let mut gegeven = bevindingen.clone();
+    let besluit = loop {
+        let (cell, sfeer) = cellen.splits_voor(&cel)?;
+        let genomen = decide(
+            cell,
+            &mut corpus.service()?,
+            &sfeer,
+            law,
+            article,
+            op,
+            na,
+            &gegeven,
+            on,
+        );
+        match genomen {
+            Ok(mut genomen) => break genomen.remove(0),
+            Err(Error::Engine(EngineError::FindingsNotAsked { findings })) if laat_weg => {
+                let voor = gegeven.len();
+                for k in &findings {
+                    gegeven.remove(k);
+                }
+                if gegeven.len() == voor {
+                    return Err(Error::Engine(EngineError::FindingsNotAsked { findings }));
+                }
+            }
+            Err(e) => return Err(e),
+        }
+    };
+    let niet_gevraagd = bevindingen
+        .keys()
+        .filter(|k| !gegeven.contains_key(*k))
+        .cloned()
+        .collect();
+    let in_de_plaats = in_de_plaats(&corpus.service()?, &besluit)?;
+    let waarom = waarom(corpus, cellen, &besluit.id)?;
+    Ok(Besluit {
+        besluit,
+        in_de_plaats,
+        niet_gevraagd,
+        waarom,
+    })
 }
 
-/// The applicant objects to the decision `besluit`: a submission under Awb
-/// 7:11 that refers to it (RFC-045 §7).
-pub fn bezwaren(
+/// The decisions `besluit` took in turn: per output its article declares of
+/// type `decision`, the decision it holds, with the day of `besluit`. One
+/// act is one record, so these are no records of their own (`Cell::decide`).
+fn in_de_plaats(service: &LawExecutionService, besluit: &Gram) -> Result<Map<String, Value>> {
+    let (law, article) = basis(&besluit.basis)?;
+    let Some(artikel) = service
+        .resolver()
+        .get_law_for_date(law, Some(besluit.recorded_on))
+        .and_then(|l| l.find_article_by_number(article))
+    else {
+        return Ok(Map::new());
+    };
+    let mut uit = Map::new();
+    for output in artikel
+        .get_outputs()
+        .iter()
+        .filter(|o| o.output_type == ParameterType::Decision)
+    {
+        if let Some(Value::Object(waarde)) = besluit.outputs.get(&output.name) {
+            let mut genomen = waarde.clone();
+            genomen.insert("recorded_on".into(), json!(besluit.recorded_on));
+            uit.insert(output.name.clone(), Value::Object(genomen));
+        }
+    }
+    Ok(uit)
+}
+
+/// The cell `cel` takes the decision of `artikel` ex officio, on no
+/// submission (schema v0.8.17), about the record `over` when given, such as
+/// the decision a withdrawal withdraws ([`Cell::decide_ex_officio`]).
+/// Which articles a cell takes ex officio follows from the law
+/// ([`crate::casus::Ambtshalve`]). `gegeven` is what the authority gives,
+/// split as for any decision. Where the decision revokes the record a
+/// parameter names (`effects`, `revokes`) and the authority leaves that
+/// parameter out, it is `over`: the cell refuses an effect on a record the
+/// decision is not about anyway.
+///
+/// # Errors
+///
+/// Refused when no cell of the case takes `artikel` ex officio, and whatever
+/// the cell refuses ([`Cell::decide_ex_officio`]).
+pub fn ambtshalve(
     corpus: &Corpus,
-    cell: &mut Cellen,
-    besluit: &str,
-    velden: &Map<String, Value>,
+    cellen: &mut Cellen,
+    artikel: &str,
+    over: Option<&str>,
+    gegeven: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Gram> {
-    let (cell, sfeer) = cell.splits();
-    cell.record_submission(
-        &mut corpus.service()?,
-        &sfeer,
-        corpus.awb(),
-        corpus.objection(),
-        Some(Reference::Local(besluit)),
-        velden,
-        on,
-    )
+    let cel = corpus
+        .afleiding
+        .ambtshalve
+        .iter()
+        .find(|a| a.artikel == artikel)
+        .ok_or_else(|| {
+            Error::Refused(format!(
+                "no cell of the case '{}' takes the decision of {artikel} ex officio",
+                corpus.casus.id
+            ))
+        })?
+        .cel
+        .clone();
+    let (law, article) = basis(artikel)?;
+    let mut service = corpus.service()?;
+    let mut gegeven = gegeven.clone();
+    if let Some(over) = over {
+        for parameter in herroept(&service, law, article, on) {
+            gegeven.entry(parameter).or_insert_with(|| json!(over));
+        }
+    }
+    let (supplied, findings) =
+        decision::derive_ex_officio(&service, law, article, on)?.split(&gegeven);
+    let (cell, sfeer) = cellen.splits_voor(&cel)?;
+    Ok(cell
+        .decide_ex_officio(
+            &mut service,
+            &sfeer,
+            law,
+            article,
+            over,
+            &supplied,
+            &findings,
+            on,
+        )?
+        .remove(0))
 }
 
-/// Before the authority decides on the objection `bezwaar` on `on`: whether it
-/// is admissible, as Awb 7:11 decides it (on time per 6:9, and not against
-/// a decision taken on objection), and, if so, what the authority can find anew
-/// at the heroverweging. Those are the findings the contested decision
-/// used ([`Cell::findings`]), with what the authority found then. A term the
+/// The parameters whose record the decision of `law#article` revokes
+/// (`effects`, `revokes`), in the law in force on `on`.
+fn herroept(service: &LawExecutionService, law: &str, article: &str, on: NaiveDate) -> Vec<String> {
+    service
+        .resolver()
+        .get_law_for_date(law, Some(on))
+        .and_then(|l| l.find_article_by_number(article))
+        .and_then(|a| a.get_decision())
+        .map(|d| d.effects().iter().map(|e| e.parameter.clone()).collect())
+        .unwrap_or_default()
+}
+
+/// Before the cell that holds the submission `op` decides on it, after `na`
+/// when given: what the decision would come to with what the authority
+/// judges on the deciding article itself and nothing anew, taken on a copy
+/// of the cells, so the law decides it and nothing is kept. Its fields
+/// (`velden`, such as whether an objection came in time, Awb 6:9) and
+/// outputs (`uitvoer`, such as whether it is admissible, 7:11).
+///
+/// `oordeel` holds what the authority gives; only its findings on the open
+/// terms of the deciding article itself are taken (for Awb 7:11, whether
+/// the objector is an interested party and was not at fault, 1:2 and 6:11),
+/// the rest is left out here. Also when `op` was decided on before: a
+/// decision taken again records its own judgements, and the cell refuses it
+/// without one.
+///
+/// Where `op` refers to a decision in the same chronicle (`verwezen`, with
+/// its article as `verwezen_basis`), and that decision read it anew
+/// (`leest_opnieuw`), as the decision on an admissible objection
+/// reconsiders the contested decision, the findings that decision used are
+/// what the authority can find anew (`bevindingen`), each with what it
+/// found then ([`opnieuw_te_vinden`]). Whether it does, the trace says: the
+/// decision called the article of the decision `op` refers to. A term the
 /// cell answered is none of them.
 ///
-/// The admissibility is that of the decision without new findings, taken
-/// on a copy of the cell: the law decides it, not the app. Nothing is kept.
-pub fn heroverweging(
+/// # Errors
+///
+/// As [`beslissen`]: the trial is that decision, on a copy, so the cell
+/// refuses it for a finding of the deciding article that `oordeel` leaves
+/// out.
+pub fn voor_beslissen(
     corpus: &Corpus,
-    cell: &Cellen,
-    bezwaar: &str,
+    cellen: &Cellen,
+    op: &str,
+    na: Option<&str>,
+    oordeel: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Value> {
-    let toets = beslissen(
-        corpus,
-        &mut cell.sandbox(),
-        corpus.awb(),
-        corpus.objection(),
-        bezwaar,
-        &Map::new(),
-        on,
-    )?
-    .remove(0);
-    let ontvankelijk = toets.outputs.get("bezwaar_ontvankelijk") == Some(&json!(true));
-    let bestreden = bestreden(cell, bezwaar)?;
-    let bevindingen = if ontvankelijk {
-        opnieuw_te_vinden(corpus, cell, bestreden)?
-    } else {
-        Vec::new()
+    let (law, article) = corpus.gevraagd(cellen, op)?;
+    let cel = cellen.houder(op)?.to_string();
+    let service = corpus.service()?;
+    let shape = decision::derive(&service, law, article, on)?;
+    let (beslisser, _) = cellen.voor(&cel)?;
+    // A decision taken again records judgements of its own: the earlier
+    // one on `op` may be annulled for just those.
+    let eigen: Map<String, Value> = eigen_oordelen(&shape, beslisser.authority())
+        .filter_map(|t| oordeel.get(&t.id).map(|v| (t.id.clone(), v.clone())))
+        .collect();
+    let mut proef = cellen.sandbox();
+    let toets = {
+        let (cell, sfeer) = proef.splits_voor(&cel)?;
+        decide(
+            cell,
+            &mut corpus.service()?,
+            &sfeer,
+            law,
+            article,
+            op,
+            na,
+            &eigen,
+            on,
+        )?
+        .remove(0)
+    };
+    let verwezen = verwezen_besluit(cellen, &cel, op)?;
+    let leest_opnieuw = match verwezen {
+        Some(v) => {
+            let (cell, sfeer) = proef.voor(&cel)?;
+            let result = cell.explain(&mut corpus.service()?, &sfeer, &toets.id)?;
+            let gezocht = basis(&v.basis)?;
+            result.trace.as_ref().is_some_and(|t| roept(t, gezocht))
+        }
+        None => false,
+    };
+    let bevindingen = match verwezen {
+        Some(v) if leest_opnieuw => {
+            let (cell, sfeer) = cellen.voor(&cel)?;
+            opnieuw_te_vinden(corpus, cell, &sfeer, v)?
+        }
+        _ => Vec::new(),
     };
     Ok(json!({
-        "bezwaar": bezwaar,
-        "bestreden_besluit": bestreden.id,
-        "ontvankelijk": ontvankelijk,
-        "tijdig": toets.fields.get("bezwaar_of_beroepschrift_tijdig_ingediend"),
+        "op": op,
+        "verwezen": verwezen.map(|v| v.id.clone()),
+        "verwezen_basis": verwezen.map(|v| v.basis.clone()),
+        "velden": toets.fields,
         "uitvoer": toets.outputs,
+        "leest_opnieuw": leest_opnieuw,
         "bevindingen": bevindingen,
     }))
 }
 
-/// The decision the objection `bezwaar` contests.
-fn bestreden<'a>(cell: &'a Cellen, bezwaar: &str) -> Result<&'a Gram> {
-    let ingediend = cell
-        .grams()
-        .iter()
-        .find(|g| g.id == bezwaar)
-        .ok_or_else(|| Error::Refused(format!("there is no objection '{bezwaar}'")))?;
-    ingediend
-        .refers_to
-        .as_deref()
-        .and_then(|id| cell.grams().iter().find(|g| g.id == id))
-        .ok_or_else(|| Error::Refused(format!("'{bezwaar}' contests no decision")))
+/// The cell that holds the submission `op` decides on it, after `na` when
+/// given, in the two steps the page takes ([`voor_beslissen`], then
+/// [`beslissen`]). The authority judges every open term of the deciding
+/// article itself, with its value in `gegeven` and `false` where `gegeven`
+/// has none or `null`: a switch left off says no, so a late objection never
+/// turns excused by silence. The rest of `gegeven` goes in, except when `op`
+/// refers to a decision that the decision does not read anew (`verwezen`
+/// without `leest_opnieuw`), as for an objection that is not admissible:
+/// then there is nothing to find anew. The answer is that of [`beslissen`],
+/// with the check under `toets`.
+///
+/// This mirrors `toets` and `beslisOpBezwaar` in
+/// `frontend/src/components/BestuursorgaanTab.vue`, which make the same two
+/// calls through the WASM API; a change to one is a change to the other.
+/// The scenario test plays a decision on a submission through this
+/// function, so a source that plays its scenarios needs no copy of it.
+///
+/// # Errors
+///
+/// As [`voor_beslissen`] and [`beslissen`].
+pub fn toetsen_en_beslissen(
+    corpus: &Corpus,
+    cellen: &mut Cellen,
+    op: &str,
+    na: Option<&str>,
+    gegeven: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Value> {
+    let (law, article) = corpus.gevraagd(cellen, op)?;
+    let cel = cellen.houder(op)?.to_string();
+    let service = corpus.service()?;
+    let shape = decision::derive(&service, law, article, on)?;
+    let (beslisser, _) = cellen.voor(&cel)?;
+    let oordelen: Map<String, Value> = eigen_oordelen(&shape, beslisser.authority())
+        .map(|t| {
+            let waarde = gegeven
+                .get(&t.id)
+                .filter(|v| !v.is_null())
+                .cloned()
+                .unwrap_or(json!(false));
+            (t.id.clone(), waarde)
+        })
+        .collect();
+    let toets = voor_beslissen(corpus, cellen, op, na, &oordelen, on)?;
+    let niets_opnieuw = !toets["verwezen"].is_null() && toets["leest_opnieuw"] != json!(true);
+    let mut bevindingen = if niets_opnieuw {
+        Map::new()
+    } else {
+        gegeven.clone()
+    };
+    bevindingen.extend(oordelen);
+    let besluit = beslissen(corpus, cellen, op, na, &bevindingen, on)?;
+    let mut genomen = serde_json::to_value(&besluit).map_err(|e| Error::Setup(e.to_string()))?;
+    genomen["toets"] = toets;
+    Ok(genomen)
 }
 
-/// The names of the findings the authority can give anew on an objection
-/// against the decision `bestreden` finds ([`opnieuw_te_vinden`]), for a
-/// preview with `bevindingen`. Without any finding there is nothing to pass
-/// on, and the contested decision is not looked up. The form gives none on
-/// an objection that is not admissible ([`heroverweging`]).
-fn opnieuw_gevraagd<'a>(
+/// Whether the trace under `node` calls the article `(law, article)` of
+/// another law, as a decision on objection calls the article of the
+/// contested decision anew.
+fn roept(node: &PathNode, (law, article): (&str, &str)) -> bool {
+    let hier = matches!(node.node_type, PathNodeType::CrossLawReference)
+        && waar(node).is_some_and(|(l, a)| l == law && a == article);
+    hier || node.children.iter().any(|c| roept(c, (law, article)))
+}
+
+/// The decision the submission `op` in the chronicle of `cel` refers to, if
+/// it refers to one there (`refers_to`); a copy of another cell's decision
+/// it holds as `received` is none.
+fn verwezen_besluit<'c>(cellen: &'c Cellen, cel: &str, op: &str) -> Result<Option<&'c Gram>> {
+    let (cell, _) = cellen.voor(cel)?;
+    let ingediend = cellen.gram(op)?;
+    Ok(ingediend
+        .refers_to
+        .as_deref()
+        .and_then(|id| cell.grams().iter().find(|g| g.id == id)))
+}
+
+/// The names of the findings the authority can give anew on the submission
+/// `op` ([`opnieuw_te_vinden`]) for a preview with `bevindingen`: those of
+/// the decision `op` refers to. Without any finding there is nothing to
+/// pass on, and that decision is not looked up.
+fn opnieuw_gevraagd(
     corpus: &Corpus,
-    cell: &'a Cellen,
+    cellen: &Cellen,
+    op: &str,
     bevindingen: &Map<String, Value>,
-    bestreden: impl FnOnce() -> Result<&'a Gram>,
 ) -> Result<Vec<String>> {
     if bevindingen.is_empty() {
         return Ok(Vec::new());
     }
-    Ok(opnieuw_te_vinden(corpus, cell, bestreden()?)?
+    let cel = cellen.houder(op)?.to_string();
+    let Some(verwezen) = verwezen_besluit(cellen, &cel, op)? else {
+        return Ok(Vec::new());
+    };
+    let (cell, sfeer) = cellen.voor(&cel)?;
+    Ok(opnieuw_te_vinden(corpus, cell, &sfeer, verwezen)?
         .iter()
         .filter_map(|v| v["naam"].as_str().map(str::to_string))
         .collect())
 }
 
-/// What the authority can find anew on an objection against `bestreden`: the
-/// findings that decision used ([`Cell::findings`]), each with what the
-/// authority found then (`eerder`).
-fn opnieuw_te_vinden(corpus: &Corpus, cell: &Cellen, bestreden: &Gram) -> Result<Vec<Value>> {
-    let (law_id, article) = bestreden
-        .basis
-        .split_once('#')
-        .ok_or_else(|| Error::Setup(format!("'{}' has no basis", bestreden.id)))?;
+/// What the authority of `cell` can find anew on a submission against
+/// `bestreden`: the findings that decision used ([`Cell::findings`]), each
+/// with what the authority found then (`eerder`).
+fn opnieuw_te_vinden(
+    corpus: &Corpus,
+    cell: &Cell,
+    sfeer: &[&Cell],
+    bestreden: &Gram,
+) -> Result<Vec<Value>> {
+    let (law_id, article) = basis(&bestreden.basis)?;
     let mut service = corpus.service()?;
     let shape = decision::derive(&service, law_id, article, bestreden.recorded_on)?;
     let mut bevindingen = Vec::new();
-    for naam in cell.findings(&mut service, &cell.sfeer(), &bestreden.id)? {
+    for naam in cell.findings(&mut service, sfeer, &bestreden.id)? {
         let Some(term) = shape.finding(&naam, cell.authority()) else {
             continue;
         };
@@ -2012,55 +2958,7 @@ fn opnieuw_te_vinden(corpus: &Corpus, cell: &Cellen, bestreden: &Gram) -> Result
     Ok(bevindingen)
 }
 
-/// The authority decides on the objection `bezwaar` under Awb 7:11, as any
-/// decision; `bevindingen` are what the authority finds anew at the
-/// heroverweging. The decision comes with why ([`waarom`]): the case's
-/// article called anew is in its trace, a new decision in place of the
-/// revoked one is its outcome.
-pub fn beslissen_op_bezwaar(
-    corpus: &Corpus,
-    cell: &mut Cellen,
-    bezwaar: &str,
-    bevindingen: &Map<String, Value>,
-    on: NaiveDate,
-) -> Result<Value> {
-    let genomen = beslissen(
-        corpus,
-        cell,
-        corpus.awb(),
-        corpus.objection(),
-        bezwaar,
-        bevindingen,
-        on,
-    )?;
-    op_bezwaar(corpus, cell, genomen)
-}
-
-/// The answer to a decision on objection that `genomen` took: the decision,
-/// the new decision it took in the place of the revoked one if any, and
-/// why. The new decision is part of the decision on the objection, which
-/// holds it as its value (`nieuw_besluit`): one act is one record. It comes
-/// back with the day of that decision, as a decision of its own would.
-fn op_bezwaar(corpus: &Corpus, cell: &Cellen, mut genomen: Vec<Gram>) -> Result<Value> {
-    let beslissing = genomen.remove(0);
-    let nieuw = beslissing
-        .outputs
-        .get("nieuw_besluit")
-        .and_then(Value::as_object)
-        .map(|value| {
-            let mut nieuw = value.clone();
-            nieuw.insert("recorded_on".into(), json!(beslissing.recorded_on));
-            Value::Object(nieuw)
-        });
-    let waarom = waarom(corpus, cell, &beslissing.id)?;
-    Ok(json!({
-        "beslissing": beslissing,
-        "nieuw_besluit": nieuw,
-        "waarom": waarom,
-    }))
-}
-
-/// A preview of a decision ([`voorvertoning_besluit`]): what it would come
+/// A preview of a decision ([`voorvertoning`]): what it would come
 /// to, or the cell's refusal, and the terms the authority must judge
 /// because a policy leaves them to it for this case.
 #[derive(Debug, serde::Serialize)]
@@ -2222,36 +3120,28 @@ fn toont(e: &Error, stil: &[(String, String, bool)], bevindingen: &Map<String, V
     }
 }
 
-/// What the decision on the application `aanvraag` would be with these
-/// findings on `on`, before the authority takes it: [`besluiten`] on a copy
-/// of the cell with the chronicle in memory ([`voorvertonen`]), so the
-/// outcome and the chain are those of the real decision. Nothing is kept.
-pub fn voorvertoning_besluit(
+/// What the decision on the submission `op` would be with these findings
+/// on `on`, after `na` when given, before the authority takes it:
+/// [`beslissen`] on a copy of the cells ([`voorvertonen`]), so the outcome
+/// and the chain are those of the real decision. The findings the authority
+/// can give anew on a submission against a decision count as asked
+/// ([`opnieuw_gevraagd`]). Nothing is kept.
+///
+/// # Errors
+///
+/// What [`beslissen`] fails on besides a refusal of the cell, which the
+/// preview returns as `geweigerd`.
+pub fn voorvertoning(
     corpus: &Corpus,
-    cell: &Cellen,
-    aanvraag: &str,
+    cellen: &Cellen,
+    op: &str,
+    na: Option<&str>,
     bevindingen: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Voorvertoning<Besluit>> {
-    voorvertonen(corpus, cell, bevindingen, &[], on, |c, b| {
-        besluiten(corpus, c, aanvraag, b, on)
-    })
-}
-
-/// What the decision on the objection `bezwaar` would be with these
-/// findings anew, and the new decision that would follow: as
-/// [`voorvertoning_besluit`], with [`beslissen_op_bezwaar`]. Nothing is
-/// kept.
-pub fn voorvertoning_op_bezwaar(
-    corpus: &Corpus,
-    cell: &Cellen,
-    bezwaar: &str,
-    bevindingen: &Map<String, Value>,
-    on: NaiveDate,
-) -> Result<Voorvertoning<Value>> {
-    let gevraagd = opnieuw_gevraagd(corpus, cell, bevindingen, || bestreden(cell, bezwaar))?;
-    voorvertonen(corpus, cell, bevindingen, &gevraagd, on, |c, b| {
-        beslissen_op_bezwaar(corpus, c, bezwaar, b, on)
+    let gevraagd = opnieuw_gevraagd(corpus, cellen, op, bevindingen)?;
+    voorvertonen(corpus, cellen, bevindingen, &gevraagd, on, |c, b| {
+        beslissen(corpus, c, op, na, b, on)
     })
 }
 
@@ -2540,245 +3430,68 @@ pub fn reducties(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value>
     Ok(json!({ "antwoorden": antwoorden, "reducties": uit }))
 }
 
-/// The applicant appeals to the court against the decision `besluit` of the
-/// case's cell (RFC-053): the cell makes a copy of it ([`Cell::afschrift`]),
-/// and the court records the appeal with that copy, received on `on`
-/// (`Reference::Received`). Whether the appeal is admissible, the judgment
-/// says (Awb 8:70), not this step. Each cell takes the others along as its
-/// sphere.
-pub fn beroep_instellen(
-    corpus: &Corpus,
-    cellen: &mut Cellen,
-    besluit: &str,
-    velden: &Map<String, Value>,
-    on: NaiveDate,
-) -> Result<Gram> {
-    let beroep = corpus.beroep()?;
-    let afschrift = cellen.afschrift(&mut corpus.service()?, &cellen.sfeer(), besluit)?;
-    let (rechter, sfeer) = cellen.splits_op(&beroep.rechter)?;
-    rechter.record_submission(
-        &mut corpus.service()?,
-        &sfeer,
-        &beroep.law,
-        &beroep.article,
-        Some(Reference::Received(&afschrift)),
-        velden,
-        on,
-    )
-}
-
-/// The court gives judgment on the appeal `beroep` with its `bevindingen`,
-/// as any decision. A finding on an article the judgment reads, such as
-/// Awb 8:72, or on a decision it calls anew (8:72 lid 3 onder b), is asked
-/// only when it reads that article: a finding the engine reports as asked
-/// by none is not given, and the answer names it under `niet_gevraagd`.
-/// The judgment comes with why ([`waarom`]).
-pub fn uitspraak_doen(
-    corpus: &Corpus,
-    cellen: &mut Cellen,
-    beroep: &str,
-    bevindingen: &Map<String, Value>,
-    on: NaiveDate,
-) -> Result<Value> {
-    let b = corpus.beroep()?;
-    let neem = |cellen: &mut Cellen, gegeven: &Map<String, Value>| -> Result<Vec<Gram>> {
-        let (rechter, sfeer) = cellen.splits_op(&b.rechter)?;
-        decide(
-            rechter,
-            &mut corpus.service()?,
-            &sfeer,
-            &b.law,
-            &b.article,
-            beroep,
-            None,
-            gegeven,
-            on,
-        )
-    };
-    // Leave out what the engine names as asked by none, until the judgment
-    // asks every finding it is given. Leaving out a finding nothing reads
-    // changes nothing else; any other refusal is the court's to see.
-    let mut gegeven = bevindingen.clone();
-    while let Err(Error::Engine(EngineError::FindingsNotAsked { findings })) =
-        neem(&mut cellen.sandbox(), &gegeven)
-    {
-        let voor = gegeven.len();
-        for k in &findings {
-            gegeven.remove(k);
-        }
-        if gegeven.len() == voor {
-            break;
-        }
-    }
-    let gegeven = &gegeven;
-    let uitspraak = neem(cellen, gegeven)?.remove(0);
-    let niet_gevraagd: Vec<&String> = bevindingen
-        .keys()
-        .filter(|k| !gegeven.contains_key(*k))
-        .collect();
-    let waarom = waarom_uitspraak(corpus, cellen, &uitspraak.id)?;
-    Ok(json!({
-        "uitspraak": uitspraak,
-        "niet_gevraagd": niet_gevraagd,
-        "waarom": waarom,
-    }))
-}
-
-/// Why the court's judgment `id` came out as it did, as [`waarom`] in the
-/// court's cell, with the other cells of the case as its sphere.
-pub fn waarom_uitspraak(corpus: &Corpus, cellen: &Cellen, id: &str) -> Result<Waarom> {
-    let b = corpus.beroep()?;
-    let (rechter, sfeer) = cellen.op(&b.rechter)?;
-    waarom_in(corpus, rechter, &sfeer, id)
-}
-
-/// What the judgment on the appeal `beroep` would be with these findings:
-/// [`uitspraak_doen`] on a copy of the cells ([`voorvertonen`]). Nothing is
-/// kept.
-pub fn voorvertoning_uitspraak(
-    corpus: &Corpus,
-    cellen: &Cellen,
-    beroep: &str,
-    bevindingen: &Map<String, Value>,
-    on: NaiveDate,
-) -> Result<Voorvertoning<Value>> {
-    voorvertonen(corpus, cellen, bevindingen, &[], on, |c, b| {
-        uitspraak_doen(corpus, c, beroep, b, on)
-    })
-}
-
-/// The court sends a copy of its judgment `uitspraak` to the case's cell,
-/// which records the receipt on `on` as the fact the law requires for it
-/// ([`Cell::record_receipt`]). The receipt refers to the decision of the
-/// cell the judgment concerns: what the copy is `about`.
+/// The cell that holds the decision `besluit` sends a copy of it to the
+/// cell whose decision it concerns (`about`, RFC-053), which records the
+/// receipt on `on` as the fact the law requires for a copy of a decision
+/// under its article ([`Indiening::ontvangst`], [`Cell::record_receipt`]).
+/// The receipt refers to the decision the copy concerns.
+///
+/// # Errors
+///
+/// Refused when no cell holds `besluit`, when it concerns no decision of
+/// another cell, when no regelwerk requires a fact for its receipt, and
+/// whatever the cells refuse ([`Cell::afschrift`], [`Cell::record_receipt`]).
 pub fn toezenden(
     corpus: &Corpus,
     cellen: &mut Cellen,
-    uitspraak: &str,
+    besluit: &str,
     on: NaiveDate,
 ) -> Result<Gram> {
-    let b = corpus.beroep()?;
     let mut service = corpus.service()?;
     let afschrift = {
-        let (rechter, sfeer) = cellen.op(&b.rechter)?;
-        rechter.afschrift(&mut service, &sfeer, uitspraak)?
+        let houder = cellen.houder(besluit)?.to_string();
+        let (cell, sfeer) = cellen.voor(&houder)?;
+        cell.afschrift(&mut service, &sfeer, besluit)?
     };
-    let cell = &mut cellen.eigen;
-    let besluit = afschrift
-        .about
-        .as_ref()
-        .filter(|a| a.from == cell.recording_actor())
-        .map(|a| a.id.clone())
+    let about = afschrift.about.clone().ok_or_else(|| {
+        Error::Refused(format!(
+            "the decision '{besluit}' concerns no decision of another cell of this case"
+        ))
+    })?;
+    let feit = corpus
+        .afleiding
+        .indieningen
+        .iter()
+        .find(|i| i.besluit == afschrift.gram.basis)
+        .and_then(|i| i.ontvangst.as_deref())
         .ok_or_else(|| {
             Error::Refused(format!(
-                "the judgment '{uitspraak}' concerns no decision of '{}'",
-                cell.recording_actor()
+                "no regelwerk of this case requires a fact for the receipt of a copy of a \
+                 decision under {}",
+                afschrift.gram.basis
             ))
         })?;
-    cell.record_receipt(&service, &b.ontvangst, &afschrift, &besluit, on)
-}
-
-/// The receipt `ontvangst` of a judgment on a decision on objection, and
-/// what it leads back to in the chronicle: that decision, the objection,
-/// and the decision the objection contested.
-fn na_uitspraak<'c>(corpus: &Corpus, cell: &'c Cell, ontvangst: &str) -> Result<[&'c Gram; 4]> {
-    let b = corpus.beroep()?;
-    let gram = |id: Option<&str>, wat: &str| {
-        id.and_then(|id| cell.grams().iter().find(|g| g.id == id))
-            .ok_or_else(|| Error::Refused(format!("'{ontvangst}' leads to no {wat}")))
-    };
-    let receipt = gram(Some(ontvangst), "receipt of a judgment")?;
-    let (basis, feit) = shape::split_fact(&b.ontvangst)?;
-    if receipt.kind != EXECUTOGRAM
-        || receipt.basis != basis
-        || receipt.fact.as_deref() != Some(feit)
-    {
-        return Err(Error::Refused(format!(
-            "'{ontvangst}' is no receipt of the fact {}",
-            b.ontvangst
-        )));
-    }
-    let beslissing = gram(receipt.refers_to.as_deref(), "decision")?;
-    let op_bezwaar = format!("{}#{}", corpus.awb(), corpus.objection());
-    if beslissing.basis != op_bezwaar {
-        return Err(Error::Refused(format!(
-            "the judgment received in '{ontvangst}' concerns no decision under {op_bezwaar}"
-        )));
-    }
-    let bezwaar = gram(beslissing.refers_to.as_deref(), "objection")?;
-    let bestreden = gram(bezwaar.refers_to.as_deref(), "contested decision")?;
-    Ok([receipt, beslissing, bezwaar, bestreden])
-}
-
-/// Before the authority decides on the objection again after the judgment
-/// received in `ontvangst` (Awb 8:72 lid 4): the objection, what the
-/// judgment holds, and what the authority can find anew. Those are the
-/// findings of the decision the objection contested, as at the first
-/// heroverweging ([`heroverweging`]).
-pub fn heroverweging_na_uitspraak(
-    corpus: &Corpus,
-    cell: &Cellen,
-    ontvangst: &str,
-) -> Result<Value> {
-    let [receipt, beslissing, bezwaar, bestreden] = na_uitspraak(corpus, cell, ontvangst)?;
-    Ok(json!({
-        "ontvangst": receipt.id,
-        "uitspraak": receipt.fields,
-        "beslissing": beslissing.id,
-        "bezwaar": bezwaar.id,
-        "bestreden_besluit": bestreden.id,
-        "bevindingen": opnieuw_te_vinden(corpus, cell, bestreden)?,
-    }))
-}
-
-/// The authority decides on the objection again after the judgment received
-/// in `ontvangst` ([`Cell::decide_after`]), with what it finds anew. The
-/// answer is that of [`beslissen_op_bezwaar`].
-pub fn opnieuw_beslissen_op_bezwaar(
-    corpus: &Corpus,
-    cellen: &mut Cellen,
-    ontvangst: &str,
-    bevindingen: &Map<String, Value>,
-    on: NaiveDate,
-) -> Result<Value> {
-    let bezwaar = na_uitspraak(corpus, cellen, ontvangst)?[2].id.clone();
-    let (cell, sfeer) = cellen.splits();
-    let genomen = decide(
-        cell,
-        &mut corpus.service()?,
-        &sfeer,
-        corpus.awb(),
-        corpus.objection(),
-        &bezwaar,
-        Some(ontvangst),
-        bevindingen,
-        on,
-    )?;
-    op_bezwaar(corpus, cellen, genomen)
-}
-
-/// What deciding on the objection again after the judgment received in
-/// `ontvangst` would come to: as [`voorvertoning_op_bezwaar`], with
-/// [`opnieuw_beslissen_op_bezwaar`]. Nothing is kept.
-pub fn voorvertoning_na_uitspraak(
-    corpus: &Corpus,
-    cell: &Cellen,
-    ontvangst: &str,
-    bevindingen: &Map<String, Value>,
-    on: NaiveDate,
-) -> Result<Voorvertoning<Value>> {
-    let gevraagd = opnieuw_gevraagd(corpus, cell, bevindingen, || {
-        Ok(na_uitspraak(corpus, cell, ontvangst)?[3])
-    })?;
-    voorvertonen(corpus, cell, bevindingen, &gevraagd, on, |c, b| {
-        opnieuw_beslissen_op_bezwaar(corpus, c, ontvangst, b, on)
-    })
+    let (cell, _) = cellen.splits_voor(&about.from)?;
+    cell.record_receipt(&service, feit, &afschrift, &about.id, on)
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use super::*;
+
+    /// `bevindingen` for a decision on an objection, with what the authority
+    /// judges on admissibility (Awb 7:11) where `bevindingen` says nothing:
+    /// the objector is an interested party (1:2, 7:1 and 8:1), and was at
+    /// fault for a late objection, so 6:11 does not save it.
+    fn ontvankelijk(bevindingen: &Map<String, Value>) -> Map<String, Value> {
+        let mut uit = bevindingen.clone();
+        uit.entry("indiener_bezwaarschrift_is_belanghebbende")
+            .or_insert(json!(true));
+        uit.entry("indiener_bezwaarschrift_niet_in_verzuim")
+            .or_insert(json!(false));
+        uit
+    }
 
     const LAW: &str = "leerplichtwet_1969";
     const ARTICLE: &str = "13a";
@@ -2797,6 +3510,259 @@ mod tests {
 
     fn corpus() -> Corpus {
         casus("vakantieverlof")
+    }
+
+    // The steps of the Awb procedure as these tests name them, each played
+    // through the generic steps of the harness, which name none. The
+    // articles come from what the harness derived from the law
+    // (`Afleiding::indieningen`), by the kind of submission.
+
+    fn artikel_van(corpus: &Corpus, soort: &str) -> String {
+        corpus
+            .afleiding
+            .indieningen
+            .iter()
+            .find(|i| i.soort == soort)
+            .unwrap_or_else(|| panic!("no submission {soort} in {}", corpus.casus.id))
+            .artikel
+            .clone()
+    }
+
+    /// The forms under the names of the Awb: per submission the form of
+    /// its kind, and the form of the decision it asks for, beside the forms
+    /// per article the harness gives.
+    fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
+        let mut v = super::vormen(corpus, cell, on)?;
+        let a = &corpus.afleiding;
+        let besluit = format!("{}#{}", a.decision_law, a.decision);
+        v["aanvraag"] = v["indieningen"][&corpus.casus.artikel].clone();
+        v["besluit"] = v["besluiten"][&besluit].clone();
+        for (soort, indiening, beslissing) in [
+            ("BEZWAAR", "bezwaar", "beslissing_op_bezwaar"),
+            ("BEROEP", "beroep", "uitspraak"),
+        ] {
+            if let Some(i) = a.indieningen.iter().find(|i| i.soort == soort) {
+                v[indiening] = v["indieningen"][&i.artikel].clone();
+                v[beslissing] = v["besluiten"][&i.besluit].clone();
+            }
+        }
+        Ok(v)
+    }
+
+    fn aanvragen(
+        corpus: &Corpus,
+        cell: &mut Cellen,
+        velden: &Map<String, Value>,
+        on: NaiveDate,
+    ) -> Result<Gram> {
+        indienen(corpus, cell, &corpus.casus.artikel, None, velden, on)
+    }
+
+    fn besluiten(
+        corpus: &Corpus,
+        cell: &mut Cellen,
+        op: &str,
+        bevindingen: &Map<String, Value>,
+        on: NaiveDate,
+    ) -> Result<Besluit> {
+        beslissen(corpus, cell, op, None, bevindingen, on)
+    }
+
+    fn bezwaren(
+        corpus: &Corpus,
+        cell: &mut Cellen,
+        besluit: &str,
+        velden: &Map<String, Value>,
+        on: NaiveDate,
+    ) -> Result<Gram> {
+        let artikel = artikel_van(corpus, "BEZWAAR");
+        indienen(corpus, cell, &artikel, Some(besluit), velden, on)
+    }
+
+    /// What `voor_beslissen` says before a decision on the objection
+    /// `bezwaar`, under the names of the Awb.
+    /// `reden` says why an objection is not admissible, in the order Awb
+    /// 7:11 tests it: late and not excused (6:9, 6:11), against a decision
+    /// taken on objection (7:1), by no interested party (1:2, 8:1).
+    fn heroverweging(
+        corpus: &Corpus,
+        cell: &Cellen,
+        bezwaar: &str,
+        ontvankelijkheid: &Map<String, Value>,
+        on: NaiveDate,
+    ) -> Result<Value> {
+        let v = voor_beslissen(corpus, cell, bezwaar, None, ontvankelijkheid, on)?;
+        let ontvankelijk = v["uitvoer"]["bezwaar_ontvankelijk"] == json!(true);
+        let tijdig = &v["velden"]["bezwaar_of_beroepschrift_tijdig_ingediend"];
+        let reden = if ontvankelijk {
+            Value::Null
+        } else if *tijdig == json!(false)
+            && v["velden"]["indiener_bezwaarschrift_niet_in_verzuim"] != json!(true)
+        {
+            json!("te_laat")
+        } else if v["verwezen_basis"] == json!(artikel_van(corpus, "BEZWAAR")) {
+            json!("genomen_in_bezwaar")
+        } else {
+            json!("geen_belanghebbende")
+        };
+        Ok(json!({
+            "bezwaar": bezwaar,
+            "bestreden_besluit": v["verwezen"],
+            "ontvankelijk": ontvankelijk,
+            "tijdig": tijdig,
+            "reden": reden,
+            "uitvoer": v["uitvoer"],
+            "bevindingen": v["bevindingen"],
+        }))
+    }
+
+    /// A decision on an objection under the names of the Awb: the decision,
+    /// and the new decision it took in the place of the revoked one.
+    fn op_bezwaar(b: Besluit) -> Value {
+        json!({
+            "beslissing": b.besluit,
+            "nieuw_besluit": b.in_de_plaats.get("nieuw_besluit"),
+            "waarom": b.waarom,
+        })
+    }
+
+    fn beslissen_op_bezwaar(
+        corpus: &Corpus,
+        cell: &mut Cellen,
+        bezwaar: &str,
+        bevindingen: &Map<String, Value>,
+        on: NaiveDate,
+    ) -> Result<Value> {
+        beslissen(corpus, cell, bezwaar, None, bevindingen, on).map(op_bezwaar)
+    }
+
+    fn voorvertoning_besluit(
+        corpus: &Corpus,
+        cell: &Cellen,
+        op: &str,
+        bevindingen: &Map<String, Value>,
+        on: NaiveDate,
+    ) -> Result<Voorvertoning<Besluit>> {
+        voorvertoning(corpus, cell, op, None, bevindingen, on)
+    }
+
+    fn als<T>(v: Voorvertoning<Besluit>, f: impl Fn(Besluit) -> T) -> Voorvertoning<T> {
+        Voorvertoning {
+            voorlopig: v.voorlopig.map(f),
+            geweigerd: v.geweigerd,
+            stil: v.stil,
+        }
+    }
+
+    fn voorvertoning_op_bezwaar(
+        corpus: &Corpus,
+        cell: &Cellen,
+        bezwaar: &str,
+        bevindingen: &Map<String, Value>,
+        on: NaiveDate,
+    ) -> Result<Voorvertoning<Value>> {
+        Ok(als(
+            voorvertoning(corpus, cell, bezwaar, None, bevindingen, on)?,
+            op_bezwaar,
+        ))
+    }
+
+    fn beroep_instellen(
+        corpus: &Corpus,
+        cellen: &mut Cellen,
+        besluit: &str,
+        velden: &Map<String, Value>,
+        on: NaiveDate,
+    ) -> Result<Gram> {
+        let artikel = artikel_van(corpus, "BEROEP");
+        indienen(corpus, cellen, &artikel, Some(besluit), velden, on)
+    }
+
+    /// A judgment under the names of the Awb.
+    fn uitspraak(b: Besluit) -> Value {
+        json!({
+            "uitspraak": b.besluit,
+            "niet_gevraagd": b.niet_gevraagd,
+            "waarom": b.waarom,
+        })
+    }
+
+    fn uitspraak_doen(
+        corpus: &Corpus,
+        cellen: &mut Cellen,
+        beroep: &str,
+        bevindingen: &Map<String, Value>,
+        on: NaiveDate,
+    ) -> Result<Value> {
+        beslissen(corpus, cellen, beroep, None, bevindingen, on).map(uitspraak)
+    }
+
+    /// The receipt `ontvangst` of a judgment, and what it leads back to by
+    /// `refers_to`: the decision on objection, the objection, and the
+    /// decision it contested.
+    fn na_uitspraak<'c>(cellen: &'c Cellen, ontvangst: &str) -> Result<[&'c Gram; 4]> {
+        let receipt = cellen.gram(ontvangst)?;
+        let volgende = |g: &Gram| -> Result<&'c Gram> {
+            let id = g
+                .refers_to
+                .as_deref()
+                .ok_or_else(|| Error::Refused(format!("'{}' refers to nothing", g.id)))?;
+            cellen.gram(id)
+        };
+        let beslissing = volgende(receipt)?;
+        let bezwaar = volgende(beslissing)?;
+        let bestreden = volgende(bezwaar)?;
+        Ok([receipt, beslissing, bezwaar, bestreden])
+    }
+
+    fn heroverweging_na_uitspraak(
+        corpus: &Corpus,
+        cell: &Cellen,
+        ontvangst: &str,
+        ontvankelijkheid: &Map<String, Value>,
+    ) -> Result<Value> {
+        let [receipt, beslissing, bezwaar, bestreden] = na_uitspraak(cell, ontvangst)?;
+        let v = voor_beslissen(
+            corpus,
+            cell,
+            &bezwaar.id,
+            Some(ontvangst),
+            ontvankelijkheid,
+            receipt.recorded_on,
+        )?;
+        Ok(json!({
+            "ontvangst": receipt.id,
+            "uitspraak": receipt.fields,
+            "beslissing": beslissing.id,
+            "bezwaar": bezwaar.id,
+            "bestreden_besluit": bestreden.id,
+            "bevindingen": v["bevindingen"],
+        }))
+    }
+
+    fn opnieuw_beslissen_op_bezwaar(
+        corpus: &Corpus,
+        cellen: &mut Cellen,
+        ontvangst: &str,
+        bevindingen: &Map<String, Value>,
+        on: NaiveDate,
+    ) -> Result<Value> {
+        let bezwaar = na_uitspraak(cellen, ontvangst)?[2].id.clone();
+        beslissen(corpus, cellen, &bezwaar, Some(ontvangst), bevindingen, on).map(op_bezwaar)
+    }
+
+    fn voorvertoning_na_uitspraak(
+        corpus: &Corpus,
+        cell: &Cellen,
+        ontvangst: &str,
+        bevindingen: &Map<String, Value>,
+        on: NaiveDate,
+    ) -> Result<Voorvertoning<Value>> {
+        let bezwaar = na_uitspraak(cell, ontvangst)?[2].id.clone();
+        Ok(als(
+            voorvertoning(corpus, cell, &bezwaar, Some(ontvangst), bevindingen, on)?,
+            op_bezwaar,
+        ))
     }
 
     /// Article 2 of the policy on granted leave: a ruling that grants no
@@ -2990,7 +3956,14 @@ mod tests {
             bezwaar.refers_to.as_deref(),
             Some(besluit.besluit.id.as_str())
         );
-        let toets = heroverweging(&corpus, &cell, &bezwaar.id, day("2026-11-15")).unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &bezwaar.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-11-15"),
+        )
+        .unwrap();
         assert_eq!(toets["ontvankelijk"], json!(true));
         let gevraagd: Vec<_> = toets["bevindingen"]
             .as_array()
@@ -3008,7 +3981,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &beroep(true),
+            &ontvankelijk(&beroep(true)),
             day("2026-11-15"),
         )
         .unwrap();
@@ -3158,7 +4131,14 @@ mod tests {
             day("2026-12-02"),
         )
         .unwrap();
-        let toets = heroverweging(&corpus, &cell, &laat.id, day("2026-12-10")).unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &laat.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-12-10"),
+        )
+        .unwrap();
         assert_eq!(toets["ontvankelijk"], json!(false));
         assert_eq!(toets["tijdig"], json!(false));
         assert_eq!(
@@ -3171,7 +4151,7 @@ mod tests {
             &corpus,
             &mut cell,
             &laat.id,
-            &beroep(true),
+            &ontvankelijk(&beroep(true)),
             day("2026-12-10"),
         )
         .unwrap_err();
@@ -3179,14 +4159,181 @@ mod tests {
             e.to_string().contains("specifieke_aard_beroep_ouder"),
             "{e}"
         );
-        let beslist =
-            beslissen_op_bezwaar(&corpus, &mut cell, &laat.id, &Map::new(), day("2026-12-10"))
-                .unwrap();
+        let beslist = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &laat.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-12-10"),
+        )
+        .unwrap();
         assert_eq!(
             beslist["beslissing"]["outputs"]["bezwaar_ontvankelijk"],
             json!(false)
         );
         assert!(beslist["nieuw_besluit"].is_null());
+        assert_eq!(toets["reden"], json!("te_laat"));
+    }
+
+    #[test]
+    fn a_late_objection_the_head_excuses_is_admissible() {
+        // Awb 6:11: the head judges that the objector was not at fault, so
+        // the objection is not declared inadmissible for being late, and
+        // the head reconsiders the refusal.
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let besluit = geweigerd(&corpus, &mut cell);
+        let laat = bezwaren(
+            &corpus,
+            &mut cell,
+            &besluit.besluit.id,
+            &bezwaar_velden("2026-12-02"),
+            day("2026-12-02"),
+        )
+        .unwrap();
+        let verschoonbaar = ontvankelijk(&Map::from_iter([(
+            "indiener_bezwaarschrift_niet_in_verzuim".to_string(),
+            json!(true),
+        )]));
+        let toets =
+            heroverweging(&corpus, &cell, &laat.id, &verschoonbaar, day("2026-12-10")).unwrap();
+        assert_eq!(toets["tijdig"], json!(false));
+        assert_eq!(toets["ontvankelijk"], json!(true));
+        assert!(!toets["bevindingen"].as_array().unwrap().is_empty());
+        let mut bevindingen = verschoonbaar.clone();
+        bevindingen.extend(beroep(true));
+        let beslist = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &laat.id,
+            &bevindingen,
+            day("2026-12-10"),
+        )
+        .unwrap();
+        assert_eq!(
+            beslist["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
+            json!(true)
+        );
+    }
+
+    #[test]
+    fn an_objection_by_someone_not_concerned_is_not_admissible() {
+        // Awb 7:1, first paragraph, with 8:1 and 1:2: only an interested
+        // party objects. The head judges that the objector is none; there
+        // is no heroverweging.
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let besluit = geweigerd(&corpus, &mut cell);
+        let bezwaar = bezwaren(
+            &corpus,
+            &mut cell,
+            &besluit.besluit.id,
+            &bezwaar_velden("2026-11-01"),
+            day("2026-11-01"),
+        )
+        .unwrap();
+        let geen = ontvankelijk(&Map::from_iter([(
+            "indiener_bezwaarschrift_is_belanghebbende".to_string(),
+            json!(false),
+        )]));
+        let toets = heroverweging(&corpus, &cell, &bezwaar.id, &geen, day("2026-11-15")).unwrap();
+        assert_eq!(toets["ontvankelijk"], json!(false));
+        assert_eq!(toets["tijdig"], json!(true));
+        assert_eq!(toets["reden"], json!("geen_belanghebbende"));
+        assert!(toets["bevindingen"].as_array().unwrap().is_empty());
+        // Without the head's judgement the cell decides nothing.
+        let e = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &bezwaar.id,
+            &Map::new(),
+            day("2026-11-15"),
+        )
+        .unwrap_err();
+        assert!(
+            e.to_string()
+                .contains("indiener_bezwaarschrift_is_belanghebbende"),
+            "{e}"
+        );
+    }
+
+    #[test]
+    fn the_reason_follows_the_order_in_which_7_11_tests() {
+        // An excused late objection by someone not concerned fails on the
+        // interested party, not on the period (Awb 6:11, then 7:1 with 8:1).
+        let corpus = corpus();
+        let mut cell = corpus.cell().unwrap();
+        let besluit = geweigerd(&corpus, &mut cell);
+        let laat = bezwaren(
+            &corpus,
+            &mut cell,
+            &besluit.besluit.id,
+            &bezwaar_velden("2026-12-02"),
+            day("2026-12-02"),
+        )
+        .unwrap();
+        let oordeel = ontvankelijk(&Map::from_iter([
+            (
+                "indiener_bezwaarschrift_niet_in_verzuim".to_string(),
+                json!(true),
+            ),
+            (
+                "indiener_bezwaarschrift_is_belanghebbende".to_string(),
+                json!(false),
+            ),
+        ]));
+        let toets = heroverweging(&corpus, &cell, &laat.id, &oordeel, day("2026-12-10")).unwrap();
+        assert_eq!(toets["reden"], json!("geen_belanghebbende"));
+
+        // An objection against the decision on objection fails on the
+        // contested decision (Awb 7:1, first paragraph, under a).
+        let beslist = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &laat.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-12-10"),
+        )
+        .unwrap();
+        let op_bezwaar = beslist["beslissing"]["id"].as_str().unwrap().to_string();
+        let tegen = bezwaren(
+            &corpus,
+            &mut cell,
+            &op_bezwaar,
+            &bezwaar_velden("2026-12-11"),
+            day("2026-12-11"),
+        )
+        .unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &tegen.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-12-12"),
+        )
+        .unwrap();
+        assert_eq!(toets["ontvankelijk"], json!(false));
+        assert_eq!(toets["reden"], json!("genomen_in_bezwaar"));
+    }
+
+    #[test]
+    fn the_form_of_the_decision_on_objection_asks_its_own_findings() {
+        let corpus = corpus();
+        let cell = corpus.cell().unwrap();
+        let vormen = vormen(&corpus, &cell, day("2026-11-15")).unwrap();
+        let namen: Vec<&str> = vormen["beslissing_op_bezwaar"]["bevindingen"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter_map(|v| v["naam"].as_str())
+            .collect();
+        assert_eq!(
+            namen,
+            [
+                "indiener_bezwaarschrift_is_belanghebbende",
+                "indiener_bezwaarschrift_niet_in_verzuim"
+            ]
+        );
     }
 
     #[test]
@@ -3223,7 +4370,7 @@ mod tests {
             &corpus,
             &mut cell,
             &eerste.id,
-            &beroep(false),
+            &ontvankelijk(&beroep(false)),
             day("2026-11-15"),
         )
         .unwrap();
@@ -3233,13 +4380,20 @@ mod tests {
         );
         let vastgelegd = cell.grams().len();
         // The second is admissible; the finding anew is what the cell refuses.
-        let toets = heroverweging(&corpus, &cell, &tweede.id, day("2026-11-16")).unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &tweede.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-11-16"),
+        )
+        .unwrap();
         assert_eq!(toets["ontvankelijk"], json!(true));
         let e = beslissen_op_bezwaar(
             &corpus,
             &mut cell,
             &tweede.id,
-            &beroep(false),
+            &ontvankelijk(&beroep(false)),
             day("2026-11-16"),
         )
         .unwrap_err();
@@ -3293,13 +4447,20 @@ mod tests {
             day("2026-11-01"),
         )
         .unwrap();
-        let toets = heroverweging(&corpus, &cell, &bezwaar.id, day("2026-11-15")).unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &bezwaar.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-11-15"),
+        )
+        .unwrap();
         assert_eq!(toets["ontvankelijk"], json!(true));
         let beslist = beslissen_op_bezwaar(
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-15"),
         )
         .unwrap();
@@ -3375,7 +4536,7 @@ mod tests {
             &corpus,
             &mut cell,
             &tegen_a.id,
-            &beroep(false),
+            &ontvankelijk(&beroep(false)),
             day("2026-11-15"),
         )
         .unwrap();
@@ -3398,7 +4559,14 @@ mod tests {
             day("2026-11-20"),
         )
         .unwrap();
-        let toets = heroverweging(&corpus, &cell, &tegen_b.id, day("2026-12-01")).unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &tegen_b.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-12-01"),
+        )
+        .unwrap();
         assert_eq!(toets["ontvankelijk"], json!(true));
         let gevraagd: Vec<&str> = toets["bevindingen"]
             .as_array()
@@ -3411,7 +4579,7 @@ mod tests {
             &corpus,
             &mut cell,
             &tegen_b.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-12-01"),
         )
         .unwrap();
@@ -3743,6 +4911,24 @@ mod tests {
         assert_eq!(stappen[1]["soort"], json!("begrip"));
     }
 
+    /// Per submission the harness derived: its article, kind, the article
+    /// of the decision it asks for, the cell that decides, and the fact of
+    /// the receipt of a copy of that decision.
+    fn indieningen(a: &Afleiding) -> Vec<(&str, &str, &str, &str, Option<&str>)> {
+        a.indieningen
+            .iter()
+            .map(|i| {
+                (
+                    i.artikel.as_str(),
+                    i.soort.as_str(),
+                    i.besluit.as_str(),
+                    i.cel.as_str(),
+                    i.ontvangst.as_deref(),
+                )
+            })
+            .collect()
+    }
+
     #[test]
     fn what_a_case_needs_follows_from_the_law() {
         // Vakantieverlof: the leave article, the policy that fills its open
@@ -3755,22 +4941,38 @@ mod tests {
         let verlof = corpus();
         let a = &verlof.afleiding;
         assert_eq!((a.law.as_str(), a.article.as_str()), (LAW, ARTICLE));
-        assert_eq!(
-            (a.objection_law.as_str(), a.objection.as_str()),
-            ("algemene_wet_bestuursrecht", "7:11")
-        );
         assert_eq!(a.rol, "het hoofd");
-        // The appeal, from the Awb, and the fact for receiving a judgment:
-        // the one the law requires whose parameters are all outputs of the
-        // judgment.
-        let beroep = a.beroep.as_ref().unwrap();
+        // The submissions the law establishes, each with the cell that
+        // decides on it: the application and the objection (7:11) the
+        // school, the appeal (8:70) the court, the one other cell whom the
+        // article names as who decides. For the court's decision, the fact
+        // for receiving a copy of it: the one the law requires whose
+        // parameters are all outputs of the judgment.
         assert_eq!(
-            (beroep.law.as_str(), beroep.article.as_str()),
-            ("algemene_wet_bestuursrecht", "8:70")
-        );
-        assert_eq!(
-            beroep.ontvangst,
-            "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak"
+            indieningen(a),
+            [
+                (
+                    "leerplichtwet_1969#13a",
+                    "AANVRAAG",
+                    "leerplichtwet_1969#13a",
+                    SCHOOL,
+                    None
+                ),
+                (
+                    "algemene_wet_bestuursrecht#7:11",
+                    "BEZWAAR",
+                    "algemene_wet_bestuursrecht#7:11",
+                    SCHOOL,
+                    None
+                ),
+                (
+                    "algemene_wet_bestuursrecht#8:70",
+                    "BEROEP",
+                    "algemene_wet_bestuursrecht#8:70",
+                    "rechtbank_wilgendaal",
+                    Some("algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak")
+                ),
+            ]
         );
         let mut ids = a.regelwerken.clone();
         assert_eq!(ids[0], LAW);
@@ -3802,10 +5004,14 @@ mod tests {
         // acts on it are in this case too.
         let kaart = casus("gehandicaptenparkeerkaart");
         let a = &kaart.afleiding;
-        assert_eq!(a.objection, "7:11");
+        let bezwaar = a.indiening("algemene_wet_bestuursrecht#7:11").unwrap();
+        assert_eq!(bezwaar.cel, "gemeente_wilgendaal");
         assert_eq!(
-            a.beroep.as_ref().unwrap().ontvangst,
-            "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak"
+            a.indiening("algemene_wet_bestuursrecht#8:70")
+                .unwrap()
+                .ontvangst
+                .as_deref(),
+            Some("algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak")
         );
         // The authority BABW art. 49 names as the one who decides (RFC-002).
         assert_eq!(a.rol, "het college van burgemeester en wethouders");
@@ -3833,14 +5039,15 @@ mod tests {
         // The bedrijfsparkeervergunning: art. 2 of the fictitious ordinance,
         // its implementing decision that fills its open terms, the policy
         // that binds those to the answers of the cells, and the Awb; the
-        // reductions of the catalogues of the municipality and of the Chamber
-        // of Commerce, and the policy that requires the Chamber's
-        // registrations. The municipality's reduction for the parking card
-        // plays the decisions under BABW art. 49, so that article and what
-        // acts on it are in this case too.
+        // reductions of the catalogues of the municipality, of the Chamber
+        // of Commerce and of the accredited service, the policy that
+        // requires the Chamber's registrations, and the Wet digitale
+        // overheid, which requires the authentications. The municipality's
+        // reduction for the parking card plays the decisions under BABW art.
+        // 49, so that article and what acts on it are in this case too.
         let vergunning = casus("bedrijfsparkeervergunning");
         let a = &vergunning.afleiding;
-        assert_eq!(a.objection, "7:11");
+        assert!(a.indiening("algemene_wet_bestuursrecht#7:11").is_some());
         assert_eq!(a.rol, "het college van burgemeester en wethouders");
         let mut ids = a.regelwerken.clone();
         ids.sort();
@@ -3856,12 +5063,14 @@ mod tests {
                 "beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal",
                 "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw",
                 "parkeerverordening_gemeente_wilgendaal",
+                "reductie_authenticatie",
                 "reductie_bedrijfsparkeervergunning",
                 "reductie_geldige_gehandicaptenparkeerkaart",
                 "reductie_geneeskundig_advies",
                 "reductie_vestiging_in_handelsregister",
                 "regeling_gehandicaptenparkeerkaart",
                 "uitvoeringsbesluit_parkeren_gemeente_wilgendaal",
+                "wet_digitale_overheid",
             ]
         );
     }
@@ -3881,8 +5090,9 @@ mod tests {
             (a.decision_law.as_str(), a.decision.as_str()),
             ("algemene_wet_inkomensafhankelijke_regelingen", "16")
         );
-        assert_eq!(a.objection, "7:11");
-        assert!(a.beroep.is_none(), "no court among the cells of this case");
+        assert!(a.indiening("algemene_wet_bestuursrecht#7:11").is_some());
+        // No court among the cells of this case, so no appeal it plays.
+        assert!(a.indiening("algemene_wet_bestuursrecht#8:70").is_none());
         assert_eq!(a.rol, "Dienst Toeslagen");
         let mut ids = a.regelwerken.clone();
         ids.sort();
@@ -3893,6 +5103,8 @@ mod tests {
                 "algemene_wet_inkomensafhankelijke_regelingen",
                 "algemene_wet_inzake_rijksbelastingen",
                 "beleid_zorgtoeslag_dienst_toeslagen",
+                "fictief_beleid_uitbetaling_voorschot_dienst_toeslagen",
+                "reductie_uitbetaling_voorschot",
                 "regeling_standaardpremie",
                 "wet_inkomstenbelasting_2001",
                 "wet_op_de_zorgtoeslag",
@@ -4075,7 +5287,7 @@ mod tests {
         let vastgelegd = cell.grams().len();
         let op = day("2026-11-15");
         let voorlopig = |b: &Map<String, Value>| {
-            voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar.id, b, op)
+            voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar.id, &ontvankelijk(b), op)
                 .unwrap()
                 .voorlopig
                 .unwrap()
@@ -4089,8 +5301,14 @@ mod tests {
         let voorlopig = voorlopig(&beroep(true));
         assert_eq!(cell.grams().len(), vastgelegd);
 
-        let genomen =
-            beslissen_op_bezwaar(&corpus, &mut cell, &bezwaar.id, &beroep(true), op).unwrap();
+        let genomen = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &bezwaar.id,
+            &ontvankelijk(&beroep(true)),
+            op,
+        )
+        .unwrap();
         assert_eq!(
             voorlopig["beslissing"]["outputs"]["heroverweging_geeft_aanleiding"],
             json!(true)
@@ -4206,12 +5424,19 @@ mod tests {
             let bevindingen =
                 map(json!({ "toepassing_leidt_tot_onaanvaardbare_gevolgen": oordeel }));
             let (mut cell, bezwaar) = hardheid_bezwaar(&corpus);
-            let voorlopig = voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar, &bevindingen, op)
-                .unwrap()
-                .voorlopig
-                .unwrap();
-            let genomen =
-                beslissen_op_bezwaar(&corpus, &mut cell, &bezwaar, &bevindingen, op).unwrap();
+            let voorlopig =
+                voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar, &ontvankelijk(&bevindingen), op)
+                    .unwrap()
+                    .voorlopig
+                    .unwrap();
+            let genomen = beslissen_op_bezwaar(
+                &corpus,
+                &mut cell,
+                &bezwaar,
+                &ontvankelijk(&bevindingen),
+                op,
+            )
+            .unwrap();
             assert_eq!(
                 voorlopig.pointer(herroepen),
                 Some(&json!(oordeel)),
@@ -4234,9 +5459,14 @@ mod tests {
         // and the college finds the hardship clause anew.
         let corpus = casus("bedrijfsparkeervergunning");
         let (mut cell, bezwaar) = hardheid_bezwaar(&corpus);
-        let ongegrond =
-            beslissen_op_bezwaar(&corpus, &mut cell, &bezwaar, &Map::new(), day("2026-11-20"))
-                .unwrap();
+        let ongegrond = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &bezwaar,
+            &ontvankelijk(&Map::new()),
+            day("2026-11-20"),
+        )
+        .unwrap();
         let op_bezwaar = ongegrond["beslissing"]["id"].as_str().unwrap().to_string();
         let mut velden = corpus.casus.voorbeeld.beroep.clone();
         velden.insert(
@@ -4272,13 +5502,24 @@ mod tests {
 
         let op = day("2027-01-18");
         let bevindingen = map(json!({ "toepassing_leidt_tot_onaanvaardbare_gevolgen": true }));
-        let voorlopig = voorvertoning_na_uitspraak(&corpus, &cell, &ontvangst.id, &bevindingen, op)
-            .unwrap()
-            .voorlopig
-            .unwrap();
-        let genomen =
-            opnieuw_beslissen_op_bezwaar(&corpus, &mut cell, &ontvangst.id, &bevindingen, op)
-                .unwrap();
+        let voorlopig = voorvertoning_na_uitspraak(
+            &corpus,
+            &cell,
+            &ontvangst.id,
+            &ontvankelijk(&bevindingen),
+            op,
+        )
+        .unwrap()
+        .voorlopig
+        .unwrap();
+        let genomen = opnieuw_beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &ontvangst.id,
+            &ontvankelijk(&bevindingen),
+            op,
+        )
+        .unwrap();
         let herroepen = "/beslissing/outputs/bestreden_besluit_herroepen";
         assert_eq!(voorlopig.pointer(herroepen), Some(&json!(true)));
         for pad in [herroepen, "/nieuw_besluit/outputs", "/waarom/keten"] {
@@ -4313,18 +5554,27 @@ mod tests {
         .unwrap();
         let op = day("2026-11-15");
         let term = "verlof_valt_buiten_schoolvakanties_volgens_hoofd";
-        let zonder =
-            voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar.id, &beroep(true), op).unwrap();
+        let zonder = voorvertoning_op_bezwaar(
+            &corpus,
+            &cell,
+            &bezwaar.id,
+            &ontvankelijk(&beroep(true)),
+            op,
+        )
+        .unwrap();
         assert_eq!(namen(&zonder.stil), [term]);
         assert!(zonder.voorlopig.is_none());
 
         let mut oordeel = beroep(true);
         oordeel.insert(term.into(), json!(true));
-        let met = voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar.id, &oordeel, op)
-            .unwrap()
-            .voorlopig
-            .unwrap();
-        let genomen = beslissen_op_bezwaar(&corpus, &mut cell, &bezwaar.id, &oordeel, op).unwrap();
+        let met =
+            voorvertoning_op_bezwaar(&corpus, &cell, &bezwaar.id, &ontvankelijk(&oordeel), op)
+                .unwrap()
+                .voorlopig
+                .unwrap();
+        let genomen =
+            beslissen_op_bezwaar(&corpus, &mut cell, &bezwaar.id, &ontvankelijk(&oordeel), op)
+                .unwrap();
         let verleend = "/nieuw_besluit/outputs/verlof_verleend";
         assert_eq!(met.pointer(verleend), Some(&json!(true)));
         assert_eq!(met.pointer(verleend), genomen.pointer(verleend));
@@ -4361,7 +5611,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-15"),
         )
         .unwrap();
@@ -4391,8 +5641,14 @@ mod tests {
 
         let op = day("2027-01-18");
         let term = "verlof_valt_buiten_schoolvakanties_volgens_hoofd";
-        let zonder =
-            voorvertoning_na_uitspraak(&corpus, &cell, &ontvangst.id, &beroep(true), op).unwrap();
+        let zonder = voorvertoning_na_uitspraak(
+            &corpus,
+            &cell,
+            &ontvangst.id,
+            &ontvankelijk(&beroep(true)),
+            op,
+        )
+        .unwrap();
         assert_eq!(namen(&zonder.stil), [term]);
         assert_eq!(
             zonder.stil[0]["basis"],
@@ -4403,12 +5659,19 @@ mod tests {
 
         let mut oordeel = beroep(true);
         oordeel.insert(term.into(), json!(true));
-        let met = voorvertoning_na_uitspraak(&corpus, &cell, &ontvangst.id, &oordeel, op)
-            .unwrap()
-            .voorlopig
-            .unwrap();
-        let genomen =
-            opnieuw_beslissen_op_bezwaar(&corpus, &mut cell, &ontvangst.id, &oordeel, op).unwrap();
+        let met =
+            voorvertoning_na_uitspraak(&corpus, &cell, &ontvangst.id, &ontvankelijk(&oordeel), op)
+                .unwrap()
+                .voorlopig
+                .unwrap();
+        let genomen = opnieuw_beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &ontvangst.id,
+            &ontvankelijk(&oordeel),
+            op,
+        )
+        .unwrap();
         let verleend = "/nieuw_besluit/outputs/verlof_verleend";
         assert_eq!(met.pointer(verleend), Some(&json!(true)));
         assert_eq!(met.pointer(verleend), genomen.pointer(verleend));
@@ -4888,7 +6151,14 @@ mod tests {
         let (corpus, mut cell) = kaart_onderzocht();
         let verstrekt = kaart_besluit(&corpus, &mut cell, "2026-10-13", "2026-10-20", true).besluit;
         let bezwaar = kaart_bezwaar(&corpus, &mut cell, &verstrekt.id, "2026-11-01");
-        let toets = heroverweging(&corpus, &cell, &bezwaar.id, day("2026-11-20")).unwrap();
+        let toets = heroverweging(
+            &corpus,
+            &cell,
+            &bezwaar.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-11-20"),
+        )
+        .unwrap();
         assert_eq!(toets["ontvankelijk"], json!(true));
         // The three of art. 2 lid 2 of the Regeling; the four criteria came
         // from the advice, so they were no findings of the college.
@@ -4897,7 +6167,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-20"),
         )
         .unwrap();
@@ -4945,7 +6215,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-20"),
         )
         .unwrap();
@@ -5019,7 +6289,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-15"),
         )
         .unwrap();
@@ -5051,11 +6321,17 @@ mod tests {
             namen("/uitspraak/bevindingen"),
             [
                 "indiener_is_belanghebbende",
+                "indiener_beroepschrift_niet_in_verzuim",
                 "rechtsregel_geschonden",
                 "geschonden_rechtsregel",
                 "rechtsgevolgen_in_stand",
                 "uitspraak_treedt_in_de_plaats",
                 "termijn_nieuw_besluit",
+                // Deciding itself, the court takes the decision on the
+                // objection anew, admissibility included (Awb 8:72 lid 3
+                // onder b).
+                "indiener_bezwaarschrift_is_belanghebbende",
+                "indiener_bezwaarschrift_niet_in_verzuim",
                 "specifieke_aard_beroep_ouder",
                 "verlof_valt_buiten_schoolvakanties_volgens_hoofd",
                 "verlof_al_verleend_in_schooljaar_volgens_hoofd",
@@ -5168,7 +6444,60 @@ mod tests {
         assert_eq!(log[0]["gram"]["id"], json!(ontvangst.id));
         assert!(log[0]["waarom"].is_null());
 
-        let toets = heroverweging_na_uitspraak(&corpus, &cell, &ontvangst.id).unwrap();
+        // Deciding again records the head's own judgements on admissibility
+        // (Awb 7:11): without them the cell refuses, both the check before
+        // and the decision. The earlier decision on the objection is annulled
+        // and lends none.
+        let e = heroverweging_na_uitspraak(&corpus, &cell, &ontvangst.id, &Map::new()).unwrap_err();
+        assert!(
+            e.to_string()
+                .contains("indiener_bezwaarschrift_is_belanghebbende"),
+            "{e}"
+        );
+        let e = opnieuw_beslissen_op_bezwaar(
+            &corpus,
+            &mut cell.sandbox(),
+            &ontvangst.id,
+            &beroep(true),
+            day("2027-01-18"),
+        )
+        .unwrap_err();
+        assert!(
+            e.to_string()
+                .contains("indiener_bezwaarschrift_is_belanghebbende"),
+            "{e}"
+        );
+        // Another judgement than the first time comes to another outcome:
+        // the objection was admissible then, and is not now that the head
+        // judges the objector no interested party.
+        assert_eq!(
+            cell.grams()
+                .iter()
+                .find(|g| g.id == op_bezwaar)
+                .unwrap()
+                .outputs["bezwaar_ontvankelijk"],
+            json!(true)
+        );
+        let geen = ontvankelijk(&Map::from_iter([(
+            "indiener_bezwaarschrift_is_belanghebbende".to_string(),
+            json!(false),
+        )]));
+        let anders = opnieuw_beslissen_op_bezwaar(
+            &corpus,
+            &mut cell.sandbox(),
+            &ontvangst.id,
+            &geen,
+            day("2027-01-18"),
+        )
+        .unwrap();
+        assert_eq!(
+            anders["beslissing"]["outputs"]["bezwaar_ontvankelijk"],
+            json!(false)
+        );
+
+        let toets =
+            heroverweging_na_uitspraak(&corpus, &cell, &ontvangst.id, &ontvankelijk(&Map::new()))
+                .unwrap();
         assert_eq!(toets["bezwaar"], json!(bezwaar.id));
         assert_eq!(toets["bestreden_besluit"], json!(geweigerd.id));
         assert_eq!(
@@ -5187,11 +6516,16 @@ mod tests {
             &corpus,
             &mut cell,
             &ontvangst.id,
-            &beroep(true),
+            &ontvankelijk(&beroep(true)),
             day("2027-01-18"),
         )
         .unwrap();
         assert_eq!(opnieuw["beslissing"]["after"], json!(ontvangst.id));
+        // The decision taken again holds its own judgements in the chronicle.
+        assert_eq!(
+            opnieuw["beslissing"]["fields"]["indiener_bezwaarschrift_is_belanghebbende"],
+            json!(true)
+        );
         assert_eq!(opnieuw["beslissing"]["refers_to"], json!(bezwaar.id));
         assert_eq!(
             opnieuw["beslissing"]["outputs"]["bestreden_besluit_herroepen"],
@@ -5245,7 +6579,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-20"),
         )
         .unwrap();
@@ -5314,7 +6648,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-15"),
         )
         .unwrap();
@@ -5345,9 +6679,19 @@ mod tests {
         .unwrap_err();
         assert!(e.to_string().contains("rechtsgevolgen_in_stand"), "{e}");
         assert_eq!(rechtbank(&cell).grams().len(), 1);
-        // A case without a receipt cannot be decided on again from one.
-        let e = heroverweging_na_uitspraak(&corpus, &cell, &geweigerd.besluit.id).unwrap_err();
-        assert!(e.to_string().contains("no receipt"), "{e}");
+        // The objection is decided on again only after a record that refers
+        // to the last decision on it, such as the receipt of a judgment: the
+        // cell refuses it after another.
+        let e = beslissen(
+            &corpus,
+            &mut cell,
+            &bezwaar.id,
+            Some(&geweigerd.besluit.id),
+            &Map::new(),
+            day("2027-01-11"),
+        )
+        .unwrap_err();
+        assert!(e.to_string().contains("the last decision on"), "{e}");
     }
 
     /// The first step in `stappen`, or under one, for which `past` holds.
@@ -5398,7 +6742,7 @@ mod tests {
             &corpus,
             &mut cell,
             &tegen_a.id,
-            &beroep(false),
+            &ontvankelijk(&beroep(false)),
             day("2026-11-15"),
         )
         .unwrap();
@@ -5520,7 +6864,7 @@ mod tests {
             &corpus,
             &mut cell,
             &bezwaar.id,
-            &Map::new(),
+            &ontvankelijk(&Map::new()),
             day("2026-11-15"),
         )
         .unwrap();
@@ -5605,6 +6949,7 @@ mod tests {
                     on: &str,
                     fields: Value,
                     outputs: Value| Gram {
+            law_versions: Vec::new(),
             id: id.to_string(),
             kind: kind.to_string(),
             basis: basis.to_string(),
@@ -5821,7 +7166,7 @@ mod tests {
             &corpus,
             &mut cell,
             &tegen_a.id,
-            &beroep(false),
+            &ontvankelijk(&beroep(false)),
             day("2026-11-15"),
         )
         .unwrap();

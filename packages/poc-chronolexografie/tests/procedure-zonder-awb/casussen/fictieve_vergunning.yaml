@@ -1,0 +1,116 @@
+---
+# FICTIEF. A case whose procedure is not the Awb's (tests/scenarios/). Its
+# scenarios name no step of a procedure: each step is a submission under an
+# article, a decision on a submission, or a decision ex officio, and refers to
+# the record of an earlier step by its kenmerk.
+cel: fictieve_dienst
+artikel: fictieve_vergunningwet#1
+corpus:
+  - regulation/nl/wet/fictieve_vergunningwet
+  - regulation/nl/uitvoeringsbeleid/fictief_beleid_leges
+uitkomst: vergunning_verleend
+titel: Fictieve vergunning
+cel_naam: Fictieve dienst
+speeldatum: 2026-02-02
+voorbeeld: {}
+scenarios:
+  - naam: Verleend, verlengd en ambtshalve ingetrokken
+    eind: De vergunning is verlengd en daarna ingetrokken.
+    stappen:
+      - stap: indienen
+        artikel: fictieve_vergunningwet#1
+        kenmerk: aanvraag
+        invoer:
+          aanvrager: A. Voorbeeld
+          meerderjarig: true
+      - stap: beslissen
+        verwijst_naar: aanvraag
+        kenmerk: vergunning
+        datum: 2026-02-09
+        uitvoer:
+          vergunning_verleend: true
+      - stap: indienen
+        artikel: fictieve_vergunningwet#2
+        verwijst_naar: vergunning
+        kenmerk: verlenging
+        datum: 2026-02-16
+      - stap: beslissen
+        verwijst_naar: verlenging
+        datum: 2026-02-23
+        uitvoer:
+          verlenging_verleend: true
+      - stap: ambtshalve
+        artikel: fictieve_vergunningwet#3
+        verwijst_naar: vergunning
+        datum: 2026-03-02
+        uitvoer:
+          ingetrokken: true
+  - naam: Geweigerd, en geen verlenging ambtshalve
+    eind: >-
+      De vergunning is geweigerd. Artikel 2 neemt de dienst op aanvraag, dus
+      een ambtshalve besluit onder dat artikel weigert het harnas.
+    stappen:
+      - stap: indienen
+        artikel: fictieve_vergunningwet#1
+        kenmerk: aanvraag
+        invoer:
+          aanvrager: B. Voorbeeld
+          meerderjarig: false
+      - stap: beslissen
+        verwijst_naar: aanvraag
+        kenmerk: weigering
+        uitvoer:
+          vergunning_verleend: false
+      - stap: ambtshalve
+        artikel: fictieve_vergunningwet#2
+        verwijst_naar: weigering
+        uitkomst: geweigerd
+  - naam: Verleend, leges betaald en terugbetaald
+    eind: >-
+      De dienst legde in haar eigen kroniek vast dat de leges voor de
+      vergunning zijn betaald, en daarna dat zij die betaling terugbetaalde.
+    stappen:
+      - stap: indienen
+        artikel: fictieve_vergunningwet#1
+        kenmerk: aanvraag
+        invoer:
+          aanvrager: C. Voorbeeld
+          meerderjarig: true
+      - stap: beslissen
+        verwijst_naar: aanvraag
+        kenmerk: vergunning
+        uitvoer:
+          vergunning_verleend: true
+      # Without a cell the case's own cell records: the service, while it
+      # handles the case.
+      - stap: vastleggen
+        feit: fictieve_vergunningwet#4#leges_betaald
+        verwijst_naar: vergunning
+        kenmerk: betaling
+        datum: 2026-02-16
+        invoer:
+          bedrag: 5000
+        # What the service's own cell answers on the day of this step, as
+        # Cell::consult computes it: the output of its policy, which takes the
+        # answer of its reduction.
+        antwoorden:
+          - bron: fictief_beleid_leges#1#betaalde_leges
+            verwacht: 5000
+      - stap: vastleggen
+        cel: fictieve_dienst
+        feit: fictieve_vergunningwet#4#leges_terugbetaald
+        verwijst_naar: betaling
+        datum: 2026-02-23
+        invoer:
+          bedrag: 5000
+        antwoorden:
+          - bron: fictief_beleid_leges#1#betaalde_leges
+            cel: fictieve_dienst
+            verwacht: 0
+      # A check step: nothing is done, and on its day the scenario checks
+      # what the service's own cell answers.
+      - stap: toetsen
+        datum: 2026-03-02
+        antwoorden:
+          - bron: fictief_beleid_leges#1#betaalde_leges
+            verwacht: 0

@@ -12,7 +12,7 @@
 // gebruikte, met wat het bestuursorgaan toen vond. Volg je een scenario, dan
 // staan de bevindingen ingevuld zoals de stap ze geeft (scenarioInvoer.js).
 import { computed, reactive } from 'vue';
-import { api } from '../api.js';
+import { awb } from '../awb.js';
 import { stilBegrippen } from '../stil.js';
 import {
   aanvragen,
@@ -20,6 +20,9 @@ import {
   beslissingOp,
   besluitOp,
   alsJson,
+  eigenBesluiten,
+  longDate,
+  toegewezen,
   jaNee,
   kort,
   samenvatting,
@@ -27,9 +30,15 @@ import {
   stap,
   zonderLeeg,
 } from '../state.js';
+import { guideFor } from '../scenarioGuides.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
+import { eigenOordelen } from '../oordelen.js';
 import ArtikelLink from './ArtikelLink.vue';
 import Uitkomst from './Uitkomst.vue';
+import EigenOordelen from './EigenOordelen.vue';
+import FeitVastleggen from './FeitVastleggen.vue';
+import AmbtshalveBesluiten from './AmbtshalveBesluiten.vue';
+import StandBijBesluit from './StandBijBesluit.vue';
 import OordeelKeuze from './OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
 import Voorvertoning from './Voorvertoning.vue';
@@ -37,6 +46,14 @@ import Waarom from './Waarom.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
 const oordelen = () => state.vormen?.besluit.bevindingen ?? [];
+
+// The decisions of the case's cell under its deciding article, newest first,
+// with beside each what the UI spec of the case shows of it (StandBijBesluit.vue).
+const weergaven = computed(() => state.vormen?.per_besluit ?? []);
+const genomen = computed(() => eigenBesluiten().reverse());
+const eigenAmbtshalve = computed(() =>
+  (state.casus.ambtshalve ?? []).some((a) => a.cel === state.casus.cel),
+);
 
 const open = computed(() => aanvragen().filter((a) => !besluitOp(a.id)));
 const openBezwaren = computed(() =>
@@ -46,13 +63,14 @@ const openBezwaren = computed(() =>
 // Per aanvraag de oordelen van het bestuursorgaan. Een schakelaar die uit
 // staat, zegt nee, behalve bij een bevinding die leeg mag: daar zegt een
 // onaangeraakte schakelaar niets. Een begrip dat de cel niet weet, blijft leeg
-// tot het bestuursorgaan oordeelt. Een casus uit een bron speelt haar
-// scenario's als tekst: daar zegt een bevinding zonder voorbeeldwaarde ja,
-// zoals de voorbeeldwaarden altijd deden.
+// tot het bestuursorgaan oordeelt.
+// A scenario with a guide plays this way whatever the case's origin. Only
+// a scenario without a guide (text alone) of a case from a source treats a
+// finding without an example value as yes, as such sources always did.
 const besluitVorm = formulier((id) => scenarioWaarden('besluit', { aanvraag: id }));
 const oordeel = besluitVorm.eigen;
 const uit = () => {
-  const standaard = !!(state.casus.bron && state.scenario);
+  const standaard = !!(state.casus.bron && state.scenario && !guideFor(state.casus, state.scenario));
   return Object.fromEntries(
     oordelen()
       .filter((o) => o.type === 'boolean' && !o.mag_leeg)
@@ -63,35 +81,61 @@ const oordeelVoor = (id) => ({ ...uit(), ...zonderLeeg(besluitVorm.waarden(id)) 
 const zetOordeel = (id, naam, waarde) => besluitVorm.zet(id, naam, waarde);
 
 async function besluit(a) {
-  const antwoord = await stap(() => api.besluiten(a.id, oordeelVoor(a.id), state.datum));
+  const antwoord = await stap(() => awb.besluiten(a.id, oordeelVoor(a.id), state.datum));
   if (antwoord) besluitVorm.wis(a.id);
 }
 
-// Bij een bezwaar eerst de ontvankelijkheid, zoals Awb 7:11 die beslist
-// (op tijd volgens 6:9, en niet tegen een besluit op bezwaar). Alleen dan
-// heroverweegt het bestuursorgaan en vraagt de pagina bevindingen: een
-// bevinding zonder heroverweging weigert de cel. De vragen komen uit de
-// bevindingen van het bestreden besluit; 'Laat staan' houdt wat het toen
-// vond.
+// Bij een bezwaar eerst de ontvankelijkheid, zoals Awb 7:11 die beslist:
+// op tijd volgens 6:9 of verschoonbaar te laat volgens 6:11, niet tegen een
+// besluit dat in bezwaar is genomen, en door een belanghebbende (1:2, 7:1
+// en 8:1). Of de indiener belanghebbende is en of hij bij een te laat
+// bezwaarschrift in verzuim was, oordeelt het bestuursorgaan zelf; die
+// oordelen komen uit de wet (`decided_per_case_by` bij artikel 7:11). Alleen
+// bij een ontvankelijk bezwaar heroverweegt het bestuursorgaan en vraagt de
+// pagina bevindingen: een bevinding zonder heroverweging weigert de cel. De
+// vragen komen uit de bevindingen van het bestreden besluit; 'Laat staan'
+// houdt wat het toen vond.
 const toetsen = reactive({});
 const opnieuwVorm = formulier((id) => scenarioWaarden('beslissing_op_bezwaar', { bezwaar: id }));
 const opnieuw = opnieuwVorm.eigen;
+const ontvankelijkheidsOordelen = () => state.vormen?.beslissing_op_bezwaar?.bevindingen ?? [];
+// Wat het bestuursorgaan over de ontvankelijkheid oordeelt (oordelen.js);
+// ook bij een casus uit een bron zegt een schakelaar die uit staat nee.
+const ontvankelijkheid = (bz) =>
+  eigenOordelen(ontvankelijkheidsOordelen(), zonderLeeg(opnieuwVorm.waarden(bz.id)));
 // Wat het bestuursorgaan oordeelt over begrippen die de cel niet weet (stil.js).
 const { stil, meldStil } = stilBegrippen(oordeel, opnieuw);
 const beslissingen = reactive({});
 
+// De oordelen over de ontvankelijkheid blijven bij de toets staan: het
+// formulier wordt daarna gewist voor de heroverweging, en de beslissing moet
+// op dezelfde oordelen berusten als de toets.
 async function toets(bz) {
-  const antwoord = await stap(() => api.heroverweging(bz.id, state.datum));
+  const oordeel = ontvankelijkheid(bz);
+  const antwoord = await stap(() => awb.heroverweging(bz.id, oordeel, state.datum));
   if (antwoord) {
-    toetsen[bz.id] = antwoord;
+    toetsen[bz.id] = { ...antwoord, ontvankelijkheid: oordeel };
     opnieuwVorm.wis(bz.id);
   }
 }
 
-// Wat het bestuursorgaan bij de heroverweging opnieuw vindt; 'Laat staan'
-// geeft niets.
-const gegevenOpBezwaar = (bz) =>
-  zonderLeeg(toetsen[bz.id]?.ontvankelijk ? opnieuwVorm.waarden(bz.id) : {});
+// Wat het bestuursorgaan over de ontvankelijkheid oordeelt, en wat het bij
+// de heroverweging opnieuw vindt; 'Laat staan' geeft niets.
+const gegevenOpBezwaar = (bz) => ({
+  ...(toetsen[bz.id]?.ontvankelijk ? zonderLeeg(opnieuwVorm.waarden(bz.id)) : {}),
+  ...(toetsen[bz.id]?.ontvankelijkheid ?? ontvankelijkheid(bz)),
+});
+
+// Waarom een bezwaar niet-ontvankelijk is, in de volgorde waarin Awb 7:11
+// het toetst (awb.js, `reden`).
+const NIET_ONTVANKELIJK = {
+  te_laat:
+    'Het bezwaar kwam te laat (Awb 6:9), en het bestuursorgaan oordeelde dat de indiener in verzuim was (Awb 6:11). Er is geen heroverweging, dus het bestuursorgaan geeft geen bevindingen.',
+  genomen_in_bezwaar:
+    'Tegen dit besluit staat geen bezwaar open (Awb 7:1): het is in bezwaar genomen. Er is geen heroverweging.',
+  geen_belanghebbende:
+    'Het bestuursorgaan oordeelde dat de indiener geen belanghebbende is (Awb 1:2, 7:1 en 8:1). Er is geen heroverweging.',
+};
 // De begrippen die de cel bij dit bezwaar niet weet en die niet al onder de
 // bevindingen van het bestreden besluit staan.
 const stilBijBezwaar = (bz) =>
@@ -99,7 +143,7 @@ const stilBijBezwaar = (bz) =>
 
 async function beslisOpBezwaar(bz) {
   const gegeven = gegevenOpBezwaar(bz);
-  const antwoord = await stap(() => api.beslissenOpBezwaar(bz.id, gegeven, state.datum));
+  const antwoord = await stap(() => awb.beslissenOpBezwaar(bz.id, gegeven, state.datum));
   if (antwoord) {
     beslissingen[bz.id] = antwoord;
     delete toetsen[bz.id];
@@ -169,8 +213,9 @@ const uitkomstOpBezwaar = (uit) =>
   <nldd-simple-section>
     <nldd-title heading-level="2" slot="header" size="display-3" text="Open bezwaren">
       <nldd-text slot="supporting-text">
-        Beslissen op bezwaar (Awb 7:11). Eerst de ontvankelijkheid: een bezwaar dat te laat
-        kwam, of tegen een besluit op bezwaar, wordt niet heroverwogen. Anders heroverweegt
+        Beslissen op bezwaar (Awb 7:11). Eerst de ontvankelijkheid: een bezwaar dat zonder
+        verschoning te laat kwam, tegen een besluit dat in bezwaar is genomen, of van iemand die
+        geen belanghebbende is, wordt niet heroverwogen. Anders heroverweegt
         het bestuursorgaan: <ArtikelLink :basis="besluitBasis()" /> wordt opnieuw toegepast op dezelfde aanvraag. Het kan
         een bevinding opnieuw geven, bijvoorbeeld na nieuwe stukken bij het bezwaar. Verschilt
         de uitkomst, dan herroept de beslissing het besluit en komt er een nieuw besluit. Een
@@ -191,7 +236,12 @@ const uitkomstOpBezwaar = (uit) =>
           :supporting-text="`ontvangen ${bz.recorded_on} · ${bz.fields.gronden_bezwaar_of_beroep ?? ''}`"
         ></nldd-title>
         <template v-if="!toetsen[bz.id]">
-          <nldd-text size="sm" color="secondary">Stap 1: is het bezwaar ontvankelijk? Dat beslist Awb 7:11 op de speeldatum.</nldd-text>
+          <nldd-text size="sm" color="secondary">Stap 1: is het bezwaar ontvankelijk? Het bestuursorgaan oordeelt of de indiener belanghebbende is, en of hij bij een te laat bezwaarschrift in verzuim was. Daarmee beslist Awb 7:11 op de speeldatum.</nldd-text>
+          <EigenOordelen
+            :velden="ontvankelijkheidsOordelen()"
+            :waarden="opnieuwVorm.waarden(bz.id)"
+            @zet="(naam, w) => opnieuwVorm.zet(bz.id, naam, w)"
+          />
           <nldd-button appearance="primary" text="Ontvankelijkheid toetsen" @click="toets(bz)"></nldd-button>
         </template>
         <template v-else-if="!toetsen[bz.id].ontvankelijk">
@@ -199,13 +249,13 @@ const uitkomstOpBezwaar = (uit) =>
             icon="warning"
             icon-color="warning"
             text="Niet-ontvankelijk"
-            :supporting-text="toetsen[bz.id].tijdig === false ? 'Het bezwaar kwam te laat (Awb 6:9). Er is geen heroverweging, dus het bestuursorgaan geeft geen bevindingen.' : 'Tegen dit besluit staat geen bezwaar open (Awb 7:1): het is genomen op bezwaar. Er is geen heroverweging.'"
+            :supporting-text="NIET_ONTVANKELIJK[toetsen[bz.id].reden]"
           ></nldd-inline-dialog>
           <nldd-container layout="grid" gap="16">
             <nldd-container>
               <nldd-button appearance="primary" text="Beslissen op bezwaar" @click="beslisOpBezwaar(bz)"></nldd-button>
             </nldd-container>
-            <Voorvertoning soort="bezwaar" :op="bz.id" :bevindingen="{}" />
+            <Voorvertoning soort="bezwaar" :op="bz.id" :bevindingen="gegevenOpBezwaar(bz)" />
           </nldd-container>
         </template>
         <template v-else>
@@ -245,6 +295,51 @@ const uitkomstOpBezwaar = (uit) =>
         </template>
         </nldd-container>
       </nldd-card>
+    </nldd-container>
+  </nldd-simple-section>
+
+  <nldd-simple-section v-if="state.vormen.eigen?.handelingen?.length">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Vastleggen">
+      <nldd-text slot="supporting-text">
+        Wat het bestuursorgaan zelf vastlegt terwijl het de zaak behandelt, in de eigen kroniek: de feiten
+        die de wet het opdraagt, zoals een betaling op een besluit.
+      </nldd-text>
+    </nldd-title>
+    <nldd-container gap="16" max-width="560px">
+      <FeitVastleggen :cel="state.vormen.eigen.cel" :handelingen="state.vormen.eigen.handelingen" />
+    </nldd-container>
+  </nldd-simple-section>
+
+  <nldd-simple-section v-if="weergaven.length && genomen.length">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Genomen besluiten">
+      <nldd-text slot="supporting-text">
+        Wat de cel op de speeldatum over elk besluit weet, uit haar kroniek en het beleid. Er wordt niets vastgelegd.
+      </nldd-text>
+    </nldd-title>
+    <nldd-container gap="16">
+      <nldd-card v-for="g in genomen" :key="g.id">
+        <nldd-container padding="16" gap="12">
+          <nldd-title
+            heading-level="3"
+            size="display-5"
+            :text="`Besluit ${kort(g.id)}`"
+            :supporting-text="`genomen op ${longDate(g.recorded_on)} · ${toegewezen(g) ? 'toegewezen' : 'afgewezen'}`"
+          ></nldd-title>
+          <StandBijBesluit :besluit="g" :weergaven="weergaven" />
+        </nldd-container>
+      </nldd-card>
+    </nldd-container>
+  </nldd-simple-section>
+
+  <nldd-simple-section v-if="eigenAmbtshalve">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Ambtshalve besluiten">
+      <nldd-text slot="supporting-text">
+        Een besluit dat het bestuursorgaan zonder aanvraag neemt, zoals de vaststelling van de wettelijke rente
+        over een betaling. Welke dat zijn, volgt uit de wet.
+      </nldd-text>
+    </nldd-title>
+    <nldd-container max-width="560px">
+      <AmbtshalveBesluiten />
     </nldd-container>
   </nldd-simple-section>
 

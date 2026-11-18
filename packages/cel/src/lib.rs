@@ -34,6 +34,7 @@ pub mod files;
 pub mod identity;
 pub mod reading;
 pub mod shape;
+pub mod versions;
 
 pub use cell::{Cell, Reference};
 pub use chronicle::{Afschrift, Chronicle, EXECUTOGRAM, Gram, GramMoment, Received};
@@ -42,3 +43,4 @@ pub use error::{Error, Result};
 pub use files::{Bundle, Disk, Files};
 pub use reading::{Binding, Term};
 pub use shape::{Field, Moment, Shape};
+pub use versions::{LawChange, LawSince};

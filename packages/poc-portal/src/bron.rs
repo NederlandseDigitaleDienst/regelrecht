@@ -113,20 +113,31 @@ impl Herkomst {
     }
 }
 
-/// A source made of directories elsewhere in the repository: per directory
-/// of the source, the directory of the repository it is, under `wortel`.
-/// `wortel` is the repository root as seen from the manifest's own
-/// directory (`../../..`), so the manifest reads the same on a branch and
-/// in a local checkout. A file lies under the longest directory of the
+/// A source made of directories elsewhere in the repository: under
+/// `directories`, per directory of the source, the directory of the
+/// repository it is. `repo_root` is the path from the manifest's own
+/// directory to the repository root (`../..` for a manifest two levels
+/// down), so the manifest reads the same on a branch and in a local
+/// checkout. A file lies under the longest directory of the
 /// repository that holds it, so a subdirectory may land elsewhere than its
 /// parent, such as a cell's `reducties` under `reductions`.
+///
+/// `ui_spec` names one file of the repository, under `repo_root`, that the
+/// source holds at its root as [`UI_SPEC`]: the UI spec of the source,
+/// from which the poc reads which field of an application is prefilled from
+/// which source (poc-chronolexografie, `src/ui_spec.rs`).
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
 #[serde(deny_unknown_fields)]
 pub struct Manifest {
     #[serde(default)]
-    pub wortel: String,
-    pub mappen: BTreeMap<String, String>,
+    pub repo_root: String,
+    pub directories: BTreeMap<String, String>,
+    #[serde(default)]
+    pub ui_spec: Option<String>,
 }
+
+/// Where the source holds the file `ui_spec` of a manifest names.
+pub const UI_SPEC: &str = "ui_spec.yaml";
 
 impl Manifest {
     /// Whether `path` names a manifest rather than a folder.
@@ -140,7 +151,12 @@ impl Manifest {
     pub fn lees(tekst: &str, waar: &str) -> Result<Self, String> {
         let m: Self =
             serde_yaml_ng::from_str(tekst).map_err(|e| format!("the manifest {waar}: {e}"))?;
-        for pad in m.mappen.keys().chain(m.mappen.values()) {
+        for pad in m
+            .directories
+            .keys()
+            .chain(m.directories.values())
+            .chain(&m.ui_spec)
+        {
             let pad = pad.trim_matches('/');
             if pad.is_empty()
                 || pad
@@ -152,10 +168,31 @@ impl Manifest {
                 ));
             }
         }
+        // The UI spec is one YAML file, as the portal reads only YAML from
+        // a branch, and lies outside every directory the source is made of:
+        // there it would also be read as a case or a regelwerk.
+        if let Some(pad) = &m.ui_spec {
+            let pad = pad.trim_matches('/');
+            if !Self::is_manifest(pad) {
+                return Err(format!(
+                    "the manifest {waar}: the UI spec '{pad}' is no YAML file (.yaml or .yml)"
+                ));
+            }
+            if let Some(van) = m
+                .directories
+                .values()
+                .map(|v| v.trim_matches('/'))
+                .find(|van| pad.starts_with(&format!("{van}/")))
+            {
+                return Err(format!(
+                    "the manifest {waar}: the UI spec '{pad}' lies in '{van}', a directory of the source"
+                ));
+            }
+        }
         // One directory of the repository lands in one place: two that name
         // the same would leave the choice to the order of reading.
         let mut gezien = std::collections::BTreeSet::new();
-        for van in m.mappen.values() {
+        for van in m.directories.values() {
             if !gezien.insert(van.trim_matches('/')) {
                 return Err(format!(
                     "the manifest {waar}: '{}' is named twice",
@@ -166,13 +203,14 @@ impl Manifest {
         Ok(m)
     }
 
-    /// The root, as a path under the repository, of the manifest at `pad`
-    /// (a path under the repository); `None` when `wortel` climbs out.
-    fn wortel_van(&self, pad: &str) -> Option<String> {
+    /// The repository root, as a path under the repository, of the manifest
+    /// at `pad` (a path under the repository); `None` when `repo_root`
+    /// climbs out.
+    fn repo_root_of(&self, pad: &str) -> Option<String> {
         let mut delen: Vec<&str> = pad.split('/').collect();
         delen.pop();
         for d in self
-            .wortel
+            .repo_root
             .split('/')
             .filter(|d| !d.is_empty() && *d != ".")
         {
@@ -196,7 +234,7 @@ impl Manifest {
         let mut uit = BTreeMap::new();
         for (pad, tekst) in alle {
             let langste = self
-                .mappen
+                .directories
                 .iter()
                 .map(|(doel, van)| (doel.trim_matches('/'), van.trim_matches('/')))
                 .filter(|(_, van)| pad.starts_with(&format!("{van}/")))
@@ -205,13 +243,22 @@ impl Manifest {
                 uit.insert(format!("{doel}{}", &pad[van.len()..]), tekst.clone());
             }
         }
-        for (doel, van) in &self.mappen {
+        for (doel, van) in &self.directories {
             let van = van.trim_matches('/');
             if !alle.keys().any(|p| p.starts_with(&format!("{van}/"))) {
                 return Err(format!(
                     "the manifest names '{van}' for '{doel}', which holds no YAML file"
                 ));
             }
+        }
+        if let Some(pad) = &self.ui_spec {
+            let pad = pad.trim_matches('/');
+            let tekst = alle.get(pad).ok_or_else(|| {
+                format!(
+                    "the manifest names '{pad}' for its UI spec, which the branch does not hold"
+                )
+            })?;
+            uit.insert(UI_SPEC.to_string(), tekst.clone());
         }
         Ok(uit)
     }
@@ -243,13 +290,13 @@ pub fn uit_tarball(
             .get(path)
             .ok_or_else(|| format!("the branch has no manifest '{path}'"))?;
         let m = Manifest::lees(tekst, path)?;
-        let wortel = m
-            .wortel_van(path)
-            .ok_or_else(|| format!("the manifest {path}: its root lies above the repository"))?;
-        let onder = if wortel.is_empty() {
+        let repo_root = m.repo_root_of(path).ok_or_else(|| {
+            format!("the manifest {path}: its repo_root lies above the repository")
+        })?;
+        let onder = if repo_root.is_empty() {
             bestanden
         } else {
-            let prefix = format!("{wortel}/");
+            let prefix = format!("{repo_root}/");
             bestanden
                 .into_iter()
                 .filter_map(|(p, t)| p.strip_prefix(&prefix).map(|o| (o.to_string(), t)))
@@ -276,16 +323,28 @@ pub fn lokaal(pad: &Path) -> Result<BTreeMap<String, String>, String> {
     }
     let tekst = std::fs::read_to_string(pad).map_err(|e| format!("{}: {e}", pad.display()))?;
     let m = Manifest::lees(&tekst, &pad.display().to_string())?;
-    let wortel = pad.parent().unwrap_or(Path::new("")).join(&m.wortel);
+    let repo_root = pad.parent().unwrap_or(Path::new("")).join(&m.repo_root);
     let mut alle = BTreeMap::new();
-    for van in m.mappen.values() {
+    for van in m.directories.values() {
         let van = van.trim_matches('/');
-        let dir = wortel.join(van);
+        let dir = repo_root.join(van);
         if !dir.is_dir() {
             continue;
         }
         for (onder, tekst) in uit_map(&dir)? {
             alle.insert(format!("{van}/{onder}"), tekst);
+        }
+    }
+    if let Some(pad) = &m.ui_spec {
+        let pad = pad.trim_matches('/');
+        let bestand = repo_root.join(pad);
+        match std::fs::read_to_string(&bestand) {
+            Ok(tekst) => {
+                alle.insert(pad.to_string(), tekst);
+            }
+            // Not there: `bron` names it, as on a branch.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("{}: {e}", bestand.display())),
         }
     }
     m.bron(&alle)
@@ -531,6 +590,7 @@ mod tests {
                 path: "x".into(),
             },
             token_env: "EXAMPLE_TOKEN".into(),
+            verborgen: false,
         }
     }
 
@@ -592,7 +652,7 @@ mod tests {
         assert!(uit_map(Path::new("/nonexistent/poc-bron")).is_err());
     }
 
-    const MANIFEST: &str = "wortel: ../..\nmappen:\n  regulation/nl/w: regulation/nl/w\n  regulation/nl/v: werk/eigen/regulation/nl/v\n  cells/c: werk/m/cellen/c\n  cells/c/reductions: werk/m/cellen/c/reducties\n  casussen: werk/m/casussen\n";
+    const MANIFEST: &str = "repo_root: ../..\ndirectories:\n  regulation/nl/w: regulation/nl/w\n  regulation/nl/v: werk/eigen/regulation/nl/v\n  cells/c: werk/m/cellen/c\n  cells/c/reductions: werk/m/cellen/c/reducties\n  casussen: werk/m/casussen\n";
 
     #[test]
     fn a_manifest_in_a_tarball_makes_the_source_from_its_directories() {
@@ -632,12 +692,60 @@ mod tests {
         assert!(e.contains("holds no YAML file"), "{e}");
         let e = uit_tarball(&bytes, "werk/m/ander.yaml").unwrap_err();
         assert!(e.contains("no manifest 'werk/m/ander.yaml'"), "{e}");
-        let boven = tarball("o-r-abc", &[("m.yaml", "wortel: ..\nmappen: {a: b}\n")]);
+        let boven = tarball(
+            "o-r-abc",
+            &[("m.yaml", "repo_root: ..\ndirectories: {a: b}\n")],
+        );
         let e = uit_tarball(&boven, "m.yaml").unwrap_err();
         assert!(e.contains("above the repository"), "{e}");
-        assert!(Manifest::lees("mappen: {a: ../b}", "m").is_err());
-        let e = Manifest::lees("mappen: {a: b, c: b/}", "m").unwrap_err();
+        assert!(Manifest::lees("directories: {a: ../b}", "m").is_err());
+        let e = Manifest::lees("directories: {a: b, c: b/}", "m").unwrap_err();
         assert!(e.contains("named twice"), "{e}");
+    }
+
+    #[test]
+    fn a_manifest_places_its_ui_spec_at_the_root_of_the_source() {
+        let manifest = format!("{MANIFEST}ui_spec: werk/ui-spec.yaml\n");
+        let files = [
+            ("werk/m/bron.yaml", manifest.as_str()),
+            ("regulation/nl/w/2026-01-01.yaml", "$id: w"),
+            ("werk/eigen/regulation/nl/v/2026-01-01.yaml", "$id: v"),
+            ("werk/m/cellen/c/cel.yaml", "name: C"),
+            ("werk/m/cellen/c/reducties/r/2026-01-01.yaml", "$id: r"),
+            ("werk/m/casussen/k.yaml", "cel: c"),
+            ("werk/ui-spec.yaml", "elementen: []"),
+        ];
+        let (_, bestanden) = uit_tarball(&tarball("o-r-abc", &files), "werk/m/bron.yaml").unwrap();
+        assert_eq!(bestanden[UI_SPEC], "elementen: []");
+        // Read locally, the same.
+        let dir = std::env::temp_dir().join(format!("poc-bron-ui-{}", std::process::id()));
+        for (pad, tekst) in files {
+            let pad = dir.join(pad);
+            std::fs::create_dir_all(pad.parent().unwrap()).unwrap();
+            std::fs::write(pad, tekst).unwrap();
+        }
+        let lokaal = lokaal(&dir.join("werk/m/bron.yaml"));
+        std::fs::remove_dir_all(&dir).unwrap();
+        assert_eq!(lokaal.unwrap(), bestanden);
+        // A UI spec the branch does not hold is named.
+        let zonder = &files[..files.len() - 1];
+        let e = uit_tarball(&tarball("o-r-abc", zonder), "werk/m/bron.yaml").unwrap_err();
+        assert!(e.contains("'werk/ui-spec.yaml' for its UI spec"), "{e}");
+        // It lies below the root, as every directory does; it is a YAML file;
+        // and it lies outside the directories of the source.
+        assert!(Manifest::lees("directories: {a: b}\nui_spec: ../u.yaml", "m").is_err());
+        let e = Manifest::lees("directories: {a: b}\nui_spec: u.json", "m").unwrap_err();
+        assert!(e.contains("no YAML file"), "{e}");
+        let e = Manifest::lees("directories: {a: b}\nui_spec: b/u.yaml", "m").unwrap_err();
+        assert!(e.contains("lies in 'b'"), "{e}");
+    }
+
+    #[test]
+    fn a_manifest_with_the_old_dutch_field_names_is_refused() {
+        let e = Manifest::lees("wortel: ../..\ndirectories: {a: b}\n", "m").unwrap_err();
+        assert!(e.contains("unknown field `wortel`"), "{e}");
+        let e = Manifest::lees("repo_root: ../..\nmappen: {a: b}\n", "m").unwrap_err();
+        assert!(e.contains("unknown field `mappen`"), "{e}");
     }
 
     #[test]

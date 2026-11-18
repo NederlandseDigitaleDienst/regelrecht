@@ -50,6 +50,7 @@ fn gram(
 ) -> Gram {
     let map = |v: Value| -> BTreeMap<String, Value> { object_map(v).into_iter().collect() };
     Gram {
+        law_versions: Vec::new(),
         id: id.to_string(),
         kind: kind.to_string(),
         basis: basis.to_string(),
@@ -476,6 +477,7 @@ fn the_trace_of_a_decision_holds_the_projection_under_the_answer() {
     let call = Call {
         findings: BTreeMap::new(),
         answerer: Some(&reader),
+        decides_for: None,
         chronicle: Some(&reader),
         sphere: Vec::new(),
     };

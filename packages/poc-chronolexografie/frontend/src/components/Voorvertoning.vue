@@ -15,7 +15,7 @@
 // weet (`stil`): die beoordeelt het bestuursorgaan, en het formulier vraagt
 // ze dan.
 import { computed, onUnmounted, ref, watch } from 'vue';
-import { api } from '../api.js';
+import { awb } from '../awb.js';
 import { beroepApi } from '../beroep.js';
 import { genummerd, toon, uitslag } from '../logboek.js';
 import { vertaling } from '../melding.js';
@@ -37,8 +37,8 @@ const stand = ref(null);
 // Of er een nieuwere vraag loopt dan het antwoord dat er staat.
 const bezig = ref(false);
 const VRAAG = {
-  besluit: api.voorvertoningBesluit,
-  bezwaar: api.voorvertoningOpBezwaar,
+  besluit: awb.voorvertoningBesluit,
+  bezwaar: awb.voorvertoningOpBezwaar,
   'na-uitspraak': beroepApi.voorvertoningNaUitspraak,
   uitspraak: beroepApi.voorvertoningUitspraak,
 };

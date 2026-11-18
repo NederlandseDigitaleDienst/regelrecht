@@ -3,20 +3,23 @@
 // (fictieve) uitvoerder en onder welk artikel. Kiezen begint de cel van die
 // casus met een lege kroniek. Daarboven staat per bron (src/bronnen.js) wat
 // er niet lukte: een bron die er niet is, of een bestand dat niet laadt.
+// Een verborgen bron (src/verborgen.js) staat er niet, met haar casussen,
+// tenzij deze browser `?alle-casussen` aanzette; dan draagt haar kaart een tag.
 //
 // At the top: what a demo needs, the presentation and the short page that
 // says what RegelRecht and chronolexografie are (presentation/kort.js), and
 // right under them the demo scenarios (presentation/demo.js). The short page
 // links on to the explanation page (presentation/uitleg.js).
-import { nextTick, onMounted, ref } from 'vue';
+import { computed, nextTick, onMounted, ref } from 'vue';
 import { demoGuides } from '../presentation/demo.js';
 import { useKort } from '../presentation/useKort.js';
 import { useUitleg } from '../presentation/useUitleg.js';
-import { api } from '../api.js';
+import { api, bronLijst } from '../api.js';
 import { bronMeldingen, herkomst } from '../bronnen.js';
 import { artikelNaam } from '../logboek.js';
 import { navigate } from '../navigation.js';
 import { hoofdletter, kiezen, state } from '../state.js';
+import { useAlleCasussen, verborgenNamen, zichtbareBronnen, zichtbareCasussen } from '../verborgen.js';
 
 const emit = defineEmits(['presentatie', 'kort', 'demo']);
 const demo = demoGuides();
@@ -34,16 +37,23 @@ onMounted(async () => {
   kortKnop.value?.focus();
 });
 const bronnen = ref([]);
+const verborgen = ref([]);
+const { alles } = useAlleCasussen();
 
 onMounted(async () => {
   try {
-    const lijst = await api.casussen();
+    const [lijst, namen] = await Promise.all([api.casussen(), bronLijst()]);
+    verborgen.value = verborgenNamen(namen);
     casussen.value = lijst.casussen;
     bronnen.value = lijst.bronnen ?? [];
   } catch (e) {
     state.fout = e.message;
   }
 });
+
+const getoond = computed(() => zichtbareCasussen(casussen.value, verborgen.value, alles.value));
+const meldingen = computed(() => bronMeldingen(zichtbareBronnen(bronnen.value, verborgen.value, alles.value)));
+const isVerborgen = (c) => verborgen.value.includes(c.bron);
 
 const artikel = (c) => {
   const [wet, nummer] = c.besluit.split('#');
@@ -101,9 +111,9 @@ const kies = (c) => navigate(() => kiezen(c.id));
         besluit. Welke regels meelopen, volgt uit het artikel van de casus.
       </nldd-text>
     </nldd-title>
-    <nldd-container v-if="bronMeldingen(bronnen).length" gap="12" padding-bottom="16">
+    <nldd-container v-if="meldingen.length" gap="12" padding-bottom="16">
       <nldd-banner
-        v-for="m in bronMeldingen(bronnen)"
+        v-for="m in meldingen"
         :key="m.naam"
         :variant="m.variant"
         :text="m.tekst"
@@ -113,8 +123,9 @@ const kies = (c) => navigate(() => kiezen(c.id));
       </nldd-banner>
     </nldd-container>
     <nldd-collection layout="grid" item-min-width="320px">
-      <nldd-card v-for="c in casussen" :key="c.id">
-        <nldd-container slot="header" padding="16">
+      <nldd-card v-for="c in getoond" :key="c.id">
+        <nldd-container slot="header" padding="16" gap="8">
+          <nldd-tag v-if="isVerborgen(c)" size="sm" color="warning" text="Verborgen casus"></nldd-tag>
           <nldd-title
             size="display-4"
             heading-level="2"

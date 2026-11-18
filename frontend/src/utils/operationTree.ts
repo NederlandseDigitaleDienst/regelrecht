@@ -27,6 +27,7 @@ export interface OperationNode {
   filter?: unknown;
   as?: string;
   combine?: string;
+  fields?: Record<string, unknown>;
 }
 
 /** An execution action, or a bare operation node, as buildOperationTree accepts it. */
@@ -93,6 +94,7 @@ export const OPERATION_LABELS: Record<string, string> = {
   START_OF: 'begin van',
   // Verzameling
   LIST: 'lijst',
+  RECORD: 'rij',
   FOREACH: 'voor elk',
 };
 
@@ -241,6 +243,10 @@ function getChildOperations(node: OperationNode): OperationNode[] {
   if (isOperationNode(node.collection)) children.push(node.collection);
   if (isOperationNode(node.body)) children.push(node.body);
   if (isOperationNode(node.filter)) children.push(node.filter);
+  // RECORD holds an operand per column in `fields`.
+  if (node.fields && typeof node.fields === 'object') {
+    for (const v of Object.values(node.fields)) if (isOperationNode(v)) children.push(v);
+  }
 
   if (Array.isArray(node.cases)) {
     for (const c of node.cases) {
@@ -379,6 +385,11 @@ export function describeSubtitle(node: OperationNode): string {
     const values = Array.isArray(node.values) ? node.values : [];
     if (values.length > COMPACT_THRESHOLD) return `lijst van ${values.length} items`;
     return `[${values.map(formatArgName).join(', ')}]`;
+  }
+
+  if (op === 'RECORD') {
+    const columns = node.fields && typeof node.fields === 'object' ? Object.keys(node.fields) : [];
+    return columns.length ? `rij met ${columns.join(', ')}` : 'rij';
   }
 
   // FOREACH: name what it iterates and how it reduces. The body is usually a

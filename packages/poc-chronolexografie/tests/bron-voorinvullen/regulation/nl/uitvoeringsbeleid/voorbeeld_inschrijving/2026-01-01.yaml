@@ -1,0 +1,207 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
+$id: voorbeeld_inschrijving
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+# FICTIEF. Een testregeling voor voorinvullen: de aanvraag noemt het nummer en
+# de naam; het loket schrijft in als de naam dezelfde is als die het register
+# bij het nummer noemt (artikel 2). Ze noemt ook het bestuur, als tabel, dat het
+# formulier voorinvult uit wat het register bij het nummer vastlegde (artikel 3).
+# De aanhef en de referentie van de brief vult het formulier voor uit wat de
+# aanvraag zelf noemt (artikel 4): een lege afkorting is "geen afkorting", een
+# leeg kenmerk is onbekend.
+url: https://example.invalid/voorbeeld_inschrijving
+name: Voorbeeldinschrijving (fictieve testbron)
+competent_authority:
+  name: Voorbeeldloket
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF. Het loket schrijft op aanvraag een vereniging in, als de naam in
+      de aanvraag de naam is die het register bij haar nummer noemt.
+    url: https://example.invalid/voorbeeld_inschrijving#1
+    machine_readable:
+      open_terms:
+        - id: naam_volgens_register
+          type: string
+          required: false
+          competent_authority:
+            - name: Voorbeeldregister
+              type: INSTANCE
+          description: De naam die het register bij het nummer noemt.
+          default:
+            actions:
+              - output: naam_volgens_register
+                value: null
+        - id: bestuur_volgens_register
+          type: array
+          required: false
+          competent_authority:
+            - name: Voorbeeldregister
+              type: INSTANCE
+          description: Het bestuur dat het register bij het nummer vastlegde.
+          default:
+            actions:
+              - output: bestuur_volgens_register
+                value: null
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: voorbeeld_inschrijving#1
+            parameters:
+              - nummer
+              - naam_opgegeven
+              - bestuur
+              - afkorting
+              - kenmerk
+              - aanhef
+              - referentie
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - ingeschreven
+        parameters:
+          - name: nummer
+            type: string
+            description: Het nummer dat het register de vereniging gaf.
+          - name: naam_opgegeven
+            type: string
+            required: false
+            nullable: true
+            description: De naam van de vereniging zoals de aanvraag haar noemt.
+          - name: bestuur
+            type: array
+            required: false
+            nullable: true
+            description: Het bestuur van de vereniging zoals de aanvraag het noemt, per lid een rij.
+            columns:
+              - name: naam
+                type: string
+              - name: functie
+                type: string
+              - name: sinds
+                type: date
+              - name: vergoeding
+                type: amount
+          - name: afkorting
+            type: string
+            required: false
+            nullable: true
+            description: De afkorting van de naam van de vereniging; leeg als zij er geen heeft.
+          - name: kenmerk
+            type: string
+            required: false
+            description: Het kenmerk dat de vereniging aan haar aanvraag geeft.
+          - name: aanhef
+            type: string
+            required: false
+            nullable: true
+            description: De aanhef van de brief van het loket.
+          - name: referentie
+            type: string
+            required: false
+            nullable: true
+            description: De referentie van de brief van het loket.
+        output:
+          - name: ingeschreven
+            type: boolean
+            description: Of het loket de vereniging inschrijft.
+        actions:
+          - output: ingeschreven
+            value:
+              operation: EQUALS
+              subject: $naam_opgegeven
+              value: $naam_volgens_register
+  - number: '2'
+    text: FICTIEF. De naam volgens het register ontleent het loket aan het antwoord van de cel van het register.
+    url: https://example.invalid/voorbeeld_inschrijving#2
+    machine_readable:
+      implements:
+        - law: voorbeeld_inschrijving
+          article: '1'
+          open_term: naam_volgens_register
+      execution:
+        parameters:
+          - name: nummer
+            type: string
+            required: false
+            nullable: true
+        input:
+          - name: antwoord_naam
+            type: string
+            nullable: true
+            source:
+              reduction: naam_bij_nummer
+              parameters:
+                nummer: $nummer
+        output:
+          - name: naam_volgens_register
+            type: string
+            nullable: true
+        actions:
+          - output: naam_volgens_register
+            value: $antwoord_naam
+  - number: '3'
+    text: FICTIEF. Het bestuur volgens het register ontleent het loket aan het antwoord van de cel van het register.
+    url: https://example.invalid/voorbeeld_inschrijving#3
+    machine_readable:
+      implements:
+        - law: voorbeeld_inschrijving
+          article: '1'
+          open_term: bestuur_volgens_register
+      execution:
+        parameters:
+          - name: nummer
+            type: string
+            required: false
+            nullable: true
+        input:
+          - name: antwoord_bestuur
+            type: array
+            nullable: true
+            source:
+              reduction: bestuur_bij_nummer
+              parameters:
+                nummer: $nummer
+        output:
+          - name: bestuur_volgens_register
+            type: array
+            nullable: true
+        actions:
+          - output: bestuur_volgens_register
+            value: $antwoord_bestuur
+  - number: '4'
+    text: >-
+      FICTIEF. Het loket spreekt het bestuur in zijn brief aan, met de afkorting
+      als de vereniging er een heeft, en noemt als referentie het kenmerk van de
+      aanvraag.
+    url: https://example.invalid/voorbeeld_inschrijving#4
+    machine_readable:
+      execution:
+        parameters:
+          - name: afkorting
+            type: string
+            required: false
+            nullable: true
+          - name: kenmerk
+            type: string
+            required: false
+        output:
+          - name: aanhef
+            type: string
+          - name: referentie
+            type: string
+        actions:
+          - output: aanhef
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $afkorting
+                    value: null
+                  then: Geacht bestuur
+              default: Geacht bestuur, met afkorting
+          - output: referentie
+            value: $kenmerk

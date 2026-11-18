@@ -83,7 +83,7 @@ const CMP_WORDS: Record<string, string> = {
   LESS_THAN_OR_EQUAL: 'is ten hoogste',
 };
 const ROUND_WORDS: Record<string, string> = { ROUND: 'afgerond', CEIL: 'naar boven afgerond', FLOOR: 'naar beneden afgerond' };
-const AGGREGATE_WORDS: Record<string, string> = { ADD: 'de som van', MIN: 'de kleinste waarde van', MAX: 'de grootste waarde van', ONLY: 'de enige waarde van' };
+const AGGREGATE_WORDS: Record<string, string> = { ADD: 'de som van', MIN: 'de kleinste waarde van', MAX: 'de grootste waarde van', ONLY: 'de enige waarde van', DISTINCT: 'de unieke waarden van' };
 const DIFF_WORDS: Record<string, string> = { days: 'dagen', months: 'maanden', years: 'jaren' };
 const PART_WORDS: Record<string, string> = { year: 'het jaartal van', month: 'het maandnummer van', day: 'het dagnummer van' };
 const START_WORDS: Record<string, string> = { year: 'de eerste dag van het jaar waarin', month: 'de eerste dag van de maand waarin' };
@@ -483,6 +483,18 @@ export class Renderer {
       case 'LIST':
         if (!Array.isArray(n.items)) return { doc: sp(K('de lijst'), this.hole('items', [...path, 'items']).doc), level: LEVEL.CLOSED };
         return { doc: sp(K('de lijst'), listDoc(list('items'))), level: LEVEL.CLOSED };
+      case 'RECORD': {
+        // `de rij ( kolom: waarde; … )`, the columns in the order written.
+        const fields = n.fields;
+        if (fields === null || typeof fields !== 'object' || Array.isArray(fields)) {
+          return { doc: sp(K('de rij'), this.hole('fields', [...path, 'fields']).doc), level: LEVEL.CLOSED };
+        }
+        const columns = Object.keys(fields).map((key) => [
+          kw(`${key}:`, [...path, 'fields', key]), ' ',
+          at(LEVEL.CHOICE, child((fields as Record<string, unknown>)[key], ['fields', key])),
+        ]);
+        return { doc: sp(K('de rij'), listDoc(columns)), level: LEVEL.CLOSED };
+      }
       case 'FOREACH': {
         // Operands are rendered in reading order, so fold numbers follow the text.
         const x = this.localName(String(n.as ?? 'item'), [...path, 'as']);

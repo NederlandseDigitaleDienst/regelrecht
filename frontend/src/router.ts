@@ -15,6 +15,10 @@ declare module 'vue-router' {
   }
 }
 
+// One lazy component for both editor routes: two loaders would resolve to the
+// same module, but sharing one says so.
+const EditorView = () => import('./EditorView.vue');
+
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -157,7 +161,20 @@ const router = createRouter({
           // plain law id can never be mistaken for a traject ref.
           path: 'trajecten/:trajectRef([a-z0-9-]+-[0-9a-f]{8})/editor/:lawId?/:articleNumber?',
           name: 'editor-traject',
-          component: () => import('./EditorView.vue'),
+          component: EditorView,
+          meta: { title: 'Editor', requiresAuth: true },
+        },
+        {
+          // One feature file of a regelwerk's scenarios, as a tab in the
+          // editor: `/trajecten/{ref}/editor/{lawId}/scenarios/{file}`, with
+          // `?scenario=<naam>` naming the scenario shown. The same component
+          // as the route above, so switching between an article and a
+          // scenario tab keeps the editor - and the open regelwerk with its
+          // unsaved edits - mounted. Vue Router hands the component's leave
+          // and update guards over to whichever of the two records it is on.
+          path: 'trajecten/:trajectRef([a-z0-9-]+-[0-9a-f]{8})/editor/:lawId/scenarios/:filename',
+          name: 'editor-scenario-traject',
+          component: EditorView,
           meta: { title: 'Editor', requiresAuth: true },
         },
         {

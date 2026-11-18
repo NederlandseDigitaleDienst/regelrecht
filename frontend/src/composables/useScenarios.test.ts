@@ -1,158 +1,18 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { ref } from 'vue';
 import type { ApiError } from '../lib/apiFetch';
-import { useScenarios, isScenarioMismatch } from './useScenarios';
-import { res, stubFetch as stubGlobalFetch } from '../test-utils/fetchStubs';
+import { useScenarios, isScenarioMismatch, preferredScenarioFile } from './useScenarios';
+import { res, stubFetch } from '../test-utils/fetchStubs';
 
-type FetchOptions = { method?: string; headers?: Record<string, string> };
-interface FetchCall {
-  url: string;
-  opts: FetchOptions;
-}
-
-// Install a fetch stub with the call shape these tests read.
-function stubFetch(impl: (url: string, opts?: FetchOptions) => Promise<unknown>) {
-  return stubGlobalFetch(impl);
-}
-
-// A recorded PUT, failing the test outright when it is missing, so an
-// assertion on its headers cannot pass because the call never happened.
-function requirePut(call: FetchCall | undefined): { url: string; headers: Record<string, string> } {
-  if (!call?.opts.headers) throw new Error('expected a PUT call with headers');
-  return { url: call.url, headers: call.opts.headers };
-}
+// Reading and saving one feature file is tested in scenario/openScenario.test.ts.
 
 // The list-read failures reject with an ApiError, which carries the status.
 function apiError(err: Error | null): ApiError | null {
   return err as ApiError | null;
 }
 
-async function waitForScenario(sc: ReturnType<typeof useScenarios>, filename: string) {
-  await vi.waitFor(() => {
-    expect(sc.selectedScenario.value).toBe(filename);
-    expect(sc.featureText.value).not.toBe('');
-  });
-}
-
 beforeEach(() => {
   vi.restoreAllMocks();
-});
-
-describe('useScenarios optimistic concurrency', () => {
-  function mockFetch(onPut: (url: string, opts: FetchOptions) => unknown) {
-    const calls: FetchCall[] = [];
-    stubFetch(async (url, opts) => {
-      calls.push({ url, opts: opts ?? {} });
-      if (opts?.method === 'PUT') return onPut(url, opts);
-      if (url.endsWith('/scenarios')) {
-        return res({ json: [{ filename: 'basis.feature' }] });
-      }
-      return res({ body: 'Feature: v1\n', etag: '"v1"' });
-    });
-    return calls;
-  }
-
-  it('captures the ETag on read and sends it back as If-Match on save', async () => {
-    const calls = mockFetch(() =>
-      res({ etag: '"new"', json: { pr: null, etag: '"new"' } }),
-    );
-
-    const sc = useScenarios(ref('wet_a'), ref('tr-12345678'));
-    await waitForScenario(sc, 'basis.feature');
-
-    await sc.saveScenario('basis.feature', 'Feature: v2\n');
-
-    const put = calls.find((c) => c.opts?.method === 'PUT');
-    expect(put).toBeTruthy();
-    expect(requirePut(put).url).toBe(
-      '/api/trajects/tr-12345678/corpus/laws/wet_a/scenarios/basis.feature',
-    );
-    expect(requirePut(put).headers['If-Match']).toBe('"v1"');
-
-    // The new ETag is chained: a follow-up save sends the updated value.
-    await sc.saveScenario('basis.feature', 'Feature: v3\n');
-    const puts = calls.filter((c) => c.opts?.method === 'PUT');
-    expect(requirePut(puts[1]).headers['If-Match']).toBe('"new"');
-  });
-
-  it('saves a brand-new scenario without an If-Match precondition', async () => {
-    const calls = mockFetch(() =>
-      res({ etag: '"created"', json: { pr: null, etag: '"created"' } }),
-    );
-
-    const sc = useScenarios(ref('wet_a'), ref('tr-12345678'));
-    await waitForScenario(sc, 'basis.feature');
-
-    await sc.saveScenario('nieuw.feature', 'Feature: nieuw\n');
-    const put = calls.find(
-      (c) => c.opts?.method === 'PUT' && c.url.endsWith('nieuw.feature'),
-    );
-    expect(requirePut(put).headers['If-Match']).toBeUndefined();
-  });
-
-  it('surfaces a 412 as a Dutch conflict error instead of overwriting silently', async () => {
-    mockFetch(() => res({ ok: false, status: 412 }));
-
-    const sc = useScenarios(ref('wet_a'), ref('tr-12345678'));
-    await waitForScenario(sc, 'basis.feature');
-
-    await expect(
-      sc.saveScenario('basis.feature', 'Feature: v2\n'),
-    ).rejects.toThrow(/door iemand anders gewijzigd/i);
-    expect(sc.saveError.value?.message).toMatch(/herlaad/i);
-  });
-
-  it('does not chain the etag or content across a law switch mid-save', async () => {
-    // Scenario filenames recur across laws (`basis.feature` exists for
-    // both wet_a and wet_b). An in-flight save of wet_a's copy must not
-    // re-insert its ETag into the map after the watch cleared it for
-    // wet_b, or wet_b's next save carries a foreign If-Match → 412.
-    let resolvePut!: (value?: unknown) => void;
-    const putGate = new Promise((resolve) => { resolvePut = resolve; });
-    const calls: FetchCall[] = [];
-    stubFetch(async (url, opts) => {
-      calls.push({ url, opts: opts ?? {} });
-      if (opts?.method === 'PUT') {
-        await putGate;
-        return res({ etag: '"a2"', json: { pr: null, etag: '"a2"' } });
-      }
-      if (url.endsWith('/scenarios')) {
-        return res({ json: [{ filename: 'basis.feature' }] });
-      }
-      if (url.includes('/laws/wet_b/')) {
-        return res({ body: 'Feature: b1\n', etag: '"b1"' });
-      }
-      return res({ body: 'Feature: a1\n', etag: '"a1"' });
-    });
-
-    const lawId = ref('wet_a');
-    const sc = useScenarios(lawId, ref('tr-12345678'));
-    await waitForScenario(sc, 'basis.feature');
-    expect(sc.featureText.value).toBe('Feature: a1\n');
-
-    // Kick off the save, then switch laws while the PUT is in flight.
-    const save = sc.saveScenario('basis.feature', 'Feature: a2\n');
-    lawId.value = 'wet_b';
-    await vi.waitFor(() => {
-      expect(sc.featureText.value).toBe('Feature: b1\n');
-    });
-
-    resolvePut();
-    await save;
-
-    // The stale completion must not overwrite the new law's content…
-    expect(sc.featureText.value).toBe('Feature: b1\n');
-
-    // …nor poison the new law's etag map: saving wet_b's same-named
-    // scenario sends the ETag wet_b's read returned, not the old
-    // save's chained one.
-    await sc.saveScenario('basis.feature', 'Feature: b2\n');
-    const puts = calls.filter((c) => c.opts?.method === 'PUT');
-    expect(requirePut(puts[1]).url).toBe(
-      '/api/trajects/tr-12345678/corpus/laws/wet_b/scenarios/basis.feature',
-    );
-    expect(requirePut(puts[1]).headers['If-Match']).toBe('"b1"');
-  });
 });
 
 describe('isScenarioMismatch', () => {
@@ -168,56 +28,57 @@ describe('isScenarioMismatch', () => {
   });
 });
 
-describe('useScenarios auto-select', () => {
-  function mockList(entries: unknown[]) {
-    stubFetch(async (url) => {
-      if (String(url).endsWith('/scenarios')) return res({ json: entries });
-      return res({ body: 'Feature: x\n', etag: '"v1"' });
-    });
-  }
+describe('preferredScenarioFile', () => {
+  const pick = (entries: { filename: string; target_law_ids?: string[] }[]) =>
+    preferredScenarioFile(entries, 'wet_a')?.filename ?? null;
 
-  it('prefers the first file that targets the opened law', async () => {
-    mockList([
+  it('prefers the first file that targets the opened law', () => {
+    expect(pick([
       { filename: 'other.feature', target_law_ids: ['andere_wet'] },
       { filename: 'matching.feature', target_law_ids: ['wet_a'] },
-    ]);
-
-    const s = useScenarios(ref('wet_a'));
-    await s.fetchScenarios();
-    expect(s.selectedScenario.value).toBe('matching.feature');
+    ])).toBe('matching.feature');
   });
 
-  it('prefers an explicit match over a file with unknown targets', async () => {
-    mockList([
+  it('prefers an explicit match over a file with unknown targets', () => {
+    expect(pick([
       { filename: 'wip.feature', target_law_ids: [] },
       { filename: 'matching.feature', target_law_ids: ['wet_a'] },
-    ]);
-
-    const s = useScenarios(ref('wet_a'));
-    await s.fetchScenarios();
-    expect(s.selectedScenario.value).toBe('matching.feature');
+    ])).toBe('matching.feature');
   });
 
-  it('prefers unknown targets over a known mismatch', async () => {
-    mockList([
+  it('prefers unknown targets over a known mismatch', () => {
+    expect(pick([
       { filename: 'other.feature', target_law_ids: ['andere_wet'] },
       { filename: 'wip.feature', target_law_ids: [] },
-    ]);
-
-    const s = useScenarios(ref('wet_a'));
-    await s.fetchScenarios();
-    expect(s.selectedScenario.value).toBe('wip.feature');
+    ])).toBe('wip.feature');
   });
 
-  it('falls back to the first file when none match', async () => {
-    mockList([
+  it('falls back to the first file when none match, and to nothing without files', () => {
+    expect(pick([
       { filename: 'a.feature', target_law_ids: ['andere_wet'] },
       { filename: 'b.feature', target_law_ids: ['nog_een_wet'] },
-    ]);
+    ])).toBe('a.feature');
+    expect(pick([])).toBeNull();
+  });
+});
 
-    const s = useScenarios(ref('wet_a'));
-    await s.fetchScenarios();
-    expect(s.selectedScenario.value).toBe('a.feature');
+describe('useScenarios on another regelwerk', () => {
+  it('drops the previous list as soon as the regelwerk changes', async () => {
+    let answer: (value: unknown) => void = () => {};
+    stubFetch(async (url) => {
+      if (String(url).includes('wet_b')) return new Promise((resolve) => { answer = resolve; });
+      return res({ json: [{ filename: 'a.feature' }] });
+    });
+    const lawId = ref('wet_a');
+    const s = useScenarios(lawId);
+    await vi.waitFor(() => expect(s.scenarios.value).toHaveLength(1));
+
+    lawId.value = 'wet_b';
+    await vi.waitFor(() => expect(s.loading.value).toBe(true));
+    // wet_a's file is not wet_b's, while wet_b's list is still on its way.
+    expect(s.scenarios.value).toEqual([]);
+    answer(res({ json: [{ filename: 'b.feature' }] }));
+    await vi.waitFor(() => expect(s.scenarios.value.map((e) => e.filename)).toEqual(['b.feature']));
   });
 });
 

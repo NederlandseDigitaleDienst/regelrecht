@@ -4,12 +4,14 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
-use std::path::Path;
-
 use chrono::NaiveDate;
 use regelrecht_poc_chronolexografie::kern::Corpus;
 use regelrecht_poc_chronolexografie::spel::{Fout, Spel};
 use serde_json::{Map, Value, json};
+use std::path::Path;
+
+mod common;
+use common::{Awb, indiening_van};
 
 fn spel() -> Spel {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -70,7 +72,75 @@ fn voorbeeld_bsn(casus: &Value) -> &str {
 fn the_forms_come_from_the_chosen_case() {
     let mut spel = spel_met("vakantieverlof");
     let vormen = spel.vormen(dag("2026-10-14")).unwrap();
-    assert_eq!(vormen["aanvraag"]["basis"], json!("leerplichtwet_1969#13a"));
+    assert_eq!(
+        vormen["indieningen"]["leerplichtwet_1969#13a"]["basis"],
+        json!("leerplichtwet_1969#13a")
+    );
+}
+
+/// The UI spec of the case puts a view beside each decision: what is paid
+/// on the advance, with the output's unit and the parameter that takes the
+/// decision, from the law.
+#[test]
+fn the_ui_spec_puts_what_the_cell_knows_beside_a_decision() {
+    let mut spel = spel_met("zorgtoeslag");
+    let vormen = spel.vormen(dag("2025-01-20")).unwrap();
+    let weergave = &vormen["per_besluit"][0];
+    assert_eq!(weergave["naam"], json!("betaling van het voorschot"));
+    let antwoord = &weergave["antwoorden"][0];
+    assert_eq!(antwoord["type"], json!("amount"));
+    assert_eq!(antwoord["eenheid"], json!("eurocent"));
+    assert_eq!(antwoord["besluit"], json!("voorschotbesluit"));
+    assert_eq!(antwoord["parameters"], json!(["voorschotbesluit"]));
+    assert!(antwoord.get("fout").is_none(), "{antwoord}");
+    // A case without a UI spec has no view.
+    let mut spel = spel_met("vakantieverlof");
+    assert_eq!(
+        spel.vormen(dag("2026-10-14")).unwrap()["per_besluit"],
+        json!([])
+    );
+}
+
+/// What the law does not hold shows as `fout` on the answer or field, and a
+/// field the view asks takes the parameter of an answer's article.
+#[test]
+fn a_view_says_what_the_law_does_not_hold_and_asks_a_parameter() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let mut cases = Corpus::alle(&dir.join("corpus"), &dir.join("corpus/casussen")).unwrap();
+    let zorgtoeslag = cases
+        .iter_mut()
+        .find(|c| c.casus.id == "zorgtoeslag")
+        .unwrap();
+    let bron = "fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#2";
+    let spec = regelrecht_poc_chronolexografie::ui_spec::lees(&format!(
+        "elements: [{{id: UI1, fields: [
+            {{name: a, answer: {{from: '{bron}#betaald_op_voorschot', decision: besluit}}}},
+            {{name: b, answer: {{from: '{bron}#niets', decision: voorschotbesluit}}}},
+            {{name: c, answer: {{from: 'onbekend#1#x', decision: d}}}},
+            {{name: voorschotbesluit, visibility: asked}},
+            {{name: rente, visibility: asked}}]}}]"
+    ))
+    .unwrap();
+    zorgtoeslag.weergaven = spec.weergaven;
+    let mut spel = Spel::new(cases);
+    spel.kiezen("zorgtoeslag").unwrap();
+    let vormen = spel.vormen(dag("2025-01-20")).unwrap();
+    let w = &vormen["per_besluit"][0];
+    let fout = |i: usize| w["antwoorden"][i]["fout"].as_str().unwrap().to_string();
+    assert!(
+        fout(0).contains("takes no parameter 'besluit'"),
+        "{}",
+        fout(0)
+    );
+    assert!(fout(1).contains("has no output 'niets'"), "{}", fout(1));
+    assert!(
+        fout(2).contains("'onbekend' is not in force"),
+        "{}",
+        fout(2)
+    );
+    assert_eq!(w["velden"][0]["type"], json!("string"));
+    assert_eq!(w["velden"][0]["basis"], json!(bron));
+    assert!(w["velden"][1]["fout"].as_str().unwrap().contains("'rente'"));
 }
 
 #[test]
@@ -142,7 +212,7 @@ fn without_a_chosen_case_a_step_is_refused_and_choosing_one_starts_its_cell() {
     let casus = spel.kiezen("vakantieverlof").unwrap();
     assert_eq!(casus["besluit"], json!("leerplichtwet_1969#13a"));
     assert_eq!(
-        casus["beslissing_op_bezwaar"],
+        indiening_van(&casus, "BEZWAAR")["besluit"],
         json!("algemene_wet_bestuursrecht#7:11")
     );
     assert_eq!(casus["rol"], json!("het hoofd"));
@@ -231,12 +301,14 @@ fn the_appeal_from_the_objection_to_the_decision_taken_again() {
     // the case's own example values.
     let mut spel = spel_met("vakantieverlof");
     let casus = spel.casus().unwrap();
-    assert_eq!(casus["beroep"], json!("algemene_wet_bestuursrecht#8:70"));
+    let beroep = indiening_van(&casus, "BEROEP");
+    assert_eq!(beroep["artikel"], json!("algemene_wet_bestuursrecht#8:70"));
     assert_eq!(
-        casus["ontvangst"],
+        beroep["ontvangst"],
         json!("algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak")
     );
-    assert_eq!(casus["rechter"]["cel"], json!("rechtbank_wilgendaal"));
+    assert_eq!(beroep["cel"], json!("rechtbank_wilgendaal"));
+    assert_eq!(beroep["cel_naam"], json!("Rechtbank Wilgendaal"));
     let voorbeeld = &casus["voorbeeld"];
     let aanvraag = spel
         .aanvragen(&map(&voorbeeld["aanvraag"]), dag("2026-10-14"))
@@ -260,7 +332,7 @@ fn the_appeal_from_the_objection_to_the_decision_taken_again() {
     let ongegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &Map::new(),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-15"),
         )
         .unwrap();
@@ -290,18 +362,28 @@ fn the_appeal_from_the_objection_to_the_decision_taken_again() {
     spel.waarom_uitspraak(&uitspraak).unwrap();
     let ontvangst = spel.toezenden(&uitspraak, dag("2027-01-11")).unwrap();
     let ontvangst = ontvangst["id"].as_str().unwrap().to_string();
-    let toets = spel.heroverweging_na_uitspraak(&ontvangst).unwrap();
+    let toets = spel
+        .heroverweging_na_uitspraak(&ontvangst, &common::ontvankelijk(&Map::new()))
+        .unwrap();
     assert_eq!(toets["bezwaar"], bezwaar["id"]);
     let bevindingen = map(&json!({ "specifieke_aard_beroep_ouder": true }));
     let voorlopig = spel
-        .voorvertoning_na_uitspraak(&ontvangst, &bevindingen, dag("2027-01-18"))
+        .voorvertoning_na_uitspraak(
+            &ontvangst,
+            &common::ontvankelijk(&bevindingen),
+            dag("2027-01-18"),
+        )
         .unwrap();
     assert_eq!(
         voorlopig["voorlopig"]["nieuw_besluit"]["outputs"]["verlof_verleend"],
         json!(true)
     );
     let opnieuw = spel
-        .opnieuw_beslissen_op_bezwaar(&ontvangst, &bevindingen, dag("2027-01-18"))
+        .opnieuw_beslissen_op_bezwaar(
+            &ontvangst,
+            &common::ontvankelijk(&bevindingen),
+            dag("2027-01-18"),
+        )
         .unwrap();
     assert_eq!(
         opnieuw["nieuw_besluit"]["outputs"]["verlof_verleend"],
@@ -343,7 +425,10 @@ fn parkeerkaart_a_second_card_next_to_a_valid_one() {
         .map(|a| a["cel"].as_str().unwrap())
         .collect();
     assert_eq!(andere, ["ggd_wilgendaal", "rechtbank_wilgendaal"]);
-    assert_eq!(casus["rechter"]["cel"], json!("rechtbank_wilgendaal"));
+    assert_eq!(
+        indiening_van(&casus, "BEROEP")["cel"],
+        json!("rechtbank_wilgendaal")
+    );
     let aanvraag = map(&casus["voorbeeld"]["aanvraag"]);
     let bevindingen = map(&casus["voorbeeld"]["bevindingen"]);
     let uitkomst = casus["uitkomst"].as_str().unwrap().to_string();
@@ -523,7 +608,7 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
     let gegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &Map::new(),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -658,7 +743,10 @@ fn bedrijfsparkeervergunning_a_company_in_the_city_centre_gets_a_permit() {
         casus["rol"],
         json!("het college van burgemeester en wethouders")
     );
-    assert_eq!(casus["rechter"]["cel"], json!("rechtbank_wilgendaal"));
+    assert_eq!(
+        indiening_van(&casus, "BEROEP")["cel"],
+        json!("rechtbank_wilgendaal")
+    );
     let besluit = bedrijf_vraagt(
         &mut spel,
         "99990011",
@@ -686,19 +774,21 @@ fn bedrijfsparkeervergunning_a_company_in_the_city_centre_gets_a_permit() {
     let kroniek = spel.kroniek().unwrap();
     assert_eq!(soorten(&kroniek), ["AANVRAAG", "BESCHIKKING"]);
     assert_eq!(kroniek["andere"][0]["cel"], json!("kamer_van_koophandel"));
-    assert_eq!(soorten(&kroniek["andere"][0]), ["EXECUTOGRAM"; 6]);
+    assert_eq!(soorten(&kroniek["andere"][0]), ["EXECUTOGRAM"; 8]);
 }
 
 const INSCHRIJVING: &str = "beleid_handelsregister_kamer_van_koophandel#1#vestiging_ingeschreven";
 
 /// The Chamber of Commerce registers the establishment of `kvk` anew on
-/// `datum`.
+/// `datum`, under a trade name and a visiting address made up from them.
 fn kvk_schrijft_in(spel: &mut Spel, kvk: &str, postcode: &str, personen: u32, datum: &str) {
     spel.vastleggen(
         "kamer_van_koophandel",
         INSCHRIJVING,
         &map(&json!({
             "kvk_nummer": kvk,
+            "handelsnaam": format!("Bedrijf {kvk}"),
+            "bezoekadres": format!("Singel 1, {postcode} Wilgendaal"),
             "postcode": postcode,
             "aantal_werkzame_personen": personen,
             "datum_inschrijving": datum,
@@ -756,7 +846,7 @@ fn bedrijfsparkeervergunning_the_maximum_in_the_ring_and_a_permit_on_objection()
     let gegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &Map::new(),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -846,7 +936,7 @@ fn bedrijfsparkeervergunning_outside_the_area_and_after_the_move_inside() {
         &json!("7711 AC")
     );
     let kvk = &spel.kroniek().unwrap()["andere"][0];
-    assert_eq!(soorten(kvk).len(), 7);
+    assert_eq!(soorten(kvk).len(), 9);
 }
 
 #[test]
@@ -968,7 +1058,11 @@ fn thuiszorg_tot_bezwaar(spel: &mut Spel) -> (Value, Value) {
     // At the reconsideration the college judges anew; the form gives what
     // it judged before.
     let toets = spel
-        .heroverweging(bezwaar["id"].as_str().unwrap(), dag("2026-11-20"))
+        .heroverweging(
+            bezwaar["id"].as_str().unwrap(),
+            &common::ontvankelijk(&Map::new()),
+            dag("2026-11-20"),
+        )
         .unwrap();
     assert_eq!(toets["ontvankelijk"], json!(true), "{toets}");
     let opnieuw: Vec<(&str, &Value)> = toets["bevindingen"]
@@ -994,7 +1088,7 @@ fn bedrijfsparkeervergunning_the_hardship_clause_on_objection_grants_a_third_per
     let gegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &hardheid(true),
+            &common::ontvankelijk(&hardheid(true)),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -1054,7 +1148,7 @@ fn bedrijfsparkeervergunning_the_hardship_clause_not_applied_leaves_the_refusal(
     let ongegrond = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &hardheid(false),
+            &common::ontvankelijk(&hardheid(false)),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -1144,7 +1238,7 @@ fn bedrijfsparkeervergunning_an_objection_against_a_permit_at_the_cap_does_not_c
     let beslissing = spel
         .beslissen_op_bezwaar(
             bezwaar["id"].as_str().unwrap(),
-            &Map::new(),
+            &common::ontvankelijk(&Map::new()),
             dag("2026-11-20"),
         )
         .unwrap();
@@ -1196,7 +1290,9 @@ fn every_case_shows_the_reductions_of_its_cell() {
 fn the_log_holds_the_facts_the_other_cells_recorded() {
     // The registrations of the Chamber of Commerce are facts the decisions
     // read: the log shows them beside the municipality's own steps, those
-    // from the case file and one recorded during play, merged by day.
+    // from the case file and one recorded during play, merged by day. So
+    // are the authentications of the accredited service, from the case
+    // file, recorded the day before the first scenario.
     let mut spel = spel_met("bedrijfsparkeervergunning");
     bedrijf_vraagt(
         &mut spel,
@@ -1223,20 +1319,14 @@ fn the_log_holds_the_facts_the_other_cells_recorded() {
         "EXECUTOGRAM".to_string(),
     );
     let eigen = |kind: &str| ("gemeente_wilgendaal".to_string(), kind.to_string());
-    assert_eq!(
-        stappen,
-        [
-            kvk.clone(),
-            eigen("BESCHIKKING"),
-            eigen("AANVRAAG"),
-            kvk.clone(),
-            kvk.clone(),
-            kvk.clone(),
-            kvk.clone(),
-            kvk.clone(),
-            kvk
-        ]
+    let dienst = (
+        "erkende_dienst_inlogmiddel".to_string(),
+        "EXECUTOGRAM".to_string(),
     );
+    let mut verwacht = vec![kvk.clone(), eigen("BESCHIKKING"), eigen("AANVRAAG")];
+    verwacht.extend(std::iter::repeat_n(dienst, 8));
+    verwacht.extend(std::iter::repeat_n(kvk, 8));
+    assert_eq!(stappen, verwacht);
 }
 
 const KVK: &str = "kamer_van_koophandel";
@@ -1308,7 +1398,9 @@ fn a_fact_that_refers_to_an_unknown_kenmerk_is_refused() {
         .vastleggen_verwijzend(KVK, CORRECTIE, &velden, Some("onbekend"), dag("2026-11-02"))
         .unwrap_err();
     assert!(
-        matches!(&e, Fout::Cel(_)) && e.to_string().contains("'onbekend' is the kenmerk of no"),
+        matches!(&e, Fout::Cel(_))
+            && e.to_string()
+                .contains("'onbekend' is no record in the chronicle"),
         "{e}"
     );
 }
@@ -1365,4 +1457,168 @@ fn a_reference_into_a_chronicle_of_another_begin_is_refused() {
         e.to_string().contains("does not start with its begin"),
         "{e}"
     );
+}
+
+/// The policy article of the fictional parking permit that reads the trade
+/// register through the answer of the cell of the Kamer van Koophandel.
+const HANDELSREGISTER: &str = "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#1";
+
+/// What the sources give for the application fields of `prefill`
+/// (`<field>` to `<output>` of [`HANDELSREGISTER`]), for the company
+/// `kvk_nummer`, as known on `datum`.
+fn voorinvullen(spel: &mut Spel, prefill: &[(&str, &str)], kvk_nummer: &str, datum: &str) -> Value {
+    let bronnen: Map<String, Value> = prefill
+        .iter()
+        .map(|(veld, uitvoer)| {
+            (
+                (*veld).to_string(),
+                json!(format!("{HANDELSREGISTER}#{uitvoer}")),
+            )
+        })
+        .collect();
+    spel.voorinvullen(
+        &bronnen,
+        &map(&json!({ "kvk_nummer": kvk_nummer })),
+        dag(datum),
+    )
+    .unwrap()
+}
+
+#[test]
+fn a_prefill_takes_the_value_from_the_cell_that_answers_and_records_nothing() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let voor = spel.kroniek().unwrap();
+    let ingevuld = voorinvullen(
+        &mut spel,
+        &[
+            ("postcode", "postcode_vestiging_volgens_handelsregister"),
+            (
+                "werkzame_personen",
+                "aantal_werkzame_personen_volgens_handelsregister",
+            ),
+        ],
+        "99990011",
+        "2026-10-13",
+    );
+    assert_eq!(ingevuld["postcode"]["waarde"], json!("7711 AB"));
+    assert_eq!(ingevuld["werkzame_personen"]["waarde"], json!(4));
+    assert_eq!(
+        ingevuld["werkzame_personen"]["bron"],
+        json!(format!(
+            "{HANDELSREGISTER}#aantal_werkzame_personen_volgens_handelsregister"
+        ))
+    );
+    // Where the value comes from: the cell that answered, with its answer
+    // and the reduction it answered from.
+    let herkomst = &ingevuld["werkzame_personen"]["herkomst"];
+    assert_eq!(herkomst.as_array().unwrap().len(), 1);
+    assert_eq!(herkomst[0]["door"], json!("kamer_van_koophandel"));
+    assert_eq!(herkomst[0]["antwoord"], json!("aantal_werkzame_personen"));
+    assert_eq!(
+        herkomst[0]["reductie"],
+        json!("reductie_vestiging_in_handelsregister")
+    );
+    assert_eq!(
+        herkomst[0]["artikel"],
+        json!("vestiging_in_handelsregister")
+    );
+    // Asking records nothing, in any cell.
+    assert_eq!(spel.kroniek().unwrap(), voor);
+}
+
+#[test]
+fn a_prefill_reads_the_chronicle_as_the_cell_knows_it_on_the_day() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let prefill = [(
+        "werkzame_personen",
+        "aantal_werkzame_personen_volgens_handelsregister",
+    )];
+    // The printer was registered on 23 February, but the Kamer recorded it
+    // only on 2 March: on 25 February its cell does not know it yet.
+    let eerder = voorinvullen(&mut spel, &prefill, "99990066", "2026-02-25");
+    assert_eq!(eerder["werkzame_personen"]["waarde"], Value::Null);
+    // From 2 March it knows the registration, with the correction to two
+    // persons it recorded the same day.
+    let later = voorinvullen(&mut spel, &prefill, "99990066", "2026-03-02");
+    assert_eq!(later["werkzame_personen"]["waarde"], json!(2));
+}
+
+#[test]
+fn a_prefill_without_what_a_source_needs_leaves_that_field_empty() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let bronnen = map(&json!({
+        "postcode": format!("{HANDELSREGISTER}#postcode_vestiging_volgens_handelsregister"),
+    }));
+    // No number yet: the applicant has not logged in.
+    let leeg = spel
+        .voorinvullen(&bronnen, &Map::new(), dag("2026-10-13"))
+        .unwrap();
+    assert_eq!(leeg["postcode"]["waarde"], Value::Null);
+    assert_eq!(leeg["postcode"]["herkomst"], json!([]));
+    assert!(
+        leeg["postcode"]["fout"]
+            .as_str()
+            .unwrap()
+            .contains("kvk_nummer")
+    );
+}
+
+#[test]
+fn a_prefill_for_a_number_the_register_does_not_know_is_empty_without_origin() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let leeg = voorinvullen(
+        &mut spel,
+        &[(
+            "werkzame_personen",
+            "aantal_werkzame_personen_volgens_handelsregister",
+        )],
+        "12345678",
+        "2026-10-13",
+    );
+    assert_eq!(leeg["werkzame_personen"]["waarde"], Value::Null);
+    assert_eq!(leeg["werkzame_personen"]["herkomst"], json!([]));
+}
+
+#[test]
+fn a_prefill_from_a_source_that_is_no_output_of_its_article_leaves_its_field_empty() {
+    let mut spel = spel_met("bedrijfsparkeervergunning");
+    let velden = map(&json!({ "kvk_nummer": "99990011" }));
+    // A source that is no text is the caller's mistake: refused.
+    let bronnen = map(&json!({ "postcode": 42 }));
+    let e = spel
+        .voorinvullen(&bronnen, &velden, dag("2026-10-13"))
+        .unwrap_err();
+    assert!(
+        e.to_string()
+            .contains("not '<regelwerk>#<article>#<output>'"),
+        "{e}"
+    );
+    // A source the cell refuses leaves its own field empty, with the reason,
+    // and the other fields filled.
+    for (bron, waarom) in [
+        ("geen_bron", "is no <regulation>#<article>#<fact>"),
+        ("a#1", "is no <regulation>#<article>#<fact>"),
+        ("a##x", "is no <regulation>#<article>#<fact>"),
+        ("a#1#x#y", "is no <regulation>#<article>#<fact>"),
+        (
+            "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#1#bestaat_niet",
+            "has no output 'bestaat_niet'",
+        ),
+        (
+            "beleid_bedrijfsparkeervergunning_gemeente_wilgendaal#9#postcode_vestiging_volgens_handelsregister",
+            "has no article 9 in force",
+        ),
+    ] {
+        let bronnen = map(&json!({
+            "postcode": bron,
+            "werkzame_personen": format!("{HANDELSREGISTER}#aantal_werkzame_personen_volgens_handelsregister"),
+        }));
+        let ingevuld = spel
+            .voorinvullen(&bronnen, &velden, dag("2026-10-13"))
+            .unwrap();
+        assert_eq!(ingevuld["postcode"]["waarde"], Value::Null, "{bron}");
+        let fout = ingevuld["postcode"]["fout"].as_str().unwrap();
+        assert!(fout.contains(waarom), "{bron}: {fout}");
+        assert_eq!(ingevuld["werkzame_personen"]["waarde"], json!(4), "{bron}");
+    }
 }

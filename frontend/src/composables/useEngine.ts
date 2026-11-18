@@ -3,7 +3,7 @@
  *
  * Provides the engine and helpers for loading laws and dependencies.
  */
-import { ref } from 'vue';
+import { ref, shallowReactive } from 'vue';
 import { apiFetchText } from '../lib/apiFetch';
 import { useCorpus } from '../corpus';
 import { createLruMap } from '../lib/lruMap';
@@ -64,6 +64,17 @@ const loadedScopes = createLruMap<string, string>(50, {
 
 const ready = ref(false);
 const initError = ref<Error | null>(null);
+/**
+ * Goes up whenever the set of laws in the engine changes. A run that went
+ * before a law arrived (the open regelwerk loads asynchronously) is out of
+ * date then, so whoever shows runs re-runs on this.
+ */
+const lawsRevision = ref(0);
+/**
+ * Why a regelwerk the editor loaded is not in the engine: the engine refused
+ * its YAML. Cleared once a load of it succeeds.
+ */
+const lawLoadErrors = shallowReactive(new Map<string, string>());
 
 async function initEngine(): Promise<EditorEngine> {
   if (engineInstance) return engineInstance;
@@ -128,6 +139,7 @@ async function loadDependency(lawId: string): Promise<void> {
   // The scope is the traject the versions came from, not the one active now.
   if (loadLawVersions(engine, yamls, lawId)) {
     loadedScopes.set(lawId, trajectRef ?? '');
+    lawsRevision.value++;
   }
 }
 
@@ -183,14 +195,34 @@ async function loadLawYaml(
   yaml: string,
   lawId: string | null = null,
   trajectRef: string | null = null,
+  /**
+   * The regelwerk's other versions, as saved. They go in first, so a scenario
+   * on another date finds the version in force then; `yaml` goes in last and
+   * replaces the version with its own valid_from.
+   */
+  otherVersions: readonly string[] = [],
 ): Promise<string> {
   const engine = await initEngine();
   if (lawId && engine.hasLaw(lawId)) engine.unloadLaw(lawId);
-  const result = engine.loadLaw(yaml);
-  if (lawId) {
-    loadedScopes.set(lawId, trajectRef || '');
+  if (lawId) loadLawVersions(engine, [...otherVersions], lawId);
+  try {
+    const result = engine.loadLaw(yaml);
+    if (lawId) {
+      loadedScopes.set(lawId, trajectRef || '');
+      lawLoadErrors.delete(lawId);
+    }
+    return result;
+  } catch (e) {
+    if (lawId) {
+      // Without the edited version, a scenario on its dates would run on an
+      // older one and look right. Take the regelwerk out, and say why.
+      if (engine.hasLaw(lawId)) engine.unloadLaw(lawId);
+      lawLoadErrors.set(lawId, e instanceof Error ? e.message : String(e));
+    }
+    throw e;
+  } finally {
+    lawsRevision.value++;
   }
-  return result;
 }
 
 /**
@@ -202,6 +234,7 @@ function unloadLaw(lawId: string): void {
   if (!engineInstance) return;
   if (engineInstance.hasLaw(lawId)) engineInstance.unloadLaw(lawId);
   loadedScopes.delete(lawId);
+  lawsRevision.value++;
 }
 
 /**
@@ -218,6 +251,7 @@ function unloadAllLaws(): void {
     if (engineInstance.hasLaw(lawId)) engineInstance.unloadLaw(lawId);
   }
   loadedScopes.clear();
+  lawsRevision.value++;
 }
 
 export function useEngine() {
@@ -226,6 +260,10 @@ export function useEngine() {
     ready,
     /** Ref<Error|null> - set if init failed */
     initError,
+    /** Ref<number> - goes up whenever the engine's set of laws changes */
+    lawsRevision,
+    /** Why the engine refused a regelwerk the editor loaded; null when it did not. */
+    lawLoadError: (lawId: string): string | null => lawLoadErrors.get(lawId) ?? null,
     /** Initialize and return the engine instance */
     initEngine,
     /** Load a dependent law by ID via the API */

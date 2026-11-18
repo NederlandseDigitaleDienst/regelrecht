@@ -77,10 +77,15 @@ export function generateAction(rand: () => number, maxDepth = 4): { output: stri
         return rand() < 0.5 ? { operation: 'IN', subject: value(d), values: many(d, 0, 3) } : { operation: 'IN', subject: value(d), value: value(d) };
       case 'LIST':
         return { operation: 'LIST', items: many(d, 0, 3) };
+      case 'RECORD': {
+        // One to three columns with distinct names.
+        const names = ['naam', 'aantal', 'van_af'].slice(0, 1 + Math.floor(rand() * 3));
+        return { operation: 'RECORD', fields: Object.fromEntries(names.map((n) => [n, value(d)])) };
+      }
       case 'FOREACH': {
         const n: Operation = { operation: 'FOREACH', collection: value(d), as: pick(['item', 'rij', 'van', 'x1']), body: value(d) };
         if (rand() < 0.5) n.filter = value(d);
-        const c = pick(['ADD', 'OR', 'AND', 'MIN', 'MAX', 'ONLY', undefined]);
+        const c = pick(['ADD', 'OR', 'AND', 'MIN', 'MAX', 'ONLY', 'DISTINCT', undefined]);
         if (c) n.combine = c;
         return n;
       }

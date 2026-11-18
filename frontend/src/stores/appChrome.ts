@@ -10,10 +10,21 @@ interface SearchPopoverHandle {
 
 type SearchPopoverRef = Readonly<Ref<SearchPopoverHandle | null | undefined>>;
 
+/** What the tab bar shows for one tab. */
+export interface TabLabel {
+  text: string;
+  /** For a narrow tab. */
+  shortText: string;
+  /** The regelwerk the tab belongs to. */
+  supportingText: string;
+  /** The tab holds edits that are not saved. */
+  unsaved: boolean;
+}
+
 /** The editor's actions for the document tab bar. */
 export interface TabActions {
   key: (tab: OpenTab) => string;
-  displayName: (tab: OpenTab) => string;
+  label: (tab: OpenTab) => TabLabel;
   /** Resolves to false when the editor kept the open article (unsaved edits the user chose to keep). */
   select: (tab: OpenTab) => Promise<boolean>;
   /** Resolves to false when the editor kept the tab open, for the same reason. */

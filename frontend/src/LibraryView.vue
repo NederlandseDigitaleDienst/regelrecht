@@ -21,6 +21,8 @@ import TrajectMembersPane from './components/TrajectMembersPane.vue';
 import InviteMembersSheet from './components/InviteMembersSheet.vue';
 import TasksCategoriesPane from './components/TasksCategoriesPane.vue';
 import TasksListPane from './components/TasksListPane.vue';
+import RunsListPane from './components/RunsListPane.vue';
+import RunDetailSheet from './components/RunDetailSheet.vue';
 import TasksSidebarItem from './components/TasksSidebarItem.vue';
 import UploadConfirmDialog from './components/UploadConfirmDialog.vue';
 import { useAuth, ensureAuthReady } from './composables/useAuth';
@@ -36,6 +38,8 @@ import { useCorpus } from './corpus';
 // taken-componenten, en anonieme bezoekers pollen nooit).
 import { useEnrichState } from './composables/useEnrichState';
 import { useTrajectsStore } from './stores/trajects';
+import { useFeatureFlagsStore } from './stores/featureFlags';
+import { useScenarios } from './composables/useScenarios';
 import { lawUploadUrl, favoritesUrl, favoriteUrl } from './composables/corpusUrls';
 import { SUPPORT_EMAIL, paneChromeVisible } from './constants';
 import { useAppChromeStore } from './stores/appChrome';
@@ -989,6 +993,22 @@ const searchPopoverRef = ref<InstanceType<typeof SearchPopover> | null>(null);
 registerSearchPopover(searchPopoverRef);
 
 const selectedLawId = ref<string | null>(null);
+
+// The selected regelwerk's scenario files, in a traject: each opens in its own
+// editor tab. Without a traject there is nothing to edit them in.
+const featureFlags = useFeatureFlagsStore();
+const scenariosShown = computed(() => !!activeTrajectRef.value && featureFlags.isEnabled('panel.scenario_form'));
+const { scenarios: scenarioFiles } = useScenarios(
+  computed(() => (scenariosShown.value ? selectedLawId.value : null)),
+  activeTrajectRef,
+);
+function openScenarioFile(filename: string) {
+  if (!activeTrajectRef.value || !selectedLawId.value) return;
+  router.push({
+    name: 'editor-scenario-traject',
+    params: { trajectRef: activeTrajectRef.value, lawId: selectedLawId.value, filename },
+  });
+}
 // Which sidebar section the law was opened from, so only that instance is
 // highlighted (a law can sit in both Favorieten and Recent bekeken). Cleared on
 // non-sidebar selects (search / deep-link); highlightSection then falls back to
@@ -1298,14 +1318,16 @@ onBeforeUnmount(() => setLibraryEmpty(false));
 
 const articles = computed(() => selectedLaw.value?.articles ?? []);
 
-// "Algemeen" and "YAML" ride the existing :articleNumber segment as reserved
-// values, so deep-linking and the browser back button work without a new
-// route. The schema types article numbers as free-form strings, so a real
-// article could in theory be called 'algemeen' or 'yaml' too; when that
-// happens the real article wins and the pane is simply not reachable for that
-// law.
+// "Algemeen", "YAML" and "Verwerkingen" ride the existing :articleNumber
+// segment as reserved values, so deep-linking and the browser back button work
+// without a new route. The schema types article numbers as free-form strings,
+// so a real article could in theory be called 'algemeen' or 'yaml' too; when
+// that happens the real article wins and the pane is simply not reachable for
+// that law.
 const ALGEMEEN_KEY = 'algemeen';
 const YAML_KEY = 'yaml';
+const VERWERKINGEN_KEY = 'verwerkingen';
+const LAW_PAGE_KEYS: readonly string[] = [ALGEMEEN_KEY, YAML_KEY, VERWERKINGEN_KEY];
 function isReservedEntry(key: string) {
   return computed(
     () =>
@@ -1316,8 +1338,39 @@ function isReservedEntry(key: string) {
 const isAlgemeen = isReservedEntry(ALGEMEEN_KEY);
 // The whole file, for every law.
 const isYaml = isReservedEntry(YAML_KEY);
-// Algemeen or YAML: a page about the law as a whole, not one of its articles.
-const isLawPage = computed(() => isAlgemeen.value || isYaml.value);
+// The runs of the law in this traject: its enrichments and the harvest that
+// fetched it. Runs belong to a traject, so outside one there is no such page.
+const isVerwerkingenEntry = isReservedEntry(VERWERKINGEN_KEY);
+const isVerwerkingen = computed(() => isVerwerkingenEntry.value && !!activeTrajectRef.value);
+// Algemeen, YAML or Verwerkingen: a page about the law as a whole, not one of
+// its articles.
+const isLawPage = computed(() => isAlgemeen.value || isYaml.value || isVerwerkingen.value);
+
+// A Verwerkingen address without a traject: switching to Corpus juris from the
+// page keeps the article segment, and a link can carry it too. Runs belong to a
+// traject, so show the law rather than "Artikel verwerkingen bestaat niet".
+// Waits for the law, so a real article called 'verwerkingen' still wins.
+watch([isVerwerkingenEntry, activeTrajectRef, selectedLaw], () => {
+  if (isVerwerkingenEntry.value && !activeTrajectRef.value && selectedLaw.value && selectedLawId.value) {
+    router.replace(libraryRouteFor({ lawId: selectedLawId.value }));
+  }
+});
+
+// The run whose details are open in the sheet over Verwerkingen. Not in the
+// route, like the open task in the task list; leaving the page closes it.
+const openRunId = ref<string | null>(null);
+watch(isVerwerkingen, (open) => {
+  if (!open) openRunId.value = null;
+});
+// The harvest that fetched the law carries its BWB id, not its $id.
+const selectedLawBwbId = computed(() => {
+  const bwbId = selectedLaw.value?.bwb_id;
+  return typeof bwbId === 'string' && bwbId ? bwbId : null;
+});
+// From a run to what is left to do: the open review tasks of this law.
+function goToRunTasks(lawId: string) {
+  goToTakenCategorie({ categorie: 'wet', lawId });
+}
 
 // A header field may be an internal reference like '#wet_naam': the value is
 // produced by an action in one of the articles, not written in the header.
@@ -1952,7 +2005,7 @@ function selectArticle(number: string | number) {
   activeAction.value = null;
   // An article keeps the open tab (#machine, #yaml); Algemeen and YAML have no
   // tabs, so their address carries none.
-  const lawPage = articleStr === ALGEMEEN_KEY || articleStr === YAML_KEY;
+  const lawPage = LAW_PAGE_KEYS.includes(articleStr);
   router.replace({
     ...libraryRouteFor({ lawId: selectedLawId.value, articleNumber: articleStr }),
     hash: lawPage ? '' : route.hash,
@@ -1965,6 +2018,10 @@ function selectAlgemeen() {
 
 function selectYaml() {
   selectArticle(YAML_KEY);
+}
+
+function selectVerwerkingen() {
+  selectArticle(VERWERKINGEN_KEY);
 }
 
 // Article filter: a toolbar toggle reveals the field, so the list stays
@@ -2699,7 +2756,53 @@ watch(activeTrajectRef, () => {
                       <nldd-icon icon="chevron-right"></nldd-icon>
                     </nldd-icon-cell>
                   </nldd-list-item>
+                  <!-- Runs belong to a traject; the corpus juris has none. -->
+                  <nldd-list-item
+                    v-if="activeTrajectRef"
+                    data-testid="law-entry-verwerkingen"
+                    size="md"
+                    button
+                    :current="isVerwerkingen || undefined"
+                    @click="selectVerwerkingen()"
+                  >
+                    <nldd-icon-cell size="20">
+                      <nldd-icon icon="history"></nldd-icon>
+                    </nldd-icon-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-text-cell text="Verwerkingen"></nldd-text-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-icon-cell size="20">
+                      <nldd-icon icon="chevron-right"></nldd-icon>
+                    </nldd-icon-cell>
+                  </nldd-list-item>
                 </nldd-list>
+                <template v-if="scenariosShown && scenarioFiles.length">
+                  <nldd-spacer size="24"></nldd-spacer>
+                  <nldd-title size="display-5">
+                    <h4>Scenario's</h4>
+                  </nldd-title>
+                  <nldd-spacer size="8"></nldd-spacer>
+                  <nldd-list appearance="simple" accessible-label="Scenario's van dit regelwerk">
+                    <nldd-list-item
+                      v-for="file in scenarioFiles"
+                      :key="file.filename"
+                      size="md"
+                      button
+                      :data-testid="`law-scenario-${file.filename}`"
+                      @click="openScenarioFile(file.filename)"
+                    >
+                      <nldd-icon-cell size="20">
+                        <nldd-icon icon="checklist"></nldd-icon>
+                      </nldd-icon-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-text-cell :text="file.filename" supporting-text="Openen in de editor"></nldd-text-cell>
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-icon-cell size="20">
+                        <nldd-icon icon="chevron-right"></nldd-icon>
+                      </nldd-icon-cell>
+                    </nldd-list-item>
+                  </nldd-list>
+                </template>
                 <nldd-spacer size="24"></nldd-spacer>
                 <nldd-title size="display-5">
                   <h4>Artikelen</h4>
@@ -2889,10 +2992,10 @@ watch(activeTrajectRef, () => {
             <nldd-page landmarks="page" sticky-header>
               <nldd-top-title-bar
                 slot="header"
-                :text="isAlgemeen ? 'Algemeen' : isYaml ? 'YAML' : (selectedArticle ? `Artikel ${selectedArticle.number}` : undefined)"
+                :text="isAlgemeen ? 'Algemeen' : isYaml ? 'YAML' : isVerwerkingen ? 'Verwerkingen' : (selectedArticle ? `Artikel ${selectedArticle.number}` : undefined)"
                 :supporting-text="isLawPage || selectedArticle ? lawName : undefined"
                 :back-text="lawError ? LIBRARY_HOME_BACK_TEXT : (lawName || 'Terug')"
-                :collapse-anchor="isAlgemeen ? 'algemeen-titel' : isYaml ? 'yaml-titel' : (selectedArticle ? 'article-titel' : undefined)"
+                :collapse-anchor="isAlgemeen ? 'algemeen-titel' : isYaml ? 'yaml-titel' : isVerwerkingen ? 'verwerkingen-titel' : (selectedArticle ? 'article-titel' : undefined)"
               ></nldd-top-title-bar>
 
               <nldd-simple-section width="full" v-if="!selectedLawId">
@@ -3002,6 +3105,31 @@ watch(activeTrajectRef, () => {
                     </template>
                   </nldd-container>
                 </nldd-container>
+              </nldd-simple-section>
+              <nldd-simple-section width="full" v-else-if="isVerwerkingen">
+                <nldd-title id="verwerkingen-titel" size="display-3">
+                  <h3>Verwerkingen</h3>
+                  <span slot="supporting-text">{{ lawName }}</span>
+                </nldd-title>
+                <nldd-spacer size="16"></nldd-spacer>
+                <!-- As wide as Algemeen: centered at the 720px of the article
+                     text, with the title left. -->
+                <nldd-container horizontal-alignment="center">
+                  <nldd-container max-width="720px">
+                    <RunsListPane
+                      :traject-ref="activeTrajectRef"
+                      :law-id="selectedLawId"
+                      :bwb-id="selectedLawBwbId"
+                      @select="openRunId = $event"
+                    ></RunsListPane>
+                  </nldd-container>
+                </nldd-container>
+                <RunDetailSheet
+                  :job-id="openRunId"
+                  :law-name="lawName"
+                  @close="openRunId = null"
+                  @open-tasks="goToRunTasks"
+                ></RunDetailSheet>
               </nldd-simple-section>
               <nldd-simple-section width="full" v-else-if="isYaml">
                 <nldd-title id="yaml-titel" size="display-3">

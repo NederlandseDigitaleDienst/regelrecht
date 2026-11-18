@@ -97,6 +97,8 @@ vi.mock('./composables/useEngine', () => ({
   useEngine: () => ({
     ready: ref(false),
     initError: ref(null),
+    lawsRevision: ref(0),
+    lawLoadError: () => null,
     initEngine: vi.fn().mockResolvedValue(null),
     getEngine: vi.fn(),
     loadLawYaml: vi.fn(),
@@ -163,7 +165,14 @@ vi.mock('./composables/useLastVisitedRoute', () => ({
 }));
 
 vi.mock('./lib/apiFetch', () => ({
-  apiFetch: vi.fn().mockResolvedValue({ ok: true, status: 200, headers: { get: () => null }, json: async () => ({}) }),
+  // The scenario list is an array; the editor lists the open regelwerk's
+  // scenarios for the status in the Machine toolbar.
+  apiFetch: vi.fn().mockImplementation(async (url: string) => ({
+    ok: true,
+    status: 200,
+    headers: { get: () => null },
+    json: async () => (String(url).endsWith('/scenarios') ? [] : {}),
+  })),
   apiFetchJson: vi.fn().mockResolvedValue({}),
   ApiError: class ApiError extends Error {},
 }));

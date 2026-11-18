@@ -385,6 +385,7 @@ fn gram(
             .collect()
     };
     Gram {
+        law_versions: Vec::new(),
         id: id.to_string(),
         kind,
         basis,
@@ -684,6 +685,7 @@ fn evaluate_with_cell(
     let call = Call {
         findings: BTreeMap::new(),
         answerer: Some(&reader),
+        decides_for: None,
         chronicle: Some(&reader),
         sphere: Vec::new(),
     };

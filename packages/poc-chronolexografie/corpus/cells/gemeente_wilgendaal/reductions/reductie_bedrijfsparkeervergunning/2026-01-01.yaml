@@ -9,9 +9,9 @@ valid_from: '2026-01-01'
 # bedrijfsparkeervergunning (artikel 2 van de fictieve parkeerverordening),
 # met twee aggregaten en twee read models in één bestand (schema v0.8.19).
 # Artikel vergunning is een aggregaat per besluit op een aanvraag: het besluit
-# en wat ernaar verwijst, zoals een bezwaar, de beslissing erop en het
-# afschrift van de uitspraak in de hoofdzaak (Awb 8:79). Welke records
-# meetellen, volgt uit de effecten die de Awb ze geeft (7:11, tweede lid, en
+# en wat ernaar verwijst, zoals een bezwaar, de beslissing erop, een
+# intrekking (Awb 6:21) en het afschrift van de uitspraak in de hoofdzaak
+# (8:79). Welke records meetellen, volgt uit de effecten die de Awb ze geeft (7:11, tweede lid, en
 # 8:79 met 8:72). Een nieuw besluit dat een beslissing op bezwaar in de plaats
 # van dit besluit nam, houdt die beslissing zelf; het telt in dit aggregaat en
 # valt met de beslissing weg. De staat houdt de dagen die de records dragen,
@@ -54,7 +54,8 @@ articles:
       houdt door middel van een chronolexografische reductie op zijn eigen
       kroniek per besluit op een aanvraag om een bedrijfsparkeervergunning bij
       op welke dag het is genomen, tot en met welke dag de vergunning geldig
-      is, en op welke dag de bestuursrechter in de hoofdzaak uitspraak deed.
+      is, op welke dag het bezwaar of beroep is ingetrokken, en op welke dag
+      de bestuursrechter in de hoofdzaak uitspraak deed.
     url: https://lokaleregelgeving.overheid.nl/CVDR642699
     machine_readable:
       projection:
@@ -69,6 +70,10 @@ articles:
           - name: vergunning_geldig_tot
             type: date
           - name: uitspraak_hoofdzaak_op
+            type: date
+          # De dag waarop het bezwaar of beroep is ingetrokken (Awb 6:21,
+          # 8:85, tweede lid, onder b).
+          - name: ingetrokken_op
             type: date
           # Het besluit uit dit aggregaat dat de vergunning nu verleent: het
           # besluit op de aanvraag, of de beslissing op bezwaar die in zijn
@@ -134,6 +139,13 @@ articles:
                 value: $besluit_datum_na_bezwaar
               - output: vergunning_geldig_tot
                 value: $vergunning_geldig_tot_na_bezwaar
+          # De intrekking van het bezwaar tegen dit besluit, of van het beroep
+          # tegen de beslissing erop (6:21); de voorziening vervalt op die dag
+          # (8:85, tweede lid, onder b).
+          - record: algemene_wet_bestuursrecht#6:21#EXECUTOGRAM
+            actions:
+              - output: ingetrokken_op
+                value: $record.ingetrokken_op
           # De uitspraak in de hoofdzaak (8:79); de voorziening vervalt op de
           # dag ervan (8:85, tweede lid, onder c).
           - record: algemene_wet_bestuursrecht#8:79#EXECUTOGRAM

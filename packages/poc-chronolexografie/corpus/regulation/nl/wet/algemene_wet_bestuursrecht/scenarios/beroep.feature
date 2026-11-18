@@ -6,9 +6,11 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
   het bezwaar, met het nieuwe besluit dat zij in de plaats van een herroepen
   besluit nam. Het beroepschrift bevat ten
   minste wat artikel 6:5 noemt en is tijdig als het voor het einde van de
-  termijn is ontvangen (artikelen 6:7 tot en met 6:9). De uitspraak strekt tot
-  niet-ontvankelijkverklaring, ongegrondverklaring of gegrondverklaring van
-  het beroep (artikel 8:70). Bij een gegrond beroep vernietigt de
+  termijn is ontvangen (artikelen 6:7 tot en met 6:9); is het te laat, dan
+  blijft niet-ontvankelijkverklaring achterwege als redelijkerwijs niet kan
+  worden geoordeeld dat de indiener in verzuim is geweest (artikel 6:11). De
+  uitspraak strekt tot niet-ontvankelijkverklaring, ongegrondverklaring of
+  gegrondverklaring van het beroep (artikel 8:70). Bij een gegrond beroep vernietigt de
   bestuursrechter het besluit en vermeldt hij welke rechtsregel geschonden
   is (artikelen 8:72, eerste lid, en 8:77, tweede lid). Hij kan de
   rechtsgevolgen in stand laten (artikel 8:72, derde lid, onder a); anders
@@ -17,7 +19,8 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
 
   Het bestreden besluit is een besluitwaarde, zoals in bezwaar.feature. Wat
   de bestuursrechter oordeelt, geeft de uitvoering apart van de parameters
-  mee (findings): of de indiener belanghebbende is, of het besluit een
+  mee (findings): of de indiener belanghebbende is, of hij bij een te laat
+  beroepschrift in verzuim was, of het besluit een
   rechtsregel schendt en welke, of de rechtsgevolgen in stand blijven, en de
   termijn voor het nieuwe besluit. De eerste twee scenario's rekenen artikel
   6:9 bij het beroepschrift ook uit en geven dezelfde uitkomst mee aan
@@ -52,14 +55,17 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Then output "uitspraak_strekt_tot" equals "ongegrondverklaring van het beroep"
 
   Scenario: Een beroepschrift ontvangen na het einde van de termijn is niet-ontvankelijk
-    # Artikel 6:11 (verschoonbare termijnoverschrijding) is niet gemodelleerd.
-    # Op een niet-ontvankelijk beroep oordeelt de bestuursrechter niet over
-    # de gronden, dus hij stelt niets vast.
+    # De bestuursrechter oordeelt dat de indiener in verzuim is geweest, dus
+    # artikel 6:11 laat de niet-ontvankelijkverklaring staan. Op een
+    # niet-ontvankelijk beroep oordeelt de bestuursrechter niet over de
+    # gronden, dus hij stelt verder niets vast.
     Given the following parameters:
       | datum_ontvangst_bezwaar_of_beroepschrift | 2026-12-28 |
       | termijn_einddatum | 2026-12-27 |
       | bezwaar_of_beroepschrift_tijdig_ingediend | false |
       | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+    Given the following findings:
+      | indiener_beroepschrift_niet_in_verzuim | false |
     When I evaluate outputs "uitspraak_strekt_tot, geschonden_geoordeelde_rechtsregel, bestreden_besluit_vernietigd, rechtsgevolgen_vernietigd, opdracht_nieuw_besluit, termijn_nieuw_besluit_einddatum, uitspraak_in_de_plaats" of "algemene_wet_bestuursrecht"
     Then the execution succeeds
     Then output "bezwaar_of_beroepschrift_tijdig_ingediend" is false
@@ -68,6 +74,29 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     Then output "uitspraak_strekt_tot" equals "niet-ontvankelijkverklaring van het beroep"
     Then output "bestreden_besluit_vernietigd" is false
     Then output "opdracht_nieuw_besluit" is false
+
+  Scenario: Een te laat beroepschrift is ontvankelijk als de indiener niet in verzuim is geweest
+    # Artikel 6:11: redelijkerwijs kan niet worden geoordeeld dat de indiener
+    # in verzuim is geweest. Dat oordeelt de bestuursrechter per geval; dan
+    # oordeelt hij ook over de gronden.
+    Given the following parameters:
+      | bezwaar_of_beroepschrift_tijdig_ingediend | false |
+      | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+    Given the following findings:
+      | indiener_beroepschrift_niet_in_verzuim | true |
+      | indiener_is_belanghebbende | true |
+      | rechtsregel_geschonden | false |
+    When I evaluate outputs "uitspraak_strekt_tot, geschonden_geoordeelde_rechtsregel, bestreden_besluit_vernietigd, rechtsgevolgen_vernietigd, opdracht_nieuw_besluit, termijn_nieuw_besluit_einddatum, uitspraak_in_de_plaats" of "algemene_wet_bestuursrecht"
+    Then the execution succeeds
+    Then output "beroep_ontvankelijk" is true
+    Then output "uitspraak_strekt_tot" equals "ongegrondverklaring van het beroep"
+
+  Scenario: Zonder het oordeel over het verzuim is er geen uitspraak op een te laat beroepschrift
+    Given the following parameters:
+      | bezwaar_of_beroepschrift_tijdig_ingediend | false |
+      | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+    When I evaluate outputs "uitspraak_strekt_tot, geschonden_geoordeelde_rechtsregel, bestreden_besluit_vernietigd, rechtsgevolgen_vernietigd, opdracht_nieuw_besluit, termijn_nieuw_besluit_einddatum, uitspraak_in_de_plaats" of "algemene_wet_bestuursrecht"
+    Then the execution fails with "indiener_beroepschrift_niet_in_verzuim"
 
   Scenario: Beroep tegen een beslissing op bezwaar die een nieuw besluit nam, is ontvankelijk
     # Artikel 7:11, tweede lid: de beslissing herroept het bestreden besluit
@@ -220,7 +249,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     # volgt geen opdracht (vierde lid).
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bestreden_besluit": {"basis": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}}, "bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bestreden_besluit": {"basis": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}}, "bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {"indiener_bezwaarschrift_is_belanghebbende": true}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | true |
@@ -244,7 +273,7 @@ Feature: Het beroep bij de bestuursrechter en de uitspraak erop
     # zonder dat oordeel is er geen uitspraak.
     Given the following parameters:
       | bezwaar_of_beroepschrift_tijdig_ingediend | true |
-      | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bestreden_besluit": {"basis": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}}, "bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
+      | bestreden_besluit | {"basis": "algemene_wet_bestuursrecht#7:11", "taken_on": "algemene_wet_bestuursrecht#7:11", "fields": {"bestreden_besluit": {"basis": "leerplichtwet_1969#13a", "taken_on": "leerplichtwet_1969#13a", "fields": {"bsn_jongere": "999990019", "eerste_verlofdag": "2027-02-01", "laatste_verlofdag": "2027-02-05"}, "findings": {"specifieke_aard_beroep_ouder": false, "verlof_valt_buiten_schoolvakanties_volgens_hoofd": true}, "outputs": {"verlofdagen": 5, "verlof_raakt_eerste_twee_lesweken": false, "verlof_verleend": false}}, "bezwaar_of_beroepschrift_tijdig_ingediend": true}, "findings": {"indiener_bezwaarschrift_is_belanghebbende": true}, "outputs": {"bezwaar_ontvankelijk": true, "heroverweging_geeft_aanleiding": false, "bestreden_besluit_herroepen": false, "nieuw_besluit": null}} |
     Given the following findings:
       | indiener_is_belanghebbende | true |
       | rechtsregel_geschonden | true |

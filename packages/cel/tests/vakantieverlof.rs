@@ -12,7 +12,7 @@ use common::{answered, cell_tempdir, day, object_map};
 
 use std::path::Path;
 
-use regelrecht_cel::{Cell, Disk, Error, Gram, Reference, Source, decision, shape};
+use regelrecht_cel::{Cell, Disk, Error, Gram, LawSince, Reference, Source, decision, shape};
 use regelrecht_engine::LawExecutionService;
 use serde_json::{Map, Value, json};
 
@@ -1278,7 +1278,7 @@ fn reconsider(
         OBJECTION,
         objection,
         &Map::new(),
-        findings,
+        &common::on_objection(findings),
         day(on),
     )
 }
@@ -1653,6 +1653,165 @@ fn a_chronicle_with_a_decision_recorded_in_turn_does_not_open() {
     );
 }
 
+// ---------------------------------------------------------------------------
+// The regulation versions a record was taken under
+// ---------------------------------------------------------------------------
+
+/// The school year 2026-2027 of the school, as the fixtures hold it.
+fn school_year() -> String {
+    std::fs::read_to_string(common::corpus().join(format!(
+        "regulation/nl/uitvoeringsbeleid/{POLICY}/2026-08-01.yaml"
+    )))
+    .unwrap()
+}
+
+/// [`service`], with the school year 2027-2028 as the fixtures hold it and
+/// `versions` of the school year in place of 2026-2027.
+fn service_with_school_year(versions: &[String]) -> LawExecutionService {
+    let mut service = service_without(&[POLICY]);
+    let next = common::corpus().join(format!(
+        "regulation/nl/uitvoeringsbeleid/{POLICY}/2027-08-01.yaml"
+    ));
+    service
+        .load_law(&std::fs::read_to_string(next).unwrap())
+        .unwrap();
+    for version in versions {
+        service.load_law(version).unwrap();
+    }
+    service
+}
+
+#[test]
+fn a_submission_and_a_decision_keep_the_regulation_versions_they_were_taken_under() {
+    let mut cell = cell();
+    let decision = apply_and_decide(&mut cell, "2027-02-01", "2027-02-05", "2026-10-20");
+    let application = &cell.grams()[0];
+    let ids = |gram: &Gram| -> Vec<String> {
+        gram.law_versions.iter().map(|v| v.law_id.clone()).collect()
+    };
+    // The application ran art. 13a and the Awb hooks on it.
+    assert!(ids(application).contains(&LAW.to_string()));
+    assert!(ids(application).contains(&AWB.to_string()));
+    // The decision ran the law, the Awb and the policies that fill its
+    // terms, and took the answer of the school's reduction.
+    for id in [LAW, AWB, POLICY, LEAVE_POLICY, REDUCTION] {
+        assert!(
+            ids(&decision).contains(&id.to_string()),
+            "{id}: {:?}",
+            ids(&decision)
+        );
+    }
+    let year = decision
+        .law_versions
+        .iter()
+        .find(|v| v.law_id == POLICY)
+        .unwrap();
+    assert_eq!(year.valid_from.as_deref(), Some("2026-08-01"));
+    assert!(
+        year.hash
+            .as_deref()
+            .is_some_and(|h| h.starts_with("sha256:"))
+    );
+    // A reference, once each: no version twice.
+    let mut unique = decision.law_versions.clone();
+    unique.sort();
+    unique.dedup();
+    assert_eq!(unique.len(), decision.law_versions.len());
+    assert_eq!(
+        cell.law_since(&service(), &decision.id).unwrap(),
+        LawSince::Unchanged
+    );
+}
+
+#[test]
+fn a_regelwerk_corrected_since_the_decision_is_named_while_the_outcome_holds() {
+    // A correction that leaves the outcome as it was: the replay takes the
+    // decision again without complaint, and the versions say that the school
+    // year is no longer what the decision was taken under.
+    let mut cell = cell();
+    let decision = apply_and_decide(&mut cell, "2027-02-01", "2027-02-05", "2026-10-20");
+    let corrected = format!(
+        "{}\n# Gecorrigeerd: een typefout in de toelichting.\n",
+        school_year()
+    );
+    let now = service_with_school_year(&[corrected]);
+    let LawSince::Changed(changes) = cell.law_since(&now, &decision.id).unwrap() else {
+        panic!("the school year changed");
+    };
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].recorded.law_id, POLICY);
+    let changed = changes[0].now.as_ref().unwrap();
+    assert_eq!(changed.valid_from.as_deref(), Some("2026-08-01"));
+    assert_ne!(changed.hash, changes[0].recorded.hash);
+    assert!(
+        changes[0].to_string().contains("has other content"),
+        "{}",
+        changes[0]
+    );
+    let mut now = now;
+    cell.explain(&mut now, &[], &decision.id).unwrap();
+}
+
+#[test]
+fn a_regelwerk_gone_from_the_corpus_since_the_decision_is_named() {
+    let mut cell = cell();
+    let decision = apply_and_decide(&mut cell, "2027-02-01", "2027-02-05", "2026-10-20");
+    let without = service_without(&[LEAVE_POLICY]);
+    let LawSince::Changed(changes) = cell.law_since(&without, &decision.id).unwrap() else {
+        panic!("the leave policy is gone");
+    };
+    assert_eq!(changes.len(), 1);
+    assert_eq!(changes[0].recorded.law_id, LEAVE_POLICY);
+    assert_eq!(changes[0].now, None);
+    assert_eq!(
+        changes[0].to_string(),
+        format!("{LEAVE_POLICY} no longer has version 2026-08-01")
+    );
+}
+
+#[test]
+fn a_version_added_since_the_decision_that_changes_the_outcome_is_named_in_the_replay() {
+    // A version of the leave policy added with effect from before the
+    // decision, under which leave counts as granted in the school year
+    // already: taken again, the decision refuses, and the replay says both
+    // that the outcome differs and which regelwerk changed since.
+    let mut cell = cell();
+    let decision = apply_and_decide(&mut cell, "2027-02-01", "2027-02-05", "2026-10-20");
+    assert_eq!(decision.outputs["verlof_verleend"], json!(true));
+    let path = common::corpus().join(format!(
+        "regulation/nl/uitvoeringsbeleid/{LEAVE_POLICY}/2026-08-01.yaml"
+    ));
+    let policy = std::fs::read_to_string(path).unwrap();
+    let retroactive = policy
+        .replace("valid_from: '2026-08-01'", "valid_from: '2026-09-01'")
+        .replace("default: $antwoord_verlof_al_verleend", "default: true");
+    assert_eq!(retroactive.matches("default: true").count(), 1);
+    let mut now = service_without(&[LEAVE_POLICY]);
+    for version in [&policy, &retroactive] {
+        now.load_law(version).unwrap();
+    }
+    let LawSince::Changed(changes) = cell.law_since(&now, &decision.id).unwrap() else {
+        panic!("the leave policy changed");
+    };
+    assert_eq!(changes.len(), 1);
+    assert_eq!(
+        changes[0].now.as_ref().unwrap().valid_from.as_deref(),
+        Some("2026-09-01")
+    );
+    let e = cell
+        .explain(&mut now, &[], &decision.id)
+        .unwrap_err()
+        .to_string();
+    assert!(
+        e.contains("the replay is not this decision")
+            && e.contains(&format!(
+                "{LEAVE_POLICY} is in force in version 2026-09-01 that day, not version \
+                 2026-08-01"
+            )),
+        "{e}"
+    );
+}
+
 #[test]
 fn a_decision_already_replaced_on_objection_is_not_replaced_again() {
     // Two objections against one grant, both on time. On the first, the
@@ -1891,7 +2050,7 @@ fn a_late_objection_is_not_admissible_where_the_heroverweging_would_fail() {
             OBJECTION,
             &late.id,
             &Map::new(),
-            &Map::new(),
+            &common::on_objection(&Map::new()),
             day("2026-12-10"),
         )
         .unwrap();
@@ -1910,7 +2069,7 @@ fn a_late_objection_is_not_admissible_where_the_heroverweging_would_fail() {
             OBJECTION,
             &on_time.id,
             &Map::new(),
-            &Map::new(),
+            &common::on_objection(&Map::new()),
             day("2026-12-10"),
         )
         .unwrap_err();
@@ -1957,8 +2116,20 @@ fn the_heroverweging_runs_only_for_an_admissible_objection() {
         .into_iter()
         .map(|(name, value)| (name.to_string(), regelrecht_engine::Value::from(value)))
         .collect();
+        // The head judges the objector an interested party, and at fault
+        // for being late (Awb 6:11).
+        let findings = common::on_objection(&Map::new())
+            .into_iter()
+            .map(|(name, value)| (name, regelrecht_engine::Value::from(value)))
+            .collect();
         let result = service()
-            .evaluate_law_output_with_trace(AWB, REVOKED, parameters, "2026-11-15")
+            .evaluate_law_with_trace_and_findings(
+                AWB,
+                &[REVOKED],
+                parameters,
+                findings,
+                "2026-11-15",
+            )
             .unwrap();
         assert_eq!(
             result.outputs[REVOKED],
@@ -2111,7 +2282,7 @@ fn a_grant_revoked_on_objection_no_longer_counts_on_the_objection_against_the_re
     // The report says the same: the cell answered the term.
     assert!(
         result.open_terms.iter().any(|f| f.term == ONCE
-            && matches!(&f.filled_by, regelrecht_engine::FilledBy::Answer { law_id, article, answers }
+            && matches!(&f.filled_by, regelrecht_engine::FilledBy::Answer { law_id, article, answers, .. }
                 if law_id == LEAVE_POLICY && article == "2" && answers == std::slice::from_ref(answer))),
         "{:?}",
         result.open_terms

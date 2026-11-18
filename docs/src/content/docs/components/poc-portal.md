@@ -34,6 +34,7 @@ Every HTML page served from inside a PoC gets a strip at the top that the portal
 | `proxy.rs` | Reverse proxy to a PoC that runs as its own component |
 | `bron.rs` | Fetches and caches the sources a static PoC loads while it runs |
 | `pagina.rs` | The index and the password screen, rendered as HTML with `nldd-*` components |
+| `version.rs` | The commit the binary was built from, at `/_version` |
 
 ### The register
 
@@ -56,7 +57,31 @@ Chronolexografie lives in one directory, `packages/poc-chronolexografie/`: the R
 
 The PoC has a corpus of its own, `packages/poc-chronolexografie/corpus/`, with the layout of a source: the cases in `casussen/`, the rulework in `regulation/nl/` and the cells in `cells/`. It holds copies of the laws the cases run, the Awb among them, so work on a case never changes the regelrecht corpus and a change there never breaks a case. The regelrecht corpus keeps its own version of those laws.
 
-Each case is one file in `casussen/`, and this repository holds four. The file names the cell (a directory under `cells/`), the article that establishes the application, and the output of the decision that grants what was asked. The law does not mark that output, so the case file does. The file also lists the case's own corpus under `corpus` and holds the scenarios, with the values each step fills in. A step can name outputs of its decision under `uitvoer`, with the value it expects, such as an amount; `tests/scenarios.rs` checks them. The app derives everything else from the law when it loads the case (`src/casus.rs`).
+Each case is one file in `casussen/`, and this repository holds four. The file names the cell (a directory under `cells/`), the article that establishes the application, and the output of the decision that grants what was asked. The law does not mark that output, so the case file does. The file also lists the case's own corpus under `corpus` and holds the scenarios, with the values each step fills in. A step can name outputs of its decision under `uitvoer`, with the value it expects, such as an amount; `tests/scenarios/` checks them. The app derives everything else from the law when it loads the case (`src/casus.rs`).
+
+A case can let the applicant log in (`inloggen`): the form offers the records of a fact that a cell of the case keeps, and the key of the chosen record goes into a field of the application. In the business parking permit, that fact is an authentication by an accredited service under article 15 of the Wet digitale overheid (not yet in force), and the key is the company's KvK number.
+
+A case can instead send the applicant through a simulated login step, in the manner of eHerkenning, by adding `inlogstap` under `inloggen`:
+
+```yaml
+inloggen:
+  feit: wet_digitale_overheid#15#authenticatie_verricht
+  sleutel: kvk_nummer
+  veld: kvk_nummer
+  inlogstap:
+    cel: voorbeeld_erkende_dienst
+    toegang: voorbeeld_register_erkende_dienst#4#toegang_verleend
+    dienst: urn:etoegang:DV:00000009999999997000:services:1
+    middel: voorbeeld_register_erkende_dienst#1#middel_uitgegeven
+```
+
+The applicant leaves the app for a login screen marked as simulated, and enters a user name and the one password all test accounts share. The screen lists the user names from the records of the fact `middel`, the means of login the cell issued. The cell `cel` answers the boolean output `toegang` of an article in its own policy, with the parameters `gebruikersnaam` and `dienst` and the day of the login. In the test source, its register decides that answer: a means of login it issued, and an authorization for the service that has not been revoked. When access is granted, the cell records `feit`, filling each of its fields from the output of the same name, and the article's other outputs return to the browser as the claims of an assertion. Without access the login is refused, and the screen says why. An article that lacks a field of `feit` is an error in the case. Neither records anything.
+
+Who is logged in is session state in the browser (`sessionStorage`), never something read back from a chronicle. A chronicle records that an authentication took place, and one chronicle could serve several sessions at once. The form takes the claim `sleutel` into the field `veld`, and a claim named after another field of the application fills that field too. Logging out clears only the session. A case without `inlogstap` keeps the choice from the chronicle. The test source in `tests/bron-inlogstap` shows the facts and the reduction a cell needs for this.
+
+A case can also keep a UI spec in its own directory (`casussen/<id>/ui_spec.yaml`), in the form a source uses (see below). The business parking permit uses it to prefill the applicant's name and address from the trade register, looked up by the KvK number of whoever logged in.
+
+A step of a scenario is an action, such as `aanvraag` or `besluit`, or a line of text. Beside the page, the app shows a guide that walks through the actions of every scenario, whether the case is the PoC's own or comes from a source (`frontend/src/scenarioGuides.js`). A line of text goes with the next action as an instruction, without a check of its own; a line after the last action shows at the end of the scenario. Where the case has a login (`inloggen`), the guide names the party to choose in the field *Ingelogd als*. With a login step, a scenario has steps `inloggen` instead, which name the user name under `invoer` and may expect `uitkomst: geweigerd`; the scenario player in `tests/scenarios` keeps what a login asserts as the session for the steps after it. An application step without a session may name the login field itself, as a submission on paper does; after a login it may not. A scenario of text alone gets no guide, and the tab Scenario's lists its lines.
 
 What another cell knew before the first scenario sits under its `begin`, as executograms with their fields. A later fact can be about one of those records, such as a correction of a registration in the trade register. The case file cannot name the record by its id, because the cell assigns that only when it records it. So the earlier executogram carries a `kenmerk`, a name unique within the case, and the later fact names it under `verwijst_naar`:
 
@@ -72,7 +97,86 @@ begin:
       velden: {postcode: 7713 AB, aantal_werkzame_personen: 2}
 ```
 
-The cell records that fact with `refers_to` set to the id of the named record (schema v0.8.17). A reduction with `projection.per` reads it as a step in the aggregate of that record. An executogram in a `begin` may refer only to an earlier one in the same `begin`. A `vastleggen` step of a scenario takes `verwijst_naar` too, and refers to a record in the `begin` of the cell named in its `cel`. Without `verwijst_naar` a fact refers to nothing, as before, so a correction recorded that way counts in no aggregate. In free play the form has no field for the reference yet. The app checks every reference when it loads the case and refuses one that names no kenmerk.
+The cell records that fact with `refers_to` set to the id of the named record (schema v0.8.17). A reduction with `projection.per` reads it as a step in the aggregate of that record. An executogram in a `begin` may refer only to an earlier one in the same `begin`. Without `verwijst_naar` a fact refers to nothing, so a correction recorded that way counts in no aggregate.
+
+A `vastleggen` step of a scenario records a fact in the cell its `cel` names. Without `cel`, the case's own cell records it, on the tab of the authority: a fact the law gives that cell to record while it handles the case, such as a payment on its decision. The form offers the case's own cell only a fact whose `competent_authority` names it, and not a fact it records as the receipt of another cell's fact, since that arrives on its own. Such a step may give its record a `kenmerk`, as a `besluit` or a generic step may. Its `verwijst_naar` names a record in the chronicle of the cell that records: the record of an earlier step of the scenario, or one in that cell's `begin`. It may not name a submission, because a record that refers to a submission would read as a decision on it:
+
+```yaml
+- stap: beslissen
+  verwijst_naar: aanvraag
+  kenmerk: vergunning
+- stap: vastleggen
+  feit: fictieve_vergunningwet#4#leges_betaald
+  verwijst_naar: vergunning
+  kenmerk: betaling
+  invoer: {bedrag: 5000}
+- stap: vastleggen
+  feit: fictieve_vergunningwet#4#leges_terugbetaald
+  verwijst_naar: betaling
+  invoer: {bedrag: 5000}
+```
+
+In free play the form has no field for the reference yet. When it loads the case, the app refuses a reference that names no earlier kenmerk or that names a submission or a record of another cell, and a step kenmerk that a `begin` already gives.
+
+What a cell answers is often no output of a decision. A payment or a balance is the answer of a reduction. A step can therefore list under `antwoorden` what a cell of the case should answer once the step is done, on the step's play date. Each entry names an output as `<regelwerk>#<article>#<output>` under `bron`, the parameters under `invoer`, and the value under `verwacht`. Without `cel` the case's own cell answers. The cell computes the answer as it prefills a form (`Cell::consult`), so `bron` is an article of a law or of the cell's own policy that binds the reduction's answer, never the reduction itself ([RFC-056](/rfcs/rfc-056)):
+
+```yaml
+- stap: vastleggen
+  feit: fictieve_vergunningwet#4#leges_betaald
+  verwijst_naar: vergunning
+  invoer: {bedrag: 5000}
+  antwoorden:
+    - bron: fictief_beleid_leges#1#betaalde_leges
+      verwacht: 5000
+```
+
+The guide beside the page asks the cell for these answers after the step and shows each one beside the value the scenario expects.
+
+Some answers matter on a day when nobody acts, such as what has been paid two weeks after a decision. A `toetsen` step does nothing: it carries `antwoorden` and a `datum` no earlier than that of the step before, and no cell, fact, values or outcome. The guide marks it done once the play date reaches its day. A parameter of an answer can name the record of a step by that step's `kenmerk`, written as `{kenmerk: <naam>}`. The app replaces it with the id of that record. The step must be the same step or an earlier one. A kenmerk that no step gives, or that only a later step gives, makes the case fail to load. The voorschot zorgtoeslag case uses both:
+
+```yaml
+- stap: besluit
+  kenmerk: voorschot
+- stap: toetsen
+  datum: 2025-01-20
+  antwoorden:
+    - bron: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#2#betaald_op_voorschot
+      invoer: {voorschotbesluit: {kenmerk: voorschot}}
+      verwacht: 0
+```
+
+Outside a scenario the authority sees these answers as well. A field of a UI spec element can carry `answer: {from: <output>, decision: <parameter>}`. The authority's tab then shows the element beside each decision its cell took under the deciding article. It shows what the cell answers on the play date, with the decision's id as the parameter that `decision` names. The page writes an amount in euros when the output's `type_spec` says `eurocent` or `euro`. A field of the same element with `visibility: asked` becomes an input for a value no rulework holds, such as a rate of interest. Each answer whose article takes a parameter by that name receives it. An output the law does not hold, or an article without the named parameter, shows as a line that says so. The zorgtoeslag case shows what has been paid on the advance this way (`casussen/zorgtoeslag/ui_spec.yaml`):
+
+```yaml
+elements:
+  - id: UI1
+    element: betaling van het voorschot
+    fields:
+      - name: betaald_op_voorschot
+        visibility: shown
+        answer:
+          from: fictief_beleid_uitbetaling_voorschot_dienst_toeslagen#2#betaald_op_voorschot
+          decision: voorschotbesluit
+```
+
+The harness names no step of a procedure. It submits under an article, decides on a submission, decides ex officio and sends a copy of a decision; the law says what each does. When a case loads, `src/casus.rs` lists the submissions its rulework establishes (`produces` with `requests`), each with the cell that the `competent_authority` of the requested article names, and the decisions a cell takes ex officio. An appeal is therefore played only in a case with a court among its cells, and rulework without the Awb loads and plays. Which output holds a decision taken in another's place follows from its type (`decision`), not from its name.
+
+A scenario can use these steps directly. A step gives its record a `kenmerk`, and a later step acts on it through `verwijst_naar`:
+
+```yaml
+- stap: indienen
+  artikel: fictieve_vergunningwet#1
+  kenmerk: aanvraag
+  invoer: {aanvrager: A. Voorbeeld, meerderjarig: true}
+- stap: beslissen
+  verwijst_naar: aanvraag
+  kenmerk: vergunning
+- stap: ambtshalve
+  artikel: fictieve_vergunningwet#3
+  verwijst_naar: vergunning
+```
+
+The authority's tab has a form for a decision its cell takes ex officio. The authority picks the article and, if the new decision concerns an earlier one, that decision. It then fills in what the article asks. At a `stap: ambtshalve` step of a scenario, the form starts from the step's values. The Rust scenario tests in `tests/procedure-zonder-awb/` play a fictional law with such a step, with no objection and a withdrawal ex officio. The four cases of this repository still write their scenarios in Awb steps (`aanvraag`, `bezwaar`, `beroep`), and the frontend reads the Awb by name in one module, `frontend/src/awb.js`.
 
 Everything runs in the visitor's browser. The cell, the engine and the app's core (`kern.rs`, `casus.rs`) compile to WebAssembly in this crate, with the feature `wasm`. No server holds state. Each browser tab holds its own session with a case: the chosen case, its cells and their chronicles. This is not the login to the portal, which the cookie keeps. The tab saves the session in `sessionStorage` after every step, so a reload goes on where it was and two tabs never touch each other's session.
 
@@ -82,11 +186,13 @@ The browser gets the whole corpus in one bundle, `bundel.json`, without the scen
 
 The scenarios run as bucket A over this corpus alone. `just bdd-chrono` loads the shared regulation and that of every case together; `script/chrono-regulation-dirs.sh` lists the directories. CI runs the same in the `bdd-demo` job. `just validate`, the type check and the cross-law check cover the corpus as well.
 
-A fourth case, a fictional subsidy at the Nederlandse autoriteit politieke partijen, lives in the private NAPP corpus. The register lists it under `sources` as `napp`, with the manifest `werkbank/chronolex/napp/bron.yaml` on the branch integratie/analistenportaal. A manifest names the directories of the repository that make up the source, so the NAPP corpus serves as a source without moving anything. The portal serves the source at `/chronolexografie/bron/napp`, behind the PoC's own password (`packages/poc-portal/src/bron.rs`). It fetches the branch from the GitHub API with `NAPP_CORPUS_TOKEN`, a user env var on the ZAD component `poc`, and keeps each fetch for 60 seconds. A push to that branch reaches the PoC within a minute, without a build of regelrecht. The token stays in the portal and never reaches the browser.
+A static PoC can also load cases from another repository, as a source. The register lists each source under `sources`, with its repository, branch and path, and with `token_env`, the env var that holds the token for that repository. The path names a folder, or a manifest that makes the source from directories elsewhere on the branch, so a repository laid out for other work serves as a source without moving anything. Under `directories` the manifest maps each directory of the source to a directory of the repository, and `repo_root` is the path from the manifest's own directory to the repository root, such as `../..`. An optional `ui_spec` names one file of the repository, the UI spec of the source, which the portal serves at the root of the source as `ui_spec.yaml`; a source that is a folder holds that file at its root itself. The file must be YAML and lie outside the directories the source is made of. Chronolexografie reads which output prefills each field of the application, and which answers an element shows beside a decision (`answer`, described above). A UI spec lists its elements under `elements`, and a field it prefills says `fill: {from: <output>}`. The older form, `elementen` with a `prefill` map per element, is still read. A UI spec with neither list, or with both, is refused. The source then shows a message, its forms are not prefilled, and no answers show beside a decision (`packages/poc-chronolexografie/src/ui_spec.rs`). The portal serves a source at `/<slug>/bron/<name>`, behind the PoC's own password (`packages/poc-portal/src/bron.rs`). It fetches the branch from the GitHub API with the token and keeps each fetch for 60 seconds. A push to that branch reaches the PoC within a minute, without a build of regelrecht. The token stays in the portal and never reaches the browser.
 
 A source holds the same directories as the corpus: `casussen/`, `regulation/nl/` and `cells/`. A case from a source runs on that source alone. It brings its own Awb and every other rulework it needs, and nothing of the regelrecht corpus takes their place. A case id that is already taken is set aside, and the app says so.
 
-When GitHub fails, the portal serves its last good copy. Without a copy it answers `502`, and without a token `503`. A source that is not available never stops the app: a banner gives the reason, and the other cases play as before. Errors in the source show only when the page loads, because the CI of regelrecht never sees the source. To work on it locally without a token, set `POC_BRON_NAPP` to a folder or a manifest (see [Running locally](#running-locally)).
+A source with `verborgen: true` in the register keeps its cases off the PoC's choice screen, and its notices too. The address of such a case still opens it. Opening the PoC with `?alle-casussen` shows the hidden cases in that browser and marks their cards, and `?alle-casussen=uit` hides them again; the browser remembers the choice in `localStorage`. Hiding is not access control. Anyone with the PoC's password can still open the case's address or fetch `/<slug>/bron/<name>`.
+
+When GitHub fails, the portal serves its last good copy. Without a copy it answers `502`, and without a token `503`. A source that is not available never stops the app: a banner gives the reason, and the other cases play as before. Errors in the source show only when the page loads, because the CI of regelrecht never sees the source. To work on one locally without a token, set `POC_BRON_<NAME>` to a folder or a manifest (see [Running locally](#running-locally)).
 
 The third is wetsgeschiedenis, in `packages/poc-wetsgeschiedenis/` with its frontend in `frontend-poc-wetsgeschiedenis/`. It plays the parliamentary papers of a bill onto its text: the notes of amendment on their date and the adopted amendments on the date of the vote. It measures the result against the Senate's amended bill, the Staatsblad or the BWB text, and shows the explanatory memorandum and the rest of the file per article, in the order the papers appeared. Next to the bills it ships with (in `corpus-poc/wetsgeschiedenis/`), a visitor can look up any act by its BWB id, or a bill still before parliament by the number of its parliamentary file, since such a bill has no BWB id yet. The service then reads on wetten.overheid.nl which parliamentary files made and amended it, fetches the chosen one from officielebekendmakingen.nl and the Tweede Kamer's Gegevensmagazijn, plays it, and adds it to the list. It can also follow the whole act through time, every version on wetten.overheid.nl, with every transition played from its Staatsblad. The service is Rust (axum), the frontend Vue around the generated viewer. The replay chain stays Python: the service runs `werker.py` as a process per task, which fetches with curl and reports every outside call back to the service's log (`GET /api/log`, `GET /api/diagnose`). The chain in `afspeler/` is exported from the case repository where it is developed, so fixes belong there. Tasks run one at a time in a queue: what a visitor asks for goes before the background, where the service fetches the parliamentary files of an act newest first and attaches their explanatory text to the transition they made. An act with many versions comes in two steps: first the newest forty, then in the background its whole history. Before 1995 wetten.overheid.nl links no parliamentary file to a version. The files that made such an act, like the first tranches of the Algemene wet bestuursrecht (1989 to 1993), exist only as scans with OCR from Staten-Generaal Digitaal. The chain finds them by the act's title and the queue fetches them first. They are read, not played: the bill numbered its articles differently (3.2.2, later 3:3), so per version of the bill each article is matched by its text to the oldest version on wetten.overheid.nl, and each paper is read in the numbering of its own date. What is fetched is shared by every visitor; it lives in `WG_DATA` and is gone after a restart unless that is a volume. The component needs outbound access to wetten.overheid.nl, zoek.officielebekendmakingen.nl, repository.overheid.nl and gegevensmagazijn.tweedekamer.nl.
 
@@ -108,6 +214,14 @@ The list of cases comes from `POC_ASSISTENT_CASUSSEN` in `start.sh`, not from th
 
 `packages/poc-portal/Dockerfile` builds the engine and chronolexografie to WASM, the portal's design-system bundle from `frontend-poc-portal/`, each static PoC with its own base path, and the Rust binary. The portal, napp and wetsgeschiedenis deploy as three ZAD components, `poc`, `napp` and `wetsgeschiedenis`; see [Deployment](/operations/deployment). Only `poc` is published on the web. The image builds WASM from two crates the portal does not depend on: the engine and `regelrecht-poc-chronolexografie`. `script/deploy-filters.mjs` therefore ties the `poc` component to those two and to the portal binary, so a change to the engine or the cell rebuilds the image. The corpus of chronolexografie lies in that crate's directory and comes with it.
 
+### Build commit
+
+`GET /_version` answers with the regelrecht commit the image was built from, without a password: `{"commit":"<40 hex characters>"}`. A test harness reads it to run its scenarios against the commit that is live. A slug cannot contain an underscore, so no PoC can take this path.
+
+The `build-poc` job in `.github/workflows/deploy.yml` passes `github.sha` to the Dockerfile as the build argument `REGELRECHT_COMMIT`, and `version.rs` reads it when the binary is compiled. On a pull request that is the test-merge commit GitHub builds, not the head of the branch. It can be fetched as `refs/pull/<n>/merge` only until the next push to the branch or to main replaces it. The image is rebuilt only when `script/deploy-filters.mjs` finds a change that touches it. After a merge that does not touch the image, the endpoint still names the older commit. The image is then the same at both commits, so scenarios give the same result against either.
+
+The answer is fixed at compile time and nothing from outside can change it. A value that is not exactly 40 lowercase hex characters becomes `"unknown"` at compile time, and so does a missing one in a local build. A build argument therefore cannot put other text into the response. The handler reads nothing from the request, not the path, the query, a header or a cookie. serde_json writes the body, which goes out as JSON with `Cache-Control: no-store`; the portal adds no CORS headers to it.
+
 ## Running locally
 
 ```bash
@@ -123,12 +237,50 @@ This builds the engine and chronolexografie to WASM, the design-system bundle an
 To work on a source without a token, point `POC_BRON_<NAME>` at a local folder that has the layout of the source, or at a manifest in a local checkout. A relative path counts from the repository root, where `just` starts:
 
 ```bash
-POC_BRON_NAPP=<checkout-of-the-source>/werkbank/chronolex/napp/bron.yaml just poc-chronolexografie
+POC_BRON_<NAME>=<checkout-of-the-source>/path/to/bron.yaml just poc-chronolexografie
 ```
 
-The Vite dev server then answers the route of the source from that folder (`frontend/scripts/bron-dev.js`), and so does the portal under `just poc`. The folder is read again on every request, so an edit shows after a reload. With the same variable, `cargo test -p regelrecht-poc-chronolexografie` loads every case in the folder and plays its example to a decision. Without it, the NAPP case shows "bron niet beschikbaar" and the test skips the folder.
+The Vite dev server then answers the route of the source from that folder (`frontend/scripts/bron-dev.js`), and so does the portal under `just poc`. The folder is read again on every request, so an edit shows after a reload. With the same variable, `cargo test -p regelrecht-poc-chronolexografie` loads every case in the folder and plays its example to a decision. Without it, a case from that source shows "bron niet beschikbaar" and the test skips the folder.
 
 `just poc` does not start napp or an assistant. The napp card then answers `503` until `POC_UPSTREAM_NAPP` points at a running napp backend. For the assistant, run `just poc-assistent <case>` in a second terminal (it needs `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY`) and start the portal with the matching variable, for example `POC_ASSISTENT_TERUGBETAALREGIMES=http://127.0.0.1:3600 just poc`.
+
+### Playing the scenarios of a source
+
+The scenario test of chronolexografie (`packages/poc-chronolexografie/tests/scenarios/`) plays the scenarios of a source the way it plays the PoC's own cases. A source needs no test runner of its own:
+
+```bash
+just poc-chronolexografie-scenarios <checkout-of-the-source>/path/to/bron.yaml <report-folder>
+```
+
+The recipe runs `cargo test --test scenarios` with two variables. `POC_BRON` names the manifest or folder of the source. `POC_SCENARIOS_UIT` is optional and names a folder for the reports. A relative path in either counts from the repository root. Without `POC_BRON` the test plays only the PoC's own cases.
+
+The test chooses every case of the source and plays each scenario step by step, with the step's `invoer` over the case's `voorbeeld`. It compares `uitkomst` on a decision, a decision on objection, and a new decision after a court ruling (`opnieuw_beslissen`). It compares `uitvoer` on three kinds of step. On an application, the outputs are what its receipt computes (`wat_volgt`). On a decision, they are its own outputs. On a decision on objection, they are its outputs together with those of the new decision it holds. A generic step compares the outputs of the record it makes. An `uitkomst` or `uitvoer` on any other kind of step is an error, so nothing passes unchecked. On any step the test asks the answers under `antwoorden` once the step is done; an answer that differs, or that the cell refuses, makes the step wrong.
+
+A step written as text is skipped. When a step leaves out a field the form asks, the report notes it. On a submission or a record the field is sent empty; from the findings of a decision it is left out, as on the page.
+
+A decision on a submission goes through `kern::toetsen_en_beslissen`: first the check of what the deciding article itself asks the authority, such as the admissibility of an objection, then the decision, the two calls the page makes. Such a judgement that the step does not give counts as `false`, like an unchecked switch on the page.
+
+The test does not stop at the first wrong step. It fails at the end with one line per wrong step, such as:
+
+```
+voorbeeld_subsidie, 'Geregistreerd: verleend', step 2: output 'subsidie_verleend': expected false, got true
+```
+
+The report folder gets `laden.json` and one `scenario-<case>-<nn>.json` per scenario, written before the test fails. `laden.json` has two keys:
+
+| Key | Holds |
+|-----|-------|
+| `bron` | What became of the source: `naam`, `versie`, `fout`, `fouten`, `meldingen` and the ids under `casussen` |
+| `casussen` | Per case: `casus`, `gekozen`, `kies_fout`, `scenarios` (their number), and `vormen`, the forms on the playing date, or `vormen_fout` |
+
+A scenario report:
+
+| Key | Holds |
+|-----|-------|
+| `casus`, `scenario`, `index` | The case, the name of the scenario and its place in the case |
+| `fouten` | The number of wrong steps |
+| `stappen` | Per step `nr` and `soort`. A step as text has `tekst`. An action has `datum`, `verhaal` and `verwacht`, and where they apply `kreeg`, `uitvoer` (per output `uitkomst`, `verwacht`, `kreeg`, `klopt`), `antwoorden` (per answer `bron`, `cel`, `verwacht`, `kreeg`, `klopt`, and `fout` when the cell refused), `leeg_gelaten`, `geweigerd` and `fout` |
+| `metingen` | Per record a step added to a chronicle: `na_stap`, `cel`, `gram`, `waarom` for a decision, `wat_volgt` for a submission |
 
 ## Configuration
 
@@ -146,7 +298,7 @@ The Vite dev server then answers the route of the source from that folder (`fron
 | `CLAUDE_CODE_OAUTH_TOKEN` | none | Token for the Claude Code CLI the assistant runs on; without it (and without `ANTHROPIC_API_KEY`) no assistant starts |
 | `ANTHROPIC_API_KEY` | none | Alternative to the OAuth token |
 | `POC_ASSISTENT_CASUSSEN` | both assistant cases | Space-separated list of cases `start.sh` starts an assistant for |
-| `NAPP_CORPUS_TOKEN` | none | Token for the `napp` source of chronolexografie: a fine-grained token with only Contents read on the NAPP corpus. The name comes from `token_env` in the register. Without it the NAPP case is unavailable |
+| the `token_env` of a source | none | Token for that source's repository, named in the register: a fine-grained token with only Contents read. Without it the cases of that source are unavailable |
 | `POC_BRON_<NAME>` | none | A local folder or manifest that replaces the source `<name>`, without a token; for local development |
 
 Passwords and tokens live only in the platform's environment, never in the repository.

@@ -9,13 +9,17 @@
  *
  * Wat in welke stap zit (aanvraag, besluit, bezwaar, beslissing op bezwaar)
  * leest dit bestand uit de kroniek af aan `kind`, `basis` en `refers_to`,
- * zoals de cel ze vastlegt (RFC-045, RFC-046). Onder welk artikel
- * het besluit valt en onder welk de beslissing op bezwaar, zegt de casus
- * (`api.casus`); het spel leidt het af uit de wet.
+ * zoals de cel ze vastlegt (RFC-045, RFC-046). Welke indieningen er zijn en
+ * onder welk artikel op elk wordt beslist, zegt de casus (`api.casus`); het
+ * spel leidt het af uit de wet. awb.js geeft die de namen van de Awb-stappen
+ * waaronder dit bestand ze nog als vaste keten leest.
  */
+import { isUnknown, missingFacts } from '@regelrecht/frontend-shared';
 import { reactive } from 'vue';
 import { api } from './api.js';
+import { metAwbNamen, vormenMetAwbNamen } from './awb.js';
 import { beroepenTegen, ontvangstenBij, uitspraakOp } from './beroep.js';
+import { LOGIN_REFUSED, wisSessie } from './sessie.js';
 
 export const state = reactive({
   // De gekozen casus, zoals `api.casus` haar geeft; null op het keuzescherm.
@@ -129,9 +133,13 @@ export async function hervatten(casusId) {
   }
 }
 
-/** Kies een casus: het spel begint haar cel opnieuw. */
+/**
+ * Kies een casus: het spel begint haar cel opnieuw, en wie bij een inlogstap
+ * was ingelogd, is dat niet meer (sessie.js).
+ */
 export async function kiezen(id) {
   state.fout = '';
+  wisSessie(id);
   try {
     await openen(await api.kies(id));
     return true;
@@ -147,7 +155,7 @@ async function openen(casus, datum = casus.speeldatum, { scenario = null, refusa
   state.vormen = null;
   state.grammen = [];
   state.rechter = [];
-  state.casus = casus;
+  state.casus = metAwbNamen(casus);
   state.datum = datum;
   await verversen();
 }
@@ -168,6 +176,7 @@ export function naarKeuze() {
 export async function beginScenario(naam) {
   const ok = await stap(() => api.reset());
   if (!ok) return false;
+  wisSessie(state.casus.id);
   state.datum = state.casus.speeldatum;
   state.scenario = naam;
   state.refusals = [];
@@ -185,7 +194,7 @@ export async function verversen() {
     state.grammen = kroniek.grammen;
     state.andere = kroniek.andere ?? [];
     state.rechter = state.andere.find((a) => a.cel === state.casus.rechter?.cel)?.grammen ?? [];
-    state.vormen = vormen;
+    state.vormen = vormenMetAwbNamen(vormen, state.casus);
     await bewaar();
   } catch (e) {
     state.fout = e.message;
@@ -216,6 +225,18 @@ export async function stap(actie) {
     await bewaar().catch(() => {});
     return null;
   }
+}
+
+/**
+ * The service refused a login at a step of the scenario that expects it
+ * (InlogScherm.vue). The cell records nothing, so the refusal is kept as
+ * one of a step the cell refused, for the guide (scenarioGuides.js), and
+ * saved.
+ */
+export async function loginGeweigerd(reden) {
+  if (!state.scenario) return;
+  state.refusals.push(`${LOGIN_REFUSED}: ${reden}`);
+  await bewaar().catch(() => {});
 }
 
 export const verwijstNaar = (id) => state.grammen.filter((g) => g.refers_to === id);
@@ -346,6 +367,9 @@ export const zonderLeeg = (velden) =>
 
 export const kort = (id) => String(id).slice(-8);
 
+/** Een waarde van een aanvraag kort: een tabel als het aantal rijen. */
+const inEenWoord = (w) => (Array.isArray(w) ? `${w.length} ${w.length === 1 ? 'rij' : 'rijen'}` : jaNee(w));
+
 /**
  * Een aanvraag in één regel: de gegevens die het artikel van de casus zelf
  * vraagt (niet die van de Awb), en de dag van ontvangst.
@@ -354,7 +378,7 @@ export function samenvatting(aanvraag) {
   const eigen = (state.vormen?.aanvraag.velden ?? []).filter(
     (v) => v.basis === besluitBasis() && v.naam in (aanvraag.fields ?? {}),
   );
-  const delen = eigen.map((v) => `${leesbaar(v.naam)}: ${jaNee(aanvraag.fields[v.naam])}`);
+  const delen = eigen.map((v) => `${leesbaar(v.naam)}: ${inEenWoord(aanvraag.fields[v.naam])}`);
   return [...delen, `ontvangen ${aanvraag.recorded_on}`].join(' · ');
 }
 
@@ -363,11 +387,20 @@ export function samenvatting(aanvraag) {
  * waarop het is genomen. Een ontvangst van een uitspraak verwijst ook, naar
  * het besluit waarover die gaat, en is geen besluit.
  */
-export const isBesluit = (g) =>
-  !!g.refers_to && !['AANVRAAG', 'BEZWAAR', 'EXECUTOGRAM'].includes(g.kind);
+export const isBesluit = (g) => !!g.refers_to && isBesluitSoort(g);
+
+/** Whether a chronolexogram is a decision by its kind: no submission and no executogram. */
+export const isBesluitSoort = (g) => !['AANVRAAG', 'BEZWAAR', 'EXECUTOGRAM'].includes(g.kind);
+
+/** The decisions of the case's cell under `artikel`, also one that concerns no record (taken ex officio). */
+export const besluitenOnder = (artikel) =>
+  state.grammen.filter((g) => g.basis === artikel && isBesluitSoort(g));
+
+/** The decisions of the case's cell under the case's deciding article, in chronicle order. */
+export const eigenBesluiten = () => state.grammen.filter((g) => isBesluit(g) && g.basis === besluitBasis());
 
 /** Een decimaal staat in een chronolexogram als `{"__decimal": "…"}`. */
-const isDecimaal = (v) =>
+export const isDecimaal = (v) =>
   v !== null && typeof v === 'object' && Object.keys(v).length === 1 && '__decimal' in v;
 
 /**
@@ -384,10 +417,17 @@ export const isBesluitwaarde = (v) =>
 /**
  * Een waarde leesbaar: een decimaal als het getal, een besluitwaarde als
  * haar basis met haar uitvoer (een besluit daarin net zo, tussen
- * haakjes), de rest als JSON.
+ * haakjes), een onbekende waarde (RFC-036) als onbekend met wat ontbreekt,
+ * de rest als JSON.
  */
 export function waarde(v) {
   if (isDecimaal(v)) return v.__decimal;
+  if (isUnknown(v)) {
+    // As the editor (outputFormat.ts) and the demo (format.ts) write it, each
+    // name once: the engine may report one fact from two laws.
+    const ontbreekt = [...new Set(missingFacts(v).map((f) => leesbaar(f.name)))];
+    return ontbreekt.length ? `onbekend (ontbreekt: ${ontbreekt.join(', ')})` : 'onbekend';
+  }
   if (isBesluitwaarde(v)) {
     const uitvoer = Object.entries(v.outputs).map(([naam, w]) => {
       const tekst = waarde(w);
@@ -401,8 +441,11 @@ export function waarde(v) {
 // The id of a chronolexogram: a UUID.
 const GRAM_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 
+/** Whether `w` is the id of a chronolexogram, such as a field that names the contested decision. */
+export const isGramId = (w) => typeof w === 'string' && GRAM_ID.test(w);
+
 // What is no value of the gram itself: empty, a reference, a copy of a decision.
-const isMetadata = (w) => w == null || isBesluitwaarde(w) || GRAM_ID.test(w);
+const isMetadata = (w) => w == null || isBesluitwaarde(w) || isGramId(w);
 
 /**
  * The main fields of a chronolexogram as `name: value`: for a decision the

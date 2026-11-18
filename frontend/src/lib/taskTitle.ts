@@ -15,8 +15,8 @@
  * `task.title` blijft de terugval voor een payload-vorm die we niet kennen; dan
  * is de kale servertekst nog altijd beter dan een lege regel.
  */
-import { taskContext, WERKDOCUMENTEN, WET } from './taskCategories';
-import type { RunningJob, Task } from './taskCategories';
+import { jobContext, taskContext, WERKDOCUMENTEN, WET } from './taskCategories';
+import type { RunningJob, Task, TaskContext } from './taskCategories';
 
 // Werkdocumenten dragen een pad (`mvt/concept.md`); de bestandsnaam is het
 // handvat dat de gebruiker herkent, net als in de werkdocumentenlijst.
@@ -88,4 +88,75 @@ export function runningTitle(
     return `Wachten op wet ophalen${van}`;
   }
   return `Wachten op verrijking${van}`;
+}
+
+/**
+ * The line a task shows in the task list. A group heading, or in "Alle taken"
+ * the row's supporting text (`contextName`), names the law or says
+ * Werkdocumenten, so repeating it in the title only pushes the part that
+ * differs (the article) to the end of a long sentence.
+ * Same tone as `taskTitle`; the full title stays the row's accessible name and
+ * the title of the details sheet, where there is no heading above it.
+ */
+export function taskRowTitle(task: Task | null | undefined): string {
+  const failed = task?.task_type === 'job_failed';
+  const context = taskContext(task);
+  if (context === WET) {
+    if (failed) return 'Verrijking is mislukt';
+    // taskContext only answers WET for a task with a payload.
+    const article = task!.payload!.article;
+    return article ? `Beoordeel artikel ${article}` : 'Beoordeel het hele regelwerk';
+  }
+  if (context === WERKDOCUMENTEN) {
+    // taskContext only answers WERKDOCUMENTEN for a task with a payload.
+    const name = fileName(task!.payload!.target_path);
+    return failed ? `Conversie van ${name} is mislukt` : `Beoordeel ${name}`;
+  }
+  return task?.title ?? '';
+}
+
+/**
+ * The accessible name of a task row: the row title, completed with the law the
+ * heading shows. It starts with the visible title, so voice control finds the
+ * row by the words on screen (WCAG 2.5.3), and it still says which law it is
+ * about when a screen reader tabs from row to row without the headings.
+ */
+export function taskRowLabel(
+  task: Task | null | undefined,
+  lawName: (lawId: string) => string = (id) => id,
+): string {
+  const title = taskRowTitle(task);
+  if (taskContext(task) !== WET) return title;
+  // taskContext only answers WET for a task whose payload carries a law_id.
+  const name = lawName(task!.payload!.law_id!);
+  return task?.task_type === 'job_failed' ? `${title}: ${name}` : `${title} van ${name}`;
+}
+
+/**
+ * `runningTitle` under a group heading or above a context name: the law is
+ * already on screen, so it is left out. A conversion keeps its file name, because a heading of
+ * Werkdocumenten does not say which document. A job without a context (a law
+ * conversion, a harvest) keeps its full title: it sits under no law heading.
+ */
+export function runningRowTitle(
+  job: RunningJob | null | undefined,
+  lawName: (lawId: string | null | undefined) => string = (id) => String(id),
+): string {
+  return runningTitle(job, jobContext(job) === WET ? () => '' : lawName);
+}
+
+/**
+ * The context a row belongs to, as its supporting text in a list without
+ * headings ("Alle taken"): the law's name, or Werkdocumenten. Work without a
+ * context (a law conversion, a harvest, an unknown payload) gets none; its
+ * title already says what it is.
+ */
+export function contextName(
+  context: TaskContext | null,
+  lawId: string | null,
+  lawName: (lawId: string) => string = (id) => id,
+): string | undefined {
+  if (context === WERKDOCUMENTEN) return 'Werkdocumenten';
+  if (context === WET && lawId) return lawName(lawId);
+  return undefined;
 }

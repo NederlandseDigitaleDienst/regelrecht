@@ -46,8 +46,8 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
 use regelrecht_law_model::{
-    Article, ArticleBasedLaw, Projection, ProjectionStep, StateProperty, StepSource, names_fact,
-    split_projections,
+    Article, ArticleBasedLaw, Column, Projection, ProjectionStep, StateProperty, StepSource,
+    names_fact, split_projections,
 };
 use serde::{Deserialize, Serialize};
 
@@ -488,6 +488,34 @@ impl LawExecutionService {
             .collect();
         // `per` came with schema v0.8.17, so its step rules hold.
         self.check_steps(law_id, &projection, &[], day, true)?;
+        if !filter.is_empty() {
+            // A root rests on its article as in force on the day it was
+            // recorded, and a reader is written against the article in
+            // force on the day asked; a name any of those versions declares
+            // may match. Without roots there is nothing to match and nothing
+            // to check here: the loader checks `where` when it holds the
+            // root's law.
+            let mut roots: Vec<&Article> = Vec::new();
+            let mut present = false;
+            for root in known.iter().filter(|r| is_root(per, r)) {
+                present = true;
+                let article = self.article_of(root)?;
+                if !roots.iter().any(|a| std::ptr::eq(*a, article)) {
+                    roots.push(article);
+                }
+            }
+            if present
+                && let Some((law, number)) = per.0.split_once('#')
+                && let Some(article) = self
+                    .resolver()
+                    .get_law_for_date(law, Some(day))
+                    .and_then(|l| l.find_article_by_number(number))
+            {
+                roots.push(article);
+            }
+            check_where(&projection, &roots, filter.keys().map(String::as_str))
+                .map_err(|why| EngineError::InvalidOperation(format!("{reference}: {why}")))?;
+        }
         self.refuse_unattached_revocations(&known)?;
         let none = BTreeMap::new();
         let mut played = Vec::new();
@@ -656,8 +684,11 @@ impl LawExecutionService {
                 question,
                 &law_of,
                 Versions::InForce(day),
-                since_v0_8_16,
-                own_id,
+                StepRules {
+                    since_v0_8_16,
+                    own_id,
+                    since_v0_8_20: since((0, 8, 20)),
+                },
             )
             .map_err(|why| {
                 EngineError::InvalidOperation(format!(
@@ -787,14 +818,12 @@ impl LawExecutionService {
         for action in &step.actions {
             let (property, value) = step_action(action).map_err(fail)?;
             let source = set_source(value).map_err(fail)?;
-            let to = read(&source, &inputs)?;
-            let declared = projection.state.iter().find(|p| &p.name == property);
-            if let Some(declared) = declared.filter(|p| !fits_property(p, &to)) {
-                return Err(fail(format!(
-                    "it sets '{property}' from {source} to {to:?}, which is no {:?}",
-                    declared.property_type
-                )));
-            }
+            let read_value = read(&source, &inputs)?;
+            let to = match projection.state.iter().find(|p| &p.name == property) {
+                Some(declared) => conform(declared, read_value)
+                    .map_err(|why| fail(format!("it sets '{property}' from {source} {why}")))?,
+                None => read_value,
+            };
             let from = state.get(property).cloned().unwrap_or(Value::Null);
             applied.changes.push(StateChange {
                 property: property.clone(),
@@ -1213,6 +1242,62 @@ pub(crate) fn aggregate_projection<'l>(
     }
 }
 
+/// Refuse a `where` (`source.projections`, schema v0.8.17) that names
+/// something no root of `projection` can hold. `where` picks a root by a
+/// field or an output of the root record itself, as an article in `roots`
+/// declares the record of the kind or the fact `per` names. `roots` holds
+/// each version of that article a root may rest on; a name one of them
+/// declares passes. `where` does not read the state of the aggregate, nor
+/// `refers_to` or `id`: a name only the state holds would match no root and
+/// leave the read model with no rows, without saying why. A `per` the
+/// article cannot resolve is left to the step checks, which report it.
+/// The loader runs this from schema v0.8.19; a reader on an earlier
+/// version is checked only when the cell plays it, with roots present.
+pub(crate) fn check_where<'n>(
+    projection: &Projection,
+    roots: &[&Article],
+    names: impl IntoIterator<Item = &'n str>,
+) -> std::result::Result<(), String> {
+    let Some(per) = projection.per_basis_and_kind() else {
+        return Ok(());
+    };
+    if roots.is_empty() {
+        return Ok(());
+    }
+    let (basis, selector) = per;
+    let fact = selector.filter(|k| names_fact(k));
+    let declares = |root: &Article, name: &str| match fact {
+        // A fact the article does not require is the step checks' to report.
+        Some(fact) => {
+            !facts_of(root).contains(&fact)
+                || executogram_field_type(root, Some(fact), name).is_some()
+        }
+        None => match record_kind(root, basis, selector) {
+            Ok(kind) => field_type(root, kind.as_deref(), name).is_some(),
+            // Not this check's to report; the step checks do.
+            Err(_) => true,
+        },
+    };
+    let Some(name) = names
+        .into_iter()
+        .find(|name| !roots.iter().any(|root| declares(root, name)))
+    else {
+        return Ok(());
+    };
+    let per = per_name(per);
+    if projection.state.iter().any(|p| p.name == name) {
+        return Err(format!(
+            "where names '{name}', which a root of {per} does not hold as a field or an \
+             output; it is in the state of the aggregate, and where does not read the state. \
+             Filter the rows in a FOREACH instead"
+        ));
+    }
+    Err(format!(
+        "where names '{name}', which a root of {per} does not hold as a field or an output \
+         (where reads neither refers_to nor the record's id), so no root would match"
+    ))
+}
+
 /// Whether `record` is a root of a projection with `per`: it rests on that
 /// article, and is of that kind or an instance of that fact where `per`
 /// names one.
@@ -1328,9 +1413,13 @@ pub(crate) fn check_step<'l>(
     question: &[regelrecht_law_model::Parameter],
     law_of: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
     versions: Versions,
-    since_v0_8_16: bool,
-    own_id: bool,
+    rules: StepRules,
 ) -> std::result::Result<(), String> {
+    let StepRules {
+        since_v0_8_16,
+        own_id,
+        since_v0_8_20,
+    } = rules;
     // The article of `law_id` that `pick` finds: `Ok(None)` when the loader
     // does not hold that law yet, so there is nothing to check against.
     let article = |law_id: &str,
@@ -1449,7 +1538,7 @@ pub(crate) fn check_step<'l>(
         }
         // A required parameter the output does not read, such as a field
         // a fact of the article holds, need not be passed.
-        let reads = output_reads(called, output);
+        let reads = crate::demand::output_reads(called, output);
         if let Some(required) = called.get_parameters().iter().find(|p| {
             since_v0_8_16
                 && p.required != Some(false)
@@ -1490,8 +1579,62 @@ pub(crate) fn check_step<'l>(
             }
             _ => {}
         }
+        // A fact holds only its parameters; another record also its outputs.
+        // A step that names a fact has the kind EXECUTOGRAM too.
+        let holder = record
+            .as_ref()
+            .map(|(article, kind)| (*article, kind.as_deref() == Some(EXECUTOGRAM)));
+        check_filling(projection, step, holder, property, &source, since_v0_8_20)?;
     }
     Ok(())
+}
+
+/// What a step may fill `property` from, beyond its type (schema
+/// v0.8.20): a property that is not nullable is not filled from a source
+/// that may be null, because the step would fail on the first record
+/// without a value, and an array with columns is filled from a source with
+/// the same columns, as far as the source declares them. `record` is the
+/// article of the record and whether the record is a fact.
+fn check_filling(
+    projection: &Projection,
+    step: &ProjectionStep,
+    record: Option<(&Article, bool)>,
+    property: &str,
+    source: &StepSource,
+    since_v0_8_20: bool,
+) -> std::result::Result<(), String> {
+    let declared = projection.state.iter().find(|p| p.name == property);
+    if since_v0_8_20
+        && declared.is_some_and(|p| !p.is_nullable())
+        && source_nullable(projection, step, record, source)
+    {
+        return Err(format!(
+            "sets '{property}' from {source}, which may be null, but '{property}' is not \
+             nullable; declare it nullable (schema v0.8.20)"
+        ));
+    }
+    let declared = declared.and_then(|p| p.columns.as_deref());
+    let given = source_columns(projection, record, source);
+    if let (Some(declared), Some(given)) = (declared, given) {
+        same_columns(declared, given)
+            .map_err(|why| format!("fills array '{property}' from {source}, {why}"))?;
+    }
+    Ok(())
+}
+
+/// Which rules of the schema [`check_step`] holds a step to, by the version
+/// of its reduction.
+#[derive(Debug, Clone, Copy)]
+pub(crate) struct StepRules {
+    /// Schema v0.8.16: the article must give a record, `$record` reads only
+    /// the fields of its kind, and every required parameter the output reads
+    /// is passed.
+    pub(crate) since_v0_8_16: bool,
+    /// `$record.id` is the record's own id: schema v0.8.19, with `per`.
+    pub(crate) own_id: bool,
+    /// Schema v0.8.20: no source that may be null fills a property that is
+    /// not nullable.
+    pub(crate) since_v0_8_20: bool,
 }
 
 /// `per` held to the law it names, as a step is ([`record_kind`]): the
@@ -1723,6 +1866,111 @@ fn state_type(projection: &Projection, name: &str) -> Option<ParameterType> {
         .map(|p| p.property_type)
 }
 
+/// How the record declares a field a step reads: as an output or as a
+/// parameter of its article. `record` is that article and whether the
+/// record is a fact. A fact holds only parameters; another record may hold
+/// the field as an output, which wins over a parameter of the same name when
+/// the step plays.
+enum RecordField<'a> {
+    Output(&'a regelrecht_law_model::Output),
+    Parameter(&'a regelrecht_law_model::Parameter),
+}
+
+fn record_field<'a>(record: Option<(&'a Article, bool)>, field: &str) -> Option<RecordField<'a>> {
+    let (article, of_fact) = record?;
+    let output = article.get_outputs().iter().find(|o| o.name == field);
+    match output {
+        Some(output) if !of_fact => Some(RecordField::Output(output)),
+        _ => article
+            .get_parameters()
+            .iter()
+            .find(|p| p.name == field)
+            .map(RecordField::Parameter),
+    }
+}
+
+/// Whether what `source` reads may be null, as far as the loader can tell:
+/// a field of the record whose output or parameter is nullable
+/// ([`record_field`]), a nullable property of the state, or an input the
+/// step declares nullable. A field of a law that is not loaded yet counts
+/// as not nullable; the engine refuses a null when the step plays.
+fn source_nullable(
+    projection: &Projection,
+    step: &ProjectionStep,
+    record: Option<(&Article, bool)>,
+    source: &StepSource,
+) -> bool {
+    match source {
+        StepSource::Record(field) => match record_field(record, field) {
+            Some(RecordField::Output(output)) => output.is_nullable(),
+            Some(RecordField::Parameter(parameter)) => parameter.is_nullable(),
+            None => false,
+        },
+        StepSource::State(property) => projection
+            .state
+            .iter()
+            .find(|p| &p.name == property)
+            .is_some_and(StateProperty::is_nullable),
+        StepSource::Input(name) => step
+            .input
+            .iter()
+            .find(|i| &i.name == name)
+            .is_some_and(regelrecht_law_model::Input::is_nullable),
+    }
+}
+
+/// The columns of what `source` reads, where they are declared: a field of
+/// the record whose parameter declares them ([`record_field`]), or an array
+/// of the state. An output declares no columns, and neither does an input of
+/// the step, which takes an output of a law.
+fn source_columns<'a>(
+    projection: &'a Projection,
+    record: Option<(&'a Article, bool)>,
+    source: &StepSource,
+) -> Option<&'a [Column]> {
+    match source {
+        StepSource::Record(field) => match record_field(record, field)? {
+            RecordField::Parameter(parameter) => parameter.columns.as_deref(),
+            RecordField::Output(_) => None,
+        },
+        StepSource::State(property) => projection
+            .state
+            .iter()
+            .find(|p| &p.name == property)?
+            .columns
+            .as_deref(),
+        StepSource::Input(_) => None,
+    }
+}
+
+/// Refuse an array of the state filled from a source whose declared columns
+/// differ from its own: each column of one must be a column of the other, of
+/// the same type.
+fn same_columns(declared: &[Column], given: &[Column]) -> std::result::Result<(), String> {
+    for column in declared {
+        match given.iter().find(|c| c.name == column.name) {
+            None => return Err(format!("which has no column '{}'", column.name)),
+            Some(c) if c.column_type != column.column_type => {
+                return Err(format!(
+                    "whose column '{}' is a {:?}, not a {:?}",
+                    column.name, c.column_type, column.column_type
+                ));
+            }
+            Some(_) => {}
+        }
+    }
+    match given
+        .iter()
+        .find(|c| !declared.iter().any(|t| t.name == c.name))
+    {
+        Some(extra) => Err(format!(
+            "which has a column '{}' the array does not declare",
+            extra.name
+        )),
+        None => Ok(()),
+    }
+}
+
 /// The type of field `name` of a record of `kind` under `article`, as the
 /// law declares that record. A fact (`EXECUTOGRAM`) holds the parameters
 /// the article requires it to hold. A decision holds the parameters of its
@@ -1767,22 +2015,6 @@ fn field_type(article: &Article, kind: Option<&str>, name: &str) -> Option<Param
         .or_else(|| in_outputs.then(output).flatten())
 }
 
-/// Every name `output` of `article` reads, through the actions that compute
-/// it and the outputs of the article they read in turn
-/// ([`crate::demand::required_outputs`]).
-fn output_reads(article: &Article, output: &str) -> BTreeSet<String> {
-    let actions = article
-        .get_execution_spec()
-        .and_then(|e| e.actions.as_deref())
-        .unwrap_or_default();
-    let needed = crate::demand::required_outputs(actions, &[output]);
-    actions
-        .iter()
-        .filter(|a| a.output.as_ref().is_some_and(|o| needed.contains(o)))
-        .flat_map(crate::demand::referenced_names)
-        .collect()
-}
-
 /// Refuse an output a step cannot read: one that depends on anything but
 /// the parameters the step passes. Purity is a matter of what the step
 /// reads, not of the whole article, so the check follows `output` through
@@ -1801,7 +2033,7 @@ fn refuse_impure(article: &Article, output: &str) -> std::result::Result<(), Str
     if machine.projection.is_some() {
         return Err("the article plays a projection itself".to_string());
     }
-    let reads = output_reads(article, output);
+    let reads = crate::demand::output_reads(article, output);
     // An input named like an output still reaches that output's first
     // assignment (the pass-through `x: $x`), so a read of the name counts.
     if let Some(input) = article
@@ -1848,12 +2080,56 @@ struct AppliedStep {
     traces: Vec<PathNode>,
 }
 
-/// Whether a step may give `property` the value `value`: one of its type,
-/// or null for a string or a date, whose start value is null.
-pub(crate) fn fits_property(property: &StateProperty, value: &Value) -> bool {
-    match value {
-        Value::Null => property.start().is_null(),
-        _ => fits_state_type(&property.property_type, value),
+/// The value a step gives `property`, as the state holds it: one of its
+/// type, or null for a nullable property ([`StateProperty::is_nullable`]). An
+/// array with columns (schema v0.8.20) takes a list of rows, each an object
+/// that holds no column the array does not declare, and in each column null
+/// or a value of the column's type. A row lacking a column gets null there,
+/// so every row of the state holds every column. `Err` says why the value does
+/// not fit, worded to follow "it sets <property> from <source>".
+pub(crate) fn conform(
+    property: &StateProperty,
+    value: Value,
+) -> std::result::Result<Value, String> {
+    match (property.property_type, value) {
+        (_, Value::Null) if property.is_nullable() => Ok(Value::Null),
+        (ParameterType::Array, Value::Array(rows)) => {
+            let columns = property.columns.as_deref().unwrap_or_default();
+            rows.into_iter()
+                .enumerate()
+                .map(|(i, row)| {
+                    conform_row(columns, row).map_err(|why| format!("but row {}: {why}", i + 1))
+                })
+                .collect::<std::result::Result<Vec<_>, _>>()
+                .map(Value::Array)
+        }
+        (ty, value) if fits_state_type(&ty, &value) => Ok(value),
+        (ty, value) => Err(format!("to {value:?}, which is no {ty:?}")),
+    }
+}
+
+/// One row of an array with columns, with every column of `columns`
+/// ([`conform`]).
+fn conform_row(columns: &[Column], row: Value) -> std::result::Result<Value, String> {
+    let Value::Object(mut cells) = row else {
+        return Err(format!("{row:?} is no row"));
+    };
+    let mut conformed = BTreeMap::new();
+    for column in columns {
+        let cell = cells.remove(&column.name).unwrap_or(Value::Null);
+        if !cell.is_null() && !fits_state_type(&column.column_type, &cell) {
+            return Err(format!(
+                "column '{}' holds {cell:?}, which is no {:?}",
+                column.name, column.column_type
+            ));
+        }
+        conformed.insert(column.name.clone(), cell);
+    }
+    match cells.keys().next() {
+        Some(extra) => Err(format!(
+            "it holds '{extra}', which is no column of the array"
+        )),
+        None => Ok(Value::Object(conformed)),
     }
 }
 
@@ -3056,18 +3332,71 @@ articles:
         assert_eq!(property("amount").start(), Value::Int(0));
         assert_eq!(property("string").start(), Value::Null);
         assert_eq!(property("date").start(), Value::Null);
+        // A nullable boolean, number or amount starts as null (schema
+        // v0.8.20) and takes null.
+        for ty in ["boolean", "number", "amount"] {
+            let nullable = property(&format!("{ty}, nullable: true"));
+            assert_eq!(nullable.start(), Value::Null, "{ty}");
+            assert!(conform(&nullable, Value::Null).is_ok(), "{ty}");
+        }
         // A string or a date may be set to null again; a boolean may not.
-        assert!(fits_property(&property("string"), &Value::Null));
-        assert!(!fits_property(&property("boolean"), &Value::Null));
+        let fits = |ty: &str, value: Value| conform(&property(ty), value).is_ok();
+        assert!(fits("string", Value::Null));
+        assert!(!fits("boolean", Value::Null));
         // A date is a string that reads as one.
-        assert!(fits_property(
-            &property("date"),
-            &Value::String("2025-01-01".into())
-        ));
-        assert!(!fits_property(
-            &property("date"),
-            &Value::String("morgen".into())
-        ));
+        assert!(fits("date", Value::String("2025-01-01".into())));
+        assert!(!fits("date", Value::String("morgen".into())));
+        // An array with columns (schema v0.8.20) starts empty and is never
+        // null.
+        let table: StateProperty = serde_yaml_ng::from_str(
+            "{name: t, type: array, columns: [{name: a, type: string}, {name: n, type: number}]}",
+        )
+        .unwrap();
+        assert_eq!(table.start(), Value::Array(Vec::new()));
+        assert!(conform(&table, Value::Null).is_err());
+    }
+
+    /// A row of a table holds every declared column, null where the value
+    /// lacks one; a row with another column, a cell of another type or a
+    /// value that is no list of rows does not fit (schema v0.8.20).
+    #[test]
+    fn a_table_holds_rows_with_its_columns() {
+        let table: StateProperty = serde_yaml_ng::from_str(
+            "{name: t, type: array, columns: [{name: a, type: string}, {name: n, type: number}]}",
+        )
+        .unwrap();
+        let row = |cells: &[(&str, Value)]| {
+            Value::Object(
+                cells
+                    .iter()
+                    .map(|(k, v)| ((*k).to_string(), v.clone()))
+                    .collect(),
+            )
+        };
+        let given = Value::Array(vec![row(&[("a", Value::String("x".into()))])]);
+        assert_eq!(
+            conform(&table, given).unwrap(),
+            Value::Array(vec![row(&[
+                ("a", Value::String("x".into())),
+                ("n", Value::Null)
+            ])])
+        );
+        let extra = Value::Array(vec![row(&[("b", Value::Int(1))])]);
+        assert_eq!(
+            conform(&table, extra).unwrap_err(),
+            "but row 1: it holds 'b', which is no column of the array"
+        );
+        let wrong = Value::Array(vec![row(&[("n", Value::String("vijf".into()))])]);
+        assert!(
+            conform(&table, wrong)
+                .unwrap_err()
+                .contains("column 'n' holds String(\"vijf\"), which is no Number")
+        );
+        assert!(conform(&table, Value::Array(vec![Value::Int(1)])).is_err());
+        assert_eq!(
+            conform(&table, Value::Int(1)).unwrap_err(),
+            "to Int(1), which is no Array"
+        );
     }
 
     #[test]
@@ -3598,8 +3927,11 @@ articles:
                         article.get_parameters(),
                         &law_of,
                         Versions::Loaded,
-                        true,
-                        true,
+                        StepRules {
+                            since_v0_8_16: true,
+                            own_id: true,
+                            since_v0_8_20: true,
+                        },
                     )
                 })
                 .find_map(std::result::Result::err)
@@ -4301,14 +4633,37 @@ articles:
         );
     }
 
+    /// [`LAW`] with article 1 taking a number, `nummer`, besides the
+    /// applicant.
+    fn law_with_number() -> String {
+        LAW.replace(
+            "parameters: [{name: aanvrager, type: string, required: false}]",
+            "parameters: [{name: aanvrager, type: string, required: false}, \
+             {name: nummer, type: number, required: false}]",
+        )
+    }
+
+    /// The versions of the law in `laws`, [`REDUCTION`] and [`PER_GRANT`].
+    fn per_grant_over(laws: &[&str]) -> LawExecutionService {
+        let mut service = LawExecutionService::new();
+        for law in laws {
+            service.load_law(law).unwrap();
+        }
+        service.load_law(REDUCTION).unwrap();
+        service.load_law(PER_GRANT).unwrap();
+        service
+    }
+
     /// `where` compares numbers by value, as EQUALS does: a number matches
     /// the same number written as a decimal.
     #[test]
     fn where_compares_numbers_by_value() {
         let mut root = granted_to("a", "x");
         root.fields.insert("nummer".to_string(), Value::Int(2));
+        // `where` names only what the root's article declares.
+        let service = per_grant_over(&[&law_with_number()]);
         let rows = |value: Value| {
-            per_service()
+            service
                 .projection_rows(
                     "per_verlening",
                     std::slice::from_ref(&root),
@@ -4322,6 +4677,58 @@ articles:
             Value::Array(vec![row("a", true, "x")])
         );
         assert_eq!(rows(Value::Int(3)), Value::Array(Vec::new()));
+    }
+
+    /// A root rests on its article as in force on the day it was recorded,
+    /// so `where` may name a field that version declares and a later one
+    /// dropped.
+    #[test]
+    fn where_names_a_field_of_the_version_a_root_rests_on() {
+        let service = per_grant_over(&[
+            &law_with_number(),
+            &LAW.replace("valid_from: '2025-01-01'", "valid_from: '2025-04-01'"),
+        ]);
+        let mut root = granted_to("a", "x");
+        root.fields.insert("nummer".to_string(), Value::Int(2));
+        let rows = service
+            .projection_rows(
+                "per_verlening",
+                std::slice::from_ref(&root),
+                &BTreeMap::from([("nummer".to_string(), Value::Int(2))]),
+                "2025-05-01",
+            )
+            .unwrap();
+        assert_eq!(rows, Value::Array(vec![row("a", true, "x")]));
+        // A name no version declares is still refused.
+        let err = service
+            .projection_rows(
+                "per_verlening",
+                std::slice::from_ref(&root),
+                &BTreeMap::from([("onbekend".to_string(), Value::Int(2))]),
+                "2025-05-01",
+            )
+            .expect_err("no version declares it")
+            .to_string();
+        assert!(err.contains("where names 'onbekend'"), "{err}");
+    }
+
+    /// A reader written against a newer version may name a field that
+    /// version adds before any root rests on it: no root matches yet.
+    #[test]
+    fn where_names_a_field_of_the_version_in_force_on_the_day_asked() {
+        let service = per_grant_over(&[
+            LAW,
+            &law_with_number().replace("valid_from: '2025-01-01'", "valid_from: '2025-04-01'"),
+        ]);
+        let rows = service
+            .projection_rows(
+                "per_verlening",
+                &[granted_to("a", "x")],
+                &BTreeMap::from([("nummer".to_string(), Value::Int(2))]),
+                "2025-05-01",
+            )
+            .unwrap();
+        assert_eq!(rows, Value::Array(Vec::new()));
     }
 
     /// [`LAW`] with article 4 requiring two facts: a card handed in
@@ -4384,6 +4791,115 @@ articles:
 
     fn on(day: &str) -> Value {
         Value::String(day.to_string())
+    }
+
+    /// One aggregate per card reported lost, with the card it is about in
+    /// the state, from `$record.refers_to`.
+    const PER_LOSS: &str = r#"
+$id: per_verlies
+regulatory_layer: REDUCTIE
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '1'
+    text: t
+    machine_readable:
+      projection:
+        per: wet#4#verloren
+        state: [{name: kaart, type: string}]
+        steps:
+          - record: wet#4#verloren
+            actions: [{output: kaart, value: $record.refers_to}]
+  - number: '2'
+    text: t
+    machine_readable:
+      execution:
+        parameters: [{name: kaart, type: string}]
+        input:
+          - name: verliezen
+            type: array
+            source: {projections: per_verlies#1}
+        output: [{name: aantal, type: number}]
+        actions:
+          - output: aantal
+            value:
+              operation: FOREACH
+              collection: $verliezen
+              as: v
+              filter: {operation: EQUALS, subject: $v.kaart, value: $kaart}
+              body: 1
+              combine: ADD
+"#;
+
+    /// `where` picks a root by a field or an output the root record holds,
+    /// not by the state of its aggregate. A name only the state holds, here
+    /// `kaart` from `$record.refers_to`, would match no root and give no
+    /// rows without a word; the engine refuses it, when the reduction loads
+    /// after the law and when the cell plays it, and says to filter in a
+    /// FOREACH, which does read the state.
+    #[test]
+    fn where_on_the_state_of_the_aggregate_is_refused() {
+        let lost = ChronicleRecord {
+            refers_to: Some("a".to_string()),
+            ..fact("b", "4", "verloren", &[("gemeld", on("2025-02-01"))])
+        };
+        let mut service = LawExecutionService::new();
+        service.load_law(&two_facts()).unwrap();
+        service.load_law(PER_LOSS).unwrap();
+        // The FOREACH reads the state and finds the loss.
+        let outcome = service
+            .evaluate_projection(
+                "per_verlies",
+                &["aantal"],
+                std::slice::from_ref(&lost),
+                BTreeMap::from([("kaart".to_string(), Value::String("a".to_string()))]),
+                "2025-03-01",
+                false,
+            )
+            .unwrap();
+        assert_eq!(outcome.result.outputs["aantal"], Value::Int(1));
+        // A field of the root may be named.
+        let by = |name: &str, value: Value| {
+            service.projection_rows(
+                "per_verlies#1",
+                std::slice::from_ref(&lost),
+                &BTreeMap::from([(name.to_string(), value)]),
+                "2025-03-01",
+            )
+        };
+        assert_eq!(
+            by("gemeld", on("2025-02-01")).unwrap(),
+            Value::Array(vec![Value::Object(BTreeMap::from([
+                ("id".to_string(), Value::String("b".to_string())),
+                ("kaart".to_string(), Value::String("a".to_string())),
+            ]))])
+        );
+        // The state, or `refers_to`, may not.
+        let err = by("kaart", Value::String("a".to_string()))
+            .expect_err("where on the state")
+            .to_string();
+        assert!(
+            err.contains("where names 'kaart'") && err.contains("FOREACH"),
+            "{err}"
+        );
+        let err = by("refers_to", Value::String("a".to_string()))
+            .expect_err("where on refers_to")
+            .to_string();
+        assert!(err.contains("no root would match"), "{err}");
+        // Written in the law, it is refused when the reduction loads.
+        let mut service = LawExecutionService::new();
+        service.load_law(&two_facts()).unwrap();
+        let err = service
+            .load_law(&PER_LOSS.replace(
+                "source: {projections: per_verlies#1}",
+                "source: {projections: per_verlies#1, where: {kaart: $kaart}}",
+            ))
+            .expect_err("where on the state")
+            .to_string();
+        assert!(
+            err.contains("input 'verliezen'") && err.contains("FOREACH"),
+            "{err}"
+        );
     }
 
     #[test]
