@@ -364,8 +364,16 @@ fn record_submission_referring(
         .and_then(|s| s.submission_kind())
         .unwrap_or_else(|| panic!("article {basis} establishes no submission"))
         .to_string();
+    let moment = moment(world, law, number);
+    // As the cell does, refuse the moment as a field: the cell fills it.
+    if let Some(name) = moment.as_ref().and_then(|m| m.parameter.as_ref()) {
+        assert!(
+            !fields.contains_key(name),
+            "'{name}' is the moment of the submission under {basis}; the cell records it"
+        );
+    }
     let mut gram = gram(world, id, kind, basis, refers_to, fields, BTreeMap::new());
-    gram.moment = moment(world, law, number);
+    gram.moment = moment;
     append(world, gram);
 }
 
@@ -410,6 +418,10 @@ fn decide_on_submission(
         .map(|(k, v)| (k.clone(), stored::from_stored(v).expect("stored field")))
         .collect();
     // The moment of the submission, as the cell hands it to the decision.
+    // The cell sends it only where the decision asks it
+    // (`regelrecht_cel::DecisionShape`); this step always sends it, which
+    // matters only for a decision under another article than the
+    // submission's, and the engine passes a hook only what it declares.
     if let Some(m) = &gram.moment
         && let Some(name) = &m.parameter
     {

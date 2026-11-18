@@ -81,7 +81,8 @@ impl ScenarioSet {
     pub fn load(&self, service: &mut LawExecutionService) {
         for id in self.corpus_ids() {
             for path in corpus_versions(&id) {
-                load_regelwerk(service, &path);
+                let loaded = load_regelwerk(service, &path);
+                assert_eq!(loaded, id, "{}: the $id in the file", path.display());
             }
         }
         for path in files_with_extension(&self.root.join(REGULATION), "yaml") {
@@ -104,8 +105,10 @@ impl ScenarioSet {
 }
 
 /// Every version of the regelwerk `id` in the corpus: the `.yaml` files in
-/// the directory named after it, under `nl/` of each corpus base. Fails when
-/// the corpus holds none, so a misspelt `$id` cannot leave a set without it.
+/// the directory named after it, under `nl/` of each corpus base, as the
+/// corpus lays them out. Fails when the corpus holds none, so a misspelt
+/// `$id` cannot leave a set without it; [`ScenarioSet::load`] checks the `$id`
+/// in each file.
 fn corpus_versions(id: &str) -> Vec<PathBuf> {
     let mut versions: Vec<PathBuf> = crate::common::regulation_base_paths()
         .iter()
@@ -172,9 +175,9 @@ fn files_with_extension(dir: &Path, extension: &str) -> Vec<PathBuf> {
 }
 
 /// Load the regelwerk at `path` into `service`, failing the scenario when it
-/// does not load. As the corpus loader does, `BDD_REVERSE_ACTIONS` reverses
-/// the actions of each article first.
-pub fn load_regelwerk(service: &mut LawExecutionService, path: &Path) {
+/// does not load, and return its `$id`. As the corpus loader does,
+/// `BDD_REVERSE_ACTIONS` reverses the actions of each article first.
+pub fn load_regelwerk(service: &mut LawExecutionService, path: &Path) -> String {
     let mut yaml =
         std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     if crate::reverse_actions::enabled() {
@@ -183,5 +186,5 @@ pub fn load_regelwerk(service: &mut LawExecutionService, path: &Path) {
     }
     service
         .load_law(&yaml)
-        .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        .unwrap_or_else(|e| panic!("{}: {e}", path.display()))
 }
