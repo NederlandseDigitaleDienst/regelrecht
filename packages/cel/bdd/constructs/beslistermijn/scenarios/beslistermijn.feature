@@ -97,20 +97,20 @@ Feature: The decision term of Awb 4:13 on an application for a permit
 
   Scenario: A permit act with a term of its own sets two weeks with an override
     # Awb 4:13 lid 1: a term set by statutory provision goes first. This
-    # host act replaces the lid 2 output of 4:13,
-    # `redelijke_beslistermijn_einddatum`, with an override (article 2 of
-    # test_permit_act_short_term), the route from before RFC-058. The last
-    # scenario fills the open term of lid 1 instead, which gives
-    # `uiterste_beslisdatum`.
+    # host act sets the last day, `uiterste_beslisdatum`, with an override on
+    # that output of 4:13 (article 2 of test_permit_act_short_term). The
+    # last scenario reaches the same through implements (RFC-058). The
+    # fallback of lid 2 is not replaced and stays eight weeks.
     Given the calculation date is "2026-03-03"
     When the cell records submission "permit_application" under article "1" of "test_permit_act_short_term" with:
       | meets_conditions | true |
     Given the calculation date is "2026-03-17"
     When the cell decides "permit_decision" on submission "permit_application"
-    # From the corpus: the output of Awb 4:13, replaced by the host act.
-    Then output "redelijke_beslistermijn_einddatum" equals "2026-03-17"
-    And output "redelijke_beslistermijn_einddatum" has override provenance
-    And decision "permit_decision" is given on or before "redelijke_beslistermijn_einddatum"
+    # From the corpus: the outputs of Awb 4:13, the first replaced by the host act.
+    Then output "uiterste_beslisdatum" equals "2026-03-17"
+    And output "uiterste_beslisdatum" has override provenance
+    And output "redelijke_beslistermijn_einddatum" equals "2026-04-28"
+    And decision "permit_decision" is given on or before "uiterste_beslisdatum"
 
   Scenario: Under a term of two weeks, three weeks is late
     # Within the eight weeks of lid 2, and still late: the term of the host
@@ -121,7 +121,7 @@ Feature: The decision term of Awb 4:13 on an application for a permit
     Given the calculation date is "2026-03-24"
     When the cell decides "permit_decision" on submission "permit_application"
     # From the corpus: the output of Awb 4:13, replaced by the host act.
-    Then decision "permit_decision" is given after "redelijke_beslistermijn_einddatum"
+    Then decision "permit_decision" is given after "uiterste_beslisdatum"
 
   # Awb 4:13 lid 1 as an open term: the host act fills
   # `wettelijke_beslistermijn` with implements (article 2 of
