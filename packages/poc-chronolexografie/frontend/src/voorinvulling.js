@@ -133,8 +133,9 @@ export function metSysteem(waarden, systeem, voorgevuld, doorInloggen = new Set(
 export const opHetFormulier = (velden, verborgen, doorInloggen) =>
   (velden ?? []).filter((v) => !doorInloggen.has(v.naam) && !(verborgen ?? []).includes(v.naam));
 
-/** The line under a field the system fills: where its value comes from. */
-export function systeemTekst(hoe, voorgevuld, celNaam) {
-  if (hoe?.bron) return herkomstTekst(voorgevuld, voorgevuld?.waarde, celNaam);
-  return hoe && 'waarde' in hoe ? 'Ingevuld door het systeem.' : '';
-}
+/**
+ * The line under a field the system fills: the source its value comes from.
+ * A value the system knows itself, or the login gives, gets no line.
+ */
+export const systeemTekst = (hoe, voorgevuld, celNaam) =>
+  hoe?.bron ? herkomstTekst(voorgevuld, voorgevuld?.waarde, celNaam) : '';

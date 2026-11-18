@@ -51,6 +51,13 @@ export function metSessie(inloggen, sessie, waarden, gevraagd, uitStap = undefin
  */
 export const weigeringTelt = (stap) => stap?.stap === 'inloggen' && stap.uitkomst === 'geweigerd';
 
+/**
+ * The notice in place of the application form while nobody is logged in:
+ * the login block at the top of the page is the way to the form.
+ */
+export const eerstInloggenTekst = (aanbod) =>
+  `Het formulier verschijnt hier zodra je bent ingelogd bij ${aanbod.cel_naam}. Je logt in met de knop Inloggen bovenaan de pagina.`;
+
 /** `Ingelogd als bakker`, for the login block at the top of the applicant's page. */
 export const ingelogdAls = (sessie) => `Ingelogd als ${sessie.gebruikersnaam}`;
 

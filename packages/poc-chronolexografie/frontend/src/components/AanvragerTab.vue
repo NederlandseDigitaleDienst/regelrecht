@@ -41,7 +41,14 @@ import {
   systeemVult,
 } from '../voorinvulling.js';
 import { NOT_LOGGED_IN, gekozen, inlogTekst, keuzeLabel, metKeuze } from '../inloggen.js';
-import { claimRegel, ingelogdAls, ingevuldDoorInloggen, metSessie, nietIngelogdTekst } from '../inlogstap.js';
+import {
+  claimRegel,
+  eerstInloggenTekst,
+  ingelogdAls,
+  ingevuldDoorInloggen,
+  metSessie,
+  nietIngelogdTekst,
+} from '../inlogstap.js';
 import { inlogScherm, keuzeVan, sessieVan, wisSessie, zetKeuze } from '../sessie.js';
 import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
@@ -175,6 +182,11 @@ const nieuweAanvraag = ref(false);
 watch([() => keuzeVan(state.casus.id), sessie], () => {
   nieuweAanvraag.value = false;
 });
+// With a login step, the form waits for a login: the block at the top of the
+// page is the way to it. A scenario at an application step opens it all the
+// same, for a submission that does not come through the login, such as one
+// on paper (inlogstap.js, metSessie).
+const eerstInloggen = computed(() => !!inlogstap.value && !sessie.value && !scenarioWaarden('aanvraag'));
 const formulierOpen = computed(
   () => lopend.value.length === 0 || nieuweAanvraag.value || !!scenarioWaarden('aanvraag'),
 );
@@ -330,7 +342,16 @@ async function indienenTegen() {
           (Awb 4:13).
         </nldd-text>
       </nldd-title>
-      <nldd-container v-if="formulierOpen" ref="formulierVelden" gap="16" max-width="560px">
+      <nldd-container v-if="eerstInloggen" max-width="560px">
+        <nldd-inline-dialog
+          icon="info"
+          heading-level="3"
+          horizontal-alignment="left"
+          text="Log eerst in om een aanvraag te doen"
+          :supporting-text="eerstInloggenTekst(inlogstap)"
+        ></nldd-inline-dialog>
+      </nldd-container>
+      <nldd-container v-else-if="formulierOpen" ref="formulierVelden" gap="16" max-width="560px">
         <VeldInvoer
           v-for="veld in velden"
           :key="veld.naam"

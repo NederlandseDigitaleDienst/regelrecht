@@ -50,13 +50,15 @@ const casus = {
   // example values (scenarioInvoer.js): it is at an application step all along.
   scenarios: [{ naam: 'Alleen tekst', stappen: ['De aanvrager vraagt nog eens aan.'] }],
 };
-const vormen = (inloggen) => ({
+const vormen = (inloggen, systeem = undefined) => ({
   aanvraag: {
     velden: [
       { naam: 'kvk_nummer', type: 'string', basis: 'voorbeeldwet#2' },
       { naam: 'kenteken', type: 'string', basis: 'voorbeeldwet#2' },
+      ...(systeem ? [{ naam: 'dagtekening', type: 'date', basis: 'algemene_wet_bestuursrecht#4:2' }] : []),
     ],
     inloggen,
+    systeem,
   },
   bezwaar: { velden: [] },
 });
@@ -128,9 +130,65 @@ describe('the login block', () => {
   });
 });
 
+const BAKKER = { gebruikersnaam: 'bakker', claims: { kvk_nummer: '99970011' } };
+const opFormulierplek = () => el.querySelector('nldd-one-half-one-half-section [slot="left"] nldd-inline-dialog');
+
+describe('the form in a case with a login step', () => {
+  it('waits for a login, with a notice in its place', async () => {
+    await mount();
+    expect(knoppen()).not.toContain('Aanvraag indienen');
+    expect(knoppen()).not.toContain('Nieuwe aanvraag');
+    expect(el.querySelector('nldd-one-half-one-half-section nldd-text-field')).toBeNull();
+    expect(opFormulierplek().getAttribute('text')).toBe('Log eerst in om een aanvraag te doen');
+    expect(opFormulierplek().getAttribute('supporting-text')).toContain('ingelogd bij Voorbeelddienst');
+  });
+
+  it('opens once someone is logged in', async () => {
+    zetSessie(casus.id, BAKKER);
+    await mount();
+    expect(knoppen()).toContain('Aanvraag indienen');
+    expect(opFormulierplek()).toBeNull();
+  });
+
+  it('opens when the session starts while the tab is open', async () => {
+    await mount();
+    zetSessie(casus.id, BAKKER);
+    for (let i = 0; i < 3; i++) await nextTick();
+    expect(knoppen()).toContain('Aanvraag indienen');
+  });
+
+  it('gives way to the notice again on logging out', async () => {
+    zetSessie(casus.id, BAKKER);
+    await mount();
+    wisSessie(casus.id);
+    for (let i = 0; i < 3; i++) await nextTick();
+    expect(knoppen()).not.toContain('Aanvraag indienen');
+    expect(opFormulierplek().getAttribute('text')).toBe('Log eerst in om een aanvraag te doen');
+  });
+
+  it('stays open in a case without a login step', async () => {
+    state.vormen = vormen(KEUZE);
+    await mount();
+    expect(knoppen()).toContain('Aanvraag indienen');
+    expect(opFormulierplek()).toBeNull();
+  });
+});
+
+describe('a field the system fills', () => {
+  it('shows its value without a line under it', async () => {
+    state.vormen = vormen(INLOGGEN, { dagtekening: { waarde: '2026-01-05' } });
+    zetSessie(casus.id, BAKKER);
+    await mount();
+    const veld = el.querySelector('nldd-date-field');
+    expect(veld.getAttribute('value')).toBe('2026-01-05');
+    expect(veld.hasAttribute('readonly')).toBe(true);
+    expect(veld.closest('nldd-form-field').querySelector('nldd-form-field-help-text')).toBeNull();
+  });
+});
+
 describe('the form for a new application', () => {
   it('is open while the applicant has no application in behandeling', async () => {
-    zetSessie(casus.id, { gebruikersnaam: 'bakker', claims: { kvk_nummer: '99970011' } });
+    zetSessie(casus.id, BAKKER);
     state.grammen = [aanvraag('a1', '99970011'), besluit('b1', 'a1'), aanvraag('a2', '11111111')];
     await mount();
     expect(knoppen()).toContain('Aanvraag indienen');
@@ -138,7 +196,7 @@ describe('the form for a new application', () => {
   });
 
   it('stays closed behind a button while one of theirs is in behandeling', async () => {
-    zetSessie(casus.id, { gebruikersnaam: 'bakker', claims: { kvk_nummer: '99970011' } });
+    zetSessie(casus.id, BAKKER);
     state.grammen = [aanvraag('aaaa0001', '99970011')];
     await mount();
     expect(knoppen()).not.toContain('Aanvraag indienen');
@@ -234,6 +292,13 @@ describe('the choice under Ingelogd als, in a case without a login step', () => 
 });
 
 describe('a scenario at an application step', () => {
+  it('opens the form without a login, for a submission on paper', async () => {
+    state.scenario = 'Alleen tekst';
+    await mount();
+    expect(knoppen()).toContain('Aanvraag indienen');
+    expect(opFormulierplek()).toBeNull();
+  });
+
   it('opens the form, also while an application is in behandeling', async () => {
     state.vormen = vormen(undefined);
     state.grammen = [aanvraag('a1', undefined)];
