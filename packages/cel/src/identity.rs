@@ -32,7 +32,7 @@ use serde::Deserialize;
 
 use crate::error::{Result, setup};
 use crate::files::Files;
-use crate::standard::{Entry, Source, StandardAnswer};
+use crate::standard::{self, Source, StandardAnswer};
 
 /// The file in a cell directory that holds its identity.
 pub const FILE: &str = "cel.yaml";
@@ -57,7 +57,7 @@ struct File {
     #[serde(default)]
     category: Option<String>,
     #[serde(default)]
-    answers: BTreeMap<String, Entry>,
+    answers: BTreeMap<String, serde_yaml_ng::Value>,
 }
 
 /// What the cell directory says: who the cell is, per answer it gives the
@@ -97,7 +97,9 @@ pub fn read(files: &dyn Files, dir: &Path) -> Result<Identity> {
     let mut answers = BTreeMap::new();
     let mut standard = Vec::new();
     for (answer, entry) in file.answers {
-        match entry.source(&answer) {
+        let source = standard::source(&answer, entry)
+            .map_err(|e| setup(format!("{}: {e}", path.display())))?;
+        match source {
             Source::Reduction(reduction) => {
                 if blank(&answer) || blank(&reduction) {
                     return Err(setup(format!(

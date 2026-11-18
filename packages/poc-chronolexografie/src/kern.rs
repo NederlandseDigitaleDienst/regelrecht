@@ -389,13 +389,18 @@ impl Corpus {
         let Some((fact, _)) = self.standaard.iter().find(|(_, s)| s == id) else {
             return Ok(None);
         };
-        let from = valid_from
-            .as_deref()
-            .and_then(|from| NaiveDate::parse_from_str(from, "%Y-%m-%d").ok());
+        let from = valid_from.as_deref().unwrap_or_default();
+        let from = NaiveDate::parse_from_str(from, "%Y-%m-%d").map_err(|e| {
+            Error::Setup(format!(
+                "the standard reduction '{id}' is valid from '{from}': {e}"
+            ))
+        })?;
+        // Every version is written out again to show one; a reduction has
+        // few versions, and the tab shows one at a time.
         Ok(fact
             .versions(service, id)?
             .into_iter()
-            .find(|version| Some(version.valid_from) == from)
+            .find(|version| version.valid_from == from)
             .map(|version| version.yaml))
     }
 

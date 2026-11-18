@@ -418,6 +418,71 @@ fn a_standard_answer_that_cannot_be_written_out_is_refused() {
     assert!(err.to_string().contains("keeps a reduction"), "{err}");
 }
 
+/// A service that already holds another rulework under the `$id` of a
+/// standard reduction refuses to take the standard reduction in its place,
+/// as when two cells' names give the same `$id`.
+#[test]
+fn a_standard_reduction_does_not_pass_for_another_rulework() {
+    let dir = cell_tempdir();
+    std::fs::write(
+        dir.path().join("cel.yaml"),
+        "name: Testcel\nanswers:\n  rijen: test_chronicle_corrections#1#ingeschreven\n",
+    )
+    .unwrap();
+    let cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
+    let mut service = LawExecutionService::new();
+    service.load_law(&register()).unwrap();
+    service
+        .load_law(&BY_HAND.replace("test_reductie_inschrijvingen", "standaard_testcel_rijen"))
+        .unwrap();
+    let err = cell.load_standard_reductions(&mut service).unwrap_err();
+    assert!(err.to_string().contains("another rulework"), "{err}");
+}
+
+/// A misspelled key, a name with `#` that is no fact, and an answer name
+/// that cannot be part of a `$id` are refused when the cell opens, with
+/// the answer they belong to; a misspelled referring fact when the
+/// reduction is written out.
+#[test]
+fn a_malformed_answer_from_a_fact_is_refused_by_name() {
+    let dir = cell_tempdir();
+    for (answers, says) in [
+        (
+            "  rijen:\n    fact: test_chronicle_corrections#1#ingeschreven\n    refered_by: []\n",
+            "refered_by",
+        ),
+        ("  rijen: Test_register#1#ingeschreven\n", "neither the $id"),
+        (
+            "  Rijen: test_chronicle_corrections#1#ingeschreven\n",
+            "lowercase",
+        ),
+    ] {
+        std::fs::write(
+            dir.path().join("cel.yaml"),
+            format!("name: Testcel\nanswers:\n{answers}"),
+        )
+        .unwrap();
+        let err = Cell::in_memory(ACTOR, dir.path()).unwrap_err();
+        assert!(err.to_string().contains(says), "{answers}: {err}");
+    }
+    // A referring fact the regulation does not require is a misspelling,
+    // refused when the reduction is written out.
+    std::fs::write(
+        dir.path().join("cel.yaml"),
+        "name: Testcel\nanswers:\n  rijen:\n    fact: test_chronicle_corrections#1#ingeschreven\n    referred_by: [test_chronicle_corrections#2#postcode_gecorigeerd]\n",
+    )
+    .unwrap();
+    let cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
+    let mut service = LawExecutionService::new();
+    service.load_law(&register()).unwrap();
+    let err = cell.load_standard_reductions(&mut service).unwrap_err();
+    assert!(
+        err.to_string().contains("postcode_gecorigeerd")
+            && err.to_string().contains("no loaded version"),
+        "{err}"
+    );
+}
+
 /// A fictional register in two versions, and a fictional regulation of
 /// corrections that takes effect between them, from 2025-06-01.
 fn versioned(id: &str, from: &str, articles: &str) -> String {
@@ -498,4 +563,38 @@ fn a_standard_reduction_follows_the_versions_of_its_regulations() {
         .find(|p| p.name == "postcode")
         .unwrap();
     assert_eq!(postcode.nullable, Some(true));
+}
+
+/// Two facts that hold a field of the same name with another type cannot
+/// share one property of the state, so the standard reduction is refused.
+#[test]
+fn facts_that_hold_one_name_with_two_types_are_refused() {
+    let mut service = LawExecutionService::new();
+    service
+        .load_law(&versioned(
+            "test_standaard_register",
+            "2025-01-01",
+            REGISTERED,
+        ))
+        .unwrap();
+    let as_number = CORRECTED.replace(
+        "{name: postcode, type: string, nullable: true}",
+        "{name: postcode, type: number}",
+    );
+    service
+        .load_law(&versioned(
+            "test_standaard_correcties",
+            "2025-01-01",
+            &as_number,
+        ))
+        .unwrap();
+    let dir = cell_tempdir();
+    std::fs::write(
+        dir.path().join("cel.yaml"),
+        "name: Testcel\nanswers:\n  rijen:\n    fact: test_standaard_register#1#ingeschreven\n    referred_by: [test_standaard_correcties#1#postcode_gecorrigeerd]\n",
+    )
+    .unwrap();
+    let cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
+    let err = cell.load_standard_reductions(&mut service).unwrap_err();
+    assert!(err.to_string().contains("another type"), "{err}");
 }

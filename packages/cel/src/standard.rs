@@ -57,19 +57,10 @@ const ROWS: &str = "standaard_aggregaten";
 /// article, `nullable` and `columns` on the state).
 const SCHEMA: &str = "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json";
 
-/// How the catalogue names where an answer comes from: a reduction of the
-/// cell by its `$id`, or a fact (`<regulation>#<article>#<fact>`), alone or
-/// with the facts that refer to it and the fields a binding selects on.
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-pub(crate) enum Entry {
-    Named(String),
-    Fact(FactEntry),
-}
-
+/// The long form of an answer from a fact in the catalogue.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub(crate) struct FactEntry {
+struct FactEntry {
     fact: String,
     #[serde(default)]
     referred_by: Vec<String>,
@@ -86,25 +77,42 @@ pub enum Source {
     Standard(StandardAnswer),
 }
 
-impl Entry {
-    /// What the entry for `answer` names. A name that is a fact reference
-    /// names a fact; any other names a reduction.
-    pub(crate) fn source(self, answer: &str) -> Source {
-        match self {
-            Entry::Named(name) if is_fact_reference(&name) => Source::Standard(StandardAnswer {
-                answer: answer.to_string(),
-                fact: name,
-                referred_by: Vec::new(),
-                where_: Vec::new(),
-            }),
-            Entry::Named(name) => Source::Reduction(name),
-            Entry::Fact(entry) => Source::Standard(StandardAnswer {
-                answer: answer.to_string(),
-                fact: entry.fact,
-                referred_by: entry.referred_by,
-                where_: entry.where_,
-            }),
-        }
+/// What the catalogue's `entry` for `answer` names: a reduction of the cell
+/// by its `$id`, or a fact (`<regulation>#<article>#<fact>`), alone or as a
+/// map with the facts that refer to it (`referred_by`) and the fields a
+/// binding selects on (`where`).
+///
+/// # Errors
+///
+/// When a name holds `#` but is no fact reference, when the map holds an
+/// unknown key or misses `fact`, and when the entry is neither a name nor a
+/// map.
+pub(crate) fn source(answer: &str, entry: serde_yaml_ng::Value) -> Result<Source> {
+    let standard = |entry: FactEntry| {
+        Source::Standard(StandardAnswer {
+            answer: answer.to_string(),
+            fact: entry.fact,
+            referred_by: entry.referred_by,
+            where_: entry.where_,
+        })
+    };
+    match entry {
+        Yaml::String(name) if is_fact_reference(&name) => Ok(standard(FactEntry {
+            fact: name,
+            referred_by: Vec::new(),
+            where_: Vec::new(),
+        })),
+        Yaml::String(name) if name.contains('#') => Err(setup(format!(
+            "the answer '{answer}' names '{name}', which is neither the $id of a reduction nor \
+             a fact <regulation>#<article>#<fact>"
+        ))),
+        Yaml::String(name) => Ok(Source::Reduction(name)),
+        entry @ Yaml::Mapping(_) => serde_yaml_ng::from_value(entry)
+            .map(standard)
+            .map_err(|e| setup(format!("the answer '{answer}' names a fact: {e}"))),
+        _ => Err(setup(format!(
+            "the answer '{answer}' names neither a reduction nor a fact"
+        ))),
     }
 }
 
@@ -160,6 +168,19 @@ impl StandardAnswer {
         if let Some(twice) = first_repeated(self.where_.iter().map(String::as_str)) {
             return fail(format!("where names '{twice}' twice"));
         }
+        // The answer names an output and an article of the written-out
+        // reduction, and part of its $id.
+        if self.answer.is_empty()
+            || !self
+                .answer
+                .chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+        {
+            return fail(format!(
+                "the name '{}' holds a character other than a lowercase letter, a digit or _",
+                self.answer
+            ));
+        }
         // The written-out reduction names an article and an input itself.
         if [AGGREGATE, ROWS].contains(&self.answer.as_str()) {
             return fail(format!(
@@ -204,11 +225,14 @@ impl StandardAnswer {
     /// takes effect, from the first day the root's regulation requires the
     /// fact, with the fields each fact holds in the versions in force on that
     /// day. A referring fact its regulation does not require on that day
-    /// has no step in that version.
+    /// has no step in that version. A version of the root's regulation that
+    /// no longer requires the fact adds no version: the one before stays in
+    /// force, and plays the records already in the chronicle.
     ///
     /// # Errors
     ///
-    /// When no version of the root's regulation requires the fact, when a
+    /// When no version of the root's regulation requires the fact, or no
+    /// version requires a referring fact while it does, when a
     /// fact holds a field that is no parameter or that a row gives itself,
     /// when two facts hold a field of the same name with another type or
     /// other columns, and when `where` names a field the root does not hold.
@@ -228,6 +252,7 @@ impl StandardAnswer {
         days.dedup_by_key(|(day, _)| *day);
         let requires = |fact: &str, day| required_fact(service, fact, day).is_ok();
         let mut out = Vec::new();
+        let mut played: Vec<&str> = Vec::new();
         for (day, published) in days {
             // Before the root's regulation requires the fact, there are no
             // records of it to play.
@@ -241,6 +266,7 @@ impl StandardAnswer {
                 .filter(|fact| requires(fact, day))
                 .map(|fact| Ok((fact.as_str(), fact_fields(service, fact, day, None)?)))
                 .collect::<Result<Vec<_>>>()?;
+            played.extend(referring.iter().map(|(fact, _)| *fact));
             let law = self.written_out(id, day, &published, &root, &referring)?;
             out.push(Version {
                 valid_from: day,
@@ -252,6 +278,19 @@ impl StandardAnswer {
             return Err(setup(format!(
                 "the answer '{}' names the fact '{}', which no loaded version of its \
                  regulation requires",
+                self.answer, self.fact
+            )));
+        }
+        // A referring fact that no version requires is a name that misses,
+        // and its records would silently change nothing.
+        if let Some(missing) = self
+            .referred_by
+            .iter()
+            .find(|fact| !played.contains(&fact.as_str()))
+        {
+            return Err(setup(format!(
+                "the answer '{}' names the referring fact '{missing}', which no loaded version \
+                 of its regulation requires while the fact '{}' is required",
                 self.answer, self.fact
             )));
         }
