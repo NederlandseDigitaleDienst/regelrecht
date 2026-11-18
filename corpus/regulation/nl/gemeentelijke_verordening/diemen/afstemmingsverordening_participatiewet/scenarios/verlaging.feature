@@ -12,13 +12,13 @@ Feature: Verlaging bijstand bij verwijtbare gedraging (Diemen)
   Scenario: Niet tijdig geregistreerd bij UWV geeft categorie 1
     # Art. 7 onderdeel a
     Given the following parameters:
-      | bsn                                                        | 123456789 |
-      | heeft_niet_tijdig_geregistreerd_uwv                        | true      |
-      | heeft_niet_meegewerkt_plan_van_aanpak                      | false     |
-      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false     |
-      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false     |
-      | heeft_tegenprestatie_niet_verricht                         | false     |
-      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | false     |
+      | bsn                                                        | "123456789" |
+      | heeft_niet_tijdig_geregistreerd_uwv                        | true        |
+      | heeft_niet_meegewerkt_plan_van_aanpak                      | false       |
+      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false       |
+      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false       |
+      | heeft_tegenprestatie_niet_verricht                         | false       |
+      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | false       |
     When I evaluate "gedragscategorie" of "afstemmingsverordening_participatiewet_diemen"
     Then the execution succeeds
     Then output "gedragscategorie" equals 1
@@ -30,13 +30,13 @@ Feature: Verlaging bijstand bij verwijtbare gedraging (Diemen)
   Scenario: Niet meewerken aan het plan van aanpak geeft categorie 2
     # Art. 7 onderdeel b, sub 1
     Given the following parameters:
-      | bsn                                                        | 123456789 |
-      | heeft_niet_tijdig_geregistreerd_uwv                        | false     |
-      | heeft_niet_meegewerkt_plan_van_aanpak                      | true      |
-      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false     |
-      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false     |
-      | heeft_tegenprestatie_niet_verricht                         | false     |
-      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | false     |
+      | bsn                                                        | "123456789" |
+      | heeft_niet_tijdig_geregistreerd_uwv                        | false       |
+      | heeft_niet_meegewerkt_plan_van_aanpak                      | true        |
+      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false       |
+      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false       |
+      | heeft_tegenprestatie_niet_verricht                         | false       |
+      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | false       |
     When I evaluate "gedragscategorie" of "afstemmingsverordening_participatiewet_diemen"
     Then the execution succeeds
     Then output "gedragscategorie" equals 2
@@ -47,13 +47,13 @@ Feature: Verlaging bijstand bij verwijtbare gedraging (Diemen)
     # Art. 7 onderdeel b, sub 4 - elk van de vier sub-gedragingen leidt op
     # zichzelf al tot categorie 2.
     Given the following parameters:
-      | bsn                                                        | 123456789 |
-      | heeft_niet_tijdig_geregistreerd_uwv                        | false     |
-      | heeft_niet_meegewerkt_plan_van_aanpak                      | false     |
-      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false     |
-      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false     |
-      | heeft_tegenprestatie_niet_verricht                         | true      |
-      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | false     |
+      | bsn                                                        | "123456789" |
+      | heeft_niet_tijdig_geregistreerd_uwv                        | false       |
+      | heeft_niet_meegewerkt_plan_van_aanpak                      | false       |
+      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false       |
+      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false       |
+      | heeft_tegenprestatie_niet_verricht                         | true        |
+      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | false       |
     When I evaluate "gedragscategorie" of "afstemmingsverordening_participatiewet_diemen"
     Then the execution succeeds
     Then output "gedragscategorie" equals 2
@@ -61,13 +61,13 @@ Feature: Verlaging bijstand bij verwijtbare gedraging (Diemen)
   Scenario: Niet naar vermogen arbeid getracht te verkrijgen geeft categorie 3
     # Art. 7 onderdeel c
     Given the following parameters:
-      | bsn                                                        | 123456789 |
-      | heeft_niet_tijdig_geregistreerd_uwv                        | false     |
-      | heeft_niet_meegewerkt_plan_van_aanpak                      | false     |
-      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false     |
-      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false     |
-      | heeft_tegenprestatie_niet_verricht                         | false     |
-      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | true      |
+      | bsn                                                        | "123456789" |
+      | heeft_niet_tijdig_geregistreerd_uwv                        | false       |
+      | heeft_niet_meegewerkt_plan_van_aanpak                      | false       |
+      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false       |
+      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false       |
+      | heeft_tegenprestatie_niet_verricht                         | false       |
+      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | true        |
     When I evaluate "gedragscategorie" of "afstemmingsverordening_participatiewet_diemen"
     Then the execution succeeds
     Then output "gedragscategorie" equals 3
@@ -78,13 +78,13 @@ Feature: Verlaging bijstand bij verwijtbare gedraging (Diemen)
     # Geen samenloopregel in de tekst; de indeling in toenemende ernst
     # (5% / 30% / 100%) maakt categorie 3 de zwaarste.
     Given the following parameters:
-      | bsn                                                        | 123456789 |
-      | heeft_niet_tijdig_geregistreerd_uwv                        | true      |
-      | heeft_niet_meegewerkt_plan_van_aanpak                      | false     |
-      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false     |
-      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false     |
-      | heeft_tegenprestatie_niet_verricht                         | false     |
-      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | true      |
+      | bsn                                                        | "123456789" |
+      | heeft_niet_tijdig_geregistreerd_uwv                        | true        |
+      | heeft_niet_meegewerkt_plan_van_aanpak                      | false       |
+      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false       |
+      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false       |
+      | heeft_tegenprestatie_niet_verricht                         | false       |
+      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | true        |
     When I evaluate "gedragscategorie" of "afstemmingsverordening_participatiewet_diemen"
     Then the execution succeeds
     Then output "gedragscategorie" equals 3
@@ -93,13 +93,13 @@ Feature: Verlaging bijstand bij verwijtbare gedraging (Diemen)
     # Afwezigheid van elke gedraging uit art. 7 is afwezigheid van een
     # categorie, niet categorie "0" (RFC-036).
     Given the following parameters:
-      | bsn                                                        | 123456789 |
-      | heeft_niet_tijdig_geregistreerd_uwv                        | false     |
-      | heeft_niet_meegewerkt_plan_van_aanpak                      | false     |
-      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false     |
-      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false     |
-      | heeft_tegenprestatie_niet_verricht                         | false     |
-      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | false     |
+      | bsn                                                        | "123456789" |
+      | heeft_niet_tijdig_geregistreerd_uwv                        | false       |
+      | heeft_niet_meegewerkt_plan_van_aanpak                      | false       |
+      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false       |
+      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false       |
+      | heeft_tegenprestatie_niet_verricht                         | false       |
+      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | false       |
     When I evaluate "gedragscategorie" of "afstemmingsverordening_participatiewet_diemen"
     Then the execution succeeds
     Then output "gedragscategorie" is absent
@@ -112,13 +112,13 @@ Feature: Verlaging bijstand bij verwijtbare gedraging (Diemen)
     # Geen gedragscategorie-parameter meegegeven: art. 9 valt terug op de
     # afgeleide waarde van art. 7 (intra-law source).
     Given the following parameters:
-      | bsn                                                        | 123456789 |
-      | heeft_niet_tijdig_geregistreerd_uwv                        | false     |
-      | heeft_niet_meegewerkt_plan_van_aanpak                      | true      |
-      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false     |
-      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false     |
-      | heeft_tegenprestatie_niet_verricht                         | false     |
-      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | false     |
+      | bsn                                                        | "123456789" |
+      | heeft_niet_tijdig_geregistreerd_uwv                        | false       |
+      | heeft_niet_meegewerkt_plan_van_aanpak                      | true        |
+      | heeft_niet_meegewerkt_onderzoek_jongeren                   | false       |
+      | heeft_als_alleenstaande_ouder_geen_deeltijdarbeid_getracht | false       |
+      | heeft_tegenprestatie_niet_verricht                         | false       |
+      | heeft_niet_naar_vermogen_arbeid_getracht_te_verkrijgen     | false       |
     When I evaluate "verlaging_percentage" of "afstemmingsverordening_participatiewet_diemen"
     Then the execution succeeds
     Then output "verlaging_percentage" equals 30
@@ -130,8 +130,8 @@ Feature: Verlaging bijstand bij verwijtbare gedraging (Diemen)
     # bestaande aanroepers (bv. participatiewet/bijstand.feature) die de
     # categorie als los getal meegeven, blijven werken.
     Given the following parameters:
-      | bsn              | 123456789 |
-      | gedragscategorie | 2         |
+      | bsn              | "123456789" |
+      | gedragscategorie | 2           |
     When I evaluate "verlaging_percentage" of "afstemmingsverordening_participatiewet_diemen"
     Then the execution succeeds
     Then output "verlaging_percentage" equals 30

@@ -23,11 +23,11 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
 
   Scenario: Een bestuurder met een langdurige loopbeperking krijgt een kaart voor vijf jaar
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | false |
-      | besluit_datum                                     | 2026-10-20 |
-      | dagtekening                                       | 2026-10-12 |
+      | bsn_aanvrager        | "999990020" |
+      | kaart_als_bestuurder | true        |
+      | kaart_als_passagier  | false       |
+      | besluit_datum        | 2026-10-20  |
+      | dagtekening          | 2026-10-12  |
     Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
       | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
@@ -50,11 +50,11 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
     # Het geneeskundig onderzoek toont geen beperking die artikel 1 van de
     # regeling noemt.
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | false |
-      | besluit_datum                                     | 2026-10-20 |
-      | dagtekening                                       | 2026-10-12 |
+      | bsn_aanvrager        | "999990020" |
+      | kaart_als_bestuurder | true        |
+      | kaart_als_passagier  | false       |
+      | besluit_datum        | 2026-10-20  |
+      | dagtekening          | 2026-10-12  |
     Given the following findings:
       | langdurige_loopbeperking_volgens_college                          | false |
       | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
@@ -69,11 +69,11 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
 
   Scenario: Een passagier die niet afhankelijk is van de hulp van de bestuurder krijgt geen kaart
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | false |
-      | kaart_als_passagier                               | true |
-      | besluit_datum                                     | 2026-10-20 |
-      | dagtekening                                       | 2026-10-12 |
+      | bsn_aanvrager        | "999990020" |
+      | kaart_als_bestuurder | false       |
+      | kaart_als_passagier  | true        |
+      | besluit_datum        | 2026-10-20  |
+      | dagtekening          | 2026-10-12  |
     Given the following findings:
       | langdurige_loopbeperking_volgens_college                          | true |
       | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
@@ -86,11 +86,11 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
 
   Scenario: Wie permanent rolstoelgebonden is, krijgt een kaart als bestuurder en als passagier
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | true |
-      | besluit_datum                                     | 2026-10-20 |
-      | dagtekening                                       | 2026-10-12 |
+      | bsn_aanvrager        | "999990020" |
+      | kaart_als_bestuurder | true        |
+      | kaart_als_passagier  | true        |
+      | besluit_datum        | 2026-10-20  |
+      | dagtekening          | 2026-10-12  |
     Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
       | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
@@ -107,11 +107,11 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
   Scenario: Wie al een geldige kaart heeft, krijgt geen tweede
     # Het fictieve beleid van de gemeente vult de bevoegdheid van lid 1 zo in.
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | false |
-      | besluit_datum                                     | 2026-10-20 |
-      | dagtekening                                       | 2026-10-12 |
+      | bsn_aanvrager        | "999990020" |
+      | kaart_als_bestuurder | true        |
+      | kaart_als_passagier  | false       |
+      | besluit_datum        | 2026-10-20  |
+      | dagtekening          | 2026-10-12  |
     Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | true |
       | langdurige_loopbeperking_volgens_college                          | true |
@@ -125,11 +125,11 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
 
   Scenario: De geldigheidsduur loopt vijf jaar vanaf de dag van afgifte, ook over een schrikkeldag
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | false |
-      | besluit_datum                                     | 2027-03-01 |
-      | dagtekening                                       | 2026-10-12 |
+      | bsn_aanvrager        | "999990020" |
+      | kaart_als_bestuurder | true        |
+      | kaart_als_passagier  | false       |
+      | besluit_datum        | 2027-03-01  |
+      | dagtekening          | 2026-10-12  |
     Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
       | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
@@ -143,11 +143,11 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
 
   Scenario: Een kaart afgegeven op 29 februari is geldig tot en met 28 februari vijf jaar later
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | false |
-      | besluit_datum                                     | 2028-02-29 |
-      | dagtekening                                       | 2026-10-12 |
+      | bsn_aanvrager        | "999990020" |
+      | kaart_als_bestuurder | true        |
+      | kaart_als_passagier  | false       |
+      | besluit_datum        | 2028-02-29  |
+      | dagtekening          | 2026-10-12  |
     Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
       | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
@@ -161,11 +161,11 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
 
   Scenario: Wie als bestuurder en als passagier vraagt en maar voor een in aanmerking komt, krijgt alleen die letter
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | true |
-      | besluit_datum                                     | 2026-10-20 |
-      | dagtekening                                       | 2026-10-12 |
+      | bsn_aanvrager        | "999990020" |
+      | kaart_als_bestuurder | true        |
+      | kaart_als_passagier  | true        |
+      | besluit_datum        | 2026-10-20  |
+      | dagtekening          | 2026-10-12  |
     Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
       | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |
@@ -184,11 +184,11 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
     # een geneeskundig onderzoek heeft plaatsgehad". Eigen keuze: dan weigert
     # het college, en vraagt niemand het college naar de criteria.
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | false |
-      | besluit_datum                                     | 2031-10-20 |
-      | dagtekening                                       | 2031-10-14 |
+      | bsn_aanvrager        | "999990020" |
+      | kaart_als_bestuurder | true        |
+      | kaart_als_passagier  | false       |
+      | besluit_datum        | 2031-10-20  |
+      | dagtekening          | 2031-10-14  |
     Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college   | false |
       | langdurige_loopbeperking_volgens_college                          | true |
@@ -204,13 +204,13 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
     # steeds voldoet en laat het onderzoek achterwege. Of het onderzoek
     # plaatsvond, vraagt de engine dan niet.
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | false |
-      | besluit_datum                                     | 2031-10-20 |
-      | dagtekening                                       | 2031-10-14 |
-      | geneeskundig_onderzoek_achterwege_gelaten         | true |
-      | bekend_dat_aanvrager_nog_steeds_voldoet           | true |
+      | bsn_aanvrager                             | "999990020" |
+      | kaart_als_bestuurder                      | true        |
+      | kaart_als_passagier                       | false       |
+      | besluit_datum                             | 2031-10-20  |
+      | dagtekening                               | 2031-10-14  |
+      | geneeskundig_onderzoek_achterwege_gelaten | true        |
+      | bekend_dat_aanvrager_nog_steeds_voldoet   | true        |
     Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college   | false |
       | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college | true |
@@ -226,13 +226,13 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
   Scenario: Op het oordeel van de keurende instantie blijft het onderzoek ook achterwege
     # Artikel 2, tweede lid, onder b.
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | false |
-      | besluit_datum                                     | 2031-10-20 |
-      | dagtekening                                       | 2031-10-14 |
-      | geneeskundig_onderzoek_achterwege_gelaten         | true |
-      | keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet | true |
+      | bsn_aanvrager                                                | "999990020" |
+      | kaart_als_bestuurder                                         | true        |
+      | kaart_als_passagier                                          | false       |
+      | besluit_datum                                                | 2031-10-20  |
+      | dagtekening                                                  | 2031-10-14  |
+      | geneeskundig_onderzoek_achterwege_gelaten                    | true        |
+      | keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet | true        |
     Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college   | false |
       | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college | true |
@@ -248,13 +248,13 @@ Feature: Het besluit op de aanvraag om een gehandicaptenparkeerkaart
     # Het college laat het onderzoek achterwege, maar de aanvrager kreeg
     # nooit eerder een kaart: lid 2 staat het niet toe, en lid 1 geldt.
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | false |
-      | besluit_datum                                     | 2031-10-20 |
-      | dagtekening                                       | 2031-10-14 |
-      | geneeskundig_onderzoek_achterwege_gelaten         | true |
-      | bekend_dat_aanvrager_nog_steeds_voldoet           | true |
+      | bsn_aanvrager                             | "999990020" |
+      | kaart_als_bestuurder                      | true        |
+      | kaart_als_passagier                       | false       |
+      | besluit_datum                             | 2031-10-20  |
+      | dagtekening                               | 2031-10-14  |
+      | geneeskundig_onderzoek_achterwege_gelaten | true        |
+      | bekend_dat_aanvrager_nog_steeds_voldoet   | true        |
     Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college   | false |
       | aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college | false |

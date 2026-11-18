@@ -11,8 +11,8 @@ Feature: Burgerlijk Wetboek Minderjarigheid - Handelingsbekwaamheid
   Scenario: Minderjarige (14 jaar) heeft alleen leesrecht
     Given parameter "bsn" is "999200001"
     And the following "RvIG" data with key "bsn" for law "burgerlijk_wetboek_minderjarigheid":
-      | bsn       | persoonsgegevens                                                                       |
-      | 999200001 | {"geboortedatum":"2011-06-15","heeft_handlichting":false,"handlichting_gebieden":null} |
+      | bsn         | persoonsgegevens                                                                       |
+      | "999200001" | {"geboortedatum":"2011-06-15","heeft_handlichting":false,"handlichting_gebieden":null} |
     When I evaluate outputs "is_minderjarig, leeftijd" of "burgerlijk_wetboek_minderjarigheid"
     Then output "is_minderjarig" is true
     And output "leeftijd" equals 13
@@ -22,8 +22,8 @@ Feature: Burgerlijk Wetboek Minderjarigheid - Handelingsbekwaamheid
   Scenario: Meerderjarige (19 jaar) heeft volledige rechten
     Given parameter "bsn" is "999300001"
     And the following "RvIG" data with key "bsn" for law "burgerlijk_wetboek_minderjarigheid":
-      | bsn       | persoonsgegevens                                                                       |
-      | 999300001 | {"geboortedatum":"2006-01-01","heeft_handlichting":false,"handlichting_gebieden":null} |
+      | bsn         | persoonsgegevens                                                                       |
+      | "999300001" | {"geboortedatum":"2006-01-01","heeft_handlichting":false,"handlichting_gebieden":null} |
     When I evaluate outputs "is_minderjarig, leeftijd" of "burgerlijk_wetboek_minderjarigheid"
     Then output "is_minderjarig" is false
     And output "leeftijd" equals 19
@@ -33,8 +33,8 @@ Feature: Burgerlijk Wetboek Minderjarigheid - Handelingsbekwaamheid
   Scenario: Minderjarige (17 jaar) met handlichting heeft volledige rechten
     Given parameter "bsn" is "999400001"
     And the following "RvIG" data with key "bsn" for law "burgerlijk_wetboek_minderjarigheid":
-      | bsn       | persoonsgegevens                                                                                    |
-      | 999400001 | {"geboortedatum":"2008-03-20","heeft_handlichting":true,"handlichting_gebieden":["BEROEP_BEDRIJF"]} |
+      | bsn         | persoonsgegevens                                                                                    |
+      | "999400001" | {"geboortedatum":"2008-03-20","heeft_handlichting":true,"handlichting_gebieden":["BEROEP_BEDRIJF"]} |
     When I evaluate outputs "is_minderjarig, leeftijd, heeft_handlichting" of "burgerlijk_wetboek_minderjarigheid"
     Then output "is_minderjarig" is true
     And output "leeftijd" equals 16
@@ -45,8 +45,8 @@ Feature: Burgerlijk Wetboek Minderjarigheid - Handelingsbekwaamheid
   Scenario: Net 18 geworden - meerderjarig
     Given parameter "bsn" is "999500001"
     And the following "RvIG" data with key "bsn" for law "burgerlijk_wetboek_minderjarigheid":
-      | bsn       | persoonsgegevens                                                                       |
-      | 999500001 | {"geboortedatum":"2007-03-01","heeft_handlichting":false,"handlichting_gebieden":null} |
+      | bsn         | persoonsgegevens                                                                       |
+      | "999500001" | {"geboortedatum":"2007-03-01","heeft_handlichting":false,"handlichting_gebieden":null} |
     When I evaluate outputs "is_minderjarig, leeftijd" of "burgerlijk_wetboek_minderjarigheid"
     Then output "is_minderjarig" is false
     And output "leeftijd" equals 18
@@ -55,8 +55,8 @@ Feature: Burgerlijk Wetboek Minderjarigheid - Handelingsbekwaamheid
   Scenario: Bijna 18 - nog minderjarig
     Given parameter "bsn" is "999600001"
     And the following "RvIG" data with key "bsn" for law "burgerlijk_wetboek_minderjarigheid":
-      | bsn       | persoonsgegevens                                                                       |
-      | 999600001 | {"geboortedatum":"2007-03-02","heeft_handlichting":false,"handlichting_gebieden":null} |
+      | bsn         | persoonsgegevens                                                                       |
+      | "999600001" | {"geboortedatum":"2007-03-02","heeft_handlichting":false,"handlichting_gebieden":null} |
     When I evaluate outputs "is_minderjarig, leeftijd" of "burgerlijk_wetboek_minderjarigheid"
     Then output "is_minderjarig" is true
     And output "leeftijd" equals 17
@@ -66,8 +66,8 @@ Feature: Burgerlijk Wetboek Minderjarigheid - Handelingsbekwaamheid
   Scenario: Kind van 5 jaar heeft alleen leesrecht
     Given parameter "bsn" is "999200002"
     And the following "RvIG" data with key "bsn" for law "burgerlijk_wetboek_minderjarigheid":
-      | bsn       | persoonsgegevens                                                                       |
-      | 999200002 | {"geboortedatum":"2020-01-01","heeft_handlichting":false,"handlichting_gebieden":null} |
+      | bsn         | persoonsgegevens                                                                       |
+      | "999200002" | {"geboortedatum":"2020-01-01","heeft_handlichting":false,"handlichting_gebieden":null} |
     When I evaluate outputs "is_minderjarig, leeftijd" of "burgerlijk_wetboek_minderjarigheid"
     Then output "is_minderjarig" is true
     And output "leeftijd" equals 5

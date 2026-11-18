@@ -11,9 +11,9 @@ Feature: Burgerlijk Wetboek Volmacht (BW 3:60-79)
   Scenario: Gevolmachtigde heeft actieve algemene volmacht
     Given parameter "bsn" is "999400002"
     And the following "NOTARIAAT" data with key "bsn" for law "burgerlijk_wetboek_volmacht":
-      | bsn       | volmacht_registraties                                                                                                                                                                                          |
-      | 999400002 | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
-      | 999500004 | []                                                                                                                                                                                                             |
+      | bsn         | volmacht_registraties                                                                                                                                                                                            |
+      | "999400002" | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
+      | "999500004" | []                                                                                                                                                                                                               |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties" of "burgerlijk_wetboek_volmacht"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is true
@@ -25,9 +25,9 @@ Feature: Burgerlijk Wetboek Volmacht (BW 3:60-79)
   Scenario: Algemene volmacht geeft volledige rechten (LEZEN, CLAIMS_INDIENEN, BESLUITEN_ONTVANGEN)
     Given parameter "bsn" is "999400002"
     And the following "NOTARIAAT" data with key "bsn" for law "burgerlijk_wetboek_volmacht":
-      | bsn       | volmacht_registraties                                                                                                                                                                                          |
-      | 999400002 | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
-      | 999500004 | []                                                                                                                                                                                                             |
+      | bsn         | volmacht_registraties                                                                                                                                                                                            |
+      | "999400002" | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
+      | "999500004" | []                                                                                                                                                                                                               |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties" of "burgerlijk_wetboek_volmacht"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is true
@@ -35,9 +35,9 @@ Feature: Burgerlijk Wetboek Volmacht (BW 3:60-79)
   Scenario: Gevolmachtigde heeft actieve bijzondere volmacht
     Given parameter "bsn" is "999400002"
     And the following "NOTARIAAT" data with key "bsn" for law "burgerlijk_wetboek_volmacht":
-      | bsn       | volmacht_registraties                                                                                                                                                                                            |
-      | 999400002 | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"BIJZONDERE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
-      | 999500004 | []                                                                                                                                                                                                               |
+      | bsn         | volmacht_registraties                                                                                                                                                                                              |
+      | "999400002" | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"BIJZONDERE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
+      | "999500004" | []                                                                                                                                                                                                                 |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties" of "burgerlijk_wetboek_volmacht"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is true
@@ -46,9 +46,9 @@ Feature: Burgerlijk Wetboek Volmacht (BW 3:60-79)
   Scenario: Bijzondere volmacht geeft beperkte rechten (alleen LEZEN)
     Given parameter "bsn" is "999400002"
     And the following "NOTARIAAT" data with key "bsn" for law "burgerlijk_wetboek_volmacht":
-      | bsn       | volmacht_registraties                                                                                                                                                                                            |
-      | 999400002 | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"BIJZONDERE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
-      | 999500004 | []                                                                                                                                                                                                               |
+      | bsn         | volmacht_registraties                                                                                                                                                                                              |
+      | "999400002" | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"BIJZONDERE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
+      | "999500004" | []                                                                                                                                                                                                                 |
     When I evaluate outputs "voldoet_aan_voorwaarden" of "burgerlijk_wetboek_volmacht"
     Then output "voldoet_aan_voorwaarden" is true
     # POC: output "delegation_types" contains GEVOLMACHTIGDE_BIJZONDER (array membership not expressible in the canonical grammar)
@@ -56,10 +56,10 @@ Feature: Burgerlijk Wetboek Volmacht (BW 3:60-79)
   Scenario: Persoon zonder volmacht-registratie is geen gevolmachtigde
     Given parameter "bsn" is "123456789"
     And the following "NOTARIAAT" data with key "bsn" for law "burgerlijk_wetboek_volmacht":
-      | bsn       | volmacht_registraties                                                                                                                                                                                          |
-      | 123456789 | []                                                                                                                                                                                                             |
-      | 999400002 | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
-      | 999500004 | []                                                                                                                                                                                                             |
+      | bsn         | volmacht_registraties                                                                                                                                                                                            |
+      | "123456789" | []                                                                                                                                                                                                               |
+      | "999400002" | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
+      | "999500004" | []                                                                                                                                                                                                               |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties, subject_ids" of "burgerlijk_wetboek_volmacht"
     Then output "voldoet_aan_voorwaarden" is false
     And output "heeft_delegaties" is false
@@ -69,9 +69,9 @@ Feature: Burgerlijk Wetboek Volmacht (BW 3:60-79)
   Scenario: Herroepen volmacht geeft geen bevoegdheid
     Given parameter "bsn" is "999400002"
     And the following "NOTARIAAT" data with key "bsn" for law "burgerlijk_wetboek_volmacht":
-      | bsn       | volmacht_registraties                                                                                                                                                                                         |
-      | 999400002 | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":true}] |
-      | 999500004 | []                                                                                                                                                                                                            |
+      | bsn         | volmacht_registraties                                                                                                                                                                                           |
+      | "999400002" | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":true}] |
+      | "999500004" | []                                                                                                                                                                                                              |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties, subject_ids" of "burgerlijk_wetboek_volmacht"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is false
@@ -81,9 +81,9 @@ Feature: Burgerlijk Wetboek Volmacht (BW 3:60-79)
   Scenario: Inactieve volmacht geeft geen bevoegdheid
     Given parameter "bsn" is "999400002"
     And the following "NOTARIAAT" data with key "bsn" for law "burgerlijk_wetboek_volmacht":
-      | bsn       | volmacht_registraties                                                                                                                                                                                            |
-      | 999400002 | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"INACTIEF","is_herroepen":false}] |
-      | 999500004 | []                                                                                                                                                                                                               |
+      | bsn         | volmacht_registraties                                                                                                                                                                                              |
+      | "999400002" | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"INACTIEF","is_herroepen":false}] |
+      | "999500004" | []                                                                                                                                                                                                                 |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties" of "burgerlijk_wetboek_volmacht"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is false
@@ -91,9 +91,9 @@ Feature: Burgerlijk Wetboek Volmacht (BW 3:60-79)
   Scenario: Verlopen volmacht geeft geen bevoegdheid
     Given parameter "bsn" is "999400002"
     And the following "NOTARIAAT" data with key "bsn" for law "burgerlijk_wetboek_volmacht":
-      | bsn       | volmacht_registraties                                                                                                                                                                                                    |
-      | 999400002 | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":"2024-12-31","status":"ACTIEF","is_herroepen":false}] |
-      | 999500004 | []                                                                                                                                                                                                                       |
+      | bsn         | volmacht_registraties                                                                                                                                                                                                    |
+      | "999400002" | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":"2024-12-31","status":"ACTIEF","is_herroepen":false}] |
+      | "999500004" | []                                                                                                                                                                                                                       |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties" of "burgerlijk_wetboek_volmacht"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is false
@@ -101,9 +101,9 @@ Feature: Burgerlijk Wetboek Volmacht (BW 3:60-79)
   Scenario: Volmacht met toekomstige einddatum is nog actief
     Given parameter "bsn" is "999400002"
     And the following "NOTARIAAT" data with key "bsn" for law "burgerlijk_wetboek_volmacht":
-      | bsn       | volmacht_registraties                                                                                                                                                                                                    |
-      | 999400002 | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":"2026-12-31","status":"ACTIEF","is_herroepen":false}] |
-      | 999500004 | []                                                                                                                                                                                                                       |
+      | bsn         | volmacht_registraties                                                                                                                                                                                                    |
+      | "999400002" | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":"2026-12-31","status":"ACTIEF","is_herroepen":false}] |
+      | "999500004" | []                                                                                                                                                                                                                       |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties" of "burgerlijk_wetboek_volmacht"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is true
@@ -111,10 +111,10 @@ Feature: Burgerlijk Wetboek Volmacht (BW 3:60-79)
   Scenario: Gevolmachtigde met meerdere volmachten van verschillende volmachtgevers
     Given parameter "bsn" is "999400002"
     And the following "NOTARIAAT" data with key "bsn" for law "burgerlijk_wetboek_volmacht":
-      | bsn       | volmacht_registraties                                                                                                                                                                                                                                                                                                                                                                                          |
-      | 999400002 | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false},{"bsn_volmachtgever":"999600006","naam_volmachtgever":"Jan de Vries","volmacht_type":"BIJZONDERE_VOLMACHT","datum_ingang":"2022-01-15","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
-      | 999500004 | []                                                                                                                                                                                                                                                                                                                                                                                                             |
-      | 999600006 | []                                                                                                                                                                                                                                                                                                                                                                                                             |
+      | bsn         | volmacht_registraties                                                                                                                                                                                                                                                                                                                                                                                              |
+      | "999400002" | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false},{"bsn_volmachtgever":"999600006","naam_volmachtgever":"Jan de Vries","volmacht_type":"BIJZONDERE_VOLMACHT","datum_ingang":"2022-01-15","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
+      | "999500004" | []                                                                                                                                                                                                                                                                                                                                                                                                                 |
+      | "999600006" | []                                                                                                                                                                                                                                                                                                                                                                                                                 |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties" of "burgerlijk_wetboek_volmacht"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is true
@@ -126,10 +126,10 @@ Feature: Burgerlijk Wetboek Volmacht (BW 3:60-79)
   Scenario: Gevolmachtigde met een actieve en een herroepen volmacht
     Given parameter "bsn" is "999400002"
     And the following "NOTARIAAT" data with key "bsn" for law "burgerlijk_wetboek_volmacht":
-      | bsn       | volmacht_registraties                                                                                                                                                                                                                                                                                                                                                                                       |
-      | 999400002 | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false},{"bsn_volmachtgever":"999600006","naam_volmachtgever":"Jan de Vries","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2020-01-15","datum_einde":null,"status":"ACTIEF","is_herroepen":true}] |
-      | 999500004 | []                                                                                                                                                                                                                                                                                                                                                                                                          |
-      | 999600006 | []                                                                                                                                                                                                                                                                                                                                                                                                          |
+      | bsn         | volmacht_registraties                                                                                                                                                                                                                                                                                                                                                                                           |
+      | "999400002" | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false},{"bsn_volmachtgever":"999600006","naam_volmachtgever":"Jan de Vries","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2020-01-15","datum_einde":null,"status":"ACTIEF","is_herroepen":true}] |
+      | "999500004" | []                                                                                                                                                                                                                                                                                                                                                                                                              |
+      | "999600006" | []                                                                                                                                                                                                                                                                                                                                                                                                              |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties" of "burgerlijk_wetboek_volmacht"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is true
@@ -139,9 +139,9 @@ Feature: Burgerlijk Wetboek Volmacht (BW 3:60-79)
   Scenario: Volmacht geldig vanaf ingangsdatum wordt correct geregistreerd
     Given parameter "bsn" is "999400002"
     And the following "NOTARIAAT" data with key "bsn" for law "burgerlijk_wetboek_volmacht":
-      | bsn       | volmacht_registraties                                                                                                                                                                                          |
-      | 999400002 | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
-      | 999500004 | []                                                                                                                                                                                                             |
+      | bsn         | volmacht_registraties                                                                                                                                                                                            |
+      | "999400002" | [{"bsn_volmachtgever":"999500004","naam_volmachtgever":"Elisabeth van den Berg-Smit","volmacht_type":"ALGEMENE_VOLMACHT","datum_ingang":"2021-05-01","datum_einde":null,"status":"ACTIEF","is_herroepen":false}] |
+      | "999500004" | []                                                                                                                                                                                                               |
     When I evaluate outputs "voldoet_aan_voorwaarden" of "burgerlijk_wetboek_volmacht"
     Then output "voldoet_aan_voorwaarden" is true
     # POC: output "valid_from_dates" contains 2021-05-01 (array membership not expressible in the canonical grammar)

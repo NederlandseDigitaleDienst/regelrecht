@@ -19,7 +19,7 @@ Feature: Zorgtoeslag
 
   Background:
     Given the calculation date is "2025-01-01"
-    Given parameter "inkomen" is "30000"
+    Given parameter "inkomen" is 30000
 
   Scenario: Met partner
     Given parameter "partner" is "true"
@@ -87,7 +87,7 @@ describe('engineInputs', () => {
     const edited: ScenarioValues = {
       ...values[0]!,
       calculationDate: '2026-01-01',
-      parameterValues: { ...values[0]!.parameterValues, inkomen: '45000', partner: '' },
+      parameterValues: { ...values[0]!.parameterValues, inkomen: 45000, partner: '' },
     };
 
     const run = defined(engineInputs(state, 0, edited, 'folder_law'));

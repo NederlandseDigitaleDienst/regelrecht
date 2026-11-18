@@ -11,7 +11,7 @@ Feature: Handelsregisterwet - Jaarrekening Deponeringsplicht
     Given parameter "kvk_nummer" is "12345678"
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/jaarrekening":
       | kvk_nummer | rechtsvorm | laatste_boekjaar_einde |
-      | 12345678   | BV         | 2023-12-31              |
+      | "12345678" | BV         | 2023-12-31             |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_deponeringsplicht, volgende_deadline" of "handelsregisterwet/jaarrekening"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_deponeringsplicht" is true
@@ -23,7 +23,7 @@ Feature: Handelsregisterwet - Jaarrekening Deponeringsplicht
     Given parameter "kvk_nummer" is "23456789"
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/jaarrekening":
       | kvk_nummer | rechtsvorm  | laatste_boekjaar_einde |
-      | 23456789   | Eenmanszaak | 2023-12-31              |
+      | "23456789" | Eenmanszaak | 2023-12-31             |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_deponeringsplicht" of "handelsregisterwet/jaarrekening"
     Then output "voldoet_aan_voorwaarden" is false
     And output "heeft_deponeringsplicht" is false
@@ -34,7 +34,7 @@ Feature: Handelsregisterwet - Jaarrekening Deponeringsplicht
     Given parameter "kvk_nummer" is "34567890"
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/jaarrekening":
       | kvk_nummer | rechtsvorm | laatste_boekjaar_einde | ontheffing_verleend |
-      | 34567890   | NV         | 2023-12-31              | true                 |
+      | "34567890" | NV         | 2023-12-31             | true                |
     When I evaluate outputs "reden_vrijstelling" of "handelsregisterwet/jaarrekening"
     Then output "reden_vrijstelling" equals "Lid 5: ministeriële ontheffing verleend (art. 58/101/210 BW2)"
 
@@ -47,7 +47,7 @@ Feature: Handelsregisterwet - Jaarrekening Deponeringsplicht
     Given parameter "kvk_nummer" is "45678901"
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/jaarrekening":
       | kvk_nummer | rechtsvorm | laatste_boekjaar_einde | ontheffing_verleend | afm_toezending_gedaan |
-      | 45678901   | NV         | 2023-12-31             | false               | true                  |
+      | "45678901" | NV         | 2023-12-31             | false               | true                  |
     When I evaluate outputs "reden_vrijstelling" of "handelsregisterwet/jaarrekening"
     Then output "reden_vrijstelling" equals "Lid 8: toezending aan AFM op grond van art. 5:25o Wft"
 
@@ -57,6 +57,6 @@ Feature: Handelsregisterwet - Jaarrekening Deponeringsplicht
     Given parameter "kvk_nummer" is "56789012"
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/jaarrekening":
       | kvk_nummer | rechtsvorm | laatste_boekjaar_einde |
-      | 56789012   | BV         | 2023-12-31              |
+      | "56789012" | BV         | 2023-12-31             |
     When I evaluate outputs "reden_vrijstelling" of "handelsregisterwet/jaarrekening"
     Then output "reden_vrijstelling" is unknown

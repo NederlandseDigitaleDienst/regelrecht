@@ -12,10 +12,10 @@ Feature: Bepalen HACCP-voedselveiligheidsverplichting
     Given parameter "kvk_nummer" is "85234567"
     And the following "KVK" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | sbi_code |
-      | 85234567   | "56102"  |
+      | "85234567" | "56102"  |
     And the following "NVWA" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | is_geregistreerd_nvwa | heeft_haccp_systeem | type_haccp_systeem |
-      | 85234567   | true                  | true                | hygienecode        |
+      | "85234567" | true                  | true                | hygienecode        |
     And the following parameters:
       | bereidt_of_serveert_voedsel | true |
     When I evaluate outputs "voldoet_aan_voorwaarden, is_levensmiddelenbedrijf, heeft_haccp_verplichting, is_geregistreerd, heeft_haccp_systeem, voldoet_aan_verplichting, type_haccp_systeem, toezichthouder" of "warenwet/haccp"
@@ -32,10 +32,10 @@ Feature: Bepalen HACCP-voedselveiligheidsverplichting
     Given parameter "kvk_nummer" is "85234567"
     And the following "KVK" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | sbi_code |
-      | 85234567   | "56101"  |
+      | "85234567" | "56101"  |
     And the following "NVWA" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | is_geregistreerd_nvwa | heeft_haccp_systeem | type_haccp_systeem |
-      | 85234567   | true                  | false               | null               |
+      | "85234567" | true                  | false               | null               |
     And the following parameters:
       | bereidt_of_serveert_voedsel | true |
     When I evaluate outputs "voldoet_aan_voorwaarden, is_levensmiddelenbedrijf, heeft_haccp_verplichting, heeft_haccp_systeem, voldoet_aan_verplichting" of "warenwet/haccp"
@@ -49,10 +49,10 @@ Feature: Bepalen HACCP-voedselveiligheidsverplichting
     Given parameter "kvk_nummer" is "85234567"
     And the following "KVK" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | sbi_code |
-      | 85234567   | "4711"  |
+      | "85234567" | "4711"   |
     And the following "NVWA" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | is_geregistreerd_nvwa | heeft_haccp_systeem | type_haccp_systeem |
-      | 85234567   | true                  | true                | eigen_haccp_plan   |
+      | "85234567" | true                  | true                | eigen_haccp_plan   |
     And the following parameters:
       | bereidt_of_serveert_voedsel | true |
     When I evaluate outputs "voldoet_aan_voorwaarden, is_levensmiddelenbedrijf, voldoet_aan_verplichting, type_haccp_systeem" of "warenwet/haccp"
@@ -65,10 +65,10 @@ Feature: Bepalen HACCP-voedselveiligheidsverplichting
     Given parameter "kvk_nummer" is "85234567"
     And the following "KVK" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | sbi_code |
-      | 85234567   | "8230"  |
+      | "85234567" | "8230"   |
     And the following "NVWA" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | is_geregistreerd_nvwa | heeft_haccp_systeem | type_haccp_systeem |
-      | 85234567   | false                 | false               | null               |
+      | "85234567" | false                 | false               | null               |
     And the following parameters:
       | bereidt_of_serveert_voedsel | true |
     When I evaluate outputs "voldoet_aan_voorwaarden, is_levensmiddelenbedrijf, heeft_haccp_verplichting, is_geregistreerd, voldoet_aan_verplichting" of "warenwet/haccp"
@@ -82,10 +82,10 @@ Feature: Bepalen HACCP-voedselveiligheidsverplichting
     Given parameter "kvk_nummer" is "99999999"
     And the following "KVK" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | sbi_code |
-      | 99999999   | "4771"  |
+      | "99999999" | "4771"   |
     And the following "NVWA" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | is_geregistreerd_nvwa | heeft_haccp_systeem | type_haccp_systeem |
-      | 99999999   | null                  | null                | null               |
+      | "99999999" | null                  | null                | null               |
     And the following parameters:
       | bereidt_of_serveert_voedsel | false |
     When I evaluate outputs "voldoet_aan_voorwaarden" of "warenwet/haccp"
@@ -95,10 +95,10 @@ Feature: Bepalen HACCP-voedselveiligheidsverplichting
     Given parameter "kvk_nummer" is "99999999"
     And the following "KVK" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | sbi_code |
-      | 99999999   | "6201"  |
+      | "99999999" | "6201"   |
     And the following "NVWA" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | is_geregistreerd_nvwa | heeft_haccp_systeem | type_haccp_systeem |
-      | 99999999   | null                  | null                | null               |
+      | "99999999" | null                  | null                | null               |
     And the following parameters:
       | bereidt_of_serveert_voedsel | false |
     When I evaluate outputs "voldoet_aan_voorwaarden" of "warenwet/haccp"

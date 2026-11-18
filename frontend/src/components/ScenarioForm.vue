@@ -5,6 +5,7 @@ import type { ScenarioValues, EditedRow } from '../scenario/inputs';
 import type { ScenarioRun } from '../scenario/run';
 import { formatValue, formatMissing, normalizeForCompare, humanize, expectationsFromAssertions } from '../utils/outputFormat';
 import { NOT_NULLABLE_MESSAGE, nullAllowed, isNullText } from '../utils/nullability';
+import { tableCellValue } from '../gherkin/actions';
 import DataSourceTable from './DataSourceTable.vue';
 import ScenarioParameterInput from './ScenarioParameterInput.vue';
 import AbsenceToggle from './AbsenceToggle.vue';
@@ -132,6 +133,13 @@ function updateParameter(name: string, value: unknown) {
     next.delete(name);
   }
   rejectedNullParams.value = next;
+  // A parameter the law declares arrives typed from its control. One without
+  // a declaration is shown in a text field, and what is typed there is read
+  // by its content: digits are a number, as they were in `is 50000`.
+  if (!props.typeMap?.has(name) && typeof stored === 'string') {
+    const read = tableCellValue(stored);
+    if (typeof read === 'number') stored = read;
+  }
   send({ ...props.values, parameterValues: { ...props.values.parameterValues, [name]: stored } });
 }
 function updateDate(value: unknown) {

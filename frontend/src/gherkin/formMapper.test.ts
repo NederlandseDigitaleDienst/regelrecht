@@ -58,7 +58,7 @@ Feature: With background
     expect(defined(form.background).dependencies).toEqual(['law_a', 'law_b']);
 
     const s = defined(form.scenarios[0]);
-    expect(s.setup.parameters).toEqual([{ name: 'bsn', value: 999993653 }]);
+    expect(s.setup.parameters).toEqual([{ name: 'bsn', value: '999993653' }]);
     expect(s.assertions[0]).toEqual({ assertionType: 'boolean', outputName: 'output', value: false });
   });
 
@@ -131,7 +131,7 @@ Feature: Params
     const form = mapFeatureToForm(parsed);
     const params = defined(form.scenarios[0]).setup.parameters;
     expect(params).toEqual([
-      { name: 'bsn', value: 999993653 },
+      { name: 'bsn', value: '999993653' },
       { name: 'amount', value: 1500 },
       { name: 'rate', value: 3.14 },
     ]);
@@ -282,7 +282,7 @@ Feature: Merge test
 
     expect(effective.calculationDate).toBe('2025-01-01');
     expect(effective.dependencies).toEqual(['dep_a', 'dep_b']);
-    expect(effective.parameters).toEqual([{ name: 'bsn', value: 123 }]);
+    expect(effective.parameters).toEqual([{ name: 'bsn', value: '123' }]);
   });
 
   it('scenario date overrides background date', () => {
@@ -371,7 +371,7 @@ Feature: Sync test
 
     const form = mapFeatureToForm(parsed);
     syncEditedValues(form, 0, {
-      parameterValues: { loon: '50000' },
+      parameterValues: { loon: 50000 },
       calculationDate: null,
     });
 
@@ -401,7 +401,7 @@ Feature: Background override
 
     // Change loon only in the first scenario
     syncEditedValues(form, 0, {
-      parameterValues: { bsn: '999993653', loon: '50000' },
+      parameterValues: { bsn: '999993653', loon: 50000 },
       calculationDate: null,
     });
 
@@ -434,7 +434,7 @@ Feature: Blank field
 
     const form = mapFeatureToForm(parsed);
     syncEditedValues(form, 0, {
-      parameterValues: { bsn: '999993653', aanvraag_bedrag: '', huur: '700' },
+      parameterValues: { bsn: '999993653', aanvraag_bedrag: '', huur: 700 },
       calculationDate: null,
     });
 
@@ -496,7 +496,7 @@ Feature: No-op sync
 // Read into the form it is the string without its quotes, so a save has to
 // put them back, or the text `42` would be saved as the number 42.
 describe('a text that looks like another type keeps its quotes through a save', () => {
-  it('writes a parameter that is such a text as a parameter table', () => {
+  it('writes a text the step would read as something else as a parameter table', () => {
     const parsed = parseFeature(`
 Feature: Text that looks like a number
 
@@ -513,10 +513,11 @@ Feature: Text that looks like a number
     expect(read).toEqual({ waarde: '42', code: '0111', vlag: 'true', naam: 'GM0384' });
 
     const gherkin = formStateToGherkin(form);
-    expect(gherkin).toContain('| waarde | "42" |');
-    expect(gherkin).toContain('| code | "0111" |');
+    // Digits in quotes are text in a step too, so these need no table.
+    expect(gherkin).toContain('Given parameter "waarde" is "42"');
+    expect(gherkin).toContain('Given parameter "code" is "0111"');
+    // `is "true"` is the boolean; only a quoted cell says the text.
     expect(gherkin).toContain('| vlag | "true" |');
-    // A text that reads as itself needs no table and no quotes.
     expect(gherkin).toContain('Given parameter "naam" is "GM0384"');
 
     const again = mapFeatureToForm(parseFeature(gherkin));
@@ -580,13 +581,12 @@ Feature: Typed values
   });
 });
 
-// The canonical rule (bdd/grammar.yaml `value_typing`) is that the quotes do
-// not change what a value is — the content decides, on both sides of the
-// language. The editor used to keep the quoted form as a raw string, so it ran
-// a scenario with different types than the Rust runner did (#1160). A save may
-// normalise a quoted number to its bare form; what it may not do is leave the
-// two engines reading the same line differently.
-describe('a quoted value carries its content, not its quotes', () => {
+// The canonical rule (bdd/grammar.yaml `value_typing`) holds on both sides of
+// the language. The editor used to keep every quoted form as a raw string, so it
+// ran a scenario with different types than the Rust runner did (#1160). What
+// a save may not do is leave the two engines reading the same line
+// differently: digits in quotes are text, a quoted boolean is a boolean.
+describe('a quoted value is read by the rule of the grammar', () => {
   const feature = `
 Feature: Round trip
 
@@ -597,12 +597,12 @@ Feature: Round trip
     When I evaluate "result" of "law"
 `;
 
-  it('reads a quoted value by its content', () => {
+  it('reads quoted digits as text and a quoted boolean as a boolean', () => {
     const form = mapFeatureToForm(parseFeature(feature));
     const params = Object.fromEntries(
       defined(form.scenarios[0]).setup.parameters.map((p) => [p.name, p.value]),
     );
-    expect(params.bsn).toBe(999993653);
+    expect(params.bsn).toBe('999993653');
     expect(params.is_verzekerde).toBe(true);
     expect(params.gemeente).toBe('GM0384');
   });
@@ -617,7 +617,7 @@ Feature: Round trip
     const params = Object.fromEntries(
       defined(reform.scenarios[0]).setup.parameters.map((p) => [p.name, p.value]),
     );
-    expect(params).toEqual({ bsn: 999993653, is_verzekerde: true, gemeente: 'GM0384' });
+    expect(params).toEqual({ bsn: '999993653', is_verzekerde: true, gemeente: 'GM0384' });
   });
 });
 

@@ -20,10 +20,10 @@ Feature: Bestand Nieuwkomers en aanvraagdeadlines (werkinstructie DUO)
   Scenario: Verblijfstitelcode 21 komt op tabblad 2 en het bestuur bepaalt de categorie
     Given the calculation date is "2026-01-01"
     Given the following "personas" data with key "bsn":
-      | bsn       | heeft_bsn | verblijfstitel_code |
-      | 400000001 | true      | 21                  |
-      | 400000002 | true      | 26                  |
-      | 400000003 | true      | null                |
+      | bsn         | heeft_bsn | verblijfstitel_code |
+      | "400000001" | true      | 21                  |
+      | "400000002" | true      | 26                  |
+      | "400000003" | true      | null                |
     Given parameter "bsn" is "400000001"
     When I evaluate "tabblad" of "duo_werkinstructie_bestand_nieuwkomers"
     Then output "tabblad" equals 2

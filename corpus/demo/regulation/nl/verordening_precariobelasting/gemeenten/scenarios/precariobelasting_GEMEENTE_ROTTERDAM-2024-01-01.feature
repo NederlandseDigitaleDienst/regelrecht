@@ -12,22 +12,22 @@ Feature: Bepalen precariobelasting voor terras op openbare grond Rotterdam
   Scenario: Belastingplichtig - terras 80 m² (boven vrijstellingsdrempel)
     Given the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "algemene_plaatselijke_verordening/exploitatievergunning":
       | kvk_nummer | bsn_eigenaar | heeft_geldige_vog | schenkt_alcohol | horecagebiedsplan | categorie_toegestaan | vergunning_geschiedenis | ingetrokken_slecht_levensgedrag | beheerders | alle_hebben_vog | alle_voldoen_leeftijd | geen_onder_curatele | heeft_svh_diploma | heeft_exploitatievergunning | categorie | horeca_toegestaan |
-      | 85234567   | null         | null              | null            | null              | null                 | null                    | null                            | []         | null            | null                  | null                | null              | null                        | null      | null              |
+      | "85234567" | null         | null              | null            | null              | null                 | null                    | null                            | []         | null            | null                  | null                | null              | null                        | null      | null              |
     And the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "algemene_plaatselijke_verordening/terrassen":
       | kvk_nummer | heeft_alcoholvergunning | terrassenbeleid_gebied | tarief_per_m2 |
-      | 85234567   | null                    |                        | 25            |
+      | "85234567" | null                    |                        | 25            |
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/bedrijfsgegevens":
       | kvk_nummer | organisatie_gegevens                                                                                                                                                     |
-      | 85234567   | {"kvk_nummer":"85234567","rechtsvorm":"VOF","status":"Actief","aantal_werknemers":0,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Witte de Withstraat 1"} |
+      | "85234567" | {"kvk_nummer":"85234567","rechtsvorm":"VOF","status":"Actief","aantal_werknemers":0,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Witte de Withstraat 1"} |
     And the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "verordening_precariobelasting":
       | kvk_nummer | heeft_terras | is_openbare_weg |
-      | 85234567   | true         | true            |
+      | "85234567" | true         | true            |
     And the following "KADASTER" data with key "adres" for law "wet_bag":
       | adres                 | verblijfsobject |
       | Witte de Withstraat 1 | null            |
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 85234567   | null               | null                   | null         | null                         | null                | null                      |
+      | "85234567" | null               | null                   | null         | null                         | null                | null                      |
     And the following parameters:
       | heeft_actieve_vergunning | true |
       | vergunde_oppervlakte     | 80   |
@@ -41,22 +41,22 @@ Feature: Bepalen precariobelasting voor terras op openbare grond Rotterdam
   Scenario: Belastingplichtig - terras precies 50 m² (op vrijstellingsdrempel)
     Given the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "algemene_plaatselijke_verordening/exploitatievergunning":
       | kvk_nummer | bsn_eigenaar | heeft_geldige_vog | schenkt_alcohol | horecagebiedsplan | categorie_toegestaan | vergunning_geschiedenis | ingetrokken_slecht_levensgedrag | beheerders | alle_hebben_vog | alle_voldoen_leeftijd | geen_onder_curatele | heeft_svh_diploma | heeft_exploitatievergunning | categorie | horeca_toegestaan |
-      | 85234567   | null         | null              | null            | null              | null                 | null                    | null                            | []         | null            | null                  | null                | null              | null                        | null      | null              |
+      | "85234567" | null         | null              | null            | null              | null                 | null                    | null                            | []         | null            | null                  | null                | null              | null                        | null      | null              |
     And the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "algemene_plaatselijke_verordening/terrassen":
       | kvk_nummer | heeft_alcoholvergunning | terrassenbeleid_gebied | tarief_per_m2 |
-      | 85234567   | null                    |                        | 25            |
+      | "85234567" | null                    |                        | 25            |
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/bedrijfsgegevens":
       | kvk_nummer | organisatie_gegevens                                                                                                                                                     |
-      | 85234567   | {"kvk_nummer":"85234567","rechtsvorm":"VOF","status":"Actief","aantal_werknemers":0,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Witte de Withstraat 1"} |
+      | "85234567" | {"kvk_nummer":"85234567","rechtsvorm":"VOF","status":"Actief","aantal_werknemers":0,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Witte de Withstraat 1"} |
     And the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "verordening_precariobelasting":
       | kvk_nummer | heeft_terras | is_openbare_weg |
-      | 85234567   | true         | true            |
+      | "85234567" | true         | true            |
     And the following "KADASTER" data with key "adres" for law "wet_bag":
       | adres                 | verblijfsobject |
       | Witte de Withstraat 1 | null            |
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 85234567   | null               | null                   | null         | null                         | null                | null                      |
+      | "85234567" | null               | null                   | null         | null                         | null                | null                      |
     And the following parameters:
       | heeft_actieve_vergunning | true |
       | vergunde_oppervlakte     | 50   |
@@ -69,22 +69,22 @@ Feature: Bepalen precariobelasting voor terras op openbare grond Rotterdam
   Scenario: Belastingplichtig - klein terras 20 m² (onder vrijstellingsdrempel)
     Given the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "algemene_plaatselijke_verordening/exploitatievergunning":
       | kvk_nummer | bsn_eigenaar | heeft_geldige_vog | schenkt_alcohol | horecagebiedsplan | categorie_toegestaan | vergunning_geschiedenis | ingetrokken_slecht_levensgedrag | beheerders | alle_hebben_vog | alle_voldoen_leeftijd | geen_onder_curatele | heeft_svh_diploma | heeft_exploitatievergunning | categorie | horeca_toegestaan |
-      | 85234567   | null         | null              | null            | null              | null                 | null                    | null                            | []         | null            | null                  | null                | null              | null                        | null      | null              |
+      | "85234567" | null         | null              | null            | null              | null                 | null                    | null                            | []         | null            | null                  | null                | null              | null                        | null      | null              |
     And the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "algemene_plaatselijke_verordening/terrassen":
       | kvk_nummer | heeft_alcoholvergunning | terrassenbeleid_gebied | tarief_per_m2 |
-      | 85234567   | null                    |                        | 25            |
+      | "85234567" | null                    |                        | 25            |
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/bedrijfsgegevens":
       | kvk_nummer | organisatie_gegevens                                                                                                                                                     |
-      | 85234567   | {"kvk_nummer":"85234567","rechtsvorm":"VOF","status":"Actief","aantal_werknemers":0,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Witte de Withstraat 1"} |
+      | "85234567" | {"kvk_nummer":"85234567","rechtsvorm":"VOF","status":"Actief","aantal_werknemers":0,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Witte de Withstraat 1"} |
     And the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "verordening_precariobelasting":
       | kvk_nummer | heeft_terras | is_openbare_weg |
-      | 85234567   | true         | true            |
+      | "85234567" | true         | true            |
     And the following "KADASTER" data with key "adres" for law "wet_bag":
       | adres                 | verblijfsobject |
       | Witte de Withstraat 1 | null            |
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 85234567   | null               | null                   | null         | null                         | null                | null                      |
+      | "85234567" | null               | null                   | null         | null                         | null                | null                      |
     And the following parameters:
       | heeft_actieve_vergunning | true |
       | vergunde_oppervlakte     | 20   |
@@ -97,22 +97,22 @@ Feature: Bepalen precariobelasting voor terras op openbare grond Rotterdam
   Scenario: Niet belastingplichtig - geen terras
     Given the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "algemene_plaatselijke_verordening/exploitatievergunning":
       | kvk_nummer | bsn_eigenaar | heeft_geldige_vog | schenkt_alcohol | horecagebiedsplan | categorie_toegestaan | vergunning_geschiedenis | ingetrokken_slecht_levensgedrag | beheerders | alle_hebben_vog | alle_voldoen_leeftijd | geen_onder_curatele | heeft_svh_diploma | heeft_exploitatievergunning | categorie | horeca_toegestaan |
-      | 85234567   | null         | null              | null            | null              | null                 | null                    | null                            | []         | null            | null                  | null                | null              | null                        | null      | null              |
+      | "85234567" | null         | null              | null            | null              | null                 | null                    | null                            | []         | null            | null                  | null                | null              | null                        | null      | null              |
     And the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "algemene_plaatselijke_verordening/terrassen":
       | kvk_nummer | heeft_alcoholvergunning | terrassenbeleid_gebied | tarief_per_m2 |
-      | 85234567   | null                    |                        | 25            |
+      | "85234567" | null                    |                        | 25            |
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/bedrijfsgegevens":
       | kvk_nummer | organisatie_gegevens                                                                                                                                                     |
-      | 85234567   | {"kvk_nummer":"85234567","rechtsvorm":"VOF","status":"Actief","aantal_werknemers":0,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Witte de Withstraat 1"} |
+      | "85234567" | {"kvk_nummer":"85234567","rechtsvorm":"VOF","status":"Actief","aantal_werknemers":0,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Witte de Withstraat 1"} |
     And the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "verordening_precariobelasting":
       | kvk_nummer | heeft_terras | is_openbare_weg |
-      | 85234567   | false        | true            |
+      | "85234567" | false        | true            |
     And the following "KADASTER" data with key "adres" for law "wet_bag":
       | adres                 | verblijfsobject |
       | Witte de Withstraat 1 | null            |
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 85234567   | null               | null                   | null         | null                         | null                | null                      |
+      | "85234567" | null               | null                   | null         | null                         | null                | null                      |
     And the following parameters:
       | heeft_actieve_vergunning | true |
       | vergunde_oppervlakte     | 10   |
@@ -122,22 +122,22 @@ Feature: Bepalen precariobelasting voor terras op openbare grond Rotterdam
   Scenario: Niet belastingplichtig - geen actieve terrasvergunning
     Given the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "algemene_plaatselijke_verordening/exploitatievergunning":
       | kvk_nummer | bsn_eigenaar | heeft_geldige_vog | schenkt_alcohol | horecagebiedsplan | categorie_toegestaan | vergunning_geschiedenis | ingetrokken_slecht_levensgedrag | beheerders | alle_hebben_vog | alle_voldoen_leeftijd | geen_onder_curatele | heeft_svh_diploma | heeft_exploitatievergunning | categorie | horeca_toegestaan |
-      | 85234567   | null         | null              | null            | null              | null                 | null                    | null                            | []         | null            | null                  | null                | null              | null                        | null      | null              |
+      | "85234567" | null         | null              | null            | null              | null                 | null                    | null                            | []         | null            | null                  | null                | null              | null                        | null      | null              |
     And the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "algemene_plaatselijke_verordening/terrassen":
       | kvk_nummer | heeft_alcoholvergunning | terrassenbeleid_gebied | tarief_per_m2 |
-      | 85234567   | null                    |                        | 25            |
+      | "85234567" | null                    |                        | 25            |
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/bedrijfsgegevens":
       | kvk_nummer | organisatie_gegevens                                                                                                                                                     |
-      | 85234567   | {"kvk_nummer":"85234567","rechtsvorm":"VOF","status":"Actief","aantal_werknemers":0,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Witte de Withstraat 1"} |
+      | "85234567" | {"kvk_nummer":"85234567","rechtsvorm":"VOF","status":"Actief","aantal_werknemers":0,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Witte de Withstraat 1"} |
     And the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "verordening_precariobelasting":
       | kvk_nummer | heeft_terras | is_openbare_weg |
-      | 85234567   | true         | true            |
+      | "85234567" | true         | true            |
     And the following "KADASTER" data with key "adres" for law "wet_bag":
       | adres                 | verblijfsobject |
       | Witte de Withstraat 1 | null            |
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 85234567   | null               | null                   | null         | null                         | null                | null                      |
+      | "85234567" | null               | null                   | null         | null                         | null                | null                      |
     And the following parameters:
       | heeft_actieve_vergunning | false |
       | vergunde_oppervlakte     | 10    |
@@ -147,22 +147,22 @@ Feature: Bepalen precariobelasting voor terras op openbare grond Rotterdam
   Scenario: Niet belastingplichtig - locatie niet op openbare weg
     Given the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "algemene_plaatselijke_verordening/exploitatievergunning":
       | kvk_nummer | bsn_eigenaar | heeft_geldige_vog | schenkt_alcohol | horecagebiedsplan | categorie_toegestaan | vergunning_geschiedenis | ingetrokken_slecht_levensgedrag | beheerders | alle_hebben_vog | alle_voldoen_leeftijd | geen_onder_curatele | heeft_svh_diploma | heeft_exploitatievergunning | categorie | horeca_toegestaan |
-      | 85234567   | null         | null              | null            | null              | null                 | null                    | null                            | []         | null            | null                  | null                | null              | null                        | null      | null              |
+      | "85234567" | null         | null              | null            | null              | null                 | null                    | null                            | []         | null            | null                  | null                | null              | null                        | null      | null              |
     And the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "algemene_plaatselijke_verordening/terrassen":
       | kvk_nummer | heeft_alcoholvergunning | terrassenbeleid_gebied | tarief_per_m2 |
-      | 85234567   | null                    |                        | 25            |
+      | "85234567" | null                    |                        | 25            |
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/bedrijfsgegevens":
       | kvk_nummer | organisatie_gegevens                                                                                                                                                     |
-      | 85234567   | {"kvk_nummer":"85234567","rechtsvorm":"VOF","status":"Actief","aantal_werknemers":0,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Witte de Withstraat 1"} |
+      | "85234567" | {"kvk_nummer":"85234567","rechtsvorm":"VOF","status":"Actief","aantal_werknemers":0,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Witte de Withstraat 1"} |
     And the following "GEMEENTE_ROTTERDAM" data with key "kvk_nummer" for law "verordening_precariobelasting":
       | kvk_nummer | heeft_terras | is_openbare_weg |
-      | 85234567   | true         | false           |
+      | "85234567" | true         | false           |
     And the following "KADASTER" data with key "adres" for law "wet_bag":
       | adres                 | verblijfsobject |
       | Witte de Withstraat 1 | null            |
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 85234567   | null               | null                   | null         | null                         | null                | null                      |
+      | "85234567" | null               | null                   | null         | null                         | null                | null                      |
     And the following parameters:
       | heeft_actieve_vergunning | true |
       | vergunde_oppervlakte     | 10   |

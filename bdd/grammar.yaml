@@ -8,14 +8,17 @@ version: 1
 
 # What a captured value means once it reaches the engine.
 #
-# The quoted form does not mean "text". `is "42"` and `is 42` name the same
-# value; the content decides what it is, and the quotes are only there because
-# the language has no bare form for a boolean or a date — the editor writes
-# every boolean as `is "true"`. Reading quotes as text would hand the engine a
-# String where the law compares a Bool, and EQUALS is structural, so that
-# comparison silently goes false instead of failing.
+# Digits in double quotes are text: `is "42"` is the text 42, and `is 42` the
+# number. A number has a bare form, so the quotes say something there. What
+# has no bare form keeps its meaning inside quotes: `"true"` and `"false"` are
+# booleans (the editor writes every boolean as `is "true"`), `"null"` or an
+# empty pair is an absence, and `"[]"` or another JSON list or record is that
+# value. A date is written as text and read as a date where the law asks for
+# one. An identifier that consists of digits (a BSN, a KVK number) is text this
+# way, as the law declares it; RFC-055 no longer lets a number pass for a
+# string.
 #
-# A data-table cell carries no quoting either, and reads the same way. A
+# A data-table cell carries no quoting of its own, and its content decides. A
 # numeric-looking identifier would lose its string form that way (a leading
 # zero does not survive), so a cell may say that it is text: a cell written in
 # double quotes, `"56102"`, is that text, whatever it looks like. RFC-055 no
@@ -27,7 +30,7 @@ version: 1
 # packages/engine/tests/bdd, JS frontend/src/gherkin), so a change here changes
 # both engines and neither can hold its own opinion. See issue #1160.
 value_typing:
-  quoted: inferred
+  quoted: inferred_without_numbers
   bare: number
   table_cell: inferred
 

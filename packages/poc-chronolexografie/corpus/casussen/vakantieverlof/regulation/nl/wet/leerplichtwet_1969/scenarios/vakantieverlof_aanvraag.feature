@@ -11,16 +11,16 @@ Feature: De aanvraag om vakantieverlof, met de Awb erop
 
   Scenario: Een volledige aanvraag geeft de velden van 4:2 en de beslistermijn van 4:13
     Given the following parameters:
-      | bsn_jongere           | 999990019             |
-      | eerste_verlofdag      | 2027-02-01            |
-      | laatste_verlofdag     | 2027-02-05            |
-      | aanvraag_ondertekend  | true                  |
-      | naam_aanvrager        | J. Jansen             |
-      | adres_aanvrager       | Voorbeeldstraat 1     |
-      | dagtekening           | 2026-10-12            |
-      | gevraagde_beschikking | vakantieverlof        |
-      | datum_ontvangst       | 2026-10-13            |
-      | specifieke_aard_beroep_ouder       | true |
+      | bsn_jongere                  | "999990019"       |
+      | eerste_verlofdag             | 2027-02-01        |
+      | laatste_verlofdag            | 2027-02-05        |
+      | aanvraag_ondertekend         | true              |
+      | naam_aanvrager               | J. Jansen         |
+      | adres_aanvrager              | Voorbeeldstraat 1 |
+      | dagtekening                  | 2026-10-12        |
+      | gevraagde_beschikking        | vakantieverlof    |
+      | datum_ontvangst              | 2026-10-13        |
+      | specifieke_aard_beroep_ouder | true              |
     Given the following findings:
       | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
       | verlof_al_verleend_in_schooljaar_volgens_hoofd   | false |
@@ -33,16 +33,16 @@ Feature: De aanvraag om vakantieverlof, met de Awb erop
 
   Scenario: Zonder adres bevat de aanvraag niet wat 4:2 eist
     Given the following parameters:
-      | bsn_jongere           | 999990019             |
-      | eerste_verlofdag      | 2027-02-01            |
-      | laatste_verlofdag     | 2027-02-05            |
-      | aanvraag_ondertekend  | true                  |
-      | naam_aanvrager        | J. Jansen             |
-      | adres_aanvrager       | null                  |
-      | dagtekening           | 2026-10-12            |
-      | gevraagde_beschikking | vakantieverlof        |
-      | datum_ontvangst       | 2026-10-13            |
-      | specifieke_aard_beroep_ouder       | true |
+      | bsn_jongere                  | "999990019"    |
+      | eerste_verlofdag             | 2027-02-01     |
+      | laatste_verlofdag            | 2027-02-05     |
+      | aanvraag_ondertekend         | true           |
+      | naam_aanvrager               | J. Jansen      |
+      | adres_aanvrager              | null           |
+      | dagtekening                  | 2026-10-12     |
+      | gevraagde_beschikking        | vakantieverlof |
+      | datum_ontvangst              | 2026-10-13     |
+      | specifieke_aard_beroep_ouder | true           |
     Given the following findings:
       | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
       | verlof_al_verleend_in_schooljaar_volgens_hoofd   | false |

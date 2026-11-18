@@ -13,46 +13,53 @@ articles:
   - number: '1'
     url: https://example.com/test_value_typing/1
     text: >-
-      De waarde is een getal indien zij gelijk is aan 42, en tekst indien zij
-      gelijk is aan "42".
+      De tekst is tweeënveertig indien zij gelijk is aan "42", het getal indien
+      het gelijk is aan 42, de vlag staat indien zij waar is, en twee staat in de lijst indien de
+      lijst haar bevat.
     machine_readable:
       execution:
         parameters:
-          - name: waarde
+          - name: tekst
             type: string
-            required: true
-        output:
-          - name: waarde_is_getal
+            required: false
+          - name: getal
+            type: number
+            required: false
+          - name: vlag
             type: boolean
-          - name: waarde_is_tekst
+            required: false
+          - name: lijst
+            type: array
+            required: false
+        output:
+          - name: tekst_is_42
+            type: boolean
+          - name: getal_is_42
+            type: boolean
+          - name: vlag_staat
+            type: boolean
+          - name: twee_in_lijst
             type: boolean
         actions:
-          # EQUALS is structureel: Int(42) en String("42") zijn niet gelijk.
-          # Daarmee verraadt de uitkomst welk type de stap heeft opgeleverd.
-          # De parameter is als tekst gedeclareerd, maar juist welk type de
-          # stap aanlevert staat hier ter discussie; de typecontrole (RFC-037,
-          # T3) zou een vergelijking van een tekst met het getal 42 terecht
-          # afkeuren. De vergelijking gaat daarom over lijsten van één element:
-          # die vergelijkt EQUALS element voor element, met dezelfde uitkomst.
-          - output: waarde_is_getal
+          # Elke uitkomst leest één parameter, zodat een scenario alleen de
+          # parameter hoeft te geven waar het over gaat.
+          - output: tekst_is_42
             value:
               operation: EQUALS
-              subject:
-                operation: LIST
-                items:
-                  - $waarde
-              value:
-                operation: LIST
-                items:
-                  - 42
-          - output: waarde_is_tekst
+              subject: $tekst
+              value: '42'
+          - output: getal_is_42
             value:
               operation: EQUALS
-              subject:
-                operation: LIST
-                items:
-                  - $waarde
-              value:
-                operation: LIST
-                items:
-                  - '42'
+              subject: $getal
+              value: 42
+          - output: vlag_staat
+            value:
+              operation: EQUALS
+              subject: $vlag
+              value: true
+          - output: twee_in_lijst
+            value:
+              operation: IN
+              subject: 2
+              value: $lijst

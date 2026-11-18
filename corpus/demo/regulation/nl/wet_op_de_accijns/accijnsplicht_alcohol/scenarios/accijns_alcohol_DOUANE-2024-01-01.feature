@@ -8,7 +8,7 @@ Feature: Bepalen accijnsplicht en tarief voor alcoholhoudende dranken
     And parameter "kvk_nummer" is "85234567"
     And the following "DOUANE" data with key "kvk_nummer" for law "wet_op_de_accijns/accijnsplicht_alcohol":
       | kvk_nummer | heeft_agp_vergunning_register |
-      | 85234567   | false                         |
+      | "85234567" | false                         |
 
   # Artikel 7 lid 1 rondt het volumeprocent naar beneden af op één decimaal, en
   # pas daarna wordt vermenigvuldigd. Met het ruwe percentage zou 5,28% als

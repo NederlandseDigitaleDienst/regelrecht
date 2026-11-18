@@ -111,7 +111,7 @@ describe('ScenarioStatusPane', () => {
 
     // The tab changes the second scenario's inkomen to 1, without saving.
     const file = useOpenScenariosStore().find({ trajectRef: TRAJECT, lawId: 'wet_a', filename: 'basis.feature' })!;
-    file.setValues(1, { ...file.values.value[1]!, parameterValues: { inkomen: '1' } });
+    file.setValues(1, { ...file.values.value[1]!, parameterValues: { inkomen: 1 } });
     await vi.waitFor(async () => {
       await settle();
       expect(statusesOf(w)).toEqual([]);

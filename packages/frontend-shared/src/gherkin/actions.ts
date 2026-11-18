@@ -105,6 +105,13 @@ export function quotedValue(raw: unknown): unknown {
   switch (TYPING.quoted) {
     case 'literal': return raw;
     case 'inferred': return parseValue(raw);
+    // By content, except that digits in quotes are text: a number has a
+    // bare form, so the quotes say something.
+    case 'inferred_without_numbers': {
+      if (typeof raw !== 'string') return raw;
+      const value = parseValue(raw);
+      return typeof value === 'number' ? raw : value;
+    }
     default:
       throw new Error(`bdd/grammar.yaml: unknown value_typing.quoted '${TYPING.quoted}'`);
   }
@@ -255,9 +262,9 @@ function tierUnsupported(tier: string): Error {
  *
  * `action` is the canonical action id from the grammar and `args` the
  * ordered typed captures plus literals. A quoted capture is typed by
- * inference (`value_typing.quoted`), so `"404"` arrives as a number; the arms
- * that need text, such as a law id or the substring of an error message,
- * read it through `text`, which turns it back into one. `table`
+ * `value_typing.quoted`, so `"true"` arrives as a boolean; the arms that
+ * need text, such as a law id or the substring of an error message, read it
+ * through `text`, which turns it back into one. `table`
  * holds the step's data table rows, or null; row 0 is a header for a
  * data-source table and a value row for a parameter table.
  */

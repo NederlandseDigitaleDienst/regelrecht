@@ -11,9 +11,9 @@ Feature: Het college oordeelt zoals het geneeskundig advies
   Background:
     Given the calculation date is "2026-10-20"
     Given the following parameters:
-      | bsn_aanvrager | 999990020  |
-      | dagtekening   | 2026-10-05 |
-      | besluit_datum | 2026-10-20 |
+      | bsn_aanvrager | "999990020" |
+      | dagtekening   | 2026-10-05  |
+      | besluit_datum | 2026-10-20  |
 
   Scenario: Het advies vindt een langdurige loopbeperking
     Given the following findings:

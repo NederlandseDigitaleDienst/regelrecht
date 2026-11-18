@@ -597,11 +597,11 @@ export function syncEditedValues(formState: FormState, scenarioIndex: number, va
       dropParameter(name);
       continue;
     }
-    // Same rule as reading a step: the content decides. An input control hands
-    // back a raw string, and leaving it at that would write `is "50000"` where
-    // the scenario said `is 50000`.
-    // A form control may hand back a number or boolean too; parseValue passes
-    // those through untouched.
+    // A control for a declared type hands back a value of that type, and it
+    // passes through. A text control hands back a string, which is read as
+    // the quoted form of a step reads it: digits are text. The form reads a
+    // parameter without a declaration by its content before it gets here
+    // (ScenarioForm).
     applyParameter(name, quotedValue(rawValue as string));
   }
 
@@ -685,13 +685,21 @@ function formatTypedCell(value: unknown): string {
   return formatCell(needsQuotes(value) ? `"${value}"` : value);
 }
 
-// A text that a runner would read as something else when written bare: the
-// string `42` is the number 42 without quotes, `true` a boolean, and a text
-// that is itself in double quotes would lose them. A table cell in double
-// quotes is that text (bdd/grammar.yaml, `value_typing`), so such a value is
-// written so, or a save would change its type.
+// A text that a runner would read as something else when written bare in a
+// table cell: the string `42` is the number 42 without quotes, `true` a
+// boolean, and a text that is itself in double quotes would lose them. A
+// table cell in double quotes is that text (bdd/grammar.yaml,
+// `value_typing`), so such a value is written so, or a save would change its
+// type.
 function needsQuotes(value: unknown): value is string {
   return typeof value === 'string' && value !== '' && tableCellValue(value) !== value;
+}
+
+// A text the step `parameter "x" is "…"` cannot say: its capture keeps the
+// meaning of what has no bare form (`"true"`, `"null"`, `"[]"`), and it
+// cannot hold a double quote. Digits are no such case: `is "42"` is the text.
+function stepWouldRetype(value: unknown): value is string {
+  return typeof value === 'string' && value !== '' && (quotedValue(value) !== value || value.includes('"'));
 }
 
 function formatValue(value: unknown): unknown {
@@ -772,10 +780,8 @@ function writeSetupSteps(lines: string[], setup: FormSetup, indent: string): voi
       }
     } else if (typeof param.value === 'number') {
       lines.push(`${indent}${KW.set_parameter_number} ${TPL.set_parameter_number([param.name, formatValue(param.value)])}`);
-    } else if (needsQuotes(param.value)) {
-      // The step `parameter "x" is "42"` reads its capture by content, and
-      // the capture cannot hold a quote. A parameter table can say that a
-      // value is text.
+    } else if (stepWouldRetype(param.value)) {
+      // A parameter table can say that such a value is text.
       lines.push(`${indent}${KW.set_parameters_table} ${TPL.set_parameters_table([])}`);
       lines.push(`${indent}  | ${formatCell(param.name)} | ${formatTypedCell(param.value)} |`);
     } else {

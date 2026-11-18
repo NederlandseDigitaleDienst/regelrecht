@@ -7,18 +7,18 @@ Feature: Keuzemomenten bij het terugbetalen van studieschuld
 
   Scenario: Zonder aangevraagde draagkrachtmeting betaalt een SF15-oud-debiteur het wettelijke maandbedrag
     Given the following "personas" data with key "bsn":
-      | bsn       | huishoudtype        | heeft_partner | eerste_studiefinanciering_jaar | onderwijssoort | is_levenlanglerenkrediet | toetsingsinkomen | toetsingsinkomen_actueel | toetsingsinkomen_partner |
-      | 100000003 | alleenstaand_met_kind | false       | 2004                           | wo             | false                    | 3200000          | 3200000                  | 0                        |
+      | bsn         | huishoudtype          | heeft_partner | eerste_studiefinanciering_jaar | onderwijssoort | is_levenlanglerenkrediet | toetsingsinkomen | toetsingsinkomen_actueel | toetsingsinkomen_partner |
+      | "100000003" | alleenstaand_met_kind | false         | 2004                           | wo             | false                    | 3200000          | 3200000                  | 0                        |
     Given the following parameters:
-      | parameter                   | value              |
-      | bsn                         | 100000003          |
-      | restschuld                  | 3000000            |
-      | resterende_maanden          | 180                |
-      | discontofactor              | 0.7180650479405961 |
-      | draagkracht_aangevraagd     | false              |
-      | partner_meetellen           | true               |
-      | peiljaarverlegging_toegepast | false             |
-      | overstap_aangevraagd        | false              |
+      | parameter                    | value              |
+      | bsn                          | "100000003"        |
+      | restschuld                   | 3000000            |
+      | resterende_maanden           | 180                |
+      | discontofactor               | 0.7180650479405961 |
+      | draagkracht_aangevraagd      | false              |
+      | partner_meetellen            | true               |
+      | peiljaarverlegging_toegepast | false              |
+      | overstap_aangevraagd         | false              |
     When I evaluate "draagkrachtmeting_van_toepassing" of "wet_studiefinanciering_2000"
     Then output "draagkrachtmeting_van_toepassing" is false
     # Wettelijk maandbedrag: annuïteit over EUR 30.000, 180 maanden, 2,21%.
@@ -37,18 +37,18 @@ Feature: Keuzemomenten bij het terugbetalen van studieschuld
 
   Scenario: Overstap vanuit SF15-oud leidt onder huidig recht naar het 35-jaarsregime
     Given the following "personas" data with key "bsn":
-      | bsn       | huishoudtype | heeft_partner | eerste_studiefinanciering_jaar | onderwijssoort | is_levenlanglerenkrediet | toetsingsinkomen | toetsingsinkomen_actueel | toetsingsinkomen_partner |
-      | 100000001 | alleenstaand | false         | 2005                           | hbo            | false                    | 4500000          | 4500000                  | 0                        |
+      | bsn         | huishoudtype | heeft_partner | eerste_studiefinanciering_jaar | onderwijssoort | is_levenlanglerenkrediet | toetsingsinkomen | toetsingsinkomen_actueel | toetsingsinkomen_partner |
+      | "100000001" | alleenstaand | false         | 2005                           | hbo            | false                    | 4500000          | 4500000                  | 0                        |
     Given the following parameters:
-      | parameter                   | value              |
-      | bsn                         | 100000001          |
-      | restschuld                  | 2500000            |
-      | resterende_maanden          | 180                |
-      | discontofactor              | 0.7180650479405961 |
-      | draagkracht_aangevraagd     | false              |
-      | partner_meetellen           | true               |
-      | peiljaarverlegging_toegepast | false             |
-      | overstap_aangevraagd        | true               |
+      | parameter                    | value              |
+      | bsn                          | "100000001"        |
+      | restschuld                   | 2500000            |
+      | resterende_maanden           | 180                |
+      | discontofactor               | 0.7180650479405961 |
+      | draagkracht_aangevraagd      | false              |
+      | partner_meetellen            | true               |
+      | peiljaarverlegging_toegepast | false              |
+      | overstap_aangevraagd         | true               |
     When I evaluate "terugbetaalregime" of "wet_studiefinanciering_2000"
     Then output "terugbetaalregime" equals "SF35"
     When I evaluate "terugbetaalperiode_maanden" of "wet_studiefinanciering_2000"
@@ -62,18 +62,18 @@ Feature: Keuzemomenten bij het terugbetalen van studieschuld
 
   Scenario: Peiljaarverlegging vereist een inkomensdaling van ten minste 15 procent
     Given the following "personas" data with key "bsn":
-      | bsn       | huishoudtype | heeft_partner | eerste_studiefinanciering_jaar | onderwijssoort | is_levenlanglerenkrediet | toetsingsinkomen | toetsingsinkomen_actueel | toetsingsinkomen_partner |
-      | 100000006 | alleenstaand | false         | 2019                           | hbo            | true                     | 2100000          | 1600000                  | 0                        |
+      | bsn         | huishoudtype | heeft_partner | eerste_studiefinanciering_jaar | onderwijssoort | is_levenlanglerenkrediet | toetsingsinkomen | toetsingsinkomen_actueel | toetsingsinkomen_partner |
+      | "100000006" | alleenstaand | false         | 2019                           | hbo            | true                     | 2100000          | 1600000                  | 0                        |
     Given the following parameters:
-      | parameter                   | value              |
-      | bsn                         | 100000006          |
-      | restschuld                  | 900000             |
-      | resterende_maanden          | 180                |
-      | discontofactor              | 0.7180650479405961 |
-      | draagkracht_aangevraagd     | false              |
-      | partner_meetellen           | true               |
-      | peiljaarverlegging_toegepast | true              |
-      | overstap_aangevraagd        | false              |
+      | parameter                    | value              |
+      | bsn                          | "100000006"        |
+      | restschuld                   | 900000             |
+      | resterende_maanden           | 180                |
+      | discontofactor               | 0.7180650479405961 |
+      | draagkracht_aangevraagd      | false              |
+      | partner_meetellen            | true               |
+      | peiljaarverlegging_toegepast | true               |
+      | overstap_aangevraagd         | false              |
     # Daling van 2100000 naar 1600000 is ruim 15%: verlegging mogelijk.
     When I evaluate "peiljaarverlegging_mogelijk" of "wet_studiefinanciering_2000"
     Then output "peiljaarverlegging_mogelijk" is true
@@ -85,18 +85,18 @@ Feature: Keuzemomenten bij het terugbetalen van studieschuld
 
   Scenario: Peiljaarverlegging zonder voldoende inkomensdaling verandert niets
     Given the following "personas" data with key "bsn":
-      | bsn       | huishoudtype | heeft_partner | eerste_studiefinanciering_jaar | onderwijssoort | is_levenlanglerenkrediet | toetsingsinkomen | toetsingsinkomen_actueel | toetsingsinkomen_partner |
-      | 100000006 | alleenstaand | false         | 2019                           | hbo            | true                     | 2100000          | 2000000                  | 0                        |
+      | bsn         | huishoudtype | heeft_partner | eerste_studiefinanciering_jaar | onderwijssoort | is_levenlanglerenkrediet | toetsingsinkomen | toetsingsinkomen_actueel | toetsingsinkomen_partner |
+      | "100000006" | alleenstaand | false         | 2019                           | hbo            | true                     | 2100000          | 2000000                  | 0                        |
     Given the following parameters:
-      | parameter                   | value              |
-      | bsn                         | 100000006          |
-      | restschuld                  | 900000             |
-      | resterende_maanden          | 180                |
-      | discontofactor              | 0.7180650479405961 |
-      | draagkracht_aangevraagd     | false              |
-      | partner_meetellen           | true               |
-      | peiljaarverlegging_toegepast | true              |
-      | overstap_aangevraagd        | false              |
+      | parameter                    | value              |
+      | bsn                          | "100000006"        |
+      | restschuld                   | 900000             |
+      | resterende_maanden           | 180                |
+      | discontofactor               | 0.7180650479405961 |
+      | draagkracht_aangevraagd      | false              |
+      | partner_meetellen            | true               |
+      | peiljaarverlegging_toegepast | true               |
+      | overstap_aangevraagd         | false              |
     When I evaluate "peiljaarverlegging_mogelijk" of "wet_studiefinanciering_2000"
     Then output "peiljaarverlegging_mogelijk" is false
     When I evaluate "gehanteerd_toetsingsinkomen" of "wet_studiefinanciering_2000"
@@ -104,18 +104,18 @@ Feature: Keuzemomenten bij het terugbetalen van studieschuld
 
   Scenario: Partnerinkomen niet laten meetellen geeft draagkracht nihil maar verlengt de aflosfase
     Given the following "personas" data with key "bsn":
-      | bsn       | huishoudtype | heeft_partner | eerste_studiefinanciering_jaar | onderwijssoort | is_levenlanglerenkrediet | toetsingsinkomen | toetsingsinkomen_actueel | toetsingsinkomen_partner |
-      | 100000002 | paar         | true          | 1990                           | hbo            | false                    | 800000           | 800000                   | 6200000                  |
+      | bsn         | huishoudtype | heeft_partner | eerste_studiefinanciering_jaar | onderwijssoort | is_levenlanglerenkrediet | toetsingsinkomen | toetsingsinkomen_actueel | toetsingsinkomen_partner |
+      | "100000002" | paar         | true          | 1990                           | hbo            | false                    | 800000           | 800000                   | 6200000                  |
     Given the following parameters:
-      | parameter                   | value              |
-      | bsn                         | 100000002          |
-      | restschuld                  | 1800000            |
-      | resterende_maanden          | 180                |
-      | discontofactor              | 0.7180650479405961 |
-      | draagkracht_aangevraagd     | true               |
-      | partner_meetellen           | true               |
-      | peiljaarverlegging_toegepast | false             |
-      | overstap_aangevraagd        | false              |
+      | parameter                    | value              |
+      | bsn                          | "100000002"        |
+      | restschuld                   | 1800000            |
+      | resterende_maanden           | 180                |
+      | discontofactor               | 0.7180650479405961 |
+      | draagkracht_aangevraagd      | true               |
+      | partner_meetellen            | true               |
+      | peiljaarverlegging_toegepast | false              |
+      | overstap_aangevraagd         | false              |
     When I evaluate "partner_opt_out_mogelijk" of "wet_studiefinanciering_2000"
     Then output "partner_opt_out_mogelijk" is true
     # Met partnerinkomen meegeteld: forse draagkracht.

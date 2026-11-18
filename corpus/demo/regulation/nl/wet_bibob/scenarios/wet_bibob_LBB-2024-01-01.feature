@@ -13,7 +13,7 @@ Feature: Bibob-advies Landelijk Bureau Bibob
     Given parameter "kvk_nummer" is "12345678"
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 12345678   | false              | null                   | null         | false                        | false               | false                     |
+      | "12345678" | false              | null                   | null         | false                        | false               | false                     |
     And the following parameters:
       | beschikking_type | vergunning |
     # POC: parameter "bsn" not provided by the scenario (None in the POC)
@@ -28,7 +28,7 @@ Feature: Bibob-advies Landelijk Bureau Bibob
     Given parameter "kvk_nummer" is "12345678"
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 12345678   | true               | geen_gevaar            | 2024-05-15   | false                        | false               | false                     |
+      | "12345678" | true               | geen_gevaar            | 2024-05-15   | false                        | false               | false                     |
     And the following parameters:
       | beschikking_type | vergunning |
     # POC: parameter "bsn" not provided by the scenario (None in the POC)
@@ -44,7 +44,7 @@ Feature: Bibob-advies Landelijk Bureau Bibob
     Given parameter "kvk_nummer" is "12345678"
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 12345678   | true               | mindere_mate           | 2024-05-15   | true                         | false               | true                      |
+      | "12345678" | true               | mindere_mate           | 2024-05-15   | true                         | false               | true                      |
     And the following parameters:
       | beschikking_type | vergunning |
     # POC: parameter "bsn" not provided by the scenario (None in the POC)
@@ -60,7 +60,7 @@ Feature: Bibob-advies Landelijk Bureau Bibob
     Given parameter "kvk_nummer" is "12345678"
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 12345678   | true               | ernstig_gevaar         | 2024-05-15   | true                         | true                | false                     |
+      | "12345678" | true               | ernstig_gevaar         | 2024-05-15   | true                         | true                | false                     |
     And the following parameters:
       | beschikking_type | vergunning |
     # POC: parameter "bsn" not provided by the scenario (None in the POC)
@@ -76,7 +76,7 @@ Feature: Bibob-advies Landelijk Bureau Bibob
     Given parameter "kvk_nummer" is "12345678"
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 12345678   | true               | ernstig_gevaar         | 2024-05-15   | true                         | false               | true                      |
+      | "12345678" | true               | ernstig_gevaar         | 2024-05-15   | true                         | false               | true                      |
     And the following parameters:
       | beschikking_type | vergunning |
     # POC: parameter "bsn" not provided by the scenario (None in the POC)
@@ -91,7 +91,7 @@ Feature: Bibob-advies Landelijk Bureau Bibob
     Given parameter "kvk_nummer" is "99999990"
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 99999990   | true               | geen_gevaar            | 2024-05-15   | false                        | false               | false                     |
+      | "99999990" | true               | geen_gevaar            | 2024-05-15   | false                        | false               | false                     |
     And the following parameters:
       | beschikking_type | vergunning |
     # POC: parameter "bsn" not provided by the scenario (None in the POC)
@@ -105,7 +105,7 @@ Feature: Bibob-advies Landelijk Bureau Bibob
     Given parameter "kvk_nummer" is "12345678"
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 12345678   | true               | ernstig_gevaar         | 2024-05-15   | false                        | true                | false                     |
+      | "12345678" | true               | ernstig_gevaar         | 2024-05-15   | false                        | true                | false                     |
     And the following parameters:
       | beschikking_type | vergunning |
     # POC: parameter "bsn" not provided by the scenario (None in the POC)
@@ -120,7 +120,7 @@ Feature: Bibob-advies Landelijk Bureau Bibob
     Given parameter "kvk_nummer" is "12345678"
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 12345678   | true               | ernstig_gevaar         | 2024-05-15   | true                         | false               | false                     |
+      | "12345678" | true               | ernstig_gevaar         | 2024-05-15   | true                         | false               | false                     |
     And the following parameters:
       | beschikking_type | vergunning |
     # POC: parameter "bsn" not provided by the scenario (None in the POC)
@@ -136,7 +136,7 @@ Feature: Bibob-advies Landelijk Bureau Bibob
     And parameter "aanvraag_type" is "vergunning"
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 85234567   | true               | geen_gevaar            | 2024-05-20   | false                        | false               | false                     |
+      | "85234567" | true               | geen_gevaar            | 2024-05-20   | false                        | false               | false                     |
     And the following parameters:
       | beschikking_type | vergunning |
     # POC: parameter "bsn" not provided by the scenario (None in the POC)
@@ -151,7 +151,7 @@ Feature: Bibob-advies Landelijk Bureau Bibob
     And parameter "aanvraag_type" is "vastgoedtransactie"
     And the following "LBB" data with key "kvk_nummer" for law "wet_bibob":
       | kvk_nummer | advies_uitgebracht | advies_mate_van_gevaar | advies_datum | relatie_tot_strafbare_feiten | financieringsrisico | voorschriften_geadviseerd |
-      | 98765432   | true               | mindere_mate           | 2024-04-10   | false                        | true                | true                      |
+      | "98765432" | true               | mindere_mate           | 2024-04-10   | false                        | true                | true                      |
     And the following parameters:
       | beschikking_type | vastgoedtransactie |
     # POC: parameter "bsn" not provided by the scenario (None in the POC)

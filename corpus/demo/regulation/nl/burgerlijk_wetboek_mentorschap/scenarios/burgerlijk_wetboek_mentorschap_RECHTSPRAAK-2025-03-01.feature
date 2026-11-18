@@ -11,9 +11,9 @@ Feature: Burgerlijk Wetboek Mentorschap (BW 1:450-462)
   Scenario: Mentor heeft actief mentorschap
     Given parameter "bsn" is "999400001"
     And the following "RECHTSPRAAK" data with key "bsn" for law "burgerlijk_wetboek_mentorschap":
-      | bsn       | mentorschap_registraties                                                                                                          |
-      | 999400001 | [{"bsn_betrokkene":"999500003","naam_betrokkene":"Willem Jansen","datum_ingang":"2023-06-15","datum_einde":null,"status":"ACTIEF"}] |
-      | 999500003 | []                                                                                                                                |
+      | bsn         | mentorschap_registraties                                                                                                            |
+      | "999400001" | [{"bsn_betrokkene":"999500003","naam_betrokkene":"Willem Jansen","datum_ingang":"2023-06-15","datum_einde":null,"status":"ACTIEF"}] |
+      | "999500003" | []                                                                                                                                  |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties" of "burgerlijk_wetboek_mentorschap"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is true
@@ -26,10 +26,10 @@ Feature: Burgerlijk Wetboek Mentorschap (BW 1:450-462)
   Scenario: Persoon is geen mentor
     Given parameter "bsn" is "999999999"
     And the following "RECHTSPRAAK" data with key "bsn" for law "burgerlijk_wetboek_mentorschap":
-      | bsn       | mentorschap_registraties                                                                                                          |
-      | 999999999 | []                                                                                                                                |
-      | 999400001 | [{"bsn_betrokkene":"999500003","naam_betrokkene":"Willem Jansen","datum_ingang":"2023-06-15","datum_einde":null,"status":"ACTIEF"}] |
-      | 999500003 | []                                                                                                                                |
+      | bsn         | mentorschap_registraties                                                                                                            |
+      | "999999999" | []                                                                                                                                  |
+      | "999400001" | [{"bsn_betrokkene":"999500003","naam_betrokkene":"Willem Jansen","datum_ingang":"2023-06-15","datum_einde":null,"status":"ACTIEF"}] |
+      | "999500003" | []                                                                                                                                  |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties, subject_ids, subject_names" of "burgerlijk_wetboek_mentorschap"
     Then output "voldoet_aan_voorwaarden" is false
     And output "heeft_delegaties" is false
@@ -41,9 +41,9 @@ Feature: Burgerlijk Wetboek Mentorschap (BW 1:450-462)
   Scenario: Beeindigd mentorschap geeft geen actieve delegaties
     Given parameter "bsn" is "999400001"
     And the following "RECHTSPRAAK" data with key "bsn" for law "burgerlijk_wetboek_mentorschap":
-      | bsn       | mentorschap_registraties                                                                                                                       |
-      | 999400001 | [{"bsn_betrokkene":"999500003","naam_betrokkene":"Willem Jansen","datum_ingang":"2023-06-15","datum_einde":"2024-12-31","status":"BEEINDIGD"}] |
-      | 999500003 | []                                                                                                                                             |
+      | bsn         | mentorschap_registraties                                                                                                                       |
+      | "999400001" | [{"bsn_betrokkene":"999500003","naam_betrokkene":"Willem Jansen","datum_ingang":"2023-06-15","datum_einde":"2024-12-31","status":"BEEINDIGD"}] |
+      | "999500003" | []                                                                                                                                             |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties, subject_ids" of "burgerlijk_wetboek_mentorschap"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is false
@@ -53,10 +53,10 @@ Feature: Burgerlijk Wetboek Mentorschap (BW 1:450-462)
   Scenario: Mentor met meerdere betrokkenen
     Given parameter "bsn" is "999400001"
     And the following "RECHTSPRAAK" data with key "bsn" for law "burgerlijk_wetboek_mentorschap":
-      | bsn       | mentorschap_registraties                                                                                                                                                                                                                                               |
-      | 999400001 | [{"bsn_betrokkene":"999500003","naam_betrokkene":"Willem Jansen","datum_ingang":"2023-06-15","datum_einde":null,"status":"ACTIEF"},{"bsn_betrokkene":"999500004","naam_betrokkene":"Anna Hulpbehoevend","datum_ingang":"2024-01-01","datum_einde":null,"status":"ACTIEF"}] |
-      | 999500003 | []                                                                                                                                                                                                                                                                     |
-      | 999500004 | []                                                                                                                                                                                                                                                                     |
+      | bsn         | mentorschap_registraties                                                                                                                                                                                                                                                   |
+      | "999400001" | [{"bsn_betrokkene":"999500003","naam_betrokkene":"Willem Jansen","datum_ingang":"2023-06-15","datum_einde":null,"status":"ACTIEF"},{"bsn_betrokkene":"999500004","naam_betrokkene":"Anna Hulpbehoevend","datum_ingang":"2024-01-01","datum_einde":null,"status":"ACTIEF"}] |
+      | "999500003" | []                                                                                                                                                                                                                                                                         |
+      | "999500004" | []                                                                                                                                                                                                                                                                         |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties" of "burgerlijk_wetboek_mentorschap"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is true
@@ -68,10 +68,10 @@ Feature: Burgerlijk Wetboek Mentorschap (BW 1:450-462)
   Scenario: Mentor met mix van actief en beeindigd mentorschap
     Given parameter "bsn" is "999400001"
     And the following "RECHTSPRAAK" data with key "bsn" for law "burgerlijk_wetboek_mentorschap":
-      | bsn       | mentorschap_registraties                                                                                                                                                                                                                                                            |
-      | 999400001 | [{"bsn_betrokkene":"999500003","naam_betrokkene":"Willem Jansen","datum_ingang":"2023-06-15","datum_einde":null,"status":"ACTIEF"},{"bsn_betrokkene":"999500004","naam_betrokkene":"Anna Hulpbehoevend","datum_ingang":"2022-01-01","datum_einde":"2024-06-30","status":"BEEINDIGD"}] |
-      | 999500003 | []                                                                                                                                                                                                                                                                                  |
-      | 999500004 | []                                                                                                                                                                                                                                                                                  |
+      | bsn         | mentorschap_registraties                                                                                                                                                                                                                                                              |
+      | "999400001" | [{"bsn_betrokkene":"999500003","naam_betrokkene":"Willem Jansen","datum_ingang":"2023-06-15","datum_einde":null,"status":"ACTIEF"},{"bsn_betrokkene":"999500004","naam_betrokkene":"Anna Hulpbehoevend","datum_ingang":"2022-01-01","datum_einde":"2024-06-30","status":"BEEINDIGD"}] |
+      | "999500003" | []                                                                                                                                                                                                                                                                                    |
+      | "999500004" | []                                                                                                                                                                                                                                                                                    |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties" of "burgerlijk_wetboek_mentorschap"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is true
@@ -83,9 +83,9 @@ Feature: Burgerlijk Wetboek Mentorschap (BW 1:450-462)
   Scenario: Mentorschap met einddatum in de toekomst is nog actief
     Given parameter "bsn" is "999400001"
     And the following "RECHTSPRAAK" data with key "bsn" for law "burgerlijk_wetboek_mentorschap":
-      | bsn       | mentorschap_registraties                                                                                                                    |
-      | 999400001 | [{"bsn_betrokkene":"999500003","naam_betrokkene":"Willem Jansen","datum_ingang":"2023-06-15","datum_einde":"2026-12-31","status":"ACTIEF"}] |
-      | 999500003 | []                                                                                                                                          |
+      | bsn         | mentorschap_registraties                                                                                                                    |
+      | "999400001" | [{"bsn_betrokkene":"999500003","naam_betrokkene":"Willem Jansen","datum_ingang":"2023-06-15","datum_einde":"2026-12-31","status":"ACTIEF"}] |
+      | "999500003" | []                                                                                                                                          |
     When I evaluate outputs "voldoet_aan_voorwaarden, heeft_delegaties" of "burgerlijk_wetboek_mentorschap"
     Then output "voldoet_aan_voorwaarden" is true
     And output "heeft_delegaties" is true
