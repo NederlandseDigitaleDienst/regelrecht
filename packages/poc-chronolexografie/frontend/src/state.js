@@ -404,11 +404,18 @@ export const isDecimaal = (v) =>
 /** The text a stored number holds: its digits, or its fraction. */
 export const decimaalTekst = (v) => v.__decimal ?? v.__fraction;
 
-/** A stored number as a JavaScript number; a fraction as its nearest double. */
+/**
+ * A stored number as a JavaScript number; a fraction as a double close to it.
+ * The division is done on whole numbers of any size, because a numerator and
+ * a denominator can each be beyond the range of a double while their
+ * quotient is not.
+ */
 export function decimaalGetal(v) {
   if ('__decimal' in v) return Number(v.__decimal);
   const [teller, noemer] = String(v.__fraction).split('/');
-  return Number(teller) / Number(noemer);
+  // A power of two, so scaling back is exact.
+  const BITS = 200n;
+  return Number((BigInt(teller) << BITS) / BigInt(noemer)) / 2 ** Number(BITS);
 }
 
 /**
