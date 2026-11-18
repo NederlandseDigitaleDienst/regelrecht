@@ -4,6 +4,11 @@
  */
 
 export function parseValue(str) {
+  // Text in double quotes is that text, as in the Rust harness and the
+  // engine's own runner: an identifier of digits stays a string that way.
+  if (typeof str === 'string' && str.length >= 2 && str.startsWith('"') && str.endsWith('"')) {
+    return str.slice(1, -1);
+  }
   if (str === 'true') return true;
   if (str === 'false') return false;
   if (str === 'null') return null;

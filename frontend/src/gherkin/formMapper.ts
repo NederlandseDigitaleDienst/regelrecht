@@ -125,6 +125,7 @@ type GrammarId =
   | 'set_parameter_string'
   | 'set_parameter_number'
   | 'set_parameter_collection'
+  | 'set_parameters_table'
   | 'set_data_source'
   | 'set_data_source_for_law'
   | 'evaluate'
@@ -676,6 +677,23 @@ function formatCell(value: unknown): string {
   return String(value).replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
 }
 
+// A cell that holds a typed value, as a parameter and a collection record do
+// (a data-source row holds the cell text as read, and goes through
+// `formatCell` unchanged). A text that would read as another type gets its
+// quotes back.
+function formatTypedCell(value: unknown): string {
+  return formatCell(needsQuotes(value) ? `"${value}"` : value);
+}
+
+// A text that a runner would read as something else when written bare: the
+// string `42` is the number 42 without quotes, `true` a boolean, and a text
+// that is itself in double quotes would lose them. A table cell in double
+// quotes is that text (bdd/grammar.yaml, `value_typing`), so such a value is
+// written so, or a save would change its type.
+function needsQuotes(value: unknown): value is string {
+  return typeof value === 'string' && value !== '' && tableCellValue(value) !== value;
+}
+
 function formatValue(value: unknown): unknown {
   if (value === true) return 'true';
   if (value === false) return 'false';
@@ -749,11 +767,17 @@ function writeSetupSteps(lines: string[], setup: FormSetup, indent: string): voi
       const columns = collectionColumns(param);
       lines.push(`${indent}  | ${columns.map(formatCell).join(' | ')} |`);
       for (const record of param.value) {
-        const cells = columns.map((c) => formatCell(record[c]));
+        const cells = columns.map((c) => formatTypedCell(record[c]));
         lines.push(`${indent}  | ${cells.join(' | ')} |`);
       }
     } else if (typeof param.value === 'number') {
       lines.push(`${indent}${KW.set_parameter_number} ${TPL.set_parameter_number([param.name, formatValue(param.value)])}`);
+    } else if (needsQuotes(param.value)) {
+      // The step `parameter "x" is "42"` reads its capture by content, and
+      // the capture cannot hold a quote. A parameter table can say that a
+      // value is text.
+      lines.push(`${indent}${KW.set_parameters_table} ${TPL.set_parameters_table([])}`);
+      lines.push(`${indent}  | ${formatCell(param.name)} | ${formatTypedCell(param.value)} |`);
     } else {
       lines.push(`${indent}${KW.set_parameter_string} ${TPL.set_parameter_string([param.name, formatValue(param.value)])}`);
     }

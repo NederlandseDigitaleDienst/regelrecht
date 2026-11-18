@@ -903,10 +903,11 @@ Feature: Operations are defined per type — RFC-055
     When I evaluate "soorten_kloppen" of "test_signaturen"
     Then the execution fails with "FOREACH combine DISTINCT is not defined for (number, string)"
 
-  Scenario: combine AND stops at a false, so a later element is not looked at
+  Scenario: combine AND stops at a false, so a later element is not evaluated
+    # The second row has no `keur`: evaluating it would fail.
     Given the following "register" data with key "bsn" for law "test_signaturen":
-      | bsn       | rij                                       |
-      | 999993653 | {"rijen": [{"keur": false}, {"keur": 1}]} |
+      | bsn       | rij                                        |
+      | 999993653 | {"rijen": [{"keur": false}, {"ander": 1}]} |
     When I evaluate "allen_gekeurd" of "test_signaturen"
     Then the execution succeeds
     Then output "allen_gekeurd" is false
@@ -918,10 +919,11 @@ Feature: Operations are defined per type — RFC-055
     When I evaluate "allen_gekeurd" of "test_signaturen"
     Then the execution fails with "FOREACH combine AND is not defined for (number)"
 
-  Scenario: combine OR stops at a true, so a later element is not looked at
+  Scenario: combine OR stops at a true, so a later element is not evaluated
+    # The second row has no `keur`: evaluating it would fail.
     Given the following "register" data with key "bsn" for law "test_signaturen":
-      | bsn       | rij                                         |
-      | 999993653 | {"rijen": [{"keur": true}, {"keur": "ja"}]} |
+      | bsn       | rij                                       |
+      | 999993653 | {"rijen": [{"keur": true}, {"ander": 1}]} |
     When I evaluate "een_gekeurd" of "test_signaturen"
     Then the execution succeeds
     Then output "een_gekeurd" is true
@@ -983,3 +985,10 @@ Feature: Operations are defined per type — RFC-055
       | 999993653 | {"a": [{"onderdeel": 1}]} |
     When I evaluate "onderdeel_ontbreekt" of "test_signaturen"
     Then the execution fails with "Type mismatch: expected object, got array"
+
+  Scenario: combine AND evaluates the element after one that does not settle the answer
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                       |
+      | 999993653 | {"rijen": [{"keur": true}, {"ander": 1}]} |
+    When I evaluate "allen_gekeurd" of "test_signaturen"
+    Then the execution fails with "Variable not found"

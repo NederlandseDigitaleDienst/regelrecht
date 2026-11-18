@@ -128,7 +128,7 @@ The parameters can also come from `parameters_from`, a list of objects merged in
 
 A fixed reference is checked when the laws load: the article takes a decision, and an `output` is one of the decision's outputs. A reference taken from a value is known only when the article runs. The type check then knows the input is a decision value and makes no claim about `$heroverweging.outputs.x`, as for rows. At run time the engine refuses an article not in force on the date, an article without a decision, an `output` that is not one of the decision's, a value that is neither an article reference nor a decision value, and a merged value that is no object. Like any input, the call is made only when an action reads it, so an `AND` whose first condition is false does not run it.
 
-Two decision values are compared with `EQUALS`. On lists and records it compares the numbers inside as written: `12` against `12.0` is an error, not an answer. `IN` is not strict in this way. A decision value holds its numbers as the article computed them, so a whole number the arithmetic left as `5.0` against a stored `5` is that error. A law that wants them alike says so, for example with `ROUND`.
+Two decision values are compared with `EQUALS`. On lists and records it compares the numbers inside as written: `12` against `12.0` is an error, not an answer. `IN` compares the same way ([RFC-055](/rfcs/rfc-055)). A decision value holds its numbers as the article computed them, so a whole number the arithmetic left as `5.0` against a stored `5` is that error. A law that wants them alike says so, for example with `ROUND`.
 
 ## Circular reference detection
 

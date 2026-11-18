@@ -1409,13 +1409,13 @@ fn execute_null_check<R: ValueResolver>(
 // Collection Operations
 // =============================================================================
 
-/// Execute IN / NOT_IN operation.
+/// Execute IN / NOT_IN: whether an element of the array equals the subject.
 ///
-/// Uses Python-style numeric coercion for equality comparison.
-/// When `negate` is true, returns true if subject is *not* in the list (NOT_IN).
-///
-/// Supports both `values: [...]` (inline list) and `value: $list_ref` (reference to a
-/// definition list). When `value` resolves to a non-array, it is wrapped in a single-element vec.
+/// The array is given as `values` (a list of expressions) or as `value` (one
+/// expression that gives an array), never both. An element equals the subject
+/// as `EQUALS` says ([`equal_by_value`]), so an element of another type is an
+/// error when it is reached. Elements are looked at in order up to the first
+/// match (RFC-055).
 fn execute_membership<R: ValueResolver>(
     subject: &ActionValue,
     value: Option<&ActionValue>,
@@ -1441,14 +1441,18 @@ fn execute_membership<R: ValueResolver>(
         ),
         (None, Some(value)) => match evaluate_value(value, resolver, depth)? {
             Value::Array(items) => Box::new(items.into_iter().map(Ok)),
-            // No list is a list nothing is in (RFC-036).
-            Value::Null => return Ok(answer(false)),
             other if other.is_untranslatable() => return Ok(other),
-            other if other.is_unknown() => {
+            // An unknown subject or an unknown list leaves the question open,
+            // whatever the other is: unknown comes before absence and before
+            // the types (RFC-055).
+            other if other.is_unknown() || subject_val.contains_unknown() => {
                 return Ok(
-                    propagate_unknown(resolver, op_name, [&subject_val, &other]).unwrap_or(other)
+                    propagate_unknown_deep(resolver, op_name, [&subject_val, &other])
+                        .unwrap_or(other),
                 );
             }
+            // No list is a list nothing is in (RFC-036).
+            Value::Null => return Ok(answer(false)),
             other => {
                 return Err(signatures::unsupported(
                     op_name,
@@ -1752,7 +1756,9 @@ enum IterationOutcome {
     /// The body produced a value (possibly an unknown one, see
     /// [`evaluate_iteration`]).
     Value(Value),
-    /// The filter is untranslatable, so the whole collection is tainted.
+    /// The filter is untranslatable: the element counts as an untranslatable
+    /// one, which taints the result unless a `combine: AND` or `OR` is settled
+    /// by another element.
     Tainted(Value),
 }
 
@@ -3964,6 +3970,110 @@ mod tests {
     mod collection {
         use super::*;
 
+        fn is_in(subject: ActionValue, values: Vec<ActionValue>) -> ActionOperation {
+            ActionOperation::In {
+                subject,
+                value: None,
+                values: Some(values),
+            }
+        }
+
+        #[test]
+        fn test_in_does_not_evaluate_an_element_after_the_first_match() {
+            // `boom` resolves to an error, so an answer proves it was never
+            // read (RFC-055).
+            let resolver = TestResolver::new();
+            assert_eq!(
+                execute_operation(
+                    &is_in(lit(5i64), vec![lit(5i64), var("boom")]),
+                    &resolver,
+                    0
+                )
+                .unwrap(),
+                Value::Bool(true)
+            );
+            // Before the match it is reached, and so is its error.
+            assert!(
+                execute_operation(
+                    &is_in(lit(5i64), vec![var("boom"), lit(5i64)]),
+                    &resolver,
+                    0
+                )
+                .is_err()
+            );
+        }
+
+        #[test]
+        fn test_in_refuses_an_element_of_another_type_when_it_is_reached() {
+            let resolver = TestResolver::new();
+            let err = execute_operation(&is_in(lit(5i64), vec![lit("5"), lit(5i64)]), &resolver, 0)
+                .unwrap_err();
+            assert_eq!(err.to_string(), "IN is not defined for (number, string)");
+            assert_eq!(
+                execute_operation(&is_in(lit(5i64), vec![lit(5i64), lit("5")]), &resolver, 0)
+                    .unwrap(),
+                Value::Bool(true)
+            );
+        }
+
+        #[test]
+        fn test_in_takes_values_or_value_and_never_both() {
+            let resolver = TestResolver::new().with_var("lijst", Value::Array(vec![Value::Int(5)]));
+            let both = ActionOperation::In {
+                subject: lit(5i64),
+                value: Some(var("lijst")),
+                values: Some(vec![lit(5i64)]),
+            };
+            let err = execute_operation(&both, &resolver, 0).unwrap_err();
+            assert!(
+                matches!(&err, EngineError::InvalidOperation(message) if message.contains("not both")),
+                "{err}"
+            );
+            let neither = ActionOperation::In {
+                subject: lit(5i64),
+                value: None,
+                values: None,
+            };
+            assert!(matches!(
+                execute_operation(&neither, &resolver, 0),
+                Err(EngineError::InvalidOperation(_))
+            ));
+        }
+
+        #[test]
+        fn test_in_with_a_value_that_is_no_list() {
+            let in_value = |name: &str| ActionOperation::In {
+                subject: var("subject"),
+                value: Some(var(name)),
+                values: None,
+            };
+            let known = TestResolver::new()
+                .with_var("subject", Value::Int(5))
+                .with_var("tekst", Value::String("abc".into()))
+                .with_var("geen", Value::Null);
+            let err = execute_operation(&in_value("tekst"), &known, 0).unwrap_err();
+            assert_eq!(err.to_string(), "IN is not defined for (number, string)");
+            // No list is a list nothing is in.
+            assert_eq!(
+                execute_operation(&in_value("geen"), &known, 0).unwrap(),
+                Value::Bool(false)
+            );
+            // An unknown subject leaves the question open before the list is
+            // looked at: unknown comes before absence and before the types.
+            let unknown = TestResolver::new()
+                .with_var("subject", unknown_fact("subject"))
+                .with_var("tekst", Value::String("abc".into()))
+                .with_var("geen", Value::Null);
+            for name in ["tekst", "geen"] {
+                assert!(
+                    execute_operation(&in_value(name), &unknown, 0)
+                        .unwrap()
+                        .is_unknown(),
+                    "{name}"
+                );
+            }
+        }
+
         #[test]
         fn test_in_found() {
             let resolver = TestResolver::new();
@@ -4977,6 +5087,114 @@ mod tests {
             };
             let result = execute_operation(&op, &context, 0).unwrap();
             assert_eq!(result.missing_facts(), onbekend.missing_facts());
+        }
+
+        fn tainted() -> Value {
+            Value::Untranslatable {
+                article: "3".to_string(),
+                construct: "naar redelijkheid".to_string(),
+            }
+        }
+
+        fn verdicts(items: Vec<Value>, combine: CombineOp) -> Result<Value> {
+            let context = ctx(vec![("items", Value::Array(items))]);
+            let op = ActionOperation::Foreach {
+                collection: var("items"),
+                as_name: Some("x".to_string()),
+                body: var("x.keur"),
+                filter: None,
+                combine: Some(combine),
+            };
+            execute_operation(&op, &context, 0)
+        }
+
+        #[test]
+        fn test_foreach_combine_and_or_stop_at_the_element_that_settles_the_answer() {
+            // The element after the deciding one has no `keur`: reading it is
+            // an error, so the answer proves it was never evaluated (RFC-055).
+            let with = |keur: bool| obj(vec![("keur", Value::Bool(keur))]);
+            let without = || obj(vec![("ander", Value::Int(1))]);
+            assert_eq!(
+                verdicts(vec![with(false), without()], CombineOp::And).unwrap(),
+                Value::Bool(false)
+            );
+            assert_eq!(
+                verdicts(vec![with(true), without()], CombineOp::Or).unwrap(),
+                Value::Bool(true)
+            );
+            // An element that does not settle the answer lets the next one be
+            // reached, and its error with it.
+            for (first, combine) in [(true, CombineOp::And), (false, CombineOp::Or)] {
+                let err = verdicts(vec![with(first), without()], combine).unwrap_err();
+                assert!(matches!(err, EngineError::VariableNotFound(_)), "{err}");
+            }
+        }
+
+        #[test]
+        fn test_foreach_combine_and_or_let_a_settling_element_win_over_an_untranslatable_one() {
+            let with = |keur: Value| obj(vec![("keur", keur)]);
+            // Either order: the settling element decides.
+            for items in [
+                vec![with(tainted()), with(Value::Bool(true))],
+                vec![with(Value::Bool(true)), with(tainted())],
+            ] {
+                assert_eq!(verdicts(items, CombineOp::Or).unwrap(), Value::Bool(true));
+            }
+            assert_eq!(
+                verdicts(
+                    vec![with(tainted()), with(Value::Bool(false))],
+                    CombineOp::And
+                )
+                .unwrap(),
+                Value::Bool(false)
+            );
+            // Nothing settles it: the result is the untranslatable value, and
+            // that comes before an unknown one.
+            assert!(
+                verdicts(
+                    vec![with(tainted()), with(Value::Bool(false))],
+                    CombineOp::Or
+                )
+                .unwrap()
+                .is_untranslatable()
+            );
+            assert!(
+                verdicts(
+                    vec![with(unknown_fact("keur")), with(tainted())],
+                    CombineOp::And
+                )
+                .unwrap()
+                .is_untranslatable()
+            );
+        }
+
+        #[test]
+        fn test_foreach_an_untranslatable_filter_counts_as_an_untranslatable_element() {
+            let row = |filter: Value| obj(vec![("past", filter), ("keur", Value::Bool(true))]);
+            let foreach = |combine| ActionOperation::Foreach {
+                collection: var("items"),
+                as_name: Some("x".to_string()),
+                body: var("x.keur"),
+                filter: Some(var("x.past")),
+                combine,
+            };
+            let context = ctx(vec![(
+                "items",
+                Value::Array(vec![row(tainted()), row(Value::Bool(true))]),
+            )]);
+            // Under OR a later element settles the answer.
+            assert_eq!(
+                execute_operation(&foreach(Some(CombineOp::Or)), &context, 0).unwrap(),
+                Value::Bool(true)
+            );
+            // Elsewhere it taints the whole result.
+            for combine in [None, Some(CombineOp::Add), Some(CombineOp::Only)] {
+                assert!(
+                    execute_operation(&foreach(combine), &context, 0)
+                        .unwrap()
+                        .is_untranslatable()
+                );
+            }
         }
 
         #[test]
