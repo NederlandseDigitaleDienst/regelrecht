@@ -93,12 +93,10 @@ COPY packages/wetsproces/casussen/ /app/packages/wetsproces/casussen/
 COPY packages/poc-chronolexografie/corpus/ /app/packages/poc-chronolexografie/corpus/
 
 WORKDIR /app
-# Test mode is de enige modus die deze build kan draaien: stable mode heeft een
-# blijvende kroniek en een login nodig, en weigert te starten zolang die er
-# niet zijn (src/app.rs). Een deployment die stable mode wil, zet
-# WETSPROCES_MODE zelf.
-ENV WETSPROCES_MODE=test \
-    WETSPROCES_MANIFEST=/app/packages/wetsproces/bron.yaml \
+# Geen WETSPROCES_MODE: de modus beslist of de kroniek een herstart overleeft,
+# dus de deployment zet hem zelf (src/config.rs). Zonder weigert de server te
+# starten.
+ENV WETSPROCES_MANIFEST=/app/packages/wetsproces/bron.yaml \
     WETSPROCES_PORT=8000
 USER app
 EXPOSE 8000

@@ -361,6 +361,9 @@ test('wetsproces volgt zijn eigen map, de kern van de poc en het corpus dat zijn
 
   // De frontend van de poc zit niet in het image, maar ligt in de map van de
   // crate; een te ruime build is hier de goedkope kant.
+  assert.equal(namesOf(['packages/poc-chronolexografie/frontend/src/App.vue']).wetsproces, true);
+
+  // Het portaal, de demo en het regelrecht-corpus raken het niet.
   assert.equal(namesOf(['packages/poc-portal/src/app.rs']).wetsproces, false);
   assert.equal(namesOf(['frontend-demo/src/App.vue']).wetsproces, false);
   assert.equal(namesOf(['corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml']).wetsproces, false);

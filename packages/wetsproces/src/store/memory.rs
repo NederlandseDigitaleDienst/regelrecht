@@ -48,13 +48,23 @@ impl ChronicleStore for InMemoryStore {
             .unwrap_or_default())
     }
 
+    async fn load_all(&self, cells: &[&str]) -> Result<Vec<StoredChronicle>, StoreError> {
+        let state = self.state()?;
+        Ok(cells
+            .iter()
+            .map(|cell| state.chronicles.get(*cell).cloned().unwrap_or_default())
+            .collect())
+    }
+
     async fn receipt(&self, key: &IdempotencyKey) -> Result<Option<Receipt>, StoreError> {
         Ok(self.state()?.receipts.get(key).cloned())
     }
 
     async fn append(&self, commit: Commit) -> Result<Appended, StoreError> {
         let mut state = self.state()?;
-        if let Some(receipt) = state.receipts.get(&commit.key) {
+        if let Some(keyed) = &commit.keyed
+            && let Some(receipt) = state.receipts.get(&keyed.key)
+        {
             return Ok(Appended::Replayed(receipt.clone()));
         }
         for append in &commit.appends {
@@ -78,7 +88,9 @@ impl ChronicleStore for InMemoryStore {
                 .grams
                 .extend(append.grams);
         }
-        state.receipts.insert(commit.key, commit.receipt);
+        if let Some(keyed) = commit.keyed {
+            state.receipts.insert(keyed.key, keyed.receipt);
+        }
         Ok(Appended::Committed)
     }
 }
@@ -90,7 +102,7 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::store::CellAppend;
+    use crate::store::{CellAppend, Keyed};
 
     fn gram(id: &str, cell: &str) -> Gram {
         serde_json::from_value(json!({
@@ -111,12 +123,14 @@ mod tests {
 
     fn commit(k: &str, appends: Vec<CellAppend>) -> Commit {
         Commit {
-            key: key(k),
             appends,
-            receipt: Receipt {
-                request: json!({ "k": k }),
-                response: json!({ "answered": k }),
-            },
+            keyed: Some(Keyed {
+                key: key(k),
+                receipt: Receipt {
+                    request: json!({ "k": k }),
+                    response: json!({ "answered": k }),
+                },
+            }),
         }
     }
 
@@ -153,6 +167,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn without_a_key_nothing_is_kept_to_replay() {
+        let store = InMemoryStore::new();
+        let unkeyed = Commit {
+            appends: vec![append("a", 0, &["1"])],
+            keyed: None,
+        };
+        assert_eq!(store.append(unkeyed).await.unwrap(), Appended::Committed);
+        assert!(store.state().unwrap().receipts.is_empty());
+        let both = store.load_all(&["a", "b"]).await.unwrap();
+        assert_eq!(
+            both.iter().map(StoredChronicle::head).collect::<Vec<_>>(),
+            [1, 0]
+        );
+    }
+
+    #[tokio::test]
     async fn a_moved_head_refuses_the_whole_commit() {
         let store = InMemoryStore::new();
         store
@@ -184,7 +214,7 @@ mod tests {
     async fn a_key_used_before_is_replayed_and_applies_nothing() {
         let store = InMemoryStore::new();
         let first = commit("k1", vec![append("a", 0, &["1"])]);
-        let receipt = first.receipt.clone();
+        let receipt = first.keyed.clone().unwrap().receipt;
         store.append(first).await.unwrap();
         assert_eq!(
             store.receipt(&key("k1")).await.unwrap(),
@@ -211,6 +241,5 @@ mod tests {
                 .parse::<IdempotencyKey>()
                 .is_err()
         );
-        assert_ne!(IdempotencyKey::fresh(), IdempotencyKey::fresh());
     }
 }

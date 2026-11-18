@@ -35,7 +35,6 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }
 tower-http = { workspace = true, features = ["trace"] }
 tracing.workspace = true
-uuid = { workspace = true, features = ["v7"] }
 
 [dev-dependencies]
 http-body-util.workspace = true

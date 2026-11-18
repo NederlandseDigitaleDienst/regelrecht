@@ -17,8 +17,9 @@
 //!
 //! A `POST` takes an `Idempotency-Key` header: sent again with the same
 //! request it answers as the first time and records nothing; with another
-//! request it is refused. Without the header the request gets a key of its
-//! own. An error answers `{ "fout": "<why>" }`.
+//! request it is refused. Without the header every request records anew. An
+//! error from the service answers `{ "fout": "<why>" }`; a body that does not
+//! parse gets axum's own plain-text rejection.
 
 use std::sync::Arc;
 
@@ -125,15 +126,16 @@ async fn chronicle(State(state): State<AppState>, Path(cel): Path<String>) -> Ap
     Ok(Json(state.service.chronicle(&cel).await?))
 }
 
-/// The request's key, or a fresh one without the header.
-fn key(headers: &HeaderMap) -> Result<IdempotencyKey, ApiError> {
+/// The request's key, or none without the header.
+fn key(headers: &HeaderMap) -> Result<Option<IdempotencyKey>, ApiError> {
     let Some(value) = headers.get(IDEMPOTENCY_KEY) else {
-        return Ok(IdempotencyKey::fresh());
+        return Ok(None);
     };
     value
         .to_str()
         .map_err(|_| "an idempotency key is visible ASCII, without spaces".to_string())
         .and_then(str::parse)
+        .map(Some)
         .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, e))
 }
 

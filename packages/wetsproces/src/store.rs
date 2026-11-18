@@ -15,9 +15,12 @@
 //!   the new state. A cell the step only read is in the commit too, with no
 //!   records, so a decision on a stale view of another cell is refused as
 //!   well;
-//! - **idempotent**: a commit carries an [`IdempotencyKey`] and the request
-//!   it answered. A second commit under a key already used is not applied;
-//!   the store hands back the first one's [`Receipt`] instead.
+//! - **idempotent**: a commit may carry an [`IdempotencyKey`] and the
+//!   request it answered. A second commit under a key already used is not
+//!   applied; the store hands back the first one's [`Receipt`] instead;
+//! - **one moment**: a step reads all cells of its case at once
+//!   ([`ChronicleStore::load_all`]), so it never sees one cell before a
+//!   commit and another after it.
 //!
 //! [`memory::InMemoryStore`] holds it all in memory, for test mode.
 
@@ -47,14 +50,8 @@ impl StoredChronicle {
 pub struct IdempotencyKey(String);
 
 impl IdempotencyKey {
-    /// The longest key, generous for a uuid with a prefix.
+    /// The longest key, generous for a client's uuid with a prefix.
     pub const MAX_LEN: usize = 128;
-
-    /// A fresh key, for a request that brought none: unique, so the request
-    /// is applied once and never matches another.
-    pub fn fresh() -> Self {
-        Self(uuid::Uuid::now_v7().to_string())
-    }
 
     pub fn as_str(&self) -> &str {
         &self.0
@@ -97,12 +94,20 @@ pub struct Receipt {
     pub response: Value,
 }
 
-/// One step's appends, all or none, under one key.
+/// A key and what the request under it answered.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Keyed {
+    pub key: IdempotencyKey,
+    pub receipt: Receipt,
+}
+
+/// One step's appends, all or none. With a key, the store keeps the
+/// receipt under it; a request without one leaves nothing to replay, so
+/// nothing is kept for it.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Commit {
-    pub key: IdempotencyKey,
     pub appends: Vec<CellAppend>,
-    pub receipt: Receipt,
+    pub keyed: Option<Keyed>,
 }
 
 /// What became of a commit that the store did not refuse.
@@ -138,6 +143,15 @@ pub trait ChronicleStore: Send + Sync + std::fmt::Debug {
     /// [`StoreError::Backend`] when the store fails.
     async fn load(&self, cell: &str) -> Result<StoredChronicle, StoreError>;
 
+    /// The chronicles of `cells`, in that order, as they stood at one
+    /// moment: a step reads every cell of its case from one state, never the
+    /// municipality before a commit and the GGD after it.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError::Backend`] when the store fails.
+    async fn load_all(&self, cells: &[&str]) -> Result<Vec<StoredChronicle>, StoreError>;
+
     /// What the commit under `key` answered, if one was applied.
     ///
     /// # Errors
@@ -146,9 +160,10 @@ pub trait ChronicleStore: Send + Sync + std::fmt::Debug {
     async fn receipt(&self, key: &IdempotencyKey) -> Result<Option<Receipt>, StoreError>;
 
     /// Apply `commit`: every append after its expected head, and the receipt
-    /// under its key, at once. A key used before applies nothing and gives
-    /// [`Appended::Replayed`]; that check comes before the heads, so a retry
-    /// of an applied request is answered even after other requests moved on.
+    /// under its key if it has one, at once. A key used before applies
+    /// nothing and gives [`Appended::Replayed`]; that check comes before the
+    /// heads, so a retry of an applied request is answered even after other
+    /// requests moved on.
     ///
     /// # Errors
     ///

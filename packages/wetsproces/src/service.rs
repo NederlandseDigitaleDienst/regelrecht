@@ -5,9 +5,9 @@
 //!
 //! The steps are those of the chronolexografie poc (`kern`); this module only
 //! carries the state between them. A step that writes ([`Step`]) is
-//! idempotent under its key and runs again on fresh chronicles when another
-//! request got in first ([`StoreError::Conflict`]), up to [`MAX_ATTEMPTS`]
-//! times. A step that only reads records nothing.
+//! idempotent under its key, when it has one, and runs again on fresh
+//! chronicles when another request got in first ([`StoreError::Conflict`]):
+//! [`MAX_ATTEMPTS`] runs in all. A step that only reads records nothing.
 
 use std::sync::Arc;
 
@@ -19,17 +19,13 @@ use serde_json::{Map, Value, json};
 
 use crate::clock::Clock;
 use crate::store::{
-    Appended, CellAppend, ChronicleStore, Commit, IdempotencyKey, Receipt, StoreError,
+    Appended, CellAppend, ChronicleStore, Commit, IdempotencyKey, Keyed, Receipt, StoreError,
     StoredChronicle,
 };
 
-/// How often a step runs again on fresh chronicles after a conflict before
-/// the service gives up.
+/// How often a step runs in all, the first run included, before the service
+/// gives up after conflicts.
 pub const MAX_ATTEMPTS: usize = 3;
-
-/// The key under which the records a case begins with are committed: the
-/// same for every instance, so two that start at once record them once.
-const BEGIN_KEY: &str = "wetsproces-begin";
 
 /// A submission under `artikel` (the case's own article when absent),
 /// referring to the decision `op` if given (`kern::indienen`).
@@ -170,7 +166,13 @@ impl From<regelrecht_cel::Error> for ServiceError {
     fn from(e: regelrecht_cel::Error) -> Self {
         use regelrecht_cel::Error;
         match e {
-            Error::Refused(_) | Error::Engine(_) | Error::Stored(_) => Self::Refused(e.to_string()),
+            Error::Refused(_) | Error::Stored(_) => Self::Refused(e.to_string()),
+            // Mostly a value the request left out, which is the caller's to
+            // give; it may also be a fault in a regelwerk, so it is logged.
+            Error::Engine(_) => {
+                tracing::warn!(error = %e, "the engine refused a step");
+                Self::Refused(e.to_string())
+            }
             Error::Setup(_) | Error::Io(_) => Self::Internal(e.to_string()),
         }
     }
@@ -249,13 +251,11 @@ impl Service {
                 grams,
             })
             .collect();
+        // No key: the expected heads of 0 already make sure the beginning is
+        // recorded once, whichever instance gets there first.
         let commit = Commit {
-            key: BEGIN_KEY.parse().map_err(ServiceError::Internal)?,
             appends,
-            receipt: Receipt {
-                request: json!({ "stap": "begin" }),
-                response: Value::Null,
-            },
+            keyed: None,
         };
         match self.store.append(commit).await {
             // Another instance began first: what it recorded counts.
@@ -315,8 +315,9 @@ impl Service {
         }))
     }
 
-    /// Run `step` under `key` and commit what it recorded. A key used before
-    /// for the same request answers as it did then and records nothing.
+    /// Run `step` and commit what it recorded. Under a `key` used before for
+    /// the same request it answers as it did then and records nothing;
+    /// without a key every call records.
     ///
     /// # Errors
     ///
@@ -324,28 +325,42 @@ impl Service {
     /// [`ServiceError::KeyReused`] when the key answered another request,
     /// [`ServiceError::Busy`] after [`MAX_ATTEMPTS`] conflicts, and the
     /// store's and the service's own failures.
-    pub async fn perform(&self, key: IdempotencyKey, step: Step) -> Result<Value, ServiceError> {
+    pub async fn perform(
+        &self,
+        key: Option<IdempotencyKey>,
+        step: Step,
+    ) -> Result<Value, ServiceError> {
         let request = serde_json::to_value(&step)
             .map_err(|e| ServiceError::Internal(format!("the request does not serialize: {e}")))?;
-        if let Some(receipt) = self.store.receipt(&key).await? {
-            return replay(&key, &request, receipt);
+        if let Some(key) = &key
+            && let Some(receipt) = self.store.receipt(key).await?
+        {
+            return replay(key, &request, receipt);
         }
         let step = Arc::new(step);
         for _ in 0..MAX_ATTEMPTS {
             let ran = self.run(Arc::clone(&step)).await?;
             let commit = Commit {
-                key: key.clone(),
                 appends: ran.appends,
-                receipt: Receipt {
-                    request: request.clone(),
-                    response: ran.response.clone(),
-                },
+                keyed: key.clone().map(|key| Keyed {
+                    key,
+                    receipt: Receipt {
+                        request: request.clone(),
+                        response: ran.response.clone(),
+                    },
+                }),
             };
             match self.store.append(commit).await {
                 Ok(Appended::Committed) => return Ok(ran.response),
-                Ok(Appended::Replayed(receipt)) => return replay(&key, &request, receipt),
+                Ok(Appended::Replayed(receipt)) => {
+                    // Only a keyed commit is replayed.
+                    let key = key.as_ref().ok_or_else(|| {
+                        ServiceError::Internal("a commit without a key was replayed".into())
+                    })?;
+                    return replay(key, &request, receipt);
+                }
                 Err(StoreError::Conflict { cell, .. }) => {
-                    tracing::debug!(%cell, key = key.as_str(), "conflict; running the step again");
+                    tracing::debug!(%cell, "conflict; running the step again");
                 }
                 Err(e) => return Err(e.into()),
             }
@@ -374,11 +389,16 @@ impl Service {
         .await
     }
 
-    /// Every cell's chronicle, in the order of the case.
+    /// Every cell's chronicle, in the order of the case, at one moment.
     async fn read(&self) -> Result<Read, ServiceError> {
-        let mut chronicles = Vec::with_capacity(self.cells.len());
-        for cell in &self.cells {
-            chronicles.push(self.store.load(cell).await?);
+        let cells: Vec<&str> = self.cells.iter().map(String::as_str).collect();
+        let chronicles = self.store.load_all(&cells).await?;
+        if chronicles.len() != cells.len() {
+            return Err(ServiceError::Internal(format!(
+                "the store gave {} chronicles for {} cells",
+                chronicles.len(),
+                cells.len()
+            )));
         }
         Ok(Read { chronicles })
     }
@@ -397,6 +417,14 @@ fn appended(
     before: Vec<Vec<String>>,
     after: Vec<Vec<Gram>>,
 ) -> Result<Vec<CellAppend>, ServiceError> {
+    if before.len() != cells.len() || after.len() != cells.len() {
+        return Err(ServiceError::Internal(format!(
+            "{} cells, read as {} chronicles and left as {}",
+            cells.len(),
+            before.len(),
+            after.len()
+        )));
+    }
     cells
         .into_iter()
         .zip(before)
@@ -422,6 +450,9 @@ fn appended(
 /// The answer to a request under a key used before: the same answer when it
 /// is the same request.
 fn replay(key: &IdempotencyKey, request: &Value, receipt: Receipt) -> Result<Value, ServiceError> {
+    // Two JSON values compare by content: serde_json's maps are ordered by
+    // key (no `preserve_order` in this workspace), so the order a client
+    // sent its fields in does not count.
     if &receipt.request == request {
         Ok(receipt.response)
     } else {
@@ -463,6 +494,9 @@ mod tests {
     impl ChronicleStore for Contested {
         async fn load(&self, cell: &str) -> Result<StoredChronicle, StoreError> {
             self.inner.load(cell).await
+        }
+        async fn load_all(&self, cells: &[&str]) -> Result<Vec<StoredChronicle>, StoreError> {
+            self.inner.load_all(cells).await
         }
         async fn receipt(&self, key: &IdempotencyKey) -> Result<Option<Receipt>, StoreError> {
             self.inner.receipt(key).await
@@ -513,12 +547,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn a_conflict_runs_the_step_again_on_fresh_chronicles() {
+    async fn a_conflict_runs_the_step_again() {
         let (s, store) = service(2).await;
-        let gram = s
-            .perform(IdempotencyKey::fresh(), submission())
-            .await
-            .unwrap();
+        let gram = s.perform(None, submission()).await.unwrap();
         assert_eq!(gram["kind"], json!("AANVRAAG"));
         assert_eq!(store.appends.load(Ordering::SeqCst), 3);
         assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 1);
@@ -527,10 +558,7 @@ mod tests {
     #[tokio::test]
     async fn conflicts_without_end_give_up_and_record_nothing() {
         let (s, _) = service(MAX_ATTEMPTS).await;
-        let e = s
-            .perform(IdempotencyKey::fresh(), submission())
-            .await
-            .unwrap_err();
+        let e = s.perform(None, submission()).await.unwrap_err();
         assert!(matches!(e, ServiceError::Busy), "{e}");
         assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 0);
     }
@@ -538,6 +566,8 @@ mod tests {
     #[test]
     fn a_chronicle_that_lost_a_record_is_a_bug() {
         let e = appended(vec!["a".into()], vec![vec!["1".into()]], vec![vec![]]).unwrap_err();
+        assert!(matches!(e, ServiceError::Internal(_)), "{e}");
+        let e = appended(vec!["a".into()], vec![vec![]], vec![]).unwrap_err();
         assert!(matches!(e, ServiceError::Internal(_)), "{e}");
     }
 }

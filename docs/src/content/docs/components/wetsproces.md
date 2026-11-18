@@ -3,7 +3,7 @@ title: "Wetsproces"
 description: "A server that runs one legal process on the cells of chronolexography for many users at once, with its chronicles in a store and the date from a clock."
 ---
 
-The wetsproces component is a wetsprocessysteem: a server that runs one legal process, from application to decision and on to objection and appeal, for everyone who uses it. It is one implementation built on the regelrecht method, not the way regelrecht itself has to be run. The process steps are those of the chronolexography PoC; this component adds what a shared server needs on top of them.
+The wetsproces component is a wetsprocessysteem: a server that runs one legal process, from application to decision and on to objection and appeal, for everyone who uses it. It is one implementation built on the regelrecht method; another system can run the same cells in its own way. The process steps are those of the chronolexography PoC; this component adds what a shared server needs on top of them.
 
 ## Overview
 
@@ -21,26 +21,26 @@ The first case is the disabled parking card (BABW, article 49). It runs three ce
 
 ## How a request runs
 
-Where the PoC keeps one visitor's chronicle in the browser, this server keeps every cell's chronicle in a chronicle store. Each request loads the cells of the case from the store, runs the step of the PoC's kern (`packages/poc-chronolexografie/src/kern.rs`, used as a library), and writes what the step recorded back in one commit. That commit covers every cell the step read. A step can record in more than one cell: the GGD's advice lands in the GGD's chronicle and in the municipality's.
+Where the PoC keeps one visitor's chronicle in the browser, this server keeps every cell's chronicle in a chronicle store. Each step loads all cells of the case from the store at one moment, runs the step of the PoC's kern (`packages/poc-chronolexografie/src/kern.rs`, used as a library), and writes what the step recorded back in one commit. A step can record in more than one cell: the GGD's advice lands in the GGD's chronicle and in the municipality's.
 
-The store (`ChronicleStore` in `src/store.rs`) loads a chronicle per cell and appends to several cells at once, all or nothing. Each cell in a commit names the head it was read at, the number of records in it then. When another request appended in between, the commit is refused and the server runs the step again on the new state, three times at most. A cell the step only read is part of the commit as well, so a decision taken on an outdated view of the GGD's chronicle is refused too.
+The store (`ChronicleStore` in `src/store.rs`) loads a chronicle per cell and appends to several cells at once, all or nothing. Each cell in a commit names the head it was read at, the number of records in it then. When another request appended in between, the commit is refused and the server runs the step again on the new state. After three runs in all it gives up and answers `409`. A cell the step only read is part of the commit as well, so a decision taken on an outdated view of the GGD's chronicle is refused too.
 
-A writing request may carry an `Idempotency-Key` header. Sent again with the same key and the same request, it gets the first answer and nothing is recorded twice. The same key with a different request is refused with `409`.
+A writing request may carry an `Idempotency-Key` header. Sent again with the same key and the same request, it gets the first answer and nothing is recorded twice. The same key with a different request is refused with `409`. Without the header, every request records anew and the store keeps no answer for it.
 
 What day it is comes from a clock (`Clock` in `src/clock.rs`). Every step runs on that day and the cell records it as the day of the record.
 
 ## Modes
 
-`WETSPROCES_MODE` selects the mode and has no default:
+`WETSPROCES_MODE` selects the mode and has no default, not even in the image. Without it the server does not start.
 
 - `test` keeps the chronicles in memory, empty at every start, and uses a clock the API sets with `PUT /api/klok`. It starts on the case's `speeldatum`.
-- `stable` is meant to keep the chronicles in PostgreSQL, in a schema `wetsproces` of the shared database, and to use the real date in the Netherlands (`Europe/Amsterdam`). Neither the store nor a login exists yet, so the server refuses to start in this mode with a message that says so, rather than fall back to memory.
+- `stable` is meant to keep the chronicles in PostgreSQL, in a schema `wetsproces` of the shared database, and to use the real date in the Netherlands, in the Europe/Amsterdam time zone. Neither the store nor a login exists yet, so the server refuses to start in this mode with a message that says so, rather than fall back to memory.
 
 The server has no login yet. Anyone who reaches it can submit and decide, which is why only test mode starts. Login through Keycloak comes in a later change, before stable mode can run.
 
 ## API
 
-The keys in requests and answers are those of the kern, as the PoC uses them (`velden`, `bevindingen`, `op`). An error answers `{ "fout": "<reason>" }`.
+The keys in requests and answers are those of the kern, as the PoC uses them (`velden`, `bevindingen`, `op`). An error from the service answers `{ "fout": "<reason>" }`; a body that does not parse gets axum's own plain-text answer.
 
 | Method and path | What it does |
 |---|---|
@@ -70,5 +70,10 @@ CI builds the image `regelrecht-wetsproces` (`packages/wetsproces/Dockerfile`) w
 
 Rolling it out takes, once login is in place:
 
-1. The component `wetsproces` in the `regelrecht` deployment, added by hand (`zad component add wetsproces --image ghcr.io/minbzk/regelrecht-wetsproces:<tag> --deployment regelrecht --port 8000 --service publish-on-web`), with the domain `wetsproces.regelrecht.rijks.app` and `WETSPROCES_MODE` set on the component.
-2. Then, in `deploy.yml`, `build-wetsproces` in the `needs` and the conditions of `deploy-preview` and `deploy-production`, its result in the half-deploy check, and `add wetsproces regelrecht-wetsproces` in both component lists. Previews clone their components from `regelrecht`, so they can only follow once the component exists there.
+1. The component `wetsproces` in the `regelrecht` deployment, added by hand with `zad component add wetsproces --image ghcr.io/nederlandsedigitaledienst/regelrecht-wetsproces:<tag> --deployment regelrecht --port 8000 --service publish-on-web`. It needs the domain `wetsproces.regelrecht.rijks.app` and `WETSPROCES_MODE` set on the component.
+2. Changes in `deploy.yml`:
+   - `build-wetsproces` in the `needs` and the conditions of `deploy-preview` and `deploy-production`;
+   - its result in the check that refuses a half deploy;
+   - `add wetsproces regelrecht-wetsproces` in both component lists.
+
+Previews clone their components from `regelrecht`, so a preview can only include the server once the component exists there.
