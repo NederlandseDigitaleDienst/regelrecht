@@ -15,9 +15,13 @@ version: 1
 # String where the law compares a Bool, and EQUALS is structural, so that
 # comparison silently goes false instead of failing.
 #
-# A data-table cell carries no quoting either, and reads the same way. The cost
-# is that a numeric-looking identifier loses its string form (a leading zero
-# does not survive); which literals this language actually knows is #1172.
+# A data-table cell carries no quoting either, and reads the same way. A
+# numeric-looking identifier would lose its string form that way (a leading
+# zero does not survive), so a cell may say that it is text: a cell written in
+# double quotes, `"56102"`, is that text, whatever it looks like. RFC-055 no
+# longer lets a number pass for a string, so a field declared `string` that
+# holds digits is written so. Which literals this language actually knows is
+# #1172.
 #
 # Codegen carries these three keys into both dispatchers (Rust
 # packages/engine/tests/bdd, JS frontend/src/gherkin), so a change here changes

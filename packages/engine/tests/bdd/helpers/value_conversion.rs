@@ -10,6 +10,7 @@ use regelrecht_engine::Value;
 /// Supports:
 /// - `true` / `false` -> Bool
 /// - `null` -> Null
+/// - A value in double quotes (`"56102"`) -> String, without the quotes
 /// - A JSON array or object literal (`[...]` / `{...}`) -> Array / Object
 /// - Integer literals -> Int
 /// - Decimal literals -> Decimal
@@ -20,8 +21,22 @@ use regelrecht_engine::Value;
 /// has no other way into a data-source table. A cell that starts like JSON but
 /// does not parse stays a string, so a stray bracket cannot turn into a
 /// silent Null.
+///
+/// The quoted form is how a table cell says "this is text": an identifier
+/// that looks like a number (a BSN, an SBI code with a leading zero) is read
+/// as a number otherwise, and RFC-055 no longer lets a number pass for a
+/// string.
 pub fn convert_gherkin_value(val: &str) -> Value {
     let trimmed = val.trim();
+
+    // Text, written in double quotes: read as it stands, whatever it looks like.
+    if trimmed.len() >= 2
+        && let Some(text) = trimmed
+            .strip_prefix('"')
+            .and_then(|rest| rest.strip_suffix('"'))
+    {
+        return Value::String(text.to_string());
+    }
 
     // Boolean
     if trimmed == "true" {
@@ -99,6 +114,27 @@ mod tests {
     #[allow(dead_code)]
     fn dec(text: &str) -> regelrecht_engine::Number {
         text.parse().expect("test literal should be a number")
+    }
+
+    #[test]
+    fn a_value_in_double_quotes_is_text_whatever_it_looks_like() {
+        for (cell, text) in [
+            ("\"56102\"", "56102"),
+            ("\"0111\"", "0111"),
+            ("\"true\"", "true"),
+            ("\"null\"", "null"),
+            ("\"\"", ""),
+            ("  \"2.5\"  ", "2.5"),
+            ("\"[1]\"", "[1]"),
+        ] {
+            assert_eq!(
+                convert_gherkin_value(cell),
+                Value::String(text.to_string()),
+                "{cell}"
+            );
+        }
+        // One quote is no pair: the cell stays as written.
+        assert_eq!(convert_gherkin_value("\""), Value::String("\"".to_string()));
     }
 
     #[test]

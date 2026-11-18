@@ -20,6 +20,31 @@ const unknownFor = (...names: string[]) => ({
   missing: names.map((name) => ({ law: 'test_wet', name, kind: 'no_data' })),
 });
 
+// Mirrors `convert_gherkin_value` in
+// packages/engine/tests/bdd/helpers/value_conversion.rs: a cell in double
+// quotes is text, so an identifier that looks like a number stays one.
+describe('a value in double quotes', () => {
+  it('is text, whatever it looks like', () => {
+    for (const [cell, text] of [
+      ['"56102"', '56102'],
+      ['"0111"', '0111'],
+      ['"true"', 'true'],
+      ['"null"', 'null'],
+      ['""', ''],
+      ['  "2.5"  ', '2.5'],
+      ['"[1]"', '[1]'],
+    ]) {
+      expect(tableCellValue(cell)).toBe(text);
+      expect(quotedValue(cell)).toBe(text);
+    }
+  });
+
+  it('leaves an unquoted cell to its content', () => {
+    expect(tableCellValue('56102')).toBe(56102);
+    expect(tableCellValue('"')).toBe('"');
+  });
+});
+
 // Mirrors packages/engine/tests/bdd/helpers/value_conversion.rs
 // (`values_equal_with_tolerance`) plus law-model's `PartialEq for Value`:
 // the two runners must accept and reject the same pairs.
