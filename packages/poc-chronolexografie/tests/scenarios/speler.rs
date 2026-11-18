@@ -81,6 +81,10 @@ struct Stand {
     kenmerken: HashMap<String, String>,
 }
 
+/// How often the system's sources are asked again when one reads another,
+/// as the form asks them (`MAX_OP_ELKAAR` in AanvragerTab.vue).
+const MAX_OP_ELKAAR: usize = 5;
+
 /// Plays one scenario on one game.
 struct Speler<'a> {
     spel: &'a mut Spel,
@@ -369,14 +373,17 @@ impl Speler<'_> {
     }
 
     /// The fields the UI spec has the system fill (`systeem`), as the form
-    /// fills them: a value the system knows goes in as it is, and a source as
-    /// the cell answers it on what the application holds so far. Those
-    /// values go over the case's example; a source that gives nothing, or an
+    /// fills them. A value the system knows goes in as it is. A source goes in
+    /// as the cell answers it on what the application holds so far. Those
+    /// values go over the case's example. A source that gives nothing, or an
     /// unknown value, leaves the field empty. A step may not name such a
-    /// field: the applicant does not type it. The login fills its own fields
-    /// ([`Speler::uit_sessie`]), and one it gives nothing stays empty. In a case with a login step, an application
-    /// without a session did not come through the form, as one on paper: the
-    /// system fills nothing, and the step names what it holds.
+    /// field: the applicant does not type it.
+    ///
+    /// The login fills its own fields ([`Speler::uit_sessie`]). A field the
+    /// UI spec leaves to the login stays empty when the login gives it
+    /// nothing. In a case with a login step, an application without a session
+    /// did not come through the form, as one on paper. The system then fills
+    /// nothing, and the step names what the application holds.
     fn door_het_systeem(
         &mut self,
         aanvraag: &Value,
@@ -423,18 +430,33 @@ impl Speler<'_> {
         if bronnen.is_empty() {
             return Ok(());
         }
-        let gegeven = self
-            .spel
-            .voorinvullen(&bronnen, velden, datum)
-            .map_err(|e| e.to_string())?;
-        for veld in bronnen.keys() {
-            // An unknown value is no value, as the form leaves the field (RFC-036).
-            let waarde = &gegeven[veld]["waarde"];
-            if !waarde.is_null() && waarde.get("__unknown").is_none() {
-                velden.insert(veld.clone(), waarde.clone());
+        // A source may read another field the system fills: ask again with
+        // what the sources gave until nothing changes, as the form does.
+        // The first call, and as many again as the form allows.
+        for _ in 0..=MAX_OP_ELKAAR {
+            let gegeven = self
+                .spel
+                .voorinvullen(&bronnen, velden, datum)
+                .map_err(|e| e.to_string())?;
+            let mut veranderd = false;
+            for veld in bronnen.keys() {
+                // An unknown value is no value, as the form leaves the field (RFC-036).
+                let waarde = &gegeven[veld]["waarde"];
+                let nieuw = (!waarde.is_null() && waarde.get("__unknown").is_none())
+                    .then(|| waarde.clone());
+                if velden.get(veld) != nieuw.as_ref() {
+                    veranderd = true;
+                    match nieuw {
+                        Some(w) => velden.insert(veld.clone(), w),
+                        None => velden.remove(veld),
+                    };
+                }
+            }
+            if !veranderd {
+                return Ok(());
             }
         }
-        Ok(())
+        Err("the sources the system fills from read each other and keep changing".into())
     }
 
     fn besluit(

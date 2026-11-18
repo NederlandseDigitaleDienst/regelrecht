@@ -606,11 +606,11 @@ mod tests {
             vormen["prefill"],
             serde_json::json!({ "naam_opgegeven": NAAM_UIT_REGISTER })
         );
-        // A name the application does not ask stays out.
+        // A name the application does not ask stays out, and so does the
+        // login field: the login fills it.
         assert_eq!(
             vormen["systeem"],
             serde_json::json!({
-                "nummer": {},
                 "aanhef": { "bron": "voorbeeld_inschrijving#4#aanhef" },
                 "kenmerk": { "waarde": "K-1" },
                 "referentie": { "waarde": "voorbeeld_inschrijving#1" },

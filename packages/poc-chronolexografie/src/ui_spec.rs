@@ -72,8 +72,8 @@ struct Element {
 }
 
 /// A field of an element; the poc reads only how the form fills and shows
-/// it. A field without a name is left to the register, unless it is
-/// prefilled.
+/// it. A field without a name is left to the register, unless it says what
+/// fills it (`from`, `value` or `submission`).
 #[derive(Debug, Deserialize)]
 struct Field {
     name: Option<String>,
@@ -164,8 +164,16 @@ pub struct Antwoord {
 struct Fill {
     from: Option<String>,
     by: Option<Value>,
+    /// Absent is `None`; `value: null` is `Some(Null)`, an empty value.
+    #[serde(default, deserialize_with = "aanwezig")]
     value: Option<Value>,
     submission: Option<String>,
+}
+
+/// A key that is present, `null` included: serde reads a `null` into an
+/// `Option` as absent, and `value: null` is a value.
+fn aanwezig<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<Value>, D::Error> {
+    Value::deserialize(d).map(Some)
 }
 
 /// An element of the older form.
@@ -214,14 +222,15 @@ pub fn prefill(tekst: &str) -> Result<BTreeMap<String, String>, String> {
 /// The text when it is no UI spec; a UI spec with neither `elements` nor
 /// `elementen`, or with both; an element of one form that carries the key of
 /// the other; a `fill` with an unknown key, with neither `from` nor `by`,
-/// with a `by` other than `system`, with `value` or `submission` but no `by:
-/// system`, with more than one of `from`, `value` and `submission` under `by:
-/// system`, or with a `submission` other than `date` or `requested_decision`;
-/// a field with both `fill` and `answer`, or an `answer` without a `name`; a
-/// source that is no `<regelwerk>#<article>#<output>`; a field two elements
-/// prefill from different sources, that one element prefills and another
-/// fills by the system, that two elements fill by the system differently,
-/// or that one element hides and another asks.
+/// with `value` or `submission` but no `by: system`, with more than one of
+/// `from`, `value` and `submission` under `by: system`, or with a
+/// `submission` other than `date` or `requested_decision`; a field with both
+/// `fill` and `answer`, or an `answer` without a `name`; a source that is no
+/// `<regelwerk>#<article>#<output>`; a field two elements prefill from
+/// different sources, that one element prefills and another fills by the
+/// system, that two elements fill by the system differently, or that one
+/// element asks while it or another hides it or fills it by the system. A
+/// `by` other than `system` is no error: the field is left to the register.
 pub fn lees(tekst: &str) -> Result<UiSpec, String> {
     let register: Register =
         serde_yaml_ng::from_str(tekst).map_err(|e| format!("the UI spec: {e}"))?;
@@ -310,17 +319,12 @@ fn lees_veld(velden: &mut ElementVelden, field: Field, weergave: bool) -> Result
     let systeem = match &fill.by {
         None => false,
         Some(Value::String(by)) if by == "system" => true,
-        // A field without a name is left to the register.
-        Some(_) if veld.is_empty() => return Ok(()),
-        Some(by) => {
-            let by = serde_yaml_ng::to_string(by).unwrap_or_default();
-            return Err(format!(
-                "the UI spec: {name} fills '{veld}' by {}; the poc knows only `by: system`",
-                by.trim()
-            ));
-        }
+        // Filled by something the poc does not know: left to the register,
+        // as an unknown key is.
+        Some(_) => return Ok(()),
     };
-    if veld.is_empty() && (fill.from.is_some() || !systeem) {
+    let vult = fill.from.is_some() || fill.value.is_some() || fill.submission.is_some();
+    if veld.is_empty() && (vult || !systeem) {
         return Err(format!(
             "the UI spec: {name} fills a field without a `name`"
         ));
@@ -373,7 +377,9 @@ fn systeemvulling(name: &str, veld: &str, fill: Fill) -> Result<Systeemvulling, 
         }
         (None, Some(value), None) => serde_json::to_value(&value)
             .map(Systeemvulling::Waarde)
-            .map_err(|e| format!("the UI spec: {name} fills '{veld}' with a value: {e}")),
+            .map_err(|e| {
+                format!("the UI spec: {name} fills '{veld}' with a value JSON cannot hold: {e}")
+            }),
         (None, None, Some(gegeven)) => match gegeven.as_str() {
             "date" => Ok(Systeemvulling::Indiening(Indieningsgegeven::Datum)),
             "requested_decision" => Ok(Systeemvulling::Indiening(
@@ -422,6 +428,12 @@ fn formulier(
         if let Some(veld) = element.gevraagd.iter().find(|v| verborgen.contains(*v)) {
             return Err(format!(
                 "the UI spec: {} asks '{veld}', which another element hides",
+                element.name
+            ));
+        }
+        if let Some(veld) = element.gevraagd.iter().find(|v| systeem.contains_key(*v)) {
+            return Err(format!(
+                "the UI spec: {} asks '{veld}', which the system fills",
                 element.name
             ));
         }
@@ -733,8 +745,16 @@ elements:
         assert!(e.contains("`submission: dag`"), "{e}");
         let e = fout("{value: portaal}");
         assert!(e.contains("without `by: system`"), "{e}");
-        let e = fout("{by: user}");
-        assert!(e.contains("knows only `by: system`"), "{e}");
+        // A `by` the poc does not know is left to the register.
+        assert!(lees("elements: [{id: UI1, fields: [{name: x, fill: {by: user}}]}]").is_ok());
+        // `value: null` is an empty value, not the login.
+        let spec =
+            lees("elements: [{id: UI1, fields: [{name: x, fill: {by: system, value: null}}]}]")
+                .unwrap();
+        assert_eq!(
+            spec.systeem["x"],
+            Systeemvulling::Waarde(serde_json::Value::Null)
+        );
         let e = lees(
             "elements: [{id: UI1, fields: [{name: x, visibility: asked, fill: {by: system}}]}]",
         )
@@ -773,6 +793,11 @@ elements:
             e.contains("both prefills 'x' and fills it by the system"),
             "{e}"
         );
+        let e = twee(
+            "{name: x, fill: {by: system}}",
+            "{name: x, visibility: asked}",
+        );
+        assert!(e.contains("UI5 asks 'x', which the system fills"), "{e}");
         let e = twee(
             "{name: x, visibility: hidden}",
             "{name: x, visibility: asked}",

@@ -403,6 +403,7 @@ fn inlogbron_met_systeem() -> BTreeMap<String, String> {
         "elements:
   - id: UI1
     fields:
+      - {name: kvk_nummer, visibility: shown, fill: {by: system}}
       - {name: dagtekening, visibility: shown, fill: {by: system, submission: date}}
       - {name: gevraagde_beschikking, visibility: shown, fill: {by: system, submission: requested_decision}}
       - {name: adres_aanvrager, visibility: hidden, fill: {by: system, value: Voorbeeldstraat 1}}
@@ -433,6 +434,8 @@ fn aanvraag_van(bestanden: BTreeMap<String, String>, index: usize) -> Value {
 #[test]
 fn the_player_fills_what_the_system_fills_as_the_form_does() {
     let velden = aanvraag_van(inlogbron_met_systeem(), 0);
+    // The login field stays the login's, whatever the UI spec says of it.
+    assert_eq!(velden["kvk_nummer"], "99970011");
     assert_eq!(velden["dagtekening"], "2026-10-13");
     assert_eq!(
         velden["gevraagde_beschikking"],

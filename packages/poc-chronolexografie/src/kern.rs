@@ -677,7 +677,8 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
                     .filter(|(veld, _)| vraagt(&vorm, veld))
                     .collect::<BTreeMap<_, _>>()
             );
-            indiening["systeem"] = door_het_systeem(spec, &vorm, on);
+            let inlogveld = corpus.casus.inloggen.as_ref().map(|i| i.veld.as_str());
+            indiening["systeem"] = door_het_systeem(spec, &vorm, inlogveld, on);
             indiening["verborgen"] = json!(
                 spec.verborgen
                     .iter()
@@ -973,16 +974,19 @@ fn eigen_ui_spec(files: &dyn Files, casus_dir: &Path, id: &str) -> Result<crate:
 /// itself, such as the day it submits on or the article whose decision the
 /// application asks for (`requests`; `null` when the law names none), and
 /// `{}` for the login, which fills the field with the claim of its name.
+/// The login field (`inlogveld`) is never among them: the login fills it,
+/// whatever the UI spec says ([`inloggen`]).
 fn door_het_systeem(
     spec: &crate::ui_spec::UiSpec,
     aanvraag: &shape::Shape,
+    inlogveld: Option<&str>,
     on: NaiveDate,
 ) -> Value {
     use crate::ui_spec::{Indieningsgegeven, Systeemvulling};
     let uit: Map<String, Value> = spec
         .systeem
         .iter()
-        .filter(|(veld, _)| vraagt(aanvraag, veld))
+        .filter(|(veld, _)| vraagt(aanvraag, veld) && Some(veld.as_str()) != inlogveld)
         .map(|(veld, vulling)| {
             let hoe = match vulling {
                 Systeemvulling::Inloggen => json!({}),
