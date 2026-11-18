@@ -1,0 +1,522 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_signaturen
+name: Testwet signaturen
+regulatory_layer: WET
+bwb_id: BWBR9999922
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_signaturen
+
+# Synthetische wet voor de conformance-suite van RFC-055: elke operatie heeft
+# een gesloten lijst signaturen, en operanden die bij geen signatuur passen zijn
+# een fout.
+#
+# Elke bewerking staat in een eigen artikel, omdat een bewerking die faalt het
+# hele artikel laat falen. De operanden komen uit de velden van een record:
+# daarvan kent de typecontrole het type niet, zodat de scenario's bepalen welk
+# type de engine bereikt en de engine zelf moet weigeren wat niet past.
+
+articles:
+  - number: '1'
+    url: https://example.com/test_signaturen/1
+    text: >-
+      De som is het eerste vermeerderd met het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: som
+            type: number
+        actions:
+          - output: som
+            value:
+              operation: ADD
+              values:
+                - $rij.a
+                - $rij.b
+  - number: '2'
+    url: https://example.com/test_signaturen/2
+    text: >-
+      De tekst is het eerste gevolgd door het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: tekst
+            type: string
+        actions:
+          - output: tekst
+            value:
+              operation: ADD
+              values:
+                - $rij.a
+                - $rij.b
+  - number: '3'
+    url: https://example.com/test_signaturen/3
+    text: >-
+      De lijst is de eerste lijst gevolgd door de tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: lijst
+            type: array
+        actions:
+          - output: lijst
+            value:
+              operation: ADD
+              values:
+                - $rij.a
+                - $rij.b
+  - number: '4'
+    url: https://example.com/test_signaturen/4
+    text: >-
+      Het verschil is het eerste verminderd met het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: verschil
+            type: number
+        actions:
+          - output: verschil
+            value:
+              operation: SUBTRACT
+              values:
+                - $rij.a
+                - $rij.b
+  - number: '5'
+    url: https://example.com/test_signaturen/5
+    text: >-
+      Het product is het eerste vermenigvuldigd met het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: product
+            type: number
+        actions:
+          - output: product
+            value:
+              operation: MULTIPLY
+              values:
+                - $rij.a
+                - $rij.b
+  - number: '6'
+    url: https://example.com/test_signaturen/6
+    text: >-
+      Het quotiënt is het eerste gedeeld door het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: quotient
+            type: number
+        actions:
+          - output: quotient
+            value:
+              operation: DIVIDE
+              values:
+                - $rij.a
+                - $rij.b
+  - number: '7'
+    url: https://example.com/test_signaturen/7
+    text: >-
+      Het grootste is het hoogste van het eerste en het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: grootste
+            type: number
+        actions:
+          - output: grootste
+            value:
+              operation: MAX
+              values:
+                - $rij.a
+                - $rij.b
+  - number: '8'
+    url: https://example.com/test_signaturen/8
+    text: >-
+      Het kleinste is het laagste van het eerste en het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: kleinste
+            type: number
+        actions:
+          - output: kleinste
+            value:
+              operation: MIN
+              values:
+                - $rij.a
+                - $rij.b
+  - number: '9'
+    url: https://example.com/test_signaturen/9
+    text: >-
+      Het afgeronde is het eerste, rekenkundig afgerond op een geheel getal.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: afgerond
+            type: number
+        actions:
+          - output: afgerond
+            value:
+              operation: ROUND
+              value: $rij.a
+              precision: 0
+  - number: '10'
+    url: https://example.com/test_signaturen/10
+    text: >-
+      Het eerste en het tweede zijn gelijk indien zij dezelfde waarde hebben.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: gelijk
+            type: boolean
+        actions:
+          - output: gelijk
+            value:
+              operation: EQUALS
+              subject: $rij.a
+              value: $rij.b
+  - number: '11'
+    url: https://example.com/test_signaturen/11
+    text: >-
+      Het eerste is groter indien het meer is dan het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: groter
+            type: boolean
+        actions:
+          - output: groter
+            value:
+              operation: GREATER_THAN
+              subject: $rij.a
+              value: $rij.b
+  - number: '12'
+    url: https://example.com/test_signaturen/12
+    text: >-
+      Het eerste is kleiner of gelijk indien het niet meer is dan het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: kleiner_of_gelijk
+            type: boolean
+        actions:
+          - output: kleiner_of_gelijk
+            value:
+              operation: LESS_THAN_OR_EQUAL
+              subject: $rij.a
+              value: $rij.b
+  - number: '13'
+    url: https://example.com/test_signaturen/13
+    text: >-
+      Beide gelden indien het eerste en het tweede gelden.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: beide
+            type: boolean
+        actions:
+          - output: beide
+            value:
+              operation: AND
+              conditions:
+                - $rij.a
+                - $rij.b
+  - number: '14'
+    url: https://example.com/test_signaturen/14
+    text: >-
+      Een van beide geldt indien het eerste of het tweede geldt.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: een_van_beide
+            type: boolean
+        actions:
+          - output: een_van_beide
+            value:
+              operation: OR
+              conditions:
+                - $rij.a
+                - $rij.b
+  - number: '15'
+    url: https://example.com/test_signaturen/15
+    text: >-
+      Het eerste geldt niet indien het niet geldt.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: niet
+            type: boolean
+        actions:
+          - output: niet
+            value:
+              operation: NOT
+              value: $rij.a
+  - number: '16'
+    url: https://example.com/test_signaturen/16
+    text: >-
+      De keuze is ja indien het eerste geldt, en anders nee.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: keuze
+            type: string
+        actions:
+          - output: keuze
+            value:
+              operation: IF
+              cases:
+                - when: $rij.a
+                  then: ja
+              default: nee
+  - number: '17'
+    url: https://example.com/test_signaturen/17
+    text: >-
+      Het teruggerekende is het eerste gedeeld door het tweede en daarna
+      vermenigvuldigd met het tweede, naar beneden afgerond op een geheel getal.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: terug
+            type: number
+        actions:
+          - output: terug
+            value:
+              operation: FLOOR
+              value:
+                operation: MULTIPLY
+                values:
+                  - operation: DIVIDE
+                    values:
+                      - $rij.a
+                      - $rij.b
+                  - $rij.b
+              precision: 0
+  - number: '18'
+    url: https://example.com/test_signaturen/18
+    text: >-
+      Het naar boven afgeronde is het eerste, naar boven afgerond op een geheel getal.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: naar_boven
+            type: number
+        actions:
+          - output: naar_boven
+            value:
+              operation: CEIL
+              value: $rij.a
+              precision: 0
+  - number: '19'
+    url: https://example.com/test_signaturen/19
+    text: >-
+      Het naar beneden afgeronde is het eerste, naar beneden afgerond op een geheel getal.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: naar_beneden
+            type: number
+        actions:
+          - output: naar_beneden
+            value:
+              operation: FLOOR
+              value: $rij.a
+              precision: 0
+  - number: '20'
+    url: https://example.com/test_signaturen/20
+    text: >-
+      Het eerste is kleiner indien het minder is dan het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: kleiner
+            type: boolean
+        actions:
+          - output: kleiner
+            value:
+              operation: LESS_THAN
+              subject: $rij.a
+              value: $rij.b
+  - number: '21'
+    url: https://example.com/test_signaturen/21
+    text: >-
+      Het eerste is groter of gelijk indien het niet minder is dan het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: groter_of_gelijk
+            type: boolean
+        actions:
+          - output: groter_of_gelijk
+            value:
+              operation: GREATER_THAN_OR_EQUAL
+              subject: $rij.a
+              value: $rij.b
