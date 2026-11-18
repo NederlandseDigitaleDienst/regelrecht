@@ -99,8 +99,8 @@ Feature: The decision term of Awb 4:13 on an application for a permit
     # Awb 4:13 lid 1: a term set by statutory provision goes first. This
     # host act sets the last day, `uiterste_beslisdatum`, with an override on
     # that output of 4:13 (article 2 of test_permit_act_short_term). The
-    # last scenario reaches the same through implements (RFC-058). The
-    # fallback of lid 2 is not replaced and stays eight weeks.
+    # last scenario sets `uiterste_beslisdatum` through implements instead
+    # (RFC-058). The fallback of lid 2 is not replaced and stays eight weeks.
     Given the calculation date is "2026-03-03"
     When the cell records submission "permit_application" under article "1" of "test_permit_act_short_term" with:
       | meets_conditions | true |

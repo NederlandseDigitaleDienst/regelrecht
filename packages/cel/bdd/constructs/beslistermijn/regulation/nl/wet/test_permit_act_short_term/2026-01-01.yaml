@@ -5,8 +5,8 @@
 # 4:13, first paragraph, of the Algemene wet bestuursrecht refers to. Article
 # 2 sets the last day of the term, uiterste_beslisdatum, with an override on
 # that output of 4:13. The fallback of lid 2, redelijke_beslistermijn_einddatum,
-# stays eight weeks. test_permit_act_implements reaches the same through
-# implements (RFC-058). None of it is the text of a law.
+# stays eight weeks. test_permit_act_implements sets it through implements
+# instead (RFC-058). None of it is the text of a law.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
 $id: test_permit_act_short_term
 name: Testwet vergunning met korte beslistermijn
