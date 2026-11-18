@@ -2,7 +2,7 @@
 # FICTIEF. A host law for the construct "beslistermijn"
 # (packages/cel/bdd/constructs/beslistermijn) with a decision term of its own:
 # one week after receipt, the term set by statutory provision that article
-# 4:13, first paragraph, of the Algemene wet bestuursrecht refers to. Article
+# 4:13, first paragraph, of test_general_administrative_act refers to. Article
 # 2 fills the open term of 4:13 with implements; under the hook only the law
 # of the application fills it (RFC-058). None of it is the text of a law.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
@@ -46,24 +46,24 @@ articles:
       FICTIEF. Het college beslist op de aanvraag binnen een week na ontvangst
       ervan.
     machine_readable:
-      # The parameter keeps the name of Awb 4:13 in the corpus: the filling
-      # reads the same moment, from the scope of this act (RFC-058).
+      # The filling reads the moment of 4:13, the day of receipt, from the
+      # scope of this act (RFC-058).
       implements:
-        - law: algemene_wet_bestuursrecht
+        - law: test_general_administrative_act
           article: '4:13'
-          open_term: wettelijke_beslistermijn
+          open_term: statutory_decision_term
       execution:
         parameters:
-          - name: datum_ontvangst
+          - name: date_of_receipt
             type: date
             required: false
             description: The day the college received the application.
         output:
-          - name: wettelijke_beslistermijn
+          - name: statutory_decision_term
             type: date
         actions:
-          - output: wettelijke_beslistermijn
+          - output: statutory_decision_term
             value:
               operation: DATE_ADD
-              date: $datum_ontvangst
+              date: $date_of_receipt
               weeks: 1

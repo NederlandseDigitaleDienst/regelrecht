@@ -2,7 +2,7 @@
 # FICTIEF. A host law for the construct "beslistermijn"
 # (packages/cel/bdd/constructs/beslistermijn): an application for a permit,
 # and the decision on it. It sets no decision term of its own, so article 4:13
-# of the Algemene wet bestuursrecht from the corpus gives the term: eight
+# of test_general_administrative_act gives the term: eight
 # weeks after receipt. None of it is the text of a law.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
 $id: test_permit_act

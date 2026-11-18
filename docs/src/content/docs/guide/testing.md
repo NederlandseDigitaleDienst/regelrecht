@@ -20,36 +20,31 @@ The cell has a BDD suite of its own in `packages/cel/bdd/`, outside both buckets
 
 ### Trying out a construct
 
-A construct of the law format that is hard to get right gets a directory of its own under `packages/cel/bdd/constructs/`. The first is the decision term of Awb 4:13, a hook on every application. A construct's features load only the ruleworks in its `regulation/` directory and the corpus ruleworks its `corpus.yaml` names. For hooks that matters. A hook fires on every decision or submission its `applies_to` matches, in every loaded rulework, so loading the whole corpus would bring in hooks the construct is not about.
+A construct of the law format that is hard to get right gets a directory of its own under `packages/cel/bdd/constructs/`. The first is the decision term of Awb 4:13, a hook on every application. A construct's features load only the ruleworks in its `regulation/` directory, all of them fictional. For hooks that matters. A hook fires on every decision or submission its `applies_to` matches, in every loaded rulework, so loading the whole corpus would bring in hooks the construct is not about.
 
 ```text
 packages/cel/bdd/constructs/beslistermijn/
-  corpus.yaml
+  regulation/nl/wet/test_general_administrative_act/2026-01-01.yaml
   regulation/nl/wet/test_permit_act/2026-01-01.yaml
+  regulation/nl/wet/test_permit_act_implements/2026-01-01.yaml
   regulation/nl/wet/test_permit_act_short_term/2026-01-01.yaml
   scenarios/beslistermijn.feature
 ```
 
-`corpus.yaml` names ruleworks from the corpus by `$id`. The runner reads every version of each from `corpus/regulation` (or `REGULATION_PATH`) and fails on an `$id` the corpus does not hold. Nothing is copied into the construct, so a scenario tests the Awb as it stands in the corpus.
+A general law the construct builds on, such as the Awb, comes as a fictional mini-version with only what the scenarios need, so the construct does not change when the corpus does.
 
-```yaml
-regelwerken:
-  - algemene_wet_bestuursrecht
-```
-
-In the `beslistermijn` construct, the real Awb meets three fictional permit acts. An application is recorded on the day it arrives, which is the moment Awb 4:13 counts from, and the decision follows on a later day. The scenarios check what the application holds, the last day of the term, and whether the decision came on or before it: well within the term, on the last day, one day late, and counted from receipt rather than from the date on the application. Two permit acts set a term of their own, and between them they show both routes to the last day, `uiterste_beslisdatum`. `test_permit_act_short_term` sets two weeks with an override on `uiterste_beslisdatum`. `test_permit_act_implements` sets one week by filling the open term `wettelijke_beslistermijn` of 4:13 with `implements`. Under the hook on its application, only that act fills it ([RFC-058](/rfcs/rfc-058)). In both cases the fallback of lid 2, `redelijke_beslistermijn_einddatum`, stays eight weeks.
+In the `beslistermijn` construct, a mini-Awb (`test_general_administrative_act`, after Awb 4:2 and 4:13) meets three fictional permit acts. An application is recorded on the day it arrives, which is the moment Awb 4:13 counts from, and the decision follows on a later day. The scenarios check what the application holds, the last day of the term, and whether the decision came on or before it: well within the term, on the last day, one day late, and counted from receipt rather than from the date on the application. Two permit acts set a term of their own, and between them they show both routes to the last day, `decision_deadline`. `test_permit_act_short_term` sets two weeks with an override on `decision_deadline`. `test_permit_act_implements` sets one week by filling the open term `statutory_decision_term` of 4:13 with `implements`. Under the hook on its application, only that act fills it ([RFC-058](/rfcs/rfc-058)). In both cases the fallback of lid 2, `reasonable_decision_term_end`, stays eight weeks.
 
 To add a construct:
 
 1. Make `packages/cel/bdd/constructs/<construct>/` with a `regulation/` and a `scenarios/` directory. The runner fails when either is missing or when `scenarios/` holds no feature.
 2. Put the fictional ruleworks in `regulation/`, in the layout of the corpus. Give each an `$id` starting with `test_`, mark the text FICTIEF, and invent the content: no real case, no real person. `just validate` and the pre-commit hook check them against the schema.
-3. Name the corpus ruleworks the construct builds on in `corpus.yaml`, if any.
-4. Write the features in `scenarios/`, in English. Names that come from the corpus, such as the outputs of the Awb, stay as the corpus has them. A feature may use the canonical steps and the cell's own. A decision the cell takes (`the cell decides ...`) sets the result, so `Then output ... equals ...` reads what the decision and the hooks on it gave.
-5. A scenario the engine cannot run yet gets `@wip` and a comment above it that names the missing piece and the branch or issue that builds it.
+3. Write the features in `scenarios/`, in English. A feature may use the canonical steps and the cell's own. A decision the cell takes (`the cell decides ...`) sets the result, so `Then output ... equals ...` reads what the decision and the hooks on it gave.
+4. A scenario the engine cannot run yet gets `@wip` and a comment above it that names the missing piece and the branch or issue that builds it.
 
 `just bdd` and the CI job "BDD conformance" run the constructs with the rest of the cell's suite; no recipe or workflow changes.
 
-The runner decides what to load from where a feature sits. A feature under `<set>/scenarios/` loads the ruleworks under `<set>/regulation/` and those in `<set>/corpus.yaml`, whichever directory `<set>` is. A corpus with a `scenarios/` directory next to its `regulation/` directory would load by the same rule once its features are added to the list in `packages/cel/tests/bdd/main.rs`. Nothing does that yet. The engine's own runner does not look at where a feature sits and always loads the corpus.
+The runner decides what to load from where a feature sits. A feature under `<set>/scenarios/` loads the ruleworks under `<set>/regulation/`, whichever directory `<set>` is. A corpus with a `scenarios/` directory next to its `regulation/` directory would load by the same rule once its features are added to the list in `packages/cel/tests/bdd/main.rs`. Nothing does that yet. The engine's own runner does not look at where a feature sits and always loads the corpus.
 
 ### The step vocabulary is generated, not hand-written
 

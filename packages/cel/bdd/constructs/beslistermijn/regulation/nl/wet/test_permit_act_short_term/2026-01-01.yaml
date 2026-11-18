@@ -2,10 +2,10 @@
 # FICTIEF. A host law for the construct "beslistermijn"
 # (packages/cel/bdd/constructs/beslistermijn) with a decision term of its own:
 # two weeks after receipt, the term set by statutory provision that article
-# 4:13, first paragraph, of the Algemene wet bestuursrecht refers to. Article
-# 2 sets the last day of the term, uiterste_beslisdatum, with an override on
-# that output of 4:13. The fallback of lid 2, redelijke_beslistermijn_einddatum,
-# stays eight weeks. test_permit_act_implements sets it through implements
+# 4:13, first paragraph, of test_general_administrative_act refers to. Article
+# 2 sets the last day of the term, decision_deadline, with an override on that
+# output of 4:13. The fallback of lid 2, reasonable_decision_term_end, stays
+# eight weeks. test_permit_act_implements sets it through implements
 # instead (RFC-058). None of it is the text of a law.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
 $id: test_permit_act_short_term
@@ -48,24 +48,24 @@ articles:
       FICTIEF. Het college beslist op de aanvraag binnen twee weken na
       ontvangst ervan.
     machine_readable:
-      # The output and the parameter keep the names of Awb 4:13 in the
-      # corpus: an override replaces that output, and reads the same moment.
+      # The output and the parameter are those of 4:13: an override replaces
+      # that output, and reads the same moment.
       overrides:
-        - law: algemene_wet_bestuursrecht
+        - law: test_general_administrative_act
           article: '4:13'
-          output: uiterste_beslisdatum
+          output: decision_deadline
       execution:
         parameters:
-          - name: datum_ontvangst
+          - name: date_of_receipt
             type: date
             required: false
             description: The day the college received the application.
         output:
-          - name: uiterste_beslisdatum
+          - name: decision_deadline
             type: date
         actions:
-          - output: uiterste_beslisdatum
+          - output: decision_deadline
             value:
               operation: DATE_ADD
-              date: $datum_ontvangst
+              date: $date_of_receipt
               weeks: 2
