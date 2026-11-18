@@ -144,9 +144,9 @@ A binding fills the term like any other implementation: the term gets the bindin
 
 ## An open term on an article that fires as a hook
 
-An article that fires as a [hook](./hooks-and-reactive-execution) can declare an open term as well. Awb 4:13 is the case in point: it fires on every *beschikking* and leaves the decision period to the special law, with eight weeks as the default. Under a hook, only the host fills such a term, meaning the law of the article whose decision the hook fires on. An implementation from any other law does not count for that decision and leaves no record of it. The host's implementing article receives the parameters it declares from the host's own scope, so it can read case data the hook never sees, such as the subsidy year of a subsidy decision.
+An article that fires as a [hook](./hooks-and-reactive-execution) can declare an open term as well. The text of Awb 4:13 has this shape: a hook on every *beschikking* that leaves the decision period to the special law, with eight weeks as the default. Under a hook, only the host fills such a term, meaning the law of the article whose decision the hook fires on. An implementation from any other law does not count for that decision and leaves no record of it. The host's implementing article receives the parameters it declares from the host's own scope, so it can read case data the hook never sees, such as the subsidy year of a subsidy decision.
 
-The delegation gate still applies to the host: a host of a layer the term does not admit is refused, with a `DelegationRefusal`, and the default applies. The same article, called directly instead of fired as a hook, fills its terms as described above. [RFC-058](/rfcs/rfc-058) has the reasoning and a worked example.
+The delegation gate still applies to the host: a host of a layer the term does not admit is refused, with a `DelegationRefusal`, and the default applies. Outside a hook run, the same article fills its terms as described above. While the hook runs, every call that reaches the article belongs to the host's decision, a direct one included. [RFC-058](/rfcs/rfc-058) has the reasoning and a worked example.
 
 ## Conflict resolution
 

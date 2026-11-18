@@ -1229,7 +1229,8 @@ impl RuleResolver {
             // verordening of the same municipality.
             let of_the_declarers_territory =
                 declarer.is_some_and(|declarer| Self::shares_territory(declarer, law));
-            let is_host = host_law == Some(law.id.as_str());
+            // The host filter above left only the host's entries.
+            let is_host = host_law.is_some();
             if law.id != law_id
                 && !is_host
                 && !of_the_declarers_territory
