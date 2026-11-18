@@ -45,7 +45,24 @@ export function zetSessie(casusId, assertie) {
 /** Log out of case `casusId`: only the session goes, no chronicle changes. */
 export function wisSessie(casusId) {
   delete sessies[casusId];
+  delete keuzes[casusId];
   bewaar();
+}
+
+// Per case id, the key chosen under Ingelogd als in a case without a login
+// step (inloggen.js). It lives here, not in the form, so that it holds for
+// the page: a submitted form starts empty, the choice stays. Only for as long
+// as the page lives; choosing a case or beginning a scenario clears it, as
+// it does the session.
+const keuzes = reactive({});
+
+/** The key chosen under Ingelogd als for case `casusId`, or undefined. */
+export const keuzeVan = (casusId) => keuzes[casusId];
+
+/** Choose `waarde` under Ingelogd als for case `casusId`; undefined clears it. */
+export function zetKeuze(casusId, waarde) {
+  if (waarde === undefined) delete keuzes[casusId];
+  else keuzes[casusId] = waarde;
 }
 
 /**
