@@ -696,3 +696,261 @@ articles:
               values:
                 - $optioneel
                 - $rij.a
+  - number: '29'
+    url: https://example.com/test_signaturen/29
+    text: >-
+      Het eerste komt voor indien het in de lijst staat.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: komt_voor
+            type: boolean
+        actions:
+          - output: komt_voor
+            value:
+              operation: IN
+              subject: $rij.a
+              value: $rij.lijst
+  - number: '30'
+    url: https://example.com/test_signaturen/30
+    text: >-
+      De lijst van twee klopt indien de lijst van het eerste en het tweede gelijk is aan de verwachte lijst.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: lijst_van_twee_klopt
+            type: boolean
+        actions:
+          - output: lijst_van_twee_klopt
+            value:
+              operation: EQUALS
+              subject:
+                operation: LIST
+                items:
+                  - $rij.a
+                  - $rij.b
+              value: $rij.verwacht
+  - number: '31'
+    url: https://example.com/test_signaturen/31
+    text: >-
+      Het record klopt indien het record van het eerste en het tweede gelijk is aan het verwachte record.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: record_klopt
+            type: boolean
+        actions:
+          - output: record_klopt
+            value:
+              operation: EQUALS
+              subject:
+                operation: RECORD
+                fields:
+                  eerste: $rij.a
+                  tweede: $rij.b
+              value: $rij.verwacht
+  - number: '32'
+    url: https://example.com/test_signaturen/32
+    text: >-
+      De som van alle waarden is de som van de waarden van de rijen.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: som_van_alle
+            type: number
+        actions:
+          - output: som_van_alle
+            value:
+              operation: FOREACH
+              collection: $rij.rijen
+              as: regel
+              body: $regel.waarde
+              combine: ADD
+  - number: '33'
+    url: https://example.com/test_signaturen/33
+    text: >-
+      De laagste waarde is de laagste van de waarden van de rijen.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: laagste
+            type: number
+            nullable: true
+        actions:
+          - output: laagste
+            value:
+              operation: FOREACH
+              collection: $rij.rijen
+              as: regel
+              body: $regel.waarde
+              combine: MIN
+  - number: '34'
+    url: https://example.com/test_signaturen/34
+    text: >-
+      De hoogste waarde is de hoogste van de waarden van de rijen.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: hoogste
+            type: number
+            nullable: true
+        actions:
+          - output: hoogste
+            value:
+              operation: FOREACH
+              collection: $rij.rijen
+              as: regel
+              body: $regel.waarde
+              combine: MAX
+  - number: '35'
+    url: https://example.com/test_signaturen/35
+    text: >-
+      De enige waarde is de waarde van de ene rij die er is.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: enige
+            type: number
+            nullable: true
+        actions:
+          - output: enige
+            value:
+              operation: FOREACH
+              collection: $rij.rijen
+              as: regel
+              body: $regel.waarde
+              combine: ONLY
+  - number: '36'
+    url: https://example.com/test_signaturen/36
+    text: >-
+      De soorten kloppen indien de verschillende waarden van de rijen gelijk zijn aan de verwachte lijst.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: soorten_kloppen
+            type: boolean
+        actions:
+          - output: soorten_kloppen
+            value:
+              operation: EQUALS
+              subject:
+                operation: FOREACH
+                collection: $rij.rijen
+                as: regel
+                body: $regel.waarde
+                combine: DISTINCT
+              value: $rij.verwacht
+  - number: '37'
+    url: https://example.com/test_signaturen/37
+    text: >-
+      De waarden kloppen indien de waarden van de rijen gelijk zijn aan de verwachte lijst.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: waarden_kloppen
+            type: boolean
+        actions:
+          - output: waarden_kloppen
+            value:
+              operation: EQUALS
+              subject:
+                operation: FOREACH
+                collection: $rij.rijen
+                as: regel
+                body: $regel.waarde
+              value: $rij.verwacht
+  - number: '38'
+    url: https://example.com/test_signaturen/38
+    text: >-
+      Het onderdeel ontbreekt indien het onderdeel van het eerste afwezig is.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: onderdeel_ontbreekt
+            type: boolean
+        actions:
+          - output: onderdeel_ontbreekt
+            value:
+              operation: EQUALS
+              subject: $rij.a.onderdeel
+              value: null

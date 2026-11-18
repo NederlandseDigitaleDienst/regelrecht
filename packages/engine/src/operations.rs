@@ -641,25 +641,6 @@ fn equal_by_value(a: &Value, b: &Value, op_name: &str) -> Result<bool> {
     }
 }
 
-/// Equality as `combine: DISTINCT` has it until the signatures of the
-/// collection operations land: values of different kinds are different
-/// values, not an error.
-fn equal_for_distinct(a: &Value, b: &Value, op_name: &str) -> Result<bool> {
-    let equal = match (a, b) {
-        (Value::Object(_), Value::Object(_)) | (Value::Array(_), Value::Array(_)) => {
-            compound_equal(a, b, op_name)?
-        }
-        _ => values_equal(a, b),
-    };
-    if !equal
-        && is_mixed_date_pair(a, b)
-        && let (Ok(a_date), Ok(b_date)) = (parse_date(a), parse_date(b))
-    {
-        return Ok(a_date == b_date);
-    }
-    Ok(equal)
-}
-
 /// The kinds of the two operands of a comparison, once a date has made a
 /// date of what stands beside it (RFC-055, conversions 1 to 3): a string in
 /// the form `YYYY-MM-DD`, and the `{iso}` object of a reference date.
@@ -716,18 +697,6 @@ fn compound_equal(a: &Value, b: &Value, op_name: &str) -> Result<bool> {
             unlike.left, unlike.right, unlike.path
         ),
     })
-}
-
-/// Whether the pair is the mixed date form: one string against one
-/// reference-date `{iso}` object, in either order.
-///
-/// Used to scope date-aware equality to the single pairing that structural
-/// equality cannot already handle.
-fn is_mixed_date_pair(a: &Value, b: &Value) -> bool {
-    fn iso_object(v: &Value) -> bool {
-        matches!(v, Value::Object(obj) if obj.get("iso").is_some_and(is_date_or_text))
-    }
-    (is_date_or_text(a) && iso_object(b)) || (iso_object(a) && is_date_or_text(b))
 }
 
 /// Execute an ordered comparison (>, <, >=, <=) on numbers or dates.
@@ -1455,53 +1424,88 @@ fn execute_membership<R: ValueResolver>(
     depth: usize,
     negate: bool,
 ) -> Result<Value> {
+    let op_name = if negate { "NOT_IN" } else { "IN" };
+    let answer = |found: bool| Value::Bool(if negate { !found } else { found });
+
     let subject_val = evaluate_value(subject, resolver, depth)?;
     if subject_val.is_untranslatable() {
         return Ok(subject_val);
     }
 
-    let check_values = if let Some(values) = values {
-        evaluate_values(values, resolver, depth)?
-    } else if let Some(value) = value {
-        let resolved = evaluate_value(value, resolver, depth)?;
-        match resolved {
-            Value::Array(items) => items,
-            other => vec![other],
+    // The array is given as `values` or as `value`, never both (RFC-055).
+    let mut elements: Box<dyn Iterator<Item = Result<Value>> + '_> = match (values, value) {
+        (Some(values), None) => Box::new(
+            values
+                .iter()
+                .map(|element| evaluate_value(element, resolver, depth)),
+        ),
+        (None, Some(value)) => match evaluate_value(value, resolver, depth)? {
+            Value::Array(items) => Box::new(items.into_iter().map(Ok)),
+            // No list is a list nothing is in (RFC-036).
+            Value::Null => return Ok(answer(false)),
+            other if other.is_untranslatable() => return Ok(other),
+            other if other.is_unknown() => {
+                return Ok(
+                    propagate_unknown(resolver, op_name, [&subject_val, &other]).unwrap_or(other)
+                );
+            }
+            other => {
+                return Err(signatures::unsupported(
+                    op_name,
+                    &kinds_of([&subject_val, &other]),
+                ));
+            }
+        },
+        (Some(_), Some(_)) => {
+            return Err(EngineError::InvalidOperation(format!(
+                "{op_name} takes 'values' or 'value', not both"
+            )));
         }
-    } else {
-        let op_name = if negate { "NOT_IN" } else { "IN" };
-        return Err(EngineError::InvalidOperation(format!(
-            "{op_name} requires 'values' or 'value'"
-        )));
+        (None, None) => {
+            return Err(EngineError::InvalidOperation(format!(
+                "{op_name} requires 'values' or 'value'"
+            )));
+        }
     };
 
-    // A definite match settles it whatever else is in the list (Kleene, as
-    // for OR). A match is definite only when neither the subject nor the
-    // element has an Unknown anywhere inside: `[unknown]` might be `[650]`,
-    // but nobody can say so yet. Without a definite match, the precedence of
-    // RFC-012 over RFC-036 holds per element: a tainted element could have
-    // been the match, so the result is that taint; otherwise an unknown
-    // subject or an unknown (inside an) element leaves the question open.
-    // Null is structural, like EQUALS: `IN(null, [null])` is true,
-    // `IN(null, [1])` is false (RFC-036).
-    let found = !subject_val.contains_unknown()
-        && check_values.iter().any(|val| {
-            !val.contains_unknown() && !val.is_untranslatable() && values_equal(&subject_val, val)
-        });
-    if !found {
-        if let Some(tainted) = find_untranslatable(&check_values) {
-            return Ok(tainted);
+    // The elements are looked at in order, up to the first that equals the
+    // subject: a later one is not evaluated, so the data it reads is not
+    // fetched (RFC-043). A match is definite only when neither the subject nor
+    // the element has an unknown anywhere inside. Without a match, an
+    // untranslatable element could have been it, so the result is that taint;
+    // failing that, an unknown subject or element leaves the question open.
+    // An absence matches an absence and nothing else (RFC-036).
+    let subject_known = !subject_val.contains_unknown();
+    let mut taint: Option<Value> = None;
+    let mut open: Vec<Value> = Vec::new();
+    for element in elements.by_ref() {
+        let element = element?;
+        if element.is_untranslatable() {
+            taint.get_or_insert(element);
+            continue;
         }
-        let op_name = if negate { "NOT_IN" } else { "IN" };
-        if let Some(unknown) = propagate_unknown_deep(
-            resolver,
-            op_name,
-            std::iter::once(&subject_val).chain(check_values.iter()),
-        ) {
-            return Ok(unknown);
+        if element.contains_unknown() {
+            open.push(element);
+            continue;
+        }
+        if !subject_known {
+            continue;
+        }
+        if equal_by_value(&subject_val, &element, op_name)? {
+            return Ok(answer(true));
         }
     }
-    Ok(Value::Bool(if negate { !found } else { found }))
+    if let Some(tainted) = taint {
+        return Ok(tainted);
+    }
+    if let Some(unknown) = propagate_unknown_deep(
+        resolver,
+        op_name,
+        std::iter::once(&subject_val).chain(&open),
+    ) {
+        return Ok(unknown);
+    }
+    Ok(answer(false))
 }
 
 /// Execute LIST operation: construct an array from items.
@@ -1639,12 +1643,25 @@ pub fn execute_foreach(
                     ));
                     context.trace_pop();
                 }
-                // An untranslatable element taints the whole result. Combining
-                // the rest would produce a total that looks complete and is not
-                // (RFC-012). An unknown or null element is not fatal here: the
-                // combine functions decide what it means per aggregation
-                // (RFC-036), and without a combine it is simply an element.
-                if value.is_untranslatable() {
+                // Under `combine: AND` or `OR` an element that settles the
+                // answer ends the iteration: the elements after it are not
+                // evaluated, so the data they read is not fetched (RFC-055,
+                // RFC-043).
+                if let Some(settled) = settles(combine, &value)? {
+                    if tracing {
+                        context.trace_set_message(format!(
+                            "FOREACH stopped at element {index}: it settles the answer"
+                        ));
+                    }
+                    return Ok(settled);
+                }
+                // Elsewhere an untranslatable element taints the whole
+                // result. Combining the rest would produce a total that looks
+                // complete and is not (RFC-012). An unknown or null element is
+                // not fatal here: the combine functions decide what it means
+                // per aggregation (RFC-036), and without a combine it is
+                // simply an element.
+                if value.is_untranslatable() && !reduces_verdicts(combine) {
                     return Ok(value);
                 }
                 results.push(value);
@@ -1652,10 +1669,16 @@ pub fn execute_foreach(
             Ok(IterationOutcome::Tainted(value)) => {
                 if tracing {
                     context.trace_set_result(value.clone());
-                    context.trace_set_message(format!("ITEM {index}: untranslatable, aborting"));
+                    context.trace_set_message(format!("ITEM {index}: untranslatable"));
                     context.trace_pop();
                 }
-                return Ok(value);
+                // An element whose filter is untranslatable counts as an
+                // untranslatable element. Under `combine: AND` or `OR` a
+                // later element may still settle the answer.
+                if !reduces_verdicts(combine) {
+                    return Ok(value);
+                }
+                results.push(value);
             }
             Err(e) => {
                 if tracing {
@@ -1681,6 +1704,31 @@ pub fn execute_foreach(
         Some(op) => combine_with(*op, results),
         None => Ok(Value::Array(results)),
     }
+}
+
+/// Whether `combine` reduces verdicts, as `AND` and `OR` do.
+fn reduces_verdicts(combine: Option<&CombineOp>) -> bool {
+    matches!(combine, Some(CombineOp::And | CombineOp::Or))
+}
+
+/// The answer of a `combine: AND` or `OR` when `value` settles it: a `false`
+/// under `AND`, a `true` under `OR`. `None` for any other element and any
+/// other combine.
+///
+/// # Errors
+///
+/// As [`verdict_of_element`]: an absent verdict, or a value that is no
+/// boolean, is refused when it is reached.
+fn settles(combine: Option<&CombineOp>, value: &Value) -> Result<Option<Value>> {
+    let (combine, name, decisive) = match combine {
+        Some(CombineOp::And) => (CombineOp::And, "FOREACH combine AND", false),
+        Some(CombineOp::Or) => (CombineOp::Or, "FOREACH combine OR", true),
+        _ => return Ok(None),
+    };
+    Ok(match verdict_of_element(value, combine, name)? {
+        ElementVerdict::Decided(verdict) if verdict == decisive => Some(Value::Bool(decisive)),
+        _ => None,
+    })
 }
 
 /// Combine `results` with `op`: the per-element results of a FOREACH
@@ -1782,6 +1830,13 @@ fn combine_add(results: &[Value]) -> Result<Value> {
         return Ok(unknown);
     }
     reject_null("FOREACH combine ADD", results)?;
+    // A sum is a sum of numbers: `combine: ADD` does not join strings or
+    // lists (RFC-055).
+    require_among(
+        signatures::combine_signatures(CombineOp::Add),
+        "FOREACH combine ADD",
+        results,
+    )?;
     add_values(results)
 }
 
@@ -1791,30 +1846,7 @@ fn combine_add(results: &[Value]) -> Result<Value> {
 /// answer is `true` whatever the unknown turns out to be. Otherwise any unknown
 /// element makes the result unknown; a null element is an error (RFC-036).
 fn combine_or(results: &[Value]) -> Result<Value> {
-    if results.is_empty() {
-        return Ok(Value::Bool(false));
-    }
-    let mut unknowns: Vec<Value> = Vec::new();
-    for v in results {
-        if v.is_untranslatable() {
-            return Ok(v.clone());
-        }
-        if v.is_null() {
-            return Err(absent_operand("FOREACH combine OR"));
-        }
-        if v.is_unknown() {
-            unknowns.push(v.clone());
-            continue;
-        }
-        if verdict(
-            signatures::combine_signatures(CombineOp::Or),
-            "FOREACH combine OR",
-            v,
-        )? {
-            return Ok(Value::Bool(true));
-        }
-    }
-    Ok(Value::merge_unknown(&unknowns).unwrap_or(Value::Bool(false)))
+    combine_verdicts(results, CombineOp::Or, "FOREACH combine OR", true)
 }
 
 /// Combine FOREACH results with AND.
@@ -1824,30 +1856,60 @@ fn combine_or(results: &[Value]) -> Result<Value> {
 /// items" as "all conditions met" has to check for emptiness itself. A null
 /// element is an error (RFC-036).
 fn combine_and(results: &[Value]) -> Result<Value> {
-    if results.is_empty() {
-        return Ok(Value::Bool(true));
-    }
+    combine_verdicts(results, CombineOp::And, "FOREACH combine AND", false)
+}
+
+/// Reduce verdicts as `OR` (`decisive` is `true`) or `AND` (`false`) does: a
+/// decisive element settles the answer whatever else is there. Without one,
+/// an untranslatable element makes the result untranslatable, failing that an
+/// unknown one makes it unknown, and otherwise the answer is the other
+/// boolean (RFC-055).
+fn combine_verdicts(
+    results: &[Value],
+    combine: CombineOp,
+    name: &str,
+    decisive: bool,
+) -> Result<Value> {
+    let mut taint: Option<&Value> = None;
     let mut unknowns: Vec<Value> = Vec::new();
-    for v in results {
-        if v.is_untranslatable() {
-            return Ok(v.clone());
-        }
-        if v.is_null() {
-            return Err(absent_operand("FOREACH combine AND"));
-        }
-        if v.is_unknown() {
-            unknowns.push(v.clone());
-            continue;
-        }
-        if !verdict(
-            signatures::combine_signatures(CombineOp::And),
-            "FOREACH combine AND",
-            v,
-        )? {
-            return Ok(Value::Bool(false));
+    for value in results {
+        match verdict_of_element(value, combine, name)? {
+            ElementVerdict::Decided(verdict) if verdict == decisive => {
+                return Ok(Value::Bool(decisive));
+            }
+            ElementVerdict::Decided(_) => {}
+            ElementVerdict::Untranslatable => {
+                taint.get_or_insert(value);
+            }
+            ElementVerdict::Unknown => unknowns.push(value.clone()),
         }
     }
-    Ok(Value::merge_unknown(&unknowns).unwrap_or(Value::Bool(true)))
+    if let Some(tainted) = taint {
+        return Ok(tainted.clone());
+    }
+    Ok(Value::merge_unknown(&unknowns).unwrap_or(Value::Bool(!decisive)))
+}
+
+/// What one element says under `combine: AND` or `OR`.
+enum ElementVerdict {
+    Decided(bool),
+    Unknown,
+    Untranslatable,
+}
+
+/// The verdict of one element under `combine: AND` or `OR`. An absent verdict
+/// is an error (RFC-036), and so is a value that is no boolean (RFC-055).
+fn verdict_of_element(value: &Value, combine: CombineOp, name: &str) -> Result<ElementVerdict> {
+    if value.is_untranslatable() {
+        return Ok(ElementVerdict::Untranslatable);
+    }
+    if value.is_unknown() {
+        return Ok(ElementVerdict::Unknown);
+    }
+    if value.is_null() {
+        return Err(absent_operand(name));
+    }
+    verdict(signatures::combine_signatures(combine), name, value).map(ElementVerdict::Decided)
 }
 
 /// Combine FOREACH results with ONLY: the one result, whatever it is.
@@ -1905,7 +1967,7 @@ fn combine_distinct(results: Vec<Value>) -> Result<Value> {
     for result in results {
         let mut seen = false;
         for kept in &unique {
-            if equal_for_distinct(kept, &result, "FOREACH combine DISTINCT")? {
+            if equal_by_value(kept, &result, "FOREACH combine DISTINCT")? {
                 seen = true;
                 break;
             }
@@ -1939,6 +2001,12 @@ fn combine_min_max(results: &[Value], is_min: bool) -> Result<Value> {
         "FOREACH combine MAX"
     };
     reject_null(op_name, results)?;
+    let combine = if is_min {
+        CombineOp::Min
+    } else {
+        CombineOp::Max
+    };
+    require_among(signatures::combine_signatures(combine), op_name, results)?;
 
     let mut best: Option<Number> = None;
     let mut all_int = true;
@@ -2591,6 +2659,16 @@ fn require_signature(operation: Operation, operands: &[Value]) -> Result<()> {
     let kinds = kinds_of(operands);
     if kinds.len() == operands.len() {
         signatures::matching(operation, &kinds)?;
+    }
+    Ok(())
+}
+
+/// Hold `operands` against `rows`, naming the place `name` in the error.
+/// As [`require_signature`], for a place that is no operation of its own.
+fn require_among(rows: &[Signature], name: &str, operands: &[Value]) -> Result<()> {
+    let kinds = kinds_of(operands);
+    if kinds.len() == operands.len() {
+        signatures::matching_among(rows, name, &kinds)?;
     }
     Ok(())
 }
@@ -4149,14 +4227,20 @@ mod tests {
         }
 
         #[test]
-        fn test_foreach_combine_distinct_does_not_equate_values_of_different_types() {
-            // Unchanged until the signatures of the collection operations
-            // land: DISTINCT keeps values of different kinds apart.
-            let result = distinct_of(vec![s("1"), Value::Int(1), Value::Bool(true)]).unwrap();
+        fn test_foreach_combine_distinct_refuses_elements_of_different_types() {
+            // DISTINCT compares as EQUALS does, and EQUALS of two types is an
+            // error, not `false` (RFC-055).
+            let err = distinct_of(vec![s("1"), Value::Int(1), Value::Bool(true)]).unwrap_err();
             assert_eq!(
-                result,
-                Value::Array(vec![s("1"), Value::Int(1), Value::Bool(true)])
+                err.to_string(),
+                "FOREACH combine DISTINCT is not defined for (string, number)"
             );
+        }
+
+        #[test]
+        fn test_foreach_combine_distinct_keeps_an_absence_once() {
+            let result = distinct_of(vec![Value::Null, Value::Int(1), Value::Null]).unwrap();
+            assert_eq!(result, Value::Array(vec![Value::Null, Value::Int(1)]));
         }
 
         #[test]
@@ -4669,13 +4753,32 @@ mod tests {
         }
 
         #[test]
-        fn test_foreach_combine_add_concatenates_strings() {
-            // RFC-007 polymorphism reaches combine through the shared add_values.
-            let items = vec![Value::String("a".into()), Value::String("b".into())];
-            assert_eq!(
-                sum_of(items, Some(CombineOp::Add)).unwrap(),
-                Value::String("ab".to_string())
-            );
+        fn test_foreach_combine_add_takes_numbers_only() {
+            // RFC-055: a sum is a sum of numbers. `combine: ADD` joined
+            // strings and lists before; the operation ADD still does.
+            for items in [
+                vec![Value::String("a".into()), Value::String("b".into())],
+                vec![Value::Array(vec![Value::Int(1)])],
+                vec![Value::Int(1), Value::String("b".into())],
+            ] {
+                let err = sum_of(items, Some(CombineOp::Add)).unwrap_err();
+                assert!(
+                    err.to_string()
+                        .starts_with("FOREACH combine ADD is not defined for ("),
+                    "{err}"
+                );
+            }
+        }
+
+        #[test]
+        fn test_foreach_combine_min_max_take_numbers_only() {
+            for (combine, name) in [(CombineOp::Min, "MIN"), (CombineOp::Max, "MAX")] {
+                let err = sum_of(vec![Value::String("a".into())], Some(combine)).unwrap_err();
+                assert_eq!(
+                    err.to_string(),
+                    format!("FOREACH combine {name} is not defined for (string)")
+                );
+            }
         }
 
         #[test]

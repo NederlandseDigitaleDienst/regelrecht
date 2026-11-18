@@ -43,6 +43,10 @@ const COVERED: &[Operation] = &[
     Operation::Or,
     Operation::Not,
     Operation::If,
+    Operation::In,
+    Operation::List,
+    Operation::Record,
+    Operation::ForEach,
 ];
 
 /// The name of a row in a tag: its shape and the kinds it takes, so two rows
@@ -79,7 +83,15 @@ fn covered_rows() -> Vec<(String, String, &'static [Signature])> {
         "FOREACH filter".to_string(),
         condition(),
     ));
-    for combine in [CombineOp::And, CombineOp::Or] {
+    for combine in [
+        CombineOp::Add,
+        CombineOp::And,
+        CombineOp::Or,
+        CombineOp::Min,
+        CombineOp::Max,
+        CombineOp::Only,
+        CombineOp::Distinct,
+    ] {
         rows.push((
             format!("combine-{}", combine.as_str()),
             format!("FOREACH combine {}", combine.as_str()),
@@ -186,9 +198,19 @@ fn every_row_of_a_covered_operation_has_a_scenario() {
 #[test]
 fn every_covered_operation_has_a_scenario_that_refuses_operands() {
     let scenarios = scenarios();
+    // A place whose rows take values of any kind (`LIST`, `RECORD`, a
+    // `FOREACH` collection, `combine: ONLY`) has nothing to refuse.
+    let refuses = |rows: &[Signature]| {
+        rows.iter()
+            .any(|row| !matches!(row.operands, Operands::Values | Operands::Collection))
+    };
     let without: Vec<String> = covered_rows()
         .into_iter()
+        .filter(|(_, _, rows)| refuses(rows))
         .map(|(_, error_name, _)| error_name)
+        // `combine: DISTINCT` takes values of one kind, whatever it is: its
+        // refusal is that of the equality it compares with.
+        .chain(std::iter::once("FOREACH combine DISTINCT".to_string()))
         .filter(|name| {
             let refusal = format!("{name} is not defined for (");
             !scenarios
