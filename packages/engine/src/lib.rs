@@ -44,6 +44,7 @@ pub mod resolver;
 #[cfg(feature = "validate")]
 pub mod schema;
 pub mod service;
+pub mod signatures;
 pub mod trace;
 pub mod typecheck;
 pub mod types;
