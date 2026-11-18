@@ -3,11 +3,13 @@
 //! A general law hooks onto every decision of a legal character, and leaves a
 //! term open for the special law to fill: the decision period of Awb 4:13 is
 //! "the period set by statutory provision", with eight weeks as the fallback.
-//! Under a hook only the law the decision comes from (the host) fills such a
-//! term, and it fills it with the host's own parameters. These tests pin that
-//! on fictional rulework: a host that fills the term, a decision of another
-//! law that gets the fallback, and the article outside a hook, which keeps
-//! the behaviour it had.
+//! A filling can name the article the hook fires on (`host`). It then applies
+//! only while the hook fires on that article, reads that article's
+//! parameters, may come from any regulation the delegation gate admits, and
+//! goes before a filling that names no host. A filling without a host fills
+//! the term wherever the article runs, under any hook and outside one, with
+//! the parameters of the hook article itself. These tests pin that on
+//! fictional rulework.
 
 // Allowed crate-wide: test helpers outside a `#[test]` fn may unwrap, expect and
 // panic too, because that is how a failing fixture reports itself.
@@ -69,9 +71,11 @@ articles:
     )
 }
 
-/// A special law that gives a subsidy by BESCHIKKING and sets its own
-/// decision period, which depends on the subsidy year: a parameter of the
-/// subsidy decision that the general law does not know.
+/// A special law with two decisions that both fall under 4:13, each with a
+/// decision period of its own that depends on a parameter of that decision
+/// alone: the grant on the subsidy year (article 1, filled by article 2), the
+/// settlement on the number of projects (article 3, filled by article 4).
+/// Each filling names the article whose decision it sets the period of.
 const SUBSIDY_LAW: &str = r#"
 $id: subsidiewet_voorbeeld
 regulatory_layer: WET
@@ -98,13 +102,16 @@ articles:
             value: true
   - number: '2'
     text: |-
-      Onze Minister beslist op een aanvraag binnen dertien weken na ontvangst,
-      en voor een subsidiejaar vóór 2026 binnen zesentwintig weken.
+      Onze Minister beslist op een aanvraag tot verlening binnen dertien weken
+      na ontvangst, en voor een subsidiejaar vóór 2026 binnen zesentwintig weken.
     machine_readable:
       implements:
         - law: algemene_wet_voorbeeld
           article: '4:13'
           open_term: wettelijke_beslistermijn
+          host:
+            law: subsidiewet_voorbeeld
+            article: '1'
       execution:
         parameters:
           - name: subsidiejaar
@@ -133,6 +140,56 @@ articles:
                 operation: DATE_ADD
                 date: $datum_ontvangst
                 weeks: 13
+  - number: '3'
+    text: Onze Minister stelt de subsidie vast na ontvangst van het verslag over de projecten.
+    machine_readable:
+      execution:
+        produces:
+          legal_character: BESCHIKKING
+        parameters:
+          - name: aantal_projecten
+            type: number
+            required: true
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: subsidie_vastgesteld
+            type: boolean
+        actions:
+          - output: subsidie_vastgesteld
+            value: true
+  - number: '4'
+    text: Onze Minister beslist op een verslag binnen vier weken per project na ontvangst.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host:
+            law: subsidiewet_voorbeeld
+            article: '3'
+      execution:
+        parameters:
+          - name: aantal_projecten
+            type: number
+            required: true
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: wettelijke_beslistermijn
+            type: date
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks:
+                operation: MULTIPLY
+                values:
+                  - 4
+                  - $aantal_projecten
 "#;
 
 /// Another law that gives a BESCHIKKING and sets no decision period.
@@ -159,168 +216,10 @@ articles:
             value: true
 "#;
 
-fn service(delegation_type: Option<&str>) -> LawExecutionService {
-    let mut service = LawExecutionService::new();
-    service.load_law(&general_law(delegation_type)).unwrap();
-    service.load_law(SUBSIDY_LAW).unwrap();
-    service.load_law(OTHER_LAW).unwrap();
-    service
-}
-
-fn params(pairs: &[(&str, Value)]) -> BTreeMap<String, Value> {
-    pairs
-        .iter()
-        .map(|(name, value)| (name.to_string(), value.clone()))
-        .collect()
-}
-
-fn date(s: &str) -> Value {
-    Value::String(s.to_string())
-}
-
-fn subsidy_application(subsidiejaar: i64) -> BTreeMap<String, Value> {
-    params(&[
-        ("subsidiejaar", Value::Int(subsidiejaar)),
-        ("datum_ontvangst", date("2026-01-05")),
-    ])
-}
-
-fn filled_by_subsidy_law(filled_by: &FilledBy) -> bool {
-    matches!(filled_by, FilledBy::Regulation { law_id, .. } if law_id == "subsidiewet_voorbeeld")
-}
-
-/// The host fills the term, and with its own parameter: the subsidy year
-/// is no parameter of the general law, so without the host's scope the
-/// implementation could not run.
-#[test]
-fn the_host_law_fills_the_term_of_the_hook_with_its_own_parameters() {
-    let service = service(None);
-
-    let result = service
-        .evaluate_law_output(
-            "subsidiewet_voorbeeld",
-            "subsidie_verleend",
-            subsidy_application(2026),
-            "2026-01-05",
-        )
-        .unwrap();
-    assert_eq!(
-        result.outputs.get("uiterste_beslisdag"),
-        Some(&date("2026-04-06")),
-        "thirteen weeks from receipt, set by the host"
-    );
-    assert!(
-        result
-            .open_terms
-            .iter()
-            .any(|filled| filled.term == "wettelijke_beslistermijn"
-                && filled_by_subsidy_law(&filled.filled_by)),
-        "the receipt names the host as the one that filled the term, got {:?}",
-        result.open_terms
-    );
-
-    // The host's parameter decides the period, not a value passed in by name.
-    let earlier = service
-        .evaluate_law_output(
-            "subsidiewet_voorbeeld",
-            "subsidie_verleend",
-            subsidy_application(2025),
-            "2026-01-05",
-        )
-        .unwrap();
-    assert_eq!(
-        earlier.outputs.get("uiterste_beslisdag"),
-        Some(&date("2026-07-06")),
-        "twenty-six weeks for a subsidy year before 2026"
-    );
-}
-
-/// A decision of another law gets the fallback of eight weeks. The
-/// special law that fills the term for its own decisions does not fill it
-/// for this one, and leaves no record here either: it was never offered.
-#[test]
-fn a_decision_of_another_law_gets_the_default_not_the_foreign_filling() {
-    let service = service(None);
-
-    let result = service
-        .evaluate_law_output(
-            "andere_wet_voorbeeld",
-            "vergunning_verleend",
-            params(&[("datum_ontvangst", date("2026-01-05"))]),
-            "2026-01-05",
-        )
-        .unwrap();
-    assert_eq!(
-        result.outputs.get("uiterste_beslisdag"),
-        Some(&date("2026-03-02")),
-        "eight weeks from receipt, the default of the general law"
-    );
-    assert!(
-        !result
-            .open_terms
-            .iter()
-            .any(|filled| filled_by_subsidy_law(&filled.filled_by)),
-        "the subsidy law does not fill the term of a decision it did not give, got {:?}",
-        result.open_terms
-    );
-    assert!(result.delegation_refusals.is_empty());
-    assert!(result.declarations_not_in_force.is_empty());
-}
-
-/// Outside a hook the article keeps the behaviour it had: called
-/// directly, every regulation that implements the term is a candidate, and
-/// the implementation reads the parameters of the article it fills.
-#[test]
-fn the_article_outside_a_hook_keeps_the_current_behaviour() {
-    let service = service(None);
-
-    let result = service
-        .evaluate_law_output(
-            "algemene_wet_voorbeeld",
-            "uiterste_beslisdag",
-            subsidy_application(2026),
-            "2026-01-05",
-        )
-        .unwrap();
-    assert_eq!(
-        result.outputs.get("uiterste_beslisdag"),
-        Some(&date("2026-04-06")),
-        "called directly, the implementing regulation fills the term as before"
-    );
-}
-
-/// Which layer may fill the term stays the delegation gate's question: a
-/// host whose layer the term does not admit is refused, in the receipt, and
-/// the default applies. Under a hook the gate is asked of the host alone.
-#[test]
-fn the_delegation_gate_still_decides_which_layer_of_the_host_may_fill() {
-    let service = service(Some("MINISTERIELE_REGELING"));
-
-    let result = service
-        .evaluate_law_output(
-            "subsidiewet_voorbeeld",
-            "subsidie_verleend",
-            subsidy_application(2026),
-            "2026-01-05",
-        )
-        .unwrap();
-    assert_eq!(
-        result.outputs.get("uiterste_beslisdag"),
-        Some(&date("2026-03-02")),
-        "the refused host leaves the default of eight weeks"
-    );
-    let refused: Vec<&str> = result
-        .delegation_refusals
-        .iter()
-        .map(|r| r.refused_law.as_str())
-        .collect();
-    assert_eq!(refused, vec!["subsidiewet_voorbeeld"]);
-}
-
-/// A ministerial regulation that fills the decision period for every
-/// decision, from outside any host, with a parameter every decision has.
-const FOREIGN_REGULATION: &str = r#"
-$id: vreemde_regeling_voorbeeld
+/// A ministerial regulation that fills the decision period without naming a
+/// host, with a parameter the hook article itself has.
+const GENERAL_FILLING: &str = r#"
+$id: algemene_regeling_voorbeeld
 regulatory_layer: MINISTERIELE_REGELING
 publication_date: '2025-01-01'
 articles:
@@ -347,50 +246,517 @@ articles:
               weeks: 30
 "#;
 
-/// A filling from outside the host does not count under a hook, also when it
-/// could run on the hook's own parameters. Called directly, it does.
-#[test]
-fn a_foreign_filling_does_not_count_under_a_hook_even_when_it_could_run() {
-    let mut service = LawExecutionService::new();
-    service.load_law(&general_law(None)).unwrap();
-    service.load_law(OTHER_LAW).unwrap();
-    service.load_law(FOREIGN_REGULATION).unwrap();
-    let received = params(&[("datum_ontvangst", date("2026-01-05"))]);
+/// A policy rule of the minister that sets the decision period on the grant
+/// of article 1 of the subsidy law, with the subsidy year of that decision:
+/// ten weeks, twenty for a subsidy year before 2026.
+const GRANT_POLICY: &str = r#"
+$id: uitvoeringsbeleid_subsidie_voorbeeld
+regulatory_layer: BELEIDSREGEL
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Op een aanvraag tot verlening wordt binnen tien weken beslist, voor een subsidiejaar vóór 2026 binnen twintig.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host:
+            law: subsidiewet_voorbeeld
+            article: '1'
+      execution:
+        parameters:
+          - name: subsidiejaar
+            type: number
+            required: true
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: wettelijke_beslistermijn
+            type: date
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: LESS_THAN
+                    subject: $subsidiejaar
+                    value: 2026
+                  then:
+                    operation: DATE_ADD
+                    date: $datum_ontvangst
+                    weeks: 20
+              default:
+                operation: DATE_ADD
+                date: $datum_ontvangst
+                weeks: 10
+"#;
 
-    let decision = service
+/// The subsidy law with its decisions and without its own fillings.
+fn subsidy_decisions_only() -> String {
+    let end = SUBSIDY_LAW
+        .find("  - number: '2'")
+        .expect("the subsidy law has an article 2");
+    let settlement = SUBSIDY_LAW
+        .find("  - number: '3'")
+        .expect("the subsidy law has an article 3");
+    let filling = SUBSIDY_LAW
+        .find("  - number: '4'")
+        .expect("the subsidy law has an article 4");
+    format!(
+        "{}{}",
+        &SUBSIDY_LAW[..end],
+        &SUBSIDY_LAW[settlement..filling]
+    )
+}
+
+fn service(delegation_type: Option<&str>, laws: &[&str]) -> LawExecutionService {
+    let mut service = LawExecutionService::new();
+    service.load_law(&general_law(delegation_type)).unwrap();
+    for law in laws {
+        service.load_law(law).unwrap();
+    }
+    service
+}
+
+fn params(pairs: &[(&str, Value)]) -> BTreeMap<String, Value> {
+    pairs
+        .iter()
+        .map(|(name, value)| (name.to_string(), value.clone()))
+        .collect()
+}
+
+fn date(s: &str) -> Value {
+    Value::String(s.to_string())
+}
+
+fn subsidy_application(subsidiejaar: i64) -> BTreeMap<String, Value> {
+    params(&[
+        ("subsidiejaar", Value::Int(subsidiejaar)),
+        ("datum_ontvangst", date("2026-01-05")),
+    ])
+}
+
+/// Which regulation and article filled the open term of 4:13, by the receipt.
+fn filled_by(result: &regelrecht_engine::ArticleResult) -> Option<(String, String)> {
+    result
+        .open_terms
+        .iter()
+        .filter(|filled| filled.term == "wettelijke_beslistermijn")
+        .find_map(|filled| match &filled.filled_by {
+            FilledBy::Regulation { law_id, article } => Some((law_id.clone(), article.clone())),
+            _ => None,
+        })
+}
+
+fn by(law: &str, article: &str) -> Option<(String, String)> {
+    Some((law.to_string(), article.to_string()))
+}
+
+fn received() -> BTreeMap<String, Value> {
+    params(&[("datum_ontvangst", date("2026-01-05"))])
+}
+
+fn grant(service: &LawExecutionService, subsidiejaar: i64) -> regelrecht_engine::ArticleResult {
+    service
+        .evaluate_law_output(
+            "subsidiewet_voorbeeld",
+            "subsidie_verleend",
+            subsidy_application(subsidiejaar),
+            "2026-01-05",
+        )
+        .unwrap()
+}
+
+fn settlement(service: &LawExecutionService, projects: i64) -> regelrecht_engine::ArticleResult {
+    service
+        .evaluate_law_output(
+            "subsidiewet_voorbeeld",
+            "subsidie_vastgesteld",
+            params(&[
+                ("aantal_projecten", Value::Int(projects)),
+                ("datum_ontvangst", date("2026-01-05")),
+            ]),
+            "2026-01-05",
+        )
+        .unwrap()
+}
+
+fn permit(service: &LawExecutionService) -> regelrecht_engine::ArticleResult {
+    service
         .evaluate_law_output(
             "andere_wet_voorbeeld",
             "vergunning_verleend",
-            received.clone(),
+            received(),
             "2026-01-05",
         )
-        .unwrap();
-    assert_eq!(
-        decision.outputs.get("uiterste_beslisdag"),
-        Some(&date("2026-03-02")),
-        "eight weeks: the foreign regulation does not fill the term under a hook"
-    );
+        .unwrap()
+}
 
-    let direct = service
+fn direct(service: &LawExecutionService) -> regelrecht_engine::ArticleResult {
+    service
         .evaluate_law_output(
             "algemene_wet_voorbeeld",
             "uiterste_beslisdag",
-            received,
+            subsidy_application(2026),
             "2026-01-05",
         )
-        .unwrap();
+        .unwrap()
+}
+
+fn last_day(result: &regelrecht_engine::ArticleResult) -> Option<&Value> {
+    result.outputs.get("uiterste_beslisdag")
+}
+
+/// Two articles of one law fire the same hook, and each has a filling that
+/// names it. Each decision gets its own filling, with a parameter only that
+/// decision has: the subsidy year of the grant, the number of projects of
+/// the settlement.
+#[test]
+fn each_article_that_fires_the_hook_gets_the_filling_that_names_it() {
+    let service = service(None, &[SUBSIDY_LAW]);
+
+    let grant_2026 = grant(&service, 2026);
     assert_eq!(
-        direct.outputs.get("uiterste_beslisdag"),
+        last_day(&grant_2026),
+        Some(&date("2026-04-06")),
+        "thirteen weeks for the grant"
+    );
+    assert_eq!(filled_by(&grant_2026), by("subsidiewet_voorbeeld", "2"));
+    assert_eq!(
+        last_day(&grant(&service, 2025)),
+        Some(&date("2026-07-06")),
+        "twenty-six weeks for a subsidy year before 2026"
+    );
+
+    let settled = settlement(&service, 3);
+    assert_eq!(
+        last_day(&settled),
+        Some(&date("2026-03-30")),
+        "twelve weeks for three projects"
+    );
+    assert_eq!(filled_by(&settled), by("subsidiewet_voorbeeld", "4"));
+}
+
+/// A filling that names a host applies only while the hook fires on that
+/// article. A decision of another law gets the default, and so does the
+/// article called directly; the filling leaves no record there.
+#[test]
+fn a_filling_with_a_host_applies_nowhere_else() {
+    let service = service(None, &[SUBSIDY_LAW, OTHER_LAW]);
+
+    for result in [permit(&service), direct(&service)] {
+        assert_eq!(
+            last_day(&result),
+            Some(&date("2026-03-02")),
+            "eight weeks, the default of the general law"
+        );
+        assert_eq!(filled_by(&result), None);
+        assert!(result.delegation_refusals.is_empty());
+        assert!(result.declarations_not_in_force.is_empty());
+    }
+}
+
+/// A filling that names no host fills the term for every article the hook
+/// fires on, both articles of one law and a decision of another law, and
+/// outside a hook too: as an open term is filled anywhere else.
+#[test]
+fn a_filling_without_a_host_applies_under_every_hook() {
+    let decisions = subsidy_decisions_only();
+    let service = service(None, &[&decisions, OTHER_LAW, GENERAL_FILLING]);
+
+    for result in [
+        grant(&service, 2026),
+        settlement(&service, 3),
+        permit(&service),
+        direct(&service),
+    ] {
+        assert_eq!(
+            last_day(&result),
+            Some(&date("2026-08-03")),
+            "thirty weeks, from the filling without a host"
+        );
+        assert_eq!(filled_by(&result), by("algemene_regeling_voorbeeld", "1"));
+    }
+}
+
+/// A filling that names the article the hook fires on goes before one that
+/// names none, also when the one without a host would win on priority alone.
+/// Where nothing names the article, the filling without a host applies.
+#[test]
+fn a_filling_that_names_the_host_goes_before_one_that_names_none() {
+    let general_by_law = GENERAL_FILLING
+        .replace(
+            "regulatory_layer: MINISTERIELE_REGELING",
+            "regulatory_layer: WET",
+        )
+        .replace(
+            "publication_date: '2025-01-01'",
+            "publication_date: '2025-06-01'",
+        );
+    let service = service(
+        None,
+        &[SUBSIDY_LAW, OTHER_LAW, GRANT_POLICY, &general_by_law],
+    );
+
+    let granted = grant(&service, 2026);
+    assert_eq!(
+        last_day(&granted),
+        Some(&date("2026-04-06")),
+        "thirteen weeks of the subsidy law, not thirty of the general filling"
+    );
+    assert_eq!(filled_by(&granted), by("subsidiewet_voorbeeld", "2"));
+
+    assert_eq!(
+        last_day(&permit(&service)),
         Some(&date("2026-08-03")),
-        "thirty weeks: outside a hook the foreign regulation fills it as before"
+        "thirty weeks for a decision no filling names"
     );
 }
 
-/// A host that states its period in terms of the general rule reads the
-/// general rule without its own filling. That read is still part of the
-/// host's decision, so another regulation does not fill the term there.
+/// The fillings with and without a host side by side: each article of the
+/// subsidy law gets the filling that names it, and every other firing, and
+/// the article called directly, gets the filling without a host.
 #[test]
-fn a_host_reading_the_general_rule_gets_the_default_not_a_foreign_filling() {
+fn fillings_with_and_without_a_host_side_by_side() {
+    let service = service(None, &[SUBSIDY_LAW, OTHER_LAW, GENERAL_FILLING]);
+
+    let cases = [
+        (
+            grant(&service, 2026),
+            "2026-04-06",
+            by("subsidiewet_voorbeeld", "2"),
+        ),
+        (
+            grant(&service, 2025),
+            "2026-07-06",
+            by("subsidiewet_voorbeeld", "2"),
+        ),
+        (
+            settlement(&service, 3),
+            "2026-03-30",
+            by("subsidiewet_voorbeeld", "4"),
+        ),
+        (
+            permit(&service),
+            "2026-08-03",
+            by("algemene_regeling_voorbeeld", "1"),
+        ),
+        (
+            direct(&service),
+            "2026-08-03",
+            by("algemene_regeling_voorbeeld", "1"),
+        ),
+    ];
+    for (result, expected, filler) in cases {
+        assert_eq!(last_day(&result), Some(&date(expected)));
+        assert_eq!(filled_by(&result), filler);
+    }
+}
+
+/// Two fillings that both name the host are ranked as any two candidates
+/// are: lex superior, so the law goes before the policy rule. Without the
+/// law's own filling, the policy rule fills the term with the subsidy year.
+#[test]
+fn two_fillings_that_name_the_host_are_ranked_by_priority() {
+    let both = service(None, &[SUBSIDY_LAW, GRANT_POLICY]);
+    let granted = grant(&both, 2026);
+    assert_eq!(filled_by(&granted), by("subsidiewet_voorbeeld", "2"));
+    assert_eq!(last_day(&granted), Some(&date("2026-04-06")));
+
+    let decisions = subsidy_decisions_only();
+    let policy_only = service(None, &[&decisions, GRANT_POLICY]);
+    let granted = grant(&policy_only, 2026);
+    assert_eq!(
+        filled_by(&granted),
+        by("uitvoeringsbeleid_subsidie_voorbeeld", "1")
+    );
+    assert_eq!(
+        last_day(&granted),
+        Some(&date("2026-03-16")),
+        "ten weeks, set by the policy rule"
+    );
+}
+
+/// A policy rule that names the host is still asked the delegation gate's
+/// question: where the term demands a law, it is refused, in the receipt,
+/// and the default applies.
+#[test]
+fn the_delegation_gate_refuses_a_policy_rule_that_names_the_host() {
+    let decisions = subsidy_decisions_only();
+    let service = service(Some("WET"), &[&decisions, GRANT_POLICY]);
+
+    let granted = grant(&service, 2026);
+    assert_eq!(
+        last_day(&granted),
+        Some(&date("2026-03-02")),
+        "the refused policy rule leaves the default of eight weeks"
+    );
+    let refused: Vec<(&str, &str)> = granted
+        .delegation_refusals
+        .iter()
+        .map(|r| (r.refused_law.as_str(), r.refused_layer.as_str()))
+        .collect();
+    assert_eq!(
+        refused,
+        vec![("uitvoeringsbeleid_subsidie_voorbeeld", "BELEIDSREGEL")]
+    );
+}
+
+/// The gate holds for a law that names the host as well: a layer the term
+/// does not admit is refused, and the default applies.
+#[test]
+fn the_delegation_gate_refuses_a_host_of_the_wrong_layer() {
+    let service = service(Some("MINISTERIELE_REGELING"), &[SUBSIDY_LAW]);
+
+    let granted = grant(&service, 2026);
+    assert_eq!(last_day(&granted), Some(&date("2026-03-02")));
+    let refused: Vec<&str> = granted
+        .delegation_refusals
+        .iter()
+        .map(|r| r.refused_law.as_str())
+        .collect();
+    assert_eq!(refused, vec!["subsidiewet_voorbeeld"]);
+}
+
+/// A filling without a host reads the parameters of the hook article only.
+/// One that asks for a parameter of the decision (the subsidy year) does not
+/// get it from the decision: the execution fails with `VariableNotFound`,
+/// the error an implementation gets for a required parameter that is not in
+/// the scope it runs in, as before RFC-058.
+#[test]
+fn a_filling_without_a_host_does_not_get_a_parameter_of_the_host() {
+    let without_host = SUBSIDY_LAW
+        .replacen(
+            "          host:\n            law: subsidiewet_voorbeeld\n            article: '1'\n",
+            "",
+            1,
+        )
+        .replace(
+            "$id: subsidiewet_voorbeeld",
+            "$id: subsidiewet_zonder_herkomst_voorbeeld",
+        )
+        .replace(
+            "law: subsidiewet_voorbeeld",
+            "law: subsidiewet_zonder_herkomst_voorbeeld",
+        );
+    assert_eq!(without_host.matches("host:").count(), 1);
+    let service = service(None, &[&without_host]);
+
+    let result = service.evaluate_law_output(
+        "subsidiewet_zonder_herkomst_voorbeeld",
+        "subsidie_verleend",
+        subsidy_application(2026),
+        "2026-01-05",
+    );
+    match result {
+        Err(EngineError::VariableNotFound(name)) => assert_eq!(name, "subsidiejaar"),
+        other => panic!("expected the missing parameter subsidiejaar, got {other:?}"),
+    }
+}
+
+/// Regression for #2020: a regulation with an article that fires as a hook,
+/// and another article of the same regulation that fills the hook's open
+/// term without naming a host. That filling counts under every hook, as it
+/// did before #2020, which let only the law of the decision fill the term.
+/// So does a policy rule that fills the term of a hook article of a general
+/// law without a host.
+#[test]
+fn a_filling_of_the_hooks_own_regulation_without_a_host_counts() {
+    let policy = r#"
+$id: behandelbeleid_voorbeeld
+regulatory_layer: BELEIDSREGEL
+publication_date: '2025-01-01'
+articles:
+  - number: '4'
+    text: Op elke beschikking wordt binnen de behandeltermijn beslist.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BESLUIT
+      open_terms:
+        - id: behandeltermijn_weken
+          type: number
+          required: false
+          default:
+            actions:
+              - output: behandeltermijn_weken
+                value: 8
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: uiterste_behandeldag
+            type: date
+        actions:
+          - output: uiterste_behandeldag
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: $behandeltermijn_weken
+  - number: 4a
+    text: De behandeltermijn bedraagt zes weken.
+    machine_readable:
+      implements:
+        - law: behandelbeleid_voorbeeld
+          article: '4'
+          open_term: behandeltermijn_weken
+      execution:
+        output:
+          - name: behandeltermijn_weken
+            type: number
+        actions:
+          - output: behandeltermijn_weken
+            value: 6
+  - number: '5'
+    text: Op een aanvraag wordt binnen vijf weken na ontvangst beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: wettelijke_beslistermijn
+            type: date
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 5
+"#;
+    let service = service(None, &[OTHER_LAW, policy]);
+
+    let result = permit(&service);
+    assert_eq!(
+        result.outputs.get("uiterste_behandeldag"),
+        Some(&date("2026-02-16")),
+        "six weeks, from article 4a of the policy rule itself"
+    );
+    assert_eq!(
+        last_day(&result),
+        Some(&date("2026-02-09")),
+        "five weeks, from the policy rule on the general law's hook"
+    );
+    assert_eq!(filled_by(&result), by("behandelbeleid_voorbeeld", "5"));
+}
+
+/// A host that states its period in terms of the general rule reads the
+/// general rule without its own filling: held back, it passes the term on
+/// to the filling without a host, as it would to the default.
+#[test]
+fn a_host_reading_the_general_rule_gets_the_filling_without_a_host() {
     let host = r#"
 $id: subsidiewet_verlenging_voorbeeld
 regulatory_layer: WET
@@ -413,12 +779,15 @@ articles:
           - output: subsidie_verleend
             value: true
   - number: '2'
-    text: De beslistermijn is de redelijke termijn, verlengd met twee weken.
+    text: De beslistermijn is de algemene termijn, verlengd met twee weken.
     machine_readable:
       implements:
         - law: algemene_wet_voorbeeld
           article: '4:13'
           open_term: wettelijke_beslistermijn
+          host:
+            law: subsidiewet_verlenging_voorbeeld
+            article: '1'
       execution:
         parameters:
           - name: datum_ontvangst
@@ -442,23 +811,28 @@ articles:
               date: $algemene_beslisdag
               weeks: 2
 "#;
-    let mut service = LawExecutionService::new();
-    service.load_law(&general_law(None)).unwrap();
-    service.load_law(FOREIGN_REGULATION).unwrap();
-    service.load_law(host).unwrap();
+    let without_general = service(None, &[host]);
+    let with_general = service(None, &[host, GENERAL_FILLING]);
+    let run = |service: &LawExecutionService| {
+        service
+            .evaluate_law_output(
+                "subsidiewet_verlenging_voorbeeld",
+                "subsidie_verleend",
+                received(),
+                "2026-01-05",
+            )
+            .unwrap()
+    };
 
-    let result = service
-        .evaluate_law_output(
-            "subsidiewet_verlenging_voorbeeld",
-            "subsidie_verleend",
-            params(&[("datum_ontvangst", date("2026-01-05"))]),
-            "2026-01-05",
-        )
-        .unwrap();
     assert_eq!(
-        result.outputs.get("uiterste_beslisdag"),
+        last_day(&run(&without_general)),
         Some(&date("2026-03-16")),
-        "eight weeks of the default plus two of the host, not thirty plus two"
+        "eight weeks of the default plus two of the host"
+    );
+    assert_eq!(
+        last_day(&run(&with_general)),
+        Some(&date("2026-08-17")),
+        "thirty weeks of the filling without a host plus two of the host"
     );
 }
 
@@ -496,6 +870,9 @@ articles:
         - law: algemene_wet_voorbeeld
           article: '4:13'
           open_term: wettelijke_beslistermijn
+          host:
+            law: subsidieverordening_voorbeeld
+            article: '1'
       execution:
         parameters:
           - name: datum_ontvangst
@@ -511,20 +888,18 @@ articles:
               date: $datum_ontvangst
               weeks: 4
 "#;
-    let mut service = LawExecutionService::new();
-    service.load_law(&general_law(None)).unwrap();
-    service.load_law(host).unwrap();
+    let service = service(None, &[host]);
 
     let result = service
         .evaluate_law_output(
             "subsidieverordening_voorbeeld",
             "subsidie_verleend",
-            params(&[("datum_ontvangst", date("2026-01-05"))]),
+            received(),
             "2026-01-05",
         )
         .unwrap();
     assert_eq!(
-        result.outputs.get("uiterste_beslisdag"),
+        last_day(&result),
         Some(&date("2026-02-02")),
         "four weeks, set by the municipal host"
     );
@@ -539,36 +914,36 @@ fn general_law_judged_per_case() -> String {
     )
 }
 
-/// A finding for a term that only a foreign regulation fills applies under a
-/// hook: for this decision the term is unfilled, so the authority's judgement
-/// for the case decides it.
+/// A finding for a term that only a filling for another host fills applies
+/// under a hook: for this decision the term is unfilled, so the authority's
+/// judgement for the case decides it.
 #[test]
-fn a_finding_applies_under_a_hook_where_only_a_foreign_regulation_fills_the_term() {
+fn a_finding_applies_where_only_a_filling_for_another_host_fills_the_term() {
     let mut service = LawExecutionService::new();
     service.load_law(&general_law_judged_per_case()).unwrap();
+    service.load_law(SUBSIDY_LAW).unwrap();
     service.load_law(OTHER_LAW).unwrap();
-    service.load_law(FOREIGN_REGULATION).unwrap();
 
     let result = service
         .evaluate_law_with_findings(
             "andere_wet_voorbeeld",
             &["vergunning_verleend"],
-            params(&[("datum_ontvangst", date("2026-01-05"))]),
+            received(),
             params(&[("wettelijke_beslistermijn", date("2026-05-01"))]),
             "2026-01-05",
         )
         .unwrap();
     assert_eq!(
-        result.outputs.get("uiterste_beslisdag"),
+        last_day(&result),
         Some(&date("2026-05-01")),
-        "the finding decides the term the foreign regulation does not fill here"
+        "the finding decides the term no filling fills for this decision"
     );
 }
 
-/// A foreign policy that fills the term and leaves a case to the authority
-/// with a term of its own (RFC-048 §2).
-const FOREIGN_POLICY: &str = r#"
-$id: vreemd_beleid_voorbeeld
+/// A policy rule that names the grant as its host and leaves a case to the
+/// authority with a term of its own (RFC-048 §2).
+const GRANT_POLICY_JUDGED_PER_CASE: &str = r#"
+$id: bijzonder_beleid_voorbeeld
 regulatory_layer: BELEIDSREGEL
 publication_date: '2025-01-01'
 articles:
@@ -579,6 +954,9 @@ articles:
         - law: algemene_wet_voorbeeld
           article: '4:13'
           open_term: wettelijke_beslistermijn
+          host:
+            law: subsidiewet_voorbeeld
+            article: '1'
       open_terms:
         - id: bijzondere_omstandigheden
           type: boolean
@@ -611,41 +989,38 @@ articles:
                 weeks: 30
 "#;
 
-/// Under a hook the foreign policy does not fill the term, so no article
-/// asks for a finding on its own term and the engine refuses it. Called
-/// directly, the policy fills the term with the finding.
+/// Under the hook on the grant the policy rule fills the term and takes the
+/// finding on its own term. Under the hook on another decision it fills
+/// nothing, so no article asks for that finding and the engine refuses it.
 #[test]
-fn a_finding_on_a_foreign_policys_own_term_is_refused_under_a_hook() {
-    let mut service = LawExecutionService::new();
-    service.load_law(&general_law(None)).unwrap();
-    service.load_law(OTHER_LAW).unwrap();
-    service.load_law(FOREIGN_POLICY).unwrap();
-    let received = params(&[("datum_ontvangst", date("2026-01-05"))]);
+fn a_finding_on_the_own_term_of_a_policy_counts_only_under_its_host() {
+    let decisions = subsidy_decisions_only();
+    let service = service(None, &[&decisions, OTHER_LAW, GRANT_POLICY_JUDGED_PER_CASE]);
     let finding = params(&[("bijzondere_omstandigheden", Value::Bool(true))]);
 
-    let direct = service
+    let granted = service
         .evaluate_law_with_findings(
-            "algemene_wet_voorbeeld",
-            &["uiterste_beslisdag"],
-            received.clone(),
+            "subsidiewet_voorbeeld",
+            &["subsidie_verleend"],
+            subsidy_application(2026),
             finding.clone(),
             "2026-01-05",
         )
         .unwrap();
     assert_eq!(
-        direct.outputs.get("uiterste_beslisdag"),
+        last_day(&granted),
         Some(&date("2026-01-19")),
-        "called directly, the policy fills the term with the finding"
+        "under its host the policy rule fills the term with the finding"
     );
 
-    let under_hook = service.evaluate_law_with_findings(
+    let other = service.evaluate_law_with_findings(
         "andere_wet_voorbeeld",
         &["vergunning_verleend"],
-        received,
+        received(),
         finding,
         "2026-01-05",
     );
-    match under_hook {
+    match other {
         Err(EngineError::FindingsNotAsked { findings }) => {
             assert_eq!(findings, vec!["bijzondere_omstandigheden".to_string()]);
         }
@@ -754,8 +1129,8 @@ articles:
 
 /// The host's filling reads a value the host gets from an input that none
 /// of its own actions reads. The engine resolves inputs only when something
-/// reads them (RFC-043); the filling is such a reader, so the input is
-/// resolved before the hook fires.
+/// reads them (RFC-043); the filling that names the host is such a reader,
+/// so the input is resolved before the hook fires.
 #[test]
 fn the_host_scope_holds_an_input_only_the_filling_reads() {
     let register = r#"
@@ -775,28 +1150,25 @@ articles:
             value: 2025
 "#;
     let host = SUBSIDY_LAW
-        .replacen("subsidiewet_voorbeeld", "subsidiewet_register_voorbeeld", 1)
+        .replace("subsidiewet_voorbeeld", "subsidiewet_register_voorbeeld")
         .replacen(
             "          - name: subsidiejaar\n            type: number\n            required: true\n          - name: datum_ontvangst\n            type: date\n            required: true\n        output:\n          - name: subsidie_verleend",
             "          - name: datum_ontvangst\n            type: date\n            required: true\n        input:\n          - name: subsidiejaar\n            type: number\n            source:\n              regulation: subsidieregister_voorbeeld\n              output: subsidiejaar\n        output:\n          - name: subsidie_verleend",
             1,
         );
     assert!(host.contains("regulation: subsidieregister_voorbeeld"));
-    let mut service = LawExecutionService::new();
-    service.load_law(&general_law(None)).unwrap();
-    service.load_law(register).unwrap();
-    service.load_law(&host).unwrap();
+    let service = service(None, &[register, &host]);
 
     let result = service
         .evaluate_law_output(
             "subsidiewet_register_voorbeeld",
             "subsidie_verleend",
-            params(&[("datum_ontvangst", date("2026-01-05"))]),
+            received(),
             "2026-01-05",
         )
         .unwrap();
     assert_eq!(
-        result.outputs.get("uiterste_beslisdag"),
+        last_day(&result),
         Some(&date("2026-07-06")),
         "twenty-six weeks for the subsidy year 2025 from the register"
     );
@@ -839,6 +1211,9 @@ articles:
         - law: algemene_wet_voorbeeld
           article: '4:13'
           open_term: wettelijke_beslistermijn
+          host:
+            law: subsidiewet_categorie_voorbeeld
+            article: '1'
       execution:
         parameters:
           - name: datum_ontvangst
@@ -857,20 +1232,18 @@ articles:
               date: $datum_ontvangst
               weeks: $aantal_weken_voor_categorie
 "#;
-    let mut service = LawExecutionService::new();
-    service.load_law(&general_law(None)).unwrap();
-    service.load_law(host).unwrap();
+    let service = service(None, &[host]);
 
     let result = service
         .evaluate_law_output(
             "subsidiewet_categorie_voorbeeld",
             "subsidie_verleend",
-            params(&[("datum_ontvangst", date("2026-01-05"))]),
+            received(),
             "2026-01-05",
         )
         .unwrap();
     assert_eq!(
-        result.outputs.get("uiterste_beslisdag"),
+        last_day(&result),
         Some(&date("2026-02-09")),
         "five weeks, from an output the caller did not request"
     );
@@ -937,22 +1310,26 @@ articles:
 "#;
 
 /// A hook that reads the output of another hook on the same decision reads
-/// it as that decision's: the foreign filling of the first hook's term does
-/// not reach the second hook either.
+/// it as that decision's: the filling that names the decision reaches the
+/// second hook through the first, and a decision it does not name keeps the
+/// default in both.
 #[test]
 fn a_hook_reading_another_hook_on_the_same_decision_gets_the_hosts_filling() {
     let weeks = r#"
-$id: vreemde_weken_voorbeeld
+$id: weken_voor_vergunning_voorbeeld
 regulatory_layer: WET
 publication_date: '2025-01-01'
 articles:
   - number: '1'
-    text: De beslistermijn bedraagt een week.
+    text: Op een aanvraag om een vergunning wordt binnen een week beslist.
     machine_readable:
       implements:
         - law: algemene_wet_twee_haken_voorbeeld
           article: '1'
           open_term: wettelijke_beslistermijn_weken
+          host:
+            law: andere_wet_voorbeeld
+            article: '1'
       execution:
         output:
           - name: wettelijke_beslistermijn_weken
@@ -964,25 +1341,44 @@ articles:
     let mut service = LawExecutionService::new();
     service.load_law(GENERAL_LAW_TWO_HOOKS).unwrap();
     service.load_law(OTHER_LAW).unwrap();
+    service.load_law(&subsidy_decisions_only()).unwrap();
     service.load_law(weeks).unwrap();
 
-    let result = service
-        .evaluate_law_output(
-            "andere_wet_voorbeeld",
-            "vergunning_verleend",
-            params(&[("datum_ontvangst", date("2026-01-05"))]),
-            "2026-01-05",
-        )
-        .unwrap();
+    let named = permit(&service);
     assert_eq!(
-        result.outputs.get("beslistermijn_weken"),
+        named.outputs.get("beslistermijn_weken"),
+        Some(&Value::Int(1))
+    );
+    assert_eq!(
+        last_day(&named),
+        Some(&date("2026-01-12")),
+        "one week in the second hook too, through the first"
+    );
+
+    let other = settlement(&service, 3);
+    assert_eq!(
+        other.outputs.get("beslistermijn_weken"),
         Some(&Value::Int(8))
     );
-    assert_eq!(
-        result.outputs.get("uiterste_beslisdag"),
-        Some(&date("2026-03-02")),
-        "eight weeks in the second hook too, not the foreign one week"
+    assert_eq!(last_day(&other), Some(&date("2026-03-02")));
+}
+
+/// A host-named filling in a file on a schema version before v0.8.24 is
+/// refused when it loads: that version does not know `host`, and a reader of
+/// it would take the filling to apply to every decision.
+#[test]
+fn a_host_before_schema_v0_8_24_is_refused() {
+    let old = format!(
+        "$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json\n{SUBSIDY_LAW}"
     );
+    let mut service = LawExecutionService::new();
+    match service.load_law(&old) {
+        Err(error) => assert!(
+            error.to_string().contains("schema v0.8.24 introduced"),
+            "got {error}"
+        ),
+        Ok(_) => panic!("a host under v0.8.22 should be refused"),
+    }
 }
 
 /// A default reads the parameters of the article its term belongs to as that

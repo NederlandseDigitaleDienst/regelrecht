@@ -45,8 +45,8 @@ use crate::operations::ValueResolver;
 use crate::priority;
 use crate::resolver::{
     DeclarationKind, DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal,
-    HookEntry, ImplementationLookup, LawArticleRef, ProcedureMiss, RuleResolver, SelectionReason,
-    hook_filter_admits, missing_article_reason, submission_filter_admits,
+    HookEntry, HookFiring, ImplementationLookup, LawArticleRef, ProcedureMiss, RuleResolver,
+    SelectionReason, hook_filter_admits, missing_article_reason, submission_filter_admits,
 };
 use crate::trace::{LegalAnchor, PathNode, TraceBuilder, ValueSource};
 use crate::types::{
@@ -183,22 +183,24 @@ struct ResolutionContext<'a> {
     /// ([`Bound`]): how an open term the binding fills came to its value
     /// ([`FilledBy::Answer`]).
     bound: Vec<Bound>,
-    /// The decision the hook that runs now fires on, while it runs
-    /// (RFC-058). The open terms of the hooks on it are filled by the host
-    /// law only, with the host's parameters.
+    /// The article the hook that runs now fires on, while it runs
+    /// (RFC-058). A filling of an open term of a hook on it that names that
+    /// article goes first, and reads its parameters.
     hook_host: Option<Rc<HookHost>>,
 }
 
-/// The decision hooks fire on, as their open terms see it (RFC-058): the
-/// articles that fire as hooks on it, at either hook point, the law of the
-/// article that fires them, and the parameters that article handed the
-/// hooks. Only the open terms of those hook articles read it, wherever the
-/// hook run reaches one of them: a hook that reads the output of another
-/// hook on the same decision reads it as that decision's. An article the
-/// hook calls that is no hook on the decision is not a hook here either.
+/// The article hooks fire on, as their open terms see it (RFC-058): the
+/// articles that fire as hooks on it, at either hook point, the law and
+/// number of the article that fires them (the host), and the parameters that
+/// article handed the hooks. Only the open terms of those hook articles read
+/// it, wherever the hook run reaches one of them: a hook that reads the
+/// output of another hook on the same decision reads it as that decision's.
+/// An article the hook calls that is no hook on the decision is not a hook
+/// here either.
 struct HookHost {
     hooks: BTreeSet<(String, String)>,
     host_law: String,
+    host_article: String,
     parameters: BTreeMap<String, Value>,
 }
 
@@ -210,14 +212,20 @@ impl HookHost {
             .any(|(hook_law, hook_article)| hook_law == law && hook_article == article)
     }
 
-    /// The scope an open term is filled in: the host's, under a hook, else
-    /// `parameters`. The lookup and the run of an implementation both take
-    /// it from here, so they cannot drift apart.
-    fn scope_or<'p>(
+    /// The scope the implementation at `position` of `lookup` runs in: the
+    /// host's when it names the host, else `parameters`, those of the article
+    /// whose term it fills. The lookup and the run of an implementation both
+    /// take it from here, so they cannot drift apart.
+    fn scope_for<'p>(
         host: Option<&'p HookHost>,
+        lookup: &ImplementationLookup<'_>,
+        position: usize,
         parameters: &'p BTreeMap<String, Value>,
     ) -> &'p BTreeMap<String, Value> {
-        host.map_or(parameters, |host| &host.parameters)
+        match host {
+            Some(host) if lookup.names_the_host(position) => &host.parameters,
+            _ => parameters,
+        }
     }
 }
 
@@ -3412,8 +3420,8 @@ impl LawExecutionService {
         // A value computed with an override held back is not the value of
         // that output, so it neither comes from nor goes into the cache. Nor
         // is one computed while a hook runs: a call that reaches the hook
-        // article fills its terms from the host (RFC-058), and the key does
-        // not name the host. A safeguard: the corpus has one route to such a
+        // article fills its terms first from the fillings that name the
+        // article the hook fires on (RFC-058), and the key does not name it. A safeguard: the corpus has one route to such a
         // call, an implementation that reads the law it fills, and that one is
         // held back already.
         let cacheable =
@@ -3741,12 +3749,14 @@ impl LawExecutionService {
     }
 
     /// The parameters the hooks at `hook_point` on this article declare: the
-    /// names they receive from it (RFC-043). Also those the article's own law
-    /// declares where it fills an open term of such a hook: that filling reads
-    /// the host's scope (RFC-058), so what it reads is resolved before the
-    /// hooks fire, also when no action of the article reads it. That holds
-    /// for every implementation of the host, not only the one that wins, as
-    /// it holds for every parameter a hook declares.
+    /// names they receive from it (RFC-043). Also those a filling of an open
+    /// term of such a hook declares when it names this article as its host:
+    /// that filling reads this article's scope (RFC-058), so what it reads is
+    /// resolved before the hooks fire, also when no action of the article
+    /// reads it. That holds for every filling that names the host, not only
+    /// the one that wins, as it holds for every parameter a hook declares. The
+    /// scope is not known yet, so a filling of a regulation with a territory
+    /// other than the host's is not looked at here.
     fn hook_parameter_names(
         &self,
         hook_point: HookPoint,
@@ -3766,18 +3776,25 @@ impl LawExecutionService {
             for term in hook.article.get_open_terms().into_iter().flatten() {
                 // A failed lookup names nothing here; resolving the term
                 // runs the same lookup and reports the error.
-                let Ok(lookup) = self.resolver.find_host_implementations(
+                let firing = HookFiring {
+                    law: &law.id,
+                    article: &article.number,
+                    scope: &no_scope,
+                };
+                let Ok(lookup) = self.resolver.find_hook_implementations(
                     &hook.law.id,
                     &hook.article.number,
                     term,
                     date,
                     &no_scope,
-                    &law.id,
+                    firing,
                 ) else {
                     continue;
                 };
-                for (_, filling) in lookup.implementations {
-                    names.extend(declared_parameter_names(filling));
+                for (position, (_, filling)) in lookup.implementations.iter().enumerate() {
+                    if lookup.names_the_host(position) {
+                        names.extend(declared_parameter_names(filling));
+                    }
                 }
             }
         }
@@ -3963,6 +3980,7 @@ impl LawExecutionService {
                 .map(|hook| (hook.entry.law_id.clone(), hook.entry.article_number.clone()))
                 .collect(),
             host_law: law.id.clone(),
+            host_article: article.number.clone(),
             parameters: parameters.clone(),
         });
 
@@ -3998,8 +4016,8 @@ impl LawExecutionService {
             // Enter scope for cycle detection
             res_ctx.enter(hook_key.clone());
 
-            // The hook's open terms are the host law's to fill, with the
-            // parameters the host handed the hooks (RFC-058).
+            // A filling of the hook's open terms that names this article
+            // reads the parameters it handed the hooks (RFC-058).
             let outer_host = res_ctx.hook_host.replace(Rc::clone(&host));
 
             // Execute the hook article
@@ -5080,19 +5098,15 @@ impl LawExecutionService {
             return Ok(());
         }
         // Only the first article can run as the hook; its own terms are looked
-        // up as the hook's are, from the host (RFC-058). The policies further
-        // down run with parameters chosen from the host's scope, so the walk
-        // reads that scope, as it reads the caller's outside a hook.
+        // up as the hook's are (RFC-058). A policy further down runs with
+        // parameters chosen from the scope of the filling that reaches it:
+        // the host's for one that names the host, else the caller's.
         let host = res_ctx.host_of(&law.id, &article.number);
-        let parameters = HookHost::scope_or(host.as_deref(), parameters);
-        let scope: HashMap<String, Value> = parameters
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
         let date = res_ctx.reference_date();
-        let mut todo: Vec<(String, String)> = vec![(law.id.clone(), article.number.clone())];
+        let mut todo: Vec<(String, String, &BTreeMap<String, Value>)> =
+            vec![(law.id.clone(), article.number.clone(), parameters)];
         let mut seen: BTreeSet<(String, String)> = BTreeSet::new();
-        while let Some((law_id, number)) = todo.pop() {
+        while let Some((law_id, number, parameters)) = todo.pop() {
             if !seen.insert((law_id.clone(), number.clone())) {
                 continue;
             }
@@ -5109,7 +5123,15 @@ impl LawExecutionService {
             for term in found.get_open_terms().into_iter().flatten() {
                 let lookup =
                     self.implementations_of(&law_id, &number, term, date, parameters, hook_host)?;
-                for (impl_law, impl_article) in &lookup.implementations {
+                for (position, (impl_law, impl_article)) in
+                    lookup.implementations.iter().enumerate()
+                {
+                    let impl_parameters =
+                        HookHost::scope_for(hook_host, &lookup, position, parameters);
+                    let scope: HashMap<String, Value> = impl_parameters
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect();
                     for own in impl_article.get_open_terms().into_iter().flatten() {
                         if own.decided_per_case_by.is_none() {
                             continue;
@@ -5135,7 +5157,11 @@ impl LawExecutionService {
                         check_finding(&impl_law.id, &impl_article.number, own, value)?;
                         res_ctx.findings_noted.insert(own.id.clone());
                     }
-                    todo.push((impl_law.id.clone(), impl_article.number.clone()));
+                    todo.push((
+                        impl_law.id.clone(),
+                        impl_article.number.clone(),
+                        impl_parameters,
+                    ));
                 }
             }
         }
@@ -5143,8 +5169,9 @@ impl LawExecutionService {
     }
 
     /// The implementations of `term` of article `article` of `law_id` that
-    /// apply with `parameters` as scope. When that article runs as the hook
-    /// `host` names, only the host law's, in the host's scope (RFC-058).
+    /// apply with `parameters` as scope. When that article runs as a hook on
+    /// the article `host` names, first those that name that article, in its
+    /// scope, then those that name none (RFC-058).
     fn implementations_of(
         &self,
         law_id: &str,
@@ -5154,19 +5181,25 @@ impl LawExecutionService {
         parameters: &BTreeMap<String, Value>,
         host: Option<&HookHost>,
     ) -> Result<ImplementationLookup<'_>> {
-        let parameters = HookHost::scope_or(host, parameters);
-        let scope: HashMap<String, Value> = parameters
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
+        let to_scope = |parameters: &BTreeMap<String, Value>| -> HashMap<String, Value> {
+            parameters
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect()
+        };
+        let scope = to_scope(parameters);
         match host {
-            Some(host) => self.resolver.find_host_implementations(
+            Some(host) => self.resolver.find_hook_implementations(
                 law_id,
                 article,
                 term,
                 date,
                 &scope,
-                &host.host_law,
+                HookFiring {
+                    law: &host.host_law,
+                    article: &host.host_article,
+                    scope: &to_scope(&host.parameters),
+                },
             ),
             None => self
                 .resolver
@@ -5244,20 +5277,22 @@ impl LawExecutionService {
         let _guard = res_ctx.trace_guard(&term.id, PathNodeType::OpenTermResolution);
         res_ctx.trace_set_resolve_type(ResolveType::OpenTerm);
 
-        // Look up implementations (filtered by execution scope). An article
-        // that fires as a hook has its term filled by the host law only, in
-        // the host's scope (RFC-058).
+        // Look up implementations (filtered by execution scope). Of an
+        // article that fires as a hook, a filling that names the article the
+        // hook fires on goes first, in that article's scope (RFC-058).
         let host = res_ctx.host_of(&law.id, &article.number);
         if let Some(host) = &host {
-            let _host_guard = res_ctx.trace_guard(&host.host_law, PathNodeType::OpenTermResolution);
+            let _host_guard = res_ctx.trace_guard(
+                format!("{}#{}", host.host_law, host.host_article),
+                PathNodeType::OpenTermResolution,
+            );
             res_ctx.trace_set_message(format!(
-                "Open term '{}': {} article {} fires as a hook on a decision of {}, so only {} \
-                 may fill it (RFC-058)",
-                term.id, law.id, article.number, host.host_law, host.host_law
+                "Open term '{}': {} article {} fires as a hook on {} article {}; a filling that \
+                 names that article goes first, with its parameters (RFC-058)",
+                term.id, law.id, article.number, host.host_law, host.host_article
             ));
         }
-        let impl_scope = HookHost::scope_or(host.as_deref(), parameters);
-        let lookup = match self.implementations_of(
+        let mut lookup = match self.implementations_of(
             &law.id,
             &article.number,
             term,
@@ -5308,7 +5343,7 @@ impl LawExecutionService {
         // date is no candidate either. Without a record the branches below
         // report "no implementation, using the default" or "resolved as
         // null" — the same sentences they print when nobody ever wrote one.
-        for note in lookup.not_in_force {
+        for note in std::mem::take(&mut lookup.not_in_force) {
             res_ctx.note_not_in_force(note);
         }
 
@@ -5326,7 +5361,7 @@ impl LawExecutionService {
         // the next, so a filling implementation wins over a silent one
         // whatever their order.
         let mut filled: Option<(Value, FilledBy)> = None;
-        for (impl_law, impl_article) in &lookup.implementations {
+        for (position, (impl_law, impl_article)) in lookup.implementations.iter().enumerate() {
             // The implementing article is reading the output it fills in:
             // that read gets the law without this filling.
             if res_ctx.held_back.contains(&implementation_key(
@@ -5349,9 +5384,12 @@ impl LawExecutionService {
 
             // Execute the implementing article to get the value.
             // Only forward parameters that the implementing article declares
-            // in its execution.parameters — principle of least privilege. Under
-            // a hook it chooses from the host's parameters: the host fills the
-            // term with its own data (RFC-058).
+            // in its execution.parameters — principle of least privilege. A
+            // filling that names the article the hook fires on chooses from
+            // that article's parameters; one that names no host from those of
+            // the article whose term it fills, so a parameter only the host
+            // has is missing there, not filled in (RFC-058).
+            let impl_scope = HookHost::scope_for(host.as_deref(), &lookup, position, parameters);
             let impl_params = Self::filter_parameters_for_article(impl_article, impl_scope);
             // The answers a binding takes while it runs (`source.reduction`).
             let bound_from = res_ctx.bound.len();

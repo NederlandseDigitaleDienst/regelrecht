@@ -3,9 +3,11 @@
 # (packages/cel/bdd/constructs/beslistermijn) with a decision term of its own:
 # one week after receipt, the term set by statutory provision that article
 # 4:13, first paragraph, of test_general_administrative_act refers to. Article
-# 2 fills the open term of 4:13 with implements; under the hook only the law
-# of the application fills it (RFC-058). None of it is the text of a law.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+# 2 fills the open term of 4:13 with implements, and names article 1 as its
+# host: the filling applies only while the hook fires on the application of
+# article 1, and reads that article's scope (RFC-058). None of it is the text
+# of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
 $id: test_permit_act_implements
 name: Testwet vergunning met eigen beslistermijn
 regulatory_layer: WET
@@ -46,12 +48,17 @@ articles:
       FICTIEF. Het college beslist op de aanvraag binnen een week na ontvangst
       ervan.
     machine_readable:
-      # The filling reads the moment of 4:13, the day of receipt, from the
-      # scope of this act (RFC-058).
+      # The filling names article 1 as its host, so it applies to that
+      # application alone and reads the day of receipt from its scope
+      # (RFC-058). Without the host it would fill the term of every
+      # application in this construct.
       implements:
         - law: test_general_administrative_act
           article: '4:13'
           open_term: statutory_decision_term
+          host:
+            law: test_permit_act_implements
+            article: '1'
       execution:
         parameters:
           - name: date_of_receipt

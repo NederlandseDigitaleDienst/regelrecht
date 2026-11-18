@@ -121,6 +121,7 @@ impl LawLoad for ArticleBasedLaw {
         reject_literal_operations(&law)?;
         crate::load_check::reject_removed_constructs(&law)?;
         crate::load_check::reject_combine_before_its_version(&law)?;
+        crate::load_check::reject_host_before_its_version(&law)?;
         crate::load_check::reject_malformed_records(&law)?;
         crate::load_check::reject_misplaced_reduction(&law)?;
         crate::load_check::reject_misplaced_article_call(&law)?;
