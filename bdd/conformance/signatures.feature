@@ -1134,7 +1134,7 @@ Feature: Operations are defined per type — RFC-055
       | bsn       | rij                                |
       | 999993653 | {"a": 20250101, "b": "2025-01-31"} |
     When I evaluate "dagen_tussen" of "test_signaturen"
-    Then the execution fails with "DATE_DIFF is not defined for (number)"
+    Then the execution fails with "DATE_DIFF is not defined for (number, date)"
 
   @signature:AGE:date-date
   Scenario: AGE counts the complete years, the birthday included
@@ -1204,7 +1204,7 @@ Feature: Operations are defined per type — RFC-055
       | bsn       | rij         |
       | 999993653 | {"a": null} |
     When I evaluate "jaar" of "test_signaturen"
-    Then the execution fails with "DATE_PART"
+    Then the execution fails with "DATE_PART: operand is null (absent)"
 
   @signature:DAY_OF_WEEK:date
   Scenario: DAY_OF_WEEK gives 0 for a Monday
@@ -1245,3 +1245,146 @@ Feature: Operations are defined per type — RFC-055
       | 999993653 | {"a": 2025} |
     When I evaluate "begin_maand" of "test_signaturen"
     Then the execution fails with "START_OF is not defined for (number)"
+
+  Scenario: DATE_ADD adds years first and months after, moving the day back after each
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                 |
+      | 999993653 | {"a": "2024-02-29", "b": 1, "c": 1} |
+    When I evaluate "ver_verschoven" of "test_signaturen"
+    Then the execution succeeds
+    Then output "ver_verschoven" equals "2025-03-28"
+
+  Scenario: DATE_ADD adds weeks and days
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                 |
+      | 999993653 | {"a": "2025-01-01", "b": 2, "c": 3} |
+    When I evaluate "kort_verschoven" of "test_signaturen"
+    Then the execution succeeds
+    Then output "kort_verschoven" equals "2025-01-18"
+
+  Scenario: DATE_ADD refuses a count that is no number
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                           |
+      | 999993653 | {"a": "2025-01-15", "b": "1"} |
+    When I evaluate "verschoven" of "test_signaturen"
+    Then the execution fails with "DATE_ADD 'months' is not defined for (string)"
+
+  Scenario: DATE_ADD refuses a result past the year 9999
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                 |
+      | 999993653 | {"a": "9999-12-31", "b": 0, "c": 1} |
+    When I evaluate "kort_verschoven" of "test_signaturen"
+    Then the execution fails with "outside the years 0001 to 9999"
+
+  Scenario: DATE refuses a year outside 0001 to 9999
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                      |
+      | 999993653 | {"a": 0, "b": 1, "c": 1} |
+    When I evaluate "datum" of "test_signaturen"
+    Then the execution fails with "is not a calendar day"
+
+  Scenario: DATE refuses a negative part
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                          |
+      | 999993653 | {"a": 2025, "b": -1, "c": 1} |
+    When I evaluate "datum" of "test_signaturen"
+    Then the execution fails with "is not a calendar day"
+
+  Scenario: A text for a day before the year 0001 is no date
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                 |
+      | 999993653 | {"a": "0000-01-01"} |
+    When I evaluate "jaar" of "test_signaturen"
+    Then the execution fails with "outside the years 0001 to 9999"
+
+  Scenario: DATE_DIFF counts the complete years
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                    |
+      | 999993653 | {"a": "2000-06-15", "b": "2025-06-14"} |
+    When I evaluate "jaren_tussen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "jaren_tussen" equals 24
+
+  Scenario: DATE_DIFF completes a year from 29 February on 28 February of a common year
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                    |
+      | 999993653 | {"a": "2024-02-29", "b": "2025-02-28"} |
+    When I evaluate "jaren_tussen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "jaren_tussen" equals 1
+
+  Scenario: DATE_DIFF in months is the negative of the count the other way round
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                    |
+      | 999993653 | {"a": "2025-02-28", "b": "2025-01-31"} |
+    When I evaluate "maanden_tussen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "maanden_tussen" equals -1
+
+  Scenario: DATE_DIFF takes the reference date as a date
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                 |
+      | 999993653 | {"a": "2024-12-31"} |
+    When I evaluate "dagen_tot_peildatum" of "test_signaturen"
+    Then the execution succeeds
+    Then output "dagen_tot_peildatum" equals 1
+
+  Scenario: DATE_DIFF refuses a text that is no date, whichever operand it is
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                               |
+      | 999993653 | {"a": "2025-01-01", "b": "later"} |
+    When I evaluate "dagen_tussen" of "test_signaturen"
+    Then the execution fails with "'later' is not a date in the form YYYY-MM-DD"
+
+  Scenario: DATE_PART refuses a text that is no date
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij           |
+      | 999993653 | {"a": "ooit"} |
+    When I evaluate "jaar" of "test_signaturen"
+    Then the execution fails with "'ooit' is not a date in the form YYYY-MM-DD"
+
+  Scenario: START_OF refuses a text that is no date
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij           |
+      | 999993653 | {"a": "ooit"} |
+    When I evaluate "begin_maand" of "test_signaturen"
+    Then the execution fails with "'ooit' is not a date in the form YYYY-MM-DD"
+
+  Scenario: DAY_OF_WEEK refuses a text that is no date
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij           |
+      | 999993653 | {"a": "ooit"} |
+    When I evaluate "weekdag" of "test_signaturen"
+    Then the execution fails with "'ooit' is not a date in the form YYYY-MM-DD"
+
+  Scenario: START_OF of an absent date is an error, not a type error
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij         |
+      | 999993653 | {"a": null} |
+    When I evaluate "begin_maand" of "test_signaturen"
+    Then the execution fails with "START_OF: operand is null (absent)"
+
+  Scenario: DATE_PART of a date nobody has is unknown
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij      |
+      | 999993653 | {"a": 1} |
+    When I evaluate "jaar_van_peildag" of "test_signaturen"
+    Then the execution succeeds
+    Then output "jaar_van_peildag" is unknown
+
+  Scenario: START_OF of a date nobody has is unknown
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij      |
+      | 999993653 | {"a": 1} |
+    When I evaluate "begin_maand_van_peildag" of "test_signaturen"
+    Then the execution succeeds
+    Then output "begin_maand_van_peildag" is unknown
+
+  Scenario: DATE_PART reads a date that is passed as a parameter
+    Given parameter "peildag" is "2024-07-01"
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij      |
+      | 999993653 | {"a": 1} |
+    When I evaluate "jaar_van_peildag" of "test_signaturen"
+    Then the execution succeeds
+    Then output "jaar_van_peildag" equals 2024
