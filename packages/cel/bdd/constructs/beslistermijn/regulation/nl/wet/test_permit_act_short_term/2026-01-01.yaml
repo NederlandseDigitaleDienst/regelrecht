@@ -1,0 +1,70 @@
+---
+# FICTIEF. A host law for the construct "beslistermijn"
+# (packages/cel/bdd/constructs/beslistermijn) with a decision term of its own:
+# two weeks after receipt, the term set by statutory provision that article
+# 4:13, first paragraph, of the Algemene wet bestuursrecht refers to. Article
+# 2 sets it with an override on the output of 4:13, the route the engine
+# supports today and the one the comment on 4:13 in the corpus names. None of
+# it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_permit_act_short_term
+name: Testwet vergunning met korte beslistermijn
+regulatory_layer: WET
+bwb_id: BWBR9999982
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.com/test_permit_act_short_term
+
+articles:
+  - number: '1'
+    url: https://example.com/test_permit_act_short_term/1
+    text: >-
+      FICTIEF. Het college verleent op aanvraag een vergunning aan wie aan de
+      voorwaarden voldoet.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_permit_act_short_term#1
+            parameters:
+              - meets_conditions
+          - type: BESCHIKKING
+            outputs:
+              - permit_granted
+        parameters:
+          - name: meets_conditions
+            type: boolean
+        output:
+          - name: permit_granted
+            type: boolean
+        actions:
+          - output: permit_granted
+            value: $meets_conditions
+
+  - number: '2'
+    url: https://example.com/test_permit_act_short_term/2
+    text: >-
+      FICTIEF. Het college beslist op de aanvraag binnen twee weken na
+      ontvangst ervan.
+    machine_readable:
+      # The output and the parameter keep the names of Awb 4:13 in the
+      # corpus: an override replaces that output, and reads the same moment.
+      overrides:
+        - law: algemene_wet_bestuursrecht
+          article: '4:13'
+          output: redelijke_beslistermijn_einddatum
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: false
+            description: The day the college received the application.
+        output:
+          - name: redelijke_beslistermijn_einddatum
+            type: date
+        actions:
+          - output: redelijke_beslistermijn_einddatum
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 2

@@ -1,0 +1,6 @@
+---
+# The regelwerken from the corpus that this scenario set loads besides its own
+# (regulation/), by $id. Each is read from the corpus, every version of it, and
+# never copied here (packages/cel/tests/bdd/sets.rs).
+regelwerken:
+  - algemene_wet_bestuursrecht

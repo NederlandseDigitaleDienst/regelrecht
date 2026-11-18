@@ -18,6 +18,39 @@ Feature files live in two places, and the difference decides who fixes a failure
 
 The cell has a BDD suite of its own in `packages/cel/bdd/`, outside both buckets. Its steps record submissions, decisions and facts in a cell's chronicle, evaluate a reduction that plays the chronicle forward, and check what the engine did. A well-founded objection, for example, makes the engine play the chronicle again without the decision it revokes, while an unfounded one leaves the decision standing. They stay out of `bdd/grammar.yaml`, which is the contract every engine (Rust and JS) executes, because recording a chronicle is the cell's job and only the Rust engine plays one forward; the JS engines do not implement `projection`. `bdd/README.md` explains how that suite reuses the canonical steps and the generator, and why its runner sits in `packages/cel`.
 
+### Trying out a construct
+
+A construct of the law format that is hard to get right gets a directory of its own under `packages/cel/bdd/constructs/`. The first is the decision term of Awb 4:13, a hook on every application. A construct's features load only the ruleworks in its `regulation/` directory and the corpus ruleworks its `corpus.yaml` names. For hooks that matters. A hook fires on every decision or submission its `applies_to` matches, in every loaded rulework, so loading the whole corpus would bring in hooks the construct is not about.
+
+```text
+packages/cel/bdd/constructs/beslistermijn/
+  corpus.yaml
+  regulation/nl/wet/test_permit_act/2026-01-01.yaml
+  regulation/nl/wet/test_permit_act_short_term/2026-01-01.yaml
+  scenarios/beslistermijn.feature
+```
+
+`corpus.yaml` names ruleworks from the corpus by `$id`. The runner reads every version of each from `corpus/regulation` (or `REGULATION_PATH`) and fails on an `$id` the corpus does not hold. Nothing is copied into the construct, so a scenario tests the Awb as it stands in the corpus.
+
+```yaml
+regelwerken:
+  - algemene_wet_bestuursrecht
+```
+
+In the `beslistermijn` construct, the real Awb meets two fictional permit acts. An application is recorded on the day it arrives, which is the moment Awb 4:13 counts from, and the decision follows on a later day. The scenarios check what the application holds, the last day of the term, and whether the decision came on or before it: well within the term, on the last day, one day late, and counted from receipt rather than from the date on the application. `test_permit_act_short_term` has a term of two weeks and sets it with an override on the output of 4:13, the route the engine supports today. Filling that term through `implements` needs the engine to take the host act as the only candidate, which it does not do yet, so the scenario that fills the term through `implements` carries `@wip`.
+
+To add a construct:
+
+1. Make `packages/cel/bdd/constructs/<construct>/` with a `regulation/` and a `scenarios/` directory. The runner fails when either is missing or when `scenarios/` holds no feature.
+2. Put the fictional ruleworks in `regulation/`, in the layout of the corpus. Give each an `$id` starting with `test_`, mark the text FICTIEF, and invent the content: no real case, no real person. `just validate` and the pre-commit hook check them against the schema.
+3. Name the corpus ruleworks the construct builds on in `corpus.yaml`, if any.
+4. Write the features in `scenarios/`, in English. Names that come from the corpus, such as the outputs of the Awb, stay as the corpus has them. A feature may use the canonical steps and the cell's own. A decision the cell takes (`the cell decides ...`) sets the result, so `Then output ... equals ...` reads what the decision and the hooks on it gave.
+5. A scenario the engine cannot run yet gets `@wip` and a comment above it that names the missing piece and the branch or issue that builds it.
+
+`just bdd` and the CI job "BDD conformance" run the constructs with the rest of the cell's suite; no recipe or workflow changes.
+
+The runner decides what to load from where a feature sits. A feature under `<set>/scenarios/` loads the ruleworks under `<set>/regulation/` and those in `<set>/corpus.yaml`, whichever directory `<set>` is. A corpus with a `scenarios/` directory next to its `regulation/` directory would load by the same rule once its features are added to the list in `packages/cel/tests/bdd/main.rs`. Nothing does that yet. The engine's own runner does not look at where a feature sits and always loads the corpus.
+
 ### The step vocabulary is generated, not hand-written
 
 `bdd/grammar.yaml` is the single source of truth for the step phrasings. The bindings for every engine are generated from it: Rust through `packages/engine/build.rs`, the editor and demo JavaScript through `bdd/codegen/gen-js.mjs`, which writes `packages/frontend-shared/src/gherkin/grammar.generated.js` (re-exported for the editor by `frontend/src/gherkin/`). Never hand-edit a generated file. Change `grammar.yaml` and run `just bdd-codegen`.
@@ -123,7 +156,7 @@ just mutants-diff  # Only what this branch changed
 
 ## Schema Validation
 
-Every rulework is validated against the JSON schema. Without arguments, `just validate` checks the corpus (`corpus/regulation`), the ruleworks and reductions of the chronolexografie PoC, and the fixtures of the cell's BDD suite (`packages/cel/bdd/fixtures`: its `regulation/` directory and the reductions of its cell). It leaves the demo corpus out; `just validate-demo` covers that. The pre-commit hook runs the same recipe on the changed files in all of these directories, the demo corpus included, and CI runs the hooks over the whole tree.
+Every rulework is validated against the JSON schema. Without arguments, `just validate` checks the corpus (`corpus/regulation`), the ruleworks and reductions of the chronolexografie PoC, and the fixtures of the cell's BDD suite (`packages/cel/bdd/fixtures`: its `regulation/` directory and the reductions of its cell), and the `regulation/` directory of each construct in `packages/cel/bdd/constructs`. It leaves the demo corpus out; `just validate-demo` covers that. The pre-commit hook runs the same recipe on the changed files in all of these directories, the demo corpus included, and CI runs the hooks over the whole tree.
 
 ```bash
 just validate                     # Validate all

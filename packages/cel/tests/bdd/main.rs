@@ -4,6 +4,9 @@
 //!
 //! The features are in `packages/cel/bdd/features`, their fixtures (a
 //! synthetic law and a cell with its reduction) in `packages/cel/bdd/fixtures`.
+//! Beside them, each construct under `packages/cel/bdd/constructs/` is a
+//! scenario set (`sets.rs`): its features run against its own fictional
+//! regelwerken and the corpus regelwerken it names, and nothing else.
 //! A feature may use the canonical steps (`bdd/grammar.yaml`) and the cell's
 //! own (`packages/cel/bdd/grammar.yaml`). Those stay out of the canonical
 //! grammar: that is the language every engine, Rust and JS, executes, while
@@ -34,6 +37,7 @@ mod helpers;
 mod reverse_actions;
 #[path = "../../../engine/tests/bdd/runner.rs"]
 mod runner;
+mod sets;
 #[path = "../../../engine/tests/bdd/world.rs"]
 mod world;
 
@@ -61,5 +65,9 @@ async fn main() {
         "no feature files in {}",
         dir.display()
     );
+    let constructs = Path::new(env!("CARGO_MANIFEST_DIR")).join("bdd/constructs");
+    for set in sets::constructs(&constructs) {
+        features.extend(set.features());
+    }
     runner::run(features).await;
 }

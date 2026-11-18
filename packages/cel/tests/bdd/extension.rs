@@ -3,25 +3,32 @@
 //!
 //! A scenario has one cell with one chronicle in memory. Records are named by
 //! the id in the scenario; the day they are recorded is the calculation date.
-//! The fixtures in `packages/cel/bdd/fixtures` (the synthetic law, and the
-//! reductions of a cell) are loaded next to the corpus.
+//! A feature in `packages/cel/bdd/features` runs against the corpus with the
+//! fixtures in `packages/cel/bdd/fixtures` (the synthetic law, and the
+//! reductions of a cell) next to it; a feature in a scenario set
+//! (`crate::sets`) against the regelwerken of that set alone, its own and
+//! those it names from the corpus.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use chrono::NaiveDate;
 use regelrecht_cel::reading::Reader;
-use regelrecht_cel::{Afschrift, Cell, Chronicle, Disk, EXECUTOGRAM, Gram, Received, shape};
+use regelrecht_cel::{
+    Afschrift, Cell, Chronicle, Disk, EXECUTOGRAM, Gram, GramMoment, Received, shape,
+};
 use regelrecht_engine::projection::describe_applied;
 use regelrecht_engine::{
-    Aggregate, Article, Authority, Call, LawExecutionService, ProjectionEvent, ProjectionOutcome,
-    Value,
+    Aggregate, Article, ArticleResult, Authority, Call, LawExecutionService, ProjectionEvent,
+    ProjectionOutcome, Value,
 };
 use regelrecht_law_model::stored;
 use walkdir::WalkDir;
 
 use crate::dispatch::{ArgValue, table_cell_value};
+use crate::helpers::regulation_loader::load_all_regulations;
 use crate::helpers::table::{Rows, rows_to_params};
+use crate::sets::{ScenarioSet, load_regelwerk};
 use crate::world::RegelrechtWorld;
 
 /// The cell that records, as `recording_actor`.
@@ -44,34 +51,39 @@ pub struct State {
 }
 
 impl State {
-    /// An empty chronicle, after loading the fixtures: every regelwerk under
-    /// `fixtures/regulation`, and the reductions under `fixtures/cells`.
-    pub fn new(service: &mut LawExecutionService) -> Self {
-        let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("bdd/fixtures");
-        for entry in WalkDir::new(&fixtures).into_iter().filter_map(Result::ok) {
-            let path = entry.path();
-            let rel = path.strip_prefix(&fixtures).unwrap();
-            let regelwerk = rel.starts_with("regulation")
-                || rel.components().any(|c| c.as_os_str() == "reductions");
-            if regelwerk && path.extension().is_some_and(|x| x == "yaml") {
-                let mut yaml = std::fs::read_to_string(path).unwrap();
-                // As the corpus loader does, so `BDD_REVERSE_ACTIONS` covers
-                // the reductions too.
-                if crate::reverse_actions::enabled() {
-                    yaml = crate::reverse_actions::reversed_actions(&yaml)
-                        .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-                }
-                service
-                    .load_law(&yaml)
-                    .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-            }
-        }
+    /// An empty chronicle, and nothing projected or refused yet.
+    pub fn new() -> Self {
         Self {
             chronicle: Chronicle::in_memory(),
             court: Chronicle::in_memory(),
             projection: None,
             aggregates: Vec::new(),
             refused: None,
+        }
+    }
+}
+
+/// Load the regelwerken a scenario of the feature at `feature` runs against.
+/// A feature in a scenario set ([`ScenarioSet`]) gets the regelwerken of that
+/// set alone: its own and those it names from the corpus. Any other feature
+/// (`bdd/features`) gets the corpus and the fixtures: every regelwerk under
+/// `fixtures/regulation`, and the reductions under `fixtures/cells`.
+pub fn load(service: &mut LawExecutionService, feature: Option<&Path>) {
+    if let Some(set) = feature.and_then(ScenarioSet::containing) {
+        set.load(service);
+        return;
+    }
+    if let Err(e) = load_all_regulations(service) {
+        panic!("Failed to load regulations: {e}");
+    }
+    let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("bdd/fixtures");
+    for entry in WalkDir::new(&fixtures).into_iter().filter_map(Result::ok) {
+        let path = entry.path();
+        let rel = path.strip_prefix(&fixtures).unwrap();
+        let regelwerk = rel.starts_with("regulation")
+            || rel.components().any(|c| c.as_os_str() == "reductions");
+        if regelwerk && path.extension().is_some_and(|x| x == "yaml") {
+            load_regelwerk(service, path);
         }
     }
 }
@@ -234,9 +246,90 @@ pub fn dispatch(
                 "whether record '{id}' is applied"
             );
         }
+        "assert_submission_fields" => assert_submission_fields(
+            world,
+            args[0].as_str(),
+            args[1].as_str(),
+            &table.expect("fields table"),
+        ),
+        "assert_submission_moment" => {
+            let (number, law) = (args[0].as_str(), args[1].as_str());
+            let parameter = moment(world, law, number)
+                .and_then(|m| m.parameter)
+                .unwrap_or_else(|| {
+                    panic!("the submission under {law}#{number} names no moment parameter")
+                });
+            assert_eq!(
+                parameter,
+                args[2].as_str(),
+                "the moment of the submission under {law}#{number}"
+            );
+        }
+        "assert_decision_within" => {
+            assert_decision_within(world, args[0].as_str(), args[1].as_str(), args[2].as_bool())
+        }
         _ => return false,
     }
     true
+}
+
+/// The fields of an application under article `number` of `law` are exactly
+/// those in the table (header `field`), in any order.
+fn assert_submission_fields(world: &RegelrechtWorld, number: &str, law: &str, table: &Rows) {
+    let shape = shape::derive(&world.service, law, number, today(world))
+        .unwrap_or_else(|e| panic!("the submission under {law}#{number}: {e}"));
+    let mut held: Vec<&str> = shape.fields.iter().map(|f| f.name.as_str()).collect();
+    held.sort_unstable();
+    let (header, rows) = table.split_first().expect("a header row `field`");
+    assert_eq!(
+        header.as_slice(),
+        ["field"],
+        "the header of the fields table"
+    );
+    let mut expected: Vec<&str> = rows.iter().map(|row| row[0].as_str()).collect();
+    expected.sort_unstable();
+    assert_eq!(
+        held, expected,
+        "the fields of the submission under {law}#{number}"
+    );
+}
+
+/// Whether decision `id` was recorded on or before the date its output
+/// `output` holds (`within`), or after it.
+fn assert_decision_within(world: &RegelrechtWorld, id: &str, output: &str, within: bool) {
+    let gram = world
+        .extension
+        .chronicle
+        .grams()
+        .iter()
+        .find(|g| g.id == id)
+        .unwrap_or_else(|| panic!("no decision '{id}' in the chronicle"));
+    // A submission or a fact holds no decision date to compare.
+    assert!(
+        !matches!(
+            gram.kind.as_str(),
+            "AANVRAAG" | "BEZWAAR" | "BEROEP" | EXECUTOGRAM
+        ),
+        "'{id}' is a {}, not a decision",
+        gram.kind
+    );
+    let last = gram
+        .outputs
+        .get(output)
+        .and_then(serde_json::Value::as_str)
+        .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+        .unwrap_or_else(|| {
+            panic!(
+                "decision '{id}' holds no date '{output}': {:?}",
+                gram.outputs.get(output)
+            )
+        });
+    assert_eq!(
+        gram.recorded_on <= last,
+        within,
+        "decision '{id}' given on {} against '{output}' {last}",
+        gram.recorded_on
+    );
 }
 
 /// The day a record is made: the calculation date.
@@ -280,10 +373,31 @@ fn record_submission_referring(
         .and_then(|s| s.submission_kind())
         .unwrap_or_else(|| panic!("article {basis} establishes no submission"))
         .to_string();
-    append(
-        world,
-        gram(world, id, kind, basis, refers_to, fields, BTreeMap::new()),
-    );
+    let moment = moment(world, law, number);
+    // As the cell does, refuse the moment as a field: the cell fills it.
+    if let Some(name) = moment.as_ref().and_then(|m| m.parameter.as_ref()) {
+        assert!(
+            !fields.contains_key(name),
+            "'{name}' is the moment of the submission under {basis}; the cell records it"
+        );
+    }
+    let mut gram = gram(world, id, kind, basis, refers_to, fields, BTreeMap::new());
+    gram.moment = moment;
+    append(world, gram);
+}
+
+/// The moment that counts for a submission under article `number` of `law`,
+/// such as the receipt (Awb 4:13): the day it is recorded, as the cell fills
+/// it ([`Cell::record_submission`]). `None` when no article names one.
+fn moment(world: &RegelrechtWorld, law: &str, number: &str) -> Option<GramMoment> {
+    let on = today(world);
+    let shape = shape::derive(&world.service, law, number, on)
+        .unwrap_or_else(|e| panic!("the submission under {law}#{number}: {e}"));
+    shape.moment.map(|m| GramMoment {
+        parameter: m.parameter,
+        on,
+        declared_by: m.declared_by,
+    })
 }
 
 /// The decision the submission asks for, with its fields and what the
@@ -312,6 +426,17 @@ fn decide_on_submission(
         .iter()
         .map(|(k, v)| (k.clone(), stored::from_stored(v).expect("stored field")))
         .collect();
+    // The moment of the submission, as the cell hands it to the decision.
+    // The cell sends it only where the decision asks it
+    // (`regelrecht_cel::DecisionShape`); this step always sends it, which
+    // matters only for a decision under another article than the
+    // submission's, and the engine passes a hook only what it declares.
+    if let Some(m) = &gram.moment
+        && let Some(name) = &m.parameter
+    {
+        let day = serde_json::Value::String(m.on.to_string());
+        parameters.insert(name.clone(), stored::from_stored(&day).expect("a date"));
+    }
     for (name, value) in found {
         // The table gives what was found besides the submission.
         assert!(
@@ -324,6 +449,8 @@ fn decide_on_submission(
 }
 
 /// Execute the decision of article `basis` with `parameters` and record it.
+/// The canonical output steps then read what the decision gave, with what
+/// the hooks on it gave (such as the last day of a decision term).
 fn decide(
     world: &mut RegelrechtWorld,
     id: &str,
@@ -331,8 +458,17 @@ fn decide(
     refers_to: Option<&str>,
     parameters: BTreeMap<String, Value>,
 ) {
-    let gram = decided(world, id, basis, refers_to, parameters);
+    let Decided { gram, result } = decided(world, id, basis, refers_to, parameters);
     append(world, gram);
+    world.result = Some(result);
+    world.error = None;
+}
+
+/// A decision of the cell, not yet recorded, and the engine's result it
+/// came from.
+struct Decided {
+    gram: Gram,
+    result: ArticleResult,
 }
 
 /// The decision of article `basis` with `parameters`, as a chronolexogram
@@ -343,7 +479,7 @@ fn decided(
     basis: &str,
     refers_to: Option<&str>,
     parameters: BTreeMap<String, Value>,
-) -> Gram {
+) -> Decided {
     let deciding = article(world, basis);
     let decision = deciding
         .get_decision()
@@ -355,15 +491,16 @@ fn decided(
         .service
         .evaluate_law(law, &outputs, parameters.clone(), &world.calculation_date)
         .unwrap_or_else(|e| panic!("decision '{id}' under {basis}: {e}"));
-    gram(
+    let gram = gram(
         world,
         id,
         kind,
         basis.to_string(),
         refers_to,
         parameters,
-        result.outputs,
-    )
+        result.outputs.clone(),
+    );
+    Decided { gram, result }
 }
 
 fn gram(
@@ -496,7 +633,9 @@ fn court_rules(
         .map(|(k, v)| (k.clone(), stored::from_stored(v).expect("stored field")))
         .collect();
     parameters.extend(found);
-    let mut gram = decided(world, id, &basis, Some(&appeal.id), parameters);
+    // The ruling is the court's, not a decision of the cell: it does not
+    // become the result the canonical output steps read.
+    let mut gram = decided(world, id, &basis, Some(&appeal.id), parameters).gram;
     gram.recording_actor = COURT.to_string();
     world
         .extension
