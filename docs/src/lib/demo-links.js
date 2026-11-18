@@ -8,8 +8,10 @@
  *
  * The paths are a copy of the route table in `frontend-demo/src/router.ts`.
  * `scripts/check-demo-links.mjs` compares the two, so a renamed demo route
- * fails the docs check instead of becoming a dead link. This file is plain
- * JavaScript because that script loads it in Node.
+ * fails the docs source checks instead of staying a dead link. Those checks
+ * run when `docs/` or `packages/` changes, not yet on a change to the demo's
+ * router alone. This file is plain JavaScript because that script loads it in
+ * Node.
  *
  * The demo also runs in Frisian and French; this site has Dutch and English
  * only, so those are the two columns here.

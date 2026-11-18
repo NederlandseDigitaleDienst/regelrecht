@@ -196,7 +196,7 @@ When the demo changes and a chapter no longer replays, record that chapter again
 
 The demo translates its paths, so a link names a page and a language. The landing page links to the walkthrough, the simulation and the portal through `demoUrl(page, lang)` in `docs/src/lib/demo-links.js`, which holds a copy of the Dutch and English paths from `frontend-demo/src/router.ts`. The Dutch landing therefore opens `/rondleiding` and the English one `/en/tour`.
 
-`docs/scripts/check-demo-links.mjs` compares that copy with the route table and rejects a full demo address written anywhere else under `docs/src`. It runs with the docs source checks. The check matters because the demo redirects an unknown path to its home page: a stale link shows no error.
+`docs/scripts/check-demo-links.mjs` compares that copy with the route table and rejects a full demo address written anywhere else under `docs/src`. It runs with the docs source checks, which CI starts on a change under `docs/` or `packages/`; a pull request that only renames a route in the demo does not start them yet. The check matters because the demo redirects an unknown path to its home page: a stale link shows no error.
 
 In the other direction, the demo's home page links to the landing of `regelrecht.rijks.app` in the reader's language. The site has Dutch and English only, so the `siteHome` column of the language table in `frontend-demo/src/i18n/index.js` sends a Frisian reader to the Dutch landing and a French reader to the English one.
 

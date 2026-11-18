@@ -116,7 +116,7 @@ if (isStatusPage) {
     // The documentation and research roots go up to the site home.
     backHref = '/en/';
     backText = 'Home';
-  } else if (cat && onCategoryPage && lang === 'nl') {
+  } else if (cat && onCategoryPage && cat.lang === 'nl') {
     // A Dutch section (basiswerk) is linked from the Dutch landing and goes
     // back there, not to the English documentation overview.
     backHref = landingHome;
@@ -240,8 +240,10 @@ if (
   const isDocsRoot = pathname === '/docs/' || pathname === '/docs';
   breadcrumbs.push({ text: homeText, href: homeHref });
   // A Dutch section (basiswerk) sits under the Dutch home, the same place its
-  // back button goes; the documentation overview is English.
-  if (lang === 'en') {
+  // back button goes; the documentation overview is English. This follows the
+  // language of the section, not of the page: a Dutch page in an English
+  // section, such as the accessibility statement, keeps the full trail.
+  if (categoryForPath(pathname)?.lang !== 'nl') {
     breadcrumbs.push({
       text: docsText,
       href: docsHref,
@@ -359,11 +361,12 @@ const legalLinks = [
       // (the 'lang' branch of the menu handler) and is kept. Without a choice
       // nothing is ever redirected: a shared link to /en/ shows English.
       //
-      // Short of a choice there is the landing the reader came through in
-      // this visit. Someone who starts at /en/ and opens the roadmap, which
-      // is Dutch, still goes home to /en/; someone who starts at / and opens
-      // the documentation, which is English, goes home to /. That is kept for
-      // the session only, because walking past a page is not a preference.
+      // Short of a choice there is the landing the reader last saw in this
+      // visit, the signup page included. Someone who starts at /en/ and opens
+      // the roadmap, which is Dutch, still goes home to /en/; someone who
+      // starts at / and opens the documentation, which is English, goes home
+      // to /. That is kept for the session only, because walking past a page
+      // is not a preference.
       //
       // With neither, a page links home in its own language, as rendered.
       // Same storage pattern as the theme above: storage plus an in-memory

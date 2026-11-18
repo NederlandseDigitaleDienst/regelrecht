@@ -241,6 +241,8 @@ describe('siteUrl', () => {
   });
 
   it('keeps one address for a page that exists in one language', () => {
-    expect(siteUrl('nl', '/docs/')).toBe(siteUrl('fr', '/docs/'));
+    for (const code of LOCALE_CODES) {
+      expect(siteUrl(code, '/docs/'), code).toBe('https://regelrecht.rijks.app/docs/');
+    }
   });
 });
