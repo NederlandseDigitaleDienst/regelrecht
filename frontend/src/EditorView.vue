@@ -25,6 +25,7 @@ import { humanize } from './utils/outputFormat';
 import { useLatest } from './lib/useLatest';
 import { otherVersions } from './lib/lawVersions';
 import { useOpenTabs } from './composables/useOpenTabs';
+import { useTrajectAutoSync } from './composables/useTrajectAutoSync';
 import { createTabRestore } from './composables/useTabRestore';
 import ArticleText from './components/ArticleText.vue';
 import ArticleTextEditor from './components/ArticleTextEditor.vue';
@@ -294,6 +295,16 @@ const {
   activeActionPath,
   activeActionIsNew,
 } = openLaw;
+
+// The traject branch moved under the editor (useTrajectAutoSync brought in the
+// working branch). A clean article reloads so it shows what is on the branch
+// now; an article with unsaved work is left alone - the save's If-Match then
+// says the file changed, rather than the work being swapped out.
+const { syncCount: trajectSyncCount } = useTrajectAutoSync();
+watch(trajectSyncCount, () => {
+  if (!lawId.value || openLaw.hasUnsavedWork.value || lawSaving.value) return;
+  void openLaw.reload();
+});
 
 // Review mode: deciding on a generated proposal for the open regelwerk. Made
 // here, early, because `editorRouteFor` carries its task along from the start.

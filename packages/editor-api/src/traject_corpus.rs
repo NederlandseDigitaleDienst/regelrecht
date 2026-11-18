@@ -1822,7 +1822,12 @@ async fn build_traject_corpus(
         }
     }
 
-    let sources: Vec<Source> = rows.iter().map(|r| r.to_source()).collect();
+    let priorities = effective_priorities(&rows);
+    let sources: Vec<Source> = rows
+        .iter()
+        .zip(priorities)
+        .map(|(r, prio)| r.to_source(prio))
+        .collect();
     let registry = CorpusRegistry::from_sources(sources.clone());
 
     // The backends and the index do not depend on each other: check the
@@ -2400,7 +2405,7 @@ struct TrajectSourceRow {
 }
 
 impl TrajectSourceRow {
-    fn to_source(&self) -> Source {
+    fn to_source(&self, priority: u32) -> Source {
         let source_type = match self.source_type.as_str() {
             "github" => SourceType::GitHub {
                 github: GitHubSource {
@@ -2432,7 +2437,7 @@ impl TrajectSourceRow {
             name: self.name.clone(),
             source_type,
             scopes,
-            priority: self.priority.max(0) as u32,
+            priority,
             auth_ref: self.auth_ref.clone(),
             // The writable-own's `auth_ref` derives from user-supplied repo
             // coords (create-traject request), so EVERY token lookup for it
@@ -2444,6 +2449,61 @@ impl TrajectSourceRow {
             load_all: false,
             library_only: false,
         }
+    }
+}
+
+#[cfg(test)]
+mod priority_tests {
+    use super::*;
+
+    fn row(id: &str, priority: i32, own: bool) -> TrajectSourceRow {
+        TrajectSourceRow {
+            source_id: id.to_string(),
+            name: id.to_string(),
+            source_type: if own { "github" } else { "local" }.to_string(),
+            gh_owner: None,
+            gh_repo: None,
+            gh_branch: None,
+            gh_base_branch: None,
+            gh_path: None,
+            gh_ref: None,
+            local_path: None,
+            priority,
+            auth_ref: None,
+            scopes: serde_json::json!([]),
+            is_writable_own: own,
+        }
+    }
+
+    #[test]
+    fn seed_at_same_priority_as_own_is_pushed_below_it() {
+        let rows = [
+            row("own", 0, true),
+            row("mirror", 0, false),
+            row("central", 10, false),
+        ];
+        assert_eq!(effective_priorities(&rows), vec![0, 1, 11]);
+    }
+
+    #[test]
+    fn seeds_already_below_own_keep_their_priority() {
+        let rows = [row("own", 0, true), row("a", 1, false), row("b", 5, false)];
+        assert_eq!(effective_priorities(&rows), vec![0, 1, 5]);
+    }
+
+    #[test]
+    fn seed_ranked_above_own_is_shifted_and_order_among_seeds_kept() {
+        let rows = [row("a", 0, false), row("own", 3, true), row("b", 2, false)];
+        let p = effective_priorities(&rows);
+        assert_eq!(p[1], 3);
+        assert!(p[0] > 3 && p[2] > 3);
+        assert!(p[0] < p[2], "seed order must be preserved: {p:?}");
+    }
+
+    #[test]
+    fn negative_priorities_clamp_to_zero() {
+        let rows = [row("own", -5, true), row("seed", -1, false)];
+        assert_eq!(effective_priorities(&rows), vec![0, 1]);
     }
 }
 
@@ -4072,4 +4132,43 @@ mod tests {
         assert!(cache.get("victim").is_none());
         assert_eq!(cache.get("filler-0"), Some(&"x".to_string()));
     }
+}
+
+/// The priority each source row takes part in law resolution with.
+///
+/// The traject's own (writable) source must win every `$id` it shares with a
+/// seed: that is where the traject's edits live, and an equal priority is a
+/// hard `SourceMap` conflict that would stop the whole index from building.
+/// That happens in practice when a traject is pointed at a repo that is also
+/// in the local registry (a dossier corpus loaded as a `local` seed at
+/// priority 0, next to the same repo as the writable source at priority 0).
+///
+/// So every seed is shifted, all by the same amount, until it sits strictly
+/// below the writable source. A uniform shift keeps the seeds' order among
+/// themselves exactly as the registry configured it.
+fn effective_priorities(rows: &[TrajectSourceRow]) -> Vec<u32> {
+    let own = rows
+        .iter()
+        .filter(|r| r.is_writable_own)
+        .map(|r| r.priority.max(0) as u32)
+        .min();
+    let min_seed = rows
+        .iter()
+        .filter(|r| !r.is_writable_own)
+        .map(|r| r.priority.max(0) as u32)
+        .min();
+    let shift = match (own, min_seed) {
+        (Some(own), Some(min_seed)) if min_seed <= own => own - min_seed + 1,
+        _ => 0,
+    };
+    rows.iter()
+        .map(|r| {
+            let p = r.priority.max(0) as u32;
+            if r.is_writable_own {
+                p
+            } else {
+                p.saturating_add(shift)
+            }
+        })
+        .collect()
 }

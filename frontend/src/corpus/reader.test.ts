@@ -168,6 +168,29 @@ describe('corpus reader', () => {
     });
   });
 
+  describe('invalidate', () => {
+    it('forgets the bodies and lists of that traject only, so the next read fetches', async () => {
+      const { corpus, transport } = setup({
+        [TRAJECT]: { laws: { wet_a: lawYaml('wet_a', 'Oud') } },
+        [OTHER]: { laws: { wet_a: lawYaml('wet_a', 'Ander') } },
+      }, OTHER);
+      await corpus.forTraject(TRAJECT).law('wet_a');
+      await corpus.law('wet_a');
+
+      // The traject branch moved: a sync brought in another version.
+      corpusOf(transport, TRAJECT).laws.wet_a = lawYaml('wet_a', 'Bijgewerkt');
+      corpus.forTraject(TRAJECT).invalidate();
+
+      expect((await corpus.forTraject(TRAJECT).law('wet_a')).lawName).toBe('Bijgewerkt');
+      expect((await corpus.law('wet_a')).lawName).toBe('Ander');
+      expect(transport.calls).toEqual([
+        `${TRAJECT} law wet_a`,
+        `${OTHER} law wet_a`,
+        `${TRAJECT} law wet_a`,
+      ]);
+    });
+  });
+
   describe('recordBody', () => {
     it('replaces the cached body of the traject it was recorded for', async () => {
       const { corpus, transport } = setup({

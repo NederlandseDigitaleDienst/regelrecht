@@ -13,6 +13,7 @@ import NewMenuItems from './components/NewMenuItems.vue';
 import AccountMenuItems from './components/AccountMenuItems.vue';
 import { useAuth } from './composables/useAuth';
 import { useTrajectsStore } from './stores/trajects';
+import { startAutoSync, stopAutoSync } from './composables/useTrajectAutoSync';
 import {
   lastHomePath,
   lastEditorPath,
@@ -262,6 +263,11 @@ function loadJitDismissed() {
   try { return localStorage.getItem(JIT_DISMISS_KEY) === '1'; } catch { return false; }
 }
 const trajectActive = computed(() => !!activeTrajectRef.value);
+
+// Keep the open traject level with its working branch (trajectloader). The
+// shell spans library and editor, so the loop keeps running while editing.
+watch(activeTrajectRef, (next) => startAutoSync(next || null), { immediate: true });
+onBeforeUnmount(stopAutoSync);
 const jitDismissed = ref(loadJitDismissed());
 const jitHiddenSession = ref(false);
 const searchHintActive = computed(

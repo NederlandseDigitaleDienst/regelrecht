@@ -37,6 +37,7 @@
 
 mod activity;
 mod archive;
+mod branches;
 mod client;
 mod compare;
 mod contents;
@@ -46,6 +47,7 @@ mod refs;
 mod repo_access;
 mod trees;
 
+pub use branches::{CompareStatus, MergeOutcome};
 pub use client::GithubClient;
 pub use contents::{Committer, DirectoryEntry};
 pub use error::{GithubError, Result};

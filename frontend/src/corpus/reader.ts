@@ -49,6 +49,12 @@ export interface TrajectCorpusView {
    * still running does not overwrite any of it.
    */
   recordBody(lawId: string, yamlText: string, etag: string | null): LawBody;
+  /**
+   * Forget everything cached for this traject: its branch moved under the
+   * client (a sync with the working branch brought in other commits). Reads
+   * still running do not store what they fetched.
+   */
+  invalidate(): void;
 }
 
 /** The corpus of the active traject: every read goes to the traject current at call time. */
@@ -254,6 +260,21 @@ export function createCorpusReader({ transport, trajectRef }: CorpusReaderOption
         }
         return body;
       },
+
+      invalidate() {
+        const key = scopeKey(scope);
+        generations.set(key, generation(scope) + 1);
+        const prefix = lawKey(scope, '');
+        for (const cache of [bodies, versionsCache]) {
+          for (const k of [...cache.keys()]) if (k.startsWith(prefix)) cache.delete(k);
+        }
+        allLawsCache.delete(key);
+        const namesEntry = names.peek(key);
+        if (namesEntry) {
+          namesEntry.stale = true;
+          namesVersion.value++;
+        }
+      },
     };
   }
 
@@ -271,6 +292,7 @@ export function createCorpusReader({ transport, trajectRef }: CorpusReaderOption
     allLaws: () => active().allLaws(),
     changedLaws: () => active().changedLaws(),
     recordBody: (lawId, yamlText, etag) => active().recordBody(lawId, yamlText, etag),
+    invalidate: () => active().invalidate(),
 
     displayName(lawId) {
       // Read for reactivity: re-run when a list arrives or the traject changes.

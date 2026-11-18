@@ -133,7 +133,7 @@ pub struct CreateTrajectRequest {
 /// names starting with a leading `.` (hidden/reserved). Reject those
 /// here so we don't store a row that GitHub will subsequently 404 on
 /// every contents/branches call.
-fn valid_repo_segment(s: &str) -> bool {
+pub(crate) fn valid_repo_segment(s: &str) -> bool {
     if s.is_empty() || s.len() > 100 {
         return false;
     }
@@ -159,7 +159,7 @@ fn valid_repo_segment(s: &str) -> bool {
 /// strips the query, validates `main`, and the bogus suffix lands in
 /// the DB. This guard refuses any refname-illegal character at the API
 /// boundary so the persisted value is always a clean refname.
-fn valid_branch_name(s: &str) -> bool {
+pub(crate) fn valid_branch_name(s: &str) -> bool {
     if s.is_empty() || s.len() > 200 {
         return false;
     }
@@ -219,7 +219,7 @@ fn valid_branch_name(s: &str) -> bool {
 /// on the row as `gh_path`) never reaches that check. Without this
 /// guard a caller could ship `repo_path = "../../etc"` and the backend
 /// would read/write outside the per-traject clone.
-fn valid_repo_path(s: &str) -> bool {
+pub(crate) fn valid_repo_path(s: &str) -> bool {
     if s.is_empty() {
         return true;
     }
@@ -251,11 +251,11 @@ fn valid_repo_path(s: &str) -> bool {
 // When the request *does* supply repo coordinates, all four user-facing
 // fields (owner/repo/branch/path) are taken from the request and
 // `auth_ref` is derived from owner+repo (see `derive_auth_ref`).
-const CENTRAL_WRITABLE_OWNER: &str = "MinBZK";
-const CENTRAL_WRITABLE_REPO: &str = "regelrecht-corpus";
+pub(crate) const CENTRAL_WRITABLE_OWNER: &str = "MinBZK";
+pub(crate) const CENTRAL_WRITABLE_REPO: &str = "regelrecht-corpus";
 const CENTRAL_WRITABLE_PATH: &str = "regulation/nl";
 const CENTRAL_WRITABLE_BASE_BRANCH: &str = "development";
-const CENTRAL_WRITABLE_AUTH_REF: &str = "minbzk-central";
+pub(crate) const CENTRAL_WRITABLE_AUTH_REF: &str = "minbzk-central";
 const CENTRAL_WRITABLE_NAME: &str = "MinBZK/regelrecht-corpus";
 
 /// User-facing rejection for a malformed `repo_path`. Shared by `create`
@@ -1113,7 +1113,7 @@ async fn preflight_repo(
 /// Map a `RepoAccessError` to the appropriate HTTP status + a NL message
 /// the create-sheet can show as-is. Kept verbose so each failure mode is
 /// distinguishable in the UI.
-fn repo_access_error_to_status(
+pub(crate) fn repo_access_error_to_status(
     err: &regelrecht_github::RepoAccessError,
     owner: &str,
     repo: &str,

@@ -159,3 +159,45 @@ Saves can fail while editing as well. Most messages are the same; for a 403 abou
 - **Replacing an expired service token is operator work.** The editor refuses reads and writes once GitHub rejects the PAT, and the operator has to replace it. Plan for this. An expired personal link is fixed by the user relinking.
 - **Service-token mode is not self-service.** Every new repository needs an operator to configure a variable. Personal mode removes that step, at the cost of every user needing their own GitHub account with push rights.
 - **No tokens in the database.** A deliberate design choice: a bug, breach or insider with database access cannot exfiltrate tokens.
+
+## Working next to a clone
+
+A dossier corpus is often written outside the editor, for example by an agent in a local clone. The editor can open such a corpus and edit it without the two getting in each other's way. RFC-057 has the design.
+
+The rule is two branches, never one shared branch:
+
+- The **working branch** (for example `session-3`) belongs to the clone. The editor never writes to it.
+- The **traject branch** (`traject/<name>-<id>`) belongs to the editor. Every save is one commit on it.
+
+### Loading
+
+Under "Nieuw traject", switch on the own repository, fill in owner, repository and the subpath if there is one, and press **Controleer corpus**. The check creates nothing. It fills the list of branches and reports:
+
+- how many ruleworks sit under the subpath, and which of their versions (one dated file each) will not open in the editor, with the reason;
+- which ruleworks another source also serves (in the traject, the repository wins);
+- whether notes sidecars sit in `annotations/` at the repository root while the editor looks for them under the subpath. Move them in that case, or they stay invisible.
+
+Then pick the working branch and create the traject.
+
+### Staying level
+
+While a traject is open in the editor, it checks every three minutes, and as soon as the tab comes back into view, whether the working branch has anything new. If it does, the editor brings it in on its own. When the traject has no commits of its own, the traject branch is simply moved forward. Otherwise GitHub merges the two with an ordinary git merge, which settles everything that does not touch the same lines, also within one file: you edit article 3 in the editor, the agent edits article 7, and both land.
+
+After a sync the editor reloads the open article, unless it holds unsaved edits. Those stay. If the merge touched the same file, the save reports that the file changed in the meantime instead of replacing the edits. The **Bijwerken** button in the library does the same on request.
+
+Only when both sides change the same lines does GitHub refuse the merge, and both branches stay as they were. Git cannot settle that without discarding one side, so the editor does not try. The notice names the files, and the editor tries again only once one of the branches moves. Resolve it in the clone:
+
+```bash
+git fetch origin
+git checkout <working-branch>
+git merge origin/traject/<name>-<id>
+# resolve the conflicts, commit, and publish the working branch
+```
+
+### Back to the clone
+
+**Voorstel naar werkbranch** opens a pull request from the traject branch to the working branch. In the clone, `git merge origin/traject/<name>-<id>` does the same. A routine that works well: start every session in the clone with `git pull` and a merge of the traject branch.
+
+### Comments survive a save
+
+On a save the editor rewrites only the changed part of an article. YAML comments, line folding and key order elsewhere in the file stay byte for byte as they were, so a save is a small diff that merges cleanly with work from the clone. Only for a document shape the editor cannot patch does it fall back to writing the whole file again.

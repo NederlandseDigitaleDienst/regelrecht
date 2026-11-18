@@ -28,6 +28,7 @@ import { useLatest } from '../lib/useLatest';
 import { resolveLawName } from '../lib/lawName';
 import { holdRetryFloor } from '../lib/retryFeedback';
 import { findIncompleteOperation } from '../lib/incompleteOperation';
+import { patchArticle, type ArticleChanges } from '../lib/yamlPatch';
 import {
   applyDelete,
   applySave,
@@ -252,10 +253,13 @@ export function useOpenLaw(
    * engine runs and what a save writes. Only the selected article is
    * swapped; edits are not kept across articles.
    *
-   * Known limitation: the spliced body is a `yaml.dump` of the reconstructed
-   * document, which drops YAML comments and may reorder top-level keys
-   * compared to `rawYaml`. Today's corpus is harvester-generated and
-   * comment-free, so this has no effect yet.
+   * The splice goes through `patchArticle`: it replaces only the changed
+   * fields of this article in `rawYaml`, descending into machine_readable to
+   * the smallest changed subtree. Every other byte (YAML comments, line
+   * folding, key order) stays as stored, so a save is a small diff that merges
+   * cleanly with work done on the same corpus outside the editor. Only when
+   * the patch is not possible (an unexpected document shape) does it fall back
+   * to dumping the whole document, which drops comments and may reorder keys.
    */
   const currentLawYaml = computed(() => {
     if (!rawYaml.value) return null;
@@ -273,17 +277,23 @@ export function useOpenLaw(
       const baseArticle = docArticles[idx]!;
       const textPristine = editedText.value === (baseArticle.text ?? '');
       const mrPristine = sameJson(baseArticle.machine_readable, machineReadable.value);
-      // Untouched: return the saved text as is. A dump round trip can
-      // reformat it, and a save of a pristine article would then commit a
-      // reformat-only change.
+      // Untouched: return the saved text as is.
       if (textPristine && mrPristine) return rawYaml.value;
+      const changes: ArticleChanges = {};
+      if (!textPristine) changes.text = editedText.value;
+      if (!mrPristine) {
+        if (machineReadable.value != null) changes.machine_readable = machineReadable.value;
+        // The YAML pane was cleared: persist the deletion.
+        else changes.deleteMachineReadable = true;
+      }
+      const spliced = patchArticle(rawYaml.value, selectedNumber.value ?? '', changes);
+      if (spliced != null) return spliced;
+      console.warn('patchArticle could not splice; falling back to a full re-dump');
       const patched = { ...baseArticle };
       if (!textPristine) patched.text = editedText.value;
       if (machineReadable.value != null) {
         patched.machine_readable = machineReadable.value;
       } else if (baseArticle.machine_readable != null) {
-        // The YAML pane was cleared: persist the deletion rather than carry
-        // the original over from the spread above.
         delete patched.machine_readable;
       }
       docArticles[idx] = patched;

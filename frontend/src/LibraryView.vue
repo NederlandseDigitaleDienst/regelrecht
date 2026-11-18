@@ -12,6 +12,8 @@ import MachineReadable from './components/MachineReadable.vue';
 import YamlView from './components/YamlView.vue';
 import ActionSheet from './components/ActionSheet.vue';
 import SearchPopover from './components/SearchPopover.vue';
+import TrajectSyncBanner from './components/TrajectSyncBanner.vue';
+import { useTrajectAutoSync } from './composables/useTrajectAutoSync';
 import AddLawSheet from './components/AddLawSheet.vue';
 import DocumentList from './components/DocumentList.vue';
 import DocumentEditor from './components/DocumentEditor.vue';
@@ -1867,6 +1869,13 @@ function retryLoadLaw() {
   loadLaw(selectedLawId.value, { minLoadingMs: RETRY_MIN_SPINNER_MS });
 }
 
+// The background sync moved the traject branch: reload the index so new laws
+// from the working branch show up (useTrajectAutoSync, started by AppShell).
+const { syncCount: trajectSyncCount } = useTrajectAutoSync();
+watch(trajectSyncCount, () => {
+  if (activeTrajectRef.value && !loading.value) loadIndex();
+});
+
 function retryLoadCorpus() {
   // Clearing indexError is loadIndex's job (it does so for every caller, not
   // just this one). loading is not: loadIndex only flips it back to false in
@@ -2370,6 +2379,11 @@ watch(activeTrajectRef, () => {
         >
           <nldd-button slot="actions" appearance="secondary" text="Probeer opnieuw" @click="retryLoadCorpus"></nldd-button>
         </nldd-notification>
+
+        <!-- Werkbranch en traject-branch uit de pas (trajectloader). Alleen
+             binnen een traject; de component zwijgt zelf als er niets te
+             melden is. -->
+        <TrajectSyncBanner v-if="activeTrajectRef && !indexError"></TrajectSyncBanner>
 
         <!-- Full-page "no usable content" states (matching EditorView): shown
              instead of the split-view so the error / CTA spans the full width,

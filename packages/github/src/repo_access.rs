@@ -105,7 +105,11 @@ impl GithubClient {
         Ok(info)
     }
 
-    async fn check_repo(
+    /// Repo lookup alone: default branch, visibility, and push access for
+    /// `token`. [`validate_repo_access`](Self::validate_repo_access) runs this
+    /// plus a branch-existence check; the traject preflight needs it on its
+    /// own because it has to learn the default branch before one is picked.
+    pub async fn check_repo(
         &self,
         owner: &str,
         repo: &str,

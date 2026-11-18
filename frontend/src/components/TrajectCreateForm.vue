@@ -3,6 +3,7 @@ import { computed, ref } from 'vue';
 import type { NLDDTextField } from '@nldd/design-system/text-field';
 import { deriveAuthRef, tokenEnvName as tokenEnvNameFor } from '../lib/corpusAuth';
 import type { CreateTrajectRequest } from '../stores/trajects';
+import { findingsByLevel, preflightRepo, type PreflightReport } from '../lib/trajectSync';
 
 // Gedeeld aanmaakformulier voor een traject - gebruikt door de
 // TrajectMenu-sheet en de /editor/nieuw-traject-pagina. Gebouwd op de
@@ -55,7 +56,9 @@ function emptyForm(): CreateFormState {
     useCustomRepo: false,
     repo_owner: '',
     repo_name: '',
-    base_branch: 'main',
+    // The working branch the traject is cut from and synced with. Empty
+    // until chosen; the preflight fills in the repo's default branch.
+    base_branch: '',
     // Sub-path within the repo where regulation YAML files live. Empty
     // means "everything under repo root" - the right default for user
     // repos dedicated to regulations. Set to e.g. `regulation/nl` when
@@ -88,8 +91,76 @@ const tokenEnvName = computed(() => {
 // ref and so no env-var to point the operator at.
 const repoIsCompleet = computed(() => Boolean(tokenEnvName.value));
 
+// Trajectloader-controle (POST /api/trajects/preflight): wat de editor in de
+// repo aantreft voordat er een traject op wordt gezet. Het rapport hoort bij
+// de coördinaten waarmee het is opgevraagd; wijzigt er daarna een veld, dan
+// geldt het niet meer (zie `reportIsCurrent`).
+const preflight = ref<PreflightReport | null>(null);
+const preflightKey = ref('');
+const preflightRepoKey = ref('');
+const preflightBusy = ref(false);
+const preflightError = ref<string | null>(null);
+
+function coordsKey(): string {
+  const f = form.value;
+  return [f.repo_owner, f.repo_name, f.base_branch, f.repo_path].map((v) => v.trim()).join('|');
+}
+// The branch list belongs to the repo, not to the chosen branch: keep it while
+// only the branch changes, drop it when owner or repo change.
+const repoKey = () => `${form.value.repo_owner.trim()}|${form.value.repo_name.trim()}`;
+const reportIsCurrent = computed(() => preflight.value != null && preflightKey.value === coordsKey());
+const findings = computed(() => findingsByLevel(reportIsCurrent.value ? preflight.value : null));
+const invalidLaws = computed(() =>
+  reportIsCurrent.value && preflight.value ? preflight.value.laws.filter((l) => l.error) : [],
+);
+const branches = computed(() =>
+  preflight.value && preflightRepoKey.value === repoKey() ? preflight.value.branches : [],
+);
+
+async function runPreflight(): Promise<void> {
+  preflightBusy.value = true;
+  preflightError.value = null;
+  try {
+    const report = await preflightRepo({
+      repo_owner: form.value.repo_owner.trim(),
+      repo_name: form.value.repo_name.trim(),
+      base_branch: form.value.base_branch.trim(),
+      repo_path: form.value.repo_path.trim(),
+    });
+    // Leeg gelaten branch: de backend kiest de standaardbranch; neem die over
+    // zodat het rapport bij de ingevulde velden hoort.
+    if (!form.value.base_branch.trim()) form.value.base_branch = report.base_branch;
+    preflight.value = report;
+    preflightKey.value = coordsKey();
+    preflightRepoKey.value = repoKey();
+  } catch (e) {
+    preflight.value = null;
+    preflightError.value = e instanceof Error ? e.message : String(e);
+  } finally {
+    preflightBusy.value = false;
+  }
+}
+
+function onBranchChange(event: Event): void {
+  const next =
+    (event as CustomEvent<{ value?: string } | null>).detail?.value ??
+    (event.target as HTMLInputElement | null)?.value ??
+    form.value.base_branch;
+  if (next === form.value.base_branch) return;
+  form.value.base_branch = next;
+  // A branch picked from the list of a checked repo: check that branch too,
+  // so the report on screen always describes what will be created.
+  if (event.type === 'change' && branches.value.includes(next) && !preflightBusy.value) {
+    void runPreflight();
+  }
+}
+
 function reset(): void {
   form.value = emptyForm();
+  preflight.value = null;
+  preflightKey.value = '';
+  preflightRepoKey.value = '';
+  preflightError.value = null;
 }
 
 // The host focuses the first field once the sheet/page has opened.
@@ -118,8 +189,15 @@ function buildPayload(): BuildPayloadResult {
     const branch = form.value.base_branch.trim();
     if (!owner || !repo || !branch) {
       return {
-        error: 'Eigen repo: vul owner, repo en base-branch in (of zet de schakelaar uit).',
+        error:
+          'Eigen repo: vul owner en repo in en kies een werkbranch ("Controleer corpus" vult de lijst), of zet de schakelaar uit.',
       };
+    }
+    // Een controle die een blokkade vond, houdt het aanmaken tegen zolang de
+    // velden niet zijn gewijzigd. Niet controleren mag: de backend valideert
+    // toegang en branch bij aanmaken toch.
+    if (reportIsCurrent.value && findings.value.blocker.length) {
+      return { error: findings.value.blocker.join(' ') };
     }
     payload.repo_owner = owner;
     payload.repo_name = repo;
@@ -209,14 +287,27 @@ function bind(field: TextFieldKey) {
           ></nldd-text-field>
           <nldd-form-field-help-text>Naam van de repository.</nldd-form-field-help-text>
         </nldd-form-field>
-        <nldd-form-field label="Base branch">
-          <nldd-text-field
+        <nldd-form-field label="Werkbranch">
+          <nldd-combo-box
             size="md"
-            required
+            width="100%"
+            allow-custom
+            placeholder="Standaardbranch van de repo"
+            accessible-label="Werkbranch"
             :value="form.base_branch"
-            @input="bind('base_branch')($event)"
-          ></nldd-text-field>
-          <nldd-form-field-help-text>Branch waar de traject-branch van afsplitst (vaak 'main').</nldd-form-field-help-text>
+            @input="onBranchChange"
+            @change="onBranchChange"
+          >
+            <nldd-menu>
+              <nldd-menu-item v-for="b in branches" :key="b" :text="b" :value="b"></nldd-menu-item>
+            </nldd-menu>
+          </nldd-combo-box>
+          <nldd-form-field-help-text>
+            Branch waar al aan gewerkt wordt, bijv. in een lokale clone. Het traject
+            krijgt een eigen branch daarvan; de editor schrijft nooit rechtstreeks
+            op de werkbranch. "Controleer corpus" vult de lijst en kiest de
+            standaardbranch als je nog niets hebt gekozen.
+          </nldd-form-field-help-text>
         </nldd-form-field>
         <nldd-form-field label="Subpath" optional>
           <nldd-text-field
@@ -226,6 +317,55 @@ function bind(field: TextFieldKey) {
           ></nldd-text-field>
           <nldd-form-field-help-text>Submap met de regelwerken. Laat leeg voor repo-root.</nldd-form-field-help-text>
         </nldd-form-field>
+
+        <nldd-form-field v-if="repoIsCompleet">
+          <nldd-button
+            appearance="secondary"
+            size="md"
+            text="Controleer corpus"
+            :loading="preflightBusy || undefined"
+            :disabled="preflightBusy || undefined"
+            data-testid="traject-preflight"
+            @click="runPreflight"
+          ></nldd-button>
+          <nldd-form-field-help-text>
+            Leest de repo zonder iets aan te maken: hoeveel regelwerken, welke niet
+            openen in de editor, en wat er verder opvalt.
+          </nldd-form-field-help-text>
+        </nldd-form-field>
+
+        <nldd-inline-dialog v-if="preflightError" variant="alert" :text="preflightError"></nldd-inline-dialog>
+
+        <template v-if="reportIsCurrent && preflight">
+          <nldd-inline-dialog
+            :variant="findings.blocker.length || preflight.invalid_count ? 'alert' : 'success'"
+            :text="`${preflight.law_count} regelwerk(en) in ${preflight.law_file_count} versie(s) op ${preflight.repo}@${preflight.base_branch}`"
+            :supporting-text="preflight.invalid_count ? `${preflight.invalid_count} versie(s) openen niet in de editor.` : 'Alle gecontroleerde versies openen in de editor.'"
+            data-testid="traject-preflight-summary"
+          ></nldd-inline-dialog>
+          <nldd-list
+            v-if="preflight.findings.length || invalidLaws.length"
+            appearance="box-tinted"
+            accessible-label="Bevindingen van de controle"
+          >
+            <nldd-list-item v-for="(m, i) in findings.blocker" :key="`b${i}`" size="md">
+              <nldd-text-cell overline="Blokkeert" :text="m"></nldd-text-cell>
+            </nldd-list-item>
+            <nldd-list-item v-for="(m, i) in findings.warning" :key="`w${i}`" size="md">
+              <nldd-text-cell overline="Let op" :text="m"></nldd-text-cell>
+            </nldd-list-item>
+            <nldd-list-item v-for="(m, i) in findings.info" :key="`i${i}`" size="md">
+              <nldd-text-cell overline="Ter info" :text="m"></nldd-text-cell>
+            </nldd-list-item>
+            <nldd-list-item v-for="law in invalidLaws" :key="law.path" size="md">
+              <nldd-text-cell
+                :overline="law.law_id || 'Geen $id'"
+                :text="law.path"
+                :supporting-text="law.error || undefined"
+              ></nldd-text-cell>
+            </nldd-list-item>
+          </nldd-list>
+        </template>
       </template>
 
       <!-- Bij een eigen repo pas tonen zodra eigenaar en repository een naam
@@ -235,7 +375,8 @@ function bind(field: TextFieldKey) {
           <p v-if="form.useCustomRepo">
             Bewerkingen worden gepusht naar
             <code>{{ form.repo_owner.trim() }}/{{ form.repo_name.trim() }}</code>
-            (basis: <code>{{ form.base_branch.trim() || 'main' }}</code>).
+            (eigen traject-branch vanaf
+            <code>{{ form.base_branch.trim() || 'de standaardbranch' }}</code>).
             Daarvoor is schrijftoegang tot deze repo nodig: je beheerder zet de
             env-var <code>{{ tokenEnvName }}</code>, of, als schrijven met een
             eigen GitHub-account aanstaat, gebruikt de editor jouw gekoppelde

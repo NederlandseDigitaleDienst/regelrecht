@@ -37,6 +37,7 @@ mod traject_corpus;
 mod traject_index_diagnosis;
 mod traject_integrity;
 mod traject_runs;
+mod traject_sync;
 mod trajects;
 mod user_notes;
 mod user_settings;
@@ -401,6 +402,12 @@ async fn main() {
             "/api/trajects/{traject_ref}/sources",
             get(corpus_handlers::list_traject_sources),
         )
+        .route(
+            // Trajectloader: how far the traject branch and its working
+            // branch have drifted apart (see `traject_sync`).
+            "/api/trajects/{traject_ref}/base-status",
+            get(traject_sync::base_status),
+        )
         // The traject's runs (harvests, enrichments, conversions) for the
         // Verwerkingen overview: a read, open to every member.
         .route("/api/trajects/{traject_ref}/runs", get(traject_runs::list))
@@ -485,6 +492,19 @@ async fn main() {
     // handler above.
     let traject_writer_routes = Router::new()
         .route("/api/trajects", axum::routing::post(trajects::create))
+        .route(
+            // Static segment: wins over `/api/trajects/{id}` in the router.
+            "/api/trajects/preflight",
+            axum::routing::post(traject_sync::preflight),
+        )
+        .route(
+            "/api/trajects/{traject_ref}/sync-base",
+            axum::routing::post(traject_sync::sync_base),
+        )
+        .route(
+            "/api/trajects/{traject_ref}/propose",
+            axum::routing::post(traject_sync::propose_to_base),
+        )
         .route(
             "/api/trajects/{id}",
             axum::routing::patch(trajects::update).delete(trajects::delete),
