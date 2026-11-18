@@ -169,6 +169,25 @@ articles:
         - hook_point: post_actions
           applies_to:
             submission: AANVRAAG
+      # Lid 1: "binnen de bij wettelijk voorschrift bepaalde termijn". De wet
+      # van het besluit vult dit begrip in met implements; onder deze haak telt
+      # alleen die wet (RFC-058). Bepaalt zij geen termijn, dan geldt lid 2.
+      open_terms:
+        - id: wettelijke_beslistermijn
+          type: date
+          required: false
+          legal_basis: artikel 4:13, eerste lid, Algemene wet bestuursrecht
+          description: >-
+            De laatste dag van de bij wettelijk voorschrift bepaalde termijn
+            (lid 1). Bepaalt geen wettelijk voorschrift een termijn, dan acht
+            weken na ontvangst (lid 2).
+          default:
+            actions:
+              - output: wettelijke_beslistermijn
+                value:
+                  operation: DATE_ADD
+                  date: $datum_ontvangst
+                  weeks: 8
       execution:
         produces:
           moment:
@@ -186,6 +205,12 @@ articles:
             required: false
             description: De dag waarop het bestuursorgaan de aanvraag ontving (lid 1).
         output:
+          - name: uiterste_beslisdatum
+            type: date
+            description: >-
+              De laatste dag waarop de beschikking moet zijn gegeven: die van
+              de bij wettelijk voorschrift bepaalde termijn, en anders acht
+              weken na ontvangst (lid 1 en 2).
           - name: redelijke_beslistermijn_einddatum
             type: date
             description: >-
@@ -193,9 +218,11 @@ articles:
               die begrenst: acht weken na ontvangst. De dag erna is de termijn
               in ieder geval verstreken.
         actions:
+          - output: uiterste_beslisdatum
+            value: $wettelijke_beslistermijn
           # Lid 2, voor een aanvraag waarvoor geen wettelijk voorschrift een
-          # beslistermijn bepaalt (lid 1). Een wet met een eigen termijn gaat
-          # voor; daarvoor is geen haak nodig maar een override. Een mededeling
+          # beslistermijn bepaalt (lid 1). Een wet met een eigen termijn vult
+          # het open begrip van lid 1 in (uiterste_beslisdatum). Een mededeling
           # als bedoeld in artikel 4:14, derde lid, is niet gemodelleerd.
           # Telling als bij artikel 6:8: de dag van ontvangst telt niet mee.
           # Verlenging door de Algemene termijnenwet (weekend, feestdag) is

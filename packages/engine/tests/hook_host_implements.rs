@@ -984,3 +984,36 @@ articles:
         "eight weeks in the second hook too, not the foreign one week"
     );
 }
+
+/// A default reads the parameters of the article its term belongs to as that
+/// article does: an optional one the caller left out is unknown, not a
+/// missing variable (RFC-036). The decision period of an application that
+/// was recorded without its day of receipt is then unknown too.
+#[test]
+fn a_default_reads_an_optional_parameter_left_out_as_unknown() {
+    let optional_receipt = general_law(None).replacen(
+        "          - name: datum_ontvangst\n            type: date\n            required: true",
+        "          - name: datum_ontvangst\n            type: date\n            required: false",
+        1,
+    );
+    assert!(optional_receipt.contains("required: false\n        output:"));
+    let mut service = LawExecutionService::new();
+    service.load_law(&optional_receipt).unwrap();
+
+    let result = service
+        .evaluate_law_output(
+            "algemene_wet_voorbeeld",
+            "uiterste_beslisdag",
+            BTreeMap::new(),
+            "2026-01-05",
+        )
+        .unwrap();
+    assert!(
+        !matches!(
+            result.outputs.get("uiterste_beslisdag"),
+            Some(Value::String(_))
+        ),
+        "no day of receipt, so no last day either, got {:?}",
+        result.outputs.get("uiterste_beslisdag")
+    );
+}

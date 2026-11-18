@@ -5525,7 +5525,14 @@ impl LawExecutionService {
             if let Some(ref actions) = default.actions {
                 // Build a synthetic article from the default actions and evaluate
                 // it through ArticleEngine — this correctly handles action.output,
-                // intermediate variables, and all operation patterns.
+                // intermediate variables, and all operation patterns. It
+                // declares the parameters of the article the term belongs to,
+                // so the default reads them as the article does: an optional
+                // one the caller left out is unknown, not a missing variable
+                // (RFC-036).
+                let declared_parameters = article
+                    .get_execution_spec()
+                    .and_then(|exec| exec.parameters.clone());
                 let synthetic_article = Article {
                     number: format!("default:{}", term.id),
                     text: String::new(),
@@ -5534,7 +5541,7 @@ impl LawExecutionService {
                     machine_readable: Some(MachineReadable {
                         execution: Some(Execution {
                             produces: None,
-                            parameters: None,
+                            parameters: declared_parameters,
                             input: None,
                             output: None,
                             actions: Some(actions.clone()),
