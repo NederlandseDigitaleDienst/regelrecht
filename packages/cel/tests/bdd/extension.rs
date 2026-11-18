@@ -304,6 +304,15 @@ fn assert_decision_within(world: &RegelrechtWorld, id: &str, output: &str, withi
         .iter()
         .find(|g| g.id == id)
         .unwrap_or_else(|| panic!("no decision '{id}' in the chronicle"));
+    // A submission or a fact holds no decision date to compare.
+    assert!(
+        !matches!(
+            gram.kind.as_str(),
+            "AANVRAAG" | "BEZWAAR" | "BEROEP" | EXECUTOGRAM
+        ),
+        "'{id}' is a {}, not a decision",
+        gram.kind
+    );
     let last = gram
         .outputs
         .get(output)
