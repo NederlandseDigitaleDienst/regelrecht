@@ -45,8 +45,8 @@ use crate::operations::ValueResolver;
 use crate::priority;
 use crate::resolver::{
     DeclarationKind, DeclarationNotInForce, DeclarationsFromOtherVersion, DelegationRefusal,
-    HookEntry, LawArticleRef, ProcedureMiss, RuleResolver, SelectionReason, hook_filter_admits,
-    missing_article_reason, submission_filter_admits,
+    HookEntry, ImplementationLookup, LawArticleRef, ProcedureMiss, RuleResolver, SelectionReason,
+    hook_filter_admits, missing_article_reason, submission_filter_admits,
 };
 use crate::trace::{LegalAnchor, PathNode, TraceBuilder, ValueSource};
 use crate::types::{
@@ -183,6 +183,22 @@ struct ResolutionContext<'a> {
     /// ([`Bound`]): how an open term the binding fills came to its value
     /// ([`FilledBy::Answer`]).
     bound: Vec<Bound>,
+    /// The decision the hook that runs now fires on, while it runs
+    /// (RFC-058). Its open terms are filled by the host law only, with the
+    /// host's parameters.
+    hook_host: Option<Rc<HookHost>>,
+}
+
+/// The decision a hook fires on, as the hook's open terms see it (RFC-058):
+/// the hook article, the law of the article that fires it, and the
+/// parameters that article handed the hooks, shared by all of them. Only the
+/// open terms of the hook article read it, wherever the hook run reaches that
+/// article; an article the hook calls is no hook.
+struct HookHost {
+    hook_law: String,
+    hook_article: String,
+    host_law: String,
+    parameters: Rc<BTreeMap<String, Value>>,
 }
 
 /// The answers one input of a binding took (`source.reduction`, RFC-048):
@@ -317,6 +333,7 @@ impl<'a> ResolutionContext<'a> {
             sphere: Vec::new(),
             chronicle: None,
             bound: Vec::new(),
+            hook_host: None,
         })
     }
 
@@ -376,6 +393,16 @@ impl<'a> ResolutionContext<'a> {
             return Ok(());
         }
         Err(EngineError::FindingsNotAsked { findings })
+    }
+
+    /// The host of the hook that runs now, if `article` of `law` is that
+    /// hook (RFC-058). `None` for every other article, also one the hook
+    /// calls or one that fills a term of the hook.
+    fn host_of(&self, law: &str, article: &str) -> Option<Rc<HookHost>> {
+        self.hook_host
+            .as_ref()
+            .filter(|host| host.hook_law == law && host.hook_article == article)
+            .map(Rc::clone)
     }
 
     /// Record that `filled_by` filled the open term `term` of `article` of
@@ -3363,8 +3390,12 @@ impl LawExecutionService {
     ) -> Result<ArticleResult> {
         let output_name = output_names.first().copied().unwrap_or_default();
         // A value computed with an override held back is not the value of
-        // that output, so it neither comes from nor goes into the cache.
-        let cacheable = output_names.len() == 1 && res_ctx.held_back.is_empty();
+        // that output, so it neither comes from nor goes into the cache. Nor
+        // is one computed while a hook runs: a call that reaches the hook
+        // article fills its terms from the host (RFC-058), and the key does
+        // not name the host.
+        let cacheable =
+            output_names.len() == 1 && res_ctx.held_back.is_empty() && res_ctx.hook_host.is_none();
         // --- Cache check (before depth check: cached results don't increase depth) ---
         let key = cache_key(law_id, output_name, &parameters);
         if let Some(cached) = res_ctx.cache.get(&key).filter(|_| cacheable) {
@@ -3868,6 +3899,8 @@ impl LawExecutionService {
             matches = hooks.len(),
             "Firing hooks"
         );
+        // The host's scope, for the open terms of every hook (RFC-058).
+        let host_parameters = Rc::new(parameters.clone());
 
         for hook in hooks {
             let FireableHook {
@@ -3901,6 +3934,15 @@ impl LawExecutionService {
             // Enter scope for cycle detection
             res_ctx.enter(hook_key.clone());
 
+            // The hook's open terms are the host law's to fill, with the
+            // parameters the host handed the hooks (RFC-058).
+            let outer_host = res_ctx.hook_host.replace(Rc::new(HookHost {
+                hook_law: hook_law_id.clone(),
+                hook_article: hook_article_number.clone(),
+                host_law: law.id.clone(),
+                parameters: Rc::clone(&host_parameters),
+            }));
+
             // Execute the hook article
             let hook_result = self.evaluate_article_with_service(
                 hook_article,
@@ -3912,6 +3954,7 @@ impl LawExecutionService {
             );
 
             // Leave scope (even on error)
+            res_ctx.hook_host = outer_host;
             res_ctx.leave(&hook_key);
 
             // If a hook fires (stage matches), it must succeed.
@@ -4407,7 +4450,7 @@ impl LawExecutionService {
         let filled = if res_ctx.findings.is_empty() {
             BTreeSet::new()
         } else {
-            self.filled_terms(law, article, &parameters, res_ctx.reference_date())?
+            self.filled_terms(law, article, &parameters, res_ctx)?
         };
         for (id, finding) in res_ctx.findings_for(law, article, &filled)? {
             if res_ctx.depth == 0 && parameters.contains_key(&id) {
@@ -4933,20 +4976,23 @@ impl LawExecutionService {
         law: &ArticleBasedLaw,
         article: &Article,
         parameters: &BTreeMap<String, Value>,
-        date: Option<NaiveDate>,
+        res_ctx: &ResolutionContext<'_>,
     ) -> Result<BTreeSet<String>> {
-        let scope: HashMap<String, Value> = parameters
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
+        let host = res_ctx.host_of(&law.id, &article.number);
+        let date = res_ctx.reference_date();
         let mut filled = BTreeSet::new();
         for term in article.get_open_terms().into_iter().flatten() {
             if term.decided_per_case_by.is_none() {
                 continue;
             }
-            let lookup =
-                self.resolver
-                    .find_implementations(&law.id, &article.number, term, date, &scope)?;
+            let lookup = self.implementations_of(
+                &law.id,
+                &article.number,
+                term,
+                date,
+                parameters,
+                host.as_deref(),
+            )?;
             if !lookup.implementations.is_empty() {
                 filled.insert(term.id.clone());
             }
@@ -4974,6 +5020,12 @@ impl LawExecutionService {
         if res_ctx.findings.is_empty() {
             return Ok(());
         }
+        // Only the first article can be a hook; the policies that fill its
+        // terms are none, and read the scope the hook's terms were filled in.
+        let host = res_ctx.host_of(&law.id, &article.number);
+        let parameters = host
+            .as_ref()
+            .map_or(parameters, |host| host.parameters.as_ref());
         let scope: HashMap<String, Value> = parameters
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
@@ -4992,10 +5044,12 @@ impl LawExecutionService {
             else {
                 continue;
             };
+            let hook_host = host
+                .as_deref()
+                .filter(|host| host.hook_law == law_id && host.hook_article == number);
             for term in found.get_open_terms().into_iter().flatten() {
-                let lookup = self
-                    .resolver
-                    .find_implementations(&law_id, &number, term, date, &scope)?;
+                let lookup =
+                    self.implementations_of(&law_id, &number, term, date, parameters, hook_host)?;
                 for (impl_law, impl_article) in &lookup.implementations {
                     for own in impl_article.get_open_terms().into_iter().flatten() {
                         if own.decided_per_case_by.is_none() {
@@ -5027,6 +5081,38 @@ impl LawExecutionService {
             }
         }
         Ok(())
+    }
+
+    /// The implementations of `term` of article `article` of `law_id` that
+    /// apply with `parameters` as scope. When that article runs as the hook
+    /// `host` names, only the host law's, in the host's scope (RFC-058).
+    fn implementations_of(
+        &self,
+        law_id: &str,
+        article: &str,
+        term: &crate::article::OpenTerm,
+        date: Option<NaiveDate>,
+        parameters: &BTreeMap<String, Value>,
+        host: Option<&HookHost>,
+    ) -> Result<ImplementationLookup<'_>> {
+        let parameters = host.map_or(parameters, |host| host.parameters.as_ref());
+        let scope: HashMap<String, Value> = parameters
+            .iter()
+            .map(|(k, v)| (k.clone(), v.clone()))
+            .collect();
+        match host {
+            Some(host) => self.resolver.find_host_implementations(
+                law_id,
+                article,
+                term,
+                date,
+                &scope,
+                &host.host_law,
+            ),
+            None => self
+                .resolver
+                .find_implementations(law_id, article, term, date, &scope),
+        }
     }
 
     /// Resolve one open term declared on an article via IoC (implements index),
@@ -5099,18 +5185,28 @@ impl LawExecutionService {
         let _guard = res_ctx.trace_guard(&term.id, PathNodeType::OpenTermResolution);
         res_ctx.trace_set_resolve_type(ResolveType::OpenTerm);
 
-        // Look up implementations (filtered by execution scope)
-        // Convert BTreeMap to HashMap at the resolver boundary
-        let scope: HashMap<String, Value> = parameters
-            .iter()
-            .map(|(k, v)| (k.clone(), v.clone()))
-            .collect();
-        let lookup = match self.resolver.find_implementations(
+        // Look up implementations (filtered by execution scope). An article
+        // that fires as a hook has its term filled by the host law only, in
+        // the host's scope (RFC-058).
+        let host = res_ctx.host_of(&law.id, &article.number);
+        if let Some(host) = &host {
+            let _host_guard = res_ctx.trace_guard(&host.host_law, PathNodeType::OpenTermResolution);
+            res_ctx.trace_set_message(format!(
+                "Open term '{}': {} article {} fires as a hook on a decision of {}, so only {} \
+                 may fill it (RFC-058)",
+                term.id, law.id, article.number, host.host_law, host.host_law
+            ));
+        }
+        let impl_scope = host
+            .as_ref()
+            .map_or(parameters, |host| host.parameters.as_ref());
+        let lookup = match self.implementations_of(
             &law.id,
             &article.number,
             term,
             res_ctx.reference_date(),
-            &scope,
+            parameters,
+            host.as_deref(),
         ) {
             Ok(lookup) => lookup,
             Err(e) => {
@@ -5196,8 +5292,10 @@ impl LawExecutionService {
 
             // Execute the implementing article to get the value.
             // Only forward parameters that the implementing article declares
-            // in its execution.parameters — principle of least privilege.
-            let impl_params = Self::filter_parameters_for_article(impl_article, parameters);
+            // in its execution.parameters — principle of least privilege. Under
+            // a hook it chooses from the host's parameters: the host fills the
+            // term with its own data (RFC-058).
+            let impl_params = Self::filter_parameters_for_article(impl_article, impl_scope);
             // The answers a binding takes while it runs (`source.reduction`).
             let bound_from = res_ctx.bound.len();
             let result = match self.evaluate_article_with_service(
@@ -6428,7 +6526,7 @@ impl LawExecutionService {
         let declared = Self::filter_parameters_for_article(article, &passed);
         let mut findings: BTreeMap<String, Value> = BTreeMap::new();
         let mut now_filled: Vec<String> = Vec::new();
-        let filled = self.filled_terms(target_law, article, &passed, res_ctx.reference_date())?;
+        let filled = self.filled_terms(target_law, article, &passed, res_ctx)?;
         for term in article.get_open_terms().into_iter().flatten() {
             if term.decided_per_case_by.is_none() || declared.contains_key(&term.id) {
                 continue;
