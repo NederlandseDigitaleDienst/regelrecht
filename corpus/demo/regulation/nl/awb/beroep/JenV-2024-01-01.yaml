@@ -53,7 +53,7 @@ articles:
             type: object
             source: {}
           - name: gebeurtenissen
-            type: object
+            type: array
             source: {}
         output:
           - name: beroep_mogelijk

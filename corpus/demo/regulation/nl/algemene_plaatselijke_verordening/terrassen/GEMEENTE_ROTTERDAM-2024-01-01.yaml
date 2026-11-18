@@ -94,7 +94,7 @@ articles:
                 zomer: Zomerseizoen (1 maart - 1 november)
                 winter: Winterseizoen (1 november - 1 maart)
           - name: gewenste_openingstijd
-            type: string
+            type: number
             required: false
             type_spec:
               enum:

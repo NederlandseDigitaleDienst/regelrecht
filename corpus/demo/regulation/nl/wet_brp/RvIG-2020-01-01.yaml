@@ -103,7 +103,7 @@ articles:
             nullable: true
             source: {}
           - name: partnerschap_type
-            type: object
+            type: string
             nullable: true
             source: {}
           - name: partner_bsn
