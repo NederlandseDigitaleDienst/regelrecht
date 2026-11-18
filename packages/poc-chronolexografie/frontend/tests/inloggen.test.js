@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { NOT_LOGGED_IN, gekozen, loginHint, inlogTekst, keuzeLabel } from '../src/inloggen.js';
+import { NOT_LOGGED_IN, gekozen, loginHint, inlogTekst, keuzeLabel, metKeuze } from '../src/inloggen.js';
 
 const celNaam = (cel) => ({ voorbeeld_register: 'Voorbeeldregister' })[cel] ?? `cel ${cel}`;
 const INLOGGEN = {
@@ -68,5 +68,21 @@ describe('loginHint', () => {
   it('says nothing without a login or without its field', () => {
     expect(loginHint(null, { nummer: '1' })).toBeNull();
     expect(loginHint(INLOGGEN, { naam: 'x' })).toBeNull();
+  });
+});
+
+describe('metKeuze', () => {
+  it('fills the login field from the choice made before', () => {
+    expect(metKeuze(INLOGGEN, '1', { kenteken: 'X' }, false)).toEqual({ kenteken: 'X', nummer: '1' });
+  });
+
+  it('leaves what the form or the scenario says', () => {
+    expect(metKeuze(INLOGGEN, '1', { nummer: '2' }, false)).toEqual({ nummer: '2' });
+    expect(metKeuze(INLOGGEN, '1', {}, true)).toEqual({});
+    expect(metKeuze(INLOGGEN, undefined, {}, false)).toEqual({});
+  });
+
+  it('leaves a case with a login step to its session', () => {
+    expect(metKeuze({ ...INLOGGEN, inlogstap: {} }, '1', {}, false)).toEqual({});
   });
 });

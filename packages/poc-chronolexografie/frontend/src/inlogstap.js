@@ -59,7 +59,7 @@ export const ingelogdAls = (sessie) => `Ingelogd als ${sessie.gebruikersnaam}`;
  * a new application and for the ones made before alike, so it names both.
  */
 export const nietIngelogdTekst = (aanbod) =>
-  `Log in bij ${aanbod?.cel_naam} voor een nieuwe aanvraag en voor de aanvragen die je al deed. Het inloggen is gesimuleerd.`;
+  `Log in bij ${aanbod.cel_naam} voor een nieuwe aanvraag en voor de aanvragen die je al indiende. Het inloggen is gesimuleerd.`;
 
 /**
  * The claims of the session in one line, the key first: on whose behalf,

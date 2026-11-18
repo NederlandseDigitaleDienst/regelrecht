@@ -2,9 +2,22 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createApp, nextTick } from 'vue';
 
-// The cell is not loaded here: the page only reads `state`, and no step is
-// taken. Nothing is prefilled, so the form asks no source.
-vi.mock('../src/api.js', () => ({ api: { voorinvullen: async () => ({}) } }));
+// The cell is not loaded here. A submitted application goes into a chronicle
+// of this file (`kroniek`), which the page fetches again after the step.
+// Nothing is prefilled, so the form asks no source.
+const kroniek = [];
+vi.mock('../src/api.js', () => ({
+  api: {
+    voorinvullen: async () => ({}),
+    indienen: async (artikel, velden, datum) => {
+      kroniek.push({ id: `aanvr${kroniek.length}`, kind: 'AANVRAAG', basis: artikel, recorded_on: datum, fields: velden });
+      return {};
+    },
+    kroniek: async () => ({ grammen: [...kroniek], andere: [] }),
+    vormen: async () => ({ indieningen: { 'voorbeeldwet#1': vormen(KEUZE).aanvraag }, besluiten: {} }),
+    bewaren: async () => ({}),
+  },
+}));
 
 const { state } = await import('../src/state.js');
 const { zetSessie, wisSessie } = await import('../src/sessie.js');
@@ -17,15 +30,25 @@ const INLOGGEN = {
   feit: 'wet_digitale_overheid#15#authenticatie_verricht',
   inlogstap: { cel: 'voorbeeld_erkende_dienst', cel_naam: 'Voorbeelddienst', wachtwoord: 'welkom' },
 };
+// FICTIEF: a case without a login step, where the applicant picks a record.
+const KEUZE = {
+  veld: 'kvk_nummer',
+  sleutel: 'kvk_nummer',
+  feit: 'wet_digitale_overheid#15#authenticatie_verricht',
+  keuzes: [{ waarde: '99970011', cel: 'voorbeeld_erkende_dienst', vastgelegd_op: '2026-01-01', velden: {} }],
+};
 const casus = {
   id: 'voorbeeld',
+  artikel: 'voorbeeldwet#1',
   titel: 'Voorbeeld',
   cel: 'voorbeeld_autoriteit',
   cel_naam: 'Voorbeeldautoriteit',
   besluit: 'voorbeeldwet#2',
   beslissing_op_bezwaar: 'algemene_wet_bestuursrecht#7:11',
   uitkomst: 'verleend',
-  scenarios: [],
+  // A scenario of lines only has no guide, so every form starts from the
+  // example values (scenarioInvoer.js): it is at an application step all along.
+  scenarios: [{ naam: 'Alleen tekst', stappen: ['De aanvrager vraagt nog eens aan.'] }],
 };
 const vormen = (inloggen) => ({
   aanvraag: { velden: [{ naam: 'kenteken', type: 'string', basis: 'voorbeeldwet#2' }], inloggen },
@@ -69,6 +92,7 @@ beforeEach(() => {
     scenario: null,
     fout: '',
   });
+  kroniek.length = 0;
   wisSessie(casus.id);
 });
 
@@ -84,7 +108,7 @@ describe('the login block', () => {
     expect(eerste.tagName.toLowerCase()).toBe('nldd-simple-section');
     expect(eerste.querySelector('nldd-title').getAttribute('text')).toBe('Niet ingelogd');
     expect(eerste.querySelector('nldd-title').getAttribute('supporting-text')).toContain(
-      'voor een nieuwe aanvraag en voor de aanvragen die je al deed',
+      'voor een nieuwe aanvraag en voor de aanvragen die je al indiende',
     );
     expect(tweede.tagName.toLowerCase()).toBe('nldd-one-half-one-half-section');
     expect(tweede.querySelector('nldd-button[text="Inloggen"]')).toBeNull();
@@ -127,5 +151,54 @@ describe('the form for a new application', () => {
     await mount();
     expect(knoppen()).not.toContain('Aanvraag indienen');
     expect(knoppen()).toContain('Nieuwe aanvraag');
+  });
+});
+
+describe('the choice under Ingelogd als, in a case without a login step', () => {
+  const kies = async (waarde) => {
+    const select = el.querySelector('nldd-simple-section select');
+    select.value = waarde;
+    select.dispatchEvent(new Event('change'));
+    for (let i = 0; i < 3; i++) await nextTick();
+  };
+  const indienen = async () => {
+    el.querySelector('nldd-button[text="Aanvraag indienen"]').click();
+    for (let i = 0; i < 10; i++) await nextTick();
+    await new Promise((r) => setTimeout(r));
+    await nextTick();
+  };
+
+  it('stays after a submit, so the form closes on the application of whoever chose', async () => {
+    state.vormen = vormen(KEUZE);
+    await mount();
+    await kies('99970011');
+    await indienen();
+    expect(kroniek.map((a) => a.fields.kvk_nummer)).toEqual(['99970011']);
+    expect(el.querySelector('nldd-simple-section select').value).toBe('99970011');
+    expect(knoppen()).not.toContain('Aanvraag indienen');
+    expect(knoppen()).toContain('Nieuwe aanvraag');
+  });
+
+  it('stays when the tab opens again', async () => {
+    state.vormen = vormen(KEUZE);
+    await mount();
+    await kies('99970011');
+    app.unmount();
+    document.body.innerHTML = '';
+    state.grammen = [aanvraag('a1', '99970011')];
+    await mount();
+    expect(el.querySelector('nldd-simple-section select').value).toBe('99970011');
+    expect(knoppen()).toContain('Nieuwe aanvraag');
+  });
+});
+
+describe('a scenario at an application step', () => {
+  it('opens the form, also while an application is in behandeling', async () => {
+    state.vormen = vormen(undefined);
+    state.grammen = [aanvraag('a1', undefined)];
+    state.scenario = 'Alleen tekst';
+    await mount();
+    expect(knoppen()).toContain('Aanvraag indienen');
+    expect(knoppen()).not.toContain('Nieuwe aanvraag');
   });
 });

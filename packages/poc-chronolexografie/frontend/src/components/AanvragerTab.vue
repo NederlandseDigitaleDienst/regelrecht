@@ -7,7 +7,7 @@
 // beroep een indiening bij de rechtbank met een afschrift ervan (RFC-053).
 // Of ze ontvankelijk zijn, beslist de wet, niet deze pagina. Een formulier
 // staat ingevuld zolang je een scenario volgt (scenarioInvoer.js).
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { api } from '../api.js';
 import { awb } from '../awb.js';
 import { beroepApi } from '../beroep.js';
@@ -40,9 +40,9 @@ import {
   systeemTekst,
   systeemVult,
 } from '../voorinvulling.js';
-import { NOT_LOGGED_IN, gekozen, inlogTekst, keuzeLabel } from '../inloggen.js';
+import { NOT_LOGGED_IN, gekozen, inlogTekst, keuzeLabel, metKeuze } from '../inloggen.js';
 import { claimRegel, ingelogdAls, ingevuldDoorInloggen, metSessie, nietIngelogdTekst } from '../inlogstap.js';
-import { inlogScherm, sessieVan, wisSessie } from '../sessie.js';
+import { inlogScherm, keuzeVan, sessieVan, wisSessie, zetKeuze } from '../sessie.js';
 import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
@@ -66,14 +66,19 @@ const aanvraagVorm = formulier(() => {
   return beginWaarden(scenario, scenario && huidigeStap()?.step.stap.invoer, voorgevuld.value);
 });
 // With a login step, who is logged in comes from the session, never from the
-// form or the scenario (inlogstap.js). What the system fills goes over both;
-// without a session the application does not come through the form, as one
-// on paper, and the system fills nothing (voorinvulling.js).
+// form or the scenario (inlogstap.js). With a dropdown, from the choice made
+// before when this form says nothing else (inloggen.js, metKeuze). What the
+// system fills goes over both; without a session the application does not
+// come through the form, as one on paper, and the system fills nothing
+// (voorinvulling.js).
 const systeem = computed(() => systeemVult(inloggen.value, sessie.value, state.vormen?.aanvraag?.systeem));
 const doorInloggen = computed(() => ingevuldDoorInloggen(inloggen.value, sessie.value, veldnamen.value));
 const aanvraag = computed(() => {
-  const uitStap = scenarioWaarden('aanvraag') ? huidigeStap()?.step.stap.invoer?.[inloggen.value?.veld] : undefined;
-  const waarden = metSessie(inloggen.value, sessie.value, aanvraagVorm.waarden('aanvraag'), veldnamen.value, uitStap);
+  const opStap = !!scenarioWaarden('aanvraag');
+  const uitStap = opStap ? huidigeStap()?.step.stap.invoer?.[inloggen.value?.veld] : undefined;
+  const zelf = opStap || inloggen.value?.veld in (aanvraagVorm.eigen.aanvraag ?? {});
+  const metInlog = metKeuze(inloggen.value, keuzeVan(state.casus.id), aanvraagVorm.waarden('aanvraag'), zelf);
+  const waarden = metSessie(inloggen.value, sessie.value, metInlog, veldnamen.value, uitStap);
   return metSysteem(waarden, systeem.value, voorgevuld.value, doorInloggen.value);
 });
 // The sources asked: the prefill, and what the system fills from a source.
@@ -152,17 +157,22 @@ const ingelogd = computed(() =>
   inlogstap.value ? undefined : gekozen(inloggen.value, aanvraag.value[inloggen.value?.veld]),
 );
 function inlog(waarde) {
-  aanvraagVorm.zet('aanvraag', inloggen.value.veld, waarde === '' ? undefined : waarde);
+  const keuze = waarde === '' ? undefined : waarde;
+  aanvraagVorm.zet('aanvraag', inloggen.value.veld, keuze);
+  zetKeuze(state.casus.id, keuze);
 }
 
 // While the applicant has an application in behandeling, the form for a new
 // one stays closed behind a button. A second application is still possible:
 // whether the cell takes it is for the law to say, not for this page. A
 // scenario at an application step opens the form itself.
-const lopend = computed(() =>
-  lopendeAanvragen(inloggen.value?.veld, inloggen.value ? aanvraag.value[inloggen.value.veld] : undefined),
-);
+const wie = computed(() => (inloggen.value ? aanvraag.value[inloggen.value.veld] : undefined));
+const lopend = computed(() => lopendeAanvragen(inloggen.value?.veld, wie.value));
 const nieuweAanvraag = ref(false);
+// Someone else logged in: their own applications decide again.
+watch(wie, () => {
+  nieuweAanvraag.value = false;
+});
 const formulierOpen = computed(
   () => lopend.value.length === 0 || nieuweAanvraag.value || !!scenarioWaarden('aanvraag'),
 );
@@ -172,11 +182,23 @@ const lopendKop = computed(() =>
 const lopendTekst = computed(() => {
   const nummers = lopend.value.map((a) => kort(a.id)).join(', ');
   const welke = lopend.value.length === 1 ? `Aanvraag ${nummers} wacht` : `Aanvragen ${nummers} wachten`;
-  return `${welke} op een besluit van ${state.casus.cel_naam}, dat onder Mijn aanvragen verschijnt. Een nieuwe aanvraag kan nog wel; de wet beslist wat de cel ermee doet.`;
+  return `${welke} op een besluit van ${state.casus.cel_naam}; zodra het er is, staat het onder Mijn aanvragen. Een nieuwe aanvraag kan nog wel; de wet beslist wat de cel ermee doet.`;
 });
+// Opening the form takes the button away, so the focus goes to the first
+// field of the form rather than falling back to the page.
+const formulierVelden = ref(null);
+const VELD = 'nldd-text-field, nldd-date-field, nldd-switch-field, nldd-dropdown, nldd-button';
+async function openNieuweAanvraag() {
+  nieuweAanvraag.value = true;
+  await nextTick();
+  formulierVelden.value?.querySelector(VELD)?.focus();
+}
 
 async function indienen() {
+  const door = wie.value;
   if (await stap(() => awb.aanvragen(zonderLeeg(aanvraag.value), state.datum))) {
+    // Who applied stays logged in once the form starts empty again.
+    if (inloggen.value && !inlogstap.value) zetKeuze(state.casus.id, door);
     aanvraagVorm.wis('aanvraag');
     nieuweAanvraag.value = false;
   }
@@ -303,7 +325,7 @@ async function indienenTegen() {
           (Awb 4:13).
         </nldd-text>
       </nldd-title>
-      <nldd-container v-if="formulierOpen" gap="16" max-width="560px">
+      <nldd-container v-if="formulierOpen" ref="formulierVelden" gap="16" max-width="560px">
         <VeldInvoer
           v-for="veld in velden"
           :key="veld.naam"
@@ -318,11 +340,12 @@ async function indienenTegen() {
       <nldd-container v-else max-width="560px">
         <nldd-inline-dialog
           icon="info"
+          heading-level="3"
           horizontal-alignment="left"
           :text="lopendKop"
           :supporting-text="lopendTekst"
         >
-          <nldd-button slot="actions" appearance="secondary" text="Nieuwe aanvraag" @click="nieuweAanvraag = true"></nldd-button>
+          <nldd-button slot="actions" appearance="secondary" text="Nieuwe aanvraag" @click="openNieuweAanvraag"></nldd-button>
         </nldd-inline-dialog>
       </nldd-container>
     </nldd-container>
