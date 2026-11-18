@@ -91,6 +91,7 @@ regelrecht/
 │   ├── poc-portal/       # Password-gated portal for the PoCs
 │   ├── poc-napp/         # Backend of the napp PoC
 │   ├── poc-chronolexografie/ # The chronolexography PoC: the cell as an app per case, as WASM, with its frontend in frontend/
+│   ├── wetsproces/       # Server that runs one legal process on the cells, for many users
 │   ├── poc-assistent/    # Policy assistant for the PoCs (Node package)
 │   ├── arch-extract/     # Architecture explorer (developer tool)
 │   └── grafana/          # Provisioned dashboards

@@ -110,6 +110,7 @@ fn product_crates_present() {
         "poc-portal",
         "shared",
         "tui",
+        "wetsproces",
     ]
     .iter()
     .map(|s| s.to_string())

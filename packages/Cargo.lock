@@ -4272,6 +4272,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "regelrecht-wetsproces"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "axum",
+ "chrono",
+ "http-body-util",
+ "regelrecht-cel",
+ "regelrecht-corpus",
+ "regelrecht-poc-chronolexografie",
+ "regelrecht-shared",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tower",
+ "tower-http 0.7.1",
+ "tracing",
+ "uuid",
+]
+
+[[package]]
 name = "regex"
 version = "1.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

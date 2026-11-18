@@ -1075,6 +1075,13 @@ poc: poc-build
     POC_PORT=8611 \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-poc-portal
 
+# Draai het wetsprocessysteem lokaal in test mode (packages/wetsproces): de
+# kroniek in het geheugen, de klok te zetten met PUT /api/klok. Bindt op
+# 0.0.0.0; WETSPROCES_PORT kiest een andere poort.
+wetsproces:
+    WETSPROCES_MODE=test WETSPROCES_PORT="${WETSPROCES_PORT:-7180}" \
+    cargo run --manifest-path packages/Cargo.toml --package regelrecht-wetsproces
+
 # Bouw de chronolexografie-poc als WASM, naar packages/poc-chronolexografie/frontend/public/wasm/pkg
 #
 # De cel, de engine en het spel draaien in de browser van de bezoeker

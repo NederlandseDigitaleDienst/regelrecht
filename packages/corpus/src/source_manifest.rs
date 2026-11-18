@@ -44,6 +44,12 @@ impl Manifest {
     /// The manifest in `tekst`, read from `waar` (for the message). Every
     /// directory it names lies below the root (no `..`, `.` or empty part),
     /// and no directory of the repository is named twice.
+    ///
+    /// # Errors
+    ///
+    /// When `tekst` is no manifest, or names a directory that is not below
+    /// the root, a UI spec that is no YAML file or lies in a directory of the
+    /// source, or one directory twice.
     pub fn lees(tekst: &str, waar: &str) -> Result<Self, String> {
         let m: Self =
             serde_yaml_ng::from_str(tekst).map_err(|e| format!("the manifest {waar}: {e}"))?;
@@ -124,6 +130,11 @@ impl Manifest {
     /// under the root: each file under a directory the manifest names, by
     /// its path in the source. A directory without a YAML file is an error
     /// that names it.
+    ///
+    /// # Errors
+    ///
+    /// When a directory the manifest names holds no YAML file, or the UI spec
+    /// it names is not in `alle`.
     pub fn bron(
         &self,
         alle: &BTreeMap<String, String>,
@@ -166,6 +177,11 @@ impl Manifest {
 /// and the short sha of the commit (seven characters from the end of the
 /// archive's top-level directory, `{owner}-{repo}-{sha}`). No file under `path` is an error: the
 /// folder is not on the branch.
+///
+/// # Errors
+///
+/// When the tarball does not read, holds no YAML file under `path`, or the
+/// manifest it names does not read or make a source ([`Manifest::bron`]).
 #[cfg(feature = "github")]
 pub fn uit_tarball(
     bytes: &[u8],
@@ -215,6 +231,11 @@ pub fn uit_tarball(
 
 /// The source at `pad` on disk: the YAML files of a folder ([`uit_map`]),
 /// or what a manifest makes of the directories it names ([`Manifest`]).
+///
+/// # Errors
+///
+/// When the folder or the manifest does not read, or the manifest makes no
+/// source ([`Manifest::bron`]).
 pub fn lokaal(pad: &Path) -> Result<BTreeMap<String, String>, String> {
     if !Manifest::is_manifest(&pad.to_string_lossy()) {
         return uit_map(pad);
@@ -249,6 +270,10 @@ pub fn lokaal(pad: &Path) -> Result<BTreeMap<String, String>, String> {
 }
 
 /// The YAML files under the folder `dir`, by their path under it.
+///
+/// # Errors
+///
+/// When `dir` or a file under it does not read.
 pub fn uit_map(dir: &Path) -> Result<BTreeMap<String, String>, String> {
     fn loop_door(
         dir: &Path,

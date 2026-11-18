@@ -109,6 +109,7 @@ export const sidebar: Record<string, SidebarGroup[]> = {
       items: [
         { text: 'Pipeline', link: '/components/pipeline' },
         { text: 'Harvester', link: '/components/harvester' },
+        { text: 'Wetsproces', link: '/components/wetsproces' },
       ],
     },
     {
