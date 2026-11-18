@@ -20,7 +20,7 @@ vi.mock('../src/api.js', () => ({
 }));
 
 const { state } = await import('../src/state.js');
-const { zetSessie, wisSessie } = await import('../src/sessie.js');
+const { zetKeuze, zetSessie, wisSessie } = await import('../src/sessie.js');
 const { default: AanvragerTab } = await import('../src/components/AanvragerTab.vue');
 
 // FICTIEF: a case with a login step, as the test source tests/bron-inlogstap has one.
@@ -51,7 +51,13 @@ const casus = {
   scenarios: [{ naam: 'Alleen tekst', stappen: ['De aanvrager vraagt nog eens aan.'] }],
 };
 const vormen = (inloggen) => ({
-  aanvraag: { velden: [{ naam: 'kenteken', type: 'string', basis: 'voorbeeldwet#2' }], inloggen },
+  aanvraag: {
+    velden: [
+      { naam: 'kvk_nummer', type: 'string', basis: 'voorbeeldwet#2' },
+      { naam: 'kenteken', type: 'string', basis: 'voorbeeldwet#2' },
+    ],
+    inloggen,
+  },
   bezwaar: { velden: [] },
 });
 const aanvraag = (id, kvk) => ({
@@ -175,6 +181,41 @@ describe('the choice under Ingelogd als, in a case without a login step', () => 
     await indienen();
     expect(kroniek.map((a) => a.fields.kvk_nummer)).toEqual(['99970011']);
     expect(el.querySelector('nldd-simple-section select').value).toBe('99970011');
+    expect(knoppen()).not.toContain('Aanvraag indienen');
+    expect(knoppen()).toContain('Nieuwe aanvraag');
+  });
+
+  it('gives way to what the applicant types in the login field of the form', async () => {
+    state.vormen = vormen(KEUZE);
+    state.grammen = [aanvraag('a1', '99970011'), aanvraag('a2', '22222222')];
+    zetKeuze(casus.id, '99970011');
+    await mount();
+    el.querySelector('nldd-button[text="Nieuwe aanvraag"]').click();
+    for (let i = 0; i < 3; i++) await nextTick();
+    // The other number has an application in behandeling too; typing it
+    // keeps the form open, and the form holds what was typed.
+    const veld = el.querySelector('nldd-one-half-one-half-section nldd-text-field');
+    veld.value = '22222222';
+    veld.dispatchEvent(new Event('input'));
+    for (let i = 0; i < 3; i++) await nextTick();
+    expect(knoppen()).toContain('Aanvraag indienen');
+    expect(el.querySelector('nldd-simple-section select').value).toBe('');
+
+    // Submitted, a number that is no choice does not become the login.
+    await indienen();
+    expect(kroniek.map((a) => a.fields.kvk_nummer)).toEqual(['22222222']);
+    expect(el.querySelector('nldd-simple-section select').value).toBe('99970011');
+  });
+
+  it('closes the form again when someone else logs in', async () => {
+    state.vormen = vormen({ ...KEUZE, keuzes: [...KEUZE.keuzes, { ...KEUZE.keuzes[0], waarde: '22222222' }] });
+    state.grammen = [aanvraag('a1', '99970011'), aanvraag('a2', '22222222')];
+    zetKeuze(casus.id, '99970011');
+    await mount();
+    el.querySelector('nldd-button[text="Nieuwe aanvraag"]').click();
+    for (let i = 0; i < 3; i++) await nextTick();
+    expect(knoppen()).toContain('Aanvraag indienen');
+    await kies('22222222');
     expect(knoppen()).not.toContain('Aanvraag indienen');
     expect(knoppen()).toContain('Nieuwe aanvraag');
   });

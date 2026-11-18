@@ -169,8 +169,10 @@ function inlog(waarde) {
 const wie = computed(() => (inloggen.value ? aanvraag.value[inloggen.value.veld] : undefined));
 const lopend = computed(() => lopendeAanvragen(inloggen.value?.veld, wie.value));
 const nieuweAanvraag = ref(false);
-// Someone else logged in: their own applications decide again.
-watch(wie, () => {
+// Someone else logged in: their own applications decide again. Only a new
+// login counts, not typing in a field of the form, which would close the
+// form under the applicant's hands.
+watch([() => keuzeVan(state.casus.id), sessie], () => {
   nieuweAanvraag.value = false;
 });
 const formulierOpen = computed(
@@ -182,7 +184,7 @@ const lopendKop = computed(() =>
 const lopendTekst = computed(() => {
   const nummers = lopend.value.map((a) => kort(a.id)).join(', ');
   const welke = lopend.value.length === 1 ? `Aanvraag ${nummers} wacht` : `Aanvragen ${nummers} wachten`;
-  return `${welke} op een besluit van ${state.casus.cel_naam}; zodra het er is, staat het onder Mijn aanvragen. Een nieuwe aanvraag kan nog wel; de wet beslist wat de cel ermee doet.`;
+  return `${welke} op een besluit van ${state.casus.cel_naam}. Het besluit komt onder Mijn aanvragen te staan. Je kunt nog wel een nieuwe aanvraag doen. Wat daarmee gebeurt, bepaalt de wet.`;
 });
 // Opening the form takes the button away, so the focus goes to the first
 // field of the form rather than falling back to the page.
@@ -197,8 +199,11 @@ async function openNieuweAanvraag() {
 async function indienen() {
   const door = wie.value;
   if (await stap(() => awb.aanvragen(zonderLeeg(aanvraag.value), state.datum))) {
-    // Who applied stays logged in once the form starts empty again.
-    if (inloggen.value && !inlogstap.value) zetKeuze(state.casus.id, door);
+    // Who applied stays logged in once the form starts empty again; a number
+    // typed in the form that is no choice of the login leaves the choice be.
+    if (inloggen.value && !inlogstap.value && (door === undefined || gekozen(inloggen.value, door))) {
+      zetKeuze(state.casus.id, door);
+    }
     aanvraagVorm.wis('aanvraag');
     nieuweAanvraag.value = false;
   }
