@@ -36,12 +36,12 @@ To add a construct:
 
 1. Make `packages/cel/bdd/constructs/<construct>/` with a `regulation/` and a `scenarios/` directory. The runner fails when either is missing or when `scenarios/` holds no feature.
 2. Put the ruleworks in `regulation/`, in the layout of the corpus. Give each an `$id` starting with `test_`, mark the text FICTIEF, and invent the content: no real case, no real person. `just validate` and the pre-commit hook check them against the schema.
-3. Write the features in `scenarios/`. They may use the canonical steps and the cell's own. A decision the cell takes sets the result, so `Then output ... equals ...` reads what the decision and the hooks on it gave.
+3. Write the features in `scenarios/`. They may use the canonical steps and the cell's own. A decision the cell takes (`the cell decides ...`) sets the result, so `Then output ... equals ...` reads what the decision and the hooks on it gave. What the deciding authority found, such as the day it received the application, goes in the table of that step.
 4. A scenario the engine cannot run yet gets `@wip` and a comment above it that names the missing piece and the branch or issue that builds it.
 
 `just bdd` and the CI job "BDD conformance" run the constructs with the rest of the cell's suite; no recipe or workflow changes.
 
-The runner decides what to load from where a feature sits. A feature under `<set>/scenarios/` loads the ruleworks under `<set>/regulation/`, whichever directory `<set>` is. A corpus with a `scenarios/` directory next to its `regulation/` directory therefore needs no change to the runner, only its features in the list the runner is given. That variant is not built yet.
+The runner decides what to load from where a feature sits. A feature under `<set>/scenarios/` loads the ruleworks under `<set>/regulation/`, whichever directory `<set>` is. A corpus with a `scenarios/` directory next to its `regulation/` directory therefore loads the same way. Running its scenarios takes only adding its features to the list in `packages/cel/tests/bdd/main.rs`; how the cell's runner loads stays as it is. That variant is not built yet. The engine's own runner does not read where a feature sits and always loads the corpus.
 
 ### The step vocabulary is generated, not hand-written
 

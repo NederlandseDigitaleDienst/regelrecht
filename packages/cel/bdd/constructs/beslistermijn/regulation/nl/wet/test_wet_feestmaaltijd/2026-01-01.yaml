@@ -58,9 +58,8 @@ articles:
   - number: '3'
     url: https://example.com/test_wet_feestmaaltijd/3
     text: >-
-      FICTIEF. In afwijking van artikel 1, tweede lid, van de Testwet
-      algemene bestuursregels beslist de gastheer binnen twee weken na
-      ontvangst van de aanvraag.
+      FICTIEF. De termijn, bedoeld in artikel 1, eerste lid, van de Testwet
+      algemene bestuursregels, is twee weken na ontvangst van de aanvraag.
     machine_readable:
       overrides:
         - law: test_algemene_bestuursregels

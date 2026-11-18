@@ -77,7 +77,9 @@ articles:
           - name: datum_ontvangst
             type: date
             required: true
-            description: De dag waarop de gastheer de aanvraag ontving (lid 1).
+            description: >-
+              De dag waarop de gastheer de aanvraag ontving (lid 1): wat de
+              gastheer vaststelt, niet wat de aanvrager opgeeft.
         input:
           - name: beslistermijn_weken
             type: number

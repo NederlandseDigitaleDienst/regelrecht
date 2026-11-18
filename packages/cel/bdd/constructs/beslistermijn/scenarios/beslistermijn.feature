@@ -11,17 +11,18 @@ Feature: The decision term as a hook on the decision of a host law
   # every BESCHIKKING. test_wet_tafeldekken sets no term of its own;
   # test_wet_feestmaaltijd sets two weeks with an override.
   #
-  # The application is recorded on the day it was received, and the decision
-  # on the calculation date of the step that takes it: that day is the
-  # peildatum of the hook, and so the day the decision is given.
+  # The day the application was received is what the host found, so it is
+  # given with the decision, not with the application. The decision is taken
+  # on the calculation date of its step: that day is the peildatum of the
+  # hook, and so the day the decision is given.
 
   Scenario: A decision well within eight weeks is on time
     Given the calculation date is "2026-03-02"
     When the cell records submission "aanvraag" under article "1" of "test_wet_tafeldekken" with:
       | aantal_gasten   | 8          |
-      | datum_ontvangst | 2026-03-02 |
     Given the calculation date is "2026-03-20"
-    When the cell decides "besluit" on submission "aanvraag"
+    When the cell decides "besluit" on submission "aanvraag" with:
+      | datum_ontvangst | 2026-03-02 |
     Then the execution succeeds
     And output "tafel_wordt_gedekt" is true
     And output "beslistermijn_weken" equals 8
@@ -33,9 +34,9 @@ Feature: The decision term as a hook on the decision of a host law
     Given the calculation date is "2026-03-02"
     When the cell records submission "aanvraag" under article "1" of "test_wet_tafeldekken" with:
       | aantal_gasten   | 8          |
-      | datum_ontvangst | 2026-03-02 |
     Given the calculation date is "2026-04-27"
-    When the cell decides "besluit" on submission "aanvraag"
+    When the cell decides "besluit" on submission "aanvraag" with:
+      | datum_ontvangst | 2026-03-02 |
     Then output "uiterste_beslisdatum" equals "2026-04-27"
     And output "besluit_te_laat" is false
 
@@ -43,9 +44,9 @@ Feature: The decision term as a hook on the decision of a host law
     Given the calculation date is "2026-03-02"
     When the cell records submission "aanvraag" under article "1" of "test_wet_tafeldekken" with:
       | aantal_gasten   | 8          |
-      | datum_ontvangst | 2026-03-02 |
     Given the calculation date is "2026-04-28"
-    When the cell decides "besluit" on submission "aanvraag"
+    When the cell decides "besluit" on submission "aanvraag" with:
+      | datum_ontvangst | 2026-03-02 |
     Then output "besluit_te_laat" is true
     # Late is not refused: the hook says the term passed, the decision of
     # the host still stands.
@@ -57,9 +58,9 @@ Feature: The decision term as a hook on the decision of a host law
     Given the calculation date is "2026-03-09"
     When the cell records submission "aanvraag" under article "1" of "test_wet_tafeldekken" with:
       | aantal_gasten   | 8          |
-      | datum_ontvangst | 2026-03-02 |
     Given the calculation date is "2026-04-30"
-    When the cell decides "besluit" on submission "aanvraag"
+    When the cell decides "besluit" on submission "aanvraag" with:
+      | datum_ontvangst | 2026-03-02 |
     Then output "uiterste_beslisdatum" equals "2026-04-27"
     And output "besluit_te_laat" is true
 
@@ -67,9 +68,9 @@ Feature: The decision term as a hook on the decision of a host law
     Given the calculation date is "2026-03-02"
     When the cell records submission "aanvraag" under article "1" of "test_wet_feestmaaltijd" with:
       | aantal_gangen   | 4          |
-      | datum_ontvangst | 2026-03-02 |
     Given the calculation date is "2026-03-16"
-    When the cell decides "besluit" on submission "aanvraag"
+    When the cell decides "besluit" on submission "aanvraag" with:
+      | datum_ontvangst | 2026-03-02 |
     Then output "feestmaaltijd_wordt_bereid" is true
     And output "beslistermijn_weken" equals 2
     And output "beslistermijn_weken" has override provenance
@@ -82,9 +83,9 @@ Feature: The decision term as a hook on the decision of a host law
     Given the calculation date is "2026-03-02"
     When the cell records submission "aanvraag" under article "1" of "test_wet_feestmaaltijd" with:
       | aantal_gangen   | 4          |
-      | datum_ontvangst | 2026-03-02 |
     Given the calculation date is "2026-03-23"
-    When the cell decides "besluit" on submission "aanvraag"
+    When the cell decides "besluit" on submission "aanvraag" with:
+      | datum_ontvangst | 2026-03-02 |
     Then output "besluit_te_laat" is true
 
   # @wip: the engine does not fill the open term of a hook article from the
@@ -99,9 +100,9 @@ Feature: The decision term as a hook on the decision of a host law
     Given the calculation date is "2026-03-02"
     When the cell records submission "aanvraag" under article "1" of "test_wet_ontbijt" with:
       | aantal_broodjes | 6          |
-      | datum_ontvangst | 2026-03-02 |
     Given the calculation date is "2026-03-10"
-    When the cell decides "besluit" on submission "aanvraag"
+    When the cell decides "besluit" on submission "aanvraag" with:
+      | datum_ontvangst | 2026-03-02 |
     Then output "beslistermijn_weken" equals 1
     And output "uiterste_beslisdatum" equals "2026-03-09"
     And output "besluit_te_laat" is true
