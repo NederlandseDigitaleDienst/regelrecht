@@ -875,3 +875,112 @@ articles:
         "five weeks, from an output the caller did not request"
     );
 }
+
+/// A general law with two hooks on every decision: the first leaves the
+/// number of weeks open, the second reads that number from the first.
+const GENERAL_LAW_TWO_HOOKS: &str = r#"
+$id: algemene_wet_twee_haken_voorbeeld
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: De beslistermijn is de bij wettelijk voorschrift bepaalde termijn, en anders acht weken.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BESLUIT
+      open_terms:
+        - id: wettelijke_beslistermijn_weken
+          type: number
+          required: false
+          default:
+            actions:
+              - output: wettelijke_beslistermijn_weken
+                value: 8
+      execution:
+        output:
+          - name: beslistermijn_weken
+            type: number
+        actions:
+          - output: beslistermijn_weken
+            value: $wettelijke_beslistermijn_weken
+  - number: '2'
+    text: De beslistermijn vangt aan op de dag na ontvangst van de aanvraag.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BESLUIT
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: true
+        input:
+          - name: beslistermijn_weken
+            type: number
+            source:
+              regulation: algemene_wet_twee_haken_voorbeeld
+              output: beslistermijn_weken
+        output:
+          - name: uiterste_beslisdag
+            type: date
+        actions:
+          - output: uiterste_beslisdag
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: $beslistermijn_weken
+"#;
+
+/// A hook that reads the output of another hook on the same decision reads
+/// it as that decision's: the foreign filling of the first hook's term does
+/// not reach the second hook either.
+#[test]
+fn a_hook_reading_another_hook_on_the_same_decision_gets_the_hosts_filling() {
+    let weeks = r#"
+$id: vreemde_weken_voorbeeld
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: De beslistermijn bedraagt een week.
+    machine_readable:
+      implements:
+        - law: algemene_wet_twee_haken_voorbeeld
+          article: '1'
+          open_term: wettelijke_beslistermijn_weken
+      execution:
+        output:
+          - name: wettelijke_beslistermijn_weken
+            type: number
+        actions:
+          - output: wettelijke_beslistermijn_weken
+            value: 1
+"#;
+    let mut service = LawExecutionService::new();
+    service.load_law(GENERAL_LAW_TWO_HOOKS).unwrap();
+    service.load_law(OTHER_LAW).unwrap();
+    service.load_law(weeks).unwrap();
+
+    let result = service
+        .evaluate_law_output(
+            "andere_wet_voorbeeld",
+            "vergunning_verleend",
+            params(&[("datum_ontvangst", date("2026-01-05"))]),
+            "2026-01-05",
+        )
+        .unwrap();
+    assert_eq!(
+        result.outputs.get("beslistermijn_weken"),
+        Some(&Value::Int(8))
+    );
+    assert_eq!(
+        result.outputs.get("uiterste_beslisdag"),
+        Some(&date("2026-03-02")),
+        "eight weeks in the second hook too, not the foreign one week"
+    );
+}

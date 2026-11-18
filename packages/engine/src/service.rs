@@ -184,27 +184,30 @@ struct ResolutionContext<'a> {
     /// ([`FilledBy::Answer`]).
     bound: Vec<Bound>,
     /// The decision the hook that runs now fires on, while it runs
-    /// (RFC-058). Its open terms are filled by the host law only, with the
-    /// host's parameters.
+    /// (RFC-058). The open terms of the hooks on it are filled by the host
+    /// law only, with the host's parameters.
     hook_host: Option<Rc<HookHost>>,
 }
 
-/// The decision a hook fires on, as the hook's open terms see it (RFC-058):
-/// the hook article, the law of the article that fires it, and the
-/// parameters that article handed the hooks, shared by all of them. Only the
-/// open terms of the hook article read it, wherever the hook run reaches that
-/// article; an article the hook calls is not a hook.
+/// The decision hooks fire on, as their open terms see it (RFC-058): the
+/// articles that fire as hooks on it, at either hook point, the law of the
+/// article that fires them, and the parameters that article handed the
+/// hooks. Only the open terms of those hook articles read it, wherever the
+/// hook run reaches one of them: a hook that reads the output of another
+/// hook on the same decision reads it as that decision's. An article the
+/// hook calls that is no hook on the decision is not a hook here either.
 struct HookHost {
-    hook_law: String,
-    hook_article: String,
+    hooks: BTreeSet<(String, String)>,
     host_law: String,
-    parameters: Rc<BTreeMap<String, Value>>,
+    parameters: BTreeMap<String, Value>,
 }
 
 impl HookHost {
-    /// Whether `article` of `law` is the hook article.
+    /// Whether `article` of `law` fires as a hook on the host's decision.
     fn is_hook(&self, law: &str, article: &str) -> bool {
-        self.hook_law == law && self.hook_article == article
+        self.hooks
+            .iter()
+            .any(|(hook_law, hook_article)| hook_law == law && hook_article == article)
     }
 
     /// The scope an open term is filled in: the host's, under a hook, else
@@ -214,7 +217,7 @@ impl HookHost {
         host: Option<&'p HookHost>,
         parameters: &'p BTreeMap<String, Value>,
     ) -> &'p BTreeMap<String, Value> {
-        host.map_or(parameters, |host| host.parameters.as_ref())
+        host.map_or(parameters, |host| &host.parameters)
     }
 }
 
@@ -412,9 +415,9 @@ impl<'a> ResolutionContext<'a> {
         Err(EngineError::FindingsNotAsked { findings })
     }
 
-    /// The host of the hook that runs now, if `article` of `law` is that
-    /// hook (RFC-058). `None` for every other article, also one the hook
-    /// calls or one that fills a term of the hook.
+    /// The host of the hook that runs now, if `article` of `law` fires as a
+    /// hook on the host's decision (RFC-058). `None` for every other
+    /// article, also one the hook calls or one that fills a term of the hook.
     fn host_of(&self, law: &str, article: &str) -> Option<Rc<HookHost>> {
         self.hook_host
             .as_ref()
@@ -3941,8 +3944,27 @@ impl LawExecutionService {
             matches = hooks.len(),
             "Firing hooks"
         );
-        // The host's scope, for the open terms of every hook (RFC-058).
-        let host_parameters = Rc::new(parameters.clone());
+        // The host of every hook on this decision (RFC-058): the hooks at
+        // both hook points, so a hook that reads another one's output reads
+        // it as this decision's.
+        let other_point = match hook_point {
+            HookPoint::PreActions => HookPoint::PostActions,
+            HookPoint::PostActions => HookPoint::PreActions,
+        };
+        let others = self
+            .fireable_hooks(other_point, article, law, stage, res_ctx)
+            .map(|(_, others)| others)
+            .unwrap_or_default();
+        let host = Rc::new(HookHost {
+            hooks: hooks
+                .iter()
+                .chain(&others)
+                .filter_map(|hook| hook.as_ref().ok())
+                .map(|hook| (hook.entry.law_id.clone(), hook.entry.article_number.clone()))
+                .collect(),
+            host_law: law.id.clone(),
+            parameters: parameters.clone(),
+        });
 
         for hook in hooks {
             let FireableHook {
@@ -3978,12 +4000,7 @@ impl LawExecutionService {
 
             // The hook's open terms are the host law's to fill, with the
             // parameters the host handed the hooks (RFC-058).
-            let outer_host = res_ctx.hook_host.replace(Rc::new(HookHost {
-                hook_law: hook_law_id.clone(),
-                hook_article: hook_article_number.clone(),
-                host_law: law.id.clone(),
-                parameters: Rc::clone(&host_parameters),
-            }));
+            let outer_host = res_ctx.hook_host.replace(Rc::clone(&host));
 
             // Execute the hook article
             let hook_result = self.evaluate_article_with_service(
