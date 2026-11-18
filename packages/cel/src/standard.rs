@@ -38,12 +38,12 @@ use std::collections::BTreeMap;
 
 use chrono::NaiveDate;
 use regelrecht_engine::LawExecutionService;
-use regelrecht_law_model::is_fact_reference;
+use regelrecht_law_model::{ArticleBasedLaw, is_fact_reference};
 use serde::Deserialize;
 use serde_yaml_ng::{Mapping, Value as Yaml};
 
 use crate::error::{Result, setup};
-use crate::shape::{Field, fact_fields, split_fact};
+use crate::shape::{Field, fact_fields, required_fact};
 
 /// The article of a standard reduction that plays the aggregates.
 pub const AGGREGATE: &str = "aggregaat";
@@ -136,7 +136,8 @@ pub struct StandardAnswer {
 
 impl StandardAnswer {
     /// Refuse an entry that names no fact, a referring fact twice or the
-    /// root among them, or a field to select on twice.
+    /// root among them, a field to select on twice, or a name the standard
+    /// reduction gives its own article or input.
     pub(crate) fn check(&self) -> Result<()> {
         let fail = |why: String| {
             Err(setup(format!(
@@ -158,6 +159,18 @@ impl StandardAnswer {
         }
         if let Some(twice) = first_repeated(self.where_.iter().map(String::as_str)) {
             return fail(format!("where names '{twice}' twice"));
+        }
+        // The written-out reduction names an article and an input itself.
+        if [AGGREGATE, ROWS].contains(&self.answer.as_str()) {
+            return fail(format!(
+                "the standard reduction names its own article or input '{}'",
+                self.answer
+            ));
+        }
+        if self.where_.iter().any(|name| name == ROWS) {
+            return fail(format!(
+                "where names '{ROWS}', the input the standard reduction reads its aggregates with"
+            ));
         }
         Ok(())
     }
@@ -187,23 +200,24 @@ impl StandardAnswer {
     }
 
     /// The standard reduction `id` written out in full, as YAML: one
-    /// version per version of the root's regulation in `service` that
-    /// requires the fact, valid from the same day, with the fields each
-    /// fact holds in the versions in force on that day.
+    /// version per day a version of one of its regulations in `service`
+    /// takes effect, from the first day the root's regulation requires the
+    /// fact, with the fields each fact holds in the versions in force on that
+    /// day. A referring fact its regulation does not require on that day
+    /// has no step in that version.
     ///
     /// # Errors
     ///
     /// When no version of the root's regulation requires the fact, when a
-    /// referring fact is not required on the day of a version, when two
-    /// facts hold a field of the same name with another type or other
-    /// columns, and when `where` names a field the root does not hold.
+    /// fact holds a field that is no parameter or that a row gives itself,
+    /// when two facts hold a field of the same name with another type or
+    /// other columns, and when `where` names a field the root does not hold.
     pub fn versions(&self, service: &LawExecutionService, id: &str) -> Result<Vec<Version>> {
-        let (basis, _) = split_fact(&self.fact)?;
-        let root_law = basis.split_once('#').map_or(basis, |(law, _)| law);
+        let laws: Vec<&str> = self.regulations().collect();
         let mut days: Vec<(NaiveDate, String)> = service
             .resolver()
             .all_law_versions()
-            .filter(|law| law.id == root_law)
+            .filter(|law| laws.contains(&law.id.as_str()))
             .filter_map(|law| {
                 let from = law.valid_from.as_deref()?;
                 let day = NaiveDate::parse_from_str(from, "%Y-%m-%d").ok()?;
@@ -212,16 +226,19 @@ impl StandardAnswer {
             .collect();
         days.sort();
         days.dedup_by_key(|(day, _)| *day);
+        let requires = |fact: &str, day| required_fact(service, fact, day).is_ok();
         let mut out = Vec::new();
         for (day, published) in days {
-            // A version of the regulation that does not yet require the
-            // fact has no records of it to play.
-            let Ok(root) = fact_fields(service, &self.fact, day, None) else {
+            // Before the root's regulation requires the fact, there are no
+            // records of it to play.
+            if !requires(&self.fact, day) {
                 continue;
-            };
+            }
+            let root = fact_fields(service, &self.fact, day, None)?;
             let referring = self
                 .referred_by
                 .iter()
+                .filter(|fact| requires(fact, day))
                 .map(|fact| Ok((fact.as_str(), fact_fields(service, fact, day, None)?)))
                 .collect::<Result<Vec<_>>>()?;
             let law = self.written_out(id, day, &published, &root, &referring)?;
@@ -233,8 +250,8 @@ impl StandardAnswer {
         }
         if out.is_empty() {
             return Err(setup(format!(
-                "the answer '{}' names the fact '{}', which no loaded version of '{root_law}' \
-                 requires",
+                "the answer '{}' names the fact '{}', which no loaded version of its \
+                 regulation requires",
                 self.answer, self.fact
             )));
         }
@@ -365,10 +382,12 @@ impl StandardAnswer {
 
     /// The state: every field of the root, then every field of a referring
     /// fact the root does not hold, in the order the facts declare them. A
-    /// name two facts hold has one type and the same columns in both.
+    /// name two facts hold has one type and the same columns in both, and
+    /// may hold null when either fact may leave it null.
     fn state(&self, root: &[Field], referring: &[(&str, Vec<Field>)]) -> Result<Vec<Yaml>> {
-        let mut seen: BTreeMap<&str, (&Field, &str)> = BTreeMap::new();
-        let mut order: Vec<&Field> = Vec::new();
+        // Per name, its place in `order` and the fact that holds it first.
+        let mut seen: BTreeMap<&str, (usize, &str)> = BTreeMap::new();
+        let mut order: Vec<Field> = Vec::new();
         let facts = std::iter::once((self.fact.as_str(), root)).chain(
             referring
                 .iter()
@@ -376,47 +395,63 @@ impl StandardAnswer {
         );
         for (fact, fields) in facts {
             for field in fields {
-                match seen.get(field.name.as_str()) {
-                    Some((held, by))
-                        if held.type_ != field.type_ || held.columns != field.columns =>
-                    {
-                        return Err(setup(format!(
-                            "the answer '{}': the facts {by} and {fact} both hold '{}', with \
-                             another type or other columns; the standard reduction copies it \
-                             into one property",
-                            self.answer, field.name
-                        )));
-                    }
-                    Some(_) => {}
-                    None => {
-                        seen.insert(&field.name, (field, fact));
-                        order.push(field);
-                    }
+                let Some(&(at, by)) = seen.get(field.name.as_str()) else {
+                    seen.insert(&field.name, (order.len(), fact));
+                    order.push(field.clone());
+                    continue;
+                };
+                let held = &mut order[at];
+                if held.type_ != field.type_ || held.columns != field.columns {
+                    return Err(setup(format!(
+                        "the answer '{}': the facts {by} and {fact} both hold '{}', with \
+                         another type or other columns; the standard reduction copies it \
+                         into one property",
+                        self.answer, field.name
+                    )));
                 }
+                // A property that one fact may leave null may hold null.
+                held.nullable |= field.nullable;
             }
         }
-        order.into_iter().map(typed).collect()
+        order.iter().map(typed).collect()
     }
 }
 
 /// Load into `service` every version of the standard reduction of each of
 /// `answers`, each with its `$id`, after the regulations whose facts they
-/// read. A reduction the service already holds stays as it is: its `$id`
-/// names its cell, so it was loaded before.
+/// read. A reduction the service already holds under that `$id` stays, when
+/// it is this one, loaded before.
 ///
 /// # Errors
 ///
 /// When a standard reduction cannot be written out
-/// ([`StandardAnswer::versions`]), or the service refuses it.
+/// ([`StandardAnswer::versions`]), when the service refuses it, and when
+/// the service holds another rulework under its `$id`, such as the standard
+/// reduction of another cell whose name gives the same `$id`.
 pub fn load<'a>(
     service: &mut LawExecutionService,
     answers: impl IntoIterator<Item = (&'a StandardAnswer, String)>,
 ) -> Result<()> {
     for (fact, id) in answers {
+        let versions = fact.versions(service, &id)?;
         if service.has_law(&id) {
+            for version in &versions {
+                let written: ArticleBasedLaw = serde_yaml_ng::from_str(&version.yaml)
+                    .map_err(|e| setup(format!("the standard reduction '{id}': {e}")))?;
+                let held = service
+                    .resolver()
+                    .get_law_for_date(&id, Some(version.valid_from));
+                if held.is_none_or(|held| held.articles != written.articles) {
+                    return Err(setup(format!(
+                        "the answer '{}' comes from the standard reduction '{id}', and the \
+                         service holds another rulework under that $id",
+                        fact.answer
+                    )));
+                }
+            }
             continue;
         }
-        for version in fact.versions(service, &id)? {
+        for version in versions {
             service.load_law(&version.yaml)?;
         }
     }
@@ -475,7 +510,7 @@ fn insert(to: &mut Yaml, key: &str, value: Yaml) {
 }
 
 /// The first item `items` holds twice.
-fn first_repeated<'a>(items: impl Iterator<Item = &'a str>) -> Option<&'a str> {
+fn first_repeated<'a>(mut items: impl Iterator<Item = &'a str>) -> Option<&'a str> {
     let mut seen = std::collections::BTreeSet::new();
-    items.into_iter().find(|item| !seen.insert(*item))
+    items.find(|item| !seen.insert(*item))
 }

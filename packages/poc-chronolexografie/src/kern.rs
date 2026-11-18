@@ -379,20 +379,24 @@ impl Corpus {
 
     /// The version of the standard reduction `id` valid from `valid_from`,
     /// as a cell writes it out from the regulations in `service`: it was
-    /// never written by hand.
+    /// never written by hand. `None` for any other reduction.
     fn standaard_yaml(
         &self,
         service: &LawExecutionService,
         id: &str,
         valid_from: &Option<String>,
-    ) -> Option<String> {
-        let (fact, _) = self.standaard.iter().find(|(_, s)| s == id)?;
-        let from = NaiveDate::parse_from_str(valid_from.as_deref()?, "%Y-%m-%d").ok()?;
-        fact.versions(service, id)
-            .ok()?
+    ) -> Result<Option<String>> {
+        let Some((fact, _)) = self.standaard.iter().find(|(_, s)| s == id) else {
+            return Ok(None);
+        };
+        let from = valid_from
+            .as_deref()
+            .and_then(|from| NaiveDate::parse_from_str(from, "%Y-%m-%d").ok());
+        Ok(fact
+            .versions(service, id)?
             .into_iter()
-            .find(|version| version.valid_from == from)
-            .map(|version| version.yaml)
+            .find(|version| Some(version.valid_from) == from)
+            .map(|version| version.yaml))
     }
 
     /// The submission that `artikel` establishes in this case, or a
@@ -3464,11 +3468,14 @@ pub fn reducties(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value>
                 normen.push(norm);
             }
         }
+        let yaml = match corpus.yaml_van(&id, &reduction.valid_from) {
+            Some(yaml) => Some(yaml.to_string()),
+            None => corpus.standaard_yaml(&service, &id, &reduction.valid_from)?,
+        };
         uit.push(json!({
             "id": id,
             "geldig_vanaf": reduction.valid_from,
-            "yaml": corpus.yaml_van(&id, &reduction.valid_from).map(str::to_string)
-                .or_else(|| corpus.standaard_yaml(&service, &id, &reduction.valid_from)),
+            "yaml": yaml,
             "tekst": reduction.articles.iter().map(|a| json!({
                 "artikel": a.number,
                 "tekst": a.text,

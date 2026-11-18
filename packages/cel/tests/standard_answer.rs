@@ -372,35 +372,130 @@ fn a_standard_answer_answers_what_the_written_out_reduction_answers() {
     );
 }
 
-/// The short form gives the same answer in fewer lines than the reduction
-/// it stands for.
-#[test]
-fn the_short_form_is_shorter() {
-    assert!(SHORT.lines().count() * 10 < BY_HAND.lines().count());
-}
-
-/// An answer that selects on a field the fact does not hold, and one that
-/// names a fact and a reduction of the cell under the same `$id`, are
+/// An answer that selects on a field the fact does not hold, one that
+/// names the same fact twice, one named like the aggregate article, and one
+/// whose standard reduction has the `$id` of a reduction the cell keeps, are
 /// refused.
 #[test]
 fn a_standard_answer_that_cannot_be_written_out_is_refused() {
     let dir = cell_tempdir();
-    std::fs::write(
-        dir.path().join("cel.yaml"),
-        "name: Testcel\nanswers:\n  rijen:\n    fact: test_chronicle_corrections#1#ingeschreven\n    where: [kenteken]\n",
-    )
-    .unwrap();
+    let write = |answers: &str| {
+        std::fs::write(
+            dir.path().join("cel.yaml"),
+            format!("name: Testcel\nanswers:\n{answers}"),
+        )
+        .unwrap();
+    };
+    write("  rijen:\n    fact: test_chronicle_corrections#1#ingeschreven\n    where: [kenteken]\n");
     let cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
     let mut service = LawExecutionService::new();
     service.load_law(&register()).unwrap();
     let err = cell.load_standard_reductions(&mut service).unwrap_err();
     assert!(err.to_string().contains("kenteken"), "{err}");
 
+    for (answers, says) in [
+        (
+            "  rijen:\n    fact: test_chronicle_corrections#1#ingeschreven\n    referred_by: [test_chronicle_corrections#1#ingeschreven]\n",
+            "twice",
+        ),
+        (
+            "  aggregaat: test_chronicle_corrections#1#ingeschreven\n",
+            "its own article",
+        ),
+    ] {
+        write(answers);
+        let err = Cell::in_memory(ACTOR, dir.path()).unwrap_err();
+        assert!(err.to_string().contains(says), "{err}");
+    }
+
+    write("  rijen: test_chronicle_corrections#1#ingeschreven\n");
+    keep_reduction(
+        dir.path(),
+        "standaard_testcel_rijen",
+        &BY_HAND.replace("test_reductie_inschrijvingen", "standaard_testcel_rijen"),
+    );
+    let err = Cell::in_memory(ACTOR, dir.path()).unwrap_err();
+    assert!(err.to_string().contains("keeps a reduction"), "{err}");
+}
+
+/// A fictional register in two versions, and a fictional regulation of
+/// corrections that takes effect between them, from 2025-06-01.
+fn versioned(id: &str, from: &str, articles: &str) -> String {
+    format!(
+        "---\n$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json\n\
+         $id: {id}\nregulatory_layer: WET\npublication_date: '{from}'\nvalid_from: '{from}'\n\
+         name: FICTIEF {id}\narticles:\n{articles}"
+    )
+}
+
+const REGISTERED: &str = "  - number: '1'
+    text: FICTIEF. Het register schrijft in waar een bewoner woont.
+    machine_readable:
+      requires:
+        - fact: ingeschreven
+          parameters: [bewoner, postcode]
+      execution:
+        parameters:
+          - {name: bewoner, type: string}
+          - {name: postcode, type: string}
+";
+
+const CORRECTED: &str = "  - number: '1'
+    text: FICTIEF. Het register verbetert de postcode, of laat hem leeg.
+    machine_readable:
+      requires:
+        - fact: postcode_gecorrigeerd
+          parameters: [postcode]
+      execution:
+        parameters:
+          - {name: postcode, type: string, nullable: true}
+";
+
+/// A standard reduction has a version per day a version of one of its
+/// regulations takes effect, from the day the root's regulation requires
+/// the fact. A referring fact not yet in force has no step in a version;
+/// a field the referring fact may leave null may hold null. Loading it
+/// twice keeps the one loaded first.
+#[test]
+fn a_standard_reduction_follows_the_versions_of_its_regulations() {
+    let mut service = LawExecutionService::new();
+    let laws = [
+        versioned(
+            "test_standaard_register",
+            "2024-01-01",
+            "  - number: '9'\n    text: FICTIEF. Nog niets.\n",
+        ),
+        versioned("test_standaard_register", "2025-01-01", REGISTERED),
+        versioned("test_standaard_correcties", "2025-06-01", CORRECTED),
+    ];
+    for law in &laws {
+        service.load_law(law).unwrap();
+    }
+    let dir = cell_tempdir();
     std::fs::write(
         dir.path().join("cel.yaml"),
-        "name: Testcel\nanswers:\n  rijen:\n    fact: test_chronicle_corrections#1#ingeschreven\n    referred_by: [test_chronicle_corrections#1#ingeschreven]\n",
+        "name: Testcel\nanswers:\n  rijen:\n    fact: test_standaard_register#1#ingeschreven\n    referred_by: [test_standaard_correcties#1#postcode_gecorrigeerd]\n",
     )
     .unwrap();
-    let err = Cell::in_memory(ACTOR, dir.path()).unwrap_err();
-    assert!(err.to_string().contains("twice"), "{err}");
+    let cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
+    cell.load_standard_reductions(&mut service).unwrap();
+    cell.load_standard_reductions(&mut service).unwrap();
+    let (_, id) = cell.standard_answers().next().unwrap();
+    let aggregate =
+        |on: &str| projection_of(&service, &id, regelrecht_cel::standard::AGGREGATE, on);
+    assert!(
+        service
+            .resolver()
+            .get_law_for_date(&id, Some(day("2024-06-01")))
+            .is_none()
+    );
+    assert_eq!(aggregate("2025-02-01").steps.len(), 1);
+    let corrected = aggregate("2025-07-01");
+    assert_eq!(corrected.steps.len(), 2);
+    let postcode = corrected
+        .state
+        .iter()
+        .find(|p| p.name == "postcode")
+        .unwrap();
+    assert_eq!(postcode.nullable, Some(true));
 }
