@@ -6,7 +6,8 @@
 // `herkomst` is the line under a prefilled field: which cell it comes from, or
 // that the applicant changed it (voorinvulling.js). A switch (yes or no) does
 // not show it: nldd-switch-field stands outside an nldd-form-field. A table
-// (an array with `kolommen`, schema v0.8.20) is a TabelInvoer.
+// (an array with `kolommen`, schema v0.8.20) is a TabelInvoer. A field the
+// system fills (`alleenLezen`, voorinvulling.js) shows its value, read-only.
 import { leesbaar } from '../state.js';
 import TabelInvoer from './TabelInvoer.vue';
 
@@ -14,6 +15,7 @@ const props = defineProps({
   veld: { type: Object, required: true },
   modelValue: { type: [String, Number, Boolean, Array], default: undefined },
   herkomst: { type: String, default: '' },
+  alleenLezen: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue']);
 
@@ -36,6 +38,7 @@ const getal = (tekst) => {
     v-else-if="veld.type === 'boolean'"
     :label="leesbaar(veld.naam)"
     :checked="modelValue === true"
+    :disabled="alleenLezen || undefined"
     @change="zet($event.detail.checked)"
   ></nldd-switch-field>
   <nldd-form-field
@@ -47,17 +50,20 @@ const getal = (tekst) => {
     <nldd-date-field
       v-if="veld.type === 'date'"
       :value="modelValue ?? ''"
+      :readonly="alleenLezen || undefined"
       @change="zet($event.detail.value)"
     ></nldd-date-field>
     <nldd-text-field
       v-else-if="veld.type === 'number' || veld.type === 'amount'"
       keyboard="decimal"
       :value="modelValue ?? ''"
+      :readonly="alleenLezen || undefined"
       @input="zet(getal($event.target.value))"
     ></nldd-text-field>
     <nldd-text-field
       v-else
       :value="modelValue ?? ''"
+      :readonly="alleenLezen || undefined"
       @input="zet($event.target.value)"
     ></nldd-text-field>
     <nldd-form-field-help-text v-if="herkomst">{{ herkomst }}</nldd-form-field-help-text>

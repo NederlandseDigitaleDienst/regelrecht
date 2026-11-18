@@ -272,6 +272,7 @@ impl Speler<'_> {
     ) -> Result<(), String> {
         let mut velden = met(&self.voorbeeld["aanvraag"], &stap["invoer"]);
         self.uit_sessie(&vormen["aanvraag"], stap, &mut velden)?;
+        self.door_het_systeem(&vormen["aanvraag"], stap, datum, &mut velden)?;
         rij["leeg_gelaten"] = json!(vul_leeg(&vormen["aanvraag"]["velden"], &mut velden));
         let gram = self
             .spel
@@ -363,6 +364,58 @@ impl Speler<'_> {
         }
         if let Some(sleutel) = inloggen["sleutel"].as_str().and_then(|s| claims.get(s)) {
             velden.insert(veld.to_string(), sleutel.clone());
+        }
+        Ok(())
+    }
+
+    /// The fields the UI spec has the system fill (`systeem`), as the form
+    /// fills them: a value the system knows goes in as it is, and a source as
+    /// the cell answers it on what the application holds so far. Those
+    /// values go over the case's example. A step may not name such a field:
+    /// the applicant does not type it. The login fills its own fields
+    /// ([`Speler::uit_sessie`]). In a case with a login step, an application
+    /// without a session did not come through the form, as one on paper: the
+    /// system fills nothing, and the step names what it holds.
+    fn door_het_systeem(
+        &mut self,
+        aanvraag: &Value,
+        stap: &Value,
+        datum: NaiveDate,
+        velden: &mut Map<String, Value>,
+    ) -> Result<(), String> {
+        let Some(systeem) = aanvraag["systeem"].as_object() else {
+            return Ok(());
+        };
+        if !aanvraag["inloggen"]["inlogstap"].is_null() && self.sessie.is_none() {
+            return Ok(());
+        }
+        if let Some(veld) = systeem
+            .keys()
+            .find(|v| stap["invoer"].get(v.as_str()).is_some())
+        {
+            return Err(format!("the step fills '{veld}', which the system fills"));
+        }
+        let mut bronnen = Map::new();
+        for (veld, hoe) in systeem {
+            if let Some(waarde) = hoe.get("waarde") {
+                velden.insert(veld.clone(), waarde.clone());
+            } else if let Some(bron) = hoe.get("bron") {
+                bronnen.insert(veld.clone(), bron.clone());
+            }
+        }
+        if bronnen.is_empty() {
+            return Ok(());
+        }
+        let gegeven = self
+            .spel
+            .voorinvullen(&bronnen, velden, datum)
+            .map_err(|e| e.to_string())?;
+        for veld in bronnen.keys() {
+            // An unknown value is no value, as the form leaves the field (RFC-036).
+            let waarde = &gegeven[veld]["waarde"];
+            if !waarde.is_null() && waarde.get("__unknown").is_none() {
+                velden.insert(veld.clone(), waarde.clone());
+            }
         }
         Ok(())
     }

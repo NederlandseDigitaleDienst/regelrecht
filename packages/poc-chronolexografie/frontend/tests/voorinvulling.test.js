@@ -1,5 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { beginWaarden, bronInvoer, herkomstTekst, voorgevuldeWaarden } from '../src/voorinvulling.js';
+import {
+  beginWaarden,
+  bronInvoer,
+  herkomstTekst,
+  metSysteem,
+  opHetFormulier,
+  systeemBronnen,
+  systeemTekst,
+  systeemVult,
+  voorgevuldeWaarden,
+} from '../src/voorinvulling.js';
 import { BESTUUR, RIJEN } from './fixtureTabel.js';
 
 const celNaam = (cel) => ({ voorbeeld_register: 'Voorbeeldregister' })[cel] ?? `cel ${cel}`;
@@ -165,5 +175,69 @@ describe('herkomstTekst of a table', () => {
       'Door u leeggemaakt. Voorbeeldregister geeft: Lid Een, voorzitter, 2026-01-01, 12500; ' +
         'Lid Twee, penningmeester, 2026-01-15.',
     );
+  });
+});
+
+// What the UI spec has the system fill (src/ui_spec.rs): a value it knows, a
+// source the cell computes, or the login.
+describe('fields the system fills', () => {
+  const systeem = {
+    dagtekening: { waarde: '2028-03-06' },
+    kanaal: { waarde: 'portaal' },
+    elektronisch: { bron: 'r#6#langs_portaal' },
+    nummer: {},
+  };
+  const voorgevuld = {
+    naam: { bron: 'r#5h#naam', waarde: 'Uit de bron', herkomst: [] },
+    elektronisch: { bron: 'r#6#langs_portaal', waarde: true, herkomst: [{ door: 'voorbeeld_register' }] },
+  };
+
+  it('asks the sources of the system with the prefill', () => {
+    expect(systeemBronnen(systeem)).toEqual({ elektronisch: 'r#6#langs_portaal' });
+  });
+
+  it('fills over the scenario and the applicant, and leaves the login to the login', () => {
+    const waarden = { dagtekening: '2020-01-01', kanaal: 'papier', naam: 'Eigen naam', nummer: '90123456' };
+    expect(metSysteem(waarden, systeem, voorgevuld)).toEqual({
+      dagtekening: '2028-03-06',
+      kanaal: 'portaal',
+      elektronisch: true,
+      naam: 'Eigen naam',
+      nummer: '90123456',
+    });
+  });
+
+  it('leaves a field empty when its source gives nothing', () => {
+    const uit = metSysteem({ elektronisch: false }, systeem, {});
+    expect('elektronisch' in uit && uit.elektronisch === undefined).toBe(true);
+  });
+
+  it('fills nothing for an application without a session, as one on paper', () => {
+    const inloggen = { veld: 'nummer', inlogstap: { cel: 'dienst' } };
+    expect(systeemVult(inloggen, null, systeem)).toEqual({});
+    expect(systeemVult(inloggen, { claims: {} }, systeem)).toBe(systeem);
+    // A case without a login step has no session to wait for.
+    expect(systeemVult({ veld: 'nummer' }, null, systeem)).toBe(systeem);
+  });
+
+  it('says where the value comes from', () => {
+    expect(systeemTekst(systeem.dagtekening, undefined, celNaam)).toBe('Ingevuld door het systeem.');
+    expect(systeemTekst(systeem.elektronisch, voorgevuld.elektronisch, celNaam)).toMatch(/^Ingevuld uit Voorbeeldregister/);
+    expect(systeemTekst(systeem.nummer, undefined, celNaam)).toBe('');
+  });
+});
+
+describe('opHetFormulier', () => {
+  const velden = [{ naam: 'naam' }, { naam: 'nummer' }, { naam: 'kanaal' }, { naam: 'termijn' }];
+
+  it('shows neither what the login fills nor what the UI spec hides', () => {
+    const getoond = opHetFormulier(velden, ['kanaal', 'termijn'], new Set(['nummer']));
+    expect(getoond.map((v) => v.naam)).toEqual(['naam']);
+  });
+
+  it('submits a hidden field all the same', () => {
+    // Hidden is about the form, not the application: its value stays in it.
+    const waarden = metSysteem({ termijn: '2028-06-30' }, { kanaal: { waarde: 'portaal' } }, {});
+    expect(waarden).toEqual({ termijn: '2028-06-30', kanaal: 'portaal' });
   });
 });

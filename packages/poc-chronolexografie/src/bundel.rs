@@ -187,8 +187,7 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         let id = casus.id.clone();
         match Corpus::load(bundle.clone(), &roots, &regelwerken, casus) {
             Ok(mut c) => {
-                c.prefill = spec.prefill.clone();
-                c.weergaven = spec.weergaven.clone();
+                c.ui_spec = spec.clone();
                 uit.push(c);
             }
             Err(e) => stand.fouten.push(format!("case '{id}': {e}")),
@@ -577,6 +576,64 @@ mod tests {
             ingevuld["naam_opgegeven"]["herkomst"][0]["door"],
             "voorbeeld_register"
         );
+    }
+
+    /// What the UI spec has the system fill reaches the form with how it
+    /// fills it, and what it hides with its name; neither is a prefill. The
+    /// application holds a hidden field like any other.
+    #[test]
+    fn the_form_of_a_case_from_a_source_names_what_the_system_fills_and_what_it_hides() {
+        let mut bron = voorinvullen_bron();
+        bron.bestanden.insert(
+            "ui_spec.yaml".into(),
+            format!(
+                "elements:
+  - id: UI1
+    fields:
+      - {{name: naam_opgegeven, visibility: asked, fill: {{from: '{NAAM_UIT_REGISTER}'}}}}
+      - {{name: nummer, visibility: shown, fill: {{by: system}}}}
+      - {{name: aanhef, visibility: shown, fill: {{by: system, from: 'voorbeeld_inschrijving#4#aanhef'}}}}
+      - {{name: kenmerk, visibility: hidden, fill: {{by: system, value: K-1}}}}
+      - {{name: referentie, visibility: shown, fill: {{by: system, submission: requested_decision}}}}
+      - {{name: afkorting, visibility: hidden}}
+      - {{name: geen_veld_van_de_aanvraag, visibility: hidden, fill: {{by: system, submission: date}}}}
+"
+            ),
+        );
+        let (mut spel, casus, dag) = voorinvullen_spel(bron);
+        let vormen = aanvraagvorm(&mut spel, dag);
+        assert_eq!(
+            vormen["prefill"],
+            serde_json::json!({ "naam_opgegeven": NAAM_UIT_REGISTER })
+        );
+        // A name the application does not ask stays out.
+        assert_eq!(
+            vormen["systeem"],
+            serde_json::json!({
+                "nummer": {},
+                "aanhef": { "bron": "voorbeeld_inschrijving#4#aanhef" },
+                "kenmerk": { "waarde": "K-1" },
+                "referentie": { "waarde": "voorbeeld_inschrijving#1" },
+            })
+        );
+        assert_eq!(
+            vormen["verborgen"],
+            serde_json::json!(["afkorting", "kenmerk"])
+        );
+        // The cell computes the system's source as it computes a prefill.
+        let bronnen = serde_json::Map::from_iter([(
+            "aanhef".to_string(),
+            serde_json::json!("voorbeeld_inschrijving#4#aanhef"),
+        )]);
+        let velden = casus["voorbeeld"]["aanvraag"].as_object().unwrap().clone();
+        let ingevuld = spel.voorinvullen(&bronnen, &velden, dag).unwrap();
+        assert_eq!(ingevuld["aanhef"]["waarde"], "Geacht bestuur");
+        // The hidden field the system fills is in what the cell records.
+        let mut aanvraag = velden.clone();
+        aanvraag.insert("kenmerk".into(), serde_json::json!("K-1"));
+        let artikel = casus["artikel"].as_str().unwrap().to_string();
+        let gram = spel.indienen(&artikel, None, &aanvraag, dag).unwrap();
+        assert_eq!(gram["fields"]["kenmerk"], "K-1");
     }
 
     /// A field the form leaves empty and the law lets be null reaches a
