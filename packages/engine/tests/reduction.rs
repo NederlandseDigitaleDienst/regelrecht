@@ -861,7 +861,7 @@ fn the_answerer_fills_the_term_of_13a() {
     );
     assert_eq!(
         asked[0].1["eerste_verlofdag"],
-        Value::String("2027-05-10".into())
+        Value::Date("2027-05-10".parse().unwrap())
     );
     let filled = result
         .open_terms
@@ -1711,9 +1711,16 @@ fn a_parameter_that_names_no_article_is_an_error_not_a_read() {
                 "2027-03-01",
             )
             .unwrap_err();
+        // A string that names no article is refused where the chronicle is
+        // read; a number never gets that far, because `basis` is declared a
+        // string (RFC-055).
         assert!(
             matches!(&e, EngineError::TypeMismatch { expected, .. }
-                if expected.contains("an article reference in $basis")),
+            if expected.contains(if not_an_article.is_string() {
+                "an article reference in $basis"
+            } else {
+                "string for parameter 'basis'"
+            })),
             "{not_an_article}: {e}"
         );
     }

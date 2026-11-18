@@ -891,7 +891,8 @@ fn check_decision_parameters(
             None | Some(Value::Null | Value::Unknown(_) | Value::Untranslatable { .. }) => {
                 continue;
             }
-            // In a nested call the value is read where the call needs it.
+            // In a nested call an object is read where the call needs it; a
+            // value that is no object was refused on entry (RFC-055).
             Some(_) if !at_top => continue,
             Some(other) => {
                 return Err(decision_parameter_error(
@@ -1380,8 +1381,10 @@ impl<'a, 'r, 'c> LazyArticleInputs<'a, 'r, 'c> {
             // not its declaration: a null for an input that is never absent is
             // refused like a null cell would be, whoever passed it (a caller,
             // a scenario, an editor form). Otherwise it would surface later as
-            // an absent operand without an origin (RFC-036). The value itself
-            // is read from the parameters.
+            // an absent operand without an origin (RFC-036). The value is
+            // held against the type the input declares here, when the input
+            // is read, and not when the article is called: a caller may pass
+            // a value the article never reads (RFC-055, RFC-043).
             LazyName::Passed(input) => {
                 if self.parameters.get(&input.name).is_some_and(Value::is_null)
                     && !input.is_nullable()
@@ -1392,7 +1395,19 @@ impl<'a, 'r, 'c> LazyArticleInputs<'a, 'r, 'c> {
                         "parameter from caller".to_string(),
                     ));
                 }
-                Ok(None)
+                self.parameters
+                    .get(&input.name)
+                    .map(|value| {
+                        let admitted = admit(
+                            self.law,
+                            "input",
+                            &input.name,
+                            input.input_type,
+                            value.clone(),
+                        )?;
+                        Ok((admitted, ResolveType::Parameter))
+                    })
+                    .transpose()
             }
             LazyName::Input(input) => {
                 let context = self.article_context();
@@ -1490,6 +1505,15 @@ impl<'a, 'r, 'c> LazyArticleInputs<'a, 'r, 'c> {
 impl LazyInputs for LazyArticleInputs<'_, '_, '_> {
     fn resolve_input(&self, name: &str) -> Option<Result<(Value, ResolveType)>> {
         self.memoized(name, || match self.owner(name) {
+            // What a source delivers is held against the type the input
+            // declares, where it enters (RFC-055).
+            Some(LazyName::Input(input)) => self
+                .resolve_owned(LazyName::Input(input))?
+                .map(|(value, how)| {
+                    let admitted = admit(self.law, "input", &input.name, input.input_type, value)?;
+                    Ok((admitted, how))
+                })
+                .transpose(),
             Some(owned) => self.resolve_owned(owned),
             None => Ok(None),
         })
@@ -1576,6 +1600,121 @@ fn check_finding(
         ),
         actual: value.to_string(),
     })
+}
+
+/// A value where it enters a field of `law`, held against the type the field
+/// declares (RFC-055, "Where a value meets a declaration"): what the value
+/// shows has to be that type. `role` says what the field is (`parameter`,
+/// `input`), for the error.
+///
+/// A value without a kind (`null`, unknown, untranslatable) passes; whether
+/// an absence is allowed is the nullability check's business (RFC-036). A
+/// string in the form `YYYY-MM-DD` and a reference date become a date when
+/// they enter a field declared `date`.
+///
+/// # Errors
+///
+/// [`EngineError::TypeMismatch`] for a value of another type, and
+/// [`EngineError::InvalidDate`] for a string that is no date in a `date`
+/// field.
+fn admit(
+    law: &ArticleBasedLaw,
+    role: &str,
+    name: &str,
+    declared: crate::types::ParameterType,
+    value: Value,
+) -> Result<Value> {
+    use crate::types::ParameterType as T;
+    if matches!(
+        value,
+        Value::Null | Value::Unknown(_) | Value::Untranslatable { .. }
+    ) {
+        return Ok(value);
+    }
+    // Every declared type is named here, so a new one does not compile
+    // until it says what it takes.
+    let (declared_name, fits) = match declared {
+        T::Boolean => ("boolean", matches!(value, Value::Bool(_))),
+        T::Number => ("number", matches!(value, Value::Int(_) | Value::Decimal(_))),
+        T::Amount => ("amount", matches!(value, Value::Int(_) | Value::Decimal(_))),
+        T::String => ("string", matches!(value, Value::String(_))),
+        T::Array => ("array", matches!(value, Value::Array(_))),
+        T::Object => ("object", matches!(value, Value::Object(_))),
+        T::Decision => ("decision", matches!(value, Value::Object(_))),
+        T::Date => return admit_date(law, role, name, value),
+    };
+    match value {
+        value if fits => Ok(value),
+        // A date is written as text, and stays readable as text where a
+        // field declares a string: a date parameter passed on to such a
+        // field arrives as the caller wrote it.
+        Value::Date(day) if declared == T::String => Ok(Value::String(day.to_string())),
+        other => Err(EngineError::TypeMismatch {
+            expected: format!("{declared_name} for {role} '{name}' of {}", law.id),
+            actual: kind_name(&other).to_string(),
+        }),
+    }
+}
+
+/// `value` as it enters a field declared `date`: a date, a string in the
+/// form `YYYY-MM-DD`, or the reference date, whose day is its `iso` field
+/// (RFC-055, conversions 1 and 2).
+fn admit_date(law: &ArticleBasedLaw, role: &str, name: &str, value: Value) -> Result<Value> {
+    let parsed = |text: &str| {
+        text.parse::<regelrecht_law_model::Date>()
+            .map(Value::Date)
+            .map_err(|_| {
+                EngineError::InvalidDate(format!(
+                    "{role} '{name}' of {} is declared a date, and '{text}' is not a date in \
+                     the form YYYY-MM-DD",
+                    law.id
+                ))
+            })
+    };
+    let day = match &value {
+        Value::Date(_) => return Ok(value),
+        Value::String(text) => return parsed(text),
+        Value::Object(fields) => fields.get("iso"),
+        _ => None,
+    };
+    match day {
+        Some(day @ Value::Date(_)) => Ok(day.clone()),
+        Some(Value::String(text)) => parsed(text),
+        _ => Err(EngineError::TypeMismatch {
+            expected: format!("date for {role} '{name}' of {}", law.id),
+            actual: kind_name(&value).to_string(),
+        }),
+    }
+}
+
+/// The word the format has for what `value` shows.
+fn kind_name(value: &Value) -> &'static str {
+    crate::signatures::Kind::of(value).map_or_else(|| value.type_name(), |kind| kind.name())
+}
+
+/// The values passed to `article`, each held against the declaration of the
+/// parameter it is passed for ([`admit`]). A value passed under the name of
+/// an input is held against that when the input is read, and one passed
+/// under a name the article declares nothing for is left as it is.
+fn admit_passed_values(
+    law: &ArticleBasedLaw,
+    article: &Article,
+    parameters: BTreeMap<String, Value>,
+) -> Result<BTreeMap<String, Value>> {
+    parameters
+        .into_iter()
+        .map(|(name, value)| {
+            let declared = article
+                .get_parameters()
+                .iter()
+                .find(|parameter| parameter.name == name);
+            let value = match declared {
+                Some(parameter) => admit(law, "parameter", &name, parameter.param_type, value)?,
+                None => value,
+            };
+            Ok((name, value))
+        })
+        .collect()
 }
 
 /// `value` as the value of `input` of `law`, unless it is a `null` the input
@@ -4439,6 +4578,7 @@ impl LawExecutionService {
             });
         }
         check_decision_parameters(law, article, &parameters, res_ctx.depth == 0)?;
+        let parameters = admit_passed_values(law, article, parameters)?;
 
         // What this execution needs, settled before any action runs (RFC-043).
         let demand = self.plan_demand(article, law, requested_outputs, stage, res_ctx);

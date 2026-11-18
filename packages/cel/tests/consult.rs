@@ -69,7 +69,7 @@ fn the_one_date_left_out_is_the_day_of_asking() {
         &Map::new(),
         "2026-05-04",
     );
-    assert_eq!(gelezen, Value::from(json!("2026-05-04")));
+    assert_eq!(gelezen, Value::Date("2026-05-04".parse().unwrap()));
 }
 
 #[test]
@@ -80,7 +80,7 @@ fn a_given_value_reaches_the_article_and_a_given_date_is_kept() {
         &given,
         "2026-05-04",
     );
-    assert_eq!(op, Value::from(json!("2026-02-01")));
+    assert_eq!(op, Value::Date("2026-02-01".parse().unwrap()));
     let nummer = output(
         "regeling_peildatum_fictief#1#gelezen_nummer",
         &given,
@@ -148,7 +148,7 @@ fn an_optional_date_left_out_does_not_count() {
         &given,
         "2026-05-04",
     );
-    assert_eq!(begint, Value::from(json!("2026-01-01")));
+    assert_eq!(begint, Value::Date("2026-01-01".parse().unwrap()));
 }
 
 #[test]
