@@ -1,34 +1,50 @@
-//! Scenario sets: features that run against regelwerken of their own and
+//! Scenario sets: features that run against a chosen set of regelwerken and
 //! nothing else.
 //!
-//! A scenario set is a directory with two parts:
+//! A scenario set is a directory with two parts and an optional manifest:
 //!
 //! ```text
 //! <set>/
-//!   regulation/   the regelwerken, any tree of `.yaml` files
+//!   regulation/   the regelwerken of the set, any tree of `.yaml` files
 //!   scenarios/    the features, `*.feature`, also in subdirectories
+//!   corpus.yaml   optional: regelwerken from the corpus it loads as well
 //! ```
 //!
 //! A feature under `<set>/scenarios/` runs against the regelwerken under
-//! `<set>/regulation/` alone: not the corpus, not the fixtures of
-//! `bdd/fixtures`. A hook in such a set fires on the decisions of that set
-//! only, so a construct can be tried without the real Awb firing on it.
+//! `<set>/regulation/` and those `corpus.yaml` names, and nothing else: not
+//! the rest of the corpus, not the fixtures of `bdd/fixtures`. A hook fires
+//! only from a regelwerk the set loads, so a construct is tried against the
+//! real Awb, say, without every other law of the corpus taking part.
+//!
+//! `corpus.yaml` names regelwerken by `$id` under `regelwerken:`. Each is
+//! read from the corpus (`REGULATION_PATH`, or `corpus/regulation`), every
+//! version in its directory, and is never copied into the set.
 //!
 //! The constructs under `bdd/constructs/` are the scenario sets this runner
 //! finds itself ([`constructs`]). A corpus laid out the same way (a
 //! `regulation/` directory with a `scenarios/` directory beside it) is a
-//! scenario set too: its features load its regelwerken by the same rule,
-//! because the set is read from where a feature sits, not from a list.
+//! scenario set too: its features would load its regelwerken by the same
+//! rule, because the set is read from where a feature sits.
 
 use std::path::{Path, PathBuf};
 
 use regelrecht_engine::LawExecutionService;
+use serde::Deserialize;
 use walkdir::WalkDir;
 
 /// The directory of the features of a scenario set.
 const SCENARIOS: &str = "scenarios";
 /// The directory of the regelwerken of a scenario set.
 const REGULATION: &str = "regulation";
+/// The manifest of the regelwerken a scenario set takes from the corpus.
+const CORPUS_MANIFEST: &str = "corpus.yaml";
+
+/// `corpus.yaml`: the regelwerken from the corpus a set loads, by `$id`.
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct CorpusManifest {
+    regelwerken: Vec<String>,
+}
 
 /// A directory with `regulation/` and `scenarios/` (module docs).
 pub struct ScenarioSet {
@@ -60,12 +76,50 @@ impl ScenarioSet {
         features
     }
 
-    /// Load every regelwerk of the set into `service`.
+    /// Load every regelwerk of the set into `service`: those the manifest
+    /// names from the corpus, then its own.
     pub fn load(&self, service: &mut LawExecutionService) {
+        for id in self.corpus_ids() {
+            for path in corpus_versions(&id) {
+                load_regelwerk(service, &path);
+            }
+        }
         for path in files_with_extension(&self.root.join(REGULATION), "yaml") {
             load_regelwerk(service, &path);
         }
     }
+
+    /// The `$id`s `corpus.yaml` names; none when the set has no manifest.
+    fn corpus_ids(&self) -> Vec<String> {
+        let path = self.root.join(CORPUS_MANIFEST);
+        if !path.is_file() {
+            return Vec::new();
+        }
+        let yaml =
+            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        let manifest: CorpusManifest =
+            serde_yaml_ng::from_str(&yaml).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+        manifest.regelwerken
+    }
+}
+
+/// Every version of the regelwerk `id` in the corpus: the `.yaml` files in
+/// the directory named after it, under `nl/` of each corpus base. Fails when
+/// the corpus holds none, so a misspelt `$id` cannot leave a set without it.
+fn corpus_versions(id: &str) -> Vec<PathBuf> {
+    let mut versions: Vec<PathBuf> = crate::common::regulation_base_paths()
+        .iter()
+        .flat_map(|base| {
+            WalkDir::new(base.join("nl"))
+                .into_iter()
+                .filter_map(Result::ok)
+        })
+        .filter(|entry| entry.file_type().is_dir() && entry.file_name() == id)
+        .flat_map(|dir| files_with_extension(dir.path(), "yaml"))
+        .collect();
+    assert!(!versions.is_empty(), "no regelwerk '{id}' in the corpus");
+    versions.sort();
+    versions
 }
 
 /// The construct sets under `constructs`: each subdirectory, sorted. A

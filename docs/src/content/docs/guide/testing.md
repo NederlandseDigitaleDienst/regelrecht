@@ -20,28 +20,36 @@ The cell has a BDD suite of its own in `packages/cel/bdd/`, outside both buckets
 
 ### Trying out a construct
 
-A construct of the law format that is hard to get right gets a directory of its own under `packages/cel/bdd/constructs/`. The first is a decision term that fires as a hook on every decision. A construct's features run against its own fictional ruleworks and nothing else; the corpus and the fixtures of the cell's suite stay out. For hooks that matters. A hook fires on every decision its `applies_to` matches, in every loaded rulework, so the real Awb in the corpus would fire on the test laws too.
+A construct of the law format that is hard to get right gets a directory of its own under `packages/cel/bdd/constructs/`. The first is the decision term of Awb 4:13, a hook on every application. A construct's features load only the ruleworks of their directory and the corpus ruleworks it names. For hooks that matters. A hook fires on every decision or submission its `applies_to` matches, in every loaded rulework, so loading the whole corpus would bring in hooks the construct is not about.
 
 ```text
 packages/cel/bdd/constructs/beslistermijn/
-  regulation/nl/wet/test_algemene_bestuursregels/2026-01-01.yaml
-  regulation/nl/wet/test_wet_tafeldekken/2026-01-01.yaml
-  regulation/nl/wet/test_wet_feestmaaltijd/2026-01-01.yaml
+  corpus.yaml
+  regulation/nl/wet/test_permit_act/2026-01-01.yaml
+  regulation/nl/wet/test_permit_act_short_term/2026-01-01.yaml
   scenarios/beslistermijn.feature
 ```
 
-In the `beslistermijn` construct, a fictional general law, loosely modeled on Awb 4:13, hooks onto the decision of a host law. Each scenario records an application on one day and decides on it on another. It then checks the last day of the term and whether the decision came too late. The scenarios cover the last day itself, the day after, a decision well within the term, and a term that runs from receipt rather than from the day the application was recorded. A host law with a term of its own sets it with an override. It could also fill the term through `implements`, but the engine does not yet take the host law as the only candidate for that. That scenario carries `@wip`.
+`corpus.yaml` names ruleworks from the corpus by `$id`. The runner reads every version of each from `corpus/regulation` (or `REGULATION_PATH`) and fails on an `$id` the corpus does not hold. Nothing is copied into the construct, so a scenario tests the Awb as it stands in the corpus.
+
+```yaml
+regelwerken:
+  - algemene_wet_bestuursrecht
+```
+
+In the `beslistermijn` construct, the real Awb meets two fictional permit acts. An application is recorded on the day it arrives, which is the moment Awb 4:13 counts from, and the decision follows on a later day. The scenarios check what the application holds, the last day of the term, and whether the decision came on or before it: well within the term, on the last day, one day late, and counted from receipt rather than from the date on the application. `test_permit_act_short_term` has a term of two weeks and sets it with an override on the output of 4:13, the route the engine supports today. Filling that term through `implements` needs the engine to take the host act as the only candidate, which it does not do yet, so that scenario carries `@wip`.
 
 To add a construct:
 
 1. Make `packages/cel/bdd/constructs/<construct>/` with a `regulation/` and a `scenarios/` directory. The runner fails when either is missing or when `scenarios/` holds no feature.
-2. Put the ruleworks in `regulation/`, in the layout of the corpus. Give each an `$id` starting with `test_`, mark the text FICTIEF, and invent the content: no real case, no real person. `just validate` and the pre-commit hook check them against the schema.
-3. Write the features in `scenarios/`. They may use the canonical steps and the cell's own. A decision the cell takes (`the cell decides ...`) sets the result, so `Then output ... equals ...` reads what the decision and the hooks on it gave. What the deciding authority found, such as the day it received the application, goes in the table of that step.
-4. A scenario the engine cannot run yet gets `@wip` and a comment above it that names the missing piece and the branch or issue that builds it.
+2. Put the fictional ruleworks in `regulation/`, in the layout of the corpus. Give each an `$id` starting with `test_`, mark the text FICTIEF, and invent the content: no real case, no real person. `just validate` and the pre-commit hook check them against the schema.
+3. Name the corpus ruleworks the construct builds on in `corpus.yaml`, if any.
+4. Write the features in `scenarios/`, in English. Names that come from the corpus, such as the outputs of the Awb, stay as the corpus has them. A feature may use the canonical steps and the cell's own. A decision the cell takes (`the cell decides ...`) sets the result, so `Then output ... equals ...` reads what the decision and the hooks on it gave.
+5. A scenario the engine cannot run yet gets `@wip` and a comment above it that names the missing piece and the branch or issue that builds it.
 
 `just bdd` and the CI job "BDD conformance" run the constructs with the rest of the cell's suite; no recipe or workflow changes.
 
-The runner decides what to load from where a feature sits. A feature under `<set>/scenarios/` loads the ruleworks under `<set>/regulation/`, whichever directory `<set>` is. A corpus with a `scenarios/` directory next to its `regulation/` directory would load by the same rule once its features are added to the list in `packages/cel/tests/bdd/main.rs`. Nothing does that yet. The engine's own runner does not look at where a feature sits and always loads the corpus.
+The runner decides what to load from where a feature sits. A feature under `<set>/scenarios/` loads the ruleworks under `<set>/regulation/` and those in `<set>/corpus.yaml`, whichever directory `<set>` is. A corpus with a `scenarios/` directory next to its `regulation/` directory would load by the same rule once its features are added to the list in `packages/cel/tests/bdd/main.rs`. Nothing does that yet. The engine's own runner does not look at where a feature sits and always loads the corpus.
 
 ### The step vocabulary is generated, not hand-written
 

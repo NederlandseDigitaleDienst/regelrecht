@@ -6,14 +6,17 @@
 //! A feature in `packages/cel/bdd/features` runs against the corpus with the
 //! fixtures in `packages/cel/bdd/fixtures` (the synthetic law, and the
 //! reductions of a cell) next to it; a feature in a scenario set
-//! (`crate::sets`) against the regelwerken of that set alone.
+//! (`crate::sets`) against the regelwerken of that set alone, its own and
+//! those it names from the corpus.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 
 use chrono::NaiveDate;
 use regelrecht_cel::reading::Reader;
-use regelrecht_cel::{Afschrift, Cell, Chronicle, Disk, EXECUTOGRAM, Gram, Received, shape};
+use regelrecht_cel::{
+    Afschrift, Cell, Chronicle, Disk, EXECUTOGRAM, Gram, GramMoment, Received, shape,
+};
 use regelrecht_engine::projection::describe_applied;
 use regelrecht_engine::{
     Aggregate, Article, ArticleResult, Authority, Call, LawExecutionService, ProjectionEvent,
@@ -62,7 +65,7 @@ impl State {
 
 /// Load the regelwerken a scenario of the feature at `feature` runs against.
 /// A feature in a scenario set ([`ScenarioSet`]) gets the regelwerken of that
-/// set alone; any other feature (`bdd/features`) gets the corpus and the
+/// set alone (its own and those it names from the corpus); any other feature (`bdd/features`) gets the corpus and the
 /// fixtures: every regelwerk under `fixtures/regulation`, and the reductions
 /// under `fixtures/cells`.
 pub fn load(service: &mut LawExecutionService, feature: Option<&Path>) {
@@ -243,9 +246,81 @@ pub fn dispatch(
                 "whether record '{id}' is applied"
             );
         }
+        "assert_submission_fields" => assert_submission_fields(
+            world,
+            args[0].as_str(),
+            args[1].as_str(),
+            &table.expect("fields table"),
+        ),
+        "assert_submission_moment" => {
+            let (number, law) = (args[0].as_str(), args[1].as_str());
+            let parameter = moment(world, law, number)
+                .and_then(|m| m.parameter)
+                .unwrap_or_else(|| {
+                    panic!("the submission under {law}#{number} names no moment parameter")
+                });
+            assert_eq!(
+                parameter,
+                args[2].as_str(),
+                "the moment of the submission under {law}#{number}"
+            );
+        }
+        "assert_decision_within" => {
+            assert_decision_within(world, args[0].as_str(), args[1].as_str(), args[2].as_bool())
+        }
         _ => return false,
     }
     true
+}
+
+/// The fields of an application under article `number` of `law` are exactly
+/// those in the table (header `field`), in any order.
+fn assert_submission_fields(world: &RegelrechtWorld, number: &str, law: &str, table: &Rows) {
+    let shape = shape::derive(&world.service, law, number, today(world))
+        .unwrap_or_else(|e| panic!("the submission under {law}#{number}: {e}"));
+    let mut held: Vec<&str> = shape.fields.iter().map(|f| f.name.as_str()).collect();
+    held.sort_unstable();
+    let (header, rows) = table.split_first().expect("a header row `field`");
+    assert_eq!(
+        header.as_slice(),
+        ["field"],
+        "the header of the fields table"
+    );
+    let mut expected: Vec<&str> = rows.iter().map(|row| row[0].as_str()).collect();
+    expected.sort_unstable();
+    assert_eq!(
+        held, expected,
+        "the fields of the submission under {law}#{number}"
+    );
+}
+
+/// Whether decision `id` was recorded on or before the date its output
+/// `output` holds (`within`), or after it.
+fn assert_decision_within(world: &RegelrechtWorld, id: &str, output: &str, within: bool) {
+    let gram = world
+        .extension
+        .chronicle
+        .grams()
+        .iter()
+        .find(|g| g.id == id)
+        .unwrap_or_else(|| panic!("no decision '{id}' in the chronicle"));
+    let last = gram
+        .outputs
+        .get(output)
+        .and_then(serde_json::Value::as_str)
+        .and_then(|d| NaiveDate::parse_from_str(d, "%Y-%m-%d").ok())
+        .unwrap_or_else(|| {
+            panic!(
+                "decision '{id}' holds no date '{output}': {:?}",
+                gram.outputs.get(output)
+            )
+        });
+    assert_eq!(
+        gram.recorded_on <= last,
+        within,
+        "decision '{id}' given on {} against '{output}' {last}",
+        gram.recorded_on
+    );
 }
 
 /// The day a record is made: the calculation date.
@@ -289,10 +364,23 @@ fn record_submission_referring(
         .and_then(|s| s.submission_kind())
         .unwrap_or_else(|| panic!("article {basis} establishes no submission"))
         .to_string();
-    append(
-        world,
-        gram(world, id, kind, basis, refers_to, fields, BTreeMap::new()),
-    );
+    let mut gram = gram(world, id, kind, basis, refers_to, fields, BTreeMap::new());
+    gram.moment = moment(world, law, number);
+    append(world, gram);
+}
+
+/// The moment that counts for a submission under article `number` of `law`,
+/// such as the receipt (Awb 4:13): the day it is recorded, as the cell fills
+/// it ([`Cell::record_submission`]). `None` when no article names one.
+fn moment(world: &RegelrechtWorld, law: &str, number: &str) -> Option<GramMoment> {
+    let on = today(world);
+    let shape = shape::derive(&world.service, law, number, on)
+        .unwrap_or_else(|e| panic!("the submission under {law}#{number}: {e}"));
+    shape.moment.map(|m| GramMoment {
+        parameter: m.parameter,
+        on,
+        declared_by: m.declared_by,
+    })
 }
 
 /// The decision the submission asks for, with its fields and what the
@@ -321,6 +409,13 @@ fn decide_on_submission(
         .iter()
         .map(|(k, v)| (k.clone(), stored::from_stored(v).expect("stored field")))
         .collect();
+    // The moment of the submission, as the cell hands it to the decision.
+    if let Some(m) = &gram.moment
+        && let Some(name) = &m.parameter
+    {
+        let day = serde_json::Value::String(m.on.to_string());
+        parameters.insert(name.clone(), stored::from_stored(&day).expect("a date"));
+    }
     for (name, value) in found {
         // The table gives what was found besides the submission.
         assert!(

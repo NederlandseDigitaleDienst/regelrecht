@@ -6,7 +6,7 @@
 //! synthetic law and a cell with its reduction) in `packages/cel/bdd/fixtures`.
 //! Beside them, each construct under `packages/cel/bdd/constructs/` is a
 //! scenario set (`sets.rs`): its features run against its own fictional
-//! regelwerken and nothing else.
+//! regelwerken and the corpus regelwerken it names, and nothing else.
 //! A feature may use the canonical steps (`bdd/grammar.yaml`) and the cell's
 //! own (`packages/cel/bdd/grammar.yaml`). Those stay out of the canonical
 //! grammar: that is the language every engine, Rust and JS, executes, while
