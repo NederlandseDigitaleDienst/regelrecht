@@ -20,6 +20,7 @@ interface ResearchItem {
   text: string;
   href: string;
   linkLabel: string;
+  also?: { href: string; linkLabel: string };
 }
 
 const items: ResearchItem[] = [
@@ -30,6 +31,9 @@ const items: ResearchItem[] = [
     text: paper.abstract_lead,
     href: '/research/rules-as-executed',
     linkLabel: 'position paper',
+    // The explainer is the same paper in plain language, so it rides on the
+    // paper's card instead of taking a card of its own.
+    also: { href: '/research/rules-as-executed/explained', linkLabel: 'plain-language explainer' },
   },
   {
     title: `${jurixPaper.title}: ${jurixPaper.subtitle}`,

@@ -28,6 +28,10 @@ interface Props {
   // linked would still be reachable through the site's own search box. Set
   // this where "unlisted" is meant to include search.
   noSearchIndex?: boolean;
+  // A docs page that exists in both languages passes the path of each, and
+  // gets the same language menu as the landing. Without it a docs page has
+  // no menu, because the docs are English-only.
+  langAlternates?: { nl: string; en: string };
 }
 
 const {
@@ -38,6 +42,7 @@ const {
   pathname,
   hasSidebar = true,
   noSearchIndex = false,
+  langAlternates,
 } = Astro.props;
 
 const isLanding = kind === 'landing';
@@ -147,7 +152,12 @@ const langOptions: LangOption[] | null = isLanding
       { code: 'nl', label: 'Nederlands', href: nlHref },
       { code: 'en', label: 'English', href: enHref },
     ]
-  : null;
+  : langAlternates
+    ? [
+        { code: 'nl', label: 'Nederlands', href: langAlternates.nl },
+        { code: 'en', label: 'English', href: langAlternates.en },
+      ]
+    : null;
 // The non-current language, for the no-JS fallback link.
 const langOther = langOptions?.find((o) => o.code !== lang) ?? null;
 

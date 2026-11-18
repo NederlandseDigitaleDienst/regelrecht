@@ -6,7 +6,9 @@
  * plain page background (a tinted section uses plain cards). `headingLevel`
  * is the rank of the title in the page outline: 3 under a section heading, as
  * on the landing page, 2 where the card sits directly under the page's h1. The
- * visual size stays the same either way.
+ * visual size stays the same either way. `also` adds a second button under
+ * the first, for a companion to the same item (the paper's plain-language
+ * explainer), so it does not need a card of its own.
  */
 interface Props {
   lang: 'nl' | 'en';
@@ -17,6 +19,7 @@ interface Props {
   linkLabel: string;
   tinted?: boolean;
   headingLevel?: 2 | 3;
+  also?: { href: string; linkLabel: string };
 }
 
 const {
@@ -28,6 +31,7 @@ const {
   linkLabel,
   tinted = false,
   headingLevel = 3,
+  also,
 } = Astro.props;
 const read = lang === 'en' ? 'Read' : 'Lees';
 const Heading = `h${headingLevel}`;
@@ -47,7 +51,7 @@ const Heading = `h${headingLevel}`;
       <p>{text}</p>
     </nldd-rich-text>
   </nldd-container>
-  <nldd-container slot="footer" padding="20" padding-top="0">
+  <nldd-container slot="footer" padding="20" padding-top="0" gap="8">
     <nldd-button
       appearance="secondary"
       width="full"
@@ -55,5 +59,14 @@ const Heading = `h${headingLevel}`;
       text={`${read} ${linkLabel}`}
       accessible-label={`${read} ${linkLabel}: ${title}`}
     />
+    {also && (
+      <nldd-button
+        appearance="secondary"
+        width="full"
+        href={also.href}
+        text={`${read} ${also.linkLabel}`}
+        accessible-label={`${read} ${also.linkLabel}: ${title}`}
+      />
+    )}
   </nldd-container>
 </nldd-card>

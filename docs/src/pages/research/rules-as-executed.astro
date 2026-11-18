@@ -6,8 +6,9 @@
  * numbered sections), which lives next to that source in the research
  * repository: the body HTML, the outline headings, and the meta JSON with
  * title, authors, date and DOI that this page, the research index and the
- * landing tile all read. This page only supplies the byline and the "since
- * publication" note; ResearchPaper is the shell. The typeset PDF is archived
+ * landing tile all read. This page only supplies the byline, the "since
+ * publication" note and the links to the plain-language explanation;
+ * ResearchPaper is the shell. The typeset PDF is archived
  * on Zenodo under the DOI and is the authoritative version; the button links
  * there.
  */
@@ -40,6 +41,10 @@ const doiUrl = `https://doi.org/${meta.doi}`;
     pdfLabel="PDF on Zenodo"
     pdfExternal
     discussionExclude={['Citizen Explanation', 'Rules as Promised']}
+    companions={[
+      { href: '/research/rules-as-executed/explained', text: 'Explained in plain language', icon: 'info' },
+      { href: '/research/rules-as-executed/uitgelegd', text: 'Uitleg in het Nederlands', lang: 'nl' },
+    ]}
     headings={headings}
     html={paperHtml}
   >

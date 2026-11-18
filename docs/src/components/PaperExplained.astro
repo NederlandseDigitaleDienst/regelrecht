@@ -1,0 +1,522 @@
+---
+/*
+ * The position paper "Rules as Executed" in plain language.
+ *
+ * The page is an argument, so its parts carry a title and no number: the
+ * problem the paper starts from, why that problem is a constitutional one, the
+ * proposal, and what follows from it. The example of the two housemates opens
+ * the first part and returns in the next two (the "case" cards); every other
+ * part has an example of its own.
+ *
+ * The text is in ~/lib/paper-explained-content (Dutch source, English
+ * translation); what is taken from the paper itself (Figure 1's YAML, Table 1,
+ * the outline the "read this in the paper" links point into) comes out of the
+ * generated paper HTML at build time through ~/lib/paper-explained, so it
+ * cannot differ from what the paper says. The paper is frozen; this page
+ * explains it and is not part of it.
+ *
+ * Every part has the same shape, so that a phone shows one thing at a time: a
+ * heading, the point in a few paragraphs, an example, and a "more from the
+ * paper" button that opens the rest of the text and the sections of the paper
+ * in a sheet (PaperMore). Nothing the page says is left out; the secondary
+ * text is folded away, not cut.
+ *
+ * Only components from the NLDD Designsysteem, and no CSS of its own. Lists of
+ * terms and values are a <dl> inside nldd-rich-text, which the design system
+ * styles; everything else is an nldd-* element.
+ *
+ * Interaction is progressive enhancement, as on the landing page. Without
+ * JavaScript every alternative of every switch is shown, one under the other,
+ * each under its own label, and the receipt panel says it needs JavaScript.
+ * ~/scripts/paper-explained.ts adds the switching, the sheets and the run; it
+ * finds its parts by data attributes on nldd-container, so there is no custom
+ * element of the page's own in the markup.
+ */
+import {
+  meta,
+  section,
+  codeFigure,
+  landscape,
+  type SectionRef,
+} from '~/lib/paper-explained';
+import { content, actors, type Lang } from '~/lib/paper-explained-content';
+import PaperMatrix from './PaperMatrix.astro';
+import PaperMore from './PaperMore.astro';
+
+interface Props {
+  lang: Lang;
+}
+const { lang } = Astro.props;
+const t = content[lang];
+
+const date = new Intl.DateTimeFormat(lang === 'en' ? 'en-GB' : 'nl-NL', {
+  day: 'numeric',
+  month: 'long',
+  year: 'numeric',
+}).format(new Date(meta.date));
+const doiUrl = `https://doi.org/${meta.doi}`;
+// The same list the paper's own "Discussion on GitHub" button opens
+// (ResearchPaper), including the exclusion for the paper whose title contains
+// this one.
+const discussionUrl =
+  'https://github.com/NederlandseDigitaleDienst/regelrecht/issues?q=' +
+  encodeURIComponent(
+    `is:issue label:contribution:paper "${meta.title}" -"Citizen Explanation" sort:updated-desc`
+  );
+
+const figureOne = codeFigure('fig:narra-example');
+const table = landscape();
+const matrix = actors(lang);
+
+// The parts in order, with the sections of the paper each one explains.
+const chapters: { id: string; title: string; refs: SectionRef[] }[] = [
+  { id: 'probleem', title: t.problem.title, refs: [section('sec:introduction'), section('sec:intelligibilitygap'), section('sec:broaderpattern')] },
+  { id: 'macht', title: t.power.title, refs: [section('sec:constitutional'), section('sec:executivedominance'), section('sec:intelligibilitygap'), section('sec:substitute'), section('sec:court'), section('sec:conclusion')] },
+  { id: 'voorstel', title: t.binding.title, refs: [section('sec:priorwork'), section('sec:format'), section('sec:legalstatus'), section('sec:whochooses'), section('sec:crosscutting'), section('sec:cnl'), section('sec:linkeddata')] },
+  { id: 'bonnetje', title: t.receipt.title, refs: [section('sec:attestation'), section('sec:traceaccess')] },
+  { id: 'tijd', title: t.time.title, refs: [section('sec:versionedartifact'), section('sec:versioning')] },
+  { id: 'afwijken', title: t.default.title, refs: [section('sec:overrides'), section('sec:autooverrides')] },
+  { id: 'grenzen', title: t.limits.title, refs: [section('sec:cannotbuildback'), section('sec:gaming'), section('sec:agenda'), section('sec:conclusion')] },
+  { id: 'rules-as-code', title: t.veterans.title, refs: [section('sec:priorwork'), section('sec:cnl'), section('sec:translation')] },
+];
+const ch = Object.fromEntries(chapters.map((c) => [c.id, c]));
+
+const words = { yes: t.yes, part: t.part, no: t.no };
+const padding = { 'sm-padding-block': '32', 'md-padding-block': '48', 'lg-padding-block': '64' };
+---
+
+<nldd-simple-section {...padding}>
+  <nldd-title size="1">
+    <h1>{t.header.title}</h1>
+    <p slot="subtitle">{t.header.subtitle}</p>
+  </nldd-title>
+  <nldd-spacer size="16" />
+  <nldd-text size="lg">{t.header.lede}</nldd-text>
+  <nldd-spacer size="12" />
+  <nldd-text size="sm" color="secondary">{t.header.version(date)}</nldd-text>
+  <nldd-spacer size="16" />
+  <nldd-container layout="wrap" gap="16">
+    <nldd-link href="/research/rules-as-executed" size="md" text={t.header.paper} />
+  </nldd-container>
+  <nldd-spacer size="24" />
+  <nldd-title size="5"><h2 id="px-toc">{t.header.tocLabel}</h2></nldd-title>
+  <nldd-spacer size="8" />
+  <nldd-list type="navigation" aria-labelledby="px-toc" appearance="box-tinted">
+    {chapters.map((c) => (
+      <nldd-list-item href={`#${c.id}`}>
+        <nldd-text-cell text={c.title} />
+      </nldd-list-item>
+    ))}
+  </nldd-list>
+  <nldd-spacer size="16" />
+  <nldd-link href="#rules-as-code" size="md" end-icon="chevron-right" text={t.header.veterans} />
+</nldd-simple-section>
+
+{/* The problem ---------------------------------------------------------- */}
+<nldd-simple-section id={ch.probleem.id} background="tinted" {...padding}>
+  <nldd-title size="2"><h2>{t.problem.title}</h2></nldd-title>
+  <nldd-spacer size="16" />
+  {/* The problem itself comes first and large: everything below follows from it. */}
+  <nldd-text size="lg" weight="medium">{t.problem.core}</nldd-text>
+  <nldd-spacer size="16" />
+  <nldd-rich-text><p>{t.problem.p1}</p></nldd-rich-text>
+  <nldd-spacer size="24" />
+  <nldd-card background="base">
+    <nldd-container padding="20" sm-padding="16" data-px-switch={t.problem.options[0].id}>
+      <nldd-title size="5"><h3 id="px-case-label">{t.problem.caseLabel}</h3></nldd-title>
+      <nldd-spacer size="4" />
+      <nldd-text size="sm" color="secondary">{t.problem.caseIntro}</nldd-text>
+      <nldd-spacer size="12" />
+      <nldd-segmented-control accessible-labeled-by="px-case-label" width="full" data-control hidden>
+        {t.problem.options.map((o) => <nldd-segmented-control-item value={o.id} text={o.short} />)}
+      </nldd-segmented-control>
+      <nldd-spacer size="16" />
+      <nldd-container aria-live="polite">
+        {t.problem.options.map((o) => (
+          <nldd-container data-panel={o.id} gap="8">
+            <nldd-text size="sm" weight="bold" data-panel-label>{o.label}</nldd-text>
+            <nldd-container layout="wrap" gap="8">
+              <nldd-tag color={o.tone} text={o.tag} />
+            </nldd-container>
+            <nldd-text>{o.outcome}</nldd-text>
+          </nldd-container>
+        ))}
+      </nldd-container>
+      <nldd-spacer size="16" />
+      <nldd-text size="sm" color="secondary">{t.problem.caseNote}</nldd-text>
+      <nldd-spacer size="8" />
+      <nldd-link href={t.problem.caseLink.href} lang="nl" size="sm" end-icon="external-link" text={t.problem.caseLink.text} />
+    </nldd-container>
+  </nldd-card>
+  <nldd-spacer size="24" />
+  <nldd-title size="4"><h3>{t.problem.demandLabel}</h3></nldd-title>
+  <nldd-spacer size="8" />
+  <nldd-text size="lg" weight="medium">{t.problem.demand}</nldd-text>
+  <nldd-spacer size="24" />
+  <PaperMore title={t.problem.title} label={t.more} close={t.close} refsLabel={t.readInPaper} refs={ch.probleem.refs}>
+    <nldd-rich-text>{t.problem.more.map((p) => <p>{p}</p>)}</nldd-rich-text>
+  </PaperMore>
+</nldd-simple-section>
+
+{/* The constitutional argument ------------------------------------------ */}
+<nldd-simple-section id={ch.macht.id} {...padding}>
+  <nldd-title size="2"><h2>{t.power.title}</h2></nldd-title>
+  <nldd-spacer size="16" />
+  <nldd-rich-text>{t.power.intro.map((p) => <p>{p}</p>)}</nldd-rich-text>
+  <nldd-spacer size="24" />
+  <nldd-card background="tinted">
+    <nldd-container padding="20" sm-padding="16" gap="8">
+      <nldd-title size="5"><h3>{t.power.case.label}</h3></nldd-title>
+      <nldd-text>{t.power.case.text}</nldd-text>
+    </nldd-container>
+  </nldd-card>
+  <nldd-spacer size="24" />
+  <nldd-title size="4"><h3>{t.power.demandsLabel}</h3></nldd-title>
+  <nldd-spacer size="8" />
+  <nldd-rich-text>
+    <dl>
+      {t.power.demands.map(([k, v]) => <><dt>{k}</dt><dd>{v}</dd></>)}
+    </dl>
+    <p>{t.power.p3}</p>
+  </nldd-rich-text>
+  <nldd-spacer size="24" />
+  <nldd-container data-px-switch="now">
+    <nldd-title size="5"><h3 id="px-matrix-now">{t.power.matrixLabel}</h3></nldd-title>
+    <nldd-spacer size="12" />
+    <nldd-segmented-control accessible-labeled-by="px-matrix-now" width="full" data-control hidden>
+      <nldd-segmented-control-item value="now" text={t.now} />
+      <nldd-segmented-control-item value="proposal" text={t.proposalShort} />
+    </nldd-segmented-control>
+    <nldd-spacer size="16" />
+    {(['now', 'proposal'] as const).map((state) => (
+      <nldd-container data-panel={state} gap="8">
+        <nldd-text size="sm" weight="bold" data-panel-label>{state === 'now' ? t.now : t.proposal}</nldd-text>
+        <PaperMatrix
+          label={`${t.power.matrixLabel} ${state === 'now' ? t.now : t.proposal}`}
+          rowHeader={t.power.rowHeader}
+          columns={t.power.columns}
+          rows={matrix.map((row) => ({ label: row.actor, cells: row[state] }))}
+          words={words}
+        />
+      </nldd-container>
+    ))}
+  </nldd-container>
+  <nldd-spacer size="24" />
+  <PaperMore title={t.power.title} label={t.more} close={t.close} refsLabel={t.readInPaper} refs={ch.macht.refs}>
+    <nldd-rich-text>{t.power.more.map((p) => <p>{p}</p>)}</nldd-rich-text>
+  </PaperMore>
+</nldd-simple-section>
+
+{/* The proposal --------------------------------------------------------- */}
+<nldd-simple-section id={ch.voorstel.id} background="tinted" {...padding}>
+  <nldd-title size="2"><h2>{t.binding.title}</h2></nldd-title>
+  <nldd-spacer size="16" />
+  <nldd-rich-text>{t.binding.intro.map((p) => <p>{p}</p>)}</nldd-rich-text>
+  <nldd-spacer size="24" />
+  <nldd-card background="base">
+    <nldd-container padding="20" sm-padding="16" gap="8">
+      <nldd-title size="5"><h3>{t.binding.case.label}</h3></nldd-title>
+      <nldd-text>{t.binding.case.text}</nldd-text>
+    </nldd-container>
+  </nldd-card>
+  <nldd-spacer size="24" />
+  {/* Why the binding asks for a format of its own, with the article-by-article example right under it. */}
+  <nldd-title size="4"><h3>{t.binding.formLabel}</h3></nldd-title>
+  <nldd-spacer size="8" />
+  <nldd-rich-text>
+    <dl>
+      {t.binding.form.map(([k, v]) => <><dt>{k}</dt><dd>{v}</dd></>)}
+    </dl>
+  </nldd-rich-text>
+  <nldd-spacer size="24" />
+  {/* The example in a card like every other example on the page. One dd per
+      term: the dl grid puts a second dd on a row of its own, below the dt. */}
+  <nldd-card background="base">
+    <nldd-container padding="20" sm-padding="16" gap="16">
+      <nldd-container gap="4">
+        <nldd-title size="5"><h4>{t.binding.exampleLabel}</h4></nldd-title>
+        <nldd-text size="sm" color="secondary">{t.binding.exampleIntro}</nldd-text>
+      </nldd-container>
+      <nldd-blockquote>
+        <p>{t.binding.exampleStatute}</p>
+      </nldd-blockquote>
+      <nldd-rich-text>
+        <dl>
+          {t.binding.mapRows.map(([phrase, rule, source]) => (
+            <>
+              <dt>{phrase}</dt>
+              <dd><code>{rule}</code><br />{source}</dd>
+            </>
+          ))}
+        </dl>
+      </nldd-rich-text>
+      <nldd-text size="sm" color="secondary">{t.binding.exampleNote}</nldd-text>
+    </nldd-container>
+  </nldd-card>
+  <nldd-spacer size="24" />
+  <nldd-rich-text><p>{t.binding.reuse}</p></nldd-rich-text>
+  <nldd-spacer size="24" />
+  <nldd-container data-px-switch="now">
+    <nldd-title size="5"><h3 id="px-flow">{t.binding.flowLabel}</h3></nldd-title>
+    <nldd-spacer size="12" />
+    <nldd-segmented-control accessible-labeled-by="px-flow" width="full" data-control hidden>
+      <nldd-segmented-control-item value="now" text={t.now} />
+      <nldd-segmented-control-item value="proposal" text={t.proposalShort} />
+    </nldd-segmented-control>
+    <nldd-spacer size="16" />
+    {([
+      ['now', t.now, t.binding.flowNow, t.binding.flowNowNote],
+      ['proposal', t.proposal, t.binding.flowProposal, t.binding.flowProposalNote],
+    ] as const).map(([id, label, steps, note]) => (
+      <nldd-container data-panel={id} gap="12">
+        <nldd-text size="sm" weight="bold" data-panel-label>{label}</nldd-text>
+        <nldd-list accessible-label={`${t.binding.flowLabel}: ${label}`} appearance="box-base">
+          {steps.map((s, i) => (
+            <nldd-list-item>
+              <nldd-text-cell
+                overline={`${i + 1}`}
+                text={s.label}
+                supporting-text={s.text}
+                color={id === 'proposal' && i === 1 ? 'accent' : 'content'}
+              />
+            </nldd-list-item>
+          ))}
+        </nldd-list>
+        <nldd-text size="sm">{note}</nldd-text>
+      </nldd-container>
+    ))}
+  </nldd-container>
+  <nldd-spacer size="24" />
+  <PaperMore title={t.binding.title} label={t.more} close={t.close} refsLabel={t.readInPaper} refs={ch.voorstel.refs}>
+    <nldd-rich-text><p>{t.binding.more[0]}</p><p>{t.binding.codeLead}</p></nldd-rich-text>
+    <nldd-code-viewer language="yaml" appearance="simple" wrap set:html={figureOne.codeHtml} />
+    <nldd-link href={figureOne.href} size="sm" text={t.figureLink} />
+    <nldd-rich-text>{t.binding.more.slice(1).map((p) => <p>{p}</p>)}</nldd-rich-text>
+  </PaperMore>
+</nldd-simple-section>
+
+{/* The receipt ---------------------------------------------------------- */}
+<nldd-simple-section id={ch.bonnetje.id} {...padding}>
+  <nldd-title size="2"><h2>{t.receipt.title}</h2></nldd-title>
+  <nldd-spacer size="16" />
+  <nldd-rich-text><p>{t.receipt.p1}</p><p>{t.receipt.p2}</p></nldd-rich-text>
+  <nldd-spacer size="24" />
+  <nldd-card background="tinted">
+    <nldd-container
+      padding="20"
+      sm-padding="16"
+      data-px-receipts
+      data-lang={lang}
+      data-t={JSON.stringify({
+        ok: t.receipt.ok,
+        mismatch: t.receipt.mismatch,
+        checking: t.receipt.checking,
+        check: t.receipt.check,
+        failed: t.receipt.failed,
+        revealA: t.receipt.revealA,
+        inForce: t.receipt.inForce,
+        inputs: t.receipt.inputsSummary,
+        yes: t.yes,
+        no: t.no,
+      })}
+      data-reveal-b={t.receipt.revealB('{published}', '{local}', '{diff}')}
+      gap="16"
+    >
+      <nldd-rich-text><p>{t.receipt.demoIntro}</p></nldd-rich-text>
+      <nldd-text data-status aria-live="polite" hidden>{t.receipt.loading}</nldd-text>
+      <noscript><nldd-text>{t.receipt.noScript}</nldd-text></noscript>
+      <nldd-container data-receipts gap="16" hidden>
+        {/* What both decisions share is said once, above them. */}
+        <nldd-rich-text data-shared>
+          <dl>
+            <dt>{t.receipt.fields.law}</dt>
+            <dd>Wet op de zorgtoeslag, <span data-f="version"></span></dd>
+            <dt>{t.receipt.fields.date}</dt>
+            <dd data-f="date"></dd>
+            <dt>{t.receipt.fields.inputs}</dt>
+            <dd data-f="inputs"></dd>
+          </dl>
+        </nldd-rich-text>
+        {/* Two columns that share the width; one column when the card is narrow. */}
+        <nldd-container layout="grid" column-count="2" sm-column-count="1" gap="16">
+          {(['a', 'b'] as const).map((id) => (
+            <nldd-card background="base" data-receipt={id}>
+              <nldd-container padding="20" sm-padding="16" gap="12">
+                <nldd-title size="4"><h3>{t.receipt.decision} {id.toUpperCase()}</h3></nldd-title>
+                <nldd-container gap="2">
+                  <nldd-text size="sm" color="secondary">{t.receipt.fields.amount}</nldd-text>
+                  <nldd-text size="lg" weight="bold" data-f="amount"></nldd-text>
+                </nldd-container>
+                <nldd-container gap="2">
+                  <nldd-text size="sm" color="secondary">{t.receipt.fields.digest}</nldd-text>
+                  <nldd-text size="sm" data-f="digest"></nldd-text>
+                </nldd-container>
+                <nldd-container aria-live="polite" gap="12">
+                  <nldd-container data-checks gap="8" hidden>
+                    {([['digest', t.receipt.checkDigest], ['amount', t.receipt.checkAmount]] as const).map(([name, text]) => (
+                      <nldd-container layout="row" gap="12" vertical-alignment="top">
+                        <nldd-tag size="sm" data-check={name} />
+                        <nldd-text size="sm">{text}</nldd-text>
+                      </nldd-container>
+                    ))}
+                  </nldd-container>
+                  <nldd-text size="sm" data-reveal tabindex="-1" hidden></nldd-text>
+                </nldd-container>
+                <nldd-button appearance="primary" size="sm" text={t.receipt.check} data-check-button />
+              </nldd-container>
+            </nldd-card>
+          ))}
+        </nldd-container>
+      </nldd-container>
+    </nldd-container>
+  </nldd-card>
+  <nldd-spacer size="24" />
+  <nldd-title size="4"><h3>{t.receipt.limitsLabel}</h3></nldd-title>
+  <nldd-spacer size="8" />
+  <nldd-rich-text>
+    <ul>{t.receipt.limits.map((l) => <li>{l}</li>)}</ul>
+  </nldd-rich-text>
+  <nldd-spacer size="24" />
+  <PaperMore title={t.receipt.title} label={t.more} close={t.close} refsLabel={t.readInPaper} refs={ch.bonnetje.refs}>
+    <nldd-rich-text>{t.receipt.more.map((p) => <p>{p}</p>)}</nldd-rich-text>
+    <nldd-container data-facts gap="8" hidden>
+      <nldd-title size="5"><h3>{t.receipt.fields.inputs}</h3></nldd-title>
+      <nldd-rich-text><ul data-facts-list></ul></nldd-rich-text>
+    </nldd-container>
+  </PaperMore>
+</nldd-simple-section>
+
+{/* Back in time --------------------------------------------------------- */}
+<nldd-simple-section id={ch.tijd.id} background="tinted" {...padding}>
+  <nldd-title size="2"><h2>{t.time.title}</h2></nldd-title>
+  <nldd-spacer size="16" />
+  <nldd-rich-text>{t.time.intro.map((p) => <p>{p}</p>)}</nldd-rich-text>
+  <nldd-spacer size="24" />
+  <nldd-card background="base">
+    <nldd-container padding="20" sm-padding="16" gap="8">
+      <nldd-title size="5"><h3>{t.time.caseLabel}</h3></nldd-title>
+      <nldd-text size="sm" color="secondary">{t.time.caseIntro}</nldd-text>
+      <nldd-rich-text>
+        <dl>
+          {t.time.caseRows.map(([k, v]) => <><dt>{k}</dt><dd>{v}</dd></>)}
+        </dl>
+      </nldd-rich-text>
+      <nldd-text>{t.time.caseNote}</nldd-text>
+    </nldd-container>
+  </nldd-card>
+  <nldd-spacer size="24" />
+  <nldd-rich-text><p>{t.time.p3}</p></nldd-rich-text>
+  <nldd-spacer size="24" />
+  <PaperMore title={t.time.title} label={t.more} close={t.close} refsLabel={t.readInPaper} refs={ch.tijd.refs}>
+    <nldd-rich-text>{t.time.more.map((p) => <p>{p}</p>)}</nldd-rich-text>
+  </PaperMore>
+</nldd-simple-section>
+
+{/* Departing from the outcome ------------------------------------------- */}
+<nldd-simple-section id={ch.afwijken.id} {...padding}>
+  <nldd-title size="2"><h2>{t.default.title}</h2></nldd-title>
+  <nldd-spacer size="16" />
+  <nldd-rich-text><p>{t.default.p1}</p></nldd-rich-text>
+  <nldd-spacer size="24" />
+  <nldd-card background="tinted">
+    <nldd-container padding="20" sm-padding="16" data-px-switch={t.default.variants[1].id}>
+      <nldd-title size="5"><h3 id="px-override">{t.default.variantsLabel}</h3></nldd-title>
+      <nldd-spacer size="12" />
+      <nldd-segmented-control accessible-labeled-by="px-override" width="full" size="sm" data-control hidden>
+        {t.default.variants.map((v) => <nldd-segmented-control-item value={v.id} text={v.short} />)}
+      </nldd-segmented-control>
+      <nldd-spacer size="16" />
+      {t.default.variants.map((v) => (
+        <nldd-container data-panel={v.id} gap="12">
+          <nldd-text size="sm" weight="bold" data-panel-label>{v.label}</nldd-text>
+          <nldd-rich-text>
+            <dl>
+              {v.rows.map(([k, val]) => <><dt>{k}</dt><dd>{val}</dd></>)}
+            </dl>
+          </nldd-rich-text>
+          <nldd-text size="sm">{v.note}</nldd-text>
+        </nldd-container>
+      ))}
+    </nldd-container>
+  </nldd-card>
+  <nldd-spacer size="24" />
+  <PaperMore title={t.default.title} label={t.more} close={t.close} refsLabel={t.readInPaper} refs={ch.afwijken.refs}>
+    <nldd-rich-text>{t.default.more.map((p) => <p>{p}</p>)}</nldd-rich-text>
+  </PaperMore>
+</nldd-simple-section>
+
+{/* What this does not fix ----------------------------------------------- */}
+<nldd-simple-section id={ch.grenzen.id} background="tinted" {...padding}>
+  <nldd-title size="2"><h2>{t.limits.title}</h2></nldd-title>
+  <nldd-spacer size="16" />
+  <nldd-rich-text>
+    {t.limits.intro.map((p) => <p>{p}</p>)}
+    <dl>
+      {t.limits.explicit.map(([k, v]) => <><dt>{k}</dt><dd>{v}</dd></>)}
+    </dl>
+    <p>{t.limits.explicitNote}</p>
+    <p>{t.limits.avoidable}</p>
+    <p>{t.limits.p2}</p>
+  </nldd-rich-text>
+  <nldd-spacer size="24" />
+  <nldd-title size="4"><h3>{t.limits.openLabel}</h3></nldd-title>
+  <nldd-spacer size="8" />
+  <nldd-rich-text><ul>{t.limits.open.map((q) => <li>{q}</li>)}</ul></nldd-rich-text>
+  <nldd-spacer size="24" />
+  <PaperMore title={t.limits.title} label={t.more} close={t.close} refsLabel={t.readInPaper} refs={ch.grenzen.refs}>
+    <nldd-rich-text>{t.limits.more.map((p) => <p>{p}</p>)}</nldd-rich-text>
+  </PaperMore>
+</nldd-simple-section>
+
+{/* For people who already work on rules as code ------------------------- */}
+<nldd-simple-section id={ch['rules-as-code'].id} {...padding}>
+  <nldd-title size="2"><h2>{t.veterans.title}</h2></nldd-title>
+  <nldd-spacer size="16" />
+  <nldd-rich-text><p>{t.veterans.p1}</p><p>{t.veterans.p2}</p></nldd-rich-text>
+  <nldd-spacer size="24" />
+  <nldd-title size="4"><h3>{t.veterans.tableLabel}</h3></nldd-title>
+  <nldd-spacer size="8" />
+  {/* What the columns mean comes first: without it the values below answer no question. */}
+  <nldd-rich-text>
+    <dl>
+      {t.veterans.columns.map((c, i) => <><dt>{c}</dt><dd>{t.veterans.columnHelp[i]}</dd></>)}
+    </dl>
+  </nldd-rich-text>
+  <nldd-spacer size="16" />
+  <PaperMatrix
+    label={t.veterans.tableLabel}
+    rowHeader={t.veterans.rowHeader}
+    columns={t.veterans.columns}
+    rows={table.rows.map((r) => ({
+      label: r.isProposal ? t.thisPaper : r.approach,
+      cells: [{ v: r.exec }, { v: r.publ }, { v: r.bound }],
+      highlight: r.isProposal,
+    }))}
+    words={words}
+    tracks="fit"
+  />
+  <nldd-spacer size="12" />
+  <nldd-rich-text><p>{t.veterans.tableNote}</p></nldd-rich-text>
+  <nldd-spacer size="8" />
+  <nldd-link href={table.href} size="sm" text={t.tableLink} />
+  <nldd-spacer size="24" />
+  <nldd-rich-text><p>{t.veterans.p3}</p></nldd-rich-text>
+  <nldd-spacer size="24" />
+  <PaperMore title={t.veterans.title} label={t.more} close={t.close} refsLabel={t.readInPaper} refs={ch['rules-as-code'].refs}>
+    <nldd-rich-text>
+      {t.veterans.more.map((p) => <p>{p}</p>)}
+      <ol>{t.veterans.reasons.map((r) => <li>{r}</li>)}</ol>
+      {t.veterans.moreAfter.map((p) => <p>{p}</p>)}
+    </nldd-rich-text>
+  </PaperMore>
+  <nldd-spacer size="32" />
+  <nldd-button-group orientation="horizontal">
+    <nldd-button appearance="primary" href="/research/rules-as-executed" text={t.header.paper} />
+    <nldd-button appearance="secondary" href={doiUrl} text={t.header.pdf} />
+    <nldd-button appearance="secondary" href={discussionUrl} text={t.header.discuss} />
+  </nldd-button-group>
+</nldd-simple-section>
+
+<script>
+  import '~/scripts/paper-explained.ts';
+</script>
