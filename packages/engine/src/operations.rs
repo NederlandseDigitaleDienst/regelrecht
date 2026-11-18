@@ -2062,8 +2062,7 @@ fn execute_age<R: ValueResolver>(
     }
     reject_null("AGE", [&dob_val, &ref_val])?;
 
-    let dob_date = parse_date(&dob_val)?;
-    let ref_date_parsed = parse_date(&ref_val)?;
+    let [dob_date, ref_date_parsed] = dates(Operation::Age, [&dob_val, &ref_val])?;
 
     let age = calculate_years_difference(ref_date_parsed, dob_date);
     Ok(Value::Int(age))
@@ -2117,13 +2116,11 @@ fn execute_date_add<R: ValueResolver>(
         return Ok(unknown);
     }
     reject_null("DATE_ADD", operands.iter().copied())?;
-    let mut result_date = parse_date(&date_val)?;
+    let mut result_date = date_of("DATE_ADD", &date_val)?;
 
     // Years: add to year component, clamp day to last day of target month
     if let Some(years_val) = years_val {
-        let years_i64 = years_val.as_int().ok_or_else(|| {
-            EngineError::InvalidOperation("DATE_ADD 'years' must be a number".to_string())
-        })?;
+        let years_i64 = whole_number("DATE_ADD", "years", &years_val)?;
         let years_int = i32::try_from(years_i64).map_err(|_| {
             EngineError::InvalidOperation(format!(
                 "DATE_ADD 'years' value {} exceeds supported range",
@@ -2145,17 +2142,13 @@ fn execute_date_add<R: ValueResolver>(
 
     // Months: add to month component, clamp day to last day of target month
     if let Some(months_val) = months_val {
-        let months_int = months_val.as_int().ok_or_else(|| {
-            EngineError::InvalidOperation("DATE_ADD 'months' must be a number".to_string())
-        })?;
+        let months_int = whole_number("DATE_ADD", "months", &months_val)?;
         result_date = add_months(result_date, months_int)?;
     }
 
     // Weeks
     if let Some(weeks_val) = weeks_val {
-        let weeks_int = weeks_val.as_int().ok_or_else(|| {
-            EngineError::InvalidOperation("DATE_ADD 'weeks' must be a number".to_string())
-        })?;
+        let weeks_int = whole_number("DATE_ADD", "weeks", &weeks_val)?;
         result_date = result_date
             .checked_add_signed(chrono::Duration::weeks(weeks_int))
             .ok_or_else(|| {
@@ -2167,9 +2160,7 @@ fn execute_date_add<R: ValueResolver>(
 
     // Days
     if let Some(days_val) = days_val {
-        let days_int = days_val.as_int().ok_or_else(|| {
-            EngineError::InvalidOperation("DATE_ADD 'days' must be a number".to_string())
-        })?;
+        let days_int = whole_number("DATE_ADD", "days", &days_val)?;
         result_date = result_date
             .checked_add_signed(chrono::Duration::days(days_int))
             .ok_or_else(|| {
@@ -2232,27 +2223,27 @@ fn execute_date_construct<R: ValueResolver>(
     }
     reject_null("DATE", [&year_val, &month_val, &day_val])?;
 
-    let y_i64 = year_val
-        .as_int()
-        .ok_or_else(|| EngineError::InvalidOperation("DATE 'year' must be a number".to_string()))?;
-    let y = i32::try_from(y_i64).map_err(|_| {
-        EngineError::InvalidOperation(format!(
-            "DATE 'year' value {} exceeds supported range",
-            y_i64
+    // Three numbers, each a whole one: a fraction is an error, never cut off
+    // (RFC-055).
+    require_signature(
+        Operation::Date,
+        &[year_val.clone(), month_val.clone(), day_val.clone()],
+    )?;
+    let y_i64 = whole_number("DATE", "year", &year_val)?;
+    let m_i64 = whole_number("DATE", "month", &month_val)?;
+    let d_i64 = whole_number("DATE", "day", &day_val)?;
+    // A part that does not fit is a date that does not exist; say that
+    // rather than let it wrap into one that does.
+    let no_such_date = || {
+        EngineError::InvalidDate(format!(
+            "DATE: {y_i64}-{m_i64}-{d_i64} is not a calendar day"
         ))
-    })?;
-    let m = month_val
-        .as_int()
-        .ok_or_else(|| EngineError::InvalidOperation("DATE 'month' must be a number".to_string()))?
-        as u32;
-    let d = day_val
-        .as_int()
-        .ok_or_else(|| EngineError::InvalidOperation("DATE 'day' must be a number".to_string()))?
-        as u32;
+    };
+    let y = i32::try_from(y_i64).map_err(|_| no_such_date())?;
+    let m = u32::try_from(m_i64).map_err(|_| no_such_date())?;
+    let d = u32::try_from(d_i64).map_err(|_| no_such_date())?;
 
-    let date = NaiveDate::from_ymd_opt(y, m, d).ok_or_else(|| {
-        EngineError::InvalidOperation(format!("DATE: invalid date {}-{}-{}", y, m, d))
-    })?;
+    let date = NaiveDate::from_ymd_opt(y, m, d).ok_or_else(no_such_date)?;
 
     date_result(date)
 }
@@ -2276,7 +2267,7 @@ fn execute_day_of_week<R: ValueResolver>(
         return Ok(unknown);
     }
     reject_null("DAY_OF_WEEK", [&val])?;
-    let parsed = parse_date(&val)?;
+    let [parsed] = dates(Operation::DayOfWeek, [&val])?;
     Ok(Value::Int(parsed.weekday().num_days_from_monday() as i64))
 }
 
@@ -2324,8 +2315,8 @@ fn execute_date_diff<R: ValueResolver>(
     }
     reject_null("DATE_DIFF", [&from_val, &to_val, &unit_val])?;
 
-    let from_date = parse_date(&from_val)?;
-    let to_date = parse_date(&to_val)?;
+    let from_date = date_of("DATE_DIFF", &from_val)?;
+    let to_date = date_of("DATE_DIFF", &to_val)?;
     let unit_str = match &unit_val {
         Value::String(s) => s.as_str(),
         _ => {
@@ -2380,7 +2371,13 @@ fn execute_date_part<R: ValueResolver>(
     if val.is_untranslatable() {
         return Ok(val);
     }
-    let parsed = parse_date(&val)?;
+    // As every operation: an unknown date gives an unknown part, and an
+    // absent one is an error the law has to test for first (RFC-036).
+    if let Some(unknown) = propagate_unknown(resolver, "DATE_PART", [&val]) {
+        return Ok(unknown);
+    }
+    reject_null("DATE_PART", [&val])?;
+    let parsed = date_of("DATE_PART", &val)?;
 
     let component = match part {
         "year" => i64::from(parsed.year()),
@@ -2441,7 +2438,11 @@ fn execute_start_of<R: ValueResolver>(
     if val.is_untranslatable() {
         return Ok(val);
     }
-    let parsed = parse_date(&val)?;
+    if let Some(unknown) = propagate_unknown(resolver, "START_OF", [&val]) {
+        return Ok(unknown);
+    }
+    reject_null("START_OF", [&val])?;
+    let parsed = date_of("START_OF", &val)?;
 
     let truncated = match unit {
         "year" => NaiveDate::from_ymd_opt(parsed.year(), 1, 1),
@@ -2486,6 +2487,84 @@ fn parse_date(value: &Value) -> Result<NaiveDate> {
             actual: format!("{:?}", value),
         }),
     }
+}
+
+/// The kind an operand has where a date is required: a date value, a string
+/// in the form `YYYY-MM-DD` and the `{iso}` object of a reference date are
+/// dates (RFC-055, conversions 1 to 3). Anything else keeps its own kind.
+fn kind_where_a_date_is_required(value: &Value) -> Option<Kind> {
+    if parse_date(value).is_ok() {
+        Some(Kind::Date)
+    } else {
+        Kind::of(value)
+    }
+}
+
+/// The day `value` is, where `op_name` requires a date.
+///
+/// # Errors
+///
+/// [`EngineError::InvalidDate`] for a string that is no date, and
+/// [`EngineError::UnsupportedOperation`] for a value of another kind.
+fn date_of(op_name: &str, value: &Value) -> Result<NaiveDate> {
+    match (kind_where_a_date_is_required(value), value) {
+        (Some(Kind::Date), _) => parse_date(value),
+        (_, Value::String(text)) => Err(EngineError::InvalidDate(format!(
+            "{op_name} takes a date, and '{text}' is not a date in the form YYYY-MM-DD"
+        ))),
+        (kind, _) => Err(signatures::unsupported(
+            op_name,
+            &kind.into_iter().collect::<Vec<_>>(),
+        )),
+    }
+}
+
+/// The days the operands of `operation` are, held against its signature.
+///
+/// # Errors
+///
+/// As [`date_of`], and [`EngineError::UnsupportedOperation`] when the kinds
+/// together match no signature of the operation.
+fn dates<const N: usize>(operation: Operation, operands: [&Value; N]) -> Result<[NaiveDate; N]> {
+    // A string that is no date is named as such before the kinds are held
+    // against the signature.
+    for operand in operands {
+        if matches!(operand, Value::String(_)) {
+            date_of(operation.name(), operand)?;
+        }
+    }
+    let kinds: Vec<Kind> = operands
+        .iter()
+        .filter_map(|operand| kind_where_a_date_is_required(operand))
+        .collect();
+    signatures::matching(operation, &kinds)?;
+    let mut days = [NaiveDate::default(); N];
+    for (day, operand) in days.iter_mut().zip(operands) {
+        *day = parse_date(operand)?;
+    }
+    Ok(days)
+}
+
+/// A count a date operation takes (a part of `DATE`, a component of
+/// `DATE_ADD`) as the whole number it has to be. A number without a fraction
+/// qualifies, written as an integer or as a decimal; `1.5` is an error, never
+/// cut off (RFC-055).
+fn whole_number(op_name: &str, part: &str, value: &Value) -> Result<i64> {
+    let number = match value {
+        Value::Int(whole) => return Ok(*whole),
+        Value::Decimal(number) => number,
+        other => {
+            return Err(signatures::unsupported(
+                &format!("{op_name} '{part}'"),
+                &kinds_of([other]),
+            ));
+        }
+    };
+    number.to_i64().ok_or_else(|| {
+        EngineError::InvalidOperation(format!(
+            "{op_name} '{part}' must be a whole number, got {number}"
+        ))
+    })
 }
 
 /// Whether a value is a date or a string, the two forms a date takes.
@@ -6417,16 +6496,175 @@ body:
         }
 
         #[test]
-        fn test_date_construct_invalid() {
+        fn test_date_construct_refuses_a_day_that_does_not_exist() {
             let resolver = TestResolver::new();
-            let op = ActionOperation::Date {
-                year: lit(2025i64),
-                month: lit(2i64),
-                day: lit(30i64), // Feb 30 doesn't exist
-            };
+            for (year, month, day) in [
+                (2025i64, 2i64, 30i64),
+                (2025, 13, 1),
+                (2025, 0, 1),
+                (2025, 1, 0),
+                (2025, -1, 1),
+                (2025, 1, -1),
+                (2023, 2, 29),
+            ] {
+                let op = ActionOperation::Date {
+                    year: lit(year),
+                    month: lit(month),
+                    day: lit(day),
+                };
+                let err = execute_operation(&op, &resolver, 0).unwrap_err();
+                assert!(
+                    matches!(err, EngineError::InvalidDate(_)),
+                    "{year}-{month}-{day}: {err}"
+                );
+            }
+        }
 
-            let result = execute_operation(&op, &resolver, 0);
-            assert!(matches!(result, Err(EngineError::InvalidOperation(_))));
+        #[test]
+        fn test_a_count_in_a_date_operation_is_a_whole_number() {
+            // RFC-055: `months: 1.5` added one month; a fraction is now an
+            // error, never cut off.
+            let resolver = TestResolver::new();
+            let add = |months: Value| ActionOperation::DateAdd {
+                date: lit("2025-01-15"),
+                years: None,
+                months: Some(lit(months)),
+                weeks: None,
+                days: None,
+            };
+            let err =
+                execute_operation(&add(Value::Decimal(dec("1.5"))), &resolver, 0).unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "Invalid operation: DATE_ADD 'months' must be a whole number, got 1.5"
+            );
+            // A number without a fraction qualifies, however it is held.
+            assert_eq!(
+                execute_operation(&add(Value::Decimal(dec("1"))), &resolver, 0).unwrap(),
+                day("2025-02-15")
+            );
+            let err = execute_operation(&add(Value::String("1".into())), &resolver, 0).unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "DATE_ADD 'months' is not defined for (string)"
+            );
+            let construct = ActionOperation::Date {
+                year: lit(2025i64),
+                month: lit(Value::Decimal(dec("2.5"))),
+                day: lit(1i64),
+            };
+            let err = execute_operation(&construct, &resolver, 0).unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "Invalid operation: DATE 'month' must be a whole number, got 2.5"
+            );
+            let not_numbers = ActionOperation::Date {
+                year: lit("2025"),
+                month: lit(1i64),
+                day: lit(1i64),
+            };
+            let err = execute_operation(&not_numbers, &resolver, 0).unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "DATE is not defined for (string, number, number)"
+            );
+        }
+
+        #[test]
+        fn test_a_date_operation_refuses_what_is_no_date() {
+            let resolver = TestResolver::new();
+            let age = |birth: Value| ActionOperation::Age {
+                date_of_birth: lit(birth),
+                reference_date: lit("2025-01-01"),
+            };
+            let err = execute_operation(&age(Value::Int(1990)), &resolver, 0).unwrap_err();
+            assert_eq!(err.to_string(), "AGE is not defined for (number, date)");
+            let err = execute_operation(&age(Value::String("gisteren".into())), &resolver, 0)
+                .unwrap_err();
+            assert!(matches!(err, EngineError::InvalidDate(_)), "{err}");
+            assert!(err.to_string().contains("gisteren"), "{err}");
+
+            let weekday = ActionOperation::DayOfWeek {
+                date: lit(Value::Bool(true)),
+            };
+            let err = execute_operation(&weekday, &resolver, 0).unwrap_err();
+            assert_eq!(err.to_string(), "DAY_OF_WEEK is not defined for (boolean)");
+
+            for (name, op) in [
+                (
+                    "DATE_PART",
+                    ActionOperation::DatePart {
+                        date: lit(5i64),
+                        part: "year".to_string(),
+                    },
+                ),
+                (
+                    "START_OF",
+                    ActionOperation::StartOf {
+                        date: lit(5i64),
+                        unit: "month".to_string(),
+                    },
+                ),
+                (
+                    "DATE_ADD",
+                    ActionOperation::DateAdd {
+                        date: lit(5i64),
+                        years: None,
+                        months: None,
+                        weeks: None,
+                        days: Some(lit(1i64)),
+                    },
+                ),
+                (
+                    "DATE_DIFF",
+                    ActionOperation::DateDiff {
+                        from: lit(5i64),
+                        to: lit("2025-01-01"),
+                        unit: lit("days"),
+                    },
+                ),
+            ] {
+                let err = execute_operation(&op, &resolver, 0).unwrap_err();
+                assert_eq!(
+                    err.to_string(),
+                    format!("{name} is not defined for (number)")
+                );
+            }
+        }
+
+        #[test]
+        fn test_date_part_and_start_of_pass_an_unknown_on_and_refuse_an_absence() {
+            // RFC-055: these two turned an unknown or absent date into a type
+            // error, where every other operation passes the unknown on and
+            // reports the absence.
+            let resolver = TestResolver::new()
+                .with_var("onbekend", unknown_fact("geboortedatum"))
+                .with_var("geen", Value::Null);
+            let part = |name: &str| ActionOperation::DatePart {
+                date: var(name),
+                part: "year".to_string(),
+            };
+            let start = |name: &str| ActionOperation::StartOf {
+                date: var(name),
+                unit: "month".to_string(),
+            };
+            assert!(
+                execute_operation(&part("onbekend"), &resolver, 0)
+                    .unwrap()
+                    .is_unknown()
+            );
+            assert!(
+                execute_operation(&start("onbekend"), &resolver, 0)
+                    .unwrap()
+                    .is_unknown()
+            );
+            for (name, op) in [("DATE_PART", part("geen")), ("START_OF", start("geen"))] {
+                let err = execute_operation(&op, &resolver, 0).unwrap_err();
+                assert!(
+                    matches!(&err, EngineError::AbsentOperand { operation } if operation == name),
+                    "{err}"
+                );
+            }
         }
 
         #[test]

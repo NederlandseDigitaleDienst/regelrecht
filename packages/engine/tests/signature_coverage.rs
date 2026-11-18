@@ -21,9 +21,9 @@ use regelrecht_engine::signatures::{
 };
 use regelrecht_engine::types::Operation;
 
-/// The operations whose signatures the engine enforces and the suite covers.
-/// The list grows with each step of RFC-055 until it holds every operation of
-/// the schema.
+/// The operations whose signatures the engine enforces and the suite covers:
+/// every operation of the schema. A new operation is added here with its
+/// rows and its scenarios.
 const COVERED: &[Operation] = &[
     Operation::Add,
     Operation::Subtract,
@@ -47,6 +47,13 @@ const COVERED: &[Operation] = &[
     Operation::List,
     Operation::Record,
     Operation::ForEach,
+    Operation::Date,
+    Operation::DateAdd,
+    Operation::DateDiff,
+    Operation::Age,
+    Operation::DatePart,
+    Operation::DayOfWeek,
+    Operation::StartOf,
 ];
 
 /// The name of a row in a tag: its shape and the kinds it takes, so two rows
@@ -221,6 +228,19 @@ fn every_covered_operation_has_a_scenario_that_refuses_operands() {
     assert!(
         without.is_empty(),
         "operations without a scenario that refuses operands: {without:?}"
+    );
+}
+
+#[test]
+fn every_operation_of_the_schema_is_covered() {
+    let missing: Vec<&str> = Operation::SCHEMA_OPERATIONS
+        .iter()
+        .filter(|operation| !COVERED.contains(operation))
+        .map(|operation| operation.name())
+        .collect();
+    assert!(
+        missing.is_empty(),
+        "operations of the schema that the signature scenarios do not cover: {missing:?}"
     );
 }
 

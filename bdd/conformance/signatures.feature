@@ -992,3 +992,256 @@ Feature: Operations are defined per type — RFC-055
       | 999993653 | {"rijen": [{"keur": true}, {"ander": 1}]} |
     When I evaluate "allen_gekeurd" of "test_signaturen"
     Then the execution fails with "Variable not found"
+
+  # ---------------------------------------------------------------------------
+  # Dates. A date is a calendar day; a string in the form YYYY-MM-DD is that
+  # day where a date is required. A count is a whole number, never cut off.
+  # ---------------------------------------------------------------------------
+
+  @signature:DATE:number-number-number
+  Scenario: DATE makes a date of a year, a month and a day
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                          |
+      | 999993653 | {"a": 2025, "b": 3, "c": 15} |
+    When I evaluate "datum" of "test_signaturen"
+    Then the execution succeeds
+    Then output "datum" equals "2025-03-15"
+
+  Scenario: DATE refuses a day that does not exist
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                          |
+      | 999993653 | {"a": 2025, "b": 2, "c": 30} |
+    When I evaluate "datum" of "test_signaturen"
+    Then the execution fails with "is not a calendar day"
+
+  Scenario: DATE refuses a month that does not exist
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                          |
+      | 999993653 | {"a": 2025, "b": 13, "c": 1} |
+    When I evaluate "datum" of "test_signaturen"
+    Then the execution fails with "is not a calendar day"
+
+  Scenario: DATE knows a leap day
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                          |
+      | 999993653 | {"a": 2024, "b": 2, "c": 29} |
+    When I evaluate "datum" of "test_signaturen"
+    Then the execution succeeds
+    Then output "datum" equals "2024-02-29"
+
+  Scenario: DATE refuses a fraction, where it used to cut it off
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                           |
+      | 999993653 | {"a": 2025, "b": 2.5, "c": 1} |
+    When I evaluate "datum" of "test_signaturen"
+    Then the execution fails with "DATE 'month' must be a whole number"
+
+  Scenario: DATE refuses a part that is no number
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                            |
+      | 999993653 | {"a": "2025", "b": 3, "c": 15} |
+    When I evaluate "datum" of "test_signaturen"
+    Then the execution fails with "DATE is not defined for (string, number, number)"
+
+  @signature:DATE_ADD:date-and-counts
+  Scenario: DATE_ADD adds months and keeps the day of the month
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                         |
+      | 999993653 | {"a": "2025-01-15", "b": 2} |
+    When I evaluate "verschoven" of "test_signaturen"
+    Then the execution succeeds
+    Then output "verschoven" equals "2025-03-15"
+
+  Scenario: DATE_ADD moves a day past the end of the month to its last day
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                         |
+      | 999993653 | {"a": "2025-01-31", "b": 1} |
+    When I evaluate "verschoven" of "test_signaturen"
+    Then the execution succeeds
+    Then output "verschoven" equals "2025-02-28"
+
+  Scenario: DATE_ADD takes a negative count
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                          |
+      | 999993653 | {"a": "2025-03-31", "b": -1} |
+    When I evaluate "verschoven" of "test_signaturen"
+    Then the execution succeeds
+    Then output "verschoven" equals "2025-02-28"
+
+  Scenario: DATE_ADD refuses a fraction, where it used to cut it off
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                           |
+      | 999993653 | {"a": "2025-01-15", "b": 1.5} |
+    When I evaluate "verschoven" of "test_signaturen"
+    Then the execution fails with "DATE_ADD 'months' must be a whole number"
+
+  Scenario: DATE_ADD refuses a number as its date
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                     |
+      | 999993653 | {"a": 20250115, "b": 1} |
+    When I evaluate "verschoven" of "test_signaturen"
+    Then the execution fails with "DATE_ADD is not defined for (number)"
+
+  Scenario: DATE_ADD refuses a text that is no date
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                     |
+      | 999993653 | {"a": "morgen", "b": 1} |
+    When I evaluate "verschoven" of "test_signaturen"
+    Then the execution fails with "'morgen' is not a date in the form YYYY-MM-DD"
+
+  Scenario: DATE_ADD refuses a date that is not in canonical form
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                        |
+      | 999993653 | {"a": "2025-1-15", "b": 1} |
+    When I evaluate "verschoven" of "test_signaturen"
+    Then the execution fails with "'2025-1-15' is not a date in the form YYYY-MM-DD"
+
+  @signature:DATE_DIFF:dates-and-unit
+  Scenario: DATE_DIFF counts the complete days from the first date to the second
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                    |
+      | 999993653 | {"a": "2025-01-01", "b": "2025-01-31"} |
+    When I evaluate "dagen_tussen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "dagen_tussen" equals 30
+
+  Scenario: DATE_DIFF is negative when the second date is the earlier one
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                    |
+      | 999993653 | {"a": "2025-01-31", "b": "2025-01-01"} |
+    When I evaluate "dagen_tussen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "dagen_tussen" equals -30
+
+  Scenario: DATE_DIFF counts a month as complete on the last day of a shorter month
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                    |
+      | 999993653 | {"a": "2025-01-31", "b": "2025-02-28"} |
+    When I evaluate "maanden_tussen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "maanden_tussen" equals 1
+
+  Scenario: DATE_DIFF does not count a month that is not complete
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                    |
+      | 999993653 | {"a": "2025-01-31", "b": "2025-02-27"} |
+    When I evaluate "maanden_tussen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "maanden_tussen" equals 0
+
+  Scenario: DATE_DIFF refuses a number as a date
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                |
+      | 999993653 | {"a": 20250101, "b": "2025-01-31"} |
+    When I evaluate "dagen_tussen" of "test_signaturen"
+    Then the execution fails with "DATE_DIFF is not defined for (number)"
+
+  @signature:AGE:date-date
+  Scenario: AGE counts the complete years, the birthday included
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                    |
+      | 999993653 | {"a": "2000-06-15", "b": "2025-06-15"} |
+    When I evaluate "leeftijd" of "test_signaturen"
+    Then the execution succeeds
+    Then output "leeftijd" equals 25
+
+  Scenario: AGE does not count the year before the birthday
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                    |
+      | 999993653 | {"a": "2000-06-15", "b": "2025-06-14"} |
+    When I evaluate "leeftijd" of "test_signaturen"
+    Then the execution succeeds
+    Then output "leeftijd" equals 24
+
+  Scenario: AGE of someone born on a leap day completes a year on 28 February
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                    |
+      | 999993653 | {"a": "2004-02-29", "b": "2025-02-28"} |
+    When I evaluate "leeftijd" of "test_signaturen"
+    Then the execution succeeds
+    Then output "leeftijd" equals 21
+
+  Scenario: AGE is negative before birth
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                    |
+      | 999993653 | {"a": "2030-01-01", "b": "2025-01-01"} |
+    When I evaluate "leeftijd" of "test_signaturen"
+    Then the execution succeeds
+    Then output "leeftijd" equals -5
+
+  Scenario: AGE refuses a number as a date of birth
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                            |
+      | 999993653 | {"a": 2000, "b": "2025-06-15"} |
+    When I evaluate "leeftijd" of "test_signaturen"
+    Then the execution fails with "AGE is not defined for (number, date)"
+
+  Scenario: AGE refuses a text that is no date
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                 |
+      | 999993653 | {"a": "vroeger", "b": "2025-06-15"} |
+    When I evaluate "leeftijd" of "test_signaturen"
+    Then the execution fails with "'vroeger' is not a date in the form YYYY-MM-DD"
+
+  @signature:DATE_PART:date-and-part
+  Scenario: DATE_PART reads the year of a date
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                 |
+      | 999993653 | {"a": "2025-03-15"} |
+    When I evaluate "jaar" of "test_signaturen"
+    Then the execution succeeds
+    Then output "jaar" equals 2025
+
+  Scenario: DATE_PART refuses a number
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij         |
+      | 999993653 | {"a": 2025} |
+    When I evaluate "jaar" of "test_signaturen"
+    Then the execution fails with "DATE_PART is not defined for (number)"
+
+  Scenario: DATE_PART of an absent date is an error, not a type error
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij         |
+      | 999993653 | {"a": null} |
+    When I evaluate "jaar" of "test_signaturen"
+    Then the execution fails with "DATE_PART"
+
+  @signature:DAY_OF_WEEK:date
+  Scenario: DAY_OF_WEEK gives 0 for a Monday
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                 |
+      | 999993653 | {"a": "2025-01-06"} |
+    When I evaluate "weekdag" of "test_signaturen"
+    Then the execution succeeds
+    Then output "weekdag" equals 0
+
+  Scenario: DAY_OF_WEEK gives 6 for a Sunday
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                 |
+      | 999993653 | {"a": "2025-01-05"} |
+    When I evaluate "weekdag" of "test_signaturen"
+    Then the execution succeeds
+    Then output "weekdag" equals 6
+
+  Scenario: DAY_OF_WEEK refuses a boolean
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij         |
+      | 999993653 | {"a": true} |
+    When I evaluate "weekdag" of "test_signaturen"
+    Then the execution fails with "DAY_OF_WEEK is not defined for (boolean)"
+
+  @signature:START_OF:date-and-part
+  Scenario: START_OF goes back to the first day of the month
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                 |
+      | 999993653 | {"a": "2025-03-14"} |
+    When I evaluate "begin_maand" of "test_signaturen"
+    Then the execution succeeds
+    Then output "begin_maand" equals "2025-03-01"
+
+  Scenario: START_OF refuses a number
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij         |
+      | 999993653 | {"a": 2025} |
+    When I evaluate "begin_maand" of "test_signaturen"
+    Then the execution fails with "START_OF is not defined for (number)"
