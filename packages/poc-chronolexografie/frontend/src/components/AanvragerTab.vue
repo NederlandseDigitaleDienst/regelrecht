@@ -28,7 +28,16 @@ import {
 } from '../state.js';
 import { formulier, huidigeStap, scenarioWaarden } from '../scenarioInvoer.js';
 import { celNaam } from '../logboek.js';
-import { beginWaarden, bronInvoer, herkomstTekst } from '../voorinvulling.js';
+import {
+  beginWaarden,
+  bronInvoer,
+  herkomstTekst,
+  metSysteem,
+  opHetFormulier,
+  systeemBronnen,
+  systeemTekst,
+  systeemVult,
+} from '../voorinvulling.js';
 import { NOT_LOGGED_IN, gekozen, inlogTekst, keuzeLabel } from '../inloggen.js';
 import { claimRegel, ingelogdAls, ingevuldDoorInloggen, metSessie } from '../inlogstap.js';
 import { inlogScherm, sessieVan, wisSessie } from '../sessie.js';
@@ -54,12 +63,18 @@ const aanvraagVorm = formulier(() => {
   return beginWaarden(scenario, scenario && huidigeStap()?.step.stap.invoer, voorgevuld.value);
 });
 // With a login step, who is logged in comes from the session, never from the
-// form or the scenario (inlogstap.js).
+// form or the scenario (inlogstap.js). What the system fills goes over both;
+// without a session the application does not come through the form, as one
+// on paper, and the system fills nothing (voorinvulling.js).
+const systeem = computed(() => systeemVult(inloggen.value, sessie.value, state.vormen?.aanvraag?.systeem));
+const doorInloggen = computed(() => ingevuldDoorInloggen(inloggen.value, sessie.value, veldnamen.value));
 const aanvraag = computed(() => {
   const uitStap = scenarioWaarden('aanvraag') ? huidigeStap()?.step.stap.invoer?.[inloggen.value?.veld] : undefined;
-  return metSessie(inloggen.value, sessie.value, aanvraagVorm.waarden('aanvraag'), veldnamen.value, uitStap);
+  const waarden = metSessie(inloggen.value, sessie.value, aanvraagVorm.waarden('aanvraag'), veldnamen.value, uitStap);
+  return metSysteem(waarden, systeem.value, voorgevuld.value, doorInloggen.value);
 });
-const prefill = computed(() => state.vormen?.aanvraag?.prefill ?? {});
+// The sources asked: the prefill, and what the system fills from a source.
+const prefill = computed(() => ({ ...(state.vormen?.aanvraag?.prefill ?? {}), ...systeemBronnen(systeem.value) }));
 
 // Ask the sources again when what they read changes: the fields of the form,
 // the day, or a chronicle (a register that recorded something new). Only the
@@ -117,12 +132,13 @@ watch(
   { immediate: true },
 );
 const herkomst = (veld) =>
-  herkomstTekst(voorgevuld.value[veld.naam], aanvraag.value[veld.naam], celNaam, veld.kolommen);
+  veld.naam in systeem.value
+    ? systeemTekst(systeem.value[veld.naam], voorgevuld.value[veld.naam], celNaam)
+    : herkomstTekst(voorgevuld.value[veld.naam], aanvraag.value[veld.naam], celNaam, veld.kolommen);
 
-const velden = computed(() => {
-  const door = ingevuldDoorInloggen(inloggen.value, sessie.value, veldnamen.value);
-  return (state.vormen?.aanvraag?.velden ?? []).filter((v) => !door.has(v.naam));
-});
+const velden = computed(() =>
+  opHetFormulier(state.vormen?.aanvraag?.velden, state.vormen?.aanvraag?.verborgen, doorInloggen.value),
+);
 function uitloggen() {
   wisSessie(state.casus.id);
 }
@@ -266,6 +282,7 @@ async function indienenTegen() {
           :model-value="aanvraag[veld.naam]"
           :veld="veld"
           :herkomst="herkomst(veld)"
+          :alleen-lezen="veld.naam in systeem"
           @update:model-value="aanvraagVorm.zet('aanvraag', veld.naam, $event)"
         />
         <nldd-button appearance="primary" text="Aanvraag indienen" @click="indienen"></nldd-button>

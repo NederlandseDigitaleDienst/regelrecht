@@ -6,6 +6,11 @@
  * A prefilled value is a proposal: the applicant can change it, and what they
  * submit is what the application holds. The field says where the value comes
  * from, or that the applicant changed it.
+ *
+ * A field the system fills (`state.vormen.aanvraag.systeem`, src/ui_spec.rs) is
+ * no proposal: the applicant does not type it. Per field it says `{ waarde }`
+ * for a value the system knows itself, `{ bron }` for a source the cell
+ * computes as it prefills, and `{}` for the login (inlogstap.js).
  */
 import { isUnknown } from '@regelrecht/frontend-shared';
 import { toon } from './logboek.js';
@@ -82,4 +87,54 @@ export function herkomstTekst(voorgevuld, waarde, celNaam, kolommen) {
   }
   if (tabel) return `Door u gewijzigd. ${hoofd} geeft ${verschilTekst(voorgevuld.waarde, waarde, kolommen)}.`;
   return `Door u gewijzigd. ${hoofd} geeft: ${toon(voorgevuld.waarde)}.`;
+}
+
+/**
+ * What the system fills (`systeem`), given the login: everything, unless the
+ * case logs in through a login step and nobody is logged in (`sessie`). Such
+ * an application does not come through the form, as one on paper, and holds
+ * what the applicant gives.
+ */
+export const systeemVult = (inloggen, sessie, systeem) =>
+  inloggen?.inlogstap && !sessie ? {} : (systeem ?? {});
+
+/** Per field the system fills from a source, that source: asked as a prefill is. */
+export const systeemBronnen = (systeem) =>
+  Object.fromEntries(
+    Object.entries(systeem ?? {})
+      .filter(([, hoe]) => hoe.bron)
+      .map(([naam, hoe]) => [naam, hoe.bron]),
+  );
+
+/**
+ * What the application holds: the form's `waarden`, with what the system
+ * fills over them, per field the value it knows, or what the source gave
+ * (`voorgevuld`), and empty when the source gave nothing. That goes over
+ * what a scenario or the example gives. A field the login fills keeps what
+ * the login gave it (`doorInloggen`, the names inlogstap.js fills), and is
+ * empty when the login gives it nothing. A field the form hides keeps its
+ * value: it is submitted, only not shown.
+ */
+export function metSysteem(waarden, systeem, voorgevuld, doorInloggen = new Set()) {
+  const gegeven = voorgevuldeWaarden(voorgevuld);
+  const uit = { ...waarden };
+  for (const [naam, hoe] of Object.entries(systeem ?? {})) {
+    if ('waarde' in hoe) uit[naam] = hoe.waarde ?? undefined;
+    else if (hoe.bron) uit[naam] = gegeven[naam];
+    else if (!doorInloggen.has(naam)) uit[naam] = undefined;
+  }
+  return uit;
+}
+
+/**
+ * The fields the form shows of `velden`: not those the login fills
+ * (`doorInloggen`, inlogstap.js), nor those the UI spec hides (`verborgen`).
+ */
+export const opHetFormulier = (velden, verborgen, doorInloggen) =>
+  (velden ?? []).filter((v) => !doorInloggen.has(v.naam) && !(verborgen ?? []).includes(v.naam));
+
+/** The line under a field the system fills: where its value comes from. */
+export function systeemTekst(hoe, voorgevuld, celNaam) {
+  if (hoe?.bron) return herkomstTekst(voorgevuld, voorgevuld?.waarde, celNaam);
+  return hoe && 'waarde' in hoe ? 'Ingevuld door het systeem.' : '';
 }
