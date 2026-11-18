@@ -64,6 +64,8 @@ function past(step, doel) {
       return !doel.besluit || beslissingen()[step.doel - 1]?.id === doel.besluit;
     case 'vastleggen':
       return vastleggendeCel(step.stap, state.casus) === doel.cel && step.stap.feit === doel.feit;
+    case 'ambtshalve':
+      return !doel.artikel || step.stap.artikel === doel.artikel;
     default:
       return true;
   }
@@ -109,7 +111,22 @@ export function scenarioWaarden(soort, doel = {}) {
  */
 export function scenarioVerwijzing(cel, feit) {
   if (!isHuidigeStap('vastleggen', { cel, feit })) return null;
-  const naar = huidigeStap().step.stap.verwijst_naar;
+  return verwijzing(huidigeStap().step.stap.verwijst_naar);
+}
+
+/**
+ * The decision that the ex officio step the scenario is at concerns
+ * (`verwijst_naar`), when that step decides under `artikel`: as for a record
+ * step ([`scenarioVerwijzing`]). Null otherwise, and always in free play.
+ */
+export function scenarioOver(artikel) {
+  if (!isHuidigeStap('ambtshalve', { artikel })) return null;
+  return verwijzing(huidigeStap().step.stap.verwijst_naar);
+}
+
+// The id of the record of the earlier step with kenmerk `naar`, or else the
+// kenmerk as it is (a record in the begin of the cell); null without one.
+function verwijzing(naar) {
   if (!naar) return null;
   const eerder = guideFor(state.casus, state.scenario).steps.find((s) => s.stap.kenmerk === naar);
   return (eerder && recordVan(eerder)) ?? naar;

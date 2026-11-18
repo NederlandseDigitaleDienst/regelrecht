@@ -27,7 +27,7 @@ use std::collections::BTreeMap;
 
 use regelrecht_engine::{
     Answer, AnswerProvenance, AnswerRequest, ArticleBasedLaw, Authority, Call, FilledBy,
-    LawExecutionService, LawLoad, OpenTermAnswerer, PathNode, PathNodeType, Value,
+    LawExecutionService, LawLoad, OpenTermAnswerer, PathNode, PathNodeType, Unanswered, Value,
 };
 
 const DATE: &str = "2026-10-20";
@@ -647,8 +647,29 @@ fn bound(article: &str, answer: &str, answerers: &[&str]) -> FilledBy {
         law_id: "beleid_verstrekking".to_string(),
         article: article.to_string(),
         answers: answerers.iter().map(|a| provenance(a, answer)).collect(),
+        unanswered: Vec::new(),
     }
 }
+
+/// [`bound`], where the input that takes `answer` got none, for the reason
+/// `message`: the report lists it beside the answers.
+fn unanswered(article: &str, answer: &str, answerers: &[&str], message: &str) -> FilledBy {
+    FilledBy::Answer {
+        law_id: "beleid_verstrekking".to_string(),
+        article: article.to_string(),
+        answers: answerers.iter().map(|a| provenance(a, answer)).collect(),
+        unanswered: vec![Unanswered {
+            answer: answer.to_string(),
+            input: format!("antwoord_{answer}"),
+            message: message.to_string(),
+        }],
+    }
+}
+
+/// Why no cell gave `eerder_verstrekt`: no cell of the call is one the term
+/// names.
+const NO_CELL_FOR_EERDER: &str = "No cell of this execution gives the answer 'eerder_verstrekt' \
+     for 'college van burgemeester en wethouders' or 'Landelijke uitgever'";
 
 #[test]
 fn only_the_answerer_the_term_names_is_asked() {
@@ -698,7 +719,7 @@ fn a_running_answerer_the_term_does_not_name_is_not_asked() {
     assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(false));
     assert_eq!(
         filled_by(&result, "eerder_verstrekt"),
-        bound("1", "eerder_verstrekt", &[])
+        unanswered("1", "eerder_verstrekt", &[], NO_CELL_FOR_EERDER)
     );
     assert_eq!(
         filled_by(&result, "eerder_verstrekt_volgens_college"),
@@ -808,7 +829,13 @@ fn when_the_cell_is_silent_the_policy_takes_its_own_finding() {
     assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(false));
     assert_eq!(
         filled_by(&result, "eerder_verstrekt"),
-        bound("1", "eerder_verstrekt", &["wilgendaal"])
+        unanswered(
+            "1",
+            "eerder_verstrekt",
+            &["wilgendaal"],
+            "No cell gives the answer 'eerder_verstrekt' for 'college van burgemeester en \
+             wethouders' or 'Landelijke uitgever'; silent: wilgendaal"
+        )
     );
     assert_eq!(
         filled_by(&result, "eerder_verstrekt_volgens_college"),
@@ -966,7 +993,7 @@ fn without_answerers_the_binding_gives_nothing_and_the_policy_says_what_holds() 
     assert_eq!(result.outputs["eerder_gelezen"], Value::Bool(true));
     assert_eq!(
         filled_by(&result, "eerder_verstrekt"),
-        bound("1", "eerder_verstrekt", &[])
+        unanswered("1", "eerder_verstrekt", &[], NO_CELL_FOR_EERDER)
     );
     // Without the finding the policy's own required term has no value.
     let e = service()
@@ -996,14 +1023,25 @@ fn a_null_answer_without_a_fallback_is_the_value() {
     let running = Fake::college("wilgendaal").answering("kenmerk", Value::Null);
     let result = read("kenmerk_gelezen", &running, vec![], BTreeMap::new()).unwrap();
     assert_eq!(result.outputs["kenmerk_gelezen"], Value::Null);
+    let silent = "No cell gives the answer 'kenmerk' for 'college van burgemeester en \
+                  wethouders'; silent: wilgendaal";
     assert_eq!(
         filled_by(&result, "kenmerk"),
-        bound("4", "kenmerk", &["wilgendaal"])
+        unanswered("4", "kenmerk", &["wilgendaal"], silent)
     );
-    // A cell without the answer leaves the report with no answer at all.
+    // A cell without the answer leaves the report with no answer at all,
+    // and says which one it missed.
     let running = Fake::college("wilgendaal");
     let result = read("kenmerk_gelezen", &running, vec![], BTreeMap::new()).unwrap();
-    assert_eq!(filled_by(&result, "kenmerk"), bound("4", "kenmerk", &[]));
+    assert_eq!(
+        filled_by(&result, "kenmerk"),
+        unanswered(
+            "4",
+            "kenmerk",
+            &[],
+            &format!("{silent} (no answer 'kenmerk')")
+        )
+    );
 }
 
 #[test]
@@ -1744,4 +1782,467 @@ fn an_answer_whose_parameter_is_unknown_asks_no_cell_and_is_unknown() {
     );
     assert_eq!(result.outputs["bevestigd_uit"], Value::Bool(true));
     assert_eq!(running.asked(), ["bevestigd"]);
+}
+
+/// A law whose article leaves three terms to three authorities: the
+/// register says `leden`, the office says `ontvangen`, and `korting` names
+/// no one, so the holder of the policy that fills it says it.
+const THREE_TERMS: &str = r#"
+$id: wet_drie_termen
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Het bedrag hangt af van wat het register, het bureau en de houder zeggen.
+    machine_readable:
+      open_terms:
+        - id: leden
+          competent_authority: {name: register, type: CATEGORY}
+          type: number
+          required: true
+        - id: ontvangen
+          competent_authority: {name: bureau, type: CATEGORY}
+          type: number
+          required: true
+        - id: korting
+          type: number
+          required: true
+      execution:
+        parameters:
+          - {name: bsn, type: string, required: true}
+        output:
+          - {name: bedrag, type: number}
+        actions:
+          - output: bedrag
+            value:
+              operation: SUBTRACT
+              values: [$leden, $ontvangen, $korting]
+"#;
+
+/// The policy of wilgendaal: one article fills all three terms, each from
+/// an answer of its own, and counts 0 where the cell is silent. `ontvangen`
+/// reads its answer through a helper output, and the helper output
+/// `opmerking` feeds no term. The input of `opmerking` passes the discount's
+/// answer on as a parameter: that input reads the discount's input, and no
+/// term reads it, so the discount's input feeds only the discount.
+const ONE_BINDING: &str = r#"
+$id: beleid_drie_termen
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-01-01'
+url: https://example.org/beleid
+competent_authority:
+  name: wilgendaal
+articles:
+  - number: '1'
+    text: Wat het beleid ontleent aan de drie antwoorden.
+    machine_readable:
+      implements:
+        - {law: wet_drie_termen, article: '1', open_term: leden}
+        - {law: wet_drie_termen, article: '1', open_term: ontvangen}
+        - {law: wet_drie_termen, article: '1', open_term: korting}
+      execution:
+        parameters:
+          - {name: bsn, type: string}
+        input:
+          - name: antwoord_leden
+            type: number
+            nullable: true
+            source: {reduction: leden, parameters: {bsn: $bsn}}
+          - name: antwoord_ontvangen
+            type: number
+            nullable: true
+            source: {reduction: ontvangen, parameters: {bsn: $bsn}}
+          - name: antwoord_korting
+            type: number
+            nullable: true
+            source: {reduction: korting, parameters: {bsn: $bsn}}
+          - name: antwoord_opmerking
+            type: string
+            nullable: true
+            source: {reduction: opmerking, parameters: {bsn: $bsn, korting: $antwoord_korting}}
+        output:
+          - {name: leden, type: number}
+          - {name: tussenstand, type: number, nullable: true}
+          - {name: ontvangen, type: number}
+          - {name: korting, type: number}
+          - {name: opmerking, type: string, nullable: true}
+        actions:
+          - output: leden
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_leden, value: null}
+                  then: 0
+              default: $antwoord_leden
+          - {output: tussenstand, value: $antwoord_ontvangen}
+          - output: ontvangen
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $tussenstand, value: null}
+                  then: 0
+              default: $tussenstand
+          - output: korting
+            value:
+              operation: IF
+              cases:
+                - when: {operation: EQUALS, subject: $antwoord_korting, value: null}
+                  then: 0
+              default: $antwoord_korting
+          - {output: opmerking, value: $antwoord_opmerking}
+"#;
+
+/// `output` of `law` with `policy` loaded beside [`THREE_TERMS`], run by
+/// `answerer` with `sphere` along, traced.
+fn read_three(
+    policy: &str,
+    law: &str,
+    output: &str,
+    answerer: &dyn OpenTermAnswerer,
+    sphere: Vec<&dyn OpenTermAnswerer>,
+) -> regelrecht_engine::Result<regelrecht_engine::ArticleResult> {
+    let mut service = LawExecutionService::new();
+    service.load_law(THREE_TERMS).unwrap();
+    service.load_law(policy).unwrap();
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(answerer),
+        decides_for: None,
+        chronicle: None,
+        sphere,
+    };
+    service.evaluate_law_with_trace_in(law, &[output], parameters(), call, DATE)
+}
+
+fn three_cells() -> (Fake, Fake, Fake) {
+    (
+        Fake::new("wilgendaal", None).answering("korting", Value::Int(1)),
+        Fake::new("oostmeer", Some("register")).answering("leden", Value::Int(10)),
+        Fake::new("zuidpolder", Some("bureau")).answering("ontvangen", Value::Int(3)),
+    )
+}
+
+#[test]
+fn one_binding_asks_each_term_of_the_cell_that_term_names() {
+    // One article fills three terms. Each input goes to the cell of the term
+    // it feeds: the register, the office, and for the term that names no
+    // one, the holder. `ontvangen` reads its answer through a helper output.
+    let (running, register, office) = three_cells();
+    let result = read_three(
+        ONE_BINDING,
+        "wet_drie_termen",
+        "bedrag",
+        &running,
+        vec![&register, &office],
+    )
+    .unwrap();
+    assert_eq!(result.outputs["bedrag"], Value::Int(6));
+    assert_eq!(register.asked(), ["leden"]);
+    assert_eq!(office.asked(), ["ontvangen"]);
+    assert_eq!(running.asked(), ["korting"]);
+    for (term, answerer) in [
+        ("leden", "oostmeer"),
+        ("ontvangen", "zuidpolder"),
+        ("korting", "wilgendaal"),
+    ] {
+        let FilledBy::Answer { answers, .. } = filled_by(&result, term) else {
+            panic!("{term} is filled by an answer");
+        };
+        assert_eq!(answers, [provenance(answerer, term)], "{term}");
+    }
+}
+
+/// [`ONE_BINDING`] where the member count is computed in a helper output,
+/// `ledenhulp`, that the term `leden` takes over.
+fn with_member_helper() -> String {
+    let policy = ONE_BINDING
+        .replace(
+            "          - output: leden\n            value:\n              operation: IF\n",
+            "          - {output: leden, value: $ledenhulp}\n          - output: ledenhulp\n            value:\n              operation: IF\n",
+        )
+        .replace(
+            "          - {name: leden, type: number}\n",
+            "          - {name: leden, type: number}\n          - {name: ledenhulp, type: number}\n",
+        );
+    assert_eq!(policy.matches("ledenhulp").count(), 3, "{policy}");
+    policy
+}
+
+/// Run [`read_three`] for `bedrag` with `policy` and [`three_cells`], and
+/// return the error and whether the register was asked.
+fn bedrag_error(policy: &str) -> (String, Vec<String>) {
+    let (running, register, office) = three_cells();
+    let e = read_three(
+        policy,
+        "wet_drie_termen",
+        "bedrag",
+        &running,
+        vec![&register, &office],
+    )
+    .unwrap_err();
+    (e.to_string(), register.asked())
+}
+
+#[test]
+fn an_input_that_feeds_terms_of_different_authorities_is_an_error() {
+    // The discount also reads the helper that holds the member count, so the
+    // register's input feeds a term of the register and, through the helper,
+    // a term of the holder. One input asks one cell, so the engine asks none
+    // and says why.
+    let policy = with_member_helper().replace(
+        "              default: $antwoord_korting\n",
+        "              default: {operation: ADD, values: [$antwoord_korting, $ledenhulp]}\n",
+    );
+    let (message, asked) = bedrag_error(&policy);
+    assert!(
+        message.contains("input 'antwoord_leden' of beleid_drie_termen takes the answer 'leden'"),
+        "{message}"
+    );
+    assert!(
+        message.contains("'leden' to 'register', 'korting' to 'wilgendaal'"),
+        "{message}"
+    );
+    assert!(asked.is_empty(), "{asked:?}");
+}
+
+#[test]
+fn an_input_passed_as_a_parameter_feeds_the_term_of_the_other_input() {
+    // The office's answer now takes the member count as a parameter, so the
+    // register's input also feeds the office's term. That too is one input
+    // for two authorities.
+    let policy = ONE_BINDING.replace(
+        "source: {reduction: ontvangen, parameters: {bsn: $bsn}}",
+        "source: {reduction: ontvangen, parameters: {bsn: $bsn, leden: $antwoord_leden}}",
+    );
+    assert_ne!(policy, ONE_BINDING);
+    let (message, asked) = bedrag_error(&policy);
+    assert!(
+        message.contains("'leden' to 'register', 'ontvangen' to 'bureau'"),
+        "{message}"
+    );
+    assert!(asked.is_empty(), "{asked:?}");
+}
+
+#[test]
+fn a_term_that_builds_on_another_term_takes_its_value_not_its_input() {
+    // The discount adds the member count, the output of the term `leden`.
+    // That term was answered by the register; the discount takes its value,
+    // so the register's input still feeds only `leden` and goes to the
+    // register.
+    let policy = ONE_BINDING.replace(
+        "              default: $antwoord_korting\n",
+        "              default: {operation: ADD, values: [$antwoord_korting, $leden]}\n",
+    );
+    assert_ne!(policy, ONE_BINDING);
+    let (running, register, office) = three_cells();
+    let result = read_three(
+        &policy,
+        "wet_drie_termen",
+        "bedrag",
+        &running,
+        vec![&register, &office],
+    )
+    .unwrap();
+    // 10 - 3 - (1 + 10)
+    assert_eq!(result.outputs["bedrag"], Value::Int(-4));
+    // The binding computes `leden` again for the discount, so the register
+    // may be asked once per term; it is only ever asked for `leden`.
+    let asked = register.asked();
+    assert!(
+        !asked.is_empty() && asked.iter().all(|a| a == "leden"),
+        "{asked:?}"
+    );
+    assert_eq!(running.asked(), ["korting"]);
+}
+
+#[test]
+fn an_input_that_feeds_no_term_asks_the_holder() {
+    // `opmerking` is an output of the binding that fills no term. Its input
+    // asks the holder of the policy, as for a term that names no one; the
+    // register and the office are not asked. The holder is asked for the
+    // discount first, which the input passes on.
+    let (running, register, office) = three_cells();
+    let running = running.answering("opmerking", Value::String("geen".into()));
+    let result = read_three(
+        ONE_BINDING,
+        "beleid_drie_termen",
+        "opmerking",
+        &running,
+        vec![&register, &office],
+    )
+    .unwrap();
+    assert_eq!(result.outputs["opmerking"], Value::String("geen".into()));
+    assert_eq!(running.asked(), ["korting", "opmerking"]);
+    assert!(register.asked().is_empty() && office.asked().is_empty());
+}
+
+#[test]
+fn an_answer_no_cell_gives_is_reported_with_the_term() {
+    // Without the holder's answer the discount falls back to 0, as the
+    // policy says. The report of the term says which answer was missing.
+    let (_, register, office) = three_cells();
+    let running = Fake::new("wilgendaal", None);
+    let result = read_three(
+        ONE_BINDING,
+        "wet_drie_termen",
+        "bedrag",
+        &running,
+        vec![&register, &office],
+    )
+    .unwrap();
+    assert_eq!(result.outputs["bedrag"], Value::Int(7));
+    let FilledBy::Answer {
+        answers,
+        unanswered,
+        ..
+    } = filled_by(&result, "korting")
+    else {
+        panic!("korting is filled by an answer");
+    };
+    assert!(answers.is_empty(), "{answers:?}");
+    let [missing] = unanswered.as_slice() else {
+        panic!("one answer is missing: {unanswered:?}");
+    };
+    assert_eq!(
+        (missing.answer.as_str(), missing.input.as_str()),
+        ("korting", "antwoord_korting")
+    );
+    assert!(
+        missing.message.contains("silent: wilgendaal"),
+        "{}",
+        missing.message
+    );
+    // The terms that were answered report no missing answer.
+    let FilledBy::Answer { unanswered, .. } = filled_by(&result, "leden") else {
+        panic!("leden is filled by an answer");
+    };
+    assert!(unanswered.is_empty(), "{unanswered:?}");
+}
+
+#[test]
+fn the_ground_for_an_answer_follows_the_term_its_input_feeds() {
+    // The register's term now names the holder, wilgendaal, by name, and
+    // zuidmeer runs the execution. The law gives that term to the holder,
+    // so zuidmeer may use wilgendaal's answer (RFC-056). The office's term
+    // routes to the office, which the law does not give the holder: that
+    // input has no ground, and the execution fails on it.
+    let law = THREE_TERMS.replacen("{name: register, type: CATEGORY}", "{name: wilgendaal}", 1);
+    assert_ne!(law, THREE_TERMS);
+    let mut service = LawExecutionService::new();
+    service.load_law(&law).unwrap();
+    service.load_law(ONE_BINDING).unwrap();
+    let running = Fake::new("zuidmeer", None);
+    let holder = Fake::new("wilgendaal", None)
+        .answering("leden", Value::Int(10))
+        .answering("korting", Value::Int(1));
+    let office = Fake::new("zuidpolder", Some("bureau")).answering("ontvangen", Value::Int(3));
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(&running),
+        decides_for: None,
+        chronicle: None,
+        sphere: vec![&holder, &office],
+    };
+    let leden = service
+        .evaluate_law_in("beleid_drie_termen", &["leden"], parameters(), call, DATE)
+        .unwrap();
+    assert_eq!(leden.outputs["leden"], Value::Int(10));
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(&running),
+        decides_for: None,
+        chronicle: None,
+        sphere: vec![&holder, &office],
+    };
+    let e = service
+        .evaluate_law_in(
+            "beleid_drie_termen",
+            &["ontvangen"],
+            parameters(),
+            call,
+            DATE,
+        )
+        .unwrap_err();
+    let message = e.to_string();
+    assert!(
+        message.contains("the term routes the question to zuidpolder, not to the holder"),
+        "{message}"
+    );
+    assert!(office.asked().is_empty());
+}
+
+#[test]
+fn a_term_that_names_no_one_lends_an_input_no_ground() {
+    // The register's term names the holder, wilgendaal, by name; the
+    // discount names no one and reads the same helper. Both route to
+    // wilgendaal's cell, but only one of the two terms is given to the holder
+    // by law. Zuidmeer runs the execution and has no policy of its own here,
+    // so the input has no ground (RFC-056) and wilgendaal is not asked.
+    let law = THREE_TERMS.replacen("{name: register, type: CATEGORY}", "{name: wilgendaal}", 1);
+    assert_ne!(law, THREE_TERMS);
+    let policy = with_member_helper().replace(
+        "              default: $antwoord_korting\n",
+        "              default: {operation: ADD, values: [$antwoord_korting, $ledenhulp]}\n",
+    );
+    let mut service = LawExecutionService::new();
+    service.load_law(&law).unwrap();
+    service.load_law(&policy).unwrap();
+    let running = Fake::new("zuidmeer", None);
+    let holder = Fake::new("wilgendaal", None).answering("leden", Value::Int(10));
+    let call = Call {
+        findings: BTreeMap::new(),
+        answerer: Some(&running),
+        decides_for: None,
+        chronicle: None,
+        sphere: vec![&holder],
+    };
+    let e = service
+        .evaluate_law_in("beleid_drie_termen", &["leden"], parameters(), call, DATE)
+        .unwrap_err();
+    let message = e.to_string();
+    assert!(
+        message.contains("input 'antwoord_leden'") && message.contains("RFC-056"),
+        "{message}"
+    );
+    assert!(holder.asked().is_empty(), "{:?}", holder.asked());
+}
+
+#[test]
+fn an_input_named_like_its_term_feeds_only_that_term() {
+    // The register's input carries the name of its term (`leden: $leden`),
+    // and the discount builds on that term. The discount takes the term's
+    // value, so the input still feeds only `leden` and goes to the register.
+    // The input is declared never absent and passed through as is
+    // (`leden: $leden`), so the type check reads `$leden` as a number.
+    let policy = ONE_BINDING
+        .replace("antwoord_leden", "leden")
+        .replace(
+            "          - name: leden\n            type: number\n            nullable: true\n",
+            "          - name: leden\n            type: number\n",
+        )
+        .replace(
+            "          - output: leden\n            value:\n              operation: IF\n              cases:\n                - when: {operation: EQUALS, subject: $leden, value: null}\n                  then: 0\n              default: $leden\n",
+            "          - {output: leden, value: $leden}\n",
+        )
+        .replace(
+            "              default: $antwoord_korting\n",
+            "              default: {operation: ADD, values: [$antwoord_korting, $leden]}\n",
+        );
+    assert!(
+        policy.contains("{output: leden, value: $leden}")
+            && policy.contains("[$antwoord_korting, $leden]")
+    );
+    let (running, register, office) = three_cells();
+    let result = read_three(
+        &policy,
+        "wet_drie_termen",
+        "bedrag",
+        &running,
+        vec![&register, &office],
+    )
+    .unwrap();
+    // 10 - 3 - (1 + 10)
+    assert_eq!(result.outputs["bedrag"], Value::Int(-4));
+    assert!(!register.asked().is_empty());
+    assert_eq!(running.asked(), ["korting"]);
 }

@@ -20,6 +20,9 @@ import {
   beslissingOp,
   besluitOp,
   alsJson,
+  eigenBesluiten,
+  longDate,
+  toegewezen,
   jaNee,
   kort,
   samenvatting,
@@ -34,6 +37,8 @@ import ArtikelLink from './ArtikelLink.vue';
 import Uitkomst from './Uitkomst.vue';
 import EigenOordelen from './EigenOordelen.vue';
 import FeitVastleggen from './FeitVastleggen.vue';
+import AmbtshalveBesluiten from './AmbtshalveBesluiten.vue';
+import StandBijBesluit from './StandBijBesluit.vue';
 import OordeelKeuze from './OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
 import Voorvertoning from './Voorvertoning.vue';
@@ -41,6 +46,14 @@ import Waarom from './Waarom.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
 const oordelen = () => state.vormen?.besluit.bevindingen ?? [];
+
+// The decisions of the case's cell under its deciding article, newest first,
+// with beside each what the UI spec of the case shows of it (StandBijBesluit.vue).
+const weergaven = computed(() => state.vormen?.per_besluit ?? []);
+const genomen = computed(() => eigenBesluiten().reverse());
+const eigenAmbtshalve = computed(() =>
+  (state.casus.ambtshalve ?? []).some((a) => a.cel === state.casus.cel),
+);
 
 const open = computed(() => aanvragen().filter((a) => !besluitOp(a.id)));
 const openBezwaren = computed(() =>
@@ -294,6 +307,39 @@ const uitkomstOpBezwaar = (uit) =>
     </nldd-title>
     <nldd-container gap="16" max-width="560px">
       <FeitVastleggen :cel="state.vormen.eigen.cel" :handelingen="state.vormen.eigen.handelingen" />
+    </nldd-container>
+  </nldd-simple-section>
+
+  <nldd-simple-section v-if="weergaven.length && genomen.length">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Genomen besluiten">
+      <nldd-text slot="supporting-text">
+        Wat de cel op de speeldatum over elk besluit weet, uit haar kroniek en het beleid. Er wordt niets vastgelegd.
+      </nldd-text>
+    </nldd-title>
+    <nldd-container gap="16">
+      <nldd-card v-for="g in genomen" :key="g.id">
+        <nldd-container padding="16" gap="12">
+          <nldd-title
+            heading-level="3"
+            size="display-5"
+            :text="`Besluit ${kort(g.id)}`"
+            :supporting-text="`genomen op ${longDate(g.recorded_on)} · ${toegewezen(g) ? 'toegewezen' : 'afgewezen'}`"
+          ></nldd-title>
+          <StandBijBesluit :besluit="g" :weergaven="weergaven" />
+        </nldd-container>
+      </nldd-card>
+    </nldd-container>
+  </nldd-simple-section>
+
+  <nldd-simple-section v-if="eigenAmbtshalve">
+    <nldd-title heading-level="2" slot="header" size="display-3" text="Ambtshalve besluiten">
+      <nldd-text slot="supporting-text">
+        Een besluit dat het bestuursorgaan zonder aanvraag neemt, zoals de vaststelling van de wettelijke rente
+        over een betaling. Welke dat zijn, volgt uit de wet.
+      </nldd-text>
+    </nldd-title>
+    <nldd-container max-width="560px">
+      <AmbtshalveBesluiten />
     </nldd-container>
   </nldd-simple-section>
 

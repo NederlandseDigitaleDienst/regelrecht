@@ -49,8 +49,11 @@ pub struct Corpus {
     /// Per field of an application, the source the form prefills it from
     /// (`<regelwerk>#<article>#<output>`): what the UI spec of the case's
     /// source says ([`crate::ui_spec`]), or for a case of this crate its own
-    /// ([`eigen_prefill`]). Empty without one.
+    /// ([`eigen_ui_spec`]). Empty without one.
     pub prefill: BTreeMap<String, String>,
+    /// The views the same UI spec puts beside each decision of the case's
+    /// cell ([`crate::ui_spec::Weergave`]). Empty without one.
+    pub weergaven: Vec<crate::ui_spec::Weergave>,
 }
 
 /// The cell of the case and the other cells of its sphere (RFC-048). It
@@ -234,6 +237,7 @@ impl Corpus {
             andere_dirs,
             files,
             prefill: BTreeMap::new(),
+            weergaven: Vec::new(),
         })
     }
 
@@ -243,7 +247,7 @@ impl Corpus {
     }
 
     /// Every case in `casus_dir` on the corpus at `roots`, all in `files`,
-    /// each with the prefill of its own UI spec ([`eigen_prefill`]).
+    /// each with the prefill and the views of its own UI spec ([`eigen_ui_spec`]).
     pub fn alle_in(
         files: Arc<dyn Files>,
         roots: &[PathBuf],
@@ -253,9 +257,10 @@ impl Corpus {
         casussen(&*files, casus_dir)?
             .into_iter()
             .map(|c| {
-                let prefill = eigen_prefill(&*files, casus_dir, &c.id)?;
+                let spec = eigen_ui_spec(&*files, casus_dir, &c.id)?;
                 let mut corpus = Self::load(Arc::clone(&files), roots, &regelwerken, c)?;
-                corpus.prefill = prefill;
+                corpus.prefill = spec.prefill;
+                corpus.weergaven = spec.weergaven;
                 Ok(corpus)
             })
             .collect()
@@ -710,12 +715,128 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
         "besluiten": besluiten,
         "andere_cellen": handelingen(&service, corpus, cell, on)?,
         "eigen": eigen_handelingen(&service, corpus, cell, on)?,
+        "per_besluit": weergaven(&service, corpus, on),
         "eigen_velden": std::iter::once(&cell.eigen)
             .chain(&cell.andere)
             .flat_map(|c| c.grams())
             .map(|g| (g.id.clone(), json!(eigen_velden(&service, g))))
             .collect::<Map<String, Value>>(),
     }))
+}
+
+/// The views the UI spec puts beside each decision of the case's cell
+/// ([`crate::ui_spec::Weergave`]), with what the law in force on `on` says of
+/// each source: per answer its output's type, unit and description and the
+/// parameters its article takes, and per field the element asks the
+/// parameter of an answer's article by that name. What the law does not hold
+/// is no error that stops the page: the answer or field carries it as `fout`.
+fn weergaven(service: &LawExecutionService, corpus: &Corpus, on: NaiveDate) -> Vec<Value> {
+    corpus
+        .weergaven
+        .iter()
+        .map(|w| {
+            let antwoorden: Vec<Value> = w
+                .antwoorden
+                .iter()
+                .map(|a| antwoord_vorm(service, a, on))
+                .collect();
+            let velden: Vec<Value> = w
+                .gevraagd
+                .iter()
+                .map(|naam| gevraagd_veld(service, &w.antwoorden, naam, on))
+                .collect();
+            json!({ "naam": w.naam, "antwoorden": antwoorden, "velden": velden })
+        })
+        .collect()
+}
+
+/// The article of `bron` (`<regelwerk>#<article>#<output>`) in the law in
+/// force on `on`, or why there is none.
+fn bron_artikel<'s>(
+    service: &'s LawExecutionService,
+    bron: &str,
+    on: NaiveDate,
+) -> std::result::Result<&'s regelrecht_law_model::Article, String> {
+    let mut delen = bron.splitn(3, '#');
+    let (Some(law), Some(nummer)) = (delen.next(), delen.next()) else {
+        return Err(format!("'{bron}' names no article"));
+    };
+    service
+        .resolver()
+        .get_law_for_date(law, Some(on))
+        .ok_or_else(|| format!("'{law}' is not in force on {on}"))?
+        .find_article_by_number(nummer)
+        .ok_or_else(|| format!("'{law}' has no article {nummer} on {on}"))
+}
+
+/// One answer of a view as the page shows it: the source with its output's
+/// type, unit and description and the parameters its article takes, or with
+/// `fout` when the law holds no such output or the article takes no
+/// parameter by the name of `besluit`.
+fn antwoord_vorm(
+    service: &LawExecutionService,
+    a: &crate::ui_spec::Antwoord,
+    on: NaiveDate,
+) -> Value {
+    let mut uit = json!({ "veld": a.veld, "bron": a.bron, "besluit": a.besluit });
+    let naam = a.bron.rsplit('#').next().unwrap_or_default();
+    let gevonden = bron_artikel(service, &a.bron, on).and_then(|art| {
+        let output = art
+            .get_outputs()
+            .iter()
+            .find(|o| o.name == naam)
+            .ok_or_else(|| format!("{} has no output '{naam}'", a.bron))?;
+        if !art.get_parameters().iter().any(|p| p.name == a.besluit) {
+            return Err(format!("{} takes no parameter '{}'", a.bron, a.besluit));
+        }
+        Ok((art, output))
+    });
+    match gevonden {
+        Ok((art, output)) => {
+            uit["type"] = json!(output.output_type);
+            uit["eenheid"] = json!(output.type_spec.as_ref().and_then(|t| t.unit.as_deref()));
+            uit["beschrijving"] = json!(output.description);
+            uit["parameters"] = json!(
+                art.get_parameters()
+                    .iter()
+                    .map(|p| &p.name)
+                    .collect::<Vec<_>>()
+            );
+        }
+        Err(e) => uit["fout"] = json!(e),
+    }
+    uit
+}
+
+/// A field a view asks, as a form field: the parameter `naam` of the first
+/// article among `antwoorden` that takes one, or a field with `fout` when
+/// none does. The authority may leave it empty; the article says what
+/// follows.
+fn gevraagd_veld(
+    service: &LawExecutionService,
+    antwoorden: &[crate::ui_spec::Antwoord],
+    naam: &str,
+    on: NaiveDate,
+) -> Value {
+    let gevonden = antwoorden.iter().find_map(|a| {
+        let art = bron_artikel(service, &a.bron, on).ok()?;
+        let p = art.get_parameters().iter().find(|p| p.name == naam)?;
+        let (basis, _) = a.bron.rsplit_once('#')?;
+        Some((p, basis))
+    });
+    match gevonden {
+        Some((p, basis)) => json!({
+            "naam": naam,
+            "type": p.param_type,
+            "mag_leeg": true,
+            "basis": basis,
+            "beschrijving": p.description,
+        }),
+        None => json!({
+            "naam": naam,
+            "fout": format!("no source of the view takes a parameter '{naam}'"),
+        }),
+    }
 }
 
 /// The form of the decision under `artikel` that the cell `cel` takes, on a
@@ -821,7 +942,7 @@ fn besluit_vorm(
     }))
 }
 
-/// The prefill of the UI spec a case of this crate keeps in its own
+/// What the poc reads from the UI spec a case of this crate keeps in its own
 /// directory, `<casus_dir>/<id>/ui_spec.yaml`, in the form of a source's
 /// ([`crate::ui_spec`]). Empty without one.
 ///
@@ -830,19 +951,15 @@ fn besluit_vorm(
 /// A UI spec that does not read. Unlike a source's, it is part of this
 /// crate, so it stops the cases of this crate from loading rather than
 /// leaving the form empty, as a broken regelwerk of the crate does.
-fn eigen_prefill(
-    files: &dyn Files,
-    casus_dir: &Path,
-    id: &str,
-) -> Result<BTreeMap<String, String>> {
+fn eigen_ui_spec(files: &dyn Files, casus_dir: &Path, id: &str) -> Result<crate::ui_spec::UiSpec> {
     let pad = casus_dir.join(id).join(crate::bundel::UI_SPEC);
     if !files.is_file(&pad) {
-        return Ok(BTreeMap::new());
+        return Ok(crate::ui_spec::UiSpec::default());
     }
     let fout =
         |e: &dyn std::fmt::Display| Error::Setup(format!("case '{id}', {}: {e}", pad.display()));
     let tekst = files.read(&pad).map_err(|e| fout(&e))?;
-    crate::ui_spec::prefill(&tekst).map_err(|e| fout(&e))
+    crate::ui_spec::lees(&tekst).map_err(|e| fout(&e))
 }
 
 /// Whether the application form of `aanvraag` asks the field `naam`: a
