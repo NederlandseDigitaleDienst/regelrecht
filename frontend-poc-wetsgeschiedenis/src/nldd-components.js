@@ -23,3 +23,5 @@ import '@nldd/design-system/spacer-cell';
 import '@nldd/design-system/tag';
 import '@nldd/design-system/text-cell';
 import '@nldd/design-system/toolbar';
+import '@nldd/design-system/toolbar-item';
+import '@nldd/design-system/toolbar-title';
