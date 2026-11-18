@@ -20,7 +20,7 @@ The cell has a BDD suite of its own in `packages/cel/bdd/`, outside both buckets
 
 ### Trying out a construct
 
-A construct of the law format that is hard to get right gets a directory of its own under `packages/cel/bdd/constructs/`. The first is the decision term of Awb 4:13, a hook on every application. A construct's features load only the ruleworks of their directory and the corpus ruleworks it names. For hooks that matters. A hook fires on every decision or submission its `applies_to` matches, in every loaded rulework, so loading the whole corpus would bring in hooks the construct is not about.
+A construct of the law format that is hard to get right gets a directory of its own under `packages/cel/bdd/constructs/`. The first is the decision term of Awb 4:13, a hook on every application. A construct's features load only the ruleworks in its `regulation/` directory and the corpus ruleworks its `corpus.yaml` names. For hooks that matters. A hook fires on every decision or submission its `applies_to` matches, in every loaded rulework, so loading the whole corpus would bring in hooks the construct is not about.
 
 ```text
 packages/cel/bdd/constructs/beslistermijn/

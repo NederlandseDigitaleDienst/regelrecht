@@ -32,6 +32,8 @@ use regelrecht_engine::LawExecutionService;
 use serde::Deserialize;
 use walkdir::WalkDir;
 
+use crate::helpers::regulation_loader::regulation_source;
+
 /// The directory of the features of a scenario set.
 const SCENARIOS: &str = "scenarios";
 /// The directory of the regelwerken of a scenario set.
@@ -114,6 +116,7 @@ fn corpus_versions(id: &str) -> Vec<PathBuf> {
         .iter()
         .flat_map(|base| {
             WalkDir::new(base.join("nl"))
+                .follow_links(true)
                 .into_iter()
                 .filter_map(Result::ok)
         })
@@ -178,12 +181,7 @@ fn files_with_extension(dir: &Path, extension: &str) -> Vec<PathBuf> {
 /// does not load, and return its `$id`. As the corpus loader does,
 /// `BDD_REVERSE_ACTIONS` reverses the actions of each article first.
 pub fn load_regelwerk(service: &mut LawExecutionService, path: &Path) -> String {
-    let mut yaml =
-        std::fs::read_to_string(path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    if crate::reverse_actions::enabled() {
-        yaml = crate::reverse_actions::reversed_actions(&yaml)
-            .unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-    }
+    let yaml = regulation_source(path).unwrap_or_else(|e| panic!("{e}"));
     service
         .load_law(&yaml)
         .unwrap_or_else(|e| panic!("{}: {e}", path.display()))
