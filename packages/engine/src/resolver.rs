@@ -1097,6 +1097,11 @@ impl RuleResolver {
     /// * `article` - The article number that declares the open term
     /// * `open_term` - The open term as declared by that article
     /// * `reference_date` - Optional date to filter by temporal validity
+    ///
+    /// # Errors
+    ///
+    /// When the open term declares a `delegation_type` that is no known
+    /// regulatory layer, or priority resolution cannot rank the candidates.
     pub fn find_implementations(
         &self,
         law_id: &str,
@@ -1104,6 +1109,53 @@ impl RuleResolver {
         open_term: &OpenTerm,
         reference_date: Option<NaiveDate>,
         scope: &HashMap<String, Value>,
+    ) -> Result<ImplementationLookup<'_>> {
+        self.lookup_implementations(law_id, article, open_term, reference_date, scope, None)
+    }
+
+    /// The implementations of an open term of an article that fires as a hook
+    /// on a decision of `host_law` (RFC-058): those of the host law only.
+    ///
+    /// A regulation of another law is no candidate, and it leaves no record
+    /// either: it does not fill this term for this decision, so it was never
+    /// offered. The host law needs no scope check, as the declaring law
+    /// needs none: the host is the law that applies to this case. The
+    /// delegation gate and the version filter apply as in
+    /// [`Self::find_implementations`]; which layer may fill the term is a
+    /// question apart from which law may.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::find_implementations`].
+    pub fn find_host_implementations(
+        &self,
+        law_id: &str,
+        article: &str,
+        open_term: &OpenTerm,
+        reference_date: Option<NaiveDate>,
+        scope: &HashMap<String, Value>,
+        host_law: &str,
+    ) -> Result<ImplementationLookup<'_>> {
+        self.lookup_implementations(
+            law_id,
+            article,
+            open_term,
+            reference_date,
+            scope,
+            Some(host_law),
+        )
+    }
+
+    /// [`Self::find_implementations`], restricted to the regulations of
+    /// `host_law` when it is given ([`Self::find_host_implementations`]).
+    fn lookup_implementations(
+        &self,
+        law_id: &str,
+        article: &str,
+        open_term: &OpenTerm,
+        reference_date: Option<NaiveDate>,
+        scope: &HashMap<String, Value>,
+        host_law: Option<&str>,
     ) -> Result<ImplementationLookup<'_>> {
         let open_term_id = open_term.id.as_str();
         let key = (
@@ -1134,7 +1186,10 @@ impl RuleResolver {
         // The declaring law, to recognise candidates of its own territory.
         let declarer = self.get_law_for_date(law_id, reference_date);
 
-        for entry in candidate_entries {
+        for entry in candidate_entries.iter().filter(|entry| {
+            // Under a hook only the host law fills the term (RFC-058).
+            host_law.is_none_or(|host| entry.law_id == host)
+        }) {
             // Version filter. A regulation that is not in force on this date
             // cannot fill the term, but its disappearance would be silent: the
             // caller sees zero candidates and reports "no implementation, using
@@ -1174,7 +1229,13 @@ impl RuleResolver {
             // verordening of the same municipality.
             let of_the_declarers_territory =
                 declarer.is_some_and(|declarer| Self::shares_territory(declarer, law));
-            if law.id != law_id && !of_the_declarers_territory && !Self::matches_scope(law, scope) {
+            // The host filter above left only the host's entries.
+            let is_host = host_law.is_some();
+            if law.id != law_id
+                && !is_host
+                && !of_the_declarers_territory
+                && !Self::matches_scope(law, scope)
+            {
                 tracing::debug!(
                     candidate = %entry.law_id,
                     "Skipping: scope fields do not match execution parameters"

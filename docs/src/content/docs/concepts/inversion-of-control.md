@@ -142,6 +142,12 @@ The engine does not run the reduction. A caller can pass an answerer with the ex
 
 A binding fills the term like any other implementation: the term gets the binding's value. That is also true when the value is null, unless the term has a `default`; then the default applies ([RFC-036](/rfcs/rfc-036)). A finding is the authority's own judgement on the term in a single case. It never replaces the value of a policy, not even on a term that the law leaves to the authority per case. If a caller gives a finding for such a term, the engine refuses the execution, even when the case never reads the term. If the policy wants the authority to judge a case that the cell does not answer, it declares an open term of its own with `decided_per_case_by`, and uses that term when the answer is null ([RFC-048](/rfcs/rfc-048) §2). Outside a cell nobody gives answers, so a scenario gives the finding on the policy's own term.
 
+## An open term on an article that fires as a hook
+
+An article that fires as a [hook](./hooks-and-reactive-execution) can declare an open term as well. Awb 4:13 has this shape: a hook on every application (*aanvraag*) that leaves the decision period to the special law, with eight weeks as the default. Under a hook, only the host fills such a term, meaning the law of the article whose application or decision the hook fires on. An implementation from any other law does not count for that decision and leaves no record of it. The host's implementing article receives the parameters it declares from the host's own scope, so it can read case data the hook never sees, such as the subsidy year of a subsidy decision.
+
+The delegation gate still applies to the host: a host of a layer the term does not admit is refused, with a `DelegationRefusal`, and the default applies. Outside a hook run, the same article fills its terms as described above. While the hook runs, every call that reaches a hook on the same decision belongs to the host's decision, a direct one included, so a hook that reads another hook's output gets the host's filling too. [RFC-058](/rfcs/rfc-058) has the reasoning and a worked example.
+
 ## Conflict resolution
 
 When multiple regulations implement the same open term, the engine resolves conflicts using two rules from legal theory:
