@@ -49,8 +49,11 @@ const isLanding = kind === 'landing';
 const isNotFound = kind === 'notfound';
 
 const t = content[lang];
-// Landing is bilingual (path-driven); docs are English-only.
-const home = isLanding ? (lang === 'en' ? '/en/' : '/') : '/en/';
+// Home is the landing in the page's own language. A Dutch page (the
+// roadmap, basiswerk) therefore goes home to `/`, an English one to `/en/`.
+// A reader who picked a language in the menu overrides this at runtime; see
+// the `rr-lang` script in the head.
+const home = lang === 'en' ? '/en/' : '/';
 // The logo carries the sender, not the product: the wordmark next to the
 // rijkslogo names the organization, with its ministry on the line below, the
 // same as digitaledienst.overheid.nl. RegelRecht itself is the website title.
@@ -113,6 +116,11 @@ if (isStatusPage) {
     // The documentation and research roots go up to the site home.
     backHref = '/en/';
     backText = 'Home';
+  } else if (cat && onCategoryPage && lang === 'nl') {
+    // A Dutch section (basiswerk) is linked from the Dutch landing and goes
+    // back there, not to the English documentation overview.
+    backHref = landingHome;
+    backText = t.nav.home;
   } else if (inResearch) {
     // A research paper goes up to the research overview.
     backHref = '/research/';
@@ -231,11 +239,15 @@ if (
 } else if (!isLanding && !isNotFound) {
   const isDocsRoot = pathname === '/docs/' || pathname === '/docs';
   breadcrumbs.push({ text: homeText, href: homeHref });
-  breadcrumbs.push({
-    text: docsText,
-    href: docsHref,
-    current: isDocsRoot,
-  });
+  // A Dutch section (basiswerk) sits under the Dutch home, the same place its
+  // back button goes; the documentation overview is English.
+  if (lang === 'en') {
+    breadcrumbs.push({
+      text: docsText,
+      href: docsHref,
+      current: isDocsRoot,
+    });
+  }
   if (!isDocsRoot) {
     const cat = categoryForPath(pathname);
     const onCategoryPage = cat !== null && pathname === cat.prefix;
@@ -341,17 +353,25 @@ const legalLinks = [
       })();
     </script>
     <script is:inline>
-      // Remembered language: written only by a deliberate pick in the
-      // language menu (the 'lang' branch of the menu handler). Landing in the
-      // docs is not a choice - they are English-only - so until someone picks,
-      // the site's default (Dutch) stands. Without a stored choice nothing is
-      // ever redirected: a shared link to /en/ shows English. Same storage
-      // pattern as the theme above: localStorage plus an in-memory fallback,
-      // re-checked on astro:after-swap because ClientRouter swaps the document
-      // without re-running head scripts.
+      // The reader's language, from two sources.
+      //
+      // A choice is written only by a deliberate pick in the language menu
+      // (the 'lang' branch of the menu handler) and is kept. Without a choice
+      // nothing is ever redirected: a shared link to /en/ shows English.
+      //
+      // Short of a choice there is the landing the reader came through in
+      // this visit. Someone who starts at /en/ and opens the roadmap, which
+      // is Dutch, still goes home to /en/; someone who starts at / and opens
+      // the documentation, which is English, goes home to /. That is kept for
+      // the session only, because walking past a page is not a preference.
+      //
+      // With neither, a page links home in its own language, as rendered.
+      // Same storage pattern as the theme above: storage plus an in-memory
+      // fallback, re-checked on astro:after-swap because ClientRouter swaps
+      // the document without re-running head scripts.
       (function () {
         var KEY = 'rr-lang';
-        var DEFAULT_LANG = 'nl';
+        var SEEN_KEY = 'rr-lang-seen';
         function read() {
           try {
             var v = localStorage.getItem(KEY);
@@ -359,18 +379,28 @@ const legalLinks = [
           } catch (e) {}
           return window.__rrLang || null;
         }
+        function readSeen() {
+          try {
+            var v = sessionStorage.getItem(SEEN_KEY);
+            if (v) return v;
+          } catch (e) {}
+          return window.__rrLangSeen || null;
+        }
+        function rememberSeen(code) {
+          window.__rrLangSeen = code;
+          try {
+            sessionStorage.setItem(SEEN_KEY, code);
+          } catch (e) {}
+        }
         function isHome(path) {
           return path === '/' || path === '/en' || path === '/en/';
         }
         function homeFor(code) {
           return code === 'en' ? '/en/' : '/';
         }
-        // The home and back links from the docs point at one landing hardcoded
-        // (the docs are English-only, so the server cannot know the reader's
-        // language). Retarget any of them that point at a landing homepage to
-        // the chosen language, or to the default when nothing was chosen. On
-        // the landing itself the links already match the page, so without a
-        // choice they are left alone.
+        // The home and back links point at the landing in the page's own
+        // language, because the server cannot know the reader's. Retarget any
+        // of them that point at a landing homepage to the reader's language.
         function retargetHomeLinks(target) {
           var bar = document.querySelector('nldd-top-navigation-bar');
           if (!bar) return;
@@ -380,6 +410,17 @@ const legalLinks = [
               bar.setAttribute(attr, homeFor(target));
             }
           });
+          // The Home crumb in the footer goes to the same place as the logo.
+          // Left alone it would lead to the other landing, which then becomes
+          // the language of the visit.
+          document
+            .querySelectorAll('nldd-breadcrumbs-item[href]')
+            .forEach(function (crumb) {
+              var v = crumb.getAttribute('href');
+              if (v && isHome(v) && v !== homeFor(target)) {
+                crumb.setAttribute('href', homeFor(target));
+              }
+            });
         }
         function apply() {
           var stored = read();
@@ -389,7 +430,8 @@ const legalLinks = [
             location.replace(homeFor(stored));
             return;
           }
-          var target = stored || (onLanding ? current : DEFAULT_LANG);
+          if (onLanding) rememberSeen(current);
+          var target = stored || readSeen() || current;
           // In the head the body does not exist yet; the after-swap runs land
           // after the new DOM is in place and can retarget straight away.
           if (document.readyState === 'loading') {

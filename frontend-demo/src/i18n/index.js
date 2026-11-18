@@ -43,17 +43,22 @@ import nl from './nl.js';
  *   klok, zoals een Nederlands overheidsscherm een datum noteert.
  * - `label` staat in de taal zelf. Een taalmenu dat "Dutch" zegt tegen wie geen
  *   Engels leest, helpt precies de persoon niet die het menu zoekt.
+ * - `siteHome` is de voorpagina van regelrecht.rijks.app waar een lezer van
+ *   deze taal uitkomt. Die site heeft alleen Nederlands en Engels: een Friese
+ *   lezer leest Nederlands, een Franse lezer krijgt de Engelse voorpagina.
  */
+export const SITE_ORIGIN = 'https://regelrecht.rijks.app';
+
 export const LOCALES = [
-  { code: 'nl', prefix: '', intl: 'nl-NL', label: 'Nederlands', dict: nl },
-  { code: 'en', prefix: '/en', intl: 'en-GB', label: 'English', dict: en },
+  { code: 'nl', prefix: '', intl: 'nl-NL', label: 'Nederlands', siteHome: '/', dict: nl },
+  { code: 'en', prefix: '/en', intl: 'en-GB', label: 'English', siteHome: '/en/', dict: en },
   // Fries is aanwezig maar nog niet vertaald: `fy.js` draagt voorlopig de
   // Nederlandse tekst. Zie de kop van dat bestand voor waarom daar geen
   // machinevertaling staat.
-  { code: 'fy', prefix: '/fy', intl: 'fy-NL', label: 'Frysk', dict: fy },
+  { code: 'fy', prefix: '/fy', intl: 'fy-NL', label: 'Frysk', siteHome: '/', dict: fy },
   // Frans is vertaald door een taalmodel en nog niet nagekeken; zie
   // corpus/demo/i18n/REVIEW-fr.md.
-  { code: 'fr', prefix: '/fr', intl: 'fr-FR', label: 'Français', dict: fr },
+  { code: 'fr', prefix: '/fr', intl: 'fr-FR', label: 'Français', siteHome: '/en/', dict: fr },
 ];
 
 export const DEFAULT_LOCALE = 'nl';
@@ -72,6 +77,17 @@ const BY_CODE = new Map(LOCALES.map((l) => [l.code, l]));
  */
 export function localeDef(code) {
   return BY_CODE.get(code) ?? BY_CODE.get(DEFAULT_LOCALE);
+}
+
+/**
+ * Het adres op regelrecht.rijks.app voor een lezer van deze taal.
+ *
+ * Zonder `path` is dat de voorpagina in de taal die de site voor deze lezer
+ * heeft. Met `path` is het een pagina die maar in één taal bestaat, zoals de
+ * documentatie.
+ */
+export function siteUrl(code, path) {
+  return SITE_ORIGIN + (path ?? localeDef(code).siteHome);
 }
 
 /** Of `code` een taal is die de demo kent. */

@@ -132,9 +132,18 @@ function exampleImage(key: string): ImageMetadata {
             <p>{t.hero.intro}</p>
           </nldd-rich-text>
           <nldd-spacer size="16" />
+          {/* The walkthrough comes first: it shows what RegelRecht does
+              before asking a visitor to sign up or read. It links to the demo
+              in the page's own language (see demo-links.js). */}
           <nldd-button-group orientation="horizontal">
             <nldd-button
               appearance="inherit-filled"
+              href={t.hero.tourHref}
+              start-icon="play"
+              text={t.hero.tour}
+            />
+            <nldd-button
+              appearance="inherit-tinted"
               href={t.feedback.ctaHref}
               start-icon="notification"
               text={t.feedback.cta}
