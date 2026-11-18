@@ -37,7 +37,7 @@ regelwerken:
   - algemene_wet_bestuursrecht
 ```
 
-In the `beslistermijn` construct, the real Awb meets two fictional permit acts. An application is recorded on the day it arrives, which is the moment Awb 4:13 counts from, and the decision follows on a later day. The scenarios check what the application holds, the last day of the term, and whether the decision came on or before it: well within the term, on the last day, one day late, and counted from receipt rather than from the date on the application. `test_permit_act_short_term` has a term of two weeks and sets it with an override on the output of 4:13, the route the engine supports today. Filling that term through `implements` needs the engine to take the host act as the only candidate, which it does not do yet, so the scenario that fills the term through `implements` carries `@wip`.
+In the `beslistermijn` construct, the real Awb meets three fictional permit acts. An application is recorded on the day it arrives, which is the moment Awb 4:13 counts from, and the decision follows on a later day. The scenarios check what the application holds, the last day of the term, and whether the decision came on or before it: well within the term, on the last day, one day late, and counted from receipt rather than from the date on the application. `test_permit_act_short_term` has a term of two weeks and sets it with an override on the output of 4:13. `test_permit_act_implements` has a term of one week and fills the open term `wettelijke_beslistermijn` of 4:13 with `implements`; under the hook on its application only that act fills it ([RFC-058](/rfcs/rfc-058)).
 
 To add a construct:
 

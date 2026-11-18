@@ -89,9 +89,10 @@ Feature: The decision term of Awb 4:13 on an application for a permit
     And decision "permit_decision" is given on or before "redelijke_beslistermijn_einddatum"
 
   Scenario: A permit act with a term of its own sets two weeks with an override
-    # Awb 4:13 lid 1: a term set by statutory provision goes first. Today the
+    # Awb 4:13 lid 1: a term set by statutory provision goes first. This
     # host act sets it with an override on the output of 4:13 (article 2 of
-    # test_permit_act_short_term), as the comment on 4:13 in the corpus says.
+    # test_permit_act_short_term); the last scenario fills the open term of
+    # 4:13 instead.
     Given the calculation date is "2026-03-03"
     When the cell records submission "permit_application" under article "1" of "test_permit_act_short_term" with:
       | meets_conditions | true |
@@ -113,20 +114,19 @@ Feature: The decision term of Awb 4:13 on an application for a permit
     # From the corpus: the output of Awb 4:13, replaced by the host act.
     Then decision "permit_decision" is given after "redelijke_beslistermijn_einddatum"
 
-  # @wip: the engine does not yet fill an open term of a hook article from
-  # the host law. Branch feat-hook-host-implements (PR #2020) builds that.
-  # It adds the open term `wettelijke_beslistermijn` to Awb 4:13 in the
-  # corpus and the host act test_permit_act_implements, whose article 2
-  # implements that term with one week, and then removes this tag. Should
-  # 4:13 give its last day under another name by then, that pull request
-  # renames the output below.
-  @wip
+  # Awb 4:13 lid 1 as an open term: the host act fills
+  # `wettelijke_beslistermijn` with implements (article 2 of
+  # test_permit_act_implements), and under the hook on its application only
+  # that act fills it, with the receipt from its own scope (RFC-058). The last
+  # day comes out as `uiterste_beslisdatum`; `redelijke_beslistermijn_einddatum`
+  # keeps the eight weeks of lid 2.
   Scenario: A permit act fills the statutory term of Awb 4:13 through implements
     Given the calculation date is "2026-03-03"
     When the cell records submission "permit_application" under article "1" of "test_permit_act_implements" with:
       | meets_conditions | true |
     Given the calculation date is "2026-03-11"
     When the cell decides "permit_decision" on submission "permit_application"
-    # From the corpus: the output of Awb 4:13.
-    Then output "redelijke_beslistermijn_einddatum" equals "2026-03-10"
-    And decision "permit_decision" is given after "redelijke_beslistermijn_einddatum"
+    # From the corpus: the outputs of Awb 4:13.
+    Then output "uiterste_beslisdatum" equals "2026-03-10"
+    And output "redelijke_beslistermijn_einddatum" equals "2026-04-28"
+    And decision "permit_decision" is given after "uiterste_beslisdatum"

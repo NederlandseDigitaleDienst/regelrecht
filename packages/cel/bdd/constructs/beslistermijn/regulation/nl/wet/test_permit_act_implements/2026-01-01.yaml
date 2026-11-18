@@ -1,0 +1,69 @@
+---
+# FICTIEF. A host law for the construct "beslistermijn"
+# (packages/cel/bdd/constructs/beslistermijn) with a decision term of its own:
+# one week after receipt, the term set by statutory provision that article
+# 4:13, first paragraph, of the Algemene wet bestuursrecht refers to. Article
+# 2 fills the open term of 4:13 with implements; under the hook only the law
+# of the application fills it (RFC-058). None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_permit_act_implements
+name: Testwet vergunning met eigen beslistermijn
+regulatory_layer: WET
+bwb_id: BWBR9999983
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.com/test_permit_act_implements
+
+articles:
+  - number: '1'
+    url: https://example.com/test_permit_act_implements/1
+    text: >-
+      FICTIEF. Het college verleent op aanvraag een vergunning aan wie aan de
+      voorwaarden voldoet.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_permit_act_implements#1
+            parameters:
+              - meets_conditions
+          - type: BESCHIKKING
+            outputs:
+              - permit_granted
+        parameters:
+          - name: meets_conditions
+            type: boolean
+        output:
+          - name: permit_granted
+            type: boolean
+        actions:
+          - output: permit_granted
+            value: $meets_conditions
+
+  - number: '2'
+    url: https://example.com/test_permit_act_implements/2
+    text: >-
+      FICTIEF. Het college beslist op de aanvraag binnen een week na ontvangst
+      ervan.
+    machine_readable:
+      # The parameter keeps the name of Awb 4:13 in the corpus: the filling
+      # reads the same moment, from the scope of this act (RFC-058).
+      implements:
+        - law: algemene_wet_bestuursrecht
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: false
+            description: The day the college received the application.
+        output:
+          - name: wettelijke_beslistermijn
+            type: date
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 1
