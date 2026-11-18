@@ -24,8 +24,8 @@ serde_yaml_ng.workspace = true
 
 [dev-dependencies]
 # A source as the portal serves it, from a folder or a manifest (the tests in
-# src/bundel.rs).
-regelrecht-poc-portal = { path = "../poc-portal" }
+# src/bundel.rs and tests/scenarios), read with the code the portal uses.
+regelrecht-corpus = { path = "../corpus", default-features = false }
 
 [dependencies.wasm-bindgen]
 version = "0.2"

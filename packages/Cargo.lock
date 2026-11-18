@@ -4178,9 +4178,9 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "regelrecht-cel",
+ "regelrecht-corpus",
  "regelrecht-engine",
  "regelrecht-law-model",
- "regelrecht-poc-portal",
  "serde",
  "serde_json",
  "serde_yaml_ng",
