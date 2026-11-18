@@ -1059,6 +1059,29 @@ mod tests {
     }
 
     #[test]
+    fn a_date_reads_and_writes_as_its_text() {
+        let day = Value::Date("2025-03-15".parse().expect("test literal should be a date"));
+        assert_eq!(day.as_str(), Some("2025-03-15"));
+        assert_eq!(day.to_string(), "2025-03-15");
+        assert_eq!(day.type_name(), "date");
+        assert!(day.to_bool());
+        assert_eq!(
+            serde_json::to_string(&day).expect("serializable"),
+            "\"2025-03-15\""
+        );
+        assert_eq!(
+            serde_json::Value::from(&day),
+            serde_json::Value::String("2025-03-15".into())
+        );
+        // What is read back is a string: nothing tells a reader it was a date.
+        assert_eq!(
+            Value::from(serde_json::Value::from(day.clone())),
+            Value::String("2025-03-15".into())
+        );
+        assert_ne!(day, Value::String("2025-03-15".into()));
+    }
+
+    #[test]
     fn test_value_bool_conversion() {
         assert!(Value::Bool(true).to_bool());
         assert!(!Value::Bool(false).to_bool());

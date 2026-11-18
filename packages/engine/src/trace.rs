@@ -1357,6 +1357,20 @@ mod tests {
     use super::*;
     use crate::types::{MissingFact, MissingKind};
 
+    #[test]
+    fn a_date_is_shown_as_the_text_it_was() {
+        let day = Value::Date("2025-03-15".parse().unwrap());
+        assert_eq!(format_value_compact(&day), "\"2025-03-15\"");
+        assert_eq!(format_value_display(&day), "'2025-03-15'");
+        // A reference date shows as its day, whether `iso` is a date or text.
+        let reference = |iso: Value| Value::Object([("iso".to_string(), iso)].into());
+        assert_eq!(format_value_display(&reference(day)), "'2025-03-15'");
+        assert_eq!(
+            format_value_display(&reference(Value::String("2025-03-15".into()))),
+            "'2025-03-15'"
+        );
+    }
+
     fn missing(name: &str) -> MissingFact {
         MissingFact {
             law: "wet_x".to_string(),

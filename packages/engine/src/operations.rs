@@ -550,7 +550,30 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> bool {
         (Value::Date(date), Value::String(text)) | (Value::String(text), Value::Date(date)) => {
             date.as_str() == text
         }
-        // Default: use structural equality
+        // Default: structural equality, in which a date inside a list or a
+        // record still equals its text.
+        _ => same_structure(a, b),
+    }
+}
+
+/// Structural equality as `Value`'s own, except that a date equals the same
+/// day written as text at any depth: a row built with a date operation
+/// against the same row read from a data source. Numbers keep the structural
+/// rule, so an integer and a decimal of the same value differ here.
+fn same_structure(a: &Value, b: &Value) -> bool {
+    match (a, b) {
+        (Value::Date(date), Value::String(text)) | (Value::String(text), Value::Date(date)) => {
+            date.as_str() == text
+        }
+        (Value::Array(left), Value::Array(right)) => {
+            left.len() == right.len() && left.iter().zip(right).all(|(l, r)| same_structure(l, r))
+        }
+        (Value::Object(left), Value::Object(right)) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .all(|(key, l)| right.get(key).is_some_and(|r| same_structure(l, r)))
+        }
         _ => a == b,
     }
 }
@@ -2328,7 +2351,7 @@ fn execute_start_of<R: ValueResolver>(
 /// Expects the value to be a string in ISO 8601 format (YYYY-MM-DD).
 fn parse_date(value: &Value) -> Result<NaiveDate> {
     match value {
-        Value::Date(date) => Ok(naive_date(date)),
+        Value::Date(date) => naive_date(date),
         Value::String(s) => parse_iso_date(s),
         // Handle referencedate objects with {iso, year, month, day}
         Value::Object(obj) => {
@@ -2348,23 +2371,20 @@ fn parse_date(value: &Value) -> Result<NaiveDate> {
     }
 }
 
-/// Parse a date string in canonical ISO 8601 `YYYY-MM-DD` form.
-///
-/// chrono's `%Y-%m-%d` parser is lenient and accepts non-zero-padded input like
-/// `2025-1-1`. We reject those: a non-canonical literal would compare chronologically
-/// under `>`/`<` but inequal under `EQUALS` (which uses string equality), so the two
-/// must never disagree. Requiring canonical form keeps every operator consistent and
-/// matches the format the engine itself produces for `$referencedate.iso`.
 /// Whether a value is a date or a string, the two forms a date takes.
 fn is_date_or_text(value: &Value) -> bool {
     matches!(value, Value::Date(_) | Value::String(_))
 }
 
 /// A [`Date`] as the `chrono` day the date operations calculate with.
-fn naive_date(date: &Date) -> NaiveDate {
-    // A `Date` is a real calendar day in the years 0001 to 9999 by
-    // construction, which is within `chrono`'s range.
-    NaiveDate::from_ymd_opt(date.year() as i32, date.month(), date.day()).unwrap_or_default()
+///
+/// A `Date` is a real calendar day in the years 0001 to 9999 by construction,
+/// which is within `chrono`'s range, so the error is not expected.
+fn naive_date(date: &Date) -> Result<NaiveDate> {
+    i32::try_from(date.year())
+        .ok()
+        .and_then(|year| NaiveDate::from_ymd_opt(year, date.month(), date.day()))
+        .ok_or_else(|| EngineError::InvalidDate(date.to_string()))
 }
 
 /// The result of a date operation as a date value. A day outside the years
@@ -2379,6 +2399,13 @@ fn date_result(day: NaiveDate) -> Result<Value> {
         })
 }
 
+/// Parse a date string in canonical ISO 8601 `YYYY-MM-DD` form.
+///
+/// chrono's `%Y-%m-%d` parser is lenient and accepts non-zero-padded input like
+/// `2025-1-1`. We reject those: a non-canonical literal would compare chronologically
+/// under `>`/`<` but inequal under `EQUALS` (which uses string equality), so the two
+/// must never disagree. Requiring canonical form keeps every operator consistent and
+/// matches the format the engine itself produces for `$referencedate.iso`.
 fn parse_iso_date(s: &str) -> Result<NaiveDate> {
     let parsed = NaiveDate::parse_from_str(s, "%Y-%m-%d").map_err(|e| {
         EngineError::InvalidOperation(format!(
@@ -5524,6 +5551,65 @@ body:
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
                 Value::Bool(true)
+            );
+        }
+
+        #[test]
+        fn a_row_with_a_date_is_found_among_rows_that_hold_its_text() {
+            // A row built with a date operation against rows from a data
+            // source, where a date is a string.
+            let resolver = TestResolver::new();
+            let row = |dag: Value| Value::Object([("dag".to_string(), dag)].into());
+            let rows = |text: &str| Value::Array(vec![row(Value::String(text.to_string()))]);
+            for (text, expected) in [("2025-03-15", true), ("2025-03-16", false)] {
+                let op = ActionOperation::In {
+                    subject: lit(row(day("2025-03-15"))),
+                    value: Some(lit(rows(text))),
+                    values: None,
+                };
+                assert_eq!(
+                    execute_operation(&op, &resolver, 0).unwrap(),
+                    Value::Bool(expected),
+                    "{text}"
+                );
+            }
+            // A list of dates against a list of the same days as text.
+            assert!(values_equal(
+                &Value::Array(vec![day("2025-03-15")]),
+                &Value::Array(vec![Value::String("2025-03-15".into())])
+            ));
+            // Numbers inside keep the structural rule.
+            assert!(!values_equal(
+                &Value::Array(vec![Value::Int(5)]),
+                &Value::Array(vec![Value::Decimal(dec("5"))])
+            ));
+        }
+
+        #[test]
+        fn a_record_with_a_date_equals_the_record_with_its_text() {
+            let resolver = TestResolver::new();
+            let row = |dag: Value| Value::Object([("dag".to_string(), dag)].into());
+            let op = ActionOperation::Equals {
+                subject: lit(row(day("2025-03-15"))),
+                value: lit(row(Value::String("2025-03-15".into()))),
+            };
+            assert_eq!(
+                execute_operation(&op, &resolver, 0).unwrap(),
+                Value::Bool(true)
+            );
+        }
+
+        #[test]
+        fn a_date_is_true_as_a_condition() {
+            // As the non-empty string it was. RFC-055 ends truthiness with
+            // the signature table.
+            let resolver = TestResolver::new();
+            let op = ActionOperation::Not {
+                value: lit(day("2025-03-15")),
+            };
+            assert_eq!(
+                execute_operation(&op, &resolver, 0).unwrap(),
+                Value::Bool(false)
             );
         }
 
