@@ -676,7 +676,8 @@ const stapTekst = computed(() => (aantalStappen(nu.value) > 1 ? `stap ${stap.val
   --dk-niet: #d03b3b;
 
   position: fixed;
-  inset: 0;
+  /* Onder de strook van het poc-portaal, die altijd bovenop ligt (portaalStrook.js). */
+  inset: var(--portaal-strook, 0px) 0 0 0;
   z-index: 3000;
   display: flex;
   flex-direction: column;

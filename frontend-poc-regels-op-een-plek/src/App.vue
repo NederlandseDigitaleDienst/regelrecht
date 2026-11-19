@@ -39,7 +39,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <nldd-shell>
+  <nldd-shell class="schil">
     <div class="app-frame">
       <nldd-skip-link text="Direct naar de inhoud">
         <nldd-top-navigation-bar
@@ -79,12 +79,18 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+/* nldd-shell clipt zijn inhoud en rekt zijn kind op tot zijn eigen hoogte; het kind scrollt
+   zelf. Daarom staat de hoogte op de schil: het venster min de strook van het poc-portaal
+   erboven (portaalStrook.js). */
+.schil {
+  height: calc(100dvh - var(--portaal-strook, 0px));
+  min-height: 0;
+}
 .app-frame {
   position: relative;
   display: flex;
   flex-direction: column;
-  /* nldd-shell clipt zijn inhoud; het kind scrollt zelf. Vaste hoogte, scrollende main. */
-  height: 100vh;
+  height: 100%;
 }
 .app-main {
   flex: 1;

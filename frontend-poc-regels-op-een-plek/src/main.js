@@ -5,7 +5,9 @@ import '@nldd/design-system/styles';
 import './base.css';
 import { createApp } from 'vue';
 import { laadBron } from './bron.js';
+import { volgPortaalStrook } from './portaalStrook.js';
 
+volgPortaalStrook();
 const plek = document.getElementById('app');
 try {
   await laadBron();
