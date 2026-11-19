@@ -48,6 +48,7 @@ const TYPING: ValueTyping = VALUE_TYPING;
  * - "true"/"false" → boolean
  * - "null" and the empty string → null (an absence; the Rust runner reads
  *   `parameter "x" is ""` as Null, so this runner must too)
+ * - a value in double quotes (`"56102"`) → that text, without the quotes
  * - numeric → number (int or float)
  * - otherwise → string
  *
@@ -57,6 +58,16 @@ const TYPING: ValueTyping = VALUE_TYPING;
 export function parseValue(str: unknown): unknown {
   // Already typed (a form hands real booleans and numbers straight through).
   if (typeof str !== 'string') return str;
+
+  // Text, written in double quotes: read as it stands, whatever it looks
+  // like. Mirrors the Rust helper; an identifier that looks like a number
+  // (a BSN, an SBI code with a leading zero) is a number otherwise, and
+  // RFC-055 no longer lets a number pass for a string.
+  const trimmed = str.trim();
+  if (trimmed.length >= 2 && trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1);
+  }
+
   if (str === 'true') return true;
   if (str === 'false') return false;
   if (str === 'null' || str.trim() === '') return null;

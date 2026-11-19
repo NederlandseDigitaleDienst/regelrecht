@@ -9,6 +9,12 @@ use regelrecht_engine::Value;
 
 /// Parse a Gherkin table cell into a typed engine value.
 fn parse_value(s: &str) -> Value {
+    // Text in double quotes is that text, as in the engine's own harness.
+    if s.len() >= 2
+        && let Some(text) = s.strip_prefix('"').and_then(|rest| rest.strip_suffix('"'))
+    {
+        return Value::String(text.to_string());
+    }
     match s {
         "true" => Value::Bool(true),
         "false" => Value::Bool(false),

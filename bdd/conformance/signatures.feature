@@ -601,3 +601,394 @@ Feature: Operations are defined per type — RFC-055
       | 999993653 | {"a": "tekst"} |
     When I evaluate "met_optioneel" of "test_signaturen"
     Then the execution fails with "ADD is not defined for (number, string)"
+
+  # ---------------------------------------------------------------------------
+  # IN: a subject and an array of the same type. Elements are looked at in
+  # order, up to the first that equals the subject.
+  # ---------------------------------------------------------------------------
+
+  @signature:IN:member-of
+  Scenario: IN is true when an element equals the subject
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                          |
+      | 999993653 | {"a": 5, "lijst": [3, 5, 8]} |
+    When I evaluate "komt_voor" of "test_signaturen"
+    Then the execution succeeds
+    Then output "komt_voor" is true
+
+  Scenario: IN is false when no element equals the subject
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                          |
+      | 999993653 | {"a": 4, "lijst": [3, 5, 8]} |
+    When I evaluate "komt_voor" of "test_signaturen"
+    Then the execution succeeds
+    Then output "komt_voor" is false
+
+  Scenario: IN over an empty list is false
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                   |
+      | 999993653 | {"a": 4, "lijst": []} |
+    When I evaluate "komt_voor" of "test_signaturen"
+    Then the execution succeeds
+    Then output "komt_voor" is false
+
+  Scenario: IN over an absent list is false
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                     |
+      | 999993653 | {"a": 4, "lijst": null} |
+    When I evaluate "komt_voor" of "test_signaturen"
+    Then the execution succeeds
+    Then output "komt_voor" is false
+
+  Scenario: IN finds an absent subject among elements that hold an absence
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                             |
+      | 999993653 | {"a": null, "lijst": [1, null]} |
+    When I evaluate "komt_voor" of "test_signaturen"
+    Then the execution succeeds
+    Then output "komt_voor" is true
+
+  Scenario: IN does not find an absent subject among values
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                          |
+      | 999993653 | {"a": null, "lijst": [1, 2]} |
+    When I evaluate "komt_voor" of "test_signaturen"
+    Then the execution succeeds
+    Then output "komt_voor" is false
+
+  Scenario: IN compares as EQUALS does, a whole number equalling the same number with a fraction part
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                      |
+      | 999993653 | {"a": 5, "lijst": [5.0]} |
+    When I evaluate "komt_voor" of "test_signaturen"
+    Then the execution succeeds
+    Then output "komt_voor" is true
+
+  Scenario: IN refuses an element of another type than the subject
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                      |
+      | 999993653 | {"a": 5, "lijst": ["5"]} |
+    When I evaluate "komt_voor" of "test_signaturen"
+    Then the execution fails with "IN is not defined for (number, string)"
+
+  Scenario: IN stops at the first match, so a later element of another type is not looked at
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                            |
+      | 999993653 | {"a": 5, "lijst": [5, "vijf"]} |
+    When I evaluate "komt_voor" of "test_signaturen"
+    Then the execution succeeds
+    Then output "komt_voor" is true
+
+  Scenario: IN reaches an element of another type before a match and refuses it
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                            |
+      | 999993653 | {"a": 5, "lijst": ["vijf", 5]} |
+    When I evaluate "komt_voor" of "test_signaturen"
+    Then the execution fails with "IN is not defined for (number, string)"
+
+  Scenario: IN refuses a value that is no list
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                  |
+      | 999993653 | {"a": 5, "lijst": 5} |
+    When I evaluate "komt_voor" of "test_signaturen"
+    Then the execution fails with "IN is not defined for (number, number)"
+
+  # ---------------------------------------------------------------------------
+  # LIST and RECORD build a value from values of any type.
+  # ---------------------------------------------------------------------------
+
+  @signature:LIST:values
+  Scenario: LIST keeps its items in order, whatever their type
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                            |
+      | 999993653 | {"a": 1, "b": "twee", "verwacht": [1, "twee"]} |
+    When I evaluate "lijst_van_twee_klopt" of "test_signaturen"
+    Then the execution succeeds
+    Then output "lijst_van_twee_klopt" is true
+
+  Scenario: LIST keeps an absent item as an element
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                        |
+      | 999993653 | {"a": 1, "b": null, "verwacht": [1, null]} |
+    When I evaluate "lijst_van_twee_klopt" of "test_signaturen"
+    Then the execution succeeds
+    Then output "lijst_van_twee_klopt" is true
+
+  Scenario: LIST with its items the other way round is another list
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                            |
+      | 999993653 | {"a": 1, "b": "twee", "verwacht": ["twee", 1]} |
+    When I evaluate "lijst_van_twee_klopt" of "test_signaturen"
+    Then the execution succeeds
+    Then output "lijst_van_twee_klopt" is false
+
+  @signature:RECORD:values
+  Scenario: RECORD gives an object with a field for each name
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                                                |
+      | 999993653 | {"a": 1, "b": "twee", "verwacht": {"eerste": 1, "tweede": "twee"}} |
+    When I evaluate "record_klopt" of "test_signaturen"
+    Then the execution succeeds
+    Then output "record_klopt" is true
+
+  Scenario: RECORD keeps an absent value in its field
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                                            |
+      | 999993653 | {"a": 1, "b": null, "verwacht": {"eerste": 1, "tweede": null}} |
+    When I evaluate "record_klopt" of "test_signaturen"
+    Then the execution succeeds
+    Then output "record_klopt" is true
+
+  # ---------------------------------------------------------------------------
+  # FOREACH: an array, and what combine makes of its results.
+  # ---------------------------------------------------------------------------
+
+  @signature:FOREACH:collection
+  Scenario: FOREACH without combine gives the results in order
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                                           |
+      | 999993653 | {"rijen": [{"waarde": 3}, {"waarde": 5}], "verwacht": [3, 5]} |
+    When I evaluate "waarden_kloppen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "waarden_kloppen" is true
+
+  Scenario: FOREACH without combine keeps an absent result as an element
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                                                 |
+      | 999993653 | {"rijen": [{"waarde": 3}, {"waarde": null}], "verwacht": [3, null]} |
+    When I evaluate "waarden_kloppen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "waarden_kloppen" is true
+
+  Scenario: FOREACH over an absent collection iterates nothing
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                             |
+      | 999993653 | {"rijen": null, "verwacht": []} |
+    When I evaluate "waarden_kloppen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "waarden_kloppen" is true
+
+  Scenario: FOREACH over a value that is no array iterates once over it
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                      |
+      | 999993653 | {"rijen": {"waarde": 7}} |
+    When I evaluate "som_van_alle" of "test_signaturen"
+    Then the execution succeeds
+    Then output "som_van_alle" equals 7
+
+  @signature:combine-ADD:number
+  Scenario: combine ADD sums numbers
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                       |
+      | 999993653 | {"rijen": [{"waarde": 3}, {"waarde": 5}]} |
+    When I evaluate "som_van_alle" of "test_signaturen"
+    Then the execution succeeds
+    Then output "som_van_alle" equals 8
+
+  Scenario: combine ADD over no results is zero
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij           |
+      | 999993653 | {"rijen": []} |
+    When I evaluate "som_van_alle" of "test_signaturen"
+    Then the execution succeeds
+    Then output "som_van_alle" equals 0
+
+  Scenario: combine ADD does not join strings
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                           |
+      | 999993653 | {"rijen": [{"waarde": "a"}, {"waarde": "b"}]} |
+    When I evaluate "som_van_alle" of "test_signaturen"
+    Then the execution fails with "FOREACH combine ADD is not defined for (string, string)"
+
+  Scenario: combine ADD does not join lists
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                           |
+      | 999993653 | {"rijen": [{"waarde": [1]}, {"waarde": [2]}]} |
+    When I evaluate "som_van_alle" of "test_signaturen"
+    Then the execution fails with "FOREACH combine ADD is not defined for (array, array)"
+
+  @signature:combine-MIN:number
+  Scenario: combine MIN gives the lowest number
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                       |
+      | 999993653 | {"rijen": [{"waarde": 3}, {"waarde": 5}]} |
+    When I evaluate "laagste" of "test_signaturen"
+    Then the execution succeeds
+    Then output "laagste" equals 3
+
+  @signature:combine-MAX:number
+  Scenario: combine MAX gives the highest number
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                       |
+      | 999993653 | {"rijen": [{"waarde": 3}, {"waarde": 5}]} |
+    When I evaluate "hoogste" of "test_signaturen"
+    Then the execution succeeds
+    Then output "hoogste" equals 5
+
+  Scenario: combine MIN over no results is absent
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij           |
+      | 999993653 | {"rijen": []} |
+    When I evaluate "laagste" of "test_signaturen"
+    Then the execution succeeds
+    Then output "laagste" is absent
+
+  Scenario: combine MIN refuses a string
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                          |
+      | 999993653 | {"rijen": [{"waarde": "a"}]} |
+    When I evaluate "laagste" of "test_signaturen"
+    Then the execution fails with "FOREACH combine MIN is not defined for (string)"
+
+  Scenario: combine MAX refuses a boolean
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                           |
+      | 999993653 | {"rijen": [{"waarde": true}]} |
+    When I evaluate "hoogste" of "test_signaturen"
+    Then the execution fails with "FOREACH combine MAX is not defined for (boolean)"
+
+  @signature:combine-ONLY:values
+  Scenario: combine ONLY gives its one element
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                        |
+      | 999993653 | {"rijen": [{"waarde": 5}]} |
+    When I evaluate "enige" of "test_signaturen"
+    Then the execution succeeds
+    Then output "enige" equals 5
+
+  Scenario: combine ONLY over no results is absent
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij           |
+      | 999993653 | {"rijen": []} |
+    When I evaluate "enige" of "test_signaturen"
+    Then the execution succeeds
+    Then output "enige" is absent
+
+  Scenario: combine ONLY refuses more than one element
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                       |
+      | 999993653 | {"rijen": [{"waarde": 5}, {"waarde": 6}]} |
+    When I evaluate "enige" of "test_signaturen"
+    Then the execution fails with "ONLY takes at most one"
+
+  @signature:combine-DISTINCT:values
+  Scenario: combine DISTINCT gives the elements that differ, in the order each first occurs
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                                                          |
+      | 999993653 | {"rijen": [{"waarde": 5}, {"waarde": 3}, {"waarde": 5}], "verwacht": [5, 3]} |
+    When I evaluate "soorten_kloppen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "soorten_kloppen" is true
+
+  Scenario: combine DISTINCT keeps an absent element once
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                                                                   |
+      | 999993653 | {"rijen": [{"waarde": null}, {"waarde": 3}, {"waarde": null}], "verwacht": [null, 3]} |
+    When I evaluate "soorten_kloppen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "soorten_kloppen" is true
+
+  Scenario: combine DISTINCT over no results is an empty list
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                           |
+      | 999993653 | {"rijen": [], "verwacht": []} |
+    When I evaluate "soorten_kloppen" of "test_signaturen"
+    Then the execution succeeds
+    Then output "soorten_kloppen" is true
+
+  Scenario: combine DISTINCT refuses elements of different types
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                                         |
+      | 999993653 | {"rijen": [{"waarde": 5}, {"waarde": "5"}], "verwacht": []} |
+    When I evaluate "soorten_kloppen" of "test_signaturen"
+    Then the execution fails with "FOREACH combine DISTINCT is not defined for (number, string)"
+
+  Scenario: combine AND stops at a false, so a later element is not evaluated
+    # The second row has no `keur`: evaluating it would fail.
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                        |
+      | 999993653 | {"rijen": [{"keur": false}, {"ander": 1}]} |
+    When I evaluate "allen_gekeurd" of "test_signaturen"
+    Then the execution succeeds
+    Then output "allen_gekeurd" is false
+
+  Scenario: combine AND reaches an element that is no verdict before a false and refuses it
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                       |
+      | 999993653 | {"rijen": [{"keur": 1}, {"keur": false}]} |
+    When I evaluate "allen_gekeurd" of "test_signaturen"
+    Then the execution fails with "FOREACH combine AND is not defined for (number)"
+
+  Scenario: combine OR stops at a true, so a later element is not evaluated
+    # The second row has no `keur`: evaluating it would fail.
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                       |
+      | 999993653 | {"rijen": [{"keur": true}, {"ander": 1}]} |
+    When I evaluate "een_gekeurd" of "test_signaturen"
+    Then the execution succeeds
+    Then output "een_gekeurd" is true
+
+  Scenario: combine AND over no results is true and combine OR is false
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij           |
+      | 999993653 | {"rijen": []} |
+    When I evaluate "allen_gekeurd" of "test_signaturen"
+    Then the execution succeeds
+    Then output "allen_gekeurd" is true
+
+  # ---------------------------------------------------------------------------
+  # Fields: a path leads through records. The field of an absence is absent; a
+  # field a record does not have, and a path into another value, are errors.
+  # ---------------------------------------------------------------------------
+
+  Scenario: The field of an absent record is absent
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij         |
+      | 999993653 | {"a": null} |
+    When I evaluate "onderdeel_ontbreekt" of "test_signaturen"
+    Then the execution succeeds
+    Then output "onderdeel_ontbreekt" is true
+
+  Scenario: A field that holds an absence is absent
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                        |
+      | 999993653 | {"a": {"onderdeel": null}} |
+    When I evaluate "onderdeel_ontbreekt" of "test_signaturen"
+    Then the execution succeeds
+    Then output "onderdeel_ontbreekt" is true
+
+  Scenario: A field that holds a value is not absent
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                     |
+      | 999993653 | {"a": {"onderdeel": 1}} |
+    When I evaluate "onderdeel_ontbreekt" of "test_signaturen"
+    Then the execution succeeds
+    Then output "onderdeel_ontbreekt" is false
+
+  Scenario: A field the record does not have is an error
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                 |
+      | 999993653 | {"a": {"ander": 1}} |
+    When I evaluate "onderdeel_ontbreekt" of "test_signaturen"
+    Then the execution fails with "Variable not found"
+
+  Scenario: A path into a number is an error
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij      |
+      | 999993653 | {"a": 5} |
+    When I evaluate "onderdeel_ontbreekt" of "test_signaturen"
+    Then the execution fails with "Type mismatch: expected object, got int"
+
+  Scenario: A path into a list is an error
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                       |
+      | 999993653 | {"a": [{"onderdeel": 1}]} |
+    When I evaluate "onderdeel_ontbreekt" of "test_signaturen"
+    Then the execution fails with "Type mismatch: expected object, got array"
+
+  Scenario: combine AND evaluates the element after one that does not settle the answer
+    Given the following "register" data with key "bsn" for law "test_signaturen":
+      | bsn       | rij                                       |
+      | 999993653 | {"rijen": [{"keur": true}, {"ander": 1}]} |
+    When I evaluate "allen_gekeurd" of "test_signaturen"
+    Then the execution fails with "Variable not found"

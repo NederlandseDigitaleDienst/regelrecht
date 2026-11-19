@@ -4,7 +4,8 @@
 //! accepts and the type it returns. Operands that match no signature are an
 //! error. This module holds that list once. The engine holds the values an
 //! operation receives against it; that is in place for arithmetic,
-//! comparison and logic, and the collection and date operations follow. The
+//! comparison, logic and the collection operations, and the date operations
+//! follow. The
 //! type checker is to hold declared types against the same list (rule T6).
 //!
 //! A [`Kind`] is what a value shows at run time. Whether a number is an

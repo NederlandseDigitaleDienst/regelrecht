@@ -583,7 +583,9 @@ fn iso_value(date: NaiveDate) -> Value {
 /// Handles:
 /// - Object property access: `obj.property`
 /// - Nested paths: `obj.nested.property`
-/// - Array indexing: `arr.0`, `arr.1`
+///
+/// A field the object does not have, and a path into a value that is not an
+/// object, are errors (RFC-055).
 ///
 /// # Arguments
 /// * `value` - The value to access property from
@@ -620,21 +622,12 @@ fn get_property(value: &Value, property_path: &str, depth: usize) -> Result<Valu
         // the law's own absence checks decide (RFC-036). Failing here would fail
         // the whole calculation for a person the record does not apply to.
         Value::Null => Ok(Value::Null),
-        // A property of a record nobody has yet is unknown for the same facts.
-        Value::Unknown(_) => Ok(value.clone()),
-        Value::Array(arr) => {
-            // Support numeric indexing for arrays
-            if let Ok(index) = property_path.parse::<usize>() {
-                arr.get(index)
-                    .cloned()
-                    .ok_or_else(|| EngineError::VariableNotFound(format!("[{}]", index)))
-            } else {
-                Err(EngineError::TypeMismatch {
-                    expected: "object".to_string(),
-                    actual: "array".to_string(),
-                })
-            }
-        }
+        // A property of a record nobody has yet is unknown for the same facts,
+        // and a property of a value the law could not express is that value
+        // (RFC-055).
+        Value::Unknown(_) | Value::Untranslatable { .. } => Ok(value.clone()),
+        // A path leads through records only. An element of a list has no
+        // name; a law reaches it with FOREACH.
         _ => Err(EngineError::TypeMismatch {
             expected: "object".to_string(),
             actual: value.type_name().to_string(),
@@ -836,21 +829,37 @@ mod tests {
     }
 
     #[test]
-    fn test_dot_notation_array_index() {
+    fn test_a_path_into_a_list_is_an_error() {
+        // RFC-055: a path leads through records only. An element of a list
+        // has no name; a law reaches it with FOREACH.
         let mut ctx = make_context();
+        ctx.set_output(
+            "items",
+            Value::Array(vec![Value::String("first".to_string())]),
+        );
+        for path in ["items.0", "items.first"] {
+            let err = ctx.resolve(path).unwrap_err();
+            assert!(
+                matches!(
+                    &err,
+                    EngineError::TypeMismatch { expected, actual }
+                        if expected == "object" && actual == "array"
+                ),
+                "{path}: {err}"
+            );
+        }
+    }
 
-        let items = vec![
-            Value::String("first".to_string()),
-            Value::String("second".to_string()),
-            Value::String("third".to_string()),
-        ];
-        ctx.set_output("items", Value::Array(items));
-
-        let first = ctx.resolve("items.0").unwrap();
-        assert_eq!(first, Value::String("first".to_string()));
-
-        let second = ctx.resolve("items.1").unwrap();
-        assert_eq!(second, Value::String("second".to_string()));
+    #[test]
+    fn test_a_field_of_an_untranslatable_value_is_that_value() {
+        let mut ctx = make_context();
+        let taint = Value::Untranslatable {
+            article: "3".to_string(),
+            construct: "naar redelijkheid".to_string(),
+        };
+        ctx.set_output("vaag", taint.clone());
+        assert_eq!(ctx.resolve("vaag.bedrag").unwrap(), taint);
+        assert_eq!(ctx.resolve("vaag.a.b").unwrap(), taint);
     }
 
     #[test]

@@ -492,6 +492,56 @@ Feature: No-op sync
   });
 });
 
+// A table cell in double quotes is text (bdd/grammar.yaml, `value_typing`).
+// Read into the form it is the string without its quotes, so a save has to
+// put them back, or the text `42` would be saved as the number 42.
+describe('a text that looks like another type keeps its quotes through a save', () => {
+  it('writes a parameter that is such a text as a parameter table', () => {
+    const parsed = parseFeature(`
+Feature: Text that looks like a number
+
+  Scenario: Test
+    Given the following parameters:
+      | waarde | "42"   |
+      | code   | "0111" |
+      | vlag   | "true" |
+      | naam   | GM0384 |
+    When I evaluate "result" of "law"
+`);
+    const form = mapFeatureToForm(parsed);
+    const read = Object.fromEntries(defined(form.scenarios[0]).setup.parameters.map((p) => [p.name, p.value]));
+    expect(read).toEqual({ waarde: '42', code: '0111', vlag: 'true', naam: 'GM0384' });
+
+    const gherkin = formStateToGherkin(form);
+    expect(gherkin).toContain('| waarde | "42" |');
+    expect(gherkin).toContain('| code | "0111" |');
+    expect(gherkin).toContain('| vlag | "true" |');
+    // A text that reads as itself needs no table and no quotes.
+    expect(gherkin).toContain('Given parameter "naam" is "GM0384"');
+
+    const again = mapFeatureToForm(parseFeature(gherkin));
+    const reread = Object.fromEntries(defined(again.scenarios[0]).setup.parameters.map((p) => [p.name, p.value]));
+    expect(reread).toEqual(read);
+  });
+
+  it('writes such a text in a collection cell in quotes', () => {
+    const parsed = parseFeature(`
+Feature: Text in a collection
+
+  Scenario: Test
+    Given parameter "bedrijven" is the collection:
+      | kvk_nummer | sbi_code |
+      | 85234567   | "56102"  |
+    When I evaluate "result" of "law"
+`);
+    const form = mapFeatureToForm(parsed);
+    const gherkin = formStateToGherkin(form);
+    expect(gherkin).toContain('| 85234567 | "56102" |');
+    const again = mapFeatureToForm(parseFeature(gherkin));
+    expect(defined(again.scenarios[0]).setup.parameters).toEqual(defined(form.scenarios[0]).setup.parameters);
+  });
+});
+
 describe('typed scenario values round-trip', () => {
   // ScenarioParameterInput now emits real JS types (boolean true, integer
   // eurocents) instead of strings. Verify these serialize to valid Gherkin

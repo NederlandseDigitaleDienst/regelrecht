@@ -12,7 +12,7 @@ Feature: Bepalen HACCP-voedselveiligheidsverplichting
     Given parameter "kvk_nummer" is "85234567"
     And the following "KVK" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | sbi_code |
-      | 85234567   | 56102    |
+      | 85234567   | "56102"  |
     And the following "NVWA" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | is_geregistreerd_nvwa | heeft_haccp_systeem | type_haccp_systeem |
       | 85234567   | true                  | true                | hygienecode        |
@@ -32,7 +32,7 @@ Feature: Bepalen HACCP-voedselveiligheidsverplichting
     Given parameter "kvk_nummer" is "85234567"
     And the following "KVK" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | sbi_code |
-      | 85234567   | 56101    |
+      | 85234567   | "56101"  |
     And the following "NVWA" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | is_geregistreerd_nvwa | heeft_haccp_systeem | type_haccp_systeem |
       | 85234567   | true                  | false               | null               |
@@ -49,7 +49,7 @@ Feature: Bepalen HACCP-voedselveiligheidsverplichting
     Given parameter "kvk_nummer" is "85234567"
     And the following "KVK" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | sbi_code |
-      | 85234567   | 4711     |
+      | 85234567   | "4711"  |
     And the following "NVWA" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | is_geregistreerd_nvwa | heeft_haccp_systeem | type_haccp_systeem |
       | 85234567   | true                  | true                | eigen_haccp_plan   |
@@ -65,7 +65,7 @@ Feature: Bepalen HACCP-voedselveiligheidsverplichting
     Given parameter "kvk_nummer" is "85234567"
     And the following "KVK" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | sbi_code |
-      | 85234567   | 8230     |
+      | 85234567   | "8230"  |
     And the following "NVWA" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | is_geregistreerd_nvwa | heeft_haccp_systeem | type_haccp_systeem |
       | 85234567   | false                 | false               | null               |
@@ -82,7 +82,7 @@ Feature: Bepalen HACCP-voedselveiligheidsverplichting
     Given parameter "kvk_nummer" is "99999999"
     And the following "KVK" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | sbi_code |
-      | 99999999   | 4771     |
+      | 99999999   | "4771"  |
     And the following "NVWA" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | is_geregistreerd_nvwa | heeft_haccp_systeem | type_haccp_systeem |
       | 99999999   | null                  | null                | null               |
@@ -95,7 +95,7 @@ Feature: Bepalen HACCP-voedselveiligheidsverplichting
     Given parameter "kvk_nummer" is "99999999"
     And the following "KVK" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | sbi_code |
-      | 99999999   | 6201     |
+      | 99999999   | "6201"  |
     And the following "NVWA" data with key "kvk_nummer" for law "warenwet/haccp":
       | kvk_nummer | is_geregistreerd_nvwa | heeft_haccp_systeem | type_haccp_systeem |
       | 99999999   | null                  | null                | null               |

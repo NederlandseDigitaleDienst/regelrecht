@@ -34,6 +34,14 @@ Feature: Typing of a parameter value — bdd/grammar.yaml value_typing
     Then output "waarde_is_getal" is true
     Then output "waarde_is_tekst" is false
 
+  Scenario: A table cell in double quotes is text, whatever it looks like
+    Given the following parameters:
+      | waarde | "42" |
+    When I evaluate outputs "waarde_is_getal, waarde_is_tekst" of "test_value_typing"
+    Then the execution succeeds
+    Then output "waarde_is_getal" is false
+    Then output "waarde_is_tekst" is true
+
   Scenario: A value that is not a number literal stays text
     Given parameter "waarde" is "GM0384"
     When I evaluate outputs "waarde_is_getal, waarde_is_tekst" of "test_value_typing"
