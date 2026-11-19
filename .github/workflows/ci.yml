@@ -63,6 +63,7 @@ jobs:
               - frontend-poc-portal/**
               - frontend-poc-terugbetaalregimes/**
               - frontend-poc-nieuwkomersbekostiging/**
+              - frontend-poc-regels-op-een-plek/**
               - frontend-poc-napp/**
               - frontend-poc-wetsgeschiedenis/**
               - corpus-poc/**
@@ -1212,6 +1213,9 @@ jobs:
         run: |
           npm test -w frontend-poc-terugbetaalregimes
           npm test -w frontend-poc-nieuwkomersbekostiging
+          # Zonder de bron (die staat niet in deze repository) slaat de vergelijking met de
+          # vooraf gerekende uitkomst zich over; de rest draait wel.
+          npm test -w frontend-poc-regels-op-een-plek
           # De assistent-backend is geen workspace-member (het is een server,
           # geen frontend), dus `npm test -w` bereikt hem niet. De vitest uit
           # de root draait zijn tests wel.
