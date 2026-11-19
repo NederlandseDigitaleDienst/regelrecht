@@ -83,6 +83,7 @@ export const PACKAGES = [
   // Geen image meer sinds chronolexografie in de browser draait (in het
   // poc-image). Blijft hier staan zodat de oude versies worden opgeruimd.
   'regelrecht-poc-chronolexografie',
+  'regelrecht-poc-wetsgeschiedenis',
 ];
 
 // Tags die een versie onaanraakbaar maken, wat er verder ook op zit. Dit is de
