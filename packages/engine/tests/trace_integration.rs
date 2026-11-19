@@ -2,21 +2,31 @@
 //!
 //! Verifies that the trace output matches the expected box-drawing format
 //! for the zorgtoeslag (healthcare allowance) scenario.
+//!
+//! The laws come from a frozen copy under `tests/fixtures/trace_corpus/`, not
+//! from `corpus/regulation/`. These tests pin how the engine traces, so they
+//! block CI; the zorgtoeslag scenarios next to the law are deliberately not in
+//! CI, because a change to a law is for a human to judge. Reading the live
+//! corpus here would turn every such change into a red engine test. The copy
+//! holds the version of each regelwerk the evaluation on 2025-01-01 reaches,
+//! including the Awb for its hooks, and nothing more: a law added to the copy
+//! can fire a hook and change the expected trace. When the format of a
+//! regelwerk changes, refresh the copy from the corpus and review the
+//! expected traces alongside.
 
 // Allowed crate-wide: test helpers outside a `#[test]` fn may unwrap, expect and
 // panic too, because that is how a failing fixture reports itself.
 // `allow-*-in-tests` in clippy.toml only reaches `#[test]` fns.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-mod common;
-
 use regelrecht_engine::{LawExecutionService, PathNodeType, Value};
 use std::collections::BTreeMap;
 use walkdir::WalkDir;
 
-/// Load all regulation YAML files into the service.
+/// Load every regelwerk of the frozen trace corpus into the service.
 fn load_all_regulations(service: &mut LawExecutionService) -> Result<usize, String> {
-    let regulation_dir = common::regulation_base_path().join("nl");
+    let regulation_dir =
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/trace_corpus");
 
     if !regulation_dir.exists() {
         return Err(format!(
@@ -35,9 +45,12 @@ fn load_all_regulations(service: &mut LawExecutionService) -> Result<usize, Stri
         if path.is_file() && path.extension().is_some_and(|ext| ext == "yaml") {
             let content = std::fs::read_to_string(path)
                 .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
-            if service.load_law(&content).is_ok() {
-                count += 1;
-            }
+            // Every file in the copy is there on purpose, so one that no
+            // longer loads is a failure rather than a law to skip.
+            service
+                .load_law(&content)
+                .map_err(|e| format!("Failed to load {}: {}", path.display(), e))?;
+            count += 1;
         }
     }
 
