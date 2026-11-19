@@ -214,7 +214,7 @@ Checking, outside the browser:
 
 ```bash
 just demo-check        # laws, Awb parity, service map, scenarios, frontend tests, WASM and build
-just bdd-demo          # the scenarios only (plus the Awb lifecycle test)
+just bdd-demo          # the scenarios only
 just validate-demo     # the laws only (schema and type check)
 ```
 

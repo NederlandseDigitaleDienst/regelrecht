@@ -1,0 +1,73 @@
+---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.2/schema/v0.8.2/schema.json
+$id: fictief_beleid_schooljaargrenzen_obs_de_klimop
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2026-07-01'
+valid_from: '2026-08-01'
+url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+name: Begin en einde van het schooljaar bij OBS De Klimop (fictief beleid)
+articles:
+  - number: '1'
+    text: >-
+      FICTIEF, eigen keuze in de modellering.
+    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+    machine_readable:
+      execution:
+        output:
+          - name: begin_schooljaar
+            type: date
+          - name: einde_schooljaar
+            type: date
+          - name: eerste_jaar_schooljaar
+            type: number
+          - name: laatste_jaar_schooljaar
+            type: number
+        actions:
+          - output: begin_schooljaar
+            value:
+              operation: DATE
+              year:
+                operation: IF
+                cases:
+                  - when:
+                      operation: GREATER_THAN_OR_EQUAL
+                      subject:
+                        operation: DATE_PART
+                        date: $datum
+                        in: month
+                      value: 8
+                    then:
+                      operation: DATE_PART
+                      date: $datum
+                      in: year
+                default:
+                  operation: SUBTRACT
+                  values:
+                    - operation: DATE_PART
+                      date: $datum
+                      in: year
+                    - 1
+              month: 8
+              day: 1
+          - output: einde_schooljaar
+            value:
+              operation: DATE
+              year:
+                operation: ADD
+                values:
+                  - operation: DATE_PART
+                    date: $begin_schooljaar
+                    in: year
+                  - 1
+              month: 7
+              day: 31
+          - output: eerste_jaar_schooljaar
+            value:
+              operation: DATE_PART
+              date: $begin_schooljaar
+              in: year
+          - output: laatste_jaar_schooljaar
+            value:
+              operation: DATE_PART
+              date: $einde_schooljaar
+              in: year

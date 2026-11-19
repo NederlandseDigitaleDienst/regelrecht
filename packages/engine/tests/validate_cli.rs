@@ -1,12 +1,12 @@
-//! Gedragstest voor de `validate`-binary: de corpuspoort van pre-commit en CI.
+//! Behaviour of the `validate` binary: the corpus gate of pre-commit and CI.
 //!
-//! Wat hier vastligt is de afloopcode, niet de opmaak van de meldingen. `just
-//! validate` (en daarmee de pre-commit-hook) beslist op die code of een
-//! wijziging in `corpus/regulation/` mag landen; een `validate` die stilletjes
-//! 0 teruggeeft op een kapot wetsbestand is een open poort.
+//! What these tests pin is the exit code, not the layout of the messages.
+//! `just validate` (and so the pre-commit hook) decides on that code whether
+//! a change in `corpus/regulation/` may land; a `validate` that quietly
+//! returns 0 on a broken regelwerk is an open gate.
 //!
-//! Alleen gebouwd met de `validate`-feature, net als de binary zelf (die heeft
-//! `required-features = ["validate"]`). `just test` draait met `--all-features`.
+//! Built only with the `validate` feature, like the binary itself (which has
+//! `required-features = ["validate"]`). `just test` runs with `--all-features`.
 
 // Allowed crate-wide: test helpers outside a `#[test]` fn may unwrap, expect and
 // panic too, because that is how a failing fixture reports itself.
@@ -25,16 +25,16 @@ fn run(args: &[PathBuf]) -> Output {
     Command::new(env!("CARGO_BIN_EXE_validate"))
         .args(args)
         .output()
-        .expect("validate-binary kon niet starten")
+        .expect("the validate binary should start")
 }
 
 fn stderr(output: &Output) -> String {
     String::from_utf8_lossy(&output.stderr).into_owned()
 }
 
-/// Zonder bestanden is er niets gevalideerd, en dat is geen goedkeuring.
+/// Without files nothing was validated, and that is no approval.
 #[test]
-fn zonder_argumenten_is_het_een_gebruiksfout() {
+fn without_arguments_it_is_a_usage_error() {
     let output = run(&[]);
     assert_eq!(output.status.code(), Some(1), "stderr: {}", stderr(&output));
     assert!(
@@ -44,9 +44,9 @@ fn zonder_argumenten_is_het_een_gebruiksfout() {
     );
 }
 
-/// Een schema-geldig, unit-schoon bestand komt door de poort.
+/// A file that is valid against the schema and clean on units passes the gate.
 #[test]
-fn geldig_bestand_slaagt() {
+fn a_valid_file_passes() {
     let output = run(&[fixture("valid.yaml")]);
     assert_eq!(output.status.code(), Some(0), "stderr: {}", stderr(&output));
     assert!(
@@ -56,10 +56,10 @@ fn geldig_bestand_slaagt() {
     );
 }
 
-/// Een schemaovertreding die het lenient law-model wél accepteert (ontbrekende
-/// top-level `url`) moet alsnog een afkeuring opleveren.
+/// A schema violation the lenient law-model does accept (a missing top-level
+/// `url`) still fails.
 #[test]
-fn schemaovertreding_faalt() {
+fn a_schema_violation_fails() {
     let output = run(&[fixture("schema_violation.yaml")]);
     let err = stderr(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {err}");
@@ -68,31 +68,31 @@ fn schemaovertreding_faalt() {
     assert!(!err.contains("OK:"), "stderr: {err}");
 }
 
-/// Een bestand zonder `$schema` is niet te valideren en gaat er dus uit.
+/// A file without `$schema` cannot be validated, so it fails.
 #[test]
-fn ontbrekend_schemaveld_faalt() {
+fn a_missing_schema_field_fails() {
     let output = run(&[fixture("no_schema_field.yaml")]);
     let err = stderr(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {err}");
     assert!(err.contains("missing $schema field"), "stderr: {err}");
 }
 
-/// De unit-controle (RFC-023) draait ná een geslaagde schemavalidatie en telt
-/// mee in de afloopcode: eurocent bij dagen optellen is een FAIL, geen WARN.
+/// The unit check (RFC-023) runs after a passing schema validation and counts
+/// in the exit code: adding eurocent to days is a FAIL, not a WARN.
 #[test]
-fn unit_mismatch_in_geldig_schema_faalt() {
+fn a_unit_mismatch_in_a_valid_file_fails() {
     let output = run(&[fixture("unit_mismatch.yaml")]);
     let err = stderr(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {err}");
     assert!(err.contains("units:"), "stderr: {err}");
-    // Het schema keurde het bestand goed; de afkeuring komt van de units.
+    // The schema passed the file; the failure comes from the units.
     assert!(err.contains("OK:"), "stderr: {err}");
 }
 
-/// Eén kapot bestand tussen goede bestanden bepaalt de afloopcode; de andere
-/// bestanden worden nog wel gecontroleerd.
+/// One broken file among good ones decides the exit code; the other files
+/// are still checked.
 #[test]
-fn een_kapot_bestand_kleurt_de_hele_run() {
+fn a_broken_file_fails_the_whole_run() {
     let output = run(&[fixture("valid.yaml"), fixture("schema_violation.yaml")]);
     let err = stderr(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {err}");
@@ -100,11 +100,11 @@ fn een_kapot_bestand_kleurt_de_hele_run() {
     assert!(err.contains("FAIL"), "stderr: {err}");
 }
 
-/// De typecontrole (RFC-036/RFC-037) draait ná een geslaagde schemavalidatie
-/// en telt mee in de afloopcode: een afwezigheidstoets op een veld dat nooit
-/// afwezig is, is een FAIL die wet, artikel, output en regel noemt.
+/// The type check (RFC-036/RFC-037) runs after a passing schema validation
+/// and counts in the exit code: an absence test on a field that is never
+/// absent is a FAIL that names the law, article, output and line.
 #[test]
-fn typefout_in_geldig_schema_faalt() {
+fn a_type_error_in_a_valid_file_fails() {
     let output = run(&[fixture("type_error.yaml")]);
     let err = stderr(&output);
     assert_eq!(output.status.code(), Some(1), "stderr: {err}");
@@ -114,6 +114,6 @@ fn typefout_in_geldig_schema_faalt() {
         err.contains("article 1 output 'geen_huur'"),
         "stderr: {err}"
     );
-    // Het schema keurde het bestand goed; de afkeuring komt van de typecontrole.
+    // The schema passed the file; the failure comes from the type check.
     assert!(err.contains("OK:"), "stderr: {err}");
 }

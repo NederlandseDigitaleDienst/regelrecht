@@ -8,7 +8,7 @@ Feature: Het bezwaar tegen een besluit op een gehandicaptenparkeerkaart
   geeft een kaart die later afloopt, maar dat alleen is geen aanleiding. De
   eerste twee scenario's tonen alleen de heroverweging, het derde ook wat
   artikel 7:11 ermee doet. De keten van bezwaarschrift naar beslissing en
-  nieuw besluit staat in de tests van de cel (packages/cel/tests/answer_from_another_cell.rs).
+  nieuw besluit staat in de tests van de cel (packages/cel/tests/answer_from_another_cell/).
 
   Background:
     Given the calculation date is "2026-11-20"

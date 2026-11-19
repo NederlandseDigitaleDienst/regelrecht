@@ -3859,33 +3859,23 @@ articles:
         assert_eq!(resolver.law_count(), 1);
     }
 
-    fn get_regulation_path() -> std::path::PathBuf {
-        std::env::var("REGULATION_PATH")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|_| {
-                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("..")
-                    .join("..")
-                    .join("corpus")
-                    .join("regulation")
-            })
-    }
-
     #[test]
     fn test_resolver_load_from_directory() {
-        let regulation_path = get_regulation_path().join("nl");
+        // The frozen copy the trace tests read, in the layout of the corpus,
+        // so a change to the corpus does not touch this test.
+        let regulation_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/trace_corpus/nl");
 
         let mut resolver = RuleResolver::new();
         let count = resolver.load_from_directory(&regulation_path).unwrap();
 
-        assert!(
-            count >= 10,
-            "Expected at least 10 laws from corpus/regulation/nl, got {}",
-            count
+        assert_eq!(
+            count, 7,
+            "Expected the 7 laws of the frozen copy, got {count}"
         );
         assert!(resolver.has_law("wet_op_de_zorgtoeslag"));
         assert!(resolver.has_law("regeling_standaardpremie"));
-        assert!(resolver.has_law("participatiewet"));
+        assert!(resolver.has_law("algemene_wet_bestuursrecht"));
     }
 
     // -------------------------------------------------------------------------

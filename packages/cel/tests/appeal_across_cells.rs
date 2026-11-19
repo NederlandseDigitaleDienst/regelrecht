@@ -86,7 +86,7 @@ fn cells() -> PathBuf {
 
 /// A directory of the school's cell that gives only the answer for art. 13a
 /// lid 2, or none when the test left it out ([`without_reduction`]). The
-/// head judges art. 11, onder f, here, as in `tests/submission_lifecycle.rs`.
+/// head judges art. 11, onder f, here, as in `tests/submission_lifecycle/`.
 fn school_dir() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     let mut yaml = "name: Het hoofd van OBS De Klimop\ncategory: het hoofd\n".to_string();
@@ -484,7 +484,7 @@ fn received(case: &mut Case) -> Result<Gram, Error> {
 }
 
 #[test]
-fn the_school_records_the_receipt_of_the_judgment() {
+fn the_deciding_cell_records_the_receipt_of_the_judgment() {
     let mut case = case(&well_founded());
     let receipt = received(&mut case).unwrap();
     assert_eq!(receipt.kind, "EXECUTOGRAM");
@@ -515,7 +515,7 @@ fn the_school_records_the_receipt_of_the_judgment() {
 }
 
 #[test]
-fn after_the_judgment_the_school_decides_on_the_objection_again() {
+fn after_the_judgment_the_deciding_cell_decides_on_the_objection_again() {
     // The head decides on 18 January, within the term, and judges the
     // profession anew on the employer's statement: well founded, the
     // refusal is revoked and leave is granted.
@@ -1074,7 +1074,7 @@ fn the_copy_of_a_decision_on_objection_holds_the_contested_decision_as_a_value()
 }
 
 #[test]
-fn the_court_decides_the_case_itself_and_the_school_counts_its_grant() {
+fn the_court_decides_the_case_itself_and_the_deciding_cell_counts_its_grant() {
     let mut case = case(&decided_by_the_court());
     let judgment = case.judgment.clone();
     assert_eq!(
@@ -1146,7 +1146,7 @@ fn the_court_decides_the_case_itself_and_the_school_counts_its_grant() {
 }
 
 #[test]
-fn a_court_that_decides_itself_without_the_fact_the_school_would_give_fails() {
+fn a_court_that_decides_itself_without_the_fact_the_deciding_cell_would_give_fails() {
     let mut school = school();
     let mut court = court();
     let refused = refused(&mut school);
@@ -1178,7 +1178,7 @@ fn a_court_that_decides_itself_without_the_fact_the_school_would_give_fails() {
 }
 
 #[test]
-fn a_court_that_decides_itself_asks_the_school_with_the_schools_ground() {
+fn a_court_that_decides_itself_asks_the_deciding_cell_on_its_ground() {
     // With the school's cell along, the court that decides the case itself
     // takes the school's answer through the school's policy. The court decides
     // for the school (Awb 8:72 lid 3 onder b), so it has the school's ground

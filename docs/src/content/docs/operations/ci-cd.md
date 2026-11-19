@@ -52,8 +52,7 @@ with `BDD_REVERSE_ACTIONS=1`. Those steps are not part of the feature language;
 The **BDD demo** job runs bucket A over `corpus/demo/regulation`, with
 `REGULATION_PATH` pointing at it. It runs as a matrix of two legs, each on its
 own runner. The `forward` leg first validates every law in that corpus against
-the schema. It then runs the scenarios with the actions in file order, followed
-by the Awb lifecycle test over the same corpus. The `reversed` leg runs the same
+the schema. It then runs the scenarios with the actions in file order. The `reversed` leg runs the same
 scenarios with the actions of every article in reverse order
 (`BDD_REVERSE_ACTIONS=1`). The order in the file must never change an outcome.
 Locally, `just validate-demo` and `just bdd-demo` do what the `forward` leg
