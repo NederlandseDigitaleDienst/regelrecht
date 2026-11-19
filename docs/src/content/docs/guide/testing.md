@@ -16,7 +16,7 @@ The table lists the tests in this repository and the jobs that run them here. Th
 | The cell's BDD suite and its constructs | `packages/cel/bdd/` | `just bdd` | BDD conformance |
 | Demo scenarios | `corpus/demo/regulation/**/scenarios/` | `just bdd-demo` | BDD demo |
 | Scenarios of the chronolexografie PoC | `packages/poc-chronolexografie/corpus/` | `just bdd-chrono` | BDD demo |
-| Example caller of the reusable BDD workflow | `bdd/external-corpus-example/` | see [BDD scenarios from another repository](#bdd-scenarios-from-another-repository) | Corpus BDD example |
+| Example caller of the reusable BDD workflow | `bdd/external-corpus-example/` | see [BDD scenarios from another repository](#bdd-scenarios-from-another-repository) | Example corpus, Example reports hold only its scenarios |
 | Scenarios of the JavaScript PoCs | `frontend-poc-*/tests/scenarios.test.js` | `npm test -w frontend-poc-<slug>` | E2E (mocked) |
 | Rust unit and integration tests | `packages/*/src/`, `packages/*/tests/` | `just test` | Rust tests |
 | Golden fixtures | `packages/engine/tests/golden_tests.rs` | `just test` | Rust tests |
@@ -116,6 +116,8 @@ just bdd-chrono                   # Bucket A over the corpus of the chronolexogr
 just bdd-trace                    # With execution traces in trace_output/
 ```
 
+When a rulework in a directory of `REGULATION_PATH` cannot be loaded, the run fails and names the file; the loader does not skip it.
+
 `just bdd-chrono` runs bucket A over the corpus of the chronolexografie PoC, which keeps its own copies of the real ruleworks it uses so that work on the PoC leaves `corpus/regulation/` alone. Their scenarios went along with them. Two of those features are still identical to the originals in the corpus: `criteria.feature` of the Regeling gehandicaptenparkeerkaart and `regio_en_vakanties.feature` of the Regeling vaststelling schoolvakanties. Both copies stay. The PoC's copy of the parking card regulation already makes a choice of its own on article 2, so that feature tests a different version. The PoC's ruleworks change only when someone works on the PoC, so a red scenario there is a real error and runs in CI. The originals are bucket A and stay out.
 
 Two other PoCs run their scenarios against the engine built to WASM instead, through `tests/scenarios.test.js` in their frontend. They are listed in `BDD_RUNNERS` in `script/orphan-tests.mjs`, which is how the orphan check knows their features are read.
@@ -147,9 +149,19 @@ jobs:
 
 The commit after `@` fixes the workflow and the engine together: with `regelrecht-ref` left empty, the workflow checks out regelrecht at the commit it was read from. Pin a commit, not a branch: a change in regelrecht then reaches the corpus as an update someone reviews. Set `regelrecht-ref` only to try another engine under the same workflow.
 
-With `include-central-corpus`, the ruleworks of `corpus/regulation` load beside the caller's but their scenarios do not run: `BDD_SCENARIO_PATH` keeps bucket A to the caller's directory. A `$id` that both directories hold fails every scenario, with a file from each in the message. A corpus with its own version of a central rulework therefore leaves `include-central-corpus` off, and keeps every central rulework its scenarios read in its own directory. The engine keeps one version per `$id` and `valid_from`. Without the check, a file with the same `valid_from` would replace the other, and the order of `REGULATION_PATH` would decide which one stays; a file with another `valid_from` would quietly join it as an extra version. Within one directory, several versions of a rulework load as before. A file that does not load fails the run as well.
+With `include-central-corpus`, the ruleworks of `corpus/regulation` load beside the caller's but their scenarios do not run: `BDD_SCENARIO_PATH` keeps bucket A to the caller's directory. A `$id` that both directories hold fails every scenario, with a file from each in the message. A corpus with its own version of a central rulework therefore leaves `include-central-corpus` off, and keeps every central rulework its scenarios read in its own directory. The engine keeps one version per `$id` and `valid_from`. Without the check, a file with the same `valid_from` would replace the other, and the order of `REGULATION_PATH` would decide which one stays; a file with another `valid_from` would quietly join it as an extra version.
 
-Each construct set of the caller is named after the construct it tests, as the sets here are. The construct sets run through the cell's runner, without its own suite, so both reports hold only the caller's scenarios. Each run writes a JUnit report through `BDD_JUNIT`. The workflow uploads both as one artifact, named by `artifact-name` (default `bdd-reports`), and lists the counts and every failed scenario in the step summary. The job fails when either run fails. `.github/workflows/corpus-bdd-example.yml` calls it against the fictional corpus in `bdd/external-corpus-example` whenever the workflow or a runner changes.
+Within one directory, the versions of a rulework load side by side.
+
+Each construct set of the caller is named after the construct it tests, as the sets here are. The construct sets run through the cell's runner, without its own suite. Each run writes a JUnit report through `BDD_JUNIT`, so both reports hold only the caller's scenarios. The workflow uploads them as one artifact, named by `artifact-name` (default `bdd-reports`), and lists the counts and every failed scenario in the step summary. The job fails when either run fails. `.github/workflows/corpus-bdd-example.yml` calls it against the fictional corpus in `bdd/external-corpus-example` whenever the workflow, a runner or the example corpus changes.
+
+To run the example locally, from `packages/engine` and then from `packages/cel`:
+
+```bash
+BDD_BUCKET=corpus REGULATION_PATH=$PWD/../../bdd/external-corpus-example/regulation:$PWD/../../corpus/regulation \
+  BDD_SCENARIO_PATH=$PWD/../../bdd/external-corpus-example/regulation cargo test --test bdd
+BDD_CONSTRUCT_SETS=$PWD/../../bdd/external-corpus-example/constructs/decision_on_submission cargo test --test bdd
+```
 
 ## Rust tests
 

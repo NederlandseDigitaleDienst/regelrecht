@@ -2,7 +2,7 @@
 # Runs the BDD scenarios of a corpus that lives in another repository against
 # the regelrecht engine. A caller names this file with `uses:` and a pinned
 # ref; how to call it and what each input means is in
-# docs/src/content/docs/guide/testing.md ("A corpus outside this repository").
+# docs/src/content/docs/guide/testing.md ("BDD scenarios from another repository").
 #
 # Two kinds of scenario, each through its own runner:
 # - bucket A (`packages/engine/tests/bdd`): the features under a `scenarios/`

@@ -17,11 +17,9 @@
 //! The constructs under `bdd/constructs/` are the scenario sets this runner
 //! finds itself ([`constructs`]); `BDD_CONSTRUCT_SETS` names sets from
 //! elsewhere, such as a corpus outside this repository ([`external`]), which
-//! then run instead of the runner's own suite. A
-//! corpus laid out the same way (a `regulation/` directory with a
-//! `scenarios/` directory beside it) is a scenario set too: its features
-//! would load its regelwerken by the same rule, because the set is read from
-//! where a feature sits.
+//! then run instead of the runner's own suite. Such a set loads its
+//! regelwerken by the same rule, because the set is read from where a
+//! feature sits.
 
 use std::path::{Path, PathBuf};
 

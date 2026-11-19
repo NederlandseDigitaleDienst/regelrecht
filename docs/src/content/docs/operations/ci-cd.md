@@ -62,6 +62,14 @@ the cell's suite in reverse, then the `reversed` leg. The demo corpus and its
 synthetic persona data live entirely in the repository, so this job also hangs
 on the `Test` gate and blocks a merge when either leg fails.
 
+The **Corpus BDD example** workflow (`corpus-bdd-example.yml`) calls the
+reusable `corpus-bdd.yml` the way a corpus in another repository would, against
+the fictional corpus in `bdd/external-corpus-example`. Its job **Example reports
+hold only its scenarios** then checks that the JUnit reports hold exactly the
+scenarios of that corpus. It runs only when the workflow, a runner or the
+example changes, and it is not a required check. How a caller uses the workflow is
+in [Testing](/guide/testing#bdd-scenarios-from-another-repository).
+
 Bucket A over the live corpus (`corpus/regulation/**/scenarios/*.feature`) stays out of CI. It asserts
 what the live laws currently produce, so a failure there means a law changed or a
 scenario went stale; a human decides what that is worth. Run it locally with
