@@ -3,7 +3,7 @@
   "info": {
     "title": "wetsproces: FSC voor Burgers",
     "version": "1.0.0",
-    "description": "The citizen's service of the wetsproces server for an app, after the werkversie of FSC voor Burgers (https://docs.fsc4b.nl/specs/protocol/). An app starts a session with CreateSession (section 4.3.4): POST /fsc4b/session/v1/challenge, then POST /fsc4b/session/v1/complete. Every request to the citizen's service carries the session token in the Authorization header and a body that is a compact JWE (alg dir, enc A256GCM) under the session's AES key, holding a JSON object. Every answer of the citizen's service is a JWE under the same key, holding the JSON answer, an error included ({\"fout\": \"...\"}), beside the HTTP status."
+    "description": "The citizen's service of the wetsproces server for an app, after the werkversie of FSC voor Burgers (https://docs.fsc4b.nl/specs/protocol/). An app starts a session with CreateSession (section 4.3.4): POST /fsc4b/session/v1/challenge, then POST /fsc4b/session/v1/complete. Every request to the citizen's service carries the session token in the Authorization header and a body that is a compact JWE (alg dir, enc A256GCM) under the session's AES key, holding a JSON object. Every answer of the citizen's service is a JWE under the same key, holding the JSON answer, an error included ({\"fout\": \"...\"}), beside the HTTP status; only a 401 (no live session under the token, or a body that does not decrypt under its key) and a 500 while reading the session are plain JSON."
   },
   "paths": {
     "/fsc4b/session/v1/challenge": {
@@ -67,11 +67,8 @@
     "/fsc4b/burger/v1/indieningen": {
       "post": {
         "summary": "A submission by the citizen of the session, for themself",
-        "description": "Decrypted, the body is a submission as POST /api/indieningen takes it: { \"velden\": { ... }, \"artikel\"?: \"...\", \"op\"?: \"<record id>\" }. The login field of the case is filled with the BSN of the credential; a submission that names it itself is refused (422).",
-        "parameters": [
-          { "$ref": "#/components/parameters/SessionToken" },
-          { "name": "Idempotency-Key", "in": "header", "required": false, "schema": { "type": "string", "maxLength": 128 }, "description": "Sent again with a retry, the request answers as the first time and records nothing." }
-        ],
+        "description": "Decrypted, the body is a submission as POST /api/indieningen takes it: { \"velden\": { ... }, \"artikel\"?: \"...\", \"op\"?: \"<record id>\", \"idempotency_key\"?: \"...\" }. The idempotency key sits inside the encryption, so it is authenticated: sent again, the request answers as the first time and records nothing. The Idempotency-Key header is not read here. The login field of the case is filled with the BSN of the credential; a submission that names it itself is refused (422).",
+        "parameters": [{ "$ref": "#/components/parameters/SessionToken" }],
         "requestBody": { "required": true, "content": { "application/jose": { "schema": { "type": "string" } } } },
         "responses": { "200": { "$ref": "#/components/responses/Encrypted" }, "401": { "$ref": "#/components/responses/NoSession" } }
       }

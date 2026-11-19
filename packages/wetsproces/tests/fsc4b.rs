@@ -619,3 +619,36 @@ async fn stable_mode_refuses_the_demo_stelsel_and_registers_no_demo_route() {
     );
     assert_eq!(server.status("get", fsc4b::DISCOVERY).await, StatusCode::OK);
 }
+
+#[tokio::test]
+async fn a_submission_sent_again_as_it_was_is_recorded_once() {
+    let server = demo_server(StoreChoice::Memory).await;
+    let anna = server.citizen(ANNA).await;
+    let mut payload = application();
+    payload["idempotency_key"] = json!("aanvraag-replay");
+    let body = anna.key.encrypt(payload.to_string().as_bytes()).unwrap();
+    let (status, first) = anna
+        .send(&server.http, "indieningen", body.clone())
+        .await
+        .unwrap();
+    assert_eq!(status, StatusCode::OK, "{first}");
+    // Whoever copied the request sends it again, byte for byte.
+    let (status, again) = anna.send(&server.http, "indieningen", body).await.unwrap();
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(again, first);
+    let (_, dossier) = anna
+        .call(&server.http, "dossier", &json!({}), None)
+        .await
+        .unwrap();
+    assert_eq!(ids(&dossier).len(), 1, "{dossier}");
+}
+
+#[tokio::test]
+async fn a_body_that_is_no_json_object_is_refused_under_the_session_key() {
+    let server = demo_server(StoreChoice::Memory).await;
+    let anna = server.citizen(ANNA).await;
+    let body = anna.key.encrypt(b"[]").unwrap();
+    let (status, answer) = anna.send(&server.http, "dossier", body).await.unwrap();
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(answer["fout"].is_string(), "{answer}");
+}

@@ -253,13 +253,25 @@ impl Trust {
         self.stelsel_version
     }
 
-    /// The Activatiedienst with OIN `oin` and, when the credential names a
-    /// `kid`, a key with that `kid` (§4.3.1, §4.3.3).
-    pub fn issuer(&self, oin: &str, kid: Option<&str>) -> Option<&Issuer> {
-        self.issuers.iter().find(|i| {
+    /// The keys of the Activatiedienst with OIN `oin` that may have signed a
+    /// credential naming `kid` (§4.3.1, §4.3.3): every key listed under that
+    /// OIN, or with a `kid`, those whose JWK has that `kid` or none. An
+    /// Activatiedienst listed with more than one key, as in a key rollover,
+    /// gives them all.
+    pub fn issuers<'a>(
+        &'a self,
+        oin: &'a str,
+        kid: Option<&'a str>,
+    ) -> impl Iterator<Item = &'a Issuer> + 'a {
+        self.issuers.iter().filter(move |i| {
             i.oin.as_str() == oin
                 && kid.is_none_or(|k| i.key.jwk().kid.as_deref().is_none_or(|own| own == k))
         })
+    }
+
+    /// The first of [`Trust::issuers`].
+    pub fn issuer<'a>(&'a self, oin: &'a str, kid: Option<&'a str>) -> Option<&'a Issuer> {
+        self.issuers(oin, kid).next()
     }
 }
 

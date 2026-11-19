@@ -13,7 +13,7 @@ The code is in `packages/wetsproces/src/fsc4b/`. Without configuration the chann
 2. It gets a credential for that key from an Activatiedienst: a JWS with the app's public key in `cnf`, a `scope`, the Activatiedienst's OIN in `iss`, a validity period and the citizen's `bsn` and name (§4.3.1).
 3. It reads the Stelseldocument, checks the Stelselbeheerder's signature on it, and takes this organization's public key and discovery URL from it. The discovery configuration names the two services (§4.2).
 4. It runs `CreateSession` (§4.3.4). `POST /fsc4b/session/v1/challenge` gives a JWS, signed with the organization's key, with a nonce and an ephemeral P-256 key. The app signs the nonce for this organization's OIN (`aud`), puts that signature, the credential and a fresh AES key in a Verifiable Presentation, encrypts it to the ephemeral key (`ECDH-ES`, `A256GCM`), and sends it with the nonce to `POST /fsc4b/session/v1/complete`. The answer is a session token, encrypted under the app's AES key.
-5. It calls the citizen's service with the token in the `Authorization` header and a body that is a JWE under the session key (`alg: dir`, `enc: A256GCM`). The answer comes back encrypted under the same key.
+5. It calls the citizen's service with the token in the `Authorization` header and a body that is a JWE under the session key (`alg: dir`, `enc: A256GCM`). The answer comes back encrypted under the same key. Only a `401` (no live session under the token, or a body that does not decrypt under its key) and a `500` while reading the session are plain JSON.
 
 The reference client in `src/fsc4b/client.rs` (feature `test-utils`) does each step as its own function. It is what the end-to-end tests in `tests/fsc4b.rs` run on.
 
@@ -26,13 +26,13 @@ The reference client in `src/fsc4b/client.rs` (feature `test-utils`) does each s
 | `POST /fsc4b/burger/v1/casus` | The case and today's date |
 | `POST /fsc4b/burger/v1/formulier` | The forms |
 | `POST /fsc4b/burger/v1/dossier` | The citizen's own dossier |
-| `POST /fsc4b/burger/v1/indieningen` | A submission, as `POST /api/indieningen` takes it; `Idempotency-Key` works as there |
+| `POST /fsc4b/burger/v1/indieningen` | A submission, as `POST /api/indieningen` takes it, with its idempotency key as the member `idempotency_key` inside the encrypted body |
 | `GET /fsc4b/discovery` | The discovery configuration: `sessionApi` and `wetsprocesBurgerApi`, each in version `v1` |
 | `GET /fsc4b/openapi.json` | The OpenAPI 3 specification of these routes |
 
 The citizen's routes run the same handlers as the browser routes. A session of this channel is a citizen and nothing else: it holds the role `wetsproces-burger` and the credential's BSN under the subject claim, never an employee's role, and it reaches no route outside `/fsc4b/burger/`. The store keeps the channel beside every record, in `recorded_via` (`keycloak`, `testlogin` or `fsc4b`), and the account as `fsc4b:` followed by the RFC 7638 thumbprint of the app's key.
 
-A refused presentation answers `401` with one fixed message, whatever check failed; the server log names the check. The log never holds a nonce, a token or a key. A session is kept under the SHA-256 of its token. Challenges and sessions live with the chronicles, in memory or in the tables `fsc4b_challenges` and `fsc4b_sessions` of the schema `wetsproces`. Taking a challenge deletes its row in the same statement, so two instances of the server never both accept one nonce. At most 10,000 challenges wait at once, over all instances; above that `/v1/challenge` answers `503`. A limit per client address is left to the ingress in front of the server.
+A refused presentation answers `401` with one fixed message, whatever check failed; the server log names the check. The log never holds a nonce, a token or a key. A session is kept under the SHA-256 of its token. Challenges and sessions live with the chronicles, in memory or in the tables `fsc4b_challenges` and `fsc4b_sessions` of the schema `wetsproces`. Taking a challenge deletes its row in the same statement, so two instances of the server never both accept one nonce. About 10,000 challenges wait at once, over all instances; above that `/v1/challenge` answers `503`. The bound is checked without a lock: challenges started at the same moment can each pass the check, so the count can go over by as many as run at once. A limit per client address is left to the ingress in front of the server.
 
 The ephemeral key of a waiting challenge and the AES key of a session are stored as they are, since another instance must be able to use them. Whoever can read the database, or a backup of it, while they live can decrypt the traffic of that challenge or session.
 
@@ -71,7 +71,7 @@ The example asks a credential, runs `CreateSession`, submits an application and 
 
 ## Where the werkversie contradicts itself
 
-Each choice sits in one place, in `src/fsc4b/jose.rs`, `presentation.rs` or `session.rs`.
+Each choice sits in one place in `src/fsc4b/`.
 
 - **The length of the session key.** §3.2, §3.4 and step 13 of §4.3.4.2.2.6 ask AES-256 with `A256GCM`. §4.3.4.1 asks the verifier to check that `session_aes_key` is 16 bytes, and its examples hold 16. A 16-byte key cannot be used with `A256GCM`, so the server requires 32 bytes (`AES_KEY_LEN`) and refuses 16.
 - **The curve "P-512".** §3.1 lists P-512, which does not exist (P-521 does). The server accepts ES256 on P-256 only: the one curve phones' secure hardware offers, as §3.1 itself notes.
@@ -84,6 +84,6 @@ Each choice sits in one place, in `src/fsc4b/jose.rs`, `presentation.rs` or `ses
 
 - **The post-quantum hybrid.** §3.3 recommends ML-KEM-768 with ECIES, but the challenge of §4.3.4.2.2.4 has no field for an ML-KEM key, so an app cannot use it with `CreateSession`. The server uses `ECDH-ES` alone.
 - **Revocation.** The server does not check Token Status Lists (§4.5). A revoked credential is accepted until its `exp`. The Stelselbeheerder's revocation and expiry of issuer keys (§4.5, §4.6.2) depend on a toepassingsprofiel that does not exist here, so the server does not check them either.
-- **Replay within a session.** The body of a request to the citizen's service holds no time or route, so a request someone copied off the line can be sent again while the session lasts. An `Idempotency-Key` keeps a repeated submission from being recorded twice; the standard names no other protection.
+- **Replay within a session.** The body of a request to the citizen's service holds no time or route, so a request someone captured can be sent again while the session lasts. A submission with an `idempotency_key` is answered from its receipt the second time and recorded once; that key sits inside the encryption, so it cannot be stripped off. A submission without one, and every read, can be replayed. The werkversie names no protection against this.
 - **OpenID4VP and OpenID4VCI** (§4.3.5, §4.4.2), and activation of an app with a real Activatiedienst (§4.4.1).
 - **The native app**, its deployment and a frontend.

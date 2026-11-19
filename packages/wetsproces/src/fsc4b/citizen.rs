@@ -8,6 +8,15 @@
 //! body that decrypts under the session's key, the token alone opens
 //! nothing. The answer is a JWE under the same key, with the JSON the
 //! browser routes answer, an error included, and the HTTP status beside it.
+//! Only a `401` (no live session under the token, or a body that does not
+//! decrypt under its key) and a `500` while reading the session are plain
+//! JSON.
+//!
+//! A submission's idempotency key travels inside the encryption, as the
+//! member [`IDEMPOTENCY_MEMBER`] of the payload, so that it is authenticated:
+//! a request copied and sent again carries the same key and is answered
+//! from the receipt, and nobody can strip the key off it. The
+//! `Idempotency-Key` header is not read on this channel.
 //!
 //! The handlers are those of the browser routes ([`crate::api`]), given a
 //! [`Principal`] with the citizen's role and the credential's BSN under the
@@ -15,7 +24,7 @@
 //! channel, except that the store keeps it beside each record.
 
 use axum::extract::State;
-use axum::http::{HeaderMap, StatusCode, header};
+use axum::http::{HeaderMap, HeaderValue, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use serde_json::Value;
 
@@ -31,12 +40,15 @@ use crate::service::Submit;
 /// key follows.
 pub const ACCOUNT_PREFIX: &str = "fsc4b:";
 
+/// The member of a submission's payload that holds its idempotency key.
+pub const IDEMPOTENCY_MEMBER: &str = "idempotency_key";
+
 /// An authenticated request: who, the key its answer goes under, and what
-/// it asked.
+/// it asked, or why that does not read.
 pub struct Authenticated {
     pub principal: Principal,
     pub key: AesKey,
-    pub payload: Value,
+    pub payload: Result<Value, ApiError>,
 }
 
 fn unauthenticated() -> ApiError {
@@ -59,8 +71,9 @@ fn token(headers: &HeaderMap) -> Option<&str> {
 /// # Errors
 ///
 /// 401 when there is no live session under the token or the body does not
-/// decrypt under its key; 400 when what decrypts is no JSON object; 500
-/// when the store fails.
+/// decrypt under its key; 500 when the store fails. A body that decrypts to
+/// no JSON object is authenticated, with a 400 as its payload, so that the
+/// answer still goes under the session key.
 pub async fn authenticate(
     fsc: &Fsc4b,
     subject_claim: &str,
@@ -88,13 +101,11 @@ pub async fn authenticate(
         unauthenticated()
     })?;
     let payload = match serde_json::from_slice(&plaintext) {
-        Ok(Value::Object(map)) => Value::Object(map),
-        _ => {
-            return Err(ApiError::new(
-                StatusCode::BAD_REQUEST,
-                "the request decrypts to no JSON object",
-            ));
-        }
+        Ok(Value::Object(map)) => Ok(Value::Object(map)),
+        _ => Err(ApiError::new(
+            StatusCode::BAD_REQUEST,
+            "the request decrypts to no JSON object",
+        )),
     };
     let principal = Principal::fsc4b_citizen(
         format!("{ACCOUNT_PREFIX}{}", session.app_key_thumbprint),
@@ -145,19 +156,47 @@ async fn handle(state: &AppState, route: Route, headers: &HeaderMap, body: &str)
         Err(e) => return e.into_response(),
     };
     let p = &request.principal;
-    let result = match route {
-        Route::Case => Ok(api::case_of(state)),
-        Route::Forms => api::forms_for(state, p).await,
-        Route::Dossier => api::dossier_of(state, p).await,
-        Route::Submit => match serde_json::from_value::<Submit>(request.payload) {
-            Ok(s) => api::submit_for(state, p, headers, s).await,
-            Err(e) => Err(ApiError::new(
-                StatusCode::UNPROCESSABLE_ENTITY,
-                format!("the submission does not read: {e}"),
-            )),
-        },
+    let result = match (route, request.payload) {
+        (_, Err(e)) => Err(e),
+        (Route::Case, Ok(_)) => Ok(api::case_of(state)),
+        (Route::Forms, Ok(_)) => api::forms_for(state, p).await,
+        (Route::Dossier, Ok(_)) => api::dossier_of(state, p).await,
+        (Route::Submit, Ok(payload)) => submit(state, p, payload).await,
     };
     encrypted(&request.key, result)
+}
+
+/// A submission from `payload`, with its idempotency key from inside it.
+async fn submit(state: &AppState, principal: &Principal, mut payload: Value) -> CitizenResult {
+    let mut headers = HeaderMap::new();
+    match payload
+        .as_object_mut()
+        .and_then(|o| o.remove(IDEMPOTENCY_MEMBER))
+    {
+        None => {}
+        Some(Value::String(key)) => {
+            let value = HeaderValue::from_str(&key).map_err(|_| {
+                ApiError::new(
+                    StatusCode::BAD_REQUEST,
+                    "an idempotency key is visible ASCII, without spaces",
+                )
+            })?;
+            headers.insert(api::IDEMPOTENCY_KEY, value);
+        }
+        Some(_) => {
+            return Err(ApiError::new(
+                StatusCode::BAD_REQUEST,
+                format!("`{IDEMPOTENCY_MEMBER}` is text"),
+            ));
+        }
+    }
+    let s = serde_json::from_value::<Submit>(payload).map_err(|e| {
+        ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            format!("the submission does not read: {e}"),
+        )
+    })?;
+    api::submit_for(state, principal, &headers, s).await
 }
 
 pub(crate) async fn case_route(

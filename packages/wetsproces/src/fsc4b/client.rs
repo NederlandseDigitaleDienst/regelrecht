@@ -17,6 +17,7 @@
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 
+use crate::fsc4b::citizen::IDEMPOTENCY_MEMBER;
 use crate::fsc4b::demo::{CREDENTIAL, self_signed_certificate};
 use crate::fsc4b::discovery::{CITIZEN_SERVICE, SESSION_SERVICE};
 use crate::fsc4b::jose::{self, AesKey, JoseError, SigningKey, VerifyingKey};
@@ -295,14 +296,13 @@ impl std::fmt::Debug for Session {
 
 impl Session {
     /// `payload` to the citizen's route `/v1/{op}` (`casus`, `formulier`,
-    /// `dossier`, `indieningen`), encrypted under the session key; the
-    /// status and the decrypted answer.
+    /// `dossier`, `indieningen`), encrypted under the session key, with
+    /// `idempotency_key` inside it; the status and the decrypted answer.
     ///
     /// # Errors
     ///
     /// When the request fails, or an answer does not decrypt under the
-    /// session key. Only a `401`, given before the server found the session,
-    /// is read as plain JSON.
+    /// session key. Only a `401` and a `500` are read as plain JSON.
     pub async fn call(
         &self,
         http: &reqwest::Client,
@@ -310,27 +310,53 @@ impl Session {
         payload: &Value,
         idempotency_key: Option<&str>,
     ) -> Result<(StatusCode, Value), ClientError> {
+        let mut payload = payload.clone();
+        if let Some(key) = idempotency_key {
+            payload
+                .as_object_mut()
+                .ok_or_else(|| protocol("an idempotency key goes into a JSON object"))?
+                .insert(IDEMPOTENCY_MEMBER.into(), Value::from(key));
+        }
         let body = self.key.encrypt(payload.to_string().as_bytes())?;
-        let mut request = http
+        self.send(http, op, body).await
+    }
+
+    /// The encrypted `body` to the citizen's route `/v1/{op}`, as it is: for
+    /// a client that keeps a request to send it again; the status and the
+    /// decrypted answer.
+    ///
+    /// # Errors
+    ///
+    /// As [`Session::call`].
+    pub async fn send(
+        &self,
+        http: &reqwest::Client,
+        op: &str,
+        body: String,
+    ) -> Result<(StatusCode, Value), ClientError> {
+        let response = http
             .post(format!("{}/v1/{op}", self.citizen_api))
             .header(reqwest::header::AUTHORIZATION, &self.token)
-            .body(body);
-        if let Some(key) = idempotency_key {
-            request = request.header("Idempotency-Key", key);
-        }
-        let response = request.send().await?;
+            .body(body)
+            .send()
+            .await?;
         let status = response.status();
         let text = response.text().await?;
-        // Only the refusal of a session that was not found comes unencrypted;
-        // every other answer must decrypt, or it did not come from the server
-        // that holds the session.
-        if status == StatusCode::UNAUTHORIZED {
-            return Ok((
-                status,
-                serde_json::from_str(&text).unwrap_or(Value::String(text)),
-            ));
-        }
-        let plain = self.key.decrypt(&text)?;
+        // Only a refusal of the session (401) and a failure to read it (500)
+        // come unencrypted; every other answer must decrypt, or it did not
+        // come from the server that holds the session.
+        // A 500 after the session was read is encrypted like any answer.
+        let plain = match self.key.decrypt(&text) {
+            Ok(plain) => plain,
+            Err(_)
+                if status == StatusCode::UNAUTHORIZED
+                    || status == StatusCode::INTERNAL_SERVER_ERROR =>
+            {
+                let value = serde_json::from_str(&text).unwrap_or(Value::String(text));
+                return Ok((status, value));
+            }
+            Err(e) => return Err(e.into()),
+        };
         let value = serde_json::from_slice(&plain)
             .map_err(|_| protocol("the answer decrypts to no JSON"))?;
         Ok((status, value))

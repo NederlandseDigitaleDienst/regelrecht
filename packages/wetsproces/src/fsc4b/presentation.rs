@@ -112,15 +112,19 @@ pub fn verify_credential(
     let iss = unverified
         .text("iss")
         .ok_or(Refusal::CredentialField("iss"))?;
-    let issuer = trust
-        .issuer(iss, unverified.header_text("kid"))
-        .ok_or(Refusal::UnknownIssuer)?;
-    // 2. Verify the signature, and `nbf` and `exp`.
-    let claims = issuer
-        .key()
-        .verify(jws)
-        .map_err(Refusal::CredentialSignature)?
-        .claims;
+    // 2. Verify the signature under one of its keys, and `nbf` and `exp`.
+    let mut refusal = Refusal::UnknownIssuer;
+    let mut verified = None;
+    for issuer in trust.issuers(iss, unverified.header_text("kid")) {
+        match issuer.key().verify(jws) {
+            Ok(jws) => {
+                verified = Some(jws);
+                break;
+            }
+            Err(e) => refusal = Refusal::CredentialSignature(e),
+        }
+    }
+    let claims = verified.ok_or(refusal)?.claims;
     let nbf = number(&claims, "nbf")?;
     let exp = number(&claims, "exp")?;
     if now.saturating_add(CLOCK_LEEWAY_SECS) < nbf {
@@ -296,6 +300,38 @@ mod tests {
         ));
         // The issuer's OIN was the trusted one all along.
         assert!(c.contains('.') && s.trust().issuer(ISSUER_OIN, None).is_some());
+    }
+
+    #[test]
+    fn a_credential_under_the_second_key_of_an_activatiedienst_is_accepted() {
+        use crate::fsc4b::trust::{Trust, TrustInput};
+        let s = TestStelsel::new();
+        let rolled = SigningKey::generate().unwrap();
+        let doc = s
+            .beheerder
+            .sign(
+                &json!({
+                    "version": 2,
+                    "organizations": [{ "oin": OWN_OIN, "public_key": s.own.public_jwk() }],
+                    "app_managers": [
+                        { "oin": ISSUER_OIN, "public_key": s.issuer.public_jwk() },
+                        { "oin": ISSUER_OIN, "public_key": rolled.public_jwk() },
+                    ],
+                }),
+                &[],
+            )
+            .unwrap();
+        let trust = Trust::build(TrustInput {
+            own_oin: OWN_OIN,
+            key: SigningKey::from_pkcs8_pem(&s.own.to_pkcs8_pem().unwrap()).unwrap(),
+            scope: crate::fsc4b::testing::SCOPE,
+            stelseldocument: &doc,
+            stelselbeheerder: &s.beheerder.verifying_key().unwrap(),
+        })
+        .unwrap();
+        let app = TestApp::new();
+        let c = s.credential_by(&rolled, &app, "999990019", NOW, |_| {});
+        assert!(verify_presentation(&trust, &vp(&app, &c, OWN_OIN), NONCE, NOW).is_ok());
     }
 
     #[test]

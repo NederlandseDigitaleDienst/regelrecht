@@ -231,8 +231,10 @@ impl Fsc4bStore for PostgresFsc4bStore {
             .execute(&self.pool)
             .await
             .map_err(failed("removing ended challenges"))?;
-        // The bound and the insert in one statement. Two instances inserting
-        // at once may each see one row short, which the bound allows for.
+        // The bound and the insert in one statement, without a lock: inserts
+        // running at once each see the same count, so the table can go over
+        // the bound by as many as run at once. It bounds a flood, not an
+        // exact number.
         let inserted = sqlx::query(
             "INSERT INTO wetsproces.fsc4b_challenges (nonce, ephemeral_key, expires_at) \
              SELECT $1, $2, $3 \
