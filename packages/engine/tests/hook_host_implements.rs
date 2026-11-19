@@ -886,6 +886,59 @@ articles:
     );
 }
 
+/// Only the declarations for this very term decide the group. An article
+/// that fills the term of 4:13 for the grant alone, and a term of the same
+/// name of another article without a host, does not fill 4:13 for a permit.
+#[test]
+fn a_declaration_for_another_article_does_not_decide_the_group() {
+    let filling = r#"
+$id: dubbele_regeling_voorbeeld
+regulatory_layer: MINISTERIELE_REGELING
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Op een aanvraag tot verlening wordt binnen dertig weken beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host:
+            law: subsidiewet_voorbeeld
+            article: '1'
+        - law: algemene_wet_voorbeeld
+          article: '4:14'
+          open_term: wettelijke_beslistermijn
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: wettelijke_beslistermijn
+            type: date
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 30
+"#;
+    let decisions = subsidy_decisions_only();
+    let service = service(None, &[&decisions, OTHER_LAW, filling]);
+
+    assert_eq!(
+        last_day(&permit(&service)),
+        Some(&date("2026-03-02")),
+        "eight weeks: for 4:13 the regulation names the grant only"
+    );
+    assert_eq!(
+        last_day(&grant(&service, 2026)),
+        Some(&date("2026-08-03")),
+        "thirty weeks for the grant it names"
+    );
+}
+
 /// Two fillings that both name the host are ranked as any two candidates
 /// are: lex superior, so the law goes before the policy rule. Without the
 /// law's own filling, the policy rule fills the term with the subsidy year.
