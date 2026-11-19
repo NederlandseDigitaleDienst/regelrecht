@@ -28,7 +28,6 @@
 //! And a host that names a law without an article is not checked.
 
 use std::collections::BTreeSet;
-use std::fmt;
 
 use crate::article::{Article, ArticleBasedLaw};
 use regelrecht_law_model::{HookPoint, ImplementsDeclaration};
@@ -50,16 +49,6 @@ impl HostWarning {
     /// loading that law can bring it about.
     pub(crate) fn rests_on(&self, law_id: &str) -> bool {
         self.host_law == law_id || self.hook_law.as_deref() == Some(law_id)
-    }
-}
-
-impl fmt::Display for HostWarning {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(
-            f,
-            "{} article {}: {}",
-            self.law_id, self.article, self.message
-        )
     }
 }
 

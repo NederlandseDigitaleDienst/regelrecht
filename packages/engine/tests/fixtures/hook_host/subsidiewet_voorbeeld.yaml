@@ -1,7 +1,7 @@
 ---
-# Fictief. Twee toekenningen, elk met een eigen gegeven: de verlening
-# (artikel 1) en de vaststelling (artikel 3), en een afwijzing (artikel 4).
-# Artikel 2 geeft geen besluit.
+# Fictional. Two grants, each with a parameter of its own: the grant
+# (article 1) and the settlement (article 3), and a refusal (article 4).
+# Article 2 gives no decision.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json
 $id: subsidiewet_voorbeeld
 regulatory_layer: WET

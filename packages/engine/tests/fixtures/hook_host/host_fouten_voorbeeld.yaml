@@ -1,6 +1,7 @@
 ---
-# Fictief. Een host per artikel: twee kunnen niet kloppen, een noemt een wet
-# die niet geladen is, een klopt, en een haak noemt een artikel zonder besluit.
+# Fictional. One host per article: two cannot be right, one names a law that
+# is not loaded, one is right, and a hook names an article whose decision is
+# a refusal where it means a grant.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json
 $id: host_fouten_voorbeeld
 regulatory_layer: BELEIDSREGEL
@@ -85,13 +86,14 @@ articles:
             value: {operation: DATE_ADD, date: $datum_ontvangst, weeks: 11}
   - number: '5'
     url: https://example.invalid/host-fouten/5
-    text: Bij nadere regels over de verlening wordt de ontvanger ingelicht.
+    text: Bij een toekenning na een weigering wordt de ontvanger ingelicht.
     machine_readable:
       hooks:
         - hook_point: post_actions
           applies_to:
             legal_character: BESCHIKKING
-            host: {law: subsidiewet_voorbeeld, article: '2'}
+            decision_type: TOEKENNING
+            host: {law: subsidiewet_voorbeeld, article: '4'}
       execution:
         output:
           - {name: ingelicht, type: boolean}

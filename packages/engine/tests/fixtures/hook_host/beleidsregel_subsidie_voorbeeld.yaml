@@ -1,7 +1,7 @@
 ---
-# Fictief. Een beleidsregel van de minister die alleen over de toekenningen
-# van de Subsidiewet voorbeeld gaat. Artikel 3 noemt als host artikel '11'
-# waar artikel 1 bedoeld is.
+# Fictional. A policy rule of the minister about the grants of the
+# Subsidiewet voorbeeld only. Article 3 names host article '11' where
+# article 1 is meant.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json
 $id: beleidsregel_subsidie_voorbeeld
 regulatory_layer: BELEIDSREGEL

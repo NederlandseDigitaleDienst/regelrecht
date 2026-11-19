@@ -716,9 +716,13 @@ impl RuleResolver {
             }
         };
         let mut warnings = crate::host_check::check_law(law, &lookup);
-        for consumer in self.all_law_versions().filter(|consumer| {
-            consumer.id != law.id && crate::host_check::depends_on(consumer, &law.id)
-        }) {
+        // Another version of `law` itself is not checked again: `lookup`
+        // answers for its id with the version being loaded.
+        for consumer in self
+            .all_law_versions()
+            .filter(|consumer| consumer.id != law.id)
+            .filter(|consumer| crate::host_check::depends_on(consumer, &law.id))
+        {
             warnings.extend(
                 crate::host_check::check_law(consumer, &lookup)
                     .into_iter()
@@ -5483,14 +5487,44 @@ articles:
             let mut warnings = BTreeSet::new();
             for &i in order {
                 let law = ArticleBasedLaw::from_yaml_str(laws[i]).unwrap();
-                warnings.extend(resolver.host_warnings_on_load(&law));
+                let id = law.id.clone();
+                for warning in resolver.host_warnings_on_load(&law) {
+                    // Each warning of a load belongs to the loaded law or
+                    // rests on it.
+                    assert!(
+                        warning.law_id == id
+                            || warning.host_law == id
+                            || warning.hook_law.as_deref() == Some(id.as_str()),
+                        "loading {id} repeats {warning:?}"
+                    );
+                    warnings.insert(warning);
+                }
                 resolver.load_law(law).unwrap();
             }
             warnings
         };
         let forward = warnings_in(&[0, 1, 2, 3, 4]);
-        assert_eq!(forward, warnings_in(&[4, 3, 2, 1, 0]));
-        assert_eq!(forward, warnings_in(&[1, 4, 3, 0, 2]));
+        for order in [
+            [4, 3, 2, 1, 0],
+            [1, 4, 3, 0, 2],
+            [1, 2, 3, 4, 0],
+            [0, 4, 3, 2, 1],
+        ] {
+            assert_eq!(forward, warnings_in(&order), "order {order:?}");
+        }
+        // Only a law that names the loaded one as a host, or fills a term of
+        // it, is checked again.
+        let policy = ArticleBasedLaw::from_yaml_str(laws[2]).unwrap();
+        assert!(!crate::host_check::depends_on(
+            &policy,
+            "vergunningwet_voorbeeld"
+        ));
+        let hooks_only = &laws[2][..laws[2].find("  - number: '3'").unwrap()];
+        let hooks_only = ArticleBasedLaw::from_yaml_str(hooks_only).unwrap();
+        assert!(crate::host_check::depends_on(
+            &hooks_only,
+            "subsidiewet_voorbeeld"
+        ));
         let places: Vec<(&str, &str)> = forward
             .iter()
             .map(|w| (w.law_id.as_str(), w.article.as_str()))

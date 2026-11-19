@@ -149,7 +149,7 @@ fn een_host_die_niet_klopt_is_een_waarschuwing() {
         ),
         (
             "host_fouten_voorbeeld.yaml: host: article 5:",
-            "a hook names host article 2 of 'subsidiewet_voorbeeld', which gives no BESCHIKKING",
+            "a hook names host article 4 of 'subsidiewet_voorbeeld', which gives no BESCHIKKING TOEKENNING",
         ),
     ];
     assert_eq!(warnings.len(), expected.len(), "stderr: {err}");

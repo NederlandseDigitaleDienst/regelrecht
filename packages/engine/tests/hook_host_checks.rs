@@ -59,9 +59,10 @@ fn policy_hooks(result: &ArticleResult) -> (bool, bool) {
 
 /// `{law}` fires on every decision of that law, `{law, article}` on that
 /// article's alone, and neither on a decision of another law, though all
-/// three are a TOEKENNING, nor on an AFWIJZING of the host. The filling of the same policy rule names host
-/// article '11', which does not exist, so the grant keeps the default of
-/// eight weeks; with article '1' it gets the policy rule's ten.
+/// three are a TOEKENNING, nor on an AFWIJZING of the host. The filling of
+/// the same policy rule names host article '11', which does not exist, so
+/// the grant keeps the default of eight weeks; with article '1' it gets the
+/// policy rule's ten.
 #[test]
 fn a_hook_with_a_host_fires_only_on_the_decisions_it_names() {
     let service = loaded(&[GENERAL_LAW, SUBSIDY_LAW, PERMIT_LAW, POLICY]);
