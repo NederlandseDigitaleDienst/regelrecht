@@ -30,7 +30,7 @@ just walkthrough check <take>      # luidheid, oversturing, ruis, tempo, handeli
 just walkthrough transcript <take|main>   # de tekst per dia
 just walkthrough build             # walkthrough.yaml -> media, timeline.json, ondertitels
 just walkthrough subtitles         # kortere ondertitels voor wat gezegd is (daarna weer build)
-just walkthrough verify            # elk hoofdstuk headless terugspelen; meldt gemiste handelingen (ook in CI)
+just walkthrough verify            # elk hoofdstuk headless terugspelen; meldt gemiste handelingen (ook in CI); --jobs 1 speelt de vensters na elkaar
 just walkthrough anchors           # scrollankers meten voor opnames van vóór de ankers
 just walkthrough states            # de demostand vastleggen bij achteraf toegevoegde hoofdstukken
 just walkthrough publish <tag>     # media naar een GitHub-release (openbaar)
