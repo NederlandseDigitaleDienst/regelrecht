@@ -684,19 +684,41 @@ impl RuleResolver {
             )));
         }
 
-        // RFC-058: a host that cannot be right is a warning, never a load
-        // error.
-        for warning in self.host_warnings_on_load(&law) {
-            tracing::warn!(
-                law_id = %warning.law_id,
-                article = %warning.article,
-                host_law = %warning.host_law,
-                "{}",
-                warning.message
-            );
+        // RFC-007: a hook reads its host by name, and nothing else ties the
+        // two. A coupling that reads as a mistake is no refusal (the hook
+        // may mean to take its fallback), so it is logged here and listed
+        // by [`Self::hook_coupling_warnings`].
+        let law_id = law.id.clone();
+        self.insert_law(law)?;
+        for warning in self.hook_coupling_warnings_touching(Some(&law_id)) {
+            tracing::warn!(law_id = %law_id, "{warning}");
         }
+        Ok(())
+    }
 
-        self.insert_law(law)
+    /// The couplings by name between the hooks and their hosts in the
+    /// loaded set that read as a mistake: a hook parameter that
+    /// a host offers under another spelling, a `pre_actions` hook that reads
+    /// an output of its host, an input of a hook that reads an output its
+    /// own law lacks, and a filling of an open term of a hook for a host
+    /// (`implements.host`) the hook never reaches. The newest version of
+    /// each law counts, as for the hooks index. A warning does not stop a
+    /// law from loading.
+    pub fn hook_coupling_warnings(&self) -> Vec<crate::HookCouplingWarning> {
+        self.hook_coupling_warnings_touching(None)
+    }
+
+    fn hook_coupling_warnings_touching(
+        &self,
+        touching: Option<&str>,
+    ) -> Vec<crate::HookCouplingWarning> {
+        let mut laws: Vec<&ArticleBasedLaw> = self
+            .law_versions
+            .values()
+            .filter_map(|versions| versions.first())
+            .collect();
+        laws.sort_by(|a, b| a.id.cmp(&b.id));
+        crate::load_check::hook_coupling_warnings(&laws, touching)
     }
 
     /// The warnings for a host that cannot be right (RFC-058) that loading

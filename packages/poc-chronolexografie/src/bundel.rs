@@ -188,6 +188,18 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
         match Corpus::load(bundle.clone(), &roots, &regelwerken, casus) {
             Ok(mut c) => {
                 c.ui_spec = spec.clone();
+                // A hook that reads its host by a name the host does not
+                // offer loads and plays, and takes its fallback: the source
+                // says so. A service that does not load is the case's own
+                // error, when it plays.
+                if let Ok(service) = c.service() {
+                    for warning in service.hook_coupling_warnings() {
+                        let warning = warning.to_string();
+                        if !stand.meldingen.contains(&warning) {
+                            stand.meldingen.push(warning);
+                        }
+                    }
+                }
                 uit.push(c);
             }
             Err(e) => stand.fouten.push(format!("case '{id}': {e}")),

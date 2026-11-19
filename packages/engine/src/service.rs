@@ -2098,6 +2098,13 @@ impl LawExecutionService {
         self.resolver.load_from_yaml(yaml)
     }
 
+    /// The couplings by name between hooks and their hosts in the loaded
+    /// laws that read as a mistake ([`RuleResolver::hook_coupling_warnings`]).
+    /// Loading logs them too; this lists them for a runtime or an editor.
+    pub fn hook_coupling_warnings(&self) -> Vec<crate::HookCouplingWarning> {
+        self.resolver.hook_coupling_warnings()
+    }
+
     /// Load a law struct directly.
     ///
     /// # Returns
