@@ -8,7 +8,10 @@
 // not show it: nldd-switch-field stands outside an nldd-form-field. A table
 // (an array with `kolommen`, schema v0.8.20) is a TabelInvoer. A field the
 // system fills (`alleenLezen`, voorinvulling.js) shows its value, read-only.
+// With `metArtikel` the basis is a link that opens the article (ArtikelLink.vue),
+// under a switch too.
 import { leesbaar } from '../state.js';
+import ArtikelLink from './ArtikelLink.vue';
 import TabelInvoer from './TabelInvoer.vue';
 
 const props = defineProps({
@@ -16,6 +19,7 @@ const props = defineProps({
   modelValue: { type: [String, Number, Boolean, Array], default: undefined },
   herkomst: { type: String, default: '' },
   alleenLezen: { type: Boolean, default: false },
+  metArtikel: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue']);
 
@@ -35,17 +39,21 @@ const getal = (tekst) => {
     :alleen-lezen="alleenLezen"
     @update:model-value="emit('update:modelValue', $event)"
   />
-  <nldd-switch-field
-    v-else-if="veld.type === 'boolean'"
-    :label="leesbaar(veld.naam)"
-    :checked="modelValue === true"
-    :disabled="alleenLezen || undefined"
-    @change="zet($event.detail.checked)"
-  ></nldd-switch-field>
+  <template v-else-if="veld.type === 'boolean'">
+    <nldd-switch-field
+      :label="leesbaar(veld.naam)"
+      :checked="modelValue === true"
+      :disabled="alleenLezen || undefined"
+      @change="zet($event.detail.checked)"
+    ></nldd-switch-field>
+    <nldd-text v-if="metArtikel && veld.basis" size="sm" color="secondary">
+      <ArtikelLink :basis="veld.basis" />
+    </nldd-text>
+  </template>
   <nldd-form-field
     v-else
     :label="leesbaar(veld.naam)"
-    :supporting-label="veld.basis"
+    :supporting-label="metArtikel ? undefined : veld.basis"
     :optional="veld.mag_leeg"
   >
     <nldd-date-field
@@ -68,5 +76,8 @@ const getal = (tekst) => {
       @input="zet($event.target.value)"
     ></nldd-text-field>
     <nldd-form-field-help-text v-if="herkomst">{{ herkomst }}</nldd-form-field-help-text>
+    <nldd-form-field-help-text v-if="metArtikel && veld.basis">
+      <ArtikelLink :basis="veld.basis" />
+    </nldd-form-field-help-text>
   </nldd-form-field>
 </template>

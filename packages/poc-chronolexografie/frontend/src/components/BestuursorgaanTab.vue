@@ -188,6 +188,7 @@ const uitkomstOpBezwaar = (uit) =>
               :key="o.naam"
               :model-value="besluitVorm.waarden(a.id)[o.naam]"
               :veld="o"
+              met-artikel
               @update:model-value="zetOordeel(a.id, o.naam, $event)"
             />
             <StilOordeel
