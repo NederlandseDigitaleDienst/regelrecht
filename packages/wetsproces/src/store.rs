@@ -22,13 +22,28 @@
 //!   ([`ChronicleStore::load_all`]), so it never sees one cell before a
 //!   commit and another after it.
 //!
-//! [`memory::InMemoryStore`] holds it all in memory, for test mode.
+//! Two stores implement it, with the same behaviour, held to it by one set
+//! of contract tests (`contract`):
+//!
+//! - [`memory::InMemoryStore`] holds it all in memory, empty at every start;
+//! - [`postgres::PostgresStore`] keeps it in PostgreSQL, in the schema
+//!   `wetsproces`, append-only.
 
+#[cfg(test)]
+mod contract;
 pub mod memory;
+pub mod postgres;
 
 use async_trait::async_trait;
 use regelrecht_cel::Gram;
 use serde_json::Value;
+
+/// The format a stored record is in: a `regelrecht_cel::Gram` as serde
+/// writes it. A store that keeps records outside the process tags each
+/// with it and refuses a record in any other format when it reads it
+/// ([`StoreError::UnknownFormat`]); a change to the gram that an older
+/// reader would misread raises this number.
+pub const FORMAT_VERSION: i32 = 1;
 
 /// The chronicle of one cell as the store holds it.
 #[derive(Debug, Clone, Default, PartialEq)]
@@ -128,6 +143,23 @@ pub enum StoreError {
         expected: u64,
         actual: u64,
     },
+    /// A stored record is in a format this build does not read. Nothing
+    /// is guessed: the chronicle is refused as a whole.
+    #[error(
+        "record {seq} of '{cell}' is stored in format {version}, and this build reads only format \
+         {current}",
+        current = FORMAT_VERSION
+    )]
+    UnknownFormat {
+        cell: String,
+        seq: u64,
+        version: i32,
+    },
+    /// A record in the commit has the id of a stored record, or of another
+    /// record in the same commit: nothing was applied. Ids are made by the
+    /// cell, so this is a fault in the server, not in the request.
+    #[error("a record with id '{id}' is already stored")]
+    DuplicateGram { id: String },
     /// The store itself failed.
     #[error("chronicle store: {0}")]
     Backend(String),
@@ -140,7 +172,8 @@ pub trait ChronicleStore: Send + Sync + std::fmt::Debug {
     ///
     /// # Errors
     ///
-    /// [`StoreError::Backend`] when the store fails.
+    /// [`StoreError::UnknownFormat`] when a record is in a format this
+    /// build does not read; [`StoreError::Backend`] when the store fails.
     async fn load(&self, cell: &str) -> Result<StoredChronicle, StoreError>;
 
     /// The chronicles of `cells`, in that order, as they stood at one
@@ -149,7 +182,8 @@ pub trait ChronicleStore: Send + Sync + std::fmt::Debug {
     ///
     /// # Errors
     ///
-    /// [`StoreError::Backend`] when the store fails.
+    /// [`StoreError::UnknownFormat`] when a record is in a format this
+    /// build does not read; [`StoreError::Backend`] when the store fails.
     async fn load_all(&self, cells: &[&str]) -> Result<Vec<StoredChronicle>, StoreError>;
 
     /// What the commit under `key` answered, if one was applied.
@@ -167,7 +201,9 @@ pub trait ChronicleStore: Send + Sync + std::fmt::Debug {
     ///
     /// # Errors
     ///
-    /// [`StoreError::Conflict`] when a head moved, and nothing is applied;
+    /// [`StoreError::Conflict`] when a head moved, and
+    /// [`StoreError::DuplicateGram`] when a record's id is taken; then
+    /// nothing is applied.
     /// [`StoreError::Backend`] when the store fails.
     async fn append(&self, commit: Commit) -> Result<Appended, StoreError>;
 }

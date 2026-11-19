@@ -93,9 +93,11 @@ COPY packages/wetsproces/casussen/ /app/packages/wetsproces/casussen/
 COPY packages/poc-chronolexografie/corpus/ /app/packages/poc-chronolexografie/corpus/
 
 WORKDIR /app
-# Geen WETSPROCES_MODE: de modus beslist of de kroniek een herstart overleeft,
-# dus de deployment zet hem zelf (src/config.rs). Zonder weigert de server te
-# starten.
+# Geen WETSPROCES_MODE: de modus beslist over de klok en over wie de server
+# mag gebruiken, dus de deployment zet hem zelf (src/config.rs). Zonder weigert
+# de server te starten. WETSPROCES_STORE en DATABASE_URL (of
+# DATABASE_SERVER_FULL) kiezen waar de kroniek staat; ook die zet de
+# deployment.
 ENV WETSPROCES_MANIFEST=/app/packages/wetsproces/bron.yaml \
     WETSPROCES_PORT=8000
 USER app

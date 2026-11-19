@@ -332,6 +332,14 @@ impl Service {
     ) -> Result<Value, ServiceError> {
         let request = serde_json::to_value(&step)
             .map_err(|e| ServiceError::Internal(format!("the request does not serialize: {e}")))?;
+        if holds_nul(&request) {
+            // PostgreSQL's jsonb cannot hold U+0000; refused for every store
+            // alike, so the store in memory does not accept what Postgres
+            // would fail on.
+            return Err(ServiceError::Refused(
+                "the request holds a NUL character (U+0000), which is not stored".into(),
+            ));
+        }
         if let Some(key) = &key
             && let Some(receipt) = self.store.receipt(key).await?
         {
@@ -460,6 +468,16 @@ fn replay(key: &IdempotencyKey, request: &Value, receipt: Receipt) -> Result<Val
     }
 }
 
+/// Whether a string or key anywhere in `value` holds U+0000.
+fn holds_nul(value: &Value) -> bool {
+    match value {
+        Value::String(s) => s.contains('\0'),
+        Value::Array(items) => items.iter().any(holds_nul),
+        Value::Object(map) => map.iter().any(|(k, v)| k.contains('\0') || holds_nul(v)),
+        Value::Null | Value::Bool(_) | Value::Number(_) => false,
+    }
+}
+
 /// Run `work` off the async runtime: a step builds an engine service and
 /// executes regelwerken, which is CPU work.
 async fn blocking<T: Send + 'static>(
@@ -472,7 +490,7 @@ async fn blocking<T: Send + 'static>(
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
-mod tests {
+pub(crate) mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use async_trait::async_trait;
@@ -528,7 +546,7 @@ mod tests {
         (s, store)
     }
 
-    fn submission() -> Step {
+    pub(crate) fn submission() -> Step {
         Step::Submit(Submit {
             article: None,
             refers_to: None,
@@ -561,6 +579,22 @@ mod tests {
         let e = s.perform(None, submission()).await.unwrap_err();
         assert!(matches!(e, ServiceError::Busy), "{e}");
         assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 0);
+    }
+
+    #[tokio::test]
+    async fn a_request_with_a_nul_character_is_refused_and_records_nothing() {
+        let (s, _) = service(0).await;
+        let mut step = submission();
+        if let Step::Submit(submit) = &mut step {
+            submit
+                .fields
+                .insert("naam_aanvrager".into(), json!("A.\u{0}de Vries"));
+        }
+        let e = s.perform(None, step).await.unwrap_err();
+        assert!(matches!(e, ServiceError::Refused(_)), "{e}");
+        assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 0);
+        assert!(holds_nul(&json!({ "a\u{0}": 1 })));
+        assert!(!holds_nul(&json!({ "a": ["b", 1, null] })));
     }
 
     #[test]

@@ -53,7 +53,7 @@ regelrecht-corpus = { path = "../corpus" }
 regelrecht-engine = { path = "../engine", features = ["validate"] }
 regelrecht-harvester = { path = "../harvester", default-features = false }
 regelrecht-law-model = { path = "../law-model" }
-regelrecht-shared = { path = "../shared", features = ["telemetry", "dates"] }
+regelrecht-shared = { path = "../shared", features = ["telemetry", "dates", "postgres"] }
 sqlx = { workspace = true, features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "postgres", "uuid", "chrono", "json", "migrate"] }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal", "process", "time", "fs", "net", "io-util"] }
 serde.workspace = true
@@ -73,8 +73,6 @@ axum.workspace = true
 tower-http = { workspace = true, features = ["trace"] }
 roxmltree.workspace = true
 url.workspace = true
-testcontainers = { workspace = true, optional = true }
-testcontainers-modules = { workspace = true, optional = true }
 tempfile.workspace = true
 regex.workspace = true
 # `try_join_all` voor de vensters die één run naast elkaar loopt (enrich).
@@ -84,7 +82,7 @@ tracing-subscriber.workspace = true
 [features]
 # Exposes regelrecht_pipeline::test_utils with helpers (e.g. TestDb) used by
 # integration tests in this crate and downstream crates (admin).
-test-utils = ["dep:testcontainers", "dep:testcontainers-modules"]
+test-utils = ["regelrecht-shared/test-utils"]
 
 [dev-dependencies]
 regelrecht-pipeline = { path = ".", features = ["test-utils"] }

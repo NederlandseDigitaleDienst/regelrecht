@@ -24,19 +24,27 @@ regelrecht-cel = { path = "../cel" }
 # The source manifest reader the poc-portal uses too (src/source_manifest.rs);
 # no GitHub: the manifest ships with the image.
 regelrecht-corpus = { path = "../corpus", default-features = false }
-# Telemetry, and the Dutch calendar date for the real clock.
-regelrecht-shared = { path = "../shared", features = ["telemetry", "dates"] }
+# Telemetry, the Dutch calendar date for the real clock, and the database
+# URL and locked migrations the pipeline uses too.
+regelrecht-shared = { path = "../shared", features = ["telemetry", "dates", "postgres"] }
 async-trait.workspace = true
 axum.workspace = true
 chrono.workspace = true
 serde.workspace = true
 serde_json.workspace = true
+# The chronicle store in Postgres (src/store/postgres.rs); plain `query`, no
+# compile-time checked macros, so a build needs no database.
+sqlx = { workspace = true, features = ["runtime-tokio", "tls-rustls-aws-lc-rs", "postgres", "json", "migrate"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }
 tower-http = { workspace = true, features = ["trace"] }
 tracing.workspace = true
 
 [dev-dependencies]
+# `join_all` for the concurrent commits in the store contract tests.
+futures = "0.3"
+# A Postgres database per test for the store contract tests.
+regelrecht-shared = { path = "../shared", features = ["test-utils"] }
 http-body-util.workspace = true
 tower.workspace = true
 

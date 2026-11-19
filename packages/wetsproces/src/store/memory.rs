@@ -1,7 +1,7 @@
 //! The chronicle store in memory: empty at every start, gone at every stop.
 //! What test mode runs on.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
 use async_trait::async_trait;
@@ -14,6 +14,8 @@ use crate::store::{
 struct State {
     chronicles: BTreeMap<String, StoredChronicle>,
     receipts: BTreeMap<IdempotencyKey, Receipt>,
+    /// The id of every stored record, in any cell.
+    ids: BTreeSet<String>,
 }
 
 /// Every chronicle and receipt in one map behind one lock, so a commit is
@@ -80,6 +82,15 @@ impl ChronicleStore for InMemoryStore {
                 });
             }
         }
+        let mut ids = BTreeSet::new();
+        for gram in commit.appends.iter().flat_map(|a| &a.grams) {
+            if state.ids.contains(&gram.id) || !ids.insert(gram.id.clone()) {
+                return Err(StoreError::DuplicateGram {
+                    id: gram.id.clone(),
+                });
+            }
+        }
+        state.ids.append(&mut ids);
         for append in commit.appends {
             state
                 .chronicles
@@ -98,136 +109,23 @@ impl ChronicleStore for InMemoryStore {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use regelrecht_cel::Gram;
-    use serde_json::json;
-
     use super::*;
-    use crate::store::{CellAppend, Keyed};
+    use crate::store::contract::{self, append, unkeyed};
 
-    fn gram(id: &str, cell: &str) -> Gram {
-        serde_json::from_value(json!({
-            "id": id,
-            "kind": "EXECUTOGRAM",
-            "basis": "voorbeeld#1",
-            "fact": "feit",
-            "recording_actor": cell,
-            "recorded_on": "2026-10-13",
-            "fields": {},
-        }))
-        .unwrap()
-    }
-
-    fn key(k: &str) -> IdempotencyKey {
-        k.parse().unwrap()
-    }
-
-    fn commit(k: &str, appends: Vec<CellAppend>) -> Commit {
-        Commit {
-            appends,
-            keyed: Some(Keyed {
-                key: key(k),
-                receipt: Receipt {
-                    request: json!({ "k": k }),
-                    response: json!({ "answered": k }),
-                },
-            }),
+    impl InMemoryStore {
+        fn store(&self) -> &dyn ChronicleStore {
+            self
         }
     }
 
-    fn append(cell: &str, expected_head: u64, ids: &[&str]) -> CellAppend {
-        CellAppend {
-            cell: cell.into(),
-            expected_head,
-            grams: ids.iter().map(|id| gram(id, cell)).collect(),
-        }
-    }
-
-    #[tokio::test]
-    async fn a_commit_appends_to_every_cell_after_its_head() {
-        let store = InMemoryStore::new();
-        assert_eq!(store.load("a").await.unwrap().head(), 0);
-        let c = commit(
-            "k1",
-            vec![append("a", 0, &["1"]), append("b", 0, &["2", "3"])],
-        );
-        assert_eq!(store.append(c).await.unwrap(), Appended::Committed);
-        assert_eq!(store.load("a").await.unwrap().head(), 1);
-        assert_eq!(store.load("b").await.unwrap().head(), 2);
-        let c = commit("k2", vec![append("a", 1, &["4"])]);
-        store.append(c).await.unwrap();
-        let ids: Vec<String> = store
-            .load("a")
-            .await
-            .unwrap()
-            .grams
-            .into_iter()
-            .map(|g| g.id)
-            .collect();
-        assert_eq!(ids, ["1", "4"]);
-    }
+    contract::contract_tests!(async { InMemoryStore::new() });
 
     #[tokio::test]
     async fn without_a_key_nothing_is_kept_to_replay() {
         let store = InMemoryStore::new();
-        let unkeyed = Commit {
-            appends: vec![append("a", 0, &["1"])],
-            keyed: None,
-        };
-        assert_eq!(store.append(unkeyed).await.unwrap(), Appended::Committed);
+        let c = unkeyed(vec![append("a", 0, &["1"])]);
+        assert_eq!(store.append(c).await.unwrap(), Appended::Committed);
         assert!(store.state().unwrap().receipts.is_empty());
-        let both = store.load_all(&["a", "b"]).await.unwrap();
-        assert_eq!(
-            both.iter().map(StoredChronicle::head).collect::<Vec<_>>(),
-            [1, 0]
-        );
-    }
-
-    #[tokio::test]
-    async fn a_moved_head_refuses_the_whole_commit() {
-        let store = InMemoryStore::new();
-        store
-            .append(commit("k1", vec![append("a", 0, &["1"])]))
-            .await
-            .unwrap();
-        // "b" is fine, "a" moved: neither is applied.
-        let stale = commit("k2", vec![append("b", 0, &["2"]), append("a", 0, &["3"])]);
-        assert_eq!(
-            store.append(stale).await,
-            Err(StoreError::Conflict {
-                cell: "a".into(),
-                expected: 0,
-                actual: 1
-            })
-        );
-        assert_eq!(store.load("b").await.unwrap().head(), 0);
-        assert_eq!(store.load("a").await.unwrap().head(), 1);
-        assert_eq!(store.receipt(&key("k2")).await.unwrap(), None);
-        // A cell only read, with no records, is checked as well.
-        let read_only = commit("k3", vec![append("b", 0, &["2"]), append("a", 0, &[])]);
-        assert!(matches!(
-            store.append(read_only).await,
-            Err(StoreError::Conflict { .. })
-        ));
-    }
-
-    #[tokio::test]
-    async fn a_key_used_before_is_replayed_and_applies_nothing() {
-        let store = InMemoryStore::new();
-        let first = commit("k1", vec![append("a", 0, &["1"])]);
-        let receipt = first.keyed.clone().unwrap().receipt;
-        store.append(first).await.unwrap();
-        assert_eq!(
-            store.receipt(&key("k1")).await.unwrap(),
-            Some(receipt.clone())
-        );
-        // The retry comes after the head moved; it is still answered, not
-        // refused as a conflict, and appends nothing.
-        let retry = commit("k1", vec![append("a", 0, &["2"])]);
-        assert_eq!(
-            store.append(retry).await.unwrap(),
-            Appended::Replayed(receipt)
-        );
-        assert_eq!(store.load("a").await.unwrap().head(), 1);
     }
 
     #[test]
