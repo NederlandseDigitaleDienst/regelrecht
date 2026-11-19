@@ -226,3 +226,38 @@ pocs:
       De verordening, het beleid, de werking van de cellen en alle gegevens
       zijn verzonnen, en geen model is juridisch getoetst. Wat je vastlegt,
       verdwijnt als je het tabblad sluit.
+
+  - slug: regels-op-een-plek
+    titel: Regels op een plek
+    samenvatting: >-
+      Een verkenning om voor één plek alle regels over bouwen te verzamelen
+      en door te rekenen, met en zonder het Digitaal Stelsel Omgevingswet.
+    titel_intern: Spoorzone Veenendaal, met en zonder DSO
+    samenvatting_intern: >-
+      Kan er in de Spoorzone van Veenendaal een woontoren van vijf lagen
+      komen? Twee sporen naast elkaar op dezelfde engine: regels met de hand
+      uit de bestemmingsplannen en het omgevingsplan van de gemeente, en
+      regels uit het DSO voor gemeente, provincie, waterschap en rijk. Met
+      een kaart, een toets per plek, simulatie, scenario's en een trace per
+      artikel.
+    soort: statisch
+    bron: poc-regels-op-een-plek
+    # De regels, de kaart en de uitkomsten staan niet in deze repository:
+    # het portaal haalt ze uit de bron hieronder (src/bron.js in de app).
+    corpus: []
+    sources:
+      - name: spoorzone
+        github:
+          owner: NederlandseDigitaleDienst
+          repo: regelrecht-poc-spoorzone
+          branch: poc-bron
+          path: spoorzone
+        token_env: SPOORZONE_CORPUS_TOKEN
+    assistent: false
+    tags: [BZK, Omgevingswet, DSO, gemeente Veenendaal]
+    status: verkenning
+    voorbehoud: >-
+      Een verkenning op openbare plannen en regels; niet nagelopen door de
+      gemeente of een jurist. Een deel van de regels is vertaald met
+      aannames, en het DSO-materiaal komt deels uit de
+      pre-productieomgeving. Geen vergunning en geen juridisch advies.

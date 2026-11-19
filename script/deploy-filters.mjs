@@ -126,6 +126,7 @@ export const COMPONENTS = {
       'frontend-poc-portal/',
       'frontend-poc-terugbetaalregimes/',
       'frontend-poc-nieuwkomersbekostiging/',
+      'frontend-poc-regels-op-een-plek/',
       'packages/frontend-shared/',
       'packages/poc-assistent/',
       'packages/poc-portal/Dockerfile',
