@@ -1,0 +1,48 @@
+{
+  "version": "1.0.0",
+  "generated_at": "2026-01-26T13:58:39.710101+00:00",
+  "category": "definitions",
+  "test_count": 2,
+  "test_cases": [
+    {
+      "id": "definitions_001_threshold",
+      "description": "A definition used as an income threshold",
+      "category": "definitions",
+      "parameters": {
+        "jaarinkomen": 45000
+      },
+      "calculation_date": "2025-01-01",
+      "expected": {
+        "success": true,
+        "article_number": "1",
+        "outputs": {
+          "heeft_recht": true
+        },
+        "resolved_inputs": {}
+      },
+      "law_yaml": "\n$schema: https://example.com/schema/v0.5.0/schema.json\n$id: test_wet\nregulatory_layer: WET\npublication_date: '2025-01-01'\narticles:\n  - number: '1'\n    text: Bepaalt of iemand recht heeft op toeslag.\n    machine_readable:\n      definitions:\n        MAX_INKOMEN: 50000\n      execution:\n        parameters:\n          - name: jaarinkomen\n            type: number\n            required: true\n        output:\n          - name: heeft_recht\n            type: boolean\n        actions:\n          - output: heeft_recht\n            value:\n              operation: IF\n              cases:\n                - when:\n                    operation: LESS_THAN_OR_EQUAL\n                    subject: $jaarinkomen\n                    value: $MAX_INKOMEN\n                  then: true\n              default: false",
+      "law_id": "test_wet",
+      "output_name": "heeft_recht"
+    },
+    {
+      "id": "definitions_002_rates_and_threshold",
+      "description": "Calculate toeslag amount based on income",
+      "category": "definitions",
+      "parameters": {
+        "inkomen": 30000
+      },
+      "calculation_date": "2025-01-01",
+      "expected": {
+        "success": true,
+        "article_number": "1",
+        "outputs": {
+          "toeslag_bedrag": 1350.0
+        },
+        "resolved_inputs": {}
+      },
+      "law_yaml": "\n$schema: https://example.com/schema/v0.5.0/schema.json\n$id: test_toeslag\nregulatory_layer: WET\npublication_date: '2025-01-01'\narticles:\n  - number: '1'\n    text: Berekent de hoogte van de toeslag.\n    machine_readable:\n      definitions:\n        DREMPEL_INKOMEN: 25000\n        PERCENTAGE_ONDER_DREMPEL: 0.05\n        PERCENTAGE_BOVEN_DREMPEL: 0.02\n      execution:\n        parameters:\n          - name: inkomen\n            type: number\n            required: true\n        output:\n          - name: toeslag_bedrag\n            type: number\n        actions:\n          - output: toeslag_bedrag\n            value:\n              operation: IF\n              cases:\n                - when:\n                    operation: LESS_THAN_OR_EQUAL\n                    subject: $inkomen\n                    value: $DREMPEL_INKOMEN\n                  then:\n                    operation: MULTIPLY\n                    values:\n                      - $inkomen\n                      - $PERCENTAGE_ONDER_DREMPEL\n              default:\n                operation: ADD\n                values:\n                  - operation: MULTIPLY\n                    values:\n                      - $DREMPEL_INKOMEN\n                      - $PERCENTAGE_ONDER_DREMPEL\n                  - operation: MULTIPLY\n                    values:\n                      - operation: SUBTRACT\n                        values:\n                          - $inkomen\n                          - $DREMPEL_INKOMEN\n                      - $PERCENTAGE_BOVEN_DREMPEL",
+      "law_id": "test_toeslag",
+      "output_name": "toeslag_bedrag"
+    }
+  ]
+}

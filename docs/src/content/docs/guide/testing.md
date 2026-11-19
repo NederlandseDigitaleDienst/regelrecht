@@ -34,6 +34,8 @@ The table lists the tests in this repository and the jobs that run them here. Th
 | Mutation testing | `packages/engine`, `packages/pipeline`, `packages/cel` | `just mutants-diff` | Mutation Testing (diff) |
 | Benchmarks | `packages/engine/benches/` | `just bench` | No |
 
+A test of the engine or the law format is named after the construct it tests. That holds for the test file, the feature and the construct directory; a test function may describe the behavior in the terms of its case. The law or case only makes the test concrete, so its name belongs in a fixture or a Background. Bucket A is the exception, because a scenario next to a rulework tests that rulework.
+
 ## BDD scenarios
 
 Most behavior is tested with Gherkin feature files, which the Rust engine runs through [cucumber-rs](https://github.com/cucumber-rs/cucumber).
@@ -49,18 +51,18 @@ The cell has a BDD suite of its own in `packages/cel/bdd/`, outside both buckets
 
 ### Trying out a construct
 
-A construct of the law format that is hard to get right gets a directory of its own under `packages/cel/bdd/constructs/`. The first is the decision term of Awb 4:13, a hook on every application. A construct's features load only the ruleworks in its `regulation/` directory. For hooks that matters. A hook fires on every decision or submission its `applies_to` matches, in every loaded rulework, so loading the whole corpus would bring in hooks the construct is not about.
+A construct of the law format that is hard to get right gets a directory of its own under `packages/cel/bdd/constructs/`. The first, `hook_open_term_host_fill`, is an open term of a hook that the law the hook fires on fills, with the decision term of Awb 4:13 as its case. A construct's features load only the ruleworks in its `regulation/` directory. For hooks that matters. A hook fires on every decision or submission its `applies_to` matches, in every loaded rulework, so loading the whole corpus would bring in hooks the construct is not about.
 
 ```text
-packages/cel/bdd/constructs/beslistermijn/
+packages/cel/bdd/constructs/hook_open_term_host_fill/
   regulation/nl/wet/test_general_administrative_act/2026-01-01.yaml
   regulation/nl/wet/test_permit_act/2026-01-01.yaml
   regulation/nl/wet/test_permit_act_implements/2026-01-01.yaml
   regulation/nl/wet/test_permit_act_short_term/2026-01-01.yaml
-  scenarios/beslistermijn.feature
+  scenarios/hook_open_term_host_fill.feature
 ```
 
-In the `beslistermijn` construct, a mini-Awb (`test_general_administrative_act`, after Awb 4:2 and 4:13) meets three fictional permit acts. An application is recorded on the day it arrives, which is the moment Awb 4:13 counts from, and the decision follows on a later day. The scenarios check what the application holds, the last day of the term, and whether the decision came on or before it: well within the term, on the last day, one day late, and counted from receipt rather than from the date on the application. Two permit acts set a term of their own, and between them they show both routes to the last day, `decision_deadline`. `test_permit_act_short_term` sets two weeks with an override on `decision_deadline`. `test_permit_act_implements` sets one week by filling the open term `statutory_decision_term` of 4:13 with `implements`. Under the hook on its application, only that act fills it ([RFC-058](/rfcs/rfc-058)). In both cases the fallback of lid 2, `reasonable_decision_term_end`, stays eight weeks.
+In the `hook_open_term_host_fill` construct, a mini-Awb (`test_general_administrative_act`, after Awb 4:2 and 4:13) meets three fictional permit acts. An application is recorded on the day it arrives, which is the moment Awb 4:13 counts from, and the decision follows on a later day. The scenarios check what the application holds, the last day of the term, and whether the decision came on or before it: well within the term, on the last day, one day late, and counted from receipt rather than from the date on the application. Two permit acts set a term of their own, and between them they show both routes to the last day, `decision_deadline`. `test_permit_act_short_term` sets two weeks with an override on `decision_deadline`. `test_permit_act_implements` sets one week by filling the open term `statutory_decision_term` of 4:13 with `implements`. Under the hook on its application, only that act fills it ([RFC-058](/rfcs/rfc-058)). In both cases the fallback of lid 2, `reasonable_decision_term_end`, stays eight weeks.
 
 To add a construct:
 

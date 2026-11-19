@@ -26,6 +26,7 @@ const DOCKERFILES = [
   'packages/poc-portal/Dockerfile',
   'packages/poc-napp/Dockerfile',
   'packages/wetsproces/Dockerfile',
+  'packages/poc-wetsgeschiedenis/Dockerfile',
 ];
 
 /** De members uit packages/Cargo.toml, in de multiline vorm die de `sed` aanneemt. */

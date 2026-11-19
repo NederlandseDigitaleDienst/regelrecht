@@ -94,6 +94,7 @@ regelrecht/
 │   ├── wetsproces/       # Server that runs one legal process on the cells, for many users
 │   ├── fsc4b/            # FSC voor Burgers as a library: JOSE, wire names and the client, for the wetsproces server and app
 │   ├── wetsproces-app/   # Core of the wetsproces app: the commands its webview calls, with the key kept in Rust
+│   ├── poc-wetsgeschiedenis/ # Backend of the legislative-history PoC (Rust, with the Python replay chain as worker)
 │   ├── poc-assistent/    # Policy assistant for the PoCs (Node package)
 │   ├── arch-extract/     # Architecture explorer (developer tool)
 │   └── grafana/          # Provisioned dashboards

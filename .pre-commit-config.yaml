@@ -222,6 +222,14 @@ repos:
         pass_filenames: false
         files: ^\.claude/skills/rust-idioms/book-lints(\.test)?\.mjs$
 
+      - id: wetsgeschiedenis-skill-tests
+        name: De wetsgeschiedenis-skill citeert de stukken die de tijdlijn noemt
+        entry: python3 .claude/skills/law-wetsgeschiedenis/wetsgeschiedenis.test.py
+        language: system
+        pass_filenames: false
+        # Ook op de meegeleverde tijdlijnen: een nieuwe export kan een vorm hebben die het script niet kent.
+        files: ^(\.claude/skills/law-wetsgeschiedenis/|corpus-poc/wetsgeschiedenis/gegevens/)
+
       - id: awb-parity
         name: De Awb zegt in beide corpora hetzelfde
         entry: just awb-parity-test

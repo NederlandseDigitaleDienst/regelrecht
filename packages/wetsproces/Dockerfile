@@ -38,7 +38,7 @@ COPY packages/Cargo.lock packages/Cargo.toml ./
 # hoeft te vinden. De grep-assertie valt om als de members-array ooit op één
 # regel wordt gezet; dan zou de sed er stilletjes langs lopen.
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d; /"wetsproces-app"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d; /"wetsproces-app"/d; /"poc-wetsgeschiedenis"/d' Cargo.toml
 # The login: OIDC against Keycloak and the session keys (src/login.rs).
 COPY packages/auth/ auth/
 COPY packages/cel/ cel/

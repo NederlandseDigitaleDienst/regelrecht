@@ -313,7 +313,7 @@ golden_test_category!(nested_operations, "nested_operations.json");
 golden_test_category!(action_execution, "action_execution.json");
 golden_test_category!(cross_law_references, "cross_law_references.json");
 golden_test_category!(error_cases, "error_cases.json");
-golden_test_category!(real_regulations, "real_regulations.json");
+golden_test_category!(definitions, "definitions.json");
 
 /// Combined test that runs all fixtures and reports summary
 #[test]
@@ -340,7 +340,7 @@ fn test_all_golden_tests() {
         "action_execution.json",
         "cross_law_references.json",
         "error_cases.json",
-        "real_regulations.json",
+        "definitions.json",
     ];
 
     let mut total_passed = 0;
