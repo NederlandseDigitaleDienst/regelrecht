@@ -81,6 +81,10 @@ struct Stand {
     kenmerken: HashMap<String, String>,
 }
 
+/// How often the system's sources are asked again when one reads another,
+/// as the form asks them (`MAX_OP_ELKAAR` in AanvragerTab.vue).
+const MAX_OP_ELKAAR: usize = 5;
+
 /// Plays one scenario on one game.
 struct Speler<'a> {
     spel: &'a mut Spel,
@@ -272,6 +276,7 @@ impl Speler<'_> {
     ) -> Result<(), String> {
         let mut velden = met(&self.voorbeeld["aanvraag"], &stap["invoer"]);
         self.uit_sessie(&vormen["aanvraag"], stap, &mut velden)?;
+        self.door_het_systeem(&vormen["aanvraag"], stap, datum, &mut velden)?;
         rij["leeg_gelaten"] = json!(vul_leeg(&vormen["aanvraag"]["velden"], &mut velden));
         let gram = self
             .spel
@@ -365,6 +370,93 @@ impl Speler<'_> {
             velden.insert(veld.to_string(), sleutel.clone());
         }
         Ok(())
+    }
+
+    /// The fields the UI spec has the system fill (`systeem`), as the form
+    /// fills them. A value the system knows goes in as it is. A source goes in
+    /// as the cell answers it on what the application holds so far. Those
+    /// values go over the case's example. A source that gives nothing, or an
+    /// unknown value, leaves the field empty. A step may not name such a
+    /// field: the applicant does not type it.
+    ///
+    /// The login fills its own fields ([`Speler::uit_sessie`]). A field the
+    /// UI spec leaves to the login stays empty when the login gives it
+    /// nothing. In a case with a login step, an application without a session
+    /// did not come through the form, as one on paper. The system then fills
+    /// nothing, and the step names what the application holds.
+    fn door_het_systeem(
+        &mut self,
+        aanvraag: &Value,
+        stap: &Value,
+        datum: NaiveDate,
+        velden: &mut Map<String, Value>,
+    ) -> Result<(), String> {
+        let Some(systeem) = aanvraag["systeem"].as_object() else {
+            return Ok(());
+        };
+        if !aanvraag["inloggen"]["inlogstap"].is_null() && self.sessie.is_none() {
+            return Ok(());
+        }
+        if let Some(veld) = systeem
+            .keys()
+            .find(|v| stap["invoer"].get(v.as_str()).is_some())
+        {
+            return Err(format!("the step fills '{veld}', which the system fills"));
+        }
+        // What the login fills: its field, and each claim of the session.
+        let door_inloggen = |veld: &str| {
+            aanvraag["inloggen"]["veld"].as_str() == Some(veld)
+                || self.sessie.as_ref().is_some_and(|c| c.contains_key(veld))
+        };
+        let mut bronnen = Map::new();
+        for (veld, hoe) in systeem {
+            match (hoe.get("waarde"), hoe.get("bron")) {
+                (Some(Value::Null), _) => {
+                    velden.remove(veld);
+                }
+                (Some(waarde), _) => {
+                    velden.insert(veld.clone(), waarde.clone());
+                }
+                (None, Some(bron)) => {
+                    velden.remove(veld);
+                    bronnen.insert(veld.clone(), bron.clone());
+                }
+                (None, None) if !door_inloggen(veld) => {
+                    velden.remove(veld);
+                }
+                (None, None) => {}
+            }
+        }
+        if bronnen.is_empty() {
+            return Ok(());
+        }
+        // A source may read another field the system fills: ask again with
+        // what the sources gave until nothing changes, as the form does.
+        // The first call, and as many again as the form allows.
+        for _ in 0..=MAX_OP_ELKAAR {
+            let gegeven = self
+                .spel
+                .voorinvullen(&bronnen, velden, datum)
+                .map_err(|e| e.to_string())?;
+            let mut veranderd = false;
+            for veld in bronnen.keys() {
+                // An unknown value is no value, as the form leaves the field (RFC-036).
+                let waarde = &gegeven[veld]["waarde"];
+                let nieuw = (!waarde.is_null() && waarde.get("__unknown").is_none())
+                    .then(|| waarde.clone());
+                if velden.get(veld) != nieuw.as_ref() {
+                    veranderd = true;
+                    match nieuw {
+                        Some(w) => velden.insert(veld.clone(), w),
+                        None => velden.remove(veld),
+                    };
+                }
+            }
+            if !veranderd {
+                return Ok(());
+            }
+        }
+        Err("the sources the system fills from read each other and keep changing".into())
     }
 
     fn besluit(

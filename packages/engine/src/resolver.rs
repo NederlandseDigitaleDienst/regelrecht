@@ -270,13 +270,28 @@ impl DelegationRefusal {
 /// The outcome of an implements-index lookup for one open term.
 #[derive(Debug, Default)]
 pub struct ImplementationLookup<'a> {
-    /// Competent implementations, winner first.
+    /// Competent implementations, winner first. Under a hook those that name
+    /// the article the hook fires on come first, with their own winner first,
+    /// then those that name no host ([`Self::names_the_host`]).
     pub implementations: Vec<(&'a ArticleBasedLaw, &'a Article)>,
     /// Candidates refused by the delegation gate, in index order.
     pub refusals: Vec<DelegationRefusal>,
     /// Candidates whose law has no version in force on the reference date, in
     /// index order. Not competent for this date, and not silent about it.
     pub not_in_force: Vec<DeclarationNotInForce>,
+    /// How many of the first `implementations` name the article the hook
+    /// fires on.
+    naming_the_host: usize,
+}
+
+impl ImplementationLookup<'_> {
+    /// Whether the implementation at `position` names the article the hook
+    /// fires on (RFC-058). Such a filling reads the scope of that article;
+    /// every other filling reads the scope of the article whose term it fills.
+    #[must_use]
+    pub fn names_the_host(&self, position: usize) -> bool {
+        position < self.naming_the_host
+    }
 }
 
 /// Why no procedure definition was found (RFC-008).
@@ -377,6 +392,55 @@ pub(crate) struct LawArticleRef {
     pub(crate) article_number: String,
 }
 
+/// An open term as a lookup of its implementations asks for it: the
+/// declaring law and article, the term as that article declares it, and the
+/// date.
+#[derive(Clone, Copy)]
+struct TermRef<'t> {
+    law_id: &'t str,
+    article: &'t str,
+    open_term: &'t OpenTerm,
+    reference_date: Option<NaiveDate>,
+}
+
+/// Which group of an implementation lookup a filling falls in under a hook
+/// (RFC-058): those that name the article the hook fires on go first.
+#[derive(Clone, Copy)]
+enum Group {
+    NamesTheHost,
+    NamesNone,
+}
+
+/// One implementing article offered to a lookup, with what decides its
+/// group: every index entry of the term, the scope of the article whose term
+/// it fills and, under a hook, the firing.
+struct Offer<'o> {
+    implementer: &'o LawArticleRef,
+    entries: &'o [ImplementsEntry],
+    scope: &'o HashMap<String, Value>,
+    firing: Option<HookFiring<'o>>,
+}
+
+/// An entry of the implements index: the article that fills an open term,
+/// and the article a hook fires on that the filling names (`host`, schema
+/// v0.8.24, RFC-058), if it names one.
+#[derive(Debug, Clone, PartialEq)]
+pub(crate) struct ImplementsEntry {
+    pub(crate) implementer: LawArticleRef,
+    pub(crate) host: Option<LawArticleRef>,
+}
+
+/// The article a hook fires on, while the hook runs (RFC-058): the law and
+/// number of the article that establishes the application or gives the
+/// decision, and the scope it hands its hooks. A filling that names this
+/// article reads that scope.
+#[derive(Debug, Clone, Copy)]
+pub struct HookFiring<'s> {
+    pub law: &'s str,
+    pub article: &'s str,
+    pub scope: &'s HashMap<String, Value>,
+}
+
 /// A hook index entry linking a hook declaration to the law and article that defined it.
 pub struct HookEntry {
     pub(crate) law_id: String,
@@ -452,7 +516,7 @@ pub struct RuleResolver {
     /// Uses a flat string key (null-separated) to avoid two allocations per lookup.
     output_index: HashMap<String, String>,
     /// IoC index: (law_id, article, open_term_id) -> list of implementing articles
-    implements_index: HashMap<(String, String, String), Vec<LawArticleRef>>,
+    implements_index: HashMap<(String, String, String), Vec<ImplementsEntry>>,
     /// Hook index: (hook_point, legal character or submission kind) -> list of
     /// (law_id, article_number, filter). Enables O(1) lookup of hooks that
     /// should fire for a given lifecycle event or submission.
@@ -1083,7 +1147,10 @@ impl RuleResolver {
     ///
     /// Returns the competent candidates sorted by priority (winner first),
     /// together with every candidate refused by the delegation gate and every
-    /// candidate that has no version in force on the reference date.
+    /// candidate that has no version in force on the reference date. A
+    /// filling that names the article a hook fires on (`host`) is no
+    /// candidate here: it applies only under that hook
+    /// ([`Self::find_hook_implementations`]).
     ///
     /// The open term is passed in by the caller rather than looked up again
     /// here. A second, independent lookup of the declaring law, article and
@@ -1097,6 +1164,11 @@ impl RuleResolver {
     /// * `article` - The article number that declares the open term
     /// * `open_term` - The open term as declared by that article
     /// * `reference_date` - Optional date to filter by temporal validity
+    ///
+    /// # Errors
+    ///
+    /// When the open term declares a `delegation_type` that is no known
+    /// regulatory layer, or priority resolution cannot rank the candidates.
     pub fn find_implementations(
         &self,
         law_id: &str,
@@ -1105,131 +1177,231 @@ impl RuleResolver {
         reference_date: Option<NaiveDate>,
         scope: &HashMap<String, Value>,
     ) -> Result<ImplementationLookup<'_>> {
-        let open_term_id = open_term.id.as_str();
+        let term = TermRef {
+            law_id,
+            article,
+            open_term,
+            reference_date,
+        };
+        self.lookup_implementations(&term, scope, None)
+    }
+
+    /// The implementations of an open term of an article that fires as a hook
+    /// on the article `firing` names (RFC-058).
+    ///
+    /// Those that name that article as their host come first: they apply to
+    /// this firing alone, may come from any regulation, and are checked
+    /// against the scope of that article. The law of the host needs no scope
+    /// check, as the declaring law needs none, and neither does a regulation
+    /// of the host's territory. Then come those that name no host, as
+    /// [`Self::find_implementations`] finds them with `scope`, the parameters
+    /// of the article whose term they fill. A filling that names another
+    /// article is no candidate and leaves no record: it was never offered for
+    /// this firing. The delegation gate and the version filter apply to
+    /// both. [`ImplementationLookup::names_the_host`] tells the two apart.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::find_implementations`].
+    pub fn find_hook_implementations(
+        &self,
+        law_id: &str,
+        article: &str,
+        open_term: &OpenTerm,
+        reference_date: Option<NaiveDate>,
+        scope: &HashMap<String, Value>,
+        firing: HookFiring<'_>,
+    ) -> Result<ImplementationLookup<'_>> {
+        let term = TermRef {
+            law_id,
+            article,
+            open_term,
+            reference_date,
+        };
+        self.lookup_implementations(&term, scope, Some(firing))
+    }
+
+    /// [`Self::find_implementations`], or under a hook
+    /// [`Self::find_hook_implementations`]: the fillings that name the host,
+    /// ranked among themselves, before those that name none.
+    ///
+    /// Each implementing article is offered once. Which group it falls in is
+    /// read from the version in force on the date, not from the index, which
+    /// is built from the newest version: a host added or dropped in a later
+    /// version does not move a filling that is in force today.
+    fn lookup_implementations(
+        &self,
+        term: &TermRef<'_>,
+        scope: &HashMap<String, Value>,
+        firing: Option<HookFiring<'_>>,
+    ) -> Result<ImplementationLookup<'_>> {
         let key = (
-            law_id.to_string(),
-            article.to_string(),
-            open_term_id.to_string(),
+            term.law_id.to_string(),
+            term.article.to_string(),
+            term.open_term.id.clone(),
         );
-        let candidate_entries = match self.implements_index.get(&key) {
-            Some(entries) => entries,
-            None => return Ok(ImplementationLookup::default()),
+        let Some(entries) = self.implements_index.get(&key) else {
+            return Ok(ImplementationLookup::default());
         };
 
         tracing::debug!(
-            law_id = %law_id,
-            article = %article,
-            open_term_id = %open_term_id,
-            candidates = candidate_entries.len(),
+            law_id = %term.law_id,
+            article = %term.article,
+            open_term_id = %term.open_term.id,
+            candidates = entries.len(),
             "Finding implementations for open term"
         );
 
-        // What layer the declaring article demands of an implementation. Absent
-        // means the law demands nothing, and then every layer may fill the term.
-        let delegation_type = open_term.delegation_type.as_deref();
-
-        // Resolve each candidate to actual (law, article) references
-        let mut candidates: Vec<Candidate> = Vec::new();
         let mut lookup = ImplementationLookup::default();
-        // The declaring law, to recognise candidates of its own territory.
-        let declarer = self.get_law_for_date(law_id, reference_date);
+        let mut for_the_host = Vec::new();
+        let mut in_general = Vec::new();
+        let mut seen: Vec<&LawArticleRef> = Vec::new();
+        for entry in entries {
+            let implementer = &entry.implementer;
+            if seen.contains(&implementer) {
+                continue;
+            }
+            seen.push(implementer);
+            let offer = Offer {
+                implementer,
+                entries,
+                scope,
+                firing,
+            };
+            match self.offered_candidate(term, &offer, &mut lookup)? {
+                Some((Group::NamesTheHost, filling)) => for_the_host.push(filling),
+                Some((Group::NamesNone, filling)) => in_general.push(filling),
+                None => {}
+            }
+        }
+        let for_the_host = Self::ranked(for_the_host)?;
+        let in_general = Self::ranked(in_general)?;
+        lookup.naming_the_host = for_the_host.len();
+        lookup.implementations = for_the_host.into_iter().chain(in_general).collect();
+        Ok(lookup)
+    }
 
-        for entry in candidate_entries {
-            // Version filter. A regulation that is not in force on this date
-            // cannot fill the term, but its disappearance would be silent: the
-            // caller sees zero candidates and reports "no implementation, using
-            // the default" — the same sentence it prints when nobody ever wrote
-            // one. The two filters below say why they drop a candidate, and
-            // this one now does too, through the same lookup so the record
-            // reaches trace and receipt rather than the log alone.
-            let law = match self.get_law_for_date_reported(&entry.law_id, reference_date) {
-                Ok(law) => law,
-                Err(reason) => {
-                    tracing::debug!(
-                        candidate = %entry.law_id,
-                        reason = %reason.describe(),
-                        "Skipping: no version of this candidate is in force on the reference date"
-                    );
+    /// The fillings in the order of priority resolution, winner first.
+    fn ranked<'s>(
+        mut fillings: Vec<(&'s ArticleBasedLaw, &'s Article)>,
+    ) -> Result<Vec<(&'s ArticleBasedLaw, &'s Article)>> {
+        let candidates: Vec<Candidate> = fillings
+            .iter()
+            .map(|(law, article)| Candidate {
+                law,
+                article_number: article.number.clone(),
+            })
+            .collect();
+        if let Some((winner_law, reason)) = priority::resolve_candidate(&candidates)? {
+            tracing::debug!(
+                winner = %winner_law.id,
+                reason = %reason,
+                "Open term implementation resolved"
+            );
+            // Put winner first, then the rest
+            let winner_idx = fillings.iter().position(|(law, _)| law.id == winner_law.id);
+            if let Some(idx) = winner_idx
+                && idx != 0
+            {
+                fillings.swap(0, idx);
+            }
+        }
+        Ok(fillings)
+    }
+
+    /// The implementing article of `offer`, in the version in force on the
+    /// date, with the group it falls in for this lookup; `None` when it does
+    /// not fill the term here. A candidate the delegation gate refuses goes
+    /// into `lookup` as a [`DelegationRefusal`], one with no version or no
+    /// such article in force as a [`DeclarationNotInForce`], and so does one
+    /// whose version in force fills the term only for another host while the
+    /// index offered it here. A candidate whose scope does not match is
+    /// dropped without a record, unless it is the declaring law, the law of
+    /// the host (for a filling that names the host) or a regulation of the
+    /// territory of either.
+    fn offered_candidate<'s>(
+        &'s self,
+        term: &TermRef<'_>,
+        offer: &Offer<'_>,
+        lookup: &mut ImplementationLookup<'s>,
+    ) -> Result<Option<(Group, (&'s ArticleBasedLaw, &'s Article))>> {
+        let TermRef {
+            law_id,
+            article,
+            open_term,
+            reference_date,
+        } = *term;
+        let open_term_id = open_term.id.as_str();
+        let entry = offer.implementer;
+        let names_the_firing = |host: &LawArticleRef| {
+            offer.firing.is_some_and(|firing| {
+                host.law_id == firing.law && host.article_number == firing.article
+            })
+        };
+        // Whether the index offers this article here at all. Only then is
+        // its absence on the date worth a record.
+        let indexed_here = offer
+            .entries
+            .iter()
+            .filter(|e| e.implementer == *entry)
+            .any(|e| e.host.as_ref().is_none_or(&names_the_firing));
+        let subject = format!("open term '{open_term_id}' of {law_id} article {article}");
+
+        // Version filter. A regulation that is not in force on this date
+        // cannot fill the term, but its disappearance would be silent: the
+        // caller sees zero candidates and reports "no implementation, using
+        // the default" — the same sentence it prints when nobody ever wrote
+        // one. The two filters below say why they drop a candidate, and
+        // this one now does too, through the same lookup so the record
+        // reaches trace and receipt rather than the log alone.
+        let law = match self.get_law_for_date_reported(&entry.law_id, reference_date) {
+            Ok(law) => law,
+            Err(reason) => {
+                tracing::debug!(
+                    candidate = %entry.law_id,
+                    reason = %reason.describe(),
+                    "Skipping: no version of this candidate is in force on the reference date"
+                );
+                if indexed_here {
                     lookup.not_in_force.push(DeclarationNotInForce {
                         kind: DeclarationKind::Implementation,
                         law_id: entry.law_id.clone(),
                         article: entry.article_number.clone(),
-                        subject: format!(
-                            "open term '{open_term_id}' of {law_id} article {article}"
-                        ),
+                        subject,
                         reason: reason.describe(),
                     });
-                    continue;
                 }
-            };
-
-            // Scope filtering: check all scope fields on the candidate law against
-            // the execution parameters. A scoped regulation (e.g., with gemeente_code
-            // or provincie_code) only matches when the execution scope contains the
-            // same value. Unscoped regulations (national) always match. The
-            // regulation that declares the term matches too: the scope picks
-            // which regulation applies to a case, and that one already does.
-            // So does a regulation scoped to the same territory as the one that
-            // declares the term, such as the college's nadere regels under a
-            // verordening of the same municipality.
-            let of_the_declarers_territory =
-                declarer.is_some_and(|declarer| Self::shares_territory(declarer, law));
-            if law.id != law_id && !of_the_declarers_territory && !Self::matches_scope(law, scope) {
-                tracing::debug!(
-                    candidate = %entry.law_id,
-                    "Skipping: scope fields do not match execution parameters"
-                );
-                continue;
+                return Ok(None);
             }
+        };
 
-            // Delegation gate: a layer the declaring article did not authorise
-            // is not a weaker candidate but no candidate at all.
-            if let Some(expected) = delegation_type
-                && !Self::matches_delegation(law, law_id, open_term_id, expected)?
-            {
-                tracing::debug!(
-                    candidate = %entry.law_id,
-                    candidate_layer = %law.regulatory_layer.as_str(),
-                    delegation_type = %expected,
-                    "Skipping: regulatory_layer is not the layer the open term delegates to"
-                );
-                lookup.refusals.push(DelegationRefusal {
-                    declaring_law: law_id.to_string(),
-                    declaring_article: article.to_string(),
-                    open_term: open_term_id.to_string(),
-                    required_layer: expected.to_string(),
-                    refused_law: law.id.clone(),
-                    refused_article: entry.article_number.clone(),
-                    refused_layer: law.regulatory_layer.as_str().to_string(),
-                });
-                continue;
-            }
-
-            let Some(art) = law
-                .articles
-                .iter()
-                .find(|a| a.number == entry.article_number)
-            else {
-                // The index is built from the newest version of each law, but
-                // the candidate was resolved for the reference date. An article
-                // number that the newest version has and this one does not is a
-                // version mismatch, not an absent implementation — say so
-                // rather than letting the candidate disappear without a word.
-                // The log alone did not: the caller still reported "no
-                // implementation, using the default", so the record goes the
-                // same way as the not-in-force one above, to trace and receipt.
+        let Some(art) = law
+            .articles
+            .iter()
+            .find(|a| a.number == entry.article_number)
+        else {
+            // The index is built from the newest version of each law, but
+            // the candidate was resolved for the reference date. An article
+            // number that the newest version has and this one does not is a
+            // version mismatch, not an absent implementation — say so
+            // rather than letting the candidate disappear without a word.
+            // The log alone did not: the caller still reported "no
+            // implementation, using the default", so the record goes the
+            // same way as the not-in-force one above, to trace and receipt.
+            if indexed_here {
                 lookup.not_in_force.push(DeclarationNotInForce {
                     kind: DeclarationKind::Implementation,
                     law_id: entry.law_id.clone(),
                     article: entry.article_number.clone(),
-                    subject: format!("open term '{open_term_id}' of {law_id} article {article}"),
+                    subject,
                     reason: missing_article_reason(
                         law,
                         &entry.article_number,
                         "an implementation of the same open term",
                         |candidate| {
-                            let offered = candidate_entries.iter().any(|e| {
-                                e.law_id == entry.law_id && e.article_number == candidate.number
+                            let offered = offer.entries.iter().any(|e| {
+                                e.implementer.law_id == entry.law_id
+                                    && e.implementer.article_number == candidate.number
                             });
                             !offered
                                 && candidate.get_implements().is_some_and(|decls| {
@@ -1242,41 +1414,141 @@ impl RuleResolver {
                         },
                     ),
                 });
-                continue;
-            };
-
-            candidates.push(Candidate {
-                law,
-                article_number: entry.article_number.clone(),
-            });
-            lookup.implementations.push((law, art));
-        }
-
-        if candidates.is_empty() {
-            return Ok(lookup);
-        }
-
-        // Use priority resolution to sort — return winner first
-        if let Some((winner_law, reason)) = priority::resolve_candidate(&candidates)? {
-            tracing::debug!(
-                winner = %winner_law.id,
-                reason = %reason,
-                "Open term implementation resolved"
-            );
-
-            // Put winner first, then the rest
-            let winner_idx = lookup
-                .implementations
-                .iter()
-                .position(|(law, _)| law.id == winner_law.id);
-            if let Some(idx) = winner_idx
-                && idx != 0
-            {
-                lookup.implementations.swap(0, idx);
             }
+            return Ok(None);
+        };
+
+        let declarations = Self::declared_hosts(term, art, offer);
+        let names_the_host = declarations.iter().flatten().any(names_the_firing);
+        let names_none = declarations.iter().any(Option::is_none);
+        if !names_the_host && !names_none {
+            if indexed_here {
+                lookup.not_in_force.push(DeclarationNotInForce {
+                    kind: DeclarationKind::Implementation,
+                    law_id: entry.law_id.clone(),
+                    article: entry.article_number.clone(),
+                    subject,
+                    reason: format!(
+                        "the version in force on this date fills it only for another host; \
+                         the newest version of {} fills it here",
+                        law.id
+                    ),
+                });
+            }
+            return Ok(None);
         }
 
-        Ok(lookup)
+        let group = self.group_in_scope(term, offer, law, names_the_host, names_none);
+        let Some(group) = group else {
+            tracing::debug!(
+                candidate = %entry.law_id,
+                "Skipping: scope fields do not match execution parameters"
+            );
+            return Ok(None);
+        };
+
+        // Delegation gate: a layer the declaring article did not authorise
+        // is not a weaker candidate but no candidate at all.
+        if let Some(expected) = open_term.delegation_type.as_deref()
+            && !Self::matches_delegation(law, law_id, open_term_id, expected)?
+        {
+            tracing::debug!(
+                candidate = %entry.law_id,
+                candidate_layer = %law.regulatory_layer.as_str(),
+                delegation_type = %expected,
+                "Skipping: regulatory_layer is not the layer the open term delegates to"
+            );
+            lookup.refusals.push(DelegationRefusal {
+                declaring_law: law_id.to_string(),
+                declaring_article: article.to_string(),
+                open_term: open_term_id.to_string(),
+                required_layer: expected.to_string(),
+                refused_law: law.id.clone(),
+                refused_article: entry.article_number.clone(),
+                refused_layer: law.regulatory_layer.as_str().to_string(),
+            });
+            return Ok(None);
+        }
+
+        Ok(Some((group, (law, art))))
+    }
+
+    /// The hosts the version in force of `art` declares for the term, `None`
+    /// for a filling without a host. A version that declares nothing for the
+    /// term is still a candidate, through the index, as before RFC-058; its
+    /// hosts then come from the index, that is from the newest version.
+    fn declared_hosts(
+        term: &TermRef<'_>,
+        art: &Article,
+        offer: &Offer<'_>,
+    ) -> Vec<Option<LawArticleRef>> {
+        let declared: Vec<Option<LawArticleRef>> = art
+            .get_implements()
+            .into_iter()
+            .flatten()
+            .filter(|d| {
+                d.law == term.law_id
+                    && d.article == term.article
+                    && d.open_term == term.open_term.id
+            })
+            .map(|d| {
+                d.host.as_ref().map(|host| LawArticleRef {
+                    law_id: host.law.clone(),
+                    article_number: host.article.clone(),
+                })
+            })
+            .collect();
+        if !declared.is_empty() {
+            return declared;
+        }
+        offer
+            .entries
+            .iter()
+            .filter(|e| e.implementer == *offer.implementer)
+            .map(|e| e.host.clone())
+            .collect()
+    }
+
+    /// The group `law` falls in for this lookup, given whether it fills the
+    /// term for this host and whether it fills it without a host; `None`
+    /// when its scope admits neither.
+    ///
+    /// Scope filtering: check all scope fields on the candidate law against
+    /// the execution parameters. A scoped regulation (e.g., with gemeente_code
+    /// or provincie_code) only matches when the execution scope contains the
+    /// same value. Unscoped regulations (national) always match. The
+    /// regulation that declares the term matches too: the scope picks which
+    /// regulation applies to a case, and that one already does. So does a
+    /// regulation scoped to the same territory as the one that declares the
+    /// term, such as the college's nadere regels under a verordening of the
+    /// same municipality. A filling that names the host is checked against
+    /// the host's scope, and a regulation of the host's territory matches too
+    /// (RFC-058). An article that fills the term both for this host and
+    /// without one falls back to the latter when the host's scope does not
+    /// admit it.
+    fn group_in_scope(
+        &self,
+        term: &TermRef<'_>,
+        offer: &Offer<'_>,
+        law: &ArticleBasedLaw,
+        names_the_host: bool,
+        names_none: bool,
+    ) -> Option<Group> {
+        let declarer = self.get_law_for_date(term.law_id, term.reference_date);
+        let of_the_declarer = law.id == term.law_id
+            || declarer.is_some_and(|declarer| Self::shares_territory(declarer, law));
+        let host_group = offer.firing.filter(|_| names_the_host).and_then(|firing| {
+            let host = self.get_law_for_date(firing.law, term.reference_date);
+            // A scoped host law shares its own territory; an unscoped one
+            // matches every scope.
+            let of_the_host = host.is_some_and(|host| Self::shares_territory(host, law));
+            (of_the_declarer || of_the_host || Self::matches_scope(law, firing.scope))
+                .then_some(Group::NamesTheHost)
+        });
+        host_group.or_else(|| {
+            (names_none && (of_the_declarer || Self::matches_scope(law, offer.scope)))
+                .then_some(Group::NamesNone)
+        })
     }
 
     /// Get the number of entries in the implements index.
@@ -1463,7 +1735,7 @@ impl RuleResolver {
 
         // Remove old implements index entries where this law is an implementor
         for candidates in self.implements_index.values_mut() {
-            candidates.retain(|r| r.law_id != law_id);
+            candidates.retain(|r| r.implementer.law_id != law_id);
         }
         self.implements_index.retain(|_, v| !v.is_empty());
 
@@ -1536,9 +1808,15 @@ impl RuleResolver {
                             decl.article.clone(),
                             decl.open_term.clone(),
                         );
-                        let entry = LawArticleRef {
-                            law_id: law_id.to_string(),
-                            article_number: article.number.clone(),
+                        let entry = ImplementsEntry {
+                            implementer: LawArticleRef {
+                                law_id: law_id.to_string(),
+                                article_number: article.number.clone(),
+                            },
+                            host: decl.host.as_ref().map(|host| LawArticleRef {
+                                law_id: host.law.clone(),
+                                article_number: host.article.clone(),
+                            }),
                         };
                         let candidates = self.implements_index.entry(key).or_default();
                         if !candidates.contains(&entry) {
@@ -1599,7 +1877,7 @@ impl RuleResolver {
 
         // Remove from implements index (this law as implementor)
         for candidates in self.implements_index.values_mut() {
-            candidates.retain(|r| r.law_id != law_id);
+            candidates.retain(|r| r.implementer.law_id != law_id);
         }
         self.implements_index.retain(|_, v| !v.is_empty());
 

@@ -1,0 +1,24 @@
+---
+/*
+ * "Rules as Executed" in plain language (nl). The page is the component;
+ * see ~/components/PaperExplained.astro, and its twin in the other language
+ * next to this file.
+ */
+import Base from '~/layouts/Base.astro';
+import PaperExplained from '~/components/PaperExplained.astro';
+import { content } from '~/lib/paper-explained-content';
+
+const t = content.nl;
+---
+
+<Base
+  lang="nl"
+  kind="docs"
+  pathname="/research/rules-as-executed/uitgelegd"
+  title={t.meta.title}
+  description={t.meta.description}
+  hasSidebar={false}
+  langAlternates={{ nl: '/research/rules-as-executed/uitgelegd', en: '/research/rules-as-executed/explained' }}
+>
+  <PaperExplained lang="nl" />
+</Base>

@@ -33,6 +33,12 @@ interface Props {
    * list, for a title that occurs inside another paper's title.
    */
   discussionExclude?: string[];
+  /**
+   * Pages of the site that belong with the paper, such as a plain-language
+   * explanation. They are the site's text, not the authors', and sit between
+   * the PDF and the discussion button.
+   */
+  companions?: { href: string; text: string; icon?: string; lang?: string }[];
 }
 
 const {
@@ -44,6 +50,7 @@ const {
   headings,
   html,
   discussionExclude = [],
+  companions = [],
 } = Astro.props;
 
 // Every issue the "Discuss this passage" button (Base.astro) opens carries the
@@ -98,6 +105,25 @@ const discussionUrl =
           />
         )
       }
+      {
+        companions.map((c) => (
+          <nldd-button
+            href={c.href}
+            text={c.text}
+            start-icon={c.icon}
+            lang={c.lang}
+            appearance="secondary"
+          />
+        ))
+      }
+    </nldd-button-group>
+    {/*
+     * A group of its own: nldd-button-group shows at most three buttons and
+     * hides the rest. Last, so the hint below about selecting a passage sits
+     * under it; the spacer matches the gap inside a group.
+     */}
+    <nldd-spacer size="8" />
+    <nldd-button-group orientation="vertical">
       <nldd-button
         href={discussionUrl}
         text="Discussion on GitHub"

@@ -1,0 +1,36 @@
+---
+# Tier C: an implements that names the article a hook fires on (`host`,
+# schema v0.8.24, RFC-058).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: test_conformance_implements_host
+regulatory_layer: BELEIDSREGEL
+bwb_id: BWBR9999944
+publication_date: '2026-11-18'
+valid_from: '2026-11-18'
+url: https://example.invalid/implements-host
+articles:
+  - number: '1'
+    url: https://example.invalid/implements-host/1
+    text: Op een aanvraag tot verlening wordt binnen tien weken beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host:
+            law: subsidiewet_voorbeeld
+            article: '1'
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: wettelijke_beslistermijn
+            type: date
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 10

@@ -1,0 +1,105 @@
+---
+# Tier C: a call to an article (schema v0.8.4, RFC-045). Article 1 decides
+# on an application and lists data derived for its decision under `derived`.
+# Article 2 calls a decision value anew, with its own fields and findings,
+# and calls the article a decision value names, with that decision's fields
+# merged under what is given anew; both get a decision value back;
+# article 3 calls a fixed article for one output of its decision.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: test_conformance_article_call
+regulatory_layer: WET
+publication_date: '2026-10-15'
+valid_from: '2026-10-15'
+bwb_id: BWBR0099994
+name: Testwet aanroep van een artikel
+url: https://example.invalid/article-call
+articles:
+  - number: '1'
+    url: https://example.invalid/article-call/1
+    text: Het bestuursorgaan beslist op de aanvraag.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_conformance_article_call#1
+            parameters: [dagen]
+          - type: BESCHIKKING
+            outputs: [verleend]
+            derived: [dagen_over]
+        parameters:
+          - name: dagen
+            type: number
+        output:
+          - name: verleend
+            type: boolean
+          - name: dagen_over
+            type: number
+        actions:
+          - output: dagen_over
+            value:
+              operation: SUBTRACT
+              values: [10, $dagen]
+          - output: verleend
+            value:
+              operation: LESS_THAN_OR_EQUAL
+              subject: $dagen
+              value: 10
+  - number: '2'
+    url: https://example.invalid/article-call/2
+    text: Het besluit wordt heroverwogen.
+    machine_readable:
+      execution:
+        parameters:
+          - name: besluit
+            type: decision
+          - name: nieuwe_gegevens
+            type: object
+            nullable: true
+        input:
+          - name: heroverweging
+            type: decision
+            nullable: true
+            source:
+              article: $besluit
+          - name: met_nieuwe_gegevens
+            type: decision
+            nullable: true
+            source:
+              article: $besluit.basis
+              parameters_from:
+                - $besluit.fields
+                - $nieuwe_gegevens
+        output:
+          - name: heroverwogen
+            type: decision
+            nullable: true
+          - name: opnieuw_met_nieuwe_gegevens
+            type: decision
+            nullable: true
+        actions:
+          - output: heroverwogen
+            value: $heroverweging
+          - output: opnieuw_met_nieuwe_gegevens
+            value: $met_nieuwe_gegevens
+  - number: '3'
+    url: https://example.invalid/article-call/3
+    text: Of het verlof zou worden verleend.
+    machine_readable:
+      execution:
+        parameters:
+          - name: dagen
+            type: number
+        input:
+          - name: verleend
+            type: boolean
+            source:
+              article: test_conformance_article_call#1
+              output: verleend
+              parameters:
+                dagen: $dagen
+        output:
+          - name: zou_worden_verleend
+            type: boolean
+        actions:
+          - output: zou_worden_verleend
+            value: $verleend

@@ -420,7 +420,6 @@ export default {
   'wet.tile.why.retry': 'Réessayer',
   // ---- sheets: application, correction, reporting a change ----------------
   'sheet.dismiss': 'Fermer',
-  'sheet.cancel': 'Annuler',
 
   // application (ApplicationSheet)
   'sheet.application.label': 'Demande',
@@ -560,7 +559,6 @@ export default {
   'sheet.change.error.event': 'Choisissez ce qui change dans votre foyer.',
   'sheet.change.error.empty': 'Remplissez au moins un champ. Ce que vous laissez vide reste inchangé.',
   'sheet.change.continue': 'Continuer',
-  'sheet.change.back': 'Retour',
   'sheet.change.confirm.before': 'Vous transmettez les informations suivantes à ',
   'sheet.change.confirm.after': '. Vérifiez-les avant de les envoyer.',
   'sheet.change.confirm.label': 'Ce que vous transmettez',

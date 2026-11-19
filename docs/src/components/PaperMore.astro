@@ -1,0 +1,51 @@
+---
+/*
+ * "Meer uit het paper": the secondary text of one part of the plain-language
+ * paper page, behind a button, in an nldd-sheet.
+ *
+ * Each part shows its point and an example; the rest of what the page says
+ * about that part, and the sections of the paper it explains, open in a sheet
+ * (from the bottom on a phone, from the side on a wide screen). Nothing is cut,
+ * it is folded away. The sheet holds an nldd-page with an nldd-top-title-bar,
+ * as the design system asks; ~/scripts/paper-explained.ts moves it to the
+ * document root when it first opens, which the sheet also requires.
+ *
+ * Without JavaScript the sheet is never upgraded and its content shows in the
+ * flow under the button, so the text is still there.
+ */
+import type { SectionRef } from '~/lib/paper-explained';
+
+interface Props {
+  /** The part's title; the sheet's title bar and accessible name. */
+  title: string;
+  /** Button text, "Meer uit het paper". */
+  label: string;
+  /** Dismiss text in the title bar. */
+  close: string;
+  /** Heading over the links into the paper. */
+  refsLabel: string;
+  refs: SectionRef[];
+}
+
+const { title, label, close, refsLabel, refs } = Astro.props;
+---
+
+<nldd-container data-px-more>
+  <nldd-button appearance="secondary" size="md" end-icon="chevron-right" text={label} data-px-more-open />
+  <nldd-sheet placement="right" width="40rem" data-px-more-sheet>
+    <nldd-page>
+      <nldd-top-title-bar slot="header" text={title} supporting-text={label} heading-level="2" dismiss-text={close} />
+      <nldd-container padding="24" sm-padding="16" gap="24">
+        <slot />
+        <nldd-title size="5"><h3>{refsLabel}</h3></nldd-title>
+        <nldd-list type="navigation" aria-label={refsLabel} appearance="box-tinted">
+          {refs.map((r) => (
+            <nldd-list-item href={r.href}>
+              <nldd-text-cell text={`§ ${r.label}`} />
+            </nldd-list-item>
+          ))}
+        </nldd-list>
+      </nldd-container>
+    </nldd-page>
+  </nldd-sheet>
+</nldd-container>

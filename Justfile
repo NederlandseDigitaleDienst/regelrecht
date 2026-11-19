@@ -129,13 +129,14 @@ validate-demo:
 validate-annotations *FILES:
     script/validate-annotations.sh {{FILES}}
 
-# Schema↔model conformance suite — proves the Rust law-model conforms to the
-# canonical schema.json. Standalone helper; `just test` already runs it via
+# Schema conformance suite (schema↔law-model) — proves the Rust law-model
+# conforms to the canonical schema.json. Not BDD bucket B (engine conformance,
+# `BDD_BUCKET=conformance just bdd`). Standalone helper; `just test` already runs it via
 # --all-features. Needs the `validate` feature (jsonschema). See
-# packages/engine/tests/conformance/README.md.
+# packages/engine/tests/schema_conformance/README.md.
 [doc("Prove the Rust law-model conforms to the canonical schema.json")]
-conformance:
-    cd packages && {{ci_flags}} cargo test -p regelrecht-engine --features validate --test conformance
+schema-conformance:
+    cd packages && {{ci_flags}} cargo test -p regelrecht-engine --features validate --test schema_conformance
 
 # Pins the deploy filters against the real cargo graph. Node's built-in test
 # runner, so no dependency for one file. Needs `cargo metadata`, not a build.

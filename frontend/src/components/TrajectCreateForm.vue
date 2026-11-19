@@ -264,14 +264,16 @@ function bind(field: TextFieldKey) {
       ></nldd-activity-indicator>
 
       <nldd-form-actions>
-        <nldd-button
-          appearance="primary"
-          size="md"
-          width="full"
-          :text="busy ? 'Bezig…' : 'Maak traject aan'"
-          :disabled="busy || undefined"
-          @click="emit('submit')"
-        ></nldd-button>
+        <nldd-button-group width="full">
+          <nldd-button
+            appearance="primary"
+            size="md"
+            width="full"
+            :text="busy ? 'Bezig…' : 'Maak traject aan'"
+            :disabled="busy || undefined"
+            @click="emit('submit')"
+          ></nldd-button>
+        </nldd-button-group>
       </nldd-form-actions>
     </form>
   </nldd-form>

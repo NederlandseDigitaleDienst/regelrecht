@@ -1,9 +1,10 @@
 /*
  * Fetching the engine and the laws, once per page.
  *
- * Two panels on this site execute laws in the visitor's browser: the landing
- * page's run panel (~/scripts/landing-run.ts) and the scenario runner on
- * /concepts/scenarios (~/scripts/scenario-playground.ts). They ask the engine
+ * Three panels on this site execute laws in the visitor's browser: the landing
+ * page's run panel (~/scripts/landing-run.ts), the scenario runner on
+ * /concepts/scenarios (~/scripts/scenario-playground.ts), and the receipts on
+ * the plain-language paper page (~/scripts/paper-explained-run.ts). They ask the engine
  * different questions and draw different things, but they load exactly the same
  * WASM module and the same set of laws, so that lives here and the promise is
  * shared. A visitor who opens the runner after the landing panel has already
@@ -25,6 +26,13 @@ export interface Manifest {
 export interface Loaded {
   engine: any;
   manifest: Manifest;
+  /**
+   * Every law file as fetched, by its manifest path. Kept so a page can build
+   * a second engine without a second download; see `engineFrom`.
+   */
+  laws: Map<string, string>;
+  /** The engine constructor of the loaded WASM module. */
+  WasmEngine: new () => any;
 }
 
 let enginePromise: Promise<Loaded> | null = null;
@@ -60,7 +68,7 @@ async function load(base: string): Promise<Loaded> {
 
   const engine = new wasm.WasmEngine();
 
-  const laws = await Promise.all(
+  const texts = await Promise.all(
     manifest.laws.map((p) =>
       fetch(`${base}${p}`).then((r) => {
         if (!r.ok) throw new Error(`${p}: ${r.status}`);
@@ -69,9 +77,27 @@ async function load(base: string): Promise<Loaded> {
     ),
   );
 
-  for (const yaml of laws) engine.loadLaw(yaml);
+  for (const yaml of texts) engine.loadLaw(yaml);
 
-  return { engine, manifest };
+  const laws = new Map(manifest.laws.map((p, i) => [p, texts[i]]));
+  return { engine, manifest, laws, WasmEngine: wasm.WasmEngine };
+}
+
+/**
+ * A separate engine over the same laws, each passed through `edit` first.
+ *
+ * For a page that has to show what a different version of a law would have
+ * computed, next to the shared engine that holds the corpus as published. The
+ * shared engine is never touched: whatever `edit` returns lives only in the
+ * engine this returns.
+ */
+export function engineFrom(
+  loaded: Loaded,
+  edit: (path: string, text: string) => string = (_p, t) => t,
+): any {
+  const engine = new loaded.WasmEngine();
+  for (const [path, text] of loaded.laws) engine.loadLaw(edit(path, text));
+  return engine;
 }
 
 /**

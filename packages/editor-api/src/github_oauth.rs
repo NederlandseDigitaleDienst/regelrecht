@@ -190,10 +190,9 @@ impl GithubOAuth {
     /// Integration tests live in a separate crate, so a `#[cfg(test)]`
     /// constructor can't reach them and `client_secret` is deliberately
     /// private. Production wiring goes through [`GithubOAuth::from_env`].
-    // Only called from integration tests; the bin target (main.rs includes
-    // these modules directly) would otherwise flag it as dead code, and the
-    // expect on a static test key is fine outside production paths.
-    #[allow(dead_code, clippy::expect_used)]
+    // Only called from integration tests. The expect on a static test key is
+    // fine outside production paths.
+    #[allow(clippy::expect_used)]
     #[doc(hidden)]
     pub fn for_tests(require_user_token: bool) -> Self {
         use base64::engine::general_purpose::STANDARD;
@@ -214,7 +213,7 @@ impl GithubOAuth {
 }
 
 /// Routes for the GitHub OAuth link flow. Mounted behind session auth +
-/// `account_middleware` in `main.rs` so every handler sees an [`AccountRecord`].
+/// `account_middleware` in `router.rs` so every handler sees an [`AccountRecord`].
 pub fn github_oauth_routes() -> Router<AppState> {
     Router::new()
         .route("/auth/github/login", get(login))
@@ -225,8 +224,8 @@ pub fn github_oauth_routes() -> Router<AppState> {
 
 /// The relay route. **Public** (no session/account) — GitHub redirects the
 /// user's browser here on the fixed callback host, and we 302 them on to the
-/// deployment that started the flow. Mounted outside the auth layer in
-/// `main.rs`.
+/// deployment that started the flow. Mounted outside the auth gates in
+/// `router.rs`.
 pub fn github_relay_route() -> Router<AppState> {
     Router::new().route("/auth/github/relay", get(relay))
 }
@@ -477,7 +476,7 @@ fn append_set_cookie(response: &mut Response, header: &str) {
 /// `http://localhost@evil.com` resolves to a non-loopback host and is rejected)
 /// and IPv6 loopback is handled via the typed `Host` enum. Exhaustive tests
 /// live in `main.rs` (`http_localhost_tests`).
-pub(crate) fn is_http_localhost(base_url: Option<&str>) -> bool {
+pub fn is_http_localhost(base_url: Option<&str>) -> bool {
     let Some(url) = base_url.and_then(|u| url::Url::parse(u).ok()) else {
         return false;
     };

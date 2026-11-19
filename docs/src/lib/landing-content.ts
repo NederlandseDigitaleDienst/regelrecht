@@ -10,6 +10,7 @@ import paper from '~/research/rules-as-executed.meta.json';
 import jurixPaper from '~/research/citizen-explanation.meta.json';
 import promisedPaper from '~/research/rules-as-promised.meta.json';
 import { joinAuthors } from '~/lib/authors';
+import { demoUrl } from '~/lib/demo-links.js';
 
 // The papers' titles, authors and dates come from the generated meta JSON
 // next to their HTML, so a regenerated paper cannot drift from the tile that
@@ -49,7 +50,7 @@ export interface LandingContent {
     research: string
     roadmap: string
   }
-  hero: { title: string; intro: string }
+  hero: { title: string; intro: string; tour: string; tourHref: string }
   whatIsIt: { title: string; lede: string; cards: { h: string; p: string }[] }
   whyImportant: {
     title: string
@@ -94,6 +95,8 @@ export interface LandingContent {
       text: string
       href: string
       linkLabel: string
+      /** A second button on the card, in the page's own language. */
+      also?: { href: string; linkLabel: string }
     }[]
   }
   references: {
@@ -203,6 +206,8 @@ export const content: Record<'nl' | 'en', LandingContent> = {
       title: 'Van wet naar digitale werking',
       intro:
         'RegelRecht verkent of wetgeving als uitvoerbare code geschreven kan worden, zodat verschillende organisaties dezelfde wet ook hetzelfde toepassen en burgers kunnen volgen hoe een besluit tot stand komt.',
+      tour: 'Bekijk de rondleiding',
+      tourHref: demoUrl('rondleiding', 'nl'),
     },
     whatIsIt: {
       title: 'Wetten uitvoeren zonder te programmeren',
@@ -334,7 +339,7 @@ export const content: Record<'nl' | 'en', LandingContent> = {
           meta: 'Wat-als-analyse',
           link: {
             label: 'Live demo',
-            href: 'https://demo.regelrecht.rijks.app/simulatie',
+            href: demoUrl('simulatie', 'nl'),
           },
           text: 'Een omgeving waarin de gevolgen van nieuwe wetgeving doorgerekend zouden kunnen worden, voordat ze in werking treden. Bedoeld om maatschappelijke impact en onbedoelde effecten zichtbaar te maken.',
         },
@@ -361,7 +366,7 @@ export const content: Record<'nl' | 'en', LandingContent> = {
           ],
           link: {
             label: 'Bekijk in de demo',
-            href: 'https://demo.regelrecht.rijks.app/portaal',
+            href: demoUrl('portaal', 'nl'),
           },
         },
         {
@@ -378,7 +383,7 @@ export const content: Record<'nl' | 'en', LandingContent> = {
           reverse: true,
           link: {
             label: 'Bekijk in de demo',
-            href: 'https://demo.regelrecht.rijks.app/simulatie',
+            href: demoUrl('simulatie', 'nl'),
           },
         },
         {
@@ -419,6 +424,7 @@ export const content: Record<'nl' | 'en', LandingContent> = {
           text: 'Het paper betoogt dat de overheid haar wetsuitvoering moet publiceren als machine-uitvoerbare specificatie, waarbij elk besluit vastlegt met welke versie het is genomen. Wie een besluit ontvangt, kan het narekenen, en het parlement kan de regel zelf analyseren.',
           href: '/research/rules-as-executed',
           linkLabel: 'position paper (Engels)',
+          also: { href: '/research/rules-as-executed/uitgelegd', linkLabel: 'uitleg in gewone taal' },
         },
         {
           title: jurixTitle,
@@ -646,8 +652,10 @@ export const content: Record<'nl' | 'en', LandingContent> = {
       links: [
         { label: 'GitHub-repository', href: GITHUB },
         { label: 'Hoe het werkt', href: '/#how-it-works' },
+        { label: 'Rondleiding door de demo', href: demoUrl('rondleiding', 'nl') },
         { label: 'Op de hoogte blijven', href: SIGNUP_NL_PATH },
         { label: 'Roadmap', href: '/roadmap' },
+        { label: 'Basiswerk recht', href: '/basiswerk/' },
         { label: 'Documentatie (Engels)', href: '/docs/' },
         { label: 'Onderzoek (Engels)', href: '/research/' },
       ],
@@ -716,6 +724,8 @@ export const content: Record<'nl' | 'en', LandingContent> = {
       title: 'From statute to digital execution',
       intro:
         'RegelRecht explores whether legislation can be written as executable code, so that different organisations apply the same law the same way and citizens can follow how a decision is reached.',
+      tour: 'Watch the walkthrough',
+      tourHref: demoUrl('rondleiding', 'en'),
     },
     whatIsIt: {
       title: 'Running laws without programming',
@@ -847,7 +857,7 @@ export const content: Record<'nl' | 'en', LandingContent> = {
           meta: 'What-if analysis',
           link: {
             label: 'Live demo',
-            href: 'https://demo.regelrecht.rijks.app/simulatie',
+            href: demoUrl('simulatie', 'en'),
           },
           text: 'An environment where the consequences of new legislation could be modelled before it takes effect, to surface societal impact and unintended effects.',
         },
@@ -874,7 +884,7 @@ export const content: Record<'nl' | 'en', LandingContent> = {
           ],
           link: {
             label: 'See it in the demo',
-            href: 'https://demo.regelrecht.rijks.app/portaal',
+            href: demoUrl('portaal', 'en'),
           },
         },
         {
@@ -891,7 +901,7 @@ export const content: Record<'nl' | 'en', LandingContent> = {
           reverse: true,
           link: {
             label: 'See it in the demo',
-            href: 'https://demo.regelrecht.rijks.app/simulatie',
+            href: demoUrl('simulatie', 'en'),
           },
         },
         {
@@ -932,6 +942,7 @@ export const content: Record<'nl' | 'en', LandingContent> = {
           text: 'The paper argues that government should publish its law execution as machine-executable specifications, with every decision recording the version that produced it. The recipient of a decision can then recompute it, and Parliament can analyze the rule itself.',
           href: '/research/rules-as-executed',
           linkLabel: 'position paper',
+          also: { href: '/research/rules-as-executed/explained', linkLabel: 'plain-language explainer' },
         },
         {
           title: jurixTitle,
@@ -1155,10 +1166,12 @@ export const content: Record<'nl' | 'en', LandingContent> = {
       links: [
         { label: 'GitHub repository', href: GITHUB },
         { label: 'How it works', href: '/en/#how-it-works' },
+        { label: 'Demo walkthrough', href: demoUrl('rondleiding', 'en') },
         { label: 'Stay informed', href: SIGNUP_EN_PATH },
         { label: 'Roadmap (Dutch)', href: '/roadmap' },
         { label: 'Documentation', href: '/docs/' },
         { label: 'Research', href: '/research/' },
+        { label: 'Basiswerk recht (Dutch)', href: '/basiswerk/' },
       ],
       partOf: [
         {

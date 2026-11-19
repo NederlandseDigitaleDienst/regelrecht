@@ -312,13 +312,13 @@ function unique(laws: LawEntry[]) {
 <template>
   <nldd-navigation-split-view ref="splitView" primary-sidebar-as-sheet :primary-sidebar-accessible-label="t('wet.graph.sidebar.label')" :inspector-accessible-label="t('wet.graph.inspector.label')">
     <nldd-split-view-pane slot="sidebar" has-content background="tinted">
-      <nldd-page sticky-header background="inherit">
+      <nldd-page sticky-header background="inherit" :accessible-label="t('wet.graph.sidebar.label')">
         <nldd-container slot="header" padding="12">
           <nldd-top-title-bar :text="t('wet.graph.sidebar.label')" :supporting-text="t('wet.graph.selection', { chosen: selected.size, shown: shownLaws.length })"></nldd-top-title-bar>
         </nldd-container>
-        <nldd-container padding-inline="8" padding-bottom="16">
+        <nldd-simple-section padding-top="0">
           <LawGroupTree :groups="groups" mode="check" :checked="selected" :supporting-text="(law) => (!selected.has(law.id) && shownIds.has(law.id) ? t('wet.graph.neighbour') : undefined)" @toggle="toggle" />
-        </nldd-container>
+        </nldd-simple-section>
       </nldd-page>
     </nldd-split-view-pane>
 
@@ -352,90 +352,94 @@ function unique(laws: LawEntry[]) {
             <nldd-button slot="actions" appearance="primary" size="sm" :text="t('wet.sidebar.label')" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
           </nldd-inline-dialog>
         </nldd-simple-section>
-        <div v-else class="graph-canvas">
-          <VueFlow
-            id="demo-graph"
-            :nodes="graph.nodes"
-            :edges="graph.edges"
-            :min-zoom="0.1"
-            :max-zoom="2"
-            fit-view-on-init
-            :nodes-connectable="false"
-            :elevate-edges-on-select="false"
-            @node-click="onNodeClick"
-            @node-double-click="onNodeDoubleClick"
-            @node-drag-start="onNodeDragStart"
-            @node-drag-stop="onNodeDragStop"
-            @pane-click="onPaneClick"
-            @nodes-initialized="refit"
-            @viewport-change="onViewportChange"
-          >
-            <template #node-law="{ data }"><GraphLawNode :data="data" /></template>
-            <template #node-box="{ data }"><GraphBoxNode :data="data" /></template>
-            <template #node-item="{ data }"><GraphItemNode :data="data" /></template>
-            <Background />
-          </VueFlow>
-          <!-- De zoomknoppen van vue-flow vervangen door knoppen uit het design
-               system: die bracht zijn eigen stylesheet en eigen vormgeving mee,
-               die naast de rest van de app stond en niets van het thema wist.
-               `useVueFlow` levert dezelfde acties, dus alleen de knoppen zijn
-               anders. -->
-          <!-- Liggend, niet staand zoals vue-flow ze zette: nldd-button-bar is
-               een horizontale groep en kent geen staande variant. Zelf rechtop
-               zetten zou tegen het component in werken; dit is dezelfde bediening
-               in de vorm die het design system ervoor heeft. -->
-          <!-- `neutral-tinted` is de standaardvariant van de balk, en de enige
-               die hier een zichtbare hover geeft. `neutral-base` zette de balk
-               op wit met een hover van 0.974: dat verschil zie je niet, en
-               omdat de knop geen rand heeft viel hij onder de muis weg in
-               plaats van op te lichten. `neutral-transparent` is nog erger, die
-               heeft helemaal geen hover-vulling. Getint geeft 0.923 in rust en
-               0.898 onder de muis. -->
-          <nldd-button-bar class="graph-zoom" appearance="neutral-tinted">
-            <nldd-icon-button icon="add" :text="t('wet.graph.zoom_in')" @click="zoomIn()"></nldd-icon-button>
-            <nldd-icon-button icon="remove" :text="t('wet.graph.zoom_out')" @click="zoomOut()"></nldd-icon-button>
-            <nldd-button-bar-divider></nldd-button-bar-divider>
-            <!-- `fitAll()`, not a bare `fitView()`: that one also fits the
-                 hidden laws and zoomed out further than needed. Does the same
-                 as "Passend maken" in the toolbar; that one is there for whoever
-                 reads the bar, this one for whoever is working in the canvas
-                 with a hand on the zoom buttons. -->
-            <nldd-icon-button icon="fit-to-view" :text="t('wet.graph.fit_all')" @click="fitAll()"></nldd-icon-button>
-          </nldd-button-bar>
-        </div>
+        <nldd-full-bleed-section v-else width="full" padding-block="0" grow>
+          <div class="graph-canvas">
+            <VueFlow
+              id="demo-graph"
+              :nodes="graph.nodes"
+              :edges="graph.edges"
+              :min-zoom="0.1"
+              :max-zoom="2"
+              fit-view-on-init
+              :nodes-connectable="false"
+              :elevate-edges-on-select="false"
+              @node-click="onNodeClick"
+              @node-double-click="onNodeDoubleClick"
+              @node-drag-start="onNodeDragStart"
+              @node-drag-stop="onNodeDragStop"
+              @pane-click="onPaneClick"
+              @nodes-initialized="refit"
+              @viewport-change="onViewportChange"
+            >
+              <template #node-law="{ data }"><GraphLawNode :data="data" /></template>
+              <template #node-box="{ data }"><GraphBoxNode :data="data" /></template>
+              <template #node-item="{ data }"><GraphItemNode :data="data" /></template>
+              <Background />
+            </VueFlow>
+            <!-- De zoomknoppen van vue-flow vervangen door knoppen uit het design
+                 system: die bracht zijn eigen stylesheet en eigen vormgeving mee,
+                 die naast de rest van de app stond en niets van het thema wist.
+                 `useVueFlow` levert dezelfde acties, dus alleen de knoppen zijn
+                 anders. -->
+            <!-- Liggend, niet staand zoals vue-flow ze zette: nldd-button-bar is
+                 een horizontale groep en kent geen staande variant. Zelf rechtop
+                 zetten zou tegen het component in werken; dit is dezelfde bediening
+                 in de vorm die het design system ervoor heeft. -->
+            <!-- `neutral-tinted` is de standaardvariant van de balk, en de enige
+                 die hier een zichtbare hover geeft. `neutral-base` zette de balk
+                 op wit met een hover van 0.974: dat verschil zie je niet, en
+                 omdat de knop geen rand heeft viel hij onder de muis weg in
+                 plaats van op te lichten. `neutral-transparent` is nog erger, die
+                 heeft helemaal geen hover-vulling. Getint geeft 0.923 in rust en
+                 0.898 onder de muis. -->
+            <nldd-button-bar class="graph-zoom" appearance="neutral-tinted">
+              <nldd-icon-button icon="add" :text="t('wet.graph.zoom_in')" @click="zoomIn()"></nldd-icon-button>
+              <nldd-icon-button icon="remove" :text="t('wet.graph.zoom_out')" @click="zoomOut()"></nldd-icon-button>
+              <nldd-button-bar-divider></nldd-button-bar-divider>
+              <!-- `fitAll()`, not a bare `fitView()`: that one also fits the
+                   hidden laws and zoomed out further than needed. Does the same
+                   as "Passend maken" in the toolbar; that one is there for whoever
+                   reads the bar, this one for whoever is working in the canvas
+                   with a hand on the zoom buttons. -->
+              <nldd-icon-button icon="fit-to-view" :text="t('wet.graph.fit_all')" @click="fitAll()"></nldd-icon-button>
+            </nldd-button-bar>
+          </div>
+        </nldd-full-bleed-section>
       </nldd-page>
     </nldd-split-view-pane>
 
     <!-- A focus law means the corpus is loaded. -->
     <nldd-split-view-pane v-if="focusLaw" slot="inspector" has-content background="tinted">
-      <nldd-page background="inherit">
+      <nldd-page background="inherit" :accessible-label="t('wet.graph.inspector.label')">
         <nldd-container slot="header" padding="12">
           <nldd-top-title-bar :text="focusLaw.name" :supporting-text="serviceInfo(corpus!, focusLaw.service).name" :dismiss-text="t('wet.graph.close')" @dismiss="focus = null"></nldd-top-title-bar>
         </nldd-container>
-        <nldd-container padding="12" gap="12">
-          <nldd-button-group orientation="horizontal" size="sm">
-            <nldd-button appearance="secondary" size="sm" start-icon="book" :text="t('wet.graph.open_in_laws')" @click="goTo('wetten', { lawId: focusLaw.id })"></nldd-button>
-            <nldd-button appearance="neutral-tinted" size="sm" :text="t('wet.graph.only_this')" @click="only(focusLaw.id)"></nldd-button>
-          </nldd-button-group>
-          <nldd-container gap="4">
-            <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('wet.graph.reads_from') }}</nldd-text></nldd-container>
-            <nldd-list appearance="box-base" :accessible-label="t('wet.graph.reads_from')">
-              <nldd-list-item v-if="uses.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.graph.no_law_in_view')"></nldd-text-cell></nldd-list-item>
-              <nldd-list-item v-for="l in unique(uses)" :key="l.id" size="sm" button @click="focus = l.id">
-                <nldd-text-cell size="sm" :text="l.name" :supporting-text="serviceInfo(corpus!, l.service).name"></nldd-text-cell>
-              </nldd-list-item>
-            </nldd-list>
+        <nldd-simple-section padding-top="0">
+          <nldd-container gap="12">
+            <nldd-button-group orientation="horizontal" size="sm">
+              <nldd-button appearance="secondary" size="sm" start-icon="book" :text="t('wet.graph.open_in_laws')" @click="goTo('wetten', { lawId: focusLaw.id })"></nldd-button>
+              <nldd-button appearance="neutral-tinted" size="sm" :text="t('wet.graph.only_this')" @click="only(focusLaw.id)"></nldd-button>
+            </nldd-button-group>
+            <nldd-container gap="4">
+              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('wet.graph.reads_from') }}</nldd-text></nldd-container>
+              <nldd-list appearance="box-base" :accessible-label="t('wet.graph.reads_from')">
+                <nldd-list-item v-if="uses.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.graph.no_law_in_view')"></nldd-text-cell></nldd-list-item>
+                <nldd-list-item v-for="l in unique(uses)" :key="l.id" size="sm" button @click="focus = l.id">
+                  <nldd-text-cell size="sm" :text="l.name" :supporting-text="serviceInfo(corpus!, l.service).name"></nldd-text-cell>
+                </nldd-list-item>
+              </nldd-list>
+            </nldd-container>
+            <nldd-container gap="4">
+              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('wet.graph.read_by') }}</nldd-text></nldd-container>
+              <nldd-list appearance="box-base" :accessible-label="t('wet.graph.read_by')">
+                <nldd-list-item v-if="usedBy.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.graph.no_law_in_view')"></nldd-text-cell></nldd-list-item>
+                <nldd-list-item v-for="l in unique(usedBy)" :key="l.id" size="sm" button @click="focus = l.id">
+                  <nldd-text-cell size="sm" :text="l.name" :supporting-text="serviceInfo(corpus!, l.service).name"></nldd-text-cell>
+                </nldd-list-item>
+              </nldd-list>
+            </nldd-container>
           </nldd-container>
-          <nldd-container gap="4">
-            <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('wet.graph.read_by') }}</nldd-text></nldd-container>
-            <nldd-list appearance="box-base" :accessible-label="t('wet.graph.read_by')">
-              <nldd-list-item v-if="usedBy.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.graph.no_law_in_view')"></nldd-text-cell></nldd-list-item>
-              <nldd-list-item v-for="l in unique(usedBy)" :key="l.id" size="sm" button @click="focus = l.id">
-                <nldd-text-cell size="sm" :text="l.name" :supporting-text="serviceInfo(corpus!, l.service).name"></nldd-text-cell>
-              </nldd-list-item>
-            </nldd-list>
-          </nldd-container>
-        </nldd-container>
+        </nldd-simple-section>
       </nldd-page>
     </nldd-split-view-pane>
   </nldd-navigation-split-view>

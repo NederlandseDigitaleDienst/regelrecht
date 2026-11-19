@@ -40,6 +40,8 @@ const type = computed(() => CHANGE_TYPES.find((t) => t.id === typeId.value) ?? n
 const claims = computed(() => claimsFromAnswers(type.value, answers.value));
 /** De gekozen gebeurtenis bij 'huishouden', ook als die nog niet kan. */
 const chosenEvent = computed(() => (type.value?.events ?? []).find((e) => e.value === answers.value.event) ?? null);
+/** The step the back button returns to, named: the choice of kind, or the form of the chosen kind. */
+const backText = computed(() => (step.value === 1 ? t('sheet.change.kind.label') : step.value === 2 && type.value ? typeLabel(type.value) : undefined));
 const lawName = computed(() => (type.value ? corpus.value?.lawById(type.value.law)?.name ?? type.value.law : null));
 
 function reset() {
@@ -151,124 +153,123 @@ function show(claim: ChangeClaim) {
           <nldd-top-title-bar
             :text="t('sheet.change.label')"
             :supporting-text="type ? typeLabel(type) : t('sheet.change.subtitle')"
+            :back-text="backText"
             :dismiss-text="t('sheet.dismiss')"
+            @back="back"
             @dismiss="emit('close')"
           ></nldd-top-title-bar>
         </nldd-container>
 
-        <nldd-container padding="16" gap="16">
-          <!-- Stap 1: wat wil je doorgeven -->
-          <template v-if="step === 0">
-            <nldd-rich-text spacing="tight">
-              <p>{{ t('sheet.change.intro') }}</p>
-            </nldd-rich-text>
-            <nldd-list appearance="box-tinted" :accessible-label="t('sheet.change.kind.label')">
-              <nldd-list-item v-for="ct in CHANGE_TYPES" :key="ct.id" size="md" button @click="chooseType(ct.id)">
-                <nldd-icon-cell :icon="ct.icon" size="20" color="accent"></nldd-icon-cell>
-                <nldd-spacer-cell size="12"></nldd-spacer-cell>
-                <nldd-text-cell :text="typeLabel(ct)" :supporting-text="typeDescription(ct)"></nldd-text-cell>
-                <nldd-icon-cell disclosure icon="chevron-right" size="16" color="secondary"></nldd-icon-cell>
-              </nldd-list-item>
-            </nldd-list>
-          </template>
-
-          <!-- Stap 2: wat verandert er -->
-          <template v-else-if="step === 1">
-            <!-- Een gebeurtenis (huishouden): kiezen, geen invullen. -->
-            <template v-if="type?.events">
-              <nldd-list appearance="box-tinted" :accessible-label="t('sheet.change.what.label')">
-                <nldd-list-item
-                  v-for="e in type.events"
-                  :key="e.value"
-                  size="md"
-                  button
-                  :selected="answers.event === e.value || undefined"
-                  @click="setAnswer('event', e.value)"
-                >
-                  <nldd-icon-cell :icon="e.icon" size="20" :color="e.unsupportedKey ? 'secondary' : 'accent'"></nldd-icon-cell>
+        <nldd-simple-section>
+          <nldd-container gap="16">
+            <!-- Stap 1: wat wil je doorgeven -->
+            <template v-if="step === 0">
+              <nldd-rich-text spacing="tight">
+                <p>{{ t('sheet.change.intro') }}</p>
+              </nldd-rich-text>
+              <nldd-list appearance="box-tinted" :accessible-label="t('sheet.change.kind.label')">
+                <nldd-list-item v-for="ct in CHANGE_TYPES" :key="ct.id" size="md" button @click="chooseType(ct.id)">
+                  <nldd-icon-cell :icon="ct.icon" size="20" color="accent"></nldd-icon-cell>
                   <nldd-spacer-cell size="12"></nldd-spacer-cell>
-                  <nldd-text-cell :text="eventLabel(e)" :supporting-text="e.unsupportedKey ? t('sheet.change.unsupported') : undefined"></nldd-text-cell>
-                  <nldd-icon-cell v-if="answers.event === e.value && !e.unsupportedKey" icon="checked" size="16" color="success"></nldd-icon-cell>
+                  <nldd-text-cell :text="typeLabel(ct)" :supporting-text="typeDescription(ct)"></nldd-text-cell>
+                  <nldd-icon-cell disclosure icon="chevron-right" size="16" color="secondary"></nldd-icon-cell>
                 </nldd-list-item>
               </nldd-list>
             </template>
 
-            <!-- Waarden: alleen wat verandert hoeft ingevuld. -->
-            <template v-else>
-              <nldd-rich-text spacing="tight">
-                <p>{{ t('sheet.change.values.intro') }}</p>
-              </nldd-rich-text>
-              <template v-for="group in type?.groups ?? []" :key="group.labelKey">
-                <nldd-title size="display-4"><h2>{{ groupLabel(group) }}</h2></nldd-title>
-                <nldd-form-field v-for="f in group.fields" :key="f.name" :label="fieldLabel(f)" optional>
-                  <nldd-text-field
-                    :value="answers[f.name] ?? ''"
-                    width="full"
-                    :keyboard="f.kind === 'text' ? undefined : 'numeric'"
-                    @input="setAnswer(f.name, inputValue($event))"
-                  ></nldd-text-field>
-                </nldd-form-field>
+            <!-- Stap 2: wat verandert er -->
+            <template v-else-if="step === 1">
+              <!-- Een gebeurtenis (huishouden): kiezen, geen invullen. -->
+              <template v-if="type?.events">
+                <nldd-list appearance="box-tinted" :accessible-label="t('sheet.change.what.label')">
+                  <nldd-list-item
+                    v-for="e in type.events"
+                    :key="e.value"
+                    size="md"
+                    button
+                    :selected="answers.event === e.value || undefined"
+                    @click="setAnswer('event', e.value)"
+                  >
+                    <nldd-icon-cell :icon="e.icon" size="20" :color="e.unsupportedKey ? 'secondary' : 'accent'"></nldd-icon-cell>
+                    <nldd-spacer-cell size="12"></nldd-spacer-cell>
+                    <nldd-text-cell :text="eventLabel(e)" :supporting-text="e.unsupportedKey ? t('sheet.change.unsupported') : undefined"></nldd-text-cell>
+                    <nldd-icon-cell v-if="answers.event === e.value && !e.unsupportedKey" icon="checked" size="16" color="success"></nldd-icon-cell>
+                  </nldd-list-item>
+                </nldd-list>
               </template>
+
+              <!-- Waarden: alleen wat verandert hoeft ingevuld. -->
+              <template v-else>
+                <nldd-rich-text spacing="tight">
+                  <p>{{ t('sheet.change.values.intro') }}</p>
+                </nldd-rich-text>
+                <template v-for="group in type?.groups ?? []" :key="group.labelKey">
+                  <nldd-title size="display-4"><h2>{{ groupLabel(group) }}</h2></nldd-title>
+                  <nldd-form-field v-for="f in group.fields" :key="f.name" :label="fieldLabel(f)" optional>
+                    <nldd-text-field
+                      :value="answers[f.name] ?? ''"
+                      width="full"
+                      :keyboard="f.kind === 'text' ? undefined : 'numeric'"
+                      @input="setAnswer(f.name, inputValue($event))"
+                    ></nldd-text-field>
+                  </nldd-form-field>
+                </template>
+              </template>
+
+              <nldd-banner v-if="error" variant="critical" :text="error"></nldd-banner>
+              <nldd-form-actions>
+                <nldd-button-group orientation="horizontal">
+                  <nldd-button appearance="primary" :text="t('sheet.change.continue')" @click="toConfirm"></nldd-button>
+                </nldd-button-group>
+              </nldd-form-actions>
             </template>
 
-            <nldd-banner v-if="error" variant="critical" :text="error"></nldd-banner>
-            <nldd-form-actions>
-              <nldd-button-group orientation="horizontal">
-                <nldd-button appearance="primary" :text="t('sheet.change.continue')" @click="toConfirm"></nldd-button>
-                <nldd-button appearance="secondary" :text="t('sheet.change.back')" @click="back"></nldd-button>
-              </nldd-button-group>
-            </nldd-form-actions>
-          </template>
+            <!-- Stap 3: bevestigen. Wat er ingaat en naar welke wet, voordat het ingaat. -->
+            <template v-else-if="step === 2">
+              <!-- De wetnaam staat vet in de zin. `t()` levert tekst en geen
+                   opmaak, dus de zin bestaat uit twee sleutels met de naam
+                   ertussen; in beide talen staat de naam op dezelfde plek. -->
+              <nldd-rich-text spacing="tight">
+                <p>{{ t('sheet.change.confirm.before') }}<strong>{{ lawName }}</strong>{{ t('sheet.change.confirm.after') }}</p>
+              </nldd-rich-text>
+              <nldd-list appearance="box-tinted" :accessible-label="t('sheet.change.confirm.label')">
+                <nldd-list-item v-for="c in claims" :key="c.input" size="md">
+                  <nldd-text-cell :text="c.label" :supporting-text="c.input"></nldd-text-cell>
+                  <nldd-text-cell width="fit-content" horizontal-alignment="right" :text="show(c)"></nldd-text-cell>
+                </nldd-list-item>
+              </nldd-list>
+              <nldd-form-field :label="t('sheet.change.note')" optional>
+                <nldd-multi-line-text-field
+                  :value="reason"
+                  rows="3"
+                  :placeholder="t('sheet.change.note.placeholder')"
+                  @input="reason = inputValue($event)"
+                ></nldd-multi-line-text-field>
+                <nldd-form-field-help-text>
+                  {{ features.AUTO_APPROVE_CLAIMS ? t('sheet.change.note.help.immediate') : t('sheet.change.note.help.pending') }}
+                </nldd-form-field-help-text>
+              </nldd-form-field>
+              <nldd-form-actions>
+                <nldd-button-group orientation="horizontal">
+                  <nldd-button appearance="primary" :text="t('sheet.change.submit')" @click="submit"></nldd-button>
+                </nldd-button-group>
+              </nldd-form-actions>
+            </template>
 
-          <!-- Stap 3: bevestigen. Wat er ingaat en naar welke wet, voordat het ingaat. -->
-          <template v-else-if="step === 2">
-            <!-- De wetnaam staat vet in de zin. `t()` levert tekst en geen
-                 opmaak, dus de zin bestaat uit twee sleutels met de naam
-                 ertussen; in beide talen staat de naam op dezelfde plek. -->
-            <nldd-rich-text spacing="tight">
-              <p>{{ t('sheet.change.confirm.before') }}<strong>{{ lawName }}</strong>{{ t('sheet.change.confirm.after') }}</p>
-            </nldd-rich-text>
-            <nldd-list appearance="box-tinted" :accessible-label="t('sheet.change.confirm.label')">
-              <nldd-list-item v-for="c in claims" :key="c.input" size="md">
-                <nldd-text-cell :text="c.label" :supporting-text="c.input"></nldd-text-cell>
-                <nldd-text-cell width="fit-content" horizontal-alignment="right" :text="show(c)"></nldd-text-cell>
-              </nldd-list-item>
-            </nldd-list>
-            <nldd-form-field :label="t('sheet.change.note')" optional>
-              <nldd-multi-line-text-field
-                :value="reason"
-                rows="3"
-                :placeholder="t('sheet.change.note.placeholder')"
-                @input="reason = inputValue($event)"
-              ></nldd-multi-line-text-field>
-              <nldd-form-field-help-text>
-                {{ features.AUTO_APPROVE_CLAIMS ? t('sheet.change.note.help.immediate') : t('sheet.change.note.help.pending') }}
-              </nldd-form-field-help-text>
-            </nldd-form-field>
-            <nldd-form-actions>
-              <nldd-button-group orientation="horizontal">
-                <nldd-button appearance="primary" :text="t('sheet.change.submit')" @click="submit"></nldd-button>
-                <nldd-button appearance="secondary" :text="t('sheet.change.back')" @click="back"></nldd-button>
-              </nldd-button-group>
-            </nldd-form-actions>
-          </template>
-
-          <!-- Stap 4: wat er nu gebeurt. -->
-          <template v-else>
-            <nldd-inline-dialog
-              icon="checked"
-              icon-color="success"
-              :text="t('sheet.change.done.title')"
-              :supporting-text="t.plural(submitted?.count ?? 0, 'sheet.change.done', { law: submitted?.law })"
-            ></nldd-inline-dialog>
-            <nldd-form-actions>
-              <nldd-button-group orientation="horizontal">
-                <nldd-button appearance="primary" :text="t('sheet.change.done.to_portal')" @click="emit('close')"></nldd-button>
-                <nldd-button appearance="secondary" :text="t('sheet.change.done.another')" @click="reset"></nldd-button>
-              </nldd-button-group>
-            </nldd-form-actions>
-          </template>
-        </nldd-container>
+            <!-- Stap 4: wat er nu gebeurt. -->
+            <template v-else>
+              <nldd-inline-dialog
+                icon="checked"
+                icon-color="success"
+                :text="t('sheet.change.done.title')"
+                :supporting-text="t.plural(submitted?.count ?? 0, 'sheet.change.done', { law: submitted?.law })"
+              >
+                <nldd-button slot="actions" appearance="primary" :text="t('sheet.change.done.to_portal')" @click="emit('close')"></nldd-button>
+                <nldd-button slot="actions" appearance="secondary" :text="t('sheet.change.done.another')" @click="reset"></nldd-button>
+              </nldd-inline-dialog>
+            </template>
+          </nldd-container>
+        </nldd-simple-section>
       </nldd-page>
     </nldd-sheet>
   </Teleport>

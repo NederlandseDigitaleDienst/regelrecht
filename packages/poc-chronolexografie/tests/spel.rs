@@ -121,7 +121,7 @@ fn a_view_says_what_the_law_does_not_hold_and_asks_a_parameter() {
             {{name: rente, visibility: asked}}]}}]"
     ))
     .unwrap();
-    zorgtoeslag.weergaven = spec.weergaven;
+    zorgtoeslag.ui_spec = spec;
     let mut spel = Spel::new(cases);
     spel.kiezen("zorgtoeslag").unwrap();
     let vormen = spel.vormen(dag("2025-01-20")).unwrap();

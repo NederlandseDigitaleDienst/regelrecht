@@ -7,7 +7,7 @@
 // beroep een indiening bij de rechtbank met een afschrift ervan (RFC-053).
 // Of ze ontvankelijk zijn, beslist de wet, niet deze pagina. Een formulier
 // staat ingevuld zolang je een scenario volgt (scenarioInvoer.js).
-import { computed, ref, watch } from 'vue';
+import { computed, nextTick, ref, watch } from 'vue';
 import { api } from '../api.js';
 import { awb } from '../awb.js';
 import { beroepApi } from '../beroep.js';
@@ -17,9 +17,11 @@ import {
   bezwaarBasis,
   dossier,
   geldendBesluit,
+  inBehandeling,
   isBesluit,
   kort,
   leesbaar,
+  lopendeAanvragen,
   samenvatting,
   state,
   stap,
@@ -28,17 +30,34 @@ import {
 } from '../state.js';
 import { formulier, huidigeStap, scenarioWaarden } from '../scenarioInvoer.js';
 import { celNaam } from '../logboek.js';
-import { beginWaarden, bronInvoer, herkomstTekst } from '../voorinvulling.js';
-import { NOT_LOGGED_IN, gekozen, inlogTekst, keuzeLabel } from '../inloggen.js';
-import { claimRegel, ingelogdAls, ingevuldDoorInloggen, metSessie } from '../inlogstap.js';
-import { inlogScherm, sessieVan, wisSessie } from '../sessie.js';
+import {
+  beginWaarden,
+  bronInvoer,
+  herkomstTekst,
+  metSysteem,
+  opHetFormulier,
+  systeemBronnen,
+  systeemTekst,
+  systeemVult,
+} from '../voorinvulling.js';
+import { NOT_LOGGED_IN, gekozen, inlogTekst, keuzeLabel, metKeuze } from '../inloggen.js';
+import {
+  claimRegel,
+  eerstInloggenTekst,
+  ingelogdAls,
+  ingevuldDoorInloggen,
+  metSessie,
+  nietIngelogdTekst,
+} from '../inlogstap.js';
+import { inlogScherm, keuzeVan, sessieVan, wisSessie, zetKeuze } from '../sessie.js';
 import ArtikelLink from './ArtikelLink.vue';
 import VeldInvoer from './VeldInvoer.vue';
 
-// Who the applicant is logged in as. With a login step (inlogstap.js): the
-// session, with a bar above the form and the fields the login fills left
-// out of it. Otherwise (inloggen.js): the record whose key the login field
-// holds, chosen in a dropdown.
+// Who the applicant is logged in as, in a block of its own at the top of the
+// page: it holds for the new application and for the ones made before. With
+// a login step (inlogstap.js): the session, with the fields the login fills
+// left out of the form. Otherwise (inloggen.js): the record whose key the
+// login field holds, chosen in a dropdown.
 const inloggen = computed(() => state.vormen?.aanvraag?.inloggen ?? null);
 const inlogstap = computed(() => inloggen.value?.inlogstap ?? null);
 const sessie = computed(() => (inlogstap.value ? sessieVan(state.casus.id) : null));
@@ -54,12 +73,23 @@ const aanvraagVorm = formulier(() => {
   return beginWaarden(scenario, scenario && huidigeStap()?.step.stap.invoer, voorgevuld.value);
 });
 // With a login step, who is logged in comes from the session, never from the
-// form or the scenario (inlogstap.js).
+// form or the scenario (inlogstap.js). With a dropdown, from the choice made
+// before when this form says nothing else (inloggen.js, metKeuze). What the
+// system fills goes over both; without a session the application does not
+// come through the form, as one on paper, and the system fills nothing
+// (voorinvulling.js).
+const systeem = computed(() => systeemVult(inloggen.value, sessie.value, state.vormen?.aanvraag?.systeem));
+const doorInloggen = computed(() => ingevuldDoorInloggen(inloggen.value, sessie.value, veldnamen.value));
 const aanvraag = computed(() => {
-  const uitStap = scenarioWaarden('aanvraag') ? huidigeStap()?.step.stap.invoer?.[inloggen.value?.veld] : undefined;
-  return metSessie(inloggen.value, sessie.value, aanvraagVorm.waarden('aanvraag'), veldnamen.value, uitStap);
+  const opStap = !!scenarioWaarden('aanvraag');
+  const uitStap = opStap ? huidigeStap()?.step.stap.invoer?.[inloggen.value?.veld] : undefined;
+  const zelf = opStap || inloggen.value?.veld in (aanvraagVorm.eigen.aanvraag ?? {});
+  const metInlog = metKeuze(inloggen.value, keuzeVan(state.casus.id), aanvraagVorm.waarden('aanvraag'), zelf);
+  const waarden = metSessie(inloggen.value, sessie.value, metInlog, veldnamen.value, uitStap);
+  return metSysteem(waarden, systeem.value, voorgevuld.value, doorInloggen.value);
 });
-const prefill = computed(() => state.vormen?.aanvraag?.prefill ?? {});
+// The sources asked: the prefill, and what the system fills from a source.
+const prefill = computed(() => ({ ...(state.vormen?.aanvraag?.prefill ?? {}), ...systeemBronnen(systeem.value) }));
 
 // Ask the sources again when what they read changes: the fields of the form,
 // the day, or a chronicle (a register that recorded something new). Only the
@@ -117,12 +147,13 @@ watch(
   { immediate: true },
 );
 const herkomst = (veld) =>
-  herkomstTekst(voorgevuld.value[veld.naam], aanvraag.value[veld.naam], celNaam, veld.kolommen);
+  veld.naam in systeem.value
+    ? systeemTekst(systeem.value[veld.naam], voorgevuld.value[veld.naam], celNaam)
+    : herkomstTekst(voorgevuld.value[veld.naam], aanvraag.value[veld.naam], celNaam, veld.kolommen);
 
-const velden = computed(() => {
-  const door = ingevuldDoorInloggen(inloggen.value, sessie.value, veldnamen.value);
-  return (state.vormen?.aanvraag?.velden ?? []).filter((v) => !door.has(v.naam));
-});
+const velden = computed(() =>
+  opHetFormulier(state.vormen?.aanvraag?.velden, state.vormen?.aanvraag?.verborgen, doorInloggen.value),
+);
 function uitloggen() {
   wisSessie(state.casus.id);
 }
@@ -133,12 +164,60 @@ const ingelogd = computed(() =>
   inlogstap.value ? undefined : gekozen(inloggen.value, aanvraag.value[inloggen.value?.veld]),
 );
 function inlog(waarde) {
-  aanvraagVorm.zet('aanvraag', inloggen.value.veld, waarde === '' ? undefined : waarde);
+  const keuze = waarde === '' ? undefined : waarde;
+  aanvraagVorm.zet('aanvraag', inloggen.value.veld, keuze);
+  zetKeuze(state.casus.id, keuze);
+}
+
+// While the applicant has an application in behandeling, the form for a new
+// one stays closed behind a button. A second application is still possible:
+// whether the cell takes it is for the law to say, not for this page. A
+// scenario at an application step opens the form itself.
+const wie = computed(() => (inloggen.value ? aanvraag.value[inloggen.value.veld] : undefined));
+const lopend = computed(() => lopendeAanvragen(inloggen.value?.veld, wie.value));
+const nieuweAanvraag = ref(false);
+// Someone else logged in: their own applications decide again. Only a new
+// login counts, not typing in a field of the form, which would close the
+// form under the applicant's hands.
+watch([() => keuzeVan(state.casus.id), sessie], () => {
+  nieuweAanvraag.value = false;
+});
+// With a login step, the form waits for a login: the block at the top of the
+// page is the way to it. A scenario at an application step opens it all the
+// same, for a submission that does not come through the login, such as one
+// on paper (inlogstap.js, metSessie).
+const eerstInloggen = computed(() => !!inlogstap.value && !sessie.value && !scenarioWaarden('aanvraag'));
+const formulierOpen = computed(
+  () => lopend.value.length === 0 || nieuweAanvraag.value || !!scenarioWaarden('aanvraag'),
+);
+const lopendKop = computed(() =>
+  lopend.value.length === 1 ? 'Je aanvraag is in behandeling' : 'Je aanvragen zijn in behandeling',
+);
+const lopendTekst = computed(() => {
+  const nummers = lopend.value.map((a) => kort(a.id)).join(', ');
+  const welke = lopend.value.length === 1 ? `Aanvraag ${nummers} wacht` : `Aanvragen ${nummers} wachten`;
+  return `${welke} op een besluit van ${state.casus.cel_naam}. Het besluit komt onder Mijn aanvragen te staan. Je kunt nog wel een nieuwe aanvraag doen. Wat daarmee gebeurt, bepaalt de wet.`;
+});
+// Opening the form takes the button away, so the focus goes to the first
+// field of the form rather than falling back to the page.
+const formulierVelden = ref(null);
+const VELD = 'nldd-text-field, nldd-date-field, nldd-switch-field, nldd-dropdown, nldd-button';
+async function openNieuweAanvraag() {
+  nieuweAanvraag.value = true;
+  await nextTick();
+  formulierVelden.value?.querySelector(VELD)?.focus();
 }
 
 async function indienen() {
+  const door = wie.value;
   if (await stap(() => awb.aanvragen(zonderLeeg(aanvraag.value), state.datum))) {
+    // Who applied stays logged in once the form starts empty again; a number
+    // typed in the form that is no choice of the login leaves the choice be.
+    if (inloggen.value && !inlogstap.value && (door === undefined || gekozen(inloggen.value, door))) {
+      zetKeuze(state.casus.id, door);
+    }
     aanvraagVorm.wis('aanvraag');
+    nieuweAanvraag.value = false;
   }
 }
 
@@ -187,9 +266,8 @@ const beroepMogelijk = (g) =>
 
 /** De stand van een aanvraag, als tag: tekst en kleur. */
 function stand(a) {
-  const b = geldendBesluit(a);
-  if (!b) return { tekst: 'In behandeling', kleur: 'neutral' };
-  return toegewezen(b) ? { tekst: 'Toegewezen', kleur: 'success' } : { tekst: 'Afgewezen', kleur: 'critical' };
+  if (inBehandeling(a)) return { tekst: 'In behandeling', kleur: 'neutral' };
+  return toegewezen(geldendBesluit(a)) ? { tekst: 'Toegewezen', kleur: 'success' } : { tekst: 'Afgewezen', kleur: 'critical' };
 }
 
 async function indienenTegen() {
@@ -209,6 +287,48 @@ async function indienenTegen() {
 </script>
 
 <template>
+  <!-- Logging in comes first, on its own: it holds for the new application
+       and for the ones made before alike. -->
+  <nldd-simple-section v-if="inloggen">
+    <nldd-container max-width="560px">
+      <nldd-card>
+        <nldd-container padding="16">
+          <template v-if="inlogstap">
+            <nldd-title
+              v-if="sessie"
+              heading-level="2"
+              size="display-5"
+              :text="ingelogdAls(sessie)"
+              :supporting-text="claimRegel(inloggen, sessie)"
+            >
+              <nldd-button slot="end" appearance="secondary" size="sm" text="Uitloggen" @click="uitloggen"></nldd-button>
+            </nldd-title>
+            <nldd-title
+              v-else
+              heading-level="2"
+              size="display-5"
+              text="Niet ingelogd"
+              :supporting-text="nietIngelogdTekst(inlogstap)"
+            >
+              <nldd-button slot="end" appearance="primary" size="sm" text="Inloggen" @click="naarInloggen"></nldd-button>
+            </nldd-title>
+          </template>
+          <nldd-form-field v-else label="Ingelogd als" :supporting-label="inloggen.feit">
+            <nldd-dropdown>
+              <select :value="ingelogd?.waarde ?? ''" @change="inlog($event.target.value)">
+                <option value="">{{ NOT_LOGGED_IN }}</option>
+                <option v-for="k in inloggen.keuzes" :key="k.waarde" :value="k.waarde">
+                  {{ keuzeLabel(k) }}
+                </option>
+              </select>
+            </nldd-dropdown>
+            <nldd-form-field-help-text v-if="ingelogd">{{ inlogTekst(ingelogd, inloggen, celNaam) }}</nldd-form-field-help-text>
+          </nldd-form-field>
+        </nldd-container>
+      </nldd-card>
+    </nldd-container>
+  </nldd-simple-section>
+
   <!-- The form on the left, what was submitted on the right; on a narrow
        screen Mijn aanvragen falls below the form. -->
   <nldd-one-half-one-half-section>
@@ -222,53 +342,37 @@ async function indienenTegen() {
           (Awb 4:13).
         </nldd-text>
       </nldd-title>
-      <nldd-container gap="16" max-width="560px">
-        <nldd-card v-if="inlogstap">
-          <nldd-container padding="16">
-            <nldd-title
-              v-if="sessie"
-              heading-level="3"
-              size="display-5"
-              :text="ingelogdAls(sessie)"
-              :supporting-text="claimRegel(inloggen, sessie)"
-            >
-              <nldd-button slot="end" appearance="secondary" size="sm" text="Uitloggen" @click="uitloggen"></nldd-button>
-            </nldd-title>
-            <nldd-title
-              v-else
-              heading-level="3"
-              size="display-5"
-              text="Niet ingelogd"
-              :supporting-text="`Log in bij ${inlogstap.cel_naam} om aan te vragen. Het inloggen is gesimuleerd.`"
-            >
-              <nldd-button slot="end" appearance="primary" size="sm" text="Inloggen" @click="naarInloggen"></nldd-button>
-            </nldd-title>
-          </nldd-container>
-        </nldd-card>
-        <nldd-form-field
-          v-else-if="inloggen"
-          label="Ingelogd als"
-          :supporting-label="inloggen.feit"
-        >
-          <nldd-dropdown>
-            <select :value="ingelogd?.waarde ?? ''" @change="inlog($event.target.value)">
-              <option value="">{{ NOT_LOGGED_IN }}</option>
-              <option v-for="k in inloggen.keuzes" :key="k.waarde" :value="k.waarde">
-                {{ keuzeLabel(k) }}
-              </option>
-            </select>
-          </nldd-dropdown>
-          <nldd-form-field-help-text v-if="ingelogd">{{ inlogTekst(ingelogd, inloggen, celNaam) }}</nldd-form-field-help-text>
-        </nldd-form-field>
+      <nldd-container v-if="eerstInloggen" max-width="560px">
+        <nldd-inline-dialog
+          icon="info"
+          heading-level="3"
+          horizontal-alignment="left"
+          text="Log eerst in om een aanvraag te doen"
+          :supporting-text="eerstInloggenTekst(inlogstap)"
+        ></nldd-inline-dialog>
+      </nldd-container>
+      <nldd-container v-else-if="formulierOpen" ref="formulierVelden" gap="16" max-width="560px">
         <VeldInvoer
           v-for="veld in velden"
           :key="veld.naam"
           :model-value="aanvraag[veld.naam]"
           :veld="veld"
           :herkomst="herkomst(veld)"
+          :alleen-lezen="veld.naam in systeem"
           @update:model-value="aanvraagVorm.zet('aanvraag', veld.naam, $event)"
         />
         <nldd-button appearance="primary" text="Aanvraag indienen" @click="indienen"></nldd-button>
+      </nldd-container>
+      <nldd-container v-else max-width="560px">
+        <nldd-inline-dialog
+          icon="info"
+          heading-level="3"
+          horizontal-alignment="left"
+          :text="lopendKop"
+          :supporting-text="lopendTekst"
+        >
+          <nldd-button slot="actions" appearance="secondary" text="Nieuwe aanvraag" @click="openNieuweAanvraag"></nldd-button>
+        </nldd-inline-dialog>
       </nldd-container>
     </nldd-container>
     <nldd-container slot="right" gap="16">

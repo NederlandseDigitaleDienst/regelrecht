@@ -1,0 +1,113 @@
+---
+# FICTIEF. A general administrative act for the construct "beslistermijn"
+# (packages/cel/bdd/constructs/beslistermijn), after articles 4:2 and 4:13 of
+# the Algemene wet bestuursrecht. It holds only what the scenarios need: the
+# procedure of a decision on an application, the date of an application, and
+# the decision term counted from its receipt.
+# None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_general_administrative_act
+name: Testwet algemene bestuursregels
+regulatory_layer: WET
+bwb_id: BWBR9999984
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.com/test_general_administrative_act
+
+# The procedure of a decision on an application: the application, then the
+# decision. A submission is executed at its own stage.
+procedure:
+  - id: beschikking
+    default: true
+    applies_to:
+      legal_character: BESCHIKKING
+    stages:
+      - name: AANVRAAG
+        description: The application is filed.
+      - name: BESLUIT
+        description: The decision is taken.
+
+articles:
+  - number: '4:2'
+    url: https://example.com/test_general_administrative_act/4:2
+    text: >-
+      FICTIEF, naar artikel 4:2 van de Algemene wet bestuursrecht. De aanvraag
+      bevat de dagtekening.
+    machine_readable:
+      # Every application carries its own date, which is not the day it is
+      # received.
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            submission: AANVRAAG
+      execution:
+        parameters:
+          - name: application_date
+            type: date
+            nullable: true
+            required: false
+            description: The date on the application.
+
+  - number: '4:13'
+    url: https://example.com/test_general_administrative_act/4:13
+    text: |-
+      FICTIEF, naar artikel 4:13 van de Algemene wet bestuursrecht.
+      1. Een beschikking dient te worden gegeven binnen de bij wettelijk
+      voorschrift bepaalde termijn of, bij het ontbreken van zulk een termijn,
+      binnen een redelijke termijn na ontvangst van de aanvraag.
+      2. De redelijke termijn is in ieder geval verstreken wanneer het
+      bestuursorgaan binnen acht weken na ontvangst van de aanvraag geen
+      beschikking heeft gegeven.
+    machine_readable:
+      # The term runs from the receipt of the application: the moment that
+      # counts for it. Lid 1 leaves the term to the act of the application,
+      # which fills the open term with implements and names its application
+      # as the host, so the filling reads that application's scope (RFC-058).
+      # Without one, lid 2 gives eight weeks.
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            submission: AANVRAAG
+      open_terms:
+        - id: statutory_decision_term
+          type: date
+          required: false
+          description: >-
+            The last day of the term set by statutory provision (lid 1), and
+            eight weeks after receipt when none sets one (lid 2).
+          default:
+            actions:
+              - output: statutory_decision_term
+                value:
+                  operation: DATE_ADD
+                  date: $date_of_receipt
+                  weeks: 8
+      execution:
+        produces:
+          moment:
+            parameter: date_of_receipt
+            legal_basis:
+              law: Testwet algemene bestuursregels
+              article: '4:13'
+              paragraph: '1'
+              url: https://example.com/test_general_administrative_act/4:13
+        parameters:
+          - name: date_of_receipt
+            type: date
+            required: false
+            description: The day the application was received (lid 1).
+        output:
+          - name: decision_deadline
+            type: date
+            description: The last day on which the decision is given (lid 1 and 2).
+          - name: reasonable_decision_term_end
+            type: date
+            description: The last day of the reasonable term as lid 2 bounds it.
+        actions:
+          - output: decision_deadline
+            value: $statutory_decision_term
+          - output: reasonable_decision_term_end
+            value:
+              operation: DATE_ADD
+              date: $date_of_receipt
+              weeks: 8

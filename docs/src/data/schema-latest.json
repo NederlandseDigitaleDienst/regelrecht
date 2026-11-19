@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.22",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.24",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -2789,6 +2789,25 @@
               "gelet_op": {
                 "type": "string",
                 "description": "Legal reference text (e.g., 'Gelet op artikel 4 van de Wet op de zorgtoeslag')."
+              },
+              "host": {
+                "type": "object",
+                "description": "Since v0.8.24, for an open term of an article that fires as a hook (RFC-058): the article the hook fires on, the one that establishes the application or gives the decision. The filling then applies only while the hook fires on that article, and it receives the parameters it declares from that article's scope. A filling with a host goes before one without, and it may come from any regulation the `delegation_type` of the term admits. Without `host` the filling fills the term wherever the article runs, under any hook and outside one, with the parameters of the article that declares the term. Outside a hook a filling with a host never applies. A file on an earlier version knows no `host`.",
+                "required": [
+                  "law",
+                  "article"
+                ],
+                "properties": {
+                  "law": {
+                    "type": "string",
+                    "description": "The $id of the law of the article the hook fires on."
+                  },
+                  "article": {
+                    "type": "string",
+                    "description": "The number of the article the hook fires on."
+                  }
+                },
+                "additionalProperties": false
               }
             },
             "additionalProperties": false
@@ -2800,6 +2819,17 @@
                 "article": "4",
                 "open_term": "standaardpremie",
                 "gelet_op": "Gelet op artikel 4 van de Wet op de zorgtoeslag"
+              }
+            ],
+            [
+              {
+                "law": "algemene_wet_bestuursrecht",
+                "article": "4:13",
+                "open_term": "wettelijke_beslistermijn",
+                "host": {
+                  "law": "subsidiewet_voorbeeld",
+                  "article": "1"
+                }
               }
             ]
           ]

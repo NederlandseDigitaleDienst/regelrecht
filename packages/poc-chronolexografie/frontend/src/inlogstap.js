@@ -51,8 +51,22 @@ export function metSessie(inloggen, sessie, waarden, gevraagd, uitStap = undefin
  */
 export const weigeringTelt = (stap) => stap?.stap === 'inloggen' && stap.uitkomst === 'geweigerd';
 
-/** `Ingelogd als bakker`, for the bar above the form. */
+/**
+ * The notice in place of the application form while nobody is logged in:
+ * the login block at the top of the page is the way to the form.
+ */
+export const eerstInloggenTekst = (aanbod) =>
+  `Het formulier verschijnt hier zodra je bent ingelogd bij ${aanbod.cel_naam}. Je logt in met de knop Inloggen bovenaan de pagina.`;
+
+/** `Ingelogd als bakker`, for the login block at the top of the applicant's page. */
 export const ingelogdAls = (sessie) => `Ingelogd als ${sessie.gebruikersnaam}`;
+
+/**
+ * The line of the login block before anyone logged in. The login holds for
+ * a new application and for the ones made before alike, so it names both.
+ */
+export const nietIngelogdTekst = (aanbod) =>
+  `Log in bij ${aanbod.cel_naam} voor een nieuwe aanvraag en voor de aanvragen die je al indiende. Het inloggen is gesimuleerd.`;
 
 /**
  * The claims of the session in one line, the key first: on whose behalf,

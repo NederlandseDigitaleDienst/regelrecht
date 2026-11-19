@@ -60,25 +60,15 @@ function errorMessage(e: unknown): string | undefined {
       </p>
     </nldd-rich-text>
     <nldd-spacer v-if="paneChromeVisible(loading)" size="16"></nldd-spacer>
-    <nldd-toolbar v-if="paneChromeVisible(loading)" accessible-label="Integriteitsacties">
-      <nldd-toolbar-item slot="start">
-        <nldd-button
-          appearance="secondary"
-          size="md"
-          start-icon="refresh"
-          text="Opnieuw controleren"
-          :disabled="loading || undefined"
-          @click="reload"
-        ></nldd-button>
-        <nldd-menu-item
-          slot="overflow"
-          icon="refresh"
-          text="Opnieuw controleren"
-          :disabled="loading || undefined"
-          @select="reload"
-        ></nldd-menu-item>
-      </nldd-toolbar-item>
-    </nldd-toolbar>
+    <nldd-button
+      v-if="paneChromeVisible(loading)"
+      appearance="secondary"
+      size="md"
+      start-icon="refresh"
+      text="Opnieuw controleren"
+      :disabled="loading || undefined"
+      @click="reload"
+    ></nldd-button>
     <nldd-spacer v-if="paneChromeVisible(loading)" size="16"></nldd-spacer>
 
     <nldd-activity-indicator

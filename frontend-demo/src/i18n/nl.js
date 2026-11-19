@@ -417,7 +417,6 @@ export default {
   'wet.tile.why.retry': 'Opnieuw',
   // ---- sheets: aanvraag, correctie, wijziging doorgeven --------------------
   'sheet.dismiss': 'Sluiten',
-  'sheet.cancel': 'Annuleren',
 
   // aanvraag (ApplicationSheet)
   'sheet.application.label': 'Aanvraag',
@@ -557,7 +556,6 @@ export default {
   'sheet.change.error.event': 'Kies wat er in je huishouden verandert.',
   'sheet.change.error.empty': 'Vul ten minste één veld in. Wat je leeg laat, blijft ongewijzigd.',
   'sheet.change.continue': 'Verder',
-  'sheet.change.back': 'Terug',
   'sheet.change.confirm.before': 'Je geeft het volgende door aan ',
   'sheet.change.confirm.after': '. Controleer het voordat je het indient.',
   'sheet.change.confirm.label': 'Wat je doorgeeft',

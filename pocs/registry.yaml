@@ -207,6 +207,18 @@ pocs:
         # Alleen voor wie bij de NAPP-verkenning betrokken is: de casus staat
         # niet op het keuzescherm, wel op haar eigen adres.
         verborgen: true
+      # De loondispensatie (Wajong artikel 2:20) van het Financieel CV: het UWV
+      # beslist, de verzekeringsarts en de arbeidsdeskundige leggen hun
+      # onderzoek vast in hun eigen kroniek. Verborgen tot de jurist van SZW
+      # heeft meegekeken.
+      - name: fcv
+        github:
+          owner: MinBZK
+          repo: regelrecht-corpus-FCV
+          branch: main
+          path: chronolexografie
+        token_env: FCV_CORPUS_TOKEN
+        verborgen: true
     assistent: false
     tags: [Leerplichtwet, BABW, parkeerverordening, zorgtoeslag, AWB, chronolexografie]
     status: verkenning

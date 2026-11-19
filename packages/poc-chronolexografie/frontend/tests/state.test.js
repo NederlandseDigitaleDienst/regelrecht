@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api } from '../src/api.js';
 import { melding } from '../src/melding.js';
-import { hervatten, hoofdvelden, samenvatting, state, stap, verversen } from '../src/state.js';
+import { hervatten, hoofdvelden, lopendeAanvragen, samenvatting, state, stap, verversen } from '../src/state.js';
 
 // The cell is not loaded here: the API hands back a fixed case and an empty
 // chronicle, and the saved game is an opaque value.
@@ -158,5 +158,37 @@ describe('samenvatting', () => {
     const aanvraag = { fields: { bestuur: [{ naam: 'A' }, { naam: 'B' }], actief: true }, recorded_on: '2026-10-14' };
     expect(samenvatting(aanvraag)).toBe('bestuur: 2 rijen · actief: ja · ontvangen 2026-10-14');
     state.vormen = null;
+  });
+});
+
+describe('lopendeAanvragen', () => {
+  const aanvraag = (id, kvk) => ({ id, kind: 'AANVRAAG', fields: { kvk_nummer: kvk } });
+  const besluit = (id, op) => ({ id, kind: 'BESLUIT', basis: 'r#2', refers_to: op });
+  const bezwaar = (id, op) => ({ id, kind: 'BEZWAAR', basis: 'awb#7:1', refers_to: op });
+  beforeEach(() => {
+    state.casus = { ...casus, besluit: 'r#2', beslissing_op_bezwaar: 'awb#7:11' };
+    state.grammen = [
+      aanvraag('a1', '99970011'),
+      besluit('b1', 'a1'),
+      // An objection leaves the decision in force: still decided.
+      bezwaar('z1', 'b1'),
+      aanvraag('a2', 99970011),
+      aanvraag('a3', '11111111'),
+    ];
+  });
+
+  it('gives the applications of the applicant that no decision holds for yet', () => {
+    // The key compares as text: the form may hold it as a number.
+    expect(lopendeAanvragen('kvk_nummer', '99970011').map((a) => a.id)).toEqual(['a2']);
+    expect(lopendeAanvragen('kvk_nummer', '11111111').map((a) => a.id)).toEqual(['a3']);
+  });
+
+  it('gives none of anybody to whom nobody is logged in', () => {
+    expect(lopendeAanvragen('kvk_nummer', undefined)).toEqual([]);
+    expect(lopendeAanvragen('kvk_nummer', '')).toEqual([]);
+  });
+
+  it('counts every application in a case without a login field', () => {
+    expect(lopendeAanvragen(undefined, undefined).map((a) => a.id)).toEqual(['a2', 'a3']);
   });
 });

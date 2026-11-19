@@ -46,14 +46,11 @@ pub struct Corpus {
     /// Where the cell directories are read from: the disk, or the bundle a
     /// browser holds.
     files: Arc<dyn Files>,
-    /// Per field of an application, the source the form prefills it from
-    /// (`<regelwerk>#<article>#<output>`): what the UI spec of the case's
-    /// source says ([`crate::ui_spec`]), or for a case of this crate its own
-    /// ([`eigen_ui_spec`]). Empty without one.
-    pub prefill: BTreeMap<String, String>,
-    /// The views the same UI spec puts beside each decision of the case's
-    /// cell ([`crate::ui_spec::Weergave`]). Empty without one.
-    pub weergaven: Vec<crate::ui_spec::Weergave>,
+    /// What the UI spec of the case's source says ([`crate::ui_spec`]), or
+    /// for a case of this crate its own ([`eigen_ui_spec`]): how the form of
+    /// the application fills and shows each field, and the views beside each
+    /// decision of the case's cell. Empty without one.
+    pub ui_spec: crate::ui_spec::UiSpec,
 }
 
 /// The cell of the case and the other cells of its sphere (RFC-048). It
@@ -236,8 +233,7 @@ impl Corpus {
             cell_dir,
             andere_dirs,
             files,
-            prefill: BTreeMap::new(),
-            weergaven: Vec::new(),
+            ui_spec: crate::ui_spec::UiSpec::default(),
         })
     }
 
@@ -247,7 +243,7 @@ impl Corpus {
     }
 
     /// Every case in `casus_dir` on the corpus at `roots`, all in `files`,
-    /// each with the prefill and the views of its own UI spec ([`eigen_ui_spec`]).
+    /// each with its own UI spec ([`eigen_ui_spec`]).
     pub fn alle_in(
         files: Arc<dyn Files>,
         roots: &[PathBuf],
@@ -259,8 +255,7 @@ impl Corpus {
             .map(|c| {
                 let spec = eigen_ui_spec(&*files, casus_dir, &c.id)?;
                 let mut corpus = Self::load(Arc::clone(&files), roots, &regelwerken, c)?;
-                corpus.prefill = spec.prefill;
-                corpus.weergaven = spec.weergaven;
+                corpus.ui_spec = spec;
                 Ok(corpus)
             })
             .collect()
@@ -670,16 +665,25 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
             "cel": i.cel,
         });
         // The application of the case: who the applicant can log in as
-        // ([`inloggen`]), and the fields the UI spec prefills, each with its
-        // source ([`voorinvullen`]).
+        // ([`inloggen`]), the fields the UI spec prefills, each with its
+        // source ([`voorinvullen`]), those the system fills ([`door_het_systeem`])
+        // and those the form does not show.
         if i.artikel == corpus.casus.artikel {
+            let spec = &corpus.ui_spec;
             indiening["inloggen"] = inloggen(corpus, cell, &service, &vorm, on)?;
             indiening["prefill"] = json!(
-                corpus
-                    .prefill
+                spec.prefill
                     .iter()
                     .filter(|(veld, _)| vraagt(&vorm, veld))
                     .collect::<BTreeMap<_, _>>()
+            );
+            let inlogveld = corpus.casus.inloggen.as_ref().map(|i| i.veld.as_str());
+            indiening["systeem"] = door_het_systeem(spec, &vorm, inlogveld, on);
+            indiening["verborgen"] = json!(
+                spec.verborgen
+                    .iter()
+                    .filter(|veld| vraagt(&vorm, veld))
+                    .collect::<Vec<_>>()
             );
         }
         indieningen.insert(i.artikel.clone(), indiening);
@@ -732,6 +736,7 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
 /// is no error that stops the page: the answer or field carries it as `fout`.
 fn weergaven(service: &LawExecutionService, corpus: &Corpus, on: NaiveDate) -> Vec<Value> {
     corpus
+        .ui_spec
         .weergaven
         .iter()
         .map(|w| {
@@ -960,6 +965,44 @@ fn eigen_ui_spec(files: &dyn Files, casus_dir: &Path, id: &str) -> Result<crate:
         |e: &dyn std::fmt::Display| Error::Setup(format!("case '{id}', {}: {e}", pad.display()));
     let tekst = files.read(&pad).map_err(|e| fout(&e))?;
     crate::ui_spec::lees(&tekst).map_err(|e| fout(&e))
+}
+
+/// Per field of the application `aanvraag` that the UI spec `spec` has the
+/// system fill ([`crate::ui_spec::Systeemvulling`]), what fills it on `on`:
+/// `{"bron": <source>}` for a source the cell computes as it prefills
+/// ([`voorinvullen`]), `{"waarde": <value>}` for a value the system knows
+/// itself, such as the day it submits on or the article whose decision the
+/// application asks for (`requests`; `null` when the law names none), and
+/// `{}` for the login, which fills the field with the claim of its name.
+/// The login field (`inlogveld`) is never among them: the login fills it,
+/// whatever the UI spec says ([`inloggen`]).
+fn door_het_systeem(
+    spec: &crate::ui_spec::UiSpec,
+    aanvraag: &shape::Shape,
+    inlogveld: Option<&str>,
+    on: NaiveDate,
+) -> Value {
+    use crate::ui_spec::{Indieningsgegeven, Systeemvulling};
+    let uit: Map<String, Value> = spec
+        .systeem
+        .iter()
+        .filter(|(veld, _)| vraagt(aanvraag, veld) && Some(veld.as_str()) != inlogveld)
+        .map(|(veld, vulling)| {
+            let hoe = match vulling {
+                Systeemvulling::Inloggen => json!({}),
+                Systeemvulling::Bron(bron) => json!({ "bron": bron }),
+                Systeemvulling::Waarde(waarde) => json!({ "waarde": waarde }),
+                Systeemvulling::Indiening(Indieningsgegeven::Datum) => {
+                    json!({ "waarde": on.to_string() })
+                }
+                Systeemvulling::Indiening(Indieningsgegeven::GevraagdBesluit) => {
+                    json!({ "waarde": aanvraag.requests })
+                }
+            };
+            (veld.clone(), hoe)
+        })
+        .collect();
+    Value::Object(uit)
 }
 
 /// Whether the application form of `aanvraag` asks the field `naam`: a

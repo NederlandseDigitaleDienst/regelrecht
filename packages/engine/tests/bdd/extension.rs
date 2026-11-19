@@ -5,9 +5,12 @@
 //! and dispatch name only `crate::extension`, so each runner decides what it
 //! holds.
 
+use std::path::Path;
+
 use regelrecht_engine::LawExecutionService;
 
 use crate::dispatch::ArgValue;
+use crate::helpers::regulation_loader::load_all_regulations;
 use crate::helpers::table::Rows;
 use crate::world::RegelrechtWorld;
 
@@ -15,9 +18,17 @@ use crate::world::RegelrechtWorld;
 pub struct State;
 
 impl State {
-    /// Set up before the first step; loads nothing extra.
-    pub fn new(_service: &mut LawExecutionService) -> Self {
+    /// Set up before the first step; keeps nothing.
+    pub fn new() -> Self {
         Self
+    }
+}
+
+/// Load the regelwerken a scenario runs against: the corpus
+/// (`REGULATION_PATH`, or `corpus/regulation`), whatever the feature.
+pub fn load(service: &mut LawExecutionService, _feature: Option<&Path>) {
+    if let Err(e) = load_all_regulations(service) {
+        panic!("Failed to load regulations: {e}");
     }
 }
 

@@ -3,7 +3,7 @@ import { computed, onActivated, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { useDemo } from '../store/demoStore';
 import QrCode from '../components/QrCode.vue';
-import { useI18n } from '../i18n/index.js';
+import { siteUrl, useI18n } from '../i18n/index.js';
 import { localeRouteName } from '../router';
 import { useWalkthrough } from '../walkthrough/useWalkthrough';
 
@@ -66,10 +66,13 @@ const onderdelen = computed(() => [
 
 // Computed en geen vaste lijst: de teksten moeten bij een taalwissel mee, net
 // als `tabs` in App.vue. De eerste titel is een adres en blijft zoals hij is.
+// De voorpagina van de site volgt de taal van de demo (`siteHome` in de
+// talentabel); de documentatie en het onderzoek bestaan alleen in het Engels
+// en hebben dus één adres.
 const links = computed(() => [
-  { icon: 'home', title: 'regelrecht.rijks.app', text: t('home.links.site.text'), href: 'https://regelrecht.rijks.app' },
-  { icon: 'document', title: t('home.links.docs.title'), text: t('home.links.docs.text'), href: 'https://docs.regelrecht.rijks.app/docs/' },
-  { icon: 'library', title: t('home.links.research.title'), text: t('home.links.research.text'), href: 'https://regelrecht.rijks.app/research/' },
+  { icon: 'home', title: 'regelrecht.rijks.app', text: t('home.links.site.text'), href: siteUrl(locale.value) },
+  { icon: 'document', title: t('home.links.docs.title'), text: t('home.links.docs.text'), href: siteUrl(locale.value, '/docs/') },
+  { icon: 'library', title: t('home.links.research.title'), text: t('home.links.research.text'), href: siteUrl(locale.value, '/research/') },
 ]);
 
 function start() {

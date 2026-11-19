@@ -1,0 +1,69 @@
+---
+# Tier C: an article that establishes a submission with the moment that counts
+# for it (RFC-045), a hook that applies to every such submission, and a hook
+# that applies only to the submission of article 1 (`established_by`).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: test_conformance_submission
+regulatory_layer: WET
+publication_date: '2026-10-13'
+valid_from: '2026-10-13'
+bwb_id: BWBR0099995
+name: Testwet aanvraag
+url: https://example.invalid/submission
+articles:
+  - number: '1'
+    url: https://example.invalid/submission/1
+    text: De ouder kan verlof aanvragen.
+    machine_readable:
+      execution:
+        produces:
+          legal_character: TOETS
+          submission:
+            kind: AANVRAAG
+          moment:
+            parameter: datum_ontvangst
+            legal_basis:
+              law: Testwet aanvraag
+              bwb_id: BWBR0099995
+              article: '1'
+              paragraph: '1'
+        parameters:
+          - name: datum_ontvangst
+            type: date
+        output:
+          - name: aangevraagd
+            type: boolean
+        actions:
+          - output: aangevraagd
+            value: true
+  - number: '2'
+    url: https://example.invalid/submission/2
+    text: Een aanvraag wordt gedagtekend.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            submission: AANVRAAG
+      execution:
+        output:
+          - name: gedagtekend
+            type: boolean
+        actions:
+          - output: gedagtekend
+            value: true
+  - number: '3'
+    url: https://example.invalid/submission/3
+    text: Wie verlof aanvraagt, noemt de school.
+    machine_readable:
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            submission: AANVRAAG
+            established_by: test_conformance_submission#1
+      execution:
+        output:
+          - name: school_gevraagd
+            type: boolean
+        actions:
+          - output: school_gevraagd
+            value: true

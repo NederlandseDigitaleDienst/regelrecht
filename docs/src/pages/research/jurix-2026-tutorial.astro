@@ -13,6 +13,7 @@
 import { Image } from 'astro:assets';
 import Base from '~/layouts/Base.astro';
 import DocsOutline from '~/components/DocsOutline.astro';
+import { demoUrl } from '~/lib/demo-links.js';
 import paper from '~/research/rules-as-executed.meta.json';
 import portalScreenshot from '~/assets/portaal-en-screenshot.png';
 
@@ -24,7 +25,7 @@ const description =
   'Spotlight tutorial at JURIX 2026 in Toulouse, 8 December 2026: law ' +
   'execution published as a machine-executable specification, run live.';
 
-const demoUrl = 'https://demo.regelrecht.rijks.app';
+const demoHref = demoUrl('home', 'en');
 const jurixUrl = 'https://www.irit.fr/jurix2026/workshops-and-tutorials/';
 const repoUrl = 'https://github.com/NederlandseDigitaleDienst/regelrecht';
 const paperHref = '/research/rules-as-executed';
@@ -64,7 +65,7 @@ const headings = [
     <nldd-container slot="sidebar" padding="16">
       <nldd-button-group orientation="vertical">
         <nldd-button
-          href={demoUrl}
+          href={demoHref}
           text="Open the demo"
           end-icon="external-link"
           target="_blank"
@@ -116,7 +117,7 @@ const headings = [
         the citizen's screen to the case worker's desk.
       </p>
       <p>
-        Open the <a href={demoUrl}>demo</a> on your own laptop and try to break
+        Open the <a href={demoHref}>demo</a> on your own laptop and try to break
         it. We expect to be argued with, and we have left room for it.
       </p>
     </nldd-rich-text>
@@ -203,7 +204,7 @@ const headings = [
         (<a href={paperDoiUrl}>doi:{paper.doi}</a>).
       </p>
       <ul>
-        <li><a href={demoUrl}>The demo</a>, nothing to install</li>
+        <li><a href={demoHref}>The demo</a>, nothing to install</li>
         <li><a href="/docs/">The documentation</a></li>
         <li><a href="/rfcs/">The design RFCs</a></li>
         <li><a href={repoUrl}>The source code</a>, under EUPL-1.2</li>
