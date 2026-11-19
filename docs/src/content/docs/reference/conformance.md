@@ -1,13 +1,13 @@
 ---
 title: "Conformance"
-description: "What conformance enforces today (manifest coverage, schema-to-model conformance, golden fixtures and the BDD conformance bucket) and the language-agnostic suite RFC-014 designs, whose per-level JSON test cases are not yet written."
+description: "What conformance enforces today (manifest coverage, schema conformance of the Rust model, golden fixtures and the BDD conformance bucket) and the language-agnostic suite RFC-014 designs, whose per-level JSON test cases are not yet written."
 ---
 
 The schema is the specification; the Rust engine is one implementation of it. Nothing stops another organization from building its own engine, and for a government decision system that independence is the point. A conformance suite is how a second implementation would prove it produces the right answers, without depending on the RegelRecht codebase.
 
 That cross-implementation suite is **designed but not built**. This page is therefore in two halves, in order of how real they are:
 
-1. [What is enforced today](#what-is-enforced-today) - the checks that run: manifest operation coverage, a suite binding the Rust model to the schema contract, golden JSON fixtures, and the BDD conformance bucket.
+1. [What is enforced today](#what-is-enforced-today) - the checks that run: manifest operation coverage, the schema conformance suite binding the Rust model to the schema contract, golden JSON fixtures, and the BDD conformance bucket.
 2. [The intended suite](#the-intended-suite) - the cross-implementation test format the manifests are structured for. The manifests are checked in; the per-level JSON test cases and a runner for them are not written yet. The full design is [RFC-014](/rfcs/rfc-014).
 
 If you came here for test cases to run against your own engine, the closest thing today is the BDD conformance bucket: plain Gherkin over synthetic laws, in a vocabulary defined outside any engine. The golden fixtures are JSON too, but their format is read by one Rust test and was never specified as a contract.
@@ -24,11 +24,11 @@ What runs in CI is **operation coverage of the manifests themselves**, nothing m
 
 So a new operation cannot be added to the engine without being classified into exactly one conformance level; CI fails otherwise, and those three properties keep holding as the engine grows. But it tests the *manifest*, not any law execution: it never runs a regulation, never checks an output. The cross-implementation guarantee a conformance suite is meant to provide does **not** hold today.
 
-### Schema to law-model conformance
+### Schema conformance
 
-A second suite, run with `just conformance`, proves something different and narrower: that the Rust `law-model` conforms to the hand-authored JSON schema. The schema is the canonical, language-agnostic contract; the model is one implementation of it, and neither is generated from the other. The suite checks both directions, that the model is no more permissive than the schema and no more restrictive, in three tiers: a differential over every corpus law, synthetic valid and invalid fixtures per construct, and a coverage check deriving the fixture set from the schema itself so an unexercised property has to carry a reasoned exemption.
+The schema conformance suite (`just schema-conformance`) proves something different and narrower: that the Rust `law-model` conforms to the hand-authored JSON schema. The schema is the canonical, language-agnostic contract; the model is one implementation of it, and neither is generated from the other. The suite checks both directions, that the model is no more permissive than the schema and no more restrictive, in three tiers: a differential over every corpus law, synthetic valid and invalid fixtures per construct, and a coverage check deriving the fixture set from the schema itself so an unexercised property has to carry a reasoned exemption.
 
-It is the structural twin of the BDD conformance bucket: that one proves an engine speaks the whole language behaviorally, this one proves the model accepts exactly the whole language structurally. The model is currently more permissive than the schema in a few documented ways, listed in `KNOWN_GAPS`; reconciling them is tracked separately. Details are in `packages/engine/tests/conformance/README.md`.
+It is the structural twin of the BDD conformance bucket: that one proves an engine speaks the whole language behaviorally, this one proves the model accepts exactly the whole language structurally. The model is currently more permissive than the schema in a few documented ways, listed in `KNOWN_GAPS`; reconciling them is tracked separately. Details are in `packages/engine/tests/schema_conformance/README.md`.
 
 This still says nothing about a *second* engine. It binds one implementation to the contract, which is what makes the contract worth writing against.
 

@@ -69,12 +69,12 @@ harness = false
 # --test bdd` in CI (zie docs/operations/ci-cd.md).
 test = false
 
-# The schema<->model suite needs `validate` (jsonschema). Without the feature
-# `cargo test --test conformance` refuses and names it, where it would
-# otherwise build an empty target and report 0 tests. `just conformance`
-# turns it on.
+# The schema conformance suite (schema <-> law-model) needs `validate`
+# (jsonschema). Without the feature `cargo test --test schema_conformance`
+# refuses and names it, where it would otherwise build an empty target and
+# report 0 tests. `just schema-conformance` turns it on.
 [[test]]
-name = "conformance"
+name = "schema_conformance"
 required-features = ["validate"]
 
 [features]
@@ -94,7 +94,7 @@ walkdir.workspace = true
 tracing-subscriber.workspace = true
 criterion = { version = "0.8", features = ["html_reports"] }
 rust_decimal_macros.workspace = true
-# Used by the schema↔model conformance suite (tests/conformance.rs, requires the
+# Used by the schema conformance suite (tests/schema_conformance.rs, requires the
 # `validate` feature). serde_json/serde_yaml_ng are regular deps but must be
 # re-declared here to be in scope for the integration-test crate.
 serde_json.workspace = true

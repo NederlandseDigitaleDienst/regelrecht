@@ -1,0 +1,118 @@
+---
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.5.8/schema/v0.5.8/schema.json
+$id: algemene_wet_inzake_rijksbelastingen
+regulatory_layer: WET
+publication_date: '2025-12-23'
+valid_from: '2025-01-01'
+bwb_id: BWBR0002320
+url: https://wetten.overheid.nl/BWBR0002320/2025-01-01
+name: Algemene wet inzake rijksbelastingen
+
+# Only article 21 is included: it defines the inkomensgegeven that artikel 8
+# of the Awir takes as toetsingsinkomen.
+articles:
+  - number: '21'
+    text: |-
+      In dit hoofdstuk en de daarop berustende bepalingen wordt verstaan onder:
+
+      a. basisregistratie: verzameling gegevens waarvan bij wet is bepaald dat deze authentieke gegevens bevat;
+
+      b. authentiek gegeven: in een basisregistratie opgenomen gegeven dat bij wettelijk voorschrift als authentiek is
+      aangemerkt;
+
+      c. verzamelinkomen: verzamelinkomen als bedoeld in [artikel 2.18 van de Wet inkomstenbelasting 2001][ref1];
+
+      d. belastbaar loon: belastbaar loon als bedoeld in [artikel 9 van de Wet op de loonbelasting 1964][ref2], met
+      uitzondering van loon dat als een eindheffingsbestanddeel in de zin van die wet is belast;
+
+      e. inkomensgegeven:
+
+      1°. indien over een kalenderjaar een aanslag of navorderingsaanslag inkomstenbelasting is of wordt vastgesteld: het
+      na afloop van dat kalenderjaar van betrokkene over dat kalenderjaar laatst bepaalde verzamelinkomen;
+
+      2°. indien over een kalenderjaar geen aanslag of navorderingsaanslag inkomstenbelasting is of wordt vastgesteld:
+      het na afloop van dat kalenderjaar van betrokkene over dat kalenderjaar laatst bepaalde belastbare loon;
+
+      f. afnemer: bestuursorgaan dat op grond van een wettelijk voorschrift bevoegd is tot gebruik van een
+      inkomensgegeven;
+
+      g. betrokkene: degene op wie het inkomensgegeven betrekking heeft;
+
+      h. terugmelding: melding als bedoeld in [artikel 21h, eerste lid][ref3].
+
+
+      [ref1]: https://wetten.overheid.nl/BWBR0011353#Artikel2.18
+      [ref2]: https://wetten.overheid.nl/BWBR0002471#Artikel9
+      [ref3]: https://wetten.overheid.nl/BWBR0002320#Artikel21h
+    url: https://wetten.overheid.nl/BWBR0002320/2025-01-01#Artikel21
+    references:
+      - id: ref1
+        bwb_id: BWBR0011353
+        artikel: '2.18'
+      - id: ref2
+        bwb_id: BWBR0002471
+        artikel: '9'
+      - id: ref3
+        bwb_id: BWBR0002320
+        artikel: 21h
+        hoofdstuk: IVA
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+          # Onderdeel e: het inkomensgegeven is een gegeven "over een
+          # kalenderjaar". De afnemer (artikel 8 Awir) bepaalt welk jaar.
+          # Beperking: de gegevensbronnen en artikel 2.18 Wet IB 2001 zijn in
+          # het corpus niet per jaar gesleuteld, dus het jaar selecteert nu
+          # nog geen gegevens; het klopt alleen zolang de geleverde gegevens
+          # over dit kalenderjaar gaan.
+          - name: kalenderjaar
+            type: number
+            required: true
+        input:
+          # Onderdeel e, 1° en 2°: of over het kalenderjaar een aanslag of
+          # navorderingsaanslag inkomstenbelasting is of wordt vastgesteld. Een
+          # gegeven van de Belastingdienst, geen berekening.
+          - name: aanslag_of_navorderingsaanslag_vastgesteld
+            type: boolean
+            source: {}
+          # Onderdeel c: verzamelinkomen als bedoeld in artikel 2.18 Wet IB 2001.
+          - name: verzamelinkomen
+            type: amount
+            source:
+              regulation: wet_inkomstenbelasting_2001
+              output: verzamelinkomen
+              parameters:
+                bsn: $bsn
+            type_spec:
+              unit: eurocent
+          # Onderdeel d: belastbaar loon als bedoeld in artikel 9 van de Wet op
+          # de loonbelasting 1964, "met uitzondering van loon dat als een
+          # eindheffingsbestanddeel in de zin van die wet is belast". Die
+          # uitzondering maakt deze wet, niet artikel 9; een output van de Wet
+          # LB 1964 zou dus een ander begrip zijn. Tot die wet in het corpus
+          # staat en de uitzondering hier gemodelleerd kan worden, is dit het
+          # gegeven zoals de Belastingdienst het registreert (zonder
+          # eindheffingsbestanddelen).
+          - name: belastbaar_loon
+            type: amount
+            source: {}
+            type_spec:
+              unit: eurocent
+        output:
+          - name: inkomensgegeven
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: inkomensgegeven
+            value:
+              operation: IF
+              cases:
+                # 1°: een aanslag of navorderingsaanslag: het verzamelinkomen.
+                - when: $aanslag_of_navorderingsaanslag_vastgesteld
+                  then: $verzamelinkomen
+              # 2°: geen aanslag of navorderingsaanslag: het belastbare loon.
+              default: $belastbaar_loon

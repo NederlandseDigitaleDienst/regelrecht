@@ -1,4 +1,4 @@
-//! Schema ↔ law-model conformance suite.
+//! Schema conformance suite: the law-model against the schema.
 //!
 //! The canonical, hand-authored `schema/*/schema.json` is the public contract
 //! for the law-YAML format; the Rust `law-model` is one implementation that must
@@ -7,8 +7,8 @@
 //! the whole language behaviourally).
 //!
 //! Only built with the `validate` feature (which pulls in `jsonschema` via
-//! `regelrecht_engine::schema`). Run with `just conformance`. See
-//! `tests/conformance/README.md` for the contract and how to add fixtures.
+//! `regelrecht_engine::schema`). Run with `just schema-conformance`. See
+//! `tests/schema_conformance/README.md` for the contract and how to add fixtures.
 //!
 //! Three tiers (the first two mirroring BDD bucket-A/B):
 //!   - Tier A — differential over the real corpus + a roundtrip fidelity report.
@@ -387,7 +387,7 @@ fn tier_a_corpus_differential() {
 ///              listed fixture the model now rejects must be removed.
 #[test]
 fn tier_b_fixtures() {
-    let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance");
+    let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/schema_conformance");
 
     // valid/
     for path in fixtures_in(&base.join("valid")) {
@@ -730,7 +730,7 @@ fn tier_c_schema_property_coverage() {
 
     let all = schema_property_keys(schema);
     let mut covered = std::collections::BTreeSet::new();
-    let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/conformance/valid");
+    let base = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/schema_conformance/valid");
     for path in fixtures_in(&base) {
         let content = std::fs::read_to_string(&path).expect("read fixture");
         let value: Value = serde_yaml_ng::from_str(&content).expect("fixture is YAML");

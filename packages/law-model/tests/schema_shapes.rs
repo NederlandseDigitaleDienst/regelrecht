@@ -1,6 +1,6 @@
 //! Shapes where the model used to be narrower than the schema.
 //!
-//! The conformance suite (`packages/engine/tests/conformance.rs`) is the
+//! The schema conformance suite (`packages/engine/tests/schema_conformance.rs`) is the
 //! systematic gate; these are the close-up regression tests for the individual
 //! shapes that were wrong, each one a document the schema accepts and the model
 //! refused or lost.
