@@ -14,7 +14,7 @@ use std::path::Path;
 
 use regelrecht_cel::Cell;
 use regelrecht_cel::reading::Reader;
-use regelrecht_engine::{AnswerRequest, LawExecutionService, OpenTermAnswerer, Value};
+use regelrecht_engine::{AnswerRequest, Call, LawExecutionService, OpenTermAnswerer, Value};
 use serde_json::{Map, json};
 
 use common::{cell_tempdir, day, keep_reduction};
@@ -98,8 +98,9 @@ articles:
             value: $inschrijvingen
 ";
 
-/// The same answer in the short form.
-const SHORT: &str = "  inschrijvingen:
+/// The same answer as a fact in the catalogue, in the long form with the
+/// field a binding selects on.
+const FACT_WITH_WHERE: &str = "  inschrijvingen:
     fact: test_chronicle_corrections#1#ingeschreven
     where: [bewoner]
 ";
@@ -113,7 +114,7 @@ fn cell_and_service() -> (Cell, LawExecutionService, tempfile::TempDir) {
         dir.path().join("cel.yaml"),
         format!(
             "name: Testcel\nanswers:\n  inschrijvingen_met_de_hand: \
-             test_reductie_inschrijvingen\n{SHORT}"
+             test_reductie_inschrijvingen\n{FACT_WITH_WHERE}"
         ),
     )
     .unwrap();
@@ -622,4 +623,243 @@ fn where_on_a_nullable_field_with_null_selects_the_roots_that_hold_null() {
     let s = |p: &str| Value::String(p.to_string());
     assert_eq!(bewoners(s("AB-12-CD")), vec![s("b1")]);
     assert_eq!(bewoners(Value::Null), vec![s("b2")]);
+}
+
+/// The reduction written out by hand that the one-line form stands for:
+/// [`BY_HAND`] without `where`, so its answer takes no parameters.
+fn by_hand_without_where() -> String {
+    BY_HAND
+        .replace(
+            "test_reductie_inschrijvingen",
+            "test_reductie_alle_inschrijvingen",
+        )
+        .replace(
+            "inschrijvingen_met_de_hand",
+            "alle_inschrijvingen_met_de_hand",
+        )
+        .replace(
+            "        parameters:\n          - name: bewoner\n            type: string\n",
+            "",
+        )
+        .replace(
+            "              where:\n                bewoner: $bewoner\n",
+            "",
+        )
+}
+
+/// A cell that answers `alle_inschrijvingen` in the one-line form, from the
+/// fact alone, and `alle_inschrijvingen_met_de_hand` from the reduction it
+/// stands for, with the registrations of [`record_registrations`].
+fn one_line_cell() -> (Cell, LawExecutionService, tempfile::TempDir) {
+    let by_hand = by_hand_without_where();
+    let dir = cell_tempdir();
+    std::fs::write(
+        dir.path().join("cel.yaml"),
+        "name: Testcel\nanswers:\n  alle_inschrijvingen: test_chronicle_corrections#1#ingeschreven\n  \
+         alle_inschrijvingen_met_de_hand: test_reductie_alle_inschrijvingen\n",
+    )
+    .unwrap();
+    keep_reduction(dir.path(), "test_reductie_alle_inschrijvingen", &by_hand);
+    let mut cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
+    let mut service = LawExecutionService::new();
+    service.load_law(&register()).unwrap();
+    service.load_law(&by_hand).unwrap();
+    cell.load_standard_reductions(&mut service).unwrap();
+    record_registrations(&mut cell, &service);
+    (cell, service, dir)
+}
+
+/// The id of each registration [`record_registrations`] recorded, in order.
+fn registrations(cell: &Cell) -> Vec<String> {
+    cell.grams()
+        .iter()
+        .filter(|g| g.fact.as_deref() == Some("ingeschreven"))
+        .map(|g| g.id.clone())
+        .collect()
+}
+
+/// One row of the standard reduction of `test_chronicle_corrections#1#ingeschreven`.
+fn row(id: &str, bewoner: Value, postcode: Value, huisnummer: i64) -> Value {
+    Value::Object(
+        [
+            ("id".to_string(), Value::String(id.to_string())),
+            ("bewoner".to_string(), bewoner),
+            ("postcode".to_string(), postcode),
+            ("huisnummer".to_string(), Value::Int(huisnummer)),
+        ]
+        .into(),
+    )
+}
+
+/// An answer that names the fact alone takes no parameters and gives every
+/// record of the fact known on the calculation date as a row: its `id` and
+/// every field, in the order recorded. A revoked record keeps its row with
+/// the start values (null for a string, 0 for a number). It answers what
+/// the reduction written out by hand without `where` answers.
+#[test]
+fn a_fact_alone_answers_every_record_as_a_row() {
+    let (cell, service, _dir) = one_line_cell();
+    let none = BTreeMap::new();
+    for on in ["2025-01-15", "2025-02-15", "2025-03-15", "2025-06-01"] {
+        assert_eq!(
+            rows(&cell, &service, "alle_inschrijvingen", &none, on),
+            rows(
+                &cell,
+                &service,
+                "alle_inschrijvingen_met_de_hand",
+                &none,
+                on
+            ),
+            "{on}"
+        );
+    }
+    let [a, b, c] = registrations(&cell).try_into().unwrap();
+    let s = |v: &str| Value::String(v.to_string());
+    assert_eq!(
+        rows(&cell, &service, "alle_inschrijvingen", &none, "2025-01-15"),
+        Vec::<Value>::new()
+    );
+    assert_eq!(
+        rows(&cell, &service, "alle_inschrijvingen", &none, "2025-02-15"),
+        vec![row(&a, s("b1"), s("1111AA"), 1)]
+    );
+    assert_eq!(
+        rows(&cell, &service, "alle_inschrijvingen", &none, "2025-06-01"),
+        vec![
+            row(&a, s("b1"), s("1111AA"), 1),
+            row(&b, Value::Null, Value::Null, 0),
+            row(&c, s("b2"), s("3333CC"), 3),
+        ]
+    );
+}
+
+/// The one-line form declares no parameter, so a binding that passes one is
+/// refused, as for any reduction whose article does not take it.
+#[test]
+fn a_fact_alone_takes_no_parameters() {
+    let (cell, service, _dir) = one_line_cell();
+    let reader = Reader::new(
+        cell.recording_actor(),
+        cell.authority(),
+        cell.answers(),
+        cell.reductions(),
+        cell.grams().to_vec(),
+        None,
+    );
+    let parameters = [("bewoner".to_string(), Value::String("b1".into()))].into();
+    let request = AnswerRequest {
+        name: "alle_inschrijvingen",
+        parameters: &parameters,
+        calculation_date: "2025-06-01",
+        trace: false,
+    };
+    let err = reader.answer(&service, &request).unwrap_err();
+    assert!(err.to_string().contains("does not take"), "{err}");
+}
+
+/// A fictional law whose open term takes every registration as rows, and
+/// counts them.
+const COUNTING_LAW: &str = r"---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_wet_telt_inschrijvingen
+regulatory_layer: WET
+bwb_id: BWBR9999990
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_wet_telt_inschrijvingen
+name: Testwet die inschrijvingen telt
+articles:
+  - number: '1'
+    text: FICTIEF. Het aantal inschrijvingen dat het college vastlegde.
+    url: https://example.com/test_wet_telt_inschrijvingen/1
+    machine_readable:
+      open_terms:
+        - id: inschrijvingen
+          type: array
+          required: true
+      execution:
+        output:
+          - name: aantal_inschrijvingen
+            type: number
+        actions:
+          - output: aantal_inschrijvingen
+            value:
+              operation: FOREACH
+              collection: $inschrijvingen
+              as: inschrijving
+              body: 1
+              combine: ADD
+";
+
+/// The fictional policy of the cell's holder that fills the open term with
+/// the cell's answer `alle_inschrijvingen` (`source.reduction`).
+const BINDING_POLICY: &str = r"---
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_beleid_inschrijvingen
+regulatory_layer: UITVOERINGSBELEID
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.com/test_beleid_inschrijvingen
+name: Testbeleid dat de inschrijvingen uit de kroniek neemt
+competent_authority:
+  name: Testcel
+articles:
+  - number: '1'
+    text: FICTIEF. De inschrijvingen zijn die het college in zijn kroniek vastlegde.
+    url: https://example.com/test_beleid_inschrijvingen/1
+    machine_readable:
+      implements:
+        - law: test_wet_telt_inschrijvingen
+          article: '1'
+          open_term: inschrijvingen
+      execution:
+        input:
+          - name: rijen
+            type: array
+            source:
+              reduction: alle_inschrijvingen
+        output:
+          - name: inschrijvingen
+            type: array
+        actions:
+          - output: inschrijvingen
+            value: $rijen
+";
+
+/// The whole path: a law with an open term, a policy that binds it to an
+/// answer of the cell, and a cell that gives that answer from a fact in the
+/// one-line form. The law counts the rows, a revoked record among them.
+#[test]
+fn a_policy_binds_an_open_term_to_an_answer_from_a_fact() {
+    let (cell, mut service, _dir) = one_line_cell();
+    service.load_law(COUNTING_LAW).unwrap();
+    service.load_law(BINDING_POLICY).unwrap();
+    let reader = Reader::new(
+        cell.recording_actor(),
+        cell.authority(),
+        cell.answers(),
+        cell.reductions(),
+        cell.grams().to_vec(),
+        None,
+    );
+    let count = |on: &str| {
+        let call = Call {
+            answerer: Some(&reader),
+            ..Call::default()
+        };
+        service
+            .evaluate_law_in(
+                "test_wet_telt_inschrijvingen",
+                &["aantal_inschrijvingen"],
+                BTreeMap::new(),
+                call,
+                on,
+            )
+            .unwrap()
+            .outputs
+            .get("aantal_inschrijvingen")
+            .cloned()
+    };
+    assert_eq!(count("2025-02-15"), Some(Value::Int(1)));
+    assert_eq!(count("2025-06-01"), Some(Value::Int(3)));
 }
