@@ -270,6 +270,14 @@ repos:
         language: system
         pass_filenames: false
         files: ^(script/check-deployed-urls(\.test)?\.sh|\.github/workflows/deploy\.yml)$
+
+      - id: zad-health-tests
+        name: Wachten op een gezonde ZAD-deployment doet wat het belooft
+        entry: script/await-zad-health.test.sh
+        language: system
+        pass_filenames: false
+        files: ^(script/await-zad-health(\.test)?\.sh|\.github/workflows/deploy\.yml)$
+
       - id: preview-environments-tests
         name: Controle op achtergebleven previews doet wat hij belooft
         entry: script/check-preview-environments.test.sh

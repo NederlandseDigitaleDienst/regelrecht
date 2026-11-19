@@ -83,6 +83,23 @@ An error with a status or an exception in it is the diagnostic case. Then:
 
 One failure is harmless: `Could not extract URL from result` with `"status": "superseded"` in the JSON below it. ZAD let the task give way to a newer task covering the same deployment (a new push, or the cleanup of a closed PR). The newer task did the work, and re-running only this job is enough.
 
+### A production deploy that is red on "Wacht tot ZAD de deployment gezond meldt"
+
+The deploy step turns green as soon as ZAD accepts the rollout. ZAD can accept one and still report a component as unhealthy, with `The operation succeeded, but some components are unhealthy` and a line such as `demo (image_pull)`. zad-cli exits 0 on that answer, so the step used to stay green over a component that never came up ([#1651](https://github.com/NederlandseDigitaleDienst/regelrecht/issues/1651)). The message now shows as a warning on the run.
+
+Most of these reports are a registry that did not answer in time, and the cluster keeps pulling the image by itself. `deploy-production` therefore runs `script/await-zad-health.sh` after the deploy step. It asks `zad deployment describe regelrecht` every 15 seconds, for five minutes at most, and passes once ZAD has the image this run sent for every component of the run and reports the status `Healthy` without errors.
+
+A red step prints the status and the errors ZAD reports, each with a category such as `ImagePull` or `CrashLoop`, the resource, and the cluster's message. Five minutes is past the point where the platform asks you to report a failed pull, so look into the failure before re-running the job.
+
+What the check can and cannot establish:
+
+- It reads the platform and asks nothing of the application, so it covers the workers too, which have no URL.
+- The status belongs to the whole deployment. A broken component that this run did not touch fails the step as well.
+- Only `Healthy` passes. `OutOfSync` can mean leftovers that still need cleaning up on a deployment that runs fine, but the API ranks it above `Progressing`, so it can also be a rollout that is still under way.
+- The image list in the answer is what ZAD has saved, which is not proof of what runs. The deploy step waits for the sync of what it saved, and the status read after that describes the cluster. zad-cli v0.13 and later also report which revision is rolled out; the script uses that when it is there, and the CLI the deploy action installs (v0.12.1) does not have it yet.
+
+`deploy-preview` does not run this step.
+
 ## Deployed components
 
 | Component | Image | Production URL |
