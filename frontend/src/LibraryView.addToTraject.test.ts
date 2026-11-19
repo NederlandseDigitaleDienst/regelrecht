@@ -82,7 +82,7 @@ function mountLibrary() {
 async function settle() {
   for (let i = 0; i < 8; i++) await nextTick();
 }
-const addButton = (wrapper: VueWrapper) => wrapper.find('nldd-button[data-testid="add-open-law-to-traject"]');
+const addButton = (wrapper: VueWrapper) => wrapper.find('nldd-icon-button[data-testid="add-open-law-to-traject"]');
 const addError = (wrapper: VueWrapper) => wrapper.find('nldd-inline-dialog[data-testid="add-open-law-error"]');
 const promoteCalls = () => apiFetchJson.mock.calls.filter(([url]) => String(url).endsWith('/promote'));
 

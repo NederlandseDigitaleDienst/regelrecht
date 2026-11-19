@@ -2763,14 +2763,15 @@ watch(activeTrajectRef, () => {
                   <!-- In een traject, bij een regelwerk uit een bron waar het
                        traject alleen in meeleest: haal het naar het traject. -->
                   <nldd-toolbar-item v-if="canAddOpenLawToTraject" slot="start" :priority="5">
-                    <nldd-button
+                    <nldd-icon-button
                       data-testid="add-open-law-to-traject"
-                      appearance="secondary"
+                      appearance="neutral-base"
+                      icon="plus"
                       text="Toevoegen aan traject"
                       loading-text="Aan het toevoegen"
                       :loading="addingOpenLawToTraject || undefined"
                       @click="addOpenLawToTraject"
-                    ></nldd-button>
+                    ></nldd-icon-button>
                     <nldd-menu-item slot="overflow" icon="plus" text="Toevoegen aan traject" @select="addOpenLawToTraject"></nldd-menu-item>
                   </nldd-toolbar-item>
                   <nldd-toolbar-item v-if="authenticated || localFavorites" slot="start" :priority="2">

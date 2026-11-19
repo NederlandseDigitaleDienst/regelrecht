@@ -79,7 +79,7 @@ async function seedRecent(page, laws) {
 
 const sectionRows = (page, key) => page.locator(`nldd-list-item[data-section="${key}"]`);
 const filterField = (page) => page.locator('nldd-search-field[data-testid="traject-laws-filter"]');
-const addButton = (page) => page.locator('nldd-button[data-testid="add-open-law-to-traject"]');
+const addButton = (page) => page.locator('nldd-icon-button[data-testid="add-open-law-to-traject"]');
 
 test('the quick search finds a rulework folded away under "Toon alle"', async ({ page }) => {
   await mockTrajectLibrary(page, ownLaws(25));
