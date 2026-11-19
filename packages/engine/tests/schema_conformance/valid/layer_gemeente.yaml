@@ -1,5 +1,6 @@
 ---
-# Tier C: gemeente_code, required by the schema for a gemeentelijke verordening.
+# Tier C: gemeente_code, required by the schema for a gemeentelijke verordening,
+# and cvdr_id, which the harvester writes for a regulation from the CVDR.
 # layer. A gemeentelijke verordening cannot also be an EU-verordening, so the
 # other layers live in sibling fixtures.
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.26/schema/v0.8.26/schema.json
@@ -8,6 +9,7 @@ regulatory_layer: GEMEENTELIJKE_VERORDENING
 publication_date: '2025-01-01'
 url: https://example.invalid/verordening
 gemeente_code: GM0363
+cvdr_id: CVDR999999
 officiele_titel: Verordening op het beproeven van gemeentecodes
 articles:
   - number: '1'

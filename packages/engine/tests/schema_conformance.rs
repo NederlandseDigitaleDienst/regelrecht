@@ -1037,22 +1037,86 @@ fn v0_8_26_refuses_what_it_drops_and_closes() {
 /// The operations the engine reads as aliases for files from before the
 /// operation set was canonical (`NOT_EQUALS`, `IS_NULL`, `NOT_NULL`, `NOT_IN`,
 /// `SWITCH`) are outside the schema since v0.5.0 and stay out in v0.8.26.
+/// Each is held against the canonical operation with the same operands, so a
+/// refusal comes from the name and not from the shape.
 #[test]
 fn v0_8_26_refuses_the_compat_operations() {
     let base: Value = serde_yaml_ng::from_str(V0_8_26_BASE).expect("base is YAML");
-    let value = "/articles/0/machine_readable/execution/actions/0/value";
-    for operation in ["NOT_EQUALS", "IS_NULL", "NOT_NULL", "NOT_IN", "SWITCH"] {
-        let mut document = base.clone();
-        *document
-            .pointer_mut(value)
-            .expect("base has an action value") = serde_json::json!({
-            "operation": operation,
-            "subject": "$inkomen",
-            "value": 0,
-        });
+    let comparison = serde_json::json!({"subject": "$inkomen", "value": 0});
+    let absence = serde_json::json!({"subject": "$inkomen", "value": null});
+    let membership = serde_json::json!({"subject": "$inkomen", "values": [0, 1]});
+    let branches = serde_json::json!({
+        "cases": [{"when": true, "then": 1}],
+        "default": 0,
+    });
+    let pairs = [
+        ("NOT_EQUALS", "EQUALS", &comparison),
+        ("IS_NULL", "EQUALS", &absence),
+        ("NOT_NULL", "EQUALS", &absence),
+        ("NOT_IN", "IN", &membership),
+        ("SWITCH", "IF", &branches),
+    ];
+    for (compat, canonical, operands) in pairs {
+        let with = |operation: &str| {
+            let mut value = operands.clone();
+            value["operation"] = Value::from(operation);
+            with_value(&base, value)
+        };
+        let accepted = with(canonical);
         assert!(
-            !schema_accepts("v0.8.26", &document),
-            "v0.8.26 accepts the compat operation {operation}"
+            schema_accepts("v0.8.26", &accepted),
+            "v0.8.26 refuses {canonical} with the operands used for {compat}: {:?}",
+            validation_errors_for("v0.8.26", &accepted).unwrap()
+        );
+        assert!(
+            !schema_accepts("v0.8.26", &with(compat)),
+            "v0.8.26 accepts the compat operation {compat}"
+        );
+    }
+}
+
+fn with_value(base: &Value, value: Value) -> Value {
+    let mut document = base.clone();
+    *document
+        .pointer_mut("/articles/0/machine_readable/execution/actions/0/value")
+        .expect("base has an action value") = value;
+    document
+}
+
+/// A field composed with `allOf` is closed in v0.8.26 by listing every key it
+/// admits with `true`. Tier C skips those stubs, so each must name a key that
+/// `baseField` or the field's own branches define; otherwise a key would be
+/// admitted with no shape at all and leave the coverage gate unseen.
+#[test]
+fn v0_8_26_field_stubs_name_defined_keys() {
+    let schemas = regelrecht_engine::schema::load_schemas().expect("load schemas");
+    let definitions = &schemas["v0.8.26"]["definitions"];
+    let base: Vec<&String> = definitions["baseField"]["properties"]
+        .as_object()
+        .expect("baseField has properties")
+        .keys()
+        .collect();
+    for field in ["parameterField", "inputField", "outputField"] {
+        let own: Vec<&String> = definitions[field]["allOf"]
+            .as_array()
+            .expect("field is composed with allOf")
+            .iter()
+            .filter_map(|branch| branch["properties"].as_object())
+            .flat_map(|properties| properties.keys())
+            .collect();
+        let stubs = definitions[field]["properties"]
+            .as_object()
+            .expect("field lists its keys");
+        for key in stubs.keys() {
+            assert!(
+                base.contains(&key) || own.contains(&key),
+                "{field} admits `{key}`, which no branch defines"
+            );
+        }
+        assert_eq!(
+            definitions[field]["additionalProperties"],
+            Value::Bool(false),
+            "{field} is closed"
         );
     }
 }

@@ -88,6 +88,13 @@
         "BWBR0018451"
       ]
     },
+    "cvdr_id": {
+      "type": "string",
+      "description": "CVDR identification number (for decentralized regulations), as the harvester records it for a regulation it took from the CVDR.",
+      "examples": [
+        "CVDR681386"
+      ]
+    },
     "celex_nummer": {
       "type": "string",
       "description": "CELEX number (for EU regulations and directives).",

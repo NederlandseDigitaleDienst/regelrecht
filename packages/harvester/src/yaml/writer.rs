@@ -69,7 +69,7 @@ struct YamlLaw {
     valid_to: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     bwb_id: Option<String>,
-    // NOTE: cvdr_id is not yet in the schema; emitted as an extension for traceability.
+    // In the schema since v0.8.26, which closes the document to undeclared keys.
     #[serde(skip_serializing_if = "Option::is_none")]
     cvdr_id: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
