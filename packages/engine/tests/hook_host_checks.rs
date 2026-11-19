@@ -135,3 +135,27 @@ fn a_hook_on_a_submission_takes_no_host() {
         "{error}"
     );
 }
+
+/// A key `implements` or `applies_to` does not know, such as `within`, is
+/// refused with its name, where it used to pass without a word.
+#[test]
+fn an_unknown_key_in_implements_or_applies_to_is_refused() {
+    for (known, unknown) in [
+        (
+            "host: {law: subsidiewet_voorbeeld, article: '11'}",
+            "within: {law: subsidiewet_voorbeld}",
+        ),
+        (
+            "host: {law: subsidiewet_voorbeeld}",
+            "within: {law: subsidiewet_voorbeeld}",
+        ),
+    ] {
+        let law = POLICY.replacen(known, unknown, 1);
+        assert_ne!(law, POLICY, "the fixture has `{known}`");
+        let error = LawExecutionService::new().load_law(&law).unwrap_err();
+        assert!(
+            error.to_string().contains("unknown field `within`"),
+            "{error}"
+        );
+    }
+}
