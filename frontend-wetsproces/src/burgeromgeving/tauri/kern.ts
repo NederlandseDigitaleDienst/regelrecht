@@ -62,7 +62,7 @@ export function melding(f: KernFout): string {
     case 'network':
       return 'De server is niet bereikbaar. Controleer de verbinding en probeer het opnieuw.';
     case 'service':
-      return reden(JSON.stringify(f.body));
+      return reden(typeof f.body === 'string' ? f.body : JSON.stringify(f.body));
     case 'protocol':
       return `Het antwoord van de server klopt niet met het protocol: ${f.detail}`;
     case 'key_store':

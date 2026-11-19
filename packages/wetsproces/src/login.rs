@@ -25,6 +25,8 @@ use regelrecht_auth::{
     ConfiguredClient, OidcConfig, SESSION_KEY_AUTHENTICATED, SESSION_KEY_CLAIMS, SESSION_KEY_NAME,
     SESSION_KEY_ROLES, SESSION_KEY_SUB,
 };
+// The made-up citizen numbers of the BSN test range, shared with the app.
+use regelrecht_fsc4b::wire::TEST_CITIZENS;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use tower_sessions::Session;
@@ -180,9 +182,6 @@ async fn test_login(
     tracing::info!(sub = %login.sub, roles = ?login.rollen, "test login");
     Ok(Json(json!({ "sub": login.sub, "rollen": login.rollen })))
 }
-
-/// Made-up citizen numbers of the BSN test range, one per test citizen.
-const TEST_CITIZENS: [&str; 2] = ["999990032", "999990020"];
 
 /// `GET /auth/testpersonen`: the accounts a test login can take, each as
 /// `POST /auth/testlogin` takes it, with what it is (`soort`: `burger`,

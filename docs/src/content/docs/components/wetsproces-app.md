@@ -16,7 +16,7 @@ It is a trial on the demo Stelsel of the server. It activates with a made-up cit
 | Shell | `frontend-wetsproces/src-tauri/` | A [Tauri 2](https://v2.tauri.app/) window that registers the core's commands, and nothing else |
 | Screens | `frontend-wetsproces/burger.html` and `src/burgeromgeving/` | The citizen's entry, its transport, and in `tauri/` the activation screen and the session that turns a call into a command (`kern.ts`) |
 
-The app key, the credential, the session token and the AES session key stay in the core. The webview calls `status`, `activeren`, `afmelden`, `casus`, `formulier`, `dossier`, `waarom` and `indienen`. Each takes and gives plain JSON, and none of them returns key material or the credential itself. The status names the citizen and when the credential lapses. The webview keeps nothing in its storage.
+The app key, the credential, the session token and the AES session key stay in the core. The webview calls `status`, `activeren`, `afmelden`, `casus`, `formulier`, `dossier`, `waarom` and `indienen`; the capability of its window allows those eight and nothing else. Each takes and gives plain JSON, and none of them returns key material or the credential itself. The status names the citizen and when the credential lapses. None of the app's own modules uses the webview's storage.
 
 ## One entry, two transports
 
@@ -27,11 +27,11 @@ The citizen's entry (`burger.html`, `src/burgeromgeving/main.ts`) is the same fo
 | `npm run build:app -w frontend-wetsproces` | `vervoer/tauri.ts`: commands of the core, in by activation | `dist-app/` |
 | `npm run build:burger -w frontend-wetsproces` | `vervoer/cookie.ts`: HTTP with the session cookie, in by the login | `dist-burger/` |
 
-No server serves `dist-burger/` yet. The combined web build (`npm run build`, `index.html`) is unchanged and keeps its cookie through `src/gedeeld/sessie.ts`, where each transport puts its own session in place. `src/scheiding.test.ts` follows every import from the entry with each transport. It fails when either reaches the back office, and when the app's reaches the login or keeps anything in the webview's storage.
+No server serves `dist-burger/` yet. The combined web build (`npm run build`, `index.html`) is unchanged and keeps its cookie through `src/gedeeld/sessie.ts`, where each transport puts its own session in place. `src/scheiding.test.ts` follows every import from the entry with each transport. It fails when either reaches a module of the back office, and when the app's reaches the login or a module under `src/` that uses the webview's storage. It does not follow imports into packages.
 
 ## Activation and the session
 
-In test mode the activation screen offers the made-up citizen numbers 999990019, 999990020 and 999990032. Picking one makes the core run these steps:
+In test mode the activation screen offers the made-up citizen numbers of the server's test login, 999990032 and 999990020. Picking one makes the core run these steps:
 
 1. It makes a new P-256 key and forgets any old one.
 2. It reads the Stelseldocument from the demo routes of the server and checks it under the Stelselbeheerder's key, which the demo serves too.

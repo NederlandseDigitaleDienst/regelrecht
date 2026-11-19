@@ -6,8 +6,7 @@
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { invoke } from '../vervoer/tauri';
-import { melding } from './kern';
-import type { KernFout } from './kern';
+import { alsFout, melding } from './kern';
 import { appStatus, laadStatus, opslagTekst } from './status';
 
 const route = useRoute();
@@ -32,7 +31,7 @@ async function activeer(bsn: string) {
     appStatus.value = await invoke('activeren', { bsn });
     await router.push('/burger');
   } catch (e) {
-    fout.value = melding(e as KernFout);
+    fout.value = alsFout(e).message;
     await laadStatus(invoke).catch(() => undefined);
   } finally {
     bezig.value = '';

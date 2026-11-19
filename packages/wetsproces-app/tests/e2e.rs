@@ -21,13 +21,21 @@ use regelrecht_wetsproces_app::{AppConfig, AppCore, CommandError, SoftwareKeySto
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
 
-const BSN: &str = "999990019";
+const BSN: &str = "999990032";
 
 /// A server in test mode on `127.0.0.1`, with or without the demo Stelsel;
 /// its address.
 async fn server(demo: bool) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let base = format!("http://{}", listener.local_addr().unwrap());
+    serve(listener, &base, demo).await;
+    base
+}
+
+/// The server on `listener`, reached at `base`, until the task is aborted.
+/// Every answer closes its connection, so no connection outlives a restart.
+async fn serve(listener: TcpListener, base: &str, demo: bool) -> tokio::task::JoinHandle<()> {
+    let base = base.to_string();
     let fsc4b = if demo {
         Fsc4bChoice::Demo {
             public_url: base.clone(),
@@ -45,9 +53,21 @@ async fn server(demo: bool) -> String {
         subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
         fsc4b,
     };
-    let router = app::build_with(&config, Login::TestLogin).await.unwrap();
-    tokio::spawn(async move { axum::serve(listener, router).await });
-    base
+    let router = app::build_with(&config, Login::TestLogin)
+        .await
+        .unwrap()
+        .layer(axum::middleware::map_response(
+            |mut response: axum::response::Response| async move {
+                response.headers_mut().insert(
+                    axum::http::header::CONNECTION,
+                    axum::http::HeaderValue::from_static("close"),
+                );
+                response
+            },
+        ));
+    tokio::spawn(async move {
+        axum::serve(listener, router).await.unwrap();
+    })
 }
 
 fn core(base: &str, store: Arc<SoftwareKeyStore>) -> AppCore {
@@ -137,15 +157,15 @@ async fn a_lapsed_session_is_renewed_without_the_request_being_lost() {
     let base = server(true).await;
     let app = core(&base, Arc::new(SoftwareKeyStore::in_memory()));
     app.activate(BSN).await.unwrap();
-    let first = app.submit(&application(), "aanvraag-1").await.unwrap();
     app.spoil_session().await;
-    // The request under the spoiled token is refused, a new session starts,
-    // and the same submission is answered from its receipt.
+    // The first request under the spoiled token is refused, a new session
+    // starts, and the submission goes out as it was: recorded once.
+    let first = app.submit(&application(), "aanvraag-1").await.unwrap();
+    assert_eq!(app.sessions_created(), 2);
     assert_eq!(
-        app.submit(&application(), "aanvraag-1").await.unwrap(),
-        first
+        ids(&app.dossier().await.unwrap()),
+        [first["id"].as_str().unwrap()]
     );
-    assert_eq!(ids(&app.dossier().await.unwrap()).len(), 1);
 }
 
 #[tokio::test]
@@ -156,6 +176,29 @@ async fn concurrent_commands_share_one_session() {
     app.spoil_session().await;
     let (a, b, c) = tokio::join!(app.case(), app.forms(), app.dossier());
     assert!(a.is_ok() && b.is_ok() && c.is_ok(), "{a:?} {b:?} {c:?}");
+    // One at activation, one shared by the three after the spoiled one.
+    assert_eq!(app.sessions_created(), 2);
+}
+
+#[tokio::test]
+async fn a_restarted_demo_server_sends_the_citizen_back_to_activation() {
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let base = format!("http://{address}");
+    let first = serve(listener, &base, true).await;
+    let app = core(&base, Arc::new(SoftwareKeyStore::in_memory()));
+    app.activate(BSN).await.unwrap();
+    // A new start makes new keys: the old credential is from an
+    // Activatiedienst the new server does not know, and the core read the
+    // organization's old key. It reads the Stelsel anew, and then the
+    // credential is refused, which sends the citizen to activation.
+    first.abort();
+    let _ = first.await;
+    serve(TcpListener::bind(address).await.unwrap(), &base, true).await;
+    app.spoil_session().await;
+    assert_eq!(app.dossier().await, Err(CommandError::CredentialRefused));
+    app.activate(BSN).await.unwrap();
+    assert!(app.dossier().await.is_ok());
 }
 
 #[tokio::test]

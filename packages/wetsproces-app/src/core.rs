@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use regelrecht_fsc4b::client::{self, App, ClientError, Directory, Session};
-use regelrecht_fsc4b::wire::is_test_bsn;
+use regelrecht_fsc4b::wire::{TEST_CITIZENS, is_test_bsn};
 use reqwest::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};
@@ -26,10 +26,9 @@ use crate::credential::{Credential, Holder};
 use crate::error::CommandError;
 use crate::keystore::{KeyStorage, KeyStore};
 
-/// The made-up citizen numbers the app offers in the demo: the ones the
-/// test login of the server offers, and the example of the docs. All are
-/// from the test range.
-pub const TEST_BSNS: [&str; 3] = ["999990019", "999990020", "999990032"];
+/// The made-up citizen numbers the app offers in the demo: the citizens of
+/// the server's test login.
+pub const TEST_BSNS: [&str; 2] = TEST_CITIZENS;
 
 /// How long before its end a credential counts as lapsed: a session started
 /// later would end before it is used.
@@ -78,6 +77,8 @@ pub struct AppCore {
     store: Arc<dyn KeyStore>,
     http: reqwest::Client,
     link: Mutex<Link>,
+    #[cfg(feature = "test-utils")]
+    sessions_created: std::sync::atomic::AtomicUsize,
 }
 
 impl std::fmt::Debug for AppCore {
@@ -122,6 +123,8 @@ impl AppCore {
             store,
             http,
             link: Mutex::default(),
+            #[cfg(feature = "test-utils")]
+            sessions_created: std::sync::atomic::AtomicUsize::new(0),
         })
     }
 
@@ -188,6 +191,13 @@ impl AppCore {
     }
 
     /// A new session for `app` with `credential`, kept in `link`.
+    ///
+    /// A first attempt that fails other than on the network or with a
+    /// server error (5xx) is made once more, with the directory read anew
+    /// and a fresh challenge: the organization's key may have changed (a
+    /// demo server makes new keys at every start), or the challenge may have
+    /// lapsed on a slow line. Only a `401` on the second attempt counts as a
+    /// refused credential.
     async fn new_session(
         &self,
         link: &mut Link,
@@ -195,21 +205,41 @@ impl AppCore {
         credential: &Credential,
     ) -> Result<Session, CommandError> {
         let directory = self.directory(link).await?;
-        let session = client::create_session(&self.http, &directory, app, credential.token())
-            .await
-            .map_err(|e| match e {
-                ClientError::Status { status, .. } if status == StatusCode::UNAUTHORIZED => {
-                    CommandError::CredentialRefused
-                }
-                other => other.into(),
-            })?;
+        let first = client::create_session(&self.http, &directory, app, credential.token()).await;
+        let session = match first {
+            Ok(session) => session,
+            Err(ClientError::Http(e)) => return Err(ClientError::Http(e).into()),
+            // A server that fails or is full (503 above its bound of waiting
+            // challenges) is not asked again at once.
+            Err(ClientError::Status { status, body }) if status.is_server_error() => {
+                return Err(ClientError::Status { status, body }.into());
+            }
+            Err(_) => {
+                link.directory = None;
+                let directory = self.directory(link).await?;
+                client::create_session(&self.http, &directory, app, credential.token())
+                    .await
+                    .map_err(|e| match e {
+                        ClientError::Status { status, .. }
+                            if status == StatusCode::UNAUTHORIZED =>
+                        {
+                            CommandError::CredentialRefused
+                        }
+                        other => other.into(),
+                    })?
+            }
+        };
+        #[cfg(feature = "test-utils")]
+        self.sessions_created
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         link.session = Some(session.clone());
         Ok(session)
     }
 
     /// Activate the app for the test citizen `bsn`: a new key, a
     /// credential from the test Activatiedienst, the Stelseldocument
-    /// checked, and a first session.
+    /// checked, and a first session. The old key and credential go first,
+    /// so an activation that fails leaves the app not activated.
     ///
     /// # Errors
     ///
@@ -255,17 +285,19 @@ impl AppCore {
 
     /// The live session, or a new one when there is none or when the one
     /// under the token `stale` was refused.
-    async fn session(&self, app: &App, stale: Option<&str>) -> Result<Session, CommandError> {
+    async fn session(&self, stale: Option<&str>) -> Result<Session, CommandError> {
         // Held through `CreateSession`: commands that find no live session at
-        // the same moment wait for one and share it.
+        // the same moment wait for one and share it. The key and credential
+        // are read under it too, so an activation cannot swap them halfway.
         let mut link = self.link.lock().await;
         if let Some(session) = &link.session
             && stale.is_none_or(|token| token != session.token)
         {
             return Ok(session.clone());
         }
-        let credential = self.valid_credential(app)?;
-        self.new_session(&mut link, app, &credential).await
+        let app = self.app()?;
+        let credential = self.valid_credential(&app)?;
+        self.new_session(&mut link, &app, &credential).await
     }
 
     /// `payload` to the citizen's route `op`, with `idempotency_key` inside
@@ -277,14 +309,13 @@ impl AppCore {
         idempotency_key: Option<&str>,
     ) -> Result<Value, CommandError> {
         self.config()?;
-        let app = self.app()?;
-        self.valid_credential(&app)?;
-        let session = self.session(&app, None).await?;
+        self.valid_credential(&self.app()?)?;
+        let session = self.session(None).await?;
         let mut answer = session
             .call(&self.http, op, payload, idempotency_key)
             .await?;
         if answer.0 == StatusCode::UNAUTHORIZED {
-            let renewed = self.session(&app, Some(&session.token)).await?;
+            let renewed = self.session(Some(&session.token)).await?;
             answer = renewed
                 .call(&self.http, op, payload, idempotency_key)
                 .await?;
@@ -358,6 +389,13 @@ impl AppCore {
         }
         self.call("indieningen", submission, Some(idempotency_key))
             .await
+    }
+
+    /// How many sessions the core has started.
+    #[cfg(feature = "test-utils")]
+    pub fn sessions_created(&self) -> usize {
+        self.sessions_created
+            .load(std::sync::atomic::Ordering::Relaxed)
     }
 
     /// Spoil the token of the live session, as if the server had let it

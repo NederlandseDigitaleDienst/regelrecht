@@ -139,8 +139,11 @@ fn io_error(path: &Path) -> impl FnOnce(std::io::Error) -> KeyStoreError + '_ {
 /// place of what was there.
 fn write_private(path: &Path, contents: &str) -> Result<(), KeyStoreError> {
     let tmp = path.with_extension("tmp");
+    // A leftover temporary file goes first: `create_new` then makes a fresh
+    // one with the mode below, never reusing one with wider permissions.
+    remove_optional(&tmp)?;
     let mut options = fs::OpenOptions::new();
-    options.write(true).create(true).truncate(true);
+    options.write(true).create_new(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt;

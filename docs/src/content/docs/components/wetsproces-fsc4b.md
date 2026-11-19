@@ -15,7 +15,7 @@ The code is in `packages/wetsproces/src/fsc4b/`. Without configuration the chann
 4. It runs `CreateSession` (§4.3.4). `POST /fsc4b/session/v1/challenge` gives a JWS, signed with the organization's key, with a nonce and an ephemeral P-256 key. The app signs the nonce for this organization's OIN (`aud`), puts that signature, the credential and a fresh AES key in a Verifiable Presentation, encrypts it to the ephemeral key (`ECDH-ES`, `A256GCM`), and sends it with the nonce to `POST /fsc4b/session/v1/complete`. The answer is a session token, encrypted under the app's AES key.
 5. It calls the citizen's service with the token in the `Authorization` header and a body that is a JWE under the session key (`alg: dir`, `enc: A256GCM`). The answer comes back encrypted under the same key. Only a `401` (no live session under the token, or a body that does not decrypt under its key) and a `500` while reading the session are plain JSON.
 
-The client in `packages/fsc4b/src/client.rs` does each step as its own function. The end-to-end tests in `tests/fsc4b.rs` run on it (the feature `test-utils` re-exports it as `fsc4b::client`), and so does [the app](/components/wetsproces-app). The JOSE formats and the names both sides must spell alike are in that crate as well.
+The client in `packages/fsc4b/src/client.rs` does each step as its own function. The end-to-end tests in `packages/wetsproces/tests/fsc4b.rs` run on it (the feature `test-utils` re-exports it as `fsc4b::client`), and so does [the app](/components/wetsproces-app). The JOSE formats and the names both sides must spell alike are in that crate as well.
 
 ## Routes
 

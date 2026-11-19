@@ -42,6 +42,10 @@ pub const DEMO_ORGANIZATION_OIN: &str = "00000099000000000001";
 /// which no person holds.
 pub const TEST_BSN_PREFIX: &str = "99999";
 
+/// The made-up citizens of the test login and the demo app, from the test
+/// range.
+pub const TEST_CITIZENS: [&str; 2] = ["999990032", "999990020"];
+
 /// Whether `bsn` is a number of the test range: nine digits after
 /// [`TEST_BSN_PREFIX`].
 pub fn is_test_bsn(bsn: &str) -> bool {
