@@ -17,6 +17,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -28,6 +29,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tower_sessions::Session;
 
+use crate::access::{self, CITIZEN, Level};
 use crate::api::{ApiError, AppState};
 use crate::config::LoginChoice;
 
@@ -92,6 +94,7 @@ impl Login {
             Self::Oidc(_) => regelrecht_auth::auth_routes::<AppState>(),
             Self::TestLogin => Router::new()
                 .route("/auth/testlogin", post(test_login))
+                .route("/auth/testpersonen", get(test_personas))
                 .route(
                     "/auth/status",
                     get(regelrecht_auth::handlers::status::<AppState>),
@@ -176,6 +179,52 @@ async fn test_login(
         .map_err(failed)?;
     tracing::info!(sub = %login.sub, roles = ?login.rollen, "test login");
     Ok(Json(json!({ "sub": login.sub, "rollen": login.rollen })))
+}
+
+/// Made-up citizen numbers of the BSN test range, one per test citizen.
+const TEST_CITIZENS: [&str; 2] = ["999990032", "999990020"];
+
+/// `GET /auth/testpersonen`: the accounts a test login can take, each as
+/// `POST /auth/testlogin` takes it, with what it is (`soort`: `burger`,
+/// `medewerker` or `beheerder`) so a screen can name it. Two citizens with
+/// a made-up number of the test range; per cell of the case a handler and
+/// a decider; an admin who may decide for every cell. Derived from the
+/// case, so another case gets its own. There only beside the test login.
+async fn test_personas(State(state): State<AppState>) -> Json<Value> {
+    let claim = state.subject_claim();
+    let mut personas: Vec<Value> = TEST_CITIZENS
+        .iter()
+        .map(|bsn| {
+            json!({
+                "soort": "burger",
+                "sub": format!("burger-{bsn}"),
+                "rollen": [CITIZEN],
+                "claims": { claim: bsn },
+                "identiteit": bsn,
+            })
+        })
+        .collect();
+    for (cell, cell_name) in state.service().cells() {
+        for level in [Level::Handler, Level::Decider] {
+            personas.push(json!({
+                "soort": "medewerker",
+                "sub": format!("{}-{cell}", level.name()),
+                "rollen": [level.role(), access::cell_role(cell)],
+                "niveau": level.name(),
+                "cel": cell,
+                "cel_naam": cell_name,
+            }));
+        }
+    }
+    let mut admin_roles = vec![Level::Admin.role().to_string()];
+    admin_roles.extend(state.service().cells().map(|(c, _)| access::cell_role(c)));
+    personas.push(json!({
+        "soort": "beheerder",
+        "sub": "beheerder",
+        "rollen": admin_roles,
+        "niveau": Level::Admin.name(),
+    }));
+    Json(Value::Array(personas))
 }
 
 impl regelrecht_auth::OidcAppState for AppState {

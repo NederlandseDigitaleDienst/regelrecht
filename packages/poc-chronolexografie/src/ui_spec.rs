@@ -37,6 +37,13 @@
 //! is no part of the application form, so its `visibility` and `by` say
 //! nothing about it.
 //!
+//! A field may also say how a screen names it: `label`, the name of the
+//! field on a screen, and `help`, a line under it ([`Veldtekst`]). Without
+//! them a screen names the field after the regelwerk. They count by field
+//! name over every element and every form, so the same field is named the
+//! same on the application, the objection and the decision; two elements
+//! that name one field differently are refused.
+//!
 //! The poc reads only those keys and leaves every other key to the register
 //! and its own checks, so a register that grows a key does not stop a case
 //! from loading. A source is `<regelwerk>#<article>#<output>`; what it gives
@@ -80,6 +87,8 @@ struct Field {
     fill: Option<Fill>,
     visibility: Option<String>,
     answer: Option<Answer>,
+    label: Option<String>,
+    help: Option<String>,
 }
 
 /// What a field of a view beside a decision shows: the answer of the case's
@@ -104,6 +113,19 @@ pub struct UiSpec {
     pub verborgen: BTreeSet<String>,
     /// The elements that show answers beside each decision of the case's cell.
     pub weergaven: Vec<Weergave>,
+    /// Per field, how a screen names it, where the UI spec says so.
+    pub teksten: BTreeMap<String, Veldtekst>,
+}
+
+/// How a screen names a field (`label`) and what it says under it (`help`),
+/// where the UI spec gives them; a screen falls back on the field's name in
+/// the regelwerk.
+#[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
+pub struct Veldtekst {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub label: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub help: Option<String>,
 }
 
 /// How the system fills a field of the application (`fill: {by: system}`).
@@ -234,6 +256,12 @@ pub fn prefill(tekst: &str) -> Result<BTreeMap<String, String>, String> {
 pub fn lees(tekst: &str) -> Result<UiSpec, String> {
     let register: Register =
         serde_yaml_ng::from_str(tekst).map_err(|e| format!("the UI spec: {e}"))?;
+    let teksten = register
+        .elements
+        .as_deref()
+        .map(teksten)
+        .transpose()?
+        .unwrap_or_default();
     let (elements, weergaven) = match (register.elements, register.elementen) {
         (Some(elements), None) => per_field(elements)?,
         (None, Some(elementen)) => (older_form(elementen)?, Vec::new()),
@@ -260,7 +288,49 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
         systeem,
         verborgen,
         weergaven,
+        teksten,
     })
+}
+
+/// Per field the `label` and `help` the elements give it. Two elements that
+/// give one field a different label, or a different help, are refused.
+fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> {
+    let mut uit: BTreeMap<String, (Veldtekst, String)> = BTreeMap::new();
+    for (i, element) in elements.iter().enumerate() {
+        let naam = element_name(element.id.as_ref(), i);
+        for field in &element.fields {
+            if field.label.is_none() && field.help.is_none() {
+                continue;
+            }
+            let Some(veld) = field.name.as_deref().filter(|v| !v.is_empty()) else {
+                return Err(format!(
+                    "the UI spec: {naam} gives a `label` or `help` to a field without a `name`"
+                ));
+            };
+            let tekst = Veldtekst {
+                label: field.label.clone(),
+                help: field.help.clone(),
+            };
+            let (eerder, door) = uit
+                .entry(veld.to_string())
+                .or_insert_with(|| (Veldtekst::default(), naam.clone()));
+            for (wat, nieuw, oud) in [
+                ("label", &tekst.label, &mut eerder.label),
+                ("help", &tekst.help, &mut eerder.help),
+            ] {
+                match (nieuw, &oud) {
+                    (Some(n), Some(o)) if n != o => {
+                        return Err(format!(
+                            "the UI spec: {door} and {naam} give '{veld}' a different `{wat}`"
+                        ));
+                    }
+                    (Some(n), None) => *oud = Some(n.clone()),
+                    _ => {}
+                }
+            }
+        }
+    }
+    Ok(uit.into_iter().map(|(v, (t, _))| (v, t)).collect())
 }
 
 /// The prefill and the rest of the application form of the elements of the
@@ -836,6 +906,68 @@ elements:
         assert!(e.contains("UI1 fills a field without a `name`"), "{e}");
         let e = prefill("elements: [{id: UI1, fields: [{fill: {}}]}]").unwrap_err();
         assert!(e.contains("UI1 fills a field without a `name`"), "{e}");
+    }
+
+    #[test]
+    fn a_field_may_say_how_a_screen_names_it_over_every_element() {
+        let spec = lees(
+            "elements:
+              - id: UI1
+                fields:
+                  - {name: naam, label: Uw naam, fill: {from: 'r#5h#naam'}}
+                  - {name: kenteken, help: Zoals op het kentekenbewijs}
+              - id: UI2
+                fields:
+                  - {name: naam, help: Zoals in uw paspoort}
+                  - {name: zonder}",
+        )
+        .unwrap();
+        assert_eq!(
+            spec.teksten,
+            BTreeMap::from([
+                (
+                    "kenteken".to_string(),
+                    Veldtekst {
+                        label: None,
+                        help: Some("Zoals op het kentekenbewijs".into())
+                    }
+                ),
+                (
+                    "naam".to_string(),
+                    Veldtekst {
+                        label: Some("Uw naam".into()),
+                        help: Some("Zoals in uw paspoort".into())
+                    }
+                ),
+            ])
+        );
+        // The older form has no fields, so no texts.
+        assert!(lees("elementen: []").unwrap().teksten.is_empty());
+    }
+
+    #[test]
+    fn two_elements_that_name_a_field_differently_are_refused() {
+        let e = lees(
+            "elements: [{id: UI1, fields: [{name: x, label: Een}]},
+                        {id: UI2, fields: [{name: x, label: Twee}]}]",
+        )
+        .unwrap_err();
+        assert!(
+            e.contains("UI1 and UI2 give 'x' a different `label`"),
+            "{e}"
+        );
+        let e = lees("elements: [{id: UI1, fields: [{label: Een}]}]").unwrap_err();
+        assert!(
+            e.contains("UI1 gives a `label` or `help` to a field without a `name`"),
+            "{e}"
+        );
+        // The same text twice is one.
+        let spec = lees(
+            "elements: [{id: UI1, fields: [{name: x, label: Een}]},
+                        {id: UI2, fields: [{name: x, label: Een}]}]",
+        )
+        .unwrap();
+        assert_eq!(spec.teksten["x"].label.as_deref(), Some("Een"));
     }
 
     #[test]

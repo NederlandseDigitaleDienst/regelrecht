@@ -368,6 +368,62 @@ impl Service {
         .await
     }
 
+    /// The cells of the case, its own first, each with the name a screen
+    /// shows for it.
+    pub fn cells(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.cells
+            .iter()
+            .map(|c| (c.as_str(), self.corpus.cel_naam(c)))
+    }
+
+    /// Why the decision `id` came out as it did (`kern::waarom`): who filled
+    /// each open term, and where each answer of a cell came from. Derived
+    /// from the chronicles as they are now; nothing is recorded.
+    ///
+    /// # Errors
+    ///
+    /// [`ServiceError::Refused`] when no cell holds `id` or it is no
+    /// decision, and when the store fails.
+    pub async fn explain(&self, id: &str) -> Result<Value, ServiceError> {
+        let read = self.read().await?;
+        let corpus = Arc::clone(&self.corpus);
+        let id = id.to_string();
+        blocking(move || {
+            let cellen = restore(&corpus, read)?;
+            let waarom = kern::waarom(&corpus, &cellen, &id)?;
+            Ok(to_value(&waarom)?)
+        })
+        .await
+    }
+
+    /// What the decision on the submission `d` would come to today, before
+    /// it is taken (`kern::voorvertoning`): the outcome or the cell's
+    /// refusal, and the findings a policy leaves to the authority for this
+    /// case. Taken on a copy of the cells; nothing is recorded.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails, and what the kern fails on besides a refusal of
+    /// the cell, which the preview carries as `geweigerd`.
+    pub async fn preview(&self, d: Decide) -> Result<Value, ServiceError> {
+        let read = self.read().await?;
+        let corpus = Arc::clone(&self.corpus);
+        let today = self.today();
+        blocking(move || {
+            let cellen = restore(&corpus, read)?;
+            let preview = kern::voorvertoning(
+                &corpus,
+                &cellen,
+                &d.submission,
+                d.after.as_deref(),
+                &d.findings,
+                today,
+            )?;
+            Ok(to_value(&preview)?)
+        })
+        .await
+    }
+
     /// The chronicle of the cell `cell`: its records and its head.
     ///
     /// # Errors

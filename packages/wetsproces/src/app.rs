@@ -19,14 +19,22 @@
 use std::sync::Arc;
 use std::time::Duration;
 
+use std::path::Path;
+
 use axum::Router;
+use axum::body::Body;
+use axum::extract::Request;
+use axum::http::StatusCode;
 use axum::middleware;
+use axum::response::IntoResponse;
 use sqlx::PgPool;
+use tower::ServiceExt;
+use tower_http::services::{ServeDir, ServeFile};
 use tower_sessions::cookie::time::Duration as CookieDuration;
 use tower_sessions::{ExpiredDeletion, Expiry, SessionManagerLayer, SessionStore};
 use tower_sessions_memory_store::MemoryStore;
 
-use crate::api::{AppState, router};
+use crate::api::{ApiError, AppState, router};
 use crate::case::{self, CaseError};
 use crate::clock::{Clock, ControllableClock, RealClock};
 use crate::config::{Config, Mode, StoreChoice};
@@ -117,14 +125,43 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         login,
         &config.subject_claim,
     );
-    let app = router(state.clone()).layer(middleware::from_fn_with_state(
-        state,
-        regelrecht_auth::refresh_session_token::<AppState>,
-    ));
+    let app = with_frontend(router(state.clone()), &config.frontend).layer(
+        middleware::from_fn_with_state(state, regelrecht_auth::refresh_session_token::<AppState>),
+    );
     match stores.sessions {
         None => Ok(with_sessions(app, MemoryStore::default(), secure)),
         Some(pool) => Ok(with_sessions(app, postgres_sessions(pool).await?, secure)),
     }
+}
+
+/// `app` with the built frontend in `dir` behind it, when `dir` holds an
+/// `index.html`: a path that is no route of the API is a file of the
+/// frontend, or else its `index.html`, so a deep link opens the app. A path
+/// under `/api/` or `/auth/` that is no route stays a `404` of the API, so
+/// a mistyped call never gets a page back. Without the frontend the server
+/// serves the API alone.
+fn with_frontend(app: Router, dir: &Path) -> Router {
+    let index = dir.join("index.html");
+    if !index.is_file() {
+        tracing::info!(frontend = %dir.display(), "no built frontend; serving the API alone");
+        return app;
+    }
+    tracing::info!(frontend = %dir.display(), "serving the frontend");
+    let files = ServeDir::new(dir).fallback(ServeFile::new(index));
+    app.fallback(move |request: Request| {
+        let files = files.clone();
+        async move {
+            let path = request.uri().path();
+            if path.starts_with("/api/") || path.starts_with("/auth/") {
+                return ApiError::new(StatusCode::NOT_FOUND, "there is no such route")
+                    .into_response();
+            }
+            match files.oneshot(request).await {
+                Ok(response) => response.map(Body::new),
+                Err(e) => match e {},
+            }
+        }
+    })
 }
 
 /// `app` with its sessions in `store`.
@@ -218,6 +255,7 @@ mod tests {
             mode,
             store: StoreChoice::Memory,
             manifest: PathBuf::from(DEFAULT_MANIFEST),
+            frontend: PathBuf::from("/nonexistent/frontend"),
             port: DEFAULT_PORT,
             login: LoginChoice::TestLogin,
             subject_claim: DEFAULT_SUBJECT_CLAIM.into(),

@@ -34,6 +34,7 @@ fn config(mode: Mode) -> Config {
         mode,
         store: StoreChoice::Memory,
         manifest: PathBuf::from(DEFAULT_MANIFEST),
+        frontend: PathBuf::from("/nonexistent/frontend"),
         port: DEFAULT_PORT,
         login: LoginChoice::TestLogin,
         subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
@@ -591,4 +592,189 @@ async fn the_test_login_exists_only_in_test_mode_without_oidc() {
         stable.oneshot(request).await.unwrap().status(),
         StatusCode::UNAUTHORIZED
     );
+}
+
+#[tokio::test]
+async fn me_says_what_the_account_may_do_and_nothing_of_other_cells() {
+    let app = server().await;
+    let (status, ik) = citizen(&app, "anna", ANNA).await.get("/api/ik").await;
+    assert_eq!(status, StatusCode::OK, "{ik}");
+    assert_eq!(ik["burger"], json!(true));
+    assert_eq!(ik["identiteit"], json!(ANNA));
+    assert_eq!(ik["niveau"], Value::Null);
+    assert_eq!(ik["cellen"], json!([]));
+    assert_eq!(ik["klok_zetten"], json!(false));
+
+    let (status, ik) = employee(&app, "ggd-1", "wetsproces-behandelaar", GGD)
+        .await
+        .get("/api/ik")
+        .await;
+    assert_eq!(status, StatusCode::OK, "{ik}");
+    assert_eq!(ik["burger"], json!(false));
+    assert_eq!(ik["identiteit"], Value::Null);
+    assert_eq!(ik["niveau"], json!("behandelaar"));
+    assert_eq!(
+        ik["cellen"],
+        json!([{ "cel": GGD, "cel_naam": "GGD Wilgendaal", "lezen": true,
+                 "behandelen": true, "beslissen": false }])
+    );
+
+    let (_, ik) = admin(&app).await.get("/api/ik").await;
+    assert_eq!(ik["klok_zetten"], json!(true));
+}
+
+#[tokio::test]
+async fn the_test_personas_follow_from_the_case() {
+    let app = server().await;
+    let (status, personas) = anonymous(&app).get("/auth/testpersonen").await;
+    assert_eq!(status, StatusCode::OK, "{personas}");
+    let personas = personas.as_array().unwrap();
+    let citizens: Vec<&Value> = personas.iter().filter(|p| p["soort"] == "burger").collect();
+    assert_eq!(citizens.len(), 2);
+    assert_eq!(citizens[0]["claims"], json!({ "bsn": ANNA }));
+    // A handler and a decider per cell of the case, and one admin.
+    let staff = personas
+        .iter()
+        .filter(|p| p["soort"] == "medewerker")
+        .count();
+    assert_eq!(staff, 6);
+    let decider = personas
+        .iter()
+        .find(|p| p["niveau"] == "beslisser" && p["cel"] == GEMEENTE)
+        .unwrap();
+    assert_eq!(
+        decider["rollen"],
+        json!(["wetsproces-beslisser", "wetsproces-cel-gemeente_wilgendaal"])
+    );
+    // Each persona logs in as the test login takes it.
+    for p in personas {
+        let body = json!({ "sub": p["sub"], "rollen": p["rollen"], "claims": p.get("claims").cloned().unwrap_or(json!({})) });
+        let (status, _) = anonymous(&app).post("/auth/testlogin", body).await;
+        assert_eq!(status, StatusCode::OK, "{p}");
+    }
+    // Beside a login through Keycloak there are none.
+    let oidc = app::build_with(&config(Mode::Test), offline_login())
+        .await
+        .unwrap();
+    assert_eq!(
+        anonymous(&oidc).get("/auth/testpersonen").await.0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn a_preview_shows_the_outcome_and_records_nothing() {
+    let app = server().await;
+    let aanvraag = anna_applies(&app).await;
+    let op = aanvraag["id"].as_str().unwrap();
+    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser", GEMEENTE).await;
+    // Without the GGD's advice and without findings the policy finds no
+    // examination, so the card is refused; nothing more is asked, because
+    // the municipality's own judgements on it are optional.
+    let (status, preview) = beslisser
+        .post(
+            "/api/backoffice/voorvertoning",
+            json!({ "op": op, "bevindingen": {} }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{preview}");
+    assert_eq!(preview["stil"], json!([]), "{preview}");
+    assert_eq!(
+        preview["voorlopig"]["besluit"]["outputs"]["gehandicaptenparkeerkaart_verstrekt"],
+        json!(false),
+        "{preview}"
+    );
+    assert_eq!(head(&app, GEMEENTE).await, 1);
+    // A handler does not decide, so does not preview either; the GGD does
+    // not see the submission.
+    let behandelaar = employee(&app, "gemeente-2", "wetsproces-behandelaar", GEMEENTE).await;
+    let body = json!({ "op": op, "bevindingen": {} });
+    assert_eq!(
+        behandelaar
+            .post("/api/backoffice/voorvertoning", body.clone())
+            .await
+            .0,
+        StatusCode::FORBIDDEN
+    );
+    let ggd = employee(&app, "ggd-3", "wetsproces-beslisser", GGD).await;
+    assert_eq!(
+        ggd.post("/api/backoffice/voorvertoning", body).await.0,
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
+async fn why_a_decision_came_out_so_for_its_citizen_and_its_cell() {
+    let app = server().await;
+    let aanvraag = anna_applies(&app).await;
+    let op = aanvraag["id"].as_str().unwrap();
+    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser", GEMEENTE).await;
+    let (status, besluit) = beslisser
+        .post(
+            "/api/backoffice/besluiten",
+            json!({ "op": op, "bevindingen": findings() }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{besluit}");
+    let id = besluit["besluit"]["id"].as_str().unwrap();
+
+    let anna = citizen(&app, "anna", ANNA).await;
+    let (status, waarom) = anna.get(&format!("/api/dossier/waarom/{id}")).await;
+    assert_eq!(status, StatusCode::OK, "{waarom}");
+    assert!(
+        !waarom["ingevuld"].as_array().unwrap().is_empty(),
+        "{waarom}"
+    );
+    let (status, ook) = beslisser.get(&format!("/api/backoffice/waarom/{id}")).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(ook, waarom);
+
+    // Not for another citizen, nor for a cell that does not hold it.
+    let bram = citizen(&app, "bram", BRAM).await;
+    let (status, fout) = bram.get(&format!("/api/dossier/waarom/{id}")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{fout}");
+    let ggd = employee(&app, "ggd-1", "wetsproces-lezer", GGD).await;
+    assert_eq!(
+        ggd.get(&format!("/api/backoffice/waarom/{id}")).await.0,
+        StatusCode::NOT_FOUND
+    );
+    // An application is no decision: the kern refuses to explain it.
+    let (status, _) = anna.get(&format!("/api/dossier/waarom/{op}")).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+}
+
+#[tokio::test]
+async fn the_frontend_is_served_beside_the_api_and_a_wrong_api_path_stays_a_404() {
+    let dir = std::env::temp_dir().join(format!("wetsproces-frontend-{}", std::process::id()));
+    std::fs::create_dir_all(dir.join("assets")).unwrap();
+    std::fs::write(dir.join("index.html"), "<!doctype html><title>app</title>").unwrap();
+    std::fs::write(dir.join("assets/app.js"), "console.log(1)").unwrap();
+    let mut c = config(Mode::Test);
+    c.frontend = dir.clone();
+    let app = app::build_with(&c, Login::TestLogin).await.unwrap();
+    let body = |path: &'static str| {
+        let app = app.clone();
+        async move {
+            let response = app
+                .oneshot(Request::get(path).body(Body::empty()).unwrap())
+                .await
+                .unwrap();
+            let status = response.status();
+            let bytes = response.into_body().collect().await.unwrap().to_bytes();
+            (status, String::from_utf8_lossy(&bytes).into_owned())
+        }
+    };
+    let (status, page) = body("/").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(page.contains("<title>app</title>"));
+    // A deep link opens the app.
+    let (status, page) = body("/backoffice/werkvoorraad").await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(page.contains("<title>app</title>"));
+    assert_eq!(body("/assets/app.js").await.1, "console.log(1)");
+    let (status, fout) = body("/api/bestaat-niet").await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    assert!(fout.contains("fout"), "{fout}");
+    assert_eq!(body("/auth/bestaat-niet").await.0, StatusCode::NOT_FOUND);
+    std::fs::remove_dir_all(&dir).unwrap();
 }
