@@ -35,6 +35,7 @@ pub mod data_source;
 mod demand;
 pub mod engine;
 pub mod error;
+pub mod host_check;
 mod load_check;
 pub mod operations;
 pub mod priority;

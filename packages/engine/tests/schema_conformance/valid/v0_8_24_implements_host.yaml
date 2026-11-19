@@ -1,7 +1,7 @@
 ---
 # Tier C: an implements that names the article a hook fires on (`host`,
 # schema v0.8.24, RFC-058).
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json
 $id: test_conformance_implements_host
 regulatory_layer: BELEIDSREGEL
 bwb_id: BWBR9999944

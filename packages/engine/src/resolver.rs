@@ -361,14 +361,15 @@ fn declaration_fingerprint(law: &ArticleBasedLaw) -> Vec<String> {
         if let Some(hooks) = article.get_hooks() {
             for decl in hooks {
                 parts.push(format!(
-                    "hook\0{}\0{:?}\0{:?}\0{:?}\0{:?}\0{:?}\0{:?}",
+                    "hook\0{}\0{:?}\0{:?}\0{:?}\0{:?}\0{:?}\0{:?}\0{:?}",
                     article.number,
                     decl.hook_point,
                     decl.applies_to.legal_character,
                     decl.applies_to.decision_type,
                     decl.applies_to.stage,
                     decl.applies_to.submission,
-                    decl.applies_to.established_by
+                    decl.applies_to.established_by,
+                    decl.applies_to.host
                 ));
             }
         }
@@ -683,7 +684,50 @@ impl RuleResolver {
             )));
         }
 
+        // RFC-058: a host that cannot be right is a warning, never a load
+        // error.
+        for warning in self.host_warnings_on_load(&law) {
+            tracing::warn!(
+                law_id = %warning.law_id,
+                article = %warning.article,
+                host_law = %warning.host_law,
+                "{}",
+                warning.message
+            );
+        }
+
         self.insert_law(law)
+    }
+
+    /// The warnings for a host that cannot be right (RFC-058) that loading
+    /// `law` brings about: those of `law` itself against the laws loaded so
+    /// far, and those of the loaded laws that rest on `law`, as the host or
+    /// as the law whose term a filling fills. Together they come out the same
+    /// whatever order the laws arrive in; each is given once.
+    pub(crate) fn host_warnings_on_load(
+        &self,
+        law: &ArticleBasedLaw,
+    ) -> Vec<crate::host_check::HostWarning> {
+        let lookup = |id: &str| {
+            if id == law.id {
+                Some(law)
+            } else {
+                self.get_law(id)
+            }
+        };
+        let mut warnings = crate::host_check::check_law(law, &lookup);
+        for consumer in self.all_law_versions().filter(|consumer| {
+            consumer.id != law.id && crate::host_check::depends_on(consumer, &law.id)
+        }) {
+            warnings.extend(
+                crate::host_check::check_law(consumer, &lookup)
+                    .into_iter()
+                    .filter(|warning| warning.rests_on(&law.id)),
+            );
+        }
+        warnings.sort();
+        warnings.dedup();
+        warnings
     }
 
     /// [`Self::load_law`] without the type check: the run-time boundary checks
@@ -823,6 +867,10 @@ impl RuleResolver {
                     (None, Some(_)) if f.stage.is_some() || f.decision_type.is_some() => Some(
                         "a hook on a submission takes no stage or decision_type; \
                          established_by narrows it",
+                    ),
+                    (None, Some(_)) if f.host.is_some() => Some(
+                        "a hook on a submission takes no applies_to.host; \
+                         established_by narrows it to one article (RFC-058)",
                     ),
                     _ => None,
                 };
@@ -1975,13 +2023,17 @@ impl RuleResolver {
         notes
     }
 
-    /// Find hooks that match a given lifecycle event.
+    /// Find the hooks at this lifecycle event that fire on the decision that
+    /// article `decision.1` of law `decision.0` gives.
     ///
     /// Returns matching (law_id, article_number, filter) entries.
-    /// Filters by stage: if the hook has a stage, it must match; if not, it defaults to "BESLUIT".
+    /// Filters by stage: if the hook has a stage, it must match; if not, it
+    /// defaults to "BESLUIT". A hook with `applies_to.host` fires only on the
+    /// decisions of the law or article it names (RFC-058).
     pub(crate) fn find_hooks(
         &self,
         hook_point: HookPoint,
+        decision: (&str, &str),
         legal_character: &str,
         decision_type: Option<&str>,
         stage: &str,
@@ -1996,7 +2048,7 @@ impl RuleResolver {
 
         entries
             .iter()
-            .filter(|entry| hook_filter_admits(&entry.filter, decision_type, stage))
+            .filter(|entry| hook_filter_admits(&entry.filter, decision, decision_type, stage))
             .collect()
     }
 
@@ -2146,17 +2198,27 @@ impl RuleResolver {
     }
 }
 
-/// Whether a hook filter admits a decision at this stage, apart from its legal
-/// character (which the hooks index is keyed on).
+/// Whether a hook filter admits the decision that article `decision.1` of
+/// law `decision.0` gives at this stage, apart from its legal character
+/// (which the hooks index is keyed on).
 ///
 /// An absent stage means BESLUIT (backward compatibility per RFC-008); an
-/// absent decision type admits every decision type.
+/// absent decision type admits every decision type, and an absent host every
+/// law (RFC-058).
 pub(crate) fn hook_filter_admits(
     filter: &HookFilter,
+    (law_id, article_number): (&str, &str),
     decision_type: Option<&str>,
     stage: &str,
 ) -> bool {
     if filter.stage.as_deref().unwrap_or("BESLUIT") != stage {
+        return false;
+    }
+    if !filter
+        .host
+        .as_ref()
+        .is_none_or(|host| host.admits(law_id, article_number))
+    {
         return false;
     }
     match filter.decision_type.as_deref() {
@@ -4592,7 +4654,13 @@ articles:
         assert_eq!(overrides.len(), 1);
         assert_eq!(overrides[0].law_id, "afwijkingswet");
 
-        let hooks = resolver.find_hooks(HookPoint::PostActions, "BESCHIKKING", None, "BESLUIT");
+        let hooks = resolver.find_hooks(
+            HookPoint::PostActions,
+            ("decision_law", "1"),
+            "BESCHIKKING",
+            None,
+            "BESLUIT",
+        );
         assert_eq!(hooks.len(), 1);
         assert_eq!(hooks[0].law_id, "hookwet");
 
@@ -4653,7 +4721,13 @@ articles:
         assert_eq!(overrides[0].law_id, "afwijkingswet_b");
 
         // Hooks: only b survives, and it is really b.
-        let hooks = resolver.find_hooks(HookPoint::PostActions, "BESCHIKKING", None, "BESLUIT");
+        let hooks = resolver.find_hooks(
+            HookPoint::PostActions,
+            ("decision_law", "1"),
+            "BESCHIKKING",
+            None,
+            "BESLUIT",
+        );
         assert_eq!(hooks.len(), 1);
         assert_eq!(hooks[0].law_id, "hookwet_b");
 
@@ -5111,7 +5185,13 @@ articles:
 
         let find = |dt: Option<&str>| {
             resolver
-                .find_hooks(HookPoint::PostActions, "BESCHIKKING", dt, "BESLUIT")
+                .find_hooks(
+                    HookPoint::PostActions,
+                    ("decision_law", "1"),
+                    "BESCHIKKING",
+                    dt,
+                    "BESLUIT",
+                )
                 .len()
         };
 
@@ -5131,7 +5211,13 @@ articles:
         for dt in [Some("TOEKENNING"), Some("AFWIJZING"), None] {
             assert_eq!(
                 resolver
-                    .find_hooks(HookPoint::PostActions, "BESCHIKKING", dt, "BESLUIT")
+                    .find_hooks(
+                        HookPoint::PostActions,
+                        ("decision_law", "1"),
+                        "BESCHIKKING",
+                        dt,
+                        "BESLUIT"
+                    )
                     .len(),
                 1,
                 "unfiltered hook should fire for decision_type {dt:?}"
@@ -5141,7 +5227,13 @@ articles:
         // Stage still filters.
         assert_eq!(
             resolver
-                .find_hooks(HookPoint::PostActions, "BESCHIKKING", None, "BEKENDMAKING")
+                .find_hooks(
+                    HookPoint::PostActions,
+                    ("decision_law", "1"),
+                    "BESCHIKKING",
+                    None,
+                    "BEKENDMAKING"
+                )
                 .len(),
             0
         );
@@ -5344,5 +5436,74 @@ articles:
                 )
             );
         }
+    }
+
+    /// The loader's warnings for a host that cannot be right (RFC-058) come
+    /// out the same whatever order the laws arrive in. The fixture rulework
+    /// of `tests/hook_host_checks.rs`, with 4:13 firing before the actions
+    /// and one more filling that reads an output of its host: that one is a
+    /// warning only once the hook article is known to fire before the
+    /// actions, so it rests on the general law as well as on the host.
+    #[test]
+    fn host_warnings_do_not_depend_on_the_load_order() {
+        let general = include_str!("../tests/fixtures/hook_host/algemene_wet_voorbeeld.yaml")
+            .replace("post_actions", "pre_actions");
+        let reads_output = r#"
+$id: invulling_uitvoer_voorbeeld
+regulatory_layer: BELEIDSREGEL
+publication_date: '2025-06-01'
+articles:
+  - number: '1'
+    text: Na een vaststelling wordt binnen vier weken beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host: {law: subsidiewet_voorbeeld, article: '3'}
+      execution:
+        parameters:
+          - {name: subsidie_vastgesteld, type: boolean, required: true}
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: wettelijke_beslistermijn, type: date}
+        actions:
+          - output: wettelijke_beslistermijn
+            value: {operation: DATE_ADD, date: $datum_ontvangst, weeks: 4}
+"#;
+        let laws = [
+            general.as_str(),
+            include_str!("../tests/fixtures/hook_host/subsidiewet_voorbeeld.yaml"),
+            include_str!("../tests/fixtures/hook_host/beleidsregel_subsidie_voorbeeld.yaml"),
+            include_str!("../tests/fixtures/hook_host/host_fouten_voorbeeld.yaml"),
+            reads_output,
+        ];
+        let warnings_in = |order: &[usize]| {
+            let mut resolver = RuleResolver::new();
+            let mut warnings = BTreeSet::new();
+            for &i in order {
+                let law = ArticleBasedLaw::from_yaml_str(laws[i]).unwrap();
+                warnings.extend(resolver.host_warnings_on_load(&law));
+                resolver.load_law(law).unwrap();
+            }
+            warnings
+        };
+        let forward = warnings_in(&[0, 1, 2, 3, 4]);
+        assert_eq!(forward, warnings_in(&[4, 3, 2, 1, 0]));
+        assert_eq!(forward, warnings_in(&[1, 4, 3, 0, 2]));
+        let places: Vec<(&str, &str)> = forward
+            .iter()
+            .map(|w| (w.law_id.as_str(), w.article.as_str()))
+            .collect();
+        assert_eq!(
+            places,
+            [
+                ("beleidsregel_subsidie_voorbeeld", "3"),
+                ("host_fouten_voorbeeld", "1"),
+                ("host_fouten_voorbeeld", "2"),
+                ("host_fouten_voorbeeld", "5"),
+                ("invulling_uitvoer_voorbeeld", "1"),
+            ]
+        );
     }
 }

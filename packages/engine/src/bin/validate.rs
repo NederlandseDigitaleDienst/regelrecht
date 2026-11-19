@@ -164,6 +164,18 @@ fn main() {
             );
             failed = true;
         }
+
+        // Step 5: a host (RFC-058) that cannot be right, checked against the
+        // laws of the set. A WARN: the regulation still runs, and the host
+        // may name a law outside the set.
+        for warning in regelrecht_engine::host_check::check_law(law, &lookup) {
+            eprintln!(
+                "WARN: {}: host: article {}: {}",
+                path.display(),
+                warning.article,
+                warning.message
+            );
+        }
     }
 
     if failed {

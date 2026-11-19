@@ -117,3 +117,46 @@ fn a_type_error_in_a_valid_file_fails() {
     // The schema passed the file; the failure comes from the type check.
     assert!(err.contains("OK:"), "stderr: {err}");
 }
+
+/// Een host die niet klopt (RFC-058) is een WARN, geen FAIL: het regelwerk
+/// draait nog. Elke waarschuwing noemt artikel en host; een host in een wet
+/// die niet in de set zit (`onbekende_wet_voorbeeld`) en een host die klopt
+/// geven er geen.
+#[test]
+fn een_host_die_niet_klopt_is_een_waarschuwing() {
+    let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/hook_host");
+    let mut files: Vec<PathBuf> = std::fs::read_dir(&dir)
+        .unwrap()
+        .map(|entry| entry.unwrap().path())
+        .collect();
+    files.sort();
+    let output = run(&files);
+    let err = stderr(&output);
+    assert_eq!(output.status.code(), Some(0), "stderr: {err}");
+    let warnings: Vec<&str> = err.lines().filter(|l| l.starts_with("WARN:")).collect();
+    let expected = [
+        (
+            "beleidsregel_subsidie_voorbeeld.yaml: host: article 3:",
+            "host article 11 of 'subsidiewet_voorbeeld', which that law does not have",
+        ),
+        (
+            "host_fouten_voorbeeld.yaml: host: article 1:",
+            "gives no decision and establishes no submission",
+        ),
+        (
+            "host_fouten_voorbeeld.yaml: host: article 2:",
+            "required parameter(s) 'subsidiejaar'",
+        ),
+        (
+            "host_fouten_voorbeeld.yaml: host: article 5:",
+            "a hook names host article 2 of 'subsidiewet_voorbeeld', which gives no BESCHIKKING",
+        ),
+    ];
+    assert_eq!(warnings.len(), expected.len(), "stderr: {err}");
+    for (line, (place, what)) in warnings.iter().zip(expected) {
+        assert!(
+            line.contains(place) && line.contains(what),
+            "expected {place} {what}, got: {line}"
+        );
+    }
+}

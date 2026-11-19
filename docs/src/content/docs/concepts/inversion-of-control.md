@@ -160,6 +160,8 @@ implements:
 
 A filling without a host fills the term wherever the article runs, under every hook and outside one, with the parameters of the hook article itself. A parameter only the host has is not there: a required one makes the implementation fail, and an optional one is unknown. It never quietly gets the host's value.
 
+A `host` that names the wrong article does not fail: the filling never applies and the default does. Where the law of the host is loaded, `just validate` and the loader's log warn about that. They warn when the law has no article with that number, when the article gives no decision and establishes no submission, and when the filling asks for a required parameter the host article has neither as a parameter nor as an input (nor as an output, for a hook that fires after the actions). A host in a law that is not loaded gives no warning, since it may come from another corpus.
+
 Under a hook, a filling that names the host goes before one that names none; within each group the [conflict rules](#conflict-resolution) apply. While the hook runs, a hook that reads another hook's output on the same decision gets that decision's fillings too. [RFC-058](/rfcs/rfc-058) has the reasoning and a worked example.
 
 ## Conflict resolution

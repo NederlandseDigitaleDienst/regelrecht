@@ -25,15 +25,15 @@ pub use header::{LawHeader, parse_law_header};
 pub use model::{
     Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, ArticleReference,
     ArticleRequirement, AuthorityType, Case, Column, CombineOp, CompetentAuthority,
-    DEFAULT_FOREACH_AS, Declaration, DeclaredProperty, Definition, Execution, HookDeclaration,
-    HookFilter, HookHostReference, HookPoint, ImplementsDeclaration, Input, LegalBasis,
-    MachineReadable, Marking, MarkingResolution, Moment, NamedAuthority, OpenTerm, OpenTermDefault,
-    Output, OverrideDeclaration, Parameter, Placement, PlacementContainer, Preamble,
-    ProcedureAppliesTo, ProcedureDefinition, Produced, ProducedItem, Produces, ProducesList,
-    Projection, ProjectionStep, ProvisionReference, RecordEffect, ResolveSpec, SUBMISSION_KINDS,
-    Source, Stage, StageRequirement, StateProperty, StepSource, Submission, Temporal, TypeSpec,
-    UntranslatableEntry, foreach_binding, is_article_reference, is_fact_reference,
-    is_variable_reference, names_fact, split_projections,
+    DEFAULT_FOREACH_AS, DecisionHost, Declaration, DeclaredProperty, Definition, Execution,
+    HookDeclaration, HookFilter, HookHostReference, HookPoint, ImplementsDeclaration, Input,
+    LegalBasis, MachineReadable, Marking, MarkingResolution, Moment, NamedAuthority, OpenTerm,
+    OpenTermDefault, Output, OverrideDeclaration, Parameter, Placement, PlacementContainer,
+    Preamble, ProcedureAppliesTo, ProcedureDefinition, Produced, ProducedItem, Produces,
+    ProducesList, Projection, ProjectionStep, ProvisionReference, RecordEffect, ResolveSpec,
+    SUBMISSION_KINDS, Source, Stage, StageRequirement, StateProperty, StepSource, Submission,
+    Temporal, TypeSpec, UntranslatableEntry, foreach_binding, is_article_reference,
+    is_fact_reference, is_variable_reference, names_fact, split_projections,
 };
 /// The engine reads a version through the model, not from `regelrecht-shared`
 /// itself: it sits on the model alone.

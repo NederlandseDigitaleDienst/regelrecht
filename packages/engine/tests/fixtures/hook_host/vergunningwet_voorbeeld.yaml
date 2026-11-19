@@ -1,0 +1,21 @@
+---
+# Fictief. Een toekenning van een andere wet.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json
+$id: vergunningwet_voorbeeld
+regulatory_layer: WET
+bwb_id: BWBR9999952
+publication_date: '2025-01-01'
+url: https://example.invalid/vergunningwet
+articles:
+  - number: '1'
+    url: https://example.invalid/vergunningwet/1
+    text: Burgemeester en wethouders verlenen op aanvraag een vergunning.
+    machine_readable:
+      execution:
+        produces: {legal_character: BESCHIKKING, decision_type: TOEKENNING}
+        parameters:
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: vergunning_verleend, type: boolean}
+        actions:
+          - {output: vergunning_verleend, value: true}

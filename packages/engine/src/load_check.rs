@@ -126,28 +126,45 @@ pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
-/// Refuse an `implements` that names the article a hook fires on (`host`) in
-/// a file on a schema version before v0.8.24, which does not know the field.
+/// Refuse a `host` in a file on a schema version that does not know it: on an
+/// `implements`, the article a hook fires on (v0.8.24), and on a hook's
+/// `applies_to`, the law or article whose decisions it fires on (v0.8.25).
 /// The schema refuses it there too; the loader repeats that because a
 /// document can reach the engine without passing schema validation, and the
-/// filling would then apply to one decision only under a version whose
-/// readers take it to apply to every one.
+/// filling or the hook would then apply to fewer decisions than readers of
+/// that version take it to apply to.
 pub(crate) fn reject_host_before_its_version(law: &ArticleBasedLaw) -> Result<()> {
-    if from_version(law, (0, 8, 24)) {
-        return Ok(());
-    }
+    let refuse = |what: String, version: &str| {
+        Err(EngineError::LoadError(format!(
+            "law '{}' {what} with a host, which schema {version} introduced; \
+             declare {version} or later",
+            law.id
+        )))
+    };
+    let knows_implements_host = from_version(law, (0, 8, 24));
+    let knows_hook_host = from_version(law, (0, 8, 25));
     for (where_, section) in sections(law) {
-        let named = section
+        let filling = section
             .implements
             .iter()
             .flatten()
             .find(|declaration| declaration.host.is_some());
-        if let Some(declaration) = named {
-            return Err(EngineError::LoadError(format!(
-                "law '{}' {where_}: implements open term '{}' of {} article {} with a host, \
-                 which schema v0.8.24 introduced; declare v0.8.24 or later",
-                law.id, declaration.open_term, declaration.law, declaration.article
-            )));
+        if let Some(declaration) = filling.filter(|_| !knows_implements_host) {
+            return refuse(
+                format!(
+                    "{where_}: implements open term '{}' of {} article {}",
+                    declaration.open_term, declaration.law, declaration.article
+                ),
+                "v0.8.24",
+            );
+        }
+        let hook = section
+            .hooks
+            .iter()
+            .flatten()
+            .any(|hook| hook.applies_to.host.is_some());
+        if hook && !knows_hook_host {
+            return refuse(format!("{where_}: has a hook"), "v0.8.25");
         }
     }
     Ok(())

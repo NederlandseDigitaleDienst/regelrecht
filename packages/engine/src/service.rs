@@ -3581,6 +3581,7 @@ impl LawExecutionService {
         let mut hooks = match decision.and_then(|d| d.legal_character()) {
             Some(lc) => self.resolver.find_hooks(
                 hook_point,
+                (&law.id, &article.number),
                 lc,
                 decision.and_then(|d| d.decision_type()),
                 stage,
@@ -3719,6 +3720,10 @@ impl LawExecutionService {
                                                         legal_character == Some(lc.as_str())
                                                             && hook_filter_admits(
                                                                 f,
+                                                                (
+                                                                    establishing_law,
+                                                                    establishing_article,
+                                                                ),
                                                                 decision_type,
                                                                 stage,
                                                             )
