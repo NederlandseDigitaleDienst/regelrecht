@@ -132,5 +132,6 @@ Always use semantic tokens when available. Only use primitives when no semantic 
 
 UI is built with the NLDD web components (`nldd-*`, from `@nldd/design-system`).
 The rules are in `AGENTS.md` under "Frontend / UI Components"; the nesting and
-layout patterns are in the `storybook-component-hierarchy` skill. Check an
+layout patterns are in the `nldd-design-build` skill of the design-system
+plugin. Check an
 attribute against the package's own `.d.ts` before using it.
