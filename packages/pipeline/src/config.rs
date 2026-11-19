@@ -5,8 +5,10 @@ use regelrecht_corpus::CorpusConfig;
 
 use crate::error::{PipelineError, Result};
 
-fn resolve_database_url() -> Result<String> {
-    regelrecht_shared::postgres::database_url(|k| std::env::var(k).ok())
+/// The database URL in the environment `env` (`DATABASE_URL`, else
+/// `DATABASE_SERVER_FULL`), as the shared lookup reads it.
+fn resolve_database_url(env: impl Fn(&str) -> Option<String>) -> Result<String> {
+    regelrecht_shared::postgres::database_url(env)
         .ok_or_else(|| PipelineError::Config("DATABASE_URL or DATABASE_SERVER_FULL not set".into()))
 }
 
@@ -35,7 +37,7 @@ impl std::fmt::Debug for PipelineConfig {
 impl PipelineConfig {
     pub fn from_env() -> Result<Self> {
         Ok(Self {
-            database_url: resolve_database_url()?,
+            database_url: resolve_database_url(|k| std::env::var(k).ok())?,
             max_connections: resolve_max_connections(),
         })
     }
@@ -134,7 +136,7 @@ impl std::fmt::Debug for WorkerConfig {
 
 impl WorkerConfig {
     pub fn from_env() -> Result<Self> {
-        let database_url = resolve_database_url()?;
+        let database_url = resolve_database_url(|k| std::env::var(k).ok())?;
         let max_connections = resolve_max_connections();
 
         let output_dir = std::env::var("REGULATION_REPO_PATH")
@@ -271,6 +273,22 @@ fn orphan_timeout_secs(configured: Option<u64>) -> (u64, bool) {
         None => (5 * 60, false),
         Some(secs) if secs < min => (min, true),
         Some(secs) => (secs, false),
+    }
+}
+
+#[cfg(test)]
+mod database_url_tests {
+    use super::resolve_database_url;
+
+    #[test]
+    fn takes_the_url_the_environment_gives_and_refuses_without_one() {
+        let env =
+            |k: &str| (k == "DATABASE_SERVER_FULL").then(|| "postgres://db.example/x".to_string());
+        assert_eq!(
+            resolve_database_url(env).ok().as_deref(),
+            Some("postgres://db.example/x")
+        );
+        assert!(resolve_database_url(|_| None).is_err());
     }
 }
 

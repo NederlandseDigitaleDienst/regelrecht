@@ -303,6 +303,7 @@ fn frontend_apps_extracted() {
         "app:frontend-poc-regels-op-een-plek",
         "app:frontend-poc-terugbetaalregimes",
         "app:frontend-shared",
+        "app:frontend-wetsproces",
         "app:poc-chronolexografie-frontend",
     ]
     .iter()

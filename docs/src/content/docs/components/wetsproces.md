@@ -61,7 +61,7 @@ A commit is one transaction. It claims its idempotency key first, so a retry und
 | `DATABASE_URL` | none | The database for the `postgres` store; `DATABASE_SERVER_FULL` is read as fallback. Required with that store. |
 | `WETSPROCES_MANIFEST` | `packages/wetsproces/bron.yaml` | The source manifest |
 | `WETSPROCES_PORT` | 8000 | The port |
-| `WETSPROCES_FRONTEND` | `frontend-wetsproces/dist` of the checkout; `/app/frontend` in the image | The built screens. Without an `index.html` there the server serves its API alone |
+| `WETSPROCES_FRONTEND` | the build output of `frontend-wetsproces/` in the checkout; `/app/frontend` in the image | The built screens. Without an `index.html` there the server serves its API alone |
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_DISCOVERY_URL` | none | The Keycloak client; `KEYCLOAK_BASE_URL` with `KEYCLOAK_REALM` may replace the discovery URL. Required in stable mode. |
 | `OIDC_REQUIRED_ROLE` | none | The role every account needs to log in, `wetsproces-toegang`. Required with OIDC; a role without the `wetsproces-` prefix is refused, because the realm is shared with the editor. |
 | `BASE_URL` | none | Where the server is reached, for the redirect back after login. Required in stable mode. |
