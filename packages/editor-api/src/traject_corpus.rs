@@ -40,7 +40,7 @@ use sqlx::PgPool;
 use tokio::sync::{Mutex, RwLock};
 use uuid::Uuid;
 
-use crate::state::{BackendEntry, CorpusState};
+use crate::state::{BackendEntry, CorpusState, global_body_key};
 use crate::traject_index_diagnosis::OwnSourceTarget;
 
 /// Resolved corpus state for a single traject, plus per-source write
@@ -107,20 +107,25 @@ pub struct TrajectCorpus {
     /// so a re-read of an unloaded law (read-only article view, reload,
     /// another tab) doesn't spend another Contents API call.
     ///
-    /// Unlike `overlay` this is per-snapshot: a TTL index refresh starts
-    /// with an empty cache, so upstream content changes become visible
-    /// within [`TRAJECT_INDEX_TTL`] instead of being served stale until
-    /// process restart. Bounded at [`BODY_CACHE_MAX_ENTRIES`] with FIFO
-    /// eviction so a crawl across a large federated corpus can't grow it
-    /// without limit.
-    body_cache: RwLock<BoundedCache<String>>,
+    /// Keyed per version file ([`global_body_key`]: source id plus
+    /// source-relative path), so every version the dependency loader asks
+    /// for is cached, not only the one in force today.
+    ///
+    /// A TTL index refresh keeps the bodies whose file still has the same
+    /// blob sha in the new listing and drops the rest (see
+    /// [`next_snapshot`]), so upstream content changes become visible
+    /// within [`TRAJECT_INDEX_TTL`] while an unchanged law is fetched once
+    /// per process instead of once a minute. Bounded at
+    /// [`BODY_CACHE_MAX_ENTRIES`] with FIFO eviction so a crawl across a
+    /// large federated corpus can't grow it without limit.
+    body_cache: RwLock<BoundedCache<CachedBody>>,
     /// Law-scoped sidecar files (annotations, individual scenario
     /// `.feature` files) fetched lazily on first read, keyed by a
     /// caller-prefixed string (see `corpus_handlers`). `None` entries are
     /// cached too — "this law has no annotations" costs a full GitHub
     /// round-trip to rediscover, and the editor asks on every law open.
     ///
-    /// Per-snapshot like `body_cache` (upstream edits become visible
+    /// Per-snapshot: a refresh starts it empty (upstream edits become visible
     /// within [`TRAJECT_INDEX_TTL`]); writes keep it correct within the
     /// window via [`Self::store_sidecar`] / [`Self::invalidate_sidecar`]
     /// (read-your-writes, like the law-body `overlay`).
@@ -281,18 +286,19 @@ const CHANGED_LAWS_TTL: Duration = Duration::from_secs(60);
 const CHANGED_REFRESH_GATE_WAIT: Duration = Duration::from_secs(10);
 
 /// How long a traject's cached index snapshot (its [`SourceMap`] plus the
-/// derived body / sidecar / implements caches) is served before the first
+/// derived sidecar / implements caches) is served before the first
 /// request past the deadline triggers a *background* re-enumeration of
 /// the sources (stale-while-revalidate — the triggering request itself
 /// keeps serving the stale snapshot). Same convergence target as
 /// [`CHANGED_LAWS_TTL`]: upstream changes (new laws merged, re-harvests,
 /// saves on another replica) show up within roughly a minute instead of
 /// requiring a process restart, while a burst of library loads still hits
-/// the snapshot. The refresh keeps backends, the post-save overlay and the
-/// changed-laws cache (see [`TrajectCorpusCache::get_or_build`]).
+/// the snapshot. The refresh keeps backends, the post-save overlay, the
+/// changed-laws cache and the bodies of unchanged laws (see
+/// [`refresh_traject_corpus`]).
 const TRAJECT_INDEX_TTL: Duration = Duration::from_secs(60);
 
-/// Upper bound on lazily-fetched law bodies cached per traject snapshot
+/// Upper bound on lazily-fetched law bodies cached per traject
 /// (see [`TrajectCorpus::body_cache`]). At a typical body size of a few
 /// tens of KB this caps the cache at low tens of MB per traject — enough
 /// to cover an implements-index scan over a mid-sized federated corpus
@@ -318,11 +324,21 @@ const BULK_FETCH_THRESHOLD: usize = 16;
 /// the outer `RwLock`'s read guard, no per-hit reordering under a write
 /// lock. Eviction order only matters once a traject's read set exceeds
 /// [`BODY_CACHE_MAX_ENTRIES`], which is already crawl territory.
-#[derive(Default)]
 pub(crate) struct BoundedCache<V> {
     map: HashMap<String, V>,
     /// Insertion order of the keys in `map`, oldest first.
     order: VecDeque<String>,
+}
+
+// Written out: the derive would ask `V: Default`, which an empty cache
+// does not need.
+impl<V> Default for BoundedCache<V> {
+    fn default() -> Self {
+        Self {
+            map: HashMap::new(),
+            order: VecDeque::new(),
+        }
+    }
 }
 
 impl<V> BoundedCache<V> {
@@ -343,6 +359,24 @@ impl<V> BoundedCache<V> {
         self.map.insert(key, value);
     }
 
+    /// A copy holding only the entries `keep` accepts, in their original
+    /// insertion order, so eviction keeps dropping the oldest first.
+    fn retained(&self, keep: impl Fn(&str, &V) -> bool) -> Self
+    where
+        V: Clone,
+    {
+        let mut kept = Self::default();
+        for key in &self.order {
+            if let Some(value) = self.map.get(key)
+                && keep(key, value)
+            {
+                kept.map.insert(key.clone(), value.clone());
+                kept.order.push_back(key.clone());
+            }
+        }
+        kept
+    }
+
     /// Drop one key, including its `order` entry. The O(n) deque scan is
     /// fine — invalidations are save/delete-driven, so rare. Leaving the
     /// order entry behind would be subtly wrong at capacity: a re-insert
@@ -354,6 +388,42 @@ impl<V> BoundedCache<V> {
             self.order.retain(|k| k != key);
         }
     }
+}
+
+/// A lazily fetched law body together with the git blob sha of that text.
+///
+/// The sha is computed from the fetched text, not copied from the index
+/// entry the fetch started from: the branch can move between the listing
+/// and the fetch, and a body filed under the listing's sha would then be
+/// kept for as long as the file returns to that sha. Computed, the pair is
+/// always consistent, and comparing it with a later listing is exact.
+#[derive(Clone)]
+struct CachedBody {
+    /// Shared, so carrying a body into the next snapshot copies no text.
+    text: Arc<str>,
+    blob_sha: String,
+}
+
+impl CachedBody {
+    fn of(text: &str) -> Self {
+        Self {
+            text: Arc::from(text),
+            blob_sha: git_blob_sha(text),
+        }
+    }
+}
+
+/// The sha git gives a file with this content: SHA-1 over the header
+/// `blob {byte length}\0` followed by the bytes. This is the sha the GitHub
+/// Trees listing reports per file ([`LoadedLaw::content_sha`]).
+///
+/// [`LoadedLaw::content_sha`]: regelrecht_corpus::source_map::LoadedLaw::content_sha
+fn git_blob_sha(content: &str) -> String {
+    use sha1::{Digest, Sha1};
+    let mut hasher = Sha1::new();
+    hasher.update(format!("blob {}\0", content.len()));
+    hasher.update(content.as_bytes());
+    format!("{:x}", hasher.finalize())
 }
 
 /// Content-addressed memo behind [`TrajectCorpus::implements_memo`]:
@@ -519,9 +589,6 @@ impl TrajectCorpus {
         if let Some(text) = self.overlay.read().await.get(law_id) {
             return Ok(Some(text.clone()));
         }
-        if let Some(text) = self.body_cache.read().await.get(law_id) {
-            return Ok(Some(text.clone()));
-        }
 
         // Pull the bits we need out of the index entry, then drop the borrow
         // before the await below.
@@ -548,34 +615,52 @@ impl TrajectCorpus {
             )));
         };
 
-        // The personal token authenticates exclusively against the
-        // traject's own repo; a seed read must never carry it.
+        // `?` propagates a read error rather than collapsing it to None.
+        self.read_body(entry, &source_id, &relative_path, own_read_token)
+            .await
+    }
+
+    /// The body of one version file of a metadata-only law: from the body
+    /// cache, or fetched from `entry` (one Contents API call) and cached.
+    ///
+    /// Caching means re-reads don't each spend another call (read-only
+    /// views, reloads, a second tab, the dependency loader asking for every
+    /// version), and a genuinely empty body is fetched once instead of on
+    /// every call: the empty-`yaml_content` "unloaded" sentinel cannot tell
+    /// the two apart, this cache can.
+    ///
+    /// `own_read_token` is applied only when `source_id` is the
+    /// writable-own source: the personal token authenticates exclusively
+    /// against the traject's own repo, and a seed read must never carry it.
+    async fn read_body(
+        &self,
+        entry: &BackendEntry,
+        source_id: &str,
+        relative_path: &str,
+        own_read_token: Option<&str>,
+    ) -> Result<Option<String>, regelrecht_corpus::error::CorpusError> {
+        let key = global_body_key(source_id, relative_path);
+        if let Some(body) = self.body_cache.read().await.get(&key) {
+            return Ok(Some(body.text.to_string()));
+        }
+
         let token = (source_id == self.writable_own_source_id)
             .then_some(own_read_token)
             .flatten();
         let content = {
             let backend = entry.backend.lock().await;
-            // `?` propagates a read error rather than collapsing it to None.
             backend
-                .read_file_with_token(std::path::Path::new(&relative_path), token)
+                .read_file_with_token(std::path::Path::new(relative_path), token)
                 .await?
         };
         let Some(content) = content else {
             return Ok(None);
         };
 
-        // Cache the lazily-fetched body so re-reads of this unloaded law don't
-        // each spend another Contents API call (read-only views, reloads, a
-        // second tab). Per-snapshot: discarded on a TTL index refresh so
-        // upstream content changes converge, and bounded so a corpus-wide
-        // crawl can't grow it without limit. Also makes a genuinely-empty
-        // body a one-shot fetch rather than re-fetching every call (the
-        // empty-`yaml_content` "unloaded" sentinel can't tell them apart,
-        // but this cache short-circuits before that check).
         self.body_cache
             .write()
             .await
-            .insert(law_id.to_string(), content.clone());
+            .insert(key, CachedBody::of(&content));
         Ok(Some(content))
     }
 
@@ -587,12 +672,13 @@ impl TrajectCorpus {
     /// date — fixing the case where a referenced law has a future-dated version
     /// that would otherwise be the only one loaded (and so "not yet in force").
     ///
-    /// Read-your-writes: the overlay / body cache hold the single saved (branch)
-    /// body, keyed by `law_id`; it is applied to the version whose source +
+    /// Read-your-writes: the overlay holds the single saved (branch) body,
+    /// keyed by `law_id`; it is applied to the version whose source +
     /// source-relative path matches the saved entry (`get_law`'s winner). Other
     /// versions are served from the index body (local sources) or lazily fetched
-    /// via their own backend + `relative_path` (GitHub sources). Returns an empty
-    /// vec when no version of the id is indexed.
+    /// via their own backend + `relative_path` and cached per version file
+    /// (GitHub sources). Returns an empty vec when no version of the id is
+    /// indexed.
     ///
     /// Accepts the per-request writable-own read token — same contract as
     /// [`Self::law_yaml_with_read_token`]: the token is only ever applied
@@ -618,19 +704,15 @@ impl TrajectCorpus {
                 .collect()
         };
 
-        // The overlay / body cache hold the saved body for the single best
-        // version (`get_law`'s winner); identify it so it's applied to the
-        // right version entry rather than all of them.
+        // The overlay holds the saved body for the single best version
+        // (`get_law`'s winner); identify it so it's applied to the right
+        // version entry rather than all of them.
         let saved_key = self
             .corpus
             .source_map
             .get_law(law_id)
             .map(|l| (l.source_id.clone(), l.relative_path.clone()));
-        let saved_body: Option<String> = if let Some(text) = self.overlay.read().await.get(law_id) {
-            Some(text.clone())
-        } else {
-            self.body_cache.read().await.get(law_id).cloned()
-        };
+        let saved_body: Option<String> = self.overlay.read().await.get(law_id).cloned();
 
         let mut out = Vec::with_capacity(entries.len());
         for (source_id, relative_path, body) in entries {
@@ -674,27 +756,19 @@ impl TrajectCorpus {
             // per-version `loadLawVersions` isolation. A law that ends up with no
             // fetchable version surfaces to the loader as a missing dependency
             // (retried on the next run), not a hard 502.
-            // Personal token only for the writable-own source, like
-            // `law_yaml_with_read_token`.
-            let token = (source_id == self.writable_own_source_id)
-                .then_some(own_read_token)
-                .flatten();
-            let content = {
-                let backend = entry.backend.lock().await;
-                match backend
-                    .read_file_with_token(std::path::Path::new(&relative_path), token)
-                    .await
-                {
-                    Ok(content) => content,
-                    Err(e) => {
-                        tracing::warn!(
-                            law_id = %law_id,
-                            source_id = %source_id,
-                            error = %e,
-                            "skipping a law version that failed to fetch"
-                        );
-                        continue;
-                    }
+            let content = match self
+                .read_body(entry, &source_id, &relative_path, own_read_token)
+                .await
+            {
+                Ok(content) => content,
+                Err(e) => {
+                    tracing::warn!(
+                        law_id = %law_id,
+                        source_id = %source_id,
+                        error = %e,
+                        "skipping a law version that failed to fetch"
+                    );
+                    continue;
                 }
             };
             match content {
@@ -726,6 +800,18 @@ impl TrajectCorpus {
     pub async fn record_save(&self, law_id: String, body: String) {
         let implements = collect_law_implements(&body);
         self.overlay.write().await.insert(law_id.clone(), body);
+        // Drop the pre-save body of this file from this snapshot. A refresh
+        // can list the tree from just before the save and would then carry
+        // that body along; if another replica's save later makes the
+        // reconcile drop the overlay entry, the read behind it would serve
+        // content older than both saves. A snapshot built while this save
+        // was in flight may still hold the body; the next listing drops it.
+        if let Some(law) = self.corpus.source_map.get_law(&law_id) {
+            self.body_cache
+                .write()
+                .await
+                .remove(&global_body_key(&law.source_id, &law.relative_path));
+        }
         if let Some(index) = self.implements_index.write().await.as_mut() {
             let index = Arc::make_mut(index);
             // The law's body is now known, so it can no longer count as
@@ -2144,7 +2230,13 @@ async fn index_traject_sources(
 ///
 /// Fresh in the new instance:
 /// - the **`source_map` index snapshot** — the point of the refresh;
-/// - the **`body_cache`** — so upstream body changes become visible.
+/// - the **`sidecar_cache`** and **`scenario_list_cache`** — so upstream
+///   changes to notes and scenarios become visible.
+///
+/// Carried over per entry:
+/// - the **`body_cache`** — a body stays while the new listing reports the
+///   same blob sha for its file, so an upstream change still becomes
+///   visible with this refresh and an unchanged law is not fetched again.
 ///
 /// Any source failing to enumerate fails the whole refresh: the caller
 /// then serves the previous (complete) snapshot for another TTL, which
@@ -2200,6 +2292,7 @@ async fn next_snapshot(old: &Arc<TrajectCorpus>, source_map: SourceMap) -> Arc<T
     // inherited and never rebuilt) so implementor lookups keep being
     // served during the post-refresh rebuild.
     let carried_index = old.implements_index.read().await.clone();
+    let carried_bodies = carry_unchanged_bodies(&*old.body_cache.read().await, &source_map);
     Arc::new(TrajectCorpus {
         corpus: CorpusState {
             registry: old.corpus.registry.clone(),
@@ -2217,7 +2310,7 @@ async fn next_snapshot(old: &Arc<TrajectCorpus>, source_map: SourceMap) -> Arc<T
         write_target_for_source: old.write_target_for_source.clone(),
         writable_own_source_id: old.writable_own_source_id.clone(),
         overlay: old.overlay.clone(),
-        body_cache: RwLock::new(BoundedCache::default()),
+        body_cache: RwLock::new(carried_bodies),
         implements_index: RwLock::new(carried_index),
         implements_index_stale: AtomicBool::new(true),
         implements_build_lock: Mutex::new(()),
@@ -2236,6 +2329,26 @@ async fn next_snapshot(old: &Arc<TrajectCorpus>, source_map: SourceMap) -> Arc<T
         // *last* failed scan (if the caller re-arms `old`) was attempted.
         own_index_scanned_with_user_token: old.own_index_scanned_with_user_token,
     })
+}
+
+/// The bodies from `bodies` whose file `source_map` still lists with the
+/// blob sha of the cached text. A file that changed, disappeared, or is
+/// listed without a sha loses its body, and the next read fetches it.
+fn carry_unchanged_bodies(
+    bodies: &BoundedCache<CachedBody>,
+    source_map: &SourceMap,
+) -> BoundedCache<CachedBody> {
+    let listed: HashMap<String, &str> = source_map
+        .all_versions()
+        .filter_map(|version| {
+            let sha = version.content_sha.as_deref()?;
+            Some((
+                global_body_key(&version.source_id, &version.relative_path),
+                sha,
+            ))
+        })
+        .collect();
+    bodies.retained(|key, body| listed.get(key).is_some_and(|sha| *sha == body.blob_sha))
 }
 
 /// Reconcile the read-your-writes overlay against the write-target
@@ -3195,6 +3308,174 @@ mod tests {
         );
         // The changed-laws cache is shared for the same reason.
         assert!(Arc::ptr_eq(&old.changed_cache, &refreshed.changed_cache));
+    }
+
+    #[test]
+    fn git_blob_sha_matches_git_hash_object() {
+        // `printf 'hello\n' | git hash-object --stdin`, and the empty blob.
+        assert_eq!(
+            git_blob_sha("hello\n"),
+            "ce013625030ba8dba906f756967f9e9ca394464a"
+        );
+        assert_eq!(git_blob_sha(""), "e69de29bb2d1d6434b8b29ae775ad8c2e48c5391");
+    }
+
+    /// A snapshot of two metadata-only laws on a stub backend, with the
+    /// blob shas the stub's bodies really have, plus the stub's read count.
+    fn two_listed_laws() -> (Arc<TrajectCorpus>, Arc<AtomicUsize>) {
+        let (body_a, body_b) = ("$id: wet_a\n", "$id: wet_b\n");
+        let stub = StubBackend::with_files(&[
+            ("wet/wet_a/2025-01-01.yaml", body_a),
+            ("wet/wet_b/2025-01-01.yaml", body_b),
+        ]);
+        let reads = Arc::clone(&stub.reads);
+        let mut map = SourceMap::new("2026-06-01".to_string());
+        metadata_entry_with_sha(&mut map, "wet_a", "seed", Some(&git_blob_sha(body_a)));
+        metadata_entry_with_sha(&mut map, "wet_b", "seed", Some(&git_blob_sha(body_b)));
+        let corpus = test_corpus(
+            map,
+            HashMap::from([("seed".to_string(), backend_entry(stub))]),
+        );
+        (Arc::new(corpus), reads)
+    }
+
+    #[tokio::test]
+    async fn refresh_keeps_the_body_of_a_law_whose_blob_sha_is_unchanged() {
+        let (old, reads) = two_listed_laws();
+        old.law_yaml("wet_a").await.unwrap();
+        old.law_yaml("wet_b").await.unwrap();
+        assert_eq!(reads.load(Ordering::SeqCst), 2);
+
+        // The next listing: wet_a is the same file, wet_b changed upstream.
+        let mut map = SourceMap::new("2026-06-01".to_string());
+        metadata_entry_with_sha(
+            &mut map,
+            "wet_a",
+            "seed",
+            Some(&git_blob_sha("$id: wet_a\n")),
+        );
+        metadata_entry_with_sha(&mut map, "wet_b", "seed", Some("sha-of-a-newer-wet-b"));
+        let refreshed = next_snapshot(&old, map).await;
+
+        refreshed.law_yaml("wet_a").await.unwrap();
+        assert_eq!(
+            reads.load(Ordering::SeqCst),
+            2,
+            "an unchanged law must not be fetched again after a refresh"
+        );
+        refreshed.law_yaml("wet_b").await.unwrap();
+        assert_eq!(
+            reads.load(Ordering::SeqCst),
+            3,
+            "a law whose blob sha moved must be fetched again"
+        );
+    }
+
+    #[tokio::test]
+    async fn refresh_drops_a_body_whose_file_is_listed_without_a_sha() {
+        let (old, reads) = two_listed_laws();
+        old.law_yaml("wet_a").await.unwrap();
+
+        let mut map = SourceMap::new("2026-06-01".to_string());
+        metadata_entry_with_sha(&mut map, "wet_a", "seed", None);
+        let refreshed = next_snapshot(&old, map).await;
+
+        refreshed.law_yaml("wet_a").await.unwrap();
+        assert_eq!(reads.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn a_body_is_filed_under_the_sha_of_what_was_fetched() {
+        // The index still lists the old sha, but the branch moved before
+        // the fetch: the cached body is the newer text.
+        let stub =
+            StubBackend::with_files(&[("wet/wet_a/2025-01-01.yaml", "$id: wet_a\nname: new\n")]);
+        let reads = Arc::clone(&stub.reads);
+        let stale_sha = git_blob_sha("$id: wet_a\nname: old\n");
+        let mut map = SourceMap::new("2026-06-01".to_string());
+        metadata_entry_with_sha(&mut map, "wet_a", "seed", Some(&stale_sha));
+        let old = Arc::new(test_corpus(
+            map,
+            HashMap::from([("seed".to_string(), backend_entry(stub))]),
+        ));
+        old.law_yaml("wet_a").await.unwrap();
+
+        // The next listing still reports the old sha. A body kept under the
+        // listing's sha would be carried as if it were that content.
+        let mut map = SourceMap::new("2026-06-01".to_string());
+        metadata_entry_with_sha(&mut map, "wet_a", "seed", Some(&stale_sha));
+        let refreshed = next_snapshot(&old, map).await;
+
+        refreshed.law_yaml("wet_a").await.unwrap();
+        assert_eq!(reads.load(Ordering::SeqCst), 2);
+    }
+
+    #[tokio::test]
+    async fn every_version_of_a_law_is_fetched_once() {
+        let stub = StubBackend::with_files(&[
+            ("wet/wet_a/2024-01-01.yaml", "$id: wet_a\nname: v2024\n"),
+            ("wet/wet_a/2025-01-01.yaml", "$id: wet_a\nname: v2025\n"),
+        ]);
+        let reads = Arc::clone(&stub.reads);
+        let mut map = SourceMap::new("2026-06-01".to_string());
+        for date in ["2024-01-01", "2025-01-01"] {
+            map.load_metadata_entry(
+                "wet_a",
+                &format!("wet/wet_a/{date}.yaml"),
+                None,
+                "seed",
+                "seed",
+                1,
+                None,
+            )
+            .unwrap();
+        }
+        let corpus = test_corpus(
+            map,
+            HashMap::from([("seed".to_string(), backend_entry(stub))]),
+        );
+
+        let first = corpus
+            .law_yaml_versions_with_read_token("wet_a", None)
+            .await
+            .unwrap();
+        assert_eq!(first.len(), 2);
+        assert_eq!(reads.load(Ordering::SeqCst), 2);
+
+        let again = corpus
+            .law_yaml_versions_with_read_token("wet_a", None)
+            .await
+            .unwrap();
+        assert_eq!(again, first);
+        assert_eq!(
+            reads.load(Ordering::SeqCst),
+            2,
+            "a second ask for the versions must come from the cache"
+        );
+    }
+
+    #[tokio::test]
+    async fn a_save_drops_the_cached_pre_save_body() {
+        let (old, reads) = two_listed_laws();
+        old.law_yaml("wet_a").await.unwrap();
+        old.record_save("wet_a".to_string(), "$id: wet_a\nname: saved\n".to_string())
+            .await;
+
+        // A listing from just before the save still reports the old sha.
+        let mut map = SourceMap::new("2026-06-01".to_string());
+        metadata_entry_with_sha(
+            &mut map,
+            "wet_a",
+            "seed",
+            Some(&git_blob_sha("$id: wet_a\n")),
+        );
+        let refreshed = next_snapshot(&old, map).await;
+        // The overlay entry goes (as when another replica's save
+        // supersedes it); the read behind it must go to the branch.
+        refreshed.overlay.write().await.remove("wet_a");
+
+        refreshed.law_yaml("wet_a").await.unwrap();
+        assert_eq!(reads.load(Ordering::SeqCst), 2);
     }
 
     #[tokio::test]
