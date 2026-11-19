@@ -69,10 +69,10 @@ harness = false
 # --test bdd` in CI (zie docs/operations/ci-cd.md).
 test = false
 
-# The schema conformance suite (schema <-> law-model) needs `validate` (jsonschema). Without the feature
-# `cargo test --test schema_conformance` refuses and names it, where it would
-# otherwise build an empty target and report 0 tests. `just schema-conformance`
-# turns it on.
+# The schema conformance suite (schema <-> law-model) needs `validate`
+# (jsonschema). Without the feature `cargo test --test schema_conformance`
+# refuses and names it, where it would otherwise build an empty target and
+# report 0 tests. `just schema-conformance` turns it on.
 [[test]]
 name = "schema_conformance"
 required-features = ["validate"]

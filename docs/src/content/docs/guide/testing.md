@@ -7,7 +7,7 @@ The repository has about twenty kinds of test, and the kind decides who acts on 
 
 ## Which test goes where
 
-The table covers this repository. The CI column names the job; what each job does is on [CI/CD](/operations/ci-cd).
+The table lists the tests in this repository and the jobs that run them here. The CI column names the job; what each job does is on [CI/CD](/operations/ci-cd).
 
 | Kind | Where it lives | Run it locally | In CI |
 |------|----------------|----------------|-------|
@@ -16,7 +16,7 @@ The table covers this repository. The CI column names the job; what each job doe
 | The cell's BDD suite and its constructs | `packages/cel/bdd/` | `just bdd` | BDD conformance |
 | Demo scenarios | `corpus/demo/regulation/**/scenarios/` | `just bdd-demo` | BDD demo |
 | Scenarios of the chronolexografie PoC | `packages/poc-chronolexografie/corpus/` | `just bdd-chrono` | BDD demo |
-| Scenarios of the other PoCs (JavaScript) | `frontend-poc-*/tests/scenarios.test.js` | `npm test -w frontend-poc-<slug>` | E2E (mocked) |
+| Scenarios of the JavaScript PoCs | `frontend-poc-*/tests/scenarios.test.js` | `npm test -w frontend-poc-<slug>` | E2E (mocked) |
 | Rust unit and integration tests | `packages/*/src/`, `packages/*/tests/` | `just test` | Rust tests |
 | Golden fixtures | `packages/engine/tests/golden_tests.rs` | `just test` | Rust tests |
 | Trace snapshots | `packages/engine/tests/trace_integration.rs` | `just test` | Rust tests |
@@ -24,14 +24,14 @@ The table covers this repository. The CI column names the job; what each job doe
 | Schema conformance | `packages/engine/tests/schema_conformance.rs` | `just schema-conformance` | Rust tests |
 | Schema validation | the corpora | `just validate` | Pre-commit |
 | Script tests | `script/*.test.sh`, `script/*.test.mjs` | `just check` | Pre-commit |
-| Frontend unit tests and type checks | `frontend*/src/`, `packages/frontend-shared/` | `just frontend-test` | Frontend tests |
+| Frontend unit tests and type checks | `frontend/`, `frontend-lawmaking/`, `frontend-demo/`, `packages/frontend-shared/`, `packages/poc-chronolexografie/frontend/` | `just frontend-test` | Frontend tests |
 | Editor end to end, mocked | `frontend/e2e/` | `just test-e2e` | E2E (mocked) |
 | Walkthrough pipeline | `script/walkthrough/tests/` | `just walkthrough test` | Frontend tests |
 | Walkthrough replay | `frontend-demo/scripts/verify-walkthrough.mjs` | `just walkthrough verify` | Rondleiding speelt terug |
 | Docs source checks | `docs/scripts/check-*.mjs` | `npm run check:source` in `docs/` | Docs source checks |
 | Docs accessibility | `docs/scripts/`, pa11y | `just docs-a11y` | Docs accessibility gate |
 | Smoketest of a deployed editor | `frontend/e2e-smoke/` | `just smoke-preview <pr>` | No, it needs a deployment |
-| Mutation testing | `packages/engine` | `just mutants-diff` | Mutation Testing (diff) |
+| Mutation testing | `packages/engine`, `packages/pipeline`, `packages/cel` | `just mutants-diff` | Mutation Testing (diff) |
 | Benchmarks | `packages/engine/benches/` | `just bench` | No |
 
 ## BDD scenarios
@@ -113,9 +113,9 @@ just bdd-chrono                   # Bucket A over the corpus of the chronolexogr
 just bdd-trace                    # With execution traces in trace_output/
 ```
 
-`just bdd-chrono` runs bucket A over the corpus of the chronolexografie PoC, which keeps its own copies of the real ruleworks it uses so that work on the PoC leaves `corpus/regulation/` alone. Their scenarios went along with them. Two of those features, `criteria.feature` of the Regeling gehandicaptenparkeerkaart and `regio_en_vakanties.feature` of the Regeling vaststelling schoolvakanties, are still identical to the originals in the corpus, but they test a different version: the PoC's copy of the parking card regulation already makes a choice of its own on article 2. So both stay. The copy runs in CI because its data is invented and a failure is a real error; the original is bucket A and stays out.
+`just bdd-chrono` runs bucket A over the corpus of the chronolexografie PoC, which keeps its own copies of the real ruleworks it uses so that work on the PoC leaves `corpus/regulation/` alone. Their scenarios went along with them. Two of those features are still identical to the originals in the corpus: `criteria.feature` of the Regeling gehandicaptenparkeerkaart and `regio_en_vakanties.feature` of the Regeling vaststelling schoolvakanties. Both copies stay. The PoC's copy of the parking card regulation already makes a choice of its own on article 2, so that feature tests a different version. The PoC's ruleworks change only when someone works on the PoC, so a red scenario there is a real error and runs in CI. The originals are bucket A and stay out.
 
-The other PoCs with scenarios run them against the engine built to WASM instead, through `tests/scenarios.test.js` in their frontend. They are listed in `BDD_RUNNERS` in `script/orphan-tests.mjs`, which is how the orphan check knows their features are read.
+Two other PoCs run their scenarios against the engine built to WASM instead, through `tests/scenarios.test.js` in their frontend. They are listed in `BDD_RUNNERS` in `script/orphan-tests.mjs`, which is how the orphan check knows their features are read.
 
 ### Deriving scenarios from legislative intent
 
@@ -139,11 +139,11 @@ The tests of `packages/cel` and the reduction tests of the engine (`packages/eng
 
 `packages/engine/tests/golden_tests.rs` runs the JSON cases in `packages/engine/tests/fixtures/*.json`, each a law as YAML text with parameters and an expected result. [Conformance](/reference/conformance#golden-fixtures) describes their format and where they came from.
 
-`packages/engine/tests/trace_integration.rs` evaluates the zorgtoeslag and compares the rendered trace with `expected_zorgtoeslag_trace.txt` and `expected_standaardpremie_trace.txt`, and checks what each step of the trace carries. It reads a frozen copy of the ruleworks it needs, in `packages/engine/tests/fixtures/trace_corpus/`, and not the corpus. A change to the zorgtoeslag in the corpus therefore does not turn this engine test red; that change is for the bucket A scenarios and a human. Only the ruleworks the evaluation reaches are in the copy, the Awb included because its hooks show in the trace. Adding another one can fire a hook and change the expected trace.
+`packages/engine/tests/trace_integration.rs` evaluates the zorgtoeslag and the standaardpremie, compares each rendered trace with its snapshot (`expected_zorgtoeslag_trace.txt`, `expected_standaardpremie_trace.txt`), and checks what each step of the trace carries. It reads a frozen copy of the ruleworks it needs, in `packages/engine/tests/fixtures/trace_corpus/`, and not the corpus. A change to the zorgtoeslag in the corpus therefore does not turn this engine test red; that change is for the bucket A scenarios and a human. Only the ruleworks the evaluation reaches are in the copy, the Awb included because its hooks show in the trace. Adding another one can fire a hook and change the expected trace.
 
 ### The corpus type check
 
-`packages/engine/tests/typecheck_corpus.rs` runs the static type check over the corpus, the demo corpus and the corpus of the chronolexografie PoC, and fails on any finding. Unlike the trace test it reads the live corpora on purpose: it guards the corpus, not the engine.
+`packages/engine/tests/typecheck_corpus.rs` runs the static type check over the corpus, the demo corpus and the corpus of the chronolexografie PoC, and fails on any finding. Unlike the trace test it reads the live corpora on purpose, because it guards the corpus.
 
 ## Schema conformance
 
@@ -182,7 +182,7 @@ The scripts in `script/` that decide something in CI, such as a merge gate or th
 
 ## Docs checks
 
-`npm run check:source` in `docs/` checks the docs without building them: that cited paths exist, that Gherkin steps are in the grammar, the prose style, and the RFC numbering and coverage. `just docs-a11y` builds the site and runs the accessibility gate, pa11y included. The writing rules behind the prose check are in the `docs-writing` skill.
+`npm run check:source` in `docs/` checks the docs without building them. Among other things it checks that cited paths exist, that Gherkin steps are in the grammar, the prose style, and the RFC numbering and coverage. `just docs-a11y` builds the site and runs the accessibility gate, pa11y included. The writing rules behind the prose check are in the `docs-writing` skill.
 
 ## Mutation testing
 
