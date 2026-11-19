@@ -146,7 +146,7 @@ A binding fills the term like any other implementation: the term gets the bindin
 
 An article that fires as a [hook](./hooks-and-reactive-execution) can declare an open term as well. Awb 4:13 has this shape: a hook on every application (*aanvraag*) that leaves the decision period to the special law, with eight weeks as the default.
 
-A filling of such a term can name the article the hook fires on, its `host`: the article that establishes the application or gives the decision. It then applies only while the hook fires on that article, and it receives the parameters it declares from that article's scope. So it can read case data the hook never sees, such as the subsidy year of a subsidy grant, and two articles of one law that fire the same hook can each have their own filling. Any regulation the term's `delegation_type` admits may name a host, a policy rule included.
+A filling of such a term can name the article the hook fires on, its `host`: the article that establishes the application or gives the decision. It then applies only while the hook fires on that article, and it receives the parameters it declares from that article's scope. So it can read case data the hook never sees, such as the subsidy year of a subsidy grant. Two articles of one law that fire the same hook can each have their own filling. Any regulation the term's `delegation_type` admits may name a host, a policy rule included.
 
 ```yaml
 implements:
@@ -158,7 +158,9 @@ implements:
       article: '1'
 ```
 
-A filling without a host fills the term wherever the article runs, under every hook and outside one, with the parameters of the hook article itself. A parameter only the host has is not there: a required one makes the implementation fail, and an optional one is unknown. It never quietly gets the host's value. Under a hook, a filling that names the host goes before one that names none; within each group the [conflict rules](#conflict-resolution) apply. While the hook runs, a hook that reads another hook's output on the same decision gets that decision's fillings too. [RFC-058](/rfcs/rfc-058) has the reasoning and a worked example.
+A filling without a host fills the term wherever the article runs, under every hook and outside one, with the parameters of the hook article itself. A parameter only the host has is not there: a required one makes the implementation fail, and an optional one is unknown. It never quietly gets the host's value.
+
+Under a hook, a filling that names the host goes before one that names none; within each group the [conflict rules](#conflict-resolution) apply. While the hook runs, a hook that reads another hook's output on the same decision gets that decision's fillings too. [RFC-058](/rfcs/rfc-058) has the reasoning and a worked example.
 
 ## Conflict resolution
 

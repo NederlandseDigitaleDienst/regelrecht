@@ -3421,9 +3421,10 @@ impl LawExecutionService {
         // that output, so it neither comes from nor goes into the cache. Nor
         // is one computed while a hook runs: a call that reaches the hook
         // article fills its terms first from the fillings that name the
-        // article the hook fires on (RFC-058), and the key does not name it. A safeguard: the corpus has one route to such a
-        // call, an implementation that reads the law it fills, and that one is
-        // held back already.
+        // article the hook fires on (RFC-058), and the key does not name it.
+        // A safeguard: the corpus has one route to such a call, an
+        // implementation that reads the law it fills, and that one is held
+        // back already.
         let cacheable =
             output_names.len() == 1 && res_ctx.held_back.is_empty() && res_ctx.hook_host.is_none();
         // --- Cache check (before depth check: cached results don't increase depth) ---

@@ -1418,31 +1418,7 @@ impl RuleResolver {
             return Ok(None);
         };
 
-        // What the version in force declares for this term: a filling for
-        // this host, one without a host, or neither (only for another host).
-        // A version that declares nothing for the term is still a candidate,
-        // through the index, as before RFC-058; its group then comes from the
-        // index, that is from the newest version.
-        let mut declarations: Vec<Option<LawArticleRef>> = art
-            .get_implements()
-            .into_iter()
-            .flatten()
-            .filter(|d| d.law == law_id && d.article == article && d.open_term == open_term_id)
-            .map(|d| {
-                d.host.as_ref().map(|host| LawArticleRef {
-                    law_id: host.law.clone(),
-                    article_number: host.article.clone(),
-                })
-            })
-            .collect();
-        if declarations.is_empty() {
-            declarations = offer
-                .entries
-                .iter()
-                .filter(|e| e.implementer == *entry)
-                .map(|e| e.host.clone())
-                .collect();
-        }
+        let declarations = Self::declared_hosts(term, art, offer);
         let names_the_host = declarations.iter().flatten().any(names_the_firing);
         let names_none = declarations.iter().any(Option::is_none);
         if !names_the_host && !names_none {
@@ -1462,34 +1438,7 @@ impl RuleResolver {
             return Ok(None);
         }
 
-        // Scope filtering: check all scope fields on the candidate law against
-        // the execution parameters. A scoped regulation (e.g., with gemeente_code
-        // or provincie_code) only matches when the execution scope contains the
-        // same value. Unscoped regulations (national) always match. The
-        // regulation that declares the term matches too: the scope picks
-        // which regulation applies to a case, and that one already does.
-        // So does a regulation scoped to the same territory as the one that
-        // declares the term, such as the college's nadere regels under a
-        // verordening of the same municipality. A filling that names the
-        // host is checked against the host's scope, and the law of the host
-        // and its territory match too (RFC-058). An article that fills the
-        // term both for this host and without one falls back to the latter
-        // when the host's scope does not admit it.
-        let declarer = self.get_law_for_date(law_id, reference_date);
-        let of_the_declarer = law.id == law_id
-            || declarer.is_some_and(|declarer| Self::shares_territory(declarer, law));
-        let host_group = offer.firing.filter(|_| names_the_host).and_then(|firing| {
-            let host = self.get_law_for_date(firing.law, reference_date);
-            // A scoped host law shares its own territory; an unscoped one
-            // matches every scope.
-            let of_the_host = host.is_some_and(|host| Self::shares_territory(host, law));
-            (of_the_declarer || of_the_host || Self::matches_scope(law, firing.scope))
-                .then_some(Group::NamesTheHost)
-        });
-        let group = host_group.or_else(|| {
-            (names_none && (of_the_declarer || Self::matches_scope(law, offer.scope)))
-                .then_some(Group::NamesNone)
-        });
+        let group = self.group_in_scope(term, offer, law, names_the_host, names_none);
         let Some(group) = group else {
             tracing::debug!(
                 candidate = %entry.law_id,
@@ -1522,6 +1471,84 @@ impl RuleResolver {
         }
 
         Ok(Some((group, (law, art))))
+    }
+
+    /// The hosts the version in force of `art` declares for the term, `None`
+    /// for a filling without a host. A version that declares nothing for the
+    /// term is still a candidate, through the index, as before RFC-058; its
+    /// hosts then come from the index, that is from the newest version.
+    fn declared_hosts(
+        term: &TermRef<'_>,
+        art: &Article,
+        offer: &Offer<'_>,
+    ) -> Vec<Option<LawArticleRef>> {
+        let declared: Vec<Option<LawArticleRef>> = art
+            .get_implements()
+            .into_iter()
+            .flatten()
+            .filter(|d| {
+                d.law == term.law_id
+                    && d.article == term.article
+                    && d.open_term == term.open_term.id
+            })
+            .map(|d| {
+                d.host.as_ref().map(|host| LawArticleRef {
+                    law_id: host.law.clone(),
+                    article_number: host.article.clone(),
+                })
+            })
+            .collect();
+        if !declared.is_empty() {
+            return declared;
+        }
+        offer
+            .entries
+            .iter()
+            .filter(|e| e.implementer == *offer.implementer)
+            .map(|e| e.host.clone())
+            .collect()
+    }
+
+    /// The group `law` falls in for this lookup, given whether it fills the
+    /// term for this host and whether it fills it without a host; `None`
+    /// when its scope admits neither.
+    ///
+    /// Scope filtering: check all scope fields on the candidate law against
+    /// the execution parameters. A scoped regulation (e.g., with gemeente_code
+    /// or provincie_code) only matches when the execution scope contains the
+    /// same value. Unscoped regulations (national) always match. The
+    /// regulation that declares the term matches too: the scope picks which
+    /// regulation applies to a case, and that one already does. So does a
+    /// regulation scoped to the same territory as the one that declares the
+    /// term, such as the college's nadere regels under a verordening of the
+    /// same municipality. A filling that names the host is checked against
+    /// the host's scope, and a regulation of the host's territory matches too
+    /// (RFC-058). An article that fills the term both for this host and
+    /// without one falls back to the latter when the host's scope does not
+    /// admit it.
+    fn group_in_scope(
+        &self,
+        term: &TermRef<'_>,
+        offer: &Offer<'_>,
+        law: &ArticleBasedLaw,
+        names_the_host: bool,
+        names_none: bool,
+    ) -> Option<Group> {
+        let declarer = self.get_law_for_date(term.law_id, term.reference_date);
+        let of_the_declarer = law.id == term.law_id
+            || declarer.is_some_and(|declarer| Self::shares_territory(declarer, law));
+        let host_group = offer.firing.filter(|_| names_the_host).and_then(|firing| {
+            let host = self.get_law_for_date(firing.law, term.reference_date);
+            // A scoped host law shares its own territory; an unscoped one
+            // matches every scope.
+            let of_the_host = host.is_some_and(|host| Self::shares_territory(host, law));
+            (of_the_declarer || of_the_host || Self::matches_scope(law, firing.scope))
+                .then_some(Group::NamesTheHost)
+        });
+        host_group.or_else(|| {
+            (names_none && (of_the_declarer || Self::matches_scope(law, offer.scope)))
+                .then_some(Group::NamesNone)
+        })
     }
 
     /// Get the number of entries in the implements index.

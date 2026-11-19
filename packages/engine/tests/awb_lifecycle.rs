@@ -344,9 +344,8 @@ articles:
 
 /// Awb 4:13 lid 1 laat de beslistermijn aan het wettelijk voorschrift; de wet
 /// van de aanvraag vult hem in voor haar eigen aanvraag (`host`), met een
-/// eigen gegeven (RFC-058). Een aanvraag
-/// onder een andere wet houdt de acht weken van lid 2, ook al staat de
-/// subsidiewet in hetzelfde corpus.
+/// eigen gegeven (RFC-058). Een aanvraag onder een andere wet houdt de acht
+/// weken van lid 2, ook al staat de subsidiewet in hetzelfde corpus.
 #[test]
 fn awb_4_13_neemt_de_termijn_van_de_wet_van_de_aanvraag() {
     let mut service = load_corpus();

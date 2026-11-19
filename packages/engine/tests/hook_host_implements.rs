@@ -879,7 +879,8 @@ articles:
         result
             .declarations_not_in_force
             .iter()
-            .any(|note| note.law_id == "termijnregeling_index_voorbeeld"),
+            .any(|note| note.law_id == "termijnregeling_index_voorbeeld"
+                && note.reason.contains("only for another host")),
         "the receipt says the version in force fills it for another host only, got {:?}",
         result.declarations_not_in_force
     );

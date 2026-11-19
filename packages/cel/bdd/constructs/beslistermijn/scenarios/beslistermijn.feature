@@ -111,7 +111,8 @@ Feature: The decision term of Awb 4:13 on an application for a permit
   # Lid 1 as an open term: the permit act fills `statutory_decision_term`
   # with implements (article 2 of test_permit_act_implements). The filling
   # names the application of article 1 as its host, so it applies under the
-  # hook on that application only, with the receipt from its scope (RFC-058). The last day comes out as `decision_deadline`;
+  # hook on that application only, with the receipt from its scope
+  # (RFC-058). The last day comes out as `decision_deadline`;
   # `reasonable_decision_term_end` keeps the eight weeks of lid 2.
   Scenario: A permit act fills the statutory term of Awb 4:13 through implements
     Given the calculation date is "2026-03-03"
