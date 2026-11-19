@@ -86,8 +86,9 @@ pub const EDITOR_CSP: &str = "default-src 'self'; \
 
 /// CSP for the PoC portal, which serves several demo frontends from one origin.
 ///
-/// One directive differs from [`EDITOR_CSP`], and it is a real difference
-/// rather than a copy that drifted: `worker-src 'self' blob:`.
+/// Two directives differ from [`EDITOR_CSP`], and each is a real difference
+/// rather than a copy that drifted: `worker-src 'self' blob:` and one host in
+/// `img-src`.
 ///
 /// The OCW PoCs run their population simulation in a module worker
 /// (`usePopulation.js`: `new Worker(new URL('../sim/simWorker.js', …), { type:
@@ -100,6 +101,12 @@ pub const EDITOR_CSP: &str = "default-src 'self'; \
 /// as well. Narrowing this back to `'self'` breaks the beleidsview's
 /// simulation, silently, in the browser only.
 ///
+/// `img-src` also allows `https://service.pdok.nl`: the map of the
+/// regels-op-een-plek PoC draws the BRT background tiles of PDOK (Kadaster)
+/// as plain images, straight from that host. Images only: scripts, styles and
+/// connections stay on this origin. Without it the map shows its plan areas on
+/// an empty background, again only in the browser.
+///
 /// Everything else matches: `'wasm-unsafe-eval'` and not `'unsafe-eval'`, and
 /// `style-src 'unsafe-inline'` for the NDD components, which build a `<style>`
 /// element and assign its `textContent`.
@@ -107,7 +114,7 @@ pub const POC_CSP: &str = "default-src 'self'; \
      script-src 'self' 'wasm-unsafe-eval' blob:; \
      worker-src 'self' blob:; \
      style-src 'self' 'unsafe-inline'; \
-     img-src 'self' data:; \
+     img-src 'self' data: https://service.pdok.nl; \
      font-src 'self'; \
      connect-src 'self'; \
      object-src 'none'; \
@@ -298,6 +305,21 @@ mod tests {
         assert_eq!(
             directive(EDITOR_CSP, "worker-src"),
             Some("worker-src 'self'")
+        );
+    }
+
+    /// The other widening: PDOK's background tiles as images, for the map of
+    /// regels-op-een-plek. Pinned to exactly that host, so a wildcard or a
+    /// second host does not slip in, and kept out of the editor's policy.
+    #[test]
+    fn only_the_poc_policy_allows_the_pdok_tiles() {
+        assert_eq!(
+            directive(POC_CSP, "img-src"),
+            Some("img-src 'self' data: https://service.pdok.nl")
+        );
+        assert_eq!(
+            directive(EDITOR_CSP, "img-src"),
+            Some("img-src 'self' data:")
         );
     }
 }

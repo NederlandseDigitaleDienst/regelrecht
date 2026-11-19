@@ -1,24 +1,18 @@
 //! Scenario sets: features that run against a chosen set of regelwerken and
 //! nothing else.
 //!
-//! A scenario set is a directory with two parts and an optional manifest:
+//! A scenario set is a directory with two parts:
 //!
 //! ```text
 //! <set>/
 //!   regulation/   the regelwerken of the set, any tree of `.yaml` files
 //!   scenarios/    the features, `*.feature`, also in subdirectories
-//!   corpus.yaml   optional: regelwerken from the corpus it loads as well
 //! ```
 //!
 //! A feature under `<set>/scenarios/` runs against the regelwerken under
-//! `<set>/regulation/` and those `corpus.yaml` names, and nothing else: not
-//! the rest of the corpus, not the fixtures of `bdd/fixtures`. A hook fires
-//! only from a regelwerk the set loads, so a construct is tried against the
-//! real Awb, say, without every other law of the corpus taking part.
-//!
-//! `corpus.yaml` names regelwerken by `$id` under `regelwerken:`. Each is
-//! read from the corpus (`REGULATION_PATH`, or `corpus/regulation`), every
-//! version in its directory, and is never copied into the set.
+//! `<set>/regulation/` and nothing else: not the corpus, not the fixtures of
+//! `bdd/fixtures`. A hook fires only from a regelwerk the set loads, so in a
+//! construct a hook fires only from the set's own regelwerken.
 //!
 //! The constructs under `bdd/constructs/` are the scenario sets this runner
 //! finds itself ([`constructs`]). A corpus laid out the same way (a
@@ -29,7 +23,6 @@
 use std::path::{Path, PathBuf};
 
 use regelrecht_engine::LawExecutionService;
-use serde::Deserialize;
 use walkdir::WalkDir;
 
 use crate::helpers::regulation_loader::regulation_source;
@@ -38,15 +31,6 @@ use crate::helpers::regulation_loader::regulation_source;
 const SCENARIOS: &str = "scenarios";
 /// The directory of the regelwerken of a scenario set.
 const REGULATION: &str = "regulation";
-/// The manifest of the regelwerken a scenario set takes from the corpus.
-const CORPUS_MANIFEST: &str = "corpus.yaml";
-
-/// `corpus.yaml`: the regelwerken from the corpus a set loads, by `$id`.
-#[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
-struct CorpusManifest {
-    regelwerken: Vec<String>,
-}
 
 /// A directory with `regulation/` and `scenarios/` (module docs).
 pub struct ScenarioSet {
@@ -78,54 +62,12 @@ impl ScenarioSet {
         features
     }
 
-    /// Load every regelwerk of the set into `service`: those the manifest
-    /// names from the corpus, then its own.
+    /// Load every regelwerk of the set into `service`.
     pub fn load(&self, service: &mut LawExecutionService) {
-        for id in self.corpus_ids() {
-            for path in corpus_versions(&id) {
-                let loaded = load_regelwerk(service, &path);
-                assert_eq!(loaded, id, "{}: the $id in the file", path.display());
-            }
-        }
         for path in files_with_extension(&self.root.join(REGULATION), "yaml") {
             load_regelwerk(service, &path);
         }
     }
-
-    /// The `$id`s `corpus.yaml` names; none when the set has no manifest.
-    fn corpus_ids(&self) -> Vec<String> {
-        let path = self.root.join(CORPUS_MANIFEST);
-        if !path.is_file() {
-            return Vec::new();
-        }
-        let yaml =
-            std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        let manifest: CorpusManifest =
-            serde_yaml_ng::from_str(&yaml).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        manifest.regelwerken
-    }
-}
-
-/// Every version of the regelwerk `id` in the corpus: the `.yaml` files in
-/// the directory named after it, under `nl/` of each corpus base, as the
-/// corpus lays them out. Fails when the corpus holds none, so a misspelt
-/// `$id` cannot leave a set without it; [`ScenarioSet::load`] checks the `$id`
-/// in each file.
-fn corpus_versions(id: &str) -> Vec<PathBuf> {
-    let mut versions: Vec<PathBuf> = crate::common::regulation_base_paths()
-        .iter()
-        .flat_map(|base| {
-            WalkDir::new(base.join("nl"))
-                .follow_links(true)
-                .into_iter()
-                .filter_map(Result::ok)
-        })
-        .filter(|entry| entry.file_type().is_dir() && entry.file_name() == id)
-        .flat_map(|dir| files_with_extension(dir.path(), "yaml"))
-        .collect();
-    assert!(!versions.is_empty(), "no regelwerk '{id}' in the corpus");
-    versions.sort();
-    versions
 }
 
 /// The construct sets under `constructs`: each subdirectory, sorted. A
@@ -178,11 +120,11 @@ fn files_with_extension(dir: &Path, extension: &str) -> Vec<PathBuf> {
 }
 
 /// Load the regelwerk at `path` into `service`, failing the scenario when it
-/// does not load, and return its `$id`. As the corpus loader does,
-/// `BDD_REVERSE_ACTIONS` reverses the actions of each article first.
-pub fn load_regelwerk(service: &mut LawExecutionService, path: &Path) -> String {
+/// does not load. As the corpus loader does, `BDD_REVERSE_ACTIONS` reverses
+/// the actions of each article first.
+pub fn load_regelwerk(service: &mut LawExecutionService, path: &Path) {
     let yaml = regulation_source(path).unwrap_or_else(|e| panic!("{e}"));
-    service
-        .load_law(&yaml)
-        .unwrap_or_else(|e| panic!("{}: {e}", path.display()))
+    if let Err(e) = service.load_law(&yaml) {
+        panic!("{}: {e}", path.display());
+    }
 }

@@ -6,8 +6,7 @@
 //! A feature in `packages/cel/bdd/features` runs against the corpus with the
 //! fixtures in `packages/cel/bdd/fixtures` (the synthetic law, and the
 //! reductions of a cell) next to it; a feature in a scenario set
-//! (`crate::sets`) against the regelwerken of that set alone, its own and
-//! those it names from the corpus.
+//! (`crate::sets`) against the regelwerken of that set alone.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -65,9 +64,9 @@ impl State {
 
 /// Load the regelwerken a scenario of the feature at `feature` runs against.
 /// A feature in a scenario set ([`ScenarioSet`]) gets the regelwerken of that
-/// set alone: its own and those it names from the corpus. Any other feature
-/// (`bdd/features`) gets the corpus and the fixtures: every regelwerk under
-/// `fixtures/regulation`, and the reductions under `fixtures/cells`.
+/// set alone. Any other feature (`bdd/features`) gets the corpus and the
+/// fixtures: every regelwerk under `fixtures/regulation`, and the reductions
+/// under `fixtures/cells`.
 pub fn load(service: &mut LawExecutionService, feature: Option<&Path>) {
     if let Some(set) = feature.and_then(ScenarioSet::containing) {
         set.load(service);

@@ -14,7 +14,7 @@ The editor API is the HTTP server behind the law editor. It serves the compiled 
 
 ## Authorization model
 
-Every route sits in one router group, and each group carries one role gate. The roles are Keycloak realm roles: `editor-reader`, `editor-writer`, `editor-admin`, plus `harvester-reader` for the harvester proxy. Keycloak composite roles make a writer also a reader. See [Auth and roles](/auth-and-roles/) for the role model.
+Every route sits in one router group, and each group carries one role gate. The groups and their gates are put together in one place, `router()` in `packages/editor-api/src/router.rs`; the binary serves that router behind its session layer, and tests send requests through the same function. The roles are Keycloak realm roles: `editor-reader`, `editor-writer`, `editor-admin`, plus `harvester-reader` for the harvester proxy. Keycloak composite roles make a writer also a reader. See [Auth and roles](/auth-and-roles/) for the role model.
 
 | Gate | What it checks |
 |------|----------------|
@@ -29,9 +29,11 @@ A missing session answers 401, a missing role 403. When OIDC is not configured, 
 
 The login itself has a separate gate: `OIDC_REQUIRED_ROLE` is the minimum role needed to complete a login at all.
 
+`tests/router_gates_test.rs` holds the gate of every route as a table and checks it through the router, with a memory session store and no database: 401 without a session, 403 with every role except the required one, and past the gate with that role. A second test reads the methods each `.route(..)` call in `router.rs` and `github_oauth.rs` mounts and compares them with the table, so a new route, or a new method on an existing path, fails the tests until it has a row. That check reads the source because HTTP cannot tell: a gate runs before the method is matched, so an unmounted method answers like a mounted one.
+
 ## Endpoints
 
-Derived from the router in `packages/editor-api/src/main.rs` (and `github_oauth.rs` for `/auth/github/*`). That file is the authority; this list is a map of it.
+Derived from the router in `packages/editor-api/src/router.rs` (and `github_oauth.rs` for `/auth/github/*`). That file is the authority, and `tests/router_gates_test.rs` holds its gates as a table; this list is a map of it.
 
 ### Service and session
 
@@ -123,6 +125,8 @@ The traject-scoped view of the corpus: the global corpus with the traject's own 
 The first request to a traject after a restart builds its index, and every request waits for that build. After that the index is served from memory and refreshed in the background once it is a minute old. A later request waits only when the traject's own repository could not be listed and its own GitHub token can repair the index. The list of changed laws works the same way: when only a member's own GitHub token can read the traject repository, the first member past the minute lends that token to the background refresh and gets the previous list meanwhile.
 
 A build or a refresh lists the tree of each source, all sources at the same time and while the backends check their branches. A listing is kept per repository branch together with the commit it was taken at, and reused as long as the branch still points at that commit, so GitHub is only asked for the commit. The global corpus lists the central corpus at startup, which leaves a traject build only its own repository to list, and a refresh fetches a tree only after a new commit. Reusing a listing takes the commit, which GitHub shows only to someone who can read the repository.
+
+The index of a traject holds the laws of a GitHub source by path, and a law's body is fetched when someone opens it. A fetched body is kept, per version file and at most 1024 per traject, together with the git blob sha of its text. A refresh keeps the bodies whose file the new listing reports with that same sha and drops the others, so an unchanged law is fetched once and a changed one is fetched again within a minute. A save through the editor drops the kept body of that law; the saved text is served from then on.
 
 A law without notes gets an empty notes document (`annotations: []`) with status 200; a 404 means the law is not in the traject. Whether a law has notes comes from the tree listing of the index, at the repository root or at the older location under the source's subpath, so a law without notes costs no call to GitHub. A note saved through the editor counts at once; a notes file added to the repository some other way shows up with the next refresh.
 

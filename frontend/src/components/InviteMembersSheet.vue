@@ -146,8 +146,10 @@ defineExpose({ show });
   <Teleport to="body">
     <nldd-sheet ref="inviteSheetEl" placement="right" width="480px" @close="closeInvite">
       <nldd-page sticky-header sticky-footer>
-        <nldd-top-title-bar slot="header" text="Uitnodigen" dismiss-text="Annuleer" @dismiss="closeInvite"></nldd-top-title-bar>
+        <nldd-top-title-bar slot="header" text="Uitnodigen" heading-level="2" dismiss-text="Annuleer" collapse-anchor="uitnodigen-titel" @dismiss="closeInvite"></nldd-top-title-bar>
         <nldd-simple-section width="full">
+          <nldd-title id="uitnodigen-titel" size="display-3" heading-level="2" text="Uitnodigen"></nldd-title>
+          <nldd-spacer size="16"></nldd-spacer>
           <!-- Success view: a new view in the sheet, shown once the whole batch was sent.
                (inviteSucceeded implies inviteResult is set, hence the `!`.) -->
           <nldd-inline-dialog
@@ -210,14 +212,16 @@ defineExpose({ show });
               </template>
 
               <nldd-form-actions>
-                <nldd-button
-                  appearance="primary"
-                  size="md"
-                  type="submit"
-                  width="full"
-                  :text="inviteBusy ? 'Bezig…' : 'Nodig uit'"
-                  :disabled="inviteBusy || undefined"
-                ></nldd-button>
+                <nldd-button-group width="full">
+                  <nldd-button
+                    appearance="primary"
+                    size="md"
+                    type="submit"
+                    width="full"
+                    :text="inviteBusy ? 'Bezig…' : 'Nodig uit'"
+                    :disabled="inviteBusy || undefined"
+                  ></nldd-button>
+                </nldd-button-group>
               </nldd-form-actions>
             </form>
           </nldd-form>

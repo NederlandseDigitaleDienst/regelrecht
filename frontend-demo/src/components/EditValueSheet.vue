@@ -234,6 +234,10 @@ function onEvidenceChange(e: Event) {
 function selectValue(e: Event): string {
   return (e.target as HTMLSelectElement).value;
 }
+/** The item an nldd-segmented-control switched to. */
+function choiceValue(e: Event): string {
+  return (e as CustomEvent<{ value: string }>).detail.value;
+}
 /** What an nldd field's event carries: the value in `detail`, or on the field itself. */
 function inputValue(e: Event): string {
   return (e as CustomEvent<{ value?: string } | null | undefined>).detail?.value ?? (e.target as EventTarget & { value: string }).value;
@@ -305,126 +309,119 @@ function submit() {
         <nldd-container slot="header" padding="12">
           <nldd-top-title-bar :text="humanize(node.name)" :supporting-text="law?.name ?? node.law" :dismiss-text="t('sheet.dismiss')" @dismiss="emit('close')"></nldd-top-title-bar>
         </nldd-container>
-        <nldd-container padding="16" gap="16">
-          <nldd-list appearance="box-tinted" :accessible-label="t('sheet.edit.current')">
-            <nldd-list-item size="md">
-              <nldd-cell v-if="node.service"><OrgLogo :service="node.service" /></nldd-cell>
-              <nldd-spacer-cell v-if="node.service" size="12"></nldd-spacer-cell>
-              <nldd-text-cell
-                :overline="selfDeclared ? t('sheet.edit.overline.self') : t('sheet.edit.overline.registered')"
-                :text="formatValue(node.value, spec)"
-                :supporting-text="node.service ? t('sheet.edit.source', { service: corpus?.services[node.service]?.name ?? node.service }) : t('sheet.edit.no_register')"
-              ></nldd-text-cell>
-            </nldd-list-item>
-          </nldd-list>
-          <nldd-rich-text v-if="spec?.description"><p>{{ spec.description }}</p></nldd-rich-text>
-          <nldd-form-field :label="unit ? t('sheet.edit.new_value.unit', { unit }) : t('sheet.edit.new_value')">
-            <nldd-dropdown v-if="kind === 'boolean'">
-              <select :value="newValue" @change="newValue = selectValue($event)">
-                <option value="true">{{ t('sheet.edit.yes') }}</option>
-                <option value="false">{{ t('sheet.edit.no') }}</option>
-              </select>
-            </nldd-dropdown>
-            <!-- A table-valued register (children, housemates): rows with the
-                 same columns, each cell typed on what the column holds, and
-                 rows can be added or removed, as the POC allowed. -->
-            <template v-else-if="kind === 'rows'">
-              <nldd-table :accessible-label="humanize(node.name)" :columns="`repeat(${columns.length}, minmax(120px, 1fr)) max-content`">
-                <nldd-table-row slot="header">
-                  <nldd-text-cell v-for="c in columns" :key="c" size="sm" :text="humanize(c)"></nldd-text-cell>
-                  <nldd-text-cell size="sm" text=""></nldd-text-cell>
-                </nldd-table-row>
-                <nldd-table-row v-for="(row, i) in rows" :key="i">
-                  <nldd-cell v-for="c in columns" :key="c">
-                    <nldd-dropdown v-if="columnKind(c) === 'boolean'">
-                      <select :value="String(row[c])" @change="setCell(i, c, selectValue($event), 'boolean')">
-                        <option value="true">{{ t('sheet.edit.yes') }}</option>
-                        <option value="false">{{ t('sheet.edit.no') }}</option>
-                      </select>
-                    </nldd-dropdown>
-                    <nldd-date-field v-else-if="columnKind(c) === 'date'" :value="row[c] ?? ''" width="full" @change="setCell(i, c, detailValue($event) ?? '', 'date')"></nldd-date-field>
-                    <nldd-text-field v-else :value="row[c] ?? ''" width="full" :keyboard="columnKind(c) === 'number' ? 'numeric' : undefined" @input="setCell(i, c, inputValue($event), columnKind(c))"></nldd-text-field>
-                  </nldd-cell>
-                  <nldd-cell>
-                    <nldd-icon-button size="xs" appearance="neutral-transparent" icon="trash" :accessible-label="t('sheet.edit.rows.remove')" @click="removeRow(i)"></nldd-icon-button>
-                  </nldd-cell>
-                </nldd-table-row>
-                <nldd-inline-dialog slot="empty" :text="t('sheet.edit.rows.empty')"></nldd-inline-dialog>
-              </nldd-table>
-              <nldd-button size="sm" appearance="secondary" start-icon="plus" :text="t('sheet.edit.rows.add')" @click="addRow"></nldd-button>
-            </template>
-            <!-- A list of plain values (ages, properties): one typed field per
-                 item, with the same add and remove as the table. -->
-            <template v-else-if="kind === 'list'">
-              <nldd-list appearance="simple" :accessible-label="t('sheet.edit.list.label')">
-                <nldd-list-item v-for="(item, i) in list" :key="i" size="sm">
-                  <nldd-cell width="full">
-                    <nldd-dropdown v-if="valueKind(item) === 'boolean'">
-                      <select :value="String(item)" @change="setListItem(i, selectValue($event), 'boolean')">
-                        <option value="true">{{ t('sheet.edit.yes') }}</option>
-                        <option value="false">{{ t('sheet.edit.no') }}</option>
-                      </select>
-                    </nldd-dropdown>
-                    <nldd-date-field v-else-if="valueKind(item) === 'date'" :value="item ?? ''" width="full" @change="setListItem(i, detailValue($event) ?? '', 'date')"></nldd-date-field>
-                    <nldd-text-field v-else :value="item ?? ''" width="full" :keyboard="valueKind(item) === 'number' ? 'numeric' : undefined" @input="setListItem(i, inputValue($event), valueKind(item))"></nldd-text-field>
-                  </nldd-cell>
-                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                  <nldd-cell><nldd-icon-button size="xs" appearance="neutral-transparent" icon="trash" :accessible-label="t('sheet.edit.list.remove')" @click="removeListItem(i)"></nldd-icon-button></nldd-cell>
-                </nldd-list-item>
-                <nldd-inline-dialog slot="empty" :text="t('sheet.edit.list.empty')"></nldd-inline-dialog>
-              </nldd-list>
-              <nldd-button size="sm" appearance="secondary" start-icon="plus" :text="t('sheet.edit.list.add')" @click="addListItem"></nldd-button>
-            </template>
-            <!-- One record (an address, a decision): a typed field per named field. -->
-            <template v-else-if="kind === 'record'">
-              <nldd-list appearance="simple" :accessible-label="t('sheet.edit.record.label')">
-                <nldd-list-item v-for="key in recordKeys" :key="key" size="sm">
-                  <nldd-text-cell size="sm" min-width="120px" :text="humanize(key)"></nldd-text-cell>
-                  <nldd-cell width="full">
-                    <nldd-dropdown v-if="valueKind(record[key]) === 'boolean'">
-                      <select :value="String(record[key])" @change="setField(key, selectValue($event), 'boolean')">
-                        <option value="true">{{ t('sheet.edit.yes') }}</option>
-                        <option value="false">{{ t('sheet.edit.no') }}</option>
-                      </select>
-                    </nldd-dropdown>
-                    <nldd-date-field v-else-if="valueKind(record[key]) === 'date'" :value="record[key] ?? ''" width="full" @change="setField(key, detailValue($event) ?? '', 'date')"></nldd-date-field>
-                    <nldd-text-field v-else :value="record[key] ?? ''" width="full" :keyboard="valueKind(record[key]) === 'number' ? 'numeric' : undefined" @input="setField(key, inputValue($event), valueKind(record[key]))"></nldd-text-field>
-                  </nldd-cell>
-                </nldd-list-item>
-              </nldd-list>
-            </template>
-            <!-- Typed input, as the POC had it: a date gets a date picker and a
-                 number a number field, so the value a citizen enters is of the
-                 kind the law expects. An amount stays a text field: the number
-                 field shows the Dutch comma badly. -->
-            <nldd-date-field v-else-if="kind === 'date'" :value="newValue" width="full" @change="newValue = (detailValue($event) as string | undefined) ?? newValue"></nldd-date-field>
-            <nldd-number-field v-else-if="kind === 'number'" :value="newValue" width="full" hide-spin-buttons :step="step" @input="onNumber" @change="onNumber"></nldd-number-field>
-            <nldd-text-field v-else :value="newValue" @input="newValue = inputValue($event)"></nldd-text-field>
-          </nldd-form-field>
-          <nldd-form-field :label="selfDeclared ? t('sheet.edit.reason.self') : t('sheet.edit.reason.correction')" :optional="selfDeclared || undefined">
-            <nldd-multi-line-text-field :value="reason" rows="3" :placeholder="caseworker ? t('sheet.edit.reason.placeholder.officer') : t('sheet.edit.reason.placeholder.citizen')" @input="reason = inputValue($event)"></nldd-multi-line-text-field>
-            <nldd-form-field-help-text>{{ caseworker ? t('sheet.edit.reason.help.officer') : hardship ? t('sheet.edit.reason.help.hardship') : selfDeclared || features.AUTO_APPROVE_CLAIMS ? t('sheet.edit.reason.help.immediate') : t('sheet.edit.reason.help.pending') }}</nldd-form-field-help-text>
-          </nldd-form-field>
-          <nldd-form-field :label="t('sheet.edit.hardship.label')" optional>
-            <nldd-dropdown width="full">
-              <select :value="hardship" @change="hardship = selectValue($event)">
-                <option v-for="o in HARDSHIP_CLAUSES" :key="o.value" :value="o.value">{{ t(o.labelKey) }}</option>
-              </select>
-            </nldd-dropdown>
-            <nldd-form-field-help-text>{{ t('sheet.edit.hardship.help') }}</nldd-form-field-help-text>
-          </nldd-form-field>
-          <nldd-form-field :label="t('sheet.edit.evidence.label')" optional>
-            <nldd-file-field accept=".pdf,image/*" :accessible-label="t('sheet.edit.evidence.choose')" @change="onEvidenceChange"></nldd-file-field>
-            <nldd-form-field-help-text>{{ evidence && !evidence.dataUrl && evidence.size > EVIDENCE_INLINE_LIMIT ? t('sheet.edit.evidence.too_large') : t('sheet.edit.evidence.help') }}</nldd-form-field-help-text>
-          </nldd-form-field>
-          <nldd-banner v-if="error" variant="critical" :text="error"></nldd-banner>
-          <nldd-form-actions>
-            <nldd-button-group orientation="horizontal">
-              <nldd-button appearance="primary" :text="caseworker ? t('sheet.edit.submit.officer') : selfDeclared ? t('sheet.edit.submit.self') : t('sheet.edit.submit.citizen')" @click="submit"></nldd-button>
-              <nldd-button appearance="secondary" :text="t('sheet.cancel')" @click="emit('close')"></nldd-button>
-            </nldd-button-group>
-          </nldd-form-actions>
-        </nldd-container>
+        <nldd-simple-section>
+          <nldd-container gap="16">
+            <nldd-list appearance="box-tinted" :accessible-label="t('sheet.edit.current')">
+              <nldd-list-item size="md">
+                <nldd-cell v-if="node.service"><OrgLogo :service="node.service" /></nldd-cell>
+                <nldd-spacer-cell v-if="node.service" size="12"></nldd-spacer-cell>
+                <nldd-text-cell
+                  :overline="selfDeclared ? t('sheet.edit.overline.self') : t('sheet.edit.overline.registered')"
+                  :text="formatValue(node.value, spec)"
+                  :supporting-text="node.service ? t('sheet.edit.source', { service: corpus?.services[node.service]?.name ?? node.service }) : t('sheet.edit.no_register')"
+                ></nldd-text-cell>
+              </nldd-list-item>
+            </nldd-list>
+            <nldd-rich-text v-if="spec?.description"><p>{{ spec.description }}</p></nldd-rich-text>
+            <nldd-form-field :label="unit ? t('sheet.edit.new_value.unit', { unit }) : t('sheet.edit.new_value')">
+              <nldd-segmented-control v-if="kind === 'boolean'" :value="newValue" @change="newValue = choiceValue($event)">
+                <nldd-segmented-control-item value="true" :text="t('sheet.edit.yes')"></nldd-segmented-control-item>
+                <nldd-segmented-control-item value="false" :text="t('sheet.edit.no')"></nldd-segmented-control-item>
+              </nldd-segmented-control>
+              <!-- A table-valued register (children, housemates): rows with the
+                   same columns, each cell typed on what the column holds, and
+                   rows can be added or removed, as the POC allowed. -->
+              <template v-else-if="kind === 'rows'">
+                <nldd-table :accessible-label="humanize(node.name)" :columns="`repeat(${columns.length}, minmax(120px, 1fr)) max-content`">
+                  <nldd-table-row slot="header">
+                    <nldd-text-cell v-for="c in columns" :key="c" size="sm" :text="humanize(c)"></nldd-text-cell>
+                    <nldd-text-cell size="sm" text=""></nldd-text-cell>
+                  </nldd-table-row>
+                  <nldd-table-row v-for="(row, i) in rows" :key="i">
+                    <nldd-cell v-for="c in columns" :key="c">
+                      <nldd-segmented-control v-if="columnKind(c) === 'boolean'" :value="String(row[c])" :accessible-label="humanize(c)" @change="setCell(i, c, choiceValue($event), 'boolean')">
+                        <nldd-segmented-control-item value="true" :text="t('sheet.edit.yes')"></nldd-segmented-control-item>
+                        <nldd-segmented-control-item value="false" :text="t('sheet.edit.no')"></nldd-segmented-control-item>
+                      </nldd-segmented-control>
+                      <nldd-date-field v-else-if="columnKind(c) === 'date'" :value="row[c] ?? ''" width="full" @change="setCell(i, c, detailValue($event) ?? '', 'date')"></nldd-date-field>
+                      <nldd-text-field v-else :value="row[c] ?? ''" width="full" :keyboard="columnKind(c) === 'number' ? 'numeric' : undefined" @input="setCell(i, c, inputValue($event), columnKind(c))"></nldd-text-field>
+                    </nldd-cell>
+                    <nldd-cell>
+                      <nldd-icon-button size="xs" appearance="neutral-transparent" icon="trash" :accessible-label="t('sheet.edit.rows.remove')" @click="removeRow(i)"></nldd-icon-button>
+                    </nldd-cell>
+                  </nldd-table-row>
+                  <nldd-inline-dialog slot="empty" :text="t('sheet.edit.rows.empty')"></nldd-inline-dialog>
+                </nldd-table>
+                <nldd-button size="sm" appearance="secondary" start-icon="plus" :text="t('sheet.edit.rows.add')" @click="addRow"></nldd-button>
+              </template>
+              <!-- A list of plain values (ages, properties): one typed field per
+                   item, with the same add and remove as the table. -->
+              <template v-else-if="kind === 'list'">
+                <nldd-list type="form" appearance="simple" :accessible-label="t('sheet.edit.list.label')">
+                  <nldd-list-item v-for="(item, i) in list" :key="i" size="sm">
+                    <nldd-cell width="full">
+                      <nldd-segmented-control v-if="valueKind(item) === 'boolean'" :value="String(item)" :accessible-label="t('sheet.edit.new_value')" @change="setListItem(i, choiceValue($event), 'boolean')">
+                        <nldd-segmented-control-item value="true" :text="t('sheet.edit.yes')"></nldd-segmented-control-item>
+                        <nldd-segmented-control-item value="false" :text="t('sheet.edit.no')"></nldd-segmented-control-item>
+                      </nldd-segmented-control>
+                      <nldd-date-field v-else-if="valueKind(item) === 'date'" :value="item ?? ''" width="full" @change="setListItem(i, detailValue($event) ?? '', 'date')"></nldd-date-field>
+                      <nldd-text-field v-else :value="item ?? ''" width="full" :keyboard="valueKind(item) === 'number' ? 'numeric' : undefined" @input="setListItem(i, inputValue($event), valueKind(item))"></nldd-text-field>
+                    </nldd-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-cell><nldd-icon-button size="xs" appearance="neutral-transparent" icon="trash" :accessible-label="t('sheet.edit.list.remove')" @click="removeListItem(i)"></nldd-icon-button></nldd-cell>
+                  </nldd-list-item>
+                  <nldd-inline-dialog slot="empty" :text="t('sheet.edit.list.empty')"></nldd-inline-dialog>
+                </nldd-list>
+                <nldd-button size="sm" appearance="secondary" start-icon="plus" :text="t('sheet.edit.list.add')" @click="addListItem"></nldd-button>
+              </template>
+              <!-- One record (an address, a decision): a typed field per named field. -->
+              <template v-else-if="kind === 'record'">
+                <nldd-list type="form" appearance="simple" :accessible-label="t('sheet.edit.record.label')">
+                  <nldd-list-item v-for="key in recordKeys" :key="key" size="sm">
+                    <nldd-text-cell size="sm" min-width="120px" :text="humanize(key)"></nldd-text-cell>
+                    <nldd-cell width="full">
+                      <nldd-segmented-control v-if="valueKind(record[key]) === 'boolean'" :value="String(record[key])" :accessible-label="humanize(key)" @change="setField(key, choiceValue($event), 'boolean')">
+                        <nldd-segmented-control-item value="true" :text="t('sheet.edit.yes')"></nldd-segmented-control-item>
+                        <nldd-segmented-control-item value="false" :text="t('sheet.edit.no')"></nldd-segmented-control-item>
+                      </nldd-segmented-control>
+                      <nldd-date-field v-else-if="valueKind(record[key]) === 'date'" :value="record[key] ?? ''" width="full" @change="setField(key, detailValue($event) ?? '', 'date')"></nldd-date-field>
+                      <nldd-text-field v-else :value="record[key] ?? ''" width="full" :keyboard="valueKind(record[key]) === 'number' ? 'numeric' : undefined" @input="setField(key, inputValue($event), valueKind(record[key]))"></nldd-text-field>
+                    </nldd-cell>
+                  </nldd-list-item>
+                </nldd-list>
+              </template>
+              <!-- Typed input, as the POC had it: a date gets a date picker and a
+                   number a number field, so the value a citizen enters is of the
+                   kind the law expects. An amount stays a text field: the number
+                   field shows the Dutch comma badly. -->
+              <nldd-date-field v-else-if="kind === 'date'" :value="newValue" width="full" @change="newValue = (detailValue($event) as string | undefined) ?? newValue"></nldd-date-field>
+              <nldd-number-field v-else-if="kind === 'number'" :value="newValue" width="full" hide-spin-buttons :step="step" @input="onNumber" @change="onNumber"></nldd-number-field>
+              <nldd-text-field v-else :value="newValue" @input="newValue = inputValue($event)"></nldd-text-field>
+            </nldd-form-field>
+            <nldd-form-field :label="selfDeclared ? t('sheet.edit.reason.self') : t('sheet.edit.reason.correction')" :optional="selfDeclared || undefined">
+              <nldd-multi-line-text-field :value="reason" rows="3" :placeholder="caseworker ? t('sheet.edit.reason.placeholder.officer') : t('sheet.edit.reason.placeholder.citizen')" @input="reason = inputValue($event)"></nldd-multi-line-text-field>
+              <nldd-form-field-help-text>{{ caseworker ? t('sheet.edit.reason.help.officer') : hardship ? t('sheet.edit.reason.help.hardship') : selfDeclared || features.AUTO_APPROVE_CLAIMS ? t('sheet.edit.reason.help.immediate') : t('sheet.edit.reason.help.pending') }}</nldd-form-field-help-text>
+            </nldd-form-field>
+            <nldd-form-field :label="t('sheet.edit.hardship.label')" optional>
+              <nldd-dropdown width="full">
+                <select :value="hardship" @change="hardship = selectValue($event)">
+                  <option v-for="o in HARDSHIP_CLAUSES" :key="o.value" :value="o.value">{{ t(o.labelKey) }}</option>
+                </select>
+              </nldd-dropdown>
+              <nldd-form-field-help-text>{{ t('sheet.edit.hardship.help') }}</nldd-form-field-help-text>
+            </nldd-form-field>
+            <nldd-form-field :label="t('sheet.edit.evidence.label')" optional>
+              <nldd-file-field accept=".pdf,image/*" :accessible-label="t('sheet.edit.evidence.choose')" @change="onEvidenceChange"></nldd-file-field>
+              <nldd-form-field-help-text>{{ evidence && !evidence.dataUrl && evidence.size > EVIDENCE_INLINE_LIMIT ? t('sheet.edit.evidence.too_large') : t('sheet.edit.evidence.help') }}</nldd-form-field-help-text>
+            </nldd-form-field>
+            <nldd-banner v-if="error" variant="critical" :text="error"></nldd-banner>
+            <nldd-form-actions>
+              <nldd-button-group orientation="horizontal">
+                <nldd-button appearance="primary" :text="caseworker ? t('sheet.edit.submit.officer') : selfDeclared ? t('sheet.edit.submit.self') : t('sheet.edit.submit.citizen')" @click="submit"></nldd-button>
+              </nldd-button-group>
+            </nldd-form-actions>
+          </nldd-container>
+        </nldd-simple-section>
       </nldd-page>
     </nldd-sheet>
   </Teleport>

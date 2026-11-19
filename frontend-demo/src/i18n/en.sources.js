@@ -329,8 +329,6 @@ export default {
   "sheet.application.unknown.supporting": "e85e",
   "sheet.application.unknown.title": "8ee5",
   "sheet.application.yes": "6bf1",
-  "sheet.cancel": "35de",
-  "sheet.change.back": "904a",
   "sheet.change.confirm.after": "f09c",
   "sheet.change.confirm.before": "26fa",
   "sheet.change.confirm.label": "becb",

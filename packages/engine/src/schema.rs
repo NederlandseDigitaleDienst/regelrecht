@@ -1,5 +1,5 @@
 //! Embedded JSON Schemas + version detection, shared by the `validate` binary
-//! and the schema↔model conformance test suite.
+//! and the schema conformance test suite (schema ↔ law-model).
 //!
 //! Only compiled with the `validate` feature (which pulls in `jsonschema`).
 //! Keeping the schema-loading list and version detection here means there is a
@@ -26,7 +26,7 @@ macro_rules! with_schema_versions {
             "v0.5.7", "v0.5.8", "v0.5.9", "v0.6.0", "v0.7.0", "v0.7.1",
             "v0.8.0", "v0.8.1", "v0.8.2", "v0.8.3", "v0.8.4", "v0.8.5", "v0.8.6", "v0.8.7", "v0.8.8",
             "v0.8.9", "v0.8.10", "v0.8.11", "v0.8.12", "v0.8.13", "v0.8.14", "v0.8.15", "v0.8.16", "v0.8.17",
-            "v0.8.18", "v0.8.19", "v0.8.20", "v0.8.21", "v0.8.22",
+            "v0.8.18", "v0.8.19", "v0.8.20", "v0.8.21", "v0.8.22", "v0.8.24",
         }
     };
 }
@@ -104,7 +104,7 @@ pub fn validation_errors(
 
 /// All embedded schemas compiled once, keyed by version. Built lazily on first
 /// use and cached for the process — callers validating many documents (e.g. the
-/// conformance suite over the whole corpus) avoid recompiling the schema per
+/// schema conformance suite over the whole corpus) avoid recompiling the schema per
 /// call. `Err` means a schema failed to load or compile.
 fn compiled_validators() -> &'static Result<HashMap<&'static str, Validator>, String> {
     static CACHE: std::sync::OnceLock<Result<HashMap<&'static str, Validator>, String>> =

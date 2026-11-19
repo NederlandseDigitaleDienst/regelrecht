@@ -250,7 +250,7 @@ both: `corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml`.
 - The hand-authored `schema/latest/schema.json` is the **canonical contract**.
   The Rust `law-model` (`packages/law-model/`, described in
   `docs/src/content/docs/components/law-model.md`) must conform to it; neither
-  is generated from the other. After changing either one, run `just conformance`
+  is generated from the other. After changing either one, run `just schema-conformance`
   (see `docs/src/content/docs/reference/conformance.md`). Do not "fix" a
   divergence listed in `KNOWN_GAPS` in passing; reconciling those is tracked
   separately.
@@ -400,7 +400,18 @@ JavaScript. The setup is in `docs/src/content/docs/guide/frontend-code.md`.
 
 ## Frontend / UI Components
 
-**All user interface MUST be built with components from the NLDD Designsysteem: https://github.com/NederlandseDigitaleDienst/design-system** (the NLDD `nldd-*` web components, from `@nldd/design-system`). Do not hand-roll custom UI elements when a design-system component exists. For the required component hierarchy, nesting rules, and layout patterns, use the `storybook-component-hierarchy` skill.
+**All user interface MUST be built with components from the NLDD Designsysteem: https://github.com/NederlandseDigitaleDienst/design-system** (the NLDD `nldd-*` web components, from `@nldd/design-system`). Do not hand-roll custom UI elements when a design-system component exists.
+
+The design system ships its own skills as the plugin `nldd-design-system`,
+which `.claude/settings.json` enables from the `nldd` marketplace and updates
+automatically. Use `nldd-design-build` for the component hierarchy,
+nesting rules and layout patterns, `nldd-design` to look up a component,
+attribute, slot or icon, and `nldd-design-validate` (`npx nldd lint`) after
+writing or changing `nldd-*` markup. This repository keeps no copy of that
+guidance: a copy goes stale with every release of the design system. An agent
+other than Claude Code installs the plugin from
+https://github.com/NederlandseDigitaleDienst/ai-plugins, or reads the skills in
+the design-system repository under `skills/`.
 
 The element prefix is `nldd-`, with two l's. Older prose may still write
 `ndd-`; that is stale.

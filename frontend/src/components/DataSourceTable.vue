@@ -256,6 +256,7 @@ const showBody = computed(() => props.drilledIn || expanded.value);
                 :invalid="cellInvalid(row, ri, col) || undefined"
                 :unmet="cellInvalid(row, ri, col) ? cellErrorId(row, ri, col) : undefined"
               >
+                <!-- nldd-lint-disable-next-line dropdown-needs-six-options -- up to four values (true, false, null, empty) in a cell beside its column name, where a control that shows them all does not fit -->
                 <select
                   :aria-label="col.name"
                   :value="booleanCellValue(row[col.name])"

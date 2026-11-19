@@ -13,6 +13,7 @@
     "frontend-poc-terugbetaalregimes",
     "frontend-poc-nieuwkomersbekostiging",
     "frontend-poc-napp",
+    "frontend-poc-regels-op-een-plek",
     "packages/poc-chronolexografie/frontend"
   ],
   "overrides": {

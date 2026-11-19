@@ -80,12 +80,16 @@ The job downloads the browser engine from the **WASM Build** job, starts the
 demo's dev server, fetches only the voice from the walkthrough's release, and
 replays every chapter in a headless Chromium in two window sizes. Dutch plays in
 both sizes, every other language only in the first. CI spreads these runs over
-three parallel jobs with `--shard K/3`. An action whose element is not found
+three parallel jobs with `--shard K/3`, and plays the runs within a job one
+after another (`--jobs 1`). Run locally, they play side by side, each in its own
+browser context and at most half the cores at once; that has not been measured
+on a CI runner yet. An action whose element is not found
 fails the job, with an annotation naming the chapter; an action that only finds
 its element with the numbers in its description masked is reported as a
 warning, since it may now point at something else. It runs when `frontend-demo/`,
 `corpus/demo/`, the engine or the schema changes, hangs on the `Test` gate, and
-is the command you run locally, `just walkthrough verify`, with `--shard` added.
+is the command you run locally, `just walkthrough verify`, with `--shard` and
+`--jobs 1` added.
 A failure is fixed in the demo, or by recording that chapter again.
 
 ### The browser jobs run in the Playwright image
@@ -203,7 +207,7 @@ Neither scans for known vulnerabilities. That is `just audit-advisories` (RustSe
 
 ### Schema protection (on PRs)
 
-Released schema versions in `schema/v*.*.*` are immutable. CI fails if a PR tries to modify or delete a released schema. `schema/latest` is a symlink to the highest released version (currently `v0.8.22`), not a directory to edit; a schema change goes into a new version directory.
+Released schema versions in `schema/v*.*.*` are immutable. CI fails if a PR tries to modify or delete a released schema. `schema/latest` is a symlink to the highest released version (currently `v0.8.24`), not a directory to edit; a schema change goes into a new version directory.
 
 ### Schema diff comment (on PRs that touch `schema/`)
 
@@ -215,7 +219,7 @@ The comment is a reading aid. What the new version means for someone writing a r
 
 ### Provenance checks (on corpus/engine changes)
 
-Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the corpus of the chronolexografie PoC (`packages/poc-chronolexografie/corpus/`, its reductions included) names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.22`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
+Among other checks, the `provenance-checks` job verifies that every `$schema` URL in `corpus/regulation` and in the corpus of the chronolexografie PoC (`packages/poc-chronolexografie/corpus/`, its reductions included) names a schema version that exists under `schema/`, that every version directory under `schema/` is registered in `packages/engine/src/schema.rs`, and that `schema/latest` points at the highest version (currently `v0.8.24`). It does not check the form of the URL: a tag-based `refs/tags/schema-vX.Y.Z` reference is the convention, but a branch-based URL that names a known version passes. On a pull request that changes engine source it also compares the version in `packages/engine/Cargo.toml` with `main`; an unchanged version only prints a warning. See [RFC-013](/rfcs/rfc-013) for context.
 
 ### Docs accessibility gate (on docs changes)
 

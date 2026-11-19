@@ -397,7 +397,7 @@ jobs:
 
       - name: Deploy to ZAD (Preview)
         id: deploy
-        uses: RijksICTGilde/zad-actions/deploy@b612e5968bb88c2c9c05da30f0be2e96b98f78c6  # v4.3.2
+        uses: RijksICTGilde/zad-actions/deploy@0b604742a137d43f6fe8fceb06bdffeb0a1665db  # v4.4.1
         with:
           api-key: ${{ secrets.RIG_API_KEY }}
           project-id: ${{ env.ZAD_PROJECT }}
@@ -441,7 +441,9 @@ jobs:
   # -- Deploy production --
   deploy-production:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Room for the deploy task (300 seconds at most), the wait for a healthy
+    # deployment (five minutes) and the production check after it.
+    timeout-minutes: 30
     # Twee main-runs deployen onafhankelijk naar hetzelfde ZAD-deployment, en
     # zonder wachtrij wint niet de nieuwste commit maar degene die toevallig als
     # laatste aankomt. Op 17 september 2026 bouwde de run van #1448 het
@@ -481,7 +483,7 @@ jobs:
         needs.build-poc-napp.result == 'success'
       )
     permissions:
-      # Voor script/check-deployed-urls.sh onderaan.
+      # Voor script/await-zad-health.sh en script/check-deployed-urls.sh onderaan.
       contents: read
     environment:
       name: production
@@ -569,12 +571,25 @@ jobs:
       # de bestaande config en moeten daar niet door een deploy verschuiven.
       - name: Deploy to ZAD (Production)
         id: deploy
-        uses: RijksICTGilde/zad-actions/deploy@b612e5968bb88c2c9c05da30f0be2e96b98f78c6  # v4.3.2
+        uses: RijksICTGilde/zad-actions/deploy@0b604742a137d43f6fe8fceb06bdffeb0a1665db  # v4.4.1
         with:
           api-key: ${{ secrets.RIG_API_KEY }}
           project-id: ${{ env.ZAD_PROJECT }}
           deployment-name: regelrecht
           components: ${{ steps.plan.outputs.components }}
+
+      # The deploy step is green once ZAD accepts the rollout, also when ZAD
+      # reports a component as unhealthy in the same answer (#1651). That
+      # report is often a registry that did not answer in time, and the cluster
+      # keeps pulling by itself, so this step asks ZAD until it reports the
+      # deployment healthy. The action put `zad` on PATH.
+      - name: Wacht tot ZAD de deployment gezond meldt
+        env:
+          ZAD_API_KEY: ${{ secrets.RIG_API_KEY }}
+          ZAD_PROJECT_ID: ${{ env.ZAD_PROJECT }}
+          DEPLOYMENT: regelrecht
+          COMPONENTS: ${{ steps.plan.outputs.components }}
+        run: script/await-zad-health.sh
 
       - name: Editor-URL voor de environment
         id: editor-url
@@ -626,7 +641,7 @@ jobs:
 
     steps:
       - name: Cleanup ZAD deployment and container images
-        uses: RijksICTGilde/zad-actions/cleanup@b612e5968bb88c2c9c05da30f0be2e96b98f78c6  # v4.3.2
+        uses: RijksICTGilde/zad-actions/cleanup@0b604742a137d43f6fe8fceb06bdffeb0a1665db  # v4.4.1
         with:
           api-key: ${{ secrets.RIG_API_KEY }}
           project-id: ${{ env.ZAD_PROJECT }}

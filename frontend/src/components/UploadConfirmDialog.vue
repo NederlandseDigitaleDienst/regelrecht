@@ -110,6 +110,7 @@ function onAllowLlmChange(event: Event) {
 
 <template>
   <Teleport to="body">
+    <!-- nldd-lint-disable-next-line modal-dialog-no-form -- a confirmation with one optional checkbox; it blocks the upload until answered and needs no page behind it -->
     <nldd-modal-dialog
       ref="dialogEl"
       icon="upload-to-cloud"
@@ -140,7 +141,7 @@ function onAllowLlmChange(event: Event) {
       <nldd-button
         slot="actions"
         appearance="secondary"
-        text="Annuleren"
+        text="Annuleer"
         data-testid="upload-confirm-cancel"
         @click="emit('cancel')"
       ></nldd-button>

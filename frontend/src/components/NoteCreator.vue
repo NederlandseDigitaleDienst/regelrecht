@@ -598,14 +598,16 @@ const statusInfo = computed(() => {
              disables - an empty submit shows the banner above instead. -->
         <nldd-spacer size="16"></nldd-spacer>
         <nldd-form-actions>
-          <nldd-button
-            size="md"
-            appearance="primary"
-            width="full"
-            :text="isEditing ? 'Werk notitie bij' : 'Voeg notitie toe'"
-            data-testid="note-save"
-            @click="save"
-          ></nldd-button>
+          <nldd-button-group width="full">
+            <nldd-button
+              size="md"
+              appearance="primary"
+              width="full"
+              :text="isEditing ? 'Werk notitie bij' : 'Voeg notitie toe'"
+              data-testid="note-save"
+              @click="save"
+            ></nldd-button>
+          </nldd-button-group>
         </nldd-form-actions>
       </template>
     </nldd-container>

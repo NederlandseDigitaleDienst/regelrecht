@@ -43,6 +43,9 @@ frontend-poc-*/dist/
 frontend-poc-*/public/laws/
 frontend-poc-*/public/data/
 frontend-poc-*/public/wasm/
+# regels-op-een-plek: public/ is helemaal gegenereerd (engine, versie, iconen); de gegevens
+# komen uit de bron, niet uit deze repository.
+frontend-poc-regels-op-een-plek/public/
 # chronolexografie: de app staat naast haar crate, in één map.
 packages/poc-chronolexografie/frontend/dist/
 packages/poc-chronolexografie/frontend/public/wasm/

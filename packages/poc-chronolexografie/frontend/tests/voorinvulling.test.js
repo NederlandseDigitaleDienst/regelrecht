@@ -225,9 +225,12 @@ describe('fields the system fills', () => {
     expect(systeemVult({ veld: 'nummer' }, null, systeem)).toBe(systeem);
   });
 
-  it('says where the value comes from', () => {
-    expect(systeemTekst(systeem.dagtekening, undefined, celNaam)).toBe('Ingevuld door het systeem.');
+  it('names the source of a value from a source', () => {
     expect(systeemTekst(systeem.elektronisch, voorgevuld.elektronisch, celNaam)).toMatch(/^Ingevuld uit Voorbeeldregister/);
+  });
+
+  it('gives no line for a value the system knows itself, nor for the login', () => {
+    expect(systeemTekst(systeem.dagtekening, undefined, celNaam)).toBe('');
     expect(systeemTekst(systeem.nummer, undefined, celNaam)).toBe('');
   });
 });

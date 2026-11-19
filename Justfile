@@ -129,13 +129,14 @@ validate-demo:
 validate-annotations *FILES:
     script/validate-annotations.sh {{FILES}}
 
-# Schema↔model conformance suite — proves the Rust law-model conforms to the
-# canonical schema.json. Standalone helper; `just test` already runs it via
+# Schema conformance suite (schema↔law-model) — proves the Rust law-model
+# conforms to the canonical schema.json. Not BDD bucket B (engine conformance,
+# `BDD_BUCKET=conformance just bdd`). Standalone helper; `just test` already runs it via
 # --all-features. Needs the `validate` feature (jsonschema). See
-# packages/engine/tests/conformance/README.md.
+# packages/engine/tests/schema_conformance/README.md.
 [doc("Prove the Rust law-model conforms to the canonical schema.json")]
-conformance:
-    cd packages && {{ci_flags}} cargo test -p regelrecht-engine --features validate --test conformance
+schema-conformance:
+    cd packages && {{ci_flags}} cargo test -p regelrecht-engine --features validate --test schema_conformance
 
 # Pins the deploy filters against the real cargo graph. Node's built-in test
 # runner, so no dependency for one file. Needs `cargo metadata`, not a build.
@@ -282,6 +283,13 @@ deploy-gate-test:
 [doc("Check the post-deploy health check")]
 deployed-urls-test:
     script/check-deployed-urls.test.sh
+
+# The step that waits after a rollout until ZAD reports the deployment healthy.
+# `zad` is a stub on PATH in the test, so nothing reaches the platform.
+[doc("Check the wait for a healthy ZAD deployment")]
+zad-health-test:
+    script/await-zad-health.test.sh
+
 # De controle die telt wat de nachtelijke opruiming heeft achtergelaten. `gh`
 # staat in de test als stub op PATH, dus er gaat geen verkeer naar GitHub.
 [doc("Check the guard on leftover preview environments")]
@@ -292,7 +300,7 @@ preview-environments-test:
 # container-backed suites; on a machine without a daemon, swap `test` for
 # `test-no-docker`.
 [doc("Run all quality checks, exactly what CI runs (needs Docker)")]
-check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test orphan-tests orphan-tests-test book-lints-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
+check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test orphan-tests orphan-tests-test book-lints-test dockerfile-consistency-test deploy-gate-test deployed-urls-test zad-health-test preview-environments-test advisories-report-test dev-preflight-test test
 
 # --- Tests ---
 
@@ -1049,6 +1057,9 @@ poc-build: wasm-build poc-chronolexografie-wasm poc-assets
     POC_BASE=/nieuwkomersbekostiging/ npm run build -w poc-nieuwkomersbekostiging
     mkdir -p .poc-static/nieuwkomersbekostiging
     cp -R frontend-poc-nieuwkomersbekostiging/dist/. .poc-static/nieuwkomersbekostiging/
+    POC_BASE=/regels-op-een-plek/ npm run build -w poc-regels-op-een-plek
+    mkdir -p .poc-static/regels-op-een-plek
+    cp -R frontend-poc-regels-op-een-plek/dist/. .poc-static/regels-op-een-plek/
     POC_BASE=/chronolexografie/ npm run build -w poc-chronolexografie
     mkdir -p .poc-static/chronolexografie
     cp -R packages/poc-chronolexografie/frontend/dist/. .poc-static/chronolexografie/
@@ -1066,12 +1077,14 @@ poc: poc-build
     #!/usr/bin/env bash
     set -euo pipefail
     echo "poc-portaal → http://localhost:8611"
-    echo "wachtwoorden: terugbetaalregimes/nieuwkomersbekostiging/napp/chronolexografie = 'demo'"
+    echo "wachtwoorden: terugbetaalregimes/nieuwkomersbekostiging/napp/chronolexografie/regels-op-een-plek = 'demo'"
+    echo "regels-op-een-plek haalt zijn gegevens uit een bron: zet POC_BRON_SPOORZONE op een lokale map ervan"
     POC_COOKIE_SECRET=lokale-ontwikkelsleutel-niet-geheim-0123 \
     POC_PW_TERUGBETAALREGIMES=demo \
     POC_PW_NIEUWKOMERSBEKOSTIGING=demo \
     POC_PW_NAPP=demo \
     POC_PW_CHRONOLEXOGRAFIE=demo \
+    POC_PW_REGELS_OP_EEN_PLEK=demo \
     POC_STATIC_DIR="$(pwd)/.poc-static" \
     POC_PORT=8611 \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-poc-portal

@@ -570,6 +570,7 @@ const openCases = computed(() => state.cases.filter((c) => c.status === 'IN_REVI
       </nldd-split-view-pane>
     </nldd-bar-split-view>
 
+    <!-- nldd-lint-disable-next-line modal-dialog-no-form -- a single password prompt that blocks until answered, not work that needs the page behind it -->
     <nldd-modal-dialog
       ref="whyDialog"
       :text="t('app.why.dialog.title')"

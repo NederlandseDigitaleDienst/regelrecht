@@ -220,17 +220,19 @@ onUnmounted(() => {
         <nldd-container slot="header" padding="12">
           <nldd-top-title-bar :text="t('walkthrough.transcript.title')" :supporting-text="replay.faq ? questionOf(replay.faq) : undefined" :dismiss-text="t('walkthrough.transcript.close')" @dismiss="transcript.open = false"></nldd-top-title-bar>
         </nldd-container>
-        <nldd-container padding="16" gap="24" :lang="replay.captionsLang">
-          <nldd-container v-for="(c, i) in chapters" :key="i" padding="0" gap="8">
-            <nldd-title size="display-5">
-              <h2>{{ c.title }}</h2>
-            </nldd-title>
-            <nldd-rich-text v-if="c.text" spacing="tight">
-              <p>{{ c.text }}</p>
-            </nldd-rich-text>
-            <nldd-button size="sm" appearance="neutral-transparent" start-icon="play" :lang="locale" :text="t('walkthrough.transcript.play_from', { time: formatTime(c.start) })" @click="playFrom(c.start)"></nldd-button>
+        <nldd-simple-section :lang="replay.captionsLang">
+          <nldd-container gap="24">
+            <nldd-container v-for="(c, i) in chapters" :key="i" padding="0" gap="8">
+              <nldd-title size="display-5">
+                <h2>{{ c.title }}</h2>
+              </nldd-title>
+              <nldd-rich-text v-if="c.text" spacing="tight">
+                <p>{{ c.text }}</p>
+              </nldd-rich-text>
+              <nldd-button size="sm" appearance="neutral-transparent" start-icon="play" :lang="locale" :text="t('walkthrough.transcript.play_from', { time: formatTime(c.start) })" @click="playFrom(c.start)"></nldd-button>
+            </nldd-container>
           </nldd-container>
-        </nldd-container>
+        </nldd-simple-section>
       </nldd-page>
     </nldd-sheet>
   </div>

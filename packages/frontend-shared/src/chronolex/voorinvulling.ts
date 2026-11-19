@@ -178,15 +178,15 @@ export const opHetFormulier = <V extends FormVeld>(
   doorInloggen: Set<string>,
 ): V[] => (velden ?? []).filter((v) => !doorInloggen.has(v.naam) && !(verborgen ?? []).includes(v.naam));
 
-/** The line under a field the system fills: where its value comes from. */
-export function systeemTekst(
+/**
+ * The line under a field the system fills: the source its value comes from.
+ * A value the system knows itself, or the login gives, gets no line.
+ */
+export const systeemTekst = (
   hoe: Systeemvulling | null | undefined,
   voorgevuld: Voorgevuld | null | undefined,
   celNaam: (cel: string) => string,
-): string {
-  if (hoe?.bron) return herkomstTekst(voorgevuld, voorgevuld?.waarde, celNaam);
-  return hoe && 'waarde' in hoe ? 'Ingevuld door het systeem.' : '';
-}
+): string => (hoe?.bron ? herkomstTekst(voorgevuld, voorgevuld?.waarde, celNaam) : '');
 
 /**
  * The fields of a submission against the decision `besluit`: those of its
