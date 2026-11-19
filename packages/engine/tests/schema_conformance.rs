@@ -576,6 +576,12 @@ fn collect_keys(
     }
     if let Some(properties) = map.get("properties").and_then(Value::as_object) {
         for (key, sub) in properties {
+            // `true` only admits a key whose shape another branch defines, as
+            // when a field composed with `allOf` lists every key so that it can
+            // be closed (schema v0.8.26). The shape is counted where it lives.
+            if sub == &Value::Bool(true) {
+                continue;
+            }
             keys.insert(format!("{owner}.{key}"));
             collect_keys(schema, sub, owner, stack, keys);
         }
@@ -794,4 +800,259 @@ fn fixtures_in(dir: &Path) -> Vec<PathBuf> {
         .collect();
     out.sort();
     out
+}
+
+// ---------------------------------------------------------------------------
+// Schema v0.8.26 — what it drops and what it closes
+// ---------------------------------------------------------------------------
+
+/// A rulework every case below starts from. It reaches each object v0.8.26
+/// closes, so a case only has to add the one key it is about.
+const V0_8_26_BASE: &str = r"
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.26/schema/v0.8.26/schema.json
+$id: test_v0_8_26_base
+uuid: 00000000-0000-4000-8000-000000000026
+regulatory_layer: WET
+bwb_id: BWBR9999951
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.invalid/v0-8-26
+competent_authority:
+  name: Testdienst
+procedure:
+  - id: beschikking
+    applies_to:
+      legal_character: BESCHIKKING
+    stages:
+      - name: BESLUIT
+        requires:
+          - name: besluitdatum
+            type: date
+articles:
+  - number: '1'
+    url: https://example.invalid/v0-8-26/1
+    text: De toeslag is het bedrag verminderd met het inkomen.
+    machine_readable:
+      execution:
+        produces:
+          legal_character: BESCHIKKING
+        parameters:
+          - name: bsn
+            type: string
+            temporal:
+              type: point_in_time
+        input:
+          - name: inkomen
+            type: amount
+            type_spec:
+              unit: eurocent
+            source:
+              regulation: test_hogere_wet
+              output: toetsingsinkomen
+        output:
+          - name: toeslag
+            type: amount
+        actions:
+          - output: toeslag
+            value:
+              operation: SUBTRACT
+              values: [100000, $inkomen]
+";
+
+/// A key v0.8.26 refuses: the object of the base it goes on, as a JSON
+/// pointer, and the key and value added there.
+struct Refusal {
+    case: &'static str,
+    at: String,
+    key: &'static str,
+    value: Value,
+}
+
+fn refusal(case: &'static str, at: &str, key: &'static str, value: Value) -> Refusal {
+    Refusal {
+        case,
+        at: at.to_owned(),
+        key,
+        value,
+    }
+}
+
+fn v0_8_26_refusals() -> Vec<Refusal> {
+    let mr = "/articles/0/machine_readable";
+    let execution = format!("{mr}/execution");
+    vec![
+        // Dropped fields: a file on v0.8.24 may still carry them.
+        refusal(
+            "resolve on an action",
+            &format!("{execution}/actions/0"),
+            "resolve",
+            serde_json::json!({"type": "MINISTERIELE_REGELING", "output": "toeslag"}),
+        ),
+        refusal(
+            "endpoint on a machine_readable",
+            mr,
+            "endpoint",
+            Value::from("toeslag"),
+        ),
+        refusal(
+            "endpoint on a source",
+            &format!("{execution}/input/0/source"),
+            "endpoint",
+            Value::from("inkomen"),
+        ),
+        // Closed objects: an unknown key, as a typo would make one.
+        refusal(
+            "a key on the document",
+            "",
+            "valid_form",
+            Value::from("2025-01-01"),
+        ),
+        refusal("jaar on the document", "", "jaar", Value::from(2025)),
+        refusal(
+            "a key on a procedure",
+            "/procedure/0",
+            "defualt",
+            Value::from(true),
+        ),
+        refusal(
+            "a key on applies_to",
+            "/procedure/0/applies_to",
+            "legal_charakter",
+            Value::from("TOETS"),
+        ),
+        refusal(
+            "a key on a stage",
+            "/procedure/0/stages/0",
+            "descripton",
+            Value::from("x"),
+        ),
+        refusal(
+            "a key on a stage requirement",
+            "/procedure/0/stages/0/requires/0",
+            "nulable",
+            Value::from(true),
+        ),
+        refusal(
+            "a key on produces",
+            &format!("{execution}/produces"),
+            "decison_type",
+            Value::from("TOEKENNING"),
+        ),
+        refusal(
+            "a key on a named authority",
+            "/competent_authority",
+            "typ",
+            Value::from("INSTANCE"),
+        ),
+        refusal(
+            "a key on a parameter",
+            &format!("{execution}/parameters/0"),
+            "requird",
+            Value::from(true),
+        ),
+        refusal(
+            "a key on an input",
+            &format!("{execution}/input/0"),
+            "nulable",
+            Value::from(true),
+        ),
+        refusal(
+            "a key on an output",
+            &format!("{execution}/output/0"),
+            "descripton",
+            Value::from("x"),
+        ),
+        refusal(
+            "a key on type_spec",
+            &format!("{execution}/input/0/type_spec"),
+            "enum",
+            serde_json::json!(["a"]),
+        ),
+        refusal(
+            "a key on temporal",
+            &format!("{execution}/parameters/0/temporal"),
+            "immutable_after",
+            Value::from("P1Y"),
+        ),
+    ]
+}
+
+fn with_key(base: &Value, at: &str, key: &str, value: Value) -> Value {
+    let mut document = base.clone();
+    document
+        .pointer_mut(at)
+        .and_then(Value::as_object_mut)
+        .unwrap_or_else(|| panic!("base has no object at {at:?}"))
+        .insert(key.to_owned(), value);
+    document
+}
+
+fn on_version(document: &Value, version: &str) -> Value {
+    let mut moved = document.clone();
+    moved["$schema"] = Value::from(format!(
+        "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-{version}/schema/{version}/schema.json"
+    ));
+    moved
+}
+
+/// Schema v0.8.26 refuses each key it dropped or no longer admits, while
+/// v0.8.24 accepts the same document: a rulework that names the older version
+/// keeps validating. `jaar` is the one exception in the other direction, a key
+/// the law-model reads and no version ever defined, which the open document of
+/// v0.8.24 let through.
+#[test]
+fn v0_8_26_refuses_what_it_drops_and_closes() {
+    let base: Value = serde_yaml_ng::from_str(V0_8_26_BASE).expect("base is YAML");
+    assert!(
+        schema_accepts("v0.8.26", &base),
+        "base must be valid under v0.8.26: {:?}",
+        validation_errors_for("v0.8.26", &base).unwrap()
+    );
+    assert!(
+        ArticleBasedLaw::from_yaml_str(V0_8_26_BASE).is_ok(),
+        "the model must read the base"
+    );
+
+    for Refusal {
+        case,
+        at,
+        key,
+        value,
+    } in v0_8_26_refusals()
+    {
+        let document = with_key(&base, &at, key, value);
+        assert!(
+            !schema_accepts("v0.8.26", &document),
+            "v0.8.26 accepts {case}, which it should refuse"
+        );
+        let older = on_version(&document, "v0.8.24");
+        assert!(
+            schema_accepts("v0.8.24", &older),
+            "v0.8.24 refuses {case}, so the case does not isolate a change of v0.8.26: {:?}",
+            validation_errors_for("v0.8.24", &older).unwrap()
+        );
+    }
+}
+
+/// The operations the engine reads as aliases for files from before the
+/// operation set was canonical (`NOT_EQUALS`, `IS_NULL`, `NOT_NULL`, `NOT_IN`,
+/// `SWITCH`) are outside the schema since v0.5.0 and stay out in v0.8.26.
+#[test]
+fn v0_8_26_refuses_the_compat_operations() {
+    let base: Value = serde_yaml_ng::from_str(V0_8_26_BASE).expect("base is YAML");
+    let value = "/articles/0/machine_readable/execution/actions/0/value";
+    for operation in ["NOT_EQUALS", "IS_NULL", "NOT_NULL", "NOT_IN", "SWITCH"] {
+        let mut document = base.clone();
+        *document
+            .pointer_mut(value)
+            .expect("base has an action value") = serde_json::json!({
+            "operation": operation,
+            "subject": "$inkomen",
+            "value": 0,
+        });
+        assert!(
+            !schema_accepts("v0.8.26", &document),
+            "v0.8.26 accepts the compat operation {operation}"
+        );
+    }
 }

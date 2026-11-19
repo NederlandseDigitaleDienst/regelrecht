@@ -6,7 +6,6 @@ Based on the latest schema (`schema/latest/schema.json`). Validate with `just va
 
 ```yaml
 machine_readable:
-  endpoint: string              # Named endpoint, callable from other regulations
   competent_authority:          # Who has binding authority
     name: "Belastingdienst"
     type: "INSTANCE"            # INSTANCE (default) or CATEGORY

@@ -2,7 +2,7 @@
 # Tier C: every property of the machineReadableSection definition that is not an
 # operation — requires, open_terms, implements, hooks, overrides, definitions and
 # the execution block's fields.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.26/schema/v0.8.26/schema.json
 $id: test_conformance_machine_readable_full
 regulatory_layer: WET
 publication_date: '2025-01-01'
@@ -16,7 +16,6 @@ articles:
       voorwaarden.
     url: https://example.invalid/law/artikel/1
     machine_readable:
-      endpoint: toeslag
       competent_authority:
         name: Testdienst
         type: INSTANCE
@@ -101,7 +100,6 @@ articles:
             source:
               regulation: test_conformance_hogere_wet
               output: toetsingsinkomen
-              endpoint: inkomen
               description: Opgave van de inspecteur.
               parameters:
                 bsn: $BSN
@@ -129,9 +127,3 @@ articles:
               law: Testwet
               article: '1'
               explanation: De toeslag is het bedrag verminderd met het inkomen.
-          - output: standaardbedrag
-            resolve:
-              type: MINISTERIELE_REGELING
-              output: standaardbedrag
-              match:
-                jaar: 2025

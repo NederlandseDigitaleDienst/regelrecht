@@ -1,0 +1,39 @@
+---
+# Schema v0.8.26 drops `resolve` on an action and `endpoint` on a
+# machine_readable and on a source, and closes the document, so `jaar` and
+# `identifiers` are refused there too. A file that names v0.8.24 keeps all
+# five: its own schema accepts them and the model still carries them.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: test_conformance_fields_dropped_in_v0_8_26
+regulatory_layer: WET
+bwb_id: BWBR9999950
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+url: https://example.invalid/fields-dropped
+jaar: 2025
+identifiers:
+  intern: TEST-002
+articles:
+  - number: '1'
+    url: https://example.invalid/fields-dropped/1
+    text: De toeslag is het standaardbedrag verminderd met het inkomen.
+    machine_readable:
+      endpoint: toeslag
+      execution:
+        input:
+          - name: inkomen
+            type: amount
+            source:
+              regulation: test_conformance_hogere_wet
+              output: toetsingsinkomen
+              endpoint: inkomen
+        output:
+          - name: standaardbedrag
+            type: amount
+        actions:
+          - output: standaardbedrag
+            resolve:
+              type: MINISTERIELE_REGELING
+              output: standaardbedrag
+              match:
+                jaar: 2025
