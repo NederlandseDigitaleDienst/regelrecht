@@ -409,6 +409,25 @@ impl Service {
         Ok(Dossier { grams })
     }
 
+    /// The ids of every record in the cells for which `include` holds.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails.
+    pub async fn record_ids(
+        &self,
+        include: impl Fn(&str) -> bool,
+    ) -> Result<std::collections::BTreeSet<String>, ServiceError> {
+        let read = self.read().await?;
+        Ok(self
+            .cells
+            .iter()
+            .zip(read.chronicles)
+            .filter(|(cell, _)| include(cell))
+            .flat_map(|(_, c)| c.grams.into_iter().map(|g| g.gram.id))
+            .collect())
+    }
+
     /// The cell whose chronicle holds the record `id`, if one does.
     ///
     /// # Errors

@@ -17,7 +17,7 @@ The wetsproces component is a wetsprocessysteem: a server that runs one legal pr
 
 The server loads exactly one source manifest at startup, the same `bron.yaml` format the [PoC portal](/components/poc-portal) serves sources from, read by the same code (`packages/corpus/src/source_manifest.rs`). The manifest ships with the image; it is never fetched from GitHub. It must make exactly one case, and the server refuses to start when it makes none, several, or one that does not load.
 
-The first case is the disabled parking card (BABW, article 49). It runs three cells: the municipality that decides, the GGD that examines the applicant and advises, and the administrative court that decides on an appeal. The regelwerken and cells come from the PoC's corpus; only the case file in `packages/wetsproces/casussen/` and the UI spec `packages/wetsproces/ui_spec.yaml` belong to this component. The UI spec marks `bsn_aanvrager` as the field the login fills (`fill: {by: system}` without a source), and the server takes that field as the one that identifies a citizen. It refuses to start when the case names no such field or more than one.
+The first case is the disabled parking card (BABW, article 49). It runs three cells: the municipality that decides, the GGD that examines the applicant and advises, and the administrative court that decides on an appeal. The regelwerken and cells come from the PoC's corpus; only the case file in `packages/wetsproces/casussen/` and the UI spec `packages/wetsproces/ui_spec.yaml` belong to this component. The server takes the case's own login field (`inloggen.veld`) as the field that identifies a citizen, or else the one field its UI spec has the login fill (`fill: {by: system}` without a source). Here that is `bsn_aanvrager`, marked in the UI spec. The server refuses to start when it finds no such field or more than one.
 
 ## How a request runs
 
@@ -51,7 +51,7 @@ A commit is one transaction. It claims its idempotency key first, so a retry und
 `WETSPROCES_MODE` selects the mode and has no default, not even in the image. Without it the server does not start. The mode sets the clock; where the chronicles live is chosen apart from it, with `WETSPROCES_STORE`.
 
 - `test` uses a clock an admin sets with `PUT /api/backoffice/klok`, starting on the case's `speeldatum`. The store is `memory` unless `WETSPROCES_STORE=postgres` asks for PostgreSQL, which gives a lasting chronicle with a clock that can still be moved. With the OIDC variables set it logs in through Keycloak; without them it offers the test login.
-- `stable` uses the real date in the Netherlands, in the Europe/Amsterdam time zone, always the PostgreSQL store, and always the login through Keycloak. It refuses to start without the OIDC variables, `OIDC_REQUIRED_ROLE` or `BASE_URL`, and with `WETSPROCES_STORE=memory`.
+- `stable` uses the real date in the Netherlands, in the Europe/Amsterdam time zone, always the PostgreSQL store, and always the login through Keycloak. It refuses to start without the OIDC variables, `OIDC_REQUIRED_ROLE` or `BASE_URL`, and with `WETSPROCES_STORE=memory`. In either mode, an OIDC variable set without `OIDC_CLIENT_ID` stops the server, so a half-finished configuration never opens the test login.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -102,7 +102,7 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 
 A citizen's application gets `bsn_aanvrager` from the login; a request that sends it is refused with `422`. A submission that refers to a record (`op`) must refer to one in the citizen's own dossier, and any submission other than the application must refer to one. The dossier is the set of records that hold the citizen's number in that field, with every record that refers to one of them, however indirectly: the decision on the application, an objection to that decision. It is derived from the chronicles on every request and kept nowhere else.
 
-An employee names records by id. A record in a cell whose chronicle they may not read answers `404`, the same as an id that does not exist.
+An employee names records by id. A record in a cell whose chronicle they may not read answers `404`, the same as an id that does not exist. The forms list the fields of a record only for the records the caller may see: their own dossier, or the cells they may read.
 
 The forms carry the UI spec of the source as the PoC applies it (`src/ui_spec.rs` there): which field is prefilled from which output, which the system fills and which the form hides. There is no frontend yet.
 

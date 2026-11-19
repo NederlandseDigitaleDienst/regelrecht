@@ -38,6 +38,8 @@ pub const SESSION_KEY_ROLES: &str = "person_roles";
 /// held, as a map from claim name to its JSON value. Written only when the
 /// configuration names extra claims, so a service that names none keeps
 /// the session it had. A claim the token lacks is absent from the map.
+/// Unlike the roles, the refresh middleware does not renew them: a claim
+/// changed at the IdP counts from the next login.
 pub const SESSION_KEY_CLAIMS: &str = "person_claims";
 /// OIDC refresh token, kept server-side so the refresh middleware can
 /// re-validate with the IdP (and pick up role/revocation changes) without the

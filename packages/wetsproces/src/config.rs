@@ -31,7 +31,18 @@ use std::path::PathBuf;
 
 use regelrecht_auth::OidcConfig;
 
-use crate::access::ROLE_PREFIX;
+use crate::access::{CELL_ROLE_PREFIX, CITIZEN, Level, ROLE_PREFIX};
+
+/// The variables of the OIDC configuration besides `OIDC_CLIENT_ID`: one of
+/// them set without it is a configuration half done, not a choice for the
+/// test login.
+const OIDC_VARIABLES: [&str; 5] = [
+    "OIDC_CLIENT_SECRET",
+    "OIDC_DISCOVERY_URL",
+    "KEYCLOAK_BASE_URL",
+    "KEYCLOAK_REALM",
+    "OIDC_REQUIRED_ROLE",
+];
 
 /// How the server keeps its chronicles and tells the date.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -160,8 +171,16 @@ pub enum ConfigError {
          holds, such as wetsproces-toegang; the realm is shared, so there is no default"
     )]
     NoAccessRole,
-    #[error("OIDC_REQUIRED_ROLE is `{0}`, which is no role of this server (wetsproces-...)")]
+    #[error(
+        "OIDC_REQUIRED_ROLE is `{0}`; it is a role of this server (wetsproces-...) that every \
+         account holds, such as wetsproces-toegang, and no citizen, level or cell role"
+    )]
     ForeignAccessRole(String),
+    #[error(
+        "{0} is set but OIDC_CLIENT_ID is not: set the OIDC configuration completely or not at \
+         all; without it test mode opens the test login to anyone"
+    )]
+    PartialOidc(&'static str),
     #[error("BASE_URL: {0}")]
     BadBaseUrl(String),
     #[error("stable mode needs BASE_URL, the address the login redirects back to")]
@@ -213,6 +232,9 @@ fn login_choice(
     set: &impl Fn(&str) -> Option<String>,
 ) -> Result<LoginChoice, ConfigError> {
     let Some(mut oidc) = regelrecht_auth::parse_oidc_from(set).map_err(ConfigError::Oidc)? else {
+        if let Some(name) = OIDC_VARIABLES.into_iter().find(|n| set(n).is_some()) {
+            return Err(ConfigError::PartialOidc(name));
+        }
         return match mode {
             Mode::Stable => Err(ConfigError::StableNeedsOidc),
             Mode::Test => Ok(LoginChoice::TestLogin),
@@ -222,7 +244,7 @@ fn login_choice(
     // hold; this server takes only an explicit role of its own.
     let role = set("OIDC_REQUIRED_ROLE").ok_or(ConfigError::NoAccessRole)?;
     let role = role.trim();
-    if !role.starts_with(ROLE_PREFIX) {
+    if !is_access_role(role) {
         return Err(ConfigError::ForeignAccessRole(role.to_string()));
     }
     oidc.required_role = role.to_string();
@@ -234,6 +256,16 @@ fn login_choice(
         return Err(ConfigError::StableNeedsBaseUrl);
     }
     Ok(LoginChoice::Oidc { oidc, base_url })
+}
+
+/// Whether `role` can be the role every account needs to log in: a role
+/// of this server, and none that only some accounts hold.
+fn is_access_role(role: &str) -> bool {
+    role.strip_prefix(ROLE_PREFIX)
+        .is_some_and(|rest| !rest.is_empty())
+        && role != CITIZEN
+        && !role.starts_with(CELL_ROLE_PREFIX)
+        && !Level::ALL.iter().any(|l| l.role() == role)
 }
 
 /// The store `WETSPROCES_STORE` names for `mode`, or the mode's own when it
@@ -420,6 +452,22 @@ mod tests {
             error(&[STABLE, OIDC, &[("OIDC_REQUIRED_ROLE", "editor-reader")]]),
             ConfigError::ForeignAccessRole("editor-reader".into())
         );
+        for role in [
+            "wetsproces-",
+            "wetsproces-burger",
+            "wetsproces-lezer",
+            "wetsproces-cel-gemeente_wilgendaal",
+        ] {
+            let base = env(&[STABLE, OIDC]);
+            let with_role = |k: &str| match k {
+                "OIDC_REQUIRED_ROLE" => Some(role.to_string()),
+                other => base(other),
+            };
+            assert_eq!(
+                Config::from_env(with_role).unwrap_err(),
+                ConfigError::ForeignAccessRole(role.into())
+            );
+        }
         assert_eq!(
             error(&[STABLE, OIDC, &[("BASE_URL", "")]]),
             ConfigError::StableNeedsBaseUrl
@@ -438,6 +486,19 @@ mod tests {
         assert_eq!(
             error(&[test, OIDC, &[("OIDC_REQUIRED_ROLE", "")]]),
             ConfigError::NoAccessRole
+        );
+    }
+
+    #[test]
+    fn a_half_done_oidc_configuration_does_not_open_the_test_login() {
+        let test: Pairs = &[("WETSPROCES_MODE", "test")];
+        assert_eq!(
+            error(&[test, OIDC, &[("OIDC_CLIENT_ID", "")]]),
+            ConfigError::PartialOidc("OIDC_CLIENT_SECRET")
+        );
+        assert_eq!(
+            error(&[test, &[("KEYCLOAK_REALM", "voorbeeld")]]),
+            ConfigError::PartialOidc("KEYCLOAK_REALM")
         );
     }
 

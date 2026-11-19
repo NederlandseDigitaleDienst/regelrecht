@@ -33,6 +33,7 @@
 //! records anew. An error answers `{ "fout": "<why>" }`; a body that does
 //! not parse gets axum's own plain-text rejection.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
 use axum::extract::{Path, Request, State};
@@ -234,10 +235,43 @@ async fn case(State(state): State<AppState>) -> Json<Value> {
     Json(state.service.case())
 }
 
-async fn forms(State(state): State<AppState>) -> ApiResult {
+async fn forms(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+) -> ApiResult {
     let mut forms = state.service.forms().await?;
     without_login_offer(&mut forms);
+    let visible = visible_records(&state, &principal).await?;
+    only_visible_records(&mut forms, &visible);
     Ok(Json(forms))
+}
+
+/// The ids of the records `principal` may see: those of their dossier as a
+/// citizen, and those in the cells they may read as an employee.
+async fn visible_records(
+    state: &AppState,
+    principal: &Principal,
+) -> Result<BTreeSet<String>, ApiError> {
+    let mut ids = state
+        .service
+        .record_ids(|cell| principal.may(Level::Reader, cell))
+        .await?;
+    if principal.is_citizen()
+        && let Ok(citizen) = principal.citizen(&state.subject_claim)
+    {
+        let dossier = state.service.dossier(citizen.subject()).await?;
+        ids.extend(dossier.grams.into_iter().map(|g| g.id));
+    }
+    Ok(ids)
+}
+
+/// Keep in the forms only what they say of the records in `visible`: the
+/// kern lists, per record of every cell, the fields it holds itself
+/// (`eigen_velden`), and its ids would tell anyone which records exist.
+fn only_visible_records(forms: &mut Value, visible: &BTreeSet<String>) {
+    if let Some(own) = forms.get_mut("eigen_velden").and_then(Value::as_object_mut) {
+        own.retain(|id, _| visible.contains(id));
+    }
 }
 
 /// Drop from the forms what the kern offers to log in with (`inloggen`).
@@ -312,6 +346,10 @@ async fn submit(
     headers: HeaderMap,
     Json(mut s): Json<Submit>,
 ) -> ApiResult {
+    // The checks read the chronicles apart from the step. That is safe
+    // because a chronicle only grows and a record never changes cell: what
+    // was in the dossier or a readable cell when checked still is when the
+    // step runs.
     let citizen = principal.citizen(&state.subject_claim)?;
     let field = state.service.login_field();
     if s.fields.contains_key(field) {
@@ -363,10 +401,10 @@ async fn record(
     headers: HeaderMap,
     Json(r): Json<Record>,
 ) -> ApiResult {
+    // The kern resolves `verwijst_naar` only within the chronicle of
+    // `r.cell` (a record id or a kenmerk of its beginning), which the
+    // handler of that cell may read, so it needs no check of its own here.
     principal.require(Level::Handler, &r.cell)?;
-    if let Some(id) = &r.refers_to {
-        readable_holder(&state, &principal, id, "record").await?;
-    }
     perform(&state, &headers, Step::Record(r), principal.sub()).await
 }
 
@@ -440,5 +478,12 @@ mod tests {
             forms["indieningen"],
             json!({ "a#1": { "soort": "AANVRAAG" }, "a#2": { "soort": "BEZWAAR" } })
         );
+    }
+
+    #[test]
+    fn the_forms_name_only_visible_records() {
+        let mut forms = json!({ "eigen_velden": { "mine": ["a"], "theirs": ["b"] } });
+        only_visible_records(&mut forms, &BTreeSet::from(["mine".to_string()]));
+        assert_eq!(forms["eigen_velden"], json!({ "mine": ["a"] }));
     }
 }

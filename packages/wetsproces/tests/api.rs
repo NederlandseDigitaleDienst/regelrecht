@@ -453,9 +453,52 @@ async fn an_employee_acts_only_for_their_cells_and_at_their_level() {
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
+    // A decision after a record the decider cannot read is refused as if
+    // that record did not exist.
+    let ggd = employee(&app, "ggd-1", "wetsproces-behandelaar", GGD).await;
+    let (status, advies) = ggd
+        .post("/api/backoffice/vastleggingen", advice(ANNA))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{advies}");
+    let mut after_unreadable = decision.clone();
+    after_unreadable["na"] = advies["id"].clone();
+    let (status, fout) = beslisser
+        .post("/api/backoffice/besluiten", after_unreadable)
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{fout}");
+
     // The decider of the municipality decides.
     let (status, besluit) = beslisser.post("/api/backoffice/besluiten", decision).await;
     assert_eq!(status, StatusCode::OK, "{besluit}");
+}
+
+#[tokio::test]
+async fn the_forms_name_no_record_the_caller_may_not_see() {
+    let app = server().await;
+    let aanvraag = anna_applies(&app).await;
+    let id = aanvraag["id"].as_str().unwrap();
+    let own = |forms: &Value| forms["eigen_velden"].get(id).is_some();
+    let (_, forms) = citizen(&app, "anna", ANNA)
+        .await
+        .get("/api/formulier")
+        .await;
+    assert!(own(&forms), "{forms}");
+    let (_, forms) = citizen(&app, "bram", BRAM)
+        .await
+        .get("/api/formulier")
+        .await;
+    assert!(!own(&forms), "{forms}");
+    assert!(!forms.to_string().contains(id), "{forms}");
+    let (_, forms) = employee(&app, "ggd-2", "wetsproces-lezer", GGD)
+        .await
+        .get("/api/formulier")
+        .await;
+    assert!(!forms.to_string().contains(id), "{forms}");
+    let (_, forms) = employee(&app, "gemeente-3", "wetsproces-lezer", GEMEENTE)
+        .await
+        .get("/api/formulier")
+        .await;
+    assert!(own(&forms), "{forms}");
 }
 
 #[tokio::test]

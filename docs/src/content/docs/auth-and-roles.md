@@ -148,7 +148,9 @@ Each service is gated on a **minimum role** at login time, configured via
 If `OIDC_REQUIRED_ROLE` is unset or empty, the service falls back to
 `allowed-user`, a realm role from before the per-app roles existed, and logs a
 warning on startup. Always set the value explicitly, so the login gate matches
-the per-app reader role (`editor-reader` / `harvester-reader`).
+the per-app reader role (`editor-reader` / `harvester-reader`). The wetsproces
+server has no such fallback: without `OIDC_REQUIRED_ROLE`, or with a value
+other than an access role of its own, it refuses to start.
 
 ### Setting the env var on ZAD
 
@@ -345,9 +347,11 @@ the lower roles. Setting the clock needs no cell role.
 
 A citizen is identified by a user attribute, by default `bsn`. The login copies
 that claim into the session, and the server fills the applicant's field of the
-application with it (`bsn_aanvrager`, named by the case's UI spec). A field
-sent in the request is refused, and a citizen's dossier holds only the records
-about that number.
+application with it (`bsn_aanvrager`, named by the case's UI spec). A request
+that sends that field itself is refused with `422`, and a citizen's dossier
+holds only the records about that number. The claim is read at login: a
+corrected attribute counts from the citizen's next login, while the roles are
+also renewed when the session refreshes its token.
 
 ### Keycloak setup for the wetsproces server
 
