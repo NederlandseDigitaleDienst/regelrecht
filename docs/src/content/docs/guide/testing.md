@@ -25,7 +25,9 @@ The table lists the tests in this repository and the jobs that run them here. Th
 | Schema conformance | `packages/engine/tests/schema_conformance.rs` | `just schema-conformance` | Rust tests |
 | Schema validation | the corpora | `just validate` | Pre-commit |
 | Script tests | `script/*.test.sh`, `script/*.test.mjs` | `just check` | Pre-commit |
-| Frontend unit tests and type checks | `frontend/`, `frontend-lawmaking/`, `frontend-demo/`, `packages/frontend-shared/`, `packages/poc-chronolexografie/frontend/` | `just frontend-test` | Frontend tests |
+| Frontend unit tests and type checks | `src/` of `frontend/`, `frontend-lawmaking/`, `frontend-demo/`, `packages/frontend-shared/`, `packages/poc-chronolexografie/frontend/` | `just frontend-test` | Frontend tests |
+| Unit tests of the JavaScript PoCs | `frontend-poc-*/src/` | `npm test -w frontend-poc-<slug>` | E2E (mocked) |
+| PoC tests against the engine or the casus | `frontend-poc-*/tests/`, `packages/poc-chronolexografie/frontend/tests/` | `npm test -w <workspace>` | E2E (mocked), Frontend tests |
 | Editor end to end, mocked | `frontend/e2e/` | `just test-e2e` | E2E (mocked) |
 | Walkthrough pipeline | `script/walkthrough/tests/` | `just walkthrough test` | Frontend tests |
 | Walkthrough replay | `frontend-demo/scripts/verify-walkthrough.mjs` | `just walkthrough verify` | Rondleiding speelt terug |
@@ -209,6 +211,8 @@ just validate-demo                # Validate the demo corpus
 ## Frontend tests
 
 `just frontend-test` runs the unit tests and type checks of the editor, lawmaking, the demo, the shared package and the chronolexografie PoC. `just test-e2e` builds the engine to WASM and drives the editor with Playwright against mocked backends. Where frontend code and its tests go is on [Frontend code](/guide/frontend-code).
+
+A vitest test sits in `src/`, next to the module or component it tests, in every frontend and PoC. A PoC keeps a `tests/` directory for the tests that leave the app: they load the engine built to WASM, or read the casus corpus, the casus data or a fixture of the Rust crate from disk. The scenario runners `tests/scenarios.test.js` are among them, and so are their helpers in `tests/helpers/`. Such a test is about no single module, so there is no module for it to sit next to. `frontend/e2e/` holds Playwright specs and nothing else; the corpus loader those specs share is tested from `frontend/src/test-utils/`.
 
 `just smoke-preview` is the one test that runs against a deployed editor: a preview by its pull request number, or a URL. It logs in through the real Keycloak and needs the test user's credentials, so CI does not run it. [Deployment](/operations/deployment) covers previews and waking one up first.
 

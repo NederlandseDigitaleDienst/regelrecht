@@ -183,3 +183,34 @@ fn matches_filter(line: &str, filter: &LogLevel) -> bool {
         LogLevel::Debug => !line.contains("TRACE"),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const ERROR: &str = "2026-01-01 ERROR engine: boom";
+    const WARN: &str = "2026-01-01 WARN engine: careful";
+    const INFO: &str = "2026-01-01 INFO engine: started";
+    const DEBUG: &str = "2026-01-01 DEBUG engine: detail";
+    const TRACE: &str = "2026-01-01 TRACE engine: step";
+
+    fn shown(filter: LogLevel) -> Vec<&'static str> {
+        [ERROR, WARN, INFO, DEBUG, TRACE]
+            .into_iter()
+            .filter(|line| matches_filter(line, &filter))
+            .collect()
+    }
+
+    #[test]
+    fn all_shows_every_line() {
+        assert_eq!(shown(LogLevel::All), [ERROR, WARN, INFO, DEBUG, TRACE]);
+    }
+
+    #[test]
+    fn each_level_shows_itself_and_everything_more_severe() {
+        assert_eq!(shown(LogLevel::Error), [ERROR]);
+        assert_eq!(shown(LogLevel::Warn), [ERROR, WARN]);
+        assert_eq!(shown(LogLevel::Info), [ERROR, WARN, INFO]);
+        assert_eq!(shown(LogLevel::Debug), [ERROR, WARN, INFO, DEBUG]);
+    }
+}

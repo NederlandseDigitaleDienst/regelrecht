@@ -308,3 +308,37 @@ impl BddView {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn counts_after(lines: &[&str]) -> (usize, usize, usize) {
+        let mut view = BddView::new();
+        for line in lines {
+            view.parse_cucumber_line(line);
+        }
+        (view.passed, view.failed, view.skipped)
+    }
+
+    #[test]
+    fn reads_the_counts_from_a_cucumber_summary_line() {
+        assert_eq!(
+            counts_after(&["12 steps (10 passed, 1 failed, 1 skipped)"]),
+            (10, 1, 1)
+        );
+    }
+
+    #[test]
+    fn a_later_summary_replaces_the_earlier_counts() {
+        assert_eq!(counts_after(&["3 passed", "5 passed, 2 failed"]), (5, 2, 0));
+    }
+
+    #[test]
+    fn ignores_lines_that_are_not_a_summary() {
+        assert_eq!(
+            counts_after(&["Scenario: the step passed", "Feature: zorgtoeslag"]),
+            (0, 0, 0)
+        );
+    }
+}

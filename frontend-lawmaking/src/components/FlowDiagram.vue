@@ -97,6 +97,15 @@ import { computed, ref, watch, nextTick } from 'vue';
 import FlowNode from './FlowNode.vue';
 import FlowConnection from './FlowConnection.vue';
 import type { Branch, Connection, Phase, PlacedStage, Stage, TimelineMarker } from '../data/types';
+import {
+  branchRows,
+  isBranchVisible,
+  isConnectionActive as isConnectionLit,
+  placeStages,
+  resolvePhaseRows,
+  visiblePhases as visiblePhasesAt,
+  type Rows,
+} from './flowLayout';
 
 const props = withDefaults(
   defineProps<{
@@ -119,67 +128,9 @@ const scale = ref(1);
 const columnWidth = 220;
 const rowHeight = 80;
 
-const SAME_COL_GAP = 1;
-const CROSS_COL_GAP = 2;
+const layoutStages = computed((): PlacedStage[] => placeStages(props.stages, props.connections));
 
-/**
- * Auto-layout: compute row positions from step order and connections.
- */
-const layoutStages = computed((): PlacedStage[] => {
-  const sorted = [...props.stages].sort((a, b) => a.step - b.step);
-  const rowMap = new Map<string, number>();
-  const colLastRow = new Map<number, number>();
-  let globalLastRow = -1;
-
-  for (const stage of sorted) {
-    const inbound = props.connections.filter((c) => c.to === stage.id);
-    let row = 0;
-
-    for (const conn of inbound) {
-      const fromRow = rowMap.get(conn.from);
-      if (fromRow === undefined) continue;
-      const fromStage = sorted.find((s) => s.id === conn.from);
-      const crossColumn = fromStage && fromStage.col !== stage.col;
-      const gap = crossColumn ? CROSS_COL_GAP : SAME_COL_GAP;
-      row = Math.max(row, fromRow + gap);
-    }
-
-    if (inbound.length === 0 && globalLastRow >= 0) {
-      row = Math.max(row, globalLastRow + SAME_COL_GAP);
-    }
-
-    const lastInCol = colLastRow.get(stage.col);
-    if (lastInCol !== undefined) {
-      row = Math.max(row, lastInCol + SAME_COL_GAP);
-    }
-
-    rowMap.set(stage.id, row);
-    colLastRow.set(stage.col, row);
-    globalLastRow = Math.max(globalLastRow, row);
-  }
-
-  return sorted.map((s) => ({ ...s, row: rowMap.get(s.id) ?? 0 }));
-});
-
-/** A branch or phase whose rows are known, so it can be drawn. */
-type Rows = { startRow: number; endRow: number };
-
-const layoutBranches = computed((): (Branch & Rows)[] => {
-  return props.branches.map((branch) => {
-    const branchStages = layoutStages.value.filter((s) => s.branch === branch.id);
-    // A branch without stages is drawn at opacity 0 (see branchOpacity), so
-    // its rows only need to be numbers. No dataset has one today.
-    if (branchStages.length === 0) {
-      return { ...branch, startRow: branch.startRow ?? 0, endRow: branch.endRow ?? 0 };
-    }
-    const rows = branchStages.map((s) => s.row);
-    return {
-      ...branch,
-      startRow: Math.min(...rows),
-      endRow: Math.max(...rows),
-    };
-  });
-});
+const layoutBranches = computed((): (Branch & Rows)[] => branchRows(props.branches, layoutStages.value));
 
 const maxCol = computed(() => Math.max(0, ...layoutStages.value.map((s) => s.col)));
 const maxRow = computed(() => Math.max(0, ...layoutStages.value.map((s) => s.row)));
@@ -234,52 +185,16 @@ watch([svgWidth, svgHeight], () => {
   }
 });
 
-/**
- * Resolve phase row ranges from stage IDs (startStage/endStage)
- * or fall back to hardcoded startRow/endRow for legacy data.
- */
-const resolvedPhases = computed(() => {
-  if (!props.phases) return [];
-  return props.phases.map((p) => {
-    let startRow = p.startRow;
-    let endRow = p.endRow;
-    if (p.startStage) {
-      const s = layoutStages.value.find((st) => st.id === p.startStage);
-      if (s) startRow = s.row;
-    }
-    if (p.endStage) {
-      const s = layoutStages.value.find((st) => st.id === p.endStage);
-      if (s) endRow = s.row;
-    }
-    return { ...p, startRow, endRow };
-  });
-});
-
-const visiblePhases = computed(() => {
-  return resolvedPhases.value.filter((p): p is Phase & Rows => {
-    const { startRow, endRow } = p;
-    if (startRow === undefined || endRow === undefined) return false;
-    const phaseStages = layoutStages.value.filter(
-      (s) => s.row >= startRow && s.row <= endRow
-    );
-    if (phaseStages.length === 0) return false;
-    const minStep = Math.min(...phaseStages.map((s) => s.step));
-    return props.activeStep >= minStep;
-  });
-});
+const visiblePhases = computed(() =>
+  props.phases ? visiblePhasesAt(resolvePhaseRows(props.phases, layoutStages.value), layoutStages.value, props.activeStep) : [],
+);
 
 function branchOpacity(branch: Branch): number {
-  const branchStages = layoutStages.value.filter((s) => s.branch === branch.id);
-  if (branchStages.length === 0) return 0;
-  const minStep = Math.min(...branchStages.map((s) => s.step));
-  return props.activeStep >= minStep ? 1 : 0;
+  return isBranchVisible(branch, layoutStages.value, props.activeStep) ? 1 : 0;
 }
 
 function isConnectionActive(conn: Connection): boolean {
-  const fromStage = layoutStages.value.find((s) => s.id === conn.from);
-  const toStage = layoutStages.value.find((s) => s.id === conn.to);
-  if (!fromStage || !toStage) return false;
-  return props.activeStep >= toStage.step;
+  return isConnectionLit(conn, layoutStages.value, props.activeStep);
 }
 </script>
 

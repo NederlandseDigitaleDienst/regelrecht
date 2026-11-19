@@ -91,3 +91,58 @@ pub fn corpus_yaml_files(project_root: &Path) -> Vec<PathBuf> {
         .map(|e| e.path().to_path_buf())
         .collect()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::fs;
+
+    fn corpus() -> std::io::Result<tempfile::TempDir> {
+        let root = tempfile::tempdir()?;
+        let wet = root.path().join("corpus/regulation/nl/wet/een_wet");
+        fs::create_dir_all(&wet)?;
+        fs::write(wet.join("2025-01-01.yaml"), "$id: een_wet\n")?;
+        fs::write(wet.join("README.md"), "not a law")?;
+        Ok(root)
+    }
+
+    #[test]
+    fn scan_lists_the_tree_below_the_regulation_dir_with_depths() -> std::io::Result<()> {
+        let root = corpus()?;
+        let nodes: Vec<_> = scan_corpus(root.path())
+            .into_iter()
+            .map(|n| (n.name, n.depth, n.is_dir))
+            .collect();
+        assert_eq!(
+            nodes,
+            [
+                ("wet".to_string(), 0, true),
+                ("een_wet".to_string(), 1, true),
+                ("2025-01-01.yaml".to_string(), 2, false),
+                ("README.md".to_string(), 2, false),
+            ]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn yaml_files_skips_everything_that_is_not_yaml() -> std::io::Result<()> {
+        let root = corpus()?;
+        let files = corpus_yaml_files(root.path());
+        assert_eq!(
+            files,
+            [root
+                .path()
+                .join("corpus/regulation/nl/wet/een_wet/2025-01-01.yaml")]
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn a_project_without_a_corpus_scans_empty() -> std::io::Result<()> {
+        let root = tempfile::tempdir()?;
+        assert!(scan_corpus(root.path()).is_empty());
+        assert!(corpus_yaml_files(root.path()).is_empty());
+        Ok(())
+    }
+}

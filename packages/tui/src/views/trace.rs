@@ -337,3 +337,47 @@ fn format_value_compact(value: &Value) -> String {
         Value::Unknown(_) => value.to_string(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn compact_value_keeps_short_text_whole() {
+        let text = "a".repeat(30);
+        assert_eq!(
+            format_value_compact(&Value::String(text.clone())),
+            format!("\"{text}\"")
+        );
+    }
+
+    #[test]
+    fn compact_value_cuts_long_text_to_27_characters() {
+        let text = "é".repeat(31);
+        assert_eq!(
+            format_value_compact(&Value::String(text)),
+            format!("\"{}...\"", "é".repeat(27))
+        );
+    }
+
+    #[test]
+    fn compact_value_counts_collections_instead_of_listing_them() {
+        assert_eq!(
+            format_value_compact(&Value::Array(vec![Value::Null, Value::Null])),
+            "[2 items]"
+        );
+        assert_eq!(
+            format_value_compact(&Value::Object(std::collections::BTreeMap::new())),
+            "{0 keys}"
+        );
+    }
+
+    #[test]
+    fn compact_value_drops_the_construct_of_an_untranslatable() {
+        let value = Value::Untranslatable {
+            article: "3".to_string(),
+            construct: "redelijkheid".to_string(),
+        };
+        assert_eq!(format_value_compact(&value), "UNTRANSLATABLE(art. 3)");
+    }
+}

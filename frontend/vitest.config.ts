@@ -9,11 +9,9 @@ export default mergeConfig(
   defineConfig({
     test: {
       environment: 'happy-dom',
-      // `e2e/` holds Playwright specs (`*.spec.js`) plus plain Node helpers those
-      // specs share; the helpers' own unit tests are `*.test.js` and run here.
-      // Playwright's `testMatch` is narrowed to `*.spec.js` so the two never
-      // collect each other's files.
-      include: ['src/**/*.test.{js,ts}', 'e2e/**/*.test.js'],
+      // Vitest tests sit next to the code in `src/`; `e2e/` holds only the
+      // Playwright specs (`*.spec.js`) and their helpers.
+      include: ['src/**/*.test.{js,ts}'],
       exclude: [...configDefaults.exclude],
       root: fileURLToPath(new URL('./', import.meta.url)),
       // Every test starts with an empty in-memory corpus reader and a fresh
