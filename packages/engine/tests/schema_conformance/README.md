@@ -1,4 +1,4 @@
-# Schema ↔ law-model conformance suite
+# Schema conformance suite (schema ↔ law-model)
 
 The canonical, hand-authored `schema/*/schema.json` is the **public, language-agnostic
 contract** for the law-YAML format — what a third-party engine author reads to know what a
@@ -9,8 +9,8 @@ It is the structural twin of the BDD bucket-B engine-conformance suite (`bdd/con
 bucket-B proves an engine speaks the whole language *behaviourally*; this proves the model
 accepts exactly the whole language *structurally*.
 
-Run it with `just conformance` (it needs the engine's `validate` feature, which pulls in
-`jsonschema`). The test lives in `packages/engine/tests/conformance.rs`.
+Run it with `just schema-conformance` (it needs the engine's `validate` feature, which pulls in
+`jsonschema`). The test lives in `packages/engine/tests/schema_conformance.rs`.
 
 ## The contract
 
@@ -59,7 +59,7 @@ either a fixture proving the model carries it, or an explicit statement that it 
 ## `KNOWN_GAPS` (the measurement)
 
 The model has no `#[serde(deny_unknown_fields)]` and uses `#[serde(untagged)]` enums, so it is
-currently **more permissive** than the schema. `KNOWN_GAPS` in `conformance.rs` lists the
+currently **more permissive** than the schema. `KNOWN_GAPS` in `schema_conformance.rs` lists the
 `invalid/` fixtures the model *accepts* anyway — i.e. the soundness gap. The list is kept honest:
 an **undocumented** gap fails the suite, and a **stale** entry (the model now rejects it) also
 fails. Resolving these gaps (tighten the model vs. consciously declare it lenient) is a Phase-2
@@ -70,7 +70,7 @@ decision driven by this measurement.
 1. Drop a `*.yaml` law document into `valid/` or `invalid/`. Give it a `$schema` line pinned to
    the latest schema version and otherwise isolate the *one* construct under test (so a rejection
    is attributable to it — mind conditional `required` rules, e.g. `WET` requires `bwb_id`).
-2. Run `just conformance`. For an `invalid/` fixture the model also accepts, add its filename to
+2. Run `just schema-conformance`. For an `invalid/` fixture the model also accepts, add its filename to
    `KNOWN_GAPS` with a one-line note on *why* the model is lenient.
 
 The one-construct-per-fixture rule holds for `invalid/`, where attribution is the whole point. The

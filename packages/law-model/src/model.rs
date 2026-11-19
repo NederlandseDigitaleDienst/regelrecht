@@ -852,7 +852,7 @@ pub enum ActionOperation {
     /// but no law was ever written with them: FOREACH was a schema-less
     /// `otherOperation` fallback in v0.2.0-v0.4.0 with no fixed field names. An
     /// alias the schema rejects would only make the model accept documents
-    /// `just validate` refuses, which is the soundness gap the conformance suite
+    /// `just validate` refuses, which is the soundness gap the schema conformance suite
     /// exists to prevent.
     #[serde(rename = "FOREACH")]
     Foreach {

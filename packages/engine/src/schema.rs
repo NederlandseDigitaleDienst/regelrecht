@@ -1,5 +1,5 @@
 //! Embedded JSON Schemas + version detection, shared by the `validate` binary
-//! and the schema↔model conformance test suite.
+//! and the schema conformance test suite (schema ↔ law-model).
 //!
 //! Only compiled with the `validate` feature (which pulls in `jsonschema`).
 //! Keeping the schema-loading list and version detection here means there is a
@@ -104,7 +104,7 @@ pub fn validation_errors(
 
 /// All embedded schemas compiled once, keyed by version. Built lazily on first
 /// use and cached for the process — callers validating many documents (e.g. the
-/// conformance suite over the whole corpus) avoid recompiling the schema per
+/// schema conformance suite over the whole corpus) avoid recompiling the schema per
 /// call. `Err` means a schema failed to load or compile.
 fn compiled_validators() -> &'static Result<HashMap<&'static str, Validator>, String> {
     static CACHE: std::sync::OnceLock<Result<HashMap<&'static str, Validator>, String>> =

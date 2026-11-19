@@ -250,7 +250,7 @@ both: `corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml`.
 - The hand-authored `schema/latest/schema.json` is the **canonical contract**.
   The Rust `law-model` (`packages/law-model/`, described in
   `docs/src/content/docs/components/law-model.md`) must conform to it; neither
-  is generated from the other. After changing either one, run `just conformance`
+  is generated from the other. After changing either one, run `just schema-conformance`
   (see `docs/src/content/docs/reference/conformance.md`). Do not "fix" a
   divergence listed in `KNOWN_GAPS` in passing; reconciling those is tracked
   separately.

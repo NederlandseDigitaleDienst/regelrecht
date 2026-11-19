@@ -40,9 +40,9 @@ The ordinary JSON of a `Value` (its `Serialize` and its `From` conversions) lose
 
 `parse_law_header` exists because some callers need a law's metadata from text that is not valid YAML: an editor draft mid-edit, or a file an enrichment step is rewriting. Full deserialization would reject those. It matches header keys only at column 0, so an indented `$id:` inside an article is never taken for the law's id. The article count is a heuristic (it counts `- number:` entries at any depth) and is meant for display, not for logic.
 
-### Conformance to the schema
+### Schema conformance
 
-Nothing about a separate crate stops the model from drifting from the schema, so a test suite checks both directions. Run it with `just conformance`; `just test` includes it. It lives in the engine's test directory (`packages/engine/tests/conformance.rs`) because it needs the engine's `validate` feature for the JSON schema validator.
+Nothing about a separate crate stops the model from drifting from the schema, so the schema conformance suite checks both directions. Run it with `just schema-conformance`; `just test` includes it. It lives in the engine's test directory (`packages/engine/tests/schema_conformance.rs`) because it needs the engine's `validate` feature for the JSON schema validator.
 
 The suite checks that the model accepts nothing the schema rejects, and that it parses everything the schema accepts without losing data on a round trip. It does that in three tiers: a differential over every corpus law, synthetic valid and invalid fixtures that each isolate one construct, and a coverage check that derives the list of schema properties from the schema itself, so a new property cannot land without a fixture or a written exemption.
 
@@ -63,7 +63,7 @@ Both features are optional so that the law model, and the corpus library through
 
 ## Further reading
 
-- [Conformance](/reference/conformance) - what the schema-to-model suite proves, next to the manifest coverage checks
+- [Conformance](/reference/conformance) - what the schema conformance suite proves, next to the manifest coverage checks
 - [Schema Reference](/reference/schema) - the specification the model implements
 - [Execution Engine](./engine) - loads laws into this model and executes them
 - [RFC-036](/rfcs/rfc-036) - the distinction between `Null` and `Unknown`
