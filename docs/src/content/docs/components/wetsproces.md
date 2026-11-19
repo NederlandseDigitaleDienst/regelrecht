@@ -60,6 +60,7 @@ A commit is one transaction. It claims its idempotency key first, so a retry und
 | `DATABASE_URL` | none | The database for the `postgres` store; `DATABASE_SERVER_FULL` is read as fallback. Required with that store. |
 | `WETSPROCES_MANIFEST` | `packages/wetsproces/bron.yaml` | The source manifest |
 | `WETSPROCES_PORT` | 8000 | The port |
+| `WETSPROCES_FRONTEND` | `frontend-wetsproces/dist` of the checkout; `/app/frontend` in the image | The built screens. Without an `index.html` there the server serves its API alone |
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_DISCOVERY_URL` | none | The Keycloak client; `KEYCLOAK_BASE_URL` with `KEYCLOAK_REALM` may replace the discovery URL. Required in stable mode. |
 | `OIDC_REQUIRED_ROLE` | none | The role every account needs to log in, `wetsproces-toegang`. Required with OIDC; a role without the `wetsproces-` prefix is refused, because the realm is shared with the editor. |
 | `BASE_URL` | none | Where the server is reached, for the redirect back after login. Required in stable mode. |
@@ -80,7 +81,7 @@ curl -c jar -H 'content-type: application/json' localhost:7180/auth/testlogin \
   -d '{"sub": "burger-1", "rollen": ["wetsproces-burger"], "claims": {"bsn": "999990019"}}'
 ```
 
-The session it writes has the same keys as one after Keycloak, so every request after it goes through the same checks. The route exists only in that case; with OIDC configured, and always in stable mode, it answers `404`.
+The session it writes has the same keys as one after Keycloak, so every request after it goes through the same checks. The route exists only in that case; with OIDC configured, and always in stable mode, it answers `404`. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the cells of the case.
 
 ## API
 
@@ -92,9 +93,13 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `GET /api/casus` | citizen or employee | The case and today's date |
 | `GET /api/formulier` | citizen or employee | The forms of the process today, with what the UI spec says of each field |
 | `GET /api/klok` | citizen or employee | Today's date, and whether it can be set |
+| `GET /api/ik` | citizen or employee | Who is logged in, and per cell what the account may do there |
 | `GET /api/dossier` | citizen | The records about the citizen, from every cell |
+| `GET /api/dossier/waarom/{id}` | citizen | Why a decision in the citizen's dossier came out as it did |
 | `POST /api/indieningen` | citizen | A submission: `artikel` (the case's own when left out), `op`, `velden` |
 | `GET /api/backoffice/cellen/{cel}/kroniek` | reader of the cell | The chronicle of one cell, with its head |
+| `GET /api/backoffice/waarom/{id}` | reader of the cell holding the decision | Why the decision came out as it did |
+| `POST /api/backoffice/voorvertoning` | decider of the cell holding the submission | What a decision (`op`, `na`, `bevindingen`) would come to; records nothing |
 | `POST /api/backoffice/vastleggingen` | handler of the cell | A fact a cell records: `cel`, `feit`, `velden`, `verwijst_naar` |
 | `POST /api/backoffice/toezendingen` | handler of the cell holding the decision | A copy of the decision `besluit` to the cell it concerns |
 | `POST /api/backoffice/besluiten` | decider of the cell holding the submission | A decision on a submission: `op`, `na`, `bevindingen` |
@@ -104,7 +109,7 @@ A citizen's application gets `bsn_aanvrager` from the login; a request that send
 
 An employee names records by id. A record in a cell whose chronicle they may not read answers `404`, the same as an id that does not exist. The forms list the fields of a record only for the records the caller may see: their own dossier, or the cells they may read.
 
-The forms carry the UI spec of the source as the PoC applies it (`src/ui_spec.rs` there): which field is prefilled from which output, which the system fills and which the form hides. There is no frontend yet.
+The forms carry the UI spec of the source as the PoC applies it (`src/ui_spec.rs` there): which field is prefilled from which output, which the system fills and which the form hides, and the `label` and `help` a screen shows for a field. The screens are on [Wetsproces Screens](/components/wetsproces-frontend); the server serves them from `WETSPROCES_FRONTEND`. A path under `/api/` or `/auth/` that is no route answers `404`; any other path gets the screens' `index.html`.
 
 ## Running it locally
 
@@ -112,7 +117,7 @@ The forms carry the UI spec of the source as the PoC applies it (`src/ui_spec.rs
 just wetsproces
 ```
 
-This starts the server in test mode on port 7180, bound to `0.0.0.0`, with the chronicles in memory and the test login. Set `WETSPROCES_PORT` for another port and `WETSPROCES_MANIFEST` for another manifest. To keep the chronicles across restarts, point it at a PostgreSQL database:
+This starts the server in test mode on port 7180, bound to `0.0.0.0`, with the chronicles in memory and the test login. It serves the screens once `npm run build -w frontend-wetsproces` has built them. Set `WETSPROCES_PORT` for another port and `WETSPROCES_MANIFEST` for another manifest. To keep the chronicles across restarts, point it at a PostgreSQL database:
 
 ```bash
 WETSPROCES_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:5432/regelrecht just wetsproces
