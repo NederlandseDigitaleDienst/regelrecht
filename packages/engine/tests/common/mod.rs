@@ -25,8 +25,16 @@ pub fn regulation_base_path() -> PathBuf {
 /// corpus may lie in several directories.
 #[allow(dead_code)] // only the BDD runner and its loader read several bases
 pub fn regulation_base_paths() -> Vec<PathBuf> {
-    match std::env::var_os("REGULATION_PATH") {
-        Some(v) if !v.to_string_lossy().trim().is_empty() => std::env::split_paths(&v).collect(),
-        _ => vec![default_regulation_base_path()],
+    paths_from_env("REGULATION_PATH").unwrap_or_else(|| vec![default_regulation_base_path()])
+}
+
+/// The directories in the environment variable `var`, separated like `PATH`
+/// (`:` on Unix). `None` when it is unset or blank.
+#[allow(dead_code)] // only the BDD runners read a list of directories
+pub fn paths_from_env(var: &str) -> Option<Vec<PathBuf>> {
+    let value = std::env::var_os(var)?;
+    if value.to_string_lossy().trim().is_empty() {
+        return None;
     }
+    Some(std::env::split_paths(&value).collect())
 }

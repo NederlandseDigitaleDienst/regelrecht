@@ -16,6 +16,7 @@ The table lists the tests in this repository and the jobs that run them here. Th
 | The cell's BDD suite and its constructs | `packages/cel/bdd/` | `just bdd` | BDD conformance |
 | Demo scenarios | `corpus/demo/regulation/**/scenarios/` | `just bdd-demo` | BDD demo |
 | Scenarios of the chronolexografie PoC | `packages/poc-chronolexografie/corpus/` | `just bdd-chrono` | BDD demo |
+| Example caller of the reusable BDD workflow | `bdd/external-corpus-example/` | see [BDD scenarios from another repository](#bdd-scenarios-from-another-repository) | Example corpus, Example reports hold only its scenarios |
 | Scenarios of the JavaScript PoCs | `frontend-poc-*/tests/scenarios.test.js` | `npm test -w frontend-poc-<slug>` | E2E (mocked) |
 | Rust unit and integration tests | `packages/*/src/`, `packages/*/tests/` | `just test` | Rust tests |
 | Golden fixtures | `packages/engine/tests/golden_tests.rs` | `just test` | Rust tests |
@@ -73,7 +74,7 @@ To add a construct:
 
 `just bdd` and the CI job "BDD conformance" run the constructs with the rest of the cell's suite; no recipe or workflow changes.
 
-The runner reads the set from where a feature sits, whichever directory `<set>` is. A corpus with a `scenarios/` directory next to its `regulation/` directory would load by the same rule once its features are added to the list in `packages/cel/tests/bdd/main.rs`. Nothing does that yet. The engine's own runner does not look at where a feature sits and always loads the corpus.
+The runner reads the set from where a feature sits, whichever directory `<set>` is. `BDD_CONSTRUCT_SETS` names sets from outside the crate: a `:`-separated list of set directories. When it is set, the runner plays those sets alone and leaves out its own suite, which runs in regelrecht's CI. A directory in it that is not a set, or that holds no feature, fails the run as a construct would. The engine's own runner does not look at where a feature sits and always loads the corpus.
 
 ### The step vocabulary is generated, not hand-written
 
@@ -115,6 +116,8 @@ just bdd-chrono                   # Bucket A over the corpus of the chronolexogr
 just bdd-trace                    # With execution traces in trace_output/
 ```
 
+When a rulework in a directory of `REGULATION_PATH` cannot be loaded, the run fails and names the file; the loader does not skip it.
+
 `just bdd-chrono` runs bucket A over the corpus of the chronolexografie PoC, which keeps its own copies of the real ruleworks it uses so that work on the PoC leaves `corpus/regulation/` alone. Their scenarios went along with them. Two of those features are still identical to the originals in the corpus: `criteria.feature` of the Regeling gehandicaptenparkeerkaart and `regio_en_vakanties.feature` of the Regeling vaststelling schoolvakanties. Both copies stay. The PoC's copy of the parking card regulation already makes a choice of its own on article 2, so that feature tests a different version. The PoC's ruleworks change only when someone works on the PoC, so a red scenario there is a real error and runs in CI. The originals are bucket A and stay out.
 
 Two other PoCs run their scenarios against the engine built to WASM instead, through `tests/scenarios.test.js` in their frontend. They are listed in `BDD_RUNNERS` in `script/orphan-tests.mjs`, which is how the orphan check knows their features are read.
@@ -122,6 +125,43 @@ Two other PoCs run their scenarios against the engine built to WASM instead, thr
 ### Deriving scenarios from legislative intent
 
 Test scenarios are derived from the **Memorie van Toelichting** (MvT), the explanatory memorandum that accompanies Dutch legislation. The MvT contains examples and reasoning from the legislature that serve as ground truth for expected behavior.
+
+## BDD scenarios from another repository
+
+A corpus kept in another repository runs its scenarios in its own CI by calling the reusable workflow `.github/workflows/corpus-bdd.yml`. The workflow checks out the caller and regelrecht side by side and builds the engine. It then runs bucket A over the caller's ruleworks, the construct sets in a directory of the caller, or both:
+
+```yaml
+# .github/workflows/bdd.yml in example-org/regelrecht-corpus-example
+name: BDD
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  bdd:
+    uses: NederlandseDigitaleDienst/regelrecht/.github/workflows/corpus-bdd.yml@<commit>
+    with:
+      regulation-path: regulation          # holds nl/ and the scenarios/ directories
+      include-central-corpus: true         # load corpus/regulation beside it
+      buckets: all                         # corpus, constructs or all
+      constructs-path: constructs          # one construct set per subdirectory
+```
+
+The commit after `@` fixes the workflow and the engine together: with `regelrecht-ref` left empty, the workflow checks out regelrecht at the commit it was read from. Pin a commit, not a branch: a change in regelrecht then reaches the corpus as an update someone reviews. Set `regelrecht-ref` only to try another engine under the same workflow.
+
+With `include-central-corpus`, the ruleworks of `corpus/regulation` load beside the caller's but their scenarios do not run: `BDD_SCENARIO_PATH` keeps bucket A to the caller's directory. A `$id` that both directories hold fails every scenario, with a file from each in the message. A corpus with its own version of a central rulework therefore leaves `include-central-corpus` off, and keeps every central rulework its scenarios read in its own directory. The engine keeps one version per `$id` and `valid_from`. Without the check, a file with the same `valid_from` would replace the other, and the order of `REGULATION_PATH` would decide which one stays; a file with another `valid_from` would quietly join it as an extra version.
+
+Within one directory, the versions of a rulework load side by side.
+
+Each construct set of the caller is named after the construct it tests, as the sets here are. The construct sets run through the cell's runner, without its own suite. Each run writes a JUnit report through `BDD_JUNIT`, so both reports hold only the caller's scenarios. The workflow uploads them as one artifact, named by `artifact-name` (default `bdd-reports`), and lists the counts and every failed scenario in the step summary. The job fails when either run fails. `.github/workflows/corpus-bdd-example.yml` calls it against the fictional corpus in `bdd/external-corpus-example` whenever the workflow, a runner or the example corpus changes.
+
+To run the example locally, from `packages/engine` and then from `packages/cel`:
+
+```bash
+BDD_BUCKET=corpus REGULATION_PATH=$PWD/../../bdd/external-corpus-example/regulation:$PWD/../../corpus/regulation \
+  BDD_SCENARIO_PATH=$PWD/../../bdd/external-corpus-example/regulation cargo test --test bdd
+BDD_CONSTRUCT_SETS=$PWD/../../bdd/external-corpus-example/constructs/decision_on_submission cargo test --test bdd
+```
 
 ## Rust tests
 
@@ -157,7 +197,7 @@ Checks that the Rust `law-model` accepts exactly what the JSON schema accepts. I
 
 ## Schema validation
 
-Every rulework is validated against the JSON schema. Without arguments, `just validate` checks the corpus (`corpus/regulation`), the ruleworks and reductions of the chronolexografie PoC, and the fixtures of the cell's BDD suite (`packages/cel/bdd/fixtures`: its `regulation/` directory and the reductions of its cell), and the `regulation/` directory of each construct in `packages/cel/bdd/constructs`. It leaves the demo corpus out; `just validate-demo` covers that. The pre-commit hook runs the same recipe on the changed files in all of these directories, the demo corpus included, and CI runs the hooks over the whole tree.
+Every rulework is validated against the JSON schema. Without arguments, `just validate` checks the corpus (`corpus/regulation`), the ruleworks and reductions of the chronolexografie PoC, and the fixtures of the cell's BDD suite (`packages/cel/bdd/fixtures`: its `regulation/` directory and the reductions of its cell), the `regulation/` directory of each construct in `packages/cel/bdd/constructs`, and the fictional outside corpus in `bdd/external-corpus-example`. It leaves the demo corpus out; `just validate-demo` covers that. The pre-commit hook runs the same recipe on the changed files in all of these directories, the demo corpus included, and CI runs the hooks over the whole tree.
 
 ```bash
 just validate                     # Validate all
@@ -227,6 +267,6 @@ A test that no CI job starts never fails, so a missing hook or step goes unnotic
 - a `.feature` file that no BDD runner in CI reads. The engine reads the directories that `BDD_BUCKET` and `REGULATION_PATH` select per step; the PoC runners are listed in `BDD_RUNNERS` in `script/orphan-tests.mjs`
 - a `@wip` tag or an `#[ignore]` without a comment that says why, above it or on the same line (`#[ignore = "..."]` counts too)
 
-The guard skips one directory, `corpus/regulation`, because bucket A over the live laws stays out of CI on purpose. `EXCEPTIONS` in `script/orphan-tests.mjs` records that reason. The guard runs as a pre-commit hook and therefore in the **Pre-commit** check. Its own suite is `just orphan-tests-test`, with a passing and a failing case for each rule.
+The guard skips two directories. Bucket A over the live laws in `corpus/regulation` stays out of CI on purpose. `bdd/external-corpus-example` does run, but through the inputs of the reusable workflow, which the guard cannot read. `EXCEPTIONS` in `script/orphan-tests.mjs` records both reasons. The guard runs as a pre-commit hook and therefore in the **Pre-commit** check. Its own suite is `just orphan-tests-test`, with a passing and a failing case for each rule.
 
 It reads YAML and shell line by line and leans towards counting a test as run. A recipe with a `case` counts as running every branch, and a file counts as run once it is the command or an argument of an interpreter such as `node` or `bash`. The vitest `include` and `exclude` lists and the cargo flags that narrow a run (`--no-run`, `--lib`, `--test`) decide what a run covers. Beyond those, a test drops out only through a literal `if: false` on its step or job, a leg under a matrix `exclude`, or a hook that CI never runs. Any other condition still counts as a run. So does a workflow that only runs on a schedule, and so does a step with `continue-on-error`. Playwright `*.spec.*` files and the pytest suites are outside its scope. Whether a test that runs also tests something is still a question for review.

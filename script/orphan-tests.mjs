@@ -902,6 +902,13 @@ export const EXCEPTIONS = [
       'Bucket A over the live laws stays out of CI on purpose: it asserts what the laws produce today, ' +
       'so red there is a question for a human (packages/engine/tests/bdd/main.rs, "Bucket selection").',
   },
+  {
+    rule: 'feature',
+    path: 'bdd/external-corpus-example/',
+    reason:
+      'Run by .github/workflows/corpus-bdd-example.yml through the reusable corpus-bdd.yml, which builds ' +
+      'REGULATION_PATH and BDD_CONSTRUCT_SETS from its inputs, where this guard cannot read them.',
+  },
 ];
 
 function under(path, dir) {

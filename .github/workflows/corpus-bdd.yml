@@ -1,0 +1,216 @@
+---
+# Runs the BDD scenarios of a corpus that lives in another repository against
+# the regelrecht engine. A caller names this file with `uses:` and a pinned
+# ref; how to call it and what each input means is in
+# docs/src/content/docs/guide/testing.md ("BDD scenarios from another repository").
+#
+# Two kinds of scenario, each through its own runner:
+# - bucket A (`packages/engine/tests/bdd`): the features under a `scenarios/`
+#   directory in the caller's regelwerken, with those regelwerken loaded and,
+#   when asked, corpus/regulation of regelrecht beside them;
+# - construct sets (`packages/cel/tests/bdd`): directories with `regulation/`
+#   and `scenarios/`, whose features may record in a cell's chronicle and load
+#   their own regelwerken and nothing else.
+#
+# Each run writes a JUnit report; both are uploaded as an artifact and
+# summarised in the step summary. The job fails when either run fails.
+name: Corpus BDD
+
+on:
+  workflow_call:
+    inputs:
+      regelrecht-ref:
+        description: >-
+          The commit, tag or branch of regelrecht whose engine runs the
+          scenarios. Empty (the default) takes the commit this workflow file
+          was read from, so the `@ref` in the caller's `uses:` line pins the
+          engine and the workflow together.
+        type: string
+        default: ''
+      regulation-path:
+        description: >-
+          The caller's directory of regelwerken, relative to its repository
+          root. It holds `nl/`; bucket A runs every feature under a
+          `scenarios/` directory in it.
+        type: string
+        default: regulation
+      include-central-corpus:
+        description: >-
+          Load corpus/regulation of regelrecht beside the caller's
+          regelwerken. Its own scenarios do not run. A `$id` in both fails
+          the run.
+        type: boolean
+        default: false
+      buckets:
+        description: >-
+          Which scenarios run: `corpus` (bucket A), `constructs` (the
+          construct sets) or `all`.
+        type: string
+        default: all
+      constructs-path:
+        description: >-
+          The caller's directory of construct sets, relative to its
+          repository root: each subdirectory is one set, with `regulation/`
+          and `scenarios/`. Needed when `buckets` covers the constructs, and
+          refused when it does not.
+        type: string
+        default: ''
+      artifact-name:
+        description: >-
+          The name of the artifact with the JUnit reports. A caller that runs
+          this workflow more than once in one run gives each call its own.
+        type: string
+        default: bdd-reports
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bdd:
+    name: BDD scenarios
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      # job.workflow_ref is `<owner>/<repo>/.github/workflows/corpus-bdd.yml@<ref>`
+      # for the file that defines this job, also when another repository calls
+      # it; job.workflow_sha is that file's commit. Both are empty on GitHub
+      # Enterprise Server, and then the run stops here instead of quietly
+      # building the default branch.
+      - name: Check the inputs and resolve regelrecht
+        id: resolve
+        env:
+          WORKFLOW_REF: ${{ job.workflow_ref }}
+          WORKFLOW_SHA: ${{ job.workflow_sha }}
+          REGELRECHT_REF: ${{ inputs.regelrecht-ref }}
+          BUCKETS: ${{ inputs.buckets }}
+          CONSTRUCTS_PATH: ${{ inputs.constructs-path }}
+        run: |
+          set -euo pipefail
+          case "$BUCKETS" in
+            all) corpus=true; constructs=true ;;
+            corpus) corpus=true; constructs=false ;;
+            constructs) corpus=false; constructs=true ;;
+            *) echo "::error::buckets: '$BUCKETS' is none of corpus, constructs, all"; exit 1 ;;
+          esac
+          if [ "$constructs" = true ] && [ -z "$CONSTRUCTS_PATH" ]; then
+            echo "::error::buckets '$BUCKETS' runs the construct sets, but constructs-path is empty"
+            exit 1
+          fi
+          if [ "$constructs" = false ] && [ -n "$CONSTRUCTS_PATH" ]; then
+            echo "::error::constructs-path is set, but buckets '$BUCKETS' leaves the construct sets out"
+            exit 1
+          fi
+          if [ -z "$WORKFLOW_REF" ] || [ -z "$WORKFLOW_SHA" ]; then
+            echo "::error::job.workflow_ref or job.workflow_sha is empty; cannot tell which regelrecht to check out"
+            exit 1
+          fi
+          {
+            echo "corpus=$corpus"
+            echo "constructs=$constructs"
+            echo "repository=${WORKFLOW_REF%%/.github/workflows/*}"
+            echo "ref=${REGELRECHT_REF:-$WORKFLOW_SHA}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Check out the corpus
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          path: corpus
+          persist-credentials: false
+
+      - name: Check out regelrecht
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          repository: ${{ steps.resolve.outputs.repository }}
+          ref: ${{ steps.resolve.outputs.ref }}
+          path: regelrecht
+          persist-credentials: false
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
+
+      # The same actions as ci.yml, from the regelrecht checkout: a local
+      # `uses:` path resolves against the workspace, not this file.
+      - name: Install mold linker
+        uses: ./regelrecht/.github/actions/setup-mold
+
+      - name: Setup sccache
+        uses: ./regelrecht/.github/actions/setup-sccache
+
+      - name: Cache cargo registry
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('regelrecht/packages/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-registry-
+
+      # The runs below go on after a failed bucket A, but not after a failed
+      # setup; this step succeeds only when everything above it did.
+      - name: Prepare the report directory
+        id: setup
+        run: mkdir -p "$RUNNER_TEMP/bdd-reports"
+
+      # BDD_SCENARIO_PATH keeps bucket A to the caller's scenarios when
+      # corpus/regulation is loaded too. No RUSTFLAGS: packages/.cargo/config.toml
+      # then picks mold, and a warning in a pinned regelrecht does not fail the
+      # caller.
+      - name: Run bucket A
+        id: corpus
+        if: steps.resolve.outputs.corpus == 'true'
+        working-directory: regelrecht/packages/engine
+        env:
+          BDD_BUCKET: corpus
+          OWN: ${{ github.workspace }}/corpus/${{ inputs.regulation-path }}
+          CENTRAL: ${{ inputs.include-central-corpus && format('{0}/regelrecht/corpus/regulation', github.workspace) || '' }}
+        run: |
+          set -euo pipefail
+          export BDD_SCENARIO_PATH="$OWN"
+          export REGULATION_PATH="$OWN${CENTRAL:+:$CENTRAL}"
+          export BDD_JUNIT="$RUNNER_TEMP/bdd-reports/corpus.xml"
+          cargo test --test bdd -- --nocapture
+
+      # Every subdirectory of constructs-path is a set. The runner fails on one
+      # that is not, so a misspelt `scenarios/` stops the run. With
+      # BDD_CONSTRUCT_SETS set it plays those sets and not the cell's own suite.
+      - name: Run the construct sets
+        id: constructs
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' && steps.resolve.outputs.constructs == 'true' }}
+        working-directory: regelrecht/packages/cel
+        env:
+          SETS_DIR: ${{ github.workspace }}/corpus/${{ inputs.constructs-path }}
+        run: |
+          set -euo pipefail
+          SETS=$(find "$SETS_DIR" -mindepth 1 -maxdepth 1 -type d ! -name '.*' | sort | paste -sd:)
+          if [ -z "$SETS" ]; then
+            echo "::error::no construct sets in $SETS_DIR"
+            exit 1
+          fi
+          export BDD_CONSTRUCT_SETS="$SETS"
+          export BDD_JUNIT="$RUNNER_TEMP/bdd-reports/constructs.xml"
+          cargo test --test bdd -- --nocapture
+
+      - name: Summarise the reports
+        if: ${{ !cancelled() }}
+        env:
+          CORPUS_RAN: ${{ steps.corpus.outcome != 'skipped' && steps.corpus.outcome != '' }}
+          CONSTRUCTS_RAN: ${{ steps.constructs.outcome != 'skipped' && steps.constructs.outcome != '' }}
+        run: |
+          set -euo pipefail
+          reports=()
+          if [ "$CORPUS_RAN" = true ]; then reports+=("$RUNNER_TEMP/bdd-reports/corpus.xml"); fi
+          if [ "$CONSTRUCTS_RAN" = true ]; then reports+=("$RUNNER_TEMP/bdd-reports/constructs.xml"); fi
+          if [ ${#reports[@]} -gt 0 ]; then
+            python3 regelrecht/script/bdd-junit-summary.py "${reports[@]}" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload the reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ runner.temp }}/bdd-reports/
+          if-no-files-found: ignore
