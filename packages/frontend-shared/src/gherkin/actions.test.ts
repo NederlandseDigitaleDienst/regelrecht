@@ -189,8 +189,10 @@ describe('quoted and table-cell values', () => {
     expect(quotedValue('[not json')).toBe('[not json');
   });
 
-  it('keeps the scalar rules', () => {
-    expect(quotedValue('42')).toBe(42);
+  it('keeps the scalar rules, with digits in quotes as text', () => {
+    expect(quotedValue('42')).toBe('42');
+    expect(quotedValue('-3.5')).toBe('-3.5');
+    expect(tableCellValue('42')).toBe(42);
     expect(quotedValue('true')).toBe(true);
     expect(quotedValue('null')).toBe(null);
     expect(quotedValue('GM0384')).toBe('GM0384');

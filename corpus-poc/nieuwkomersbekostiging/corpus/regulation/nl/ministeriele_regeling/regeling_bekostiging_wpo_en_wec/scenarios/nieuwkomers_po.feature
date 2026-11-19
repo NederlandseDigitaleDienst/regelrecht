@@ -43,8 +43,8 @@ Feature: Nieuwkomersbekostiging primair onderwijs
   # ------------------------------------------------------------- casus C1
   Scenario: C1 asielzoeker, gevestigd na de vierde verjaardag, acht kwartalen
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000001 | 2017-03-10    | true           | 26                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | basisschool | false                       | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000001" | 2017-03-10    | true           | 26                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | basisschool | false                       | null                  |
     Given parameter "bsn" is "200000001"
     When I evaluate "categorie_nieuwkomer" of "regeling_bekostiging_wpo_en_wec"
     Then output "categorie_nieuwkomer" equals "ASIELZOEKER"
@@ -93,8 +93,8 @@ Feature: Nieuwkomersbekostiging primair onderwijs
   # ------------------------------------------------------------- casus C2
   Scenario: C2 overige vreemdeling, vier kwartalen
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000002 | 2014-06-20    | true           | 22                  | true      | 2025-11-15                | 2026-02-15            | true                    | true                  | basisschool | false                       | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000002" | 2014-06-20    | true           | 22                  | true      | 2025-11-15                | 2026-02-15            | true                    | true                  | basisschool | false                       | null                  |
     Given parameter "bsn" is "200000002"
     Given the calculation date is "2026-04-01"
     When I evaluate "categorie_nieuwkomer" of "regeling_bekostiging_wpo_en_wec"
@@ -119,8 +119,8 @@ Feature: Nieuwkomersbekostiging primair onderwijs
   # ------------------------------------------------------------- casus C3
   Scenario: C3 asielzoeker gevestigd zeven maanden voor de vierde verjaardag, zes kwartalen
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000003 | 2021-09-01    | true           | 26                  | true      | 2025-02-01                | 2025-09-01            | true                    | true                  | basisschool | false                       | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000003" | 2021-09-01    | true           | 26                  | true      | 2025-02-01                | 2025-09-01            | true                    | true                  | basisschool | false                       | null                  |
     Given parameter "bsn" is "200000003"
     Given the calculation date is "2025-10-01"
     When I evaluate "aftrek_maanden_voor_vierde_verjaardag" of "regeling_bekostiging_wpo_en_wec"
@@ -150,8 +150,8 @@ Feature: Nieuwkomersbekostiging primair onderwijs
   # ------------------------------------------------------------- casus C4
   Scenario: C4 overige vreemdeling met een kwartaal aftrek, inschrijving op de peildatum
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000004 | 2021-07-01    | true           | 22                  | true      | 2025-02-01                | 2025-07-01            | true                    | true                  | basisschool | false                       | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000004" | 2021-07-01    | true           | 22                  | true      | 2025-02-01                | 2025-07-01            | true                    | true                  | basisschool | false                       | null                  |
     Given parameter "bsn" is "200000004"
     When I evaluate "aftrek_maanden_voor_vierde_verjaardag" of "regeling_bekostiging_wpo_en_wec"
     Then output "aftrek_maanden_voor_vierde_verjaardag" equals 5
@@ -174,8 +174,8 @@ Feature: Nieuwkomersbekostiging primair onderwijs
   # ------------------------------------------------------------- casus C5
   Scenario: C5 asielzoeker met twee kwartalen aftrek, zes kwartalen
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000005 | 2021-08-15    | true           | 26                  | true      | 2025-02-01                | 2025-11-01            | true                    | true                  | basisschool | false                       | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000005" | 2021-08-15    | true           | 26                  | true      | 2025-02-01                | 2025-11-01            | true                    | true                  | basisschool | false                       | null                  |
     Given parameter "bsn" is "200000005"
     Given the calculation date is "2026-01-01"
     When I evaluate "aftrek_maanden_voor_vierde_verjaardag" of "regeling_bekostiging_wpo_en_wec"
@@ -200,8 +200,8 @@ Feature: Nieuwkomersbekostiging primair onderwijs
   # ------------------------------------------------------------- casus C6
   Scenario: C6 overige vreemdeling met twee kwartalen aftrek, twee kwartalen
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000006 | 2021-10-01    | true           | 22                  | true      | 2025-02-01                | 2025-11-01            | true                    | true                  | basisschool | false                       | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000006" | 2021-10-01    | true           | 22                  | true      | 2025-02-01                | 2025-11-01            | true                    | true                  | basisschool | false                       | null                  |
     Given parameter "bsn" is "200000006"
     Given the calculation date is "2026-01-01"
     When I evaluate "aftrek_maanden_voor_vierde_verjaardag" of "regeling_bekostiging_wpo_en_wec"
@@ -222,8 +222,8 @@ Feature: Nieuwkomersbekostiging primair onderwijs
   # ------------------------------------------------------------- categorie
   Scenario: Nederlandse leerling valt buiten de regeling
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000010 | 2017-03-10    | false          | null                | true      | 2017-03-10                | 2021-03-10            | true                    | true                  | basisschool | false                       | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000010" | 2017-03-10    | false          | null                | true      | 2017-03-10                | 2021-03-10            | true                    | true                  | basisschool | false                       | null                  |
     Given parameter "bsn" is "200000010"
     When I evaluate "categorie_nieuwkomer" of "regeling_bekostiging_wpo_en_wec"
     Then output "categorie_nieuwkomer" equals "GEEN"
@@ -236,8 +236,8 @@ Feature: Nieuwkomersbekostiging primair onderwijs
 
   Scenario: Code 21 zonder oordeel van het bevoegd gezag telt nog niet mee
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000011 | 2017-03-10    | true           | 21                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | basisschool | false                       | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000011" | 2017-03-10    | true           | 21                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | basisschool | false                       | null                  |
     Given parameter "bsn" is "200000011"
     When I evaluate "categorie_nieuwkomer" of "regeling_bekostiging_wpo_en_wec"
     Then output "categorie_nieuwkomer" equals "BESTUUR_BEOORDEELT"
@@ -248,8 +248,8 @@ Feature: Nieuwkomersbekostiging primair onderwijs
 
   Scenario: Code 21 met oordeel asielzoeker volgt het oordeel
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000012 | 2017-03-10    | true           | 21                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | basisschool | false                       | ASIELZOEKER           |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000012" | 2017-03-10    | true           | 21                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | basisschool | false                       | ASIELZOEKER           |
     Given parameter "bsn" is "200000012"
     When I evaluate "categorie_nieuwkomer" of "regeling_bekostiging_wpo_en_wec"
     Then output "categorie_nieuwkomer" equals "ASIELZOEKER"
@@ -270,24 +270,24 @@ Feature: Nieuwkomersbekostiging primair onderwijs
 
   Scenario: Internationaal georiënteerd basisonderwijs is uitgesloten
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000014 | 2017-03-10    | true           | 28                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | basisschool | true                        | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000014" | 2017-03-10    | true           | 28                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | basisschool | true                        | null                  |
     Given parameter "bsn" is "200000014"
     When I evaluate "categorie_nieuwkomer" of "regeling_bekostiging_wpo_en_wec"
     Then output "categorie_nieuwkomer" equals "GEEN"
 
   Scenario: Een code buiten de tabel van het tiende lid geeft geen categorie
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000016 | 2017-03-10    | true           | 47                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | basisschool | false                       | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000016" | 2017-03-10    | true           | 47                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | basisschool | false                       | null                  |
     Given parameter "bsn" is "200000016"
     When I evaluate "categorie_nieuwkomer" of "regeling_bekostiging_wpo_en_wec"
     Then output "categorie_nieuwkomer" equals "GEEN"
 
   Scenario: Een leerling in het voortgezet onderwijs valt buiten deze regeling
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000017 | 2011-03-10    | true           | 26                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | vo          | false                       | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000017" | 2011-03-10    | true           | 26                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | vo          | false                       | null                  |
     Given parameter "bsn" is "200000017"
     When I evaluate "categorie_nieuwkomer" of "regeling_bekostiging_wpo_en_wec"
     Then output "categorie_nieuwkomer" equals "GEEN"
@@ -296,8 +296,8 @@ Feature: Nieuwkomersbekostiging primair onderwijs
 
   Scenario: In Nederland geboren leerling met afgeleide status is uitgesloten (twaalfde lid)
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000018 | 2022-04-01    | true           | 26                  | true      | 2022-04-01                | 2026-04-01            | true                    | true                  | basisschool | false                       | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000018" | 2022-04-01    | true           | 26                  | true      | 2022-04-01                | 2026-04-01            | true                    | true                  | basisschool | false                       | null                  |
     Given parameter "bsn" is "200000018"
     Given the calculation date is "2026-07-01"
     When I evaluate "geboren_in_nederland" of "regeling_bekostiging_wpo_en_wec"
@@ -311,8 +311,8 @@ Feature: Nieuwkomersbekostiging primair onderwijs
 
   Scenario: Speciale school voor basisonderwijs valt onder artikel 36
     Given the following "personas" data with key "bsn":
-      | bsn       | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
-      | 200000015 | 2015-03-10    | true           | 26                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | sbo         | false                       | null                  |
+      | bsn         | geboortedatum | is_vreemdeling | verblijfstitel_code | heeft_bsn | datum_vestiging_nederland | eerste_inschrijfdatum | woonachtig_in_nederland | werkelijk_schoolgaand | schoolsoort | internationaal_georienteerd | oordeel_bevoegd_gezag |
+      | "200000015" | 2015-03-10    | true           | 26                  | true      | 2025-02-01                | 2025-05-01            | true                    | true                  | sbo         | false                       | null                  |
     Given parameter "bsn" is "200000015"
     Given the calculation date is "2026-04-01"
     When I evaluate "valt_onder_artikel_36" of "regeling_bekostiging_wpo_en_wec"

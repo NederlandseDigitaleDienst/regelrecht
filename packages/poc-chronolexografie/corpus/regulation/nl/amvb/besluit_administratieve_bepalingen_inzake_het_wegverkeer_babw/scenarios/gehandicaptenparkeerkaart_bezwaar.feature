@@ -18,11 +18,11 @@ Feature: Het bezwaar tegen een besluit op een gehandicaptenparkeerkaart
     # Het bestreden besluit weigerde de kaart op dit onderzoek; de
     # heroverweging geeft hetzelfde, dus geen aanleiding tot herroeping.
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | false |
-      | besluit_datum                                     | 2026-11-20 |
-      | dagtekening                                       | 2026-10-12 |
+      | bsn_aanvrager        | "999990020" |
+      | kaart_als_bestuurder | true        |
+      | kaart_als_passagier  | false       |
+      | besluit_datum        | 2026-11-20  |
+      | dagtekening          | 2026-10-12  |
     Given the following findings:
       | langdurige_loopbeperking_volgens_college                          | false |
       | continu_afhankelijk_van_hulp_bestuurder_volgens_college           | false |
@@ -36,11 +36,11 @@ Feature: Het bezwaar tegen een besluit op een gehandicaptenparkeerkaart
     # Een nieuw geneeskundig onderzoek toont een langdurige loopbeperking. Het
     # nieuwe besluit heeft zijn eigen geldigheidsduur, vanaf zijn eigen afgifte.
     Given the following parameters:
-      | bsn_aanvrager                                     | 999990020 |
-      | kaart_als_bestuurder                              | true |
-      | kaart_als_passagier                               | false |
-      | besluit_datum                                     | 2026-11-20 |
-      | dagtekening                                       | 2026-10-12 |
+      | bsn_aanvrager        | "999990020" |
+      | kaart_als_bestuurder | true        |
+      | kaart_als_passagier  | false       |
+      | besluit_datum        | 2026-11-20  |
+      | dagtekening          | 2026-10-12  |
     Given the following findings:
       | aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college | false |
       | geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college          | true  |

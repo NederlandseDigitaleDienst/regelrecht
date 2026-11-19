@@ -63,15 +63,18 @@ articles:
             source:
               regulation: wet_bag
               output: gebruiksdoel
+              # De Wet bag neemt een adres als tekst en deze wet heeft het als record
+              # (RFC-055: een record gaat niet door voor een tekst). De demo zoekt het
+              # verblijfsobject daarom op de postcode op.
               parameters:
-                adres: $adres
+                adres: $adres.postcode
           - name: bag_is_woonfunctie
             type: boolean
             source:
               regulation: wet_bag
               output: is_woonfunctie
               parameters:
-                adres: $adres
+                adres: $adres.postcode
           - name: aantal_bewoners
             type: number
             source: {}

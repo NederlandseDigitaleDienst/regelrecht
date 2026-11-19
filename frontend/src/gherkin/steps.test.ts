@@ -110,9 +110,9 @@ describe('matchStep', () => {
 describe('typedArgs', () => {
   const entryFor = (line: string) => defined(matchStep(line)).entry;
 
-  it('reads a quoted capture by its content', () => {
+  it('reads quoted digits as text', () => {
     const line = 'parameter "bsn" is "999993653"';
-    expect(typedArgs(entryFor(line), defined(matchStep(line)).args)).toEqual(['bsn', 999993653]);
+    expect(typedArgs(entryFor(line), defined(matchStep(line)).args)).toEqual(['bsn', '999993653']);
   });
 
   it('reads a bare capture as a number', () => {
@@ -195,8 +195,8 @@ describe('set_parameters_table dispatch', () => {
 
 // The canonical typing rule lives in bdd/grammar.yaml (`value_typing`) and is
 // carried into both dispatchers by codegen. These assertions are the editor
-// half of bdd/conformance/value_typing.feature: the same three lines, the same
-// three types. Drift here is the failure mode of issue #1160 — a scenario that
+// half of bdd/conformance/value_typing.feature: the same lines, the same
+// types. Drift here is the failure mode of issue #1160 — a scenario that
 // runs green in the editor and red in CI.
 describe('value typing follows bdd/grammar.yaml', () => {
   const defs = createStepDefinitions({ loadDependency: async () => {} });
@@ -212,11 +212,16 @@ describe('value typing follows bdd/grammar.yaml', () => {
   }
 
   it('declares the three rules', () => {
-    expect(VALUE_TYPING).toEqual({ quoted: 'inferred', bare: 'number', table_cell: 'inferred' });
+    expect(VALUE_TYPING).toEqual({
+      quoted: 'inferred_without_numbers',
+      bare: 'number',
+      table_cell: 'inferred',
+    });
   });
 
-  it('reads a quoted value by its content, not by its quotes', async () => {
-    expect(await runStep('parameter "waarde" is "42"')).toEqual({ waarde: 42 });
+  it('reads quoted digits as text, and what has no bare form by its content', async () => {
+    expect(await runStep('parameter "waarde" is "42"')).toEqual({ waarde: '42' });
+    expect(await runStep('parameter "lijst" is "[1, 2]"')).toEqual({ lijst: [1, 2] });
     expect(await runStep('parameter "verzekerd" is "true"')).toEqual({ verzekerd: true });
     expect(await runStep('parameter "gemeente" is "GM0384"')).toEqual({ gemeente: 'GM0384' });
   });
@@ -225,7 +230,8 @@ describe('value typing follows bdd/grammar.yaml', () => {
     expect(await runStep('parameter "waarde" is 42')).toEqual({ waarde: 42 });
   });
 
-  it('lets the content decide in a data table cell', async () => {
+  it('lets the content decide in a data table cell, where quotes say text', async () => {
     expect(await runStep('the following parameters:', [['waarde', '42']])).toEqual({ waarde: 42 });
+    expect(await runStep('the following parameters:', [['waarde', '"42"']])).toEqual({ waarde: '42' });
   });
 });

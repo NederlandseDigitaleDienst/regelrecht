@@ -12,8 +12,8 @@ Feature: AOW Leeftijdsbepaling - Pensioengerechtigde leeftijd (art. 7a)
     Given parameter "geboortedatum" is "1960-05-01"
     And parameter "bsn" is "999400001"
     And the following "CBS" data with key "bsn" for law "wet_op_het_centraal_bureau_voor_de_statistiek":
-      | bsn       | verwachting_65 |
-      | 999400001 | 20.5           |
+      | bsn         | verwachting_65 |
+      | "999400001" | 20.5           |
     When I evaluate outputs "pensioenleeftijd" of "algemene_ouderdomswet/leeftijdsbepaling"
     Then output "pensioenleeftijd" equals 67
 
@@ -23,8 +23,8 @@ Feature: AOW Leeftijdsbepaling - Pensioengerechtigde leeftijd (art. 7a)
     Given parameter "geboortedatum" is "1965-06-15"
     And parameter "bsn" is "999400002"
     And the following "CBS" data with key "bsn" for law "wet_op_het_centraal_bureau_voor_de_statistiek":
-      | bsn       | verwachting_65 |
-      | 999400002 | 21.00          |
+      | bsn         | verwachting_65 |
+      | "999400002" | 21.00          |
     When I evaluate outputs "pensioenleeftijd" of "algemene_ouderdomswet/leeftijdsbepaling"
     Then output "pensioenleeftijd" equals 67
 
@@ -35,7 +35,7 @@ Feature: AOW Leeftijdsbepaling - Pensioengerechtigde leeftijd (art. 7a)
     Given parameter "geboortedatum" is "1965-06-15"
     And parameter "bsn" is "999400003"
     And the following "CBS" data with key "bsn" for law "wet_op_het_centraal_bureau_voor_de_statistiek":
-      | bsn       | verwachting_65 |
-      | 999400003 | 21.02          |
+      | bsn         | verwachting_65 |
+      | "999400003" | 21.02          |
     When I evaluate outputs "pensioenleeftijd" of "algemene_ouderdomswet/leeftijdsbepaling"
     Then output "pensioenleeftijd" equals 67.25

@@ -51,7 +51,7 @@ articles:
             type: object
             source: {}
           - name: gebeurtenissen
-            type: object
+            type: array
             source: {}
           # Losse getypeerde inputs voor art. 6:7 en 7:10: een subveld van het object-input
           # 'wet' kan geen nullable krijgen, terwijl deze termijnen wel legitiem afwezig

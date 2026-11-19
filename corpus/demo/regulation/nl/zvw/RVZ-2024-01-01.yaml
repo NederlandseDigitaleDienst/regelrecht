@@ -116,7 +116,7 @@ articles:
             temporal:
               type: point_in_time
           - name: polis_status
-            type: object
+            type: string
             nullable: true
             source: {}
           - name: registratie

@@ -16,16 +16,16 @@ Feature: Data sources bound to one law
 
   Scenario: The bound law reads its register data
     Given the following "register" data with key "bsn" for law "test_scoped_source_bron":
-      | bsn       | inkomen |
-      | 999993653 | 500     |
+      | bsn         | inkomen |
+      | "999993653" | 500     |
     When I evaluate "inkomen" of "test_scoped_source_bron"
     Then the execution succeeds
     Then output "inkomen" equals 1000
 
   Scenario: A same-named input of another law is not shadowed
     Given the following "register" data with key "bsn" for law "test_scoped_source_bron":
-      | bsn       | inkomen |
-      | 999993653 | 500     |
+      | bsn         | inkomen |
+      | "999993653" | 500     |
     When I evaluate "uitkomst" of "test_scoped_source_afnemer"
     Then the execution succeeds
     # The afnemer gets the computed 1000, not the raw 500.
@@ -33,8 +33,8 @@ Feature: Data sources bound to one law
 
   Scenario: An unscoped source still answers for every law
     Given the following "register" data with key "bsn":
-      | bsn       | inkomen |
-      | 999993653 | 500     |
+      | bsn         | inkomen |
+      | "999993653" | 500     |
     When I evaluate "uitkomst" of "test_scoped_source_afnemer"
     Then the execution succeeds
     # Unscoped, the register value shadows the cross-law input: the

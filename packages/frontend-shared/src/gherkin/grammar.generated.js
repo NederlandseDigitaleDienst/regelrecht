@@ -1,5 +1,5 @@
 // @generated from bdd/grammar.yaml by bdd/codegen/gen-js.mjs — do not edit.
-export const VALUE_TYPING = {"quoted":"inferred","bare":"number","table_cell":"inferred"};
+export const VALUE_TYPING = {"quoted":"inferred_without_numbers","bare":"number","table_cell":"inferred"};
 
 export const GRAMMAR = [
   { id: "set_calculation_date", action: "set_calculation_date", keyword: "given", tier: "core", datatable: false, pattern: /^the calculation date is "([^"]*)"$/, argTypes: ["string"], literals: [], template: (a) => `the calculation date is "${a[0]}"` },

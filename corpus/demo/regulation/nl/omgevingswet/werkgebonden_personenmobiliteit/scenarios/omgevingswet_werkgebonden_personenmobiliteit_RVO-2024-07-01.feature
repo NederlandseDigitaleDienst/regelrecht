@@ -12,7 +12,7 @@ Feature: WPM Rapportageverplichting
     Given parameter "kvk_nummer" is "12345678"
     And the following "RVO" data with key "kvk_nummer" for law "omgevingswet/werkgebonden_personenmobiliteit":
       | kvk_nummer | aantal_werknemers | verstrekt_mobiliteitsvergoeding |
-      | 12345678   | 100               | true                            |
+      | "12345678" | 100               | true                            |
     When I evaluate outputs "voldoet_aan_voorwaarden, rapportageverplichting, aantal_werknemers" of "omgevingswet/werkgebonden_personenmobiliteit"
     Then output "voldoet_aan_voorwaarden" is true
     And output "rapportageverplichting" is true
@@ -22,7 +22,7 @@ Feature: WPM Rapportageverplichting
     Given parameter "kvk_nummer" is "87654321"
     And the following "RVO" data with key "kvk_nummer" for law "omgevingswet/werkgebonden_personenmobiliteit":
       | kvk_nummer | aantal_werknemers | verstrekt_mobiliteitsvergoeding |
-      | 87654321   | 99                | true                            |
+      | "87654321" | 99                | true                            |
     When I evaluate outputs "voldoet_aan_voorwaarden" of "omgevingswet/werkgebonden_personenmobiliteit"
     Then output "voldoet_aan_voorwaarden" is false
 
@@ -30,7 +30,7 @@ Feature: WPM Rapportageverplichting
     Given parameter "kvk_nummer" is "44444444"
     And the following "RVO" data with key "kvk_nummer" for law "omgevingswet/werkgebonden_personenmobiliteit":
       | kvk_nummer | aantal_werknemers | verstrekt_mobiliteitsvergoeding |
-      | 44444444   | 150               | false                           |
+      | "44444444" | 150               | false                           |
     When I evaluate outputs "voldoet_aan_voorwaarden" of "omgevingswet/werkgebonden_personenmobiliteit"
     Then output "voldoet_aan_voorwaarden" is false
 
@@ -38,10 +38,10 @@ Feature: WPM Rapportageverplichting
     Given parameter "kvk_nummer" is "55555555"
     And the following "RVO" data with key "kvk_nummer" for law "omgevingswet/werkgebonden_personenmobiliteit":
       | kvk_nummer | aantal_werknemers | verstrekt_mobiliteitsvergoeding |
-      | 55555555   | 120               | true                            |
+      | "55555555" | 120               | true                            |
     And the following "RVO" data with key "kvk_nummer" for law "omgevingswet/werkgebonden_personenmobiliteit/gegevens":
       | kvk_nummer | woon_werk_auto_benzine | woon_werk_auto_diesel | zakelijk_auto_benzine | zakelijk_auto_diesel | woon_werk_openbaar_vervoer |
-      | 55555555   | 10000                  | 5000                  | 3000                  | 2000                 | 8000                       |
+      | "55555555" | 10000                  | 5000                  | 3000                  | 2000                 | 8000                       |
     When I evaluate outputs "voldoet_aan_voorwaarden, rapportageverplichting" of "omgevingswet/werkgebonden_personenmobiliteit"
     Then output "voldoet_aan_voorwaarden" is true
     And output "rapportageverplichting" is true
@@ -57,7 +57,7 @@ Feature: WPM Rapportageverplichting
     Given parameter "kvk_nummer" is "66666666"
     And the following "RVO" data with key "kvk_nummer" for law "omgevingswet/werkgebonden_personenmobiliteit/gegevens":
       | kvk_nummer | woon_werk_auto_benzine | woon_werk_auto_diesel | zakelijk_auto_benzine | zakelijk_auto_diesel | woon_werk_openbaar_vervoer |
-      | 66666666   | 1000                   | 0                     | 0                     | 1000                  | 0                          |
+      | "66666666" | 1000                   | 0                     | 0                     | 1000                 | 0                          |
     When I evaluate outputs "emissie_per_reizigerskilometer_woon_werk, emissie_per_reizigerskilometer_zakelijk" of "omgevingswet/werkgebonden_personenmobiliteit/gegevens"
     Then output "emissie_per_reizigerskilometer_woon_werk" equals 170
     And output "emissie_per_reizigerskilometer_zakelijk" equals 150
@@ -66,7 +66,7 @@ Feature: WPM Rapportageverplichting
     Given parameter "kvk_nummer" is "77777777"
     And the following "RVO" data with key "kvk_nummer" for law "omgevingswet/werkgebonden_personenmobiliteit/gegevens":
       | kvk_nummer | woon_werk_auto_benzine | woon_werk_auto_diesel | zakelijk_auto_benzine | zakelijk_auto_diesel | woon_werk_openbaar_vervoer |
-      | 77777777   | 0                      | 0                     | 0                     | 0                     | 0                          |
+      | "77777777" | 0                      | 0                     | 0                     | 0                    | 0                          |
     When I evaluate outputs "emissie_per_reizigerskilometer_woon_werk, emissie_per_reizigerskilometer_zakelijk" of "omgevingswet/werkgebonden_personenmobiliteit/gegevens"
     Then output "emissie_per_reizigerskilometer_woon_werk" equals 0
     And output "emissie_per_reizigerskilometer_zakelijk" equals 0

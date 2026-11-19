@@ -67,19 +67,21 @@ Laws that need source data (BRP, Belastingdienst, and the like) provide it with 
 
 ```gherkin
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres |
-      | 999993653 | 2005-01-01    | Amsterdam      |
+      | bsn         | geboortedatum | verblijfsadres |
+      | "999993653" | 2005-01-01    | Amsterdam      |
 ```
 
-A value is typed by what it looks like: `42` is a number, `true` a boolean, `2005-01-01` a string the law reads as a date. A table cell in double quotes is text, whatever it looks like. Write an identifier that consists of digits that way where a law compares it with text, because a number does not pass for a string ([RFC-055](/rfcs/rfc-055)):
+A value is typed by what it looks like: `42` is a number, `true` a boolean, `2005-01-01` a string that becomes a date in a field declared `date`. Digits in double quotes are text, in a table cell and in a step: `parameter "bsn" is "999993653"` passes the text and `parameter "inkomen" is 30000` the number. A table cell in double quotes is text whatever it holds. In a step, what has no bare form keeps its meaning inside the quotes: `"true"` is a boolean, `"null"` an absence and `"[]"` an empty list.
+
+The engine holds a value against the type its field declares when it enters ([RFC-055](/rfcs/rfc-055)), so an identifier that consists of digits needs its quotes wherever the law declares it a `string`:
 
 ```gherkin
     Given the following "KVK" data with key "kvk_nummer":
       | kvk_nummer | sbi_code |
-      | 85234567   | "56102"  |
+      | "85234567" | "56102"  |
 ```
 
-Without the quotes the engine says so: `IN is not defined for (number, string)`.
+Without the quotes the engine says which field refused the value: `Type mismatch: expected string for input 'sbi_code' of …, got number`.
 
 See `corpus/regulation/nl/wet/wet_op_de_zorgtoeslag/scenarios/eligibility.feature` for a complete, data-driven example.
 

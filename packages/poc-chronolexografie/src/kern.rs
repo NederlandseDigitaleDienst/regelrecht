@@ -3848,7 +3848,7 @@ mod tests {
         );
         assert_eq!(
             na.outputs["eerste_verlofdag_van_de_rechter"],
-            regelrecht_engine::Value::String("2027-02-01".to_string())
+            regelrecht_engine::Value::Date("2027-02-01".parse().unwrap())
         );
         let zonder = service
             .evaluate_law(law, &outputs, params(false, None), "2026-12-01")

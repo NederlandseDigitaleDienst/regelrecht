@@ -10,7 +10,7 @@ const FEATURE = `Feature: Basis
 
   Scenario: Eerste
     Given the calculation date is "2025-01-01"
-    Given parameter "inkomen" is "30000"
+    Given parameter "inkomen" is 30000
     When I evaluate "heeft_recht" of "wet_a"
     Then output "heeft_recht" is true
 
@@ -64,7 +64,7 @@ describe('createOpenScenario', () => {
     serve();
     const doc = createOpenScenario(FILE);
     await doc.load();
-    doc.setValues(0, { ...doc.values.value[0]!, parameterValues: { inkomen: '45000' } });
+    doc.setValues(0, { ...doc.values.value[0]!, parameterValues: { inkomen: 45000 } });
     expect(doc.inputsFor(0)?.parameters).toEqual({ inkomen: 45000 });
   });
 
@@ -153,7 +153,7 @@ describe('createOpenScenario', () => {
     });
     const doc = createOpenScenario(FILE);
     await doc.load();
-    doc.setValues(0, { ...doc.values.value[0]!, parameterValues: { inkomen: '1' } });
+    doc.setValues(0, { ...doc.values.value[0]!, parameterValues: { inkomen: 1 } });
     const saving = doc.save();
     // Typed after Opslaan, before the server answered.
     doc.setValues(1, { ...doc.values.value[1]!, calculationDate: '2030-01-01' });
@@ -173,7 +173,7 @@ describe('createOpenScenario', () => {
     });
     const doc = createOpenScenario(FILE);
     await doc.load();
-    doc.setValues(0, { ...doc.values.value[0]!, parameterValues: { inkomen: '5' } });
+    doc.setValues(0, { ...doc.values.value[0]!, parameterValues: { inkomen: 5 } });
     expect(await doc.save()).toBe(false);
 
     version = version.replace('is 1', 'is 9');
@@ -197,7 +197,7 @@ describe('createOpenScenario', () => {
 
     // Laad nieuwste versie, then an edit and Opslaan before the read answers.
     const reloading = doc.reload();
-    doc.setValues(0, { ...doc.values.value[0]!, parameterValues: { inkomen: '7' } });
+    doc.setValues(0, { ...doc.values.value[0]!, parameterValues: { inkomen: 7 } });
     expect(await doc.save()).toBe(true);
     answerLoad(res({ body: FEATURE, etag: '"v1"' }));
     await reloading;

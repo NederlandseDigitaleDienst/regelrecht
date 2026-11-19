@@ -24,9 +24,9 @@ Feature: Absent and unknown values — RFC-036
     # article, so the cross-law calls need a row even when the scenario is
     # about something else.
     Given the following "register" data with key "bsn" for law "test_null_semantics_bron":
-      | bsn       | geboortejaar |
-      | 999993653 | 1975         |
-      | 999993641 | 1980         |
+      | bsn         | geboortejaar |
+      | "999993653" | 1975         |
+      | "999993641" | 1980         |
 
   # ---------------------------------------------------------------------------
   # 1. Everything present computes as before
@@ -35,8 +35,8 @@ Feature: Absent and unknown values — RFC-036
   Scenario: Every value present computes as before
     Given parameter "aanvraag_bedrag" is 250
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur | partner_huur | partner_bsn | beschikking          | verzekerd | bedrag |
-      | 999993653 | 650  | 700          | 999993641   | {"status": "ACTIEF"} | true      | 250    |
+      | bsn         | huur | partner_huur | partner_bsn | beschikking          | verzekerd | bedrag |
+      | "999993653" | 650  | 700          | "999993641" | {"status": "ACTIEF"} | true      | 250    |
     When I evaluate outputs "huur_hoog, verhoogde_huur, niet_hoog, huurklasse, hoog_en_bekend, hoog_en_onwaar, hoog_of_onbekend, hoog_of_waar, huur_gelijk_aan_partner, lijsten_gelijk, lijst_in_lijsten, verzamelingen_gelijk" of "test_null_semantics"
     Then the execution succeeds
     Then output "huur_hoog" is true
@@ -79,8 +79,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: An explicit null answers the absence test
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur | partner_bsn | beschikking |
-      | 999993653 | null | null        | null        |
+      | bsn         | huur | partner_bsn | beschikking |
+      | "999993653" | null | null        | null        |
     When I evaluate outputs "huur_ontbreekt, heeft_huur, huur_hoog_veilig, huur_in_lijst" of "test_null_semantics"
     Then the execution succeeds
     # EQUALS against null is structural: this is the absence test the corpus uses.
@@ -94,16 +94,16 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: A field of an absent record is absent
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur | partner_bsn | beschikking |
-      | 999993653 | 650  | null        | null        |
+      | bsn         | huur | partner_bsn | beschikking |
+      | "999993653" | 650  | null        | null        |
     When I evaluate outputs "status" of "test_null_semantics"
     Then the execution succeeds
     Then output "status" is absent
 
   Scenario: A null required parameter does not run the other law
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur | partner_bsn | beschikking |
-      | 999993653 | 650  | null        | null        |
+      | bsn         | huur | partner_bsn | beschikking |
+      | "999993653" | 650  | null        | null        |
     # There is no partner to look up: the bron is not executed and the input is
     # null, so the caller's own absence test can decide.
     When I evaluate outputs "partner_geboortejaar" of "test_null_semantics"
@@ -116,8 +116,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: An absent value the law declared never absent is refused before it is calculated with
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur | partner_bsn | beschikking |
-      | 999993653 | null | 999993641   | null        |
+      | bsn         | huur | partner_bsn | beschikking |
+      | "999993653" | null | "999993641" | null        |
     # Article 1 orders and adds the rent and did not declare it nullable. The
     # register's null contradicts that declaration, and the contradiction is a
     # data error at the boundary (see nullable.feature), not a calculation
@@ -129,8 +129,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: An absent truth value the law declared never absent is refused before it is decided on
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | verzekerd |
-      | 999993653 | null      |
+      | bsn         | verzekerd |
+      | "999993653" | null      |
     When I evaluate "verzekerd_en_waar" of "test_null_semantics"
     Then the execution fails
     Then the execution fails with "declares as never absent"
@@ -138,8 +138,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: Ordering or calculating with an absent record field fails
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | beschikking                        |
-      | 999993653 | {"bedrag": null, "actief": true}   |
+      | bsn         | beschikking                      |
+      | "999993653" | {"bedrag": null, "actief": true} |
     # A record is untyped, so no declaration can refuse the null field at the
     # boundary; the operation itself does. "More than nothing" is not a
     # question the law asked: it has to test for absence first (EQUALS … null).
@@ -151,8 +151,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: Deciding on an absent record field fails
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | beschikking                        |
-      | 999993653 | {"bedrag": 250, "actief": null}    |
+      | bsn         | beschikking                     |
+      | "999993653" | {"bedrag": 250, "actief": null} |
     # NOT and IF need a verdict; an absence is not one. Both outputs are
     # produced by the same article, so either fails the article.
     When I evaluate "inactief" of "test_null_semantics"
@@ -164,8 +164,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: Present record fields compute as before
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | beschikking                        |
-      | 999993653 | {"bedrag": 250, "actief": true}    |
+      | bsn         | beschikking                     |
+      | "999993653" | {"bedrag": 250, "actief": true} |
     When I evaluate outputs "bedrag_hoog, verhoogd_bedrag, inactief, beschikkingsklasse" of "test_null_semantics"
     Then the execution succeeds
     Then output "bedrag_hoog" is true
@@ -175,8 +175,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: A null optional parameter is passed through and the other law's declaration decides
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | bedrag |
-      | 999993653 | null   |
+      | bsn         | bedrag |
+      | "999993653" | null   |
     # Article 4 hands the register's `bedrag` (nullable: the register may hold
     # no amount) to the bron as its optional `aanvraag_bedrag`. Null for an
     # optional parameter does not stop the call, but the bron never declared
@@ -193,8 +193,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: Comparing, calculating and testing an unknown value is unknown
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur | partner_bsn | beschikking |
-      | 999993653 |      | 999993641   |             |
+      | bsn         | huur | partner_bsn | beschikking |
+      | "999993653" |      | "999993641" |             |
     When I evaluate outputs "huur_hoog, verhoogde_huur, niet_hoog, huurklasse" of "test_null_semantics"
     Then the execution succeeds
     Then output "huur_hoog" is unknown
@@ -223,8 +223,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: Logic over an unknown stays unknown unless a definite operand decides
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur | partner_bsn | beschikking | verzekerd |
-      | 999993653 |      | 999993641   | null        |           |
+      | bsn         | huur | partner_bsn | beschikking | verzekerd |
+      | "999993653" |      | "999993641" | null        |           |
     When I evaluate outputs "hoog_en_bekend, hoog_en_onwaar, hoog_of_onbekend, hoog_of_waar" of "test_null_semantics"
     Then the execution succeeds
     # AND with an unknown and a true: unknown. With a false: false, whatever the unknown was.
@@ -245,8 +245,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: Membership is true on a definite match and otherwise unknown
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur | partner_bsn | beschikking |
-      | 999993653 |      | null        | null        |
+      | bsn         | huur | partner_bsn | beschikking |
+      | "999993653" |      | null        | null        |
     When I evaluate outputs "huur_in_lijst" of "test_null_semantics"
     Then the execution succeeds
     Then output "huur_in_lijst" is unknown for lack of "huur"
@@ -257,8 +257,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: Two unknown operands name both missing facts
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur | partner_huur |
-      | 999993653 |      |              |
+      | bsn         | huur | partner_huur |
+      | "999993653" |      |              |
     When I evaluate outputs "huur_gelijk_aan_partner" of "test_null_semantics"
     Then the execution succeeds
     Then output "huur_gelijk_aan_partner" is unknown for lack of "huur"
@@ -266,8 +266,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: Two lists that each hold an unknown are not equal but unknown
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur | partner_bsn |
-      | 999993653 |      |             |
+      | bsn         | huur | partner_bsn |
+      | "999993653" |      |             |
     # Structurally the two lists look alike. That likeness is not a fact about
     # the rent or the partner; the comparison is unknown for both.
     When I evaluate outputs "lijsten_gelijk, lijst_in_lijsten, verzamelingen_gelijk" of "test_null_semantics"
@@ -283,8 +283,8 @@ Feature: Absent and unknown values — RFC-036
     # No row at all for this bsn: nobody has any of the facts. That is not the
     # same as a row saying null.
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur | partner_bsn | beschikking |
-      | 999993641 | 650  | null        | null        |
+      | bsn         | huur | partner_bsn | beschikking |
+      | "999993641" | 650  | null        | null        |
     When I evaluate outputs "huur_ontbreekt, status" of "test_null_semantics"
     Then the execution succeeds
     Then output "huur_ontbreekt" is unknown for lack of "huur"
@@ -296,8 +296,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: An unknown required parameter does not run the other law
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur | partner_bsn | beschikking |
-      | 999993653 | 650  |             | null        |
+      | bsn         | huur | partner_bsn | beschikking |
+      | "999993653" | 650  |             | null        |
     # Nobody knows yet who the partner is: the bron is not executed and the
     # input is unknown for lack of the fact the parameter was built from.
     When I evaluate outputs "partner_geboortejaar" of "test_null_semantics"
@@ -335,8 +335,8 @@ Feature: Absent and unknown values — RFC-036
   Scenario: A required parameter passed as null at the top level is the caller's error
     Given parameter "bsn" is "null"
     Given the following "register" data with key "bsn" for law "test_null_semantics":
-      | bsn       | huur |
-      | 999993653 | 650  |
+      | bsn         | huur |
+      | "999993653" | 650  |
     # The register was asked about nobody. That is not "unknown for lack of
     # huur" (nobody has the fact) and not an absence to decide on: the caller
     # forgot whom the law is about. Across laws the same situation is a skip
@@ -352,8 +352,8 @@ Feature: Absent and unknown values — RFC-036
 
   Scenario: An empty cell in a parameter table leaves the parameter out
     Given the following parameters:
-      | bsn             | 999993653 |
-      | aanvraag_bedrag |           |
+      | bsn             | "999993653" |
+      | aanvraag_bedrag |             |
     # Not passed, so the optional parameter is unknown for lack of it, exactly
     # as when the row is not there at all.
     When I evaluate "past_aanvraag" of "test_null_semantics_bron"

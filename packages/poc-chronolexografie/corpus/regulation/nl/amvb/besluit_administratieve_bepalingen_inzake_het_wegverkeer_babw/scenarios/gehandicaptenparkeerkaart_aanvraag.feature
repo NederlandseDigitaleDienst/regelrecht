@@ -12,7 +12,7 @@ Feature: De aanvraag om een gehandicaptenparkeerkaart, met de Awb erop
 
   Scenario: Een volledige aanvraag geeft de velden van 4:2 en de beslistermijn van 4:13
     Given the following parameters:
-      | bsn_aanvrager         | 999990020                 |
+      | bsn_aanvrager         | "999990020"               |
       | kaart_als_bestuurder  | true                      |
       | kaart_als_passagier   | false                     |
       | aanvraag_ondertekend  | true                      |
@@ -38,7 +38,7 @@ Feature: De aanvraag om een gehandicaptenparkeerkaart, met de Awb erop
 
   Scenario: Zonder handtekening bevat de aanvraag niet wat 4:2 eist
     Given the following parameters:
-      | bsn_aanvrager         | 999990020                 |
+      | bsn_aanvrager         | "999990020"               |
       | kaart_als_bestuurder  | true                      |
       | kaart_als_passagier   | false                     |
       | aanvraag_ondertekend  | false                     |

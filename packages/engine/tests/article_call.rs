@@ -2072,7 +2072,9 @@ fn a_decision_value_passed_on_without_an_article_reference_is_refused_at_the_cal
         message.contains("a decision value {basis, fields, findings, outputs} in $besluit"),
         "{message}"
     );
-    // A value that is no object is refused at the call too, not before.
+    // A value that is no object never reaches the call: the parameter is
+    // declared an object, and the value is held against that where it enters
+    // (RFC-055).
     let message = service
         .evaluate_law_output(
             "wet_doorgeef",
@@ -2083,7 +2085,7 @@ fn a_decision_value_passed_on_without_an_article_reference_is_refused_at_the_cal
         .unwrap_err()
         .to_string();
     assert!(
-        message.contains("expected an article reference or a decision value in $besluit"),
+        message.contains("expected object for parameter 'waarde' of wet_doorgeef"),
         "{message}"
     );
 }

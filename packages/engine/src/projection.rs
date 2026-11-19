@@ -2925,7 +2925,12 @@ articles:
         // `verleend` holds a string here, and `kaart` is a boolean.
         let odd = record("a", "1", &[], &[("verleend", Value::String("ja".into()))]);
         let err = play(&[odd]).expect_err("a string in a boolean");
-        assert!(err.to_string().contains("which is no Boolean"), "{err}");
+        // Refused where the value enters the step's article (RFC-055).
+        assert!(
+            err.to_string()
+                .contains("expected boolean for parameter 'verleend'"),
+            "{err}"
+        );
     }
 
     #[test]

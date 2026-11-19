@@ -26,13 +26,13 @@ Feature: Bijstandsaanvraag via Participatiewet
 
   Scenario: Alleenstaande burger krijgt volledige bijstand
     Given the following parameters:
-      | bsn                                        | 123456789 |
-      | gemeente_code                              | GM0384    |
-      | leeftijd                                   | 35        |
-      | is_alleenstaande                           | true      |
-      | heeft_kostendelende_medebewoners           | false     |
-      | heeft_pensioengerechtigde_leeftijd_bereikt | false     |
-      | gedragscategorie                           | 0         |
+      | bsn                                        | "123456789" |
+      | gemeente_code                              | GM0384      |
+      | leeftijd                                   | 35          |
+      | is_alleenstaande                           | true        |
+      | heeft_kostendelende_medebewoners           | false       |
+      | heeft_pensioengerechtigde_leeftijd_bereikt | false       |
+      | gedragscategorie                           | 0           |
     When I evaluate "heeft_recht_op_bijstand" of "participatiewet"
     Then the execution succeeds
     Then output "heeft_recht_op_bijstand" is true
@@ -41,13 +41,13 @@ Feature: Bijstandsaanvraag via Participatiewet
 
   Scenario: Gehuwde burger krijgt volledige bijstand
     Given the following parameters:
-      | bsn                                        | 123456789 |
-      | gemeente_code                              | GM0384    |
-      | leeftijd                                   | 42        |
-      | is_alleenstaande                           | false     |
-      | heeft_kostendelende_medebewoners           | false     |
-      | heeft_pensioengerechtigde_leeftijd_bereikt | false     |
-      | gedragscategorie                           | 0         |
+      | bsn                                        | "123456789" |
+      | gemeente_code                              | GM0384      |
+      | leeftijd                                   | 42          |
+      | is_alleenstaande                           | false       |
+      | heeft_kostendelende_medebewoners           | false       |
+      | heeft_pensioengerechtigde_leeftijd_bereikt | false       |
+      | gedragscategorie                           | 0           |
     When I evaluate "heeft_recht_op_bijstand" of "participatiewet"
     Then the execution succeeds
     Then output "heeft_recht_op_bijstand" is true
@@ -57,13 +57,13 @@ Feature: Bijstandsaanvraag via Participatiewet
   Scenario: Burger met gedragscategorie 1 krijgt 5% verlaging (Diemen)
     # Categorie 1: niet tijdig geregistreerd bij UWV
     Given the following parameters:
-      | bsn                                        | 123456789 |
-      | gemeente_code                              | GM0384    |
-      | leeftijd                                   | 28        |
-      | is_alleenstaande                           | true      |
-      | heeft_kostendelende_medebewoners           | false     |
-      | heeft_pensioengerechtigde_leeftijd_bereikt | false     |
-      | gedragscategorie                           | 1         |
+      | bsn                                        | "123456789" |
+      | gemeente_code                              | GM0384      |
+      | leeftijd                                   | 28          |
+      | is_alleenstaande                           | true        |
+      | heeft_kostendelende_medebewoners           | false       |
+      | heeft_pensioengerechtigde_leeftijd_bereikt | false       |
+      | gedragscategorie                           | 1           |
     When I evaluate "heeft_recht_op_bijstand" of "participatiewet"
     Then the execution succeeds
     Then output "heeft_recht_op_bijstand" is true
@@ -76,13 +76,13 @@ Feature: Bijstandsaanvraag via Participatiewet
   Scenario: Burger met gedragscategorie 2 krijgt 30% verlaging (Diemen)
     # Categorie 2: niet meewerken aan plan van aanpak
     Given the following parameters:
-      | bsn                                        | 123456789 |
-      | gemeente_code                              | GM0384    |
-      | leeftijd                                   | 45        |
-      | is_alleenstaande                           | true      |
-      | heeft_kostendelende_medebewoners           | false     |
-      | heeft_pensioengerechtigde_leeftijd_bereikt | false     |
-      | gedragscategorie                           | 2         |
+      | bsn                                        | "123456789" |
+      | gemeente_code                              | GM0384      |
+      | leeftijd                                   | 45          |
+      | is_alleenstaande                           | true        |
+      | heeft_kostendelende_medebewoners           | false       |
+      | heeft_pensioengerechtigde_leeftijd_bereikt | false       |
+      | gedragscategorie                           | 2           |
     When I evaluate "heeft_recht_op_bijstand" of "participatiewet"
     Then the execution succeeds
     Then output "heeft_recht_op_bijstand" is true
@@ -94,13 +94,13 @@ Feature: Bijstandsaanvraag via Participatiewet
   Scenario: Burger met gedragscategorie 3 krijgt 100% verlaging (Diemen)
     # Categorie 3: niet naar vermogen arbeid verkrijgen
     Given the following parameters:
-      | bsn                                        | 123456789 |
-      | gemeente_code                              | GM0384    |
-      | leeftijd                                   | 30        |
-      | is_alleenstaande                           | true      |
-      | heeft_kostendelende_medebewoners           | false     |
-      | heeft_pensioengerechtigde_leeftijd_bereikt | false     |
-      | gedragscategorie                           | 3         |
+      | bsn                                        | "123456789" |
+      | gemeente_code                              | GM0384      |
+      | leeftijd                                   | 30          |
+      | is_alleenstaande                           | true        |
+      | heeft_kostendelende_medebewoners           | false       |
+      | heeft_pensioengerechtigde_leeftijd_bereikt | false       |
+      | gedragscategorie                           | 3           |
     When I evaluate "heeft_recht_op_bijstand" of "participatiewet"
     Then the execution succeeds
     Then output "heeft_recht_op_bijstand" is true
@@ -113,13 +113,13 @@ Feature: Bijstandsaanvraag via Participatiewet
     # Art. 21 checks leeftijd >= 21. Under-21 fails that check,
     # which propagates to Art. 43 via heeft_recht_op_bijstand = false.
     Given the following parameters:
-      | bsn                                        | 123456789 |
-      | gemeente_code                              | GM0384    |
-      | leeftijd                                   | 19        |
-      | is_alleenstaande                           | true      |
-      | heeft_kostendelende_medebewoners           | false     |
-      | heeft_pensioengerechtigde_leeftijd_bereikt | false     |
-      | gedragscategorie                           | 0         |
+      | bsn                                        | "123456789" |
+      | gemeente_code                              | GM0384      |
+      | leeftijd                                   | 19          |
+      | is_alleenstaande                           | true        |
+      | heeft_kostendelende_medebewoners           | false       |
+      | heeft_pensioengerechtigde_leeftijd_bereikt | false       |
+      | gedragscategorie                           | 0           |
     When I evaluate "heeft_recht_op_bijstand" of "participatiewet"
     Then output "heeft_recht_op_bijstand" is false
     When I evaluate "uitkering_bedrag" of "participatiewet"
@@ -130,13 +130,13 @@ Feature: Bijstandsaanvraag via Participatiewet
   Scenario: Bijstand op exact leeftijd 21 — grens wordt geaccepteerd
     # Art 21 checks leeftijd >= 21. Exactly 21 passes.
     Given the following parameters:
-      | bsn                                        | 123456789 |
-      | gemeente_code                              | GM0384    |
-      | leeftijd                                   | 21        |
-      | is_alleenstaande                           | true      |
-      | heeft_kostendelende_medebewoners           | false     |
-      | heeft_pensioengerechtigde_leeftijd_bereikt | false     |
-      | gedragscategorie                           | 0         |
+      | bsn                                        | "123456789" |
+      | gemeente_code                              | GM0384      |
+      | leeftijd                                   | 21          |
+      | is_alleenstaande                           | true        |
+      | heeft_kostendelende_medebewoners           | false       |
+      | heeft_pensioengerechtigde_leeftijd_bereikt | false       |
+      | gedragscategorie                           | 0           |
     When I evaluate "heeft_recht_op_bijstand" of "participatiewet"
     Then output "heeft_recht_op_bijstand" is true
     When I evaluate "uitkering_bedrag" of "participatiewet"
@@ -146,13 +146,13 @@ Feature: Bijstandsaanvraag via Participatiewet
     # Art 21 checks leeftijd >= 21. Age 20 fails this check,
     # propagating heeft_recht_op_bijstand = false through Art 43.
     Given the following parameters:
-      | bsn                                        | 123456789 |
-      | gemeente_code                              | GM0384    |
-      | leeftijd                                   | 20        |
-      | is_alleenstaande                           | true      |
-      | heeft_kostendelende_medebewoners           | false     |
-      | heeft_pensioengerechtigde_leeftijd_bereikt | false     |
-      | gedragscategorie                           | 0         |
+      | bsn                                        | "123456789" |
+      | gemeente_code                              | GM0384      |
+      | leeftijd                                   | 20          |
+      | is_alleenstaande                           | true        |
+      | heeft_kostendelende_medebewoners           | false       |
+      | heeft_pensioengerechtigde_leeftijd_bereikt | false       |
+      | gedragscategorie                           | 0           |
     When I evaluate "heeft_recht_op_bijstand" of "participatiewet"
     Then output "heeft_recht_op_bijstand" is false
     When I evaluate "uitkering_bedrag" of "participatiewet"
@@ -165,13 +165,13 @@ Feature: Bijstandsaanvraag via Participatiewet
     # Art. 18 lid 2: "verlaagt ... overeenkomstig de verordening"
     # Geen verordening = geen verlaging = volledige bijstand
     Given the following parameters:
-      | bsn                                        | 123456789 |
-      | gemeente_code                              | GM9999    |
-      | leeftijd                                   | 35        |
-      | is_alleenstaande                           | true      |
-      | heeft_kostendelende_medebewoners           | false     |
-      | heeft_pensioengerechtigde_leeftijd_bereikt | false     |
-      | gedragscategorie                           | 1         |
+      | bsn                                        | "123456789" |
+      | gemeente_code                              | GM9999      |
+      | leeftijd                                   | 35          |
+      | is_alleenstaande                           | true        |
+      | heeft_kostendelende_medebewoners           | false       |
+      | heeft_pensioengerechtigde_leeftijd_bereikt | false       |
+      | gedragscategorie                           | 1           |
     When I evaluate "heeft_recht_op_bijstand" of "participatiewet"
     Then the execution succeeds
     Then output "heeft_recht_op_bijstand" is true
@@ -182,12 +182,12 @@ Feature: Bijstandsaanvraag via Participatiewet
   # verlaging as null (per #403) → 0 reduction → full bijstand.
   Scenario: Bijstand zonder gemeente_code valt terug op volledige bijstand
     Given the following parameters:
-      | bsn                                        | 123456789 |
-      | leeftijd                                   | 35        |
-      | is_alleenstaande                           | true      |
-      | heeft_kostendelende_medebewoners           | false     |
-      | heeft_pensioengerechtigde_leeftijd_bereikt | false     |
-      | gedragscategorie                           | 0         |
+      | bsn                                        | "123456789" |
+      | leeftijd                                   | 35          |
+      | is_alleenstaande                           | true        |
+      | heeft_kostendelende_medebewoners           | false       |
+      | heeft_pensioengerechtigde_leeftijd_bereikt | false       |
+      | gedragscategorie                           | 0           |
     When I evaluate "heeft_recht_op_bijstand" of "participatiewet"
     Then the execution succeeds
     Then output "heeft_recht_op_bijstand" is true
@@ -199,13 +199,13 @@ Feature: Bijstandsaanvraag via Participatiewet
   # gedragscategorie 3 (100% reduction in Diemen).
   Scenario: Bijstand zonder verordening — verlaging valt weg
     Given the following parameters:
-      | bsn                                        | 123456789 |
-      | gemeente_code                              | GM9999    |
-      | leeftijd                                   | 35        |
-      | is_alleenstaande                           | true      |
-      | heeft_kostendelende_medebewoners           | false     |
-      | heeft_pensioengerechtigde_leeftijd_bereikt | false     |
-      | gedragscategorie                           | 3         |
+      | bsn                                        | "123456789" |
+      | gemeente_code                              | GM9999      |
+      | leeftijd                                   | 35          |
+      | is_alleenstaande                           | true        |
+      | heeft_kostendelende_medebewoners           | false       |
+      | heeft_pensioengerechtigde_leeftijd_bereikt | false       |
+      | gedragscategorie                           | 3           |
     When I evaluate "heeft_recht_op_bijstand" of "participatiewet"
     Then the execution succeeds
     Then output "heeft_recht_op_bijstand" is true

@@ -504,6 +504,12 @@ fn quoted_value(raw: &str) -> Value {
     match crate::generated_steps::QUOTED_VALUE_TYPING {
         "literal" => Value::String(raw.to_string()),
         "inferred" => convert_gherkin_value(raw),
+        // By content, except that digits in quotes are text: a number has
+        // a bare form, so the quotes say something.
+        "inferred_without_numbers" => match convert_gherkin_value(raw) {
+            Value::Int(_) | Value::Decimal(_) => Value::String(raw.to_string()),
+            other => other,
+        },
         other => panic!("bdd/grammar.yaml: unknown value_typing.quoted '{other}'"),
     }
 }

@@ -13,29 +13,29 @@ Feature: Zorgtoeslag eligibility
 
   Scenario: Meerderjarige met actieve polis heeft recht op zorgtoeslag
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 2005-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 2005-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 79547                     | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 79547                     | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 79547           | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 79547           | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -48,29 +48,29 @@ Feature: Zorgtoeslag eligibility
   @wip
   Scenario: Minderjarige heeft geen recht op zorgtoeslag
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 2008-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 2008-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 0                         | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 0                         | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 0               | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 0               | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -78,29 +78,29 @@ Feature: Zorgtoeslag eligibility
 
   Scenario: Laag inkomen alleenstaande heeft recht op zorgtoeslag
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1998-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1998-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 20000                     | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 20000                     | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 20000           | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 20000           | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 10000     | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 10000     | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -109,35 +109,35 @@ Feature: Zorgtoeslag eligibility
 
   Scenario: Student met studiefinanciering heeft recht op zorgtoeslag
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 2004-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 2004-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 15000                     | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 15000                     | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 15000           | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 15000           | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given the following "inschrijvingen" data with key "bsn":
-      | bsn       | onderwijstype |
-      | 999993653 | WO            |
+      | bsn         | onderwijstype |
+      | "999993653" | WO            |
     Given the following "studiefinanciering" data with key "bsn":
-      | bsn       | aantal_studerend_gezin |
-      | 999993653 | 0                      |
+      | bsn         | aantal_studerend_gezin |
+      | "999993653" | 0                      |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -153,33 +153,33 @@ Feature: Zorgtoeslag eligibility
   # 2.087,50 euro uit; dat was de fout van #377.
   Scenario: Partner met gecombineerd inkomen boven de inkomensgrens heeft geen recht op zorgtoeslag
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1990-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1990-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn | heeft_gehele_berekeningsjaar_dezelfde_partner |
-      | 999993653 | HUWELIJK          | 999993654   | true                                          |
+      | bsn         | partnerschap_type | partner_bsn | heeft_gehele_berekeningsjaar_dezelfde_partner |
+      | "999993653" | HUWELIJK          | "999993654" | true                                          |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 3500000                   | 0                         | 0                     | 0                               | 0            |
-      | 999993654 | 2000000                   | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 3500000                   | 0                         | 0                     | 0                               | 0            |
+      | "999993654" | 2000000                   | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 3500000         | 0                                    |
-      | 999993654 | true                                       | 2000000         | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 3500000         | 0                                    |
+      | "999993654" | true                                       | 2000000         | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
-      | 999993654 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
+      | "999993654" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
-      | 999993654 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
+      | "999993654" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -194,33 +194,33 @@ Feature: Zorgtoeslag eligibility
   # drempel) zou 4.224 - 1.205,03 = 3.018,97 euro hebben gegeven.
   Scenario: Partner zonder vermogen met gezamenlijk inkomen heeft recht op zorgtoeslag
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1990-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1990-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn | heeft_gehele_berekeningsjaar_dezelfde_partner |
-      | 999993653 | HUWELIJK          | 999993654   | true                                          |
+      | bsn         | partnerschap_type | partner_bsn | heeft_gehele_berekeningsjaar_dezelfde_partner |
+      | "999993653" | HUWELIJK          | "999993654" | true                                          |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 2500000                   | 0                         | 0                     | 0                               | 0            |
-      | 999993654 | 1500000                   | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 2500000                   | 0                         | 0                     | 0                               | 0            |
+      | "999993654" | 1500000                   | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 2500000         | 0                                    |
-      | 999993654 | true                                       | 1500000         | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 2500000         | 0                                    |
+      | "999993654" | true                                       | 1500000         | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
-      | 999993654 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
+      | "999993654" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
-      | 999993654 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
+      | "999993654" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -234,33 +234,33 @@ Feature: Zorgtoeslag eligibility
   # onder de drempel) had anders 4.224 - 1.205,03 = 3.018,97 euro gegeven.
   Scenario: Vermogen van de partner brengt het paar boven de gezamenlijke vermogensgrens
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1990-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1990-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn | heeft_gehele_berekeningsjaar_dezelfde_partner |
-      | 999993653 | HUWELIJK          | 999993654   | true                                          |
+      | bsn         | partnerschap_type | partner_bsn | heeft_gehele_berekeningsjaar_dezelfde_partner |
+      | "999993653" | HUWELIJK          | "999993654" | true                                          |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 2000000                   | 0                         | 0                     | 0                               | 0            |
-      | 999993654 | 0                         | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 2000000                   | 0                         | 0                     | 0                               | 0            |
+      | "999993654" | 0                         | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 2000000         | 0                                    |
-      | 999993654 | true                                       | 0               | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 2000000         | 0                                    |
+      | "999993654" | true                                       | 0               | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
-      | 999993654 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
+      | "999993654" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 10000000  | 0           | 0              | 0        |
-      | 999993654 | 9000000   | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 10000000  | 0           | 0              | 0        |
+      | "999993654" | 9000000   | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -274,33 +274,33 @@ Feature: Zorgtoeslag eligibility
   # afgerond 3.018,97 euro.
   Scenario: Partner niet het hele jaar: alleen het eigen vermogen telt
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1990-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1990-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn | heeft_gehele_berekeningsjaar_dezelfde_partner |
-      | 999993653 | HUWELIJK          | 999993654   | false                                         |
+      | bsn         | partnerschap_type | partner_bsn | heeft_gehele_berekeningsjaar_dezelfde_partner |
+      | "999993653" | HUWELIJK          | "999993654" | false                                         |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 2000000                   | 0                         | 0                     | 0                               | 0            |
-      | 999993654 | 0                         | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 2000000                   | 0                         | 0                     | 0                               | 0            |
+      | "999993654" | 0                         | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 2000000         | 0                                    |
-      | 999993654 | true                                       | 0               | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 2000000         | 0                                    |
+      | "999993654" | true                                       | 0               | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
-      | 999993654 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
+      | "999993654" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 10000000  | 0           | 0              | 0        |
-      | 999993654 | 9000000   | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 10000000  | 0           | 0              | 0        |
+      | "999993654" | 9000000   | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -315,33 +315,33 @@ Feature: Zorgtoeslag eligibility
   # dat het model de letter volgt (zie de toelichting bij artikel 3).
   Scenario: Eigen vermogen boven de grens sluit uit, ook met een partner
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1990-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1990-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn | heeft_gehele_berekeningsjaar_dezelfde_partner |
-      | 999993653 | HUWELIJK          | 999993654   | true                                          |
+      | bsn         | partnerschap_type | partner_bsn | heeft_gehele_berekeningsjaar_dezelfde_partner |
+      | "999993653" | HUWELIJK          | "999993654" | true                                          |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 2000000                   | 0                         | 0                     | 0                               | 0            |
-      | 999993654 | 0                         | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 2000000                   | 0                         | 0                     | 0                               | 0            |
+      | "999993654" | 0                         | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 2000000         | 0                                    |
-      | 999993654 | true                                       | 0               | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 2000000         | 0                                    |
+      | "999993654" | true                                       | 0               | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
-      | 999993654 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
+      | "999993654" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 15000000  | 0           | 0              | 0        |
-      | 999993654 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 15000000  | 0           | 0              | 0        |
+      | "999993654" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -353,29 +353,29 @@ Feature: Zorgtoeslag eligibility
   # ook niets te zeggen over "het gehele berekeningsjaar dezelfde partner".
   Scenario: Alleenstaande met vermogen boven de grens heeft geen recht op zorgtoeslag
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1990-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1990-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 2000000                   | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 2000000                   | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 2000000         | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 2000000         | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 15000000  | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 15000000  | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -385,29 +385,29 @@ Feature: Zorgtoeslag eligibility
   # yet implemented (#383). Only box1 income counts toward the toeslag amount.
   Scenario: Alleenstaande met box3 vermogen heeft recht op zorgtoeslag
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1990-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1990-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 2000000                   | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 2000000                   | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 2000000         | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 2000000         | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 7000000   | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 7000000   | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -416,29 +416,29 @@ Feature: Zorgtoeslag eligibility
 
   Scenario: Verdragsinschrijving geeft verzekeringsdekking bij inactieve polis
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1985-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1985-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | VERLOPEN     | true                 |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | VERLOPEN     | true                 |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 25000                     | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 25000                     | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 25000           | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 25000           | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -464,29 +464,29 @@ Feature: Zorgtoeslag eligibility
   Scenario: Meerderjarige heeft recht op zorgtoeslag (2024)
     Given the calculation date is "2024-01-01"
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 2005-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 2005-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 79547                     | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 79547                     | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 79547           | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 79547           | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -506,33 +506,33 @@ Feature: Zorgtoeslag eligibility
   Scenario: Partner met gezamenlijk inkomen en vermogen boven de grens (2024)
     Given the calculation date is "2024-01-01"
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1990-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1990-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | HUWELIJK          | 999993654   |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | HUWELIJK          | "999993654" |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 2500000                   | 0                         | 0                     | 0                               | 0            |
-      | 999993654 | 1500000                   | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 2500000                   | 0                         | 0                     | 0                               | 0            |
+      | "999993654" | 1500000                   | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 2500000         | 0                                    |
-      | 999993654 | true                                       | 1500000         | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 2500000         | 0                                    |
+      | "999993654" | true                                       | 1500000         | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
-      | 999993654 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
+      | "999993654" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 10000000  | 0           | 0              | 0        |
-      | 999993654 | 7000000   | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 10000000  | 0           | 0              | 0        |
+      | "999993654" | 7000000   | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -547,29 +547,29 @@ Feature: Zorgtoeslag eligibility
   Scenario: Minderjarige met actieve polis heeft recht op zorgtoeslag (2024)
     Given the calculation date is "2024-01-01"
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 2007-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 2007-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 0                         | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 0                         | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 0               | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 0               | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -581,29 +581,29 @@ Feature: Zorgtoeslag eligibility
   # It belongs in Zvw Art 24 or Wfz, not in the zorgtoeslag law.
   Scenario: Forensische zorg heeft geen invloed op zorgtoeslag
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1985-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1985-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 25000                     | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 25000                     | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 25000           | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 25000           | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | GGZ      | TBS                  |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | GGZ      | TBS                  |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -617,29 +617,29 @@ Feature: Zorgtoeslag eligibility
   # onder die grens. Deze twee liggen er bewust boven.
   Scenario: Inkomen boven het drempelinkomen bouwt de zorgtoeslag af
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1990-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1990-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 3000000                   | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 3000000                   | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 3000000         | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 3000000         | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -654,29 +654,29 @@ Feature: Zorgtoeslag eligibility
   # uitkomst niet raken.
   Scenario: Boven de inkomensgrens bestaat geen recht op zorgtoeslag
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1990-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1990-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 4500000                   | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 4500000                   | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 79547           | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 79547           | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -691,29 +691,29 @@ Feature: Zorgtoeslag eligibility
   # en de uitkomst is daarom ook die van het eerste scenario.
   Scenario: Zonder aanslag inkomstenbelasting telt het belastbare loon als toetsingsinkomen
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 2005-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 2005-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 4500000                   | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 4500000                   | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | false                                      | 79547           | 0                                    |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | false                                      | 79547           | 0                                    |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds
@@ -726,29 +726,29 @@ Feature: Zorgtoeslag eligibility
   # scenario hierboven dat boven de grens valt.
   Scenario: Niet in Nederland belastbaar inkomen telt mee in het toetsingsinkomen
     Given the following "personal_data" data with key "bsn":
-      | bsn       | geboortedatum | verblijfsadres | land_verblijf |
-      | 999993653 | 1990-01-01    | Amsterdam      | NEDERLAND     |
+      | bsn         | geboortedatum | verblijfsadres | land_verblijf |
+      | "999993653" | 1990-01-01    | Amsterdam      | NEDERLAND     |
     Given the following "relationship_data" data with key "bsn":
-      | bsn       | partnerschap_type | partner_bsn |
-      | 999993653 | GEEN              | null        |
+      | bsn         | partnerschap_type | partner_bsn |
+      | "999993653" | GEEN              | null        |
     Given the following "insurance" data with key "bsn":
-      | bsn       | polis_status | verdragsinschrijving |
-      | 999993653 | ACTIEF       | false                |
+      | bsn         | polis_status | verdragsinschrijving |
+      | "999993653" | ACTIEF       | false                |
     Given the following "box1" data with key "bsn":
-      | bsn       | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
-      | 999993653 | 79547                     | 0                         | 0                     | 0                               | 0            |
+      | bsn         | loon_uit_dienstbetrekking | uitkeringen_en_pensioenen | winst_uit_onderneming | resultaat_overige_werkzaamheden | eigen_woning |
+      | "999993653" | 79547                     | 0                         | 0                     | 0                               | 0            |
     Given the following "inkomensgegevens" data with key "bsn":
-      | bsn       | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
-      | 999993653 | true                                       | 79547           | 4420453                              |
+      | bsn         | aanslag_of_navorderingsaanslag_vastgesteld | belastbaar_loon | niet_in_nederland_belastbaar_inkomen |
+      | "999993653" | true                                       | 79547           | 4420453                              |
     Given the following "box2" data with key "bsn":
-      | bsn       | reguliere_voordelen | vervreemdingsvoordelen |
-      | 999993653 | 0                   | 0                      |
+      | bsn         | reguliere_voordelen | vervreemdingsvoordelen |
+      | "999993653" | 0                   | 0                      |
     Given the following "box3" data with key "bsn":
-      | bsn       | spaargeld | beleggingen | onroerend_goed | schulden |
-      | 999993653 | 0         | 0           | 0              | 0        |
+      | bsn         | spaargeld | beleggingen | onroerend_goed | schulden |
+      | "999993653" | 0         | 0           | 0              | 0        |
     Given the following "detenties" data with key "bsn":
-      | bsn       | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
-      | 999993653 | null           | null            | null     | null                 |
+      | bsn         | detentiestatus | inrichting_type | zorgtype | juridische_grondslag |
+      | "999993653" | null           | null            | null     | null                 |
     Given parameter "bsn" is "999993653"
     When I evaluate "heeft_recht_op_zorgtoeslag" of "wet_op_de_zorgtoeslag"
     Then the execution succeeds

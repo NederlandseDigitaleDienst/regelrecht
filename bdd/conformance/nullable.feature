@@ -22,14 +22,14 @@ Feature: Absence is declared — RFC-036, nullable
     Given the calculation date is "2025-01-01"
     Given parameter "bsn" is "999993653"
     Given the following "register" data with key "bsn" for law "test_nullable_bron":
-      | bsn       | geboortejaar |
-      | 999993653 | 1975         |
-      | 999993641 | 1980         |
+      | bsn         | geboortejaar |
+      | "999993653" | 1975         |
+      | "999993641" | 1980         |
 
   Scenario: A null cell for a nullable input is a value the law tests
     Given the following "register" data with key "bsn" for law "test_nullable":
-      | bsn       | huur | huurgrens |
-      | 999993653 | null | 700       |
+      | bsn         | huur | huurgrens |
+      | "999993653" | null | 700       |
     When I evaluate outputs "heeft_huur, huurgrens_plus" of "test_nullable"
     Then the execution succeeds
     Then output "heeft_huur" is false
@@ -37,8 +37,8 @@ Feature: Absence is declared — RFC-036, nullable
 
   Scenario: A null cell for an input the law declares never absent is a data error at the boundary
     Given the following "register" data with key "bsn" for law "test_nullable":
-      | bsn       | huur | huurgrens |
-      | 999993653 | 650  | null      |
+      | bsn         | huur | huurgrens |
+      | "999993653" | 650  | null      |
     # The register says there is no rent limit; the law said there always is.
     # The contradiction names the source, the field and the law, before any
     # action has run.
@@ -50,8 +50,8 @@ Feature: Absence is declared — RFC-036, nullable
 
   Scenario: A null parameter for an input the law declares never absent is refused at the boundary
     Given the following "register" data with key "bsn" for law "test_nullable":
-      | bsn       | huur | huurgrens |
-      | 999993653 | 650  | 700       |
+      | bsn         | huur | huurgrens |
+      | "999993653" | 650  | 700       |
     # The caller hands the rent limit in directly, under the input's name,
     # and says there is none. The register is bypassed; the declaration is
     # not, and the caller is named as the origin.
@@ -64,8 +64,8 @@ Feature: Absence is declared — RFC-036, nullable
 
   Scenario: An empty cell is unknown whatever the declaration says
     Given the following "register" data with key "bsn" for law "test_nullable":
-      | bsn       | huur | huurgrens |
-      | 999993653 |      |           |
+      | bsn         | huur | huurgrens |
+      | "999993653" |      |           |
     When I evaluate outputs "heeft_huur, huurgrens_plus" of "test_nullable"
     Then the execution succeeds
     Then output "heeft_huur" is unknown for lack of "huur"
@@ -73,8 +73,8 @@ Feature: Absence is declared — RFC-036, nullable
 
   Scenario: A nullable output may be absent
     Given the following "register" data with key "bsn" for law "test_nullable":
-      | bsn       | toeslag | toeslagen |
-      | 999993653 | 700     | [700]     |
+      | bsn         | toeslag | toeslagen |
+      | "999993653" | 700     | [700]     |
     # No case of the IF matches 700 and there is no default: the class is
     # absent, and the output declared that it may be. The highest of a list
     # with something in it is a value.
@@ -85,8 +85,8 @@ Feature: Absence is declared — RFC-036, nullable
 
   Scenario: An output the law declares never absent may not evaluate to null
     Given the following "register" data with key "bsn" for law "test_nullable":
-      | bsn       | toeslagen |
-      | 999993653 | []        |
+      | bsn         | toeslagen |
+      | "999993653" | []        |
     # The highest of an empty list is absent, which no static check can
     # foresee. The output promised a value, and breaks that promise.
     When I evaluate "hoogste_toeslag" of "test_nullable"
@@ -97,8 +97,8 @@ Feature: Absence is declared — RFC-036, nullable
 
   Scenario: A skipped call for nobody yields an absence, which a nullable input takes
     Given the following "register" data with key "bsn" for law "test_nullable":
-      | bsn       | partner_bsn |
-      | 999993653 | null        |
+      | bsn         | partner_bsn |
+      | "999993653" | null        |
     # There is no partner, so the bron is not called and the input is null.
     # Article 3 declared that. A non-nullable input in its place is refused
     # by the static check, so no law reaches this point undeclared.
@@ -108,8 +108,8 @@ Feature: Absence is declared — RFC-036, nullable
 
   Scenario: A null key cell for an input declared never absent is refused at the register
     Given the following "register" data with key "bsn" for law "test_nullable":
-      | bsn       | partner_bsn |
-      | 999993653 | null        |
+      | bsn         | partner_bsn |
+      | "999993653" | null        |
     # Article 3a declares the partner's number never absent. The register's
     # null contradicts that where the key is read, before the bron is asked
     # about anybody.
@@ -121,8 +121,8 @@ Feature: Absence is declared — RFC-036, nullable
 
   Scenario: A required parameter the other law declares nullable is passed as null, not skipped
     Given the following "register" data with key "bsn" for law "test_nullable":
-      | bsn       | partner_bsn |
-      | 999993653 | null        |
+      | bsn         | partner_bsn |
+      | "999993653" | null        |
     # The bron said it can decide on nobody, so the absent partner is handed
     # to it and it decides: there is no one.
     When I evaluate "partner_is_iemand" of "test_nullable"
@@ -131,16 +131,16 @@ Feature: Absence is declared — RFC-036, nullable
 
   Scenario: A required nullable parameter with a value is run as before
     Given the following "register" data with key "bsn" for law "test_nullable":
-      | bsn       | partner_bsn |
-      | 999993653 | 999993641   |
+      | bsn         | partner_bsn |
+      | "999993653" | "999993641" |
     When I evaluate "partner_is_iemand" of "test_nullable"
     Then the execution succeeds
     Then output "partner_is_iemand" is true
 
   Scenario: A partner who is there is looked up as before
     Given the following "register" data with key "bsn" for law "test_nullable":
-      | bsn       | partner_bsn |
-      | 999993653 | 999993641   |
+      | bsn         | partner_bsn |
+      | "999993653" | "999993641" |
     When I evaluate outputs "partner_geboortejaar" of "test_nullable"
     Then the execution succeeds
     Then output "partner_geboortejaar" equals 1980
@@ -165,8 +165,8 @@ Feature: Absence is declared — RFC-036, nullable
 
   Scenario: A null optional parameter is refused at the call when the target does not allow it
     Given the following "register" data with key "bsn" for law "test_nullable":
-      | bsn       | bedrag |
-      | 999993653 | null   |
+      | bsn         | bedrag |
+      | "999993653" | null   |
     # Article 5 hands the register's absent amount to the bron as its optional
     # `aanvraag_bedrag`. The call is not skipped (the parameter is optional),
     # but the bron never declared that "geen bedrag" is a value it takes.

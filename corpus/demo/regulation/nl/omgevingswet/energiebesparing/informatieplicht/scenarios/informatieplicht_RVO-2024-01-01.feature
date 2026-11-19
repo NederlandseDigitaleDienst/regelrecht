@@ -10,8 +10,8 @@ Feature: Informatieplicht Energiebesparing
   Scenario: Grootverbruiker zonder woonfunctie boven de elektriciteitsdrempel heeft energiebesparings- en informatieplicht
     Given parameter "kvk_nummer" is "85234567"
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/bedrijfsgegevens":
-      | kvk_nummer | organisatie_gegevens                                                                                                                                                          |
-      | 85234567   | {"kvk_nummer":"85234567","rechtsvorm":"BV","status":"Actief","aantal_werknemers":50,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Nieuwe Binnenweg 225A, 3021GC Rotterdam"} |
+      | kvk_nummer | organisatie_gegevens                                                                                                                                                                       |
+      | "85234567" | {"kvk_nummer":"85234567","rechtsvorm":"BV","status":"Actief","aantal_werknemers":50,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Nieuwe Binnenweg 225A, 3021GC Rotterdam"} |
     And the following "KADASTER" data with key "adres" for law "wet_bag":
       | adres                                     | verblijfsobject                                                                    |
       | Nieuwe Binnenweg 225A, 3021GC Rotterdam   | {"gebruiksdoel":"bijeenkomstfunctie","oppervlakte":85,"status":"Actief","bouwjaar":1920} |
@@ -27,8 +27,8 @@ Feature: Informatieplicht Energiebesparing
   Scenario: Woonfunctie op het BAG-adres is uitgezonderd van de energiebesparingsplicht
     Given parameter "kvk_nummer" is "12345678"
     And the following "KVK" data with key "kvk_nummer" for law "handelsregisterwet/bedrijfsgegevens":
-      | kvk_nummer | organisatie_gegevens                                                                                                                                             |
-      | 12345678   | {"kvk_nummer":"12345678","rechtsvorm":"BV","status":"Actief","aantal_werknemers":10,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Dorpsstraat 1, 1234AB Voorbeeldstad"} |
+      | kvk_nummer | organisatie_gegevens                                                                                                                                                                   |
+      | "12345678" | {"kvk_nummer":"12345678","rechtsvorm":"BV","status":"Actief","aantal_werknemers":10,"datum_telling":null,"datum_aanvang":null,"vestigingsadres":"Dorpsstraat 1, 1234AB Voorbeeldstad"} |
     And the following "KADASTER" data with key "adres" for law "wet_bag":
       | adres                                | verblijfsobject                                                                |
       | Dorpsstraat 1, 1234AB Voorbeeldstad  | {"gebruiksdoel":"woonfunctie","oppervlakte":120,"status":"Actief","bouwjaar":1990} |

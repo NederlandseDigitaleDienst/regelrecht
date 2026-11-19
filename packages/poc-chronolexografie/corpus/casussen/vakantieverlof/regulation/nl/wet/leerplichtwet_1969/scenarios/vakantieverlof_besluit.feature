@@ -17,10 +17,10 @@ Feature: Het besluit op de aanvraag om vakantieverlof
 
   Scenario: Vijf schooldagen buiten de eerste twee lesweken worden verleend
     Given the following parameters:
-      | bsn_jongere       | 999990019  |
-      | eerste_verlofdag  | 2027-02-01 |
-      | laatste_verlofdag | 2027-02-05 |
-      | specifieke_aard_beroep_ouder       | true |
+      | bsn_jongere                  | "999990019" |
+      | eerste_verlofdag             | 2027-02-01  |
+      | laatste_verlofdag            | 2027-02-05  |
+      | specifieke_aard_beroep_ouder | true        |
     Given the following findings:
       | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
       | verlof_al_verleend_in_schooljaar_volgens_hoofd   | false |
@@ -36,10 +36,10 @@ Feature: Het besluit op de aanvraag om vakantieverlof
 
   Scenario: Twee weken met het weekend ertussen zijn tien schooldagen
     Given the following parameters:
-      | bsn_jongere       | 999990019  |
-      | eerste_verlofdag  | 2027-02-01 |
-      | laatste_verlofdag | 2027-02-12 |
-      | specifieke_aard_beroep_ouder       | true |
+      | bsn_jongere                  | "999990019" |
+      | eerste_verlofdag             | 2027-02-01  |
+      | laatste_verlofdag            | 2027-02-12  |
+      | specifieke_aard_beroep_ouder | true        |
     Given the following findings:
       | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
       | verlof_al_verleend_in_schooljaar_volgens_hoofd   | false |
@@ -50,10 +50,10 @@ Feature: Het besluit op de aanvraag om vakantieverlof
 
   Scenario: Elf schooldagen worden geweigerd
     Given the following parameters:
-      | bsn_jongere       | 999990019  |
-      | eerste_verlofdag  | 2027-02-01 |
-      | laatste_verlofdag | 2027-02-15 |
-      | specifieke_aard_beroep_ouder       | true |
+      | bsn_jongere                  | "999990019" |
+      | eerste_verlofdag             | 2027-02-01  |
+      | laatste_verlofdag            | 2027-02-15  |
+      | specifieke_aard_beroep_ouder | true        |
     Given the following findings:
       | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
@@ -63,10 +63,10 @@ Feature: Het besluit op de aanvraag om vakantieverlof
 
   Scenario: Verlof in de tweede lesweek wordt geweigerd
     Given the following parameters:
-      | bsn_jongere       | 999990019  |
-      | eerste_verlofdag  | 2026-09-10 |
-      | laatste_verlofdag | 2026-09-11 |
-      | specifieke_aard_beroep_ouder       | true |
+      | bsn_jongere                  | "999990019" |
+      | eerste_verlofdag             | 2026-09-10  |
+      | laatste_verlofdag            | 2026-09-11  |
+      | specifieke_aard_beroep_ouder | true        |
     Given the following findings:
       | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
@@ -76,20 +76,20 @@ Feature: Het besluit op de aanvraag om vakantieverlof
 
   Scenario: Zonder een beroep van specifieke aard wordt verlof geweigerd
     Given the following parameters:
-      | bsn_jongere       | 999990019  |
-      | eerste_verlofdag  | 2027-02-01 |
-      | laatste_verlofdag | 2027-02-05 |
-      | specifieke_aard_beroep_ouder       | false |
+      | bsn_jongere                  | "999990019" |
+      | eerste_verlofdag             | 2027-02-01  |
+      | laatste_verlofdag            | 2027-02-05  |
+      | specifieke_aard_beroep_ouder | false       |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
     Then the execution succeeds
     Then output "verlof_verleend" is false
 
   Scenario: Verlof binnen de schoolvakanties wordt geweigerd
     Given the following parameters:
-      | bsn_jongere       | 999990019  |
-      | eerste_verlofdag  | 2027-02-01 |
-      | laatste_verlofdag | 2027-02-05 |
-      | specifieke_aard_beroep_ouder       | true  |
+      | bsn_jongere                  | "999990019" |
+      | eerste_verlofdag             | 2027-02-01  |
+      | laatste_verlofdag            | 2027-02-05  |
+      | specifieke_aard_beroep_ouder | true        |
     Given the following findings:
       | verlof_valt_buiten_schoolvakanties_volgens_hoofd | false |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
@@ -98,10 +98,10 @@ Feature: Het besluit op de aanvraag om vakantieverlof
 
   Scenario: Verlof voor alleen een weekend wordt geweigerd
     Given the following parameters:
-      | bsn_jongere       | 999990019  |
-      | eerste_verlofdag  | 2027-02-06 |
-      | laatste_verlofdag | 2027-02-07 |
-      | specifieke_aard_beroep_ouder       | true |
+      | bsn_jongere                  | "999990019" |
+      | eerste_verlofdag             | 2027-02-06  |
+      | laatste_verlofdag            | 2027-02-07  |
+      | specifieke_aard_beroep_ouder | true        |
     Given the following findings:
       | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
@@ -111,10 +111,10 @@ Feature: Het besluit op de aanvraag om vakantieverlof
 
   Scenario: Verlof met de laatste verlofdag vóór de eerste wordt geweigerd
     Given the following parameters:
-      | bsn_jongere       | 999990019  |
-      | eerste_verlofdag  | 2027-02-05 |
-      | laatste_verlofdag | 2027-02-01 |
-      | specifieke_aard_beroep_ouder       | true |
+      | bsn_jongere                  | "999990019" |
+      | eerste_verlofdag             | 2027-02-05  |
+      | laatste_verlofdag            | 2027-02-01  |
+      | specifieke_aard_beroep_ouder | true        |
     Given the following findings:
       | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
     When I evaluate "verlof_verleend" of "leerplichtwet_1969"
@@ -126,10 +126,10 @@ Feature: Het besluit op de aanvraag om vakantieverlof
     # van de school geeft de cel dat antwoord (RFC-048); hier geeft het
     # scenario de vaststelling van het hoofd, op de id van het begrip.
     Given the following parameters:
-      | bsn_jongere       | 999990020  |
-      | eerste_verlofdag  | 2027-02-01 |
-      | laatste_verlofdag | 2027-02-05 |
-      | specifieke_aard_beroep_ouder       | true |
+      | bsn_jongere                  | "999990020" |
+      | eerste_verlofdag             | 2027-02-01  |
+      | laatste_verlofdag            | 2027-02-05  |
+      | specifieke_aard_beroep_ouder | true        |
     Given the following findings:
       | verlof_valt_buiten_schoolvakanties_volgens_hoofd | true |
       | verlof_al_verleend_in_schooljaar_volgens_hoofd   | true |
