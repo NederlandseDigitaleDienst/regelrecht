@@ -717,7 +717,10 @@ impl RuleResolver {
             .values()
             .filter_map(|versions| versions.first())
             .collect();
-        laws.sort_by(|a, b| a.id.cmp(&b.id));
+        // The order matters only for the listing; a load logs what it finds.
+        if touching.is_none() {
+            laws.sort_by(|a, b| a.id.cmp(&b.id));
+        }
         crate::load_check::hook_coupling_warnings_touching(&laws, touching)
     }
 
@@ -5438,29 +5441,14 @@ articles:
     fn the_coupling_warnings_on_load_add_up_to_those_of_the_set() {
         let general = include_str!("../tests/fixtures/hook_host/algemene_wet_voorbeeld.yaml")
             .replace("post_actions", "pre_actions");
-        let reads_output = r#"
-$id: invulling_uitvoer_voorbeeld
-regulatory_layer: BELEIDSREGEL
-publication_date: '2025-06-01'
-articles:
-  - number: '1'
-    text: Na een vaststelling wordt binnen vier weken beslist.
-    machine_readable:
-      implements:
-        - law: algemene_wet_voorbeeld
-          article: '4:13'
-          open_term: wettelijke_beslistermijn
-          host: {law: subsidiewet_voorbeeld, article: '3'}
-      execution:
-        parameters:
-          - {name: subsidie_vastgesteld, type: boolean, required: true}
-          - {name: datum_ontvangst, type: date, required: true}
-        output:
-          - {name: wettelijke_beslistermijn, type: date}
-        actions:
-          - output: wettelijke_beslistermijn
-            value: {operation: DATE_ADD, date: $datum_ontvangst, weeks: 4}
-"#;
+        let reads_output =
+            include_str!("../tests/fixtures/hook_coupling/invulling_uitvoer_voorbeeld.yaml");
+        // A law of hooks that couple to their hosts by name: parameters under
+        // another spelling of what a host offers (also on a decision of its
+        // own law), of what a pre_actions hook on it outputs, and of what a
+        // post_actions hook outputs, which no other hook sees; an input that
+        // looks for the host in its own law; and two fillings.
+        let hooks_by_name = include_str!("../tests/fixtures/hook_coupling/meldwet_voorbeeld.yaml");
         let laws = [
             general.as_str(),
             include_str!("../tests/fixtures/hook_host/subsidiewet_voorbeeld.yaml"),
@@ -5468,9 +5456,15 @@ articles:
             include_str!("../tests/fixtures/hook_host/host_fouten_voorbeeld.yaml"),
             include_str!("../tests/fixtures/hook_host/vergunningwet_voorbeeld.yaml"),
             reads_output,
+            hooks_by_name,
         ];
         let mut whole = None;
-        for order in [[0, 1, 2, 3, 4, 5], [5, 4, 3, 2, 1, 0], [1, 5, 3, 0, 2, 4]] {
+        for order in [
+            [0, 1, 2, 3, 4, 5, 6],
+            [6, 5, 4, 3, 2, 1, 0],
+            [1, 5, 3, 0, 2, 4, 6],
+            [0, 2, 3, 4, 5, 6, 1],
+        ] {
             let mut resolver = RuleResolver::new();
             let mut on_load = BTreeSet::new();
             for i in order {
@@ -5481,25 +5475,39 @@ articles:
             assert_eq!(on_load, set, "order {order:?}");
             assert_eq!(whole.get_or_insert_with(|| set.clone()), &set);
         }
-        let about: Vec<(&str, Option<(&str, &str)>)> = whole
+        // Per warning, the hook and the host it is about. The filling and
+        // hook host warnings of the fixtures come first, then those of the
+        // hooks by name: the input, and per host the other spelling of
+        // `datum_ontvangst` and of the pre_actions output `datum_voorbereid`,
+        // and the input's output on the host that offers it.
+        let about: Vec<String> = whole
             .iter()
             .flatten()
-            .map(|w| {
-                let host = w.host.as_ref().map(|(l, a)| (l.as_str(), a.as_str()));
-                (w.hook_law.as_str(), host)
+            .map(|w| match &w.host {
+                Some((law, article)) => format!("{} {law}:{article}", w.hook_law),
+                None => w.hook_law.clone(),
             })
             .collect();
-        let host = |article| Some(("subsidiewet_voorbeeld", article));
-        assert_eq!(
-            about,
-            [
-                ("algemene_wet_voorbeeld", host("11")),
-                ("algemene_wet_voorbeeld", host("2")),
-                ("algemene_wet_voorbeeld", host("3")),
-                ("algemene_wet_voorbeeld", host("3")),
-                ("host_fouten_voorbeeld", host("4")),
-            ],
-            "{whole:#?}"
-        );
+        let general = |host: &str| format!("algemene_wet_voorbeeld subsidiewet_voorbeeld:{host}");
+        let by_name = |host: &str| format!("meldwet_voorbeeld {host}");
+        let mut expected = vec![
+            general("1"),
+            general("11"),
+            general("2"),
+            general("3"),
+            general("3"),
+            general("3"),
+            "host_fouten_voorbeeld subsidiewet_voorbeeld:4".to_string(),
+            "meldwet_voorbeeld".to_string(),
+        ];
+        for (host, count) in [
+            ("meldwet_voorbeeld:2", 2),
+            ("subsidiewet_voorbeeld:1", 3),
+            ("subsidiewet_voorbeeld:3", 2),
+            ("vergunningwet_voorbeeld:1", 2),
+        ] {
+            expected.extend(std::iter::repeat_n(by_name(host), count));
+        }
+        assert_eq!(about, expected, "{whole:#?}");
     }
 }

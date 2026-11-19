@@ -1,0 +1,81 @@
+---
+# Fictional. Hooks that couple to their hosts by name, for the coupling
+# warnings of the loader (resolver.rs).
+$id: meldwet_voorbeeld
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Van elke toekenning wordt melding gedaan.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to: {legal_character: BESCHIKKING, decision_type: TOEKENNING}
+      execution:
+        parameters:
+          - {name: datum_ontvangen, type: date, required: false, nullable: true}
+          - {name: datum_voorbereidt, type: date, required: false, nullable: true}
+          - {name: meldingstermijn_week, type: number, required: false, nullable: true}
+        input:
+          - name: verleend
+            type: boolean
+            source: {output: subsidie_verleend}
+        output:
+          - {name: gemeld, type: boolean}
+        actions:
+          - {output: gemeld, value: true}
+  - number: '2'
+    text: De minister kent een meldnummer toe.
+    machine_readable:
+      execution:
+        produces: {legal_character: BESCHIKKING, decision_type: TOEKENNING}
+        parameters:
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: meldnummer_toegekend, type: boolean}
+        actions:
+          - {output: meldnummer_toegekend, value: true}
+  - number: '3'
+    text: Voor elke beschikking wordt de voorbereiding vastgelegd.
+    machine_readable:
+      hooks:
+        - hook_point: pre_actions
+          applies_to: {legal_character: BESCHIKKING}
+      execution:
+        output:
+          - {name: datum_voorbereid, type: date}
+        actions:
+          - {output: datum_voorbereid, value: '2026-01-01'}
+  - number: '4'
+    text: Na de voorbereiding wordt binnen zes weken beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host: {law: subsidiewet_voorbeeld, article: '1'}
+      execution:
+        parameters:
+          - {name: datum_voorbereid, type: date, required: true}
+        output:
+          - {name: wettelijke_beslistermijn, type: date}
+        actions:
+          - output: wettelijke_beslistermijn
+            value: {operation: DATE_ADD, date: $datum_voorbereid, weeks: 6}
+  - number: '5'
+    text: Na de vaststelling wordt binnen zeven jaar beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host: {law: subsidiewet_voorbeeld, article: '3'}
+      execution:
+        parameters:
+          - {name: bewaartermijn_jaren, type: number, required: true}
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: wettelijke_beslistermijn, type: date}
+        actions:
+          - output: wettelijke_beslistermijn
+            value: {operation: DATE_ADD, date: $datum_ontvangst, years: $bewaartermijn_jaren}

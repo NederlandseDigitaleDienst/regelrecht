@@ -1,0 +1,24 @@
+---
+# Fictional. A filling that reads an output of its host, which a hook that
+# fires before the actions does not have yet (resolver.rs).
+$id: invulling_uitvoer_voorbeeld
+regulatory_layer: BELEIDSREGEL
+publication_date: '2025-06-01'
+articles:
+  - number: '1'
+    text: Na een vaststelling wordt binnen vier weken beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host: {law: subsidiewet_voorbeeld, article: '3'}
+      execution:
+        parameters:
+          - {name: subsidie_vastgesteld, type: boolean, required: true}
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: wettelijke_beslistermijn, type: date}
+        actions:
+          - output: wettelijke_beslistermijn
+            value: {operation: DATE_ADD, date: $datum_ontvangst, weeks: 4}
