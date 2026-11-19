@@ -5468,6 +5468,7 @@ articles:
             [7, 6, 5, 4, 3, 2, 1, 0],
             [1, 5, 3, 0, 2, 4, 6, 7],
             [0, 2, 3, 4, 5, 6, 7, 1],
+            [0, 1, 7, 3, 4, 5, 6, 2],
         ] {
             let mut resolver = RuleResolver::new();
             let mut on_load = BTreeSet::new();
