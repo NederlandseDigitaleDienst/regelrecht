@@ -57,7 +57,7 @@ vi.stubGlobal('window', {
   addEventListener: (type, fn) => (listeners[type] = fn),
 });
 
-const { followAddress, toChoice, unknown } = await import('../src/navigation.js');
+const { followAddress, fromTheorie, pagina, toChoice, toTheorie, unknown } = await import('../src/navigation.js');
 
 const flush = async () => {
   for (let i = 0; i < 5; i++) await nextTick();
@@ -70,6 +70,7 @@ beforeAll(() => followAddress(started));
 
 beforeEach(() => {
   unknown.value = null;
+  pagina.value = null;
   started.mockClear();
   calls.length = 0;
   entries.length = 0;
@@ -132,7 +133,48 @@ describe('the address', () => {
     expect(location.pathname).toBe('/');
   });
 
+  it('opens the theory page on its own path, and goes back to the choice screen', async () => {
+    go('/');
+    await toTheorie();
+    expect(pagina.value).toBe('theorie');
+    expect(entries).toEqual(['/theorie']);
+    await fromTheorie();
+    expect(pagina.value).toBeNull();
+    expect(entries.at(-1)).toBe('/');
+    expect(calls).toEqual([]);
+  });
+
+  it('follows a link and the browser back and forward to the theory page', async () => {
+    go('/theorie');
+    await listeners.popstate();
+    expect(pagina.value).toBe('theorie');
+    expect(unknown.value).toBeNull();
+    expect(calls).toEqual([]);
+    expect(location.pathname).toBe('/theorie');
+
+    go('/');
+    await listeners.popstate();
+    expect(pagina.value).toBeNull();
+
+    // Back from a case to the page: the case gives way.
+    Object.assign(state, { casus });
+    go('/theorie');
+    await listeners.popstate();
+    expect(calls).toEqual([['naarKeuze']]);
+    expect(pagina.value).toBe('theorie');
+  });
+
+  it('leaves the theory page for a case that is chosen', async () => {
+    go('/');
+    await toTheorie();
+    state.casus = casus;
+    await flush();
+    expect(pagina.value).toBeNull();
+    expect(entries.at(-1)).toBe('/vakantieverlof');
+  });
+
   it('opens a case from a hidden source by its address', async () => {
+
     go('/uit-bron');
     await listeners.popstate();
     expect(unknown.value).toBeNull();

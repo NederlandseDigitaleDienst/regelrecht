@@ -9,7 +9,8 @@
 // At the top: what a demo needs, the presentation and the short page that
 // says what RegelRecht and chronolexografie are (presentation/kort.js), and
 // right under them the demo scenarios (presentation/demo.js). The short page
-// links on to the explanation page (presentation/uitleg.js).
+// links on to the explanation page (presentation/uitleg.js). The lead above
+// the cases links to the theory page (presentation/TheoriePagina.vue).
 import { computed, nextTick, onMounted, ref } from 'vue';
 import { demoGuides } from '../presentation/demo.js';
 import { useKort } from '../presentation/useKort.js';
@@ -18,10 +19,23 @@ import { api, bronLijst } from '../api.js';
 import { bronMeldingen, herkomst } from '../bronnen.js';
 import { artikelNaam } from '../logboek.js';
 import { navigate } from '../navigation.js';
+import { THEORIE } from '../route.js';
 import { hoofdletter, kiezen, state } from '../state.js';
 import { useAlleCasussen, verborgenNamen, zichtbareBronnen, zichtbareCasussen } from '../verborgen.js';
 
-const emit = defineEmits(['presentatie', 'kort', 'demo']);
+const emit = defineEmits(['presentatie', 'kort', 'demo', 'theorie']);
+const theorieHref = import.meta.env.BASE_URL + THEORIE;
+// Back from the theory page, App.vue puts the focus on its link again.
+// nldd-link (@nldd/design-system 0.22) does not pass `focus()` on to the
+// link inside it, so this reaches for that link itself.
+const theorieLink = ref(null);
+defineExpose({ focusTheorie: () => theorieLink.value?.shadowRoot?.querySelector('a')?.focus() });
+/** A click the app follows itself; with a modifier key held, the browser does. */
+function naarTheorie(e) {
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.altKey) return;
+  e.preventDefault();
+  emit('theorie');
+}
 const demo = demoGuides();
 const casussen = ref([]);
 const kortKnop = ref(null);
@@ -108,7 +122,8 @@ const kies = (c) => navigate(() => kiezen(c.id));
       <nldd-text slot="supporting-text">
         Elke casus is een aanvraag, het besluit erop en het bezwaar ertegen, bij een verzonnen
         uitvoerder. De cel legt elke stap vast in haar kroniek en leest die terug bij een volgend
-        besluit. Welke regels meelopen, volgt uit het artikel van de casus.
+        besluit. Welke regels meelopen, volgt uit het artikel van de casus. Wat een cel en een
+        kroniek zijn, staat bij <nldd-link ref="theorieLink" :href="theorieHref" text="Theorie" @click="naarTheorie"></nldd-link>.
       </nldd-text>
     </nldd-title>
     <nldd-container v-if="meldingen.length" gap="12" padding-bottom="16">

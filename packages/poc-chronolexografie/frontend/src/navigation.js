@@ -10,10 +10,14 @@
  * what the cell records before the first scenario: the game is not kept per
  * address. Back from a scenario to its case keeps the chronicle and leaves
  * free play.
+ *
+ * The theory page has a path of its own (`pagina`, route.js): it takes the
+ * place of the choice screen, and its address is written and followed as
+ * that of a case is.
  */
 import { ref, watch } from 'vue';
 import { api } from './api.js';
-import { findScenario, parseRoute, routePath } from './route.js';
+import { THEORIE, findScenario, parseRoute, routePath } from './route.js';
 import { beginScenario, kiezen, naarKeuze, state } from './state.js';
 
 const BASE = import.meta.env.BASE_URL;
@@ -24,6 +28,9 @@ const BASE = import.meta.env.BASE_URL;
  * nothing; null otherwise.
  */
 export const unknown = ref(null);
+
+/** The page with a path of its own that shows: `THEORIE` (route.js) or null. */
+export const pagina = ref(null);
 
 // While a navigation runs, its steps leave the address alone; it is written
 // once, at the end (`navigate`). Only the latest navigation writes: one the
@@ -37,8 +44,10 @@ let latest = 0;
 export const current = (mine) => mine === latest;
 
 function write(replace = false) {
+  // A case, however it was chosen, takes the place of the theory page.
+  if (state.casus) pagina.value = null;
   if (busy || unknown.value) return;
-  const path = routePath(BASE, state.casus?.id, state.scenario);
+  const path = pagina.value ? BASE + pagina.value : routePath(BASE, state.casus?.id, state.scenario);
   if (path === window.location.pathname) return;
   const url = path + window.location.search + window.location.hash;
   if (replace) window.history.replaceState(window.history.state, '', url);
@@ -67,12 +76,25 @@ export async function navigate(fn, { replace = false } = {}) {
 /** Back to the choice screen, from the toolbar or the notice about an unknown address. */
 export const toChoice = () => navigate(naarKeuze);
 
+/** To the theory page, from the choice screen. */
+export const toTheorie = () =>
+  navigate(() => {
+    pagina.value = THEORIE;
+  });
+
+/** From the theory page back to the choice screen. */
+export const fromTheorie = () =>
+  navigate(() => {
+    pagina.value = null;
+  });
+
 /**
  * Show the notice about an unknown address over an empty page. The saved
  * game of this tab stays (unlike `naarKeuze`): a mistyped link should not
  * cost a game; going on to the choice screen forgets it.
  */
 function notFound(what) {
+  pagina.value = null;
   state.casus = null;
   state.scenario = null;
   unknown.value = what;
@@ -87,6 +109,7 @@ function notFound(what) {
 async function follow(started, mine) {
   const route = parseRoute(window.location.pathname, BASE);
   if (route.unknown) return notFound({});
+  pagina.value = route.pagina ?? null;
   if (!route.casus) {
     if (state.casus) naarKeuze();
     return true;

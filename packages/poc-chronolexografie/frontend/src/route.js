@@ -6,7 +6,14 @@
  * after each choice and reads it on opening and on the browser's back and
  * forward.
  * The query string (`?presentatie`) stays as it is.
+ *
+ * One page has a path of its own beside the cases, `<base>/theorie`
+ * (presentation/TheoriePagina.vue); a case with that id would not be
+ * reachable.
  */
+
+/** The path segment of the theory page. */
+export const THEORIE = 'theorie';
 
 /** `Twee uitgevers, één antwoord` → `twee-uitgevers-een-antwoord`. */
 export const scenarioSlug = (naam) =>
@@ -28,6 +35,7 @@ export function routePath(base, casus = null, scenario = null) {
  * The case and scenario slug a path names, `{ casus, scenario }`, each null
  * when absent. A path outside `base`, or deeper than two parts, names
  * nothing the app knows: `{ casus: null, scenario: null, unknown: true }`.
+ * The path of the theory page names no case: it adds `pagina: THEORIE`.
  */
 export function parseRoute(pathname, base) {
   const empty = { casus: null, scenario: null, unknown: false };
@@ -42,6 +50,7 @@ export function parseRoute(pathname, base) {
     return { ...empty, unknown: true };
   }
   if (parts.length > 2) return { ...empty, unknown: true };
+  if (parts.length === 1 && parts[0] === THEORIE) return { ...empty, pagina: THEORIE };
   return { casus: parts[0] ?? null, scenario: parts[1] ?? null, unknown: false };
 }
 

@@ -24,6 +24,8 @@
 // from the deck, the short page or `?uitleg`. The short page
 // (presentation/KortPagina.vue) does too, from the button on the choice
 // screen or `?kort`; its button at the bottom opens the explanation page.
+// The theory page (presentation/TheoriePagina.vue) takes that place too, on
+// a path of its own, `/theorie` (navigation.js).
 //
 // The address names the case and the scenario (navigation.js), so a link
 // opens a scenario and the browser's back and forward walk the choices.
@@ -32,7 +34,7 @@ import { api } from './api.js';
 import { getoond } from './herkomst.js';
 import { artikelNaam } from './logboek.js';
 import { melding } from './melding.js';
-import { current, followAddress, navigate, toChoice, unknown } from './navigation.js';
+import { current, followAddress, fromTheorie, navigate, pagina, toChoice, toTheorie, unknown } from './navigation.js';
 import { parseRoute } from './route.js';
 import { beginScenario, hervatten, kiezen, state, stap, verversen } from './state.js';
 import AanvragerTab from './components/AanvragerTab.vue';
@@ -49,6 +51,7 @@ import ScenarioTab from './components/ScenarioTab.vue';
 import { guideFor } from './scenarioGuides.js';
 import PresentationDeck from './presentation/PresentationDeck.vue';
 import KortPagina from './presentation/KortPagina.vue';
+import TheoriePagina from './presentation/TheoriePagina.vue';
 import UitlegPagina from './presentation/UitlegPagina.vue';
 import { KORT, useKort } from './presentation/useKort.js';
 import { useUitleg } from './presentation/useUitleg.js';
@@ -107,13 +110,28 @@ onMounted(() => {
   kort.follow({ opCasus });
 });
 // Which page of the choice screen shows, if any; the explanation page wins
-// when the address asks for both.
+// when the address asks for both, and a page with a parameter shows over the
+// theory page, which has a path.
 const keuzePagina = computed(() => {
   if (state.casus) return null;
   if (uitleg.active.value) return 'uitleg';
   if (kort.active.value) return 'kort';
-  return null;
+  return pagina.value;
 });
+// The link that opened the theory page is gone while it shows, and so is its
+// button back afterwards: the focus goes along.
+const theoriePagina = ref(null);
+const casusKeuze = ref(null);
+async function openTheorie() {
+  await toTheorie();
+  await nextTick();
+  theoriePagina.value?.focus();
+}
+async function sluitTheorie() {
+  await fromTheorie();
+  await nextTick();
+  casusKeuze.value?.focusTheorie();
+}
 watch(() => state.datum, verversen);
 
 const artikel = computed(() => {
@@ -354,8 +372,11 @@ function toTab(id) {
                 @casus="(id) => kort.naarCasus(() => navigate(() => kiezen(id)))"
                 @uitleg="kortNaarUitleg"
               />
+              <TheoriePagina v-else-if="keuzePagina === 'theorie'" ref="theoriePagina" @terug="sluitTheorie" />
               <CasusKeuze
                 v-else-if="!state.casus"
+                ref="casusKeuze"
+                @theorie="openTheorie"
                 @presentatie="presentation.start()"
                 @kort="kort.open()"
                 @demo="startDemo"

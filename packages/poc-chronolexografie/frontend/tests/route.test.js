@@ -2,7 +2,7 @@ import { readFileSync, readdirSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { load } from 'js-yaml';
 import { describe, expect, it } from 'vitest';
-import { findScenario, parseRoute, routePath, scenarioSlug } from '../src/route.js';
+import { THEORIE, findScenario, parseRoute, routePath, scenarioSlug } from '../src/route.js';
 
 const casussenDir = fileURLToPath(new URL('../../corpus/casussen/', import.meta.url));
 const casussen = readdirSync(casussenDir)
@@ -57,7 +57,16 @@ describe('routePath and parseRoute', () => {
     expect(parseRoute('/chronolexografie/%E0', base).unknown).toBe(true);
   });
 
+  it('read the path of the theory page, which is the id of no case', () => {
+    expect(parseRoute('/chronolexografie/theorie', base)).toEqual({ casus: null, scenario: null, unknown: false, pagina: THEORIE });
+    expect(parseRoute('/chronolexografie/theorie/', base).pagina).toBe(THEORIE);
+    expect(parseRoute('/chronolexografie/theorie/x', base)).toEqual({ casus: 'theorie', scenario: 'x', unknown: false });
+    expect(parseRoute('/chronolexografie/vakantieverlof', base).pagina).toBeUndefined();
+    expect(casussen.map((c) => c.id)).not.toContain(THEORIE);
+  });
+
   it('find no scenario for an unknown slug', () => {
+
     expect(findScenario(casussen[0], 'bestaat-niet')).toBeUndefined();
   });
 });
