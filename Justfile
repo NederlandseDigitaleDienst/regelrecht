@@ -283,6 +283,13 @@ deploy-gate-test:
 [doc("Check the post-deploy health check")]
 deployed-urls-test:
     script/check-deployed-urls.test.sh
+
+# The step that waits after a rollout until ZAD reports the deployment healthy.
+# `zad` is a stub on PATH in the test, so nothing reaches the platform.
+[doc("Check the wait for a healthy ZAD deployment")]
+zad-health-test:
+    script/await-zad-health.test.sh
+
 # De controle die telt wat de nachtelijke opruiming heeft achtergelaten. `gh`
 # staat in de test als stub op PATH, dus er gaat geen verkeer naar GitHub.
 [doc("Check the guard on leftover preview environments")]
@@ -293,7 +300,7 @@ preview-environments-test:
 # container-backed suites; on a machine without a daemon, swap `test` for
 # `test-no-docker`.
 [doc("Run all quality checks, exactly what CI runs (needs Docker)")]
-check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test orphan-tests orphan-tests-test book-lints-test dockerfile-consistency-test deploy-gate-test deployed-urls-test preview-environments-test advisories-report-test dev-preflight-test test
+check: format lint build-check validate validate-annotations deploy-filters-test ghcr-cleanup-test precompress-test security-headers-test first-load-test ci-gate-test merge-queue-checks-test nldd-imports-test nldd-slots nldd-slots-test orphan-tests orphan-tests-test book-lints-test dockerfile-consistency-test deploy-gate-test deployed-urls-test zad-health-test preview-environments-test advisories-report-test dev-preflight-test test
 
 # --- Tests ---
 
