@@ -455,3 +455,155 @@ describe('LibraryView - wat dit traject heeft aangeraakt, in het linkermenu', ()
     expect(noLawsText(wrapper).exists()).toBe(true);
   });
 });
+
+describe('LibraryView - Recent bekeken naast "In dit traject"', () => {
+  const RECENT_KEY = 'regelrecht-recent-laws:traject-abcd1234';
+  // Stored with its name, as a visit does: a law outside the index (neither a
+  // favorite nor touched by the traject) shows under that stored name.
+  const setRecent = (ids: string[]) =>
+    localStorage.setItem(
+      RECENT_KEY,
+      JSON.stringify(ids.map((law_id) => ({ law_id, name: byId(law_id).display_name }))),
+    );
+
+  it('laat een wet die in het traject staat weg uit Recent bekeken', async () => {
+    setRecent(['wet_a', 'wet_f']);
+    server.changed = ['wet_a'];
+    const wrapper = await mountLibrary();
+
+    expect(sectionLaws(wrapper, 'traject')).toEqual(['Zorgverzekeringswet']);
+    expect(sectionLaws(wrapper, 'recent')).toEqual(['Kieswet']);
+  });
+
+  it('laat de sectie weg als alles wat bekeken is in het traject staat', async () => {
+    setRecent(['wet_a']);
+    server.changed = ['wet_a'];
+    const wrapper = await mountLibrary();
+
+    expect(sectionTitles(wrapper)).not.toContain('Recent bekeken');
+  });
+
+  it('laat ook een wet weg die in het traject achter de uitklapknop staat', async () => {
+    server.sourceLaws = manyLaws(21);
+    server.changed = server.sourceLaws.map((l) => l.law_id);
+    setRecent(['wet_021']);
+    const wrapper = await mountLibrary();
+
+    expect(sectionLaws(wrapper, 'traject')).not.toContain('Wet 021');
+    expect(sectionLaws(wrapper, 'recent')).toEqual([]);
+  });
+
+  it('houdt een favoriet wel in Recent bekeken', async () => {
+    setRecent(['wet_f']);
+    server.favorites = ['wet_f'];
+    server.changed = ['wet_a'];
+    const wrapper = await mountLibrary();
+
+    expect(sectionLaws(wrapper, 'favorites')).toEqual(['Kieswet']);
+    expect(sectionLaws(wrapper, 'recent')).toEqual(['Kieswet']);
+  });
+
+  it('bewaart de wet in de geschiedenis, zodat hij terugkomt als hij het traject verlaat', async () => {
+    setRecent(['wet_a']);
+    server.changed = ['wet_a'];
+    const wrapper = await mountLibrary();
+    expect(sectionLaws(wrapper, 'recent')).toEqual([]);
+
+    expect(JSON.parse(localStorage.getItem(RECENT_KEY) || '[]')).toHaveLength(1);
+    wrapper.unmount();
+    server.changed = ['wet_b'];
+    const again = await mountLibrary();
+    expect(sectionLaws(again, 'recent')).toEqual(['Zorgverzekeringswet']);
+  });
+});
+
+describe('LibraryView - snel zoeken in "In dit traject"', () => {
+  const filterField = (wrapper: VueWrapper) => wrapper.find('nldd-search-field[data-testid="traject-laws-filter"]');
+  const filterCount = (wrapper: VueWrapper) => wrapper.find('nldd-text[data-testid="traject-laws-filter-count"]');
+  const filterEmpty = (wrapper: VueWrapper) => wrapper.find('nldd-inline-dialog[data-testid="traject-laws-filter-empty"]');
+  async function type(wrapper: VueWrapper, value: string) {
+    await filterField(wrapper).trigger('input', { detail: { value } });
+    await nextTick();
+  }
+  async function mountWith(n: number) {
+    server.sourceLaws = manyLaws(n);
+    server.changed = server.sourceLaws.map((l) => l.law_id);
+    return mountLibrary();
+  }
+
+  it('biedt het zoekveld niet aan zolang de lijst niet inklapt', async () => {
+    const wrapper = await mountWith(20);
+    expect(filterField(wrapper).exists()).toBe(false);
+  });
+
+  it('biedt het zoekveld aan zodra de lijst inklapt, naast de uitklapknop', async () => {
+    const wrapper = await mountWith(21);
+    expect(filterField(wrapper).exists()).toBe(true);
+    expect(expander(wrapper).attributes('text')).toBe('Toon alle 21');
+    // The live region is there from the start, empty until a search.
+    expect(filterCount(wrapper).text()).toBe('');
+  });
+
+  it('zoekt in de hele lijst, ook in wat ingeklapt is', async () => {
+    const wrapper = await mountWith(25);
+    expect(sectionLaws(wrapper, 'traject')).not.toContain('Wet 023');
+
+    await type(wrapper, '  wet 02 ');
+    expect(sectionLaws(wrapper, 'traject')).toEqual(
+      ['Wet 020', 'Wet 021', 'Wet 022', 'Wet 023', 'Wet 024', 'Wet 025'],
+    );
+    expect(filterCount(wrapper).text()).toBe('6 regelwerken');
+  });
+
+  it('vindt een wet ook op zijn id', async () => {
+    const wrapper = await mountWith(21);
+    await type(wrapper, 'wet_007');
+    expect(sectionLaws(wrapper, 'traject')).toEqual(['Wet 007']);
+    expect(filterCount(wrapper).text()).toBe('1 regelwerk');
+  });
+
+  it('verbergt de uitklapknop tijdens het zoeken en zet hem daarna terug', async () => {
+    const wrapper = await mountWith(21);
+    await type(wrapper, 'wet 00');
+    expect(expander(wrapper).exists()).toBe(false);
+
+    await type(wrapper, '');
+    expect(expander(wrapper).attributes('text')).toBe('Toon alle 21');
+    expect(sectionLaws(wrapper, 'traject')).toHaveLength(20);
+  });
+
+  it('houdt het zoekveld en de kop als niets past, en zegt dat', async () => {
+    const wrapper = await mountWith(21);
+    await type(wrapper, 'bestaat niet');
+
+    expect(sectionLaws(wrapper, 'traject')).toEqual([]);
+    expect(sectionTitles(wrapper)).toContain(TRAJECT_SECTION_TITLE);
+    expect(filterField(wrapper).exists()).toBe(true);
+    expect(filterEmpty(wrapper).attributes('text')).toBe('Geen regelwerken gevonden');
+    expect(filterCount(wrapper).text()).toBe('0 regelwerken');
+    expect(noLawsText(wrapper).exists()).toBe(false);
+  });
+
+  it('klapt de lijst uit als de gekozen treffer na het wissen achter de knop zou staan', async () => {
+    const wrapper = await mountWith(25);
+    await type(wrapper, 'wet 023');
+    await wrapper.find('nldd-list-item[data-law-id="wet_023"]').trigger('click');
+    await nextTick();
+
+    await type(wrapper, '');
+    await nextTick();
+    expect(sectionLaws(wrapper, 'traject')).toHaveLength(25);
+    expect(expander(wrapper).attributes('text')).toBe('Toon minder');
+  });
+
+  it('neemt de zoekterm niet mee naar een ander traject', async () => {
+    const wrapper = await mountWith(21);
+    await type(wrapper, 'wet 007');
+    expect(sectionLaws(wrapper, 'traject')).toEqual(['Wet 007']);
+
+    switchTraject('traject-99998888');
+    for (let i = 0; i < 8; i++) await nextTick();
+    expect(filterField(wrapper).attributes('value')).toBe('');
+    expect(sectionLaws(wrapper, 'traject')).toHaveLength(20);
+  });
+});
