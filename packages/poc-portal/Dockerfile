@@ -78,6 +78,7 @@ COPY frontend-lawmaking/package.json frontend-lawmaking/
 COPY frontend-poc-portal/package.json frontend-poc-portal/
 COPY frontend-poc-terugbetaalregimes/package.json frontend-poc-terugbetaalregimes/
 COPY frontend-poc-nieuwkomersbekostiging/package.json frontend-poc-nieuwkomersbekostiging/
+COPY frontend-poc-regels-op-een-plek/package.json frontend-poc-regels-op-een-plek/
 COPY packages/poc-chronolexografie/frontend/package.json packages/poc-chronolexografie/frontend/
 RUN npm ci --ignore-scripts
 
@@ -96,9 +97,13 @@ RUN npm run build -w poc-portal-assets
 COPY corpus-poc/ corpus-poc/
 COPY frontend-poc-terugbetaalregimes/ frontend-poc-terugbetaalregimes/
 COPY frontend-poc-nieuwkomersbekostiging/ frontend-poc-nieuwkomersbekostiging/
+COPY frontend-poc-regels-op-een-plek/ frontend-poc-regels-op-een-plek/
 COPY --from=wasm-builder /wasm-pkg/ frontend/public/wasm/pkg/
 RUN POC_BASE=/terugbetaalregimes/ npm run build -w poc-terugbetaalregimes
 RUN POC_BASE=/nieuwkomersbekostiging/ npm run build -w poc-nieuwkomersbekostiging
+# regels-op-een-plek: alleen de app; de gegevens haalt het portaal tijdens het draaien uit de
+# bron in het register (sources), niet uit dit image.
+RUN POC_BASE=/regels-op-een-plek/ npm run build -w poc-regels-op-een-plek
 
 # chronolexografie draait helemaal in de browser. De bundel die de app
 # meekrijgt, is de map bij `corpus` in pocs/registry.yaml, het eigen corpus
@@ -233,6 +238,7 @@ COPY --from=frontend-builder /app/frontend-poc-portal/dist /app/static/_assets
 # vite uitspuugt.
 COPY --from=frontend-builder /app/frontend-poc-terugbetaalregimes/dist /app/static/terugbetaalregimes
 COPY --from=frontend-builder /app/frontend-poc-nieuwkomersbekostiging/dist /app/static/nieuwkomersbekostiging
+COPY --from=frontend-builder /app/frontend-poc-regels-op-een-plek/dist /app/static/regels-op-een-plek
 COPY --from=frontend-builder /app/packages/poc-chronolexografie/frontend/dist /app/static/chronolexografie
 
 # De beleidsassistent: één server, per casus zijn eigen MCP-tools en prompt.

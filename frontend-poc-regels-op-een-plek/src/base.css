@@ -1,0 +1,22 @@
+/*
+ * Basisstijl voor tekst buiten de nldd-componenten, overgenomen uit
+ * NederlandseDigitaleDienst/regelrecht, frontend-poc-terugbetaalregimes (EUPL-1.2).
+ * Het design system levert de RijksSans @font-face en de tokens, maar zet zelf geen
+ * globale body-font.
+ */
+:root {
+  /* Volg de OS-voorkeur, zodat light-dark() in eigen en nldd-css hetzelfde uitvalt. */
+  color-scheme: light dark;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
+
+body {
+  font-family: var(--primitives-font-family-body, var(--primitives-font-family-sans-serif, system-ui, sans-serif));
+  color: var(--primitives-color-neutral-900, canvastext);
+}

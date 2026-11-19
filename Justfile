@@ -1056,6 +1056,9 @@ poc-build: wasm-build poc-chronolexografie-wasm poc-assets
     POC_BASE=/nieuwkomersbekostiging/ npm run build -w poc-nieuwkomersbekostiging
     mkdir -p .poc-static/nieuwkomersbekostiging
     cp -R frontend-poc-nieuwkomersbekostiging/dist/. .poc-static/nieuwkomersbekostiging/
+    POC_BASE=/regels-op-een-plek/ npm run build -w poc-regels-op-een-plek
+    mkdir -p .poc-static/regels-op-een-plek
+    cp -R frontend-poc-regels-op-een-plek/dist/. .poc-static/regels-op-een-plek/
     POC_BASE=/chronolexografie/ npm run build -w poc-chronolexografie
     mkdir -p .poc-static/chronolexografie
     cp -R packages/poc-chronolexografie/frontend/dist/. .poc-static/chronolexografie/
@@ -1073,12 +1076,14 @@ poc: poc-build
     #!/usr/bin/env bash
     set -euo pipefail
     echo "poc-portaal → http://localhost:8611"
-    echo "wachtwoorden: terugbetaalregimes/nieuwkomersbekostiging/napp/chronolexografie = 'demo'"
+    echo "wachtwoorden: terugbetaalregimes/nieuwkomersbekostiging/napp/chronolexografie/regels-op-een-plek = 'demo'"
+    echo "regels-op-een-plek haalt zijn gegevens uit een bron: zet POC_BRON_SPOORZONE op een lokale map ervan"
     POC_COOKIE_SECRET=lokale-ontwikkelsleutel-niet-geheim-0123 \
     POC_PW_TERUGBETAALREGIMES=demo \
     POC_PW_NIEUWKOMERSBEKOSTIGING=demo \
     POC_PW_NAPP=demo \
     POC_PW_CHRONOLEXOGRAFIE=demo \
+    POC_PW_REGELS_OP_EEN_PLEK=demo \
     POC_STATIC_DIR="$(pwd)/.poc-static" \
     POC_PORT=8611 \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-poc-portal
