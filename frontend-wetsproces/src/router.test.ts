@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import type { RouteLocationNormalized } from 'vue-router';
 import { omleiding } from './router';
@@ -24,6 +25,11 @@ describe('omleiding', () => {
     expect(omleiding(naar('/burger', 'burger'), medewerker)).toBe('/backoffice');
     expect(omleiding(naar('/burger', 'burger'), null)).toBe('/inloggen');
     expect(omleiding(naar('/burger/aanvraag', 'burger'), burger)).toBeUndefined();
+  });
+
+  it('opens the clock only for whoever may set it', () => {
+    expect(omleiding(naar('/backoffice/klok', 'backoffice', 'klok'), medewerker)).toBe('/backoffice');
+    expect(omleiding(naar('/backoffice/klok', 'backoffice', 'klok'), { ...medewerker, klok_zetten: true })).toBeUndefined();
   });
 
   it('always lets the login open', () => {

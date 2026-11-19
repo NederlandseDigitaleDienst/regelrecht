@@ -2,6 +2,7 @@
 // Why a decision came out so, as the cell explains it: per open term of the
 // decision who filled it, and per answer of a cell what it answered.
 import { schermveld } from './formulier';
+import { artikelNaam } from './keten';
 import type { Vormen, Waarom } from './types';
 import { antwoordTekst, ingevuldDoor } from './waarom';
 
@@ -15,7 +16,7 @@ const naam = (term: string) => schermveld({ naam: term, type: null }, props.teks
       <nldd-list-item v-for="f in waarom.ingevuld" :key="`${f.law_id}#${f.article}#${f.term}`" size="sm">
         <nldd-text-cell
           :text="naam(f.term)"
-          :supporting-text="`${f.law_id} artikel ${f.article} · ${ingevuldDoor(f.filled_by, celNaam)}`"
+          :supporting-text="`${artikelNaam(`${f.law_id}#${f.article}`)} · ${ingevuldDoor(f.filled_by, celNaam)}`"
         ></nldd-text-cell>
       </nldd-list-item>
     </nldd-list>

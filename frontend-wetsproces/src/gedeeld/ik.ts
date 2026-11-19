@@ -3,13 +3,14 @@
 // do; the server checks every call itself, so this is no security.
 import { ref } from 'vue';
 import { gedeeldApi } from './api';
-import { nietIngelogd } from './http';
+import { ApiError } from '@regelrecht/frontend-shared';
+import { foutTekst, nietIngelogd } from './http';
 import type { Ik } from './types';
 
 /** The account, or null when nobody is logged in. */
 export const ik = ref<Ik | null>(null);
-/** Why the account cannot use the app, when it is logged in without a role of this server. */
-export const geenToegang = ref('');
+/** Why the app cannot open for the account: no role of this server, or a server that fails. */
+export const geenToegang = ref<{ kop: string; reden: string } | null>(null);
 
 let geladen: Promise<Ik | null> | null = null;
 
@@ -20,12 +21,15 @@ export function laadIk(opnieuw = false): Promise<Ik | null> {
     .ik()
     .then((wie) => {
       ik.value = wie;
-      geenToegang.value = '';
+      geenToegang.value = null;
       return wie;
     })
     .catch((e: unknown) => {
       ik.value = null;
-      geenToegang.value = nietIngelogd(e) ? '' : 'Dit account heeft geen rol in deze proefopstelling.';
+      if (nietIngelogd(e)) geenToegang.value = null;
+      else if (e instanceof ApiError && e.status === 403) {
+        geenToegang.value = { kop: 'Geen toegang', reden: 'Dit account heeft geen rol in deze proefopstelling.' };
+      } else geenToegang.value = { kop: 'De server is niet bereikbaar', reden: foutTekst(e) };
       return null;
     });
   return geladen;

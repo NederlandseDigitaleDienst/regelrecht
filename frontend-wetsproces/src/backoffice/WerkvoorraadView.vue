@@ -75,7 +75,7 @@ async function vastleggen() {
 
 <template>
   <nldd-simple-section>
-    <nldd-title slot="header" heading-level="1" text="Werkvoorraad" supporting-text="Indieningen waarop nog geen besluit is genomen, per cel waarvoor u werkt."></nldd-title>
+    <nldd-title slot="header" heading-level="1" text="Werkvoorraad" supporting-text="Per cel waarvoor u werkt: de indieningen zonder besluit."></nldd-title>
     <nldd-activity-indicator v-if="laden"></nldd-activity-indicator>
     <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De werkvoorraad laadt niet" :supporting-text="fout"></nldd-inline-dialog>
     <nldd-container v-else-if="casus" gap="32">

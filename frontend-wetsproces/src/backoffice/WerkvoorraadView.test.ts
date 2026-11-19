@@ -5,6 +5,7 @@ import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import type { Casus, Gram, Ik, Vormen } from '../gedeeld/types';
+import WerkvoorraadView from './WerkvoorraadView.vue';
 
 const casus: Casus = {
   id: 'voorbeeld',
@@ -49,7 +50,6 @@ vi.mock('./api', () => ({
 
 async function toon(cellen: Ik['cellen']) {
   ik.value = { ...ik.value, cellen };
-  const { default: WerkvoorraadView } = await import('./WerkvoorraadView.vue');
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] });
   const w = mount(WerkvoorraadView, { global: { plugins: [router], stubs: { teleport: true } } });
   await flushPromises();
@@ -63,6 +63,11 @@ describe('the work queue', () => {
     const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: true, beslissen: true }]);
     expect(knoppen(w)).toContain('Behandelen');
     expect(knoppen(w).some((t) => t?.endsWith('vastleggen'))).toBe(false);
+  });
+
+  it('lets the decider flag alone open a submission, without the facts a handler records', async () => {
+    const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: false, beslissen: true }]);
+    expect(knoppen(w)).toEqual(['Behandelen']);
   });
 
   it('shows a handler the submissions without the button to decide', async () => {

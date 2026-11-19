@@ -13,6 +13,29 @@ export const leesbaar = (naam: unknown): string => String(naam).replaceAll('_', 
 /** `verlof verleend` → `Verlof verleend`. */
 export const hoofdletter = (tekst: string): string => tekst.charAt(0).toUpperCase() + tekst.slice(1);
 
+/** Regelwerken that go by their abbreviation everywhere. */
+const AFKORTINGEN: Record<string, string> = {
+  algemene_wet_bestuursrecht: 'Awb',
+  besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw: 'BABW',
+};
+
+/**
+ * The name of a regelwerk: its abbreviation, the name it carries itself
+ * (`naamVan`, from the case), or its `$id` readable with a capital. A name
+ * that refers to a value of the regelwerk (`'#wet_naam'`) is no name.
+ */
+export function wetNaam(wet: string, naamVan?: (wet: string) => string | null | undefined): string {
+  const afkorting = AFKORTINGEN[wet];
+  if (afkorting) return afkorting;
+  const naam = naamVan?.(wet);
+  if (naam && !naam.startsWith('#')) return naam;
+  return hoofdletter(leesbaar(wet));
+}
+
+/** `leerplichtwet_1969`, `13a` → `Leerplichtwet 1969 artikel 13a`. */
+export const artikelNaam = (wet: string, artikel: string, naamVan?: (wet: string) => string | null | undefined): string =>
+  `${wetNaam(wet, naamVan)} artikel ${artikel}`;
+
 /** An outcome readable: `true` → `ja`, `false` → `nee`. */
 export const jaNee = (v: unknown): string => (v === true ? 'ja' : v === false ? 'nee' : String(v));
 

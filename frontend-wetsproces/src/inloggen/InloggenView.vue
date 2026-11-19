@@ -43,7 +43,7 @@ async function kies(p: Persona) {
     <nldd-title slot="header" heading-level="1" text="Inloggen"></nldd-title>
     <nldd-container gap="16">
       <template v-if="status?.oidc_configured">
-        <nldd-text>Log in met uw account. U komt daarna terug op deze pagina.</nldd-text>
+        <nldd-text>Log in met uw account. Daarna komt u op uw startpagina.</nldd-text>
         <nldd-button-group orientation="horizontal">
           <nldd-button appearance="primary" start-icon="login" text="Inloggen" @click="inloggenApi.oidc('/')"></nldd-button>
         </nldd-button-group>

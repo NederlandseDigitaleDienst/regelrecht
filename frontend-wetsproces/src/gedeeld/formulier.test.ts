@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { aanvraagformulier, aanvraagVelden, beginwaarden, schermveld, tegenBesluitVelden } from './formulier';
 import type { Indieningsvorm } from './types';

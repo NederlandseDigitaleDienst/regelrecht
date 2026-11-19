@@ -295,7 +295,8 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
 /// Per field the `label` and `help` the elements give it. Two elements that
 /// give one field a different label, or a different help, are refused.
 fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> {
-    let mut uit: BTreeMap<String, (Veldtekst, String)> = BTreeMap::new();
+    // Per field and per key (`label`, `help`): the text, and the element that gave it.
+    let mut gegeven: BTreeMap<(String, &'static str), (String, String)> = BTreeMap::new();
     for (i, element) in elements.iter().enumerate() {
         let naam = element_name(element.id.as_ref(), i);
         for field in &element.fields {
@@ -307,30 +308,32 @@ fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> 
                     "the UI spec: {naam} gives a `label` or `help` to a field without a `name`"
                 ));
             };
-            let tekst = Veldtekst {
-                label: field.label.clone(),
-                help: field.help.clone(),
-            };
-            let (eerder, door) = uit
-                .entry(veld.to_string())
-                .or_insert_with(|| (Veldtekst::default(), naam.clone()));
-            for (wat, nieuw, oud) in [
-                ("label", &tekst.label, &mut eerder.label),
-                ("help", &tekst.help, &mut eerder.help),
-            ] {
-                match (nieuw, &oud) {
-                    (Some(n), Some(o)) if n != o => {
+            for (wat, tekst) in [("label", &field.label), ("help", &field.help)] {
+                let Some(tekst) = tekst else { continue };
+                match gegeven.get(&(veld.to_string(), wat)) {
+                    Some((eerder, door)) if eerder != tekst => {
                         return Err(format!(
                             "the UI spec: {door} and {naam} give '{veld}' a different `{wat}`"
                         ));
                     }
-                    (Some(n), None) => *oud = Some(n.clone()),
-                    _ => {}
+                    Some(_) => {}
+                    None => {
+                        gegeven.insert((veld.to_string(), wat), (tekst.clone(), naam.clone()));
+                    }
                 }
             }
         }
     }
-    Ok(uit.into_iter().map(|(v, (t, _))| (v, t)).collect())
+    let mut uit: BTreeMap<String, Veldtekst> = BTreeMap::new();
+    for ((veld, wat), (tekst, _)) in gegeven {
+        let t = uit.entry(veld).or_default();
+        if wat == "label" {
+            t.label = Some(tekst);
+        } else {
+            t.help = Some(tekst);
+        }
+    }
+    Ok(uit)
 }
 
 /// The prefill and the rest of the application form of the elements of the
@@ -954,6 +957,17 @@ elements:
         .unwrap_err();
         assert!(
             e.contains("UI1 and UI2 give 'x' a different `label`"),
+            "{e}"
+        );
+        // The element named is the one that gave the label, not one that gave only help.
+        let e = lees(
+            "elements: [{id: UI1, fields: [{name: x, help: Hulp}]},
+                        {id: UI2, fields: [{name: x, label: Een}]},
+                        {id: UI3, fields: [{name: x, label: Twee}]}]",
+        )
+        .unwrap_err();
+        assert!(
+            e.contains("UI2 and UI3 give 'x' a different `label`"),
             "{e}"
         );
         let e = lees("elements: [{id: UI1, fields: [{label: Een}]}]").unwrap_err();

@@ -4,7 +4,12 @@
 // a record of a kind the case's regelwerken establish as one
 // (`casus.indieningen`), a decision is a record that answers to one, and no
 // step of a particular law is named here.
-import { hoofdletter, leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
+import {
+  artikelNaam as gedeeldArtikelNaam,
+  hoofdletter,
+  leesbaar,
+  wetNaam,
+} from '@regelrecht/frontend-shared/chronolex/waarden';
 import type { Casus, Gram } from './types';
 
 /** The kind of record a cell keeps of a fact it recorded. */
@@ -56,9 +61,20 @@ export const openIndieningen = (grammen: Gram[], casus: Casus): Gram[] =>
  * app does not offer yet.
  */
 export function indieningenTegen(besluit: Gram, casus: Casus): Casus['indieningen'] {
+  // An application of any article is of the kind of the case's own application.
+  // A case that names no submission of its own article gives no way to tell an
+  // application from the rest, so nothing is offered.
+  const aanvraag = casus.indieningen.find((i) => i.artikel === casus.artikel)?.soort;
+  if (!aanvraag) return [];
   return casus.indieningen.filter(
-    (i) => i.cel === besluit.recording_actor && i.besluit !== besluit.basis && i.artikel !== casus.artikel && i.soort !== 'AANVRAAG',
+    (i) => i.cel === besluit.recording_actor && i.besluit !== besluit.basis && i.soort !== aanvraag,
   );
+}
+
+/** `<regelwerk>#<article>` as a screen writes it, such as `Awb artikel 4:2`. */
+export function artikelNaam(basis: string): string {
+  const [wet = basis, artikel] = basis.split('#');
+  return artikel ? gedeeldArtikelNaam(wet, artikel) : wetNaam(wet);
 }
 
 /** The name of the cell `cel` in the case, or its id. */

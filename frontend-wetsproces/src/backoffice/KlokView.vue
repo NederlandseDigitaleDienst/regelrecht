@@ -14,8 +14,12 @@ const melding = ref('');
 const gezet = ref(false);
 
 onMounted(async () => {
-  klok.value = await backofficeApi.klok();
-  datum.value = klok.value.datum;
+  try {
+    klok.value = await backofficeApi.klok();
+    datum.value = klok.value.datum;
+  } catch (e) {
+    melding.value = foutTekst(e);
+  }
 });
 
 const lees = (e: Event) => {
@@ -37,7 +41,8 @@ async function zet() {
 
 <template>
   <nldd-simple-section width="640px">
-    <nldd-title slot="header" heading-level="1" text="Klok" supporting-text="De dag waarop elke stap in deze testomgeving wordt uitgevoerd en vastgelegd."></nldd-title>
+    <nldd-title slot="header" heading-level="1" text="Klok" supporting-text="Elke stap in deze testomgeving krijgt deze dag als datum."></nldd-title>
+    <nldd-inline-dialog v-if="!klok && melding" icon="warning" icon-color="critical" text="De klok laadt niet" :supporting-text="melding"></nldd-inline-dialog>
     <nldd-container v-if="klok" gap="16">
       <nldd-inline-dialog v-if="!klok.bestuurbaar" icon="info" text="De klok volgt de echte datum" supporting-text="Alleen in de testmodus is de klok te zetten."></nldd-inline-dialog>
       <template v-else>

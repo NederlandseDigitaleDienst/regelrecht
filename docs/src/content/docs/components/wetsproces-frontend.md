@@ -33,7 +33,7 @@ Every screen carries a band that says the case, the people and the data are made
 
 ## Forms from the law
 
-No field of a case is named in the code of the app. A form takes its fields from `GET /api/formulier`, which the kern derives from the law in force on the day of the clock, in the order the law gives them. A yes or no that the law requires is a switch; one the law lets stay empty, and every finding of the authority, asks yes, no or empty.
+No field of a case is named in the code of the app. A form takes its fields from `GET /api/formulier`, which the kern derives from the law in force on the day of the clock, in the order the law gives them. A yes or no that the law requires is a switch. A yes or no the law lets stay empty is a choice of yes, no or empty, and so is every finding of the authority.
 
 The case's UI spec (`packages/wetsproces/ui_spec.yaml`, read by `packages/poc-chronolexografie/src/ui_spec.rs`) adds to that. A field the system fills shows read-only, or not at all when the spec hides it, and is never sent: the server fills the login field itself. `label` and `help` name a field on the screen and put a line under it, by field name over every form. Without a UI spec every field the law asks is on the form, under its name in the rulework.
 
@@ -61,7 +61,7 @@ Two parts of the UI spec have no effect here yet. A prefill from a source (`fill
 
 `src/burger/` and `src/backoffice/` each have their own routes and their own API client, and every screen loads as a chunk of its own. The citizen's client calls only the routes both sides share and the citizen's own. It does not say how a request proves who sends it: `src/gedeeld/sessie.ts` adds that, as the session cookie today. A test (`src/scheiding.test.ts`) fails when a module of the public side imports the back office or the login, names a back-office route, or handles a cookie.
 
-So the public side can later be bundled on its own, behind another login. An app that connects through FSC voor Burgers is one such route; it is not built.
+This split lets the public side be bundled on its own later, behind another login. An app that connects through FSC voor Burgers is one such route; it is not built.
 
 ## Running it locally
 

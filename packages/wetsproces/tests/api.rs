@@ -739,13 +739,25 @@ async fn why_a_decision_came_out_so_for_its_citizen_and_its_cell() {
         StatusCode::NOT_FOUND
     );
     // An application is no decision: the kern refuses to explain it.
-    let (status, _) = anna.get(&format!("/api/dossier/waarom/{op}")).await;
-    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+    let (status, fout) = anna.get(&format!("/api/dossier/waarom/{op}")).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{fout}");
+    assert!(
+        fout["fout"].as_str().unwrap().contains("not a decision"),
+        "{fout}"
+    );
 }
 
 #[tokio::test]
 async fn the_frontend_is_served_beside_the_api_and_a_wrong_api_path_stays_a_404() {
+    /// The directory, removed when the test ends, also when it fails.
+    struct Weg(PathBuf);
+    impl Drop for Weg {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
     let dir = std::env::temp_dir().join(format!("wetsproces-frontend-{}", std::process::id()));
+    let _weg = Weg(dir.clone());
     std::fs::create_dir_all(dir.join("assets")).unwrap();
     std::fs::write(dir.join("index.html"), "<!doctype html><title>app</title>").unwrap();
     std::fs::write(dir.join("assets/app.js"), "console.log(1)").unwrap();
@@ -776,5 +788,4 @@ async fn the_frontend_is_served_beside_the_api_and_a_wrong_api_path_stays_a_404(
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert!(fout.contains("fout"), "{fout}");
     assert_eq!(body("/auth/bestaat-niet").await.0, StatusCode::NOT_FOUND);
-    std::fs::remove_dir_all(&dir).unwrap();
 }

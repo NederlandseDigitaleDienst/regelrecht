@@ -1,3 +1,4 @@
+// @vitest-environment node
 import { describe, expect, it } from 'vitest';
 import { indieningenTegen, isBesluit, ketens, openIndieningen, plat } from './keten';
 import type { Casus, Gram } from './types';
@@ -55,6 +56,21 @@ describe('the records of a chronicle', () => {
 describe('indieningenTegen', () => {
   it('offers against a decision what refers to one and the same cell decides on', () => {
     expect(indieningenTegen(besluit, casus).map((i) => i.soort)).toEqual(['BEZWAAR']);
+  });
+
+  it('takes the kind of an application from the case, whatever it is called', () => {
+    const anders: Casus = {
+      ...casus,
+      indieningen: [
+        ...casus.indieningen.map((i) => (i.soort === 'AANVRAAG' ? { ...i, soort: 'VERZOEK' } : i)),
+        { artikel: 'verordening#2', besluit: 'verordening#2', cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', soort: 'VERZOEK' },
+      ],
+    };
+    expect(indieningenTegen(besluit, anders).map((i) => i.soort)).toEqual(['BEZWAAR']);
+  });
+
+  it('offers nothing when the case names no submission of its own article', () => {
+    expect(indieningenTegen(besluit, { ...casus, artikel: 'wet#9' })).toEqual([]);
   });
 
   it('offers nothing of that kind against the decision on it', () => {

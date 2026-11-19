@@ -6,12 +6,12 @@
 // Its fields come from the law, without what the decision already holds.
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
-import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
+import { hoofdletter, zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import { beginwaarden, tegenBesluitVelden } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
-import { celNaam, indieningenTegen, isBesluit, toegewezen } from '../gedeeld/keten';
+import { artikelNaam, celNaam, indieningenTegen, isBesluit, toegewezen } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { CasusIndiening, Waarom } from '../gedeeld/types';
 import WaaromLijst from '../gedeeld/WaaromLijst.vue';
@@ -54,7 +54,7 @@ const velden = computed(() => {
   const vorm = keuze.value && vormen.value?.indieningen[keuze.value.artikel];
   return vorm && besluit.value ? tegenBesluitVelden(vorm, besluit.value, vormen.value?.teksten) : [];
 });
-const soortNaam = (i: CasusIndiening) => i.soort.charAt(0) + i.soort.slice(1).toLowerCase();
+const soortNaam = (i: CasusIndiening) => hoofdletter(i.soort.toLowerCase());
 
 function start(i: CasusIndiening) {
   keuze.value = i;
@@ -74,7 +74,7 @@ async function indienen() {
       sleutel,
     );
     open.value = false;
-    await router.push({ name: 'dossier', query: { ingediend: '1' } });
+    await router.push({ name: 'dossier', query: { ingediend: keuze.value.soort } });
   } catch (e) {
     melding.value = foutTekst(e);
   } finally {
@@ -94,7 +94,7 @@ async function indienen() {
       <nldd-title
         heading-level="1"
         :text="`Besluit van ${longDate(besluit.recorded_on)}`"
-        :supporting-text="`${naamVanCel(besluit.recording_actor)} · onder ${besluit.basis}`"
+        :supporting-text="`${naamVanCel(besluit.recording_actor)} · onder ${artikelNaam(besluit.basis)}`"
       >
         <nldd-tag
           v-if="stand !== undefined"
@@ -110,14 +110,14 @@ async function indienen() {
       </nldd-container>
 
       <nldd-container gap="8">
-        <nldd-title heading-level="2" size="display-6" text="Waarom" supporting-text="Wie elk open begrip in de wet invulde, en welke antwoorden het besluit gebruikte."></nldd-title>
+        <nldd-title heading-level="2" size="display-6" text="Waarom" supporting-text="Wie de wet op elk punt invulde, en welke antwoorden het besluit gebruikte."></nldd-title>
         <WaaromLijst v-if="waarom" :waarom="waarom" :teksten="vormen?.teksten" :cel-naam="naamVanCel" />
-        <nldd-inline-dialog v-else-if="waaromFout" icon="warning" text="Het waarom laadt niet" :supporting-text="waaromFout"></nldd-inline-dialog>
+        <nldd-inline-dialog v-else-if="waaromFout" icon="warning" text="De uitleg laadt niet" :supporting-text="waaromFout"></nldd-inline-dialog>
         <nldd-activity-indicator v-else></nldd-activity-indicator>
       </nldd-container>
 
       <nldd-container v-if="tegen.length" gap="8">
-        <nldd-title heading-level="2" size="display-6" text="Het niet eens met dit besluit?"></nldd-title>
+        <nldd-title heading-level="2" size="display-6" text="Bent u het niet eens met dit besluit?"></nldd-title>
         <nldd-button-group orientation="horizontal">
           <nldd-button
             v-for="i in tegen"

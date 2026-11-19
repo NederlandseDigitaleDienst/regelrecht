@@ -141,7 +141,7 @@ async function beslissen() {
           heading-level="2"
           size="display-6"
           text="Bevindingen"
-          supporting-text="Wat het artikel van het besluit aan het bestuursorgaan laat. Een leeg oordeel geeft u niet."
+          supporting-text="Het artikel laat deze punten aan het bestuursorgaan over. Een oordeel dat u leeg laat, gaat niet mee."
         ></nldd-title>
         <SpecFormulier
           v-if="velden.length"
@@ -155,7 +155,7 @@ async function beslissen() {
         <nldd-inline-dialog
           v-if="voorvertoning?.geweigerd"
           icon="warning"
-          text="Zo wordt het nog geen besluit"
+          text="Met deze bevindingen is nog geen besluit mogelijk"
           :supporting-text="voorvertoning.geweigerd"
         ></nldd-inline-dialog>
         <nldd-container v-else-if="voorvertoning?.voorlopig" gap="8">

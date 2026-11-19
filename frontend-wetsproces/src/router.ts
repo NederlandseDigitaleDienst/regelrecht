@@ -15,6 +15,7 @@ export function omleiding(to: RouteLocationNormalized, wie: Ik | null): string |
   const kant = to.matched.find((r) => r.meta.kant)?.meta.kant;
   if (kant === 'burger' && !wie?.burger) return startpagina(wie);
   if (kant === 'backoffice' && !isMedewerker(wie)) return startpagina(wie);
+  if (to.name === 'klok' && !wie?.klok_zetten) return '/backoffice';
   return undefined;
 }
 

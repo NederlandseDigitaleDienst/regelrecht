@@ -325,11 +325,14 @@ async fn me(
     Extension(principal): Extension<Principal>,
     session: tower_sessions::Session,
 ) -> ApiResult {
+    // The name is only shown; a session that does not give it leaves it out.
     let name: Option<String> = session
         .get(regelrecht_auth::SESSION_KEY_NAME)
         .await
-        .ok()
-        .flatten();
+        .unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "reading the name from the session");
+            None
+        });
     let citizen = principal.citizen(&state.subject_claim).ok();
     let cells: Vec<Value> = state
         .service

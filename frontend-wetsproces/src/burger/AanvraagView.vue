@@ -36,7 +36,7 @@ async function indienen() {
   try {
     await burgerApi.indienen({ artikel: casus.value.artikel, velden: aanvraagVelden(vorm.value, waarden.value) }, sleutel);
     sleutel = nieuweSleutel();
-    await router.push({ name: 'dossier', query: { ingediend: '1' } });
+    await router.push({ name: 'dossier', query: { ingediend: vorm.value.soort } });
   } catch (e) {
     melding.value = foutTekst(e);
   } finally {

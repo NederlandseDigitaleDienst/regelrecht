@@ -1,6 +1,7 @@
 // Why a decision came out so, in words: who filled each open term of it,
 // as the engine reports it (`FilledBy` in packages/engine/src/engine.rs).
 import { jaNee } from '@regelrecht/frontend-shared/chronolex/waarden';
+import { artikelNaam } from './keten';
 
 /** A regulation or policy article that filled a term. */
 interface Artikel {
@@ -21,7 +22,7 @@ export function ingevuldDoor(filledBy: unknown, celNaam: (cel: string) => string
   if (filledBy === 'finding') return 'bevinding van het bestuursorgaan';
   if (!isObject(filledBy)) return 'niet ingevuld';
   if (isArtikel(filledBy.regulation)) {
-    return `ingevuld door ${filledBy.regulation.law_id} artikel ${filledBy.regulation.article}`;
+    return `ingevuld door ${artikelNaam(`${filledBy.regulation.law_id}#${filledBy.regulation.article}`)}`;
   }
   const antwoord = filledBy.answer;
   if (isArtikel(antwoord) && isObject(antwoord)) {
@@ -32,7 +33,7 @@ export function ingevuldDoor(filledBy: unknown, celNaam: (cel: string) => string
       ),
     ];
     const met = cellen.length ? `, met het antwoord van ${cellen.join(' en ')}` : ', zonder antwoord van een cel';
-    return `ingevuld door ${antwoord.law_id} artikel ${antwoord.article}${met}`;
+    return `ingevuld door ${artikelNaam(`${antwoord.law_id}#${antwoord.article}`)}${met}`;
   }
   return 'niet ingevuld';
 }
