@@ -1284,9 +1284,11 @@ fn gelezen_feiten(service: &LawExecutionService, cell: &Cell, on: NaiveDate) -> 
                 .chain(gelezen_aggregaten)
                 .filter_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
                 .flat_map(|p| {
-                    p.per_basis_and_kind()
-                        .into_iter()
-                        .chain(p.steps.iter().map(|s| s.basis_and_kind()))
+                    p.per_basis_and_kind().into_iter().chain(
+                        p.step_records()
+                            .into_iter()
+                            .map(regelrecht_law_model::split_kind),
+                    )
                 })
                 .flat_map(|(basis, kind)| {
                     feiten_van_record(service, basis, kind, on).unwrap_or_default()
@@ -2270,7 +2272,7 @@ fn leest_uit(reduction: &regelrecht_engine::ArticleBasedLaw) -> Vec<(String, Str
         .articles
         .iter()
         .filter_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
-        .flat_map(|p| &p.steps)
+        .flat_map(|p| p.steps())
         .flat_map(|step| &step.input);
     reduction
         .articles
@@ -3269,13 +3271,14 @@ fn lezingen_van(
     // A reduction that plays the chronicle forward (schema v0.8.14) reads
     // the records under the article each of its steps names: its decisions,
     // or the facts it requires when it takes no decision, such as the
-    // receipt of a judgment (Awb 8:79).
-    for step in articles
+    // receipt of a judgment (Awb 8:79). A projection that copies its fact
+    // (schema v0.8.25) reads its roots.
+    for record in articles
         .iter()
         .filter_map(|a| a.machine_readable.as_ref()?.projection.as_ref())
-        .flat_map(|p| &p.steps)
+        .flat_map(|p| p.step_records())
     {
-        let (basis, kind) = step.basis_and_kind();
+        let (basis, kind) = regelrecht_law_model::split_kind(record);
         let feiten = feiten_van_record(service, basis, kind, on).unwrap_or_default();
         let bronnen = if feiten.is_empty() {
             // A step on facts whose article is not found reads nothing here.
@@ -3288,7 +3291,7 @@ fn lezingen_van(
         };
         for bron in bronnen {
             let lezing = Lezing {
-                naam: step.record.clone(),
+                naam: record.to_string(),
                 reductie: reduction.id.clone(),
                 bron,
             };

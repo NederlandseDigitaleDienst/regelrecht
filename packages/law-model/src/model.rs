@@ -1948,8 +1948,16 @@ pub struct Projection {
         deserialize_with = "optional_step_record"
     )]
     pub per: Option<String>,
-    pub state: Vec<StateProperty>,
-    pub steps: Vec<ProjectionStep>,
+    /// The properties of the state. Absent together with `steps` (schema
+    /// v0.8.25), the projection copies the fact `per` names
+    /// ([`Projection::copies_fact`]); the engine writes the state out from
+    /// that fact. Read it with [`Projection::state`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub state: Option<Vec<StateProperty>>,
+    /// The step per article a record rests on, absent together with
+    /// `state` (schema v0.8.25). Read it with [`Projection::steps`].
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub steps: Option<Vec<ProjectionStep>>,
 }
 
 /// One property of a projection's state. Before the first record it holds
@@ -2095,6 +2103,36 @@ impl Projection {
     pub fn per_basis_and_kind(&self) -> Option<(&str, Option<&str>)> {
         self.per.as_deref().map(split_kind)
     }
+
+    /// The properties of the state as written; empty for a projection that
+    /// copies its fact, whose state the engine writes out.
+    pub fn state(&self) -> &[StateProperty] {
+        self.state.as_deref().unwrap_or_default()
+    }
+
+    /// The steps as written; empty for a projection that copies its fact,
+    /// whose one step the engine writes out.
+    pub fn steps(&self) -> &[ProjectionStep] {
+        self.steps.as_deref().unwrap_or_default()
+    }
+
+    /// Whether the projection copies the fact `per` names (schema v0.8.25):
+    /// it writes neither `state` nor `steps`, so its state holds the fields
+    /// of that fact and its one step copies them from the root.
+    pub fn copies_fact(&self) -> bool {
+        self.state.is_none() && self.steps.is_none()
+    }
+
+    /// The address of the records each step is about (`steps[].record`):
+    /// those of the steps as written, or `per` for a projection that copies
+    /// its fact, whose one step is about the root. [`split_kind`] splits an
+    /// address into its article and its kind or fact.
+    pub fn step_records(&self) -> Vec<&str> {
+        if self.copies_fact() {
+            return self.per.as_deref().into_iter().collect();
+        }
+        self.steps().iter().map(|s| s.record.as_str()).collect()
+    }
 }
 
 /// [`step_record`] for an optional field.
@@ -2107,7 +2145,7 @@ where
 
 /// Split `<regulation>#<article>[#<KIND>|#<fact>]` into the article and the
 /// third segment.
-fn split_kind(record: &str) -> (&str, Option<&str>) {
+pub fn split_kind(record: &str) -> (&str, Option<&str>) {
     match record.split('#').count() {
         3 => record
             .rsplit_once('#')
