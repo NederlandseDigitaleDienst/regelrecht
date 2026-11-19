@@ -26,7 +26,7 @@ const STAPPEN = [
 
 <template>
   <nldd-sheet placement="left" width="560px" :open="open || undefined" accessible-label="Over deze PoC" @close="open = false">
-    <nldd-top-title-bar text="Over deze PoC" supporting-text="Spoorzone Veenendaal, met en zonder DSO" :heading-level="2">
+    <nldd-top-title-bar text="Over deze PoC" supporting-text="Spoorzone Veenendaal" :heading-level="2">
       <nldd-icon-button slot="toolbar" size="sm" icon="close" text="Sluiten" appearance="neutral-tinted" @click="open = false"></nldd-icon-button>
     </nldd-top-title-bar>
     <div class="inhoud">
