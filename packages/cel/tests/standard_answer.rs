@@ -2,7 +2,8 @@
 //! (`cel.yaml`, `answers`, [`regelrecht_cel::standard`]): the standard
 //! reduction is the written-out copy reduction, structurally and in what it
 //! answers, also after a revocation and on a day before a record. A record
-//! of another fact that refers to a root leaves its row as it is.
+//! of another fact that refers to a root and has no effect, such as a
+//! correction, leaves its row as it is.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::expect_used)]
 
@@ -567,7 +568,8 @@ fn rows(
 }
 
 /// A fact without parameters never reaches a standard reduction: the
-/// service refuses the regulation that requires it (RFC-051).
+/// service refuses the regulation that requires it (RFC-051). The test
+/// guards that assumption, which an empty state would otherwise meet.
 #[test]
 fn a_fact_without_parameters_is_refused_before_a_standard_reduction() {
     let without = REGISTERED.replace(

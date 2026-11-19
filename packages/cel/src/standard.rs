@@ -30,7 +30,8 @@
 //! What a record of another fact that refers to the root does with its row,
 //! such as a correction, is a reading of the chronicle. It belongs written
 //! out in a reduction; the standard reduction has no step for it, so such a
-//! record leaves the row as it is.
+//! record sets no field of the row. An effect it has, such as revoking the
+//! root, holds as in any reduction.
 
 use chrono::NaiveDate;
 use regelrecht_engine::LawExecutionService;
