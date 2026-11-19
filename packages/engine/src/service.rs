@@ -5281,17 +5281,6 @@ impl LawExecutionService {
         // article that fires as a hook, a filling that names the article the
         // hook fires on goes first, in that article's scope (RFC-058).
         let host = res_ctx.host_of(&law.id, &article.number);
-        if let Some(host) = &host {
-            let _host_guard = res_ctx.trace_guard(
-                format!("{}#{}", host.host_law, host.host_article),
-                PathNodeType::OpenTermResolution,
-            );
-            res_ctx.trace_set_message(format!(
-                "Open term '{}': {} article {} fires as a hook on {} article {}; a filling that \
-                 names that article goes first, with its parameters (RFC-058)",
-                term.id, law.id, article.number, host.host_law, host.host_article
-            ));
-        }
         let mut lookup = match self.implementations_of(
             &law.id,
             &article.number,
@@ -5310,6 +5299,17 @@ impl LawExecutionService {
                 return Err(e);
             }
         };
+        if let Some(host) = host.as_deref().filter(|_| lookup.names_the_host(0)) {
+            let _host_guard = res_ctx.trace_guard(
+                format!("{}#{}", host.host_law, host.host_article),
+                PathNodeType::OpenTermResolution,
+            );
+            res_ctx.trace_set_message(format!(
+                "Open term '{}': {} article {} fires as a hook on {} article {}; a filling that \
+                 names that article goes first, with its parameters (RFC-058)",
+                term.id, law.id, article.number, host.host_law, host.host_article
+            ));
+        }
 
         // A regulation that arrogates a term the law delegates elsewhere is
         // skipped, so a competent regulation lower in the ranking can still

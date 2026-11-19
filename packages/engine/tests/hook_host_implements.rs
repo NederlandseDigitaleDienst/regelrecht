@@ -556,6 +556,335 @@ fn fillings_with_and_without_a_host_side_by_side() {
     }
 }
 
+/// A filling that names the host and is silent for the case (null) passes
+/// the term on to the filling without a host, as a silent filling passes it
+/// on to the next candidate anywhere else.
+#[test]
+fn a_silent_filling_for_the_host_passes_the_term_to_one_without_a_host() {
+    let silent = SUBSIDY_LAW.replacen(
+        "              default:\n                operation: DATE_ADD\n                date: $datum_ontvangst\n                weeks: 13\n",
+        "              default: null\n",
+        1,
+    );
+    // Article 2 is the first to declare this output; it may now be null.
+    let silent = silent.replacen(
+        "          - name: wettelijke_beslistermijn
+            type: date
+",
+        "          - name: wettelijke_beslistermijn
+            type: date
+            nullable: true
+",
+        1,
+    );
+    assert!(silent.contains("default: null") && silent.contains("nullable: true"));
+    let service = service(None, &[&silent, GENERAL_FILLING]);
+
+    let silent_year = grant(&service, 2026);
+    assert_eq!(
+        last_day(&silent_year),
+        Some(&date("2026-08-03")),
+        "the subsidy law is silent for 2026, so the filling without a host applies"
+    );
+    assert_eq!(
+        filled_by(&silent_year),
+        by("algemene_regeling_voorbeeld", "1")
+    );
+    assert_eq!(
+        last_day(&grant(&service, 2025)),
+        Some(&date("2026-07-06")),
+        "for 2025 the subsidy law still sets twenty-six weeks"
+    );
+}
+
+/// A municipal policy rule that fills the term both for the grant and in
+/// general. Under the hook on the grant the host's scope names no
+/// municipality, so the filling for the host does not apply; the same
+/// article still fills the term in general, checked against the hook
+/// article's parameters, which do.
+#[test]
+fn an_article_that_fills_for_the_host_and_in_general_falls_back_to_the_general_filling() {
+    let policy = r#"
+$id: gemeentelijk_beleid_voorbeeld
+regulatory_layer: BELEIDSREGEL
+publication_date: '2025-01-01'
+gemeente_code: GM9999
+articles:
+  - number: '1'
+    text: Het college beslist binnen drie weken na ontvangst.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host:
+            law: subsidiewet_voorbeeld
+            article: '1'
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: wettelijke_beslistermijn
+            type: date
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 3
+"#;
+    let general = general_law(None).replacen(
+        "          - name: datum_ontvangst\n            type: date\n            required: true\n        output:",
+        "          - name: datum_ontvangst\n            type: date\n            required: true\n          - name: gemeente_code\n            type: string\n            required: false\n        output:",
+        1,
+    );
+    assert!(general.contains("name: gemeente_code"));
+    let decisions = subsidy_decisions_only();
+    let mut service = LawExecutionService::new();
+    service.load_law(&general).unwrap();
+    service.load_law(&decisions).unwrap();
+    service.load_law(policy).unwrap();
+
+    // The grant hands its hooks no gemeente_code; the caller does give it,
+    // and the hook article declares it.
+    let mut application = subsidy_application(2026);
+    application.insert("gemeente_code".to_string(), Value::String("GM9999".into()));
+    let granted = service
+        .evaluate_law_output(
+            "subsidiewet_voorbeeld",
+            "subsidie_verleend",
+            application,
+            "2026-01-05",
+        )
+        .unwrap();
+    assert_eq!(
+        last_day(&granted),
+        Some(&date("2026-01-26")),
+        "three weeks, from the general filling of the same article"
+    );
+}
+
+/// The group of a filling is read from the version in force on the date,
+/// not from the newest version the index is built from. An older version
+/// fills the term without a host; the newest names the grant as its host.
+#[test]
+fn the_host_is_read_from_the_version_in_force() {
+    let newest = r#"
+$id: termijnregeling_voorbeeld
+regulatory_layer: MINISTERIELE_REGELING
+publication_date: '2027-01-01'
+valid_from: '2027-01-01'
+articles:
+  - number: '1'
+    text: Op een aanvraag tot verlening wordt binnen dertig weken beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host:
+            law: subsidiewet_voorbeeld
+            article: '1'
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: wettelijke_beslistermijn
+            type: date
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 30
+"#;
+    let older = newest
+        .replace(
+            "publication_date: '2027-01-01'",
+            "publication_date: '2025-01-01'",
+        )
+        .replace("valid_from: '2027-01-01'", "valid_from: '2025-01-01'")
+        .replace(
+            "          host:\n            law: subsidiewet_voorbeeld\n            article: '1'\n",
+            "",
+        );
+    let decisions = subsidy_decisions_only();
+    let service = service(None, &[&decisions, OTHER_LAW, &older, newest]);
+
+    let result = permit(&service);
+    assert_eq!(
+        last_day(&result),
+        Some(&date("2026-08-03")),
+        "in 2026 the regulation fills the term without a host, also for a permit"
+    );
+    assert_eq!(filled_by(&result), by("termijnregeling_voorbeeld", "1"));
+}
+
+/// A municipal policy rule of the host's own municipality that names the
+/// host fills the term, although the host hands its hooks no
+/// `gemeente_code`: a regulation of the host's territory applies to the case
+/// the host decides, as the host itself does. A policy rule of another
+/// municipality does not.
+#[test]
+fn a_policy_of_the_hosts_territory_fills_without_a_matching_scope_parameter() {
+    let host = r#"
+$id: subsidieverordening_gemeente_voorbeeld
+regulatory_layer: GEMEENTELIJKE_VERORDENING
+publication_date: '2025-01-01'
+gemeente_code: GM9999
+articles:
+  - number: '1'
+    text: Het college verleent op aanvraag een subsidie.
+    machine_readable:
+      execution:
+        produces:
+          legal_character: BESCHIKKING
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: subsidie_verleend
+            type: boolean
+        actions:
+          - output: subsidie_verleend
+            value: true
+"#;
+    let policy = |code: &str| {
+        format!(
+            r#"
+$id: beleid_{code}_voorbeeld
+regulatory_layer: BELEIDSREGEL
+publication_date: '2025-01-01'
+gemeente_code: {code}
+articles:
+  - number: '1'
+    text: Het college beslist binnen zes weken na ontvangst.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host:
+            law: subsidieverordening_gemeente_voorbeeld
+            article: '1'
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: wettelijke_beslistermijn
+            type: date
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 6
+"#
+        )
+    };
+    let run = |code: &str| {
+        let service = service(None, &[host, &policy(code)]);
+        service
+            .evaluate_law_output(
+                "subsidieverordening_gemeente_voorbeeld",
+                "subsidie_verleend",
+                received(),
+                "2026-01-05",
+            )
+            .unwrap()
+    };
+
+    assert_eq!(
+        last_day(&run("GM9999")),
+        Some(&date("2026-02-16")),
+        "six weeks, from the policy rule of the host's municipality"
+    );
+    assert_eq!(
+        last_day(&run("GM0001")),
+        Some(&date("2026-03-02")),
+        "eight weeks: the policy rule of another municipality does not apply"
+    );
+}
+
+/// A version in force that declares nothing for the term stays a candidate
+/// through the index, in the group of the newest version, as before RFC-058.
+/// A version in force that fills the term only for another host is no
+/// candidate here, and the receipt says why.
+#[test]
+fn a_version_in_force_without_the_declaration_follows_the_index() {
+    let newest = r#"
+$id: termijnregeling_index_voorbeeld
+regulatory_layer: MINISTERIELE_REGELING
+publication_date: '2027-01-01'
+valid_from: '2027-01-01'
+articles:
+  - number: '1'
+    text: Op een aanvraag tot verlening wordt binnen dertig weken beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: wettelijke_beslistermijn
+            type: date
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 30
+"#;
+    let dated = |implements: &str| {
+        newest
+            .replace("publication_date: '2027-01-01'", "publication_date: '2025-01-01'")
+            .replace("valid_from: '2027-01-01'", "valid_from: '2025-01-01'")
+            .replace(
+                "      implements:\n        - law: algemene_wet_voorbeeld\n          article: '4:13'\n          open_term: wettelijke_beslistermijn\n",
+                implements,
+            )
+    };
+    let decisions = subsidy_decisions_only();
+
+    let silent_older = dated("");
+    let first = service(None, &[&decisions, OTHER_LAW, &silent_older, newest]);
+    assert_eq!(
+        filled_by(&permit(&first)),
+        by("termijnregeling_index_voorbeeld", "1"),
+        "the older version declares nothing and fills the term through the index"
+    );
+
+    let other_host_older = dated(
+        "      implements:\n        - law: algemene_wet_voorbeeld\n          article: '4:13'\n          open_term: wettelijke_beslistermijn\n          host:\n            law: subsidiewet_voorbeeld\n            article: '3'\n",
+    );
+    let second = service(None, &[&decisions, OTHER_LAW, &other_host_older, newest]);
+    let result = permit(&second);
+    assert_eq!(last_day(&result), Some(&date("2026-03-02")));
+    assert!(
+        result
+            .declarations_not_in_force
+            .iter()
+            .any(|note| note.law_id == "termijnregeling_index_voorbeeld"),
+        "the receipt says the version in force fills it for another host only, got {:?}",
+        result.declarations_not_in_force
+    );
+}
+
 /// Two fillings that both name the host are ranked as any two candidates
 /// are: lex superior, so the law goes before the policy rule. Without the
 /// law's own filling, the policy rule fills the term with the subsidy year.

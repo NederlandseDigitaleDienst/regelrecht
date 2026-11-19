@@ -158,7 +158,7 @@ implements:
       article: '1'
 ```
 
-A filling without a host fills the term wherever the article runs, under every hook and outside one, with the parameters of the hook article itself. A parameter only the host has is not there, and the implementation fails on it rather than getting a value. Under a hook, a filling that names the host goes before one that names none; within each group the [conflict rules](#conflict-resolution) apply. While the hook runs, a hook that reads another hook's output on the same decision gets that decision's fillings too. [RFC-058](/rfcs/rfc-058) has the reasoning and a worked example.
+A filling without a host fills the term wherever the article runs, under every hook and outside one, with the parameters of the hook article itself. A parameter only the host has is not there: a required one makes the implementation fail, and an optional one is unknown. It never quietly gets the host's value. Under a hook, a filling that names the host goes before one that names none; within each group the [conflict rules](#conflict-resolution) apply. While the hook runs, a hook that reads another hook's output on the same decision gets that decision's fillings too. [RFC-058](/rfcs/rfc-058) has the reasoning and a worked example.
 
 ## Conflict resolution
 
