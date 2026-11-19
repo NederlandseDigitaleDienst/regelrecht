@@ -46,8 +46,10 @@ The portal refuses a register with an invalid or duplicate slug, a source on a p
 
 ### Two kinds of PoC
 
-- **`statisch`**: a Vue app built into this image with `POC_BASE=/<slug>/` and served from `/app/static/<slug>` with its own single-page fallback. A path whose last part has no extension gets the PoC's `index.html` with status 200, so a deep link into the PoC's own router survives a hard refresh; a missing file still answers 404. Today these are `frontend-poc-terugbetaalregimes/`, `frontend-poc-nieuwkomersbekostiging/` and `packages/poc-chronolexografie/frontend/`. The first two take their case corpus from `corpus-poc/`, chronolexografie from its own `packages/poc-chronolexografie/corpus/`. They run the engine as WASM in the browser.
+- **`statisch`**: a Vue app built into this image with `POC_BASE=/<slug>/` and served from `/app/static/<slug>` with its own single-page fallback. A path whose last part has no extension gets the PoC's `index.html` with status 200, so a deep link into the PoC's own router survives a hard refresh; a missing file still answers 404. Today these are `frontend-poc-terugbetaalregimes/`, `frontend-poc-nieuwkomersbekostiging/`, `frontend-poc-regels-op-een-plek/` and `packages/poc-chronolexografie/frontend/`. The first two take their case corpus from `corpus-poc/`, chronolexografie from its own `packages/poc-chronolexografie/corpus/`. Regels-op-een-plek has no corpus in this repository: its rulework, map and precomputed outcomes come from a source at run time (see below). They run the engine as WASM in the browser.
 - **`proxy`**: a PoC that runs as its own component, not published on the web, and is forwarded to in-cluster at `http://{deployment}-{upstream}:8000`. The deployment name comes from the pod's hostname, so a preview reaches its own upstream and not production's. Outside the cluster, `POC_UPSTREAM_<SLUG>` sets the address. The path is forwarded unchanged and cookies pass both ways, because the proxied app keeps its own session.
+
+A source can hold all of a PoC's data, not only extra cases. Regels-op-een-plek keeps its rulework, map layers and precomputed outcomes in a private repository and loads them as the source `spoorzone` before it mounts (`src/bron.js`). The portal passes on YAML files only, so a JSON or GeoJSON file in that source carries `.yaml` after its name; JSON is valid YAML, and the app reads it as JSON. The portal serves the whole source as one uncached response, about 34 MB for this PoC. Without the token the app shows why its data is missing. Its tests skip the comparison with the precomputed outcomes unless `POC_BRON_SPOORZONE` points at a local copy.
 
 The proxied PoC is napp, in `packages/poc-napp/` with its frontend in `frontend-poc-napp/`. It runs the subsidy process from a bill as a chain of requests, decisions, payment orders and objections, on an Axum backend with SQLite and a reconstruction of the bill as its law. It has its own README.
 
@@ -234,7 +236,7 @@ just poc
 
 This builds the engine and chronolexografie to WASM, the design-system bundle and the static PoCs into `.poc-static/`, then starts the portal at `http://localhost:8611`. The recipe sets the local cookie key and the password `demo` for every PoC; both are dev-only values written in the Justfile, and production reads its own from ZAD.
 
-`just poc-build`, the step behind it, names the static PoCs one by one (`terugbetaalregimes`, `nieuwkomersbekostiging` and `chronolexografie`), as does `packages/poc-portal/Dockerfile`. Neither is derived from the register, so a new static PoC has to be added to both by hand.
+`just poc-build`, the step behind it, names the static PoCs one by one (`terugbetaalregimes`, `nieuwkomersbekostiging`, `regels-op-een-plek` and `chronolexografie`), as does `packages/poc-portal/Dockerfile`. Neither is derived from the register, so a new static PoC has to be added to both by hand.
 
 `just poc-chronolexografie` builds chronolexografie as WASM and starts its own Vite dev server, without the portal.
 
