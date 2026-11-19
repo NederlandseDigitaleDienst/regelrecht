@@ -36,33 +36,6 @@ articles:
         actions:
           - {output: meldnummer_toegekend, value: true}
   - number: '3'
-    text: Voor elke beschikking wordt de voorbereiding vastgelegd.
-    machine_readable:
-      hooks:
-        - hook_point: pre_actions
-          applies_to: {legal_character: BESCHIKKING}
-      execution:
-        output:
-          - {name: datum_voorbereid, type: date}
-        actions:
-          - {output: datum_voorbereid, value: '2026-01-01'}
-  - number: '4'
-    text: Na de voorbereiding wordt binnen zes weken beslist.
-    machine_readable:
-      implements:
-        - law: algemene_wet_voorbeeld
-          article: '4:13'
-          open_term: wettelijke_beslistermijn
-          host: {law: subsidiewet_voorbeeld, article: '1'}
-      execution:
-        parameters:
-          - {name: datum_voorbereid, type: date, required: true}
-        output:
-          - {name: wettelijke_beslistermijn, type: date}
-        actions:
-          - output: wettelijke_beslistermijn
-            value: {operation: DATE_ADD, date: $datum_voorbereid, weeks: 6}
-  - number: '5'
     text: Na de vaststelling wordt binnen zeven jaar beslist.
     machine_readable:
       implements:

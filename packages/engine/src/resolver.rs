@@ -5445,10 +5445,13 @@ articles:
             include_str!("../tests/fixtures/hook_coupling/invulling_uitvoer_voorbeeld.yaml");
         // A law of hooks that couple to their hosts by name: parameters under
         // another spelling of what a host offers (also on a decision of its
-        // own law), of what a pre_actions hook on it outputs, and of what a
-        // post_actions hook outputs, which no other hook sees; an input that
-        // looks for the host in its own law; and two fillings.
+        // own law), of what a pre_actions hook of a third law outputs, and of
+        // what a post_actions hook outputs, which no other hook sees; an input
+        // that looks for the host in its own law; and a filling. The third
+        // law has that pre_actions hook and a filling that reads its output.
         let hooks_by_name = include_str!("../tests/fixtures/hook_coupling/meldwet_voorbeeld.yaml");
+        let pre_hook =
+            include_str!("../tests/fixtures/hook_coupling/voorbereidingswet_voorbeeld.yaml");
         let laws = [
             general.as_str(),
             include_str!("../tests/fixtures/hook_host/subsidiewet_voorbeeld.yaml"),
@@ -5457,19 +5460,32 @@ articles:
             include_str!("../tests/fixtures/hook_host/vergunningwet_voorbeeld.yaml"),
             reads_output,
             hooks_by_name,
+            pre_hook,
         ];
         let mut whole = None;
         for order in [
-            [0, 1, 2, 3, 4, 5, 6],
-            [6, 5, 4, 3, 2, 1, 0],
-            [1, 5, 3, 0, 2, 4, 6],
-            [0, 2, 3, 4, 5, 6, 1],
+            [0, 1, 2, 3, 4, 5, 6, 7],
+            [7, 6, 5, 4, 3, 2, 1, 0],
+            [1, 5, 3, 0, 2, 4, 6, 7],
+            [0, 2, 3, 4, 5, 6, 7, 1],
         ] {
             let mut resolver = RuleResolver::new();
             let mut on_load = BTreeSet::new();
             for i in order {
                 let id = resolver.load_from_yaml(laws[i]).unwrap();
-                on_load.extend(resolver.hook_coupling_warnings_touching(Some(&id)));
+                let warnings = resolver.hook_coupling_warnings_touching(Some(&id));
+                // Only a law with a pre_actions hook is checked against the
+                // whole set; any other gives only the warnings it takes part
+                // in, as the hook, the host or the filling.
+                for w in warnings.iter().filter(|_| {
+                    id != "voorbereidingswet_voorbeeld" && id != "algemene_wet_voorbeeld"
+                }) {
+                    let takes_part = w.hook_law == id
+                        || w.host.as_ref().is_some_and(|(law, _)| *law == id)
+                        || w.message.contains(&format!("law '{id}'"));
+                    assert!(takes_part, "loading {id} gives {w:?}");
+                }
+                on_load.extend(warnings);
             }
             let set: BTreeSet<_> = resolver.hook_coupling_warnings().into_iter().collect();
             assert_eq!(on_load, set, "order {order:?}");

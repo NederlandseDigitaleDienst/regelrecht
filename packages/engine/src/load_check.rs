@@ -2016,50 +2016,39 @@ impl<'l> CouplingSet<'l> {
 }
 
 /// [`hook_coupling_warnings`], with `touching` only those a law that takes
-/// part in is that one: the hook, the host, the filling, or a `pre_actions`
-/// hook whose outputs a host hands on. Together, the warnings for each law as
-/// it loads hold those of the whole set. They can hold more: a warning
-/// already given stays given when a law loaded later resolves it, such as a
-/// `pre_actions` hook that supplies the missing value.
+/// part in is that one: the hook, the host or the filling. A law with a
+/// `pre_actions` hook takes part in every coupling on a host it fires on,
+/// since a host hands that hook's outputs on; loading one checks the whole
+/// set again, which is rare. Together, the warnings for each law as it loads
+/// hold those of the whole set. They can hold more: a warning already given
+/// stays given when a law loaded later resolves it, such as a `pre_actions`
+/// hook that supplies the missing value.
 pub(crate) fn hook_coupling_warnings_touching(
     laws: &[&ArticleBasedLaw],
     touching: Option<&str>,
 ) -> Vec<HookCouplingWarning> {
     let set = CouplingSet::new(laws);
+    let every = touching.is_none_or(|id| {
+        set.hooks.iter().any(|h| {
+            h.law.id == id
+                && h.decls
+                    .iter()
+                    .any(|d| d.hook_point == HookPoint::PreActions)
+        })
+    });
+    let touching = touching.filter(|_| !every);
     let mut warnings = Vec::new();
     let all: Vec<(&ArticleBasedLaw, &Article)> = laws
         .iter()
         .flat_map(|law| law.articles.iter().map(move |a| (*law, a)))
         .collect();
     // A hook of another law than the one loaded can only gain a host in the
-    // loaded law, or lose a lookalike on a host a `pre_actions` hook of the
-    // loaded law fires on, so only those articles are looked at.
-    let touched: Vec<(&ArticleBasedLaw, &Article)> = match touching {
-        None => Vec::new(),
-        Some(id) => {
-            let pre: Vec<&HookArticle<'_>> = set
-                .hooks
-                .iter()
-                .filter(|h| h.law.id == id)
-                .filter(|h| {
-                    h.decls
-                        .iter()
-                        .any(|d| d.hook_point == HookPoint::PreActions)
-                })
-                .collect();
-            all.iter()
-                .copied()
-                .filter(|(law, a)| {
-                    law.id == id
-                        || pre.iter().any(|h| {
-                            h.decls.iter().any(|d| {
-                                d.hook_point == HookPoint::PreActions && hook_applies_to(d, law, a)
-                            })
-                        })
-                })
-                .collect()
-        }
-    };
+    // loaded law, so only its articles are looked at.
+    let touched: Vec<(&ArticleBasedLaw, &Article)> = all
+        .iter()
+        .copied()
+        .filter(|(law, _)| touching.is_some_and(|id| law.id == id))
+        .collect();
     for hook in &set.hooks {
         let own = touching.is_none_or(|id| id == hook.law.id);
         let hosts = set.hosts_of(hook, if own { &all } else { &touched });
@@ -2071,11 +2060,7 @@ pub(crate) fn hook_coupling_warnings_touching(
         }
         hook_host_warnings(&set, hook, touching, &mut warnings);
     }
-    let pre_hosts: Vec<(&str, &str)> = touched
-        .iter()
-        .map(|(law, a)| (law.id.as_str(), a.number.as_str()))
-        .collect();
-    filling_warnings(&set, touching, &pre_hosts, &mut warnings);
+    filling_warnings(&set, touching, &mut warnings);
     warnings
 }
 
@@ -2245,7 +2230,6 @@ fn hook_host_warnings(
 fn filling_warnings(
     set: &CouplingSet<'_>,
     touching: Option<&str>,
-    pre_hosts: &[(&str, &str)],
     warnings: &mut Vec<HookCouplingWarning>,
 ) {
     for law in set.laws {
@@ -2254,13 +2238,7 @@ fn filling_warnings(
                 let Some(named) = &decl.host else {
                     continue;
                 };
-                let takes_part = |id: &str| {
-                    id == law.id
-                        || id == decl.law
-                        || id == named.law
-                        || pre_hosts.contains(&(named.law.as_str(), named.article.as_str()))
-                };
-                if !touching.is_none_or(takes_part) {
+                if !touching.is_none_or(|id| id == law.id || id == decl.law || id == named.law) {
                     continue;
                 }
                 let (Some(hook_law), Some(host_law)) = (
@@ -4226,9 +4204,15 @@ articles:
         ] {
             assert_eq!(types_compatible(a, b), compatible, "{a:?} {b:?}");
         }
-        for (a, b, distance) in [("kitten", "sitting", 3), ("abcd", "ab", 2), ("", "ab", 2)] {
+        for (a, b, distance) in [
+            ("kitten", "sitting", 3),
+            ("abcd", "ab", 2),
+            ("abc", "", 3),
+            ("", "ab", 2),
+        ] {
             assert_eq!(edit_distance(a, b), distance, "{a} {b}");
         }
+        assert_eq!(without_numbers("kind_10_leeftijd_2"), "kind_#_leeftijd_#");
         let law = <ArticleBasedLaw as crate::article::LawLoad>::from_yaml_str(
             r#"
 $id: fictieve_indieningswet
