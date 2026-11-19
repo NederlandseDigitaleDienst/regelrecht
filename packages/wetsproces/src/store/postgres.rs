@@ -6,8 +6,8 @@
 //! make three tables:
 //!
 //! - `grams`: one row per record, keyed by cell and sequence number (1, 2,
-//!   ...), with the record as JSON, the [`crate::store::FORMAT_VERSION`] it was written in
-//!   and when it was stored. A trigger refuses every `UPDATE`, `DELETE` and
+//!   ...), with the record as JSON, the [`crate::store::FORMAT_VERSION`] it was written in,
+//!   when it was stored and who asked for it (`recorded_by`, migration 0002). A trigger refuses every `UPDATE`, `DELETE` and
 //!   `TRUNCATE`: a chronicle only grows;
 //! - `heads`: per cell its head, the number of records in it. A commit locks
 //!   the head rows of its cells, so commits on one cell take turns;
@@ -33,7 +33,7 @@ use sqlx::{PgPool, Postgres, Row, Transaction};
 
 use crate::store::{
     Appended, CellAppend, ChronicleStore, Commit, FORMAT_VERSION, IdempotencyKey, Keyed, Receipt,
-    StoreError, StoredChronicle,
+    StoreError, StoredChronicle, StoredGram,
 };
 
 /// The schema the store keeps its tables in.
@@ -116,8 +116,9 @@ impl PostgresStore {
         self.pool.close().await;
     }
 
-    #[cfg(test)]
-    fn pool(&self) -> &PgPool {
+    /// The connections, with [`SCHEMA`] first in their search path; the
+    /// session store of the login shares them.
+    pub fn pool(&self) -> &PgPool {
         &self.pool
     }
 }
@@ -160,7 +161,7 @@ impl ChronicleStore for PostgresStore {
     async fn load_all(&self, cells: &[&str]) -> Result<Vec<StoredChronicle>, StoreError> {
         // One statement, so one snapshot: every cell as it stood at once.
         let rows = sqlx::query(
-            "SELECT cell, seq, format_version, gram FROM wetsproces.grams \
+            "SELECT cell, seq, format_version, gram, recorded_by FROM wetsproces.grams \
              WHERE cell = ANY($1) ORDER BY cell, seq",
         )
         .bind(cells)
@@ -184,7 +185,10 @@ impl ChronicleStore for PostgresStore {
                     chronicle.head()
                 )));
             }
-            chronicle.grams.push(gram);
+            chronicle.grams.push(StoredGram {
+                gram,
+                recorded_by: column(row, "recorded_by")?,
+            });
         }
         Ok(cells
             .iter()
@@ -217,7 +221,13 @@ impl ChronicleStore for PostgresStore {
         }
         let heads = lock_heads(&mut tx, &commit.appends).await?;
         check_heads(&heads, &commit.appends)?;
-        write_appends(&mut tx, heads, commit.appends).await?;
+        write_appends(
+            &mut tx,
+            heads,
+            commit.appends,
+            commit.recorded_by.as_deref(),
+        )
+        .await?;
         tx.commit().await.map_err(backend("committing"))?;
         Ok(Appended::Committed)
     }
@@ -332,11 +342,13 @@ fn check_heads(heads: &BTreeMap<String, u64>, appends: &[CellAppend]) -> Result<
     Ok(())
 }
 
-/// Append every record after its cell's head and move the heads.
+/// Append every record after its cell's head, as recorded by `recorded_by`,
+/// and move the heads.
 async fn write_appends(
     tx: &mut Transaction<'_, Postgres>,
     mut heads: BTreeMap<String, u64>,
     appends: Vec<CellAppend>,
+    recorded_by: Option<&str>,
 ) -> Result<(), StoreError> {
     let mut moved = Vec::new();
     for append in appends {
@@ -344,14 +356,16 @@ async fn write_appends(
         for gram in &append.grams {
             *head += 1;
             sqlx::query(
-                "INSERT INTO wetsproces.grams (cell, seq, gram_id, format_version, gram) \
-                 VALUES ($1, $2, $3, $4, $5)",
+                "INSERT INTO wetsproces.grams \
+                 (cell, seq, gram_id, format_version, gram, recorded_by) \
+                 VALUES ($1, $2, $3, $4, $5, $6)",
             )
             .bind(&append.cell)
             .bind(to_db(*head)?)
             .bind(&gram.id)
             .bind(FORMAT_VERSION)
             .bind(Json(gram))
+            .bind(recorded_by)
             .execute(&mut **tx)
             .await
             .map_err(|e| {
@@ -489,7 +503,7 @@ mod tests {
         let again = PostgresStore::connect(f.database.url()).await.unwrap();
         let a = again.load("a").await.unwrap();
         assert_eq!(
-            a.grams,
+            a.into_grams(),
             vec![contract::gram("1", "a"), contract::gram("2", "a")]
         );
         assert!(again.receipt(&key("k1")).await.unwrap().is_some());
@@ -540,7 +554,11 @@ mod tests {
         let service = start(f.store.clone()).await;
         let before = service.chronicle("gemeente_wilgendaal").await.unwrap();
         service
-            .perform(Some(key("aanvraag-1")), crate::service::tests::submission())
+            .perform(
+                Some(key("aanvraag-1")),
+                crate::service::tests::submission(),
+                crate::service::tests::ACTOR,
+            )
             .await
             .unwrap();
         let after = service.chronicle("gemeente_wilgendaal").await.unwrap();

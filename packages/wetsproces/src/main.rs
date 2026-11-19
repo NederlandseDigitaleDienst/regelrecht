@@ -9,6 +9,7 @@ use tower_http::trace::TraceLayer;
 #[tokio::main]
 async fn main() -> ExitCode {
     regelrecht_shared::telemetry::init_subscriber("info");
+    regelrecht_auth::install_crypto_provider();
     match run().await {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {

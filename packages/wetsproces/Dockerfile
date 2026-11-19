@@ -38,7 +38,9 @@ COPY packages/Cargo.lock packages/Cargo.toml ./
 # hoeft te vinden. De grep-assertie valt om als de members-array ooit op één
 # regel wordt gezet; dan zou de sed er stilletjes langs lopen.
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"auth"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+# The login: OIDC against Keycloak and the session keys (src/login.rs).
+COPY packages/auth/ auth/
 COPY packages/cel/ cel/
 COPY packages/corpus/ corpus/
 # regelrecht-corpus hangt optioneel aan github; wetsproces zet die feature
@@ -65,6 +67,7 @@ FROM deps AS builder
 # `cargo chef cook` schrijft de workspace-Cargo.toml zonder
 # `[workspace.lints]`, wat members met `[lints] workspace = true` breekt.
 COPY --from=planner /build/Cargo.toml ./Cargo.toml
+COPY packages/auth/ auth/
 COPY packages/cel/ cel/
 COPY packages/corpus/ corpus/
 COPY packages/github/ github/
@@ -90,6 +93,8 @@ COPY --from=builder /build/target/release/regelrecht-wetsproces /usr/local/bin/
 # alleen wat het manifest noemt.
 COPY packages/wetsproces/bron.yaml /app/packages/wetsproces/bron.yaml
 COPY packages/wetsproces/casussen/ /app/packages/wetsproces/casussen/
+# The UI spec says which field of the application the login fills.
+COPY packages/wetsproces/ui_spec.yaml /app/packages/wetsproces/ui_spec.yaml
 COPY packages/poc-chronolexografie/corpus/ /app/packages/poc-chronolexografie/corpus/
 
 WORKDIR /app
@@ -98,6 +103,8 @@ WORKDIR /app
 # de server te starten. WETSPROCES_STORE en DATABASE_URL (of
 # DATABASE_SERVER_FULL) kiezen waar de kroniek staat; ook die zet de
 # deployment.
+# The login (OIDC_*, BASE_URL, WETSPROCES_SUBJECT_CLAIM) is set by the
+# deployment as well; stable mode refuses to start without it.
 ENV WETSPROCES_MANIFEST=/app/packages/wetsproces/bron.yaml \
     WETSPROCES_PORT=8000
 USER app

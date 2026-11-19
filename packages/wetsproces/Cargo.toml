@@ -27,6 +27,9 @@ regelrecht-corpus = { path = "../corpus", default-features = false }
 # Telemetry, the Dutch calendar date for the real clock, and the database
 # URL and locked migrations the pipeline uses too.
 regelrecht-shared = { path = "../shared", features = ["telemetry", "dates", "postgres"] }
+# The login through Keycloak (OIDC with PKCE) and the session keys it
+# writes, shared with the editor and the admin (src/login.rs).
+regelrecht-auth = { path = "../auth" }
 async-trait.workspace = true
 axum.workspace = true
 chrono.workspace = true
@@ -39,12 +42,22 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread", "sync"] }
 tower-http = { workspace = true, features = ["trace"] }
 tracing.workspace = true
+# The sessions of the login: in memory with the store in memory, in the
+# schema `wetsproces` with the store in Postgres.
+tower-sessions.workspace = true
+tower-sessions-memory-store.workspace = true
+tower-sessions-sqlx-store.workspace = true
+# The HTTP client the OIDC token exchange runs on; the version and features
+# regelrecht-auth uses.
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots-no-provider", "json"] }
 
 [dev-dependencies]
 # `join_all` for the concurrent commits in the store contract tests.
 futures = "0.3"
 # A Postgres database per test for the store contract tests.
 regelrecht-shared = { path = "../shared", features = ["test-utils"] }
+# An OIDC client without discovery, to build stable mode in a test.
+regelrecht-auth = { path = "../auth", features = ["test-utils"] }
 http-body-util.workspace = true
 tower.workspace = true
 

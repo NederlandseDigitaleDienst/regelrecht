@@ -8,12 +8,19 @@
 //! idempotent under its key, when it has one, and runs again on fresh
 //! chronicles when another request got in first ([`StoreError::Conflict`]):
 //! [`MAX_ATTEMPTS`] runs in all. A step that only reads records nothing.
+//!
+//! Who may run which step is the API's to decide ([`crate::access`]); the
+//! service only carries who asked into the store, beside the records
+//! ([`Commit::recorded_by`]), and answers the questions the API asks to
+//! decide: which cell holds a record ([`Service::holder`]) and which
+//! records are about one person ([`Service::dossier`]).
 
 use std::sync::Arc;
 
 use chrono::NaiveDate;
 use regelrecht_cel::Gram;
 use regelrecht_poc_chronolexografie::kern::{self, Cellen, Corpus};
+use regelrecht_poc_chronolexografie::ui_spec::Systeemvulling;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
@@ -160,6 +167,13 @@ pub enum ServiceError {
     /// What the service cannot blame on the request.
     #[error("{0}")]
     Internal(String),
+    /// The case names no single field that the login fills, so the server
+    /// cannot tell whose application a submission is.
+    #[error(
+        "the case names {0} fields the login fills (inloggen.veld, or a UI spec field with \
+         `fill: {{by: system}}` and no source); the server needs exactly one"
+    )]
+    LoginField(usize),
 }
 
 impl From<regelrecht_cel::Error> for ServiceError {
@@ -203,8 +217,51 @@ pub struct Service {
     /// The cells of the case by their id, the case's own first, in the order
     /// `Corpus::herstellen` takes their chronicles.
     cells: Vec<String>,
+    /// The field of the application that identifies the applicant, filled
+    /// by the login ([`login_field`]).
+    login_field: String,
     store: Arc<dyn ChronicleStore>,
     clock: Arc<dyn Clock>,
+}
+
+/// The field of the case's application that the login fills: the case's
+/// own login field (`inloggen.veld`), or else the one field its UI spec
+/// has the system fill from the login (`fill: {by: system}` without a
+/// source).
+///
+/// # Errors
+///
+/// [`ServiceError::LoginField`] when the UI spec names none or several.
+fn login_field(corpus: &Corpus) -> Result<String, ServiceError> {
+    if let Some(login) = &corpus.casus.inloggen {
+        return Ok(login.veld.clone());
+    }
+    let mut fields = corpus
+        .ui_spec
+        .systeem
+        .iter()
+        .filter(|(_, fill)| matches!(fill, Systeemvulling::Inloggen))
+        .map(|(field, _)| field);
+    match (fields.next(), fields.next()) {
+        (Some(field), None) => Ok(field.clone()),
+        (None, _) => Err(ServiceError::LoginField(0)),
+        (Some(_), Some(_)) => Err(ServiceError::LoginField(2 + fields.count())),
+    }
+}
+
+/// The records of every cell that are about one person, as
+/// [`Service::dossier`] gives them.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Dossier {
+    /// Per cell in the order of the case, its records about the person.
+    pub grams: Vec<Gram>,
+}
+
+impl Dossier {
+    /// Whether the record `id` is in it.
+    pub fn holds(&self, id: &str) -> bool {
+        self.grams.iter().any(|g| g.id == id)
+    }
 }
 
 impl Service {
@@ -221,9 +278,11 @@ impl Service {
         clock: Arc<dyn Clock>,
     ) -> Result<Self, ServiceError> {
         let cells = corpus.cellen().map(str::to_string).collect();
+        let login_field = login_field(&corpus)?;
         let service = Self {
             corpus: Arc::new(corpus),
             cells,
+            login_field,
             store,
             clock,
         };
@@ -256,12 +315,24 @@ impl Service {
         let commit = Commit {
             appends,
             keyed: None,
+            recorded_by: None,
         };
         match self.store.append(commit).await {
             // Another instance began first: what it recorded counts.
             Ok(_) | Err(StoreError::Conflict { .. }) => Ok(()),
             Err(e) => Err(e.into()),
         }
+    }
+
+    /// The field of the case's application that identifies the applicant.
+    pub fn login_field(&self) -> &str {
+        &self.login_field
+    }
+
+    /// The article of the case's application, which the login field
+    /// belongs to.
+    pub fn application_article(&self) -> &str {
+        &self.corpus.casus.artikel
     }
 
     /// Today, by the clock of this service.
@@ -311,13 +382,53 @@ impl Service {
             "cel": cell,
             "cel_naam": self.corpus.cel_naam(cell),
             "kop": stored.head(),
-            "grammen": stored.grams,
+            "grammen": stored.into_grams(),
         }))
     }
 
-    /// Run `step` and commit what it recorded. Under a `key` used before for
-    /// the same request it answers as it did then and records nothing;
-    /// without a key every call records.
+    /// The records of every cell about the person `subject` identifies in
+    /// the login field ([`crate::dossier`]), derived from the chronicles as
+    /// they are now.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails.
+    pub async fn dossier(&self, subject: &str) -> Result<Dossier, ServiceError> {
+        let read = self.read().await?;
+        let all: Vec<&Gram> = read
+            .chronicles
+            .iter()
+            .flat_map(|c| c.grams.iter().map(|g| &g.gram))
+            .collect();
+        let ids = crate::dossier::ids(&all, &self.login_field, subject);
+        let grams = all
+            .into_iter()
+            .filter(|g| ids.contains(g.id.as_str()))
+            .cloned()
+            .collect();
+        Ok(Dossier { grams })
+    }
+
+    /// The cell whose chronicle holds the record `id`, if one does.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails.
+    pub async fn holder(&self, id: &str) -> Result<Option<String>, ServiceError> {
+        let read = self.read().await?;
+        Ok(self
+            .cells
+            .iter()
+            .zip(&read.chronicles)
+            .find(|(_, c)| c.grams.iter().any(|g| g.gram.id == id))
+            .map(|(cell, _)| cell.clone()))
+    }
+
+    /// Run `step` for the account `actor` (its OIDC `sub`) and commit what
+    /// it recorded, with `actor` beside each record. Under a `key` the same
+    /// account used before for the same request it answers as it did then
+    /// and records nothing; under a key another account used, or used for
+    /// another request, it refuses. Without a key every call records.
     ///
     /// # Errors
     ///
@@ -329,9 +440,13 @@ impl Service {
         &self,
         key: Option<IdempotencyKey>,
         step: Step,
+        actor: &str,
     ) -> Result<Value, ServiceError> {
-        let request = serde_json::to_value(&step)
+        // Who asked is part of the request a receipt keeps, so a key replays
+        // only for the account that used it.
+        let step_value = serde_json::to_value(&step)
             .map_err(|e| ServiceError::Internal(format!("the request does not serialize: {e}")))?;
+        let request = json!({ "door": actor, "verzoek": step_value });
         if holds_nul(&request) {
             // PostgreSQL's jsonb cannot hold U+0000; refused for every store
             // alike, so the store in memory does not accept what Postgres
@@ -357,6 +472,7 @@ impl Service {
                         response: ran.response.clone(),
                     },
                 }),
+                recorded_by: Some(actor.to_string()),
             };
             match self.store.append(commit).await {
                 Ok(Appended::Committed) => return Ok(ran.response),
@@ -387,7 +503,7 @@ impl Service {
             let before: Vec<Vec<String>> = read
                 .chronicles
                 .iter()
-                .map(|c| c.grams.iter().map(|g| g.id.clone()).collect())
+                .map(|c| c.grams.iter().map(|g| g.gram.id.clone()).collect())
                 .collect();
             let mut cellen = restore(&corpus, read)?;
             let response = step.apply(&corpus, &mut cellen, today)?;
@@ -414,7 +530,12 @@ impl Service {
 
 /// The cells of the case with the chronicles `read` holds.
 fn restore(corpus: &Corpus, read: Read) -> Result<Cellen, ServiceError> {
-    Ok(corpus.herstellen(read.chronicles.into_iter().map(|c| c.grams).collect())?)
+    Ok(corpus.herstellen(
+        read.chronicles
+            .into_iter()
+            .map(StoredChronicle::into_grams)
+            .collect(),
+    )?)
 }
 
 /// Per cell what the step appended after the records `before` held, as a
@@ -546,6 +667,9 @@ pub(crate) mod tests {
         (s, store)
     }
 
+    /// The made-up `sub` of the account the tests act as.
+    pub(crate) const ACTOR: &str = "00000000-0000-4000-8000-0000000000ac";
+
     pub(crate) fn submission() -> Step {
         Step::Submit(Submit {
             article: None,
@@ -567,7 +691,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn a_conflict_runs_the_step_again() {
         let (s, store) = service(2).await;
-        let gram = s.perform(None, submission()).await.unwrap();
+        let gram = s.perform(None, submission(), ACTOR).await.unwrap();
         assert_eq!(gram["kind"], json!("AANVRAAG"));
         assert_eq!(store.appends.load(Ordering::SeqCst), 3);
         assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 1);
@@ -576,7 +700,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn conflicts_without_end_give_up_and_record_nothing() {
         let (s, _) = service(MAX_ATTEMPTS).await;
-        let e = s.perform(None, submission()).await.unwrap_err();
+        let e = s.perform(None, submission(), ACTOR).await.unwrap_err();
         assert!(matches!(e, ServiceError::Busy), "{e}");
         assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 0);
     }
@@ -590,11 +714,51 @@ pub(crate) mod tests {
                 .fields
                 .insert("naam_aanvrager".into(), json!("A.\u{0}de Vries"));
         }
-        let e = s.perform(None, step).await.unwrap_err();
+        let e = s.perform(None, step, ACTOR).await.unwrap_err();
         assert!(matches!(e, ServiceError::Refused(_)), "{e}");
         assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 0);
         assert!(holds_nul(&json!({ "a\u{0}": 1 })));
         assert!(!holds_nul(&json!({ "a": ["b", 1, null] })));
+    }
+
+    #[tokio::test]
+    async fn a_step_is_recorded_as_made_by_its_account_and_a_key_replays_only_for_it() {
+        let (s, store) = service(0).await;
+        let key: IdempotencyKey = "k-1".parse().unwrap();
+        let first = s
+            .perform(Some(key.clone()), submission(), ACTOR)
+            .await
+            .unwrap();
+        let stored = store.inner.load("gemeente_wilgendaal").await.unwrap();
+        assert_eq!(stored.grams[0].recorded_by.as_deref(), Some(ACTOR));
+        let again = s
+            .perform(Some(key.clone()), submission(), ACTOR)
+            .await
+            .unwrap();
+        assert_eq!(again, first);
+        let e = s
+            .perform(Some(key), submission(), "someone-else")
+            .await
+            .unwrap_err();
+        assert!(matches!(e, ServiceError::KeyReused(_)), "{e}");
+        assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 1);
+    }
+
+    #[tokio::test]
+    async fn the_dossier_and_the_holder_of_a_record_come_from_the_chronicles() {
+        let (s, _) = service(0).await;
+        assert_eq!(s.login_field(), "bsn_aanvrager");
+        let gram = s.perform(None, submission(), ACTOR).await.unwrap();
+        let id = gram["id"].as_str().unwrap();
+        let mine = s.dossier("999990020").await.unwrap();
+        assert!(mine.holds(id));
+        assert_eq!(mine.grams.len(), 1);
+        assert!(s.dossier("999990021").await.unwrap().grams.is_empty());
+        assert_eq!(
+            s.holder(id).await.unwrap().as_deref(),
+            Some("gemeente_wilgendaal")
+        );
+        assert_eq!(s.holder("no-such-record").await.unwrap(), None);
     }
 
     #[test]

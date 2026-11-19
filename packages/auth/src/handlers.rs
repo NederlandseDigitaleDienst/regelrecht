@@ -34,6 +34,11 @@ pub const SESSION_KEY_EMAIL_VERIFIED: &str = "person_email_verified";
 pub const SESSION_KEY_NAME: &str = "person_name";
 pub const SESSION_KEY_ID_TOKEN: &str = "id_token_hint";
 pub const SESSION_KEY_ROLES: &str = "person_roles";
+/// The claims named in [`crate::OidcConfig::extra_claims`] that the token
+/// held, as a map from claim name to its JSON value. Written only when the
+/// configuration names extra claims, so a service that names none keeps
+/// the session it had. A claim the token lacks is absent from the map.
+pub const SESSION_KEY_CLAIMS: &str = "person_claims";
 /// OIDC refresh token, kept server-side so the refresh middleware can
 /// re-validate with the IdP (and pick up role/revocation changes) without the
 /// browser ever holding a token. Rotated in place when the IdP issues a new
@@ -322,6 +327,14 @@ pub async fn callback<S: OidcAppState>(
         tracing::warn!(role = %required_role, "user lacks required role");
         return Err(StatusCode::FORBIDDEN);
     }
+    let extra_claims = app_state
+        .oidc_config()
+        .map(|c| c.extra_claims.as_slice())
+        .unwrap_or_default();
+    let claims_to_keep = (!extra_claims.is_empty()).then(|| {
+        let access_token_secret = get_access_token_secret(&token_response);
+        extract_claims(&id_token_jwt, access_token_secret, extra_claims)
+    });
 
     let sub = claims.subject().as_str().to_string();
     let email = claims.email().map(|e| (**e).clone()).unwrap_or_default();
@@ -378,6 +391,16 @@ pub async fn callback<S: OidcAppState>(
             tracing::error!(error = %e, "failed to insert roles into session");
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+
+    if let Some(claims) = claims_to_keep {
+        session
+            .insert(SESSION_KEY_CLAIMS, claims)
+            .await
+            .map_err(|e| {
+                tracing::error!(error = %e, "failed to insert claims into session");
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
+    }
 
     // Persist refresh material so the refresh middleware can re-validate with
     // the IdP before the access token's lifetime elapses. The refresh token is
@@ -541,6 +564,36 @@ pub(crate) fn access_token_ttl_secs(expires_in: Option<std::time::Duration>) -> 
     expires_in.map(|d| d.as_secs() as i64).unwrap_or(300)
 }
 
+/// The payload of a JWT as JSON, without checking its signature: callers
+/// pass the ID token after it was verified, or the access token as received
+/// from the token endpoint over TLS.
+fn jwt_payload(jwt: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
+    let payload_b64 = jwt.split('.').nth(1)?;
+    let payload_bytes = URL_SAFE_NO_PAD.decode(payload_b64).ok()?;
+    serde_json::from_slice(&payload_bytes).ok()
+}
+
+/// The claims `names` from the ID token `id_token`, and those it lacks from
+/// the access token `access_token`; a claim neither holds, or holds as
+/// `null`, is left out.
+pub fn extract_claims(
+    id_token: &str,
+    access_token: &str,
+    names: &[String],
+) -> std::collections::BTreeMap<String, serde_json::Value> {
+    let tokens = [jwt_payload(id_token), jwt_payload(access_token)];
+    names
+        .iter()
+        .filter_map(|name| {
+            let value = tokens
+                .iter()
+                .flatten()
+                .find_map(|payload| payload.get(name).filter(|v| !v.is_null()))?;
+            Some((name.clone(), value.clone()))
+        })
+        .collect()
+}
+
 /// Decode `realm_access.roles` from a JWT payload.
 ///
 /// Called first on the signature-verified ID token, then as fallback on the
@@ -660,6 +713,25 @@ mod tests {
         let roles = extract_realm_roles(&jwt).unwrap();
         assert!(roles.contains(&"allowed-user".to_string()));
         assert!(!roles.contains(&"admin".to_string()));
+    }
+
+    // --- extract_claims ---
+
+    #[test]
+    fn extra_claims_come_from_the_id_token_and_else_the_access_token() {
+        let id = fake_jwt(r#"{"sub":"s","bsn":"999990019","leeg":null}"#);
+        let access = fake_jwt(r#"{"bsn":"other","kvk_nummer":"99990001","leeg":"x"}"#);
+        let names: Vec<String> = ["bsn", "kvk_nummer", "leeg", "absent"]
+            .iter()
+            .map(|s| s.to_string())
+            .collect();
+        let claims = extract_claims(&id, &access, &names);
+        assert_eq!(claims["bsn"], serde_json::json!("999990019"));
+        assert_eq!(claims["kvk_nummer"], serde_json::json!("99990001"));
+        // `null` in the ID token falls through to the access token.
+        assert_eq!(claims["leeg"], serde_json::json!("x"));
+        assert!(!claims.contains_key("absent"));
+        assert!(extract_claims("no-jwt", "no-jwt", &names).is_empty());
     }
 
     // --- validate_return_url ---

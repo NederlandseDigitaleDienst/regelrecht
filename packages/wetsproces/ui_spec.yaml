@@ -1,0 +1,13 @@
+---
+# De UI-beschrijving van dit wetsprocessysteem, in de vorm van de
+# UI-beschrijving van een bron (packages/poc-chronolexografie/src/ui_spec.rs),
+# per veld. Het BSN van de aanvrager vult het systeem uit het inloggen
+# (`fill: {by: system}` zonder bron): de server zet er de identiteit van de
+# ingelogde burger in en neemt het veld niet uit het verzoek aan.
+elements:
+  - id: UI1
+    element: aanvraagformulier
+    fields:
+      - name: bsn_aanvrager
+        visibility: shown
+        fill: {by: system}

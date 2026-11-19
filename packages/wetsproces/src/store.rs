@@ -20,7 +20,11 @@
 //!   applied; the store hands back the first one's [`Receipt`] instead;
 //! - **one moment**: a step reads all cells of its case at once
 //!   ([`ChronicleStore::load_all`]), so it never sees one cell before a
-//!   commit and another after it.
+//!   commit and another after it;
+//! - **attributed**: a commit names who made it ([`Commit::recorded_by`]),
+//!   and the store keeps that beside every record it appends, never inside
+//!   the record: a gram says what the law made happen, the store says which
+//!   account asked for it.
 //!
 //! Two stores implement it, with the same behaviour, held to it by one set
 //! of contract tests (`contract`):
@@ -45,16 +49,31 @@ use serde_json::Value;
 /// reader would misread raises this number.
 pub const FORMAT_VERSION: i32 = 1;
 
+/// One record as the store holds it: the gram, and who asked for the step
+/// that recorded it.
+#[derive(Debug, Clone, PartialEq)]
+pub struct StoredGram {
+    pub gram: Gram,
+    /// The account (its OIDC `sub`) whose request recorded it; `None` for
+    /// what the server recorded itself, such as the case's beginning.
+    pub recorded_by: Option<String>,
+}
+
 /// The chronicle of one cell as the store holds it.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct StoredChronicle {
-    pub grams: Vec<Gram>,
+    pub grams: Vec<StoredGram>,
 }
 
 impl StoredChronicle {
     /// The number of records in it: the head a commit names.
     pub fn head(&self) -> u64 {
         self.grams.len() as u64
+    }
+
+    /// Its records without who recorded them, as a cell takes them.
+    pub fn into_grams(self) -> Vec<Gram> {
+        self.grams.into_iter().map(|g| g.gram).collect()
     }
 }
 
@@ -123,6 +142,9 @@ pub struct Keyed {
 pub struct Commit {
     pub appends: Vec<CellAppend>,
     pub keyed: Option<Keyed>,
+    /// Who made the step, kept beside each record it appends
+    /// ([`StoredGram::recorded_by`]).
+    pub recorded_by: Option<String>,
 }
 
 /// What became of a commit that the store did not refuse.
