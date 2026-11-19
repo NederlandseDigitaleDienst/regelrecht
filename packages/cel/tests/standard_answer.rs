@@ -134,6 +134,18 @@ fn fields(pairs: &[(&str, serde_json::Value)]) -> Map<String, serde_json::Value>
         .collect()
 }
 
+/// The cell as the engine's answerer, reading its whole chronicle.
+fn reader(cell: &Cell) -> Reader<'_> {
+    Reader::new(
+        cell.recording_actor(),
+        cell.authority(),
+        cell.answers(),
+        cell.reductions(),
+        cell.grams().to_vec(),
+        None,
+    )
+}
+
 /// What the cell answers for `answer` about `bewoner` on `on`.
 fn answer(
     cell: &Cell,
@@ -142,14 +154,7 @@ fn answer(
     bewoner: &str,
     on: &str,
 ) -> Value {
-    let reader = Reader::new(
-        cell.recording_actor(),
-        cell.authority(),
-        cell.answers(),
-        cell.reductions(),
-        cell.grams().to_vec(),
-        None,
-    );
+    let reader = reader(cell);
     let parameters: BTreeMap<String, Value> =
         [("bewoner".to_string(), Value::String(bewoner.to_string()))].into();
     let request = AnswerRequest {
@@ -545,14 +550,7 @@ fn rows(
     parameters: &BTreeMap<String, Value>,
     on: &str,
 ) -> Vec<Value> {
-    let reader = Reader::new(
-        cell.recording_actor(),
-        cell.authority(),
-        cell.answers(),
-        cell.reductions(),
-        cell.grams().to_vec(),
-        None,
-    );
+    let reader = reader(cell);
     let request = AnswerRequest {
         name: answer,
         parameters,
@@ -628,7 +626,7 @@ fn where_on_a_nullable_field_with_null_selects_the_roots_that_hold_null() {
 /// The reduction written out by hand that the one-line form stands for:
 /// [`BY_HAND`] without `where`, so its answer takes no parameters.
 fn by_hand_without_where() -> String {
-    BY_HAND
+    let out = BY_HAND
         .replace(
             "test_reductie_inschrijvingen",
             "test_reductie_alle_inschrijvingen",
@@ -644,7 +642,12 @@ fn by_hand_without_where() -> String {
         .replace(
             "              where:\n                bewoner: $bewoner\n",
             "",
-        )
+        );
+    assert!(
+        !out.contains("where:") && !out.contains("parameters:"),
+        "BY_HAND changed its layout; the reduction without where still selects:\n{out}"
+    );
+    out
 }
 
 /// A cell that answers `alle_inschrijvingen` in the one-line form, from the
@@ -692,8 +695,8 @@ fn row(id: &str, bewoner: Value, postcode: Value, huisnummer: i64) -> Value {
 }
 
 /// An answer that names the fact alone takes no parameters and gives every
-/// record of the fact known on the calculation date as a row: its `id` and
-/// every field, in the order recorded. A revoked record keeps its row with
+/// record of the fact known on the calculation date, in the order recorded,
+/// as a row with its `id` and every field. A revoked record keeps its row with
 /// the start values (null for a string, 0 for a number). It answers what
 /// the reduction written out by hand without `where` answers.
 #[test]
@@ -738,14 +741,7 @@ fn a_fact_alone_answers_every_record_as_a_row() {
 #[test]
 fn a_fact_alone_takes_no_parameters() {
     let (cell, service, _dir) = one_line_cell();
-    let reader = Reader::new(
-        cell.recording_actor(),
-        cell.authority(),
-        cell.answers(),
-        cell.reductions(),
-        cell.grams().to_vec(),
-        None,
-    );
+    let reader = reader(&cell);
     let parameters = [("bewoner".to_string(), Value::String("b1".into()))].into();
     let request = AnswerRequest {
         name: "alle_inschrijvingen",
@@ -834,14 +830,7 @@ fn a_policy_binds_an_open_term_to_an_answer_from_a_fact() {
     let (cell, mut service, _dir) = one_line_cell();
     service.load_law(COUNTING_LAW).unwrap();
     service.load_law(BINDING_POLICY).unwrap();
-    let reader = Reader::new(
-        cell.recording_actor(),
-        cell.authority(),
-        cell.answers(),
-        cell.reductions(),
-        cell.grams().to_vec(),
-        None,
-    );
+    let reader = reader(&cell);
     let count = |on: &str| {
         let call = Call {
             answerer: Some(&reader),
