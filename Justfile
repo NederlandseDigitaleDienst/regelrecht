@@ -1094,7 +1094,9 @@ poc: poc-build
 # set by an admin with PUT /api/backoffice/klok. Binds to 0.0.0.0;
 # WETSPROCES_PORT picks another port. With WETSPROCES_STORE=postgres and
 # DATABASE_URL the chronicles stay in Postgres; with the OIDC_* variables the
-# login goes through Keycloak instead.
+# login goes through Keycloak instead. It serves both sides on one address
+# (WETSPROCES_SURFACE=all); set WETSPROCES_SURFACE=burger or backoffice, each
+# on its own port, to run the two environments apart on one database.
 wetsproces:
     WETSPROCES_MODE=test WETSPROCES_PORT="${WETSPROCES_PORT:-7180}" \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-wetsproces

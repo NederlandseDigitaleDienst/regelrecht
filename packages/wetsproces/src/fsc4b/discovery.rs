@@ -29,12 +29,7 @@ use crate::api::{ApiError, AppState};
 use crate::fsc4b::session::channel;
 use crate::fsc4b::{CITIZEN_BASE, Fsc4b, SESSION_BASE};
 
-/// The name of the session service in the discovery configuration, as in
-/// the example of §4.2.5.
-pub const SESSION_SERVICE: &str = "sessionApi";
-
-/// The name of the citizen's service in the discovery configuration.
-pub const CITIZEN_SERVICE: &str = "wetsprocesBurgerApi";
+pub use regelrecht_fsc4b::wire::{CITIZEN_SERVICE, SESSION_SERVICE};
 
 /// How long a client may keep the discovery configuration and the
 /// specification (§4.2.4: "appropriate HTTP cache headers").

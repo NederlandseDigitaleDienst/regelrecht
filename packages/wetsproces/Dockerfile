@@ -38,7 +38,7 @@ COPY packages/Cargo.lock packages/Cargo.toml ./
 # hoeft te vinden. De grep-assertie valt om als de members-array ooit op één
 # regel wordt gezet; dan zou de sed er stilletjes langs lopen.
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d; /"wetsproces-app"/d' Cargo.toml
 # The login: OIDC against Keycloak and the session keys (src/login.rs).
 COPY packages/auth/ auth/
 COPY packages/cel/ cel/
@@ -47,6 +47,8 @@ COPY packages/corpus/ corpus/
 # uit, maar cargo leest het manifest van elke path-dependency.
 COPY packages/github/ github/
 COPY packages/engine/ engine/
+# The protocol of FSC voor Burgers, shared with the app.
+COPY packages/fsc4b/ fsc4b/
 COPY packages/law-model/ law-model/
 COPY packages/poc-chronolexografie/ poc-chronolexografie/
 COPY packages/shared/ shared/
@@ -72,6 +74,8 @@ COPY packages/cel/ cel/
 COPY packages/corpus/ corpus/
 COPY packages/github/ github/
 COPY packages/engine/ engine/
+# The protocol of FSC voor Burgers, shared with the app.
+COPY packages/fsc4b/ fsc4b/
 COPY packages/law-model/ law-model/
 COPY packages/poc-chronolexografie/ poc-chronolexografie/
 COPY packages/shared/ shared/
@@ -81,7 +85,10 @@ RUN find . -name '*.rs' -exec touch {} + && \
     cargo build --release --bin regelrecht-wetsproces
 
 # Stage 4: the screens (frontend-wetsproces), built in the npm workspace of
-# the repository; the server serves them beside its API.
+# the repository: one build per surface, in dist/burger, dist/backoffice and
+# dist/all. The server serves the build of its WETSPROCES_SURFACE beside its
+# API, so one image runs as the environment of citizens and as that of the
+# back office.
 FROM node:24-alpine@sha256:01743339035a5c3c11a373cd7c83aeab6ed1457b55da6a69e014a95ac4e4700b AS frontend
 WORKDIR /app
 # Workspace manifests first so `npm ci` is cached independently of source.
@@ -120,7 +127,9 @@ WORKDIR /app
 # DATABASE_SERVER_FULL) kiezen waar de kroniek staat; ook die zet de
 # deployment.
 # The login (OIDC_*, BASE_URL, WETSPROCES_SUBJECT_CLAIM) is set by the
-# deployment as well; stable mode refuses to start without it.
+# deployment as well; stable mode refuses to start without it. So is
+# WETSPROCES_SURFACE: stable mode refuses to start without `burger` or
+# `backoffice`, one deployment per side.
 ENV WETSPROCES_MANIFEST=/app/packages/wetsproces/bron.yaml \
     WETSPROCES_FRONTEND=/app/frontend \
     WETSPROCES_PORT=8000

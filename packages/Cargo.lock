@@ -4091,6 +4091,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "regelrecht-fsc4b"
+version = "0.1.0"
+dependencies = [
+ "aws-lc-rs",
+ "base64 0.23.1",
+ "concat-kdf",
+ "reqwest 0.12.28",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "regelrecht-github"
 version = "0.1.0"
 dependencies = [
@@ -4289,16 +4303,15 @@ name = "regelrecht-wetsproces"
 version = "0.1.0"
 dependencies = [
  "async-trait",
- "aws-lc-rs",
  "axum",
  "base64 0.23.1",
  "chrono",
- "concat-kdf",
  "futures",
  "http-body-util",
  "regelrecht-auth",
  "regelrecht-cel",
  "regelrecht-corpus",
+ "regelrecht-fsc4b",
  "regelrecht-poc-chronolexografie",
  "regelrecht-shared",
  "reqwest 0.12.28",
@@ -4316,6 +4329,23 @@ dependencies = [
  "tower-sessions-memory-store",
  "tower-sessions-sqlx-store",
  "tracing",
+]
+
+[[package]]
+name = "regelrecht-wetsproces-app"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "regelrecht-fsc4b",
+ "regelrecht-wetsproces",
+ "regelrecht-wetsproces-app",
+ "reqwest 0.12.28",
+ "rustls",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.21",
+ "tokio",
 ]
 
 [[package]]

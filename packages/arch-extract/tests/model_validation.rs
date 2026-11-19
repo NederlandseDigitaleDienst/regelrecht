@@ -101,6 +101,7 @@ fn product_crates_present() {
         "corpus",
         "editor-api",
         "engine",
+        "fsc4b",
         "github",
         "harvester",
         "law-model",
@@ -111,6 +112,7 @@ fn product_crates_present() {
         "shared",
         "tui",
         "wetsproces",
+        "wetsproces-app",
     ]
     .iter()
     .map(|s| s.to_string())

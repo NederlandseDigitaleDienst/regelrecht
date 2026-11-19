@@ -897,8 +897,14 @@ jobs:
       - name: Build demo bundle
         run: npm run build -w frontend-demo
 
-      - name: Build wetsproces bundle
+      # De drie webbuilds: gecombineerd (all), burgers (cookie) en backoffice.
+      - name: Build wetsproces bundles
         run: npm run build -w frontend-wetsproces
+
+      # De burger-entry met het vervoer van de app (Tauri-commando's). De
+      # Tauri-schil zelf bouwt CI niet.
+      - name: Build wetsproces app bundle
+        run: npm run build:app -w frontend-wetsproces
 
   # Verplichte check op main. De benen hierboven dragen nieuwe namen en mogen
   # dus van vorm veranderen; deze naam moet blijven bestaan, want een required

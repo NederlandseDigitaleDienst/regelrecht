@@ -3,6 +3,11 @@
 //! - `WETSPROCES_MODE`: `test` or `stable`, required. There is no default:
 //!   the mode decides whether the clock is real and who may use the server,
 //!   so a deployment says which it wants.
+//! - `WETSPROCES_SURFACE`: which side the instance serves
+//!   ([`crate::surface::Surface`]): `burger`, `backoffice` or `all`. By
+//!   default `all` in test mode, so one command runs the whole process on a
+//!   machine; stable mode has no default and refuses `all`, so each
+//!   deployment says which side it is.
 //! - `WETSPROCES_STORE`: where the chronicles live, `memory` or `postgres`.
 //!   By default `memory` in test mode and `postgres` in stable mode, which
 //!   takes no other.
@@ -11,9 +16,11 @@
 //! - `WETSPROCES_MANIFEST`: the source manifest to run, by default
 //!   `packages/wetsproces/bron.yaml` of this checkout.
 //! - `WETSPROCES_PORT`: the port, by default 8000.
-//! - `WETSPROCES_FRONTEND`: the built frontend the server serves beside the
-//!   API, by default `frontend-wetsproces/dist` of this checkout. Without an
-//!   `index.html` there the server serves the API alone.
+//! - `WETSPROCES_FRONTEND`: the directory of the built screens, one
+//!   build per surface in a directory of its name (`burger`, `backoffice`,
+//!   `all`), by default `frontend-wetsproces/dist` of this checkout. The
+//!   server serves the build of its own surface beside the API, and the API
+//!   alone when that build has no `index.html`.
 //!
 //! The login ([`LoginChoice`]):
 //!
@@ -50,12 +57,14 @@
 //! These come all together or not at all. `WETSPROCES_FSC4B_DEMO=true`
 //! instead opens the channel on a demo Stelsel the server makes at start,
 //! with a test Activatiedienst; test mode only, and with none of the above.
+//! The channel is for citizens: the back office refuses either.
 
 use std::path::PathBuf;
 
 use regelrecht_auth::OidcConfig;
 
 use crate::access::{CELL_ROLE_PREFIX, CITIZEN, Level, ROLE_PREFIX};
+use crate::surface::Surface;
 
 /// The variables of the OIDC configuration besides `OIDC_CLIENT_ID`: one of
 /// them set without it is a configuration half done, not a choice for the
@@ -231,9 +240,12 @@ pub const DEFAULT_FRONTEND: &str = concat!(
 #[derive(Debug, Clone)]
 pub struct Config {
     pub mode: Mode,
+    /// The side of the process this instance serves.
+    pub surface: Surface,
     pub store: StoreChoice,
     pub manifest: PathBuf,
-    /// The directory of the built frontend, served beside the API.
+    /// The directory of the built screens, one build per surface in a
+    /// directory of its name; the server serves its own surface's.
     pub frontend: PathBuf,
     pub port: u16,
     pub login: LoginChoice,
@@ -250,6 +262,23 @@ pub enum ConfigError {
     NoMode,
     #[error("WETSPROCES_MODE is `{0}`: it is `test` or `stable`")]
     UnknownMode(String),
+    #[error("WETSPROCES_SURFACE is `{0}`: it is `burger`, `backoffice` or `all`")]
+    UnknownSurface(String),
+    #[error(
+        "stable mode serves one side per deployment: set WETSPROCES_SURFACE to `burger` or \
+         `backoffice`"
+    )]
+    StableNeedsSurface,
+    #[error(
+        "WETSPROCES_SURFACE is `all`, which serves citizens and employees on one address and is \
+         for test mode only; stable mode serves `burger` or `backoffice`"
+    )]
+    StableSurfaceAll,
+    #[error(
+        "FSC voor Burgers is configured on the back office; the channel serves citizens, so it \
+         belongs on WETSPROCES_SURFACE=burger"
+    )]
+    Fsc4bOnBackoffice,
     #[error("WETSPROCES_PORT is `{0}`, which is no port")]
     BadPort(String),
     #[error("WETSPROCES_STORE is `{0}`: it is `memory` or `postgres`")]
@@ -332,6 +361,7 @@ impl Config {
     pub fn from_env(env: impl Fn(&str) -> Option<String>) -> Result<Self, ConfigError> {
         let set = |k: &str| env(k).filter(|v| !v.trim().is_empty());
         let mode = set("WETSPROCES_MODE").ok_or(ConfigError::NoMode)?.parse()?;
+        let surface = surface_choice(mode, set("WETSPROCES_SURFACE").as_deref())?;
         let store = store_choice(mode, set("WETSPROCES_STORE").as_deref(), || {
             regelrecht_shared::postgres::database_url(&env)
         })?;
@@ -349,8 +379,12 @@ impl Config {
         );
         let login = login_choice(mode, &subject_claim, &set)?;
         let fsc4b = fsc4b_choice(mode, &subject_claim, port, &set)?;
+        if !surface.serves_citizens() && !matches!(fsc4b, Fsc4bChoice::Off) {
+            return Err(ConfigError::Fsc4bOnBackoffice);
+        }
         Ok(Self {
             mode,
+            surface,
             store,
             manifest,
             frontend,
@@ -360,6 +394,21 @@ impl Config {
             fsc4b,
         })
     }
+}
+
+/// The surface `named` names for `mode`, or test mode's own when it names
+/// none: [`Surface::All`], so one command runs the whole process locally.
+/// Stable mode has no default and refuses `all`.
+fn surface_choice(mode: Mode, named: Option<&str>) -> Result<Surface, ConfigError> {
+    let surface = match named {
+        Some(name) => name.parse().map_err(ConfigError::UnknownSurface)?,
+        None if mode == Mode::Stable => return Err(ConfigError::StableNeedsSurface),
+        None => Surface::All,
+    };
+    if mode == Mode::Stable && surface == Surface::All {
+        return Err(ConfigError::StableSurfaceAll);
+    }
+    Ok(surface)
 }
 
 /// The login the environment `set` configures for `mode`, with the claim
@@ -543,6 +592,7 @@ mod tests {
 
     const STABLE: Pairs = &[
         ("WETSPROCES_MODE", "stable"),
+        ("WETSPROCES_SURFACE", "burger"),
         ("DATABASE_URL", "postgres://db/regelrecht"),
     ];
 
@@ -565,6 +615,60 @@ mod tests {
         assert_eq!(c.manifest, PathBuf::from(DEFAULT_MANIFEST));
         assert!(matches!(c.login, LoginChoice::TestLogin));
         assert_eq!(c.subject_claim, DEFAULT_SUBJECT_CLAIM);
+        assert_eq!(c.surface, Surface::All);
+    }
+
+    #[test]
+    fn stable_mode_names_its_surface_and_it_is_not_all() {
+        let c = Config::from_env(env(&[STABLE, OIDC])).unwrap();
+        assert_eq!(c.surface, Surface::Citizen);
+        let c = Config::from_env(env(&[
+            STABLE,
+            OIDC,
+            &[("WETSPROCES_SURFACE", "backoffice")],
+        ]))
+        .unwrap();
+        assert_eq!(c.surface, Surface::Backoffice);
+        assert_eq!(
+            error(&[STABLE, OIDC, &[("WETSPROCES_SURFACE", "")]]),
+            ConfigError::StableNeedsSurface
+        );
+        assert_eq!(
+            error(&[STABLE, OIDC, &[("WETSPROCES_SURFACE", "all")]]),
+            ConfigError::StableSurfaceAll
+        );
+        assert_eq!(
+            error(&[&[
+                ("WETSPROCES_MODE", "test"),
+                ("WETSPROCES_SURFACE", "medewerker")
+            ]]),
+            ConfigError::UnknownSurface("medewerker".into())
+        );
+        let c = Config::from_env(env(&[&[
+            ("WETSPROCES_MODE", "test"),
+            ("WETSPROCES_SURFACE", "backoffice"),
+        ]]))
+        .unwrap();
+        assert_eq!(c.surface, Surface::Backoffice);
+    }
+
+    #[test]
+    fn fsc_voor_burgers_is_refused_on_the_back_office() {
+        let backoffice: Pairs = &[("WETSPROCES_SURFACE", "backoffice")];
+        assert_eq!(
+            error(&[STABLE, OIDC, FSC4B, backoffice]),
+            ConfigError::Fsc4bOnBackoffice
+        );
+        assert_eq!(
+            error(&[
+                &[
+                    ("WETSPROCES_MODE", "test"),
+                    ("WETSPROCES_FSC4B_DEMO", "true")
+                ],
+                backoffice
+            ]),
+            ConfigError::Fsc4bOnBackoffice
+        );
     }
 
     #[test]
@@ -621,7 +725,10 @@ mod tests {
     #[test]
     fn the_postgres_store_needs_a_database() {
         for pairs in [
-            &[("WETSPROCES_MODE", "stable")][..],
+            &[
+                ("WETSPROCES_MODE", "stable"),
+                ("WETSPROCES_SURFACE", "burger"),
+            ][..],
             &[
                 ("WETSPROCES_MODE", "test"),
                 ("WETSPROCES_STORE", "postgres"),

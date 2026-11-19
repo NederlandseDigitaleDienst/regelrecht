@@ -12,8 +12,10 @@
 //!
 //! The parts:
 //!
-//! - [`config`]: the mode (`test` or `stable`), the manifest, the port and
-//!   the login, from the environment;
+//! - [`config`]: the mode (`test` or `stable`), the surface, the manifest,
+//!   the port and the login, from the environment;
+//! - [`surface`]: which side of the process an instance serves, citizens or
+//!   the back office, and what differs between them;
 //! - [`access`]: the roles, and who a request comes from;
 //! - [`login`]: the login through Keycloak or, in test mode, the test
 //!   login, and the sessions;
@@ -40,3 +42,4 @@ pub mod fsc4b;
 pub mod login;
 pub mod service;
 pub mod store;
+pub mod surface;

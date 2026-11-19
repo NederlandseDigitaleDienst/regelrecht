@@ -40,8 +40,7 @@ use crate::service::Submit;
 /// key follows.
 pub const ACCOUNT_PREFIX: &str = "fsc4b:";
 
-/// The member of a submission's payload that holds its idempotency key.
-pub const IDEMPOTENCY_MEMBER: &str = "idempotency_key";
+pub use regelrecht_fsc4b::wire::IDEMPOTENCY_MEMBER;
 
 /// An authenticated request: who, the key its answer goes under, and what
 /// it asked, or why that does not read.
@@ -159,7 +158,7 @@ async fn handle(state: &AppState, route: Route, headers: &HeaderMap, body: &str)
     let p = &request.principal;
     let result = match (route, request.payload) {
         (_, Err(e)) => Err(e),
-        (Route::Case, Ok(_)) => Ok(api::case_of(state)),
+        (Route::Case, Ok(_)) => api::case_of(state).await,
         (Route::Forms, Ok(_)) => api::forms_for(state, p).await,
         (Route::Dossier, Ok(_)) => api::dossier_of(state, p).await,
         (Route::Submit, Ok(payload)) => submit(state, p, payload).await,

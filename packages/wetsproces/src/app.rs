@@ -10,7 +10,13 @@
 //! - stable mode runs on the [`RealClock`], with Postgres and the login
 //!   through Keycloak. The configuration already refuses it without them
 //!   ([`crate::config`]); [`build_with`] refuses once more, so no caller can
-//!   hand it the test login.
+//!   hand it the test login. The same holds for the surface: stable mode
+//!   serves one side ([`crate::surface::Surface`]), never both.
+//!
+//! The surface decides the routes ([`crate::api::router`]), the session
+//! cookie and the mark on each session ([`SurfaceSessions`]), and which
+//! build of the screens is served: the directory of the surface's name
+//! under `WETSPROCES_FRONTEND`.
 //!
 //! When Postgres is asked for and cannot be reached or migrated, the server
 //! does not start: it never falls back to memory. The sessions live beside
@@ -38,13 +44,14 @@ use tower_sessions_memory_store::MemoryStore;
 use crate::api::{ApiError, AppState, router};
 use crate::case::{self, CaseError};
 use crate::clock::{Clock, ControllableClock, RealClock};
-use crate::config::{Config, Mode, StoreChoice};
+use crate::config::{Config, Fsc4bChoice, Mode, StoreChoice};
 use crate::fsc4b::{Fsc4b, Fsc4bError};
-use crate::login::{Login, SESSION_COOKIE, SESSION_TABLE};
+use crate::login::{Login, SESSION_TABLE, SurfaceSessions};
 use crate::service::{Service, ServiceError};
 use crate::store::memory::InMemoryStore;
-use crate::store::postgres::{CONNECT_TIMEOUT, PostgresStore, SCHEMA};
+use crate::store::postgres::{CONNECT_TIMEOUT, MIGRATION_LOCK_KEY, PostgresStore, SCHEMA};
 use crate::store::{ChronicleStore, StoreError};
+use crate::surface::Surface;
 
 /// How long a session lasts without a request, as the editor's.
 const SESSION_INACTIVITY_HOURS: i64 = 8;
@@ -60,6 +67,10 @@ pub enum StartupError {
          clock; it was given the test login or the store in memory"
     )]
     StableNeedsLogin,
+    #[error("stable mode serves citizens or employees, not both on one address")]
+    StableNeedsOneSurface,
+    #[error("FSC voor Burgers serves citizens, and this instance serves the back office")]
+    Fsc4bOnBackoffice,
     #[error("the chronicle store ({store}): {source}")]
     Store {
         store: &'static str,
@@ -94,29 +105,48 @@ pub async fn build(config: &Config) -> Result<Router, StartupError> {
 /// # Errors
 ///
 /// [`StartupError::StableNeedsLogin`] in stable mode with the test login or
-/// the store in memory; otherwise when the manifest gives no case to run,
-/// the stores do not open, or the service does not start.
+/// the store in memory, [`StartupError::StableNeedsOneSurface`] in stable
+/// mode on [`Surface::All`]; otherwise when the manifest gives no case to
+/// run, the stores do not open, or the service does not start.
 pub async fn build_with(config: &Config, login: Login) -> Result<Router, StartupError> {
     let stable = config.mode == Mode::Stable;
     if stable && (matches!(login, Login::TestLogin) || config.store == StoreChoice::Memory) {
         return Err(StartupError::StableNeedsLogin);
     }
+    if stable && config.surface == Surface::All {
+        return Err(StartupError::StableNeedsOneSurface);
+    }
+    if !config.surface.serves_citizens() && !matches!(config.fsc4b, Fsc4bChoice::Off) {
+        return Err(StartupError::Fsc4bOnBackoffice);
+    }
     let (corpus, messages) = case::load(&config.manifest)?;
     for message in &messages {
         tracing::warn!(%message, "loading the case");
     }
-    let controllable = (!stable).then(|| Arc::new(ControllableClock::new(corpus.casus.speeldatum)));
+    let stores = open_store(&config.store, CONNECT_TIMEOUT).await?;
+    // The test clock keeps its day in the store, so instances on one store
+    // tell the same date.
+    let controllable = (!stable).then(|| {
+        Arc::new(ControllableClock::new(
+            Arc::clone(&stores.chronicles),
+            corpus.casus.speeldatum,
+        ))
+    });
     let clock: Arc<dyn Clock> = match &controllable {
         Some(c) => Arc::clone(c) as _,
         None => Arc::new(RealClock),
     };
-    let stores = open_store(&config.store, CONNECT_TIMEOUT).await?;
     let fsc4b = Fsc4b::open(&config.fsc4b, config.mode, stores.sessions.clone())?;
+    let today = clock.today().await.map_err(|source| StartupError::Store {
+        store: config.store.name(),
+        source,
+    })?;
     tracing::info!(
         mode = %config.mode,
+        surface = %config.surface,
         case = %corpus.casus.id,
         manifest = %config.manifest.display(),
-        today = %clock.today(),
+        today = %today,
         store = config.store.name(),
         login = ?login,
         fsc4b = ?config.fsc4b,
@@ -127,6 +157,7 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
     let mut state = AppState::new(
         Arc::new(service),
         config.mode,
+        config.surface,
         controllable,
         login,
         &config.subject_claim,
@@ -134,12 +165,19 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
     if let Some(fsc4b) = fsc4b {
         state = state.with_fsc4b(Arc::new(fsc4b));
     }
-    let app = with_frontend(router(state.clone()), &config.frontend).layer(
+    let frontend = config.frontend.join(config.surface.name());
+    let app = with_frontend(router(state.clone()), &frontend).layer(
         middleware::from_fn_with_state(state, regelrecht_auth::refresh_session_token::<AppState>),
     );
+    let surface = config.surface;
     match stores.sessions {
-        None => Ok(with_sessions(app, MemoryStore::default(), secure)),
-        Some(pool) => Ok(with_sessions(app, postgres_sessions(pool).await?, secure)),
+        None => Ok(with_sessions(app, MemoryStore::default(), surface, secure)),
+        Some(pool) => Ok(with_sessions(
+            app,
+            postgres_sessions(pool).await?,
+            surface,
+            secure,
+        )),
     }
 }
 
@@ -178,10 +216,16 @@ fn with_frontend(app: Router, dir: &Path) -> Router {
     })
 }
 
-/// `app` with its sessions in `store`.
-fn with_sessions<St: SessionStore + Clone>(app: Router, store: St, secure: bool) -> Router {
-    let layer = SessionManagerLayer::new(store)
-        .with_name(SESSION_COOKIE)
+/// `app` with its sessions in `store`, under the cookie of `surface` and
+/// marked with it.
+fn with_sessions<St: SessionStore + Clone>(
+    app: Router,
+    store: St,
+    surface: Surface,
+    secure: bool,
+) -> Router {
+    let layer = SessionManagerLayer::new(SurfaceSessions::new(store, surface))
+        .with_name(surface.session_cookie())
         .with_expiry(Expiry::OnInactivity(CookieDuration::hours(
             SESSION_INACTIVITY_HOURS,
         )))
@@ -193,7 +237,9 @@ fn with_sessions<St: SessionStore + Clone>(app: Router, store: St, secure: bool)
 
 /// The session store in the table [`SESSION_TABLE`] of the schema
 /// [`SCHEMA`], made if it is not there, with a task that removes expired
-/// sessions.
+/// sessions. The table is made under the advisory lock of the schema's
+/// migrations, so two instances that start at once on a new database do not
+/// both make it.
 ///
 /// # Errors
 ///
@@ -201,14 +247,13 @@ fn with_sessions<St: SessionStore + Clone>(app: Router, store: St, secure: bool)
 async fn postgres_sessions(
     pool: PgPool,
 ) -> Result<tower_sessions_sqlx_store::PostgresStore, StartupError> {
-    let store = tower_sessions_sqlx_store::PostgresStore::new(pool)
+    let store = tower_sessions_sqlx_store::PostgresStore::new(pool.clone())
         .with_schema_name(SCHEMA)
         .and_then(|s| s.with_table_name(SESSION_TABLE))
         .map_err(StartupError::Sessions)?;
-    store
-        .migrate()
+    migrate_sessions(&pool, &store)
         .await
-        .map_err(|e| StartupError::Sessions(e.to_string()))?;
+        .map_err(StartupError::Sessions)?;
     let cleaner = store.clone();
     tokio::spawn(async move {
         if let Err(e) = cleaner
@@ -219,6 +264,34 @@ async fn postgres_sessions(
         }
     });
     Ok(store)
+}
+
+/// Make the sessions table of `store`, holding the migrations' advisory
+/// lock on a connection of `pool` while it does.
+async fn migrate_sessions(
+    pool: &PgPool,
+    store: &tower_sessions_sqlx_store::PostgresStore,
+) -> Result<(), String> {
+    let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(MIGRATION_LOCK_KEY)
+        .execute(&mut *conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    let migrated = store.migrate().await.map_err(|e| e.to_string());
+    let unlocked = sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(MIGRATION_LOCK_KEY)
+        .execute(&mut *conn)
+        .await;
+    if let Err(e) = unlocked {
+        // A connection that may still hold the lock goes back to no pool:
+        // closing it ends its session, and the lock with it.
+        if let Err(close) = conn.close().await {
+            tracing::warn!(error = %close, "closing the connection that held the migration lock");
+        }
+        return Err(e.to_string());
+    }
+    migrated
 }
 
 /// The stores a configuration opens: the chronicles, and the database the
@@ -262,13 +335,12 @@ mod tests {
     use regelrecht_shared::postgres::test_utils::TestDatabase;
 
     use super::*;
-    use crate::config::{
-        DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, Fsc4bChoice, LoginChoice,
-    };
+    use crate::config::{DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, LoginChoice};
 
     fn config(mode: Mode) -> Config {
         Config {
             mode,
+            surface: Surface::All,
             store: StoreChoice::Memory,
             manifest: PathBuf::from(DEFAULT_MANIFEST),
             frontend: PathBuf::from("/nonexistent/frontend"),
@@ -292,6 +364,54 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(e, StartupError::StableNeedsLogin), "{e}");
+    }
+
+    #[tokio::test]
+    async fn stable_mode_refuses_to_serve_both_sides() {
+        let database = TestDatabase::create().await;
+        let mut c = config(Mode::Stable);
+        c.store = StoreChoice::Postgres {
+            url: database.url().to_string(),
+        };
+        let e = build_with(&c, crate::login::tests::offline_login())
+            .await
+            .unwrap_err();
+        assert!(matches!(e, StartupError::StableNeedsOneSurface), "{e}");
+        for surface in [Surface::Citizen, Surface::Backoffice] {
+            c.surface = surface;
+            let _router = build_with(&c, crate::login::tests::offline_login())
+                .await
+                .unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn the_back_office_refuses_fsc_voor_burgers() {
+        let mut c = config(Mode::Test);
+        c.surface = Surface::Backoffice;
+        c.fsc4b = Fsc4bChoice::Demo {
+            public_url: "http://localhost:7199".into(),
+        };
+        let e = build_with(&c, Login::TestLogin).await.unwrap_err();
+        assert!(matches!(e, StartupError::Fsc4bOnBackoffice), "{e}");
+    }
+
+    #[tokio::test]
+    async fn two_instances_starting_at_once_on_a_new_database_both_start() {
+        let database = TestDatabase::create().await;
+        let mut c = config(Mode::Test);
+        c.store = StoreChoice::Postgres {
+            url: database.url().to_string(),
+        };
+        let mut b = c.clone();
+        c.surface = Surface::Citizen;
+        b.surface = Surface::Backoffice;
+        let (first, second) = tokio::join!(
+            build_with(&c, Login::TestLogin),
+            build_with(&b, Login::TestLogin)
+        );
+        let _citizens = first.unwrap();
+        let _backoffice = second.unwrap();
     }
 
     #[tokio::test]
@@ -338,6 +458,7 @@ mod tests {
     async fn stable_mode_starts_with_keycloak_postgres_and_the_real_clock() {
         let database = TestDatabase::create().await;
         let mut c = config(Mode::Stable);
+        c.surface = Surface::Citizen;
         c.store = StoreChoice::Postgres {
             url: database.url().to_string(),
         };

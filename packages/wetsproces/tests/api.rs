@@ -4,230 +4,20 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
+mod common;
+
 use std::path::PathBuf;
-use std::sync::Arc;
 
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
+use common::*;
 use http_body_util::BodyExt;
-use regelrecht_auth::OidcConfig;
 use regelrecht_wetsproces::app;
-use regelrecht_wetsproces::config::{
-    Config, DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, Fsc4bChoice, LoginChoice, Mode,
-    StoreChoice,
-};
-use regelrecht_wetsproces::login::{Login, OidcLogin};
+use regelrecht_wetsproces::config::{Mode, StoreChoice};
+use regelrecht_wetsproces::login::Login;
 use serde_json::{Value, json};
 use tower::ServiceExt;
-
-const ADVICE: &str =
-    "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht";
-const GEMEENTE: &str = "gemeente_wilgendaal";
-const GGD: &str = "ggd_wilgendaal";
-
-/// Made-up citizen numbers of the BSN test range.
-const ANNA: &str = "999990032";
-const BRAM: &str = "999990020";
-
-fn config(mode: Mode) -> Config {
-    Config {
-        mode,
-        store: StoreChoice::Memory,
-        manifest: PathBuf::from(DEFAULT_MANIFEST),
-        frontend: PathBuf::from("/nonexistent/frontend"),
-        port: DEFAULT_PORT,
-        login: LoginChoice::TestLogin,
-        subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
-        fsc4b: Fsc4bChoice::Off,
-    }
-}
-
-async fn server() -> Router {
-    app::build_with(&config(Mode::Test), Login::TestLogin)
-        .await
-        .unwrap()
-}
-
-/// A login through Keycloak whose client was made without discovery; the
-/// hosts are made up.
-fn offline_login() -> Login {
-    let issuer = "https://login.example.org/realms/voorbeeld";
-    Login::Oidc(Arc::new(OidcLogin {
-        config: OidcConfig {
-            client_id: "wetsproces".into(),
-            client_secret: "secret".into(),
-            issuer_url: issuer.into(),
-            required_role: "wetsproces-toegang".into(),
-            extra_claims: vec![DEFAULT_SUBJECT_CLAIM.into()],
-        },
-        base_url: Some("https://wetsproces.example.org".into()),
-        client: Arc::new(regelrecht_auth::test_utils::offline_client(issuer)),
-        end_session_url: None,
-    }))
-}
-
-/// One account's session on the server.
-struct As<'a> {
-    app: &'a Router,
-    cookie: Option<String>,
-}
-
-impl As<'_> {
-    /// `method` on `path` with `body` and, if given, an idempotency key: the
-    /// status and the JSON answer.
-    async fn call(
-        &self,
-        method: Method,
-        path: &str,
-        body: Option<Value>,
-        key: Option<&str>,
-    ) -> (StatusCode, Value) {
-        let mut request = Request::builder().method(method).uri(path);
-        if let Some(cookie) = &self.cookie {
-            request = request.header("cookie", cookie);
-        }
-        if let Some(key) = key {
-            request = request.header("Idempotency-Key", key);
-        }
-        let request = match body {
-            Some(body) => request
-                .header("content-type", "application/json")
-                .body(Body::from(body.to_string())),
-            None => request.body(Body::empty()),
-        }
-        .unwrap();
-        let response = self.app.clone().oneshot(request).await.unwrap();
-        let status = response.status();
-        let bytes = response.into_body().collect().await.unwrap().to_bytes();
-        let value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-        (status, value)
-    }
-
-    async fn get(&self, path: &str) -> (StatusCode, Value) {
-        self.call(Method::GET, path, None, None).await
-    }
-
-    async fn post(&self, path: &str, body: Value) -> (StatusCode, Value) {
-        self.call(Method::POST, path, Some(body), None).await
-    }
-}
-
-fn anonymous(app: &Router) -> As<'_> {
-    As { app, cookie: None }
-}
-
-/// Log in with the test login as `sub`, with `roles` and `claims`.
-async fn login<'a>(app: &'a Router, sub: &str, roles: &[&str], claims: Value) -> As<'a> {
-    let body = json!({ "sub": sub, "rollen": roles, "claims": claims });
-    let request = Request::post("/auth/testlogin")
-        .header("content-type", "application/json")
-        .body(Body::from(body.to_string()))
-        .unwrap();
-    let response = app.clone().oneshot(request).await.unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
-    let cookie = response
-        .headers()
-        .get("set-cookie")
-        .expect("a test login sets the session cookie")
-        .to_str()
-        .unwrap();
-    assert!(cookie.starts_with("wetsproces_session="), "{cookie}");
-    let cookie = cookie.split(';').next().unwrap().to_string();
-    As {
-        app,
-        cookie: Some(cookie),
-    }
-}
-
-async fn citizen<'a>(app: &'a Router, sub: &str, bsn: &str) -> As<'a> {
-    login(app, sub, &["wetsproces-burger"], json!({ "bsn": bsn })).await
-}
-
-async fn employee<'a>(app: &'a Router, sub: &str, level: &str, cell: &str) -> As<'a> {
-    let cell_role = format!("wetsproces-cel-{cell}");
-    login(app, sub, &[level, &cell_role], json!({})).await
-}
-
-async fn admin(app: &Router) -> As<'_> {
-    login(app, "admin-1", &["wetsproces-admin"], json!({})).await
-}
-
-async fn set_clock(app: &Router, day: &str) {
-    let (status, klok) = admin(app)
-        .await
-        .call(
-            Method::PUT,
-            "/api/backoffice/klok",
-            Some(json!({ "datum": day })),
-            None,
-        )
-        .await;
-    assert_eq!(status, StatusCode::OK, "{klok}");
-    assert_eq!(klok["datum"], json!(day));
-}
-
-async fn head(app: &Router, cell: &str) -> u64 {
-    let reader = employee(app, "lezer-1", "wetsproces-lezer", cell).await;
-    let (status, kroniek) = reader
-        .get(&format!("/api/backoffice/cellen/{cell}/kroniek"))
-        .await;
-    assert_eq!(status, StatusCode::OK, "{kroniek}");
-    kroniek["kop"].as_u64().unwrap()
-}
-
-/// An application as a citizen sends it: without the citizen number, which
-/// the login fills.
-fn application() -> Value {
-    json!({
-        "velden": {
-            "kaart_als_bestuurder": true,
-            "kaart_als_passagier": false,
-            "aanvraag_ondertekend": true,
-            "naam_aanvrager": "A. de Vries",
-            "adres_aanvrager": "Voorbeeldlaan 2",
-            "dagtekening": "2026-10-05",
-            "gevraagde_beschikking": "gehandicaptenparkeerkaart",
-        }
-    })
-}
-
-fn findings() -> Value {
-    json!({
-        "langdurige_loopbeperking_volgens_college": true,
-        "continu_afhankelijk_van_hulp_bestuurder_volgens_college": false,
-        "permanent_rolstoelgebonden_volgens_college": false,
-        "ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college": false,
-        "geneeskundig_onderzoek_achterwege_gelaten": false,
-        "bekend_dat_aanvrager_nog_steeds_voldoet": false,
-        "keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet": false,
-    })
-}
-
-fn advice(bsn: &str) -> Value {
-    json!({
-        "cel": GGD,
-        "feit": ADVICE,
-        "velden": {
-            "bsn_aanvrager": bsn,
-            "datum_onderzoek": "2026-10-16",
-            "langdurige_loopbeperking": true,
-            "continu_afhankelijk_van_hulp_bestuurder": false,
-            "permanent_rolstoelgebonden": false,
-            "ernstige_beperkingen_andere_dan_loopbeperkingen": false,
-        },
-    })
-}
-
-/// Anna applies; the answer is her application.
-async fn anna_applies(app: &Router) -> Value {
-    let (status, aanvraag) = citizen(app, "anna", ANNA)
-        .await
-        .post("/api/indieningen", application())
-        .await;
-    assert_eq!(status, StatusCode::OK, "{aanvraag}");
-    aanvraag
-}
 
 #[tokio::test]
 async fn health_is_open_and_the_rest_needs_a_login() {
@@ -760,9 +550,14 @@ async fn the_frontend_is_served_beside_the_api_and_a_wrong_api_path_stays_a_404(
     }
     let dir = std::env::temp_dir().join(format!("wetsproces-frontend-{}", std::process::id()));
     let _weg = Weg(dir.clone());
-    std::fs::create_dir_all(dir.join("assets")).unwrap();
-    std::fs::write(dir.join("index.html"), "<!doctype html><title>app</title>").unwrap();
-    std::fs::write(dir.join("assets/app.js"), "console.log(1)").unwrap();
+    // One build per surface, in a directory of its name; test mode serves
+    // both sides, so the combined build.
+    let all = dir.join("all");
+    std::fs::create_dir_all(all.join("assets")).unwrap();
+    std::fs::write(all.join("index.html"), "<!doctype html><title>app</title>").unwrap();
+    std::fs::write(all.join("assets/app.js"), "console.log(1)").unwrap();
+    std::fs::create_dir_all(dir.join("burger")).unwrap();
+    std::fs::write(dir.join("burger/index.html"), "<title>burger</title>").unwrap();
     let mut c = config(Mode::Test);
     c.frontend = dir.clone();
     let app = app::build_with(&c, Login::TestLogin).await.unwrap();
@@ -790,4 +585,25 @@ async fn the_frontend_is_served_beside_the_api_and_a_wrong_api_path_stays_a_404(
     assert_eq!(status, StatusCode::NOT_FOUND);
     assert!(fout.contains("fout"), "{fout}");
     assert_eq!(body("/auth/bestaat-niet").await.0, StatusCode::NOT_FOUND);
+
+    // An instance for citizens serves the citizens' build, and a path of
+    // the back office is a 404 of the API there, not a page.
+    c.surface = regelrecht_wetsproces::surface::Surface::Citizen;
+    let citizens = app::build_with(&c, Login::TestLogin).await.unwrap();
+    let response = citizens
+        .clone()
+        .oneshot(Request::get("/").body(Body::empty()).unwrap())
+        .await
+        .unwrap();
+    let bytes = response.into_body().collect().await.unwrap().to_bytes();
+    assert!(String::from_utf8_lossy(&bytes).contains("<title>burger</title>"));
+    let response = citizens
+        .oneshot(
+            Request::get("/api/backoffice/cellen/gemeente_wilgendaal/kroniek")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(response.status(), StatusCode::NOT_FOUND);
 }

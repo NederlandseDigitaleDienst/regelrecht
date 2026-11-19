@@ -336,18 +336,26 @@ impl Service {
     }
 
     /// Today, by the clock of this service.
-    pub fn today(&self) -> NaiveDate {
-        self.clock.today()
+    ///
+    /// # Errors
+    ///
+    /// When the clock keeps its day in the store and the store fails.
+    pub async fn today(&self) -> Result<NaiveDate, ServiceError> {
+        Ok(self.clock.today().await?)
     }
 
     /// The case as a screen shows it: its text and what follows from the
     /// law (`Corpus::beschrijving`), and today.
-    pub fn case(&self) -> Value {
+    ///
+    /// # Errors
+    ///
+    /// As [`Service::today`].
+    pub async fn case(&self) -> Result<Value, ServiceError> {
         let mut case = self.corpus.beschrijving();
         if let Some(map) = case.as_object_mut() {
-            map.insert("vandaag".into(), json!(self.today()));
+            map.insert("vandaag".into(), json!(self.today().await?));
         }
-        case
+        Ok(case)
     }
 
     /// The forms of the process today (`kern::vormen`): per submission its
@@ -360,7 +368,7 @@ impl Service {
     pub async fn forms(&self) -> Result<Value, ServiceError> {
         let read = self.read().await?;
         let corpus = Arc::clone(&self.corpus);
-        let today = self.today();
+        let today = self.today().await?;
         blocking(move || {
             let cellen = restore(&corpus, read)?;
             Ok(kern::vormen(&corpus, &cellen, today)?)
@@ -408,7 +416,7 @@ impl Service {
     pub async fn preview(&self, d: Decide) -> Result<Value, ServiceError> {
         let read = self.read().await?;
         let corpus = Arc::clone(&self.corpus);
-        let today = self.today();
+        let today = self.today().await?;
         blocking(move || {
             let cellen = restore(&corpus, read)?;
             let preview = kern::voorvertoning(
@@ -573,7 +581,7 @@ impl Service {
         let read = self.read().await?;
         let corpus = Arc::clone(&self.corpus);
         let cells = self.cells.clone();
-        let today = self.today();
+        let today = self.today().await?;
         blocking(move || {
             let before: Vec<Vec<String>> = read
                 .chronicles
@@ -715,6 +723,12 @@ pub(crate) mod tests {
         async fn receipt(&self, key: &IdempotencyKey) -> Result<Option<Receipt>, StoreError> {
             self.inner.receipt(key).await
         }
+        async fn test_day(&self) -> Result<Option<NaiveDate>, StoreError> {
+            self.inner.test_day().await
+        }
+        async fn set_test_day(&self, day: NaiveDate) -> Result<(), StoreError> {
+            self.inner.set_test_day(day).await
+        }
         async fn append(&self, commit: Commit) -> Result<Appended, StoreError> {
             if self.appends.fetch_add(1, Ordering::SeqCst) < self.conflicts {
                 return Err(StoreError::Conflict {
@@ -735,7 +749,10 @@ pub(crate) mod tests {
             conflicts,
             appends: AtomicUsize::new(0),
         });
-        let clock = Arc::new(ControllableClock::new(corpus.casus.speeldatum));
+        let clock = Arc::new(ControllableClock::new(
+            Arc::clone(&store) as _,
+            corpus.casus.speeldatum,
+        ));
         let s = Service::start(corpus, Arc::clone(&store) as _, clock)
             .await
             .unwrap();
