@@ -16,12 +16,16 @@
 //! The JSON schema under `schema/` remains the authoritative specification
 //! (RFC-013); this crate is one conforming representation of it.
 
+pub mod date;
 mod header;
 mod model;
 pub mod number;
 pub mod stored;
 mod value;
 
+/// The engine reads a version through the model, not from `regelrecht-shared`
+/// itself: it sits on the model alone.
+pub use date::{Date, ParseDateError};
 pub use header::{LawHeader, parse_law_header};
 pub use model::{
     Action, ActionOperation, ActionValue, Article, ArticleBasedLaw, ArticleReference,
@@ -36,8 +40,6 @@ pub use model::{
     UntranslatableEntry, foreach_binding, is_article_reference, is_fact_reference,
     is_variable_reference, names_fact, split_projections,
 };
-/// The engine reads a version through the model, not from `regelrecht-shared`
-/// itself: it sits on the model alone.
 pub use number::{Number, ParseNumberError, Rounding};
 pub use regelrecht_shared::parse_schema_version;
 pub use value::{MissingFact, MissingKind, Operation, ParameterType, RegulatoryLayer, Value};

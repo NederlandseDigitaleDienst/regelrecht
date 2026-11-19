@@ -39,7 +39,7 @@ use crate::context::RuleContext;
 use crate::error::{EngineError, Result};
 use crate::types::{PathNodeType, Value};
 use chrono::{Datelike, NaiveDate};
-use regelrecht_law_model::{Number, Rounding, stored};
+use regelrecht_law_model::{Date, Number, Rounding, stored};
 use std::cmp::Ordering;
 use std::collections::BTreeMap;
 
@@ -339,6 +339,7 @@ fn format_value_for_trace(value: &Value) -> String {
         // Through `Value`, so a whole decimal reads `5.0`, as elsewhere in the trace.
         Value::Decimal(_) => value.to_string(),
         Value::String(s) => format!("'{}'", s),
+        Value::Date(d) => format!("'{d}'"),
         Value::Array(arr) => {
             let items: Vec<String> = arr.iter().map(format_value_for_trace).collect();
             format!("[{}]", items.join(", "))
@@ -544,7 +545,35 @@ pub(crate) fn values_equal(a: &Value, b: &Value) -> bool {
         (Value::Int(i), Value::Decimal(d)) | (Value::Decimal(d), Value::Int(i)) => {
             Number::from(*i) == *d
         }
-        // Default: use structural equality
+        // A date against its text: a date that was stored, or one that came
+        // in as a string, is still the same day (RFC-021).
+        (Value::Date(date), Value::String(text)) | (Value::String(text), Value::Date(date)) => {
+            date.as_str() == text
+        }
+        // Default: structural equality, in which a date inside a list or a
+        // record still equals its text.
+        _ => same_structure(a, b),
+    }
+}
+
+/// Structural equality as `Value`'s own, except that a date equals the same
+/// day written as text at any depth: a row built with a date operation
+/// against the same row read from a data source. Numbers keep the structural
+/// rule, so an integer and a decimal of the same value differ here.
+fn same_structure(a: &Value, b: &Value) -> bool {
+    match (a, b) {
+        (Value::Date(date), Value::String(text)) | (Value::String(text), Value::Date(date)) => {
+            date.as_str() == text
+        }
+        (Value::Array(left), Value::Array(right)) => {
+            left.len() == right.len() && left.iter().zip(right).all(|(l, r)| same_structure(l, r))
+        }
+        (Value::Object(left), Value::Object(right)) => {
+            left.len() == right.len()
+                && left
+                    .iter()
+                    .all(|(key, l)| right.get(key).is_some_and(|r| same_structure(l, r)))
+        }
         _ => a == b,
     }
 }
@@ -643,10 +672,9 @@ fn compound_equal(a: &Value, b: &Value, op_name: &str) -> Result<bool> {
 /// equality cannot already handle.
 fn is_mixed_date_pair(a: &Value, b: &Value) -> bool {
     fn iso_object(v: &Value) -> bool {
-        matches!(v, Value::Object(obj) if matches!(obj.get("iso"), Some(Value::String(_))))
+        matches!(v, Value::Object(obj) if obj.get("iso").is_some_and(is_date_or_text))
     }
-    (matches!(a, Value::String(_)) && iso_object(b))
-        || (iso_object(a) && matches!(b, Value::String(_)))
+    (is_date_or_text(a) && iso_object(b)) || (iso_object(a) && is_date_or_text(b))
 }
 
 /// Execute an ordered comparison (>, <, >=, <=) on numbers or dates.
@@ -799,13 +827,15 @@ pub(crate) fn add_values(evaluated: &[Value]) -> Result<Value> {
             }
             Ok(Value::Array(result))
         }
-        Value::String(_) => {
+        // A date joins as its text, as it did when it was a string. RFC-055
+        // makes this an error; that rule lands with the signature table.
+        Value::String(_) | Value::Date(_) => {
             // Concatenate strings
             let mut result = String::new();
             for val in evaluated {
-                match val {
-                    Value::String(s) => result.push_str(s),
-                    _ => {
+                match val.as_str() {
+                    Some(s) => result.push_str(s),
+                    None => {
                         return Err(EngineError::TypeMismatch {
                             expected: "string".to_string(),
                             actual: format!("{:?}", val),
@@ -2032,7 +2062,7 @@ fn execute_date_add<R: ValueResolver>(
             })?;
     }
 
-    Ok(Value::String(result_date.format("%Y-%m-%d").to_string()))
+    date_result(result_date)
 }
 
 /// Add months to a date using standard calendar arithmetic.
@@ -2107,7 +2137,7 @@ fn execute_date_construct<R: ValueResolver>(
         EngineError::InvalidOperation(format!("DATE: invalid date {}-{}-{}", y, m, d))
     })?;
 
-    Ok(Value::String(date.format("%Y-%m-%d").to_string()))
+    date_result(date)
 }
 
 /// Execute DAY_OF_WEEK operation: get the weekday number for a date.
@@ -2313,7 +2343,7 @@ fn execute_start_of<R: ValueResolver>(
         ))
     })?;
 
-    Ok(Value::String(truncated.format("%Y-%m-%d").to_string()))
+    date_result(truncated)
 }
 
 /// Parse a date from a Value.
@@ -2321,11 +2351,12 @@ fn execute_start_of<R: ValueResolver>(
 /// Expects the value to be a string in ISO 8601 format (YYYY-MM-DD).
 fn parse_date(value: &Value) -> Result<NaiveDate> {
     match value {
+        Value::Date(date) => naive_date(date),
         Value::String(s) => parse_iso_date(s),
         // Handle referencedate objects with {iso, year, month, day}
         Value::Object(obj) => {
-            if let Some(Value::String(iso)) = obj.get("iso") {
-                parse_iso_date(iso)
+            if let Some(iso) = obj.get("iso").filter(|iso| is_date_or_text(iso)) {
+                parse_date(iso)
             } else {
                 Err(EngineError::TypeMismatch {
                     expected: "date string (YYYY-MM-DD) or object with 'iso' field".to_string(),
@@ -2338,6 +2369,34 @@ fn parse_date(value: &Value) -> Result<NaiveDate> {
             actual: format!("{:?}", value),
         }),
     }
+}
+
+/// Whether a value is a date or a string, the two forms a date takes.
+fn is_date_or_text(value: &Value) -> bool {
+    matches!(value, Value::Date(_) | Value::String(_))
+}
+
+/// A [`Date`] as the `chrono` day the date operations calculate with.
+///
+/// A `Date` is a real calendar day in the years 0001 to 9999 by construction,
+/// which is within `chrono`'s range, so the error is not expected.
+fn naive_date(date: &Date) -> Result<NaiveDate> {
+    i32::try_from(date.year())
+        .ok()
+        .and_then(|year| NaiveDate::from_ymd_opt(year, date.month(), date.day()))
+        .ok_or_else(|| EngineError::InvalidDate(date.to_string()))
+}
+
+/// The result of a date operation as a date value. A day outside the years
+/// 0001 to 9999 is no date (RFC-055).
+fn date_result(day: NaiveDate) -> Result<Value> {
+    u32::try_from(day.year())
+        .ok()
+        .and_then(|year| Date::from_ymd(year, day.month(), day.day()))
+        .map(Value::Date)
+        .ok_or_else(|| {
+            EngineError::InvalidOperation(format!("date {day} is outside the years 0001 to 9999"))
+        })
 }
 
 /// Parse a date string in canonical ISO 8601 `YYYY-MM-DD` form.
@@ -4961,7 +5020,7 @@ mod tests {
             // The context's own reference date, not the element's field.
             assert_eq!(
                 execute_operation(&bare, &context, 0).unwrap(),
-                Value::Array(vec![Value::String("2025-06-15".to_string())])
+                Value::Array(vec![Value::Date("2025-06-15".parse().unwrap())])
             );
 
             let dotted = ActionOperation::Foreach {
@@ -5417,6 +5476,173 @@ body:
     mod date_operations {
         use super::*;
 
+        fn day(text: &str) -> Value {
+            Value::Date(text.parse().unwrap())
+        }
+
+        #[test]
+        fn a_date_operation_gives_a_date_that_is_written_as_its_text() {
+            let resolver = TestResolver::new();
+            let op = ActionOperation::Date {
+                year: lit(2025i64),
+                month: lit(3i64),
+                day: lit(15i64),
+            };
+            let result = execute_operation(&op, &resolver, 0).unwrap();
+            assert_eq!(result, day("2025-03-15"));
+            assert_eq!(serde_json::to_string(&result).unwrap(), "\"2025-03-15\"");
+        }
+
+        #[test]
+        fn a_date_equals_the_same_day_written_as_text() {
+            // A date that was stored, or that came in as a string, is still
+            // the same day (RFC-021). RFC-055 narrows this later, with the
+            // signature table.
+            let resolver = TestResolver::new();
+            for (text, expected) in [("2025-03-15", true), ("2025-03-16", false)] {
+                for (subject, value) in [
+                    (lit(day("2025-03-15")), lit(text)),
+                    (lit(text), lit(day("2025-03-15"))),
+                ] {
+                    let op = ActionOperation::Equals { subject, value };
+                    assert_eq!(
+                        execute_operation(&op, &resolver, 0).unwrap(),
+                        Value::Bool(expected),
+                        "{text}"
+                    );
+                }
+            }
+        }
+
+        #[test]
+        fn a_date_orders_against_a_date_written_as_text() {
+            let resolver = TestResolver::new();
+            let op = ActionOperation::GreaterThan {
+                subject: lit(day("2025-03-15")),
+                value: lit("2025-03-14"),
+            };
+            assert_eq!(
+                execute_operation(&op, &resolver, 0).unwrap(),
+                Value::Bool(true)
+            );
+        }
+
+        #[test]
+        fn a_date_operation_reads_a_date_it_produced() {
+            let resolver = TestResolver::new();
+            let first = ActionOperation::StartOf {
+                date: lit(day("2025-03-15")),
+                unit: "month".to_string(),
+            };
+            assert_eq!(
+                execute_operation(&first, &resolver, 0).unwrap(),
+                day("2025-03-01")
+            );
+        }
+
+        #[test]
+        fn a_date_is_found_in_a_list_of_days_written_as_text() {
+            let resolver = TestResolver::new();
+            let op = ActionOperation::In {
+                subject: lit(day("2025-03-15")),
+                value: None,
+                values: Some(vec![lit("2025-01-01"), lit("2025-03-15")]),
+            };
+            assert_eq!(
+                execute_operation(&op, &resolver, 0).unwrap(),
+                Value::Bool(true)
+            );
+        }
+
+        #[test]
+        fn a_row_with_a_date_is_found_among_rows_that_hold_its_text() {
+            // A row built with a date operation against rows from a data
+            // source, where a date is a string.
+            let resolver = TestResolver::new();
+            let row = |dag: Value| Value::Object([("dag".to_string(), dag)].into());
+            let rows = |text: &str| Value::Array(vec![row(Value::String(text.to_string()))]);
+            for (text, expected) in [("2025-03-15", true), ("2025-03-16", false)] {
+                let op = ActionOperation::In {
+                    subject: lit(row(day("2025-03-15"))),
+                    value: Some(lit(rows(text))),
+                    values: None,
+                };
+                assert_eq!(
+                    execute_operation(&op, &resolver, 0).unwrap(),
+                    Value::Bool(expected),
+                    "{text}"
+                );
+            }
+            // A list of dates against a list of the same days as text.
+            assert!(values_equal(
+                &Value::Array(vec![day("2025-03-15")]),
+                &Value::Array(vec![Value::String("2025-03-15".into())])
+            ));
+            // Numbers inside keep the structural rule.
+            assert!(!values_equal(
+                &Value::Array(vec![Value::Int(5)]),
+                &Value::Array(vec![Value::Decimal(dec("5"))])
+            ));
+        }
+
+        #[test]
+        fn a_record_with_a_date_equals_the_record_with_its_text() {
+            let resolver = TestResolver::new();
+            let row = |dag: Value| Value::Object([("dag".to_string(), dag)].into());
+            let op = ActionOperation::Equals {
+                subject: lit(row(day("2025-03-15"))),
+                value: lit(row(Value::String("2025-03-15".into()))),
+            };
+            assert_eq!(
+                execute_operation(&op, &resolver, 0).unwrap(),
+                Value::Bool(true)
+            );
+        }
+
+        #[test]
+        fn a_date_is_true_as_a_condition() {
+            // As the non-empty string it was. RFC-055 ends truthiness with
+            // the signature table.
+            let resolver = TestResolver::new();
+            let op = ActionOperation::Not {
+                value: lit(day("2025-03-15")),
+            };
+            assert_eq!(
+                execute_operation(&op, &resolver, 0).unwrap(),
+                Value::Bool(false)
+            );
+        }
+
+        #[test]
+        fn a_date_still_joins_as_its_text_in_add() {
+            // Unchanged in this step: RFC-055 makes ADD of a date and a
+            // string an error when the signature table lands.
+            let resolver = TestResolver::new();
+            let op = ActionOperation::Add {
+                values: vec![lit(day("2025-03-15")), lit("T00:00")],
+            };
+            assert_eq!(
+                execute_operation(&op, &resolver, 0).unwrap(),
+                Value::String("2025-03-15T00:00".to_string())
+            );
+        }
+
+        #[test]
+        fn a_date_beyond_the_year_9999_is_no_date() {
+            let resolver = TestResolver::new();
+            let op = ActionOperation::DateAdd {
+                date: lit(day("9999-12-31")),
+                years: None,
+                months: None,
+                weeks: None,
+                days: Some(lit(1i64)),
+            };
+            assert!(matches!(
+                execute_operation(&op, &resolver, 0),
+                Err(EngineError::InvalidOperation(_))
+            ));
+        }
+
         #[test]
         fn test_age_exact_birthday() {
             let resolver = TestResolver::new();
@@ -5526,7 +5752,7 @@ body:
             };
 
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2025-01-15".to_string()));
+            assert_eq!(result, Value::Date("2025-01-15".parse().unwrap()));
         }
 
         #[test]
@@ -5541,7 +5767,7 @@ body:
             };
 
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2025-01-15".to_string()));
+            assert_eq!(result, Value::Date("2025-01-15".parse().unwrap()));
         }
 
         #[test]
@@ -5557,7 +5783,7 @@ body:
 
             // 1 week + 3 days = 10 days from Jan 1 = Jan 11
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2025-01-11".to_string()));
+            assert_eq!(result, Value::Date("2025-01-11".parse().unwrap()));
         }
 
         #[test]
@@ -5572,7 +5798,7 @@ body:
             };
 
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2025-01-10".to_string()));
+            assert_eq!(result, Value::Date("2025-01-10".parse().unwrap()));
         }
 
         #[test]
@@ -5586,7 +5812,7 @@ body:
                 days: None,
             };
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2025-05-15".to_string()));
+            assert_eq!(result, Value::Date("2025-05-15".parse().unwrap()));
         }
 
         #[test]
@@ -5601,7 +5827,7 @@ body:
                 days: None,
             };
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2025-02-28".to_string()));
+            assert_eq!(result, Value::Date("2025-02-28".parse().unwrap()));
         }
 
         #[test]
@@ -5616,7 +5842,7 @@ body:
                 days: None,
             };
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2024-02-29".to_string()));
+            assert_eq!(result, Value::Date("2024-02-29".parse().unwrap()));
         }
 
         #[test]
@@ -5631,7 +5857,7 @@ body:
             };
             // Mar 31 - 1 month = Feb 28
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2025-02-28".to_string()));
+            assert_eq!(result, Value::Date("2025-02-28".parse().unwrap()));
         }
 
         #[test]
@@ -5647,7 +5873,7 @@ body:
             };
             // Aug 31 + 6 months = Feb 28
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2026-02-28".to_string()));
+            assert_eq!(result, Value::Date("2026-02-28".parse().unwrap()));
         }
 
         #[test]
@@ -5661,7 +5887,7 @@ body:
                 days: None,
             };
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2027-06-15".to_string()));
+            assert_eq!(result, Value::Date("2027-06-15".parse().unwrap()));
         }
 
         #[test]
@@ -5676,7 +5902,7 @@ body:
                 days: None,
             };
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2025-02-28".to_string()));
+            assert_eq!(result, Value::Date("2025-02-28".parse().unwrap()));
         }
 
         #[test]
@@ -5691,7 +5917,7 @@ body:
                 days: None,
             };
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2028-02-29".to_string()));
+            assert_eq!(result, Value::Date("2028-02-29".parse().unwrap()));
         }
 
         #[test]
@@ -5707,7 +5933,7 @@ body:
             };
             // +1y = 2026-01-15, +2m = 2026-03-15, +1w = 2026-03-22, +3d = 2026-03-25
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2026-03-25".to_string()));
+            assert_eq!(result, Value::Date("2026-03-25".parse().unwrap()));
         }
 
         #[test]
@@ -5720,7 +5946,7 @@ body:
             };
 
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2025-03-15".to_string()));
+            assert_eq!(result, Value::Date("2025-03-15".parse().unwrap()));
         }
 
         #[test]
@@ -5733,7 +5959,7 @@ body:
             };
 
             let result = execute_operation(&op, &resolver, 0).unwrap();
-            assert_eq!(result, Value::String("2024-02-29".to_string()));
+            assert_eq!(result, Value::Date("2024-02-29".parse().unwrap()));
         }
 
         #[test]
@@ -6668,7 +6894,7 @@ body:
             let op = start_of(lit("2025-03-14"), "month");
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2025-03-01".to_string())
+                Value::Date("2025-03-01".parse().unwrap())
             );
         }
 
@@ -6678,7 +6904,7 @@ body:
             let op = start_of(lit("2025-03-01"), "month");
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2025-03-01".to_string())
+                Value::Date("2025-03-01".parse().unwrap())
             );
         }
 
@@ -6688,7 +6914,7 @@ body:
             let op = start_of(lit("2024-02-29"), "month");
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2024-02-01".to_string())
+                Value::Date("2024-02-01".parse().unwrap())
             );
         }
 
@@ -6698,7 +6924,7 @@ body:
             let op = start_of(lit("2025-12-31"), "year");
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2025-01-01".to_string())
+                Value::Date("2025-01-01".parse().unwrap())
             );
         }
 
@@ -6708,7 +6934,7 @@ body:
             let op = start_of(lit("2025-01-01"), "year");
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2025-01-01".to_string())
+                Value::Date("2025-01-01".parse().unwrap())
             );
         }
 
@@ -6720,7 +6946,7 @@ body:
             let op = start_of(lit("2025-01-09"), "month");
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2025-01-01".to_string())
+                Value::Date("2025-01-01".parse().unwrap())
             );
         }
 
@@ -6769,7 +6995,7 @@ body:
             let op = first_of_next_month(lit("2025-03-15"));
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2025-04-01".to_string())
+                Value::Date("2025-04-01".parse().unwrap())
             );
         }
 
@@ -6782,7 +7008,7 @@ body:
             let op = first_of_next_month(lit("2025-03-01"));
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2025-04-01".to_string())
+                Value::Date("2025-04-01".parse().unwrap())
             );
         }
 
@@ -6792,7 +7018,7 @@ body:
             let op = first_of_next_month(lit("2025-03-31"));
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2025-04-01".to_string())
+                Value::Date("2025-04-01".parse().unwrap())
             );
         }
 
@@ -6806,7 +7032,7 @@ body:
             let op = first_of_next_month(lit("2025-01-31"));
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2025-02-01".to_string())
+                Value::Date("2025-02-01".parse().unwrap())
             );
         }
 
@@ -6816,7 +7042,7 @@ body:
             let op = first_of_next_month(lit("2025-12-17"));
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2026-01-01".to_string())
+                Value::Date("2026-01-01".parse().unwrap())
             );
         }
 
@@ -6835,7 +7061,7 @@ body:
             }));
             assert_eq!(
                 execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2026-03-01".to_string())
+                Value::Date("2026-03-01".parse().unwrap())
             );
         }
 

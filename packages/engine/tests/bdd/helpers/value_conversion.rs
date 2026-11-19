@@ -78,7 +78,14 @@ fn tolerance() -> Number {
 pub fn values_equal_with_tolerance(a: &Value, b: &Value) -> bool {
     match (a.as_decimal(), b.as_decimal()) {
         (Some(da), Some(db)) => (&da - &db).abs() < tolerance(),
-        _ => a == b,
+        // A feature file writes a date as text; the engine answers with a
+        // date. The same day is the same value.
+        _ => match (a, b) {
+            (Value::Date(date), Value::String(text)) | (Value::String(text), Value::Date(date)) => {
+                date.as_str() == text
+            }
+            _ => a == b,
+        },
     }
 }
 

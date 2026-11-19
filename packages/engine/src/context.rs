@@ -238,9 +238,9 @@ impl<'l> RuleContext<'l> {
         // Extract ISO date string from the cached reference_date_value
         // This is safe because we always set it in new()
         if let Value::Object(obj) = &self.reference_date_value
-            && let Some(Value::String(iso)) = obj.get("iso")
+            && let Some(iso) = obj.get("iso").and_then(Value::as_str)
         {
-            return iso.as_str();
+            return iso;
         }
         // Fallback - should never happen since we always set iso in new()
         "1970-01-01"
@@ -433,9 +433,7 @@ impl<'l> RuleContext<'l> {
                     }
                     "iso" => {
                         self.trace_set_resolve_type(ResolveType::Context);
-                        Ok(Value::String(
-                            self.reference_date.format("%Y-%m-%d").to_string(),
-                        ))
+                        Ok(iso_value(self.reference_date))
                     }
                     _ => {
                         let base_value = self.resolve_variable(base)?;
@@ -563,12 +561,21 @@ fn date_to_value(date: NaiveDate) -> Value {
     obj.insert("year".to_string(), Value::Int(date.year() as i64));
     obj.insert("month".to_string(), Value::Int(date.month() as i64));
     obj.insert("day".to_string(), Value::Int(date.day() as i64));
-    // Also include ISO format string for direct use
-    obj.insert(
-        "iso".to_string(),
-        Value::String(date.format("%Y-%m-%d").to_string()),
-    );
+    // The day itself, a date (RFC-055).
+    obj.insert("iso".to_string(), iso_value(date));
     Value::Object(obj)
+}
+
+/// The `iso` field of a reference date: the day as a date value. A reference
+/// date outside the years 0001 to 9999 is no date and stays its text.
+fn iso_value(date: NaiveDate) -> Value {
+    u32::try_from(date.year())
+        .ok()
+        .and_then(|year| regelrecht_law_model::Date::from_ymd(year, date.month(), date.day()))
+        .map_or_else(
+            || Value::String(date.format("%Y-%m-%d").to_string()),
+            Value::Date,
+        )
 }
 
 /// Get a property from a Value, supporting nested access.
@@ -773,7 +780,7 @@ mod tests {
         assert_eq!(obj.get("day"), Some(&Value::Int(15)));
         assert_eq!(
             obj.get("iso"),
-            Some(&Value::String("2025-06-15".to_string()))
+            Some(&Value::Date("2025-06-15".parse().unwrap()))
         );
     }
 
@@ -1052,7 +1059,10 @@ mod tests {
             ("referencedate.year", Value::Int(2025)),
             ("referencedate.month", Value::Int(6)),
             ("referencedate.day", Value::Int(15)),
-            ("referencedate.iso", Value::String("2025-06-15".to_string())),
+            (
+                "referencedate.iso",
+                Value::Date("2025-06-15".parse().unwrap()),
+            ),
         ];
 
         for (path, expected) in cases {

@@ -1585,6 +1585,8 @@ fn finding_fits(term: &crate::article::OpenTerm, value: &Value) -> bool {
     use crate::types::ParameterType as T;
     match (term.term_type, value) {
         (_, Value::Null) => !term.required,
+        // A date still fits a `string` (see `fits_state_type`).
+        (T::Date | T::String, Value::Date(_)) => true,
         (T::Date, Value::String(day)) => NaiveDate::parse_from_str(day, "%Y-%m-%d")
             .is_ok_and(|d| d.format("%Y-%m-%d").to_string() == *day),
         (T::Boolean, Value::Bool(_))
@@ -1668,6 +1670,7 @@ fn hash_value(value: &Value, hasher: &mut impl Hasher) {
             d.hash(hasher);
         }
         Value::String(s) => s.hash(hasher),
+        Value::Date(d) => d.hash(hasher),
         Value::Array(arr) => {
             arr.len().hash(hasher);
             for v in arr {

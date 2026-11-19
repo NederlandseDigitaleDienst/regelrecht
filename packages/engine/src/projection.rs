@@ -966,7 +966,9 @@ impl LawExecutionService {
                 // A key that holds null is no key.
                 .filter(|value| !matches!(value, Value::Null))
                 .map(|value| {
-                    (value == key)
+                    // As the engine compares: a key computed by a date
+                    // operation is a date, and a record holds its text.
+                    crate::operations::values_equal(value, key)
                         .then_some(())
                         .ok_or_else(|| format!("key differs: {key_parameter}"))
                 })
@@ -2142,6 +2144,9 @@ pub(crate) fn fits_state_type(ty: &ParameterType, value: &Value) -> bool {
         | (ParameterType::Number, Value::Int(_) | Value::Decimal(_))
         | (ParameterType::Amount, Value::Int(_))
         | (ParameterType::String, Value::String(_)) => true,
+        // A date still fits a `string`, as it did when a date operation
+        // returned its text. RFC-055 separates the two with the type rules.
+        (ParameterType::String | ParameterType::Date, Value::Date(_)) => true,
         (ParameterType::Date, Value::String(s)) => NaiveDate::parse_from_str(s, "%Y-%m-%d").is_ok(),
         _ => false,
     }
@@ -2246,6 +2251,7 @@ pub fn describe_applied(article: Option<&str>, changes: &[StateChange]) -> Strin
 fn show(value: &Value) -> String {
     match value {
         Value::String(s) => s.clone(),
+        Value::Date(d) => d.to_string(),
         Value::Null => "null".to_string(),
         other => serde_json::to_string(other).unwrap_or_else(|_| format!("{other:?}")),
     }
@@ -2256,6 +2262,18 @@ fn show(value: &Value) -> String {
 mod tests {
     use super::*;
     use crate::LawLoad;
+
+    #[test]
+    fn a_date_fits_a_date_and_a_string_property() {
+        // A date operation returned text before dates were a type of their
+        // own, so a `string` property still takes its result.
+        let day = Value::Date("2025-03-15".parse().unwrap());
+        assert!(fits_state_type(&ParameterType::Date, &day));
+        assert!(fits_state_type(&ParameterType::String, &day));
+        assert!(!fits_state_type(&ParameterType::Number, &day));
+        assert!(!fits_state_type(&ParameterType::Boolean, &day));
+        assert_eq!(show(&day), "2025-03-15");
+    }
 
     /// Article 1 grants (`verleend`), article 2 revokes `bestreden` when
     /// `herroepen`, article 3 takes a decision in the place of `bestreden`

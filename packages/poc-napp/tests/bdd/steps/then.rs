@@ -86,7 +86,7 @@ fn check_verlengde_einddatum(world: &mut NappWorld, expected: String) {
     assert_success(world);
     let actual = world.get_output("verlengde_einddatum");
     assert!(
-        matches!(actual, Some(Value::String(s)) if *s == expected),
+        actual.and_then(Value::as_str) == Some(expected.as_str()),
         "Expected verlengde_einddatum {expected}, got {actual:?}"
     );
 }
@@ -100,7 +100,7 @@ fn assert_date_output(world: &NappWorld, name: &str, expected: &str) {
     assert_success(world);
     let actual = world.get_output(name);
     assert!(
-        matches!(actual, Some(Value::String(s)) if s == expected),
+        actual.and_then(Value::as_str) == Some(expected),
         "Expected output '{name}' to be {expected}, got {actual:?}"
     );
 }

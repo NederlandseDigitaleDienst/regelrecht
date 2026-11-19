@@ -322,6 +322,7 @@ fn format_value_compact(value: &Value) -> String {
         Value::Bool(b) => b.to_string(),
         Value::Int(i) => i.to_string(),
         Value::Decimal(d) => format!("{d:.2}"),
+        Value::Date(d) => format!("\"{d}\""),
         Value::String(s) => {
             if s.chars().count() > 30 {
                 let truncated: String = s.chars().take(27).collect();

@@ -542,6 +542,7 @@ fn build_lookup_key(criteria: &BTreeMap<String, Value>) -> Option<String> {
 fn value_to_key(value: &Value) -> Option<String> {
     match value {
         Value::String(s) => Some(s.clone()),
+        Value::Date(d) => Some(d.to_string()),
         Value::Int(i) => Some(i.to_string()),
         Value::Decimal(d) => Some(d.to_string()),
         Value::Bool(b) => Some(b.to_string()),
@@ -913,6 +914,12 @@ mod tests {
 
     #[test]
     fn test_value_to_key() {
+        // A date keys as its text, so a lookup by a computed date finds
+        // the record that holds that day as a string.
+        assert_eq!(
+            value_to_key(&Value::Date("2025-03-15".parse().unwrap())).as_deref(),
+            Some("2025-03-15")
+        );
         assert_eq!(
             value_to_key(&Value::String("test".to_string())).as_deref(),
             Some("test")

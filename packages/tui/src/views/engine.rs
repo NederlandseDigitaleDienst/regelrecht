@@ -639,6 +639,7 @@ fn format_value(value: &Value) -> String {
         Value::Int(i) => i.to_string(),
         Value::Decimal(d) => format!("{d:.2}"),
         Value::String(s) => format!("\"{s}\""),
+        Value::Date(d) => format!("\"{d}\""),
         Value::Array(arr) => {
             let items: Vec<String> = arr.iter().map(format_value).collect();
             format!("[{}]", items.join(", "))

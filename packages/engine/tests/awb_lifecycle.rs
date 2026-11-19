@@ -52,6 +52,11 @@ fn date(s: &str) -> Value {
     Value::String(s.to_string())
 }
 
+/// A date the engine computed, as a date operation returns it.
+fn computed_date(s: &str) -> Value {
+    Value::Date(s.parse().expect("test literal should be a date"))
+}
+
 /// Doorloopt de levensloop tot hij klaar is of niet verder kan, en levert elke
 /// keer aan wat er gevraagd wordt. Zo leest een test als het verhaal van een
 /// besluit en niet als een reeks aanroepen.
@@ -220,12 +225,12 @@ fn de_termijn_is_een_datum_en_niet_zes_weken() {
     // einddatum zes weken ná de bekendmaking (de startdag telt mee).
     assert_eq!(
         outputs.get("termijn_startdatum"),
-        Some(&date("2026-03-13")),
+        Some(&computed_date("2026-03-13")),
         "outputs: {outputs:?}"
     );
     assert_eq!(
         outputs.get("termijn_einddatum"),
-        Some(&date("2026-04-23")),
+        Some(&computed_date("2026-04-23")),
         "outputs: {outputs:?}"
     );
 }
@@ -267,7 +272,7 @@ fn een_afwijkende_termijn_werkt_door_in_de_einddatum() {
     // Vier weken na de bekendmaking, niet zes.
     assert_eq!(
         outputs.get("termijn_einddatum"),
-        Some(&date("2026-04-09")),
+        Some(&computed_date("2026-04-09")),
         "outputs: {outputs:?}"
     );
 }

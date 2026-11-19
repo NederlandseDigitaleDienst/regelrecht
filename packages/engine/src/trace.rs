@@ -882,6 +882,7 @@ fn format_value_compact(value: &Value) -> String {
                 format!("{:.2}", d)
             }
         }
+        Value::Date(d) => format!("\"{d}\""),
         Value::String(s) => {
             // Truncate long strings (use chars() for UTF-8 safety)
             if s.chars().count() > 20 {
@@ -963,11 +964,12 @@ fn format_value_display(value: &Value) -> String {
             }
         }
         Value::String(s) => format!("'{}'", s),
+        Value::Date(d) => format!("'{d}'"),
         Value::Array(arr) => {
             let items: Vec<String> = arr.iter().map(format_value_display).collect();
             format!("[{}]", items.join(", "))
         }
-        Value::Object(obj) if matches!(obj.get("iso"), Some(Value::String(_))) => {
+        Value::Object(obj) if matches!(obj.get("iso"), Some(Value::String(_) | Value::Date(_))) => {
             format_value_display(&obj["iso"])
         }
         Value::Object(obj) => {
@@ -1354,6 +1356,20 @@ impl TraceBuilder {
 mod tests {
     use super::*;
     use crate::types::{MissingFact, MissingKind};
+
+    #[test]
+    fn a_date_is_shown_as_the_text_it_was() {
+        let day = Value::Date("2025-03-15".parse().unwrap());
+        assert_eq!(format_value_compact(&day), "\"2025-03-15\"");
+        assert_eq!(format_value_display(&day), "'2025-03-15'");
+        // A reference date shows as its day, whether `iso` is a date or text.
+        let reference = |iso: Value| Value::Object([("iso".to_string(), iso)].into());
+        assert_eq!(format_value_display(&reference(day)), "'2025-03-15'");
+        assert_eq!(
+            format_value_display(&reference(Value::String("2025-03-15".into()))),
+            "'2025-03-15'"
+        );
+    }
 
     fn missing(name: &str) -> MissingFact {
         MissingFact {
