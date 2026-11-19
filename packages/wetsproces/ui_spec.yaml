@@ -4,6 +4,10 @@
 # per veld. Het BSN van de aanvrager vult het systeem uit het inloggen
 # (`fill: {by: system}` zonder bron): de server zet er de identiteit van de
 # ingelogde burger in en neemt het veld niet uit het verzoek aan.
+#
+# `label` en `help` zeggen hoe een scherm een veld noemt en wat eronder staat.
+# Zonder die twee heet een veld op het scherm naar zijn naam in het regelwerk;
+# de vragen zelf en hun volgorde komen altijd uit de wet.
 elements:
   - id: UI1
     element: aanvraagformulier
@@ -11,3 +15,13 @@ elements:
       - name: bsn_aanvrager
         visibility: shown
         fill: {by: system}
+        label: Burgerservicenummer
+      - name: kaart_als_bestuurder
+        label: Ik vraag de kaart aan als bestuurder van de auto
+      - name: kaart_als_passagier
+        label: Ik vraag de kaart aan als passagier
+      - name: aanvraag_ondertekend
+        label: Ik onderteken deze aanvraag
+      - name: gevraagde_beschikking
+        label: Wat vraagt u aan?
+        help: Bijvoorbeeld een gehandicaptenparkeerkaart.

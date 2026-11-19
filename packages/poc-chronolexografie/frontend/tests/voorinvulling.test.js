@@ -9,7 +9,7 @@ import {
   systeemTekst,
   systeemVult,
   voorgevuldeWaarden,
-} from '../src/voorinvulling.js';
+} from '@regelrecht/frontend-shared/chronolex/voorinvulling';
 import { BESTUUR, RIJEN } from './fixtureTabel.js';
 
 const celNaam = (cel) => ({ voorbeeld_register: 'Voorbeeldregister' })[cel] ?? `cel ${cel}`;

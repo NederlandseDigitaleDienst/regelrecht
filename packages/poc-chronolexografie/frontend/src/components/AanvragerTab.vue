@@ -39,12 +39,13 @@ import {
   systeemBronnen,
   systeemTekst,
   systeemVult,
-} from '../voorinvulling.js';
+  tegenBesluit,
+} from '@regelrecht/frontend-shared/chronolex/voorinvulling';
 import { NOT_LOGGED_IN, gekozen, inlogTekst, keuzeLabel, metKeuze } from '../inloggen.js';
 import { claimRegel, ingelogdAls, ingevuldDoorInloggen, metSessie, nietIngelogdTekst } from '../inlogstap.js';
 import { inlogScherm, keuzeVan, sessieVan, wisSessie, zetKeuze } from '../sessie.js';
 import ArtikelLink from './ArtikelLink.vue';
-import VeldInvoer from './VeldInvoer.vue';
+import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
 
 // Who the applicant is logged in as, in a block of its own at the top of the
 // page: it holds for the new application and for the ones made before. With
@@ -226,9 +227,7 @@ const indieningVelden = computed(() => {
   if (!t || !state.vormen) return [];
   // Het bestreden besluit en wat het al bevat (de termijn, Awb 6:8) vult de
   // cel zelf.
-  return state.vormen[t.soort].velden.filter(
-    (v) => !(v.naam in (t.besluit.outputs ?? {})) && !(v.naam in (t.besluit.fields ?? {})),
-  );
+  return tegenBesluit(state.vormen[t.soort].velden, t.besluit);
 });
 
 function start(soort, besluit) {

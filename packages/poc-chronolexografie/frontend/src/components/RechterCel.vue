@@ -16,7 +16,7 @@ import { beroepApi, ontvangstVan, uitspraakOp } from '../beroep.js';
 import { isBesluitwaarde, kort, leesbaar, state, stap, waarde, zonderLeeg } from '../state.js';
 import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import ArtikelLink from './ArtikelLink.vue';
-import VeldInvoer from './VeldInvoer.vue';
+import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
 import Voorvertoning from './Voorvertoning.vue';
 
 const vorm = computed(() => state.vormen?.uitspraak ?? { bevindingen: [], basis: '' });

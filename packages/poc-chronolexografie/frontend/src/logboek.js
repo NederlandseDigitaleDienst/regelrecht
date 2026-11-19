@@ -9,7 +9,7 @@
  * `uitkomst` (een uitvoer van het artikel) of `begrip` (een open begrip, met
  * wie het invulde).
  */
-import { bezwaarBasis, hoofdletter, kort, leesbaar, state, toegewezen, waarde } from './state.js';
+import { bezwaarBasis, hoofdletter, kort, leesbaar, state, toegewezen } from './state.js';
 
 // Regelwerken die overal bij hun afkorting heten.
 const AFKORTINGEN = {
@@ -33,16 +33,9 @@ export function wetNaam(wet) {
 /** `leerplichtwet_1969`, `13a` → `Leerplichtwet 1969 artikel 13a`. */
 export const artikelNaam = (wet, artikel) => `${wetNaam(wet)} artikel ${artikel}`;
 
-/** Een waarde uit de keten in woorden: ja, nee, een datum of een getal. */
-export function toon(v) {
-  if (v === true) return 'ja';
-  if (v === false) return 'nee';
-  if (v == null) return 'geen waarde';
-  if (Array.isArray(v)) return v.length ? v.map((x) => toon(x)).join(', ') : 'geen';
-  if (typeof v === 'object' && 'basis' in v) return `een besluit onder ${v.basis}`;
-  if (typeof v === 'string') return v;
-  return waarde(v);
-}
+/** A value from the chain in words, shared with the wetsprocessysteem. */
+export { toon } from '@regelrecht/frontend-shared/chronolex/waarden';
+import { toon } from '@regelrecht/frontend-shared/chronolex/waarden';
 
 /** Het chronolexogram `id` als `bezwaar 0000aaaa`, als het in `grammen` staat. */
 export function gramNaam(id, grammen) {
