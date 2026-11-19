@@ -229,7 +229,10 @@ async function main() {
         const started = Date.now();
         const label = `${size}${code === 'nl' ? '' : `, ${code}`}`;
         try {
-          failed += await verify(browser, base, timeline, size, code, width > 1 ? (line) => lines.push(line) : console.log);
+          // Add after the wait, not `failed += await …`: that reads the count
+          // before the run starts and would drop what a run next to it found.
+          const missed = await verify(browser, base, timeline, size, code, width > 1 ? (line) => lines.push(line) : console.log);
+          failed += missed;
         } catch (e) {
           // Name the run: side by side, the message alone does not say whose it is.
           throw new Error(`${label}: ${e.message}`, { cause: e });
