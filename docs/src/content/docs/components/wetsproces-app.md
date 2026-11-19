@@ -25,9 +25,9 @@ The citizen's entry (`burger.html`, `src/burgeromgeving/main.ts`) is the same fo
 | Build | Transport | Output |
 |---|---|---|
 | `npm run build:app -w frontend-wetsproces` | `vervoer/tauri.ts`: commands of the core, in by activation | `dist-app/` |
-| `npm run build:burger -w frontend-wetsproces` | `vervoer/cookie.ts`: HTTP with the session cookie, in by the login | `dist-burger/` |
+| `npm run build:burger -w frontend-wetsproces` | `vervoer/cookie.ts`: HTTP with the session cookie, in by the login | `dist/burger/` |
 
-No server serves `dist-burger/` yet. The combined web build (`npm run build`, `index.html`) is unchanged and keeps its cookie through `src/gedeeld/sessie.ts`, where each transport puts its own session in place. `src/scheiding.test.ts` follows every import from the entry with each transport. It fails when either reaches a module of the back office, and when the app's reaches the login or a module under `src/` that uses the webview's storage. It does not follow imports into packages.
+The instance for citizens of the server serves `dist/burger/` ([surfaces](/components/wetsproces#surfaces)). The combined web build keeps its cookie through `src/gedeeld/sessie.ts`, where each transport puts its own session in place. `src/scheiding.test.ts` follows every import from the entry with each transport. It fails when either reaches a module of the back office, and when the app's reaches the login or a module under `src/` that uses the webview's storage. It does not follow imports into packages.
 
 ## Activation and the session
 

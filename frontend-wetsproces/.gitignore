@@ -1,7 +1,6 @@
 node_modules/
 dist/
 dist-app/
-dist-burger/
 # The Tauri shell builds into its own target directory.
 src-tauri/target/
 src-tauri/gen/

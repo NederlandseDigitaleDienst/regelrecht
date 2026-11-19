@@ -144,6 +144,7 @@ Each service is gated on a **minimum role** at login time, configured via
 | `editor` | `editor-reader` |
 | `harvester-admin` | `harvester-reader` |
 | `wetsproces` | `wetsproces-toegang` |
+| `wetsproces-backoffice` | `wetsproces-toegang` |
 
 If `OIDC_REQUIRED_ROLE` is unset or empty, the service falls back to
 `allowed-user`, a realm role from before the per-app roles existed, and logs a
@@ -323,7 +324,9 @@ Keycloak.
 
 ## Wetsproces roles
 
-The wetsproces server logs in through the same realm, with an OIDC client of
+The wetsproces server logs in through the same realm. It runs as two
+instances, one for citizens and one for the back office
+([surfaces](/components/wetsproces#surfaces)), and each has an OIDC client of
 its own. Its roles all start with `wetsproces-`, so none of them grants
 anything in the editor or the harvester, and no editor role grants anything
 in the wetsproces server. The role names live in one place in the code,
@@ -344,6 +347,13 @@ with `wetsproces-cel-gemeente_wilgendaal` decides for the municipality and
 cannot read the GGD's chronicle. The server treats the ladder as ordered, so a
 `wetsproces-beslisser` may read and handle even when Keycloak does not hand it
 the lower roles. Setting the clock needs no cell role.
+
+Which instance an account logs in at limits what its roles do there. On the
+instance for citizens a session keeps `wetsproces-burger` and drops every
+ladder and cell role, even when the token carries them. On the back office it
+keeps those and drops `wetsproces-burger`, so an account with only the
+citizen's role gets `403` on every route there. Someone who is both a citizen
+and an employee logs in at each instance apart.
 
 A citizen is identified by a user attribute, by default `bsn`. The login copies
 that claim into the session, and the server fills the applicant's field of the
@@ -375,14 +385,22 @@ The realm is configured by hand; nothing in the repository changes it.
      `wetsproces-beslisser` contains `wetsproces-behandelaar`, and
      `wetsproces-admin` contains `wetsproces-beslisser`.
    The cell roles are composites of nothing and are granted per employee.
-3. **Create the client** `wetsproces`: confidential (*Client authentication*
-   On), *Standard flow* on, the redirect URI
+3. **Create two clients**, one per instance: `wetsproces` for citizens on
+   `wetsproces.regelrecht.rijks.app`, and `wetsproces-backoffice` for
+   employees on `wetsproces-backoffice.regelrecht.rijks.app`. Each is
+   confidential (*Client authentication* On), with *Standard flow* on, the
+   scopes `openid`, `email` and `profile`, the redirect URI
    `https://<host>/auth/callback` and the post-logout redirect URI
-   `https://<host>`, with the scopes `openid`, `email` and `profile`.
-4. **Add two mappers** to the client's dedicated scope:
-   - a *User Realm Role* mapper with *Add to ID token* On, as for the editor;
-   - a *User Attribute* mapper with *User Attribute* `bsn`, *Token Claim
-     Name* `bsn`, *Claim JSON Type* `String`, and *Add to ID token* On.
+   `https://<host>` of its own host. The server builds the redirect from its
+   `BASE_URL`, so each instance's `BASE_URL` must be the host its client
+   allows; a client that allows both hosts would let one instance's login
+   land on the other.
+4. **Add the mappers** to the dedicated scope of the clients:
+   - on both, a *User Realm Role* mapper with *Add to ID token* On, as for
+     the editor;
+   - on `wetsproces` only, a *User Attribute* mapper with *User Attribute*
+     `bsn`, *Token Claim Name* `bsn`, *Claim JSON Type* `String`, and *Add to
+     ID token* On. The back office identifies no citizen by their account.
 5. **Allow the attribute**: with the realm's user profile enabled, add the
    attribute `bsn` to it, editable by admins only, so a user cannot change
    their own number.
