@@ -6,7 +6,9 @@
 //! synthetic law and a cell with its reduction) in `packages/cel/bdd/fixtures`.
 //! Beside them, each construct under `packages/cel/bdd/constructs/` is a
 //! scenario set (`sets.rs`): its features run against its own fictional
-//! regelwerken and nothing else.
+//! regelwerken and nothing else. `BDD_CONSTRUCT_SETS` names sets from outside
+//! this crate, separated by `:`; when it is set, the runner plays those sets
+//! and not its own suite. `BDD_JUNIT` writes a JUnit report.
 //! A feature may use the canonical steps (`bdd/grammar.yaml`) and the cell's
 //! own (`packages/cel/bdd/grammar.yaml`). Those stay out of the canonical
 //! grammar: that is the language every engine, Rust and JS, executes, while
@@ -49,10 +51,27 @@ mod generated_steps {
     include!(concat!(env!("OUT_DIR"), "/bdd_generated_steps.rs"));
 }
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[tokio::main]
 async fn main() {
+    // Sets from outside the crate run on their own: the caller wants a report
+    // on its own scenarios, and the cell's suite runs in regelrecht's CI.
+    let external = sets::external();
+    let features = if external.is_empty() {
+        own_features()
+    } else {
+        external
+            .iter()
+            .flat_map(sets::ScenarioSet::features)
+            .collect()
+    };
+    runner::run(features).await;
+}
+
+/// The cell's own suite: `bdd/features`, then each construct in
+/// `bdd/constructs`.
+fn own_features() -> Vec<PathBuf> {
     let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("bdd/features");
     let mut features: Vec<_> = std::fs::read_dir(&dir)
         .unwrap_or_else(|e| panic!("{}: {e}", dir.display()))
@@ -69,5 +88,5 @@ async fn main() {
     for set in sets::constructs(&constructs) {
         features.extend(set.features());
     }
-    runner::run(features).await;
+    features
 }

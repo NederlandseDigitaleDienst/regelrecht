@@ -15,10 +15,13 @@
 //! construct a hook fires only from the set's own regelwerken.
 //!
 //! The constructs under `bdd/constructs/` are the scenario sets this runner
-//! finds itself ([`constructs`]). A corpus laid out the same way (a
-//! `regulation/` directory with a `scenarios/` directory beside it) is a
-//! scenario set too: its features would load its regelwerken by the same
-//! rule, because the set is read from where a feature sits.
+//! finds itself ([`constructs`]); `BDD_CONSTRUCT_SETS` names sets from
+//! elsewhere, such as a corpus outside this repository ([`external`]), which
+//! then run instead of the runner's own suite. A
+//! corpus laid out the same way (a `regulation/` directory with a
+//! `scenarios/` directory beside it) is a scenario set too: its features
+//! would load its regelwerken by the same rule, because the set is read from
+//! where a feature sits.
 
 use std::path::{Path, PathBuf};
 
@@ -84,23 +87,37 @@ pub fn constructs(constructs: &Path) -> Vec<ScenarioSet> {
         .filter(|path| path.is_dir())
         .collect();
     roots.sort();
-    roots
+    roots.iter().map(|root| checked_set(root)).collect()
+}
+
+/// The scenario sets named in `BDD_CONSTRUCT_SETS`: set directories outside
+/// this crate, separated like `PATH` (`:` on Unix), in the order given. A
+/// corpus outside the repository runs its own constructs this way, without
+/// the cell's suite (`main.rs`). Each must be a set with a feature, as a
+/// construct must: a path that is not fails the run instead of being left out.
+pub fn external() -> Vec<ScenarioSet> {
+    crate::common::paths_from_env("BDD_CONSTRUCT_SETS")
+        .unwrap_or_default()
         .iter()
-        .map(|root| {
-            let set = ScenarioSet::at(root).unwrap_or_else(|| {
-                panic!(
-                    "{}: a construct holds {REGULATION}/ and {SCENARIOS}/",
-                    root.display()
-                )
-            });
-            assert!(
-                !set.features().is_empty(),
-                "{}: no feature files in {SCENARIOS}/",
-                root.display()
-            );
-            set
-        })
+        .map(|root| checked_set(root))
         .collect()
+}
+
+/// The set at `root`, failing the run when `root` is not a scenario set or holds
+/// no feature.
+fn checked_set(root: &Path) -> ScenarioSet {
+    let set = ScenarioSet::at(root).unwrap_or_else(|| {
+        panic!(
+            "{}: a scenario set holds {REGULATION}/ and {SCENARIOS}/",
+            root.display()
+        )
+    });
+    assert!(
+        !set.features().is_empty(),
+        "{}: no feature files in {SCENARIOS}/",
+        root.display()
+    );
+    set
 }
 
 /// The files under `dir` with extension `extension`, leaving out

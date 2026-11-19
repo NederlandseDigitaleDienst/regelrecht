@@ -35,7 +35,7 @@ serde_yaml_ng = { workspace = true }
 tempfile.workspace = true
 # The cell's BDD suite (tests/bdd), which shares its world and dispatch with
 # the engine's runner and adds the cell's steps.
-cucumber = "0.23"
+cucumber = { version = "0.23", features = ["output-junit"] }
 gherkin = "0.16"
 futures = "0.3"
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

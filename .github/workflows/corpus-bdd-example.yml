@@ -1,0 +1,106 @@
+---
+# Calls the reusable workflow corpus-bdd.yml the way a corpus in another
+# repository would, against the fictional corpus in bdd/external-corpus-example:
+# one bucket-A feature that reads a regelwerk from corpus/regulation, and one
+# construct set. It shows the workflow and the runners still fit together.
+#
+# It runs only when one of them changes, and it is no required check, so it
+# needs no merge_group trigger: the merge queue waits only for required checks
+# (script/merge-queue-checks.test.mjs).
+name: Corpus BDD example
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - .github/workflows/corpus-bdd.yml
+      - .github/workflows/corpus-bdd-example.yml
+      - bdd/external-corpus-example/**
+      - packages/engine/tests/bdd/**
+      - packages/engine/tests/common/**
+      - packages/cel/tests/bdd/**
+      - script/bdd-junit-summary.py
+      # The cucumber feature that writes the JUnit report, the setup actions
+      # the workflow borrows, and the central regelwerk the example reads.
+      - packages/engine/Cargo.toml
+      - packages/cel/Cargo.toml
+      - .github/actions/setup-mold/**
+      - .github/actions/setup-sccache/**
+      - corpus/regulation/nl/wet/test_einddatum/**
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/corpus-bdd.yml
+      - .github/workflows/corpus-bdd-example.yml
+      - bdd/external-corpus-example/**
+      - packages/engine/tests/bdd/**
+      - packages/engine/tests/common/**
+      - packages/cel/tests/bdd/**
+      - script/bdd-junit-summary.py
+      # The cucumber feature that writes the JUnit report, the setup actions
+      # the workflow borrows, and the central regelwerk the example reads.
+      - packages/engine/Cargo.toml
+      - packages/cel/Cargo.toml
+      - .github/actions/setup-mold/**
+      - .github/actions/setup-sccache/**
+      - corpus/regulation/nl/wet/test_einddatum/**
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  example:
+    name: Example corpus
+    # A local `uses:` takes the workflow from this commit, and with an empty
+    # regelrecht-ref the engine comes from the same commit.
+    uses: ./.github/workflows/corpus-bdd.yml
+    with:
+      regulation-path: bdd/external-corpus-example/regulation
+      include-central-corpus: true
+      buckets: all
+      constructs-path: bdd/external-corpus-example/constructs
+
+  # The reports hold the scenarios of the example corpus and nothing else: the
+  # one bucket-A scenario and the two of the construct set, none of
+  # corpus/regulation or of the cell's own suite.
+  reports:
+    name: Example reports hold only its scenarios
+    needs: example
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download the reports
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          name: bdd-reports
+          path: reports
+
+      - name: Check the scenarios in the reports
+        shell: python3 {0}
+        run: |
+          import sys
+          import xml.etree.ElementTree as ET
+
+          EXPECTED = {"corpus.xml": 1, "constructs.xml": 2}
+          failed = False
+          for name, count in EXPECTED.items():
+              try:
+                  cases = list(ET.parse(f"reports/{name}").getroot().iter("testcase"))
+              except (OSError, ET.ParseError) as error:
+                  failed = True
+                  print(f"::error::{name}: no report: {error}")
+                  continue
+              foreign = [c.get("name", "") for c in cases
+                         if "/corpus/bdd/external-corpus-example/" not in c.get("name", "")]
+              if len(cases) != count or foreign:
+                  failed = True
+                  print(f"::error::{name}: {len(cases)} scenarios, expected {count}; "
+                        f"not from the example: {foreign}")
+              else:
+                  print(f"{name}: {count} scenarios, all from the example corpus")
+          sys.exit(1 if failed else 0)

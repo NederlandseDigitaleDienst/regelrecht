@@ -35,6 +35,15 @@
 //! `test_*` laws. Bucket A stays out of CI: it asserts what the live laws
 //! currently produce, so a failure there is a question for a human, not a
 //! broken build.
+//!
+//! # Other settings
+//!
+//! - `REGULATION_PATH`: the directories whose regelwerken load, separated by
+//!   `:`. A `$id` in two of them fails the load
+//!   (`helpers/regulation_loader.rs`).
+//! - `BDD_SCENARIO_PATH`: the directories whose scenarios bucket A runs,
+//!   when they are not those of `REGULATION_PATH` ([`corpus_roots`]).
+//! - `BDD_JUNIT`: a file to write a JUnit report of the run to (`runner.rs`).
 
 // Allow panic/expect in test code - these are appropriate for test setup
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
@@ -77,12 +86,17 @@ impl Bucket {
     }
 }
 
-/// The corpus whose scenarios bucket A runs: `REGULATION_PATH` when set (the
-/// same variable the engine loads its laws from), else the fixture corpus.
-/// `just bdd-demo` points it at `corpus/demo/regulation`, `just bdd-chrono`
-/// at the directories of the chronolexografie PoC.
+/// The corpus whose scenarios bucket A runs: `BDD_SCENARIO_PATH` when set,
+/// else `REGULATION_PATH` (the same variable the engine loads its laws from),
+/// else the fixture corpus. `just bdd-demo` points `REGULATION_PATH` at
+/// `corpus/demo/regulation`, `just bdd-chrono` at the directories of the
+/// chronolexografie PoC.
+///
+/// `BDD_SCENARIO_PATH` is for a corpus outside this repository that loads
+/// `corpus/regulation` beside its own regelwerken: its scenarios run, those of
+/// `corpus/regulation` do not.
 fn corpus_roots() -> Vec<PathBuf> {
-    common::regulation_base_paths()
+    common::paths_from_env("BDD_SCENARIO_PATH").unwrap_or_else(common::regulation_base_paths)
 }
 
 #[tokio::main]

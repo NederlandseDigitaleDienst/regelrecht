@@ -13,7 +13,9 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # its reductions, which sit with their cell or with none under cells/
 # (RFC-048), and the fixtures of the cell's BDD suite (packages/cel/bdd), laid
 # out the same way: a regulation directory and the reductions of a cell, and
-# the regulation directory of each construct of that suite.
+# the regulation directory of each construct of that suite. Last, the
+# fictional outside corpus that the example caller of the reusable BDD
+# workflow runs (bdd/external-corpus-example).
 if [ $# -eq 0 ]; then
     # A plain assignment, so a failing script stops this one under `set -e`.
     CHRONO_DIRS=$("$REPO_ROOT/script/chrono-regulation-dirs.sh")
@@ -32,6 +34,7 @@ if [ $# -eq 0 ]; then
         find "$REPO_ROOT/packages/cel/bdd/fixtures/regulation" -name '*.yaml' ! -name '.*' -print0
         find "$REPO_ROOT/packages/cel/bdd/fixtures/cells" -path '*/reductions/*' -name '*.yaml' -print0
         find "$REPO_ROOT/packages/cel/bdd/constructs" -path '*/regulation/*' -name '*.yaml' ! -name '.*' -print0
+        find "$REPO_ROOT/bdd/external-corpus-example" -path '*/regulation/*' -name '*.yaml' ! -name '.*' -print0
     } | sort -z)
     set -- "${FILES[@]}"
 fi

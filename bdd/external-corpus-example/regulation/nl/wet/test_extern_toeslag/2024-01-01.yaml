@@ -1,0 +1,42 @@
+---
+# FICTIEF. A regelwerk of a corpus outside regelrecht, for the example caller
+# of the reusable BDD workflow (.github/workflows/corpus-bdd-example.yml).
+# It reads the normbedrag of test_einddatum, which lives in corpus/regulation,
+# so its scenario passes only when that corpus is loaded beside it.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_extern_toeslag
+name: Testwet externe toeslag
+regulatory_layer: WET
+bwb_id: BWBR9999991
+publication_date: '2024-01-01'
+valid_from: '2024-01-01'
+url: https://example.com/test_extern_toeslag
+
+articles:
+  - number: '1'
+    url: https://example.com/test_extern_toeslag/1
+    text: >-
+      FICTIEF. De toeslag bedraagt tweemaal het normbedrag, bedoeld in artikel 1
+      van de Testwet einddatum.
+    machine_readable:
+      execution:
+        input:
+          - name: normbedrag
+            type: amount
+            source:
+              regulation: test_einddatum
+              output: normbedrag
+            type_spec:
+              unit: eurocent
+        output:
+          - name: toeslag
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: toeslag
+            value:
+              operation: MULTIPLY
+              values:
+                - $normbedrag
+                - 2
