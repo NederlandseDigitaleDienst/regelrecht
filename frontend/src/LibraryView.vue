@@ -13,6 +13,7 @@ import YamlView from './components/YamlView.vue';
 import ActionSheet from './components/ActionSheet.vue';
 import SearchPopover from './components/SearchPopover.vue';
 import AddLawSheet from './components/AddLawSheet.vue';
+import { useLawPromote } from './composables/useLawPromote';
 import DocumentList from './components/DocumentList.vue';
 import DocumentEditor from './components/DocumentEditor.vue';
 import TrajectDetailsPane from './components/TrajectDetailsPane.vue';
@@ -83,6 +84,8 @@ interface SidebarSection {
   title: string;
   laws: CorpusLaw[];
   empty?: boolean;
+  /** The laws are the matches of the quick search, not the whole section. */
+  filtered?: boolean;
 }
 
 /** A `legal_basis` entry of a rulework (the law format's keys). */
@@ -461,6 +464,45 @@ async function headerAddWerkdoc(kind: 'new' | 'upload') {
 async function onLawPromoted(lawId: string) {
   await loadIndex();
   selectLaw(lawId);
+}
+
+// "Toevoegen aan traject" on the open rulework: someone who found it through
+// search, or followed a link, can bring it into the traject from where they
+// are, without looking it up again in the sheet behind "+".
+const {
+  promoteState,
+  promoteError,
+  promote: promoteLaw,
+  clearPromoteError,
+} = useLawPromote(activeTrajectRef);
+// Offered when the open rulework comes from a source the traject only reads
+// along with: priority 0 is the traject's own repository (see `lawEntry`).
+// Until the entry is known the button stays away, rather than offer something
+// the backend may refuse. After adding, the entry is fetched again and says 0.
+const canAddOpenLawToTraject = computed(() => {
+  const priority = lawEntry.value?.source_priority;
+  return !!activeTrajectRef.value && !!selectedLawId.value && priority != null && priority !== 0;
+});
+const addingOpenLawToTraject = computed(
+  () => !!selectedLawId.value && promoteState.value[selectedLawId.value] === 'busy',
+);
+async function addOpenLawToTraject() {
+  const lawId = selectedLawId.value;
+  const trajectRef = activeTrajectRef.value;
+  if (!lawId || !trajectRef) return;
+  const outcome = await promoteLaw(lawId);
+  // The reader may have moved to another rulework or traject meanwhile; what
+  // follows is about the one this started on.
+  const stillHere = selectedLawId.value === lawId && activeTrajectRef.value === trajectRef;
+  if (outcome === 'error' && !stillHere) clearPromoteError();
+  // 'conflict': the backend says it is in the traject already.
+  if (outcome !== 'done' && outcome !== 'conflict') return;
+  if (activeTrajectRef.value !== trajectRef) return;
+  await loadIndex();
+  if (selectedLawId.value !== lawId || activeTrajectRef.value !== trajectRef) return;
+  // The traject now holds its own copy: show that one, and where it lives.
+  refreshLawEntry();
+  loadLaw(lawId);
 }
 // Een gestarte traject-harvest is async: bevestig met dezelfde banner-vorm
 // als de document-upload dat de voortgang in het Taken-paneel verschijnt.
@@ -984,6 +1026,28 @@ const trajectSectionLaws = computed(() => {
     .filter(law => changed.has(law.law_id))
     .sort((a, b) => displayName(a).localeCompare(displayName(b), 'nl'));
 });
+// Quick search within "In dit traject". Offered from the same count at which
+// the section folds: below it the whole list is in view and there is nothing
+// to search for.
+const trajectLawFilter = ref('');
+const trajectFilterShown = computed(
+  () => !!activeTrajectRef.value && trajectSectionLaws.value.length > TRAJECT_LAWS_COLLAPSED,
+);
+const trajectFilterTerm = computed(() =>
+  trajectFilterShown.value ? trajectLawFilter.value.trim().toLocaleLowerCase('nl') : '',
+);
+// A term typed while the field was there must not come back to filter the
+// list unseen once the section grows past the threshold again.
+watch(trajectFilterShown, (shown) => {
+  if (!shown) trajectLawFilter.value = '';
+});
+function matchesTrajectFilter(law: CorpusLaw, term: string) {
+  return displayName(law).toLocaleLowerCase('nl').includes(term) || law.law_id.toLowerCase().includes(term);
+}
+/** "1 regelwerk" / "3 regelwerken": what the quick search left. */
+function lawCountText(count: number) {
+  return count === 1 ? '1 regelwerk' : `${count} regelwerken`;
+}
 const loading = ref(true);
 // Whatever the failed index load threw (an ApiError, or a network error).
 const indexError = ref<unknown>(null);
@@ -1141,22 +1205,22 @@ function onDetailTabChange(e: CustomEvent<{ item?: NLDDTabBarItem } | null>) {
 // entry is fetched there too, for the GitHub link on Algemeen (`source_url`).
 const lawEntry = shallowRef<CorpusLaw | null>(null);
 const claimLawEntry = useLatest();
+async function refreshLawEntry() {
+  const isCurrent = claimLawEntry();
+  const lawId = selectedLawId.value;
+  lawEntry.value = null;
+  if (!lawId) return;
+  try {
+    const { laws: list } = await corpus.searchLaws({ ids: [lawId] });
+    if (isCurrent()) lawEntry.value = list.find((l) => l.law_id === lawId) ?? null;
+  } catch {
+    // Unknown, so treat it as text only: the safe side for a public page.
+  }
+}
 // The traject is a trigger only: the corpus reader reads the active one.
-watch(
-  [selectedLawId, activeTrajectRef],
-  async ([lawId]) => {
-    const isCurrent = claimLawEntry();
-    lawEntry.value = null;
-    if (!lawId) return;
-    try {
-      const { laws: list } = await corpus.searchLaws({ ids: [lawId] });
-      if (isCurrent()) lawEntry.value = list.find((l) => l.law_id === lawId) ?? null;
-    } catch {
-      // Unknown, so treat it as text only: the safe side for a public page.
-    }
-  },
-  { immediate: true },
-);
+watch([selectedLawId, activeTrajectRef], refreshLawEntry, { immediate: true });
+// A failed "Toevoegen aan traject" is about the rulework it was tried on.
+watch([selectedLawId, activeTrajectRef], () => clearPromoteError());
 const showMachineViews = computed(() => !!activeTrajectRef.value || !!lawEntry.value?.enriched);
 // The view to render: a deep link to #machine on a text-only law shows the text.
 const shownDetailView = computed(() => (showMachineViews.value ? detailView.value : 'tekst'));
@@ -1210,7 +1274,14 @@ const sidebarSections = computed(() => {
   // en niet als los blok, zodat de volgorde op één plek geregeld is.
   if (activeTrajectRef.value) {
     const all = trajectSectionLaws.value;
-    if (all.length > 0) {
+    const term = trajectFilterTerm.value;
+    if (term) {
+      // The quick search looks through the whole list, also the part folded
+      // away, and stays in place when nothing matches: the field is the way
+      // back to the rows.
+      const matches = all.filter(law => matchesTrajectFilter(law, term));
+      sections.push({ key: 'traject', title: 'In dit traject', laws: matches, filtered: true });
+    } else if (all.length > 0) {
       const shown = trajectLawsExpanded.value ? all : all.slice(0, TRAJECT_LAWS_COLLAPSED);
       sections.push({ key: 'traject', title: 'In dit traject', laws: shown });
     } else if (!loading.value && changedLawIds.value) {
@@ -1223,14 +1294,19 @@ const sidebarSections = computed(() => {
     }
   }
 
-  // "Recent bekeken" sits below the curated groups and faithfully shows the
-  // view history: a law stays here even when it's also a favorite or edited in
-  // this traject, so it can appear in both sections (favoriting a law must not
-  // remove it from recent). Each id resolves to its richer index entry when
-  // available, otherwise to the stored { law_id, name } (e.g. a law not present
-  // in the active traject).
-  if (recentLaws.value.length > 0) {
-    const recent = recentLaws.value.map(r => indexedLaw(r.law_id) || r);
+  // "Recent bekeken" sits below the curated groups and shows the view
+  // history, minus what "In dit traject" already lists: those laws have a
+  // fixed place one section up, and repeating them here made this list
+  // reshuffle on every click there. They stay in the stored history, so a law
+  // that leaves the traject's diff is back here. A favorite does stay in both
+  // sections (favoriting a law must not remove it from recent). Each id
+  // resolves to its richer index entry when available, otherwise to the stored
+  // { law_id, name } (e.g. a law not present in the active traject).
+  const inTraject = new Set(trajectSectionLaws.value.map(law => law.law_id));
+  const recent = recentLaws.value
+    .filter(r => !inTraject.has(r.law_id))
+    .map(r => indexedLaw(r.law_id) || r);
+  if (recent.length > 0) {
     sections.push({ key: 'recent', title: 'Recent bekeken', laws: recent });
   }
 
@@ -1244,7 +1320,9 @@ const sidebarSections = computed(() => {
 // so a law that is also starred or recently viewed is already highlighted in
 // one of those - expanding the whole list for it would be exactly the wall of
 // text the collapsing exists to prevent.
-watch([selectedLawId, trajectSectionLaws], ([lawId, all]) => {
+// The quick search is a source too: a law picked from its matches is in view
+// until the field is emptied, and may then sit past the slice.
+watch([selectedLawId, trajectSectionLaws, trajectFilterTerm], ([lawId, all]) => {
   if (!lawId || trajectLawsExpanded.value || !all) return;
   // Reading a computed inside a watcher with explicit sources adds no
   // dependency, so this cannot feed back into the watcher.
@@ -1260,6 +1338,9 @@ watch([selectedLawId, trajectSectionLaws], ([lawId, all]) => {
 const trajectExpanderText = computed(() => {
   const total = trajectSectionLaws.value.length;
   if (!activeTrajectRef.value || total <= TRAJECT_LAWS_COLLAPSED) return null;
+  // While the quick search is in use the list shows its matches, and folding
+  // has nothing to say about those.
+  if (trajectFilterTerm.value) return null;
   return trajectLawsExpanded.value ? 'Toon minder' : `Toon alle ${total}`;
 });
 
@@ -2329,6 +2410,7 @@ watch(activeTrajectRef, () => {
   // Ook de uitklapstand hoort bij het vórige traject: zonder deze reset opent
   // het volgende traject uitgeklapt omdat je hier ooit op de knop drukte.
   trajectLawsExpanded.value = false;
+  trajectLawFilter.value = '';
   loadIndex();
   if (selectedLawId.value) {
     lawError.value = null;
@@ -2484,7 +2566,33 @@ watch(activeTrajectRef, () => {
                     <nldd-rich-text v-if="section.empty" data-testid="traject-no-laws">
                       <p>Nog niets bewerkt.</p>
                     </nldd-rich-text>
-                    <nldd-list v-else appearance="simple">
+                    <!-- Snel zoeken in "In dit traject", vanaf het aantal
+                         waarbij de lijst inklapt. Het aantal eronder maakt de
+                         uitkomst hoorbaar: de lijst zelf meldt een filter niet.
+                         Het staat er ook leeg, zolang het veld er staat: een
+                         live region die gevuld verschijnt wordt niet
+                         voorgelezen. -->
+                    <template v-if="section.key === 'traject' && trajectFilterShown">
+                      <nldd-search-field
+                        data-testid="traject-laws-filter"
+                        size="sm"
+                        :value="trajectLawFilter"
+                        placeholder="Zoek in dit traject"
+                        @input="trajectLawFilter = $event.detail?.value ?? ''"
+                      ></nldd-search-field>
+                      <nldd-spacer size="8"></nldd-spacer>
+                      <nldd-text data-testid="traject-laws-filter-count" size="sm" color="secondary" aria-live="polite">{{ section.filtered ? lawCountText(section.laws.length) : '' }}</nldd-text>
+                      <nldd-spacer v-if="section.filtered" size="4"></nldd-spacer>
+                    </template>
+                    <nldd-list v-if="!section.empty" appearance="simple" :accessible-label="section.title">
+                      <nldd-inline-dialog
+                        v-if="section.filtered"
+                        slot="empty"
+                        data-testid="traject-laws-filter-empty"
+                        icon="search"
+                        text="Geen regelwerken gevonden"
+                        supporting-text="Pas je zoekopdracht aan."
+                      ></nldd-inline-dialog>
                       <nldd-list-item
                         v-for="law in section.laws"
                         :key="`${section.key}-${law.law_id}`"
@@ -2652,6 +2760,20 @@ watch(activeTrajectRef, () => {
                 <nldd-toolbar v-if="paneChromeVisible(selectedLawLoading)" accessible-label="Regelwerkacties">
                   <!-- priority: hoger blijft langer staan, lager verdwijnt als
                        eerste in het overflow-menu. -->
+                  <!-- In een traject, bij een regelwerk uit een bron waar het
+                       traject alleen in meeleest: haal het naar het traject. -->
+                  <nldd-toolbar-item v-if="canAddOpenLawToTraject" slot="start" :priority="5">
+                    <nldd-icon-button
+                      data-testid="add-open-law-to-traject"
+                      appearance="neutral-base"
+                      icon="plus"
+                      text="Toevoegen aan traject"
+                      loading-text="Aan het toevoegen"
+                      :loading="addingOpenLawToTraject || undefined"
+                      @click="addOpenLawToTraject"
+                    ></nldd-icon-button>
+                    <nldd-menu-item slot="overflow" icon="plus" text="Toevoegen aan traject" @select="addOpenLawToTraject"></nldd-menu-item>
+                  </nldd-toolbar-item>
                   <nldd-toolbar-item v-if="authenticated || localFavorites" slot="start" :priority="2">
                     <nldd-icon-button
                       appearance="neutral-base"
@@ -2717,6 +2839,10 @@ watch(activeTrajectRef, () => {
                   </nldd-toolbar-item>
                 </nldd-toolbar>
                 <nldd-spacer v-if="paneChromeVisible(selectedLawLoading)" size="16"></nldd-spacer>
+                <template v-if="paneChromeVisible(selectedLawLoading) && promoteError">
+                  <nldd-inline-dialog data-testid="add-open-law-error" variant="alert" :text="promoteError"></nldd-inline-dialog>
+                  <nldd-spacer size="16"></nldd-spacer>
+                </template>
                 <template v-if="paneChromeVisible(selectedLawLoading) && articleFilterOpen">
                   <nldd-search-field
                     ref="articleFilterField"
