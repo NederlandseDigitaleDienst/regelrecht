@@ -62,6 +62,12 @@ impl Level {
     /// Every level, lowest first.
     pub const ALL: [Self; 4] = [Self::Reader, Self::Handler, Self::Decider, Self::Admin];
 
+    /// The name of this level: its role without [`ROLE_PREFIX`].
+    pub fn name(self) -> &'static str {
+        let role = self.role();
+        role.strip_prefix(ROLE_PREFIX).unwrap_or(role)
+    }
+
     /// The realm role of this level.
     pub fn role(self) -> &'static str {
         match self {

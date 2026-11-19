@@ -2,7 +2,7 @@
 // De oordelen die het beslissende artikel zelf aan het bestuursorgaan vraagt
 // (oordelen.js), één veld per open begrip. Bij een eerste beslissing op
 // bezwaar en bij opnieuw beslissen na een uitspraak hetzelfde formulier.
-import VeldInvoer from './VeldInvoer.vue';
+import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
 
 defineProps({
   velden: { type: Array, required: true },

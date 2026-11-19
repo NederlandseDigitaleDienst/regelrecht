@@ -121,6 +121,7 @@ export const sidebar: Record<string, SidebarGroup[]> = {
         { text: 'Lawmaking Frontend', link: '/components/lawmaking' },
         { text: 'Demo', link: '/components/demo' },
         { text: 'PoC Portal', link: '/components/poc-portal' },
+        { text: 'Wetsproces Screens', link: '/components/wetsproces-frontend' },
         { text: 'Terminal UI (TUI)', link: '/components/tui' },
         { text: 'Shared Frontend Package', link: '/components/frontend-shared' },
       ],

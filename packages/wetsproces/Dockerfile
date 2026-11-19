@@ -80,12 +80,28 @@ COPY schema/ /schema/
 RUN find . -name '*.rs' -exec touch {} + && \
     cargo build --release --bin regelrecht-wetsproces
 
-# Stage 4: runtime.
+# Stage 4: the screens (frontend-wetsproces), built in the npm workspace of
+# the repository; the server serves them beside its API.
+FROM node:24-alpine@sha256:01743339035a5c3c11a373cd7c83aeab6ed1457b55da6a69e014a95ac4e4700b AS frontend
+WORKDIR /app
+# Workspace manifests first so `npm ci` is cached independently of source.
+COPY package.json package-lock.json .npmrc ./
+COPY packages/frontend-shared/package.json packages/frontend-shared/
+COPY frontend-wetsproces/package.json frontend-wetsproces/
+# --ignore-scripts: a hijacked release may not run its install hooks here; the
+# build below needs none of them.
+RUN npm ci --ignore-scripts
+COPY packages/frontend-shared/ packages/frontend-shared/
+COPY frontend-wetsproces/ frontend-wetsproces/
+RUN npm run build -w frontend-wetsproces
+
+# Stage 5: runtime.
 FROM alpine:3.24@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 RUN apk add --no-cache ca-certificates && \
     addgroup -S app && adduser -S app -G app
 
 COPY --from=builder /build/target/release/regelrecht-wetsproces /usr/local/bin/
+COPY --from=frontend /app/frontend-wetsproces/dist /app/frontend
 # Het manifest en de mappen die het noemt, op hun plek onder /app zoals in de
 # repository: `repo_root: ../..` vanuit /app/packages/wetsproces wijst dan naar
 # /app. Het hele corpus van de chronolexografie-poc gaat mee, zodat een map
@@ -106,6 +122,7 @@ WORKDIR /app
 # The login (OIDC_*, BASE_URL, WETSPROCES_SUBJECT_CLAIM) is set by the
 # deployment as well; stable mode refuses to start without it.
 ENV WETSPROCES_MANIFEST=/app/packages/wetsproces/bron.yaml \
+    WETSPROCES_FRONTEND=/app/frontend \
     WETSPROCES_PORT=8000
 USER app
 EXPOSE 8000

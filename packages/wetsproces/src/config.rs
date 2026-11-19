@@ -11,6 +11,9 @@
 //! - `WETSPROCES_MANIFEST`: the source manifest to run, by default
 //!   `packages/wetsproces/bron.yaml` of this checkout.
 //! - `WETSPROCES_PORT`: the port, by default 8000.
+//! - `WETSPROCES_FRONTEND`: the built frontend the server serves beside the
+//!   API, by default `frontend-wetsproces/dist` of this checkout. Without an
+//!   `index.html` there the server serves the API alone.
 //!
 //! The login ([`LoginChoice`]):
 //!
@@ -130,11 +133,20 @@ pub const DEFAULT_PORT: u16 = 8000;
 /// crate, for a run from the checkout.
 pub const DEFAULT_MANIFEST: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/bron.yaml");
 
+/// The built frontend when `WETSPROCES_FRONTEND` is not set: the one of this
+/// checkout, after `npm run build -w frontend-wetsproces`.
+pub const DEFAULT_FRONTEND: &str = concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../../frontend-wetsproces/dist"
+);
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub mode: Mode,
     pub store: StoreChoice,
     pub manifest: PathBuf,
+    /// The directory of the built frontend, served beside the API.
+    pub frontend: PathBuf,
     pub port: u16,
     pub login: LoginChoice,
     /// The claim of a citizen's account that identifies them.
@@ -204,6 +216,8 @@ impl Config {
         })?;
         let manifest = set("WETSPROCES_MANIFEST")
             .map_or_else(|| PathBuf::from(DEFAULT_MANIFEST), PathBuf::from);
+        let frontend = set("WETSPROCES_FRONTEND")
+            .map_or_else(|| PathBuf::from(DEFAULT_FRONTEND), PathBuf::from);
         let port = match set("WETSPROCES_PORT") {
             Some(p) => p.trim().parse().map_err(|_| ConfigError::BadPort(p))?,
             None => DEFAULT_PORT,
@@ -217,6 +231,7 @@ impl Config {
             mode,
             store,
             manifest,
+            frontend,
             port,
             login,
             subject_claim,

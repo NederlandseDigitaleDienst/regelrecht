@@ -60,6 +60,7 @@ jobs:
               - frontend/**
               - frontend-lawmaking/**
               - frontend-demo/**
+              - frontend-wetsproces/**
               - frontend-poc-portal/**
               - frontend-poc-terugbetaalregimes/**
               - frontend-poc-nieuwkomersbekostiging/**
@@ -836,6 +837,12 @@ jobs:
       - name: Type check demo
         run: npm run typecheck -w frontend-demo
 
+      - name: Run wetsproces tests
+        run: npm test -w frontend-wetsproces
+
+      - name: Type check wetsproces
+        run: npm run typecheck -w frontend-wetsproces
+
       - name: Run chronolexografie poc tests
         run: npm test -w packages/poc-chronolexografie/frontend
 
@@ -888,6 +895,9 @@ jobs:
       # de bundel zonder engine: het gaat om de Vue-build en de corpuskopie.
       - name: Build demo bundle
         run: npm run build -w frontend-demo
+
+      - name: Build wetsproces bundle
+        run: npm run build -w frontend-wetsproces
 
   # Verplichte check op main. De benen hierboven dragen nieuwe namen en mogen
   # dus van vorm veranderen; deze naam moet blijven bestaan, want een required

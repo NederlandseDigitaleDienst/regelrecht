@@ -2,8 +2,8 @@
 // Een oordeel op een begrip dat de cel voor dit geval niet weet
 // (stilBegrippen in stil.js): leeg is nog niet gegeven.
 import { nietGeweten } from '../stil.js';
-import OordeelKeuze from './OordeelKeuze.vue';
-import VeldInvoer from './VeldInvoer.vue';
+import OordeelKeuze from '@regelrecht/frontend-shared/components/chronolex/OordeelKeuze.vue';
+import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
 
 defineProps({ veld: { type: Object, required: true }, modelValue: { default: undefined } });
 const emit = defineEmits(['update:modelValue']);

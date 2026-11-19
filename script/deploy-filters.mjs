@@ -137,9 +137,11 @@ export const COMPONENTS = {
   // dit image ook. Het casusbestand en het manifest staan in de map van de
   // crate zelf; de Dockerfile staat hieronder met de hand, want een
   // Dockerfile in een cratemap telt niet via de graaf (zie isDockerfile).
+  // Het image bouwt en serveert ook de schermen (frontend-wetsproces), met
+  // het gedeelde frontend-pakket waar de formuliervelden uit komen.
   wetsproces: {
     crate: 'regelrecht-wetsproces',
-    paths: ['packages/wetsproces/Dockerfile'],
+    paths: ['packages/wetsproces/Dockerfile', 'frontend-wetsproces/', 'packages/frontend-shared/'],
   },
 };
 

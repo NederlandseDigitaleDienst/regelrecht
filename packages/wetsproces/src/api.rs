@@ -12,9 +12,13 @@
 //! | `GET /api/casus` | citizen or employee | the case, and today |
 //! | `GET /api/formulier` | citizen or employee | the forms, with what the UI spec says of their fields |
 //! | `GET /api/klok` | citizen or employee | today, and whether the clock can be set |
+//! | `GET /api/ik` | citizen or employee | who is logged in, and what they may do ([`me`]) |
 //! | `GET /api/dossier` | citizen | the records about the citizen, in every cell |
+//! | `GET /api/dossier/waarom/{id}` | citizen | why a decision of their dossier came out so |
 //! | `POST /api/indieningen` | citizen | a submission ([`Submit`]) for themself |
 //! | `GET /api/backoffice/cellen/{cel}/kroniek` | reader of the cell | the chronicle of one cell |
+//! | `GET /api/backoffice/waarom/{id}` | reader of the cell holding the decision | why it came out so |
+//! | `POST /api/backoffice/voorvertoning` | decider of the cell holding the submission | what a decision ([`Decide`]) would come to; records nothing |
 //! | `POST /api/backoffice/vastleggingen` | handler of the cell | a fact a cell records ([`Record`]) |
 //! | `POST /api/backoffice/toezendingen` | handler of the cell holding the decision | a copy of a decision ([`SendCopy`]) |
 //! | `POST /api/backoffice/besluiten` | decider of the cell holding the submission | a decision ([`Decide`]) |
@@ -98,6 +102,16 @@ impl AppState {
     pub fn http_client(&self) -> &reqwest::Client {
         &self.http_client
     }
+
+    /// The process this server runs.
+    pub fn service(&self) -> &Service {
+        &self.service
+    }
+
+    /// The claim of a citizen's account that identifies them.
+    pub fn subject_claim(&self) -> &str {
+        &self.subject_claim
+    }
 }
 
 /// An error as the API answers it.
@@ -167,14 +181,18 @@ pub fn router(state: AppState) -> Router {
         .route("/api/casus", get(case))
         .route("/api/formulier", get(forms))
         .route("/api/klok", get(clock))
+        .route("/api/ik", get(me))
         .route_layer(middleware::from_fn(gate_user));
     let citizen = Router::new()
         .route("/api/dossier", get(dossier))
+        .route("/api/dossier/waarom/{id}", get(dossier_explain))
         .route("/api/indieningen", post(submit))
         .route_layer(middleware::from_fn(gate_citizen));
     let backoffice = Router::new()
         .route("/api/backoffice/cellen/{cel}/kroniek", get(chronicle))
         .route("/api/backoffice/besluiten", post(decide))
+        .route("/api/backoffice/voorvertoning", post(preview))
+        .route("/api/backoffice/waarom/{id}", get(backoffice_explain))
         .route("/api/backoffice/vastleggingen", post(record))
         .route("/api/backoffice/toezendingen", post(send_copy))
         .route("/api/backoffice/klok", put(set_clock))
@@ -295,6 +313,88 @@ async fn dossier(
     let citizen = principal.citizen(&state.subject_claim)?;
     let dossier = state.service.dossier(citizen.subject()).await?;
     Ok(Json(json!({ "grammen": dossier.grams })))
+}
+
+/// Who is logged in, for a screen to show what they may do: their name,
+/// whether they are a citizen and with which identifier, their level on the
+/// ladder, and per cell of the case they work for what that level lets them
+/// do there. The screen hides what the account may not do; the routes still
+/// check every request themselves.
+async fn me(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    session: tower_sessions::Session,
+) -> ApiResult {
+    // The name is only shown; a session that does not give it leaves it out.
+    let name: Option<String> = session
+        .get(regelrecht_auth::SESSION_KEY_NAME)
+        .await
+        .unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "reading the name from the session");
+            None
+        });
+    let citizen = principal.citizen(&state.subject_claim).ok();
+    let cells: Vec<Value> = state
+        .service
+        .cells()
+        .filter(|(cell, _)| principal.may(Level::Reader, cell))
+        .map(|(cell, cell_name)| {
+            json!({
+                "cel": cell,
+                "cel_naam": cell_name,
+                "lezen": true,
+                "behandelen": principal.may(Level::Handler, cell),
+                "beslissen": principal.may(Level::Decider, cell),
+            })
+        })
+        .collect();
+    Ok(Json(json!({
+        "sub": principal.sub(),
+        "naam": name,
+        "burger": principal.is_citizen(),
+        "identiteit": citizen.as_ref().map(access::Citizen::subject),
+        "niveau": principal.level().map(Level::name),
+        "cellen": cells,
+        "klok_zetten": principal.has(Level::Admin) && state.clock.is_some(),
+    })))
+}
+
+/// Why a decision of the citizen's own dossier came out so.
+async fn dossier_explain(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    Path(id): Path<String>,
+) -> ApiResult {
+    let citizen = principal.citizen(&state.subject_claim)?;
+    if !state.service.dossier(citizen.subject()).await?.holds(&id) {
+        return Err(ApiError::not_yours("decision in your dossier"));
+    }
+    Ok(Json(state.service.explain(&id).await?))
+}
+
+/// Why a decision of a cell the employee may read came out so.
+async fn backoffice_explain(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    Path(id): Path<String>,
+) -> ApiResult {
+    readable_holder(&state, &principal, &id, "decision").await?;
+    Ok(Json(state.service.explain(&id).await?))
+}
+
+/// What a decision would come to, for a decider of the cell that holds the
+/// submission, as [`decide`] checks it; nothing is recorded.
+async fn preview(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    Json(d): Json<Decide>,
+) -> ApiResult {
+    let cell = readable_holder(&state, &principal, &d.submission, "submission").await?;
+    if let Some(after) = &d.after {
+        readable_holder(&state, &principal, after, "record").await?;
+    }
+    principal.require(Level::Decider, &cell)?;
+    Ok(Json(state.service.preview(d).await?))
 }
 
 async fn chronicle(

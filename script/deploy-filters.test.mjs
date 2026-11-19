@@ -355,6 +355,8 @@ test('wetsproces volgt zijn eigen map, de kern van de poc en het corpus dat zijn
     'packages/poc-chronolexografie/corpus/cells/gemeente_wilgendaal/cel.yaml',
     'packages/cel/src/cell.rs',
     'packages/corpus/src/source_manifest.rs',
+    'frontend-wetsproces/src/App.vue',
+    'packages/frontend-shared/src/chronolex/voorinvulling.ts',
   ]) {
     assert.equal(namesOf([pad]).wetsproces, true, pad);
   }
