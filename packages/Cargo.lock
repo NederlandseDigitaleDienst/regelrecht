@@ -806,6 +806,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "concat-kdf"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d72c1252426a83be2092dd5884a5f6e3b8e7180f6891b6263d2c21b92ec8816"
+dependencies = [
+ "digest",
+]
+
+[[package]]
 name = "concurrent-queue"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4279,8 +4288,11 @@ name = "regelrecht-wetsproces"
 version = "0.1.0"
 dependencies = [
  "async-trait",
+ "aws-lc-rs",
  "axum",
+ "base64 0.23.1",
  "chrono",
+ "concat-kdf",
  "futures",
  "http-body-util",
  "regelrecht-auth",
@@ -4291,7 +4303,10 @@ dependencies = [
  "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "sha2",
  "sqlx",
+ "subtle",
+ "tempfile",
  "thiserror 2.0.21",
  "tokio",
  "tower",

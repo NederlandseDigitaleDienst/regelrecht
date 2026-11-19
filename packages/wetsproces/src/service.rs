@@ -26,8 +26,8 @@ use serde_json::{Map, Value, json};
 
 use crate::clock::Clock;
 use crate::store::{
-    Appended, CellAppend, ChronicleStore, Commit, IdempotencyKey, Keyed, Receipt, StoreError,
-    StoredChronicle,
+    Actor, Appended, CellAppend, ChronicleStore, Commit, IdempotencyKey, Keyed, Receipt,
+    StoreError, StoredChronicle,
 };
 
 /// How often a step runs in all, the first run included, before the service
@@ -499,8 +499,8 @@ impl Service {
             .map(|(cell, _)| cell.clone()))
     }
 
-    /// Run `step` for the account `actor` (its OIDC `sub`) and commit what
-    /// it recorded, with `actor` beside each record. Under a `key` the same
+    /// Run `step` for `actor` (an account and the channel it came in by) and
+    /// commit what it recorded, with `actor` beside each record. Under a `key` the same
     /// account used before for the same request it answers as it did then
     /// and records nothing; under a key another account used, or used for
     /// another request, it refuses. Without a key every call records.
@@ -515,13 +515,13 @@ impl Service {
         &self,
         key: Option<IdempotencyKey>,
         step: Step,
-        actor: &str,
+        actor: &Actor,
     ) -> Result<Value, ServiceError> {
         // Who asked is part of the request a receipt keeps, so a key replays
         // only for the account that used it.
         let step_value = serde_json::to_value(&step)
             .map_err(|e| ServiceError::Internal(format!("the request does not serialize: {e}")))?;
-        let request = json!({ "door": actor, "verzoek": step_value });
+        let request = json!({ "door": actor.account, "verzoek": step_value });
         if holds_nul(&request) {
             // PostgreSQL's jsonb cannot hold U+0000; refused for every store
             // alike, so the store in memory does not accept what Postgres
@@ -547,7 +547,7 @@ impl Service {
                         response: ran.response.clone(),
                     },
                 }),
-                recorded_by: Some(actor.to_string()),
+                recorded_by: Some(actor.clone()),
             };
             match self.store.append(commit).await {
                 Ok(Appended::Committed) => return Ok(ran.response),
@@ -745,6 +745,14 @@ pub(crate) mod tests {
     /// The made-up `sub` of the account the tests act as.
     pub(crate) const ACTOR: &str = "00000000-0000-4000-8000-0000000000ac";
 
+    /// [`ACTOR`] after the test login.
+    pub(crate) fn actor() -> Actor {
+        Actor {
+            account: ACTOR.into(),
+            channel: crate::store::Channel::TestLogin,
+        }
+    }
+
     pub(crate) fn submission() -> Step {
         Step::Submit(Submit {
             article: None,
@@ -766,7 +774,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn a_conflict_runs_the_step_again() {
         let (s, store) = service(2).await;
-        let gram = s.perform(None, submission(), ACTOR).await.unwrap();
+        let gram = s.perform(None, submission(), &actor()).await.unwrap();
         assert_eq!(gram["kind"], json!("AANVRAAG"));
         assert_eq!(store.appends.load(Ordering::SeqCst), 3);
         assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 1);
@@ -775,7 +783,7 @@ pub(crate) mod tests {
     #[tokio::test]
     async fn conflicts_without_end_give_up_and_record_nothing() {
         let (s, _) = service(MAX_ATTEMPTS).await;
-        let e = s.perform(None, submission(), ACTOR).await.unwrap_err();
+        let e = s.perform(None, submission(), &actor()).await.unwrap_err();
         assert!(matches!(e, ServiceError::Busy), "{e}");
         assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 0);
     }
@@ -789,7 +797,7 @@ pub(crate) mod tests {
                 .fields
                 .insert("naam_aanvrager".into(), json!("A.\u{0}de Vries"));
         }
-        let e = s.perform(None, step, ACTOR).await.unwrap_err();
+        let e = s.perform(None, step, &actor()).await.unwrap_err();
         assert!(matches!(e, ServiceError::Refused(_)), "{e}");
         assert_eq!(s.store.load("gemeente_wilgendaal").await.unwrap().head(), 0);
         assert!(holds_nul(&json!({ "a\u{0}": 1 })));
@@ -801,18 +809,29 @@ pub(crate) mod tests {
         let (s, store) = service(0).await;
         let key: IdempotencyKey = "k-1".parse().unwrap();
         let first = s
-            .perform(Some(key.clone()), submission(), ACTOR)
+            .perform(Some(key.clone()), submission(), &actor())
             .await
             .unwrap();
         let stored = store.inner.load("gemeente_wilgendaal").await.unwrap();
         assert_eq!(stored.grams[0].recorded_by.as_deref(), Some(ACTOR));
+        assert_eq!(
+            stored.grams[0].recorded_via,
+            Some(crate::store::Channel::TestLogin)
+        );
         let again = s
-            .perform(Some(key.clone()), submission(), ACTOR)
+            .perform(Some(key.clone()), submission(), &actor())
             .await
             .unwrap();
         assert_eq!(again, first);
         let e = s
-            .perform(Some(key), submission(), "someone-else")
+            .perform(
+                Some(key),
+                submission(),
+                &Actor {
+                    account: "someone-else".into(),
+                    channel: crate::store::Channel::TestLogin,
+                },
+            )
             .await
             .unwrap_err();
         assert!(matches!(e, ServiceError::KeyReused(_)), "{e}");
@@ -823,7 +842,7 @@ pub(crate) mod tests {
     async fn the_dossier_and_the_holder_of_a_record_come_from_the_chronicles() {
         let (s, _) = service(0).await;
         assert_eq!(s.login_field(), "bsn_aanvrager");
-        let gram = s.perform(None, submission(), ACTOR).await.unwrap();
+        let gram = s.perform(None, submission(), &actor()).await.unwrap();
         let id = gram["id"].as_str().unwrap();
         let mine = s.dossier("999990020").await.unwrap();
         assert!(mine.holds(id));

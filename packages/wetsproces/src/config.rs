@@ -29,6 +29,27 @@
 //!   login; required in stable mode.
 //! - `WETSPROCES_SUBJECT_CLAIM`: the claim of a citizen's account that
 //!   identifies them, by default `bsn`. The login keeps it in the session.
+//!
+//! The FSC voor Burgers channel ([`Fsc4bChoice`], [`crate::fsc4b`]), off
+//! unless configured:
+//!
+//! - `WETSPROCES_FSC4B_OIN`: the OIN of this organization, the `aud` an app
+//!   signs its nonce for;
+//! - `WETSPROCES_FSC4B_SCOPE`: the scope a credential must carry;
+//! - `WETSPROCES_FSC4B_KEY_FILE`, or `WETSPROCES_FSC4B_KEY` with the key
+//!   itself: the organization's private ES256 key, PKCS#8 PEM, which signs
+//!   the challenges. A secret: from the environment or a mounted file, never
+//!   from the repository;
+//! - `WETSPROCES_FSC4B_STELSELDOCUMENT_FILE`: the Stelseldocument, a JWS,
+//!   whose `app_managers` are the Activatiediensten the server trusts;
+//! - `WETSPROCES_FSC4B_STELSELBEHEERDER_KEY`: the public key of the
+//!   Stelselbeheerder that signed it, a JWK;
+//! - `WETSPROCES_FSC4B_PUBLIC_URL`: where apps reach the server, for the
+//!   discovery configuration; `BASE_URL` when not set.
+//!
+//! These come all together or not at all. `WETSPROCES_FSC4B_DEMO=true`
+//! instead opens the channel on a demo Stelsel the server makes at start,
+//! with a test Activatiedienst; test mode only, and with none of the above.
 
 use std::path::PathBuf;
 
@@ -122,6 +143,73 @@ pub enum LoginChoice {
     TestLogin,
 }
 
+/// Whether and how the FSC voor Burgers channel is open.
+#[derive(Clone, Default)]
+pub enum Fsc4bChoice {
+    /// Not configured: no route of the channel exists.
+    #[default]
+    Off,
+    /// On the Stelseldocument and keys of the deployment.
+    On(Fsc4bSettings),
+    /// On a demo Stelsel made at start, with a test Activatiedienst; test
+    /// mode only.
+    Demo {
+        /// Where apps reach the server, for the discovery configuration.
+        public_url: String,
+    },
+}
+
+impl std::fmt::Debug for Fsc4bChoice {
+    // The settings hold the organization's private key.
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Off => f.write_str("Off"),
+            Self::On(s) => f
+                .debug_struct("On")
+                .field("oin", &s.oin)
+                .field("scope", &s.scope)
+                .field("public_url", &s.public_url)
+                .finish_non_exhaustive(),
+            Self::Demo { public_url } => f
+                .debug_struct("Demo")
+                .field("public_url", public_url)
+                .finish(),
+        }
+    }
+}
+
+/// Where the private key of the organization comes from.
+#[derive(Clone)]
+pub enum KeySource {
+    /// The PEM itself, from the environment.
+    Pem(String),
+    /// A file holding the PEM, such as a mounted secret.
+    File(PathBuf),
+}
+
+/// The configuration of the FSC voor Burgers channel on a real Stelsel.
+#[derive(Clone)]
+pub struct Fsc4bSettings {
+    pub oin: String,
+    pub scope: String,
+    pub key: KeySource,
+    pub stelseldocument: PathBuf,
+    /// The Stelselbeheerder's public key, a JWK as JSON text.
+    pub stelselbeheerder_key: String,
+    pub public_url: String,
+}
+
+/// The variables of the FSC voor Burgers channel on a real Stelsel; the key
+/// comes from one of `WETSPROCES_FSC4B_KEY` and `WETSPROCES_FSC4B_KEY_FILE`.
+const FSC4B_VARIABLES: [&str; 6] = [
+    "WETSPROCES_FSC4B_OIN",
+    "WETSPROCES_FSC4B_SCOPE",
+    "WETSPROCES_FSC4B_KEY",
+    "WETSPROCES_FSC4B_KEY_FILE",
+    "WETSPROCES_FSC4B_STELSELDOCUMENT_FILE",
+    "WETSPROCES_FSC4B_STELSELBEHEERDER_KEY",
+];
+
 /// The claim that identifies a citizen when `WETSPROCES_SUBJECT_CLAIM` is
 /// not set.
 pub const DEFAULT_SUBJECT_CLAIM: &str = "bsn";
@@ -151,6 +239,8 @@ pub struct Config {
     pub login: LoginChoice,
     /// The claim of a citizen's account that identifies them.
     pub subject_claim: String,
+    /// The FSC voor Burgers channel.
+    pub fsc4b: Fsc4bChoice,
 }
 
 /// Why the environment gives no configuration.
@@ -197,6 +287,37 @@ pub enum ConfigError {
     BadBaseUrl(String),
     #[error("stable mode needs BASE_URL, the address the login redirects back to")]
     StableNeedsBaseUrl,
+    #[error(
+        "{0} is set, so FSC voor Burgers is being configured, but {1} is not: set \
+         WETSPROCES_FSC4B_OIN, _SCOPE, _KEY or _KEY_FILE, _STELSELDOCUMENT_FILE and \
+         _STELSELBEHEERDER_KEY together, or none of them"
+    )]
+    PartialFsc4b(&'static str, &'static str),
+    #[error("set WETSPROCES_FSC4B_KEY or WETSPROCES_FSC4B_KEY_FILE, not both")]
+    Fsc4bTwoKeys,
+    #[error(
+        "WETSPROCES_FSC4B_DEMO opens FSC voor Burgers on a demo Stelsel with a test \
+         Activatiedienst, which only test mode allows"
+    )]
+    StableFsc4bDemo,
+    #[error("WETSPROCES_FSC4B_DEMO is `{0}`: it is `true` or `false`")]
+    BadFsc4bDemo(String),
+    #[error("WETSPROCES_FSC4B_DEMO and {0} are both set: the demo makes its own Stelsel")]
+    Fsc4bDemoAndSettings(&'static str),
+    #[error(
+        "FSC voor Burgers identifies a citizen by the `bsn` of a credential, and \
+         WETSPROCES_SUBJECT_CLAIM is `{0}`"
+    )]
+    Fsc4bNeedsBsn(String),
+    #[error("FSC voor Burgers needs WETSPROCES_FSC4B_PUBLIC_URL or BASE_URL")]
+    Fsc4bNeedsPublicUrl,
+    #[error("WETSPROCES_FSC4B_PUBLIC_URL: {0}")]
+    BadFsc4bPublicUrl(String),
+    #[error(
+        "the address of FSC voor Burgers is `{0}`: stable mode publishes it in the discovery \
+         configuration, which §4.2.2.1 asks to be HTTPS"
+    )]
+    StableFsc4bNeedsHttps(String),
 }
 
 impl Config {
@@ -227,6 +348,7 @@ impl Config {
             |c| c.trim().to_string(),
         );
         let login = login_choice(mode, &subject_claim, &set)?;
+        let fsc4b = fsc4b_choice(mode, &subject_claim, port, &set)?;
         Ok(Self {
             mode,
             store,
@@ -235,6 +357,7 @@ impl Config {
             port,
             login,
             subject_claim,
+            fsc4b,
         })
     }
 }
@@ -271,6 +394,84 @@ fn login_choice(
         return Err(ConfigError::StableNeedsBaseUrl);
     }
     Ok(LoginChoice::Oidc { oidc, base_url })
+}
+
+/// The FSC voor Burgers channel the environment `set` configures for
+/// `mode`.
+fn fsc4b_choice(
+    mode: Mode,
+    subject_claim: &str,
+    port: u16,
+    set: &impl Fn(&str) -> Option<String>,
+) -> Result<Fsc4bChoice, ConfigError> {
+    let demo = match set("WETSPROCES_FSC4B_DEMO").as_deref().map(str::trim) {
+        None | Some("false") => false,
+        Some("true") => true,
+        Some(other) => return Err(ConfigError::BadFsc4bDemo(other.to_string())),
+    };
+    let given = FSC4B_VARIABLES.into_iter().find(|n| set(n).is_some());
+    if demo {
+        if mode == Mode::Stable {
+            return Err(ConfigError::StableFsc4bDemo);
+        }
+        if let Some(name) = given {
+            return Err(ConfigError::Fsc4bDemoAndSettings(name));
+        }
+    }
+    let Some(first) = given.filter(|_| !demo) else {
+        if !demo {
+            return Ok(Fsc4bChoice::Off);
+        }
+        check_bsn_claim(subject_claim)?;
+        let public_url = public_url(set)?.unwrap_or_else(|| format!("http://localhost:{port}"));
+        return Ok(Fsc4bChoice::Demo { public_url });
+    };
+    check_bsn_claim(subject_claim)?;
+    let need = |name: &'static str| set(name).ok_or(ConfigError::PartialFsc4b(first, name));
+    let key = match (
+        set("WETSPROCES_FSC4B_KEY"),
+        set("WETSPROCES_FSC4B_KEY_FILE"),
+    ) {
+        (Some(pem), None) => KeySource::Pem(pem),
+        (None, Some(path)) => KeySource::File(PathBuf::from(path.trim())),
+        (Some(_), Some(_)) => return Err(ConfigError::Fsc4bTwoKeys),
+        (None, None) => return Err(ConfigError::PartialFsc4b(first, "WETSPROCES_FSC4B_KEY")),
+    };
+    let settings = Fsc4bSettings {
+        oin: need("WETSPROCES_FSC4B_OIN")?.trim().to_string(),
+        scope: need("WETSPROCES_FSC4B_SCOPE")?.trim().to_string(),
+        key,
+        stelseldocument: PathBuf::from(need("WETSPROCES_FSC4B_STELSELDOCUMENT_FILE")?.trim()),
+        stelselbeheerder_key: need("WETSPROCES_FSC4B_STELSELBEHEERDER_KEY")?,
+        public_url: public_url(set)?.ok_or(ConfigError::Fsc4bNeedsPublicUrl)?,
+    };
+    if mode == Mode::Stable && !settings.public_url.starts_with("https://") {
+        return Err(ConfigError::StableFsc4bNeedsHttps(settings.public_url));
+    }
+    Ok(Fsc4bChoice::On(settings))
+}
+
+/// The channel reads the citizen's identity from the `bsn` of a credential,
+/// which fills the same claim as the login does.
+fn check_bsn_claim(subject_claim: &str) -> Result<(), ConfigError> {
+    if subject_claim == DEFAULT_SUBJECT_CLAIM {
+        Ok(())
+    } else {
+        Err(ConfigError::Fsc4bNeedsBsn(subject_claim.to_string()))
+    }
+}
+
+/// `WETSPROCES_FSC4B_PUBLIC_URL`, or else `BASE_URL`, without a trailing
+/// slash; it must be an `http(s)` URL.
+fn public_url(set: &impl Fn(&str) -> Option<String>) -> Result<Option<String>, ConfigError> {
+    let Some(url) = set("WETSPROCES_FSC4B_PUBLIC_URL").or_else(|| set("BASE_URL")) else {
+        return Ok(None);
+    };
+    let url = url.trim().trim_end_matches('/').to_string();
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err(ConfigError::BadFsc4bPublicUrl(url));
+    }
+    Ok(Some(url))
 }
 
 /// Whether `role` can be the role every account needs to log in: a role
@@ -515,6 +716,88 @@ mod tests {
             error(&[test, &[("KEYCLOAK_REALM", "voorbeeld")]]),
             ConfigError::PartialOidc("KEYCLOAK_REALM")
         );
+    }
+
+    const FSC4B: Pairs = &[
+        ("WETSPROCES_FSC4B_OIN", "00000099000000000001"),
+        ("WETSPROCES_FSC4B_SCOPE", "nl.voorbeeld.wetsproces"),
+        ("WETSPROCES_FSC4B_KEY_FILE", "/run/secrets/fsc4b.pem"),
+        ("WETSPROCES_FSC4B_STELSELDOCUMENT_FILE", "/app/stelsel.jws"),
+        ("WETSPROCES_FSC4B_STELSELBEHEERDER_KEY", "{}"),
+        (
+            "WETSPROCES_FSC4B_PUBLIC_URL",
+            "https://wetsproces.example.org/",
+        ),
+    ];
+
+    #[test]
+    fn fsc_voor_burgers_is_off_unless_configured() {
+        let c = Config::from_env(env(&[STABLE, OIDC])).unwrap();
+        assert!(matches!(c.fsc4b, Fsc4bChoice::Off));
+        let c = Config::from_env(env(&[STABLE, OIDC, FSC4B])).unwrap();
+        let Fsc4bChoice::On(s) = c.fsc4b else {
+            panic!("configured, so on");
+        };
+        assert_eq!(s.oin, "00000099000000000001");
+        assert_eq!(s.public_url, "https://wetsproces.example.org");
+        assert!(matches!(s.key, KeySource::File(_)));
+    }
+
+    #[test]
+    fn a_half_done_fsc_voor_burgers_configuration_does_not_start() {
+        assert_eq!(
+            error(&[STABLE, OIDC, FSC4B, &[("WETSPROCES_FSC4B_SCOPE", "")]]),
+            ConfigError::PartialFsc4b("WETSPROCES_FSC4B_OIN", "WETSPROCES_FSC4B_SCOPE")
+        );
+        assert_eq!(
+            error(&[STABLE, OIDC, FSC4B, &[("WETSPROCES_FSC4B_KEY", "pem")]]),
+            ConfigError::Fsc4bTwoKeys
+        );
+        assert_eq!(
+            error(&[STABLE, OIDC, FSC4B, &[("WETSPROCES_SUBJECT_CLAIM", "kvk")]]),
+            ConfigError::Fsc4bNeedsBsn("kvk".into())
+        );
+        assert_eq!(
+            error(&[
+                STABLE,
+                OIDC,
+                FSC4B,
+                &[(
+                    "WETSPROCES_FSC4B_PUBLIC_URL",
+                    "http://wetsproces.example.org"
+                )]
+            ]),
+            ConfigError::StableFsc4bNeedsHttps("http://wetsproces.example.org".into())
+        );
+    }
+
+    #[test]
+    fn the_demo_stelsel_is_for_test_mode_only() {
+        assert_eq!(
+            error(&[STABLE, OIDC, &[("WETSPROCES_FSC4B_DEMO", "true")]]),
+            ConfigError::StableFsc4bDemo
+        );
+        let test: Pairs = &[
+            ("WETSPROCES_MODE", "test"),
+            ("WETSPROCES_FSC4B_DEMO", "true"),
+        ];
+        let c = Config::from_env(env(&[test])).unwrap();
+        assert!(matches!(c.fsc4b, Fsc4bChoice::Demo { .. }));
+        assert_eq!(
+            error(&[test, &[("WETSPROCES_FSC4B_OIN", "1")]]),
+            ConfigError::Fsc4bDemoAndSettings("WETSPROCES_FSC4B_OIN")
+        );
+    }
+
+    #[test]
+    fn the_private_key_stays_out_of_debug_output() {
+        let mut env_pairs = FSC4B.to_vec();
+        env_pairs.retain(|(k, _)| *k != "WETSPROCES_FSC4B_KEY_FILE");
+        env_pairs.push(("WETSPROCES_FSC4B_KEY", "-----BEGIN PRIVATE KEY-----geheim"));
+        let leaked: &'static [(&'static str, &'static str)] =
+            Box::leak(env_pairs.into_boxed_slice());
+        let c = Config::from_env(env(&[STABLE, OIDC, leaked])).unwrap();
+        assert!(!format!("{c:?}").contains("geheim"));
     }
 
     #[test]

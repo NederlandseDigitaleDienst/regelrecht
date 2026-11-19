@@ -17,6 +17,8 @@
 //! - [`access`]: the roles, and who a request comes from;
 //! - [`login`]: the login through Keycloak or, in test mode, the test
 //!   login, and the sessions;
+//! - [`fsc4b`]: the citizen's routes for an app, after FSC voor Burgers,
+//!   when configured;
 //! - [`clock`]: the clock trait, with a clock the API can set and the real
 //!   date in the Netherlands;
 //! - [`store`]: the chronicle store trait, with the store in memory and the
@@ -34,6 +36,7 @@ pub mod case;
 pub mod clock;
 pub mod config;
 pub mod dossier;
+pub mod fsc4b;
 pub mod login;
 pub mod service;
 pub mod store;

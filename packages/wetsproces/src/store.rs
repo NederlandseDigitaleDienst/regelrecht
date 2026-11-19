@@ -21,10 +21,11 @@
 //! - **one moment**: a step reads all cells of its case at once
 //!   ([`ChronicleStore::load_all`]), so it never sees one cell before a
 //!   commit and another after it;
-//! - **attributed**: a commit names who made it ([`Commit::recorded_by`]),
-//!   and the store keeps that beside every record it appends, never inside
-//!   the record: a gram says what the law made happen, the store says which
-//!   account asked for it.
+//! - **attributed**: a commit names who made it ([`Commit::recorded_by`]):
+//!   the account and the channel it came in by ([`Channel`]). The store
+//!   keeps both beside every record it appends, never inside the record: a
+//!   gram says what the law made happen, the store says which account asked
+//!   for it and how it was logged in.
 //!
 //! Two stores implement it, with the same behaviour, held to it by one set
 //! of contract tests (`contract`):
@@ -57,6 +58,46 @@ pub struct StoredGram {
     /// The account (its OIDC `sub`) whose request recorded it; `None` for
     /// what the server recorded itself, such as the case's beginning.
     pub recorded_by: Option<String>,
+    /// The channel that account came in by; `None` beside `None`, and for
+    /// what was stored before the channel was kept.
+    pub recorded_via: Option<Channel>,
+}
+
+/// How an account was logged in when it asked for a step.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Channel {
+    /// A browser session after the login through Keycloak.
+    Keycloak,
+    /// A browser session after the test login of test mode.
+    TestLogin,
+    /// A session of the FSC voor Burgers channel ([`crate::fsc4b`]).
+    Fsc4b,
+}
+
+impl Channel {
+    /// Every channel.
+    pub const ALL: [Self; 3] = [Self::Keycloak, Self::TestLogin, Self::Fsc4b];
+
+    /// The name the store keeps.
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Keycloak => "keycloak",
+            Self::TestLogin => "testlogin",
+            Self::Fsc4b => "fsc4b",
+        }
+    }
+
+    /// The channel the store kept as `name`.
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|c| c.as_str() == name)
+    }
+}
+
+/// Who asked for a step: the account and the channel it came in by.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Actor {
+    pub account: String,
+    pub channel: Channel,
 }
 
 /// The chronicle of one cell as the store holds it.
@@ -143,8 +184,8 @@ pub struct Commit {
     pub appends: Vec<CellAppend>,
     pub keyed: Option<Keyed>,
     /// Who made the step, kept beside each record it appends
-    /// ([`StoredGram::recorded_by`]).
-    pub recorded_by: Option<String>,
+    /// ([`StoredGram::recorded_by`], [`StoredGram::recorded_via`]).
+    pub recorded_by: Option<Actor>,
 }
 
 /// What became of a commit that the store did not refuse.

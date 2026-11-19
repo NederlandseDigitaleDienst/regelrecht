@@ -14,7 +14,8 @@
 //!
 //! When Postgres is asked for and cannot be reached or migrated, the server
 //! does not start: it never falls back to memory. The sessions live beside
-//! the chronicles ([`crate::login`]).
+//! the chronicles ([`crate::login`]), and so do the challenges and sessions
+//! of FSC voor Burgers ([`crate::fsc4b`]) when that channel is configured.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -38,6 +39,7 @@ use crate::api::{ApiError, AppState, router};
 use crate::case::{self, CaseError};
 use crate::clock::{Clock, ControllableClock, RealClock};
 use crate::config::{Config, Mode, StoreChoice};
+use crate::fsc4b::{Fsc4b, Fsc4bError};
 use crate::login::{Login, SESSION_COOKIE, SESSION_TABLE};
 use crate::service::{Service, ServiceError};
 use crate::store::memory::InMemoryStore;
@@ -71,6 +73,8 @@ pub enum StartupError {
     Case(#[from] CaseError),
     #[error("the service: {0}")]
     Service(#[from] ServiceError),
+    #[error("FSC voor Burgers: {0}")]
+    Fsc4b(#[from] Fsc4bError),
 }
 
 /// The router of the server for `config`, with its login discovered.
@@ -107,6 +111,7 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         None => Arc::new(RealClock),
     };
     let stores = open_store(&config.store, CONNECT_TIMEOUT).await?;
+    let fsc4b = Fsc4b::open(&config.fsc4b, config.mode, stores.sessions.clone())?;
     tracing::info!(
         mode = %config.mode,
         case = %corpus.casus.id,
@@ -114,17 +119,21 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         today = %clock.today(),
         store = config.store.name(),
         login = ?login,
+        fsc4b = ?config.fsc4b,
         "starting"
     );
     let service = Service::start(corpus, stores.chronicles, clock).await?;
     let secure = login.secure_cookie();
-    let state = AppState::new(
+    let mut state = AppState::new(
         Arc::new(service),
         config.mode,
         controllable,
         login,
         &config.subject_claim,
     );
+    if let Some(fsc4b) = fsc4b {
+        state = state.with_fsc4b(Arc::new(fsc4b));
+    }
     let app = with_frontend(router(state.clone()), &config.frontend).layer(
         middleware::from_fn_with_state(state, regelrecht_auth::refresh_session_token::<AppState>),
     );
@@ -152,7 +161,12 @@ fn with_frontend(app: Router, dir: &Path) -> Router {
         let files = files.clone();
         async move {
             let path = request.uri().path();
-            if path.starts_with("/api/") || path.starts_with("/auth/") {
+            // `/fsc4b/` too: a route of FSC voor Burgers that does not exist,
+            // or a channel that is off, answers 404 to an app, not the screens.
+            if path.starts_with("/api/")
+                || path.starts_with("/auth/")
+                || path.starts_with("/fsc4b/")
+            {
                 return ApiError::new(StatusCode::NOT_FOUND, "there is no such route")
                     .into_response();
             }
@@ -248,7 +262,9 @@ mod tests {
     use regelrecht_shared::postgres::test_utils::TestDatabase;
 
     use super::*;
-    use crate::config::{DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, LoginChoice};
+    use crate::config::{
+        DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, Fsc4bChoice, LoginChoice,
+    };
 
     fn config(mode: Mode) -> Config {
         Config {
@@ -259,6 +275,7 @@ mod tests {
             port: DEFAULT_PORT,
             login: LoginChoice::TestLogin,
             subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
+            fsc4b: Fsc4bChoice::Off,
         }
     }
 

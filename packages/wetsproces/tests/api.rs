@@ -14,7 +14,8 @@ use http_body_util::BodyExt;
 use regelrecht_auth::OidcConfig;
 use regelrecht_wetsproces::app;
 use regelrecht_wetsproces::config::{
-    Config, DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, LoginChoice, Mode, StoreChoice,
+    Config, DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, Fsc4bChoice, LoginChoice, Mode,
+    StoreChoice,
 };
 use regelrecht_wetsproces::login::{Login, OidcLogin};
 use serde_json::{Value, json};
@@ -38,6 +39,7 @@ fn config(mode: Mode) -> Config {
         port: DEFAULT_PORT,
         login: LoginChoice::TestLogin,
         subject_claim: DEFAULT_SUBJECT_CLAIM.into(),
+        fsc4b: Fsc4bChoice::Off,
     }
 }
 

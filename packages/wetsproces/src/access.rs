@@ -15,6 +15,13 @@
 //!
 //! The rules on top of them live in the API ([`crate::api`]): which route
 //! asks which level, and for which cell.
+//!
+//! A principal comes from one of three channels ([`Channel`]): a browser
+//! session after the login through Keycloak or the test login, read here
+//! from the session, or a session of FSC voor Burgers, which
+//! [`crate::fsc4b`] turns into a principal with the citizen's role only.
+//! What follows the principal does not ask which channel it was; the store
+//! keeps the channel beside each record ([`Principal::actor`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -27,7 +34,8 @@ use regelrecht_auth::{
 use serde_json::Value;
 use tower_sessions::Session;
 
-use crate::api::ApiError;
+use crate::api::{ApiError, AppState};
+use crate::store::{Actor, Channel};
 
 /// What every role of this server starts with.
 pub const ROLE_PREFIX: &str = "wetsproces-";
@@ -87,18 +95,54 @@ pub struct Principal {
     sub: String,
     roles: BTreeSet<String>,
     claims: BTreeMap<String, Value>,
+    channel: Channel,
 }
 
 impl Principal {
-    /// A principal from what a session holds.
-    pub fn new(sub: String, roles: BTreeSet<String>, claims: BTreeMap<String, Value>) -> Self {
-        Self { sub, roles, claims }
+    /// A principal from what a session of `channel` holds.
+    pub fn new(
+        sub: String,
+        roles: BTreeSet<String>,
+        claims: BTreeMap<String, Value>,
+        channel: Channel,
+    ) -> Self {
+        Self {
+            sub,
+            roles,
+            claims,
+            channel,
+        }
+    }
+
+    /// A citizen of the FSC voor Burgers channel: the account `sub`, with the
+    /// citizen's role and no other, identified by `subject` under the claim
+    /// `claim`. A session of that channel never holds an employee's role.
+    pub fn fsc4b_citizen(sub: String, claim: &str, subject: &str) -> Self {
+        Self::new(
+            sub,
+            BTreeSet::from([CITIZEN.to_string()]),
+            BTreeMap::from([(claim.to_string(), Value::from(subject))]),
+            Channel::Fsc4b,
+        )
     }
 
     /// The account's subject: the OIDC `sub`, which the store keeps beside
     /// every record this principal makes.
     pub fn sub(&self) -> &str {
         &self.sub
+    }
+
+    /// The channel the principal came in by.
+    pub fn channel(&self) -> Channel {
+        self.channel
+    }
+
+    /// The principal as the store keeps it beside a record.
+    pub fn actor(&self) -> Actor {
+        Actor {
+            account: self.sub.clone(),
+            channel: self.channel,
+        }
     }
 
     /// Whether the principal holds a role of this server: a citizen or an
@@ -194,10 +238,15 @@ pub fn forbidden() -> ApiError {
     ApiError::new(StatusCode::FORBIDDEN, "you may not do this")
 }
 
-impl<S: Send + Sync> FromRequestParts<S> for Principal {
+impl FromRequestParts<AppState> for Principal {
     type Rejection = ApiError;
 
-    async fn from_request_parts(parts: &mut Parts, state: &S) -> Result<Self, Self::Rejection> {
+    /// The principal of the request's browser session; the channel is the
+    /// server's login, the only one that writes a session.
+    async fn from_request_parts(
+        parts: &mut Parts,
+        state: &AppState,
+    ) -> Result<Self, Self::Rejection> {
         let session = Session::from_request_parts(parts, state)
             .await
             .map_err(|(status, message)| ApiError::new(status, message))?;
@@ -228,6 +277,7 @@ impl<S: Send + Sync> FromRequestParts<S> for Principal {
             sub,
             roles.unwrap_or_default(),
             claims.unwrap_or_default(),
+            state.session_channel(),
         ))
     }
 }
@@ -241,6 +291,7 @@ mod tests {
             "sub-1".into(),
             roles.iter().map(|r| r.to_string()).collect(),
             BTreeMap::from([("bsn".to_string(), Value::from("999990019"))]),
+            Channel::TestLogin,
         )
     }
 
@@ -274,5 +325,15 @@ mod tests {
         assert_eq!(c.sub(), "sub-1");
         assert!(principal(&[CITIZEN]).citizen("kvk").is_err());
         assert!(principal(&["wetsproces-lezer"]).citizen("bsn").is_err());
+    }
+
+    #[test]
+    fn a_principal_of_fsc_voor_burgers_is_a_citizen_and_nothing_else() {
+        let p = Principal::fsc4b_citizen("fsc4b:x".into(), "bsn", "999990019");
+        assert!(p.is_citizen());
+        assert_eq!(p.level(), None);
+        assert!(!p.has(Level::Reader));
+        assert_eq!(p.citizen("bsn").unwrap().subject(), "999990019");
+        assert_eq!(p.actor().channel, Channel::Fsc4b);
     }
 }
