@@ -73,6 +73,15 @@
         "responses": { "200": { "$ref": "#/components/responses/Encrypted" }, "401": { "$ref": "#/components/responses/NoSession" } }
       }
     },
+    "/fsc4b/burger/v1/waarom": {
+      "post": {
+        "summary": "Why a decision of the citizen's own dossier came out so",
+        "description": "Decrypted, the body is { \"id\": \"<id of a decision>\" } and the answer is the explanation GET /api/dossier/waarom/{id} gives. A decision outside the citizen's dossier answers 404, the same as one that does not exist.",
+        "parameters": [{ "$ref": "#/components/parameters/SessionToken" }],
+        "requestBody": { "required": true, "content": { "application/jose": { "schema": { "type": "string" } } } },
+        "responses": { "200": { "$ref": "#/components/responses/Encrypted" }, "401": { "$ref": "#/components/responses/NoSession" } }
+      }
+    },
     "/fsc4b/discovery": {
       "get": {
         "summary": "The discovery configuration (section 4.2)",

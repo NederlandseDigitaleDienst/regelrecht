@@ -65,6 +65,8 @@ pub const FORMS: &str = "/fsc4b/burger/v1/formulier";
 pub const DOSSIER: &str = "/fsc4b/burger/v1/dossier";
 /// `POST`: a submission for themself.
 pub const SUBMIT: &str = "/fsc4b/burger/v1/indieningen";
+/// `POST`: why a decision of the citizen's own dossier came out so.
+pub const EXPLAIN: &str = "/fsc4b/burger/v1/waarom";
 /// `GET`: the discovery configuration (§4.2).
 pub const DISCOVERY: &str = "/fsc4b/discovery";
 /// `GET`: the OpenAPI specification of the routes above.
@@ -78,13 +80,14 @@ pub const CITIZEN_BASE: &str = "/fsc4b/burger";
 
 /// Every route of the channel outside the demo, with its method: what the
 /// router registers and what the OpenAPI specification must describe.
-pub const ROUTES: [(&str, &str); 8] = [
+pub const ROUTES: [(&str, &str); 9] = [
     ("post", CHALLENGE),
     ("post", COMPLETE),
     ("post", CASE),
     ("post", FORMS),
     ("post", DOSSIER),
     ("post", SUBMIT),
+    ("post", EXPLAIN),
     ("get", DISCOVERY),
     ("get", OPENAPI),
 ];
@@ -236,6 +239,7 @@ pub fn routes(fsc4b: &Fsc4b) -> Router<AppState> {
         .route(FORMS, post(citizen::forms_route))
         .route(DOSSIER, post(citizen::dossier_route))
         .route(SUBMIT, post(citizen::submit_route))
+        .route(EXPLAIN, post(citizen::explain_route))
         .route(DISCOVERY, get(discovery::discovery_route))
         .route(OPENAPI, get(discovery::openapi_route));
     match fsc4b.demo() {

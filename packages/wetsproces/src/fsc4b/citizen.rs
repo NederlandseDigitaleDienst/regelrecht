@@ -144,6 +144,7 @@ enum Route {
     Forms,
     Dossier,
     Submit,
+    Explain,
 }
 
 async fn handle(state: &AppState, route: Route, headers: &HeaderMap, body: &str) -> Response {
@@ -162,6 +163,13 @@ async fn handle(state: &AppState, route: Route, headers: &HeaderMap, body: &str)
         (Route::Forms, Ok(_)) => api::forms_for(state, p).await,
         (Route::Dossier, Ok(_)) => api::dossier_of(state, p).await,
         (Route::Submit, Ok(payload)) => submit(state, p, payload).await,
+        (Route::Explain, Ok(payload)) => match payload.get("id").and_then(Value::as_str) {
+            Some(id) => api::explain_for(state, p, id).await,
+            None => Err(ApiError::new(
+                StatusCode::UNPROCESSABLE_ENTITY,
+                "ask why with the id of a decision: { \"id\": \"...\" }",
+            )),
+        },
     };
     encrypted(&request.key, result)
 }
@@ -221,6 +229,14 @@ pub(crate) async fn dossier_route(
     body: String,
 ) -> Response {
     handle(&state, Route::Dossier, &headers, &body).await
+}
+
+pub(crate) async fn explain_route(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: String,
+) -> Response {
+    handle(&state, Route::Explain, &headers, &body).await
 }
 
 pub(crate) async fn submit_route(

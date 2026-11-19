@@ -26,6 +26,7 @@ The reference client in `src/fsc4b/client.rs` (feature `test-utils`) does each s
 | `POST /fsc4b/burger/v1/casus` | The case and today's date |
 | `POST /fsc4b/burger/v1/formulier` | The forms |
 | `POST /fsc4b/burger/v1/dossier` | The citizen's own dossier |
+| `POST /fsc4b/burger/v1/waarom` | Why a decision of the citizen's own dossier came out so, for `{ "id": "<decision>" }`, as `GET /api/dossier/waarom/{id}` |
 | `POST /fsc4b/burger/v1/indieningen` | A submission, as `POST /api/indieningen` takes it, with its idempotency key as the member `idempotency_key` inside the encrypted body |
 | `GET /fsc4b/discovery` | The discovery configuration: `sessionApi` and `wetsprocesBurgerApi`, each in version `v1` |
 | `GET /fsc4b/openapi.json` | The OpenAPI 3 specification of these routes |
