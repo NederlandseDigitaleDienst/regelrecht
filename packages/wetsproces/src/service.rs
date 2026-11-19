@@ -472,7 +472,7 @@ async fn blocking<T: Send + 'static>(
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
-mod tests {
+pub(crate) mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     use async_trait::async_trait;
@@ -528,7 +528,7 @@ mod tests {
         (s, store)
     }
 
-    fn submission() -> Step {
+    pub(crate) fn submission() -> Step {
         Step::Submit(Submit {
             article: None,
             refers_to: None,

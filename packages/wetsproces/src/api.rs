@@ -82,7 +82,8 @@ impl From<ServiceError> for ApiError {
             ServiceError::UnknownCell(_) => StatusCode::NOT_FOUND,
             ServiceError::KeyReused(_) | ServiceError::Busy => StatusCode::CONFLICT,
             ServiceError::Store(StoreError::Conflict { .. }) => StatusCode::CONFLICT,
-            ServiceError::Store(StoreError::Backend(_)) | ServiceError::Internal(_) => {
+            ServiceError::Store(StoreError::Backend(_) | StoreError::UnknownFormat { .. })
+            | ServiceError::Internal(_) => {
                 tracing::error!(error = %e, "request failed");
                 StatusCode::INTERNAL_SERVER_ERROR
             }

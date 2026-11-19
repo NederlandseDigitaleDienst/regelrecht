@@ -11,7 +11,7 @@ use axum::body::Body;
 use axum::http::{Method, Request, StatusCode};
 use http_body_util::BodyExt;
 use regelrecht_wetsproces::app;
-use regelrecht_wetsproces::config::{Config, DEFAULT_MANIFEST, DEFAULT_PORT, Mode};
+use regelrecht_wetsproces::config::{Config, DEFAULT_MANIFEST, DEFAULT_PORT, Mode, StoreChoice};
 use serde_json::{Value, json};
 use tower::ServiceExt;
 
@@ -21,6 +21,7 @@ const ADVICE: &str =
 async fn server() -> Router {
     app::build(&Config {
         mode: Mode::Test,
+        store: StoreChoice::Memory,
         manifest: PathBuf::from(DEFAULT_MANIFEST),
         port: DEFAULT_PORT,
     })

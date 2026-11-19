@@ -1,6 +1,6 @@
 ---
 title: "Wetsproces"
-description: "A server that runs one legal process on the cells of chronolexography for many users at once, with its chronicles in a store and the date from a clock."
+description: "A server that runs one legal process on the cells of chronolexography for many users at once, with its chronicles in memory or in PostgreSQL and the date from a clock."
 ---
 
 The wetsproces component is a wetsprocessysteem: a server that runs one legal process, from application to decision and on to objection and appeal, for everyone who uses it. It is one implementation built on the regelrecht method; another system can run the same cells in its own way. The process steps are those of the chronolexography PoC; this component adds what a shared server needs on top of them.
@@ -29,12 +29,36 @@ A writing request may carry an `Idempotency-Key` header. Sent again with the sam
 
 What day it is comes from a clock (`Clock` in `src/clock.rs`). Every step runs on that day and the cell records it as the day of the record.
 
+## Storage
+
+Two stores implement `ChronicleStore`. The store in memory starts empty and is gone when the server stops. The PostgreSQL store (`src/store/postgres.rs`) keeps the chronicles in a schema of its own, `wetsproces`, in the database it is given. Its migrations are in `packages/wetsproces/migrations/`, and sqlx's migration table sits in that schema too, so they are independent of the pipeline's migrations and touch no table in `public`.
+
+| Table | Holds |
+|---|---|
+| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id, a format version, the record as `jsonb` and when it was stored |
+| `heads` | Per cell its head |
+| `receipts` | Per idempotency key the request and the answer |
+
+`grams` is append-only, and the database enforces it: a trigger refuses every `UPDATE`, `DELETE` and `TRUNCATE` on it. A record written in a format version this build does not know is not read; the request fails with an error that names the cell, the record and the version.
+
+A commit is one transaction. It claims its idempotency key first, so a retry under the same key waits for the first request and then gets its answer. Then it locks the head rows of its cells in order of name, which keeps two commits from waiting on each other, and checks every head before it appends. Both stores pass one shared set of contract tests (`src/store/contract.rs`), which includes concurrent commits on one cell.
+
 ## Modes
 
-`WETSPROCES_MODE` selects the mode and has no default, not even in the image. Without it the server does not start.
+`WETSPROCES_MODE` selects the mode and has no default, not even in the image. Without it the server does not start. The mode sets the clock; where the chronicles live is chosen apart from it, with `WETSPROCES_STORE`.
 
-- `test` keeps the chronicles in memory, empty at every start, and uses a clock the API sets with `PUT /api/klok`. It starts on the case's `speeldatum`.
-- `stable` is meant to keep the chronicles in PostgreSQL, in a schema `wetsproces` of the shared database, and to use the real date in the Netherlands, in the Europe/Amsterdam time zone. Neither the store nor a login exists yet, so the server refuses to start in this mode with a message that says so, rather than fall back to memory.
+- `test` uses a clock the API sets with `PUT /api/klok`, starting on the case's `speeldatum`. The store is `memory` unless `WETSPROCES_STORE=postgres` asks for PostgreSQL, which gives a lasting chronicle with a clock that can still be moved.
+- `stable` uses the real date in the Netherlands, in the Europe/Amsterdam time zone, and always the PostgreSQL store; `WETSPROCES_STORE=memory` is refused. A login does not exist yet, so the server refuses to start in this mode with a message that says so.
+
+| Variable | Default | Meaning |
+|---|---|---|
+| `WETSPROCES_MODE` | none | `test` or `stable`. Required. |
+| `WETSPROCES_STORE` | `memory` in test mode, `postgres` in stable mode | Where the chronicles live |
+| `DATABASE_URL` | none | The database for the `postgres` store; `DATABASE_SERVER_FULL` is read as fallback. Required with that store. |
+| `WETSPROCES_MANIFEST` | `packages/wetsproces/bron.yaml` | The source manifest |
+| `WETSPROCES_PORT` | 8000 | The port |
+
+When the PostgreSQL store is chosen and the database cannot be reached or migrated, the server stops with that error. It does not fall back to memory.
 
 The server has no login yet. Anyone who reaches it can submit and decide, which is why only test mode starts. Login through Keycloak comes in a later change, before stable mode can run.
 
@@ -62,7 +86,11 @@ The forms carry the UI spec of the source as the PoC applies it (`src/ui_spec.rs
 just wetsproces
 ```
 
-This starts the server in test mode on port 7180, bound to `0.0.0.0`. Set `WETSPROCES_PORT` for another port and `WETSPROCES_MANIFEST` for another manifest.
+This starts the server in test mode on port 7180, bound to `0.0.0.0`, with the chronicles in memory. Set `WETSPROCES_PORT` for another port and `WETSPROCES_MANIFEST` for another manifest. To keep the chronicles across restarts, point it at a PostgreSQL database:
+
+```bash
+WETSPROCES_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:5432/regelrecht just wetsproces
+```
 
 ## Deployment
 
@@ -70,7 +98,7 @@ CI builds the image `regelrecht-wetsproces` (`packages/wetsproces/Dockerfile`) w
 
 Rolling it out takes, once login is in place:
 
-1. The component `wetsproces` in the `regelrecht` deployment, added by hand with `zad component add wetsproces --image ghcr.io/nederlandsedigitaledienst/regelrecht-wetsproces:<tag> --deployment regelrecht --port 8000 --service publish-on-web`. It needs the domain `wetsproces.regelrecht.rijks.app` and `WETSPROCES_MODE` set on the component.
+1. The component `wetsproces` in the `regelrecht` deployment, added by hand with `zad component add wetsproces --image ghcr.io/nederlandsedigitaledienst/regelrecht-wetsproces:<tag> --deployment regelrecht --port 8000 --service publish-on-web`. It needs the domain `wetsproces.regelrecht.rijks.app`, `WETSPROCES_MODE` set on the component, and the deployment's database (`DATABASE_SERVER_FULL`) for the PostgreSQL store.
 2. Changes in `deploy.yml`:
    - `build-wetsproces` in the `needs` and the conditions of `deploy-preview` and `deploy-production`;
    - its result in the check that refuses a half deploy;

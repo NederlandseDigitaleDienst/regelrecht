@@ -22,9 +22,17 @@
 //!   ([`ChronicleStore::load_all`]), so it never sees one cell before a
 //!   commit and another after it.
 //!
-//! [`memory::InMemoryStore`] holds it all in memory, for test mode.
+//! Two stores implement it, with the same behaviour, held to it by one set
+//! of contract tests (`contract`):
+//!
+//! - [`memory::InMemoryStore`] holds it all in memory, empty at every start;
+//! - [`postgres::PostgresStore`] keeps it in PostgreSQL, in the schema
+//!   `wetsproces`, append-only.
 
+#[cfg(test)]
+mod contract;
 pub mod memory;
+pub mod postgres;
 
 use async_trait::async_trait;
 use regelrecht_cel::Gram;
@@ -127,6 +135,18 @@ pub enum StoreError {
         cell: String,
         expected: u64,
         actual: u64,
+    },
+    /// A stored record is in a format this build does not read. Nothing
+    /// is guessed: the chronicle is refused as a whole.
+    #[error(
+        "record {seq} of '{cell}' is stored in format {version}, and this build reads only format \
+         {current}",
+        current = postgres::FORMAT_VERSION
+    )]
+    UnknownFormat {
+        cell: String,
+        seq: u64,
+        version: i32,
     },
     /// The store itself failed.
     #[error("chronicle store: {0}")]

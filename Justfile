@@ -298,10 +298,11 @@ check: format lint build-check validate validate-annotations deploy-filters-test
 
 # Crates with testcontainers-backed suites. Enumerates the exceptions, not the
 # members: a new crate is covered by --workspace. The list is exactly the crates
-# that dev-depend on regelrecht-pipeline/test-utils:
-#   grep -l 'regelrecht-pipeline.*test-utils' packages/*/Cargo.toml
-db_crates_exclude := "--exclude regelrecht-pipeline --exclude regelrecht-editor-api --exclude regelrecht-admin"
-db_crates := "-p regelrecht-pipeline -p regelrecht-editor-api -p regelrecht-admin"
+# that dev-depend on a `test-utils` feature that starts Postgres
+# (regelrecht-pipeline's, or regelrecht-shared's underneath it):
+#   grep -lE '(regelrecht-pipeline|regelrecht-shared).*test-utils' packages/*/Cargo.toml
+db_crates_exclude := "--exclude regelrecht-pipeline --exclude regelrecht-editor-api --exclude regelrecht-admin --exclude regelrecht-wetsproces"
+db_crates := "-p regelrecht-pipeline -p regelrecht-editor-api -p regelrecht-admin -p regelrecht-wetsproces"
 
 # Every recipe below is ONE cargo invocation, and that is load-bearing. Cargo
 # unifies features over the selected packages, so two invocations with different
@@ -1077,7 +1078,8 @@ poc: poc-build
 
 # Draai het wetsprocessysteem lokaal in test mode (packages/wetsproces): de
 # kroniek in het geheugen, de klok te zetten met PUT /api/klok. Bindt op
-# 0.0.0.0; WETSPROCES_PORT kiest een andere poort.
+# 0.0.0.0; WETSPROCES_PORT kiest een andere poort. Met WETSPROCES_STORE=postgres
+# en DATABASE_URL blijft de kroniek in Postgres staan.
 wetsproces:
     WETSPROCES_MODE=test WETSPROCES_PORT="${WETSPROCES_PORT:-7180}" \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-wetsproces
