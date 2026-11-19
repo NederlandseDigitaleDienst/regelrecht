@@ -302,6 +302,7 @@ articles:
         - law: algemene_wet_bestuursrecht
           article: '4:13'
           open_term: wettelijke_beslistermijn
+          host: {law: test_subsidiewet_met_beslistermijn, article: '1'}
       execution:
         parameters:
           - {name: datum_ontvangst, type: date, required: true}
@@ -342,9 +343,9 @@ articles:
 "#;
 
 /// Awb 4:13 lid 1 laat de beslistermijn aan het wettelijk voorschrift; de wet
-/// van de aanvraag vult hem in, met een eigen gegeven (RFC-058). Een aanvraag
-/// onder een andere wet houdt de acht weken van lid 2, ook al staat de
-/// subsidiewet in hetzelfde corpus.
+/// van de aanvraag vult hem in voor haar eigen aanvraag (`host`), met een
+/// eigen gegeven (RFC-058). Een aanvraag onder een andere wet houdt de acht
+/// weken van lid 2, ook al staat de subsidiewet in hetzelfde corpus.
 #[test]
 fn awb_4_13_neemt_de_termijn_van_de_wet_van_de_aanvraag() {
     let mut service = load_corpus();

@@ -61,8 +61,9 @@ articles:
     machine_readable:
       # The term runs from the receipt of the application: the moment that
       # counts for it. Lid 1 leaves the term to the act of the application,
-      # which fills the open term with implements; under this hook only that
-      # act fills it (RFC-058). Without one, lid 2 gives eight weeks.
+      # which fills the open term with implements and names its application
+      # as the host, so the filling reads that application's scope (RFC-058).
+      # Without one, lid 2 gives eight weeks.
       hooks:
         - hook_point: post_actions
           applies_to:

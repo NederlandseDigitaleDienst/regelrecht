@@ -1,0 +1,36 @@
+---
+# `host` on an implements came with schema v0.8.24. Under v0.8.22 both the
+# schema and the loader refuse it.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_conformance_host_before_v0_8_24
+regulatory_layer: BELEIDSREGEL
+bwb_id: BWBR9999945
+publication_date: '2026-11-18'
+valid_from: '2026-11-18'
+url: https://example.invalid/host-before
+articles:
+  - number: '1'
+    url: https://example.invalid/host-before/1
+    text: Op een aanvraag tot verlening wordt binnen tien weken beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host:
+            law: subsidiewet_voorbeeld
+            article: '1'
+      execution:
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: true
+        output:
+          - name: wettelijke_beslistermijn
+            type: date
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 10

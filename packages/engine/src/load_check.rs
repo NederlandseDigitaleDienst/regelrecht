@@ -126,6 +126,33 @@ pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
+/// Refuse an `implements` that names the article a hook fires on (`host`) in
+/// a file on a schema version before v0.8.24, which does not know the field.
+/// The schema refuses it there too; the loader repeats that because a
+/// document can reach the engine without passing schema validation, and the
+/// filling would then apply to one decision only under a version whose
+/// readers take it to apply to every one.
+pub(crate) fn reject_host_before_its_version(law: &ArticleBasedLaw) -> Result<()> {
+    if from_version(law, (0, 8, 24)) {
+        return Ok(());
+    }
+    for (where_, section) in sections(law) {
+        let named = section
+            .implements
+            .iter()
+            .flatten()
+            .find(|declaration| declaration.host.is_some());
+        if let Some(declaration) = named {
+            return Err(EngineError::LoadError(format!(
+                "law '{}' {where_}: implements open term '{}' of {} article {} with a host, \
+                 which schema v0.8.24 introduced; declare v0.8.24 or later",
+                law.id, declaration.open_term, declaration.law, declaration.article
+            )));
+        }
+    }
+    Ok(())
+}
+
 /// Refuse a FOREACH `combine` that the declared schema version does not
 /// know yet: `DISTINCT` arrived with v0.8.21. The schema refuses it there
 /// too, and the loader repeats that because a document can reach the engine

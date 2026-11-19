@@ -170,8 +170,10 @@ articles:
           applies_to:
             submission: AANVRAAG
       # Lid 1: "binnen de bij wettelijk voorschrift bepaalde termijn". De wet
-      # van het besluit vult dit begrip in met implements; onder deze haak telt
-      # alleen die wet (RFC-058). Bepaalt zij geen termijn, dan geldt lid 2.
+      # van het besluit vult dit begrip in met implements, en noemt daarbij
+      # het artikel van de aanvraag als host; alleen dan krijgt de invulling
+      # de gegevens van die aanvraag (RFC-058). Bepaalt zij geen termijn, dan
+      # geldt lid 2.
       open_terms:
         - id: wettelijke_beslistermijn
           type: date
