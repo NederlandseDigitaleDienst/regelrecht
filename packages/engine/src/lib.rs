@@ -94,8 +94,8 @@ pub use service::{
 };
 pub use trace::{PathNode, TraceBuilder};
 pub use types::{
-    Connectivity, LegalStatus, MissingFact, MissingKind, Operation, ParameterType, PathNodeType,
-    RegulatoryLayer, ResolveType, UntranslatableMode, Value,
+    Connectivity, LegalStatus, MissingFact, MissingKind, Number, Operation, ParameterType,
+    PathNodeType, RegulatoryLayer, ResolveType, Rounding, UntranslatableMode, Value,
 };
 pub use uri::{ReferenceType, RegelrechtUri, RegelrechtUriBuilder, internal_reference};
 

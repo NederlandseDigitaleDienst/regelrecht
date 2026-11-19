@@ -3,8 +3,7 @@
 //! `Value`, `Operation` and `ParameterType` describe the *format* of a law
 //! document (literals, operation tags, parameter types). They are the canonical
 //! representation re-exported by the engine at `regelrecht_engine::types`.
-use rust_decimal::Decimal;
-use rust_decimal::prelude::{FromPrimitive, ToPrimitive};
+use crate::number::Number;
 use serde::de::{self, MapAccess, SeqAccess, Visitor};
 use serde::ser::SerializeMap;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -13,11 +12,11 @@ use std::fmt;
 
 /// Represents any value in the engine (similar to Python's Any)
 ///
-/// Non-integer numbers are represented as an exact [`rust_decimal::Decimal`]
-/// rather than `f64`, so intermediate calculations carry full precision and
-/// rounding only ever happens at an explicit `ROUND`/`CEIL`/`FLOOR`
-/// operation (RFC-024). `Decimal` has no NaN: non-finite `f64` reaching the
-/// engine boundary (NaN/∞) maps to [`Value::Null`] (the missing/invalid value).
+/// Non-integer numbers are held as an exact [`Number`], a fraction, rather
+/// than `f64`, so no calculation rounds and rounding only ever happens at an
+/// explicit `ROUND`/`CEIL`/`FLOOR` operation (RFC-024, RFC-055). A `Number`
+/// has no NaN: non-finite `f64` reaching the engine boundary (NaN/∞) maps to
+/// [`Value::Null`] (the missing/invalid value).
 ///
 /// The `Untranslatable` variant (RFC-012 Layer 3) represents a value that
 /// originates from an article with untranslatable constructs. It propagates
@@ -43,8 +42,9 @@ pub enum Value {
     Bool(bool),
     /// Integer value
     Int(i64),
-    /// Exact decimal value (non-integer numbers)
-    Decimal(Decimal),
+    /// Exact number that is not held as an integer: the result of a
+    /// division, or a numeral written with a fraction.
+    Decimal(Number),
     /// String value
     String(String),
     /// Array of values
@@ -108,10 +108,10 @@ impl Serialize for Value {
             Value::Bool(b) => serializer.serialize_bool(*b),
             Value::Int(i) => serializer.serialize_i64(*i),
             Value::Decimal(d) => {
-                // Infallible within Decimal's value range (max ~7.9e28 << f64::MAX);
-                // surface the impossible case as an error rather than a wrong 0.0.
+                // A number beyond the range of a double has no ordinary form;
+                // say so rather than write a wrong value.
                 let f = d.to_f64().ok_or_else(|| {
-                    serde::ser::Error::custom(format!("Decimal {d} is not representable as f64"))
+                    serde::ser::Error::custom(format!("{d} is too large to write as a number"))
                 })?;
                 serializer.serialize_f64(f)
             }
@@ -403,11 +403,11 @@ impl Value {
         }
     }
 
-    /// Try to get value as an exact [`Decimal`] (integers widen to decimal).
-    pub fn as_decimal(&self) -> Option<Decimal> {
+    /// Try to get value as an exact [`Number`] (integers widen losslessly).
+    pub fn as_decimal(&self) -> Option<Number> {
         match self {
-            Value::Decimal(d) => Some(*d),
-            Value::Int(i) => Some(Decimal::from(*i)),
+            Value::Decimal(d) => Some(d.clone()),
+            Value::Int(i) => Some(Number::from(*i)),
             _ => None,
         }
     }
@@ -510,8 +510,8 @@ impl From<f64> for Value {
     }
 }
 
-impl From<Decimal> for Value {
-    fn from(d: Decimal) -> Self {
+impl From<Number> for Value {
+    fn from(d: Number) -> Self {
         Value::Decimal(d)
     }
 }
@@ -544,19 +544,19 @@ impl<T: Into<Value>> From<Option<T>> for Value {
 }
 
 /// Convert an `f64` to a [`Value`], coercing whole numbers to [`Value::Int`] and
-/// other finite values to an exact [`Value::Decimal`]. Non-finite values
-/// (NaN/∞), which have no `Decimal` representation, map to [`Value::Null`] (the
-/// missing/invalid value).
+/// other finite values to an exact [`Value::Decimal`], read as the shortest
+/// decimal that gives that double (RFC-055). Non-finite values (NaN/∞) map to
+/// [`Value::Null`] (the missing/invalid value).
 pub fn f64_to_value(v: f64) -> Value {
     // `i64::MIN as f64` is exact, but `i64::MAX as f64` rounds UP to i64::MAX+1,
     // so the upper bound is strict (`<`) — otherwise a whole f64 equal to
     // 9223372036854775808.0 would saturate to i64::MAX on `as i64`. Out-of-range
-    // whole numbers fall through to the exact Decimal branch instead.
+    // whole numbers fall through to the exact branch instead.
     const I64_MAX_F64: f64 = i64::MAX as f64;
     if v.fract() == 0.0 && v >= i64::MIN as f64 && v < I64_MAX_F64 {
         Value::Int(v as i64)
     } else {
-        match Decimal::from_f64(v) {
+        match Number::from_f64(v) {
             Some(d) => Value::Decimal(d),
             None => Value::Null,
         }
@@ -574,9 +574,9 @@ fn json_number_to_value(n: &serde_json::Number) -> Value {
     }
 }
 
-/// Convert an exact [`Decimal`] to a JSON number, falling back to `null` only if
-/// the value somehow has no `f64` representation.
-fn decimal_to_json(d: Decimal) -> serde_json::Value {
+/// Convert an exact [`Number`] to a JSON number through the nearest double,
+/// falling back to `null` only if the value is beyond the range of one.
+fn decimal_to_json(d: &Number) -> serde_json::Value {
     d.to_f64()
         .and_then(serde_json::Number::from_f64)
         .map(serde_json::Value::Number)
@@ -680,7 +680,7 @@ impl From<&Value> for serde_json::Value {
             Value::Null => serde_json::Value::Null,
             Value::Bool(b) => serde_json::Value::Bool(*b),
             Value::Int(i) => serde_json::json!(*i),
-            Value::Decimal(d) => decimal_to_json(*d),
+            Value::Decimal(d) => decimal_to_json(d),
             Value::String(s) => serde_json::Value::String(s.clone()),
             Value::Array(arr) => serde_json::Value::Array(arr.iter().map(Into::into).collect()),
             Value::Object(map) => {
@@ -704,7 +704,7 @@ impl From<Value> for serde_json::Value {
             Value::Null => serde_json::Value::Null,
             Value::Bool(b) => serde_json::Value::Bool(b),
             Value::Int(i) => serde_json::json!(i),
-            Value::Decimal(d) => decimal_to_json(d),
+            Value::Decimal(d) => decimal_to_json(&d),
             Value::String(s) => serde_json::Value::String(s),
             Value::Array(arr) => {
                 serde_json::Value::Array(arr.into_iter().map(Into::into).collect())
@@ -730,6 +730,9 @@ impl fmt::Display for Value {
             Value::Null => write!(f, "null"),
             Value::Bool(b) => write!(f, "{}", b),
             Value::Int(i) => write!(f, "{}", i),
+            // A whole decimal is written `5.0`, as the ordinary serialization
+            // writes it, so it reads apart from the integer `5`.
+            Value::Decimal(d) if d.is_integer() => write!(f, "{d:.1}"),
             Value::Decimal(d) => write!(f, "{}", d),
             Value::String(s) => write!(f, "{}", s),
             Value::Array(arr) => {
@@ -1030,7 +1033,10 @@ pub enum ParameterType {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rust_decimal_macros::dec;
+
+    fn dec(text: &str) -> Number {
+        text.parse().expect("test literal should be a number")
+    }
 
     #[test]
     fn test_value_bool_conversion() {
@@ -1041,8 +1047,8 @@ mod tests {
         assert!(!Value::Int(0).to_bool());
         assert!(Value::String("hello".to_string()).to_bool());
         assert!(!Value::String("".to_string()).to_bool());
-        assert!(Value::Decimal(dec!(1.5)).to_bool());
-        assert!(!Value::Decimal(dec!(0.0)).to_bool());
+        assert!(Value::Decimal(dec("1.5")).to_bool());
+        assert!(!Value::Decimal(dec("0.0")).to_bool());
         // Untranslatable is falsy
         assert!(
             !Value::Untranslatable {
@@ -1057,7 +1063,7 @@ mod tests {
     fn test_value_from_primitives() {
         assert_eq!(Value::from(true), Value::Bool(true));
         assert_eq!(Value::from(42i64), Value::Int(42));
-        assert_eq!(Value::from(2.75f64), Value::Decimal(dec!(2.75)));
+        assert_eq!(Value::from(2.75f64), Value::Decimal(dec("2.75")));
         // Whole-number floats coerce to Int
         assert_eq!(Value::from(5.0f64), Value::Int(5));
         // Non-finite floats have no Decimal representation -> Null
@@ -1074,14 +1080,14 @@ mod tests {
         let int_val = Value::Int(42);
         assert_eq!(int_val.as_int(), Some(42));
         assert_eq!(int_val.as_float(), Some(42.0));
-        assert_eq!(Value::Decimal(dec!(12.5)).as_float(), Some(12.5));
+        assert_eq!(Value::Decimal(dec("12.5")).as_float(), Some(12.5));
         // A decimal goes to JSON as the number it is, by reference and by value.
         assert_eq!(
-            serde_json::Value::from(&Value::Decimal(dec!(12.5))),
+            serde_json::Value::from(&Value::Decimal(dec("12.5"))),
             serde_json::json!(12.5)
         );
         assert_eq!(
-            serde_json::Value::from(Value::Decimal(dec!(12.5))),
+            serde_json::Value::from(Value::Decimal(dec("12.5"))),
             serde_json::json!(12.5)
         );
 
@@ -1106,11 +1112,11 @@ mod tests {
 
     #[test]
     fn test_value_decimal_equality() {
-        assert_eq!(Value::Decimal(dec!(1.5)), Value::Decimal(dec!(1.5)));
-        assert_ne!(Value::Decimal(dec!(1.5)), Value::Decimal(dec!(2.5)));
+        assert_eq!(Value::Decimal(dec("1.5")), Value::Decimal(dec("1.5")));
+        assert_ne!(Value::Decimal(dec("1.5")), Value::Decimal(dec("2.5")));
         // Int and Decimal are distinct variants at the Value level (numeric
         // cross-type equality is handled by the engine's `values_equal`).
-        assert_ne!(Value::Int(1), Value::Decimal(dec!(1.0)));
+        assert_ne!(Value::Int(1), Value::Decimal(dec("1.0")));
     }
 
     #[test]
@@ -1342,7 +1348,7 @@ mod tests {
             Value::Null,
             Value::Bool(true),
             Value::Int(42),
-            Value::Decimal(dec!(3.14)),
+            Value::Decimal(dec("3.14")),
             Value::String("test".to_string()),
             Value::Array(vec![Value::Int(1), Value::Int(2)]),
         ];

@@ -11,8 +11,16 @@ use serde::{Deserialize, Serialize};
 
 /// Re-export the canonical document-model value types from the law-model crate.
 pub use regelrecht_law_model::{
-    MissingFact, MissingKind, Operation, ParameterType, RegulatoryLayer, TypeSpec, Value,
+    MissingFact, MissingKind, Number, Operation, ParameterType, RegulatoryLayer, Rounding,
+    TypeSpec, Value,
 };
+
+/// A number from its decimal notation, for tests.
+#[cfg(test)]
+#[allow(clippy::expect_used)]
+pub(crate) fn dec(text: &str) -> Number {
+    text.parse().expect("test literal should be a number")
+}
 
 /// How the engine handles an article that flags a construct (RFC-012).
 ///

@@ -12,8 +12,8 @@
 
 use std::collections::BTreeMap;
 
+use regelrecht_engine::Number;
 use regelrecht_engine::{EngineError, FilledBy, LawExecutionService, OpenTermFilled, Value};
-use rust_decimal::Decimal;
 use serde_json::json;
 
 const DATE: &str = "2025-06-01";
@@ -328,6 +328,11 @@ articles:
               value: null
 "#;
 
+/// A number from its decimal notation.
+fn decimal(text: &str) -> Number {
+    text.parse().expect("test literal should be a number")
+}
+
 fn service() -> LawExecutionService {
     let mut service = LawExecutionService::new();
     service.load_law(VERLOF).unwrap();
@@ -609,7 +614,7 @@ articles:
         heroverwogen["outputs"],
         Value::Object(BTreeMap::from([(
             "helft".to_string(),
-            Value::Decimal(Decimal::new(50, 1))
+            Value::Decimal(decimal("5.0"))
         )])),
         "the decimal as the article computed it"
     );
@@ -1365,7 +1370,7 @@ fn equals_fails_on_an_integer_against_a_decimal_inside_a_record() {
         ]))
     };
     let twelve = Value::Int(12);
-    let twelve_point_zero = Value::Decimal(Decimal::new(120, 1));
+    let twelve_point_zero = Value::Decimal(decimal("12.0"));
     let message = compare(with(twelve.clone()), with(twelve_point_zero.clone()))
         .unwrap_err()
         .to_string();
@@ -1374,11 +1379,7 @@ fn equals_fails_on_an_integer_against_a_decimal_inside_a_record() {
         "{message}"
     );
     // Another number is no question of how it is written: just unequal.
-    let (equal, _) = compare(
-        with(twelve.clone()),
-        with(Value::Decimal(Decimal::new(125, 1))),
-    )
-    .unwrap();
+    let (equal, _) = compare(with(twelve.clone()), with(Value::Decimal(decimal("12.5")))).unwrap();
     assert_eq!(equal, Value::Bool(false));
     // Alike on both sides compares as before.
     let (equal, _) = compare(with(twelve_point_zero.clone()), with(twelve_point_zero)).unwrap();
@@ -1415,7 +1416,7 @@ articles:
     service.load_law(law).unwrap();
     let parameters = BTreeMap::from([
         ("a".to_string(), Value::Int(12)),
-        ("b".to_string(), Value::Decimal(Decimal::new(120, 1))),
+        ("b".to_string(), Value::Decimal(decimal("12.0"))),
     ]);
     let result = service
         .evaluate_law_output("wet_getallen", "gelijk", parameters, DATE)

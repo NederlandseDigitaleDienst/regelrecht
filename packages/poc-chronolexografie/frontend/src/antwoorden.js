@@ -7,13 +7,13 @@
  * recorded.
  */
 import { api } from './api.js';
-import { isDecimaal } from './state.js';
+import { decimaalGetal, isDecimaal } from './state.js';
 
 // A value as the comparison sees it: a decimal by its value, whatever its
 // scale, and still apart from a plain number; a record whatever the order of
 // its keys.
 const vergelijkbaar = (v) => {
-  if (isDecimaal(v)) return { __decimal: Number(v.__decimal) };
+  if (isDecimaal(v)) return { __decimal: decimaalGetal(v) };
   if (Array.isArray(v)) return v.map(vergelijkbaar);
   if (v !== null && typeof v === 'object') {
     return Object.fromEntries(

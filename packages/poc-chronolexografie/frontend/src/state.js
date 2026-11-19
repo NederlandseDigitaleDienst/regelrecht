@@ -418,9 +418,33 @@ export const besluitenOnder = (artikel) =>
 /** The decisions of the case's cell under the case's deciding article, in chronicle order. */
 export const eigenBesluiten = () => state.grammen.filter((g) => isBesluit(g) && g.basis === besluitBasis());
 
-/** Een decimaal staat in een chronolexogram als `{"__decimal": "…"}`. */
+/**
+ * A number that is not an integer is held in a chronolexogram as
+ * `{"__decimal": "12.5"}`, or as `{"__fraction": "1/3"}` when no finite
+ * decimal holds it.
+ */
 export const isDecimaal = (v) =>
-  v !== null && typeof v === 'object' && Object.keys(v).length === 1 && '__decimal' in v;
+  v !== null &&
+  typeof v === 'object' &&
+  Object.keys(v).length === 1 &&
+  ('__decimal' in v || '__fraction' in v);
+
+/** The text a stored number holds: its digits, or its fraction. */
+export const decimaalTekst = (v) => v.__decimal ?? v.__fraction;
+
+/**
+ * A stored number as a JavaScript number; a fraction as a double close to it.
+ * The division is done on whole numbers of any size, because a numerator and
+ * a denominator can each be beyond the range of a double while their
+ * quotient is not.
+ */
+export function decimaalGetal(v) {
+  if ('__decimal' in v) return Number(v.__decimal);
+  const [teller, noemer] = String(v.__fraction).split('/');
+  // A power of two, so scaling back is exact.
+  const BITS = 200n;
+  return Number((BigInt(teller) << BITS) / BigInt(noemer)) / 2 ** Number(BITS);
+}
 
 /**
  * Een besluitwaarde (`{basis, fields, findings, outputs}`), zoals de
@@ -440,7 +464,7 @@ export const isBesluitwaarde = (v) =>
  * de rest als JSON.
  */
 export function waarde(v) {
-  if (isDecimaal(v)) return v.__decimal;
+  if (isDecimaal(v)) return decimaalTekst(v);
   if (isUnknown(v)) {
     // As the editor (outputFormat.ts) and the demo (format.ts) write it, each
     // name once: the engine may report one fact from two laws.
@@ -487,7 +511,7 @@ export function alsJson(v) {
   const merk = '\u0000';
   const tekst = JSON.stringify(
     v,
-    (_k, x) => (isDecimaal(x) ? `${merk}${x.__decimal}${merk}` : x),
+    (_k, x) => (isDecimaal(x) ? `${merk}${decimaalTekst(x)}${merk}` : x),
     2,
   );
   return tekst.replace(/"\\u0000(.*?)\\u0000"/g, '$1');

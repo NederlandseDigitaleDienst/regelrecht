@@ -32,9 +32,11 @@ fn assert_amount_output(world: &NappWorld, name: &str, expected: i64) {
             "Expected output '{name}' to be {expected} eurocent, got {n}"
         ),
         Some(Value::Decimal(d)) => {
-            use rust_decimal::prelude::ToPrimitive;
+            use regelrecht_engine::Rounding;
             assert_eq!(
-                d.round().to_i64().unwrap_or(0),
+                d.round_to(0, Rounding::HalfAwayFromZero)
+                    .and_then(|rounded| rounded.to_i64())
+                    .unwrap_or(0),
                 expected,
                 "Expected output '{name}' to be {expected} eurocent, got {d}"
             )

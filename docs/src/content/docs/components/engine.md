@@ -265,6 +265,9 @@ The engine enforces fixed limits, set in `packages/engine/src/config.rs`, so tha
 | `MAX_CROSS_LAW_DEPTH` | 20 | One shared budget for cross-law and internal article-reference hops in a resolution chain |
 | `MAX_OPERATION_DEPTH` | 100 | Operation nesting |
 | `MAX_PROPERTY_DEPTH` | 32 | Dot-notation property access such as `$a.b.c` |
+| `MAX_NUMBER_BITS` | 4,096 | Size of the numerator or denominator of a number, about 1,200 digits |
+
+Numbers are exact fractions ([RFC-055](/rfcs/rfc-055)), and a fraction grows when denominators differ. A result over `MAX_NUMBER_BITS` is an `ArithmeticOverflow` that names the operation. In practice it points at a rulework that misses a rounding its legal text prescribes. A result beyond the range of a double gets the same error, because the API writes numbers through one.
 
 Three more bound the fuzzy search that anchors a note to law text. The sliding-window match is cubic in the quote length and runs synchronously in the browser, so `MAX_FUZZY_QUOTE_CHARS` (120), `MAX_FUZZY_SCAN_CHARS` (250,000 characters of law text per resolve) and `MAX_FUZZY_SCORED_WINDOWS` (10,000) cap it. A search that hits one of them reports the note as `Skipped` rather than as not found, which keeps "not searched" apart from "not there".
 

@@ -127,6 +127,7 @@ describe('waarde van een besluit in de uitspraak', () => {
   it('laat een gewone waarde JSON en een decimaal het getal', () => {
     expect(waarde({ basis: 'wet#1', outputs: {} })).toBe('{"basis":"wet#1","outputs":{}}');
     expect(waarde({ __decimal: '1.5' })).toBe('1.5');
+    expect(waarde({ __fraction: '1/3' })).toBe('1/3');
     expect(waarde(null)).toBe('null');
   });
 

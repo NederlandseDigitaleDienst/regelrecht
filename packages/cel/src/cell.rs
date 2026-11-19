@@ -2815,14 +2815,15 @@ fn check_supplied(
     Ok(())
 }
 
-/// Refuse a supplied value that holds the key the chronicle writes a
-/// decimal under ([`stored::DECIMAL_KEY`]): read back, it would be a
-/// decimal the submitter never sent.
+/// Refuse a supplied value that holds a key the chronicle writes a number
+/// under ([`stored::DECIMAL_KEY`], [`stored::FRACTION_KEY`]): read back, it
+/// would be a number the submitter never sent.
 pub(crate) fn refuse_decimal_key(name: &str, value: &serde_json::Value) -> Result<()> {
     if stored::holds_reserved_key(value) {
         return Err(refused(format!(
-            "'{name}' holds the key '{}', which the chronicle keeps for a decimal",
-            stored::DECIMAL_KEY
+            "'{name}' holds the key '{}' or '{}', which the chronicle keeps for a number",
+            stored::DECIMAL_KEY,
+            stored::FRACTION_KEY
         )));
     }
     Ok(())

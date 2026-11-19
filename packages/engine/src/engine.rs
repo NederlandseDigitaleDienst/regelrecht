@@ -879,7 +879,7 @@ pub(crate) fn action_to_operation(
 mod tests {
     use super::*;
     use crate::article::{ArticleBasedLaw, LawLoad};
-    use rust_decimal_macros::dec;
+    use crate::types::dec;
 
     fn make_simple_law() -> ArticleBasedLaw {
         let yaml = r#"
@@ -1274,7 +1274,7 @@ articles:
         // tax_amount = 4000 * 0.21 = 840.0
         assert_eq!(
             result.outputs.get("tax_amount"),
-            Some(&Value::Decimal(dec!(840)))
+            Some(&Value::Decimal(dec("840")))
         );
     }
 
@@ -1296,7 +1296,7 @@ articles:
         // tax_amount = 0 * 0.21 = 0.0
         assert_eq!(
             result.outputs.get("tax_amount"),
-            Some(&Value::Decimal(dec!(0)))
+            Some(&Value::Decimal(dec("0")))
         );
     }
 

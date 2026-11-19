@@ -59,8 +59,9 @@ regex = "1.11"
 # single version would break one side or the other; aligning them would require
 # upgrading openidconnect, which is out of scope for this cleanup.
 roxmltree = "0.21"
-rust_decimal = { version = "1", default-features = false, features = ["maths", "serde", "std"] }
-rust_decimal_macros = "1"
+num-bigint = "0.4"
+num-rational = { version = "0.4", default-features = false, features = ["num-bigint-std", "std"] }
+num-traits = "0.2"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml_ng = "0.10"

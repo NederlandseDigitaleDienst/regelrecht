@@ -18,6 +18,7 @@
 
 mod header;
 mod model;
+pub mod number;
 pub mod stored;
 mod value;
 
@@ -37,5 +38,6 @@ pub use model::{
 };
 /// The engine reads a version through the model, not from `regelrecht-shared`
 /// itself: it sits on the model alone.
+pub use number::{Number, ParseNumberError, Rounding};
 pub use regelrecht_shared::parse_schema_version;
 pub use value::{MissingFact, MissingKind, Operation, ParameterType, RegulatoryLayer, Value};

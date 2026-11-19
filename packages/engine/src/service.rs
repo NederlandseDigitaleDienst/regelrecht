@@ -1663,8 +1663,9 @@ fn hash_value(value: &Value, hasher: &mut impl Hasher) {
         Value::Bool(b) => b.hash(hasher),
         Value::Int(i) => i.hash(hasher),
         Value::Decimal(d) => {
-            // Normalize so equal decimals (1.0 == 1.00) hash identically, matching PartialEq.
-            d.normalize().hash(hasher);
+            // Equal numbers hash identically however they were written
+            // (1.0 == 1.00), matching PartialEq.
+            d.hash(hasher);
         }
         Value::String(s) => s.hash(hasher),
         Value::Array(arr) => {

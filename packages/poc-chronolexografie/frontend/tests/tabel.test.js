@@ -143,6 +143,12 @@ describe('the edge cases of the comparison', () => {
 describe('alsInvoer', () => {
   it('holds a decimal cell as its number, and leaves a value that is no table', () => {
     expect(alsInvoer([{ aantal: { __decimal: '2.5' }, naam: 'A' }])).toEqual([{ aantal: 2.5, naam: 'A' }]);
+    expect(alsInvoer([{ aandeel: { __fraction: '1/4' } }])).toEqual([{ aandeel: 0.25 }]);
+    // A numerator and a denominator beyond the range of a double still give
+    // their quotient.
+    const groot = `${'9'.repeat(400)}/${'3'.repeat(400)}`;
+    expect(alsInvoer([{ aandeel: { __fraction: groot } }])).toEqual([{ aandeel: 3 }]);
+    expect(alsInvoer([{ aandeel: { __fraction: '-1/3' } }])[0].aandeel).toBeCloseTo(-1 / 3, 12);
     expect(alsInvoer('tekst')).toBe('tekst');
     expect(alsInvoer(undefined)).toBeUndefined();
   });

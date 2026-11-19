@@ -12,15 +12,13 @@ categories = ["parsing"]
 
 [dependencies]
 regelrecht-shared = { path = "../shared" }
-# serde-with-float adds the opt-in `serde::float_option` module used by
-# TypeSpec::min/max, which the schema types as JSON numbers. It does not change
-# Decimal's default serialization (that is the differently-named `serde-float`).
-rust_decimal = { workspace = true, features = ["serde-with-float"] }
+num-bigint.workspace = true
+num-rational.workspace = true
+num-traits.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
-rust_decimal_macros.workspace = true
 serde_yaml_ng.workspace = true
 
 [lints]

@@ -8,10 +8,10 @@
 
 use std::collections::BTreeSet;
 
+use regelrecht_engine::Number;
 use regelrecht_engine::{
     Article, OutputProvenance, SelectorHint, TextQuoteSelector, Value, annotation,
 };
-use rust_decimal::Decimal;
 
 use crate::helpers::table::{Rows, rows_to_params, rows_to_records};
 use crate::helpers::value_conversion::{convert_gherkin_value, values_equal_with_tolerance};
@@ -491,7 +491,7 @@ fn num_to_value(n: f64) -> Value {
     } else {
         Value::Decimal(
             format!("{n}")
-                .parse::<Decimal>()
+                .parse::<Number>()
                 .expect("numeric literal parses as Decimal"),
         )
     }

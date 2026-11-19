@@ -280,13 +280,10 @@ fn a_whole_decimal_comes_back_as_a_decimal() {
 }
 
 #[test]
-fn a_fraction_keeps_all_its_digits() {
+fn a_fraction_is_kept_exactly() {
     let mut service = service();
     let stored = stored(&mut service, 1, 3);
-    assert_eq!(
-        decimal(&stored["aandeel"]),
-        "0.3333333333333333333333333333"
-    );
+    assert_eq!(decimal(&stored["aandeel"]), "1/3");
     assert_eq!(
         equals(
             &service,
@@ -469,10 +466,7 @@ fn the_file_holds_the_digits() {
     )
     .unwrap();
     let text = std::fs::read_to_string(&path).unwrap();
-    assert!(
-        text.contains(r#""aandeel":{"__decimal":"0.3333333333333333333333333333"}"#),
-        "{text}"
-    );
+    assert!(text.contains(r#""aandeel":{"__fraction":"1/3"}"#), "{text}");
     assert!(text.contains(r#""aantal":4"#), "{text}");
 }
 
@@ -508,7 +502,7 @@ fn a_supplied_value_may_not_hold_the_decimal_key() {
         .unwrap_err();
     assert!(
         err.to_string()
-            .contains("which the chronicle keeps for a decimal"),
+            .contains("which the chronicle keeps for a number"),
         "{err}"
     );
 }
@@ -534,7 +528,11 @@ fn a_damaged_decimal_in_the_file_is_refused() {
     )
     .unwrap();
     let text = std::fs::read_to_string(&path).unwrap();
-    std::fs::write(&path, text.replace("0.3333", "0,3333")).unwrap();
+    std::fs::write(
+        &path,
+        text.replace(r#""__fraction":"1/3""#, r#""__fraction":"1,3""#),
+    )
+    .unwrap();
     let err = Cell::open(ACTOR, &path, dir.path()).unwrap_err();
     assert!(
         err.to_string().contains("line 2") && err.to_string().contains("no stored decimal"),

@@ -16,9 +16,15 @@ fn parse_value(s: &str) -> Value {
         _ => {
             if let Ok(n) = s.parse::<i64>() {
                 Value::Int(n)
-            } else if let Ok(d) = s.parse::<rust_decimal::Decimal>() {
-                // Decimal en niet f64: de engine rekent met exacte decimalen,
+            } else if let Some(d) = s
+                .bytes()
+                .all(|b| b.is_ascii_digit() || matches!(b, b'.' | b'-'))
+                .then(|| s.parse::<regelrecht_engine::Number>().ok())
+                .flatten()
+            {
+                // Exact en niet f64: de engine rekent met exacte getallen,
                 // en een scenario dat "0.10" schrijft bedoelt tien cent.
+                // Alleen gewone decimale notatie: `1/3` blijft tekst.
                 Value::Decimal(d)
             } else {
                 Value::String(s.to_string())

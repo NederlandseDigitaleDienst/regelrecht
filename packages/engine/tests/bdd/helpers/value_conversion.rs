@@ -2,8 +2,8 @@
 //!
 //! Converts string values from feature files to engine Value types.
 
+use regelrecht_engine::Number;
 use regelrecht_engine::Value;
-use rust_decimal::Decimal;
 
 /// Convert a Gherkin table cell value to an engine Value.
 ///
@@ -49,12 +49,24 @@ pub fn convert_gherkin_value(val: &str) -> Value {
     }
 
     // Try decimal
-    if let Ok(d) = trimmed.parse::<Decimal>() {
+    // Plain decimal notation only: `Number` also reads `1/3` and `1e3`, which
+    // in a feature file are text.
+    let plain = trimmed
+        .bytes()
+        .all(|b| b.is_ascii_digit() || matches!(b, b'.' | b'-' | b'+'));
+    if let Some(d) = plain.then(|| trimmed.parse::<Number>().ok()).flatten() {
         return Value::Decimal(d);
     }
 
     // Default to string
     Value::String(trimmed.to_string())
+}
+
+/// The tolerance two numbers may differ by and still compare equal: 1e-9.
+fn tolerance() -> Number {
+    Number::one()
+        .checked_div(&Number::from(1_000_000_000_i64))
+        .unwrap_or_else(Number::zero)
 }
 
 /// Compare two Values with a small numeric tolerance.
@@ -65,8 +77,7 @@ pub fn convert_gherkin_value(val: &str) -> Value {
 /// the float imprecision the engine deliberately avoids.
 pub fn values_equal_with_tolerance(a: &Value, b: &Value) -> bool {
     match (a.as_decimal(), b.as_decimal()) {
-        // Decimal::new(1, 9) == 1e-9
-        (Some(da), Some(db)) => (da - db).abs() < Decimal::new(1, 9),
+        (Some(da), Some(db)) => (&da - &db).abs() < tolerance(),
         _ => a == b,
     }
 }
@@ -76,7 +87,12 @@ pub fn values_equal_with_tolerance(a: &Value, b: &Value) -> bool {
 mod tests {
     use super::{convert_gherkin_value, values_equal_with_tolerance};
     use regelrecht_engine::Value;
-    use rust_decimal_macros::dec;
+    // The cucumber runner (`harness = false`) compiles this module without
+    // its `#[test]` functions, so there the helper has no caller.
+    #[allow(dead_code)]
+    fn dec(text: &str) -> regelrecht_engine::Number {
+        text.parse().expect("test literal should be a number")
+    }
 
     #[test]
     fn test_convert_bool() {
@@ -100,9 +116,9 @@ mod tests {
 
     #[test]
     fn test_convert_float() {
-        assert_eq!(convert_gherkin_value("3.14"), Value::Decimal(dec!(3.14)));
-        assert_eq!(convert_gherkin_value("-1.5"), Value::Decimal(dec!(-1.5)));
-        assert_eq!(convert_gherkin_value("0.5"), Value::Decimal(dec!(0.5)));
+        assert_eq!(convert_gherkin_value("3.14"), Value::Decimal(dec("3.14")));
+        assert_eq!(convert_gherkin_value("-1.5"), Value::Decimal(dec("-1.5")));
+        assert_eq!(convert_gherkin_value("0.5"), Value::Decimal(dec("0.5")));
     }
 
     #[test]
@@ -155,14 +171,14 @@ mod tests {
 
         // Decimal tolerance
         assert!(values_equal_with_tolerance(
-            &Value::Decimal(dec!(1.0)),
-            &Value::Decimal(dec!(1.0000000001))
+            &Value::Decimal(dec("1.0")),
+            &Value::Decimal(dec("1.0000000001"))
         ));
 
         // Int vs Decimal
         assert!(values_equal_with_tolerance(
             &Value::Int(100),
-            &Value::Decimal(dec!(100.0))
+            &Value::Decimal(dec("100.0"))
         ));
 
         // Different values
