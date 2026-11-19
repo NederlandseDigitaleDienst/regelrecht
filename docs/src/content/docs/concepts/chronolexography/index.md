@@ -260,24 +260,23 @@ The engine plays each aggregate on every question, in the version of the reducti
 
 ### An answer from a fact (experimental)
 
-Many reductions over facts only copy. The step on the root copies each field of the fact into a property of the same name. A correction that refers to the root copies the fields it holds. The read model passes the aggregates on as rows. For that case the catalogue may name the fact instead of a reduction. The cell then writes the reduction out itself.
+Many reductions over facts only copy. The step on the root copies each field of the fact into a property of the same name, and the read model passes the aggregates on as rows, one row per record. For that case the catalogue may name the fact instead of a reduction. The cell then writes the reduction out itself.
 
 ```yaml
 # cells/<cell>/cel.yaml
 answers:
   inschrijvingen:
     fact: test_chronicle_corrections#1#ingeschreven
-    referred_by: [test_chronicle_corrections#2#postcode_gecorrigeerd]
     where: [bewoner]
 ```
 
-Without `referred_by` and `where`, the fact reference alone will do: `inschrijvingen: test_chronicle_corrections#1#ingeschreven`.
+Without `where`, the fact reference alone will do: `inschrijvingen: test_chronicle_corrections#1#ingeschreven`.
 
-The written-out form is an ordinary `REDUCTIE`, which the service loads like any other, so revocation, the calculation date and the trace work as they do for a reduction written by hand. Article `aggregaat` plays one aggregate per record of the fact. Its state holds every field of the fact and of each fact in `referred_by`, with the type the law declares. The step of each fact copies every field that fact holds, so a correction overwrites the fields it shares with the root and adds the ones only it has.
+The written-out form is an ordinary `REDUCTIE`, which the service loads like any other, so revocation, the calculation date and the trace work as they do for a reduction written by hand. Article `aggregaat` plays one aggregate per record of the fact. Its state holds every field of the fact, with the type the law declares, and its one step copies them.
 
-The article named after the answer reads the aggregates and gives them as rows. `where` filters them on fields of the root, and each name in it becomes a parameter that the binding passes. From the day the regulation requires the fact, each new version of that regulation, or of the regulation of a referring fact, gives a new version of the reduction. A version that no longer requires the fact adds none, and the version before it stays in force. The reduction's `$id` names the cell and the answer, such as `standaard_gemeente_voorbeeldstad_inschrijvingen`. The test `packages/cel/tests/standard_answer.rs` compares the two forms.
+The article named after the answer reads the aggregates and gives them as rows. `where` filters them on fields of the root, and each name in it becomes a parameter that the binding passes; a null that the binding passes selects the roots that hold null there. Each version of the regulation that requires the fact gives a version of the reduction. A version that no longer requires the fact adds none, and the version before it stays in force. The reduction's `$id` names the cell and the answer, such as `standaard_gemeente_voorbeeldstad_inschrijvingen`. The test `packages/cel/tests/standard_answer.rs` compares the two forms.
 
-The law does not say which facts refer to a given fact, because `refers_to` belongs to each record. The catalogue therefore lists them. A reduction whose steps call the law, or whose read model selects among the rows, is still written by hand.
+A record of another fact that refers to the root, such as a correction or a striking out, leaves the row as it is; taking it into account needs a written reduction. What such a record does with the row is a reading of the chronicle, and a reading belongs written out with its reader. A second, shorter notation for it would give the language two forms for one thing. A fact on its own is no reading: it gives one row per record.
 
 ## Documents between cells
 

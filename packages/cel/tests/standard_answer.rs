@@ -1,7 +1,8 @@
 //! An answer a cell gives from a fact, without a reduction written for it
 //! (`cel.yaml`, `answers`, [`regelrecht_cel::standard`]): the standard
 //! reduction is the written-out copy reduction, structurally and in what it
-//! answers, also after a revocation and on a day before a record.
+//! answers, also after a revocation and on a day before a record. A record
+//! of another fact that refers to a root leaves its row as it is.
 
 #![allow(clippy::unwrap_used, clippy::panic, clippy::expect_used)]
 
@@ -43,8 +44,8 @@ fn poc_source(path: &str) -> String {
 
 /// The reduction written out by hand that the short form
 /// `inschrijvingen` stands for: one aggregate per registration with every
-/// field of the fact, a correction that sets the postcode it holds, and a
-/// read model that gives the aggregates of the resident as rows.
+/// field of the fact, and a read model that gives the aggregates of the
+/// resident as rows.
 const BY_HAND: &str = r"---
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
 $id: test_reductie_inschrijvingen
@@ -54,7 +55,7 @@ valid_from: '2025-01-01'
 name: Inschrijvingen van een bewoner (testreductie)
 articles:
   - number: inschrijving
-    text: FICTIEF. Per inschrijving de velden, met de correcties erop.
+    text: FICTIEF. Per inschrijving de velden.
     machine_readable:
       projection:
         per: test_chronicle_corrections#1#ingeschreven
@@ -74,12 +75,6 @@ articles:
                 value: $record.postcode
               - output: huisnummer
                 value: $record.huisnummer
-          - record: test_chronicle_corrections#2#postcode_gecorrigeerd
-            actions:
-              - output: bewoner
-                value: $record.bewoner
-              - output: postcode
-                value: $record.postcode
   - number: inschrijvingen_met_de_hand
     text: FICTIEF. De inschrijvingen van de bewoner, als rijen.
     machine_readable:
@@ -105,7 +100,6 @@ articles:
 /// The same answer in the short form.
 const SHORT: &str = "  inschrijvingen:
     fact: test_chronicle_corrections#1#ingeschreven
-    referred_by: [test_chronicle_corrections#2#postcode_gecorrigeerd]
     where: [bewoner]
 ";
 
@@ -244,8 +238,8 @@ fn the_standard_reduction_is_the_copy_reduction_written_out() {
     }
 }
 
-/// Three registrations, two of resident `b1`: the postcode of the first
-/// is corrected, the second is revoked as wrong from the start.
+/// Three registrations, two of resident `b1`: a correction of the postcode
+/// refers to the first, and the second is revoked as wrong from the start.
 fn record_registrations(cell: &mut Cell, service: &LawExecutionService) {
     let fact =
         |c: &mut Cell, fact: &str, f: &[(&str, serde_json::Value)], to: Option<&str>, on: &str| {
@@ -302,9 +296,8 @@ fn record_registrations(cell: &mut Cell, service: &LawExecutionService) {
     );
 }
 
-/// With a fact that refers to the root, the standard reduction answers what
-/// the reduction written out by hand answers: before any record, after a
-/// correction that sets the postcode it holds, and after a fact that
+/// The standard reduction answers what the reduction written out by hand
+/// answers: before any record, between records, and after a fact that
 /// revokes a registration.
 #[test]
 fn a_standard_answer_answers_what_the_written_out_reduction_answers() {
@@ -347,17 +340,6 @@ fn a_standard_answer_answers_what_the_written_out_reduction_answers() {
         )),
         vec![s("1111AA"), s("2222BB")]
     );
-    // The correction sets the postcode it holds under the same name.
-    assert_eq!(
-        postcodes(&answer(
-            &cell,
-            &service,
-            "inschrijvingen",
-            "b1",
-            "2025-04-15"
-        )),
-        vec![s("1111AB"), s("2222BB")]
-    );
     // A revoked registration plays no step: its aggregate holds the start
     // values, as the reduction written out by hand gives it.
     assert_eq!(
@@ -368,12 +350,26 @@ fn a_standard_answer_answers_what_the_written_out_reduction_answers() {
             "b1",
             "2025-06-01"
         )),
-        vec![s("1111AB"), Value::Null]
+        vec![s("1111AA"), Value::Null]
     );
 }
 
+/// A record of another fact that refers to a root, such as a correction of
+/// its postcode, leaves the row of the standard reduction as it is: what
+/// such a record does with the row is a reading, written out in a reduction.
+#[test]
+fn a_record_of_another_fact_that_refers_to_the_root_leaves_its_row() {
+    let (mut cell, service, _dir) = cell_and_service();
+    record_registrations(&mut cell, &service);
+    let before = answer(&cell, &service, "inschrijvingen", "b1", "2025-03-15");
+    let after = answer(&cell, &service, "inschrijvingen", "b1", "2025-04-15");
+    assert_eq!(after, before);
+    let s = |p: &str| Value::String(p.to_string());
+    assert_eq!(postcodes(&after), vec![s("1111AA"), s("2222BB")]);
+}
+
 /// An answer that selects on a field the fact does not hold, one that
-/// names the same fact twice, one named like the aggregate article, and one
+/// selects on a field twice, one named like the aggregate article, and one
 /// whose standard reduction has the `$id` of a reduction the cell keeps, are
 /// refused.
 #[test]
@@ -395,7 +391,7 @@ fn a_standard_answer_that_cannot_be_written_out_is_refused() {
 
     for (answers, says) in [
         (
-            "  rijen:\n    fact: test_chronicle_corrections#1#ingeschreven\n    referred_by: [test_chronicle_corrections#1#ingeschreven]\n",
+            "  rijen:\n    fact: test_chronicle_corrections#1#ingeschreven\n    where: [bewoner, bewoner]\n",
             "twice",
         ),
         (
@@ -441,15 +437,14 @@ fn a_standard_reduction_does_not_pass_for_another_rulework() {
 
 /// A misspelled key, a name with `#` that is no fact, and an answer name
 /// that cannot be part of a `$id` are refused when the cell opens, with
-/// the answer they belong to; a misspelled referring fact when the
-/// reduction is written out.
+/// the answer they belong to.
 #[test]
 fn a_malformed_answer_from_a_fact_is_refused_by_name() {
     let dir = cell_tempdir();
     for (answers, says) in [
         (
-            "  rijen:\n    fact: test_chronicle_corrections#1#ingeschreven\n    refered_by: []\n",
-            "refered_by",
+            "  rijen:\n    fact: test_chronicle_corrections#1#ingeschreven\n    wehre: [bewoner]\n",
+            "wehre",
         ),
         ("  rijen: Test_register#1#ingeschreven\n", "neither the $id"),
         (
@@ -465,26 +460,9 @@ fn a_malformed_answer_from_a_fact_is_refused_by_name() {
         let err = Cell::in_memory(ACTOR, dir.path()).unwrap_err();
         assert!(err.to_string().contains(says), "{answers}: {err}");
     }
-    // A referring fact the regulation does not require is a misspelling,
-    // refused when the reduction is written out.
-    std::fs::write(
-        dir.path().join("cel.yaml"),
-        "name: Testcel\nanswers:\n  rijen:\n    fact: test_chronicle_corrections#1#ingeschreven\n    referred_by: [test_chronicle_corrections#2#postcode_gecorigeerd]\n",
-    )
-    .unwrap();
-    let cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
-    let mut service = LawExecutionService::new();
-    service.load_law(&register()).unwrap();
-    let err = cell.load_standard_reductions(&mut service).unwrap_err();
-    assert!(
-        err.to_string().contains("postcode_gecorigeerd")
-            && err.to_string().contains("no loaded version"),
-        "{err}"
-    );
 }
 
-/// A fictional register in two versions, and a fictional regulation of
-/// corrections that takes effect between them, from 2025-06-01.
+/// A fictional regulation `id`, valid from `from`, with `articles`.
 fn versioned(id: &str, from: &str, articles: &str) -> String {
     format!(
         "---\n$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json\n\
@@ -494,36 +472,40 @@ fn versioned(id: &str, from: &str, articles: &str) -> String {
 }
 
 const REGISTERED: &str = "  - number: '1'
-    text: FICTIEF. Het register schrijft in waar een bewoner woont.
+    text: FICTIEF. Het register schrijft in waar een bewoner woont, en welk kenteken hij opgaf.
     machine_readable:
       requires:
         - fact: ingeschreven
-          parameters: [bewoner, postcode]
+          parameters: [bewoner, kenteken]
       execution:
         parameters:
           - {name: bewoner, type: string}
-          - {name: postcode, type: string}
+          - {name: kenteken, type: string, nullable: true}
 ";
 
-const CORRECTED: &str = "  - number: '1'
-    text: FICTIEF. Het register verbetert de postcode, of laat hem leeg.
-    machine_readable:
-      requires:
-        - fact: postcode_gecorrigeerd
-          parameters: [postcode]
-      execution:
-        parameters:
-          - {name: postcode, type: string, nullable: true}
-";
-
-/// A standard reduction has a version per day a version of one of its
-/// regulations takes effect, from the day the root's regulation requires
-/// the fact. A referring fact not yet in force has no step in a version;
-/// a field the referring fact may leave null may hold null. Loading it
-/// twice keeps the one loaded first. An answer name may hold digits and _.
-#[test]
-fn a_standard_reduction_follows_the_versions_of_its_regulations() {
+/// A cell of `ACTOR` whose catalogue holds `answers`, and a service with
+/// the versions `laws` and the cell's standard reductions.
+fn cell_on(answers: &str, laws: &[String]) -> (Cell, LawExecutionService, tempfile::TempDir) {
     let mut service = LawExecutionService::new();
+    for law in laws {
+        service.load_law(law).unwrap();
+    }
+    let dir = cell_tempdir();
+    std::fs::write(
+        dir.path().join("cel.yaml"),
+        format!("name: Testcel\nanswers:\n{answers}"),
+    )
+    .unwrap();
+    let cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
+    cell.load_standard_reductions(&mut service).unwrap();
+    (cell, service, dir)
+}
+
+/// A standard reduction has a version per version of the fact's regulation
+/// that requires the fact, and none before. Loading it twice keeps the one
+/// loaded first. An answer name may hold digits and _.
+#[test]
+fn a_standard_reduction_follows_the_versions_of_its_regulation() {
     let laws = [
         versioned(
             "test_standaard_register",
@@ -531,70 +513,111 @@ fn a_standard_reduction_follows_the_versions_of_its_regulations() {
             "  - number: '9'\n    text: FICTIEF. Nog niets.\n",
         ),
         versioned("test_standaard_register", "2025-01-01", REGISTERED),
-        versioned("test_standaard_correcties", "2025-06-01", CORRECTED),
     ];
-    for law in &laws {
-        service.load_law(law).unwrap();
-    }
-    let dir = cell_tempdir();
-    std::fs::write(
-        dir.path().join("cel.yaml"),
-        "name: Testcel\nanswers:\n  rijen_2:\n    fact: test_standaard_register#1#ingeschreven\n    referred_by: [test_standaard_correcties#1#postcode_gecorrigeerd]\n",
-    )
-    .unwrap();
-    let cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
-    cell.load_standard_reductions(&mut service).unwrap();
+    let (cell, mut service, _dir) =
+        cell_on("  rijen_2: test_standaard_register#1#ingeschreven\n", &laws);
     cell.load_standard_reductions(&mut service).unwrap();
     let (_, id) = cell.standard_answers().next().unwrap();
-    let aggregate =
-        |on: &str| projection_of(&service, &id, regelrecht_cel::standard::AGGREGATE, on);
     assert!(
         service
             .resolver()
             .get_law_for_date(&id, Some(day("2024-06-01")))
             .is_none()
     );
-    assert_eq!(aggregate("2025-02-01").steps.len(), 1);
-    let corrected = aggregate("2025-07-01");
-    assert_eq!(corrected.steps.len(), 2);
-    let postcode = corrected
-        .state
-        .iter()
-        .find(|p| p.name == "postcode")
-        .unwrap();
-    assert_eq!(postcode.nullable, Some(true));
+    let aggregate = projection_of(
+        &service,
+        &id,
+        regelrecht_cel::standard::AGGREGATE,
+        "2025-02-01",
+    );
+    assert_eq!(aggregate.steps.len(), 1);
+    assert_eq!(aggregate.state.len(), 2);
 }
 
-/// Two facts that hold a field of the same name with another type cannot
-/// share one property of the state, so the standard reduction is refused.
+/// The rows of the standard answer `answer` of `cell` on `on`, with
+/// `parameters`.
+fn rows(
+    cell: &Cell,
+    service: &LawExecutionService,
+    answer: &str,
+    parameters: &BTreeMap<String, Value>,
+    on: &str,
+) -> Vec<Value> {
+    let reader = Reader::new(
+        cell.recording_actor(),
+        cell.authority(),
+        cell.answers(),
+        cell.reductions(),
+        cell.grams().to_vec(),
+        None,
+    );
+    let request = AnswerRequest {
+        name: answer,
+        parameters,
+        calculation_date: on,
+        trace: false,
+    };
+    match reader.answer(service, &request).unwrap() {
+        Some(a) => match a.value {
+            Value::Array(rows) => rows,
+            other => panic!("no rows: {other:?}"),
+        },
+        None => panic!("the cell gave no answer"),
+    }
+}
+
+/// A fact without parameters never reaches a standard reduction: the
+/// service refuses the regulation that requires it (RFC-051).
 #[test]
-fn facts_that_hold_one_name_with_two_types_are_refused() {
-    let mut service = LawExecutionService::new();
-    service
+fn a_fact_without_parameters_is_refused_before_a_standard_reduction() {
+    let without = REGISTERED.replace(
+        "          parameters: [bewoner, kenteken]\n",
+        "          parameters: [bewoner, kenteken]\n        - fact: gemeld\n",
+    );
+    let err = LawExecutionService::new()
         .load_law(&versioned(
             "test_standaard_register",
             "2025-01-01",
-            REGISTERED,
+            &without,
         ))
-        .unwrap();
-    let as_number = CORRECTED.replace(
-        "{name: postcode, type: string, nullable: true}",
-        "{name: postcode, type: number}",
+        .unwrap_err();
+    assert!(err.to_string().contains("holds no parameters"), "{err}");
+}
+
+/// `where` on a field the fact may leave null makes it a nullable
+/// parameter. A binding that passes null selects the roots that hold null
+/// there, as `where` compares with EQUALS.
+#[test]
+fn where_on_a_nullable_field_with_null_selects_the_roots_that_hold_null() {
+    let laws = [versioned(
+        "test_standaard_register",
+        "2025-01-01",
+        REGISTERED,
+    )];
+    let (mut cell, service, _dir) = cell_on(
+        "  op_kenteken:\n    fact: test_standaard_register#1#ingeschreven\n    where: [kenteken]\n",
+        &laws,
     );
-    service
-        .load_law(&versioned(
-            "test_standaard_correcties",
-            "2025-01-01",
-            &as_number,
-        ))
+    for (bewoner, kenteken) in [("b1", json!("AB-12-CD")), ("b2", serde_json::Value::Null)] {
+        cell.record_executogram(
+            &service,
+            "test_standaard_register#1#ingeschreven",
+            &fields(&[("bewoner", json!(bewoner)), ("kenteken", kenteken)]),
+            day("2025-02-01"),
+        )
         .unwrap();
-    let dir = cell_tempdir();
-    std::fs::write(
-        dir.path().join("cel.yaml"),
-        "name: Testcel\nanswers:\n  rijen:\n    fact: test_standaard_register#1#ingeschreven\n    referred_by: [test_standaard_correcties#1#postcode_gecorrigeerd]\n",
-    )
-    .unwrap();
-    let cell = Cell::in_memory(ACTOR, dir.path()).unwrap();
-    let err = cell.load_standard_reductions(&mut service).unwrap_err();
-    assert!(err.to_string().contains("another type"), "{err}");
+    }
+    let bewoners = |kenteken: Value| -> Vec<Value> {
+        let parameters = [("kenteken".to_string(), kenteken)].into();
+        rows(&cell, &service, "op_kenteken", &parameters, "2025-03-01")
+            .into_iter()
+            .map(|row| match row {
+                Value::Object(row) => row.get("bewoner").cloned().unwrap_or(Value::Null),
+                other => panic!("no row: {other:?}"),
+            })
+            .collect()
+    };
+    let s = |p: &str| Value::String(p.to_string());
+    assert_eq!(bewoners(s("AB-12-CD")), vec![s("b1")]);
+    assert_eq!(bewoners(Value::Null), vec![s("b2")]);
 }

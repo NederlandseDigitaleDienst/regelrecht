@@ -1302,21 +1302,18 @@ pub fn afleiden(regelwerken: &Regelwerken, casus: &Casus, cells: &[&Cell]) -> Re
     }
     // An answer from a fact comes from its standard reduction, which the
     // cell writes out when the service is built: the case needs the
-    // regulations of its facts instead.
+    // regulation of its fact instead.
     for cell in cells {
         let standaard: BTreeMap<String, &StandardAnswer> = cell
             .standard_answers()
             .map(|(fact, id)| (id, fact))
             .collect();
         for id in cell.answers().values() {
-            let ids: Vec<&str> = match standaard.get(id) {
-                Some(fact) => fact.regulations().collect(),
-                None => vec![id.as_str()],
-            };
-            for id in ids {
-                if !gevonden.iter().any(|g| g == id) {
-                    gevonden.push(id.to_string());
-                }
+            let id = standaard
+                .get(id)
+                .map_or(id.as_str(), |fact| fact.regulation());
+            if !gevonden.iter().any(|g| g == id) {
+                gevonden.push(id.to_string());
             }
         }
     }

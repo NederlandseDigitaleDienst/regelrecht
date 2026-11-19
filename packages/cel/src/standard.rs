@@ -9,10 +9,9 @@
 //! ```yaml
 //! answers:
 //!   huren_van_bewoner: test_register#4#plaats_gehuurd
-//!   # or, with facts that refer to it and the roots a binding selects:
+//!   # or, with the fields of the root a binding selects on:
 //!   huren_van_bewoner:
 //!     fact: test_register#4#plaats_gehuurd
-//!     referred_by: [test_register#4#huur_opgezegd]
 //!     where: [bewoner]
 //! ```
 //!
@@ -20,21 +19,18 @@
 //! a `REDUCTIE` in the law format with two articles, and the service loads it
 //! like any other reduction. Article [`AGGREGATE`] plays one aggregate per
 //! record of the fact (`projection.per`): its state holds every field of the
-//! fact, and of each fact that refers to it, with the type the article
-//! declares; the step of each fact copies every field it holds into the
-//! property of the same name. A referring fact, such as a correction, so
-//! overwrites what it holds under the same name and adds what only it holds.
-//! The article named after the answer reads the aggregates
-//! (`source.projections`, filtered on the root's fields `where` names, each a
-//! parameter the binding passes) and gives them as rows. There is no second
-//! way of running: revocation, the calculation date and replaying behave as
-//! for a reduction written out by hand, because it is one.
+//! fact, with the type the article declares, and its one step copies every
+//! field into the property of the same name. The article named after the
+//! answer reads the aggregates (`source.projections`, filtered on the root's
+//! fields `where` names, each a parameter the binding passes) and gives them
+//! as rows: one row per record. There is no second way of running:
+//! revocation, the calculation date and replaying behave as for a reduction
+//! written out by hand, because it is one.
 //!
-//! Which facts refer to the root, the declarations do not say: a fact's
-//! `refers_to` is a property of each record, not of the fact. So the
-//! catalogue lists them (`referred_by`).
-
-use std::collections::BTreeMap;
+//! What a record of another fact that refers to the root does with its row,
+//! such as a correction, is a reading of the chronicle. It belongs written
+//! out in a reduction; the standard reduction has no step for it, so such a
+//! record leaves the row as it is.
 
 use chrono::NaiveDate;
 use regelrecht_engine::LawExecutionService;
@@ -62,8 +58,6 @@ const SCHEMA: &str = "https://raw.githubusercontent.com/NederlandseDigitaleDiens
 #[serde(deny_unknown_fields)]
 struct FactEntry {
     fact: String,
-    #[serde(default)]
-    referred_by: Vec<String>,
     #[serde(default, rename = "where")]
     where_: Vec<String>,
 }
@@ -79,8 +73,7 @@ pub enum Source {
 
 /// What the catalogue's `entry` for `answer` names: a reduction of the cell
 /// by its `$id`, or a fact (`<regulation>#<article>#<fact>`), alone or as a
-/// map with the facts that refer to it (`referred_by`) and the fields a
-/// binding selects on (`where`).
+/// map with the fields a binding selects on (`where`).
 ///
 /// # Errors
 ///
@@ -92,14 +85,12 @@ pub(crate) fn source(answer: &str, entry: serde_yaml_ng::Value) -> Result<Source
         Source::Standard(StandardAnswer {
             answer: answer.to_string(),
             fact: entry.fact,
-            referred_by: entry.referred_by,
             where_: entry.where_,
         })
     };
     match entry {
         Yaml::String(name) if is_fact_reference(&name) => Ok(standard(FactEntry {
             fact: name,
-            referred_by: Vec::new(),
             where_: Vec::new(),
         })),
         Yaml::String(name) if name.contains('#') => Err(setup(format!(
@@ -134,18 +125,14 @@ pub struct StandardAnswer {
     pub answer: String,
     /// The fact whose records are the roots, `<regulation>#<article>#<fact>`.
     pub fact: String,
-    /// The facts whose records refer to a root and set the fields they hold
-    /// under the same name.
-    pub referred_by: Vec<String>,
     /// The fields of the root a binding selects the aggregates on: each a
     /// parameter of the answer.
     pub where_: Vec<String>,
 }
 
 impl StandardAnswer {
-    /// Refuse an entry that names no fact, a referring fact twice or the
-    /// root among them, a field to select on twice, or a name the standard
-    /// reduction gives its own article or input.
+    /// Refuse an entry that names no fact, a field to select on twice, or a
+    /// name the standard reduction gives its own article or input.
     pub(crate) fn check(&self) -> Result<()> {
         let fail = |why: String| {
             Err(setup(format!(
@@ -153,17 +140,8 @@ impl StandardAnswer {
                 self.answer, self.fact
             )))
         };
-        for fact in std::iter::once(&self.fact).chain(&self.referred_by) {
-            if !is_fact_reference(fact) {
-                return fail(format!("'{fact}' is no <regulation>#<article>#<fact>"));
-            }
-        }
-        if let Some(twice) = first_repeated(
-            std::iter::once(&self.fact)
-                .chain(&self.referred_by)
-                .map(String::as_str),
-        ) {
-            return fail(format!("it names the fact '{twice}' twice"));
+        if !is_fact_reference(&self.fact) {
+            return fail("it is no <regulation>#<article>#<fact>".to_string());
         }
         if let Some(twice) = first_repeated(self.where_.iter().map(String::as_str)) {
             return fail(format!("where names '{twice}' twice"));
@@ -213,35 +191,29 @@ impl StandardAnswer {
         format!("standaard_{actor}_{}", self.answer)
     }
 
-    /// The regulations whose facts the standard reduction reads, root first.
-    pub fn regulations(&self) -> impl Iterator<Item = &str> {
-        std::iter::once(&self.fact)
-            .chain(&self.referred_by)
-            .filter_map(|fact| fact.split_once('#').map(|(law, _)| law))
+    /// The regulation whose fact the standard reduction reads.
+    pub fn regulation(&self) -> &str {
+        self.fact.split_once('#').map_or(&self.fact, |(law, _)| law)
     }
 
     /// The standard reduction `id` written out in full, as YAML: one
-    /// version per day a version of one of its regulations in `service`
-    /// takes effect, from the first day the root's regulation requires the
-    /// fact, with the fields each fact holds in the versions in force on that
-    /// day. A referring fact its regulation does not require on that day
-    /// has no step in that version. A version of the root's regulation that
-    /// no longer requires the fact adds no version: the one before stays in
-    /// force, and plays the records already in the chronicle.
+    /// version per version of the fact's regulation in `service` that
+    /// requires the fact, valid from the same day, with the fields the fact
+    /// holds in it. A version that no longer requires the fact adds no
+    /// version: the one before stays in force, and plays the records
+    /// already in the chronicle.
     ///
     /// # Errors
     ///
-    /// When no version of the root's regulation requires the fact, or no
-    /// version requires a referring fact while it does, when a
-    /// fact holds a field that is no parameter or that a row gives itself,
-    /// when two facts hold a field of the same name with another type or
-    /// other columns, and when `where` names a field the root does not hold.
+    /// When no version of the regulation requires the fact, when the fact
+    /// holds a field that is no parameter or that a row gives itself, and
+    /// when `where` names a field the fact does not hold.
     pub fn versions(&self, service: &LawExecutionService, id: &str) -> Result<Vec<Version>> {
-        let laws: Vec<&str> = self.regulations().collect();
+        let regulation = self.regulation();
         let mut days: Vec<(NaiveDate, String)> = service
             .resolver()
             .all_law_versions()
-            .filter(|law| laws.contains(&law.id.as_str()))
+            .filter(|law| law.id == regulation)
             .filter_map(|law| {
                 let from = law.valid_from.as_deref()?;
                 let day = NaiveDate::parse_from_str(from, "%Y-%m-%d").ok()?;
@@ -250,24 +222,15 @@ impl StandardAnswer {
             .collect();
         days.sort();
         days.dedup_by_key(|(day, _)| *day);
-        let requires = |fact: &str, day| required_fact(service, fact, day).is_ok();
         let mut out = Vec::new();
-        let mut played: Vec<&str> = Vec::new();
         for (day, published) in days {
-            // Before the root's regulation requires the fact, there are no
-            // records of it to play.
-            if !requires(&self.fact, day) {
+            // A version that does not require the fact has no records of it
+            // to play.
+            if required_fact(service, &self.fact, day).is_err() {
                 continue;
             }
-            let root = fact_fields(service, &self.fact, day, None)?;
-            let referring = self
-                .referred_by
-                .iter()
-                .filter(|fact| requires(fact, day))
-                .map(|fact| Ok((fact.as_str(), fact_fields(service, fact, day, None)?)))
-                .collect::<Result<Vec<_>>>()?;
-            played.extend(referring.iter().map(|(fact, _)| *fact));
-            let law = self.written_out(id, day, &published, &root, &referring)?;
+            let fields = fact_fields(service, &self.fact, day, None)?;
+            let law = self.written_out(id, day, &published, &fields)?;
             out.push(Version {
                 valid_from: day,
                 yaml: serde_yaml_ng::to_string(&law)
@@ -276,21 +239,8 @@ impl StandardAnswer {
         }
         if out.is_empty() {
             return Err(setup(format!(
-                "the answer '{}' names the fact '{}', which no loaded version of its \
-                 regulation requires",
-                self.answer, self.fact
-            )));
-        }
-        // A referring fact that no version requires is a name that misses,
-        // and its records would silently change nothing.
-        if let Some(missing) = self
-            .referred_by
-            .iter()
-            .find(|fact| !played.contains(&fact.as_str()))
-        {
-            return Err(setup(format!(
-                "the answer '{}' names the referring fact '{missing}', which no loaded version \
-                 of its regulation requires while the fact '{}' is required",
+                "the answer '{}' names the fact '{}', which no loaded version of \
+                 '{regulation}' requires",
                 self.answer, self.fact
             )));
         }
@@ -304,27 +254,17 @@ impl StandardAnswer {
         id: &str,
         day: NaiveDate,
         published: &str,
-        root: &[Field],
-        referring: &[(&str, Vec<Field>)],
+        fields: &[Field],
     ) -> Result<Yaml> {
-        let state = self.state(root, referring)?;
-        let steps: Vec<Yaml> = std::iter::once((self.fact.as_str(), root))
-            .chain(
-                referring
-                    .iter()
-                    .map(|(fact, fields)| (*fact, fields.as_slice())),
-            )
-            .map(|(fact, fields)| copy_step(fact, fields))
-            .collect();
-        let answering = self.answering_article(id, root)?;
+        let state = fields.iter().map(typed).collect::<Result<Vec<_>>>()?;
+        let answering = self.answering_article(id, fields)?;
         let aggregate = map([
             ("number", text(AGGREGATE)),
             (
                 "text",
                 text(&format!(
                     "Geen regelgeving. De standaardreductie van de cel: per vastgelegd feit {} \
-                     de velden die het draagt, met wat de feiten die ernaar verwijzen onder \
-                     dezelfde naam vastleggen.",
+                     de velden die het draagt.",
                     self.fact
                 )),
             ),
@@ -335,7 +275,7 @@ impl StandardAnswer {
                     map([
                         ("per", text(&self.fact)),
                         ("state", Yaml::Sequence(state)),
-                        ("steps", Yaml::Sequence(steps)),
+                        ("steps", Yaml::Sequence(vec![copy_step(&self.fact, fields)])),
                     ]),
                 )]),
             ),
@@ -417,42 +357,6 @@ impl StandardAnswer {
                 map([("execution", Yaml::Mapping(execution))]),
             ),
         ]))
-    }
-
-    /// The state: every field of the root, then every field of a referring
-    /// fact the root does not hold, in the order the facts declare them. A
-    /// name two facts hold has one type and the same columns in both, and
-    /// may hold null when either fact may leave it null.
-    fn state(&self, root: &[Field], referring: &[(&str, Vec<Field>)]) -> Result<Vec<Yaml>> {
-        // Per name, its place in `order` and the fact that holds it first.
-        let mut seen: BTreeMap<&str, (usize, &str)> = BTreeMap::new();
-        let mut order: Vec<Field> = Vec::new();
-        let facts = std::iter::once((self.fact.as_str(), root)).chain(
-            referring
-                .iter()
-                .map(|(fact, fields)| (*fact, fields.as_slice())),
-        );
-        for (fact, fields) in facts {
-            for field in fields {
-                let Some(&(at, by)) = seen.get(field.name.as_str()) else {
-                    seen.insert(&field.name, (order.len(), fact));
-                    order.push(field.clone());
-                    continue;
-                };
-                let held = &mut order[at];
-                if held.type_ != field.type_ || held.columns != field.columns {
-                    return Err(setup(format!(
-                        "the answer '{}': the facts {by} and {fact} both hold '{}', with \
-                         another type or other columns; the standard reduction copies it \
-                         into one property",
-                        self.answer, field.name
-                    )));
-                }
-                // A property that one fact may leave null may hold null.
-                held.nullable |= field.nullable;
-            }
-        }
-        order.iter().map(typed).collect()
     }
 }
 
