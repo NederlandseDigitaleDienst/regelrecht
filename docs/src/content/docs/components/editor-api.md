@@ -126,6 +126,8 @@ The first request to a traject after a restart builds its index, and every reque
 
 A build or a refresh lists the tree of each source, all sources at the same time and while the backends check their branches. A listing is kept per repository branch together with the commit it was taken at, and reused as long as the branch still points at that commit, so GitHub is only asked for the commit. The global corpus lists the central corpus at startup, which leaves a traject build only its own repository to list, and a refresh fetches a tree only after a new commit. Reusing a listing takes the commit, which GitHub shows only to someone who can read the repository.
 
+The index of a traject holds the laws of a GitHub source by path, and a law's body is fetched when someone opens it. A fetched body is kept, per version file and at most 1024 per traject, together with the git blob sha of its text. A refresh keeps the bodies whose file the new listing reports with that same sha and drops the others, so an unchanged law is fetched once and a changed one is fetched again within a minute. A save through the editor drops the kept body of that law; the saved text is served from then on.
+
 A law without notes gets an empty notes document (`annotations: []`) with status 200; a 404 means the law is not in the traject. Whether a law has notes comes from the tree listing of the index, at the repository root or at the older location under the source's subpath, so a law without notes costs no call to GitHub. A note saved through the editor counts at once; a notes file added to the repository some other way shows up with the next refresh.
 
 ### Tasks
