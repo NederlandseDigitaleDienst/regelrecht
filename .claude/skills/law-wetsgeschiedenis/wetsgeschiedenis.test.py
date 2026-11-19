@@ -344,6 +344,34 @@ class Vergelijk(WithFixture):
         (c,) = wg.cmd_vergelijk(args(nr=None, van="stap:0", tot="stap:1"))["wijzigingen"]
         self.assertEqual((c["artikel"], c["was"], c["wat"]), ("2", "1", "gewijzigd"))
 
+    def test_an_inserted_lid_is_new_and_the_leden_after_it_are_renumbered_not_rewritten(self):
+        old = ["1. Eerste lid blijft.", "2. Het oude tweede lid over het beheer van documenten.", "3. Bij AMvB worden regels gesteld."]
+        new = ["1. Eerste lid blijft.", "2. Een geheel nieuw lid dat iets anders regelt dan alles hiervoor.",
+               "3. Het oude tweede lid over het beheer van documenten.", "4. Bij AMvB worden regels gesteld."]
+        self.assertEqual([(d["soort"], d.get("nieuw", d.get("oud"))[:2]) for d in wg.line_diff(old, new)],
+                         [("nieuw", "2."), ("vernummerd", "3."), ("vernummerd", "4.")])
+
+    def test_a_removed_lid_is_removed_and_a_changed_one_is_diffed_against_itself(self):
+        old = ["3. In uitzonderlijke gevallen kan iets worden beperkt.", "4. Het vierde lid over milieu-informatie.",
+               "5. Een lid dat een woord verandert."]
+        new = ["3. Het vierde lid over milieu-informatie.", "4. Een lid dat twee woorden verandert."]
+        self.assertEqual([d["soort"] for d in wg.line_diff(old, new)], ["weg", "vernummerd", "gewijzigd"])
+        self.assertEqual(wg.line_diff(old, new)[2]["verschil"], "[-5.-] {+4.+} Een lid dat [-een woord-] {+twee woorden+} verandert.")
+
+    def test_bwb_lid_labels_without_a_period_are_recognised_as_renumbering(self):
+        self.assertEqual([d["soort"] for d in wg.line_diff(["2 Tekst van het lid."], ["3 Tekst van het lid."])], ["vernummerd"])
+
+    def test_an_article_missing_from_the_official_text_is_flagged_whatever_the_moment(self):
+        data = fixture()
+        data["stappen"][0]["wijzig"]["b2"] = {"soort": "artikel", "nr": "13", "regels": [["Artikel 13. Van een andere wet", [1], 0, "kop"]]}
+        data["stappen"][0]["volgorde"] = ["b1", "b2"]
+        self.write(data)
+        change = [c for c in wg.cmd_vergelijk(args(nr=None, van="stap:0", tot="stap:1"))["wijzigingen"] if c["artikel"] == "13"][0]
+        self.assertIs(change["in_ijkpunt"], False)
+        self.assertIn("niet in de officiële eindtekst", wg.render("vergelijk", {"dossier": "12345", "artikel": None, "van": "", "tot": "",
+                                                                              "wijzigingen": [change]}))
+        self.assertTrue(any("staat niet in Staatsblad 2021, 1" in n for n in wg.cmd_artikel(args(nr="13", stap=1))["let_op"]))
+
     def test_from_after_to_is_refused(self):
         with self.assertRaisesRegex(wg.Fault, "ligt na --tot"):
             wg.cmd_vergelijk(args(van="stap:2", tot="stap:0"))

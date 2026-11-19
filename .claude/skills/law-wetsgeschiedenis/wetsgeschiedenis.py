@@ -276,9 +276,20 @@ class History:
         return {**base, "oordeel": "wijkt af", "officieel": official,
                 "uitleg": f"wijkt af van {point.get('naam')}: de afspeling is hier niet betrouwbaar, citeer de officiële tekst"}
 
-    def notes(self, nr: str | None, until: str) -> list[str]:
-        """What the text alone does not say: the law was repealed, or a bill pending changes this article."""
+    def known_article(self, nr: str) -> bool | None:
+        """Is there an article with this number in the last official text? None when there is none to ask."""
+        points = self.d.get("ijkpunten") or []
+        if self.chain or not points:
+            return None
+        return nr in (points[-1].get("artikelen") or {})
+
+    def notes(self, nr: str | None, until: str, membership: bool = True) -> list[str]:
+        """What the text alone does not say: the article is not in the official text, the law was
+        repealed, or a pending bill changes this article."""
         out = []
+        if membership and nr and self.known_article(nr) is False:
+            out.append(f"artikel {nr} staat niet in {self.d['ijkpunten'][-1].get('naam')}: mogelijk geen artikel van "
+                       "deze wet, maar een artikel van een wet die zij wijzigt, dat de afspeling als eigen artikel las")
         for s in self.d["stukken"]:
             kind = s.get("soort") or ""
             if kind == "Intrekking" and (s.get("datum") or "") <= until:
@@ -577,17 +588,48 @@ def word_diff(old: str, new: str) -> str:
     return " ".join(parts)
 
 
+LABEL = re.compile(r"^(\d+[a-z]*\.?|[a-z]\.|\d+°\.)\s+")  # "2." / "2" (BWB) / "a." / "1°."
+
+
+def unlabelled(line: str) -> str:
+    return LABEL.sub("", norm(line), count=1)
+
+
+def similar(a: str, b: str) -> float:
+    return difflib.SequenceMatcher(a=unlabelled(a).split(), b=unlabelled(b).split(), autojunk=False).ratio()
+
+
 def line_diff(old: list[str], new: list[str]) -> list[dict]:
-    """Changed lines only: removed, added, or changed (paired, with a word diff)."""
+    """Changed lines only: removed, added, renumbered, or changed (with a word diff).
+
+    Within a changed block lines are paired by content, not by position: when a
+    nota inserts a lid, the leden after it are renumbered, not rewritten, and
+    pairing by position would diff two unrelated leden against each other."""
     out = []
     for op, i1, i2, j1, j2 in difflib.SequenceMatcher(a=[norm(x) for x in old], b=[norm(x) for x in new], autojunk=False).get_opcodes():
         if op == "equal":
             continue
-        pairs = min(i2 - i1, j2 - j1) if op == "replace" else 0
-        for k in range(pairs):
-            out.append({"soort": "gewijzigd", "oud": old[i1 + k], "nieuw": new[j1 + k], "verschil": word_diff(old[i1 + k], new[j1 + k])})
-        out += [{"soort": "weg", "oud": x} for x in old[i1 + pairs:i2]]
-        out += [{"soort": "nieuw", "nieuw": x} for x in new[j1 + pairs:j2]]
+        olds, news = old[i1:i2], new[j1:j2]
+        # Greedy, order-preserving: each old line takes the first sufficiently similar new line after the last match.
+        match, nxt = {}, 0
+        for i, o in enumerate(olds):
+            best = max(range(nxt, len(news)), key=lambda j: similar(o, news[j]), default=None)
+            if best is not None and similar(o, news[best]) >= 0.6:
+                match[best], nxt = i, best + 1
+        done_old = 0
+        for j, n in enumerate(news):
+            if j not in match:
+                out.append({"soort": "nieuw", "nieuw": n})
+                continue
+            i = match[j]
+            out += [{"soort": "weg", "oud": olds[k]} for k in range(done_old, i)]
+            done_old = i + 1
+            o = olds[i]
+            if unlabelled(o) == unlabelled(n):
+                out.append({"soort": "vernummerd", "oud": o, "nieuw": n})
+            else:
+                out.append({"soort": "gewijzigd", "oud": o, "nieuw": n, "verschil": word_diff(o, n)})
+        out += [{"soort": "weg", "oud": olds[k]} for k in range(done_old, len(olds))]
     return out
 
 
@@ -637,9 +679,12 @@ def cmd_vergelijk(a) -> dict:
             "door": [{**h.cite(h.steps[i - 1]["stuk"], *(() if h.chain else (h.steps[i - 1].get("onderdeel"), h.steps[i - 1].get("sub")))),
                       "status": step_status(h, h.steps[i - 1])} for i in steps],
             "controle": h.check(after["nr"], lines_new, cut)["oordeel"] if after else None,
+            # Whether the article belongs to this law at all is a question for the last official text,
+            # whatever the moment: the replay can read an article of an amended law as one of its own.
+            "in_ijkpunt": h.known_article((after or before)["nr"]),
             "regels": diff})
     return {"dossier": h.d["dossier"], "van": h.describe(p_from), "tot": h.describe(p_to), "artikel": a.nr and article_nr(a.nr),
-            "wijzigingen": changes, "let_op": h.notes(article_nr(a.nr) if a.nr else None, cut)}
+            "wijzigingen": changes, "let_op": h.notes(article_nr(a.nr) if a.nr else None, cut, membership=False)}
 
 
 def cmd_haal(a) -> dict:
@@ -799,8 +844,15 @@ def render(cmd: str, x: dict) -> str:
                 w("  door: geen handeling gevonden die dit artikel noemt")
             if c["controle"] == "wijkt af":
                 w("  ⚠ de nieuwe tekst wijkt af van het ijkpunt: dit verschil is uit de afspeling, niet uit de officiële tekst")
+            if c["in_ijkpunt"] is False and c["wat"] != "vervallen":
+                w("  ⚠ dit artikel staat niet in de officiële eindtekst: mogelijk geen artikel van deze wet, maar een "
+                  "artikel van een wet die zij wijzigt, dat de afspeling als eigen artikel las")
             for r in c["regels"]:
-                if r["soort"] == "gewijzigd":
+                if r["soort"] == "vernummerd":
+                    old_label, new_label = LABEL.match(norm(r["oud"])), LABEL.match(norm(r["nieuw"]))
+                    w(f"  ↻ {old_label.group(1) if old_label else '?'} wordt {new_label.group(1) if new_label else '?'}, "
+                      f"verder gelijk: {unlabelled(r['nieuw'])[:90]}{'…' if len(unlabelled(r['nieuw'])) > 90 else ''}")
+                elif r["soort"] == "gewijzigd":
                     w(f"  ~ {r['verschil']}")
                 elif r["soort"] == "weg":
                     w(f"  - {r['oud']}")

@@ -86,8 +86,14 @@ How to read an answer:
   the text *is* the BWB version, taken over rather than replayed, and it says so.
 - `vergelijk` lists per article what changed: `~` a changed line with removed
   words as `[-…-]` and added ones as `{+…+}`, `-` a line gone, `+` a new line,
-  with the documents that made the change. Articles are followed by identity,
-  so a renumbered article shows as one change with its old number.
+  `↻` a lid that only got a new number, with the documents that made the change.
+  Lines are paired by content, so a lid inserted by a nota shows as one new lid
+  and the leden after it as renumbered. Articles are followed by identity, so a
+  renumbered article shows as one change with its old number.
+- An article that is not in the last official text gets a warning. A bill that
+  amends other laws contains their articles inside its own, and the replay can
+  read such an article (an *Artikel 13* of the law being amended) as an article
+  of the bill. Do not model or cite those as articles of this law.
 - *Let op* lines say what the text alone does not: the law was repealed, or a
   pending bill touches this article (with the command to fetch it).
 
