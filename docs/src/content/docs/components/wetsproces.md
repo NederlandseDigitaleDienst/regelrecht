@@ -84,7 +84,7 @@ curl -c jar -H 'content-type: application/json' localhost:7180/auth/testlogin \
 
 The session it writes has the same keys as one after Keycloak, so every request after it goes through the same checks. The route exists only in that case; with OIDC configured, and always in stable mode, it answers `404`. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the cells of the case.
 
-An app can use the citizen routes without a browser through [FSC voor Burgers](/components/wetsproces-fsc4b), when that channel is configured.
+An app can use the citizen routes without a browser through [FSC voor Burgers](/components/wetsproces-fsc4b), when that channel is configured. [The app](/components/wetsproces-app) does so with the citizen's screens in a webview.
 
 ## API
 

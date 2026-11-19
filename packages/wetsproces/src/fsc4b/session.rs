@@ -30,6 +30,7 @@ use crate::fsc4b::jose::{self, EphemeralKey, JoseError};
 use crate::fsc4b::presentation::{Refusal, verify_presentation};
 use crate::fsc4b::store::{Fsc4bStoreError, StoredChallenge, StoredSession, TokenHash};
 use crate::fsc4b::{Fsc4b, now_unix};
+use regelrecht_fsc4b::wire::CHALLENGE_SUB;
 
 /// The random bytes of a nonce; §4.3.4.2.2.3 asks at least 16.
 pub const NONCE_BYTES: usize = 16;
@@ -103,7 +104,7 @@ pub async fn challenge(fsc: &Fsc4b, now: i64) -> Result<String, SessionError> {
     let nonce = jose::b64(&jose::random_bytes(NONCE_BYTES).map_err(SessionError::Crypto)?);
     let ephemeral = EphemeralKey::generate().map_err(SessionError::Crypto)?;
     let claims = json!({
-        "sub": "challenge",
+        "sub": CHALLENGE_SUB,
         "nonce": nonce,
         "ephemeral_organization_ec_public_key": ephemeral.public_der_b64().map_err(SessionError::Crypto)?,
     });

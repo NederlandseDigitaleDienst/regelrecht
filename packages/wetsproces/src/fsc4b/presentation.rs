@@ -13,14 +13,9 @@ use crate::fsc4b::trust::Trust;
 /// §4.1.4, §4.1.5 allow "some small leeway").
 pub const CLOCK_LEEWAY_SECS: i64 = 30;
 
-/// The `certificate_type` of a credential from an Activatiedienst.
-pub const APP_MANAGER_CERTIFICATE: &str = "app_manager_jwt_certificate";
-
-/// The `certificate_type` of a self-signed key (§4.3.4.1).
-pub const SELF_SIGNED_CERTIFICATE: &str = "certificate_type_self_signed";
-
-/// The fixed `sub` of the app's signature over the nonce.
-pub const CHALLENGE_RESPONSE: &str = "challenge_response";
+pub use regelrecht_fsc4b::wire::{
+    APP_MANAGER_CERTIFICATE, CHALLENGE_RESPONSE, SELF_SIGNED_CERTIFICATE,
+};
 
 /// Why a presentation is not accepted.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

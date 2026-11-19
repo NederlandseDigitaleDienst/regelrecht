@@ -5,8 +5,9 @@
 //! 1. keep a P-256 key pair ([`App`]); on a phone, in its secure hardware;
 //! 2. get a credential for that key from an Activatiedienst (here the test
 //!    one of the demo Stelsel, [`demo_credential`]);
-//! 3. read the Stelseldocument, check its signature, and find the
-//!    organization's key and discovery configuration ([`Directory`]);
+//! 3. read the Stelseldocument (of the demo: [`demo_stelsel`]), check its
+//!    signature, and find the organization's key and discovery
+//!    configuration ([`Directory`]);
 //! 4. run `CreateSession` ([`create_session`]): ask a challenge, check it
 //!    against the organization's key, sign the nonce, encrypt the
 //!    presentation to the ephemeral key, and decrypt the session token;
@@ -14,14 +15,17 @@
 //!
 //! Each step is its own function, so a test can do one of them wrong.
 
+use std::sync::Arc;
+
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 
-use crate::fsc4b::citizen::IDEMPOTENCY_MEMBER;
-use crate::fsc4b::demo::{CREDENTIAL, self_signed_certificate};
-use crate::fsc4b::discovery::{CITIZEN_SERVICE, SESSION_SERVICE};
-use crate::fsc4b::jose::{self, AesKey, JoseError, SigningKey, VerifyingKey};
-use crate::fsc4b::presentation::{APP_MANAGER_CERTIFICATE, CHALLENGE_RESPONSE};
+use crate::jose::{self, AesKey, Es256Signer, JoseError, SigningKey, VerifyingKey, sign_jws};
+use crate::wire::{
+    APP_MANAGER_CERTIFICATE, CHALLENGE_RESPONSE, CHALLENGE_SUB, CITIZEN_SERVICE, DEMO_CREDENTIAL,
+    DEMO_STELSELBEHEERDER, DEMO_STELSELDOCUMENT, IDEMPOTENCY_MEMBER, SESSION_SERVICE,
+    self_signed_certificate,
+};
 
 /// Why a step of the client failed.
 #[derive(Debug, thiserror::Error)]
@@ -51,31 +55,44 @@ async fn ok_text(response: reqwest::Response) -> Result<String, ClientError> {
     }
 }
 
-/// The app: its key pair. A real app keeps the private key in the phone's
-/// secure hardware and never lets it out.
+/// The app: what signs with its key. A real app keeps the private key in
+/// the phone's secure hardware and never lets it out; the client only asks
+/// it to sign, through [`Es256Signer`].
+#[derive(Clone)]
 pub struct App {
-    key: SigningKey,
+    key: Arc<dyn Es256Signer>,
+}
+
+impl std::fmt::Debug for App {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("App")
+            .field("thumbprint", &self.key.public_jwk().thumbprint())
+            .finish()
+    }
 }
 
 impl App {
-    /// An app with a fresh key pair.
+    /// An app with a fresh key pair in this process.
     ///
     /// # Errors
     ///
     /// When the library fails.
     pub fn generate() -> Result<Self, ClientError> {
-        Ok(Self {
-            key: SigningKey::generate()?,
-        })
+        Ok(Self::from_key(SigningKey::generate()?))
     }
 
-    /// An app with the key pair `key`.
+    /// An app with the key pair `key`, in this process.
     pub fn from_key(key: SigningKey) -> Self {
-        Self { key }
+        Self { key: Arc::new(key) }
     }
 
-    pub fn key(&self) -> &SigningKey {
-        &self.key
+    /// An app whose key signs through `signer`, wherever it keeps the key.
+    pub fn from_signer(signer: Arc<dyn Es256Signer>) -> Self {
+        Self { key: signer }
+    }
+
+    pub fn key(&self) -> &dyn Es256Signer {
+        self.key.as_ref()
     }
 
     /// The signature over `nonce` for the verifier with OIN `aud`
@@ -85,7 +102,8 @@ impl App {
     ///
     /// When signing fails.
     pub fn sign_nonce(&self, nonce: &str, aud: &str) -> Result<String, ClientError> {
-        Ok(self.key.sign(
+        Ok(sign_jws(
+            self.key(),
             &json!({ "sub": CHALLENGE_RESPONSE, "aud": aud, "nonce": nonce }),
             &[],
         )?)
@@ -109,11 +127,36 @@ pub async fn demo_credential(
         "bsn": bsn,
     });
     let response = http
-        .post(format!("{base_url}{CREDENTIAL}"))
+        .post(format!("{base_url}{DEMO_CREDENTIAL}"))
         .json(&body)
         .send()
         .await?;
     ok_text(response).await
+}
+
+/// The Stelseldocument of a demo Stelsel at `base_url`, and the
+/// Stelselbeheerder's key it verifies under. A real app has that key built
+/// in; the demo serves it, so trusting it is trusting the server.
+///
+/// # Errors
+///
+/// When a request fails or is refused, or the key is no P-256 JWK.
+pub async fn demo_stelsel(
+    http: &reqwest::Client,
+    base_url: &str,
+) -> Result<(String, VerifyingKey), ClientError> {
+    let beheerder = http
+        .get(format!("{base_url}{DEMO_STELSELBEHEERDER}"))
+        .send()
+        .await?;
+    let beheerder: Value = serde_json::from_str(&ok_text(beheerder).await?)
+        .map_err(|_| protocol("the Stelselbeheerder's key is no JSON"))?;
+    let document = http
+        .get(format!("{base_url}{DEMO_STELSELDOCUMENT}"))
+        .send()
+        .await?;
+    let document = ok_text(document).await?;
+    Ok((document, VerifyingKey::from_value(&beheerder)?))
 }
 
 /// What the app needs to know of one organization: its OIN, its key, and
@@ -153,7 +196,9 @@ impl Directory {
         let discovery_url = organization["discovery_url"]
             .as_str()
             .ok_or_else(|| protocol("no discovery_url"))?;
-        let discovery: Value = http.get(discovery_url).send().await?.json().await?;
+        let discovery = ok_text(http.get(discovery_url).send().await?).await?;
+        let discovery: Value = serde_json::from_str(&discovery)
+            .map_err(|_| protocol("the discovery configuration is no JSON"))?;
         let service = |name: &str| {
             discovery[name]["v1"]
                 .as_str()
@@ -192,7 +237,7 @@ pub async fn challenge(
         .await?;
     let jws = ok_text(response).await?;
     let verified = directory.organization_key.verify(&jws)?;
-    if verified.text("sub") != Some("challenge") {
+    if verified.text("sub") != Some(CHALLENGE_SUB) {
         return Err(protocol("the challenge has the wrong `sub`"));
     }
     let nonce = verified

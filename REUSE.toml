@@ -63,11 +63,12 @@ path = "corpus/demo/walkthrough/*.vtt"
 SPDX-FileCopyrightText = "Staat der Nederlanden (Ministerie van Binnenlandse Zaken en Koninkrijksrelaties)"
 SPDX-License-Identifier = "EUPL-1.2"
 
-# Eigen beeldmateriaal: het regelrecht-icoon en schermafbeeldingen van de
-# eigen applicaties.
+# Eigen beeldmateriaal: het regelrecht-icoon (ook als PNG van de app) en
+# schermafbeeldingen van de eigen applicaties.
 [[annotations]]
 path = [
   "**/public/regelrecht-icon.svg",
+  "frontend-wetsproces/src-tauri/icons/icon.png",
   "docs/src/assets/editor-notities-screenshot.png",
   "docs/src/assets/portaal-en-screenshot.png",
   "docs/src/assets/portaal-screenshot.png",

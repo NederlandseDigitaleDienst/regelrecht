@@ -59,9 +59,9 @@ Two parts of the UI spec have no effect here yet. A prefill from a source (`fill
 
 ## The public side and the back office
 
-`src/burger/` and `src/backoffice/` each have their own routes and their own API client, and every screen loads as a chunk of its own. The citizen's client calls only the routes both sides share and the citizen's own. It does not say how a request proves who sends it: `src/gedeeld/sessie.ts` adds that, as the session cookie today. A test (`src/scheiding.test.ts`) fails when a module of the public side imports the back office or the login, names a back-office route, or handles a cookie.
+`src/burger/` and `src/backoffice/` each have their own routes and their own API client, and every screen loads as a chunk of its own. The citizen's client calls only the routes both sides share and the citizen's own. It does not say how a request reaches the server or proves who sends it: `src/gedeeld/sessie.ts` decides that, with the session cookie in the browser. A test (`src/scheiding.test.ts`) fails when a module of the public side imports the back office or the login, names a back-office route, or handles a cookie.
 
-This split lets the public side be bundled on its own later, behind another login. An app that connects through FSC voor Burgers is one such route; it is not built.
+The split lets the public side be bundled on its own, from `burger.html`, with a transport chosen per build: the commands of [the app](/components/wetsproces-app)'s Rust core, or HTTP with the session cookie.
 
 ## Running it locally
 

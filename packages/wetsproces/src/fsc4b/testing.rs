@@ -248,3 +248,47 @@ pub fn flip_ciphertext_bit(jwe: &str) -> String {
     segments[3] = URL_SAFE_NO_PAD.encode(ciphertext);
     segments.join(".")
 }
+
+/// A decider of the municipality decides on the submission `op` of the
+/// server at `base`, through the test login of the browser channel; the id
+/// of the decision comes back. For a test that asks why a decision came
+/// out so.
+pub async fn decide_as_municipality(http: &reqwest::Client, base: &str, op: &str) -> String {
+    let login = http
+        .post(format!("{base}/auth/testlogin"))
+        .json(&json!({
+            "sub": "gemeente-1",
+            "rollen": ["wetsproces-beslisser", "wetsproces-cel-gemeente_wilgendaal"],
+        }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(login.status(), reqwest::StatusCode::OK);
+    let cookie = login.headers()["set-cookie"]
+        .to_str()
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap()
+        .to_string();
+    let findings = json!({
+        "langdurige_loopbeperking_volgens_college": true,
+        "continu_afhankelijk_van_hulp_bestuurder_volgens_college": false,
+        "permanent_rolstoelgebonden_volgens_college": false,
+        "ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college": false,
+        "geneeskundig_onderzoek_achterwege_gelaten": false,
+        "bekend_dat_aanvrager_nog_steeds_voldoet": false,
+        "keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet": false,
+    });
+    let besluit: Value = http
+        .post(format!("{base}/api/backoffice/besluiten"))
+        .header("cookie", cookie)
+        .json(&json!({ "op": op, "bevindingen": findings }))
+        .send()
+        .await
+        .unwrap()
+        .json()
+        .await
+        .unwrap();
+    besluit["besluit"]["id"].as_str().unwrap().to_string()
+}

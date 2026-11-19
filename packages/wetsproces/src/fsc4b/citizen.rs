@@ -40,8 +40,7 @@ use crate::service::Submit;
 /// key follows.
 pub const ACCOUNT_PREFIX: &str = "fsc4b:";
 
-/// The member of a submission's payload that holds its idempotency key.
-pub const IDEMPOTENCY_MEMBER: &str = "idempotency_key";
+pub use regelrecht_fsc4b::wire::IDEMPOTENCY_MEMBER;
 
 /// An authenticated request: who, the key its answer goes under, and what
 /// it asked, or why that does not read.

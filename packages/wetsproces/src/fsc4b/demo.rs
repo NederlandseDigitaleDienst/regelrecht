@@ -31,22 +31,17 @@ use crate::fsc4b::session::{JWT_MEDIA_TYPE, channel, token_response};
 use crate::fsc4b::trust::{Trust, TrustInput};
 use crate::fsc4b::{DISCOVERY, now_unix};
 
-/// `GET`: the demo Stelseldocument.
-pub const STELSELDOCUMENT: &str = "/fsc4b/demo/stelseldocument";
-/// `GET`: the demo Stelselbeheerder's public key.
-pub const STELSELBEHEERDER: &str = "/fsc4b/demo/stelselbeheerder";
-/// `POST`: a credential of the test Activatiedienst.
-pub const CREDENTIAL: &str = "/fsc4b/demo/activatiedienst/v1/credential";
-
-/// The made-up OIN of the organization in the demo.
-pub const DEMO_ORGANIZATION_OIN: &str = "00000099000000000001";
+// The routes and the organization's OIN are what an app must know of the
+// demo, so they live with the client (regelrecht_fsc4b::wire).
+pub use regelrecht_fsc4b::wire::{
+    DEMO_CREDENTIAL as CREDENTIAL, DEMO_ORGANIZATION_OIN,
+    DEMO_STELSELBEHEERDER as STELSELBEHEERDER, DEMO_STELSELDOCUMENT as STELSELDOCUMENT,
+    TEST_BSN_PREFIX, is_test_bsn, self_signed_certificate,
+};
 /// The made-up OIN of the test Activatiedienst.
 pub const DEMO_ACTIVATIEDIENST_OIN: &str = "00000099000000000002";
 /// The scope of the demo.
 pub const DEMO_SCOPE: &str = "nl.regelrecht.wetsproces.demo";
-/// What a test BSN starts with: the range of numbers made for testing,
-/// which no person holds.
-pub const TEST_BSN_PREFIX: &str = "99999";
 /// How long a demo credential lasts.
 pub const DEMO_CREDENTIAL_TTL_SECS: i64 = 24 * 60 * 60;
 
@@ -258,10 +253,6 @@ pub fn self_signed_key(certificate: &str) -> Result<VerifyingKey, JoseError> {
     Ok(key)
 }
 
-fn is_test_bsn(bsn: &str) -> bool {
-    bsn.len() == 9 && bsn.starts_with(TEST_BSN_PREFIX) && bsn.bytes().all(|b| b.is_ascii_digit())
-}
-
 async fn credential_route(
     State(state): State<AppState>,
     Json(request): Json<CredentialRequest>,
@@ -293,18 +284,6 @@ async fn credential_route(
             )
         })?;
     Ok(token_response(JWT_MEDIA_TYPE, vc))
-}
-
-/// The self-signed certificate of `key` (§4.3.4.1).
-///
-/// # Errors
-///
-/// When signing fails.
-pub fn self_signed_certificate(key: &SigningKey) -> Result<String, JoseError> {
-    key.sign(
-        &json!({ "sub": SELF_SIGNED_CERTIFICATE, "cnf": { "jwk": key.public_jwk() } }),
-        &[],
-    )
 }
 
 #[cfg(test)]
