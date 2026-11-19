@@ -6,7 +6,7 @@
   "test_cases": [
     {
       "id": "definitions_001_threshold",
-      "description": "Simple real-style calculation",
+      "description": "A definition used as an income threshold",
       "category": "definitions",
       "parameters": {
         "jaarinkomen": 45000

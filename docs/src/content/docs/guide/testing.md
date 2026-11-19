@@ -9,8 +9,6 @@ The repository has about twenty kinds of test, and the kind decides who acts on 
 
 The table lists the tests in this repository and the jobs that run them here. The CI column names the job; what each job does is on [CI/CD](/operations/ci-cd).
 
-A test of the engine or the law format is named after the construct it tests: the file, the test function, the feature and the construct directory. The law or case it runs on only makes the test concrete, so its name may appear in a fixture or a Background, not in the name of the test. Bucket A is the exception, because a scenario next to a rulework tests that rulework.
-
 | Kind | Where it lives | Run it locally | In CI |
 |------|----------------|----------------|-------|
 | Law validation (BDD bucket A) | `corpus/regulation/**/scenarios/*.feature` | `BDD_BUCKET=corpus just bdd` | No, on purpose |
@@ -35,6 +33,8 @@ A test of the engine or the law format is named after the construct it tests: th
 | Smoketest of a deployed editor | `frontend/e2e-smoke/` | `just smoke-preview <pr>` | No, it needs a deployment |
 | Mutation testing | `packages/engine`, `packages/pipeline`, `packages/cel` | `just mutants-diff` | Mutation Testing (diff) |
 | Benchmarks | `packages/engine/benches/` | `just bench` | No |
+
+A test of the engine or the law format is named after the construct it tests. That holds for the test file, the feature and the construct directory; a test function may describe the behavior in the terms of its case. The law or case only makes the test concrete, so its name belongs in a fixture or a Background. Bucket A is the exception, because a scenario next to a rulework tests that rulework.
 
 ## BDD scenarios
 
