@@ -10,7 +10,13 @@
 //! - stable mode runs on the [`RealClock`], with Postgres and the login
 //!   through Keycloak. The configuration already refuses it without them
 //!   ([`crate::config`]); [`build_with`] refuses once more, so no caller can
-//!   hand it the test login.
+//!   hand it the test login. The same holds for the surface: stable mode
+//!   serves one side ([`crate::surface::Surface`]), never both.
+//!
+//! The surface decides the routes ([`crate::api::router`]), the session
+//! cookie and the mark on each session ([`SurfaceSessions`]), and which
+//! build of the screens is served: the directory of the surface's name
+//! under `WETSPROCES_FRONTEND`.
 //!
 //! When Postgres is asked for and cannot be reached or migrated, the server
 //! does not start: it never falls back to memory. The sessions live beside
@@ -40,11 +46,12 @@ use crate::case::{self, CaseError};
 use crate::clock::{Clock, ControllableClock, RealClock};
 use crate::config::{Config, Mode, StoreChoice};
 use crate::fsc4b::{Fsc4b, Fsc4bError};
-use crate::login::{Login, SESSION_COOKIE, SESSION_TABLE};
+use crate::login::{Login, SESSION_TABLE, SurfaceSessions};
 use crate::service::{Service, ServiceError};
 use crate::store::memory::InMemoryStore;
 use crate::store::postgres::{CONNECT_TIMEOUT, PostgresStore, SCHEMA};
 use crate::store::{ChronicleStore, StoreError};
+use crate::surface::Surface;
 
 /// How long a session lasts without a request, as the editor's.
 const SESSION_INACTIVITY_HOURS: i64 = 8;
@@ -60,6 +67,8 @@ pub enum StartupError {
          clock; it was given the test login or the store in memory"
     )]
     StableNeedsLogin,
+    #[error("stable mode serves citizens or employees, not both on one address")]
+    StableNeedsOneSurface,
     #[error("the chronicle store ({store}): {source}")]
     Store {
         store: &'static str,
@@ -94,29 +103,51 @@ pub async fn build(config: &Config) -> Result<Router, StartupError> {
 /// # Errors
 ///
 /// [`StartupError::StableNeedsLogin`] in stable mode with the test login or
-/// the store in memory; otherwise when the manifest gives no case to run,
-/// the stores do not open, or the service does not start.
+/// the store in memory, [`StartupError::StableNeedsOneSurface`] in stable
+/// mode on [`Surface::All`]; otherwise when the manifest gives no case to
+/// run, the stores do not open, or the service does not start.
 pub async fn build_with(config: &Config, login: Login) -> Result<Router, StartupError> {
     let stable = config.mode == Mode::Stable;
     if stable && (matches!(login, Login::TestLogin) || config.store == StoreChoice::Memory) {
         return Err(StartupError::StableNeedsLogin);
     }
+    if stable && config.surface == Surface::All {
+        return Err(StartupError::StableNeedsOneSurface);
+    }
     let (corpus, messages) = case::load(&config.manifest)?;
     for message in &messages {
         tracing::warn!(%message, "loading the case");
     }
-    let controllable = (!stable).then(|| Arc::new(ControllableClock::new(corpus.casus.speeldatum)));
+    let stores = open_store(&config.store, CONNECT_TIMEOUT).await?;
+    // The test clock keeps its day in the store, so instances on one store
+    // tell the same date.
+    let controllable = (!stable).then(|| {
+        Arc::new(ControllableClock::new(
+            Arc::clone(&stores.chronicles),
+            corpus.casus.speeldatum,
+        ))
+    });
     let clock: Arc<dyn Clock> = match &controllable {
         Some(c) => Arc::clone(c) as _,
         None => Arc::new(RealClock),
     };
-    let stores = open_store(&config.store, CONNECT_TIMEOUT).await?;
-    let fsc4b = Fsc4b::open(&config.fsc4b, config.mode, stores.sessions.clone())?;
+    // The channel serves citizens only; the configuration refuses it on the
+    // back office already, and no route of it is registered there.
+    let fsc4b = if config.surface.serves_citizens() {
+        Fsc4b::open(&config.fsc4b, config.mode, stores.sessions.clone())?
+    } else {
+        None
+    };
+    let today = clock.today().await.map_err(|source| StartupError::Store {
+        store: config.store.name(),
+        source,
+    })?;
     tracing::info!(
         mode = %config.mode,
+        surface = %config.surface,
         case = %corpus.casus.id,
         manifest = %config.manifest.display(),
-        today = %clock.today(),
+        today = %today,
         store = config.store.name(),
         login = ?login,
         fsc4b = ?config.fsc4b,
@@ -127,6 +158,7 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
     let mut state = AppState::new(
         Arc::new(service),
         config.mode,
+        config.surface,
         controllable,
         login,
         &config.subject_claim,
@@ -134,12 +166,19 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
     if let Some(fsc4b) = fsc4b {
         state = state.with_fsc4b(Arc::new(fsc4b));
     }
-    let app = with_frontend(router(state.clone()), &config.frontend).layer(
+    let frontend = config.frontend.join(config.surface.name());
+    let app = with_frontend(router(state.clone()), &frontend).layer(
         middleware::from_fn_with_state(state, regelrecht_auth::refresh_session_token::<AppState>),
     );
+    let surface = config.surface;
     match stores.sessions {
-        None => Ok(with_sessions(app, MemoryStore::default(), secure)),
-        Some(pool) => Ok(with_sessions(app, postgres_sessions(pool).await?, secure)),
+        None => Ok(with_sessions(app, MemoryStore::default(), surface, secure)),
+        Some(pool) => Ok(with_sessions(
+            app,
+            postgres_sessions(pool).await?,
+            surface,
+            secure,
+        )),
     }
 }
 
@@ -178,10 +217,16 @@ fn with_frontend(app: Router, dir: &Path) -> Router {
     })
 }
 
-/// `app` with its sessions in `store`.
-fn with_sessions<St: SessionStore + Clone>(app: Router, store: St, secure: bool) -> Router {
-    let layer = SessionManagerLayer::new(store)
-        .with_name(SESSION_COOKIE)
+/// `app` with its sessions in `store`, under the cookie of `surface` and
+/// marked with it.
+fn with_sessions<St: SessionStore + Clone>(
+    app: Router,
+    store: St,
+    surface: Surface,
+    secure: bool,
+) -> Router {
+    let layer = SessionManagerLayer::new(SurfaceSessions::new(store, surface))
+        .with_name(surface.session_cookie())
         .with_expiry(Expiry::OnInactivity(CookieDuration::hours(
             SESSION_INACTIVITY_HOURS,
         )))
@@ -269,6 +314,7 @@ mod tests {
     fn config(mode: Mode) -> Config {
         Config {
             mode,
+            surface: Surface::All,
             store: StoreChoice::Memory,
             manifest: PathBuf::from(DEFAULT_MANIFEST),
             frontend: PathBuf::from("/nonexistent/frontend"),
@@ -292,6 +338,25 @@ mod tests {
             .await
             .unwrap_err();
         assert!(matches!(e, StartupError::StableNeedsLogin), "{e}");
+    }
+
+    #[tokio::test]
+    async fn stable_mode_refuses_to_serve_both_sides() {
+        let database = TestDatabase::create().await;
+        let mut c = config(Mode::Stable);
+        c.store = StoreChoice::Postgres {
+            url: database.url().to_string(),
+        };
+        let e = build_with(&c, crate::login::tests::offline_login())
+            .await
+            .unwrap_err();
+        assert!(matches!(e, StartupError::StableNeedsOneSurface), "{e}");
+        for surface in [Surface::Citizen, Surface::Backoffice] {
+            c.surface = surface;
+            let _router = build_with(&c, crate::login::tests::offline_login())
+                .await
+                .unwrap();
+        }
     }
 
     #[tokio::test]
@@ -338,6 +403,7 @@ mod tests {
     async fn stable_mode_starts_with_keycloak_postgres_and_the_real_clock() {
         let database = TestDatabase::create().await;
         let mut c = config(Mode::Stable);
+        c.surface = Surface::Citizen;
         c.store = StoreChoice::Postgres {
             url: database.url().to_string(),
         };

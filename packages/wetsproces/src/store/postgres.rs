@@ -13,7 +13,8 @@
 //!   `TRUNCATE`: a chronicle only grows;
 //! - `heads`: per cell its head, the number of records in it. A commit locks
 //!   the head rows of its cells, so commits on one cell take turns;
-//! - `receipts`: per idempotency key what the request under it answered.
+//! - `receipts`: per idempotency key what the request under it answered;
+//! - `test_clock` (migration 0005): the day the test clock was set to.
 //!
 //! A commit is one transaction. It first claims its key in `receipts`, so a
 //! second request under the same key waits for the first and then replays
@@ -25,6 +26,7 @@ use std::collections::BTreeMap;
 use std::time::Duration;
 
 use async_trait::async_trait;
+use chrono::NaiveDate;
 use regelrecht_cel::Gram;
 use regelrecht_shared::postgres::migrate_locked;
 use serde_json::Value;
@@ -227,6 +229,32 @@ impl ChronicleStore for PostgresStore {
         write_appends(&mut tx, heads, commit.appends, commit.recorded_by.as_ref()).await?;
         tx.commit().await.map_err(backend("committing"))?;
         Ok(Appended::Committed)
+    }
+
+    async fn test_day(&self) -> Result<Option<NaiveDate>, StoreError> {
+        // As text, so the store needs no date type of sqlx's.
+        let day: Option<String> = sqlx::query_scalar("SELECT day::text FROM wetsproces.test_clock")
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(backend("reading the test clock"))?;
+        day.map(|d| {
+            d.parse().map_err(|e| {
+                StoreError::Backend(format!("the test clock holds '{d}', which is no day: {e}"))
+            })
+        })
+        .transpose()
+    }
+
+    async fn set_test_day(&self, day: NaiveDate) -> Result<(), StoreError> {
+        sqlx::query(
+            "INSERT INTO wetsproces.test_clock (day) VALUES ($1::date) \
+             ON CONFLICT (singleton) DO UPDATE SET day = EXCLUDED.day, set_at = now()",
+        )
+        .bind(day.to_string())
+        .execute(&self.pool)
+        .await
+        .map_err(backend("setting the test clock"))?;
+        Ok(())
     }
 }
 
@@ -468,7 +496,8 @@ mod tests {
                 "fsc4b_sessions",
                 "grams",
                 "heads",
-                "receipts"
+                "receipts",
+                "test_clock"
             ]
         );
         assert!(tables("public").await.is_empty());
@@ -560,10 +589,12 @@ mod tests {
         let start = |store: PostgresStore| async move {
             let (corpus, _) =
                 crate::case::load(std::path::Path::new(crate::config::DEFAULT_MANIFEST)).unwrap();
-            let clock = Arc::new(ControllableClock::new(corpus.casus.speeldatum));
-            Service::start(corpus, Arc::new(store), clock)
-                .await
-                .unwrap()
+            let store: Arc<dyn ChronicleStore> = Arc::new(store);
+            let clock = Arc::new(ControllableClock::new(
+                Arc::clone(&store),
+                corpus.casus.speeldatum,
+            ));
+            Service::start(corpus, store, clock).await.unwrap()
         };
         let service = start(f.store.clone()).await;
         let before = service.chronicle("gemeente_wilgendaal").await.unwrap();

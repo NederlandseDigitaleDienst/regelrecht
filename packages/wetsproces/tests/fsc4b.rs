@@ -25,6 +25,7 @@ use regelrecht_wetsproces::fsc4b::testing::{
 };
 use regelrecht_wetsproces::fsc4b::{self, ROUTES, now_unix};
 use regelrecht_wetsproces::login::{Login, OidcLogin};
+use regelrecht_wetsproces::surface::Surface;
 use reqwest::StatusCode;
 use serde_json::{Value, json};
 use tokio::net::TcpListener;
@@ -42,6 +43,11 @@ struct Server {
 fn config(mode: Mode, store: StoreChoice, fsc4b: Fsc4bChoice) -> Config {
     Config {
         mode,
+        // Stable mode serves one side; the channel belongs to the citizens'.
+        surface: match mode {
+            Mode::Stable => Surface::Citizen,
+            Mode::Test => Surface::All,
+        },
         store,
         manifest: PathBuf::from(DEFAULT_MANIFEST),
         frontend: PathBuf::from("/nonexistent/frontend"),
@@ -695,7 +701,9 @@ async fn an_app_asks_why_a_decision_of_its_own_dossier_came_out_so() {
 #[tokio::test]
 async fn with_the_frontend_built_an_unknown_fsc4b_path_still_answers_404() {
     let dir = tempfile::tempdir().unwrap();
-    std::fs::write(dir.path().join("index.html"), "<!doctype html>").unwrap();
+    // The build of the surface the test runs on, both sides in test mode.
+    std::fs::create_dir(dir.path().join("all")).unwrap();
+    std::fs::write(dir.path().join("all/index.html"), "<!doctype html>").unwrap();
     let (listener, base) = listener().await;
     let mut c = config(Mode::Test, StoreChoice::Memory, Fsc4bChoice::Off);
     c.frontend = dir.path().to_path_buf();

@@ -25,7 +25,12 @@
 //!   the account and the channel it came in by ([`Channel`]). The store
 //!   keeps both beside every record it appends, never inside the record: a
 //!   gram says what the law made happen, the store says which account asked
-//!   for it and how it was logged in.
+//!   for it and how it was logged in;
+//! - **the test clock**: in test mode the day an admin set the clock to
+//!   ([`ChronicleStore::test_day`]) lives beside the chronicles, so every
+//!   instance on one store runs its steps on the same day. An instance for
+//!   citizens and one for the back office ([`crate::surface`]) tell the
+//!   same date without talking to each other.
 //!
 //! Two stores implement it, with the same behaviour, held to it by one set
 //! of contract tests (`contract`):
@@ -40,6 +45,7 @@ pub mod memory;
 pub mod postgres;
 
 use async_trait::async_trait;
+use chrono::NaiveDate;
 use regelrecht_cel::Gram;
 use serde_json::Value;
 
@@ -269,4 +275,19 @@ pub trait ChronicleStore: Send + Sync + std::fmt::Debug {
     /// nothing is applied.
     /// [`StoreError::Backend`] when the store fails.
     async fn append(&self, commit: Commit) -> Result<Appended, StoreError>;
+
+    /// The day the test clock was last set to, or `None` when it never was
+    /// on this store.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError::Backend`] when the store fails.
+    async fn test_day(&self) -> Result<Option<NaiveDate>, StoreError>;
+
+    /// Set the test clock to `day`, for every instance on this store.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError::Backend`] when the store fails.
+    async fn set_test_day(&self, day: NaiveDate) -> Result<(), StoreError>;
 }

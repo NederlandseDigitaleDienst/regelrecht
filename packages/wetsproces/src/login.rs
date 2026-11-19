@@ -12,10 +12,20 @@
 //!
 //! Sessions live where the chronicles live: in memory with the store in
 //! memory, and in the table `wetsproces.sessions` with the store in
-//! Postgres, under a cookie of their own ([`SESSION_COOKIE`]).
+//! Postgres, under a cookie per surface
+//! ([`crate::surface::Surface::session_cookie`]). The instance for citizens
+//! and the one for the back office share that table, so each session
+//! carries the surface it was made on, and an instance reads a session of
+//! another surface as no session at all ([`SurfaceSessions`]).
+//!
+//! Each instance logs in with its own OIDC client, since each is a
+//! deployment of its own with its own `BASE_URL`: the redirect after a
+//! login goes back to the instance that sent the browser out.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+
+use async_trait::async_trait;
 
 use axum::extract::State;
 use axum::http::StatusCode;
@@ -29,15 +39,16 @@ use regelrecht_auth::{
 use regelrecht_fsc4b::wire::TEST_CITIZENS;
 use serde::Deserialize;
 use serde_json::{Value, json};
-use tower_sessions::Session;
+use tower_sessions::session::{Id, Record};
+use tower_sessions::{Session, SessionStore, session_store};
 
 use crate::access::{self, CITIZEN, Level};
 use crate::api::{ApiError, AppState};
 use crate::config::LoginChoice;
+use crate::surface::Surface;
 
-/// The name of the session cookie: its own, so it never mixes with the
-/// editor's or the admin's on a shared domain.
-pub const SESSION_COOKIE: &str = "wetsproces_session";
+/// The key in a session's data under which it carries its surface.
+pub const SESSION_KEY_SURFACE: &str = "wetsproces.surface";
 
 /// The table the sessions live in, in the schema of the store.
 pub const SESSION_TABLE: &str = "sessions";
@@ -188,7 +199,10 @@ async fn test_login(
 /// `medewerker` or `beheerder`) so a screen can name it. Two citizens with
 /// a made-up number of the test range; per cell of the case a handler and
 /// a decider; an admin who may decide for every cell. Derived from the
-/// case, so another case gets its own. There only beside the test login.
+/// case, so another case gets its own, and only those the surface offers
+/// ([`Surface::offers_persona`]): citizens on the instance for citizens,
+/// employees and the admin on the back office. There only beside the test
+/// login.
 async fn test_personas(State(state): State<AppState>) -> Json<Value> {
     let claim = state.subject_claim();
     let mut personas: Vec<Value> = TEST_CITIZENS
@@ -223,7 +237,89 @@ async fn test_personas(State(state): State<AppState>) -> Json<Value> {
         "rollen": admin_roles,
         "niveau": Level::Admin.name(),
     }));
+    let surface = state.surface();
+    personas.retain(|p| {
+        let roles: Vec<String> = p["rollen"]
+            .as_array()
+            .map(|r| {
+                r.iter()
+                    .filter_map(|v| v.as_str().map(String::from))
+                    .collect()
+            })
+            .unwrap_or_default();
+        surface.offers_persona(&roles)
+    });
     Json(Value::Array(personas))
+}
+
+/// A session store that marks every session with the surface it was made
+/// on, and gives no session back that carries another mark or none.
+/// The instance for citizens and the one for the back office share the
+/// table `wetsproces.sessions`; with this a cookie taken from one side is
+/// no session on the other, whatever roles it holds.
+#[derive(Debug, Clone)]
+pub struct SurfaceSessions<S> {
+    inner: S,
+    surface: Surface,
+}
+
+impl<S> SurfaceSessions<S> {
+    /// The sessions of `inner` that belong to `surface`.
+    pub fn new(inner: S, surface: Surface) -> Self {
+        Self { inner, surface }
+    }
+
+    fn mark(&self, record: &mut Record) {
+        record
+            .data
+            .insert(SESSION_KEY_SURFACE.into(), Value::from(self.surface.name()));
+    }
+
+    fn is_ours(&self, record: &Record) -> bool {
+        record.data.get(SESSION_KEY_SURFACE).and_then(Value::as_str) == Some(self.surface.name())
+    }
+}
+
+#[async_trait]
+impl<S: SessionStore + Clone> SessionStore for SurfaceSessions<S> {
+    async fn create(&self, record: &mut Record) -> session_store::Result<()> {
+        self.mark(record);
+        self.inner.create(record).await
+    }
+
+    async fn save(&self, record: &Record) -> session_store::Result<()> {
+        // Never write over a session of another surface under the same id;
+        // the ids are random, so this guards a bug, not a guess.
+        if let Some(stored) = self.inner.load(&record.id).await?
+            && !self.is_ours(&stored)
+        {
+            return Err(session_store::Error::Backend(
+                "a session of another surface has this id".into(),
+            ));
+        }
+        let mut record = record.clone();
+        self.mark(&mut record);
+        self.inner.save(&record).await
+    }
+
+    async fn load(&self, id: &Id) -> session_store::Result<Option<Record>> {
+        let record = self.inner.load(id).await?;
+        Ok(record.filter(|r| {
+            let ours = self.is_ours(r);
+            if !ours {
+                tracing::warn!(surface = %self.surface, "a session of another surface was offered");
+            }
+            ours
+        }))
+    }
+
+    async fn delete(&self, id: &Id) -> session_store::Result<()> {
+        // Only a session of this surface may be ended from here.
+        match self.inner.load(id).await? {
+            Some(r) if self.is_ours(&r) => self.inner.delete(id).await,
+            _ => Ok(()),
+        }
+    }
 }
 
 impl regelrecht_auth::OidcAppState for AppState {
@@ -273,5 +369,36 @@ pub(crate) mod tests {
     fn the_session_cookie_is_secure_except_over_plain_http() {
         assert!(offline_login().secure_cookie());
         assert!(!Login::TestLogin.secure_cookie());
+    }
+
+    fn record(id: i128) -> Record {
+        Record {
+            id: Id(id),
+            data: std::collections::HashMap::new(),
+            expiry_date: tower_sessions::cookie::time::OffsetDateTime::now_utc()
+                + tower_sessions::cookie::time::Duration::hours(1),
+        }
+    }
+
+    #[tokio::test]
+    async fn a_session_of_one_surface_is_no_session_on_another() {
+        let shared = tower_sessions_memory_store::MemoryStore::default();
+        let citizens = SurfaceSessions::new(shared.clone(), Surface::Citizen);
+        let backoffice = SurfaceSessions::new(shared.clone(), Surface::Backoffice);
+        let mut r = record(1);
+        r.data
+            .insert(SESSION_KEY_ROLES.into(), json!(["wetsproces-admin"]));
+        backoffice.create(&mut r).await.unwrap();
+        let id = r.id;
+        assert!(backoffice.load(&id).await.unwrap().is_some());
+        assert_eq!(citizens.load(&id).await.unwrap(), None);
+        // The other side can neither write over it nor end it.
+        assert!(citizens.save(&r).await.is_err());
+        citizens.delete(&id).await.unwrap();
+        assert!(backoffice.load(&id).await.unwrap().is_some());
+        // A session without a mark, as made before the split, is none either.
+        let unmarked = record(2);
+        shared.save(&unmarked).await.unwrap();
+        assert_eq!(backoffice.load(&unmarked.id).await.unwrap(), None);
     }
 }

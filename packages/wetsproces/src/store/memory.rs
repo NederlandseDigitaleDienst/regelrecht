@@ -5,6 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
 use async_trait::async_trait;
+use chrono::NaiveDate;
 
 use crate::store::{
     Appended, ChronicleStore, Commit, IdempotencyKey, Receipt, StoreError, StoredChronicle,
@@ -17,6 +18,8 @@ struct State {
     receipts: BTreeMap<IdempotencyKey, Receipt>,
     /// The id of every stored record, in any cell.
     ids: BTreeSet<String>,
+    /// The day the test clock was last set to.
+    test_day: Option<NaiveDate>,
 }
 
 /// Every chronicle and receipt in one map behind one lock, so a commit is
@@ -109,6 +112,15 @@ impl ChronicleStore for InMemoryStore {
             state.receipts.insert(keyed.key, keyed.receipt);
         }
         Ok(Appended::Committed)
+    }
+
+    async fn test_day(&self) -> Result<Option<NaiveDate>, StoreError> {
+        Ok(self.state()?.test_day)
+    }
+
+    async fn set_test_day(&self, day: NaiveDate) -> Result<(), StoreError> {
+        self.state()?.test_day = Some(day);
+        Ok(())
     }
 }
 

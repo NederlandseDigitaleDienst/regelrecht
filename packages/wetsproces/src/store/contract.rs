@@ -245,6 +245,16 @@ pub async fn of_concurrent_retries_under_one_key_one_commits_and_the_rest_replay
     assert_eq!(store.load("a").await.unwrap().head(), 1);
 }
 
+pub async fn the_test_clock_holds_the_day_it_was_last_set_to(store: &dyn ChronicleStore) {
+    assert_eq!(store.test_day().await.unwrap(), None);
+    let day = |s: &str| s.parse::<chrono::NaiveDate>().unwrap();
+    store.set_test_day(day("2026-11-01")).await.unwrap();
+    assert_eq!(store.test_day().await.unwrap(), Some(day("2026-11-01")));
+    // Back as well as forward: the cell, not the clock, guards the order.
+    store.set_test_day(day("2026-10-20")).await.unwrap();
+    assert_eq!(store.test_day().await.unwrap(), Some(day("2026-10-20")));
+}
+
 /// One `#[tokio::test]` per contract test, each on a fresh store from
 /// `$fixture`, an async expression whose value has a `store()` method.
 macro_rules! contract_tests {
@@ -258,6 +268,7 @@ macro_rules! contract_tests {
             a_record_id_is_stored_once,
             of_concurrent_appends_on_one_cell_exactly_one_wins,
             of_concurrent_retries_under_one_key_one_commits_and_the_rest_replay,
+            the_test_clock_holds_the_day_it_was_last_set_to,
         );
     };
     (@each $fixture:expr; $($name:ident,)*) => {
