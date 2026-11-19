@@ -121,7 +121,8 @@ fn a_type_error_in_a_valid_file_fails() {
 /// Een host die niet klopt (RFC-058) is een WARN, geen FAIL: het regelwerk
 /// draait nog. Elke waarschuwing noemt artikel en host; een host in een wet
 /// die niet in de set zit (`onbekende_wet_voorbeeld`) en een host die klopt
-/// geven er geen.
+/// geven er geen. Welke waarschuwingen er zijn, ligt vast in de lader
+/// (`resolver.rs`); hier gaat het om het kanaal.
 #[test]
 fn een_host_die_niet_klopt_is_een_waarschuwing() {
     let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/hook_host");
@@ -135,28 +136,19 @@ fn een_host_die_niet_klopt_is_een_waarschuwing() {
     assert_eq!(output.status.code(), Some(0), "stderr: {err}");
     let warnings: Vec<&str> = err.lines().filter(|l| l.starts_with("WARN:")).collect();
     let expected = [
-        (
-            "beleidsregel_subsidie_voorbeeld.yaml: host: article 3:",
-            "host article 11 of 'subsidiewet_voorbeeld', which that law does not have",
-        ),
-        (
-            "host_fouten_voorbeeld.yaml: host: article 1:",
-            "gives no decision and establishes no submission",
-        ),
-        (
-            "host_fouten_voorbeeld.yaml: host: article 2:",
-            "required parameter(s) 'subsidiejaar'",
-        ),
-        (
-            "host_fouten_voorbeeld.yaml: host: article 5:",
-            "a hook names host article 4 of 'subsidiewet_voorbeeld', which gives no BESCHIKKING TOEKENNING",
-        ),
+        "law 'beleidsregel_subsidie_voorbeeld' article 3 fills open term \
+         'wettelijke_beslistermijn' for host subsidiewet_voorbeeld article 11, which law \
+         'subsidiewet_voorbeeld' does not have",
+        "law 'host_fouten_voorbeeld' article 1 fills open term 'wettelijke_beslistermijn' for \
+         host subsidiewet_voorbeeld article 2, on which this article never fires as a hook",
+        "asks for required parameter(s) 'subsidiejaar', which the host does not hand the hook",
+        "law 'host_fouten_voorbeeld' article 5: names host subsidiewet_voorbeeld article 4",
     ];
     assert_eq!(warnings.len(), expected.len(), "stderr: {err}");
-    for (line, (place, what)) in warnings.iter().zip(expected) {
+    for (line, what) in warnings.iter().zip(expected) {
         assert!(
-            line.contains(place) && line.contains(what),
-            "expected {place} {what}, got: {line}"
+            line.starts_with("WARN: hook coupling: ") && line.contains(what),
+            "expected {what}, got: {line}"
         );
     }
 }

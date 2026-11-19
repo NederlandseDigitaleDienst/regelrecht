@@ -1713,7 +1713,7 @@ pub(crate) fn reject_unknown_state(law: &ArticleBasedLaw) -> Result<()> {
 /// (RFC-007, RFC-045). The loader cannot prove it wrong: a hook parameter
 /// the host does not offer may be filled by the caller, or left out on
 /// purpose so that the hook takes its fallback. So it warns and loads.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct HookCouplingWarning {
     /// The law of the hook article.
     pub hook_law: String,
@@ -1737,16 +1737,22 @@ impl std::fmt::Display for HookCouplingWarning {
 
 /// Whether hook declaration `decl` fires on `article` of `law`, on any
 /// stage: the stage decides when the hook fires, not what the host offers
-/// it.
+/// it. A hook that names its host (`applies_to.host`) fires on that host
+/// alone.
 fn hook_applies_to(decl: &HookDeclaration, law: &ArticleBasedLaw, article: &Article) -> bool {
     let f = &decl.applies_to;
     match (&f.legal_character, &f.submission) {
-        (Some(lc), None) => article.get_decision().is_some_and(|d| {
-            d.legal_character() == Some(lc.as_str())
-                && f.decision_type
-                    .as_deref()
-                    .is_none_or(|dt| d.decision_type() == Some(dt))
-        }),
+        (Some(lc), None) => {
+            article.get_decision().is_some_and(|d| {
+                d.legal_character() == Some(lc.as_str())
+                    && f.decision_type
+                        .as_deref()
+                        .is_none_or(|dt| d.decision_type() == Some(dt))
+            }) && f
+                .host
+                .as_ref()
+                .is_none_or(|host| host.admits(&law.id, &article.number))
+        }
         (None, Some(kind)) => {
             article
                 .get_submission()
@@ -1810,7 +1816,8 @@ fn types_compatible(a: ParameterType, b: ParameterType) -> bool {
 /// in another order (`datum_besluit`, `besluit_datum`), the same name with a
 /// qualifier that holds a number (`termijn_einde_art12`), or a small edit
 /// (at most one in five characters: `einddag`, `einddatum`). A name that
-/// shares a word or two (`datum_ontvangst`, `datum_ontvangst_bezwaar`) is
+/// shares a word or two (`datum_ontvangst`, `datum_ontvangst_bezwaar`), or
+/// differs only in a number (`kind_1_leeftijd`, `kind_2_leeftijd`), is
 /// another fact, not a misspelling.
 fn looks_like(wanted: &str, offered: &str) -> bool {
     if wanted == offered {
@@ -1830,6 +1837,16 @@ fn looks_like(wanted: &str, offered: &str) -> bool {
     };
     if qualified(wanted, offered) || qualified(offered, wanted) {
         return true;
+    }
+    // Names that differ only in their numbers count things apart
+    // (`kind_1_leeftijd`, `kind_2_leeftijd`): two facts, not one misspelled.
+    let numbered_apart = wanted.chars().count() == offered.chars().count()
+        && wanted
+            .chars()
+            .zip(offered.chars())
+            .all(|(a, b)| a == b || (a.is_ascii_digit() && b.is_ascii_digit()));
+    if numbered_apart {
+        return false;
     }
     let shortest = wanted.chars().count().min(offered.chars().count());
     edit_distance(wanted, offered) <= shortest / 5
@@ -1867,7 +1884,6 @@ fn hook_target(decl: &HookDeclaration) -> String {
 
 /// The couplings by name between the hooks in `laws` and their hosts in
 /// `laws` that read as a mistake, in the order of `laws` and their articles.
-/// With `touching`, only those where the hook or the host is in that law.
 ///
 /// A hook receives what its host offers under the names its parameters
 /// declare (`fire_hooks`), and nothing checks that the names meet. Where they
@@ -1889,177 +1905,313 @@ fn hook_target(decl: &HookDeclaration) -> String {
 /// Where the hook's own law has no such output, that is a warning too,
 /// naming the hosts that do offer the name.
 ///
-/// Finally, a filling of an open term of a hook article that names its host
-/// (`implements.host`, schema v0.8.24) applies only while the hook fires on
-/// that host. A host article its law lacks, or one the hook does not fire
-/// on, makes a filling that never applies: a warning. A law that is not
-/// loaded is not judged.
-pub(crate) fn hook_coupling_warnings(
-    laws: &[&ArticleBasedLaw],
-    touching: Option<&str>,
-) -> Vec<HookCouplingWarning> {
-    let mut warnings = Vec::new();
-    for hook_law in laws {
-        for hook in &hook_law.articles {
-            let Some(decls) = hook.get_hooks() else {
-                continue;
-            };
-            let hosts: Vec<(&ArticleBasedLaw, &Article, Vec<&HookDeclaration>)> = laws
-                .iter()
-                .flat_map(|law| law.articles.iter().map(move |a| (*law, a)))
-                .filter(|(law, a)| !(law.id == hook_law.id && a.number == hook.number))
-                .filter_map(|(law, a)| {
-                    let matching: Vec<&HookDeclaration> = decls
-                        .iter()
-                        .filter(|d| hook_applies_to(d, law, a))
-                        .collect();
-                    (!matching.is_empty()).then_some((law, a, matching))
-                })
-                .collect();
-            let warn =
-                |host: Option<(&ArticleBasedLaw, &Article)>, message: String| HookCouplingWarning {
-                    hook_law: hook_law.id.clone(),
-                    hook_article: hook.number.clone(),
-                    host: host.map(|(l, a)| (l.id.clone(), a.number.clone())),
-                    message,
-                };
-            let concerns =
-                |host_law: &str| touching.is_none_or(|id| id == hook_law.id || id == host_law);
+/// A host a regulation names (RFC-058) that the hook never reaches is a
+/// warning as well: for a filling of a hook's open term (`implements.host`,
+/// schema v0.8.24) an article its law lacks or one the hook does not fire
+/// on, and for a hook (`applies_to.host`, schema v0.8.25) an article its law
+/// lacks or one whose decision the hook does not match. So is a filling that
+/// asks for a required parameter its host does not hand the hook. A law that
+/// is not loaded is not judged.
+pub fn hook_coupling_warnings(laws: &[&ArticleBasedLaw]) -> Vec<HookCouplingWarning> {
+    hook_coupling_warnings_touching(laws, None)
+}
 
-            // An input that reads an output of the hook's own law.
-            for input in hook.get_inputs() {
-                let Some(source) = &input.source else {
-                    continue;
-                };
-                if source.regulation.is_some() {
-                    continue;
-                }
-                let Some(output) = source.output.as_deref() else {
-                    continue;
-                };
-                if hook_law.find_article_by_output(output).is_some() {
-                    continue;
-                }
-                let offering: Vec<String> = hosts
-                    .iter()
-                    .filter(|(_, a, _)| {
-                        offered_by_host(a, true)
-                            .iter()
-                            .any(|(_, n, _)| *n == output)
+/// A hook article of the set, with its declarations.
+struct HookArticle<'l> {
+    law: &'l ArticleBasedLaw,
+    article: &'l Article,
+    decls: &'l [HookDeclaration],
+}
+
+/// The laws of a set by id, and its hook articles, collected once.
+struct CouplingSet<'l> {
+    laws: &'l [&'l ArticleBasedLaw],
+    by_id: std::collections::HashMap<&'l str, &'l ArticleBasedLaw>,
+    hooks: Vec<HookArticle<'l>>,
+}
+
+impl<'l> CouplingSet<'l> {
+    fn new(laws: &'l [&'l ArticleBasedLaw]) -> Self {
+        let hooks = laws
+            .iter()
+            .flat_map(|law| {
+                law.articles.iter().filter_map(move |article| {
+                    article.get_hooks().map(|decls| HookArticle {
+                        law,
+                        article,
+                        decls,
                     })
-                    .map(|(l, a, _)| format!("{} article {}", l.id, a.number))
-                    .collect();
-                if !(concerns(&hook_law.id) || hosts.iter().any(|(l, _, _)| concerns(&l.id))) {
-                    continue;
-                }
-                let message = if offering.is_empty() {
-                    format!(
-                        "input '{}' reads output '{output}' with source.output and no \
-                         source.regulation, which reads the hook's own law '{}', and that law \
-                         has no output '{output}'; only a data source can answer it",
-                        input.name, hook_law.id
-                    )
-                } else {
-                    format!(
-                        "input '{}' reads output '{output}' with source.output and no \
-                         source.regulation, which reads the hook's own law '{}', not its host, \
-                         and that law has no output '{output}'; {} offers it. A hook receives a \
-                         value of its host as a parameter of the same name",
-                        input.name,
-                        hook_law.id,
-                        offering.join(", ")
-                    )
-                };
-                warnings.push(warn(None, message));
-            }
-
-            // The parameters, host by host.
-            for (host_law, host, matching) in &hosts {
-                if !concerns(&host_law.id) {
-                    continue;
-                }
-                let post = matching
-                    .iter()
-                    .any(|d| d.hook_point == HookPoint::PostActions);
-                let offered = offered_by_host(host, post);
-                // What a pre_actions hook on the same host produced reaches a
-                // post_actions hook as well.
-                let from_pre_hooks: Vec<&str> = if post {
-                    laws.iter()
-                        .flat_map(|l| l.articles.iter().map(move |a| (*l, a)))
-                        .filter(|(l, a)| {
-                            a.get_hooks().is_some_and(|ds| {
-                                ds.iter().any(|d| {
-                                    d.hook_point == HookPoint::PreActions
-                                        && hook_applies_to(d, host_law, host)
-                                })
-                            }) && !(l.id == hook_law.id && a.number == hook.number)
-                        })
-                        .flat_map(|(_, a)| a.get_output_names())
-                        .collect()
-                } else {
-                    Vec::new()
-                };
-                let on = matching
-                    .iter()
-                    .map(|d| hook_target(d))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                for parameter in hook.get_parameters() {
-                    let wanted = parameter.name.as_str();
-                    if offered.iter().any(|(_, n, _)| *n == wanted)
-                        || from_pre_hooks.contains(&wanted)
-                    {
-                        continue;
-                    }
-                    if !post && host.has_output(wanted) {
-                        warnings.push(warn(
-                            Some((host_law, host)),
-                            format!(
-                                "hooks onto {} article {} ({on}) and reads parameter '{wanted}', \
-                                 which the host produces as an output; a pre_actions hook runs \
-                                 before the host's actions and does not receive their outputs",
-                                host_law.id, host.number
-                            ),
-                        ));
-                        continue;
-                    }
-                    let lookalikes: Vec<String> = offered
-                        .iter()
-                        .filter(|(_, n, ty)| {
-                            hook.find_parameter(n).is_none()
-                                && types_compatible(*ty, parameter.param_type)
-                                && looks_like(wanted, n)
-                        })
-                        .map(|(kind, n, _)| format!("{kind} '{n}'"))
-                        .collect();
-                    if lookalikes.is_empty() {
-                        continue;
-                    }
-                    warnings.push(warn(
-                        Some((host_law, host)),
-                        format!(
-                            "hooks onto {} article {} ({on}) and reads parameter '{wanted}' by \
-                             name, which the host does not offer; the host offers {}. A hook \
-                             receives a value of its host only under its own name, so the value \
-                             does not reach it: it reads what a caller passes under that name, \
-                             or goes without (its fallback, or an unknown). If they are one \
-                             value, give them one name",
-                            host_law.id,
-                            host.number,
-                            lookalikes.join(" and ")
-                        ),
-                    ));
-                }
-            }
+                })
+            })
+            .collect();
+        CouplingSet {
+            laws,
+            by_id: laws.iter().map(|law| (law.id.as_str(), *law)).collect(),
+            hooks,
         }
     }
 
-    // A filling of an open term of a hook article that names the article the
-    // hook fires on (`implements.host`, RFC-058) applies only while the hook
-    // fires there. A host the hook never reaches makes it a filling that
-    // never applies. A law that is not loaded is not judged.
-    for law in laws {
+    /// The articles `hook` fires on, with the declarations that match, in
+    /// `candidates` (all laws, or the one being loaded).
+    fn hosts_of(
+        &self,
+        hook: &HookArticle<'l>,
+        candidates: &[&'l ArticleBasedLaw],
+    ) -> Vec<(&'l ArticleBasedLaw, &'l Article, Vec<&'l HookDeclaration>)> {
+        candidates
+            .iter()
+            .flat_map(|law| law.articles.iter().map(move |a| (*law, a)))
+            .filter(|(law, a)| !(law.id == hook.law.id && a.number == hook.article.number))
+            .filter_map(|(law, a)| {
+                let matching: Vec<&HookDeclaration> = hook
+                    .decls
+                    .iter()
+                    .filter(|d| hook_applies_to(d, law, a))
+                    .collect();
+                (!matching.is_empty()).then_some((law, a, matching))
+            })
+            .collect()
+    }
+
+    /// What `host` offers a hook by name (`offered_by_host`), and to a
+    /// `post_actions` hook also the outputs of the `pre_actions` hooks on it,
+    /// other than those of `except`.
+    fn offered_to(
+        &self,
+        host_law: &ArticleBasedLaw,
+        host: &'l Article,
+        post: bool,
+        except: Option<(&str, &str)>,
+    ) -> Vec<(&'static str, &'l str, ParameterType)> {
+        let mut offered = offered_by_host(host, post);
+        if post {
+            for pre in &self.hooks {
+                let fires = pre.decls.iter().any(|d| {
+                    d.hook_point == HookPoint::PreActions && hook_applies_to(d, host_law, host)
+                });
+                if fires && except != Some((pre.law.id.as_str(), pre.article.number.as_str())) {
+                    offered.extend(pre.article.get_outputs().iter().map(|o| {
+                        (
+                            "output of a pre_actions hook",
+                            o.name.as_str(),
+                            o.output_type,
+                        )
+                    }));
+                }
+            }
+        }
+        offered
+    }
+}
+
+/// [`hook_coupling_warnings`], with `touching` only those where a law that
+/// takes part is that one: the hook, the host or the filling. Together, the
+/// warnings for each law as it loads are those of the whole set.
+pub(crate) fn hook_coupling_warnings_touching(
+    laws: &[&ArticleBasedLaw],
+    touching: Option<&str>,
+) -> Vec<HookCouplingWarning> {
+    let set = CouplingSet::new(laws);
+    let mut warnings = Vec::new();
+    let touched: Vec<&ArticleBasedLaw> = touching
+        .and_then(|id| set.by_id.get(id).copied())
+        .into_iter()
+        .collect();
+    for hook in &set.hooks {
+        let own = touching.is_none_or(|id| id == hook.law.id);
+        // A hook of another law than the one loaded can only gain a host in
+        // the loaded law, so only its articles are looked at.
+        let candidates: &[&ArticleBasedLaw] = if own { set.laws } else { &touched };
+        let hosts = set.hosts_of(hook, candidates);
+        if own {
+            input_warnings(hook, &hosts, &mut warnings);
+        }
+        for (host_law, host, matching) in &hosts {
+            parameter_warnings(&set, hook, (host_law, host), matching, &mut warnings);
+        }
+        hook_host_warnings(&set, hook, touching, &mut warnings);
+    }
+    filling_warnings(&set, touching, &mut warnings);
+    warnings
+}
+
+fn coupling_warning(
+    hook: &HookArticle<'_>,
+    host: Option<(&str, &str)>,
+    message: String,
+) -> HookCouplingWarning {
+    HookCouplingWarning {
+        hook_law: hook.law.id.clone(),
+        hook_article: hook.article.number.clone(),
+        host: host.map(|(l, a)| (l.to_string(), a.to_string())),
+        message,
+    }
+}
+
+/// An input of `hook` that reads an output of the hook's own law that the
+/// law lacks.
+fn input_warnings(
+    hook: &HookArticle<'_>,
+    hosts: &[(&ArticleBasedLaw, &Article, Vec<&HookDeclaration>)],
+    warnings: &mut Vec<HookCouplingWarning>,
+) {
+    for input in hook.article.get_inputs() {
+        let Some(source) = &input.source else {
+            continue;
+        };
+        let Some(output) = source
+            .output
+            .as_deref()
+            .filter(|_| source.regulation.is_none())
+        else {
+            continue;
+        };
+        if hook.law.find_article_by_output(output).is_some() {
+            continue;
+        }
+        let offering: Vec<String> = hosts
+            .iter()
+            .filter(|(_, a, _)| {
+                offered_by_host(a, true)
+                    .iter()
+                    .any(|(_, n, _)| *n == output)
+            })
+            .map(|(l, a, _)| format!("{} article {}", l.id, a.number))
+            .collect();
+        let message = if offering.is_empty() {
+            format!(
+                "input '{}' reads output '{output}' with source.output and no \
+                 source.regulation, which reads the hook's own law '{}', and that law \
+                 has no output '{output}'; only a data source can answer it",
+                input.name, hook.law.id
+            )
+        } else {
+            format!(
+                "input '{}' reads output '{output}' with source.output and no \
+                 source.regulation, which reads the hook's own law '{}', not its host, \
+                 and that law has no output '{output}'; {} offers it. A hook receives a \
+                 value of its host as a parameter of the same name",
+                input.name,
+                hook.law.id,
+                offering.join(", ")
+            )
+        };
+        warnings.push(coupling_warning(hook, None, message));
+    }
+}
+
+/// A parameter of `hook` that `host` offers under another spelling, or as
+/// an output a `pre_actions` hook does not see yet.
+fn parameter_warnings(
+    set: &CouplingSet<'_>,
+    hook: &HookArticle<'_>,
+    (host_law, host): (&ArticleBasedLaw, &Article),
+    matching: &[&HookDeclaration],
+    warnings: &mut Vec<HookCouplingWarning>,
+) {
+    let post = matching
+        .iter()
+        .any(|d| d.hook_point == HookPoint::PostActions);
+    let except = Some((hook.law.id.as_str(), hook.article.number.as_str()));
+    let offered = set.offered_to(host_law, host, post, except);
+    let on = matching
+        .iter()
+        .map(|d| hook_target(d))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let at = Some((host_law.id.as_str(), host.number.as_str()));
+    for parameter in hook.article.get_parameters() {
+        let wanted = parameter.name.as_str();
+        if offered.iter().any(|(_, n, _)| *n == wanted) {
+            continue;
+        }
+        if !post && host.has_output(wanted) {
+            let message = format!(
+                "hooks onto {} article {} ({on}) and reads parameter '{wanted}', \
+                 which the host produces as an output; a pre_actions hook runs \
+                 before the host's actions and does not receive their outputs",
+                host_law.id, host.number
+            );
+            warnings.push(coupling_warning(hook, at, message));
+            continue;
+        }
+        let lookalikes: Vec<String> = offered
+            .iter()
+            .filter(|(_, n, ty)| {
+                hook.article.find_parameter(n).is_none()
+                    && types_compatible(*ty, parameter.param_type)
+                    && looks_like(wanted, n)
+            })
+            .map(|(kind, n, _)| format!("{kind} '{n}'"))
+            .collect();
+        if lookalikes.is_empty() {
+            continue;
+        }
+        let message = format!(
+            "hooks onto {} article {} ({on}) and reads parameter '{wanted}' by \
+             name, which the host does not offer; the host offers {}. A hook \
+             receives a value of its host only under its own name, so the value \
+             does not reach it: it reads what a caller passes under that name, \
+             or goes without (its fallback, or an unknown). If they are one \
+             value, give them one name",
+            host_law.id,
+            host.number,
+            lookalikes.join(" and ")
+        );
+        warnings.push(coupling_warning(hook, at, message));
+    }
+}
+
+/// A hook that names its host (`applies_to.host`, RFC-058) with an article
+/// the loaded host law lacks, or whose decision the hook does not match.
+fn hook_host_warnings(
+    set: &CouplingSet<'_>,
+    hook: &HookArticle<'_>,
+    touching: Option<&str>,
+    warnings: &mut Vec<HookCouplingWarning>,
+) {
+    for decl in hook.decls {
+        let Some(named) = &decl.applies_to.host else {
+            continue;
+        };
+        let Some(number) = named.article.as_deref() else {
+            continue;
+        };
+        if !touching.is_none_or(|id| id == hook.law.id || id == named.law) {
+            continue;
+        }
+        let Some(host_law) = set.by_id.get(named.law.as_str()) else {
+            continue;
+        };
+        let reason = match host_law.find_article_by_number(number) {
+            None => format!("which law '{}' does not have", host_law.id),
+            Some(host) if !hook_applies_to(decl, host_law, host) => {
+                "which gives no decision that the hook's applies_to matches".to_string()
+            }
+            Some(_) => continue,
+        };
+        let message = format!(
+            "names host {} article {number}, {reason}; the hook never fires",
+            named.law
+        );
+        warnings.push(coupling_warning(
+            hook,
+            Some((named.law.as_str(), number)),
+            message,
+        ));
+    }
+}
+
+/// A filling of an open term of a hook article that names its host
+/// (`implements.host`, RFC-058) that never applies, because the hook never
+/// fires on that host, or that asks for a required parameter the host does
+/// not hand the hook.
+fn filling_warnings(
+    set: &CouplingSet<'_>,
+    touching: Option<&str>,
+    warnings: &mut Vec<HookCouplingWarning>,
+) {
+    for law in set.laws {
         for (where_, section) in sections(law) {
             for decl in section.implements.iter().flatten() {
                 let Some(named) = &decl.host else {
@@ -2068,40 +2220,74 @@ pub(crate) fn hook_coupling_warnings(
                 if !touching.is_none_or(|id| id == law.id || id == decl.law || id == named.law) {
                     continue;
                 }
-                let Some(hook_law) = laws.iter().find(|l| l.id == decl.law) else {
+                let (Some(hook_law), Some(host_law)) = (
+                    set.by_id.get(decl.law.as_str()),
+                    set.by_id.get(named.law.as_str()),
+                ) else {
                     continue;
                 };
-                let Some(hook) = hook_law.articles.iter().find(|a| a.number == decl.article) else {
+                let Some(hook_article) = hook_law.find_article_by_number(&decl.article) else {
                     continue;
                 };
-                let Some(host_law) = laws.iter().find(|l| l.id == named.law) else {
+                let Some(decls) = hook_article.get_hooks() else {
                     continue;
                 };
-                let reason = match host_law.articles.iter().find(|a| a.number == named.article) {
-                    None => format!("which law '{}' does not have", host_law.id),
-                    Some(host)
-                        if !hook.get_hooks().is_some_and(|ds| {
-                            ds.iter().any(|d| hook_applies_to(d, host_law, host))
-                        }) =>
-                    {
-                        "on which this article never fires as a hook".to_string()
-                    }
-                    Some(_) => continue,
+                let hook = HookArticle {
+                    law: hook_law,
+                    article: hook_article,
+                    decls,
                 };
-                warnings.push(HookCouplingWarning {
-                    hook_law: hook_law.id.clone(),
-                    hook_article: hook.number.clone(),
-                    host: Some((named.law.clone(), named.article.clone())),
-                    message: format!(
-                        "law '{}' {where_} fills open term '{}' for host {} article {}, \
-                         {reason}; that filling never applies",
-                        law.id, decl.open_term, named.law, named.article
-                    ),
-                });
+                let fills = format!(
+                    "law '{}' {where_} fills open term '{}' for host {} article {}",
+                    law.id, decl.open_term, named.law, named.article
+                );
+                let at = Some((named.law.as_str(), named.article.as_str()));
+                let Some(host) = host_law.find_article_by_number(&named.article) else {
+                    let message = format!(
+                        "{fills}, which law '{}' does not have; that filling never applies",
+                        host_law.id
+                    );
+                    warnings.push(coupling_warning(&hook, at, message));
+                    continue;
+                };
+                let matching: Vec<&HookDeclaration> = decls
+                    .iter()
+                    .filter(|d| hook_applies_to(d, host_law, host))
+                    .collect();
+                if matching.is_empty() {
+                    let message = format!(
+                        "{fills}, on which this article never fires as a hook; that filling \
+                         never applies"
+                    );
+                    warnings.push(coupling_warning(&hook, at, message));
+                    continue;
+                }
+                let post = matching
+                    .iter()
+                    .any(|d| d.hook_point == HookPoint::PostActions);
+                let offered = set.offered_to(host_law, host, post, None);
+                let missing: Vec<&str> = section
+                    .execution
+                    .as_ref()
+                    .and_then(|e| e.parameters.as_ref())
+                    .into_iter()
+                    .flatten()
+                    .filter(|p| p.required != Some(false))
+                    .map(|p| p.name.as_str())
+                    .filter(|name| !offered.iter().any(|(_, n, _)| n == name))
+                    .collect();
+                if !missing.is_empty() {
+                    let message = format!(
+                        "{fills}, and asks for required parameter(s) '{}', which the host does \
+                         not hand the hook; under the hook the filling fails with \
+                         VariableNotFound",
+                        missing.join("', '")
+                    );
+                    warnings.push(coupling_warning(&hook, at, message));
+                }
             }
         }
     }
-    warnings
 }
 
 fn unknown_literal(law: &ArticleBasedLaw, article: &str, where_: String) -> EngineError {
@@ -3988,6 +4174,7 @@ articles:
             ("termijn_weken", "termijn_dagen"),
             ("naam_indiener", "adres_indiener"),
             ("uiterste_beslisdag", "uiterste_beslisdag_verlengd"),
+            ("kind_1_leeftijd", "kind_2_leeftijd"),
         ] {
             assert!(!looks_like(wanted, offered), "{wanted} !~ {offered}");
         }

@@ -164,18 +164,16 @@ fn main() {
             );
             failed = true;
         }
+    }
 
-        // Step 5: a host (RFC-058) that cannot be right, checked against the
-        // laws of the set. A WARN: the regulation still runs, and the host
-        // may name a law outside the set.
-        for warning in regelrecht_engine::host_check::check_law(law, &lookup) {
-            eprintln!(
-                "WARN: {}: host: article {}: {}",
-                path.display(),
-                warning.article,
-                warning.message
-            );
-        }
+    // Step 5: couplings by name between hooks and their hosts in the set
+    // that read as a mistake, and hosts (RFC-058) the hook never reaches. A
+    // WARN: the regulation still runs, and a host may be outside the set.
+    let laws: Vec<&ArticleBasedLaw> = latest.values().copied().collect();
+    let mut warnings = regelrecht_engine::hook_coupling_warnings(&laws);
+    warnings.sort();
+    for warning in warnings {
+        eprintln!("WARN: hook coupling: {warning}");
     }
 
     if failed {

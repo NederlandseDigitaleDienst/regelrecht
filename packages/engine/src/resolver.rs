@@ -718,42 +718,7 @@ impl RuleResolver {
             .filter_map(|versions| versions.first())
             .collect();
         laws.sort_by(|a, b| a.id.cmp(&b.id));
-        crate::load_check::hook_coupling_warnings(&laws, touching)
-    }
-
-    /// The warnings for a host that cannot be right (RFC-058) that loading
-    /// `law` brings about: those of `law` itself against the laws loaded so
-    /// far, and those of the loaded laws that rest on `law`, as the host or
-    /// as the law whose term a filling fills. Together they come out the same
-    /// whatever order the laws arrive in; each is given once.
-    pub(crate) fn host_warnings_on_load(
-        &self,
-        law: &ArticleBasedLaw,
-    ) -> Vec<crate::host_check::HostWarning> {
-        let lookup = |id: &str| {
-            if id == law.id {
-                Some(law)
-            } else {
-                self.get_law(id)
-            }
-        };
-        let mut warnings = crate::host_check::check_law(law, &lookup);
-        // Another version of `law` itself is not checked again: `lookup`
-        // answers for its id with the version being loaded.
-        for consumer in self
-            .all_law_versions()
-            .filter(|consumer| consumer.id != law.id)
-            .filter(|consumer| crate::host_check::depends_on(consumer, &law.id))
-        {
-            warnings.extend(
-                crate::host_check::check_law(consumer, &lookup)
-                    .into_iter()
-                    .filter(|warning| warning.rests_on(&law.id)),
-            );
-        }
-        warnings.sort();
-        warnings.dedup();
-        warnings
+        crate::load_check::hook_coupling_warnings_touching(&laws, touching)
     }
 
     /// [`Self::load_law`] without the type check: the run-time boundary checks
@@ -5464,14 +5429,13 @@ articles:
         }
     }
 
-    /// The loader's warnings for a host that cannot be right (RFC-058) come
-    /// out the same whatever order the laws arrive in. The fixture rulework
+    /// The coupling warnings the loader logs, law by law as each loads, add
+    /// up to those of the whole set, whatever the order. The fixture rulework
     /// of `tests/hook_host_checks.rs`, with 4:13 firing before the actions
     /// and one more filling that reads an output of its host: that one is a
-    /// warning only once the hook article is known to fire before the
-    /// actions, so it rests on the general law as well as on the host.
+    /// warning only once the hook article is known.
     #[test]
-    fn host_warnings_do_not_depend_on_the_load_order() {
+    fn the_coupling_warnings_on_load_add_up_to_those_of_the_set() {
         let general = include_str!("../tests/fixtures/hook_host/algemene_wet_voorbeeld.yaml")
             .replace("post_actions", "pre_actions");
         let reads_output = r#"
@@ -5502,64 +5466,40 @@ articles:
             include_str!("../tests/fixtures/hook_host/subsidiewet_voorbeeld.yaml"),
             include_str!("../tests/fixtures/hook_host/beleidsregel_subsidie_voorbeeld.yaml"),
             include_str!("../tests/fixtures/hook_host/host_fouten_voorbeeld.yaml"),
+            include_str!("../tests/fixtures/hook_host/vergunningwet_voorbeeld.yaml"),
             reads_output,
         ];
-        let warnings_in = |order: &[usize]| {
+        let mut whole = None;
+        for order in [[0, 1, 2, 3, 4, 5], [5, 4, 3, 2, 1, 0], [1, 5, 3, 0, 2, 4]] {
             let mut resolver = RuleResolver::new();
-            let mut warnings = BTreeSet::new();
-            for &i in order {
-                let law = ArticleBasedLaw::from_yaml_str(laws[i]).unwrap();
-                let id = law.id.clone();
-                for warning in resolver.host_warnings_on_load(&law) {
-                    // Each warning of a load belongs to the loaded law or
-                    // rests on it.
-                    assert!(
-                        warning.law_id == id
-                            || warning.host_law == id
-                            || warning.hook_law.as_deref() == Some(id.as_str()),
-                        "loading {id} repeats {warning:?}"
-                    );
-                    warnings.insert(warning);
-                }
-                resolver.load_law(law).unwrap();
+            let mut on_load = BTreeSet::new();
+            for i in order {
+                let id = resolver.load_from_yaml(laws[i]).unwrap();
+                on_load.extend(resolver.hook_coupling_warnings_touching(Some(&id)));
             }
-            warnings
-        };
-        let forward = warnings_in(&[0, 1, 2, 3, 4]);
-        for order in [
-            [4, 3, 2, 1, 0],
-            [1, 4, 3, 0, 2],
-            [1, 2, 3, 4, 0],
-            [0, 4, 3, 2, 1],
-        ] {
-            assert_eq!(forward, warnings_in(&order), "order {order:?}");
+            let set: BTreeSet<_> = resolver.hook_coupling_warnings().into_iter().collect();
+            assert_eq!(on_load, set, "order {order:?}");
+            assert_eq!(whole.get_or_insert_with(|| set.clone()), &set);
         }
-        // Only a law that names the loaded one as a host, or fills a term of
-        // it, is checked again.
-        let policy = ArticleBasedLaw::from_yaml_str(laws[2]).unwrap();
-        assert!(!crate::host_check::depends_on(
-            &policy,
-            "vergunningwet_voorbeeld"
-        ));
-        let hooks_only = &laws[2][..laws[2].find("  - number: '3'").unwrap()];
-        let hooks_only = ArticleBasedLaw::from_yaml_str(hooks_only).unwrap();
-        assert!(crate::host_check::depends_on(
-            &hooks_only,
-            "subsidiewet_voorbeeld"
-        ));
-        let places: Vec<(&str, &str)> = forward
+        let about: Vec<(&str, Option<(&str, &str)>)> = whole
             .iter()
-            .map(|w| (w.law_id.as_str(), w.article.as_str()))
+            .flatten()
+            .map(|w| {
+                let host = w.host.as_ref().map(|(l, a)| (l.as_str(), a.as_str()));
+                (w.hook_law.as_str(), host)
+            })
             .collect();
+        let host = |article| Some(("subsidiewet_voorbeeld", article));
         assert_eq!(
-            places,
+            about,
             [
-                ("beleidsregel_subsidie_voorbeeld", "3"),
-                ("host_fouten_voorbeeld", "1"),
-                ("host_fouten_voorbeeld", "2"),
-                ("host_fouten_voorbeeld", "5"),
-                ("invulling_uitvoer_voorbeeld", "1"),
-            ]
+                ("algemene_wet_voorbeeld", host("11")),
+                ("algemene_wet_voorbeeld", host("2")),
+                ("algemene_wet_voorbeeld", host("3")),
+                ("algemene_wet_voorbeeld", host("3")),
+                ("host_fouten_voorbeeld", host("4")),
+            ],
+            "{whole:#?}"
         );
     }
 }

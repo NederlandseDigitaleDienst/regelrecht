@@ -35,7 +35,6 @@ pub mod data_source;
 mod demand;
 pub mod engine;
 pub mod error;
-pub mod host_check;
 mod load_check;
 pub mod operations;
 pub mod priority;
@@ -79,7 +78,7 @@ pub use engine::{
     Unanswered,
 };
 pub use error::{EngineError, ExternalError, Result};
-pub use load_check::HookCouplingWarning;
+pub use load_check::{HookCouplingWarning, hook_coupling_warnings};
 pub use operations::{ValueResolver, evaluate_value, execute_operation};
 pub use projection::{
     Aggregate, ChronicleRecord, ProjectionEvent, ProjectionOptions, ProjectionOutcome, StateChange,
