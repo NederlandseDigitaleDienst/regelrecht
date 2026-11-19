@@ -10,6 +10,11 @@ pub struct OidcConfig {
     pub client_secret: String,
     pub issuer_url: String,
     pub required_role: String,
+    /// Claims of the ID token (or else the access token) that the callback
+    /// copies into the session under [`crate::SESSION_KEY_CLAIMS`], from
+    /// `OIDC_EXTRA_CLAIMS` (comma-separated). Empty by default: then the
+    /// callback stores no claims beyond the standard ones.
+    pub extra_claims: Vec<String>,
 }
 
 impl std::fmt::Debug for OidcConfig {
@@ -19,6 +24,7 @@ impl std::fmt::Debug for OidcConfig {
             .field("client_secret", &"[REDACTED]")
             .field("issuer_url", &self.issuer_url)
             .field("required_role", &self.required_role)
+            .field("extra_claims", &self.extra_claims)
             .finish()
     }
 }
@@ -89,7 +95,20 @@ fn parse_oidc_config(
         client_secret,
         issuer_url,
         required_role,
+        extra_claims: extra_claims(env("OIDC_EXTRA_CLAIMS").as_deref()),
     })
+}
+
+/// The claim names in `OIDC_EXTRA_CLAIMS`: comma-separated, trimmed, empty
+/// entries and repeats dropped, in the order given.
+fn extra_claims(value: Option<&str>) -> Vec<String> {
+    let mut names: Vec<String> = Vec::new();
+    for name in value.unwrap_or_default().split(',').map(str::trim) {
+        if !name.is_empty() && !names.iter().any(|n| n == name) {
+            names.push(name.to_string());
+        }
+    }
+    names
 }
 
 fn resolve_issuer_url(env: &impl Fn(&str) -> Option<String>) -> Result<String, String> {
@@ -250,6 +269,21 @@ mod tests {
         let env = complete_with(&[("OIDC_REQUIRED_ROLE", "harvester-admin")]);
         let oidc = parse_oidc_from(env).expect("should succeed").unwrap();
         assert_eq!(oidc.required_role, "harvester-admin");
+    }
+
+    #[test]
+    fn extra_claims_are_none_by_default() {
+        let oidc = parse_oidc_from(env_of(COMPLETE_OIDC))
+            .expect("should succeed")
+            .unwrap();
+        assert!(oidc.extra_claims.is_empty());
+    }
+
+    #[test]
+    fn extra_claims_are_a_comma_separated_list() {
+        let env = complete_with(&[("OIDC_EXTRA_CLAIMS", " bsn, ,kvk_nummer,bsn ")]);
+        let oidc = parse_oidc_from(env).expect("should succeed").unwrap();
+        assert_eq!(oidc.extra_claims, ["bsn", "kvk_nummer"]);
     }
 
     #[test]

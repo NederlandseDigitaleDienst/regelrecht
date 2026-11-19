@@ -8,6 +8,7 @@ use async_trait::async_trait;
 
 use crate::store::{
     Appended, ChronicleStore, Commit, IdempotencyKey, Receipt, StoreError, StoredChronicle,
+    StoredGram,
 };
 
 #[derive(Debug, Default)]
@@ -92,12 +93,16 @@ impl ChronicleStore for InMemoryStore {
         }
         state.ids.append(&mut ids);
         for append in commit.appends {
+            let stored = append.grams.into_iter().map(|gram| StoredGram {
+                gram,
+                recorded_by: commit.recorded_by.clone(),
+            });
             state
                 .chronicles
                 .entry(append.cell)
                 .or_default()
                 .grams
-                .extend(append.grams);
+                .extend(stored);
         }
         if let Some(keyed) = commit.keyed {
             state.receipts.insert(keyed.key, keyed.receipt);

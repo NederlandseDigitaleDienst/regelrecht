@@ -1,4 +1,5 @@
-//! Test-only helpers for seeding authenticated sessions in middleware tests.
+//! Test-only helpers for seeding authenticated sessions in middleware tests,
+//! and an OIDC client that needs no identity provider ([`offline_client`]).
 //!
 //! Exposed only under the `test-utils` feature so downstream crates (e.g.
 //! `regelrecht-admin`) can reuse the same seeding contract without
@@ -76,4 +77,43 @@ pub async fn seed_session(app: &Router, roles: &str) -> String {
         .to_str()
         .expect("cookie str")
         .to_string()
+}
+
+/// A [`crate::ConfiguredClient`] for the issuer `issuer`, made without
+/// discovery: its endpoints sit under the issuer and nothing is fetched.
+/// For a test that builds a service with OIDC enabled but never logs in.
+///
+/// # Panics
+///
+/// When `issuer` is no URL: a broken test setup.
+pub fn offline_client(issuer: &str) -> crate::ConfiguredClient {
+    use openidconnect::core::{
+        CoreClient, CoreJwsSigningAlgorithm, CoreResponseType, CoreSubjectIdentifierType,
+    };
+    use openidconnect::{
+        AuthUrl, ClientId, ClientSecret, EmptyAdditionalProviderMetadata, IssuerUrl,
+        JsonWebKeySetUrl, LogoutProviderMetadata, ProviderMetadataWithLogout, ResponseTypes,
+        TokenUrl,
+    };
+    let url = |path: &str| format!("{}/{path}", issuer.trim_end_matches('/'));
+    let token = TokenUrl::new(url("token")).expect("test issuer should form a token URL");
+    let metadata = ProviderMetadataWithLogout::new(
+        IssuerUrl::new(issuer.to_string()).expect("test issuer should be a URL"),
+        AuthUrl::new(url("auth")).expect("test issuer should form an auth URL"),
+        JsonWebKeySetUrl::new(url("certs")).expect("test issuer should form a JWKS URL"),
+        vec![ResponseTypes::new(vec![CoreResponseType::Code])],
+        vec![CoreSubjectIdentifierType::Public],
+        vec![CoreJwsSigningAlgorithm::RsaSsaPkcs1V15Sha256],
+        LogoutProviderMetadata {
+            end_session_endpoint: None,
+            additional_metadata: EmptyAdditionalProviderMetadata {},
+        },
+    )
+    .set_token_endpoint(Some(token.clone()));
+    CoreClient::from_provider_metadata(
+        metadata,
+        ClientId::new("test-client".into()),
+        Some(ClientSecret::new("test-secret".into())),
+    )
+    .set_token_uri(token)
 }

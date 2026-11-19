@@ -400,6 +400,7 @@ mod tests {
                 client_secret: "test".into(),
                 issuer_url: "https://example.com".into(),
                 required_role: "user".into(),
+                extra_claims: Vec::new(),
             })
         } else {
             None

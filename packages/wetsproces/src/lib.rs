@@ -12,20 +12,28 @@
 //!
 //! The parts:
 //!
-//! - [`config`]: the mode (`test` or `stable`), the manifest and the port,
-//!   from the environment;
+//! - [`config`]: the mode (`test` or `stable`), the manifest, the port and
+//!   the login, from the environment;
+//! - [`access`]: the roles, and who a request comes from;
+//! - [`login`]: the login through Keycloak or, in test mode, the test
+//!   login, and the sessions;
 //! - [`clock`]: the clock trait, with a clock the API can set and the real
 //!   date in the Netherlands;
-//! - [`store`]: the chronicle store trait, with the store in memory;
+//! - [`store`]: the chronicle store trait, with the store in memory and the
+//!   one in Postgres;
+//! - [`dossier`]: which records are about one person;
 //! - [`case`]: the one case, from the manifest;
 //! - [`service`]: the steps, against a store and a clock;
 //! - [`api`]: the HTTP API over the service;
 //! - [`app`]: what the binary builds from a [`config::Config`].
 
+pub mod access;
 pub mod api;
 pub mod app;
 pub mod case;
 pub mod clock;
 pub mod config;
+pub mod dossier;
+pub mod login;
 pub mod service;
 pub mod store;

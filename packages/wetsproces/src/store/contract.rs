@@ -18,6 +18,9 @@ use crate::store::{
 /// connection's worth, fewer than a pool holds.
 const CONCURRENT: usize = 8;
 
+/// The account a keyed test commit is made by: a made-up `sub`.
+pub const ACCOUNT: &str = "00000000-0000-4000-8000-00000000000a";
+
 pub fn gram(id: &str, cell: &str) -> Gram {
     serde_json::from_value(json!({
         "id": id,
@@ -45,6 +48,7 @@ pub fn commit(k: &str, appends: Vec<CellAppend>) -> Commit {
                 response: json!({ "answered": k }),
             },
         }),
+        recorded_by: Some(ACCOUNT.into()),
     }
 }
 
@@ -52,6 +56,7 @@ pub fn unkeyed(appends: Vec<CellAppend>) -> Commit {
     Commit {
         appends,
         keyed: None,
+        recorded_by: None,
     }
 }
 
@@ -64,7 +69,7 @@ pub fn append(cell: &str, expected_head: u64, ids: &[&str]) -> CellAppend {
 }
 
 fn ids(chronicle: &StoredChronicle) -> Vec<&str> {
-    chronicle.grams.iter().map(|g| g.id.as_str()).collect()
+    chronicle.grams.iter().map(|g| g.gram.id.as_str()).collect()
 }
 
 pub async fn a_commit_appends_to_every_cell_after_its_head(store: &dyn ChronicleStore) {
@@ -81,7 +86,22 @@ pub async fn a_commit_appends_to_every_cell_after_its_head(store: &dyn Chronicle
     let a = store.load("a").await.unwrap();
     assert_eq!(ids(&a), ["1", "4"]);
     // A record comes back as it went in.
-    assert_eq!(a.grams[1], gram("4", "a"));
+    assert_eq!(a.grams[1].gram, gram("4", "a"));
+}
+
+pub async fn the_store_keeps_who_recorded_each_gram(store: &dyn ChronicleStore) {
+    let by_account = commit("k1", vec![append("a", 0, &["1"]), append("b", 0, &["2"])]);
+    store.append(by_account).await.unwrap();
+    let by_server = unkeyed(vec![append("a", 1, &["3"])]);
+    store.append(by_server).await.unwrap();
+    let all = store.load_all(&["a", "b"]).await.unwrap();
+    let by: Vec<Vec<Option<&str>>> = all
+        .iter()
+        .map(|c| c.grams.iter().map(|g| g.recorded_by.as_deref()).collect())
+        .collect();
+    assert_eq!(by, [vec![Some(ACCOUNT), None], vec![Some(ACCOUNT)]]);
+    // Who recorded it stays beside the gram, not in it.
+    assert_eq!(all[0].grams[0].gram, gram("1", "a"));
 }
 
 pub async fn load_all_gives_every_cell_in_the_order_asked(store: &dyn ChronicleStore) {
@@ -226,6 +246,7 @@ macro_rules! contract_tests {
     ($fixture:expr) => {
         $crate::store::contract::contract_tests!(@each $fixture;
             a_commit_appends_to_every_cell_after_its_head,
+            the_store_keeps_who_recorded_each_gram,
             load_all_gives_every_cell_in_the_order_asked,
             a_moved_head_refuses_the_whole_commit,
             a_key_used_before_is_replayed_and_applies_nothing,

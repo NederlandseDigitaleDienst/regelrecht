@@ -7,8 +7,10 @@
 # met dezelfde code als het poc-portaal (packages/corpus/src/source_manifest.rs).
 #
 # De regelwerken en cellen komen uit het corpus van de chronolexografie-poc;
-# alleen het casusbestand is van dit component zelf.
+# alleen het casusbestand en de UI-beschrijving zijn van dit component zelf.
+# De UI-beschrijving zegt welk veld van de aanvraag het inloggen vult.
 repo_root: ../..
+ui_spec: packages/wetsproces/ui_spec.yaml
 directories:
   casussen: packages/wetsproces/casussen
   regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw: packages/poc-chronolexografie/corpus/regulation/nl/amvb/besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw

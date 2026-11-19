@@ -1076,10 +1076,12 @@ poc: poc-build
     POC_PORT=8611 \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-poc-portal
 
-# Draai het wetsprocessysteem lokaal in test mode (packages/wetsproces): de
-# kroniek in het geheugen, de klok te zetten met PUT /api/klok. Bindt op
-# 0.0.0.0; WETSPROCES_PORT kiest een andere poort. Met WETSPROCES_STORE=postgres
-# en DATABASE_URL blijft de kroniek in Postgres staan.
+# Run the wetsprocessysteem locally in test mode (packages/wetsproces): the
+# chronicles in memory, the test login at POST /auth/testlogin, and the clock
+# set by an admin with PUT /api/backoffice/klok. Binds to 0.0.0.0;
+# WETSPROCES_PORT picks another port. With WETSPROCES_STORE=postgres and
+# DATABASE_URL the chronicles stay in Postgres; with the OIDC_* variables the
+# login goes through Keycloak instead.
 wetsproces:
     WETSPROCES_MODE=test WETSPROCES_PORT="${WETSPROCES_PORT:-7180}" \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-wetsproces

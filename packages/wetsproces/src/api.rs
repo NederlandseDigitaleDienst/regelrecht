@@ -2,38 +2,54 @@
 //! answer are those of the kern (`velden`, `bevindingen`, `op`), as the
 //! chronolexografie poc speaks them.
 //!
-//! | Method and path | What |
-//! |---|---|
-//! | `GET /health` | `ok` once the server runs |
-//! | `GET /api/casus` | the case, and today |
-//! | `GET /api/formulier` | the forms, with what the UI spec says of their fields |
-//! | `GET /api/cellen/{cel}/kroniek` | the chronicle of one cell |
-//! | `POST /api/indieningen` | a submission ([`Submit`]) |
-//! | `POST /api/besluiten` | a decision ([`Decide`]) |
-//! | `POST /api/vastleggingen` | a fact a cell records ([`Record`]) |
-//! | `POST /api/toezendingen` | a copy of a decision ([`SendCopy`]) |
-//! | `GET /api/klok` | today, and whether the clock can be set |
-//! | `PUT /api/klok` | set the clock, test mode only: `{ "datum": "YYYY-MM-DD" }` |
+//! Every route but `/health` and the login (`/auth/...`, [`crate::login`])
+//! needs a session; without one it answers 401. The routes come in three
+//! groups, each behind its own gate ([`crate::access`] holds the roles):
 //!
-//! A `POST` takes an `Idempotency-Key` header: sent again with the same
-//! request it answers as the first time and records nothing; with another
-//! request it is refused. Without the header every request records anew. An
-//! error from the service answers `{ "fout": "<why>" }`; a body that does not
-//! parse gets axum's own plain-text rejection.
+//! | Method and path | Who | What |
+//! |---|---|---|
+//! | `GET /health` | anyone | `ok` once the server runs |
+//! | `GET /api/casus` | citizen or employee | the case, and today |
+//! | `GET /api/formulier` | citizen or employee | the forms, with what the UI spec says of their fields |
+//! | `GET /api/klok` | citizen or employee | today, and whether the clock can be set |
+//! | `GET /api/dossier` | citizen | the records about the citizen, in every cell |
+//! | `POST /api/indieningen` | citizen | a submission ([`Submit`]) for themself |
+//! | `GET /api/backoffice/cellen/{cel}/kroniek` | reader of the cell | the chronicle of one cell |
+//! | `POST /api/backoffice/vastleggingen` | handler of the cell | a fact a cell records ([`Record`]) |
+//! | `POST /api/backoffice/toezendingen` | handler of the cell holding the decision | a copy of a decision ([`SendCopy`]) |
+//! | `POST /api/backoffice/besluiten` | decider of the cell holding the submission | a decision ([`Decide`]) |
+//! | `PUT /api/backoffice/klok` | admin | set the clock, test mode only: `{ "datum": "YYYY-MM-DD" }` |
+//!
+//! A citizen acts only for themself. The login field of their application
+//! comes from the claim of their account, never from the request, and a
+//! submission that refers to a record must refer to one in their own
+//! dossier. A record an employee names by id must be in a cell whose
+//! chronicle they may read; one that is not answers 404, the same as one
+//! that does not exist, so an id does not tell whether it exists elsewhere.
+//!
+//! A `POST` takes an `Idempotency-Key` header: sent again by the same
+//! account with the same request it answers as the first time and records
+//! nothing; otherwise it is refused. Without the header every request
+//! records anew. An error answers `{ "fout": "<why>" }`; a body that does
+//! not parse gets axum's own plain-text rejection.
 
+use std::collections::BTreeSet;
 use std::sync::Arc;
 
-use axum::extract::{Path, State};
+use axum::extract::{Path, Request, State};
 use axum::http::{HeaderMap, StatusCode};
+use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
-use axum::{Json, Router};
+use axum::routing::{get, post, put};
+use axum::{Extension, Json, Router};
 use chrono::NaiveDate;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
+use crate::access::{self, Level, Principal};
 use crate::clock::ControllableClock;
 use crate::config::Mode;
+use crate::login::{Login, OidcLogin};
 use crate::service::{Decide, Record, SendCopy, Service, ServiceError, Step, Submit};
 use crate::store::{IdempotencyKey, StoreError};
 
@@ -47,15 +63,40 @@ pub struct AppState {
     mode: Mode,
     /// The clock the API sets, in test mode; none when the clock is real.
     clock: Option<Arc<ControllableClock>>,
+    login: Login,
+    /// The claim of a citizen's account that identifies them.
+    subject_claim: Arc<str>,
+    http_client: reqwest::Client,
 }
 
 impl AppState {
-    pub fn new(service: Arc<Service>, mode: Mode, clock: Option<Arc<ControllableClock>>) -> Self {
+    pub fn new(
+        service: Arc<Service>,
+        mode: Mode,
+        clock: Option<Arc<ControllableClock>>,
+        login: Login,
+        subject_claim: &str,
+    ) -> Self {
         Self {
             service,
             mode,
             clock,
+            login,
+            subject_claim: subject_claim.into(),
+            http_client: regelrecht_auth::http_client(),
         }
+    }
+
+    /// The OIDC login, when the server logs in through Keycloak.
+    pub fn oidc(&self) -> Option<&OidcLogin> {
+        match &self.login {
+            Login::Oidc(o) => Some(o),
+            Login::TestLogin => None,
+        }
+    }
+
+    pub fn http_client(&self) -> &reqwest::Client {
+        &self.http_client
     }
 }
 
@@ -67,11 +108,20 @@ pub struct ApiError {
 }
 
 impl ApiError {
-    fn new(status: StatusCode, message: impl Into<String>) -> Self {
+    pub fn new(status: StatusCode, message: impl Into<String>) -> Self {
         Self {
             status,
             message: message.into(),
         }
+    }
+
+    /// The answer for a record the caller may not see, whether or not it
+    /// exists.
+    fn not_yours(what: &str) -> Self {
+        Self::new(
+            StatusCode::NOT_FOUND,
+            format!("there is no {what} with this id that you may act on"),
+        )
     }
 }
 
@@ -87,10 +137,10 @@ impl From<ServiceError> for ApiError {
                 | StoreError::UnknownFormat { .. }
                 | StoreError::DuplicateGram { .. },
             )
-            | ServiceError::Internal(_) => {
+            | ServiceError::Internal(_)
+            | ServiceError::LoginField(_) => {
                 // The full error, with what the database said, goes to the
-                // log only: the API has no login, so anyone may read the
-                // answer.
+                // log only.
                 tracing::error!(error = %e, "request failed");
                 return Self::new(
                     StatusCode::INTERNAL_SERVER_ERROR,
@@ -110,30 +160,149 @@ impl IntoResponse for ApiError {
 
 type ApiResult = Result<Json<Value>, ApiError>;
 
-/// The routes of the API on `state`.
+/// The routes of the API on `state`, with the login's routes; the session
+/// layer goes around them ([`crate::app`]).
 pub fn router(state: AppState) -> Router {
-    Router::new()
-        .route("/health", get(|| async { "ok" }))
+    let shared = Router::new()
         .route("/api/casus", get(case))
         .route("/api/formulier", get(forms))
-        .route("/api/cellen/{cel}/kroniek", get(chronicle))
+        .route("/api/klok", get(clock))
+        .route_layer(middleware::from_fn(gate_user));
+    let citizen = Router::new()
+        .route("/api/dossier", get(dossier))
         .route("/api/indieningen", post(submit))
-        .route("/api/besluiten", post(decide))
-        .route("/api/vastleggingen", post(record))
-        .route("/api/toezendingen", post(send_copy))
-        .route("/api/klok", get(clock).put(set_clock))
+        .route_layer(middleware::from_fn(gate_citizen));
+    let backoffice = Router::new()
+        .route("/api/backoffice/cellen/{cel}/kroniek", get(chronicle))
+        .route("/api/backoffice/besluiten", post(decide))
+        .route("/api/backoffice/vastleggingen", post(record))
+        .route("/api/backoffice/toezendingen", post(send_copy))
+        .route("/api/backoffice/klok", put(set_clock))
+        .route_layer(middleware::from_fn(gate_employee));
+    Router::new()
+        .route("/health", get(|| async { "ok" }))
+        .merge(state.login.routes())
+        .merge(shared)
+        .merge(citizen)
+        .merge(backoffice)
         .with_state(state)
+}
+
+/// Let the request through when `allowed` holds for its principal, with
+/// the principal in its extensions for the handler.
+async fn gate(
+    principal: Principal,
+    allowed: fn(&Principal) -> bool,
+    mut request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    if !allowed(&principal) {
+        tracing::warn!(sub = %principal.sub(), path = %request.uri().path(), "refused at the gate");
+        return Err(access::forbidden());
+    }
+    request.extensions_mut().insert(principal);
+    Ok(next.run(request).await)
+}
+
+/// A citizen or an employee.
+async fn gate_user(
+    principal: Principal,
+    request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    gate(principal, Principal::is_user, request, next).await
+}
+
+/// A citizen.
+async fn gate_citizen(
+    principal: Principal,
+    request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    gate(principal, |p| p.is_citizen(), request, next).await
+}
+
+/// An employee: a reader or more, of any cell; the handler checks the cell.
+async fn gate_employee(
+    principal: Principal,
+    request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    gate(principal, |p| p.has(Level::Reader), request, next).await
 }
 
 async fn case(State(state): State<AppState>) -> Json<Value> {
     Json(state.service.case())
 }
 
-async fn forms(State(state): State<AppState>) -> ApiResult {
-    Ok(Json(state.service.forms().await?))
+async fn forms(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+) -> ApiResult {
+    let mut forms = state.service.forms().await?;
+    without_login_offer(&mut forms);
+    let visible = visible_records(&state, &principal).await?;
+    only_visible_records(&mut forms, &visible);
+    Ok(Json(forms))
 }
 
-async fn chronicle(State(state): State<AppState>, Path(cel): Path<String>) -> ApiResult {
+/// The ids of the records `principal` may see: those of their dossier as a
+/// citizen, and those in the cells they may read as an employee.
+async fn visible_records(
+    state: &AppState,
+    principal: &Principal,
+) -> Result<BTreeSet<String>, ApiError> {
+    let mut ids = state
+        .service
+        .record_ids(|cell| principal.may(Level::Reader, cell))
+        .await?;
+    if principal.is_citizen()
+        && let Ok(citizen) = principal.citizen(&state.subject_claim)
+    {
+        let dossier = state.service.dossier(citizen.subject()).await?;
+        ids.extend(dossier.grams.into_iter().map(|g| g.id));
+    }
+    Ok(ids)
+}
+
+/// Keep in the forms only what they say of the records in `visible`: the
+/// kern lists, per record of every cell, the fields it holds itself
+/// (`eigen_velden`), and its ids would tell anyone which records exist.
+fn only_visible_records(forms: &mut Value, visible: &BTreeSet<String>) {
+    if let Some(own) = forms.get_mut("eigen_velden").and_then(Value::as_object_mut) {
+        own.retain(|id, _| visible.contains(id));
+    }
+}
+
+/// Drop from the forms what the kern offers to log in with (`inloggen`).
+/// Without a login step of its own, a case offers there the identifiers
+/// recorded in its chronicles, of every applicant; this server logs in
+/// through its own login and must not show them to anyone.
+fn without_login_offer(forms: &mut Value) {
+    if let Some(submissions) = forms.get_mut("indieningen").and_then(Value::as_object_mut) {
+        for submission in submissions.values_mut() {
+            if let Some(submission) = submission.as_object_mut() {
+                submission.remove("inloggen");
+            }
+        }
+    }
+}
+
+async fn dossier(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+) -> ApiResult {
+    let citizen = principal.citizen(&state.subject_claim)?;
+    let dossier = state.service.dossier(citizen.subject()).await?;
+    Ok(Json(json!({ "grammen": dossier.grams })))
+}
+
+async fn chronicle(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    Path(cel): Path<String>,
+) -> ApiResult {
+    principal.require(Level::Reader, &cel)?;
     Ok(Json(state.service.chronicle(&cel).await?))
 }
 
@@ -150,41 +319,105 @@ fn key(headers: &HeaderMap) -> Result<Option<IdempotencyKey>, ApiError> {
         .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, e))
 }
 
-async fn perform(state: &AppState, headers: &HeaderMap, step: Step) -> ApiResult {
+async fn perform(state: &AppState, headers: &HeaderMap, step: Step, actor: &str) -> ApiResult {
     let key = key(headers)?;
-    Ok(Json(state.service.perform(key, step).await?))
+    Ok(Json(state.service.perform(key, step, actor).await?))
 }
 
+/// The cell holding the record `id`, when `principal` may read its
+/// chronicle; `what` names the record in the 404 otherwise.
+async fn readable_holder(
+    state: &AppState,
+    principal: &Principal,
+    id: &str,
+    what: &str,
+) -> Result<String, ApiError> {
+    match state.service.holder(id).await? {
+        Some(cell) if principal.may(Level::Reader, &cell) => Ok(cell),
+        _ => Err(ApiError::not_yours(what)),
+    }
+}
+
+/// A citizen submits for themself: the login field is theirs, and a
+/// reference goes to a record of their own dossier.
 async fn submit(
     State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
     headers: HeaderMap,
-    Json(s): Json<Submit>,
+    Json(mut s): Json<Submit>,
 ) -> ApiResult {
-    perform(&state, &headers, Step::Submit(s)).await
+    // The checks read the chronicles apart from the step. That is safe
+    // because a chronicle only grows and a record never changes cell: what
+    // was in the dossier or a readable cell when checked still is when the
+    // step runs.
+    let citizen = principal.citizen(&state.subject_claim)?;
+    let field = state.service.login_field();
+    if s.fields.contains_key(field) {
+        return Err(ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            format!("'{field}' is filled from your login, not from the request"),
+        ));
+    }
+    if let Some(id) = &s.refers_to
+        && !state.service.dossier(citizen.subject()).await?.holds(id)
+    {
+        return Err(ApiError::not_yours("record in your dossier"));
+    }
+    let application = s
+        .article
+        .as_deref()
+        .is_none_or(|a| a == state.service.application_article());
+    if application {
+        s.fields
+            .insert(field.to_string(), Value::from(citizen.subject()));
+    } else if s.refers_to.is_none() {
+        return Err(ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "a submission other than the application refers to a record of your dossier (`op`)",
+        ));
+    }
+    perform(&state, &headers, Step::Submit(s), citizen.sub()).await
 }
 
+/// A decision, by a decider of the cell that holds the submission.
 async fn decide(
     State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
     headers: HeaderMap,
     Json(d): Json<Decide>,
 ) -> ApiResult {
-    perform(&state, &headers, Step::Decide(d)).await
+    let cell = readable_holder(&state, &principal, &d.submission, "submission").await?;
+    if let Some(after) = &d.after {
+        readable_holder(&state, &principal, after, "record").await?;
+    }
+    principal.require(Level::Decider, &cell)?;
+    perform(&state, &headers, Step::Decide(d), principal.sub()).await
 }
 
+/// A fact, by a handler of the cell that records it.
 async fn record(
     State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
     headers: HeaderMap,
     Json(r): Json<Record>,
 ) -> ApiResult {
-    perform(&state, &headers, Step::Record(r)).await
+    // The kern resolves `verwijst_naar` only within the chronicle of
+    // `r.cell` (a record id or a kenmerk of its beginning), which the
+    // handler of that cell may read, so it needs no check of its own here.
+    principal.require(Level::Handler, &r.cell)?;
+    perform(&state, &headers, Step::Record(r), principal.sub()).await
 }
 
+/// A copy of a decision, by a handler of the cell that holds it.
 async fn send_copy(
     State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
     headers: HeaderMap,
     Json(s): Json<SendCopy>,
 ) -> ApiResult {
-    perform(&state, &headers, Step::SendCopy(s)).await
+    let cell = readable_holder(&state, &principal, &s.decision, "decision").await?;
+    principal.require(Level::Handler, &cell)?;
+    perform(&state, &headers, Step::SendCopy(s), principal.sub()).await
 }
 
 fn clock_state(state: &AppState) -> Value {
@@ -205,7 +438,14 @@ struct SetClock {
     datum: NaiveDate,
 }
 
-async fn set_clock(State(state): State<AppState>, Json(body): Json<SetClock>) -> ApiResult {
+async fn set_clock(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    Json(body): Json<SetClock>,
+) -> ApiResult {
+    if !principal.has(Level::Admin) {
+        return Err(access::forbidden());
+    }
     let Some(clock) = &state.clock else {
         return Err(ApiError::new(
             StatusCode::CONFLICT,
@@ -216,5 +456,34 @@ async fn set_clock(State(state): State<AppState>, Json(body): Json<SetClock>) ->
         ));
     };
     clock.set(body.datum);
+    tracing::info!(sub = %principal.sub(), day = %body.datum, "clock set");
     Ok(Json(clock_state(&state)))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_forms_offer_no_identifiers_to_log_in_with() {
+        let mut forms = json!({
+            "indieningen": {
+                "a#1": { "soort": "AANVRAAG", "inloggen": { "keuzes": ["999990019"] } },
+                "a#2": { "soort": "BEZWAAR" },
+            },
+            "besluiten": {},
+        });
+        without_login_offer(&mut forms);
+        assert_eq!(
+            forms["indieningen"],
+            json!({ "a#1": { "soort": "AANVRAAG" }, "a#2": { "soort": "BEZWAAR" } })
+        );
+    }
+
+    #[test]
+    fn the_forms_name_only_visible_records() {
+        let mut forms = json!({ "eigen_velden": { "mine": ["a"], "theirs": ["b"] } });
+        only_visible_records(&mut forms, &BTreeSet::from(["mine".to_string()]));
+        assert_eq!(forms["eigen_velden"], json!({ "mine": ["a"] }));
+    }
 }
