@@ -46,14 +46,30 @@ python3 $W herkomst 35968 5.6                      # amendments that touched it;
 python3 $W toelichting 35968 2.6 --lid 2           # what the explanatory documents say
 python3 $W toelichting 36889 --doelwet 15          # a bill that amends a law: passages on that law's article 15
 python3 $W artikel BWBR0007376 15 --op 2010-01-01  # a law through time: how it read on a date
+python3 $W wet BWBR0007376 --op 2010-01-01         # the whole law on that date
+python3 $W wet 35968 --na kst-35968-8 --herkomst   # the whole bill after a nota, each line with its origin
+python3 $W vergelijk BWBR0007376 --van 2004-01-01 --tot 2010-01-01   # what changed in between, word by word
+python3 $W vergelijk 35968 4.1 --van kst-35968-7 --tot kst-35968-8   # one article, across one nota
 ```
 
 `<id>` is a Kamerdossier number for a bill (five digits), or a BWB id for a law
-through time. `--op JJJJ-MM-DD` gives the state on that date, `--na kst-…` the
-state right after that document; without either, the last state. An amendment
-takes effect at the vote, not when it is filed: `--na` on an amendment shows the
-text without it, `--op <date of the vote>` with it. Add `--json` (before the
-command) for structured output.
+through time. A moment is the same as in the PoC's player:
+
+- `--op JJJJ-MM-DD`: the state on that date (for a law through time, the BWB
+  version in force that day);
+- `--na kst-…` (or `versie-…`): right after that document;
+- `--stap N`: right after replay step N, one onderdeel of a nota or amendment
+  (`--stap 0` is the bill as filed; `stukken` and `herkomst` show the steps);
+- none: the last state.
+
+`vergelijk` takes two such moments as `--van` and `--tot`, written as a date, a
+document id, or `stap:N`; without `--tot` it compares with the last state. Every
+answer names the moment it shows ("stand op 2023-07-07, na Kamerstuk 35968,
+nr. 8"), so two documents on the same day are told apart.
+
+An amendment takes effect at the vote, not when it is filed: `--na` on an
+amendment shows the text without it, `--op <date of the vote>` with it. Add
+`--json` (before the command) for structured output.
 
 How to read an answer:
 
@@ -65,6 +81,13 @@ How to read an answer:
   that change: the nota onderdeel or amendment, at a vote the adopted
   amendments, and for the very first version the bill. An article inserted
   later begins with the nota or amendment that inserted it.
+- `wet` prints the whole law at the moment, and before the text how many
+  articles equal the official text and which do not. For a law through time
+  the text *is* the BWB version, taken over rather than replayed, and it says so.
+- `vergelijk` lists per article what changed: `~` a changed line with removed
+  words as `[-…-]` and added ones as `{+…+}`, `-` a line gone, `+` a new line,
+  with the documents that made the change. Articles are followed by identity,
+  so a renumbered article shows as one change with its old number.
 - *Let op* lines say what the text alone does not: the law was repealed, or a
   pending bill touches this article (with the command to fetch it).
 
@@ -102,7 +125,11 @@ A dossier takes a minute or so; a law through time about twenty seconds.
    from, `toelichting` for what was said about it, `herkomst` for how it got
    there. Ask about the lid you model, not the whole article, when the
    regelwerk models a single lid.
-5. **Cite** in the regelwerk's justification the Kamerstuk the script names, with
+5. **Between two versions of a regelwerk**, run
+   `vergelijk <BWB> --van <old valid_from> --tot <new valid_from>`. The articles
+   it lists are the ones the new regelwerk version has to follow; the ones it
+   does not list should not have changed in the regelwerk either.
+6. **Cite** in the regelwerk's justification the Kamerstuk the script names, with
    its URL, e.g. *Kamerstuk 35968, nr. 3* for the memorie van toelichting. The
    script gives dossier and number; for the formal citation (*Kamerstukken II
    2021/22, 35968, nr. 3*, chamber and vergaderjaar) take them from the document

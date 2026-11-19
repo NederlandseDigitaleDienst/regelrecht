@@ -17,12 +17,16 @@ that file, per article and lid, with a citable document for every answer:
     herkomst    <id> <nr> [--lid N]        the amendments that touched it, and its versions
     toelichting <id> <nr> [--lid N]        what the explanatory documents say about it
     toelichting <id> --doelwet <nr>        same, for an article of the law a bill amends
+    wet         <id> [--herkomst]          the whole law at a moment, checked per article
+    vergelijk   <id> [<nr>] --van M [--tot M]   what changed between two moments, word by word
     haal        <BWBR...|dossier> [dossier] [--keten]   fetch and replay (needs network)
     haal        <BWBR...> --opbouw         rebuild a law through time from what is fetched
 
-<id> is a dossier number (35968), or a BWB id for a law through time. --op DATE
-or --na STUK picks the moment; the default is the last one. --json prints the
-answer as JSON instead of text.
+<id> is a dossier number (35968), or a BWB id for a law through time. The moment
+is --op DATE (the state on that day), --na STUK (right after that document) or
+--stap N (right after replay step N); the default is the last one. For
+vergelijk a moment M is written as a date, a document id, or stap:N. --json
+prints the answer as JSON instead of text.
 
 The replay is not perfect, and an answer that hides that is worse than none:
 every text answer states whether the replayed article equals the official text
@@ -32,6 +36,7 @@ replay. Python standard library only; `haal` additionally needs pyyaml and curl.
 from __future__ import annotations
 
 import argparse
+import difflib
 import json
 import os
 import re
@@ -50,6 +55,7 @@ KIND_NAMES = {
 }
 STATUS_NAMES = {"ok": "afgespeeld", "aanname": "afgespeeld met aanname", "niet": "niet afgespeeld"}
 PUBLICATION = re.compile(r"^(kst|stb|stcrt|ah|h-tk|h-ek|blg)-", re.I)
+show_origin = False  # `wet --herkomst`: print each line's origin in the text output
 
 
 class Fault(Exception):
@@ -132,7 +138,13 @@ class History:
             p += 1
         return p
 
-    def position(self, on: str | None = None, after: str | None = None) -> int:
+    def position(self, on: str | None = None, after: str | None = None, step: int | None = None) -> int:
+        if step is not None:
+            if not 0 <= step <= len(self.steps):
+                raise Fault(f"er zijn {len(self.steps)} handelingen; --stap gaat van 0 (het begin) tot {len(self.steps)}")
+            hits = [i for i, x in enumerate(self.positions) if x["steps"] == step]
+            # Step 0 is the text before the first step; step N the position of that step itself.
+            return hits[-1] if step == 0 else hits[0]
         if after:
             if after not in self.doc_pos:
                 raise Fault(f"stuk {after} staat niet in dit dossier; zie 'stukken'")
@@ -150,8 +162,36 @@ class History:
             return self.last_of(hits[-1])
         return len(self.positions) - 1
 
+    def resolve(self, spec: str) -> tuple[int, str]:
+        """A moment written as a date, a document id, or stap:N; returns the position and the check cut-off."""
+        spec = spec.strip()
+        if m := re.fullmatch(r"stap:(\d+)", spec):
+            p = self.position(step=int(m.group(1)))
+            return p, self.date_at(p)
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", spec):
+            return self.position(on=spec), spec
+        p = self.position(after=spec)
+        return p, self.date_at(p)
+
     def date_at(self, p: int) -> str:
         return self.positions[p]["moment"].get("datum") or ""
+
+    def describe(self, p: int) -> str:
+        """The moment in words: its date, and after which step when it sits inside a document."""
+        x = self.positions[p]
+        m = x["moment"]
+        what = f"stand op {self.date_at(p)}"
+        n = x["steps"]
+        if n and p != self.last_of(p):
+            s = self.steps[n - 1]
+            what += (f", na handeling {n} van {len(self.steps)} ("
+                     + self.cite(s["stuk"], *(() if self.chain else (s.get("onderdeel"), s.get("sub"))))["verwijzing"] + ")")
+        elif m.get("soort") == "stemming":
+            what += ", na de stemming"
+        elif m.get("stuk") and not self.chain:
+            # Several documents can share a day; name the one this state follows.
+            what += f", na {self.cite(m['stuk'])['verwijzing']}"
+        return what
 
     def state(self, steps: int) -> tuple[dict, list]:
         if steps not in self._cache:
@@ -218,6 +258,10 @@ class History:
 
         Checkpoints are not always moments on the timeline, so the cut-off is the
         date asked for, not the date of the moment that answers it."""
+        if self.chain:
+            # keten.py takes every version's text from wetten.overheid.nl; only the
+            # Staatsblad is replayed, as a check on the transition, not as the text.
+            return {"oordeel": "bwb", "uitleg": "dit is de tekst van wetten.overheid.nl zelf, niet afgespeeld"}
         points = [x for x in self.d.get("ijkpunten") or [] if (x.get("datum") or "") <= until]
         if not points:
             return {"oordeel": "geen ijkpunt", "uitleg": "er is op dit moment nog geen officiële tekst om mee te vergelijken"}
@@ -232,7 +276,7 @@ class History:
         return {**base, "oordeel": "wijkt af", "officieel": official,
                 "uitleg": f"wijkt af van {point.get('naam')}: de afspeling is hier niet betrouwbaar, citeer de officiële tekst"}
 
-    def notes(self, nr: str, until: str) -> list[str]:
+    def notes(self, nr: str | None, until: str) -> list[str]:
         """What the text alone does not say: the law was repealed, or a bill pending changes this article."""
         out = []
         for s in self.d["stukken"]:
@@ -242,7 +286,7 @@ class History:
             elif kind == "Aanhangig voorstel":
                 named = re.search(r"raakt artikel(?:en)?\s+(.*)$", s.get("titel") or "")
                 touched = {x.strip() for x in re.split(r",|\ben\b", named.group(1))} if named else None
-                if touched is None or nr in touched:
+                if nr is None or touched is None or nr in touched:
                     out.append(f"aanhangig: {s.get('titel')}. Bekijk het met: wetsgeschiedenis.py haal "
                                f"{self.d['dossier']} {s.get('ondernummer')}")
         return out
@@ -293,8 +337,15 @@ def lines_of(block: dict, lid: str | None) -> list:
 
 # ---------------------------------------------------------------- commands
 def until(h: History, a, p: int) -> str:
-    """The cut-off for the check: the date asked for, the moment after a document, or no limit."""
-    return a.op or (h.date_at(p) if a.na else "9999-12-31")
+    """The cut-off for the check: the date asked for, the moment after a document or step, or no limit."""
+    return a.op or (h.date_at(p) if a.na or getattr(a, "stap", None) is not None else "9999-12-31")
+
+
+def moment(h: History, a) -> int:
+    chosen = [x for x in (a.op, a.na, getattr(a, "stap", None)) if x is not None]
+    if len(chosen) > 1:
+        raise Fault("kies één moment: --op, --na of --stap")
+    return h.position(a.op, a.na, getattr(a, "stap", None))
 
 
 def find(h: History, nr: str, p: int) -> tuple[str, dict]:
@@ -339,12 +390,12 @@ def cmd_stukken(a) -> dict:
 
 def cmd_artikel(a) -> dict:
     h = History(load(a.id)[0])
-    p = h.position(a.op, a.na)
+    p = moment(h, a)
     nr = article_nr(a.nr)
     _, block = find(h, nr, p)
     lines = lines_of(block, a.lid)
     # A line's refs are a chain, oldest first: the last one wrote the current wording.
-    return {"dossier": h.d["dossier"], "artikel": nr, "lid": a.lid, "moment": h.date_at(p),
+    return {"dossier": h.d["dossier"], "artikel": nr, "lid": a.lid, "moment": h.date_at(p), "omschrijving": h.describe(p),
             "controle": h.check(nr, [x[0] for x in block["regels"]], until(h, a, p)),
             "let_op": h.notes(nr, until(h, a, p)),
             "regels": [{"tekst": t, "herkomst": [h.ref(r) for r in refs]} for t, refs, _, _ in lines]}
@@ -352,7 +403,7 @@ def cmd_artikel(a) -> dict:
 
 def cmd_herkomst(a) -> dict:
     h = History(load(a.id)[0])
-    p = h.position(a.op, a.na)
+    p = moment(h, a)
     nr = article_nr(a.nr)
     key, block = find(h, nr, p)
     lines_of(block, a.lid)  # fails early on a lid that does not exist
@@ -363,12 +414,12 @@ def cmd_herkomst(a) -> dict:
         if i > h.positions[p]["steps"]:
             break
         s = h.steps[i - 1]
-        moment = h.step_moment.get(i) or {}
+        at = h.step_moment.get(i) or {}
         if h.chain:
             # A law through time: the step is a new version from the BWB, made by
             # the bill in `onderdeel`; its status says whether the Staatsblad of
             # that bill could be replayed onto the old version as a check.
-            touched.append({"handeling": i, **h.cite(s["stuk"]), "werkt_door_op": moment.get("datum"),
+            touched.append({"handeling": i, **h.cite(s["stuk"]), "werkt_door_op": at.get("datum"),
                             "bij": "inwerkingtreding", "opdracht": s.get("opdracht"),
                             "status": "Staatsblad nagespeeld" if s["status"] == "ok" else "Staatsblad niet nagespeeld",
                             "reden": s.get("reden") if s["status"] != "ok" else None,
@@ -377,8 +428,8 @@ def cmd_herkomst(a) -> dict:
             continue
         # An amendment is filed on one day and takes effect on the day of the vote.
         touched.append({"handeling": i, **h.cite(s["stuk"], s.get("onderdeel"), s.get("sub")),
-                        "werkt_door_op": moment.get("datum"),
-                        "bij": "stemming" if moment.get("soort") == "stemming" else "indiening",
+                        "werkt_door_op": at.get("datum"),
+                        "bij": "stemming" if at.get("soort") == "stemming" else "indiening",
                         "opdracht": s.get("opdracht"), "status": STATUS_NAMES.get(s["status"], s["status"]),
                         "reden": s.get("reden") if s["status"] != "ok" else None})
     # The versions: every moment at which the article (or the lid) reads differently,
@@ -402,7 +453,7 @@ def cmd_herkomst(a) -> dict:
                 versions[-1]["datum"] = versions[-1]["door"][0]["datum"] or versions[-1]["datum"]
             last = text
         before = x["steps"]
-    return {"dossier": h.d["dossier"], "artikel": nr, "lid": a.lid, "moment": h.date_at(p),
+    return {"dossier": h.d["dossier"], "artikel": nr, "lid": a.lid, "moment": h.date_at(p), "omschrijving": h.describe(p),
             "controle": h.check(nr, [t for t, *_ in block["regels"]], until(h, a, p)),
             "let_op": h.notes(nr, until(h, a, p)) + (
                 ["een lid wordt op zijn nummer gevolgd: na een vernummering verschijnt het lid dat nu dat nummer "
@@ -430,7 +481,7 @@ def cause(h: History, x: dict, before: int, touching: list[int]) -> list[dict]:
 
 def cmd_toelichting(a) -> dict:
     h = History(load(a.id)[0])
-    p = h.position(a.op, a.na)
+    p = moment(h, a)
     if a.doelwet and a.lid:
         # `leden` in a passage refers to the bill's own articles, not to the law it amends.
         raise Fault("--lid gaat niet samen met --doelwet: de leden in de toelichting zijn die van het voorstel")
@@ -446,7 +497,7 @@ def cmd_toelichting(a) -> dict:
         if a.lid:
             lines_of(block, a.lid)  # fails early on a lid that does not exist
         chunks = [b for b in h.d["commentaar"]["brokken"] if ident in (b.get("ids") or [])]
-    explicit = a.op or a.na
+    explicit = a.op or a.na or a.stap is not None
     out = []
     for b in chunks:
         if explicit and h.doc_pos.get(b["stuk"], 0) > p:
@@ -481,6 +532,114 @@ def cmd_toelichting(a) -> dict:
         "(herkomst noemt ze) en daarna 'haal <BWB> --opbouw'"]
     return {"dossier": h.d["dossier"], "artikel": nr, "lid": a.lid, "doelwet": bool(a.doelwet),
             "toelichting": out, "niet_gekoppeld": loose, "let_op": notes}
+
+
+def cmd_wet(a) -> dict:
+    """The whole law at one moment: every block in order, every article checked."""
+    h = History(load(a.id)[0])
+    p = moment(h, a)
+    cut = until(h, a, p)
+    blocks, order = h.state(h.positions[p]["steps"])
+    out, differs, unknown = [], [], []
+    for k in order:
+        b = blocks.get(k)
+        if not b:
+            continue
+        item = {"soort": b["soort"], "nr": b.get("nr"),
+                "regels": [{"tekst": t, "herkomst": [h.ref(r)["verwijzing"] for r in refs]} for t, refs, _, _ in b.get("regels", [])]}
+        if b["soort"] == "artikel":
+            c = h.check(b["nr"], [t for t, *_ in b["regels"]], cut)
+            item["controle"] = c["oordeel"]
+            if c["oordeel"] == "wijkt af":
+                differs.append(b["nr"])
+            elif c["oordeel"] == "onbekend":
+                unknown.append(b["nr"])
+        out.append(item)
+    articles = [x for x in out if x["soort"] == "artikel"]
+    points = [x for x in h.d.get("ijkpunten") or [] if (x.get("datum") or "") <= cut]
+    return {"dossier": h.d["dossier"], "naam": h.d["naam"], "moment": h.date_at(p), "omschrijving": h.describe(p),
+            "controle": {"ijkpunt": points[-1]["naam"] if points and not h.chain else None, "bwb": h.chain,
+                         "artikelen": len(articles), "wijkt_af": differs, "onbekend": unknown},
+            "let_op": h.notes(None, cut), "blokken": out}
+
+
+def word_diff(old: str, new: str) -> str:
+    """One line, with removed words as [-…-] and added words as {+…+}."""
+    a, b = old.split(), new.split()
+    parts = []
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(a=a, b=b, autojunk=False).get_opcodes():
+        if op == "equal":
+            parts.append(" ".join(a[i1:i2]))
+        if op in ("delete", "replace"):
+            parts.append("[-" + " ".join(a[i1:i2]) + "-]")
+        if op in ("insert", "replace"):
+            parts.append("{+" + " ".join(b[j1:j2]) + "+}")
+    return " ".join(parts)
+
+
+def line_diff(old: list[str], new: list[str]) -> list[dict]:
+    """Changed lines only: removed, added, or changed (paired, with a word diff)."""
+    out = []
+    for op, i1, i2, j1, j2 in difflib.SequenceMatcher(a=[norm(x) for x in old], b=[norm(x) for x in new], autojunk=False).get_opcodes():
+        if op == "equal":
+            continue
+        pairs = min(i2 - i1, j2 - j1) if op == "replace" else 0
+        for k in range(pairs):
+            out.append({"soort": "gewijzigd", "oud": old[i1 + k], "nieuw": new[j1 + k], "verschil": word_diff(old[i1 + k], new[j1 + k])})
+        out += [{"soort": "weg", "oud": x} for x in old[i1 + pairs:i2]]
+        out += [{"soort": "nieuw", "nieuw": x} for x in new[j1 + pairs:j2]]
+    return out
+
+
+def step_status(h: History, s: dict) -> str:
+    """In a law through time the status is about the Staatsblad check; the text is the BWB's either way."""
+    if h.chain:
+        return "Staatsblad nagespeeld" if s["status"] == "ok" else "Staatsblad niet nagespeeld; de tekst is die van wetten.overheid.nl"
+    return STATUS_NAMES.get(s["status"], s["status"])
+
+
+def cmd_vergelijk(a) -> dict:
+    """What changed between two moments, per article, with the documents that changed it.
+
+    Articles are matched by identity, so a renumbered article is one change, not a removal and an addition."""
+    h = History(load(a.id)[0])
+    p_from, _ = h.resolve(a.van)
+    p_to, cut = h.resolve(a.tot) if a.tot else (len(h.positions) - 1, "9999-12-31")
+    s_from, s_to = h.positions[p_from]["steps"], h.positions[p_to]["steps"]
+    if s_from > s_to:
+        raise Fault(f"--van ({h.describe(p_from)}) ligt na --tot ({h.describe(p_to)})")
+
+    def articles(steps):
+        blocks, order = h.state(steps)
+        return {h.identity(k): blocks[k] for k in order if blocks.get(k) and blocks[k]["soort"] == "artikel"}
+
+    old, new = articles(s_from), articles(s_to)
+    order = list(new) + [i for i in old if i not in new]
+    if a.nr:
+        nr = article_nr(a.nr)
+        hit = [i for i in order if (new.get(i) or old.get(i))["nr"] == nr]
+        if not hit:
+            raise Fault(f"artikel {nr} bestaat op geen van beide momenten")
+        order = hit[:1]
+    changes = []
+    for ident in order:
+        before, after = old.get(ident), new.get(ident)
+        lines_old = [t for t, *_ in before["regels"]] if before else []
+        lines_new = [t for t, *_ in after["regels"]] if after else []
+        diff = line_diff(lines_old, lines_new)
+        renumbered = bool(before and after and before["nr"] != after["nr"])
+        if not diff and not renumbered:
+            continue
+        steps = [i for i in h.steps_touching(ident) if s_from < i <= s_to]
+        changes.append({
+            "artikel": (after or before)["nr"], "was": before["nr"] if renumbered else None,
+            "wat": "nieuw" if not before else "vervallen" if not after else "gewijzigd",
+            "door": [{**h.cite(h.steps[i - 1]["stuk"], *(() if h.chain else (h.steps[i - 1].get("onderdeel"), h.steps[i - 1].get("sub")))),
+                      "status": step_status(h, h.steps[i - 1])} for i in steps],
+            "controle": h.check(after["nr"], lines_new, cut)["oordeel"] if after else None,
+            "regels": diff})
+    return {"dossier": h.d["dossier"], "van": h.describe(p_from), "tot": h.describe(p_to), "artikel": a.nr and article_nr(a.nr),
+            "wijzigingen": changes, "let_op": h.notes(article_nr(a.nr) if a.nr else None, cut)}
 
 
 def cmd_haal(a) -> dict:
@@ -606,6 +765,47 @@ def render(cmd: str, x: dict) -> str:
             w("\n## Niet gekoppeld, maar noemt dit artikel")
             for t in x["niet_gekoppeld"]:
                 w(f"- {t['verwijzing']} ({t['reden']}): {t['tekst'][:500]}")
+    elif cmd == "wet":
+        c = x["controle"]
+        w(f"# {x['naam']} ({x['dossier']}) — {x['omschrijving']}")
+        if c["bwb"]:
+            w("Dit is de tekst van wetten.overheid.nl zoals die toen gold; zij is overgenomen, niet afgespeeld.")
+        elif c["ijkpunt"]:
+            w(f"Controle tegen {c['ijkpunt']}: {c['artikelen'] - len(c['wijkt_af']) - len(c['onbekend'])} van de "
+              f"{c['artikelen']} artikelen gelijk."
+              + (f" Wijkt af (citeer de officiële tekst, zie 'artikel'): {', '.join(c['wijkt_af'])}." if c["wijkt_af"] else "")
+              + (f" Niet in het ijkpunt: {', '.join(c['onbekend'])}." if c["onbekend"] else ""))
+        else:
+            w("Controle: er is op dit moment nog geen officiële tekst om mee te vergelijken.")
+        notes(w, x)
+        for b in x["blokken"]:
+            w("")
+            for r in b["regels"]:
+                w(r["tekst"] + (f"  ⟨{' → '.join(r['herkomst'])}⟩" if show_origin and r["herkomst"] else ""))
+            if b.get("controle") == "wijkt af":
+                w("  ⚠ wijkt af van het ijkpunt")
+    elif cmd == "vergelijk":
+        w(f"# Dossier {x['dossier']}" + (f", artikel {x['artikel']}" if x["artikel"] else "")
+          + f": van {x['van']} tot {x['tot']}")
+        notes(w, x)
+        if not x["wijzigingen"]:
+            w("Geen verschil.")
+        for c in x["wijzigingen"]:
+            title = f"Artikel {c['artikel']}" + (f" (was {c['was']})" if c["was"] else "")
+            w(f"\n## {title} — {c['wat']}")
+            for d in c["door"]:
+                w(f"  door {d['verwijzing']} ({d['status']})")
+            if not c["door"]:
+                w("  door: geen handeling gevonden die dit artikel noemt")
+            if c["controle"] == "wijkt af":
+                w("  ⚠ de nieuwe tekst wijkt af van het ijkpunt: dit verschil is uit de afspeling, niet uit de officiële tekst")
+            for r in c["regels"]:
+                if r["soort"] == "gewijzigd":
+                    w(f"  ~ {r['verschil']}")
+                elif r["soort"] == "weg":
+                    w(f"  - {r['oud']}")
+                else:
+                    w(f"  + {r['nieuw']}")
     elif cmd == "haal":
         w(f"{x['naam']} ({x['dossier']}) opgeslagen in {x['opgeslagen']}")
         w(render_quality(x["kwaliteit"]))
@@ -621,7 +821,8 @@ def head(x: dict) -> str:
     what = f"artikel {x['artikel']}" + (f", lid {x['lid']}" if x.get("lid") else "")
     if x.get("doelwet"):
         what = f"artikel {x['artikel']} van de gewijzigde wet"
-    return f"# Dossier {x['dossier']}, {what}" + (f" — stand op {x['moment']}" if x.get("moment") else "")
+    when = x.get("omschrijving") or (f"stand op {x['moment']}" if x.get("moment") else "")
+    return f"# Dossier {x['dossier']}, {what}" + (f" — {when}" if when else "")
 
 
 def render_quality(q: dict) -> str:
@@ -637,15 +838,24 @@ def parser() -> argparse.ArgumentParser:
     sub.add_parser("lijst")
     s = sub.add_parser("stukken")
     s.add_argument("id")
-    for name in ("artikel", "herkomst", "toelichting"):
+    for name in ("artikel", "herkomst", "toelichting", "wet"):
         s = sub.add_parser(name)
         s.add_argument("id")
-        s.add_argument("nr", nargs="?" if name == "toelichting" else None)
-        s.add_argument("--lid")
+        if name != "wet":
+            s.add_argument("nr", nargs="?" if name == "toelichting" else None)
+            s.add_argument("--lid")
         s.add_argument("--op", help="datum (JJJJ-MM-DD): de stand op die dag")
         s.add_argument("--na", help="stuk (kst-…): de stand direct na dat stuk")
+        s.add_argument("--stap", type=int, help="handeling N: de stand direct na die handeling (0 is het begin)")
         if name == "toelichting":
             s.add_argument("--doelwet", help="artikel van de wet die het voorstel wijzigt")
+        if name == "wet":
+            s.add_argument("--herkomst", action="store_true", help="per regel de keten van stukken erbij")
+    s = sub.add_parser("vergelijk")
+    s.add_argument("id")
+    s.add_argument("nr", nargs="?", help="één artikel; zonder: de hele wet")
+    s.add_argument("--van", required=True, help="moment: datum, stuk (kst-…/versie-…) of stap:N")
+    s.add_argument("--tot", help="moment als bij --van; zonder: de laatste stand")
     s = sub.add_parser("haal")
     s.add_argument("id", help="BWB-id of dossiernummer")
     s.add_argument("dossier", nargs="?", help="dossiernummer bij een BWB-id")
@@ -658,7 +868,9 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str]) -> int:
     a = parser().parse_args(argv)
-    if a.cmd in ("artikel", "herkomst", "toelichting") and a.op and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", a.op):
+    global show_origin
+    show_origin = bool(getattr(a, "herkomst", False))
+    if a.cmd in ("artikel", "herkomst", "toelichting", "wet") and a.op and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", a.op):
         print("fout: --op wil een datum als JJJJ-MM-DD", file=sys.stderr)
         return 2
     try:

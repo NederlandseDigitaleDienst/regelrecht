@@ -81,7 +81,8 @@ def fixture():
 
 
 def args(**kw):
-    base = {"id": "12345", "nr": "1", "lid": None, "op": None, "na": None, "doelwet": None}
+    base = {"id": "12345", "nr": "1", "lid": None, "op": None, "na": None, "stap": None, "doelwet": None,
+            "van": None, "tot": None, "herkomst": False}
     return Namespace(**{**base, **kw})
 
 
@@ -268,6 +269,86 @@ class Toelichting(WithFixture):
         self.assertTrue(x["doelwet"])
 
 
+class Moments(WithFixture):
+    def test_stap_zero_is_the_bill_and_stap_one_is_after_the_nota(self):
+        self.assertEqual(wg.cmd_artikel(args(stap=0))["regels"][1]["tekst"], LID1[0])
+        self.assertEqual(wg.cmd_artikel(args(stap=1))["regels"][1]["tekst"], LID1_NEW[0])
+
+    def test_a_step_inside_a_document_is_described_as_that_step(self):
+        data = fixture()
+        data["momenten"][3]["stappen"] = [1, 2]
+        del data["momenten"][5]["stappen"]
+        self.write(data)
+        self.assertIn("na handeling 1 van 2 (Kamerstuk 12345, nr. 8, onderdeel A)", wg.cmd_artikel(args(stap=1))["omschrijving"])
+
+    def test_documents_on_the_same_day_are_told_apart(self):
+        self.assertTrue(wg.cmd_artikel(args(na="kst-12345-3"))["omschrijving"].endswith("na Kamerstuk 12345, nr. 3"))
+
+    def test_one_moment_only(self):
+        with self.assertRaisesRegex(wg.Fault, "kies één moment"):
+            wg.cmd_artikel(args(op="2020-03-01", stap=1))
+
+    def test_a_step_out_of_range_says_the_range(self):
+        with self.assertRaisesRegex(wg.Fault, "van 0 .* tot 2"):
+            wg.cmd_artikel(args(stap=3))
+
+
+class Wet(WithFixture):
+    def test_the_whole_law_at_a_moment_with_the_check_per_article(self):
+        x = wg.cmd_wet(args(id="12345"))
+        self.assertEqual([b["nr"] for b in x["blokken"]], ["1"])
+        self.assertEqual((x["controle"]["ijkpunt"], x["controle"]["wijkt_af"]), ("Staatsblad 2021, 1", ["1"]))
+
+    def test_before_the_checkpoint_there_is_nothing_to_check_against(self):
+        x = wg.cmd_wet(args(id="12345", op="2020-03-01"))
+        self.assertIsNone(x["controle"]["ijkpunt"])
+        self.assertEqual(x["blokken"][0]["regels"][1]["tekst"], LID1[0])
+
+    def test_herkomst_flag_prints_the_origin_in_the_text(self):
+        wg.show_origin = True
+        try:
+            out = wg.render("wet", wg.cmd_wet(args(id="12345")))
+        finally:
+            wg.show_origin = False
+        self.assertIn("⟨Kamerstuk 12345, nr. 8, onderdeel A⟩", out)
+
+
+class Vergelijk(WithFixture):
+    def test_a_changed_line_is_shown_word_by_word_with_the_document_that_changed_it(self):
+        x = wg.cmd_vergelijk(args(van="stap:0", tot="stap:1"))
+        (c,) = x["wijzigingen"]
+        self.assertEqual((c["wat"], [d["verwijzing"] for d in c["door"]]), ("gewijzigd", ["Kamerstuk 12345, nr. 8, onderdeel A"]))
+        self.assertEqual(c["regels"], [{"soort": "gewijzigd", "oud": LID1[0], "nieuw": LID1_NEW[0],
+                                        "verschil": "1. Deze wet geldt voor [-A.-] {+A en C.+}"}])
+
+    def test_moments_may_be_dates_documents_or_steps(self):
+        by_date = wg.cmd_vergelijk(args(van="2020-03-01", tot="2020-07-01"))["wijzigingen"]
+        by_doc = wg.cmd_vergelijk(args(van="kst-12345-3", tot="kst-12345-8"))["wijzigingen"]
+        self.assertEqual(by_date, by_doc)
+
+    def test_nothing_changed_is_an_empty_answer(self):
+        self.assertEqual(wg.cmd_vergelijk(args(van="stap:1", tot="stap:2"))["wijzigingen"], [])
+
+    def test_an_inserted_article_is_new(self):
+        data = fixture()
+        data["stappen"][0]["wijzig"]["b2"] = {"soort": "artikel", "nr": "1a", "regels": [["Artikel 1a. Nieuw", [1], 0, "kop"]]}
+        data["stappen"][0]["volgorde"] = ["b1", "b2"]
+        self.write(data)
+        kinds = {c["artikel"]: c["wat"] for c in wg.cmd_vergelijk(args(nr=None, van="stap:0", tot="stap:1"))["wijzigingen"]}
+        self.assertEqual(kinds, {"1": "gewijzigd", "1a": "nieuw"})
+
+    def test_a_renumbered_article_is_one_change_that_names_its_old_number(self):
+        data = fixture()
+        data["stappen"][0]["wijzig"]["b1"]["nr"] = "2"
+        self.write(data)
+        (c,) = wg.cmd_vergelijk(args(nr=None, van="stap:0", tot="stap:1"))["wijzigingen"]
+        self.assertEqual((c["artikel"], c["was"], c["wat"]), ("2", "1", "gewijzigd"))
+
+    def test_from_after_to_is_refused(self):
+        with self.assertRaisesRegex(wg.Fault, "ligt na --tot"):
+            wg.cmd_vergelijk(args(van="stap:2", tot="stap:0"))
+
+
 class Errors(WithFixture):
     def run_cli(self, *argv):
         out, err = io.StringIO(), io.StringIO()
@@ -388,6 +469,16 @@ class Chain(WithFixture):
         self.assertEqual([x["datum"] for x in v], ["2010-01-01", "2015-01-01"])
         self.assertEqual(v[1]["door"][0]["verwijzing"], "Wet van 2014, Stb. 2014, 9")
 
+    def test_a_version_is_the_bwb_text_itself_not_a_replay(self):
+        self.assertEqual(wg.cmd_artikel(self.a(op="2012-01-01"))["controle"]["oordeel"], "bwb")
+        self.assertTrue(wg.cmd_wet(self.a(op="2012-01-01"))["controle"]["bwb"])
+
+    def test_comparing_versions_names_the_act_and_the_staatsblad_check(self):
+        (c,) = wg.cmd_vergelijk(self.a(van="2012-01-01", tot="2016-01-01"))["wijzigingen"]
+        self.assertEqual(c["door"][0]["verwijzing"], "Wet van 2014, Stb. 2014, 9")
+        self.assertEqual(c["door"][0]["status"], "Staatsblad nagespeeld")
+        self.assertEqual(c["regels"][0]["verschil"], "2 Zij geldt ook [-hier.-] {+daar.+}")
+
     def test_the_fetch_hint_includes_the_rebuild(self):
         out = wg.render("herkomst", wg.cmd_herkomst(self.a()))
         self.assertIn("haal BWBR0000001 33333, daarna wetsgeschiedenis.py haal BWBR0000001 --opbouw", out)
@@ -402,6 +493,11 @@ class Bundled(unittest.TestCase):
             if not wg.valid_id(path.stem):
                 continue
             h = wg.History(json.loads(path.read_text(encoding="utf-8")))
+            # The whole law, and everything that changed from the first text to the last.
+            wg.render("wet", wg.cmd_wet(args(id=path.stem)))
+            changed = wg.cmd_vergelijk(args(id=path.stem, nr=None, van="stap:0"))["wijzigingen"]
+            wg.render("vergelijk", {"dossier": path.stem, "artikel": None, "van": "", "tot": "", "wijzigingen": changed})
+            self.assertEqual(bool(changed), any(s["wijzig"] or s["weg"] for s in h.steps), path.stem)
             blocks, order = h.state(h.positions[-1]["steps"])
             keys = [k for k in order if blocks[k]["soort"] == "artikel"]
             self.assertTrue(keys, path.name)
