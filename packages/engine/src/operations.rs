@@ -37,7 +37,8 @@ use crate::article::{ActionOperation, ActionValue, Case, CombineOp, foreach_bind
 use crate::config::MAX_NUMBER_BITS;
 use crate::context::RuleContext;
 use crate::error::{EngineError, Result};
-use crate::types::{PathNodeType, Value};
+use crate::signatures::{self, Kind, Signature};
+use crate::types::{Operation, PathNodeType, Value};
 use chrono::{Datelike, NaiveDate};
 use regelrecht_law_model::{Date, Number, Rounding, stored};
 use std::cmp::Ordering;
@@ -406,10 +407,10 @@ fn execute_operation_internal<R: ValueResolver>(
 
         // Aggregate
         ActionOperation::Max { values } => {
-            execute_aggregate(values, resolver, depth, "MAX", Number::max)
+            execute_aggregate(values, resolver, depth, Operation::Max, Number::max)
         }
         ActionOperation::Min { values } => {
-            execute_aggregate(values, resolver, depth, "MIN", Number::min)
+            execute_aggregate(values, resolver, depth, Operation::Min, Number::min)
         }
 
         // Rounding (RFC-024)
@@ -625,20 +626,31 @@ fn execute_equality<R: ValueResolver>(
 /// it never keeps apart two values `EQUALS` calls equal. The caller has
 /// already dealt with an Unknown or Untranslatable anywhere inside.
 fn equal_by_value(a: &Value, b: &Value, op_name: &str) -> Result<bool> {
+    // An absence equals an absence and nothing else (RFC-036).
+    if a.is_null() || b.is_null() {
+        return Ok(a.is_null() && b.is_null());
+    }
+    let kinds = comparison_kinds(a, b, op_name, false)?;
+    signatures::matching_among(signatures::signatures(Operation::Equals), op_name, &kinds)?;
+    match (a, b) {
+        _ if kinds == [Kind::Date, Kind::Date] => Ok(parse_date(a)? == parse_date(b)?),
+        (Value::Object(_), Value::Object(_)) | (Value::Array(_), Value::Array(_)) => {
+            compound_equal(a, b, op_name)
+        }
+        _ => Ok(values_equal(a, b)),
+    }
+}
+
+/// Equality as `combine: DISTINCT` has it until the signatures of the
+/// collection operations land: values of different kinds are different
+/// values, not an error.
+fn equal_for_distinct(a: &Value, b: &Value, op_name: &str) -> Result<bool> {
     let equal = match (a, b) {
         (Value::Object(_), Value::Object(_)) | (Value::Array(_), Value::Array(_)) => {
             compound_equal(a, b, op_name)?
         }
         _ => values_equal(a, b),
     };
-    // Date-aware fallback, scoped to the mixed form (a string against an `{iso}`
-    // object): the one date pairing structural equality can never match. Two
-    // canonical date strings are equal structurally exactly when they are equal
-    // chronologically, and object↔object stays structural so arbitrary objects
-    // sharing an `iso` field do not become equal (RFC-021). A side that fails to
-    // parse as a date leaves the structural verdict untouched. Scoped to EQUALS and
-    // FOREACH combine DISTINCT; membership and other structural comparisons keep
-    // their existing semantics.
     if !equal
         && is_mixed_date_pair(a, b)
         && let (Ok(a_date), Ok(b_date)) = (parse_date(a), parse_date(b))
@@ -646,6 +658,47 @@ fn equal_by_value(a: &Value, b: &Value, op_name: &str) -> Result<bool> {
         return Ok(a_date == b_date);
     }
     Ok(equal)
+}
+
+/// The kinds of the two operands of a comparison, once a date has made a
+/// date of what stands beside it (RFC-055, conversions 1 to 3): a string in
+/// the form `YYYY-MM-DD`, and the `{iso}` object of a reference date.
+///
+/// A date is at hand when an operand is a date value or a reference date.
+/// For an ordering (`ordering`) two strings in the form of a date are two
+/// dates as well; for `EQUALS` two strings stay strings, and two objects
+/// stay objects, so objects that merely share an `iso` field do not become
+/// equal (RFC-021).
+///
+/// # Errors
+///
+/// [`EngineError::InvalidDate`] for a string that is no date beside a date.
+fn comparison_kinds(a: &Value, b: &Value, op_name: &str, ordering: bool) -> Result<Vec<Kind>> {
+    let reads_as_day = |value: &Value| parse_date(value).is_ok();
+    let is_day = |value: &Value| {
+        matches!(value, Value::Date(_))
+            || (matches!(value, Value::Object(_)) && reads_as_day(value))
+    };
+    let both_objects = matches!((a, b), (Value::Object(_), Value::Object(_)));
+    let both_date_strings = matches!((a, b), (Value::String(_), Value::String(_)))
+        && reads_as_day(a)
+        && reads_as_day(b);
+    let dated = ((is_day(a) || is_day(b)) && (ordering || !both_objects))
+        || (ordering && both_date_strings);
+    if !dated {
+        return Ok(kinds_of([a, b]));
+    }
+    [a, b]
+        .into_iter()
+        .filter_map(|operand| match operand {
+            operand if reads_as_day(operand) => Some(Ok(Kind::Date)),
+            Value::String(text) => Some(Err(EngineError::InvalidDate(format!(
+                "{op_name} compares '{text}' with a date, and it is not a date in the form \
+                 YYYY-MM-DD"
+            )))),
+            other => Kind::of(other).map(Ok),
+        })
+        .collect()
 }
 
 /// `EQUALS` on two lists or two records: structural, with the numbers inside
@@ -719,51 +772,21 @@ where
         return Err(absent_operand(op_name));
     }
 
-    // Numbers first: the common case and the historical behavior.
-    if is_numeric(&subject_val) && is_numeric(&value_val) {
-        let subject_num = to_decimal(&subject_val)?;
-        let value_num = to_decimal(&value_val)?;
-        return Ok(Value::Bool(satisfies(subject_num.cmp(&value_num))));
-    }
-
-    // Dates: only when BOTH operands parse as ISO dates, so a mismatch
-    // (e.g. number vs date) surfaces as a clear error rather than a silent coercion.
-    let subject_date = parse_date(&subject_val);
-    let value_date = parse_date(&value_val);
-    if let (Ok(subject_date), Ok(value_date)) = (&subject_date, &value_date) {
-        return Ok(Value::Bool(satisfies(subject_date.cmp(value_date))));
-    }
-
-    // Neither a numeric pair nor a date pair. Point the error at what actually
-    // went wrong: a number against a date is a mixed pair (each operand is fine
-    // on its own), otherwise blame the operand that is neither number nor date.
-    let subject_kind = comparable_kind(&subject_val, subject_date.is_ok());
-    let value_kind = comparable_kind(&value_val, value_date.is_ok());
-    match (subject_kind, value_kind) {
-        (Some(subject_kind), Some(value_kind)) => Err(EngineError::TypeMismatch {
-            expected: "two numbers or two dates".to_string(),
-            actual: format!("a {subject_kind} compared against a {value_kind}"),
-        }),
-        (Some(_), None) => Err(type_error("number or date", &value_val)),
-        _ => Err(type_error("number or date", &subject_val)),
-    }
-}
-
-/// The comparable kind of an operand, for error reporting: `number`, `date`,
-/// or `None` when it is neither.
-fn comparable_kind(val: &Value, parses_as_date: bool) -> Option<&'static str> {
-    if is_numeric(val) {
-        Some("number")
-    } else if parses_as_date {
-        Some("date")
+    // Two numbers or two dates, and nothing else (RFC-055). A date makes a
+    // date of the string or the reference date beside it, and two strings
+    // in the form of a date order as dates.
+    let kinds = comparison_kinds(&subject_val, &value_val, op_name, true)?;
+    signatures::matching_among(
+        signatures::signatures(Operation::GreaterThan),
+        op_name,
+        &kinds,
+    )?;
+    let ordering = if kinds == [Kind::Number, Kind::Number] {
+        to_decimal(&subject_val)?.cmp(&to_decimal(&value_val)?)
     } else {
-        None
-    }
-}
-
-/// Whether a value is a number (Int or Decimal) for comparison dispatch.
-fn is_numeric(val: &Value) -> bool {
-    matches!(val, Value::Int(_) | Value::Decimal(_))
+        parse_date(&subject_val)?.cmp(&parse_date(&value_val)?)
+    };
+    Ok(Value::Bool(satisfies(ordering)))
 }
 
 // =============================================================================
@@ -808,6 +831,9 @@ pub(crate) fn add_values(evaluated: &[Value]) -> Result<Value> {
     if let Some(tainted) = find_untranslatable(evaluated) {
         return Ok(tainted);
     }
+    // Numbers add, strings and arrays join, and nothing else is defined: a
+    // date and a string do not make a text (RFC-055).
+    require_signature(Operation::Add, evaluated)?;
 
     // Determine type from first value
     match &evaluated[0] {
@@ -827,9 +853,7 @@ pub(crate) fn add_values(evaluated: &[Value]) -> Result<Value> {
             }
             Ok(Value::Array(result))
         }
-        // A date joins as its text, as it did when it was a string. RFC-055
-        // makes this an error; that rule lands with the signature table.
-        Value::String(_) | Value::Date(_) => {
+        Value::String(_) => {
             // Concatenate strings
             let mut result = String::new();
             for val in evaluated {
@@ -921,6 +945,7 @@ fn execute_subtract<R: ValueResolver>(
         return Ok(unknown);
     }
     reject_null("SUBTRACT", &evaluated)?;
+    require_signature(Operation::Subtract, &evaluated)?;
 
     // SAFETY: values guaranteed non-empty by check above
     let Some((first, rest)) = evaluated.split_first() else {
@@ -962,6 +987,7 @@ fn execute_multiply<R: ValueResolver>(
         return Ok(unknown);
     }
     reject_null("MULTIPLY", &evaluated)?;
+    require_signature(Operation::Multiply, &evaluated)?;
 
     let mut result = Number::one();
     let mut has_decimal = false;
@@ -1005,6 +1031,7 @@ fn execute_divide<R: ValueResolver>(
         return Ok(unknown);
     }
     reject_null("DIVIDE", &evaluated)?;
+    require_signature(Operation::Divide, &evaluated)?;
 
     // SAFETY: values guaranteed non-empty by check above
     let Some((first, rest)) = evaluated.split_first() else {
@@ -1032,7 +1059,7 @@ fn execute_aggregate<R: ValueResolver, F>(
     values: &[ActionValue],
     resolver: &R,
     depth: usize,
-    op_name: &str,
+    operation: Operation,
     combine: F,
 ) -> Result<Value>
 where
@@ -1049,10 +1076,11 @@ where
     if let Some(tainted) = find_untranslatable(&evaluated) {
         return Ok(tainted);
     }
-    if let Some(unknown) = propagate_unknown(resolver, "MIN/MAX", &evaluated) {
+    if let Some(unknown) = propagate_unknown(resolver, operation.name(), &evaluated) {
         return Ok(unknown);
     }
-    reject_null("MIN/MAX", &evaluated)?;
+    reject_null(operation.name(), &evaluated)?;
+    require_signature(operation, &evaluated)?;
 
     let mut has_decimal = false;
     let nums: Vec<Number> = evaluated
@@ -1070,7 +1098,7 @@ where
         unreachable!("values checked non-empty above")
     };
 
-    int_or_decimal_result(op_name, result, has_decimal)
+    int_or_decimal_result(operation.name(), result, has_decimal)
 }
 
 // =============================================================================
@@ -1114,17 +1142,19 @@ fn execute_rounding<R: ValueResolver>(
     if evaluated.is_untranslatable() {
         return Ok(evaluated);
     }
-    let op_name = match mode {
-        RoundMode::Round => "ROUND",
-        RoundMode::Ceil => "CEIL",
-        RoundMode::Floor => "FLOOR",
+    let operation = match mode {
+        RoundMode::Round => Operation::Round,
+        RoundMode::Ceil => Operation::Ceil,
+        RoundMode::Floor => Operation::Floor,
     };
+    let op_name = operation.name();
     // Rounding an unknown amount is unknown; rounding an absence is an error
     // (RFC-036): "geen" is not an amount to round.
     if let Some(unknown) = propagate_unknown(resolver, op_name, [&evaluated]) {
         return Ok(unknown);
     }
     reject_null(op_name, [&evaluated])?;
+    require_signature(operation, std::slice::from_ref(&evaluated))?;
     let operand = to_decimal(&evaluated)?;
     let rounded = round_decimal(&operand, precision, mode)?;
     // Mirror the arithmetic ops: an integral result returns `Int`, otherwise `Decimal`.
@@ -1189,13 +1219,13 @@ fn execute_and<R: ValueResolver>(
             unknowns.push(val);
             continue;
         }
-        // Definitive false wins over taint and unknown (AND commutativity)
-        if !val.to_bool() && !val.is_untranslatable() {
-            return Ok(Value::Bool(false));
-        }
-        if val.is_untranslatable() && taint.is_none() {
-            taint = Some(val);
+        if val.is_untranslatable() {
+            taint.get_or_insert(val);
             continue;
+        }
+        // Definitive false wins over taint and unknown (AND commutativity)
+        if !verdict(signatures::signatures(Operation::And), "AND", &val)? {
+            return Ok(Value::Bool(false));
         }
         if let Some(ref mut r) = results {
             r.push(val);
@@ -1243,12 +1273,13 @@ fn execute_or<R: ValueResolver>(
             unknowns.push(val);
             continue;
         }
-        // Definitive true wins over taint and unknown (OR commutativity)
-        if val.to_bool() {
-            return Ok(Value::Bool(true));
+        if val.is_untranslatable() {
+            taint.get_or_insert(val);
+            continue;
         }
-        if val.is_untranslatable() && taint.is_none() {
-            taint = Some(val);
+        // Definitive true wins over taint and unknown (OR commutativity)
+        if verdict(signatures::signatures(Operation::Or), "OR", &val)? {
+            return Ok(Value::Bool(true));
         }
     }
 
@@ -1283,7 +1314,11 @@ fn execute_not<R: ValueResolver>(value: &ActionValue, resolver: &R, depth: usize
     if val.is_null() {
         return Err(absent_operand("NOT"));
     }
-    Ok(Value::Bool(!val.to_bool()))
+    Ok(Value::Bool(!verdict(
+        signatures::signatures(Operation::Not),
+        "NOT",
+        &val,
+    )?))
 }
 
 // =============================================================================
@@ -1332,7 +1367,7 @@ fn execute_if<R: ValueResolver>(
             return Err(absent_operand("IF"));
         }
 
-        if condition_result.to_bool() {
+        if verdict(signatures::condition(), "IF", &condition_result)? {
             if tracing {
                 resolver.trace_push("THEN", PathNodeType::Operation);
             }
@@ -1698,7 +1733,7 @@ fn evaluate_iteration(
         if verdict.is_null() {
             return Err(absent_operand("FOREACH filter"));
         }
-        if !verdict.to_bool() {
+        if !self::verdict(signatures::condition(), "FOREACH filter", &verdict)? {
             return Ok(IterationOutcome::Skipped);
         }
     }
@@ -1771,7 +1806,11 @@ fn combine_or(results: &[Value]) -> Result<Value> {
             unknowns.push(v.clone());
             continue;
         }
-        if v.to_bool() {
+        if verdict(
+            signatures::combine_signatures(CombineOp::Or),
+            "FOREACH combine OR",
+            v,
+        )? {
             return Ok(Value::Bool(true));
         }
     }
@@ -1800,7 +1839,11 @@ fn combine_and(results: &[Value]) -> Result<Value> {
             unknowns.push(v.clone());
             continue;
         }
-        if !v.to_bool() {
+        if !verdict(
+            signatures::combine_signatures(CombineOp::And),
+            "FOREACH combine AND",
+            v,
+        )? {
             return Ok(Value::Bool(false));
         }
     }
@@ -1862,7 +1905,7 @@ fn combine_distinct(results: Vec<Value>) -> Result<Value> {
     for result in results {
         let mut seen = false;
         for kept in &unique {
-            if equal_by_value(kept, &result, "FOREACH combine DISTINCT")? {
+            if equal_for_distinct(kept, &result, "FOREACH combine DISTINCT")? {
                 seen = true;
                 break;
             }
@@ -2533,6 +2576,38 @@ fn evaluate_values<R: ValueResolver>(
         .collect()
 }
 
+/// The kinds of the operands, for the error that names them. An operand
+/// without a kind (`null`, unknown, untranslatable) has been dealt with
+/// before an operation looks at kinds, and is left out.
+fn kinds_of<'a>(values: impl IntoIterator<Item = &'a Value>) -> Vec<Kind> {
+    values.into_iter().filter_map(Kind::of).collect()
+}
+
+/// Hold the operands of `operation` against its signatures (RFC-055).
+///
+/// The caller has dealt with `null`, unknown and untranslatable operands
+/// first; should one still be among them, the check is left to the handler.
+fn require_signature(operation: Operation, operands: &[Value]) -> Result<()> {
+    let kinds = kinds_of(operands);
+    if kinds.len() == operands.len() {
+        signatures::matching(operation, &kinds)?;
+    }
+    Ok(())
+}
+
+/// A condition as the boolean it has to be (RFC-055): `rows` are the
+/// signatures of the place it stands in, and `name` is how an error names
+/// that place. Any other value matches no row: a count is not a verdict.
+fn verdict(rows: &[Signature], name: &str, value: &Value) -> Result<bool> {
+    signatures::matching_among(rows, name, &kinds_of([value]))?;
+    match value {
+        Value::Bool(verdict) => Ok(*verdict),
+        // The rows of a condition take booleans only, so nothing else gets
+        // here; say so rather than guess a verdict.
+        other => Err(signatures::unsupported(name, &kinds_of([other]))),
+    }
+}
+
 /// Convert a Value to an exact [`Number`].
 ///
 /// Integers widen losslessly (no ±2^53 limit), so financial/legal
@@ -3194,10 +3269,8 @@ mod tests {
         fn rounding_rejects_non_number() {
             let resolver = TestResolver::new();
             let op = round_op(lit("not a number"), 0);
-            assert!(matches!(
-                execute_operation(&op, &resolver, 0),
-                Err(EngineError::TypeMismatch { .. })
-            ));
+            let err = execute_operation(&op, &resolver, 0).unwrap_err();
+            assert_eq!(err.to_string(), "ROUND is not defined for (string)");
         }
 
         #[test]
@@ -3623,14 +3696,36 @@ mod tests {
         use super::*;
 
         #[test]
-        fn test_type_mismatch_in_arithmetic() {
+        fn test_arithmetic_on_mixed_types_matches_no_signature() {
             let resolver = TestResolver::new();
             let op = ActionOperation::Add {
                 values: vec![lit(10i64), lit("not a number")],
             };
-
-            let result = execute_operation(&op, &resolver, 0);
-            assert!(matches!(result, Err(EngineError::TypeMismatch { .. })));
+            let err = execute_operation(&op, &resolver, 0).unwrap_err();
+            assert_eq!(err.to_string(), "ADD is not defined for (number, string)");
+            for op in [
+                ActionOperation::Subtract {
+                    values: vec![lit(10i64), lit("2")],
+                },
+                ActionOperation::Multiply {
+                    values: vec![lit(true), lit(2i64)],
+                },
+                ActionOperation::Divide {
+                    values: vec![lit("10"), lit(2i64)],
+                },
+                ActionOperation::Max {
+                    values: vec![lit(1i64), lit("2")],
+                },
+            ] {
+                assert!(
+                    matches!(
+                        execute_operation(&op, &resolver, 0),
+                        Err(EngineError::UnsupportedOperation { .. })
+                    ),
+                    "{}",
+                    op.operation_name()
+                );
+            }
         }
 
         #[test]
@@ -4055,6 +4150,8 @@ mod tests {
 
         #[test]
         fn test_foreach_combine_distinct_does_not_equate_values_of_different_types() {
+            // Unchanged until the signatures of the collection operations
+            // land: DISTINCT keeps values of different kinds apart.
             let result = distinct_of(vec![s("1"), Value::Int(1), Value::Bool(true)]).unwrap();
             assert_eq!(
                 result,
@@ -4777,6 +4874,49 @@ mod tests {
             };
             let result = execute_operation(&op, &context, 0).unwrap();
             assert_eq!(result.missing_facts(), onbekend.missing_facts());
+        }
+
+        #[test]
+        fn test_foreach_filter_and_boolean_combines_take_booleans_only() {
+            // RFC-055: a filter that gives a count instead of a verdict is
+            // reported, where it used to filter on non-zero.
+            let context = ctx(vec![(
+                "items",
+                Value::Array(vec![obj(vec![
+                    ("aantal", Value::Int(2)),
+                    ("ja", Value::Bool(true)),
+                ])]),
+            )]);
+            let foreach = |body: &str, filter: Option<&str>, combine| ActionOperation::Foreach {
+                collection: var("items"),
+                as_name: Some("x".to_string()),
+                body: var(body),
+                filter: filter.map(var),
+                combine,
+            };
+            for (op, message) in [
+                (
+                    foreach("x.ja", Some("x.aantal"), None),
+                    "FOREACH filter is not defined for (number)",
+                ),
+                (
+                    foreach("x.aantal", None, Some(CombineOp::Or)),
+                    "FOREACH combine OR is not defined for (number)",
+                ),
+                (
+                    foreach("x.aantal", None, Some(CombineOp::And)),
+                    "FOREACH combine AND is not defined for (number)",
+                ),
+            ] {
+                let err = execute_operation(&op, &context, 0).unwrap_err();
+                assert_eq!(err.to_string(), message);
+            }
+            // A boolean verdict still filters and combines.
+            let kept = foreach("x.ja", Some("x.ja"), Some(CombineOp::And));
+            assert_eq!(
+                execute_operation(&kept, &context, 0).unwrap(),
+                Value::Bool(true)
+            );
         }
 
         #[test]
@@ -5600,31 +5740,24 @@ body:
         }
 
         #[test]
-        fn a_date_is_true_as_a_condition() {
-            // As the non-empty string it was. RFC-055 ends truthiness with
-            // the signature table.
+        fn a_date_is_no_condition() {
+            // Truthiness ended with RFC-055: only a boolean is a verdict.
             let resolver = TestResolver::new();
             let op = ActionOperation::Not {
                 value: lit(day("2025-03-15")),
             };
-            assert_eq!(
-                execute_operation(&op, &resolver, 0).unwrap(),
-                Value::Bool(false)
-            );
+            let err = execute_operation(&op, &resolver, 0).unwrap_err();
+            assert_eq!(err.to_string(), "NOT is not defined for (date)");
         }
 
         #[test]
-        fn a_date_still_joins_as_its_text_in_add() {
-            // Unchanged in this step: RFC-055 makes ADD of a date and a
-            // string an error when the signature table lands.
+        fn a_date_and_a_string_do_not_add() {
             let resolver = TestResolver::new();
             let op = ActionOperation::Add {
                 values: vec![lit(day("2025-03-15")), lit("T00:00")],
             };
-            assert_eq!(
-                execute_operation(&op, &resolver, 0).unwrap(),
-                Value::String("2025-03-15T00:00".to_string())
-            );
+            let err = execute_operation(&op, &resolver, 0).unwrap_err();
+            assert_eq!(err.to_string(), "ADD is not defined for (date, string)");
         }
 
         #[test]
@@ -6188,15 +6321,100 @@ body:
         }
 
         #[test]
-        fn test_non_date_string_errors() {
+        fn test_a_number_against_a_date_written_as_text_matches_no_signature() {
+            // No date value is at hand, so the string stays a string.
+            let resolver = TestResolver::new();
+            let op = ActionOperation::GreaterThan {
+                subject: lit(2025i64),
+                value: lit("2025-01-01"),
+            };
+            let err = execute_operation(&op, &resolver, 0).unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "GREATER_THAN is not defined for (number, string)"
+            );
+        }
+
+        #[test]
+        fn test_two_reference_dates_order_as_dates_but_equal_as_objects() {
+            let resolver = TestResolver::new()
+                .with_var("eerder", date_obj("2025-01-01"))
+                .with_var("later", date_obj("2025-06-01"));
+            let ordered = ActionOperation::LessThan {
+                subject: var("eerder"),
+                value: var("later"),
+            };
+            assert_eq!(
+                execute_operation(&ordered, &resolver, 0).unwrap(),
+                Value::Bool(true)
+            );
+            let equal = ActionOperation::Equals {
+                subject: var("eerder"),
+                value: var("later"),
+            };
+            assert_eq!(
+                execute_operation(&equal, &resolver, 0).unwrap(),
+                Value::Bool(false)
+            );
+        }
+
+        #[test]
+        fn test_a_string_against_an_object_that_is_no_date_matches_no_signature() {
+            // An object with an `iso` field that is no date is an object, so
+            // the string beside it is not held to be a date.
+            let not_a_date =
+                Value::Object([("iso".to_string(), Value::String("x".to_string()))].into());
+            let resolver = TestResolver::new().with_var("ding", not_a_date);
+            let op = ActionOperation::Equals {
+                subject: lit("hello"),
+                value: var("ding"),
+            };
+            let err = execute_operation(&op, &resolver, 0).unwrap_err();
+            assert_eq!(
+                err.to_string(),
+                "EQUALS is not defined for (string, object)"
+            );
+        }
+
+        #[test]
+        fn test_a_date_equals_the_reference_date_of_the_same_day() {
+            let resolver = TestResolver::new().with_var("referencedate", date_obj("2025-01-01"));
+            for (day, expected) in [("2025-01-01", true), ("2025-01-02", false)] {
+                let op = ActionOperation::Equals {
+                    subject: lit(Value::Date(day.parse().unwrap())),
+                    value: var("referencedate"),
+                };
+                assert_eq!(
+                    execute_operation(&op, &resolver, 0).unwrap(),
+                    Value::Bool(expected),
+                    "{day}"
+                );
+            }
+        }
+
+        #[test]
+        fn test_two_strings_that_are_no_dates_do_not_order() {
             let resolver = TestResolver::new();
             let op = ActionOperation::GreaterThan {
                 subject: lit("hello"),
                 value: lit("world"),
             };
             let err = execute_operation(&op, &resolver, 0).unwrap_err();
-            let msg = err.to_string();
-            assert!(msg.contains("number or date"), "unexpected message: {msg}");
+            assert_eq!(
+                err.to_string(),
+                "GREATER_THAN is not defined for (string, string)"
+            );
+        }
+
+        #[test]
+        fn test_a_string_that_is_no_date_beside_a_date_is_an_invalid_date() {
+            let resolver = TestResolver::new();
+            let op = ActionOperation::LessThan {
+                subject: lit("hello"),
+                value: lit(Value::Date("2025-01-01".parse().unwrap())),
+            };
+            let err = execute_operation(&op, &resolver, 0).unwrap_err();
+            assert!(matches!(err, EngineError::InvalidDate(_)), "{err}");
         }
 
         #[test]
@@ -6356,37 +6574,30 @@ body:
         }
 
         #[test]
-        fn test_mixed_error_names_both_kinds() {
-            // A number against a date reports the mixed pair, not a misleading
-            // complaint about one (individually valid) operand.
+        fn test_a_number_against_a_date_matches_no_signature() {
             let resolver = TestResolver::new();
             let op = ActionOperation::GreaterThan {
                 subject: lit(2025i64),
-                value: lit("2025-01-01"),
+                value: lit(Value::Date("2025-01-01".parse().unwrap())),
             };
             let err = execute_operation(&op, &resolver, 0).unwrap_err();
-            let msg = err.to_string();
-            assert!(
-                msg.contains("two numbers or two dates")
-                    && msg.contains("a number compared against a date"),
-                "unexpected message: {msg}"
+            assert_eq!(
+                err.to_string(),
+                "GREATER_THAN is not defined for (number, date)"
             );
         }
 
         #[test]
-        fn test_error_blames_the_invalid_operand() {
-            // A valid date compared against a bool must blame the bool, not the
-            // (perfectly fine) date subject.
+        fn test_a_date_against_a_boolean_matches_no_signature() {
             let resolver = TestResolver::new().with_var("flag", Value::Bool(true));
             let op = ActionOperation::GreaterThan {
-                subject: lit("2025-01-01"),
+                subject: lit(Value::Date("2025-01-01".parse().unwrap())),
                 value: var("flag"),
             };
             let err = execute_operation(&op, &resolver, 0).unwrap_err();
-            let msg = err.to_string();
-            assert!(
-                msg.contains("number or date") && msg.contains("bool"),
-                "unexpected message: {msg}"
+            assert_eq!(
+                err.to_string(),
+                "GREATER_THAN is not defined for (date, boolean)"
             );
         }
 
@@ -7096,20 +7307,17 @@ body:
         }
 
         #[test]
-        fn test_equals_non_canonical_string_stays_structural() {
-            // The EQUALS date fallback does not fire when a side fails canonical
-            // parsing: "2025-1-1" against the object form of 2025-01-01 is simply
-            // unequal, without an error (RFC-021 implementation notes). Pins the
-            // one place where a non-canonical date is not rejected loudly.
+        fn test_equals_non_canonical_string_beside_a_date_is_an_error() {
+            // Beside a date, a string has to be one (RFC-055): "2025-1-1"
+            // against the reference date is no longer a quiet `false`.
             let resolver = TestResolver::new().with_var("referencedate", date_obj("2025-01-01"));
             let op = ActionOperation::Equals {
                 subject: lit("2025-1-1"),
                 value: var("referencedate"),
             };
-            assert_eq!(
-                execute_operation(&op, &resolver, 0).unwrap(),
-                Value::Bool(false)
-            );
+            let err = execute_operation(&op, &resolver, 0).unwrap_err();
+            assert!(matches!(err, EngineError::InvalidDate(_)), "{err}");
+            assert!(err.to_string().contains("2025-1-1"), "{err}");
         }
 
         #[test]
@@ -7241,8 +7449,8 @@ body:
                 ("SUBTRACT", |values| ActionOperation::Subtract { values }),
                 ("MULTIPLY", |values| ActionOperation::Multiply { values }),
                 ("DIVIDE", |values| ActionOperation::Divide { values }),
-                ("MIN/MAX", |values| ActionOperation::Min { values }),
-                ("MIN/MAX", |values| ActionOperation::Max { values }),
+                ("MIN", |values| ActionOperation::Min { values }),
+                ("MAX", |values| ActionOperation::Max { values }),
             ];
             for (name, build) in cases {
                 // Unknown: the union of the unknown operands' facts, once each.

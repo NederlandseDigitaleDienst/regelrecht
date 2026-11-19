@@ -80,8 +80,8 @@ Routing a value through `collection` is the only way into an inner iteration. A 
 | `combine` | Result | Empty collection |
 |---|---|---|
 | `ADD` | Sum; concatenates strings and flattens arrays | `0` |
-| `OR` | True if any result is truthy | `false` |
-| `AND` | True if every result is truthy | `true` |
+| `OR` | True if any result is `true`; a result that is no boolean is an error | `false` |
+| `AND` | True if every result is `true`; a result that is no boolean is an error | `true` |
 | `MIN` | Lowest value | `null` |
 | `MAX` | Highest value | `null` |
 | `ONLY` | The one result, of any type; an error when there are more | `null` |

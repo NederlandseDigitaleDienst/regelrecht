@@ -54,6 +54,10 @@ pub enum EngineError {
         right: String,
     },
 
+    /// Operand types that match no signature of the operation (RFC-055).
+    #[error("{operation} is not defined for ({operands})")]
+    UnsupportedOperation { operation: String, operands: String },
+
     /// Division by zero
     #[error("Division by zero")]
     DivisionByZero,
@@ -293,6 +297,10 @@ pub enum ExternalError {
         right: String,
     },
 
+    /// Operand types that match no signature of the operation (RFC-055).
+    #[error("{operation} is not defined for ({operands})")]
+    UnsupportedOperation { operation: String, operands: String },
+
     /// Division by zero
     #[error("Division by zero")]
     DivisionByZero,
@@ -427,6 +435,13 @@ impl From<EngineError> for ExternalError {
                 operation,
                 left,
                 right,
+            },
+            EngineError::UnsupportedOperation {
+                operation,
+                operands,
+            } => ExternalError::UnsupportedOperation {
+                operation,
+                operands,
             },
             EngineError::DivisionByZero => ExternalError::DivisionByZero,
             EngineError::AbsentOperand { operation } => ExternalError::AbsentOperand { operation },
