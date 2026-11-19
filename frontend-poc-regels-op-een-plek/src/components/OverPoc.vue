@@ -53,6 +53,11 @@ const STAPPEN = [
           regel doet. Welke activiteiten bij een bouwplan horen, blijft handwerk. Het verschil tussen de sporen laat zien
           waar dat uitmaakt.
         </nldd-text>
+        <nldd-text size="sm">
+          Het verschil komt niet alleen door het DSO. Het DSO-spoor kijkt naar meer plannen, ook van provincie,
+          waterschap en rijk. Dat had ook zonder het DSO gekund, met een uitgebreidere analyse van de plannen. Het DSO
+          maakte het wel makkelijker om die plannen direct te verzamelen.
+        </nldd-text>
       </section>
 
       <section>
