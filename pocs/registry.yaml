@@ -232,7 +232,7 @@ pocs:
     samenvatting: >-
       Een verkenning om voor één plek alle regels over bouwen te verzamelen
       en door te rekenen, met en zonder het Digitaal Stelsel Omgevingswet.
-    titel_intern: Spoorzone Veenendaal, met en zonder DSO
+    titel_intern: Spoorzone Veenendaal
     samenvatting_intern: >-
       Kan er in de Spoorzone van Veenendaal een woontoren van vijf lagen
       komen? Twee sporen naast elkaar op dezelfde engine: regels met de hand
@@ -257,7 +257,5 @@ pocs:
     tags: [BZK, Omgevingswet, DSO, gemeente Veenendaal]
     status: verkenning
     voorbehoud: >-
-      Een verkenning op openbare plannen en regels; niet nagelopen door de
-      gemeente of een jurist. Een deel van de regels is vertaald met
-      aannames, en het DSO-materiaal komt deels uit de
-      pre-productieomgeving. Geen vergunning en geen juridisch advies.
+      Verkenning op openbare plannen, deels met aannames; niet juridisch
+      getoetst. Geen vergunning of advies.
