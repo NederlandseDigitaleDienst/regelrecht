@@ -954,3 +954,347 @@ articles:
               operation: EQUALS
               subject: $rij.a.onderdeel
               value: null
+  - number: '39'
+    url: https://example.com/test_signaturen/39
+    text: >-
+      De datum is de dag met het eerste als jaar, het tweede als maand en het derde als dag.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: datum
+            type: date
+        actions:
+          - output: datum
+            value:
+              operation: DATE
+              year: $rij.a
+              month: $rij.b
+              day: $rij.c
+  - number: '40'
+    url: https://example.com/test_signaturen/40
+    text: >-
+      De verschoven datum is het eerste, vermeerderd met het tweede aantal maanden.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: verschoven
+            type: date
+        actions:
+          - output: verschoven
+            value:
+              operation: DATE_ADD
+              date: $rij.a
+              months: $rij.b
+  - number: '41'
+    url: https://example.com/test_signaturen/41
+    text: >-
+      Het aantal dagen tussen is het aantal volle dagen van het eerste tot het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: dagen_tussen
+            type: number
+            type_spec:
+              unit: days
+        actions:
+          - output: dagen_tussen
+            value:
+              operation: DATE_DIFF
+              from: $rij.a
+              to: $rij.b
+              in: days
+  - number: '42'
+    url: https://example.com/test_signaturen/42
+    text: >-
+      Het aantal maanden tussen is het aantal volle maanden van het eerste tot het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: maanden_tussen
+            type: number
+            type_spec:
+              unit: months
+        actions:
+          - output: maanden_tussen
+            value:
+              operation: DATE_DIFF
+              from: $rij.a
+              to: $rij.b
+              in: months
+  - number: '43'
+    url: https://example.com/test_signaturen/43
+    text: >-
+      De leeftijd is het aantal volle jaren van het eerste tot het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: leeftijd
+            type: number
+            type_spec:
+              unit: years
+        actions:
+          - output: leeftijd
+            value:
+              operation: AGE
+              date_of_birth: $rij.a
+              reference_date: $rij.b
+  - number: '44'
+    url: https://example.com/test_signaturen/44
+    text: >-
+      Het jaar is het jaar van het eerste.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: jaar
+            type: number
+        actions:
+          - output: jaar
+            value:
+              operation: DATE_PART
+              date: $rij.a
+              in: year
+  - number: '45'
+    url: https://example.com/test_signaturen/45
+    text: >-
+      De weekdag is de dag van de week van het eerste.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: weekdag
+            type: number
+        actions:
+          - output: weekdag
+            value:
+              operation: DAY_OF_WEEK
+              date: $rij.a
+  - number: '46'
+    url: https://example.com/test_signaturen/46
+    text: >-
+      Het begin van de maand is de eerste dag van de maand van het eerste.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: begin_maand
+            type: date
+        actions:
+          - output: begin_maand
+            value:
+              operation: START_OF
+              date: $rij.a
+              in: month
+  - number: '47'
+    url: https://example.com/test_signaturen/47
+    text: >-
+      De ver verschoven datum is het eerste, vermeerderd met het tweede aantal jaren en het derde aantal maanden.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: ver_verschoven
+            type: date
+        actions:
+          - output: ver_verschoven
+            value:
+              operation: DATE_ADD
+              date: $rij.a
+              years: $rij.b
+              months: $rij.c
+  - number: '48'
+    url: https://example.com/test_signaturen/48
+    text: >-
+      De kort verschoven datum is het eerste, vermeerderd met het tweede aantal weken en het derde aantal dagen.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: kort_verschoven
+            type: date
+        actions:
+          - output: kort_verschoven
+            value:
+              operation: DATE_ADD
+              date: $rij.a
+              weeks: $rij.b
+              days: $rij.c
+  - number: '49'
+    url: https://example.com/test_signaturen/49
+    text: >-
+      Het aantal jaren tussen is het aantal volle jaren van het eerste tot het tweede.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: jaren_tussen
+            type: number
+            type_spec:
+              unit: years
+        actions:
+          - output: jaren_tussen
+            value:
+              operation: DATE_DIFF
+              from: $rij.a
+              to: $rij.b
+              in: years
+  - number: '50'
+    url: https://example.com/test_signaturen/50
+    text: >-
+      Het aantal dagen tot de peildatum is het aantal volle dagen van het eerste tot de peildatum.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: dagen_tot_peildatum
+            type: number
+            type_spec:
+              unit: days
+        actions:
+          - output: dagen_tot_peildatum
+            value:
+              operation: DATE_DIFF
+              from: $rij.a
+              to: $referencedate
+              in: days
+  - number: '51'
+    url: https://example.com/test_signaturen/51
+    text: >-
+      Het jaar van de peildag is het jaar van de opgegeven peildag.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+          - name: peildag
+            type: date
+            required: false
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: jaar_van_peildag
+            type: number
+        actions:
+          - output: jaar_van_peildag
+            value:
+              operation: DATE_PART
+              date: $peildag
+              in: year
+  - number: '52'
+    url: https://example.com/test_signaturen/52
+    text: >-
+      Het begin van de maand van de peildag is de eerste dag van de maand van de opgegeven peildag.
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+          - name: peildag
+            type: date
+            required: false
+        input:
+          - name: rij
+            type: object
+            source: {}
+        output:
+          - name: begin_maand_van_peildag
+            type: date
+        actions:
+          - output: begin_maand_van_peildag
+            value:
+              operation: START_OF
+              date: $peildag
+              in: month
