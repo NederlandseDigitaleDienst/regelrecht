@@ -44,12 +44,12 @@ use tower_sessions_memory_store::MemoryStore;
 use crate::api::{ApiError, AppState, router};
 use crate::case::{self, CaseError};
 use crate::clock::{Clock, ControllableClock, RealClock};
-use crate::config::{Config, Mode, StoreChoice};
+use crate::config::{Config, Fsc4bChoice, Mode, StoreChoice};
 use crate::fsc4b::{Fsc4b, Fsc4bError};
 use crate::login::{Login, SESSION_TABLE, SurfaceSessions};
 use crate::service::{Service, ServiceError};
 use crate::store::memory::InMemoryStore;
-use crate::store::postgres::{CONNECT_TIMEOUT, PostgresStore, SCHEMA};
+use crate::store::postgres::{CONNECT_TIMEOUT, MIGRATION_LOCK_KEY, PostgresStore, SCHEMA};
 use crate::store::{ChronicleStore, StoreError};
 use crate::surface::Surface;
 
@@ -69,6 +69,8 @@ pub enum StartupError {
     StableNeedsLogin,
     #[error("stable mode serves citizens or employees, not both on one address")]
     StableNeedsOneSurface,
+    #[error("FSC voor Burgers serves citizens, and this instance serves the back office")]
+    Fsc4bOnBackoffice,
     #[error("the chronicle store ({store}): {source}")]
     Store {
         store: &'static str,
@@ -114,6 +116,9 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
     if stable && config.surface == Surface::All {
         return Err(StartupError::StableNeedsOneSurface);
     }
+    if !config.surface.serves_citizens() && !matches!(config.fsc4b, Fsc4bChoice::Off) {
+        return Err(StartupError::Fsc4bOnBackoffice);
+    }
     let (corpus, messages) = case::load(&config.manifest)?;
     for message in &messages {
         tracing::warn!(%message, "loading the case");
@@ -131,13 +136,7 @@ pub async fn build_with(config: &Config, login: Login) -> Result<Router, Startup
         Some(c) => Arc::clone(c) as _,
         None => Arc::new(RealClock),
     };
-    // The channel serves citizens only; the configuration refuses it on the
-    // back office already, and no route of it is registered there.
-    let fsc4b = if config.surface.serves_citizens() {
-        Fsc4b::open(&config.fsc4b, config.mode, stores.sessions.clone())?
-    } else {
-        None
-    };
+    let fsc4b = Fsc4b::open(&config.fsc4b, config.mode, stores.sessions.clone())?;
     let today = clock.today().await.map_err(|source| StartupError::Store {
         store: config.store.name(),
         source,
@@ -238,7 +237,9 @@ fn with_sessions<St: SessionStore + Clone>(
 
 /// The session store in the table [`SESSION_TABLE`] of the schema
 /// [`SCHEMA`], made if it is not there, with a task that removes expired
-/// sessions.
+/// sessions. The table is made under the advisory lock of the schema's
+/// migrations, so two instances that start at once on a new database do not
+/// both make it.
 ///
 /// # Errors
 ///
@@ -246,14 +247,13 @@ fn with_sessions<St: SessionStore + Clone>(
 async fn postgres_sessions(
     pool: PgPool,
 ) -> Result<tower_sessions_sqlx_store::PostgresStore, StartupError> {
-    let store = tower_sessions_sqlx_store::PostgresStore::new(pool)
+    let store = tower_sessions_sqlx_store::PostgresStore::new(pool.clone())
         .with_schema_name(SCHEMA)
         .and_then(|s| s.with_table_name(SESSION_TABLE))
         .map_err(StartupError::Sessions)?;
-    store
-        .migrate()
+    migrate_sessions(&pool, &store)
         .await
-        .map_err(|e| StartupError::Sessions(e.to_string()))?;
+        .map_err(StartupError::Sessions)?;
     let cleaner = store.clone();
     tokio::spawn(async move {
         if let Err(e) = cleaner
@@ -264,6 +264,34 @@ async fn postgres_sessions(
         }
     });
     Ok(store)
+}
+
+/// Make the sessions table of `store`, holding the migrations' advisory
+/// lock on a connection of `pool` while it does.
+async fn migrate_sessions(
+    pool: &PgPool,
+    store: &tower_sessions_sqlx_store::PostgresStore,
+) -> Result<(), String> {
+    let mut conn = pool.acquire().await.map_err(|e| e.to_string())?;
+    sqlx::query("SELECT pg_advisory_lock($1)")
+        .bind(MIGRATION_LOCK_KEY)
+        .execute(&mut *conn)
+        .await
+        .map_err(|e| e.to_string())?;
+    let migrated = store.migrate().await.map_err(|e| e.to_string());
+    let unlocked = sqlx::query("SELECT pg_advisory_unlock($1)")
+        .bind(MIGRATION_LOCK_KEY)
+        .execute(&mut *conn)
+        .await;
+    if let Err(e) = unlocked {
+        // A connection that may still hold the lock goes back to no pool:
+        // closing it ends its session, and the lock with it.
+        if let Err(close) = conn.close().await {
+            tracing::warn!(error = %close, "closing the connection that held the migration lock");
+        }
+        return Err(e.to_string());
+    }
+    migrated
 }
 
 /// The stores a configuration opens: the chronicles, and the database the
@@ -307,9 +335,7 @@ mod tests {
     use regelrecht_shared::postgres::test_utils::TestDatabase;
 
     use super::*;
-    use crate::config::{
-        DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, Fsc4bChoice, LoginChoice,
-    };
+    use crate::config::{DEFAULT_MANIFEST, DEFAULT_PORT, DEFAULT_SUBJECT_CLAIM, LoginChoice};
 
     fn config(mode: Mode) -> Config {
         Config {
@@ -357,6 +383,35 @@ mod tests {
                 .await
                 .unwrap();
         }
+    }
+
+    #[tokio::test]
+    async fn the_back_office_refuses_fsc_voor_burgers() {
+        let mut c = config(Mode::Test);
+        c.surface = Surface::Backoffice;
+        c.fsc4b = Fsc4bChoice::Demo {
+            public_url: "http://localhost:7199".into(),
+        };
+        let e = build_with(&c, Login::TestLogin).await.unwrap_err();
+        assert!(matches!(e, StartupError::Fsc4bOnBackoffice), "{e}");
+    }
+
+    #[tokio::test]
+    async fn two_instances_starting_at_once_on_a_new_database_both_start() {
+        let database = TestDatabase::create().await;
+        let mut c = config(Mode::Test);
+        c.store = StoreChoice::Postgres {
+            url: database.url().to_string(),
+        };
+        let mut b = c.clone();
+        c.surface = Surface::Citizen;
+        b.surface = Surface::Backoffice;
+        let (first, second) = tokio::join!(
+            build_with(&c, Login::TestLogin),
+            build_with(&b, Login::TestLogin)
+        );
+        let _citizens = first.unwrap();
+        let _backoffice = second.unwrap();
     }
 
     #[tokio::test]

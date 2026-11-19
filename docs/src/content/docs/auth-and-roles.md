@@ -352,8 +352,9 @@ Which instance an account logs in at limits what its roles do there. On the
 instance for citizens a session keeps `wetsproces-burger` and drops every
 ladder and cell role, even when the token carries them. On the back office it
 keeps those and drops `wetsproces-burger`, so an account with only the
-citizen's role gets `403` on every route there. Someone who is both a citizen
-and an employee logs in at each instance apart.
+citizen's role gets `403` on every route the back office has under `/api/`.
+Someone who is both a citizen and an employee logs in to each instance
+separately.
 
 A citizen is identified by a user attribute, by default `bsn`. The login copies
 that claim into the session, and the server fills the applicant's field of the
@@ -392,9 +393,8 @@ The realm is configured by hand; nothing in the repository changes it.
    scopes `openid`, `email` and `profile`, the redirect URI
    `https://<host>/auth/callback` and the post-logout redirect URI
    `https://<host>` of its own host. The server builds the redirect from its
-   `BASE_URL`, so each instance's `BASE_URL` must be the host its client
-   allows; a client that allows both hosts would let one instance's login
-   land on the other.
+   `BASE_URL`, so each instance's `BASE_URL` must be the host its own client
+   allows, or Keycloak refuses the redirect.
 4. **Add the mappers** to the dedicated scope of the clients:
    - on both, a *User Realm Role* mapper with *Add to ID token* On, as for
      the editor;

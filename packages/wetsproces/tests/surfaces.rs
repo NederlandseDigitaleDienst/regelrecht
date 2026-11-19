@@ -7,6 +7,8 @@
 
 mod common;
 
+use std::collections::BTreeSet;
+
 use axum::Router;
 use axum::http::{Method, StatusCode};
 use common::*;
@@ -28,13 +30,16 @@ enum Group {
     Backoffice,
 }
 
-/// Every route of the server, with its group. A route added to the API
-/// belongs here too.
+/// Every route of the server, with its group, by hand: a route added to the
+/// API belongs here too. `every_back_office_route_of_the_api_is_in_the_table`
+/// holds that for the back office, the group that must never reach the
+/// instance for citizens.
 const ROUTES: &[(Group, &str, &str)] = &[
     (Group::Shared, "GET", "/health"),
     (Group::Shared, "GET", "/auth/status"),
     (Group::Shared, "GET", "/auth/testpersonen"),
     (Group::Shared, "POST", "/auth/testlogin"),
+    (Group::Shared, "GET", "/auth/logout"),
     (Group::Shared, "GET", "/api/casus"),
     (Group::Shared, "GET", "/api/formulier"),
     (Group::Shared, "GET", "/api/klok"),
@@ -94,6 +99,34 @@ async fn each_surface_registers_its_own_routes_and_no_route_of_the_other_side() 
                 assert_eq!(status, StatusCode::NOT_FOUND, "{surface}: {path}");
             }
         }
+    }
+}
+
+#[test]
+fn every_back_office_route_of_the_api_is_in_the_table() {
+    // The router in api.rs names each route once, as a string literal, on
+    // the line of `.route(` or, once rustfmt wraps the call, on the next.
+    let api = include_str!("../src/api.rs");
+    let declared: BTreeSet<&str> = api
+        .split(".route(")
+        .skip(1)
+        .filter_map(|rest| rest.trim_start().strip_prefix('"'))
+        .filter_map(|rest| rest.split('"').next())
+        .filter(|path| path.starts_with("/api/backoffice/"))
+        .collect();
+    assert!(declared.len() >= 7, "{declared:?}");
+    // The table names a path with its parameters filled in.
+    let fill = |path: &str| {
+        path.replace("{cel}", "gemeente_wilgendaal")
+            .replace("{id}", "x")
+    };
+    let table: BTreeSet<String> = ROUTES
+        .iter()
+        .filter(|(group, _, _)| *group == Group::Backoffice)
+        .map(|(_, _, path)| (*path).to_string())
+        .collect();
+    for path in declared {
+        assert!(table.contains(&fill(path)), "{path} is not in ROUTES");
     }
 }
 
@@ -191,23 +224,22 @@ async fn the_test_login_offers_each_side_its_own_accounts() {
     let kinds = |app: Router| async move {
         let (status, personas) = anonymous(&app).get("/auth/testpersonen").await;
         assert_eq!(status, StatusCode::OK, "{personas}");
-        let mut kinds: Vec<String> = personas
+        personas
             .as_array()
             .unwrap()
             .iter()
             .map(|p| p["soort"].as_str().unwrap().to_string())
-            .collect();
-        kinds.dedup();
-        kinds
+            .collect::<BTreeSet<String>>()
     };
-    assert_eq!(kinds(on(Surface::Citizen).await).await, ["burger"]);
+    let set = |names: &[&str]| names.iter().map(|n| n.to_string()).collect::<BTreeSet<_>>();
+    assert_eq!(kinds(on(Surface::Citizen).await).await, set(&["burger"]));
     assert_eq!(
         kinds(on(Surface::Backoffice).await).await,
-        ["medewerker", "beheerder"]
+        set(&["medewerker", "beheerder"])
     );
     assert_eq!(
         kinds(on(Surface::All).await).await,
-        ["burger", "medewerker", "beheerder"]
+        set(&["burger", "medewerker", "beheerder"])
     );
 }
 

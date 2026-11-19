@@ -47,7 +47,7 @@ pub const SCHEMA: &str = "wetsproces";
 /// Another key than the pipeline's, so neither holds the other up for the
 /// whole of its run; sqlx's own lock per database inside `Migrator::run`
 /// still makes the two runs take turns while they migrate.
-const MIGRATION_LOCK_KEY: i64 = 0x5745_5453_5052_4F43; // "WETSPROC"
+pub(crate) const MIGRATION_LOCK_KEY: i64 = 0x5745_5453_5052_4F43; // "WETSPROC"
 
 /// Connections per instance: a request holds one for a read or a commit.
 const MAX_CONNECTIONS: u32 = 10;

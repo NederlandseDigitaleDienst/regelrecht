@@ -73,7 +73,7 @@ When the PostgreSQL store is chosen and the database cannot be reached or migrat
 
 ## Surfaces
 
-Citizens and employees each have an environment of their own: an address, a login and a deployment, all from the same image and on the same database. `WETSPROCES_SURFACE` says which one an instance is. What differs between them is decided in one place, `src/surface.rs`.
+Citizens and employees each have their own deployment, with its own address and login. Both run the same image on the same database. `WETSPROCES_SURFACE` says which one an instance is. What differs between them is decided in one place, `src/surface.rs`.
 
 | | `burger` | `backoffice` | `all` |
 |---|---|---|---|
@@ -85,7 +85,7 @@ Citizens and employees each have an environment of their own: an address, a logi
 
 A route of the other side is not registered at all, so it answers `404` like any unknown path, also to a session that carries every role. The shared routes are `/health`, the login under `/auth/`, and `/api/casus`, `/api/formulier`, `/api/klok` and `/api/ik`.
 
-On the instance for citizens a session never holds an employee's role, whatever the token carried. On the back office an account with only the citizen's role holds no role of this server and gets `403` on every route. The roles are filtered where a request reads its session, so the test login and Keycloak go through the same filter.
+On the instance for citizens a request never acts with an employee's role, whatever the token carried. On the back office an account with only the citizen's role holds no role of this server and gets `403` on every route the back office has under `/api/`. The server drops the roles a surface does not admit when a request reads its session, and the session store drops them again each time it stores a session, after a login and after a refresh of the token. The test login and Keycloak go through the same filter.
 
 Both instances keep their sessions in `wetsproces.sessions`. Each session carries the surface it was made on, and an instance reads a session of another surface as no session: a cookie from the back office, sent to the instance for citizens under that instance's cookie name, gets `401`. A session from before the surfaces existed carries no surface and is read as none either.
 
@@ -112,7 +112,7 @@ An app can use the citizen routes without a browser through [FSC voor Burgers](/
 
 ## API
 
-The keys in requests and answers are those of the kern, as the PoC uses them (`velden`, `bevindingen`, `op`). Which of the routes below an instance has depends on its surface: the routes under `/api/backoffice/` only on `backoffice`, `/api/dossier` and `/api/indieningen` only on `burger`, the others on both. An error answers `{ "fout": "<reason>" }`. For a `500` the reason is a fixed sentence and the cause goes to the server log only. A body that does not parse gets axum's own plain-text answer. Without a session the answer is `401`; with a session that lacks the role, `403`.
+The keys in requests and answers are those of the kern, as the PoC uses them (`velden`, `bevindingen`, `op`). Which of the routes below an instance has depends on its surface. The routes under `/api/backoffice/` exist on `backoffice` and `all`, those under `/api/dossier` and `/api/indieningen` on `burger` and `all`, and the others everywhere. An error answers `{ "fout": "<reason>" }`. For a `500` the reason is a fixed sentence and the cause goes to the server log only. A body that does not parse gets axum's own plain-text answer. Without a session the answer is `401`; with a session that lacks the role, `403`.
 
 | Method and path | Who | What it does |
 |---|---|---|
@@ -150,12 +150,15 @@ This starts the server in test mode on port 7180, bound to `0.0.0.0`, with the c
 WETSPROCES_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:5432/regelrecht just wetsproces
 ```
 
-This serves both sides on one address. To run the two environments apart, start an instance per surface on the same database, each on its own port:
+This serves both sides on one address. To run the two environments apart, start an instance per surface on the same database, each on its own port and in a terminal of its own:
 
 ```bash
-export WETSPROCES_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:5432/regelrecht
-WETSPROCES_SURFACE=burger WETSPROCES_PORT=7182 just wetsproces
-WETSPROCES_SURFACE=backoffice WETSPROCES_PORT=7183 just wetsproces
+# terminal 1, the citizens
+WETSPROCES_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:5432/regelrecht \
+  WETSPROCES_SURFACE=burger WETSPROCES_PORT=7182 just wetsproces
+# terminal 2, the back office
+WETSPROCES_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:5432/regelrecht \
+  WETSPROCES_SURFACE=backoffice WETSPROCES_PORT=7183 just wetsproces
 ```
 
 ## Deployment
@@ -188,4 +191,4 @@ Rolling it out takes two components in the `regelrecht` deployment, from the sam
    - its result in the check that refuses a half deploy;
    - `add wetsproces regelrecht-wetsproces` and `add wetsproces-backoffice regelrecht-wetsproces` in both component lists.
 
-Both components migrate the schema `wetsproces` at startup; an advisory lock lets them take turns. Previews clone their components from `regelrecht`, so a preview can only include the server once the components exist there. A preview gets its own hosts, so their redirect URIs must be allowed on the two Keycloak clients as well, and its `BASE_URL`s differ from production's.
+Both components migrate the schema `wetsproces` and make the sessions table at startup, under one advisory lock, so they take turns. Previews clone their components from `regelrecht`, so a preview can only include the server once the components exist there. A preview gets its own hosts, so their redirect URIs must be allowed on the two Keycloak clients as well, and its `BASE_URL`s differ from production's.

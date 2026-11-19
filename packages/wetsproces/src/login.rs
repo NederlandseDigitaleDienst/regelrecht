@@ -199,15 +199,15 @@ async fn test_login(
 /// `medewerker` or `beheerder`) so a screen can name it. Two citizens with
 /// a made-up number of the test range; per cell of the case a handler and
 /// a decider; an admin who may decide for every cell. Derived from the
-/// case, so another case gets its own, and only those the surface offers
-/// ([`Surface::offers_persona`]): citizens on the instance for citizens,
-/// employees and the admin on the back office. There only beside the test
-/// login.
+/// case, so another case gets its own, and only those of the sides the
+/// surface serves: the citizens on the instance for citizens, the employees
+/// and the admin on the back office. There only beside the test login.
 async fn test_personas(State(state): State<AppState>) -> Json<Value> {
-    let claim = state.subject_claim();
-    let mut personas: Vec<Value> = TEST_CITIZENS
-        .iter()
-        .map(|bsn| {
+    let surface = state.surface();
+    let mut personas = Vec::new();
+    if surface.serves_citizens() {
+        let claim = state.subject_claim();
+        personas.extend(TEST_CITIZENS.iter().map(|bsn| {
             json!({
                 "soort": "burger",
                 "sub": format!("burger-{bsn}"),
@@ -215,8 +215,18 @@ async fn test_personas(State(state): State<AppState>) -> Json<Value> {
                 "claims": { claim: bsn },
                 "identiteit": bsn,
             })
-        })
-        .collect();
+        }));
+    }
+    if surface.serves_employees() {
+        personas.extend(employee_personas(&state));
+    }
+    Json(Value::Array(personas))
+}
+
+/// The employees of the test login: per cell of the case a handler and a
+/// decider, and an admin who may decide for every cell.
+fn employee_personas(state: &AppState) -> Vec<Value> {
+    let mut personas = Vec::new();
     for (cell, cell_name) in state.service().cells() {
         for level in [Level::Handler, Level::Decider] {
             personas.push(json!({
@@ -237,19 +247,7 @@ async fn test_personas(State(state): State<AppState>) -> Json<Value> {
         "rollen": admin_roles,
         "niveau": Level::Admin.name(),
     }));
-    let surface = state.surface();
-    personas.retain(|p| {
-        let roles: Vec<String> = p["rollen"]
-            .as_array()
-            .map(|r| {
-                r.iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect()
-            })
-            .unwrap_or_default();
-        surface.offers_persona(&roles)
-    });
-    Json(Value::Array(personas))
+    personas
 }
 
 /// A session store that marks every session with the surface it was made
@@ -257,6 +255,14 @@ async fn test_personas(State(state): State<AppState>) -> Json<Value> {
 /// The instance for citizens and the one for the back office share the
 /// table `wetsproces.sessions`; with this a cookie taken from one side is
 /// no session on the other, whatever roles it holds.
+///
+/// It also stores in a session only the roles its surface admits
+/// ([`Surface::admitted_roles`]), whatever the login or a refresh of the
+/// token wrote: a stored session on the instance for citizens never holds
+/// an employee's role. A refresh writes the token's roles into the live
+/// session first, so the response of that one request may still show them
+/// (`/auth/status`); what a request may do is decided by the principal,
+/// which filters once more when it reads the session.
 #[derive(Debug, Clone)]
 pub struct SurfaceSessions<S> {
     inner: S,
@@ -269,10 +275,22 @@ impl<S> SurfaceSessions<S> {
         Self { inner, surface }
     }
 
+    /// Mark `record` with the surface, and keep only the roles it admits.
     fn mark(&self, record: &mut Record) {
         record
             .data
             .insert(SESSION_KEY_SURFACE.into(), Value::from(self.surface.name()));
+        if let Some(roles) = record.data.get_mut(SESSION_KEY_ROLES) {
+            let held: BTreeSet<String> = roles
+                .as_array()
+                .map(|r| {
+                    r.iter()
+                        .filter_map(|v| v.as_str().map(String::from))
+                        .collect()
+                })
+                .unwrap_or_default();
+            *roles = json!(self.surface.admitted_roles(held));
+        }
     }
 
     fn is_ours(&self, record: &Record) -> bool {
@@ -287,16 +305,10 @@ impl<S: SessionStore + Clone> SessionStore for SurfaceSessions<S> {
         self.inner.create(record).await
     }
 
+    /// The session layer saves only a session it created or loaded, and
+    /// [`SurfaceSessions::load`] gives none of another surface, so a save
+    /// never reaches a session of another surface.
     async fn save(&self, record: &Record) -> session_store::Result<()> {
-        // Never write over a session of another surface under the same id;
-        // the ids are random, so this guards a bug, not a guess.
-        if let Some(stored) = self.inner.load(&record.id).await?
-            && !self.is_ours(&stored)
-        {
-            return Err(session_store::Error::Backend(
-                "a session of another surface has this id".into(),
-            ));
-        }
         let mut record = record.clone();
         self.mark(&mut record);
         self.inner.save(&record).await
@@ -381,6 +393,32 @@ pub(crate) mod tests {
     }
 
     #[tokio::test]
+    async fn a_session_keeps_only_the_roles_its_surface_admits() {
+        let shared = tower_sessions_memory_store::MemoryStore::default();
+        let citizens = SurfaceSessions::new(shared.clone(), Surface::Citizen);
+        let mut r = record(3);
+        r.data.insert(
+            SESSION_KEY_ROLES.into(),
+            json!([
+                CITIZEN,
+                "wetsproces-admin",
+                "wetsproces-cel-gemeente_wilgendaal"
+            ]),
+        );
+        citizens.create(&mut r).await.unwrap();
+        let stored = shared.load(&r.id).await.unwrap().unwrap();
+        assert_eq!(stored.data[SESSION_KEY_ROLES], json!([CITIZEN]));
+        // A refresh that writes the token's roles again is filtered as well.
+        r.data.insert(
+            SESSION_KEY_ROLES.into(),
+            json!([CITIZEN, "wetsproces-admin"]),
+        );
+        citizens.save(&r).await.unwrap();
+        let stored = shared.load(&r.id).await.unwrap().unwrap();
+        assert_eq!(stored.data[SESSION_KEY_ROLES], json!([CITIZEN]));
+    }
+
+    #[tokio::test]
     async fn a_session_of_one_surface_is_no_session_on_another() {
         let shared = tower_sessions_memory_store::MemoryStore::default();
         let citizens = SurfaceSessions::new(shared.clone(), Surface::Citizen);
@@ -392,8 +430,7 @@ pub(crate) mod tests {
         let id = r.id;
         assert!(backoffice.load(&id).await.unwrap().is_some());
         assert_eq!(citizens.load(&id).await.unwrap(), None);
-        // The other side can neither write over it nor end it.
-        assert!(citizens.save(&r).await.is_err());
+        // The other side cannot end it.
         citizens.delete(&id).await.unwrap();
         assert!(backoffice.load(&id).await.unwrap().is_some());
         // A session without a mark, as made before the split, is none either.

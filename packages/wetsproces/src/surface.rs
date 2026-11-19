@@ -11,13 +11,15 @@
 //!   [`Surface::serves_employees`]). A route of the other side is not
 //!   registered at all, so it answers 404 as any unknown path does, not 403;
 //! - which roles a session keeps ([`Surface::admitted_roles`]): an instance
-//!   for citizens never hands a session an employee's role, whatever the
-//!   token carried, and one for employees never the citizen's;
+//!   for citizens never keeps an employee's role in a session, whatever the
+//!   token carried, and one for employees never the citizen's. The session
+//!   store filters them when it writes a session, and the principal of a
+//!   request once more when it reads one;
 //! - the name of the session cookie, and the mark a session carries of the
 //!   surface it was made on ([`crate::login::SurfaceSessions`]), so that a
 //!   session of one side is no session on the other although both live in
 //!   the table `wetsproces.sessions`;
-//! - which accounts the test login offers ([`Surface::offers_persona`]);
+//! - which accounts the test login offers: those of the sides it serves;
 //! - which build of the screens the instance serves ([`Surface::name`], a
 //!   directory under `WETSPROCES_FRONTEND`).
 //!
@@ -27,7 +29,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::access::{CELL_ROLE_PREFIX, CITIZEN, Level};
+use crate::access::CITIZEN;
 
 /// The side of the process an instance serves.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,20 +88,6 @@ impl Surface {
             Self::All => roles,
             Self::Citizen => roles.into_iter().filter(|r| r == CITIZEN).collect(),
             Self::Backoffice => roles.into_iter().filter(|r| r != CITIZEN).collect(),
-        }
-    }
-
-    /// Whether the test login offers an account with `roles` here: a
-    /// citizen on the surface for citizens, an employee on the back office.
-    pub fn offers_persona(self, roles: &[String]) -> bool {
-        let employee = roles
-            .iter()
-            .any(|r| r.starts_with(CELL_ROLE_PREFIX) || Level::ALL.iter().any(|l| l.role() == r));
-        let citizen = roles.iter().any(|r| r == CITIZEN);
-        match self {
-            Self::All => true,
-            Self::Citizen => citizen && !employee,
-            Self::Backoffice => employee && !citizen,
         }
     }
 }
@@ -168,22 +156,5 @@ mod tests {
     fn every_surface_has_a_cookie_of_its_own() {
         let names: BTreeSet<&str> = Surface::ALL.map(Surface::session_cookie).into();
         assert_eq!(names.len(), Surface::ALL.len());
-    }
-
-    #[test]
-    fn the_test_login_offers_each_side_its_own_accounts() {
-        let citizen = [CITIZEN.to_string()];
-        let employee = [
-            "wetsproces-behandelaar".to_string(),
-            "wetsproces-cel-ggd_wilgendaal".to_string(),
-        ];
-        let admin = ["wetsproces-admin".to_string()];
-        assert!(Surface::Citizen.offers_persona(&citizen));
-        assert!(!Surface::Citizen.offers_persona(&employee));
-        assert!(!Surface::Citizen.offers_persona(&admin));
-        assert!(!Surface::Backoffice.offers_persona(&citizen));
-        assert!(Surface::Backoffice.offers_persona(&employee));
-        assert!(Surface::Backoffice.offers_persona(&admin));
-        assert!(Surface::All.offers_persona(&citizen) && Surface::All.offers_persona(&employee));
     }
 }
