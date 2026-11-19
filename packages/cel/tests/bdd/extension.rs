@@ -648,7 +648,7 @@ fn court_rules(
 /// concerns the decision of the cell that the appeal contested (its
 /// `bestreden_besluit`). The court's cell would make the copy with
 /// [`Cell::afschrift`]; here the scenario builds it from the court's
-/// chronicle, as `packages/cel/tests/beroep.rs` tests the copy itself.
+/// chronicle, as `packages/cel/tests/appeal_across_cells.rs` tests the copy itself.
 fn cell_receives_ruling(
     world: &mut RegelrechtWorld,
     ruling: &str,

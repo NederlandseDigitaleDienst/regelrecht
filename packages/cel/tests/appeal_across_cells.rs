@@ -86,7 +86,7 @@ fn cells() -> PathBuf {
 
 /// A directory of the school's cell that gives only the answer for art. 13a
 /// lid 2, or none when the test left it out ([`without_reduction`]). The
-/// head judges art. 11, onder f, here, as in `tests/vakantieverlof.rs`.
+/// head judges art. 11, onder f, here, as in `tests/submission_lifecycle.rs`.
 fn school_dir() -> tempfile::TempDir {
     let dir = tempfile::tempdir().unwrap();
     let mut yaml = "name: Het hoofd van OBS De Klimop\ncategory: het hoofd\n".to_string();

@@ -1,6 +1,6 @@
 ---
-# FICTIEF. A host law for the construct "beslistermijn"
-# (packages/cel/bdd/constructs/beslistermijn) with a decision term of its own:
+# FICTIEF. A host law for the construct
+# "hook_open_term_host_fill" with a decision term of its own:
 # one week after receipt, the term set by statutory provision that article
 # 4:13, first paragraph, of test_general_administrative_act refers to. Article
 # 2 fills the open term of 4:13 with implements, and names article 1 as its

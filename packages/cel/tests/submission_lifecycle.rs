@@ -1,3 +1,8 @@
+//! The lifecycle of a submission in a cell on corpus regelwerken: recorded,
+//! decided, counted by a reduction, objected to, and replayed under the
+//! regulation versions it was taken under (RFC-045, RFC-046, RFC-048). The
+//! case is leave from school.
+//!
 //! A cell records an application for vakantieverlof (Leerplichtwet 1969
 //! art. 13a) on the real corpus, with the Awb hooks on it (RFC-045, RFC-046),
 //! and the head of the school decides on it (RFC-046).
@@ -102,7 +107,7 @@ fn answers_dir(answers: &[(&str, &str)]) -> tempfile::TempDir {
 /// A directory of the school's cell that gives only the answer for lid 2
 /// (RFC-048). Its own directory also answers art. 11, onder f, from its
 /// holidays (RFC-051); the tests here leave that judgement to the head, and
-/// `tests/schoolvakanties.rs` decides in the school's own cell.
+/// `tests/answer_from_executograms.rs` decides in the school's own cell.
 fn lid_2_dir() -> tempfile::TempDir {
     answers_dir(&[(ONCE, REDUCTION)])
 }

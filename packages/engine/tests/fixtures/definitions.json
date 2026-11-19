@@ -1,13 +1,13 @@
 {
   "version": "1.0.0",
   "generated_at": "2026-01-26T13:58:39.710101+00:00",
-  "category": "real_regulations",
+  "category": "definitions",
   "test_count": 2,
   "test_cases": [
     {
-      "id": "real_001_simple_calculation",
-      "description": "Simple real-style calculation",
-      "category": "real_regulations",
+      "id": "definitions_001_threshold",
+      "description": "A definition used as an income threshold",
+      "category": "definitions",
       "parameters": {
         "jaarinkomen": 45000
       },
@@ -25,9 +25,9 @@
       "output_name": "heeft_recht"
     },
     {
-      "id": "real_002_toeslag_calculation",
+      "id": "definitions_002_rates_and_threshold",
       "description": "Calculate toeslag amount based on income",
-      "category": "real_regulations",
+      "category": "definitions",
       "parameters": {
         "inkomen": 30000
       },

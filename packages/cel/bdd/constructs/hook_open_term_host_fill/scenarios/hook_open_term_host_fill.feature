@@ -1,9 +1,10 @@
-Feature: The decision term of Awb 4:13 on an application for a permit
+Feature: A hook's open term filled by the host law, on the decision term of Awb 4:13
   As someone who models the general administrative law
   I want the decision term to follow every application
   So that a decision given after the last day of the term shows as late
 
-  # The construct "beslistermijn". Everything it loads is in ../regulation and
+  # The construct "hook_open_term_host_fill", with the decision term of Awb
+  # 4:13 as its case. Everything it loads is in ../regulation and
   # fictional: test_general_administrative_act, after articles 4:2 and 4:13
   # of the Algemene wet bestuursrecht, and three permit acts. Article 4:13
   # hooks onto every application (AANVRAAG): it takes the day of receipt as
