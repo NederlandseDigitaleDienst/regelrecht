@@ -35,11 +35,12 @@ const POLICY: &str = "fictief_beleid_vakantieverlof_obs_de_klimop";
 const SCHOOL_YEAR: &str = "fictief_beleid_schooljaargrenzen_obs_de_klimop";
 
 /// The fixtures of these tests (`tests/fixtures/reduction`): the fictional
-/// regelwerken and reductions of the vakantieverlof case, cut down to what
-/// these tests read. The reductions read the decisions of the cell with
-/// `source.decisions` (refused in a reduction from schema v0.8.17), as they
-/// were before the cell read its decisions as aggregates, and declare
-/// v0.8.12, which still reads them.
+/// regelwerken and reductions of the vakantieverlof case. The three policies
+/// are copies of those in the cel's fixtures, kept apart so a change there
+/// does not reach these tests. The reductions read the decisions of the
+/// cell with `source.decisions` (refused in a reduction from schema
+/// v0.8.17), as they were before the cell read its decisions as aggregates,
+/// and declare v0.8.12, which still reads them.
 fn corpus_dir() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/reduction")
 }

@@ -141,7 +141,7 @@ fn a_catalogue_that_names_an_empty_answer_or_reduction_is_refused() {
 /// applies the Awb. A catalogue that names it is refused when the cell
 /// opens.
 #[test]
-fn no_cell_gives_a_reduction_of_no_cell_as_its_answer() {
+fn a_cell_gives_only_the_answers_of_its_own_reductions() {
     const AWB_REDUCTION: &str = "reductie_algemene_wet_bestuursrecht";
     let dir = answers_dir(&[("besluiten_in_stand", AWB_REDUCTION)]);
     let e = Cell::in_memory(RECORDING_ACTOR, dir.path()).unwrap_err();
