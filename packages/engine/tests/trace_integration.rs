@@ -151,7 +151,7 @@ fn setup_zorgtoeslag_service() -> LawExecutionService {
 }
 
 #[test]
-fn test_zorgtoeslag_trace_output_format() {
+fn a_cross_law_trace_renders_as_its_snapshot() {
     let service = setup_zorgtoeslag_service();
 
     let mut params = BTreeMap::new();
@@ -194,7 +194,7 @@ fn test_zorgtoeslag_trace_output_format() {
 }
 
 #[test]
-fn test_zorgtoeslag_trace_result_matches_non_trace() {
+fn tracing_does_not_change_the_outputs() {
     let service = setup_zorgtoeslag_service();
 
     let mut params = BTreeMap::new();
@@ -251,7 +251,7 @@ fn test_trace_disabled_by_default() {
 }
 
 #[test]
-fn test_simple_law_trace() {
+fn a_single_law_trace_renders_as_its_snapshot() {
     // Test tracing with a simple single-law scenario (standard premium)
     let mut service = LawExecutionService::new();
     load_all_regulations(&mut service).expect("Failed to load regulations");

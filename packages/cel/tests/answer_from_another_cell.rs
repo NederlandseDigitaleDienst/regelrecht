@@ -1,9 +1,16 @@
+//! A decision that takes the answers of another cell along (RFC-048): the
+//! records of a second cell, an examination and an advice, fill the terms of
+//! the deciding cell's policy, beside the answer of a reduction over the
+//! deciding cell's own decisions. The case is a parking card for disabled
+//! people.
+//!
 //! A second case on the same cell: the college of a municipality grants a
 //! gehandicaptenparkeerkaart on application (BABW art. 49, with the criteria
 //! of the Regeling gehandicaptenparkeerkaart and the validity of art. 51),
 //! with the Awb on it, a reduction over its own decisions and the objection
 //! under Awb 7:11. Nothing in the cell knows this case: it follows from the
-//! law, the municipality's policy and its reduction, as vakantieverlof does.
+//! law, the municipality's policy and its reduction, as the leave case of
+//! `tests/submission_lifecycle.rs` does.
 //!
 //! The medical examination is the GGD's (Regeling art. 3): a cell of its
 //! own records it, and the municipality's decisions take that cell along

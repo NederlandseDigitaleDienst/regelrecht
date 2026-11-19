@@ -1,3 +1,8 @@
+//! An open term that a reduction answers from executograms, facts that refer
+//! to no submission (RFC-051, RFC-048), with the deciding authority's own
+//! judgement where the cell is silent. The case is leave outside the school
+//! holidays.
+//!
 //! Whether leave falls outside the school holidays (Leerplichtwet 1969 art.
 //! 11, onder f, read in art. 13a) follows from what the school recorded and
 //! the law, not from a judgement of the head (RFC-051). The Regeling

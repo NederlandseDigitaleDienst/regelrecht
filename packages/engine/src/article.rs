@@ -1421,7 +1421,7 @@ articles:
         }
 
         #[test]
-        fn test_wet_op_de_zorgtoeslag_find_article_by_output_works() {
+        fn test_find_article_by_output_finds_each_output_of_a_corpus_law() {
             let path = get_regulation_path().join("nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml");
             let law = ArticleBasedLaw::from_yaml_file(&path).unwrap();
 

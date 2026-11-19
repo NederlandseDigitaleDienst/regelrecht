@@ -55,6 +55,10 @@ from `packages/engine/build.rs`): change `grammar.yaml` and run
 `just bdd-codegen`. A failing law-validation scenario (bucket A, next to a law)
 means a law changed or the scenario is stale, and a human decides which.
 
+Name an engine or language test after the construct it tests, not after the
+law or case it runs on. The rule and its exception (bucket A) are in
+`docs/src/content/docs/guide/testing.md`.
+
 ## Vocabulary: regelwerk
 
 The definition is in the glossary (`docs/src/content/docs/reference/glossary.md`,
