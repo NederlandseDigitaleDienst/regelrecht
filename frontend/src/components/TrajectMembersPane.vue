@@ -139,18 +139,13 @@ function errorMessage(e: unknown): string | undefined {
   <nldd-simple-section>
     <nldd-title v-if="paneChromeVisible(loading)" id="instellingen-pane-titel" size="display-3"><h3>Leden</h3></nldd-title>
     <nldd-spacer v-if="paneChromeVisible(loading)" size="16"></nldd-spacer>
-    <nldd-toolbar v-if="isOwner && paneChromeVisible(loading)" accessible-label="Ledenacties">
-      <nldd-toolbar-item slot="start">
-        <nldd-button appearance="secondary" size="md" start-icon="plus-small" text="Uitnodigen" @click="triggerInviteMembers"></nldd-button>
-        <nldd-menu-item slot="overflow" icon="plus-small" text="Uitnodigen" @select="triggerInviteMembers"></nldd-menu-item>
-      </nldd-toolbar-item>
-    </nldd-toolbar>
+    <nldd-button v-if="isOwner && paneChromeVisible(loading)" appearance="secondary" size="md" start-icon="plus-small" text="Uitnodigen" @click="triggerInviteMembers"></nldd-button>
     <nldd-spacer v-if="isOwner && paneChromeVisible(loading)" size="16"></nldd-spacer>
 
     <nldd-activity-indicator v-if="loading" text="Leden laden" show-text></nldd-activity-indicator>
     <nldd-inline-dialog v-else-if="loadError" variant="alert" text="Leden niet geladen" :supporting-text="errorMessage(loadError)"></nldd-inline-dialog>
     <template v-else>
-    <nldd-list appearance="box-tinted">
+    <nldd-list type="form" appearance="box-tinted">
       <template v-for="m in members" :key="m.account_id">
         <nldd-list-item size="md">
           <nldd-icon-cell size="24"><nldd-icon icon="user"></nldd-icon></nldd-icon-cell>
@@ -223,6 +218,7 @@ function errorMessage(e: unknown): string | undefined {
   <Teleport to="body">
     <nldd-modal-dialog
       ref="confirmDialogEl"
+      variant="alert"
       :text="confirmInvite ? `Uitnodiging voor ${confirmInvite.email} intrekken?` : ''"
       supporting-text="Je kunt deze persoon op een later moment weer uitnodigen."
     >

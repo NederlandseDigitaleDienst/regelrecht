@@ -177,14 +177,14 @@ const referencedBy = computed(() => {
 <template>
   <nldd-navigation-split-view ref="splitView" primary-sidebar-as-sheet :primary-sidebar-accessible-label="t('wet.sidebar.label')" :inspector-accessible-label="t('wet.inspector.label')">
     <nldd-split-view-pane slot="sidebar" has-content background="tinted">
-      <nldd-page sticky-header background="inherit">
+      <nldd-page sticky-header background="inherit" :accessible-label="t('wet.sidebar.label')">
         <nldd-container slot="header" padding="12" gap="8">
           <nldd-top-title-bar :text="t('wet.sidebar.label')" :supporting-text="t.plural(sidebarLaws.length, 'wet.sidebar.count')"></nldd-top-title-bar>
           <nldd-search-field :placeholder="t('wet.sidebar.search')" size="sm" :value="query" @input="query = $event.detail?.value ?? $event.target.value"></nldd-search-field>
         </nldd-container>
-        <nldd-container padding-inline="8" padding-bottom="16">
+        <nldd-simple-section padding-top="0">
           <LawGroupTree :groups="groups" mode="pick" :active-id="activeId" @pick="openLaw" />
-        </nldd-container>
+        </nldd-simple-section>
       </nldd-page>
     </nldd-split-view-pane>
 
@@ -268,44 +268,46 @@ const referencedBy = computed(() => {
     </nldd-split-view-pane>
 
     <nldd-split-view-pane v-if="activeLaw" slot="inspector" has-content background="tinted">
-      <nldd-page background="inherit">
+      <nldd-page background="inherit" :accessible-label="t('wet.inspector.label')">
         <nldd-container slot="header" padding="12">
           <nldd-top-title-bar :text="t('wet.inspector.label')"></nldd-top-title-bar>
         </nldd-container>
-        <nldd-container padding="12" gap="16">
-          <nldd-list appearance="box-base" :accessible-label="t('wet.executed_by')">
-            <nldd-list-item size="md">
-              <!-- An active law means the corpus is loaded. -->
-              <nldd-cell><OrgLogo :service="activeLaw.service" /></nldd-cell>
-              <nldd-spacer-cell size="12"></nldd-spacer-cell>
-              <nldd-text-cell :overline="t('wet.executed_by')" :text="serviceInfo(corpus!, activeLaw.service).name"></nldd-text-cell>
-            </nldd-list-item>
-          </nldd-list>
-          <nldd-container gap="4">
-            <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('wet.uses_data_from') }}</nldd-text></nldd-container>
-            <nldd-list appearance="box-base" :accessible-label="t('wet.uses_data_from')">
-              <nldd-list-item v-if="references.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.no_other_laws')"></nldd-text-cell></nldd-list-item>
-              <nldd-list-item v-for="ref in references" :key="ref.id" size="sm" button @click="openLaw(ref.id)">
-                <nldd-cell><OrgLogo :service="ref.service" size="sm" /></nldd-cell>
-                <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                <nldd-text-cell size="sm" :text="ref.name" :supporting-text="ref.id"></nldd-text-cell>
-                <nldd-icon-cell icon="chevron-right" size="16"></nldd-icon-cell>
+        <nldd-simple-section padding-top="0">
+          <nldd-container gap="16">
+            <nldd-list appearance="box-base" :accessible-label="t('wet.executed_by')">
+              <nldd-list-item size="md">
+                <!-- An active law means the corpus is loaded. -->
+                <nldd-cell><OrgLogo :service="activeLaw.service" /></nldd-cell>
+                <nldd-spacer-cell size="12"></nldd-spacer-cell>
+                <nldd-text-cell :overline="t('wet.executed_by')" :text="serviceInfo(corpus!, activeLaw.service).name"></nldd-text-cell>
               </nldd-list-item>
             </nldd-list>
+            <nldd-container gap="4">
+              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('wet.uses_data_from') }}</nldd-text></nldd-container>
+              <nldd-list appearance="box-base" :accessible-label="t('wet.uses_data_from')">
+                <nldd-list-item v-if="references.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.no_other_laws')"></nldd-text-cell></nldd-list-item>
+                <nldd-list-item v-for="ref in references" :key="ref.id" size="sm" button @click="openLaw(ref.id)">
+                  <nldd-cell><OrgLogo :service="ref.service" size="sm" /></nldd-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-text-cell size="sm" :text="ref.name" :supporting-text="ref.id"></nldd-text-cell>
+                  <nldd-icon-cell icon="chevron-right" size="16"></nldd-icon-cell>
+                </nldd-list-item>
+              </nldd-list>
+            </nldd-container>
+            <nldd-container gap="4">
+              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('wet.used_by') }}</nldd-text></nldd-container>
+              <nldd-list appearance="box-base" :accessible-label="t('wet.used_by')">
+                <nldd-list-item v-if="referencedBy.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.no_other_laws')"></nldd-text-cell></nldd-list-item>
+                <nldd-list-item v-for="ref in referencedBy" :key="ref.id" size="sm" button @click="openLaw(ref.id)">
+                  <nldd-cell><OrgLogo :service="ref.service" size="sm" /></nldd-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-text-cell size="sm" :text="ref.name" :supporting-text="ref.id"></nldd-text-cell>
+                  <nldd-icon-cell icon="chevron-right" size="16"></nldd-icon-cell>
+                </nldd-list-item>
+              </nldd-list>
+            </nldd-container>
           </nldd-container>
-          <nldd-container gap="4">
-            <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('wet.used_by') }}</nldd-text></nldd-container>
-            <nldd-list appearance="box-base" :accessible-label="t('wet.used_by')">
-              <nldd-list-item v-if="referencedBy.length === 0" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('wet.no_other_laws')"></nldd-text-cell></nldd-list-item>
-              <nldd-list-item v-for="ref in referencedBy" :key="ref.id" size="sm" button @click="openLaw(ref.id)">
-                <nldd-cell><OrgLogo :service="ref.service" size="sm" /></nldd-cell>
-                <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                <nldd-text-cell size="sm" :text="ref.name" :supporting-text="ref.id"></nldd-text-cell>
-                <nldd-icon-cell icon="chevron-right" size="16"></nldd-icon-cell>
-              </nldd-list-item>
-            </nldd-list>
-          </nldd-container>
-        </nldd-container>
+        </nldd-simple-section>
       </nldd-page>
     </nldd-split-view-pane>
   </nldd-navigation-split-view>

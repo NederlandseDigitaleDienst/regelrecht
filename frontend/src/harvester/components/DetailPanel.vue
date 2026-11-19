@@ -113,7 +113,7 @@ function onSheetClose() {
               <nldd-cell
                 v-if="label === 'Status'"
                 width="full"
-                style="align-items: flex-end"
+                horizontal-alignment="right"
               >
                 <StatusBadge :status="String(value)" size="md" />
               </nldd-cell>

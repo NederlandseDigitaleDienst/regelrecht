@@ -342,27 +342,27 @@ onBeforeUnmount(() => {
                 v-for="tab in documentTabs"
                 :key="`${documentTabsTrajectRef ?? ''}:${tabActions!.key(tab)}`"
                 size="md"
-                button
-                :current="isActiveTab(tab) || undefined"
-                @click="selectTab(tab)"
               >
-                <nldd-spacer-cell size="12"></nldd-spacer-cell>
-                <nldd-icon-cell v-if="isActiveTab(tab)" size="20"><nldd-icon icon="check-mark"></nldd-icon></nldd-icon-cell>
-                <nldd-spacer-cell v-else size="20"></nldd-spacer-cell>
-                <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                <nldd-text-cell :text="tabText(tab)" :supporting-text="tabSupporting(tab)"></nldd-text-cell>
-                <nldd-cell v-if="tabUnsaved(tab)" width="fit-content">
-                  <nldd-tag size="sm" color="warning" text="Niet opgeslagen"></nldd-tag>
-                </nldd-cell>
-                <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                <nldd-cell>
-                  <nldd-icon-button
-                    size="sm"
-                    icon="dismiss"
-                    text="Sluit tabblad"
-                    @click.stop="closeTab(tab)"
-                  ></nldd-icon-button>
-                </nldd-cell>
+                <!-- Two segments: the row opens the tab, the cross closes it. A
+                     button inside a row that is itself a button nests a control
+                     in a control. -->
+                <nldd-list-item-segment
+                  width="full"
+                  button
+                  :current="isActiveTab(tab) || undefined"
+                  @click="selectTab(tab)"
+                >
+                  <nldd-icon-cell v-if="isActiveTab(tab)" size="20"><nldd-icon icon="check-mark"></nldd-icon></nldd-icon-cell>
+                  <nldd-spacer-cell v-else size="20"></nldd-spacer-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-text-cell :text="tabText(tab)" :supporting-text="tabSupporting(tab)"></nldd-text-cell>
+                  <nldd-cell v-if="tabUnsaved(tab)" width="fit-content">
+                    <nldd-tag size="sm" color="warning" text="Niet opgeslagen"></nldd-tag>
+                  </nldd-cell>
+                </nldd-list-item-segment>
+                <nldd-list-item-segment button accessible-label="Sluit tabblad" @click="closeTab(tab)">
+                  <nldd-icon-cell size="20"><nldd-icon icon="dismiss"></nldd-icon></nldd-icon-cell>
+                </nldd-list-item-segment>
               </nldd-list-item>
             </nldd-list>
           </template>

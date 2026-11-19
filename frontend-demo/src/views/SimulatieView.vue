@@ -577,7 +577,7 @@ function exportJson() {
            over de scroll-container (gemeten: 61px, en precies evenveel bij
            Wetten), wat daar onzichtbaar blijft omdat een lijst begint waar hier
            meteen een invoerveld staat. -->
-      <nldd-page background="inherit">
+      <nldd-page background="inherit" :accessible-label="t('sim.settings.label')">
         <nldd-container slot="header" padding="12" gap="8">
           <nldd-top-title-bar :text="t('sim.title')" :supporting-text="t('sim.title.laws', { n: lawSet.runnable.length })"></nldd-top-title-bar>
           <nldd-segmented-control width="full" :value="kind" @change="kind = $event.detail?.value ?? kind">
@@ -585,65 +585,67 @@ function exportJson() {
             <nldd-segmented-control-item value="ondernemers" :text="t('sim.kind.businesses')" icon="business-suitcase"></nldd-segmented-control-item>
           </nldd-segmented-control>
         </nldd-container>
-        <nldd-container padding="12" gap="12">
-          <nldd-form-field :label="t(kind === 'ondernemers' ? 'sim.count.businesses' : 'sim.count.citizens')">
-            <nldd-number-field :value="params.count" min="1" :max="MAX_POPULATION" step="10" width="full" @input="params.count = numberFrom($event) ?? params.count" @change="params.count = numberFrom($event) ?? params.count"></nldd-number-field>
-          </nldd-form-field>
-          <nldd-form-field :label="t('sim.reference_date')">
-            <nldd-date-field :value="referenceDate" width="full" @change="referenceDate = $event.detail?.value || referenceDate"></nldd-date-field>
-          </nldd-form-field>
-
-          <nldd-button width="full" appearance="neutral-transparent" horizontal-alignment="left" :end-icon="open.populatie ? 'chevron-up' : 'chevron-down'" :text="t(kind === 'ondernemers' ? 'sim.population.businesses' : 'sim.population.citizens')" :expanded="open.populatie || undefined" @click="open.populatie = !open.populatie"></nldd-button>
-          <template v-if="open.populatie">
-            <nldd-form-field :label="t('sim.seed')">
-              <nldd-number-field size="sm" :value="params.seed" min="1" step="1" width="full" hide-spin-buttons @input="params.seed = numberFrom($event) ?? params.seed" @change="params.seed = numberFrom($event) ?? params.seed"></nldd-number-field>
-              <nldd-form-field-help-text>{{ t('sim.seed.help') }}</nldd-form-field-help-text>
+        <nldd-simple-section padding-top="0">
+          <nldd-container gap="12">
+            <nldd-form-field :label="t(kind === 'ondernemers' ? 'sim.count.businesses' : 'sim.count.citizens')">
+              <nldd-number-field :value="params.count" min="1" :max="MAX_POPULATION" step="10" width="full" @input="params.count = numberFrom($event) ?? params.count" @change="params.count = numberFrom($event) ?? params.count"></nldd-number-field>
             </nldd-form-field>
-            <nldd-container v-for="group in knobs" :key="group.key" gap="8">
-              <nldd-text-cell size="sm" color="secondary" :text="group.group"></nldd-text-cell>
-              <nldd-form-field v-for="field in group.fields" :key="field.path.join('.')" :label="field.label">
-                <nldd-number-field size="sm" :value="getKnob(field.path)" min="0" max="100" step="5" width="full" hide-spin-buttons @input="setKnob(field.path, numberFrom($event))" @change="setKnob(field.path, numberFrom($event))"></nldd-number-field>
-              </nldd-form-field>
-            </nldd-container>
-          </template>
+            <nldd-form-field :label="t('sim.reference_date')">
+              <nldd-date-field :value="referenceDate" width="full" @change="referenceDate = $event.detail?.value || referenceDate"></nldd-date-field>
+            </nldd-form-field>
 
-          <nldd-button width="full" appearance="neutral-transparent" horizontal-alignment="left" :end-icon="open.wetgeving ? 'chevron-up' : 'chevron-down'" :text="totalOverrides ? t('sim.params.title_changed', { n: totalOverrides }) : t('sim.params.title')" :expanded="open.wetgeving || undefined" @click="open.wetgeving = !open.wetgeving"></nldd-button>
-          <!-- `definitionsByLaw` has an entry for every law in `lawSet.runnable`
-               and `supporting` (they make up `tunable`), hence the `!`. -->
-          <nldd-list v-if="open.wetgeving" appearance="box-tinted" :accessible-label="t('sim.params.list_label')">
-            <nldd-list-item v-for="law in lawSet.runnable" :key="law.id" size="sm" button :disabled="definitionsByLaw[law.id]!.length === 0 || undefined" @click="editParameters(law)">
-              <nldd-cell><OrgLogo :service="law.service" size="sm" /></nldd-cell>
-              <nldd-spacer-cell size="8"></nldd-spacer-cell>
-              <nldd-text-cell size="sm" :text="law.name" :supporting-text="t('sim.params.count', { n: definitionsByLaw[law.id]!.length })"></nldd-text-cell>
-              <nldd-cell v-if="overrideCount(law.id)"><nldd-tag size="sm" color="warning" :text="t('sim.params.changed', { n: overrideCount(law.id) })"></nldd-tag></nldd-cell>
-              <nldd-icon-cell v-else-if="definitionsByLaw[law.id]!.length" icon="chevron-right" color="secondary"></nldd-icon-cell>
-            </nldd-list-item>
-          </nldd-list>
-          <template v-if="open.wetgeving && supporting.length">
-            <!-- nldd-text and not a text-cell: a cell outside a list keeps its
-                 one-line row height, and this heading wraps in the sidebar. -->
-            <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('sim.params.supporting') }}</nldd-text></nldd-container>
-            <nldd-list appearance="box-tinted" :accessible-label="t('sim.params.supporting')">
-              <nldd-list-item v-for="law in supporting" :key="law.id" size="sm" button @click="editParameters(law)">
+            <nldd-button width="full" appearance="neutral-transparent" horizontal-alignment="left" :end-icon="open.populatie ? 'chevron-up' : 'chevron-down'" :text="t(kind === 'ondernemers' ? 'sim.population.businesses' : 'sim.population.citizens')" :expanded="open.populatie || undefined" @click="open.populatie = !open.populatie"></nldd-button>
+            <template v-if="open.populatie">
+              <nldd-form-field :label="t('sim.seed')">
+                <nldd-number-field size="sm" :value="params.seed" min="1" step="1" width="full" hide-spin-buttons @input="params.seed = numberFrom($event) ?? params.seed" @change="params.seed = numberFrom($event) ?? params.seed"></nldd-number-field>
+                <nldd-form-field-help-text>{{ t('sim.seed.help') }}</nldd-form-field-help-text>
+              </nldd-form-field>
+              <nldd-container v-for="group in knobs" :key="group.key" gap="8">
+                <nldd-text-cell size="sm" color="secondary" :text="group.group"></nldd-text-cell>
+                <nldd-form-field v-for="field in group.fields" :key="field.path.join('.')" :label="field.label">
+                  <nldd-number-field size="sm" :value="getKnob(field.path)" min="0" max="100" step="5" width="full" hide-spin-buttons @input="setKnob(field.path, numberFrom($event))" @change="setKnob(field.path, numberFrom($event))"></nldd-number-field>
+                </nldd-form-field>
+              </nldd-container>
+            </template>
+
+            <nldd-button width="full" appearance="neutral-transparent" horizontal-alignment="left" :end-icon="open.wetgeving ? 'chevron-up' : 'chevron-down'" :text="totalOverrides ? t('sim.params.title_changed', { n: totalOverrides }) : t('sim.params.title')" :expanded="open.wetgeving || undefined" @click="open.wetgeving = !open.wetgeving"></nldd-button>
+            <!-- `definitionsByLaw` has an entry for every law in `lawSet.runnable`
+                 and `supporting` (they make up `tunable`), hence the `!`. -->
+            <nldd-list v-if="open.wetgeving" appearance="box-tinted" :accessible-label="t('sim.params.list_label')">
+              <nldd-list-item v-for="law in lawSet.runnable" :key="law.id" size="sm" button :disabled="definitionsByLaw[law.id]!.length === 0 || undefined" @click="editParameters(law)">
                 <nldd-cell><OrgLogo :service="law.service" size="sm" /></nldd-cell>
                 <nldd-spacer-cell size="8"></nldd-spacer-cell>
                 <nldd-text-cell size="sm" :text="law.name" :supporting-text="t('sim.params.count', { n: definitionsByLaw[law.id]!.length })"></nldd-text-cell>
                 <nldd-cell v-if="overrideCount(law.id)"><nldd-tag size="sm" color="warning" :text="t('sim.params.changed', { n: overrideCount(law.id) })"></nldd-tag></nldd-cell>
-                <nldd-icon-cell v-else icon="chevron-right" color="secondary"></nldd-icon-cell>
+                <nldd-icon-cell v-else-if="definitionsByLaw[law.id]!.length" icon="chevron-right" color="secondary"></nldd-icon-cell>
               </nldd-list-item>
             </nldd-list>
-          </template>
+            <template v-if="open.wetgeving && supporting.length">
+              <!-- nldd-text and not a text-cell: a cell outside a list keeps its
+                   one-line row height, and this heading wraps in the sidebar. -->
+              <nldd-container padding-inline="12"><nldd-text size="sm" weight="medium" color="secondary">{{ t('sim.params.supporting') }}</nldd-text></nldd-container>
+              <nldd-list appearance="box-tinted" :accessible-label="t('sim.params.supporting')">
+                <nldd-list-item v-for="law in supporting" :key="law.id" size="sm" button @click="editParameters(law)">
+                  <nldd-cell><OrgLogo :service="law.service" size="sm" /></nldd-cell>
+                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                  <nldd-text-cell size="sm" :text="law.name" :supporting-text="t('sim.params.count', { n: definitionsByLaw[law.id]!.length })"></nldd-text-cell>
+                  <nldd-cell v-if="overrideCount(law.id)"><nldd-tag size="sm" color="warning" :text="t('sim.params.changed', { n: overrideCount(law.id) })"></nldd-tag></nldd-cell>
+                  <nldd-icon-cell v-else icon="chevron-right" color="secondary"></nldd-icon-cell>
+                </nldd-list-item>
+              </nldd-list>
+            </template>
 
-          <nldd-button width="full" appearance="primary" start-icon="play" :text="t(running ? 'sim.run.busy' : 'sim.run')" :disabled="!ready || running || undefined" @click="run"></nldd-button>
-          <template v-if="running">
-            <nldd-progress-bar :value="progress.done" :max="progress.total || 1" value-format="fraction" value-display="inline" :text="t(kind === 'ondernemers' ? 'sim.run.progress.businesses' : 'sim.run.progress.citizens')"></nldd-progress-bar>
-            <nldd-button width="full" appearance="secondary" size="sm" :text="t('sim.run.stop')" @click="cancel"></nldd-button>
-          </template>
-          <nldd-banner v-if="runError" variant="critical" :text="t('sim.run.failed')" :supporting-text="runError"></nldd-banner>
-          <nldd-rich-text v-if="lawSet.skipped.length">
-            <p><small>{{ t('sim.skipped', { laws: lawSet.skipped.map((s) => t('sim.skipped.law', { name: s.law.name, missing: s.missing.join(', ') })).join('; ') }) }}</small></p>
-          </nldd-rich-text>
-        </nldd-container>
+            <nldd-button width="full" appearance="primary" start-icon="play" :text="t(running ? 'sim.run.busy' : 'sim.run')" :disabled="!ready || running || undefined" @click="run"></nldd-button>
+            <template v-if="running">
+              <nldd-progress-bar :value="progress.done" :max="progress.total || 1" value-format="fraction" value-display="inline" :text="t(kind === 'ondernemers' ? 'sim.run.progress.businesses' : 'sim.run.progress.citizens')"></nldd-progress-bar>
+              <nldd-button width="full" appearance="secondary" size="sm" :text="t('sim.run.stop')" @click="cancel"></nldd-button>
+            </template>
+            <nldd-banner v-if="runError" variant="critical" :text="t('sim.run.failed')" :supporting-text="runError"></nldd-banner>
+            <nldd-rich-text v-if="lawSet.skipped.length">
+              <p><small>{{ t('sim.skipped', { laws: lawSet.skipped.map((s) => t('sim.skipped.law', { name: s.law.name, missing: s.missing.join(', ') })).join('; ') }) }}</small></p>
+            </nldd-rich-text>
+          </nldd-container>
+        </nldd-simple-section>
       </nldd-page>
     </nldd-split-view-pane>
 
@@ -660,7 +662,7 @@ function exportJson() {
               <nldd-button size="sm" appearance="neutral-tinted" start-icon="settings" :text="t('sim.settings.open')" @click="splitView?.showPrimarySidebarSheet?.()"></nldd-button>
               <nldd-menu-item slot="overflow" icon="settings" :text="t('sim.settings.open')" @select="splitView?.showPrimarySidebarSheet?.()"></nldd-menu-item>
             </nldd-toolbar-item>
-            <nldd-toolbar-item slot="start" v-if="runs.length">
+            <nldd-toolbar-item slot="start" v-if="runs.length" :priority="1">
               <nldd-tab-bar :accessible-label="t('sim.tab.label')" @tab-change="onTab">
                 <!-- De kleur van de run als bolletje in de icoonplek: een streep
                      onder de tab hing aan de rechthoek van het element en
@@ -908,7 +910,9 @@ function exportJson() {
                   </nldd-container>
                   <nldd-banner v-if="harmonizeError" variant="critical" :text="harmonizeError"></nldd-banner>
                   <nldd-form-actions>
-                    <nldd-button appearance="primary" start-icon="play" :text="t('sim.harmonise.run')" :disabled="!harmonizableLaws.length || undefined" @click="harmonize"></nldd-button>
+                    <nldd-button-group>
+                      <nldd-button appearance="primary" start-icon="play" :text="t('sim.harmonise.run')" :disabled="!harmonizableLaws.length || undefined" @click="harmonize"></nldd-button>
+                    </nldd-button-group>
                   </nldd-form-actions>
                 </nldd-container>
               </nldd-card>
@@ -1012,50 +1016,54 @@ function exportJson() {
     </nldd-split-view-pane>
 
     <nldd-split-view-pane v-if="inspector && inspectorLaw" slot="inspector" has-content>
-      <nldd-page>
+      <nldd-page :accessible-label="inspectorLaw.name">
         <nldd-container slot="header" padding="12">
           <!-- `inspectorLaw` comes from the corpus, so the corpus is loaded here. -->
           <nldd-top-title-bar :text="inspectorLaw.name" :supporting-text="inspector.type === 'params' ? t('sim.inspector.params') : serviceInfo(corpus!, inspectorLaw.service).name" :dismiss-text="t('sim.inspector.close')" @dismiss="inspector = null"></nldd-top-title-bar>
         </nldd-container>
 
         <!-- Law parameters -->
-        <nldd-container v-if="inspector.type === 'params'" padding="12" gap="12">
-          <!-- De zin staat in twee stukken in het woordenboek, met het
-               <code>-element ertussen: dat scheelt een v-html voor één tag. -->
-          <!-- Klein en secundair: een toelichting, niet waar het paneel om draait. -->
-          <nldd-text size="sm" color="secondary">{{ t('sim.inspector.definitions.lead') }} (<code>definitions</code>). {{ t('sim.inspector.definitions.scope') }}</nldd-text>
-          <nldd-form-field v-for="def in definitionsByLaw[inspectorLaw.id]" :key="def.key" :label="humanize(def.key)">
-            <!-- Op `input` én `change`: `change` kwam in de praktijk niet aan
-                 (gemeten: wel `input` met { value }, geen `change` na Enter of
-                 blur), waardoor een getypt bedrag bij het starten van de run
-                 terugsprong naar de standaardwaarde. -->
-            <nldd-number-field :value="overrides[inspectorLaw.id]?.[def.key] ?? def.value" :step="Number.isInteger(def.value) ? '1' : '0.001'" width="full" hide-spin-buttons @input="setOverride(inspectorLaw.id, def.key, numberFrom($event))" @change="setOverride(inspectorLaw.id, def.key, numberFrom($event))"></nldd-number-field>
-            <nldd-form-field-help-text>{{ t('sim.inspector.definition_help', { article: def.article, value: def.value, hint: definitionHint(def) }) }}</nldd-form-field-help-text>
-          </nldd-form-field>
-          <nldd-button v-if="overrideCount(inspectorLaw.id)" appearance="secondary" start-icon="arrow-2-counter-clockwise" :text="t('sim.inspector.reset')" @click="resetOverrides(inspectorLaw.id)"></nldd-button>
-        </nldd-container>
+        <nldd-simple-section v-if="inspector.type === 'params'" padding-top="0">
+          <nldd-container gap="12">
+            <!-- De zin staat in twee stukken in het woordenboek, met het
+                 <code>-element ertussen: dat scheelt een v-html voor één tag. -->
+            <!-- Klein en secundair: een toelichting, niet waar het paneel om draait. -->
+            <nldd-text size="sm" color="secondary">{{ t('sim.inspector.definitions.lead') }} (<code>definitions</code>). {{ t('sim.inspector.definitions.scope') }}</nldd-text>
+            <nldd-form-field v-for="def in definitionsByLaw[inspectorLaw.id]" :key="def.key" :label="humanize(def.key)">
+              <!-- Op `input` én `change`: `change` kwam in de praktijk niet aan
+                   (gemeten: wel `input` met { value }, geen `change` na Enter of
+                   blur), waardoor een getypt bedrag bij het starten van de run
+                   terugsprong naar de standaardwaarde. -->
+              <nldd-number-field :value="overrides[inspectorLaw.id]?.[def.key] ?? def.value" :step="Number.isInteger(def.value) ? '1' : '0.001'" width="full" hide-spin-buttons @input="setOverride(inspectorLaw.id, def.key, numberFrom($event))" @change="setOverride(inspectorLaw.id, def.key, numberFrom($event))"></nldd-number-field>
+              <nldd-form-field-help-text>{{ t('sim.inspector.definition_help', { article: def.article, value: def.value, hint: definitionHint(def) }) }}</nldd-form-field-help-text>
+            </nldd-form-field>
+            <nldd-button v-if="overrideCount(inspectorLaw.id)" appearance="secondary" start-icon="arrow-2-counter-clockwise" :text="t('sim.inspector.reset')" @click="resetOverrides(inspectorLaw.id)"></nldd-button>
+          </nldd-container>
+        </nldd-simple-section>
 
         <!-- One law in the active run -->
         <!-- The condition below guarantees the summary, hence the `!` inside. -->
-        <nldd-container v-else-if="activeRun && activeRun.summary[inspector.lawId]" padding="12" gap="12">
-          <nldd-list appearance="box-tinted" :accessible-label="t('sim.inspector.outcome')">
-            <nldd-list-item size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.evaluated')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="num(activeRun.summary[inspector.lawId]!.evaluated)"></nldd-text-cell></nldd-list-item>
-            <nldd-list-item v-if="activeRun.summary[inspector.lawId]!.hasEligibility" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.eligible')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="`${num(activeRun.summary[inspector.lawId]!.eligible)} (${pct(activeRun.summary[inspector.lawId]!.eligiblePct)})`"></nldd-text-cell></nldd-list-item>
-            <nldd-list-item v-if="activeRun.summary[inspector.lawId]!.withAmount" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.average', { name: amountLabel(activeRun, inspector.lawId) })"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="fmtAmount(activeRun, inspector.lawId, activeRun.summary[inspector.lawId]!.avgAmount)"></nldd-text-cell></nldd-list-item>
-            <nldd-list-item v-if="activeRun.summary[inspector.lawId]!.withAmount && amountIsMoney(activeRun, inspector.lawId)" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.total')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="money(activeRun.summary[inspector.lawId]!.totalAmount)"></nldd-text-cell></nldd-list-item>
-            <nldd-list-item v-if="activeRun.summary[inspector.lawId]!.errors" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.not_computed')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="num(activeRun.summary[inspector.lawId]!.errors)"></nldd-text-cell></nldd-list-item>
-          </nldd-list>
-          <nldd-banner v-if="activeRun.summary[inspector.lawId]!.errors" variant="warning" :text="t('sim.inspector.first_error')" :supporting-text="firstError(activeRun, inspector.lawId)"></nldd-banner>
-          <nldd-form-field :label="t('sim.inspector.split_by')">
-            <nldd-dropdown width="full">
-              <select :value="dimension.id" @change="dimensionId = selectValue($event)">
-                <option v-for="d in dimensions" :key="d.id" :value="d.id">{{ dimensionLabel(d) }}</option>
-              </select>
-            </nldd-dropdown>
-          </nldd-form-field>
-          <SimBarChart :categories="breakdownFor(inspector.lawId).map((r) => groupLabel(r.group))" :series="[{ name: t('sim.inspector.meets'), values: breakdownFor(inspector.lawId).map((r) => r.eligiblePct) }]" unit="percent" height="220px" />
-          <nldd-button appearance="secondary" start-icon="book" :text="t('sim.inspector.law_text')" @click="goTo('wetten', { lawId: inspector.lawId })"></nldd-button>
-        </nldd-container>
+        <nldd-simple-section v-else-if="activeRun && activeRun.summary[inspector.lawId]" padding-top="0">
+          <nldd-container gap="12">
+            <nldd-list appearance="box-tinted" :accessible-label="t('sim.inspector.outcome')">
+              <nldd-list-item size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.evaluated')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="num(activeRun.summary[inspector.lawId]!.evaluated)"></nldd-text-cell></nldd-list-item>
+              <nldd-list-item v-if="activeRun.summary[inspector.lawId]!.hasEligibility" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.eligible')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="`${num(activeRun.summary[inspector.lawId]!.eligible)} (${pct(activeRun.summary[inspector.lawId]!.eligiblePct)})`"></nldd-text-cell></nldd-list-item>
+              <nldd-list-item v-if="activeRun.summary[inspector.lawId]!.withAmount" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.average', { name: amountLabel(activeRun, inspector.lawId) })"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="fmtAmount(activeRun, inspector.lawId, activeRun.summary[inspector.lawId]!.avgAmount)"></nldd-text-cell></nldd-list-item>
+              <nldd-list-item v-if="activeRun.summary[inspector.lawId]!.withAmount && amountIsMoney(activeRun, inspector.lawId)" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.total')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="money(activeRun.summary[inspector.lawId]!.totalAmount)"></nldd-text-cell></nldd-list-item>
+              <nldd-list-item v-if="activeRun.summary[inspector.lawId]!.errors" size="sm"><nldd-text-cell size="sm" color="secondary" :text="t('sim.inspector.not_computed')"></nldd-text-cell><nldd-text-cell size="sm" width="fit-content" :text="num(activeRun.summary[inspector.lawId]!.errors)"></nldd-text-cell></nldd-list-item>
+            </nldd-list>
+            <nldd-banner v-if="activeRun.summary[inspector.lawId]!.errors" variant="warning" :text="t('sim.inspector.first_error')" :supporting-text="firstError(activeRun, inspector.lawId)"></nldd-banner>
+            <nldd-form-field :label="t('sim.inspector.split_by')">
+              <nldd-dropdown width="full">
+                <select :value="dimension.id" @change="dimensionId = selectValue($event)">
+                  <option v-for="d in dimensions" :key="d.id" :value="d.id">{{ dimensionLabel(d) }}</option>
+                </select>
+              </nldd-dropdown>
+            </nldd-form-field>
+            <SimBarChart :categories="breakdownFor(inspector.lawId).map((r) => groupLabel(r.group))" :series="[{ name: t('sim.inspector.meets'), values: breakdownFor(inspector.lawId).map((r) => r.eligiblePct) }]" unit="percent" height="220px" />
+            <nldd-button appearance="secondary" start-icon="book" :text="t('sim.inspector.law_text')" @click="goTo('wetten', { lawId: inspector.lawId })"></nldd-button>
+          </nldd-container>
+        </nldd-simple-section>
       </nldd-page>
     </nldd-split-view-pane>
   </nldd-navigation-split-view>

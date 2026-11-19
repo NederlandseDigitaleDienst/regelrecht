@@ -630,7 +630,9 @@ function addValue() {
       </nldd-title>
       <nldd-spacer size="12"></nldd-spacer>
     </template>
-    <nldd-list appearance="box-tinted" class="settings-list">
+    <!-- Editable rows hold controls and are no actions themselves; read-only
+         rows with a nested operation are buttons, which a form list has none of. -->
+    <nldd-list :type="editable ? 'form' : 'list'" appearance="box-tinted" class="settings-list">
       <!-- Optional lead row, rendered as the first item of THIS list so
            the action sheet's Output field sits in the same box as Type /
            conditions on the root of an action. -->

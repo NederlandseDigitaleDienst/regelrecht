@@ -77,22 +77,24 @@ const errorText = computed(() => (error.value ? t(`wet.tile.why.error.${error.va
         <nldd-container slot="header" padding="12">
           <nldd-top-title-bar :text="t('wet.tile.why.title')" :supporting-text="law?.name" :dismiss-text="t('wet.tile.why.close')" @dismiss="emit('close')"></nldd-top-title-bar>
         </nldd-container>
-        <nldd-container padding="16" gap="16">
-          <nldd-banner variant="accent" icon="info" :text="t('wet.tile.why.caveat.title')" :supporting-text="t('wet.tile.why.caveat.body')"></nldd-banner>
-          <nldd-inline-dialog v-if="error" variant="alert" :text="t('wet.tile.why.error.title')" :supporting-text="errorText">
-            <nldd-button v-if="error !== 'locked'" slot="actions" appearance="secondary" size="sm" :text="t('wet.tile.why.retry')" @click="run"></nldd-button>
-          </nldd-inline-dialog>
-          <nldd-activity-indicator v-else-if="loading && !text" show-text :text="t('wet.tile.why.loading')" timing="instant" size="24"></nldd-activity-indicator>
-          <!-- aria-live so a screen reader reads the explanation as it arrives,
-               aria-busy until it is complete: otherwise reading restarts with
-               every new sentence. -->
-          <nldd-rich-text v-if="blocks.length" aria-live="polite" :aria-busy="loading ? 'true' : 'false'">
-            <template v-for="(b, i) in blocks" :key="i">
-              <ul v-if="'items' in b"><li v-for="(item, j) in b.items" :key="j">{{ item }}</li></ul>
-              <p v-else>{{ b.text }}</p>
-            </template>
-          </nldd-rich-text>
-        </nldd-container>
+        <nldd-simple-section>
+          <nldd-container gap="16">
+            <nldd-banner variant="accent" icon="info" :text="t('wet.tile.why.caveat.title')" :supporting-text="t('wet.tile.why.caveat.body')"></nldd-banner>
+            <nldd-inline-dialog v-if="error" variant="alert" :text="t('wet.tile.why.error.title')" :supporting-text="errorText">
+              <nldd-button v-if="error !== 'locked'" slot="actions" appearance="secondary" size="sm" :text="t('wet.tile.why.retry')" @click="run"></nldd-button>
+            </nldd-inline-dialog>
+            <nldd-activity-indicator v-else-if="loading && !text" show-text :text="t('wet.tile.why.loading')" timing="instant" size="24"></nldd-activity-indicator>
+            <!-- aria-live so a screen reader reads the explanation as it arrives,
+                 aria-busy until it is complete: otherwise reading restarts with
+                 every new sentence. -->
+            <nldd-rich-text v-if="blocks.length" aria-live="polite" :aria-busy="loading ? 'true' : 'false'">
+              <template v-for="(b, i) in blocks" :key="i">
+                <ul v-if="'items' in b"><li v-for="(item, j) in b.items" :key="j">{{ item }}</li></ul>
+                <p v-else>{{ b.text }}</p>
+              </template>
+            </nldd-rich-text>
+          </nldd-container>
+        </nldd-simple-section>
       </nldd-page>
     </nldd-sheet>
   </Teleport>

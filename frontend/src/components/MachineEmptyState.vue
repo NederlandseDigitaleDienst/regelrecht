@@ -131,6 +131,7 @@ const emptyText = computed(() => {
     <!-- Where the enrichment runs here, the chevron offers a choice of model
          as an advanced option; the button itself runs the default. Where it
          routes to login or a traject first there is nothing to choose yet. -->
+    <!-- nldd-lint-disable-next-line action-goes-on-button -- the action is a split button, which carries the slot itself; there is no nldd-button to put it on -->
     <nldd-split-button
       v-if="canEnrich && actsHere"
       slot="actions"

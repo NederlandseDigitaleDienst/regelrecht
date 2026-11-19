@@ -355,7 +355,7 @@ function restoreTabSelection() {
       <nldd-split-view-pane slot="primary-bar-md" only="md">
         <nldd-container padding="8">
           <nldd-toolbar size="md">
-            <nldd-toolbar-item slot="start">
+            <nldd-toolbar-item slot="start" :priority="1">
               <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
                 <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" text="Home"></nldd-tab-bar-item>
                 <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Editor"></nldd-tab-bar-item>
@@ -444,7 +444,7 @@ function restoreTabSelection() {
       <nldd-split-view-pane slot="primary-bar-lg" above="lg">
         <nldd-container padding="8">
           <nldd-toolbar size="md">
-            <nldd-toolbar-item slot="start">
+            <nldd-toolbar-item slot="start" :priority="1">
               <nldd-tab-bar size="md" navigation accessible-label="Onderdelen">
                 <nldd-tab-bar-item :current="isLibraryRoute || undefined" :href="isLibraryRoute ? undefined : libraryTabHref" @click.prevent="isLibraryRoute || router.push(libraryTabTarget)" text="Home"></nldd-tab-bar-item>
                 <nldd-tab-bar-item :current="!isLibraryRoute || undefined" :href="authenticated && isLibraryRoute ? editorTabHref : undefined" @click.prevent="onEditorTab" @pointerdown.capture="onLoginTriggerPointerdown" text="Editor"></nldd-tab-bar-item>
@@ -730,6 +730,7 @@ function restoreTabSelection() {
            account row below. -->
       <nldd-split-view-pane slot="mobile-bar" only="sm">
         <nldd-container padding="8" padding-bottom="0">
+          <!-- nldd-lint-disable-next-line toolbar-bottom-needs-large -- this row holds one full-width button; the bar with the sections is the large one below -->
           <nldd-toolbar size="md">
             <nldd-toolbar-item slot="start" width="100%">
               <MobileTrajectSheet />

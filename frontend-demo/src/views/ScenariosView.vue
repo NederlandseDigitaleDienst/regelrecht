@@ -342,12 +342,12 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
 <template>
   <nldd-navigation-split-view ref="splitView" primary-sidebar-as-sheet :primary-sidebar-accessible-label="t('app.tabs.scenarios')">
     <nldd-split-view-pane slot="sidebar" has-content background="tinted">
-      <nldd-page sticky-header background="inherit">
+      <nldd-page sticky-header background="inherit" :accessible-label="t('app.tabs.scenarios')">
         <nldd-container slot="header" padding="12" gap="8">
           <nldd-top-title-bar :text="t('app.tabs.scenarios')" :supporting-text="t.plural(features.length, 'scenario.files')"></nldd-top-title-bar>
           <nldd-search-field :placeholder="t('scenario.search')" size="sm" :value="query" @input="query = $event.detail?.value ?? $event.target.value"></nldd-search-field>
         </nldd-container>
-        <nldd-container padding-inline="8" padding-bottom="16">
+        <nldd-simple-section padding-top="0">
           <nldd-list type="navigation" :accessible-label="t('scenario.files.label')">
             <!-- A law found for `f` means the corpus is loaded, and `lawFor(f)` is checked just before. -->
             <nldd-list-item v-for="f in filtered" :key="f.path" size="sm" button :selected="f.path === selectedPath || undefined" @click="select(f.path)">
@@ -355,7 +355,7 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
             </nldd-list-item>
             <nldd-inline-dialog slot="empty" :text="t('scenario.none_found')" :supporting-text="t('scenario.none_found.hint')"></nldd-inline-dialog>
           </nldd-list>
-        </nldd-container>
+        </nldd-simple-section>
       </nldd-page>
     </nldd-split-view-pane>
 
@@ -376,7 +376,7 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
               <nldd-menu-item slot="overflow" type="radio" :text="t('app.tabs.scenarios')" :selected="!showText || undefined" @select="showText = false"></nldd-menu-item>
               <nldd-menu-item slot="overflow" type="radio" :text="t('scenario.view.file')" :selected="showText || undefined" @select="showText = true"></nldd-menu-item>
             </nldd-toolbar-item>
-            <nldd-toolbar-item slot="end" v-if="parsed">
+            <nldd-toolbar-item slot="end" v-if="parsed" :priority="1">
               <nldd-button size="sm" appearance="primary" start-icon="play" :text="t('scenario.run_all')" :loading="runningAll || undefined" :disabled="(anyRunning && !runningAll) || undefined" @click="runAll"></nldd-button>
               <nldd-menu-item slot="overflow" icon="play" :text="t('scenario.run_all')" :disabled="anyRunning || undefined" @select="runAll"></nldd-menu-item>
             </nldd-toolbar-item>
@@ -477,20 +477,22 @@ const fileName = computed(() => selectedPath.value?.split('/').pop() ?? '');
     <Teleport to="body">
       <nldd-sheet ref="traceSheet" placement="right" width="1400px" :accessible-label="t('scenario.trace.label')" @close="activeTrace = null">
         <!-- A trace scenario means `activeTrace` is set. -->
-        <nldd-page v-if="traceScenario">
+        <nldd-page v-if="traceScenario" :accessible-label="t('scenario.trace.label')">
           <nldd-container slot="header" padding="12">
             <nldd-top-title-bar :text="t('scenario.trace.label')" :supporting-text="parsed?.scenarios[activeTrace!]?.name" :dismiss-text="t('scenario.close')" @dismiss="activeTrace = null"></nldd-top-title-bar>
           </nldd-container>
-          <nldd-container padding="16" gap="16">
-            <nldd-banner v-if="traceScenario.error" variant="critical" :text="t('scenario.run_failed')" :supporting-text="traceScenario.error"></nldd-banner>
-            <nldd-list v-if="traceScenario.outputs" appearance="box-tinted" :accessible-label="t('scenario.outputs')">
-              <nldd-list-item v-for="(v, k) in traceScenario.outputs" :key="k" size="sm">
-                <nldd-text-cell size="sm" :text="String(k)"></nldd-text-cell>
-                <nldd-text-cell size="sm" width="fit-content" horizontal-alignment="right" :text="JSON.stringify(v)"></nldd-text-cell>
-              </nldd-list-item>
-            </nldd-list>
-            <TraceView :text="traceScenario.traceText" />
-          </nldd-container>
+          <nldd-simple-section width="full">
+            <nldd-container gap="16">
+              <nldd-banner v-if="traceScenario.error" variant="critical" :text="t('scenario.run_failed')" :supporting-text="traceScenario.error"></nldd-banner>
+              <nldd-list v-if="traceScenario.outputs" appearance="box-tinted" :accessible-label="t('scenario.outputs')">
+                <nldd-list-item v-for="(v, k) in traceScenario.outputs" :key="k" size="sm">
+                  <nldd-text-cell size="sm" :text="String(k)"></nldd-text-cell>
+                  <nldd-text-cell size="sm" width="fit-content" horizontal-alignment="right" :text="JSON.stringify(v)"></nldd-text-cell>
+                </nldd-list-item>
+              </nldd-list>
+              <TraceView :text="traceScenario.traceText" />
+            </nldd-container>
+          </nldd-simple-section>
         </nldd-page>
       </nldd-sheet>
     </Teleport>

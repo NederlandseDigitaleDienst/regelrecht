@@ -115,10 +115,14 @@ function onSheetClose() {
         <nldd-top-title-bar
           slot="header"
           text="New harvest job"
+          heading-level="2"
           dismiss-text="Cancel"
+          collapse-anchor="new-harvest-job-title"
           @dismiss="close"
         />
         <nldd-simple-section>
+          <nldd-title id="new-harvest-job-title" size="display-3" heading-level="2" text="New harvest job" />
+          <nldd-spacer size="16" />
           <!-- Enter in the field submits through the form: nldd-form renders a
                real <form> and the DS hands implicit submission back to it, so a
                keydown handler of our own would fire onSubmit twice. -->
@@ -157,6 +161,7 @@ function onSheetClose() {
                   :disabled="submitting ? '' : undefined"
                   @click="onSubmit"
                 />
+                <!-- nldd-lint-disable-next-line sheet-form-max-one-action -- a second way to submit that keeps the sheet open for the next job, not a way out -->
                 <nldd-button
                   appearance="secondary"
                   text="Add and add another"
