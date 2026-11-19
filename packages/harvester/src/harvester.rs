@@ -7,6 +7,7 @@ use reqwest::Client;
 use crate::config::{DEFAULT_MAX_RESPONSE_SIZE, validate_bwb_id, validate_date, wetten_url};
 use crate::content::download_content_xml;
 use crate::error::Result;
+use crate::placement::find_placement;
 use crate::splitting::{LeafSplitStrategy, SplitContext, SplitEngine, create_dutch_law_hierarchy};
 use crate::types::{Law, Preamble};
 use crate::wti::{WtiParseResult, download_wti};
@@ -135,6 +136,7 @@ fn parse_articles(xml: &str, bwb_id: &str, date: &str) -> Result<ParsedContent> 
 
         // Detect bijlage context
         let bijlage_context = find_bijlage_context(artikel);
+        let placement = find_placement(artikel);
 
         // Build base URL
         let artikel_nr_url = artikel_nr.replace(' ', "_");
@@ -155,7 +157,7 @@ fn parse_articles(xml: &str, bwb_id: &str, date: &str) -> Result<ParsedContent> 
             for warning in &component.warnings {
                 all_warnings.push(format!("Article {}: {}", component.to_number(), warning));
             }
-            articles.push(component.to_article());
+            articles.push(component.to_article().with_placement(placement.clone()));
         }
     }
 
@@ -247,5 +249,40 @@ mod tests {
         let doc = Document::parse(xml).unwrap();
         let text = extract_simple_text(doc.root_element());
         assert_eq!(text, "Hello world!");
+    }
+
+    #[test]
+    fn parsed_articles_carry_their_placement() {
+        // Shaped like the Archiefwet 1995: articles directly under hoofdstukken.
+        let xml = r#"<wetgeving><wet-besluit><wettekst>
+  <hoofdstuk><kop><label>Hoofdstuk</label><nr>I</nr><titel>Algemene bepalingen</titel></kop>
+    <artikel><kop><label>Artikel</label><nr>1</nr></kop><al>Begrippen.</al></artikel>
+  </hoofdstuk>
+  <hoofdstuk><kop><label>Hoofdstuk</label><nr>II</nr><titel>Archiefbescheiden in het algemeen</titel></kop>
+    <artikel><kop><label>Artikel</label><nr>3</nr></kop><al>Zorg.</al></artikel>
+  </hoofdstuk>
+</wettekst></wet-besluit></wetgeving>"#;
+
+        let parsed = parse_articles(xml, "BWBR0007376", "2024-06-19").unwrap();
+
+        let chapters: Vec<_> = parsed
+            .articles
+            .iter()
+            .map(|a| {
+                let h = a.placement.hoofdstuk.as_ref();
+                (
+                    a.number.as_str(),
+                    h.map(|h| h.number.as_str()),
+                    h.and_then(|h| h.heading.as_deref()),
+                )
+            })
+            .collect();
+        assert_eq!(
+            chapters,
+            [
+                ("1", Some("I"), Some("Algemene bepalingen")),
+                ("3", Some("II"), Some("Archiefbescheiden in het algemeen")),
+            ]
+        );
     }
 }

@@ -16,9 +16,11 @@
 //!
 //! Two things come out of the same parse. The verdict per article, and the
 //! structural placement of each article (chapter, division, paragraph with
-//! their headings). The harvester's splitter starts at `artikel` and never
-//! sees the containers, so that placement is lost today. It is the reason
-//! an agent cannot tell that Awb 3:9 sits in "Afdeling 3.3 Advisering".
+//! their headings). Without it an agent cannot tell that Awb 3:9 sits in
+//! "Afdeling 3.3 Advisering". The harvester now writes the same placement
+//! into each article (`regelrecht_harvester::placement`), but rulework
+//! versions harvested before that carry none, so this copy stays until the
+//! worker reads placement from the rulework itself.
 
 use std::collections::BTreeMap;
 
@@ -513,12 +515,11 @@ pub fn verify(corpus: &serde_yaml_ng::Value, official: &[SourceArticle]) -> Gate
 /// The context sidecar: everything the official source knows about an
 /// article that the law YAML has no field for.
 ///
-/// This does not go into the law file. `machine_readable` and the article
-/// object are `additionalProperties: false` on a released schema version,
-/// so carrying placement there needs a version bump plus a corpus-wide
-/// migration. Until that is decided, the worker reads this file and puts
-/// the placement in front of the agent, which is what layer 3 of RFC-027
-/// describes anyway: the worker assembles, the agent reads.
+/// This does not go into the rulework. Schema v0.7.0 gave the article a
+/// `placement`, and the harvester fills it, but versions harvested before
+/// that carry none. Until the worker reads it from the rulework, it reads
+/// this file and puts the placement in front of the agent, which is what
+/// layer 3 of RFC-027 describes anyway: the worker assembles, the agent reads.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ContextSidecar {
     pub bwb_id: String,
