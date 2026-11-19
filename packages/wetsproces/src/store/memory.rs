@@ -1,7 +1,7 @@
 //! The chronicle store in memory: empty at every start, gone at every stop.
 //! What test mode runs on.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Mutex;
 
 use async_trait::async_trait;
@@ -14,6 +14,8 @@ use crate::store::{
 struct State {
     chronicles: BTreeMap<String, StoredChronicle>,
     receipts: BTreeMap<IdempotencyKey, Receipt>,
+    /// The id of every stored record, in any cell.
+    ids: BTreeSet<String>,
 }
 
 /// Every chronicle and receipt in one map behind one lock, so a commit is
@@ -80,6 +82,15 @@ impl ChronicleStore for InMemoryStore {
                 });
             }
         }
+        let mut ids = BTreeSet::new();
+        for gram in commit.appends.iter().flat_map(|a| &a.grams) {
+            if state.ids.contains(&gram.id) || !ids.insert(gram.id.clone()) {
+                return Err(StoreError::DuplicateGram {
+                    id: gram.id.clone(),
+                });
+            }
+        }
+        state.ids.append(&mut ids);
         for append in commit.appends {
             state
                 .chronicles

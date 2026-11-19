@@ -6,7 +6,7 @@
 //! make three tables:
 //!
 //! - `grams`: one row per record, keyed by cell and sequence number (1, 2,
-//!   ...), with the record as JSON, the [`FORMAT_VERSION`] it was written in
+//!   ...), with the record as JSON, the [`crate::store::FORMAT_VERSION`] it was written in
 //!   and when it was stored. A trigger refuses every `UPDATE`, `DELETE` and
 //!   `TRUNCATE`: a chronicle only grows;
 //! - `heads`: per cell its head, the number of records in it. A commit locks
@@ -32,21 +32,17 @@ use sqlx::types::Json;
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
 use crate::store::{
-    Appended, CellAppend, ChronicleStore, Commit, IdempotencyKey, Keyed, Receipt, StoreError,
-    StoredChronicle,
+    Appended, CellAppend, ChronicleStore, Commit, FORMAT_VERSION, IdempotencyKey, Keyed, Receipt,
+    StoreError, StoredChronicle,
 };
 
 /// The schema the store keeps its tables in.
 pub const SCHEMA: &str = "wetsproces";
 
-/// The format a record is stored in: a `regelrecht_cel::Gram` as serde
-/// writes it. A row in any other format is refused when read
-/// ([`StoreError::UnknownFormat`]); a change to the gram that an older
-/// reader would misread raises this number.
-pub const FORMAT_VERSION: i32 = 1;
-
 /// The advisory lock that keeps two instances from migrating at once.
-/// Another key than the pipeline's, so neither waits for the other.
+/// Another key than the pipeline's, so neither holds the other up for the
+/// whole of its run; sqlx's own lock per database inside `Migrator::run`
+/// still makes the two runs take turns while they migrate.
 const MIGRATION_LOCK_KEY: i64 = 0x5745_5453_5052_4F43; // "WETSPROC"
 
 /// Connections per instance: a request holds one for a read or a commit.
@@ -115,7 +111,8 @@ impl PostgresStore {
 
     /// Close the connections; for a test that starts over on the same
     /// database.
-    pub async fn close(&self) {
+    #[cfg(test)]
+    async fn close(&self) {
         self.pool.close().await;
     }
 
@@ -132,7 +129,8 @@ fn to_db(n: u64) -> Result<i64, StoreError> {
 
 /// A count or head as the database gave it.
 fn from_db(n: i64) -> Result<u64, StoreError> {
-    u64::try_from(n).map_err(|_| StoreError::Backend(format!("the database holds {n} as a head")))
+    u64::try_from(n)
+        .map_err(|_| StoreError::Backend(format!("the database holds {n}, which is no count")))
 }
 
 /// One stored row, read back into a record.
@@ -223,6 +221,15 @@ impl ChronicleStore for PostgresStore {
         tx.commit().await.map_err(backend("committing"))?;
         Ok(Appended::Committed)
     }
+}
+
+/// The unique constraint on `grams.gram_id`, by the name Postgres gives it.
+const GRAM_ID_CONSTRAINT: &str = "grams_gram_id_key";
+
+/// Whether `e` is the refusal of a record whose id is already stored.
+fn is_duplicate_gram_id(e: &sqlx::Error) -> bool {
+    e.as_database_error()
+        .is_some_and(|db| db.is_unique_violation() && db.constraint() == Some(GRAM_ID_CONSTRAINT))
 }
 
 /// The column `name` of `row`, as a `T`.
@@ -348,10 +355,16 @@ async fn write_appends(
             .execute(&mut **tx)
             .await
             .map_err(|e| {
-                StoreError::Backend(format!(
-                    "appending record {} '{}' to '{}': {e}",
-                    *head, gram.id, append.cell
-                ))
+                if is_duplicate_gram_id(&e) {
+                    StoreError::DuplicateGram {
+                        id: gram.id.clone(),
+                    }
+                } else {
+                    StoreError::Backend(format!(
+                        "appending record {} '{}' to '{}': {e}",
+                        *head, gram.id, append.cell
+                    ))
+                }
             })?;
         }
         if !append.grams.is_empty() {
@@ -461,23 +474,6 @@ mod tests {
             assert!(e.contains("append-only"), "{sql}: {e}");
         }
         assert_eq!(f.store.load("a").await.unwrap().head(), 1);
-    }
-
-    #[tokio::test]
-    async fn a_commit_that_fails_halfway_leaves_nothing() {
-        let f = Fixture::new().await;
-        f.store
-            .append(unkeyed(vec![append("a", 0, &["1"])]))
-            .await
-            .unwrap();
-        // "b" goes in first; "c" reuses the id of a stored record and fails
-        // in the database, after "b" was written in the transaction.
-        let c = commit("k1", vec![append("b", 0, &["2"]), append("c", 0, &["1"])]);
-        let e = f.store.append(c).await.unwrap_err();
-        assert!(matches!(e, StoreError::Backend(_)), "{e}");
-        assert_eq!(f.store.load("b").await.unwrap().head(), 0);
-        assert_eq!(f.store.receipt(&key("k1")).await.unwrap(), None);
-        assert_eq!(f.count("SELECT count(*) FROM wetsproces.grams").await, 1);
     }
 
     #[tokio::test]

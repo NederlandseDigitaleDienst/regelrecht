@@ -104,7 +104,7 @@ The docs image also serves `/roadmap`, a read-only rendering of the werkpakkette
 
 ## The database
 
-A deployment has one PostgreSQL database, which ZAD passes to its components as `DATABASE_SERVER_FULL`. The pipeline, the admin and the editor API run the pipeline's migrations (`packages/pipeline/migrations/`), whose tables are in the `public` schema. The wetsproces server, once it runs as a component, keeps its chronicles in a schema of its own, `wetsproces`, with its own migrations and its own migration table, under a different advisory lock. Neither set of migrations touches the other's tables. The schemas are described on [Wetsproces](/components/wetsproces#storage).
+A deployment has one PostgreSQL database, which ZAD passes to its components as `DATABASE_SERVER_FULL`. The pipeline, the admin and the editor API run the pipeline's migrations (`packages/pipeline/migrations/`), whose tables are in the `public` schema. Once the wetsproces server runs as a component, it keeps its chronicles in a schema of its own, `wetsproces`, described on [Wetsproces](/components/wetsproces#storage). Neither set of migrations touches the other's tables.
 
 ## The demo
 

@@ -82,10 +82,20 @@ impl From<ServiceError> for ApiError {
             ServiceError::UnknownCell(_) => StatusCode::NOT_FOUND,
             ServiceError::KeyReused(_) | ServiceError::Busy => StatusCode::CONFLICT,
             ServiceError::Store(StoreError::Conflict { .. }) => StatusCode::CONFLICT,
-            ServiceError::Store(StoreError::Backend(_) | StoreError::UnknownFormat { .. })
+            ServiceError::Store(
+                StoreError::Backend(_)
+                | StoreError::UnknownFormat { .. }
+                | StoreError::DuplicateGram { .. },
+            )
             | ServiceError::Internal(_) => {
+                // The full error, with what the database said, goes to the
+                // log only: the API has no login, so anyone may read the
+                // answer.
                 tracing::error!(error = %e, "request failed");
-                StatusCode::INTERNAL_SERVER_ERROR
+                return Self::new(
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    "the server failed on this request; the cause is in its log",
+                );
             }
         };
         Self::new(status, e.to_string())

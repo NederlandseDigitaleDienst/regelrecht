@@ -31,24 +31,24 @@ What day it is comes from a clock (`Clock` in `src/clock.rs`). Every step runs o
 
 ## Storage
 
-Two stores implement `ChronicleStore`. The store in memory starts empty and is gone when the server stops. The PostgreSQL store (`src/store/postgres.rs`) keeps the chronicles in a schema of its own, `wetsproces`, in the database it is given. Its migrations are in `packages/wetsproces/migrations/`, and sqlx's migration table sits in that schema too, so they are independent of the pipeline's migrations and touch no table in `public`.
+Two stores implement `ChronicleStore`. The store in memory starts empty and is gone when the server stops. The PostgreSQL store (`src/store/postgres.rs`) keeps the chronicles in a schema of its own, `wetsproces`, in the database it is given. Its migrations are in `packages/wetsproces/migrations/`, and sqlx's migration table sits in the same schema. They are independent of the pipeline's migrations and touch no table in `public`.
 
 | Table | Holds |
 |---|---|
-| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id, a format version, the record as `jsonb` and when it was stored |
+| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id (unique across all cells), a format version, the record as `jsonb` and when it was stored |
 | `heads` | Per cell its head |
 | `receipts` | Per idempotency key the request and the answer |
 
-`grams` is append-only, and the database enforces it: a trigger refuses every `UPDATE`, `DELETE` and `TRUNCATE` on it. A record written in a format version this build does not know is not read; the request fails with an error that names the cell, the record and the version.
+`grams` is append-only, and the database enforces it: a trigger refuses every `UPDATE`, `DELETE` and `TRUNCATE` on it. A request that holds the character U+0000 is refused with `422` in both stores, because `jsonb` cannot store it. A record written in a format version this build does not know is not read; the request fails with `500`, and the server log names the cell, the record and the version.
 
-A commit is one transaction. It claims its idempotency key first, so a retry under the same key waits for the first request and then gets its answer. Then it locks the head rows of its cells in order of name, which keeps two commits from waiting on each other, and checks every head before it appends. Both stores pass one shared set of contract tests (`src/store/contract.rs`), which includes concurrent commits on one cell.
+A commit is one transaction. It claims its idempotency key first, so a retry under the same key waits for the first request and then gets its answer. Then it locks the head rows of its cells in order of name, so that two commits never wait on each other in a circle, and checks every head before it appends. Both stores pass one shared set of contract tests (`src/store/contract.rs`), which includes concurrent commits on one cell.
 
 ## Modes
 
 `WETSPROCES_MODE` selects the mode and has no default, not even in the image. Without it the server does not start. The mode sets the clock; where the chronicles live is chosen apart from it, with `WETSPROCES_STORE`.
 
 - `test` uses a clock the API sets with `PUT /api/klok`, starting on the case's `speeldatum`. The store is `memory` unless `WETSPROCES_STORE=postgres` asks for PostgreSQL, which gives a lasting chronicle with a clock that can still be moved.
-- `stable` uses the real date in the Netherlands, in the Europe/Amsterdam time zone, and always the PostgreSQL store; `WETSPROCES_STORE=memory` is refused. A login does not exist yet, so the server refuses to start in this mode with a message that says so.
+- `stable` uses the real date in the Netherlands, in the Europe/Amsterdam time zone, and always the PostgreSQL store; `WETSPROCES_STORE=memory` is refused. No login exists yet, so the server refuses to start in this mode. It does so even when the database is configured, with a message that says the login is missing.
 
 | Variable | Default | Meaning |
 |---|---|---|
@@ -64,7 +64,7 @@ The server has no login yet. Anyone who reaches it can submit and decide, which 
 
 ## API
 
-The keys in requests and answers are those of the kern, as the PoC uses them (`velden`, `bevindingen`, `op`). An error from the service answers `{ "fout": "<reason>" }`; a body that does not parse gets axum's own plain-text answer.
+The keys in requests and answers are those of the kern, as the PoC uses them (`velden`, `bevindingen`, `op`). An error from the service answers `{ "fout": "<reason>" }`. For a `500` the reason is a fixed sentence and the cause goes to the server log only, since the API has no login. A body that does not parse gets axum's own plain-text answer.
 
 | Method and path | What it does |
 |---|---|

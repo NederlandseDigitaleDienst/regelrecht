@@ -146,6 +146,31 @@ pub async fn a_key_used_before_is_replayed_and_applies_nothing(store: &dyn Chron
     assert_eq!(store.load("a").await.unwrap().head(), 1);
 }
 
+pub async fn a_record_id_is_stored_once(store: &dyn ChronicleStore) {
+    store
+        .append(unkeyed(vec![append("a", 0, &["1"])]))
+        .await
+        .unwrap();
+    // Taken in another cell: nothing of the commit is applied.
+    let again = commit("k1", vec![append("b", 0, &["2"]), append("c", 0, &["1"])]);
+    assert_eq!(
+        store.append(again).await,
+        Err(StoreError::DuplicateGram { id: "1".into() })
+    );
+    // Twice in one commit.
+    let twice = unkeyed(vec![append("b", 0, &["3"]), append("c", 0, &["3"])]);
+    assert_eq!(
+        store.append(twice).await,
+        Err(StoreError::DuplicateGram { id: "3".into() })
+    );
+    let heads = store.load_all(&["a", "b", "c"]).await.unwrap();
+    assert_eq!(
+        heads.iter().map(StoredChronicle::head).collect::<Vec<_>>(),
+        [1, 0, 0]
+    );
+    assert_eq!(store.receipt(&key("k1")).await.unwrap(), None);
+}
+
 pub async fn of_concurrent_appends_on_one_cell_exactly_one_wins(store: &dyn ChronicleStore) {
     let attempts = (0..CONCURRENT).map(|i| {
         let id = format!("g{i}");
@@ -204,6 +229,7 @@ macro_rules! contract_tests {
             load_all_gives_every_cell_in_the_order_asked,
             a_moved_head_refuses_the_whole_commit,
             a_key_used_before_is_replayed_and_applies_nothing,
+            a_record_id_is_stored_once,
             of_concurrent_appends_on_one_cell_exactly_one_wins,
             of_concurrent_retries_under_one_key_one_commits_and_the_rest_replay,
         );
