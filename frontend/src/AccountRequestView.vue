@@ -30,6 +30,7 @@ function goBack() {
 <template>
   <nldd-shell>
     <nldd-page sticky-header>
+      <!-- nldd-lint-disable-next-line back-link-no-vague-text -- this page opens from any route, and back returns to where the reader came from, so there is no one page to name -->
       <nldd-top-title-bar
         slot="header"
         text="Account aanvragen"

@@ -26,6 +26,21 @@ export const gekozen = (inloggen, waarde) =>
     : (inloggen?.keuzes ?? []).find((k) => k.waarde === String(waarde));
 
 /**
+ * `waarden` of the application with the login field taken from `keuze`, the
+ * key chosen under Ingelogd als before (sessie.js), so that the choice holds
+ * for the page and not only for one form. Only where nothing else says who
+ * applies: unchanged for a case with a login step, without a choice, when
+ * the form already holds the field, or when `zelf` says the field is not
+ * the choice's to fill (the applicant changed it in this form, or the
+ * scenario is at an application step and names its own values).
+ */
+export function metKeuze(inloggen, keuze, waarden, zelf) {
+  if (!inloggen || inloggen.inlogstap || keuze === undefined || zelf) return waarden;
+  if (waarden[inloggen.veld] !== undefined) return waarden;
+  return { ...waarden, [inloggen.veld]: keuze };
+}
+
+/**
  * What the guide says about logging in for an application with `waarden`
  * (the values its form starts from), given the choices the cell offers now
  * (`inloggen`, `state.vormen.aanvraag.inloggen`): which one the form holds,

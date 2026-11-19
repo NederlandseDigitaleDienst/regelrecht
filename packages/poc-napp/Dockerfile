@@ -60,6 +60,7 @@ COPY frontend-lawmaking/package.json frontend-lawmaking/
 COPY frontend-poc-portal/package.json frontend-poc-portal/
 COPY frontend-poc-terugbetaalregimes/package.json frontend-poc-terugbetaalregimes/
 COPY frontend-poc-nieuwkomersbekostiging/package.json frontend-poc-nieuwkomersbekostiging/
+COPY frontend-poc-regels-op-een-plek/package.json frontend-poc-regels-op-een-plek/
 COPY frontend-poc-napp/package.json frontend-poc-napp/
 RUN npm ci --ignore-scripts
 # De wetten en scenario's worden at build-time meegebundeld (import ... ?raw en

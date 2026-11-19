@@ -19,6 +19,24 @@ pub fn load_all_regulations(service: &mut LawExecutionService) -> Result<usize, 
     Ok(count)
 }
 
+/// The YAML of the regelwerk at `path`, as the runners load it: with
+/// `BDD_REVERSE_ACTIONS` set, the actions of each article reversed.
+///
+/// # Errors
+///
+/// When the file cannot be read or its actions cannot be reversed.
+pub fn regulation_source(path: &std::path::Path) -> Result<String, EngineError> {
+    let content = std::fs::read_to_string(path)
+        .map_err(|e| EngineError::LoadError(format!("Failed to read {}: {e}", path.display())))?;
+    if crate::reverse_actions::enabled() {
+        crate::reverse_actions::reversed_actions(&content).map_err(|e| {
+            EngineError::LoadError(format!("Failed to reverse {}: {e}", path.display()))
+        })
+    } else {
+        Ok(content)
+    }
+}
+
 /// Load every `.yaml` file under `regulation_dir` into the service.
 fn load_regulations_in(
     service: &mut LawExecutionService,
@@ -42,18 +60,7 @@ fn load_regulations_in(
 
         // Only process YAML files
         if path.is_file() && path.extension().is_some_and(|ext| ext == "yaml") {
-            let content = std::fs::read_to_string(path).map_err(|e| {
-                EngineError::LoadError(format!("Failed to read {}: {}", path.display(), e))
-            })?;
-
-            let content = if crate::reverse_actions::enabled() {
-                crate::reverse_actions::reversed_actions(&content).map_err(|e| {
-                    EngineError::LoadError(format!("Failed to reverse {}: {}", path.display(), e))
-                })?
-            } else {
-                content
-            };
-
+            let content = regulation_source(path)?;
             match service.load_law(&content) {
                 Ok(law_id) => {
                     tracing::debug!(law_id = %law_id, path = %path.display(), "Loaded law");

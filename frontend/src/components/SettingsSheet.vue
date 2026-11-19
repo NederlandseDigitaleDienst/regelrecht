@@ -226,7 +226,7 @@ function confirmDisconnect(): void {
           ></nldd-button>
           <nldd-button
             slot="actions"
-            text="Annuleren"
+            text="Annuleer"
             @click="enforcementConfirm?.hide()"
           ></nldd-button>
         </nldd-inline-dialog>

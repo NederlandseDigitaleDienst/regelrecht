@@ -1,0 +1,13 @@
+---
+# Tier C: tractatenblad_id and unts_nummer, required by the schema for a verdrag.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: test_conformance_verdrag
+regulatory_layer: VERDRAG
+publication_date: '2025-01-01'
+url: https://example.invalid/verdrag
+tractatenblad_id: trb-2025-1
+unts_nummer: '12345'
+articles:
+  - number: '1'
+    text: De partijen komen het volgende overeen.
+    url: https://example.invalid/verdrag/artikel/1

@@ -1,0 +1,158 @@
+---
+# Tier C: one nested operation per operation definition in the schema, so every
+# operand field is exercised at least once. Nonsense as law, exhaustive as shape.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: test_conformance_all_operations
+regulatory_layer: WET
+publication_date: '2025-01-01'
+bwb_id: BWBR0123456
+url: https://example.invalid/law
+articles:
+  - number: '1'
+    text: Een artikel dat elke bewerking uit het schema aanroept.
+    url: https://example.invalid/law/artikel/1
+    machine_readable:
+      execution:
+        parameters:
+          - name: GEBOORTEDATUM
+            type: date
+          - name: PEILDATUM
+            type: date
+          - name: BEDRAG
+            type: amount
+          - name: BEDRAGEN
+            type: array
+        output:
+          - name: uitkomst
+            type: boolean
+        actions:
+          - output: som
+            operation: ADD
+            values:
+              - $BEDRAG
+              - operation: SUBTRACT
+                values: [300, 100]
+              - operation: MULTIPLY
+                values: [2, 3]
+              - operation: DIVIDE
+                values: [10, 2]
+              - operation: MIN
+                values: [1, 2]
+              - operation: MAX
+                values: [1, 2]
+          - output: afgerond
+            value:
+              operation: ROUND
+              value: $som
+              precision: 0
+          - output: ondergrens
+            value:
+              operation: FLOOR
+              value: $som
+              precision: -2
+          - output: bovengrens
+            value:
+              operation: CEIL
+              value: $som
+              precision: 1
+          - output: leeftijd
+            value:
+              operation: AGE
+              date_of_birth: $GEBOORTEDATUM
+              reference_date: $PEILDATUM
+          - output: einddatum
+            value:
+              operation: DATE_ADD
+              date: $PEILDATUM
+              years: 1
+              months: 2
+              weeks: 3
+              days: 4
+          - output: jaarwisseling
+            value:
+              operation: DATE
+              year: 2025
+              month: 1
+              day: 1
+          - output: weekdag
+            value:
+              operation: DAY_OF_WEEK
+              date: $PEILDATUM
+          - output: looptijd
+            value:
+              operation: DATE_DIFF
+              from: $GEBOORTEDATUM
+              to: $PEILDATUM
+              in: days
+          - output: berekeningsjaar
+            value:
+              operation: DATE_PART
+              date: $PEILDATUM
+              in: year
+          - output: ingang_maand
+            value:
+              operation: START_OF
+              date: $PEILDATUM
+              in: month
+          - output: totaal
+            value:
+              operation: FOREACH
+              collection: $BEDRAGEN
+              as: bedrag
+              filter:
+                operation: GREATER_THAN
+                subject: $bedrag
+                value: 0
+              body: $bedrag
+              combine: ADD
+          - output: reeks
+            value:
+              operation: LIST
+              items:
+                - a
+                - b
+          - output: rij
+            value:
+              operation: RECORD
+              fields:
+                naam: a
+                som:
+                  operation: ADD
+                  values: [$BEDRAG, 1]
+          - output: uitkomst
+            value:
+              operation: AND
+              conditions:
+                - operation: OR
+                  conditions:
+                    - operation: NOT
+                      value:
+                        operation: EQUALS
+                        subject: $leeftijd
+                        value: 0
+                    - operation: GREATER_THAN
+                      subject: $som
+                      value: 0
+                - operation: LESS_THAN
+                  subject: $som
+                  value: 1000000
+                - operation: GREATER_THAN_OR_EQUAL
+                  subject: $leeftijd
+                  value: 18
+                - operation: LESS_THAN_OR_EQUAL
+                  subject: $leeftijd
+                  value: 67
+                - operation: IN
+                  subject: $weekdag
+                  values: [1, 2, 3, 4, 5]
+                - operation: IN
+                  subject: $weekdag
+                  value: $reeks
+                - operation: IF
+                  cases:
+                    - when:
+                        operation: EQUALS
+                        subject: $leeftijd
+                        value: 18
+                      then: true
+                  default: false

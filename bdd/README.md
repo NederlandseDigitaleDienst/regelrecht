@@ -4,7 +4,8 @@
 Gherkin vocabulary. Step bindings for every engine are GENERATED from it:
 
 - Rust: `packages/engine/build.rs` → `$OUT_DIR/bdd_generated_steps.rs`
-- JS:   `bdd/codegen/gen-js.mjs` → `frontend/src/gherkin/grammar.generated.js`
+- JS:   `bdd/codegen/gen-js.mjs` → `packages/frontend-shared/src/gherkin/grammar.generated.js`
+  (the editor's `frontend/src/gherkin/grammar.generated.ts` only re-exports it)
 
 Never hand-edit a generated file. Change `grammar.yaml`, then run
 `just bdd-codegen` (which regenerates both and is checked in CI).

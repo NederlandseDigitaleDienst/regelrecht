@@ -17,31 +17,10 @@ use tower_sessions::SessionManagerLayer;
 use tower_sessions_memory_store::MemoryStore;
 use tower_sessions_sqlx_store::PostgresStore;
 
-mod accounts;
-mod config;
-mod corpus_handlers;
-mod credentials;
-mod crypto;
-mod enrich_review;
-mod favorites;
-mod feature_flags;
-mod github_oauth;
-mod harvest_proxy;
-mod law_search;
-mod middleware;
-mod state;
-mod static_cache;
-mod task_requests;
-mod tasks_api;
-mod traject_corpus;
-mod traject_index_diagnosis;
-mod traject_integrity;
-mod traject_runs;
-mod trajects;
-mod user_notes;
-mod user_settings;
-
-use state::{AppState, CorpusState};
+use regelrecht_editor_api::state::{self, AppState, CorpusState};
+use regelrecht_editor_api::{
+    config, github_oauth, middleware, router, static_cache, traject_corpus, traject_integrity,
+};
 
 #[tokio::main]
 async fn main() {
@@ -107,10 +86,11 @@ async fn main() {
         ),
     }
 
-    // The pool has to be created BEFORE `app_state` is built, because the
-    // `route_layer(from_fn_with_state(app_state.clone(), …))` below captures
-    // a snapshot of `app_state` at call time — anything we mutate on the
-    // outer binding after that point is invisible to the middleware.
+    // The pool has to be created BEFORE `app_state` is built, because
+    // `router()` hands each gate a snapshot of `app_state` (the
+    // `route_layer(from_fn_with_state(state.clone(), …))` calls in
+    // router.rs) — anything we mutate on the outer binding after that point
+    // is invisible to the middleware.
     // Migrations + session-store setup still live in the auth-enabled
     // branch further down; here we only spin up the connection.
     let pool: Option<sqlx::PgPool> = if app_config.is_auth_enabled() {
@@ -152,449 +132,9 @@ async fn main() {
 
     let index_file = PathBuf::from(&static_dir).join("index.html");
 
-    // --- Routes ---
-    let auth_routes = regelrecht_auth::auth_routes::<AppState>();
-
-    // Public API routes — accessible without authentication. The corpus
-    // reads under `/api/corpus/...` here serve the **global** view (no
-    // per-traject overlay). Edits and traject-scoped reads live under
-    // `/api/trajects/{tid}/corpus/...` (writer-tier, see `traject_routes`).
-    let public_api_routes = Router::new()
-        .route("/api/sources", get(corpus_handlers::list_sources))
-        .route("/api/corpus/laws", get(corpus_handlers::list_corpus_laws))
-        .route(
-            "/api/corpus/laws/{law_id}",
-            get(corpus_handlers::get_corpus_law),
-        )
-        .route(
-            "/api/corpus/laws/{law_id}/versions",
-            get(corpus_handlers::get_corpus_law_versions),
-        )
-        .route(
-            "/api/corpus/laws/{law_id}/outputs",
-            get(corpus_handlers::list_law_outputs),
-        )
-        .route(
-            "/api/corpus/laws/{law_id}/implementors",
-            get(corpus_handlers::list_law_implementors),
-        )
-        .route(
-            "/api/corpus/laws/{law_id}/scenarios",
-            get(corpus_handlers::list_scenarios),
-        )
-        .route(
-            "/api/corpus/laws/{law_id}/scenarios/{filename}",
-            get(corpus_handlers::get_scenario),
-        )
-        .route(
-            "/api/corpus/laws/{law_id}/annotations",
-            get(corpus_handlers::get_annotations),
-        )
-        .route("/api/feature-flags", get(feature_flags::list_feature_flags))
-        // Welke uploadformaten zonder taalmodel omgezet kunnen worden. De
-        // upload-bevestiging in de editor leest dit zodat er geen tweede
-        // formaatlijst in de frontend ontstaat; de inhoud is statisch en
-        // niet-gevoelig, vandaar publiek.
-        .route(
-            "/api/document-upload-formats",
-            get(corpus_handlers::list_document_upload_formats),
-        )
-        // Harvest status — forwarded to pipeline-api. Read-only DB lookup,
-        // safe to expose unauthenticated. (The search endpoint lives behind
-        // auth because it triggers outbound requests to zoekservice.overheid.nl
-        // and would otherwise be an amplification vector.)
-        .route("/api/harvest/status", get(harvest_proxy::proxy_harvest));
-
-    // Body-size caps for write routes. The 1 MiB scenario cap is generous for
-    // a single Gherkin file (real-world scenarios are a few KiB) and the 5 MiB
-    // law cap leaves headroom for federated regulations that can reach a few
-    // hundred KiB. Documents are markdown/text working notes — 1 MiB matches
-    // the scenario cap so a paste of a kamerstuk's full text fits without
-    // accidentally accepting a multi-megabyte binary blob.
-    const MAX_SCENARIO_BODY: usize = 1024 * 1024;
-    const MAX_LAW_BODY: usize = 5 * 1024 * 1024;
-    const MAX_DOCUMENT_BODY: usize = 1024 * 1024;
-    // Twice the 64 KiB note-value cap (user_notes::MAX_BODY_VALUE_BYTES):
-    // room for JSON escaping/overhead while still rejecting blobs early.
-    const MAX_NOTE_BODY: usize = 128 * 1024;
-    // Uploaded PDF/Word documents (converted to markdown async). Much larger
-    // than the text caps since it carries a binary; still bounded to reject
-    // oversized files early (Postgres stores the bytes transiently).
-    const MAX_UPLOAD_BODY: usize = 25 * 1024 * 1024;
-
-    // Reader routes — `editor-reader` covers user-scoped reads (favorites,
-    // settings), the user's own Corpus juris favorites (any account may keep
-    // them; they touch nothing but the account), and harvest search (search is
-    // behind auth because it triggers outbound requests and would otherwise be
-    // an amplification vector).
-    let reader_routes = Router::new()
-        .route("/api/favorites", get(favorites::list))
-        .route(
-            "/api/favorites/{law_id}",
-            axum::routing::put(favorites::add).delete(favorites::remove),
-        )
-        .route("/api/user/settings", get(user_settings::list))
-        .route("/api/harvest/search", get(harvest_proxy::proxy_harvest))
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            middleware::require_role::<AppState>("editor-reader"),
-        ));
-
-    // Writer routes — `editor-writer` covers user-scoped writes. Corpus
-    // edits live under `/api/trajects/{tid}/corpus/...` in `traject_routes`
-    // (membership + traject path on every request, making "no traject = no
-    // write" an URL-level invariant rather than a runtime check). Harvest
-    // POSTs (which trigger outbound requests) sit here so anonymous callers
-    // can never reach them.
-    let writer_routes = Router::new()
-        // 4 KiB is ample for `{"value":"<one allowed enum>"}` and rejects
-        // oversized bodies before deserialization.
-        .route(
-            "/api/user/settings/{key}",
-            axum::routing::put(user_settings::set)
-                .layer(axum::extract::DefaultBodyLimit::max(4096)),
-        )
-        .route(
-            "/api/harvest",
-            axum::routing::post(harvest_proxy::proxy_harvest),
-        )
-        .route(
-            "/api/harvest/batch",
-            axum::routing::post(harvest_proxy::proxy_harvest),
-        )
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            middleware::require_role::<AppState>("editor-writer"),
-        ));
-
-    // Persoonlijke notities — private per-user notes on a law (Postgres,
-    // never git). Handlers extract `Extension<AccountRecord>`, so
-    // `account_middleware` must run per request, same as traject routes.
-    // Reads at reader tier, mutations at writer tier, mirroring how
-    // settings split across `reader_routes`/`writer_routes`
-    // (which stay Session-based and therefore don't carry the account
-    // middleware).
-    let user_notes_reader_routes = Router::new()
-        .route("/api/user/notes/{law_id}", get(user_notes::list))
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            accounts::account_middleware,
-        ))
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            middleware::require_role::<AppState>("editor-reader"),
-        ));
-
-    let user_notes_writer_routes = Router::new()
-        .route(
-            "/api/user/notes/{law_id}",
-            axum::routing::post(user_notes::create)
-                .layer(axum::extract::DefaultBodyLimit::max(MAX_NOTE_BODY)),
-        )
-        .route(
-            "/api/user/notes/{law_id}/{note_id}",
-            axum::routing::put(user_notes::update)
-                .delete(user_notes::remove)
-                .layer(axum::extract::DefaultBodyLimit::max(MAX_NOTE_BODY)),
-        )
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            accounts::account_middleware,
-        ))
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            middleware::require_role::<AppState>("editor-writer"),
-        ));
-
-    // Persoonlijke taken (taken-mechanisme) — review-taken van async jobs,
-    // gekoppeld aan het aanvragende account. Zelfde split als user_notes:
-    // reads at reader tier, de afhandeling (mutatie + audit-stempel) at
-    // writer tier, allebei achter `account_middleware` omdat de handlers
-    // `Extension<AccountRecord>` extracten.
-    let tasks_reader_routes = Router::new()
-        .route("/api/tasks", get(tasks_api::list))
-        .route("/api/tasks/{task_id}", get(tasks_api::detail))
-        .route("/api/tasks/jobs/{job_id}", get(enrich_review::job_tasks))
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            accounts::account_middleware,
-        ))
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            middleware::require_role::<AppState>("editor-reader"),
-        ));
-
-    let tasks_writer_routes = Router::new()
-        .route(
-            "/api/tasks/{task_id}/resolve",
-            axum::routing::post(tasks_api::resolve),
-        )
-        .route(
-            "/api/tasks/jobs/{job_id}/apply",
-            axum::routing::post(enrich_review::apply),
-        )
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            accounts::account_middleware,
-        ))
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            middleware::require_role::<AppState>("editor-writer"),
-        ));
-
-    // Admin routes — `editor-admin` covers destructive/global operations
-    // (full corpus reload, feature flag toggles).
-    let admin_routes = Router::new()
-        .route(
-            "/api/corpus/reload",
-            axum::routing::post(corpus_handlers::reload_corpus),
-        )
-        .route(
-            "/api/feature-flags/{key}",
-            axum::routing::put(feature_flags::update_feature_flag),
-        )
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            middleware::require_role::<AppState>("editor-admin"),
-        ));
-
-    // Harvester-admin proxy — the merged "Beheer" section in the editor reaches
-    // the standalone harvester-admin API through here. A single wildcard route
-    // forwards every method (GET reads, POST enqueue, DELETE) to that service,
-    // rewriting `/api/harvest-admin/<x>` → `/api/<x>` and forwarding the
-    // session cookie. Gated on `harvester-reader` as defence-in-depth; the
-    // harvester-admin service is the real enforcer for writer/admin actions
-    // (writes stay OIDC-only there — editor-api never mints a service token).
-    let harvest_admin_routes = Router::new()
-        .route(
-            "/api/harvest-admin/{*rest}",
-            axum::routing::any(harvest_proxy::proxy_harvest_admin),
-        )
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            middleware::require_role::<AppState>("harvester-reader"),
-        ));
-
-    // Traject routes — user-scoped CRUD on shared editing sessions plus
-    // the traject-scoped corpus endpoints (read + write). Handlers extract
-    // `Extension<AccountRecord>`, so `account_middleware` must run before
-    // each request to load the account row from the DB. Writer-tier
-    // because users manage their own trajects; the per-traject membership
-    // model handles finer-grained access within each handler.
-    //
-    // Why the corpus routes live here too: writes against a traject's
-    // branch require the traject id to be in the URL (per RFC discussion
-    // — the active traject is per-tab via the SPA route, not a server
-    // session). All `/api/trajects/{id}/corpus/...` routes go through the
-    // same membership re-check that `traject_routes` already use.
-    // Traject-scoped reads (editor-reader tier). Listing/viewing the
-    // trajects you're a member of and reading the per-traject corpus
-    // overlay don't require write privilege — a Keycloak `editor-reader`
-    // who has been invited to a traject must be able to see in-progress
-    // edits. Membership is re-checked per request inside the handlers,
-    // so the role here is the broader "is this an authenticated reader
-    // at all" gate. Writes live in `traject_writer_routes` below.
-    let traject_reader_routes = Router::new()
-        .route("/api/trajects", get(trajects::list))
-        .route("/api/trajects/{id}", get(trajects::get))
-        .route(
-            "/api/trajects/{traject_ref}/sources",
-            get(corpus_handlers::list_traject_sources),
-        )
-        // The traject's runs (harvests, enrichments, conversions) for the
-        // Verwerkingen overview: a read, open to every member.
-        .route("/api/trajects/{traject_ref}/runs", get(traject_runs::list))
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws",
-            get(corpus_handlers::list_traject_corpus_laws),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/favorites",
-            get(favorites::list_traject),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/changed-laws",
-            get(corpus_handlers::list_traject_changed_laws),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws/{law_id}",
-            get(corpus_handlers::get_traject_corpus_law),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/versions",
-            get(corpus_handlers::get_traject_corpus_law_versions),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/outputs",
-            get(corpus_handlers::list_traject_law_outputs),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/implementors",
-            get(corpus_handlers::list_traject_law_implementors),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/scenarios",
-            get(corpus_handlers::list_traject_scenarios),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/scenarios/{filename}",
-            get(corpus_handlers::get_traject_scenario),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/annotations",
-            get(corpus_handlers::get_traject_annotations),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/documents",
-            get(corpus_handlers::list_traject_documents),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/documents/jobs",
-            get(corpus_handlers::list_traject_document_convert_jobs),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/documents/jobs/{job_id}",
-            axum::routing::delete(corpus_handlers::cancel_traject_document_convert_job),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/documents/{*doc_path}",
-            get(corpus_handlers::get_traject_document),
-        )
-        // Integrity report over the traject's own corpus repo. A read, so
-        // reader-tier like its neighbours: seeing what is wrong with a
-        // traject you are a member of needs no write privilege.
-        .route(
-            "/api/trajects/{traject_ref}/integrity",
-            get(traject_integrity::get_traject_integrity),
-        )
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            accounts::account_middleware,
-        ))
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            middleware::require_role::<AppState>("editor-reader"),
-        ));
-
-    // Traject-scoped writes (editor-writer tier). Mutations to traject
-    // metadata + membership AND the traject-branch corpus content all
-    // require write privilege. Axum merges the reader and writer
-    // routers at the same path by method: a PUT against
-    // `/corpus/laws/{lid}/scenarios/{fn}` resolves to the writer
-    // handler, while a GET on the same path resolves to the reader
-    // handler above.
-    let traject_writer_routes = Router::new()
-        .route("/api/trajects", axum::routing::post(trajects::create))
-        .route(
-            "/api/trajects/{id}",
-            axum::routing::patch(trajects::update).delete(trajects::delete),
-        )
-        .route(
-            "/api/trajects/{id}/repo",
-            axum::routing::put(trajects::move_repo),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/favorites/{law_id}",
-            axum::routing::put(favorites::add_traject).delete(favorites::remove_traject),
-        )
-        .route(
-            "/api/trajects/{id}/leave",
-            axum::routing::post(trajects::leave),
-        )
-        .route(
-            "/api/trajects/{id}/members",
-            axum::routing::post(trajects::add_member),
-        )
-        .route(
-            "/api/trajects/{id}/members/{account_id}",
-            axum::routing::patch(trajects::update_member).delete(trajects::remove_member),
-        )
-        .route(
-            "/api/trajects/{id}/invites/{email}",
-            axum::routing::delete(trajects::remove_invite),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/scenarios/{filename}",
-            axum::routing::put(corpus_handlers::save_scenario)
-                .delete(corpus_handlers::delete_scenario)
-                .layer(axum::extract::DefaultBodyLimit::max(MAX_SCENARIO_BODY)),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/annotations",
-            axum::routing::put(corpus_handlers::save_annotations)
-                .layer(axum::extract::DefaultBodyLimit::max(MAX_SCENARIO_BODY)),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws/{law_id}",
-            axum::routing::put(corpus_handlers::save_law)
-                .layer(axum::extract::DefaultBodyLimit::max(MAX_LAW_BODY)),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/documents/upload",
-            axum::routing::post(corpus_handlers::upload_traject_document)
-                .layer(axum::extract::DefaultBodyLimit::max(MAX_UPLOAD_BODY)),
-        )
-        .route(
-            // Static segment wins over `{law_id}` in the router, so this
-            // does not shadow the per-law routes.
-            "/api/trajects/{traject_ref}/corpus/laws/upload",
-            axum::routing::post(corpus_handlers::upload_traject_law)
-                .layer(axum::extract::DefaultBodyLimit::max(MAX_UPLOAD_BODY)),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws",
-            axum::routing::post(corpus_handlers::create_traject_law)
-                .layer(axum::extract::DefaultBodyLimit::max(MAX_LAW_BODY)),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/enrich",
-            axum::routing::post(task_requests::request_enrich),
-        )
-        .route(
-            // Promote: kopieer een wet uit het centrale corpus naar de
-            // traject-repo (zelfde schrijfpad/autorisatie als save_law).
-            "/api/trajects/{traject_ref}/corpus/laws/{law_id}/promote",
-            axum::routing::post(corpus_handlers::promote_corpus_law),
-        )
-        .route(
-            // Traject-scoped harvest via het taken-mechanisme: BWB-download
-            // op de worker + geketende taak-flow-enrich (law_convert-patroon).
-            "/api/trajects/{traject_ref}/corpus/harvest",
-            axum::routing::post(task_requests::request_traject_harvest),
-        )
-        .route(
-            "/api/trajects/{traject_ref}/corpus/documents/{*doc_path}",
-            axum::routing::put(corpus_handlers::save_traject_document)
-                .delete(corpus_handlers::delete_traject_document)
-                .layer(axum::extract::DefaultBodyLimit::max(MAX_DOCUMENT_BODY)),
-        )
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            accounts::account_middleware,
-        ))
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            middleware::require_role::<AppState>("editor-writer"),
-        ));
-
-    // GitHub user-OAuth link flow (spike). Requires an authenticated editor
-    // session with a resolved account (the sealed token cookie is bound to
-    // it), so it sits behind the same account_middleware + writer-role gate as
-    // traject writes. When the feature is unconfigured the handlers themselves
-    // return 501.
-    let github_oauth_routes = github_oauth::github_oauth_routes()
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            accounts::account_middleware,
-        ))
-        .route_layer(axum_middleware::from_fn_with_state(
-            app_state.clone(),
-            middleware::require_role::<AppState>("editor-writer"),
-        ));
-
-    // --- Build app with session layer ---
-    // SessionManagerLayer is generic over the store type, so we build the
-    // router in two branches depending on whether auth is enabled.
+    // --- Serve the router behind a session layer ---
+    // SessionManagerLayer is generic over the store type, so the two stores
+    // get a branch each; the routes are the same `router()` in both.
     if app_state.config.is_auth_enabled() {
         // Pool was created above app_state so the route_layer middleware
         // sees a populated app_state.pool. The outer `is_auth_enabled`
@@ -645,41 +185,7 @@ async fn main() {
             .with_http_only(true)
             .with_secure(secure_cookie);
 
-        // Clone for the refresh layer: `with_state` below consumes app_state,
-        // and from_fn_with_state needs its own copy of the OIDC client/config.
-        let refresh_state = app_state.clone();
-        let app = Router::new()
-            .route("/health", get(|| async { "OK" }))
-            .merge(auth_routes)
-            .merge(public_api_routes)
-            .merge(reader_routes)
-            .merge(writer_routes)
-            .merge(admin_routes)
-            .merge(harvest_admin_routes)
-            .merge(traject_reader_routes)
-            .merge(traject_writer_routes)
-            .merge(user_notes_reader_routes)
-            .merge(user_notes_writer_routes)
-            .merge(tasks_reader_routes)
-            .merge(tasks_writer_routes)
-            .merge(github_oauth_routes)
-            // Relay is public (no session/account): GitHub redirects the
-            // browser here on the fixed callback host and we 302 it on to the
-            // originating deployment. Must sit OUTSIDE the auth layer.
-            .merge(github_oauth::github_relay_route())
-            .with_state(app_state)
-            // Innermost custom layer: wraps the routed handlers most
-            // tightly, so the request-scoped timing recorder is installed
-            // (and read back into the `Server-Timing` header) around the
-            // exact code that records the phases.
-            .layer(axum_middleware::from_fn(middleware::server_timing))
-            // Inside the session layer (session loaded) and outside the route
-            // role gates (fresh roles / a dropped auth marker are seen by the
-            // gate). Innermost .layer() so session_layer wraps it.
-            .layer(axum_middleware::from_fn_with_state(
-                refresh_state,
-                middleware::refresh_session_token::<AppState>,
-            ))
+        let app = router(app_state)
             .layer(session_layer)
             .layer(TraceLayer::new_for_http());
         let app = serve_static_and_secure(app, &static_dir, &index_file);
@@ -693,24 +199,7 @@ async fn main() {
             .with_same_site(tower_sessions::cookie::SameSite::Lax)
             .with_http_only(true);
 
-        let app = Router::new()
-            .route("/health", get(|| async { "OK" }))
-            .merge(auth_routes)
-            .merge(public_api_routes)
-            .merge(reader_routes)
-            .merge(writer_routes)
-            .merge(admin_routes)
-            .merge(harvest_admin_routes)
-            .merge(traject_reader_routes)
-            .merge(traject_writer_routes)
-            .merge(user_notes_reader_routes)
-            .merge(user_notes_writer_routes)
-            .merge(tasks_reader_routes)
-            .merge(tasks_writer_routes)
-            .with_state(app_state)
-            // See the auth branch above: innermost layer so the timing
-            // recorder wraps the routed handlers.
-            .layer(axum_middleware::from_fn(middleware::server_timing))
+        let app = router(app_state)
             .layer(session_layer)
             .layer(TraceLayer::new_for_http());
         let app = serve_static_and_secure(app, &static_dir, index_file);
@@ -833,14 +322,7 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
 
     let backends = init_backends(&registry, &github).await;
 
-    CorpusState {
-        registry,
-        source_map,
-        backends,
-        github,
-        index_failures,
-        lazy_bodies: Default::default(),
-    }
+    CorpusState::new(registry, source_map, backends, github, index_failures)
 }
 
 /// Create and initialize backends for each registered source.
@@ -848,11 +330,11 @@ async fn init_corpus(favorites: &HashSet<String>) -> CorpusState {
 /// All successfully-initialised backends are registered, including read-only
 /// ones (e.g. a local source on a read-only container filesystem). Reads
 /// route through the same backends as writes so the editor never has a
-/// read/write path mismatch — see [`crate::state::BackendEntry::writable`].
+/// read/write path mismatch — see [`state::BackendEntry::writable`].
 async fn init_backends(
     registry: &regelrecht_corpus::CorpusRegistry,
     github: &regelrecht_corpus::GithubSettings,
-) -> HashMap<String, crate::state::BackendEntry> {
+) -> HashMap<String, state::BackendEntry> {
     let mut backends = HashMap::new();
 
     for source in registry.sources() {
@@ -894,7 +376,7 @@ async fn init_backends(
                 );
                 backends.insert(
                     source.id.clone(),
-                    crate::state::BackendEntry {
+                    state::BackendEntry {
                         backend: Arc::new(Mutex::new(backend)),
                         writable,
                     },

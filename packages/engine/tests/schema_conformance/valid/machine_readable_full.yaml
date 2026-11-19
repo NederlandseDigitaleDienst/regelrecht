@@ -1,0 +1,137 @@
+---
+# Tier C: every property of the machineReadableSection definition that is not an
+# operation — requires, open_terms, implements, hooks, overrides, definitions and
+# the execution block's fields.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: test_conformance_machine_readable_full
+regulatory_layer: WET
+publication_date: '2025-01-01'
+bwb_id: BWBR0123456
+url: https://example.invalid/law
+articles:
+  - number: '1'
+    text: |
+      De toeslag bedraagt het bij ministeriële regeling vastgestelde bedrag,
+      voor zover de aanvrager voldoet aan de bij koninklijk besluit gestelde
+      voorwaarden.
+    url: https://example.invalid/law/artikel/1
+    machine_readable:
+      endpoint: toeslag
+      competent_authority:
+        name: Testdienst
+        type: INSTANCE
+      requires:
+        - article: '2'
+        - law: test_conformance_hogere_wet
+          values:
+            - drempelbedrag
+        - regeling: Testregeling toeslagen
+          values:
+            - standaardbedrag
+        - koninklijk_besluit: Besluit voorwaarden toeslagen
+      open_terms:
+        - id: standaardbedrag
+          description: Het bij ministeriële regeling vastgestelde bedrag.
+          type: amount
+          required: true
+          delegated_to: Onze Minister
+          delegation_type: MINISTERIELE_REGELING
+          expected_source: Testregeling toeslagen
+          decided_per_case_by: het bestuursorgaan
+          legal_basis: artikel 1 Testwet
+          default:
+            actions:
+              - output: standaardbedrag
+                value: 100000
+      implements:
+        - law: test_conformance_hogere_wet
+          article: '4'
+          open_term: drempelbedrag
+          gelet_op: Gelet op artikel 4 van de hogere wet
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            decision_type: TOEKENNING
+            stage: BEKENDMAKING
+      overrides:
+        - law: test_conformance_hogere_wet
+          article: '5'
+          output: aanspraak
+          voids: true
+          legal_text_excerpt: In afwijking van artikel 5 bestaat geen aanspraak.
+      definitions:
+        DREMPELBEDRAG: 50000
+        STANDAARDPREMIE:
+          value: 182100
+          type: amount
+          type_spec:
+            unit: eurocent
+      execution:
+        produces:
+          legal_character: BESCHIKKING
+          decision_type: TOEKENNING
+          procedure_id: beschikking
+        parameters:
+          - name: BSN
+            type: string
+            required: true
+            description: Burgerservicenummer van de aanvrager.
+        input:
+          - name: TOETSINGSINKOMEN
+            type: amount
+            description: Het toetsingsinkomen over het berekeningsjaar.
+            type_spec:
+              unit: eurocent
+              precision: 0
+              min: 0
+              max: 100000000
+            temporal:
+              type: period
+              period_type: year
+            legal_basis:
+              law: Testwet inkomensbegrip
+              bwb_id: BWBR0123457
+              article: '8'
+              paragraph: '1'
+              sentence: '1'
+              url: https://example.invalid/inkomen/artikel/8
+              juriconnect: jci1.3:c:BWBR0123457&artikel=8&lid=1
+              explanation: Het inkomensbegrip volgt uit artikel 8, eerste lid.
+            source:
+              regulation: test_conformance_hogere_wet
+              output: toetsingsinkomen
+              endpoint: inkomen
+              description: Opgave van de inspecteur.
+              parameters:
+                bsn: $BSN
+        output:
+          - name: toeslag
+            type: amount
+            description: Het bedrag van de toeslag.
+            type_spec:
+              unit: eurocent
+            temporal:
+              type: point_in_time
+              # Not $calculation_date: the schema's own oneOf for this field
+              # matches that value twice (enum + variableReference pattern),
+              # which JSON Schema reads as a rejection. Reported, not worked
+              # around here.
+              reference: $peildatum
+        actions:
+          - output: toeslag
+            operation: SUBTRACT
+            values:
+              - $STANDAARDPREMIE
+              - $TOETSINGSINKOMEN
+            precision: 0
+            legal_basis:
+              law: Testwet
+              article: '1'
+              explanation: De toeslag is het bedrag verminderd met het inkomen.
+          - output: standaardbedrag
+            resolve:
+              type: MINISTERIELE_REGELING
+              output: standaardbedrag
+              match:
+                jaar: 2025

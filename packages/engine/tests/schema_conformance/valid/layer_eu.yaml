@@ -1,0 +1,13 @@
+---
+# Tier C: celex_nummer and eli, required by the schema for EU instruments.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: test_conformance_eu_verordening
+regulatory_layer: EU_VERORDENING
+publication_date: '2025-01-01'
+url: https://example.invalid/eu-verordening
+celex_nummer: 32025R0001
+eli: http://data.europa.eu/eli/reg/2025/1/oj
+articles:
+  - number: '1'
+    text: Deze verordening is verbindend in al haar onderdelen.
+    url: https://example.invalid/eu-verordening/artikel/1

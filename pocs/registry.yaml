@@ -207,6 +207,18 @@ pocs:
         # Alleen voor wie bij de NAPP-verkenning betrokken is: de casus staat
         # niet op het keuzescherm, wel op haar eigen adres.
         verborgen: true
+      # De loondispensatie (Wajong artikel 2:20) van het Financieel CV: het UWV
+      # beslist, de verzekeringsarts en de arbeidsdeskundige leggen hun
+      # onderzoek vast in hun eigen kroniek. Verborgen tot de jurist van SZW
+      # heeft meegekeken.
+      - name: fcv
+        github:
+          owner: MinBZK
+          repo: regelrecht-corpus-FCV
+          branch: main
+          path: chronolexografie
+        token_env: FCV_CORPUS_TOKEN
+        verborgen: true
     assistent: false
     tags: [Leerplichtwet, BABW, parkeerverordening, zorgtoeslag, AWB, chronolexografie]
     status: verkenning
@@ -244,3 +256,35 @@ pocs:
       kan lezen, staat als niet afgespeeld. De tekst die hij oplevert is geen
       officiële of geconsolideerde versie; bij verschil gelden de
       Kamerstukken, het Staatsblad en wetten.overheid.nl.
+  - slug: regels-op-een-plek
+    titel: Regels op een plek
+    samenvatting: >-
+      Een verkenning om voor één plek alle regels over bouwen te verzamelen
+      en door te rekenen, met en zonder het Digitaal Stelsel Omgevingswet.
+    titel_intern: Spoorzone Veenendaal
+    samenvatting_intern: >-
+      Kan er in de Spoorzone van Veenendaal een woontoren van vijf lagen
+      komen? Twee sporen naast elkaar op dezelfde engine: regels met de hand
+      uit de bestemmingsplannen en het omgevingsplan van de gemeente, en
+      regels uit het DSO voor gemeente, provincie, waterschap en rijk. Met
+      een kaart, een toets per plek, simulatie, scenario's en een trace per
+      artikel.
+    soort: statisch
+    bron: poc-regels-op-een-plek
+    # De regels, de kaart en de uitkomsten staan niet in deze repository:
+    # het portaal haalt ze uit de bron hieronder (src/bron.js in de app).
+    corpus: []
+    sources:
+      - name: spoorzone
+        github:
+          owner: NederlandseDigitaleDienst
+          repo: regelrecht-poc-spoorzone
+          branch: poc-bron
+          path: spoorzone
+        token_env: SPOORZONE_CORPUS_TOKEN
+    assistent: false
+    tags: [BZK, Omgevingswet, DSO, gemeente Veenendaal]
+    status: verkenning
+    voorbehoud: >-
+      Verkenning op openbare plannen, deels met aannames; niet juridisch
+      getoetst. Geen vergunning of advies.

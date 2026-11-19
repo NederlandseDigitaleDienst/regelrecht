@@ -142,6 +142,26 @@ The engine does not run the reduction. A caller can pass an answerer with the ex
 
 A binding fills the term like any other implementation: the term gets the binding's value. That is also true when the value is null, unless the term has a `default`; then the default applies ([RFC-036](/rfcs/rfc-036)). A finding is the authority's own judgement on the term in a single case. It never replaces the value of a policy, not even on a term that the law leaves to the authority per case. If a caller gives a finding for such a term, the engine refuses the execution, even when the case never reads the term. If the policy wants the authority to judge a case that the cell does not answer, it declares an open term of its own with `decided_per_case_by`, and uses that term when the answer is null ([RFC-048](/rfcs/rfc-048) §2). Outside a cell nobody gives answers, so a scenario gives the finding on the policy's own term.
 
+## An open term on an article that fires as a hook
+
+An article that fires as a [hook](./hooks-and-reactive-execution) can declare an open term as well. Awb 4:13 has this shape: a hook on every application (*aanvraag*) that leaves the decision period to the special law, with eight weeks as the default.
+
+A filling of such a term can name the article the hook fires on, its `host`: the article that establishes the application or gives the decision. It then applies only while the hook fires on that article, and it receives the parameters it declares from that article's scope. So it can read case data the hook never sees, such as the subsidy year of a subsidy grant. Two articles of one law that fire the same hook can each have their own filling. Any regulation the term's `delegation_type` admits may name a host, a policy rule included.
+
+```yaml
+implements:
+  - law: algemene_wet_voorbeeld
+    article: '4:13'
+    open_term: wettelijke_beslistermijn
+    host:
+      law: subsidiewet_voorbeeld
+      article: '1'
+```
+
+A filling without a host fills the term wherever the article runs, under every hook and outside one, with the parameters of the hook article itself. A parameter only the host has is not there: a required one makes the implementation fail, and an optional one is unknown. It never quietly gets the host's value.
+
+Under a hook, a filling that names the host goes before one that names none; within each group the [conflict rules](#conflict-resolution) apply. While the hook runs, a hook that reads another hook's output on the same decision gets that decision's fillings too. [RFC-058](/rfcs/rfc-058) has the reasoning and a worked example.
+
 ## Conflict resolution
 
 When multiple regulations implement the same open term, the engine resolves conflicts using two rules from legal theory:

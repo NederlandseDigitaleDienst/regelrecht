@@ -18,6 +18,11 @@
  *   --locale CODE   check only that language (while working on a translation)
  *   --shard K/N     check only every N-th (size, language) run, starting at
  *                   the K-th; CI splits the check over N jobs this way
+ *   --jobs N        how many (size, language) runs go side by side, each in
+ *                   its own browser context (default: one per run, at most
+ *                   half the cores). A run prints when it is done, so the
+ *                   chapters of two runs never interleave. --jobs 1 is the
+ *                   old one-after-another order
  *
  *   node frontend-demo/scripts/verify-walkthrough.mjs [--url URL] [--size WxH ...]
  *
@@ -29,6 +34,7 @@
  */
 import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
+import { availableParallelism } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { fetchMedia } from './fetch-walkthrough-media.mjs';
@@ -39,11 +45,15 @@ const timelinePath = resolve(appRoot, '..', 'corpus', 'demo', 'walkthrough', 'ti
 const PORT = 7413;
 
 function args(argv) {
-  const out = { url: null, sizes: [], locale: null, shard: [1, 1] };
+  const out = { url: null, sizes: [], locale: null, shard: [1, 1], jobs: null };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--url') out.url = argv[++i];
     else if (argv[i] === '--size') out.sizes.push(argv[++i]);
     else if (argv[i] === '--locale') out.locale = argv[++i];
+    else if (argv[i] === '--jobs') {
+      out.jobs = Number(argv[++i]);
+      if (!(Number.isInteger(out.jobs) && out.jobs >= 1)) throw new Error(`--jobs verwacht een geheel getal vanaf 1, kreeg ${argv[i]}`);
+    }
     else if (argv[i] === '--shard') {
       const [k, n] = String(argv[++i]).split('/').map(Number);
       if (!(Number.isInteger(k) && Number.isInteger(n) && k >= 1 && k <= n)) {
@@ -104,7 +114,7 @@ async function launch() {
   return chromium.launch(opts);
 }
 
-async function verify(browser, base, timeline, size, locale = 'nl') {
+async function verify(browser, base, timeline, size, locale = 'nl', log = console.log) {
   const [width, height] = size.split('x').map(Number);
   const page = await browser.newPage({ viewport: { width, height } });
   const errors = [];
@@ -126,11 +136,11 @@ async function verify(browser, base, timeline, size, locale = 'nl') {
     await page.waitForFunction(() => window.__rrReplay?.replay.active, null, { timeout: 120_000 });
     const playing = await page.evaluate(() => window.__rrReplay.replay.demoLocale);
     if (playing !== locale) {
-      console.log(`${name} (${label}): de demo speelt in ${playing}, niet in ${locale}`);
+      log(`${name} (${label}): de demo speelt in ${playing}, niet in ${locale}`);
       missed += 1;
       continue;
     }
-    console.log(`${name} (${label})`);
+    log(`${name} (${label})`);
     let seen = 0;
     let seenLoose = 0;
     for (const [i, c] of track.chapters.entries()) {
@@ -150,7 +160,7 @@ async function verify(browser, base, timeline, size, locale = 'nl') {
         await page.waitForFunction((t) => Math.abs(window.__rrReplay.replay.now - t) < 0.05, end, { timeout: 900_000 });
         misses = await readMisses();
         fresh = misses.slice(seen);
-        console.log(`     (hoofdstuk ${i} opnieuw, op tempo van de opname)`);
+        log(`     (hoofdstuk ${i} opnieuw, op tempo van de opname)`);
       }
       seen = misses.length;
       missed += fresh.length;
@@ -159,18 +169,18 @@ async function verify(browser, base, timeline, size, locale = 'nl') {
       const path = await page.evaluate(() => location.pathname);
       const slide = `${c.slide?.title ?? `dia ${c.slideIndex + 1}`}${locale === 'nl' ? '' : ` [${locale}]`}`;
       const mark = fresh.length ? `${fresh.length} gemist: ${fresh.map((m) => `${m.type} @ ${m.t.toFixed(1)}s`).join(', ')}` : 'ok';
-      console.log(`  ${i}. ${slide}  ${c.start.toFixed(0)}-${c.end.toFixed(0)}s  ${path}  ${mark}`);
+      log(`  ${i}. ${slide}  ${c.start.toFixed(0)}-${c.end.toFixed(0)}s  ${path}  ${mark}`);
       // Found, but only with the numbers in its description masked: probably
       // a count that moved, possibly something else that now carries those
       // words. Not a failure; a person should look.
       for (const m of loose) {
-        console.log(`     let op: ${m.type} @ ${m.t.toFixed(1)}s vond "${m.what}" alleen losser`);
+        log(`     let op: ${m.type} @ ${m.t.toFixed(1)}s vond "${m.what}" alleen losser`);
         if (process.env.GITHUB_ACTIONS) {
-          console.log(`::warning title=Rondleiding: losse match::Hoofdstuk "${slide}" (${size}): ${m.type} op "${m.what}" vond zijn element alleen met de getallen weggelaten. Klopt het nog met wat de stem zegt?`);
+          log(`::warning title=Rondleiding: losse match::Hoofdstuk "${slide}" (${size}): ${m.type} op "${m.what}" vond zijn element alleen met de getallen weggelaten. Klopt het nog met wat de stem zegt?`);
         }
       }
       if (fresh.length && process.env.GITHUB_ACTIONS) {
-        console.log(
+        log(
           `::error title=Rondleiding speelt niet terug::Hoofdstuk "${slide}" (${size}): ${fresh.length} handeling(en) vonden hun element niet. ` +
             'Een wijziging in de demo heeft iets weggehaald of hernoemd waar de opname op klikt. Herstel dat in de demo, of neem dit hoofdstuk opnieuw op (zie de walkthrough-skill).',
         );
@@ -178,7 +188,7 @@ async function verify(browser, base, timeline, size, locale = 'nl') {
     }
   }
   await page.close();
-  for (const e of errors) console.log(`paginafout: ${e}`);
+  for (const e of errors) log(`paginafout: ${e}`);
   return missed + errors.length;
 }
 
@@ -187,7 +197,7 @@ async function main() {
     console.log('walkthrough: geen timeline.json, niets te controleren');
     return 0;
   }
-  const { url, sizes, locale, shard } = args(process.argv.slice(2));
+  const { url, sizes, locale, shard, jobs } = args(process.argv.slice(2));
   const timeline = JSON.parse(readFileSync(timelinePath, 'utf8'));
   // The replay waits for the voice to load; the video it never plays.
   await fetchMedia({ audioOnly: true });
@@ -201,10 +211,39 @@ async function main() {
     const others = (timeline.locales ?? []).filter((l) => l !== 'nl' && (!locale || l === locale));
     for (const code of others) runs.push([sizes[0], code]);
     const [k, n] = shard;
+    const mine = runs.filter((_, i) => i % n === k - 1);
+    // Side by side, each run on a page of its own (browser.newPage opens a
+    // fresh context, so nothing of the demo's state is shared). Each run is
+    // one busy main thread plus the engine, so half the cores keeps a run
+    // from waiting on another; a chapter that still misses under load gets
+    // its second look at the recorded pace, as before.
+    const width = Math.min(mine.length, jobs ?? Math.max(1, Math.floor(availableParallelism() / 2)));
     let failed = 0;
-    for (const [i, [size, code]] of runs.entries()) {
-      if (i % n === k - 1) failed += await verify(browser, base, timeline, size, code);
-    }
+    let at = 0;
+    const worker = async () => {
+      while (at < mine.length) {
+        const [size, code] = mine[at++];
+        // One run alone prints as it goes; side by side, a run's lines are
+        // held until it is done.
+        const lines = [];
+        const started = Date.now();
+        const label = `${size}${code === 'nl' ? '' : `, ${code}`}`;
+        try {
+          // Add after the wait, not `failed += await …`: that reads the count
+          // before the run starts and would drop what a run next to it found.
+          const missed = await verify(browser, base, timeline, size, code, width > 1 ? (line) => lines.push(line) : console.log);
+          failed += missed;
+        } catch (e) {
+          // Name the run: side by side, the message alone does not say whose it is.
+          throw new Error(`${label}: ${e.message}`, { cause: e });
+        } finally {
+          // Also when the run broke off, so what it did get to is on screen.
+          if (lines.length) console.log(lines.join('\n'));
+        }
+        console.log(`  (${label}: ${Math.round((Date.now() - started) / 1000)}s)`);
+      }
+    };
+    await Promise.all(Array.from({ length: width }, worker));
     await browser.close();
     return failed ? 1 : 0;
   } finally {

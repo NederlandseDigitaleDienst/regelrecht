@@ -13,7 +13,7 @@ import sourceHashes from './en.sources.js';
 import { LOCALES } from './index.js';
 import { hash } from './hash.js';
 import { FEATURES } from '../store/demoStore';
-import { DEFAULT_LOCALE, LOCALE_CODES, adoptLocale, currentLocale, setLocale, t } from './index.js';
+import { DEFAULT_LOCALE, LOCALE_CODES, adoptLocale, currentLocale, setLocale, siteUrl, t } from './index.js';
 
 /** A dictionary as a string map: these tests index one with keys taken from another. */
 type Dict = Record<string, string | undefined>;
@@ -221,5 +221,28 @@ describe('adoptLocale', () => {
     adoptLocale('xx');
     expect(LOCALE_CODES).not.toContain('xx');
     expect(currentLocale()).toBe('nl');
+  });
+});
+
+describe('siteUrl', () => {
+  // The site has two landings. A language the site does not have must still
+  // land on one of them, never on a path that does not exist there.
+  it('sends every language to a landing the site has', () => {
+    for (const l of LOCALES) {
+      expect(['/', '/en/'], l.code).toContain(l.siteHome);
+    }
+  });
+
+  it('follows the language for the landing', () => {
+    expect(siteUrl('nl')).toBe('https://regelrecht.rijks.app/');
+    expect(siteUrl('en')).toBe('https://regelrecht.rijks.app/en/');
+    expect(siteUrl('fy')).toBe('https://regelrecht.rijks.app/');
+    expect(siteUrl('fr')).toBe('https://regelrecht.rijks.app/en/');
+  });
+
+  it('keeps one address for a page that exists in one language', () => {
+    for (const code of LOCALE_CODES) {
+      expect(siteUrl(code, '/docs/'), code).toBe('https://regelrecht.rijks.app/docs/');
+    }
   });
 });

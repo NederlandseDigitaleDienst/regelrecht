@@ -414,7 +414,6 @@ export default {
   'wet.tile.why.retry': 'Try again',
   // ---- sheets: application, correction, reporting a change ----------------
   'sheet.dismiss': 'Close',
-  'sheet.cancel': 'Cancel',
 
   // application (ApplicationSheet)
   'sheet.application.label': 'Application',
@@ -554,7 +553,6 @@ export default {
   'sheet.change.error.event': 'Choose what is changing in your household.',
   'sheet.change.error.empty': 'Fill in at least one field. What you leave empty stays unchanged.',
   'sheet.change.continue': 'Continue',
-  'sheet.change.back': 'Back',
   'sheet.change.confirm.before': 'You are reporting the following to ',
   'sheet.change.confirm.after': '. Check it before you submit.',
   'sheet.change.confirm.label': 'What you are reporting',

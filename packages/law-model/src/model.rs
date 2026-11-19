@@ -852,7 +852,7 @@ pub enum ActionOperation {
     /// but no law was ever written with them: FOREACH was a schema-less
     /// `otherOperation` fallback in v0.2.0-v0.4.0 with no fixed field names. An
     /// alias the schema rejects would only make the model accept documents
-    /// `just validate` refuses, which is the soundness gap the conformance suite
+    /// `just validate` refuses, which is the soundness gap the schema conformance suite
     /// exists to prevent.
     #[serde(rename = "FOREACH")]
     Foreach {
@@ -1356,6 +1356,23 @@ pub struct ImplementsDeclaration {
     /// Legal reference text (e.g., "Gelet op artikel 4 van de Wet op de zorgtoeslag")
     #[serde(default)]
     pub gelet_op: Option<String>,
+    /// The article a hook fires on (schema v0.8.24, RFC-058), for an open term
+    /// of an article that fires as a hook. With it the filling applies only
+    /// while the hook fires on that article, and reads that article's scope.
+    /// Without it the filling applies wherever the declaring article runs.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub host: Option<HookHostReference>,
+}
+
+/// The article a hook fires on, as an `implements` names it (schema v0.8.24,
+/// RFC-058): the article that establishes the application or gives the
+/// decision.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HookHostReference {
+    /// The $id of the law of that article.
+    pub law: String,
+    /// The number of that article.
+    pub article: String,
 }
 
 /// Lifecycle point at which a hook fires

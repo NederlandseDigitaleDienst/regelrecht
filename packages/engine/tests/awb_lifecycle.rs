@@ -271,3 +271,138 @@ fn een_afwijkende_termijn_werkt_door_in_de_einddatum() {
         "outputs: {outputs:?}"
     );
 }
+
+/// Een fictieve wet waarvan de aanvraag onder Awb 4:13 valt en die zelf een
+/// beslistermijn bepaalt, afhankelijk van het subsidiejaar: een gegeven dat
+/// de Awb niet kent.
+const SUBSIDIEWET_MET_TERMIJN: &str = r#"
+$id: test_subsidiewet_met_beslistermijn
+regulatory_layer: WET
+publication_date: '2026-01-01'
+valid_from: '2020-01-01'
+name: Testwet met een eigen beslistermijn
+articles:
+  - number: '1'
+    text: Een subsidie wordt op aanvraag verleend.
+    machine_readable:
+      execution:
+        produces:
+          submission: {kind: AANVRAAG}
+        parameters:
+          - {name: datum_ontvangst, type: date, required: true}
+          - {name: subsidiejaar, type: number, required: true}
+        output:
+          - {name: aangevraagd, type: boolean}
+        actions:
+          - {output: aangevraagd, value: true}
+  - number: '2'
+    text: Op de aanvraag wordt beslist binnen dertien weken na ontvangst, voor een subsidiejaar vóór 2026 binnen zesentwintig weken.
+    machine_readable:
+      implements:
+        - law: algemene_wet_bestuursrecht
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host: {law: test_subsidiewet_met_beslistermijn, article: '1'}
+      execution:
+        parameters:
+          - {name: datum_ontvangst, type: date, required: true}
+          - {name: subsidiejaar, type: number, required: true}
+        output:
+          - {name: wettelijke_beslistermijn, type: date}
+        actions:
+          - output: wettelijke_beslistermijn
+            value:
+              operation: IF
+              cases:
+                - when: {operation: LESS_THAN, subject: $subsidiejaar, value: 2026}
+                  then: {operation: DATE_ADD, date: $datum_ontvangst, weeks: 26}
+              default: {operation: DATE_ADD, date: $datum_ontvangst, weeks: 13}
+"#;
+
+/// Een fictieve wet waarvan de aanvraag onder Awb 4:13 valt zonder eigen
+/// beslistermijn.
+const WET_ZONDER_TERMIJN: &str = r#"
+$id: test_aanvraag_zonder_beslistermijn
+regulatory_layer: WET
+publication_date: '2026-01-01'
+valid_from: '2020-01-01'
+name: Testwet zonder eigen beslistermijn
+articles:
+  - number: '1'
+    text: Een vergunning wordt op aanvraag verleend.
+    machine_readable:
+      execution:
+        produces:
+          submission: {kind: AANVRAAG}
+        parameters:
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: aangevraagd, type: boolean}
+        actions:
+          - {output: aangevraagd, value: true}
+"#;
+
+/// Awb 4:13 lid 1 laat de beslistermijn aan het wettelijk voorschrift; de wet
+/// van de aanvraag vult hem in voor haar eigen aanvraag (`host`), met een
+/// eigen gegeven (RFC-058). Een aanvraag onder een andere wet houdt de acht
+/// weken van lid 2, ook al staat de subsidiewet in hetzelfde corpus.
+#[test]
+fn awb_4_13_neemt_de_termijn_van_de_wet_van_de_aanvraag() {
+    let mut service = load_corpus();
+    // Het democorpus heeft een eigen Awb, zonder het open begrip van lid 1.
+    let met_open_begrip = WalkDir::new(common::regulation_base_path())
+        .follow_links(true)
+        .into_iter()
+        .filter_map(|e| e.ok())
+        .filter(|e| {
+            e.path()
+                .to_string_lossy()
+                .contains("algemene_wet_bestuursrecht")
+        })
+        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
+        .any(|yaml| yaml.contains("id: wettelijke_beslistermijn"));
+    if !met_open_begrip {
+        eprintln!("overgeslagen: de Awb in dit corpus laat lid 1 niet als open begrip");
+        return;
+    }
+    service.load_law(SUBSIDIEWET_MET_TERMIJN).unwrap();
+    service.load_law(WET_ZONDER_TERMIJN).unwrap();
+
+    let mut subsidie = BTreeMap::new();
+    subsidie.insert("datum_ontvangst".to_string(), date("2026-01-05"));
+    subsidie.insert("subsidiejaar".to_string(), Value::Int(2025));
+    let met = service
+        .evaluate_law_output(
+            "test_subsidiewet_met_beslistermijn",
+            "aangevraagd",
+            subsidie,
+            "2026-01-05",
+        )
+        .unwrap();
+    assert_eq!(
+        met.outputs.get("uiterste_beslisdatum"),
+        Some(&date("2026-07-06")),
+        "zesentwintig weken, bepaald door de wet van de aanvraag"
+    );
+    assert_eq!(
+        met.outputs.get("redelijke_beslistermijn_einddatum"),
+        Some(&date("2026-03-02")),
+        "de grens van lid 2 blijft acht weken na ontvangst"
+    );
+
+    let mut vergunning = BTreeMap::new();
+    vergunning.insert("datum_ontvangst".to_string(), date("2026-01-05"));
+    let zonder = service
+        .evaluate_law_output(
+            "test_aanvraag_zonder_beslistermijn",
+            "aangevraagd",
+            vergunning,
+            "2026-01-05",
+        )
+        .unwrap();
+    assert_eq!(
+        zonder.outputs.get("uiterste_beslisdatum"),
+        Some(&date("2026-03-02")),
+        "acht weken: de subsidiewet vult de termijn van deze aanvraag niet in"
+    );
+}

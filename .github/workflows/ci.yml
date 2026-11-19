@@ -63,6 +63,7 @@ jobs:
               - frontend-poc-portal/**
               - frontend-poc-terugbetaalregimes/**
               - frontend-poc-nieuwkomersbekostiging/**
+              - frontend-poc-regels-op-een-plek/**
               - frontend-poc-napp/**
               - frontend-poc-wetsgeschiedenis/**
               - corpus-poc/**
@@ -369,7 +370,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v6
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: '3.x'
 
@@ -398,7 +399,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97  # v7.0.0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0  # v7.1.0
         with:
           python-version: '3.12'
 
@@ -1090,7 +1091,7 @@ jobs:
       # alles koud en loopt de job richting het kwartier.
       - name: Log in to Container Registry
         if: needs.changes.outputs.rust-image == 'true'
-        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f  # v4
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550  # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -1212,6 +1213,9 @@ jobs:
         run: |
           npm test -w frontend-poc-terugbetaalregimes
           npm test -w frontend-poc-nieuwkomersbekostiging
+          # Zonder de bron (die staat niet in deze repository) slaat de vergelijking met de
+          # vooraf gerekende uitkomst zich over; de rest draait wel.
+          npm test -w frontend-poc-regels-op-een-plek
           # De assistent-backend is geen workspace-member (het is een server,
           # geen frontend), dus `npm test -w` bereikt hem niet. De vitest uit
           # de root draait zijn tests wel.
@@ -1291,7 +1295,7 @@ jobs:
       # Start zelf een dev-server (de testhaak van de replay bestaat alleen in
       # een dev-build) en haalt alleen de stem uit de release.
       - name: Replay every chapter
-        run: just walkthrough verify --shard ${{ matrix.shard }}/${{ strategy.job-total }}
+        run: just walkthrough verify --jobs 1 --shard ${{ matrix.shard }}/${{ strategy.job-total }}
 
   # Security audit
   audit:

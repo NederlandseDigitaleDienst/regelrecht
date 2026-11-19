@@ -213,3 +213,45 @@ steps:
     text: record "{id}" is skipped
     args: [{name: id, type: string}]
     literals: [false]
+
+  # The fields an application under the article holds, as the cell derives
+  # them from the law in force on the calculation date
+  # (`regelrecht_cel::shape::derive`): the parameters of the establishing
+  # article and of the hooks on the submission, without the moment. The table
+  # has a header row `field` and must match exactly, in any order. It shows
+  # what a hook on the submission asks of the applicant.
+  - id: assert_submission_fields
+    action: assert_submission_fields
+    keyword: then
+    tier: cel
+    text: 'the submission under article "{article}" of "{law}" holds exactly the fields:'
+    args: [{name: article, type: string}, {name: law, type: string}]
+    datatable: true
+
+  # The parameter that holds the moment that counts for the submission
+  # (`produces.moment`), such as the receipt (Awb 4:13): the cell fills it
+  # with the day it records the submission.
+  - id: assert_submission_moment
+    action: assert_submission_moment
+    keyword: then
+    tier: cel
+    text: the submission under article "{article}" of "{law}" takes its moment as "{parameter}"
+    args: [{name: article, type: string}, {name: law, type: string}, {name: parameter, type: string}]
+
+  # Whether a decision of the cell was recorded on or before the date an
+  # output of that decision holds, such as the last day of a decision term.
+  - id: assert_decision_within
+    action: assert_decision_within
+    keyword: then
+    tier: cel
+    text: decision "{id}" is given on or before "{output}"
+    args: [{name: id, type: string}, {name: output, type: string}]
+    literals: [true]
+
+  - id: assert_decision_after
+    action: assert_decision_within
+    keyword: then
+    tier: cel
+    text: decision "{id}" is given after "{output}"
+    args: [{name: id, type: string}, {name: output, type: string}]
+    literals: [false]

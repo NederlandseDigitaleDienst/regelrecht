@@ -192,6 +192,14 @@ The route for a new walkthrough, or for a chapter recorded again:
 
 When the demo changes and a chapter no longer replays, record that chapter again (step 2 to 4 for one take) and point its `script:` segment at the new script. A text correction is a change to the script and a new build; only the changed lines are generated again.
 
+## Links between the site and the demo
+
+The demo translates its paths, so a link names a page and a language. The landing page links to the walkthrough, the simulation and the portal through `demoUrl(page, lang)` in `docs/src/lib/demo-links.js`, which holds a copy of the Dutch and English paths from `frontend-demo/src/router.ts`. The Dutch landing therefore opens `/rondleiding` and the English one `/en/tour`.
+
+`docs/scripts/check-demo-links.mjs` compares that copy with the route table and rejects a full demo address written anywhere else under `docs/src`. It runs with the docs source checks, which CI starts on a change under `docs/` or `packages/`; a pull request that only renames a route in the demo does not start them yet. The check matters because the demo redirects an unknown path to its home page: a stale link shows no error.
+
+In the other direction, the demo's home page links to the landing of `regelrecht.rijks.app` in the reader's language. The site has Dutch and English only, so the `siteHome` column of the language table in `frontend-demo/src/i18n/index.js` sends a Frisian reader to the Dutch landing and a French reader to the English one.
+
 ## Running locally
 
 ```bash

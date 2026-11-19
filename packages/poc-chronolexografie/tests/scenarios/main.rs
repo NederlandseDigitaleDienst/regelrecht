@@ -392,6 +392,86 @@ fn a_step_after_a_login_that_names_the_login_field_itself_is_wrong() {
     );
 }
 
+/// The login test source with a UI spec that has the system fill fields of
+/// the application: the day it submits on, the decision it asks for, a fixed
+/// address, and the signature from what the service answers on the number of
+/// whoever logged in.
+fn inlogbron_met_systeem() -> BTreeMap<String, String> {
+    let mut bestanden = inlogbron();
+    bestanden.insert(
+        "ui_spec.yaml".into(),
+        "elements:
+  - id: UI1
+    fields:
+      - {name: kvk_nummer, visibility: shown, fill: {by: system}}
+      - {name: dagtekening, visibility: shown, fill: {by: system, submission: date}}
+      - {name: gevraagde_beschikking, visibility: shown, fill: {by: system, submission: requested_decision}}
+      - {name: adres_aanvrager, visibility: hidden, fill: {by: system, value: Voorbeeldstraat 1}}
+      - name: aanvraag_ondertekend
+        visibility: hidden
+        fill: {by: system, from: 'voorbeeld_vergunning_inlogstap#2#vertegenwoordiging_bevestigd'}
+"
+        .into(),
+    );
+    bestanden
+}
+
+/// The fields of the first application the scenario `index` of the login
+/// test source records, played on `bestanden`.
+fn aanvraag_van(bestanden: BTreeMap<String, String>, index: usize) -> Value {
+    let (mut spel, stand) = spel_met_bron(bestanden);
+    assert!(stand.meldingen.is_empty(), "{stand:?}");
+    let verslag = speler::speel(&mut spel, "voorbeeld_inlogstap", index, true).unwrap();
+    assert!(verslag.fouten().is_empty(), "{:?}", verslag.fouten());
+    verslag
+        .metingen
+        .iter()
+        .find(|m| m["gram"]["kind"] == "AANVRAAG")
+        .map(|m| m["gram"]["fields"].clone())
+        .unwrap()
+}
+
+#[test]
+fn the_player_fills_what_the_system_fills_as_the_form_does() {
+    let velden = aanvraag_van(inlogbron_met_systeem(), 0);
+    // The login field stays the login's, whatever the UI spec says of it.
+    assert_eq!(velden["kvk_nummer"], "99970011");
+    assert_eq!(velden["dagtekening"], "2026-10-13");
+    assert_eq!(
+        velden["gevraagde_beschikking"],
+        "voorbeeld_vergunning_inlogstap#1"
+    );
+    assert_eq!(velden["adres_aanvrager"], "Voorbeeldstraat 1");
+    // The service confirmed the authorization of the baker who logged in.
+    assert_eq!(velden["aanvraag_ondertekend"], true);
+}
+
+#[test]
+fn the_system_fills_nothing_in_an_application_on_paper() {
+    let velden = aanvraag_van(inlogbron_met_systeem(), 4);
+    assert_eq!(velden["kvk_nummer"], "99970011");
+    for veld in ["dagtekening", "gevraagde_beschikking", "adres_aanvrager"] {
+        assert!(velden[veld].is_null(), "{veld}: {velden}");
+    }
+}
+
+#[test]
+fn a_step_that_names_a_field_the_system_fills_is_wrong() {
+    let mut bestanden = inlogbron_met_systeem();
+    let pad = "casussen/voorbeeld_inlogstap.yaml";
+    let mut casus: Value = serde_yaml_ng::from_str(&bestanden[pad]).unwrap();
+    casus["scenarios"][0]["stappen"][1]["invoer"] = json!({"dagtekening": "2026-10-01"});
+    bestanden.insert(pad.into(), serde_yaml_ng::to_string(&casus).unwrap());
+    let (mut spel, stand) = spel_met_bron(bestanden);
+    let fouten = speel_bron(&mut spel, &stand, None);
+    assert!(
+        fouten
+            .iter()
+            .any(|f| f.contains("step 2: the step fills 'dagtekening', which the system fills")),
+        "{fouten:?}"
+    );
+}
+
 #[test]
 fn the_form_of_a_case_with_a_login_step_offers_the_step_and_no_choice() {
     let (mut spel, _) = spel_met_bron(inlogbron());

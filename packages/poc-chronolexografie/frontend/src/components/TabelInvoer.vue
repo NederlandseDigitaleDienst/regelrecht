@@ -7,7 +7,8 @@
 // asks ja, nee or leeg in a dropdown, not with a switch, which knows only on
 // and off. A row added or removed, or a row saved, gives the form the whole
 // table anew; removing the last row empties the field, and saving a new row
-// with nothing filled in adds nothing.
+// with nothing filled in adds nothing. A table the system fills
+// (`alleenLezen`) shows its rows without the buttons.
 import { computed, ref } from 'vue';
 import { leesbaar } from '../state.js';
 import { bronRij, celTekst, kolomVeld, sleutelKolommen } from '../tabel.js';
@@ -17,6 +18,7 @@ const props = defineProps({
   veld: { type: Object, required: true },
   modelValue: { type: Array, default: undefined },
   herkomst: { type: String, default: '' },
+  alleenLezen: { type: Boolean, default: false },
 });
 const emit = defineEmits(['update:modelValue']);
 
@@ -90,6 +92,7 @@ function verwijder(index) {
           ></nldd-text-cell>
           <nldd-cell width="fit-content">
             <nldd-icon-button
+              v-if="!alleenLezen"
               appearance="neutral-transparent"
               size="sm"
               icon="edit"
@@ -98,6 +101,7 @@ function verwijder(index) {
               @click="bewerk(i)"
             ></nldd-icon-button>
             <nldd-icon-button
+              v-if="!alleenLezen"
               appearance="neutral-transparent"
               size="sm"
               icon="delete"
@@ -109,7 +113,7 @@ function verwijder(index) {
         </nldd-table-row>
         <nldd-inline-dialog slot="empty" icon="info" text="Nog geen rijen"></nldd-inline-dialog>
       </nldd-table>
-      <nldd-button-group orientation="horizontal">
+      <nldd-button-group v-if="!alleenLezen" orientation="horizontal">
         <nldd-button appearance="secondary" start-icon="add" text="Rij toevoegen" @click="nieuw"></nldd-button>
       </nldd-button-group>
       <nldd-text v-if="herkomst" size="sm" color="secondary">{{ herkomst }}</nldd-text>

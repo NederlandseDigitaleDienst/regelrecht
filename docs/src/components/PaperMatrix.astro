@@ -1,0 +1,72 @@
+---
+/*
+ * A yes/partly/no table for the plain-language paper page: who can do what
+ * (the part on power) and the earlier approaches compared (the last part).
+ *
+ * An nldd-table with a header row, so the columns are visible as columns: the
+ * first names the actor or approach, the others carry one tag each ("ja",
+ * "deels", "nee"). Every value is written out, "nee" included, because a
+ * missing tag reads as "not filled in". A note on a cell sits under its tag.
+ *
+ * Only NLDD components: nldd-table, nldd-table-row, nldd-cell, nldd-tag,
+ * nldd-text.
+ */
+import type { Cell } from '~/lib/paper-explained-content';
+
+interface Row {
+  label: string;
+  cells: Cell[];
+  /** Marks the row (the paper's own proposal in the last part). */
+  highlight?: boolean;
+}
+
+interface Props {
+  label: string;
+  /** The first column's heading ("Wie", "Aanpak"). */
+  rowHeader: string;
+  columns: string[];
+  rows: Row[];
+  words: { yes: string; part: string; no: string };
+  background?: 'base' | 'tinted';
+  /**
+   * 'equal' shares the width over the value columns (long, wrapping headers,
+   * the part on power); 'fit' sizes them to their one-word header on a narrow table so
+   * the first column gets the rest (the last part, where it holds the longer names).
+   */
+  tracks?: 'equal' | 'fit';
+}
+
+const { label, rowHeader, columns, rows, words, background = 'base', tracks: fit = 'equal' } = Astro.props;
+
+// "nee" gets a color of its own in every state. A grey "nee" next to green reads as
+// "not applicable", which made the proposal look as if it removed every no.
+const color = (v: Cell['v']) => (v === 'yes' ? 'success' : v === 'part' ? 'warning' : 'critical');
+const word = (v: Cell['v']) => (v === 'yes' ? words.yes : v === 'part' ? words.part : words.no);
+// 'fit' only applies on a narrow table: on a wide one, value columns sized to
+// their content end up pressed against the right edge with an empty middle.
+const equal = `minmax(min-content, 1.2fr) repeat(${columns.length}, minmax(min-content, 1fr))`;
+const tracks = fit === 'fit' ? `minmax(0, 2fr) repeat(${columns.length}, minmax(0, 1fr))` : equal;
+const smTracks = fit === 'fit' ? `minmax(0, 1fr) repeat(${columns.length}, auto)` : equal;
+---
+
+<nldd-table accessible-label={label} background={background} columns={tracks} sm-columns={smTracks}>
+  <nldd-table-row slot="header">
+    <nldd-cell width="full" vertical-alignment="bottom"><nldd-text size="sm" weight="bold">{rowHeader}</nldd-text></nldd-cell>
+    {columns.map((c) => (
+      <nldd-cell width="full" vertical-alignment="bottom"><nldd-text size="sm" weight="bold">{c}</nldd-text></nldd-cell>
+    ))}
+  </nldd-table-row>
+  {rows.map((row) => (
+    <nldd-table-row selected={row.highlight || undefined}>
+      <nldd-cell width="full" vertical-alignment="top"><nldd-text size="sm" weight={row.highlight ? 'bold' : undefined}>{row.label}</nldd-text></nldd-cell>
+      {row.cells.map((c) => (
+        <nldd-cell width="full" vertical-alignment="top">
+          <nldd-container gap="4">
+            <nldd-container layout="wrap"><nldd-tag size="sm" color={color(c.v)} text={word(c.v)} /></nldd-container>
+            {c.note && <nldd-text size="sm" color="secondary">{c.note}</nldd-text>}
+          </nldd-container>
+        </nldd-cell>
+      ))}
+    </nldd-table-row>
+  ))}
+</nldd-table>

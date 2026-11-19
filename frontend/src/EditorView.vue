@@ -2587,7 +2587,7 @@ async function handleActionSave() {
                         dismiss-text="Sluit"
                         @dismiss="noteSheetEl?.hide?.()"
                       ></nldd-top-title-bar>
-                      <nldd-container padding="16" data-testid="note-detail">
+                      <nldd-simple-section data-testid="note-detail">
                         <QuotedFragment :fragment="activeGroup" />
                         <nldd-spacer v-if="activeGroup && activeGroup.quote" size="12"></nldd-spacer>
                         <nldd-collection layout="stack" gap="12">
@@ -2615,7 +2615,7 @@ async function handleActionSave() {
                             @click="startNoteForGroup(activeGroup, true)"
                           ></nldd-button>
                         </template>
-                      </nldd-container>
+                      </nldd-simple-section>
                     </nldd-page>
                   </template>
 

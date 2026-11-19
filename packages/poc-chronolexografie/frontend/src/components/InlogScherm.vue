@@ -1,7 +1,7 @@
 <script setup>
 // The login screen of the login step (inlogstap.js): it takes the place of
 // the app, as a redirect to an accredited service would, and returns to the
-// application once the service let the applicant in. It looks like no real
+// applicant's page once the service let the applicant in. It looks like no real
 // service and says on every view that it is a simulation. The service checks
 // its register on the play date; a login it refuses records nothing, and the
 // screen says why. While a scenario is at a login step, the fields start
@@ -62,14 +62,14 @@ async function inloggen() {
           <nldd-banner
             variant="warning"
             text="Gesimuleerd inloggen"
-            supporting-text="Dit is geen echte inlogpagina en geen echt inlogmiddel. De erkende dienst, haar register en de accounts zijn verzonnen, zodat je kunt zien wat een inlog voor de aanvraag betekent."
+            supporting-text="Dit is geen echte inlogpagina en geen echt inlogmiddel. De erkende dienst, haar register en de accounts zijn verzonnen, zodat je kunt zien wat een inlog voor je aanvragen betekent."
           ></nldd-banner>
           <template v-if="!weigering">
             <nldd-title
               heading-level="2"
               size="display-4"
-              text="Inloggen voor je aanvraag"
-              :supporting-text="`Je logt in voor de dienst ${aanbod.dienst} van ${state.casus.cel_naam}. Daarna ga je terug naar je aanvraag.`"
+              text="Inloggen voor je aanvragen"
+              :supporting-text="`Je logt in voor de dienst ${aanbod.dienst} van ${state.casus.cel_naam}. Daarna ga je terug naar je aanvragen.`"
             ></nldd-title>
             <nldd-form-field label="Gebruikersnaam">
               <nldd-text-field
@@ -114,7 +114,7 @@ async function inloggen() {
             :supporting-text="weigerTekst(weigering.reden)"
           >
             <nldd-button slot="actions" appearance="primary" text="Opnieuw proberen" @click="weigering = null"></nldd-button>
-            <nldd-button slot="actions" appearance="secondary" text="Terug naar de aanvraag" @click="terug"></nldd-button>
+            <nldd-button slot="actions" appearance="secondary" text="Terug naar je aanvragen" @click="terug"></nldd-button>
           </nldd-inline-dialog>
         </nldd-container>
       </nldd-simple-section>

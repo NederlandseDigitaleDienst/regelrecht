@@ -244,7 +244,7 @@ function dismissDeleteNotice() {
           <nldd-menu-item slot="overflow" icon="chevron-left" text="Terug naar werkdocumenten" @select="$emit('back')"></nldd-menu-item>
         </nldd-toolbar-item>
         <!-- Document title with an integrated xs action button; its rename/delete
-             menu is teleported to body and anchored to it by id. -->
+             menu is teleported to body and opened through popovertarget. -->
         <nldd-toolbar-title v-if="paneChromeVisible(docLoading || creating)" slot="center" align="center" :text="docName">
           <!-- Same icon as the row in the werkdocumenten list, so the title
                echoes what you clicked. Decorative: the name is right beside it. -->
@@ -261,7 +261,7 @@ function dismissDeleteNotice() {
         </nldd-toolbar-title>
 
         <!-- Save + revert appear only while there are unsaved changes. -->
-        <nldd-toolbar-item v-if="hasChanges" slot="end">
+        <nldd-toolbar-item v-if="hasChanges" slot="end" :priority="1">
           <nldd-button
             appearance="primary"
             size="md"
@@ -273,6 +273,7 @@ function dismissDeleteNotice() {
         </nldd-toolbar-item>
         <nldd-toolbar-item v-if="hasChanges" slot="end">
           <nldd-icon-button size="md" icon="more" text="Meer" tooltip-timing="never">
+            <!-- nldd-lint-disable-next-line menu-needs-two-actions -- discarding all changes asks no confirmation, so the menu keeps it a step away from the save button -->
             <nldd-menu slot="popup">
               <nldd-menu-item text="Maak alle wijzigingen ongedaan" icon="undo" @click="undoChanges"></nldd-menu-item>
             </nldd-menu>
@@ -428,9 +429,10 @@ function dismissDeleteNotice() {
     </nldd-toolbar>
   </nldd-container>
 
-  <!-- Document-actions menu, anchored by id to the title's action button. -->
+  <!-- Document-actions menu; the title's action button opens and anchors it
+       through its popovertarget. -->
   <Teleport to="body">
-    <nldd-menu id="document-actions-menu" anchor="document-actions-btn">
+    <nldd-menu id="document-actions-menu">
       <nldd-menu-item text="Naam wijzigen" icon="edit" @click="openRename"></nldd-menu-item>
       <nldd-menu-divider></nldd-menu-divider>
       <nldd-menu-item text="Document verwijderen" icon="delete" destructive @click="askDelete(currentPath)"></nldd-menu-item>
@@ -443,8 +445,10 @@ function dismissDeleteNotice() {
   <Teleport to="body">
     <nldd-sheet ref="renameSheetEl">
       <nldd-page>
-        <nldd-top-title-bar slot="header" text="Naam wijzigen" dismiss-text="Annuleer"></nldd-top-title-bar>
+        <nldd-top-title-bar slot="header" text="Naam wijzigen" heading-level="2" dismiss-text="Annuleer" collapse-anchor="naam-wijzigen-titel"></nldd-top-title-bar>
         <nldd-simple-section>
+          <nldd-title id="naam-wijzigen-titel" size="display-3" heading-level="2" text="Naam wijzigen"></nldd-title>
+          <nldd-spacer size="16"></nldd-spacer>
           <nldd-form>
             <form @submit.prevent="saveRename">
               <nldd-form-field label="Documentnaam">
@@ -464,7 +468,7 @@ function dismissDeleteNotice() {
               </nldd-form-field>
               <nldd-form-actions>
                 <nldd-button-group orientation="vertical">
-                  <nldd-button appearance="primary" type="submit" text="Opslaan" :loading="saving || undefined"></nldd-button>
+                  <nldd-button appearance="primary" type="submit" text="Wijzig naam" :loading="saving || undefined"></nldd-button>
                 </nldd-button-group>
               </nldd-form-actions>
             </form>

@@ -170,7 +170,7 @@ const dirty = computed(() => file.value.dirty.value);
   <nldd-navigation-split-view primary-sidebar-accessible-label="Scenario's" data-testid="scenario-screen">
     <!-- The file's scenarios, each with the status of its latest run. -->
     <nldd-split-view-pane slot="primary-sidebar" has-content>
-      <nldd-page sticky-header>
+      <nldd-page sticky-header accessible-label="Scenario's">
         <nldd-container slot="header" padding="8" padding-bottom="0">
           <nldd-top-title-bar :text="filename" :supporting-text="lawName || undefined"></nldd-top-title-bar>
         </nldd-container>
@@ -236,6 +236,7 @@ const dirty = computed(() => file.value.dirty.value);
         <nldd-split-view-pane slot="pane-1" data-testid="scenario-form-pane">
           <nldd-page sticky-header :sticky-footer="dirty || undefined" landmarks="page">
             <nldd-container slot="header" padding="8" padding-bottom="0">
+              <!-- nldd-lint-disable-next-line pane-title-bar-needs-back -- the stacked view has no way to show the scenario list yet, so a back button would lead nowhere -->
               <nldd-top-title-bar
                 v-if="!drilledName"
                 :text="selectedScenario?.name ?? ''"
@@ -293,11 +294,12 @@ const dirty = computed(() => file.value.dirty.value);
                 @show-result="showResult"
               />
             </nldd-simple-section>
-            <nldd-activity-indicator
-              v-if="environment.loading.value"
-              show-text
-              :text="environment.progress.value || 'Regelwerken laden'"
-            ></nldd-activity-indicator>
+            <nldd-simple-section v-if="environment.loading.value" padding-top="0">
+              <nldd-activity-indicator
+                show-text
+                :text="environment.progress.value || 'Regelwerken laden'"
+              ></nldd-activity-indicator>
+            </nldd-simple-section>
             <nldd-container v-if="dirty" slot="footer" padding="16">
               <nldd-button-group orientation="horizontal">
                 <nldd-button
@@ -319,8 +321,9 @@ const dirty = computed(() => file.value.dirty.value);
           </nldd-page>
         </nldd-split-view-pane>
         <nldd-split-view-pane slot="pane-2" data-testid="scenario-result-pane">
-          <nldd-page sticky-header>
+          <nldd-page sticky-header accessible-label="Resultaat">
             <nldd-container slot="header" padding="8" padding-bottom="0">
+              <!-- nldd-lint-disable-next-line pane-title-bar-needs-back -- this pane sits beside the form, and in a single column the result opens as a sheet instead -->
               <nldd-top-title-bar text="Resultaat">
                 <nldd-button
                   slot="toolbar"
