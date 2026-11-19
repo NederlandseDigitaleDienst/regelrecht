@@ -1,11 +1,13 @@
 ---
 title: "Authentication & Roles"
-description: "The layered role model that gates the editor and harvester-admin services, and how it maps to Keycloak."
+description: "The role models that gate the editor, the harvester-admin and the wetsproces server, and how they map to Keycloak."
 ---
 
 This page describes the role model that gates the editor and harvester-admin
 services, how the roles are wired up in Keycloak, and the per-deployment
-configuration each service needs.
+configuration each service needs. The [wetsproces](/components/wetsproces)
+server shares the realm but has roles of its own, described in
+[Wetsproces roles](#wetsproces-roles).
 
 ## The four-layer model
 
@@ -141,6 +143,7 @@ Each service is gated on a **minimum role** at login time, configured via
 |---|---|
 | `editor` | `editor-reader` |
 | `harvester-admin` | `harvester-reader` |
+| `wetsproces` | `wetsproces-toegang` |
 
 If `OIDC_REQUIRED_ROLE` is unset or empty, the service falls back to
 `allowed-user`, a realm role from before the per-app roles existed, and logs a
@@ -316,6 +319,75 @@ On a plain Linux host neither applies: use `localhost` for the DB and any free
 port (e.g. `3000`) for `BASE_URL` and Vite, with a matching redirect URI in
 Keycloak.
 
+## Wetsproces roles
+
+The wetsproces server logs in through the same realm, with an OIDC client of
+its own. Its roles all start with `wetsproces-`, so none of them grants
+anything in the editor or the harvester, and no editor role grants anything
+in the wetsproces server. The role names live in one place in the code,
+`packages/wetsproces/src/access.rs`.
+
+| Role | Grants |
+|---|---|
+| `wetsproces-toegang` | Logging in at all. The server's `OIDC_REQUIRED_ROLE`; it grants nothing else. |
+| `wetsproces-burger` | A citizen: submit for themself, and read their own dossier. |
+| `wetsproces-lezer` | An employee: read the chronicle of each cell they work for. |
+| `wetsproces-behandelaar` | Also record facts and send copies of decisions for those cells. |
+| `wetsproces-beslisser` | Also take decisions for those cells. |
+| `wetsproces-admin` | Also set the clock in test mode. |
+| `wetsproces-cel-<cel>` | Works for the cell `<cel>`, such as `wetsproces-cel-gemeente_wilgendaal`. |
+
+An employee needs a step of the ladder and a cell role: `wetsproces-beslisser`
+with `wetsproces-cel-gemeente_wilgendaal` decides for the municipality and
+cannot read the GGD's chronicle. The server treats the ladder as ordered, so a
+`wetsproces-beslisser` may read and handle even when Keycloak does not hand it
+the lower roles. Setting the clock needs no cell role.
+
+A citizen is identified by a user attribute, by default `bsn`. The login copies
+that claim into the session, and the server fills the applicant's field of the
+application with it (`bsn_aanvrager`, named by the case's UI spec). A field
+sent in the request is refused, and a citizen's dossier holds only the records
+about that number.
+
+### Keycloak setup for the wetsproces server
+
+The realm is configured by hand; nothing in the repository changes it.
+
+1. **Create the roles**: `wetsproces-toegang`, `wetsproces-burger`, the four
+   ladder roles, and one `wetsproces-cel-<cel>` per cell of the case. For the
+   parking card these are `wetsproces-cel-gemeente_wilgendaal`,
+   `wetsproces-cel-ggd_wilgendaal` and `wetsproces-cel-rechtbank_wilgendaal`.
+2. **Configure composite roles**:
+   - `wetsproces-burger` and `wetsproces-lezer` each contain
+     `wetsproces-toegang`;
+   - `wetsproces-behandelaar` contains `wetsproces-lezer`,
+     `wetsproces-beslisser` contains `wetsproces-behandelaar`, and
+     `wetsproces-admin` contains `wetsproces-beslisser`.
+   The cell roles are composites of nothing and are granted per employee.
+3. **Create the client** `wetsproces`: confidential (*Client authentication*
+   On), *Standard flow* on, the redirect URI
+   `https://<host>/auth/callback` and the post-logout redirect URI
+   `https://<host>`, with the scopes `openid`, `email` and `profile`.
+4. **Add two mappers** to the client's dedicated scope:
+   - a *User Realm Role* mapper with *Add to ID token* On, as for the editor;
+   - a *User Attribute* mapper with *User Attribute* `bsn`, *Token Claim
+     Name* `bsn`, *Claim JSON Type* `String`, and *Add to ID token* On.
+5. **Allow the attribute**: with the realm's user profile enabled, add the
+   attribute `bsn` to it, editable by admins only, so a user cannot change
+   their own number.
+6. **Assign roles and attributes**: a citizen gets `wetsproces-burger` and the
+   attribute `bsn`; an employee gets a ladder role and one or more cell roles.
+
+The claim name is `WETSPROCES_SUBJECT_CLAIM` on the server, `bsn` by default.
+A citizen whose account lacks it can log in but gets `403` on everything that
+needs their identity.
+
+`packages/auth` can copy claims besides the standard ones into any service's
+session: `OIDC_EXTRA_CLAIMS` takes a comma-separated list, and the callback
+stores those it finds under `person_claims`. The wetsproces server adds its
+subject claim to that list itself. The editor and the harvester set none, and
+their sessions are unchanged.
+
 ## Programmatic access (admin API key)
 
 The harvester-admin service accepts a bearer API key on **GET**, **POST** and
@@ -343,3 +415,6 @@ role still works too. The editor service has no API key path.
   `packages/admin/src/middleware.rs` keeps the API-key bypass.
 - Roles are persisted in the session at login (`SESSION_KEY_ROLES`) so
   per-request checks don't re-parse the JWT.
+- Wetsproces routes: `packages/wetsproces/src/api.rs`, split into a group for
+  any user, a citizen group and a back-office group; the roles and the checks
+  per cell are in `packages/wetsproces/src/access.rs`.
