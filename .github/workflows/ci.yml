@@ -1283,7 +1283,7 @@ jobs:
       # Start zelf een dev-server (de testhaak van de replay bestaat alleen in
       # een dev-build) en haalt alleen de stem uit de release.
       - name: Replay every chapter
-        run: just walkthrough verify --shard ${{ matrix.shard }}/${{ strategy.job-total }}
+        run: just walkthrough verify --jobs 1 --shard ${{ matrix.shard }}/${{ strategy.job-total }}
 
   # Security audit
   audit:
