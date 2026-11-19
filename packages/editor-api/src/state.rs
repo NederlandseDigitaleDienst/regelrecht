@@ -171,7 +171,25 @@ pub(crate) fn global_body_key(source_id: &str, relative_path: &str) -> String {
 }
 
 impl CorpusState {
-    #[allow(dead_code)]
+    /// The corpus as loaded at startup, with an empty cache of bodies fetched
+    /// on demand.
+    pub fn new(
+        registry: regelrecht_corpus::CorpusRegistry,
+        source_map: SourceMap,
+        backends: HashMap<String, BackendEntry>,
+        github: regelrecht_corpus::GithubSettings,
+        index_failures: HashMap<String, String>,
+    ) -> Self {
+        Self {
+            registry,
+            source_map,
+            backends,
+            github,
+            index_failures,
+            lazy_bodies: Default::default(),
+        }
+    }
+
     pub fn empty() -> Self {
         Self {
             registry: regelrecht_corpus::CorpusRegistry::empty(),
