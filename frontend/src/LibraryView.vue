@@ -2404,8 +2404,8 @@ watch(activeTrajectRef, () => {
         <nldd-navigation-split-view v-else @back="onPaneBack">
 
           <nldd-split-view-pane slot="sidebar" has-content>
-            <nldd-page sticky-header>
-              <nldd-top-title-bar v-if="!loading" slot="header" :text="sidebarTitle" collapse-anchor="home-titel"></nldd-top-title-bar>
+            <nldd-page sticky-header :accessible-label="sidebarTitle">
+              <nldd-top-title-bar v-if="!loading" slot="header" :text="sidebarTitle" heading-level="3" collapse-anchor="home-titel"></nldd-top-title-bar>
 
               <nldd-simple-section width="full">
                 <nldd-title v-if="!loading" id="home-titel" size="display-3"><h3>{{ sidebarTitle }}</h3></nldd-title>
@@ -2551,8 +2551,8 @@ watch(activeTrajectRef, () => {
 
           <!-- Secondary Sidebar (instellingen mode): the settings tabs. -->
           <nldd-split-view-pane v-if="isInstellingenMode" slot="secondary-sidebar" has-content>
-            <nldd-page sticky-header>
-              <nldd-top-title-bar slot="header" text="Instellingen" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="instellingen-titel"></nldd-top-title-bar>
+            <nldd-page sticky-header accessible-label="Instellingen">
+              <nldd-top-title-bar slot="header" text="Instellingen" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="instellingen-titel"></nldd-top-title-bar>
               <nldd-simple-section width="full">
                 <nldd-title id="instellingen-titel" size="display-3"><h3>Instellingen</h3></nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
@@ -2582,8 +2582,8 @@ watch(activeTrajectRef, () => {
           <!-- Secondary Sidebar (taken mode): the categories, mirroring the
                Instellingen panel - the list itself lives in main. -->
           <nldd-split-view-pane v-else-if="isTakenMode" slot="secondary-sidebar" has-content>
-            <nldd-page sticky-header>
-              <nldd-top-title-bar slot="header" text="Taken" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="taken-titel"></nldd-top-title-bar>
+            <nldd-page sticky-header accessible-label="Taken">
+              <nldd-top-title-bar slot="header" text="Taken" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="taken-titel"></nldd-top-title-bar>
               <nldd-simple-section width="full">
                 <nldd-title id="taken-titel" size="display-3"><h3>Taken</h3></nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
@@ -2599,30 +2599,26 @@ watch(activeTrajectRef, () => {
 
           <!-- Secondary Sidebar (werkdoc mode): the document list. -->
           <nldd-split-view-pane v-else-if="isWerkdocMode" slot="secondary-sidebar" has-content>
-            <nldd-page sticky-header>
-              <nldd-top-title-bar slot="header" text="Werkdocumenten" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="werkdoc-titel"></nldd-top-title-bar>
+            <nldd-page sticky-header accessible-label="Werkdocumenten">
+              <nldd-top-title-bar slot="header" text="Werkdocumenten" heading-level="3" :back-text="LIBRARY_HOME_BACK_TEXT" collapse-anchor="werkdoc-titel"></nldd-top-title-bar>
               <nldd-simple-section width="full">
                 <nldd-title id="werkdoc-titel" size="display-3"><h3>Werkdocumenten</h3></nldd-title>
                 <nldd-spacer size="16"></nldd-spacer>
-                <nldd-toolbar accessible-label="Documentacties">
-                  <nldd-toolbar-item slot="start">
-                    <nldd-icon-button
-                      icon="plus-small"
-                      text="Document toevoegen"
-                      expandable
-                      tooltip-timing="never"
-                    >
-                      <nldd-menu slot="popup">
-                        <nldd-menu-item icon="new-text-document" text="Nieuw document" @select="onDocNew"></nldd-menu-item>
-                        <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="onDocUpload"></nldd-menu-item>
-                      </nldd-menu>
-                    </nldd-icon-button>
-                    <nldd-menu-group slot="overflow" text="Document toevoegen">
+                <!-- In a row: an icon button directly in the section stretches
+                     its host over the full width. -->
+                <nldd-container layout="row">
+                  <nldd-icon-button
+                    icon="plus-small"
+                    text="Document toevoegen"
+                    expandable
+                    tooltip-timing="never"
+                  >
+                    <nldd-menu slot="popup">
                       <nldd-menu-item icon="new-text-document" text="Nieuw document" @select="onDocNew"></nldd-menu-item>
                       <nldd-menu-item icon="upload-to-cloud" text="Document uploaden…" @select="onDocUpload"></nldd-menu-item>
-                    </nldd-menu-group>
-                  </nldd-toolbar-item>
-                </nldd-toolbar>
+                    </nldd-menu>
+                  </nldd-icon-button>
+                </nldd-container>
                 <nldd-spacer size="16"></nldd-spacer>
                 <nldd-activity-indicator v-if="docsLoading && !docList.length && !conversionJobs.length" text="Documenten laden" show-text></nldd-activity-indicator>
                 <nldd-inline-dialog v-else-if="docsError" variant="alert" text="Documenten niet geladen" :supporting-text="(docsError as Error).message"></nldd-inline-dialog>
@@ -2637,9 +2633,10 @@ watch(activeTrajectRef, () => {
                so the navigation-split-view reflows to spatial mode and
                shows the sidebar (Wetten Browser) alongside main. -->
           <nldd-split-view-pane v-else-if="selectedLawId && !lawError" slot="secondary-sidebar" has-content>
-            <nldd-page ref="lawPage" sticky-header>
+            <nldd-page ref="lawPage" sticky-header :accessible-label="lawTitle || 'Regelwerk'">
               <nldd-top-title-bar
                 slot="header"
+                heading-level="3"
                 :text="paneChromeVisible(selectedLawLoading) ? lawTitle : undefined"
                 :back-text="LIBRARY_HOME_BACK_TEXT"
                 collapse-anchor="wet-titel"
@@ -2959,7 +2956,7 @@ watch(activeTrajectRef, () => {
               <!-- Review-modus (job_review-taak, payload.kind === 'document'):
                    a full-width, low bar above the document editor, same
                    pattern/variants as EditorView's law-review banner (PR
-                   #935/#936). A bare nldd-container + nldd-banner in
+                   #935/#936). A section of its own with the nldd-banner in
                    DocumentEditor's default (body) slot, ahead of its own
                    nldd-simple-section - both land in nldd-page's body area,
                    in source order, so the banner sits above the editor. -->
@@ -2967,7 +2964,7 @@ watch(activeTrajectRef, () => {
                    geen banner meer (die viel eerder overal boven - zie de
                    watcher-failure-tak), en `docReviewLoadError` dient nu enkel
                    nog voor een mislukte Verwerpen-actie op een actieve review. -->
-              <nldd-container v-if="docReviewActive" padding="8">
+              <nldd-simple-section v-if="docReviewActive" width="full" padding-bottom="0">
                 <nldd-banner :variant="docReviewBannerVariant" text="Voorstel uit documentconversie" :supporting-text="docReviewBannerSupportingText">
                   <nldd-button
                     v-if="docReviewActive"
@@ -2977,7 +2974,7 @@ watch(activeTrajectRef, () => {
                     @click="rejectDocReview"
                   ></nldd-button>
                 </nldd-banner>
-              </nldd-container>
+              </nldd-simple-section>
               <DocumentEditor ref="docEditorEl" :manager="docsMgr" @back="onDocBack" @saved="onDocSaved"></DocumentEditor>
             </nldd-page>
             <nldd-page landmarks="page" v-else>
@@ -3169,7 +3166,7 @@ watch(activeTrajectRef, () => {
                     <nldd-spacer size="16"></nldd-spacer>
                   </template>
                   <nldd-toolbar>
-                    <nldd-toolbar-item v-if="showMachineViews" slot="start">
+                    <nldd-toolbar-item v-if="showMachineViews" slot="start" :priority="1">
                       <nldd-tab-bar size="md" accessible-label="Weergave" @tab-change="onDetailTabChange">
                         <nldd-tab-bar-item
                           v-for="v in DETAIL_VIEWS"

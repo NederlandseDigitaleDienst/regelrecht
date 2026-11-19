@@ -81,7 +81,7 @@ function goToLibrary() {
             supporting-text="RegelRecht"
             min-width="fit-content"
           ></nldd-toolbar-title>
-          <nldd-toolbar-item slot="center">
+          <nldd-toolbar-item slot="center" :priority="1">
             <nldd-tab-bar accessible-label="Onderdelen">
               <nldd-tab-bar-item
                 v-for="tab in tabs"

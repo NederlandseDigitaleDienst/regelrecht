@@ -436,11 +436,11 @@ const statusTag = computed(() => {
           <nldd-container slot="header" padding="12">
             <nldd-top-title-bar :text="t('wet.tile.trace.title')" :supporting-text="law.name" :dismiss-text="t('wet.tile.trace.close')" @dismiss="showTrace = false"></nldd-top-title-bar>
           </nldd-container>
-          <nldd-container padding="16">
+          <nldd-simple-section width="full">
             <nldd-rich-text spacing="tight"><p>{{ t('wet.tile.trace.intro') }}</p></nldd-rich-text>
             <nldd-spacer size="12"></nldd-spacer>
             <TraceView v-if="showTrace" :text="evaluation?.ok ? evaluation.traceText : undefined" />
-          </nldd-container>
+          </nldd-simple-section>
         </nldd-page>
       </nldd-sheet>
     </Teleport>
