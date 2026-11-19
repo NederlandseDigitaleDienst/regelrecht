@@ -95,7 +95,8 @@ impl ChronicleStore for InMemoryStore {
         for append in commit.appends {
             let stored = append.grams.into_iter().map(|gram| StoredGram {
                 gram,
-                recorded_by: commit.recorded_by.clone(),
+                recorded_by: commit.recorded_by.as_ref().map(|a| a.account.clone()),
+                recorded_via: commit.recorded_by.as_ref().map(|a| a.channel),
             });
             state
                 .chronicles

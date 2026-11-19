@@ -31,6 +31,10 @@
 //! chronicle they may read; one that is not answers 404, the same as one
 //! that does not exist, so an id does not tell whether it exists elsewhere.
 //!
+//! The citizen's routes are offered a second time, under `/fsc4b`, to apps
+//! of the FSC voor Burgers channel ([`crate::fsc4b`]), when that channel is
+//! configured; the handlers below serve both.
+//!
 //! A `POST` takes an `Idempotency-Key` header: sent again by the same
 //! account with the same request it answers as the first time and records
 //! nothing; otherwise it is refused. Without the header every request
@@ -53,9 +57,10 @@ use serde_json::{Value, json};
 use crate::access::{self, Level, Principal};
 use crate::clock::ControllableClock;
 use crate::config::Mode;
+use crate::fsc4b::Fsc4b;
 use crate::login::{Login, OidcLogin};
 use crate::service::{Decide, Record, SendCopy, Service, ServiceError, Step, Submit};
-use crate::store::{IdempotencyKey, StoreError};
+use crate::store::{Channel, IdempotencyKey, StoreError};
 
 /// The header that carries a request's [`IdempotencyKey`].
 pub const IDEMPOTENCY_KEY: &str = "idempotency-key";
@@ -71,6 +76,8 @@ pub struct AppState {
     /// The claim of a citizen's account that identifies them.
     subject_claim: Arc<str>,
     http_client: reqwest::Client,
+    /// The FSC voor Burgers channel, when it is configured.
+    fsc4b: Option<Arc<Fsc4b>>,
 }
 
 impl AppState {
@@ -88,6 +95,31 @@ impl AppState {
             login,
             subject_claim: subject_claim.into(),
             http_client: regelrecht_auth::http_client(),
+            fsc4b: None,
+        }
+    }
+
+    /// The state with the FSC voor Burgers channel `fsc4b` open.
+    pub fn with_fsc4b(mut self, fsc4b: Arc<Fsc4b>) -> Self {
+        self.fsc4b = Some(fsc4b);
+        self
+    }
+
+    /// The FSC voor Burgers channel, when it is configured.
+    pub fn fsc4b(&self) -> Option<&Arc<Fsc4b>> {
+        self.fsc4b.as_ref()
+    }
+
+    /// The claim of a citizen's account that identifies them.
+    pub fn subject_claim(&self) -> &str {
+        &self.subject_claim
+    }
+
+    /// The channel of a browser session: the login this server runs.
+    pub fn session_channel(&self) -> Channel {
+        match self.login {
+            Login::Oidc(_) => Channel::Keycloak,
+            Login::TestLogin => Channel::TestLogin,
         }
     }
 
@@ -107,11 +139,6 @@ impl AppState {
     pub fn service(&self) -> &Service {
         &self.service
     }
-
-    /// The claim of a citizen's account that identifies them.
-    pub fn subject_claim(&self) -> &str {
-        &self.subject_claim
-    }
 }
 
 /// An error as the API answers it.
@@ -127,6 +154,15 @@ impl ApiError {
             status,
             message: message.into(),
         }
+    }
+
+    pub fn status(&self) -> StatusCode {
+        self.status
+    }
+
+    /// The answer's body, as [`IntoResponse`] writes it.
+    pub fn body(&self) -> Value {
+        json!({ "fout": self.message })
     }
 
     /// The answer for a record the caller may not see, whether or not it
@@ -168,11 +204,14 @@ impl From<ServiceError> for ApiError {
 
 impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
-        (self.status, Json(json!({ "fout": self.message }))).into_response()
+        (self.status, Json(self.body())).into_response()
     }
 }
 
 type ApiResult = Result<Json<Value>, ApiError>;
+
+/// What a handler of the citizen's routes answers, before a channel wraps it.
+pub(crate) type CitizenResult = Result<Value, ApiError>;
 
 /// The routes of the API on `state`, with the login's routes; the session
 /// layer goes around them ([`crate::app`]).
@@ -182,12 +221,12 @@ pub fn router(state: AppState) -> Router {
         .route("/api/formulier", get(forms))
         .route("/api/klok", get(clock))
         .route("/api/ik", get(me))
-        .route_layer(middleware::from_fn(gate_user));
+        .route_layer(middleware::from_fn_with_state(state.clone(), gate_user));
     let citizen = Router::new()
         .route("/api/dossier", get(dossier))
         .route("/api/dossier/waarom/{id}", get(dossier_explain))
         .route("/api/indieningen", post(submit))
-        .route_layer(middleware::from_fn(gate_citizen));
+        .route_layer(middleware::from_fn_with_state(state.clone(), gate_citizen));
     let backoffice = Router::new()
         .route("/api/backoffice/cellen/{cel}/kroniek", get(chronicle))
         .route("/api/backoffice/besluiten", post(decide))
@@ -196,13 +235,18 @@ pub fn router(state: AppState) -> Router {
         .route("/api/backoffice/vastleggingen", post(record))
         .route("/api/backoffice/toezendingen", post(send_copy))
         .route("/api/backoffice/klok", put(set_clock))
-        .route_layer(middleware::from_fn(gate_employee));
+        .route_layer(middleware::from_fn_with_state(state.clone(), gate_employee));
+    let fsc4b = state
+        .fsc4b
+        .as_ref()
+        .map_or_else(Router::new, |f| crate::fsc4b::routes(f));
     Router::new()
         .route("/health", get(|| async { "ok" }))
         .merge(state.login.routes())
         .merge(shared)
         .merge(citizen)
         .merge(backoffice)
+        .merge(fsc4b)
         .with_state(state)
 }
 
@@ -250,18 +294,28 @@ async fn gate_employee(
 }
 
 async fn case(State(state): State<AppState>) -> Json<Value> {
-    Json(state.service.case())
+    Json(case_of(&state))
+}
+
+/// The case, and today.
+pub(crate) fn case_of(state: &AppState) -> Value {
+    state.service.case()
 }
 
 async fn forms(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
 ) -> ApiResult {
+    forms_for(&state, &principal).await.map(Json)
+}
+
+/// The forms as `principal` may see them.
+pub(crate) async fn forms_for(state: &AppState, principal: &Principal) -> CitizenResult {
     let mut forms = state.service.forms().await?;
     without_login_offer(&mut forms);
-    let visible = visible_records(&state, &principal).await?;
+    let visible = visible_records(state, principal).await?;
     only_visible_records(&mut forms, &visible);
-    Ok(Json(forms))
+    Ok(forms)
 }
 
 /// The ids of the records `principal` may see: those of their dossier as a
@@ -310,9 +364,14 @@ async fn dossier(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
 ) -> ApiResult {
+    dossier_of(&state, &principal).await.map(Json)
+}
+
+/// The dossier of the citizen `principal`.
+pub(crate) async fn dossier_of(state: &AppState, principal: &Principal) -> CitizenResult {
     let citizen = principal.citizen(&state.subject_claim)?;
     let dossier = state.service.dossier(citizen.subject()).await?;
-    Ok(Json(json!({ "grammen": dossier.grams })))
+    Ok(json!({ "grammen": dossier.grams }))
 }
 
 /// Who is logged in, for a screen to show what they may do: their name,
@@ -365,11 +424,21 @@ async fn dossier_explain(
     Extension(principal): Extension<Principal>,
     Path(id): Path<String>,
 ) -> ApiResult {
+    explain_for(&state, &principal, &id).await.map(Json)
+}
+
+/// Why the decision `id` of the dossier of the citizen `principal` came out
+/// so.
+pub(crate) async fn explain_for(
+    state: &AppState,
+    principal: &Principal,
+    id: &str,
+) -> CitizenResult {
     let citizen = principal.citizen(&state.subject_claim)?;
-    if !state.service.dossier(citizen.subject()).await?.holds(&id) {
+    if !state.service.dossier(citizen.subject()).await?.holds(id) {
         return Err(ApiError::not_yours("decision in your dossier"));
     }
-    Ok(Json(state.service.explain(&id).await?))
+    Ok(state.service.explain(id).await?)
 }
 
 /// Why a decision of a cell the employee may read came out so.
@@ -419,9 +488,14 @@ fn key(headers: &HeaderMap) -> Result<Option<IdempotencyKey>, ApiError> {
         .map_err(|e| ApiError::new(StatusCode::BAD_REQUEST, e))
 }
 
-async fn perform(state: &AppState, headers: &HeaderMap, step: Step, actor: &str) -> ApiResult {
+async fn perform(
+    state: &AppState,
+    headers: &HeaderMap,
+    step: Step,
+    principal: &Principal,
+) -> CitizenResult {
     let key = key(headers)?;
-    Ok(Json(state.service.perform(key, step, actor).await?))
+    Ok(state.service.perform(key, step, &principal.actor()).await?)
 }
 
 /// The cell holding the record `id`, when `principal` may read its
@@ -444,8 +518,18 @@ async fn submit(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
     headers: HeaderMap,
-    Json(mut s): Json<Submit>,
+    Json(s): Json<Submit>,
 ) -> ApiResult {
+    submit_for(&state, &principal, &headers, s).await.map(Json)
+}
+
+/// The submission `s` of the citizen `principal`.
+pub(crate) async fn submit_for(
+    state: &AppState,
+    principal: &Principal,
+    headers: &HeaderMap,
+    mut s: Submit,
+) -> CitizenResult {
     // The checks read the chronicles apart from the step. That is safe
     // because a chronicle only grows and a record never changes cell: what
     // was in the dossier or a readable cell when checked still is when the
@@ -476,7 +560,7 @@ async fn submit(
             "a submission other than the application refers to a record of your dossier (`op`)",
         ));
     }
-    perform(&state, &headers, Step::Submit(s), citizen.sub()).await
+    perform(state, headers, Step::Submit(s), principal).await
 }
 
 /// A decision, by a decider of the cell that holds the submission.
@@ -491,7 +575,9 @@ async fn decide(
         readable_holder(&state, &principal, after, "record").await?;
     }
     principal.require(Level::Decider, &cell)?;
-    perform(&state, &headers, Step::Decide(d), principal.sub()).await
+    perform(&state, &headers, Step::Decide(d), &principal)
+        .await
+        .map(Json)
 }
 
 /// A fact, by a handler of the cell that records it.
@@ -505,7 +591,9 @@ async fn record(
     // `r.cell` (a record id or a kenmerk of its beginning), which the
     // handler of that cell may read, so it needs no check of its own here.
     principal.require(Level::Handler, &r.cell)?;
-    perform(&state, &headers, Step::Record(r), principal.sub()).await
+    perform(&state, &headers, Step::Record(r), &principal)
+        .await
+        .map(Json)
 }
 
 /// A copy of a decision, by a handler of the cell that holds it.
@@ -517,7 +605,9 @@ async fn send_copy(
 ) -> ApiResult {
     let cell = readable_holder(&state, &principal, &s.decision, "decision").await?;
     principal.require(Level::Handler, &cell)?;
-    perform(&state, &headers, Step::SendCopy(s), principal.sub()).await
+    perform(&state, &headers, Step::SendCopy(s), &principal)
+        .await
+        .map(Json)
 }
 
 fn clock_state(state: &AppState) -> Value {

@@ -35,12 +35,13 @@ Two stores implement `ChronicleStore`. The store in memory starts empty and is g
 
 | Table | Holds |
 |---|---|
-| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id (unique across all cells), a format version, the record as `jsonb`, when it was stored and `recorded_by`, the Keycloak `sub` of the account whose request recorded it |
+| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id (unique across all cells), a format version, the record as `jsonb`, when it was stored, `recorded_by`, the account whose request recorded it, and `recorded_via`, the channel it came in by |
 | `heads` | Per cell its head |
 | `receipts` | Per idempotency key the request, with the account that sent it, and the answer |
 | `sessions` | The login sessions, made by the session store (`tower-sessions`) at startup |
+| `fsc4b_challenges`, `fsc4b_sessions` | The challenges and sessions of [FSC voor Burgers](/components/wetsproces-fsc4b) |
 
-`recorded_by` sits beside the record, not inside it: the record says what the law made happen, the column says who asked for it. It is empty for what the server records itself, such as the case's beginning, and for records stored before the login existed (migration `0002_recorded_by.sql`).
+`recorded_by` sits beside the record, not inside it: the record says what the law made happen, the column says who asked for it. It holds the Keycloak `sub`, or the account of an app (`fsc4b:` and a key thumbprint). `recorded_via` says which channel: `keycloak`, `testlogin` or `fsc4b`. Both are empty for what the server records itself, such as the case's beginning; `recorded_by` is also empty for records stored before the login existed (migration `0002_recorded_by.sql`), and `recorded_via` for those stored before migration `0003_recorded_via.sql`.
 
 `grams` is append-only, and the database enforces it: a trigger refuses every `UPDATE`, `DELETE` and `TRUNCATE` on it. A request that holds the character U+0000 is refused with `422` in both stores, because `jsonb` cannot store it. A record written in a format version this build does not know is not read; the request fails with `500`, and the server log names the cell, the record and the version.
 
@@ -82,6 +83,8 @@ curl -c jar -H 'content-type: application/json' localhost:7180/auth/testlogin \
 ```
 
 The session it writes has the same keys as one after Keycloak, so every request after it goes through the same checks. The route exists only in that case; with OIDC configured, and always in stable mode, it answers `404`. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the cells of the case.
+
+An app can use the citizen routes without a browser through [FSC voor Burgers](/components/wetsproces-fsc4b), when that channel is configured.
 
 ## API
 

@@ -3,11 +3,13 @@
 //! Everything lives in the schema [`SCHEMA`] of the database it is given,
 //! the migration table included, next to whatever else that database holds
 //! and apart from it. The migrations in `packages/wetsproces/migrations/`
-//! make three tables:
+//! make three tables for the chronicles (and two for FSC voor Burgers,
+//! [`crate::fsc4b::store`]):
 //!
 //! - `grams`: one row per record, keyed by cell and sequence number (1, 2,
 //!   ...), with the record as JSON, the [`crate::store::FORMAT_VERSION`] it was written in,
-//!   when it was stored and who asked for it (`recorded_by`, migration 0002). A trigger refuses every `UPDATE`, `DELETE` and
+//!   when it was stored and who asked for it (`recorded_by`, migration 0002)
+//!   by which channel (`recorded_via`, migration 0003). A trigger refuses every `UPDATE`, `DELETE` and
 //!   `TRUNCATE`: a chronicle only grows;
 //! - `heads`: per cell its head, the number of records in it. A commit locks
 //!   the head rows of its cells, so commits on one cell take turns;
@@ -32,8 +34,8 @@ use sqlx::types::Json;
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
 use crate::store::{
-    Appended, CellAppend, ChronicleStore, Commit, FORMAT_VERSION, IdempotencyKey, Keyed, Receipt,
-    StoreError, StoredChronicle, StoredGram,
+    Actor, Appended, CellAppend, Channel, ChronicleStore, Commit, FORMAT_VERSION, IdempotencyKey,
+    Keyed, Receipt, StoreError, StoredChronicle, StoredGram,
 };
 
 /// The schema the store keeps its tables in.
@@ -161,7 +163,7 @@ impl ChronicleStore for PostgresStore {
     async fn load_all(&self, cells: &[&str]) -> Result<Vec<StoredChronicle>, StoreError> {
         // One statement, so one snapshot: every cell as it stood at once.
         let rows = sqlx::query(
-            "SELECT cell, seq, format_version, gram, recorded_by FROM wetsproces.grams \
+            "SELECT cell, seq, format_version, gram, recorded_by, recorded_via FROM wetsproces.grams \
              WHERE cell = ANY($1) ORDER BY cell, seq",
         )
         .bind(cells)
@@ -188,6 +190,7 @@ impl ChronicleStore for PostgresStore {
             chronicle.grams.push(StoredGram {
                 gram,
                 recorded_by: column(row, "recorded_by")?,
+                recorded_via: channel(column(row, "recorded_via")?)?,
             });
         }
         Ok(cells
@@ -221,13 +224,7 @@ impl ChronicleStore for PostgresStore {
         }
         let heads = lock_heads(&mut tx, &commit.appends).await?;
         check_heads(&heads, &commit.appends)?;
-        write_appends(
-            &mut tx,
-            heads,
-            commit.appends,
-            commit.recorded_by.as_deref(),
-        )
-        .await?;
+        write_appends(&mut tx, heads, commit.appends, commit.recorded_by.as_ref()).await?;
         tx.commit().await.map_err(backend("committing"))?;
         Ok(Appended::Committed)
     }
@@ -249,6 +246,15 @@ where
 {
     row.try_get(name)
         .map_err(|e| StoreError::Backend(format!("reading the column {name}: {e}")))
+}
+
+/// The channel a row names in `recorded_via`.
+fn channel(name: Option<String>) -> Result<Option<Channel>, StoreError> {
+    name.map(|n| {
+        Channel::from_name(&n)
+            .ok_or_else(|| StoreError::Backend(format!("the database holds the channel '{n}'")))
+    })
+    .transpose()
 }
 
 /// A row of `receipts` as a receipt.
@@ -348,7 +354,7 @@ async fn write_appends(
     tx: &mut Transaction<'_, Postgres>,
     mut heads: BTreeMap<String, u64>,
     appends: Vec<CellAppend>,
-    recorded_by: Option<&str>,
+    recorded_by: Option<&Actor>,
 ) -> Result<(), StoreError> {
     let mut moved = Vec::new();
     for append in appends {
@@ -357,15 +363,16 @@ async fn write_appends(
             *head += 1;
             sqlx::query(
                 "INSERT INTO wetsproces.grams \
-                 (cell, seq, gram_id, format_version, gram, recorded_by) \
-                 VALUES ($1, $2, $3, $4, $5, $6)",
+                 (cell, seq, gram_id, format_version, gram, recorded_by, recorded_via) \
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)",
             )
             .bind(&append.cell)
             .bind(to_db(*head)?)
             .bind(&gram.id)
             .bind(FORMAT_VERSION)
             .bind(Json(gram))
-            .bind(recorded_by)
+            .bind(recorded_by.map(|a| a.account.as_str()))
+            .bind(recorded_by.map(|a| a.channel.as_str()))
             .execute(&mut **tx)
             .await
             .map_err(|e| {
@@ -455,7 +462,14 @@ mod tests {
         };
         assert_eq!(
             tables("wetsproces").await,
-            ["_sqlx_migrations", "grams", "heads", "receipts"]
+            [
+                "_sqlx_migrations",
+                "fsc4b_challenges",
+                "fsc4b_sessions",
+                "grams",
+                "heads",
+                "receipts"
+            ]
         );
         assert!(tables("public").await.is_empty());
     }
@@ -557,7 +571,7 @@ mod tests {
             .perform(
                 Some(key("aanvraag-1")),
                 crate::service::tests::submission(),
-                crate::service::tests::ACTOR,
+                &crate::service::tests::actor(),
             )
             .await
             .unwrap();

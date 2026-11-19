@@ -353,6 +353,13 @@ holds only the records about that number. The claim is read at login: a
 corrected attribute counts from the citizen's next login, while the roles are
 also renewed when the session refreshes its token.
 
+A citizen can also reach the server from an app, through
+[FSC voor Burgers](/components/wetsproces-fsc4b). Keycloak plays no part there:
+the BSN comes from a Verifiable Credential of an Activatiedienst the server
+trusts, and the server gives that session the rights of `wetsproces-burger` and
+nothing more. No role of the ladder or of a cell can reach such a session, and
+it reaches only the citizen's routes under `/fsc4b/burger/`.
+
 ### Keycloak setup for the wetsproces server
 
 The realm is configured by hand; nothing in the repository changes it.

@@ -10,8 +10,8 @@ use regelrecht_cel::Gram;
 use serde_json::json;
 
 use crate::store::{
-    Appended, CellAppend, ChronicleStore, Commit, IdempotencyKey, Keyed, Receipt, StoreError,
-    StoredChronicle,
+    Actor, Appended, CellAppend, Channel, ChronicleStore, Commit, IdempotencyKey, Keyed, Receipt,
+    StoreError, StoredChronicle,
 };
 
 /// How many requests the concurrency tests send at once: more than one
@@ -48,7 +48,10 @@ pub fn commit(k: &str, appends: Vec<CellAppend>) -> Commit {
                 response: json!({ "answered": k }),
             },
         }),
-        recorded_by: Some(ACCOUNT.into()),
+        recorded_by: Some(Actor {
+            account: ACCOUNT.into(),
+            channel: Channel::Keycloak,
+        }),
     }
 }
 
@@ -100,6 +103,8 @@ pub async fn the_store_keeps_who_recorded_each_gram(store: &dyn ChronicleStore) 
         .map(|c| c.grams.iter().map(|g| g.recorded_by.as_deref()).collect())
         .collect();
     assert_eq!(by, [vec![Some(ACCOUNT), None], vec![Some(ACCOUNT)]]);
+    let via: Vec<Option<Channel>> = all[0].grams.iter().map(|g| g.recorded_via).collect();
+    assert_eq!(via, [Some(Channel::Keycloak), None]);
     // Who recorded it stays beside the gram, not in it.
     assert_eq!(all[0].grams[0].gram, gram("1", "a"));
 }

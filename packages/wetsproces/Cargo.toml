@@ -52,6 +52,30 @@ tower-sessions-sqlx-store.workspace = true
 # The HTTP client the OIDC token exchange runs on; the version and features
 # regelrecht-auth uses.
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots-no-provider", "json"] }
+# The FSC voor Burgers channel (src/fsc4b/): ES256, ECDH-ES and AES-256-GCM
+# from aws-lc-rs, the library rustls and sqlx already link, so the image
+# carries no second cryptographic backend; the Concat KDF of RFC 7518
+# §4.6.2 from RustCrypto; base64 and SHA-256 for the JOSE encodings, the
+# JWK thumbprint and the hash a session token is kept under.
+aws-lc-rs = { version = "1.18", default-features = false, features = ["aws-lc-sys", "alloc"] }
+concat-kdf = "0.1"
+base64.workspace = true
+sha2.workspace = true
+subtle.workspace = true
+
+[features]
+# The reference client of the FSC voor Burgers channel
+# (src/fsc4b/client.rs), for the end-to-end tests and as an example for an
+# app; not in the server binary.
+test-utils = []
+
+[[test]]
+name = "fsc4b"
+required-features = ["test-utils"]
+
+[[example]]
+name = "fsc4b_client"
+required-features = ["test-utils"]
 
 [dev-dependencies]
 # `join_all` for the concurrent commits in the store contract tests.
@@ -61,6 +85,8 @@ regelrecht-shared = { path = "../shared", features = ["test-utils"] }
 # An OIDC client without discovery, to build stable mode in a test.
 regelrecht-auth = { path = "../auth", features = ["test-utils"] }
 http-body-util.workspace = true
+# The Stelseldocument and key files of a test Stelsel (tests/fsc4b.rs).
+tempfile.workspace = true
 
 [lints]
 workspace = true
