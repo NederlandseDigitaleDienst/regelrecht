@@ -64,6 +64,7 @@ A commit is one transaction. It claims its idempotency key first, so a retry und
 | `WETSPROCES_MANIFEST` | `packages/wetsproces/bron.yaml` | The source manifest |
 | `WETSPROCES_PORT` | 8000 | The port |
 | `WETSPROCES_FRONTEND` | `frontend-wetsproces/dist` of the checkout; `/app/frontend` in the image | The built screens, one build per surface in a directory of its name. The server serves `<dir>/<surface>`, and its API alone when there is no `index.html` there |
+| `WETSPROCES_LOGIN` | none | `testlogin` or `oidc`. Without it the OIDC variables decide (see [Login](#login)) |
 | `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET`, `OIDC_DISCOVERY_URL` | none | The Keycloak client; `KEYCLOAK_BASE_URL` with `KEYCLOAK_REALM` may replace the discovery URL. Required in stable mode. |
 | `OIDC_REQUIRED_ROLE` | none | The role every account needs to log in, `wetsproces-toegang`. Required with OIDC; a role without the `wetsproces-` prefix is refused, because the realm is shared with the editor. |
 | `BASE_URL` | none | Where the server is reached, for the redirect back after login. Required in stable mode. |
@@ -106,7 +107,9 @@ curl -c jar -H 'content-type: application/json' localhost:7180/auth/testlogin \
   -d '{"sub": "burger-1", "rollen": ["wetsproces-burger"], "claims": {"bsn": "999990019"}}'
 ```
 
-The session it writes has the same keys as one after Keycloak, so every request after it goes through the same checks. The route exists only in that case; with OIDC configured, and always in stable mode, it answers `404`. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the cells of the case: on `burger` the citizens, on `backoffice` the employees and the admin.
+The session it writes has the same keys as one after Keycloak, so every request after it goes through the same checks. The route exists only in that case; with OIDC configured, and always in stable mode, it answers `404`.
+
+`WETSPROCES_LOGIN` overrides that choice. `testlogin` gives the test login in test mode even when the OIDC variables are set, and reads none of them. A ZAD preview needs this: its `keycloak` service sets those variables in the container, while the realm may not have the wetsproces roles yet. Stable mode refuses `testlogin`. `oidc` refuses to start without the OIDC variables, and any other value stops the server too. The line `listening on 0.0.0.0:<port>` at startup names the login, the mode, the surface and the store, so the log shows what runs. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the cells of the case: on `burger` the citizens, on `backoffice` the employees and the admin.
 
 An app can use the citizen routes without a browser through [FSC voor Burgers](/components/wetsproces-fsc4b), when that channel is configured. [The app](/components/wetsproces-app) does so with the citizen's screens in a webview.
 
