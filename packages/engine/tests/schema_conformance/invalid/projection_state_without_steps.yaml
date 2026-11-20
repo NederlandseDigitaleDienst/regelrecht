@@ -1,0 +1,19 @@
+---
+# Since schema v0.8.25 state and steps come together or not at all.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json
+$id: test_conformance_copies_fact
+regulatory_layer: REDUCTIE
+publication_date: '2026-11-19'
+valid_from: '2026-11-19'
+url: https://example.invalid/copies-fact
+name: Testreductie die een feit kopieert
+articles:
+  - number: '1'
+    url: https://example.invalid/copies-fact/1
+    text: Per inschrijving de velden van het feit.
+    machine_readable:
+      projection:
+        per: test_conformance_register#1#ingeschreven
+        state:
+          - name: postcode
+            type: string

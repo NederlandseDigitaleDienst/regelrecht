@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json
 $id: reductie_geneeskundig_advies
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
@@ -12,8 +12,8 @@ valid_from: '2026-01-01'
 # fictieve beleid beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
 # vereist, en wat ernaar verwijst. Artikel 5 vereist ook het feit
 # geneeskundig_advies_uitgebracht, dat de GGD in haar eigen kroniek vastlegt;
-# daarom noemt per het feit bij naam (schema v0.8.18). De staat houdt wat het
-# advies vermeldt, onder de namen van het feit.
+# daarom noemt per het feit bij naam (schema v0.8.18). Het aggregaat schrijft
+# staat noch stappen, dus kopieert het de velden van het feit (schema v0.8.25).
 # De artikelen geneeskundig_advies en geneeskundig_onderzoek_heeft_plaatsgehad
 # zijn read models over die aggregaten (source.projections). Welk advies telt,
 # zegt het fictieve beleid beleid_geneeskundig_advies_gemeente_wilgendaal;
@@ -40,34 +40,6 @@ articles:
     machine_readable:
       projection:
         per: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_ontvangen
-        state:
-          - name: bsn_aanvrager
-            type: string
-          - name: datum_onderzoek
-            type: date
-          - name: langdurige_loopbeperking
-            type: boolean
-          - name: continu_afhankelijk_van_hulp_bestuurder
-            type: boolean
-          - name: permanent_rolstoelgebonden
-            type: boolean
-          - name: ernstige_beperkingen_andere_dan_loopbeperkingen
-            type: boolean
-        steps:
-          - record: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_ontvangen
-            actions:
-              - output: bsn_aanvrager
-                value: $record.bsn_aanvrager
-              - output: datum_onderzoek
-                value: $record.datum_onderzoek
-              - output: langdurige_loopbeperking
-                value: $record.langdurige_loopbeperking
-              - output: continu_afhankelijk_van_hulp_bestuurder
-                value: $record.continu_afhankelijk_van_hulp_bestuurder
-              - output: permanent_rolstoelgebonden
-                value: $record.permanent_rolstoelgebonden
-              - output: ernstige_beperkingen_andere_dan_loopbeperkingen
-                value: $record.ernstige_beperkingen_andere_dan_loopbeperkingen
   - number: geneeskundig_advies
     text: >-
       Geen regelgeving. Het systeem van de gemeente kijkt door middel van een

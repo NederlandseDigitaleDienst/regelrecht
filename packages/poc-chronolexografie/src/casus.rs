@@ -1679,7 +1679,7 @@ fn leest<'a>(artikelen: impl Iterator<Item = &'a Article>) -> BTreeSet<String> {
         {
             uit.insert(id.to_string());
         }
-        let steps = projection.map(|p| p.steps.as_slice()).unwrap_or_default();
+        let steps = projection.map(|p| p.steps()).unwrap_or_default();
         for step in steps {
             if let Some((id, _)) = step.record.split_once('#') {
                 uit.insert(id.to_string());
