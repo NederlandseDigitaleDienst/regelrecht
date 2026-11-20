@@ -24,6 +24,12 @@
 //!
 //! The login ([`LoginChoice`]):
 //!
+//! - `WETSPROCES_LOGIN`: `testlogin` or `oidc`. Without it the server logs
+//!   in through Keycloak when the OIDC variables below are set, and else,
+//!   in test mode, offers the test login. `testlogin` forces the test login
+//!   in test mode and ignores the OIDC variables, for a test environment
+//!   whose platform sets them while the realm is not ready; stable mode
+//!   refuses it. `oidc` requires the OIDC variables.
 //! - `OIDC_CLIENT_ID`, `OIDC_CLIENT_SECRET` and `OIDC_DISCOVERY_URL` (or
 //!   `KEYCLOAK_BASE_URL` with `KEYCLOAK_REALM`), as `regelrecht_auth` reads
 //!   them: with these the server logs in through Keycloak. Stable mode
@@ -150,6 +156,16 @@ pub enum LoginChoice {
     /// Test mode without OIDC: `POST /auth/testlogin` gives a session with
     /// the roles and claims it is sent ([`crate::login`]).
     TestLogin,
+}
+
+impl LoginChoice {
+    /// Its name, as `WETSPROCES_LOGIN` takes it.
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Oidc { .. } => "oidc",
+            Self::TestLogin => "testlogin",
+        }
+    }
 }
 
 /// Whether and how the FSC voor Burgers channel is open.
@@ -279,6 +295,18 @@ pub enum ConfigError {
          belongs on WETSPROCES_SURFACE=burger"
     )]
     Fsc4bOnBackoffice,
+    #[error("WETSPROCES_LOGIN is `{0}`: it is `testlogin` or `oidc`")]
+    UnknownLogin(String),
+    #[error(
+        "WETSPROCES_LOGIN is `testlogin`, which lets anyone log in as any account and is for \
+         test mode only; stable mode logs in through Keycloak"
+    )]
+    StableTestLogin,
+    #[error(
+        "WETSPROCES_LOGIN is `oidc`, but the OIDC configuration is not set: set OIDC_CLIENT_ID, \
+         OIDC_CLIENT_SECRET and OIDC_DISCOVERY_URL (or KEYCLOAK_BASE_URL and KEYCLOAK_REALM)"
+    )]
+    OidcLoginWithoutOidc,
     #[error("WETSPROCES_PORT is `{0}`, which is no port")]
     BadPort(String),
     #[error("WETSPROCES_STORE is `{0}`: it is `memory` or `postgres`")]
@@ -412,19 +440,34 @@ fn surface_choice(mode: Mode, named: Option<&str>) -> Result<Surface, ConfigErro
 }
 
 /// The login the environment `set` configures for `mode`, with the claim
-/// `subject_claim` among the claims it keeps.
+/// `subject_claim` among the claims it keeps. `WETSPROCES_LOGIN` names it,
+/// or else the OIDC variables decide.
 fn login_choice(
     mode: Mode,
     subject_claim: &str,
     set: &impl Fn(&str) -> Option<String>,
 ) -> Result<LoginChoice, ConfigError> {
+    let required = match set("WETSPROCES_LOGIN").as_deref().map(str::trim) {
+        // The OIDC variables are not read at all: a platform may set them
+        // for a realm that cannot log anyone in to this server yet.
+        Some("testlogin") => {
+            return match mode {
+                Mode::Stable => Err(ConfigError::StableTestLogin),
+                Mode::Test => Ok(LoginChoice::TestLogin),
+            };
+        }
+        Some("oidc") => true,
+        None => false,
+        Some(other) => return Err(ConfigError::UnknownLogin(other.to_string())),
+    };
     let Some(mut oidc) = regelrecht_auth::parse_oidc_from(set).map_err(ConfigError::Oidc)? else {
         if let Some(name) = OIDC_VARIABLES.into_iter().find(|n| set(n).is_some()) {
             return Err(ConfigError::PartialOidc(name));
         }
-        return match mode {
-            Mode::Stable => Err(ConfigError::StableNeedsOidc),
-            Mode::Test => Ok(LoginChoice::TestLogin),
+        return match (mode, required) {
+            (_, true) => Err(ConfigError::OidcLoginWithoutOidc),
+            (Mode::Stable, false) => Err(ConfigError::StableNeedsOidc),
+            (Mode::Test, false) => Ok(LoginChoice::TestLogin),
         };
     };
     // `parse_oidc_from` falls back to a role every account of the realm may
@@ -822,6 +865,54 @@ mod tests {
         assert_eq!(
             error(&[test, &[("KEYCLOAK_REALM", "voorbeeld")]]),
             ConfigError::PartialOidc("KEYCLOAK_REALM")
+        );
+    }
+
+    #[test]
+    fn wetsproces_login_testlogin_forces_the_test_login_in_test_mode() {
+        let test: Pairs = &[("WETSPROCES_MODE", "test")];
+        let testlogin: Pairs = &[("WETSPROCES_LOGIN", "testlogin")];
+        let c = Config::from_env(env(&[test, OIDC, testlogin])).unwrap();
+        assert!(matches!(c.login, LoginChoice::TestLogin));
+        // The OIDC variables are ignored, even when they would not do.
+        let c = Config::from_env(env(&[
+            test,
+            OIDC,
+            &[("OIDC_REQUIRED_ROLE", ""), ("OIDC_CLIENT_SECRET", "")],
+            testlogin,
+        ]))
+        .unwrap();
+        assert!(matches!(c.login, LoginChoice::TestLogin));
+        assert_eq!(c.login.name(), "testlogin");
+        assert_eq!(
+            error(&[STABLE, OIDC, testlogin]),
+            ConfigError::StableTestLogin
+        );
+    }
+
+    #[test]
+    fn wetsproces_login_oidc_requires_the_oidc_variables() {
+        let test: Pairs = &[("WETSPROCES_MODE", "test")];
+        let oidc: Pairs = &[("WETSPROCES_LOGIN", "oidc")];
+        assert_eq!(error(&[test, oidc]), ConfigError::OidcLoginWithoutOidc);
+        assert_eq!(error(&[STABLE, oidc]), ConfigError::OidcLoginWithoutOidc);
+        let c = Config::from_env(env(&[test, OIDC, oidc])).unwrap();
+        assert_eq!(c.login.name(), "oidc");
+        // Named or not, OIDC keeps its own checks.
+        assert_eq!(
+            error(&[test, OIDC, oidc, &[("OIDC_REQUIRED_ROLE", "")]]),
+            ConfigError::NoAccessRole
+        );
+    }
+
+    #[test]
+    fn an_unknown_wetsproces_login_does_not_start() {
+        assert_eq!(
+            error(&[&[
+                ("WETSPROCES_MODE", "test"),
+                ("WETSPROCES_LOGIN", "keycloak")
+            ]]),
+            ConfigError::UnknownLogin("keycloak".into())
         );
     }
 
