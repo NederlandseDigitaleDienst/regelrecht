@@ -92,6 +92,7 @@
 import { computed } from 'vue';
 import { branchColors, typeColors } from '../data/flowConstants';
 import type { PlacedStage } from '../data/types';
+import { ORIGIN } from './flowLayout';
 
 const props = withDefaults(
   defineProps<{
@@ -108,8 +109,8 @@ defineEmits<{ select: [id: string] }>();
 
 const radius = 10;
 
-const x = computed(() => 80 + props.stage.col * props.columnWidth);
-const y = computed(() => 50 + props.stage.row * props.rowHeight);
+const x = computed(() => ORIGIN.x + props.stage.col * props.columnWidth);
+const y = computed(() => ORIGIN.y + props.stage.row * props.rowHeight);
 
 const fillColor = computed(() =>
   branchColors[props.stage.branch]

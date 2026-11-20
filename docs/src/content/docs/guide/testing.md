@@ -26,6 +26,8 @@ The table lists the tests in this repository and the jobs that run them here. Th
 | Schema validation | the corpora | `just validate` | Pre-commit |
 | Script tests | `script/*.test.sh`, `script/*.test.mjs` | `just check` | Pre-commit |
 | Frontend unit tests and type checks | `frontend/`, `frontend-lawmaking/`, `frontend-demo/`, `packages/frontend-shared/`, `packages/poc-chronolexografie/frontend/` | `just frontend-test` | Frontend tests |
+| Unit tests of the JavaScript PoCs | `frontend-poc-*/src/` | `npm test -w frontend-poc-<slug>` | E2E (mocked); wetsgeschiedenis: Frontend tests |
+| PoC tests against the engine or the casus | `frontend-poc-*/tests/`, `packages/poc-chronolexografie/frontend/tests/` | `npm test -w <workspace>` | E2E (mocked); wetsgeschiedenis and chronolexografie: Frontend tests |
 | Editor end to end, mocked | `frontend/e2e/` | `just test-e2e` | E2E (mocked) |
 | Walkthrough pipeline | `script/walkthrough/tests/` | `just walkthrough test` | Frontend tests |
 | Walkthrough replay | `frontend-demo/scripts/verify-walkthrough.mjs` | `just walkthrough verify` | Rondleiding speelt terug |
@@ -208,7 +210,7 @@ just validate-demo                # Validate the demo corpus
 
 ## Frontend tests
 
-`just frontend-test` runs the unit tests and type checks of the editor, lawmaking, the demo, the shared package and the chronolexografie PoC. `just test-e2e` builds the engine to WASM and drives the editor with Playwright against mocked backends. Where frontend code and its tests go is on [Frontend code](/guide/frontend-code).
+`just frontend-test` runs the unit tests and type checks of the editor, lawmaking, the demo, the shared package and the chronolexografie PoC. `just test-e2e` builds the engine to WASM and drives the editor with Playwright against mocked backends. Where frontend code and its tests go is on [Frontend code](/guide/frontend-code#where-tests-go).
 
 `just smoke-preview` is the one test that runs against a deployed editor: a preview by its pull request number, or a URL. It logs in through the real Keycloak and needs the test user's credentials, so CI does not run it. [Deployment](/operations/deployment) covers previews and waking one up first.
 

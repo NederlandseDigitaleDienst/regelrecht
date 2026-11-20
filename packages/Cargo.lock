@@ -4315,6 +4315,7 @@ dependencies = [
  "regelrecht-engine",
  "regelrecht-law-model",
  "regelrecht-shared",
+ "tempfile",
  "tokio",
  "tracing",
  "walkdir",
