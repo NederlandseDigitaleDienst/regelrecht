@@ -336,21 +336,21 @@ in the wetsproces server. The role names live in one place in the code,
 |---|---|
 | `wetsproces-toegang` | Logging in at all. The server's `OIDC_REQUIRED_ROLE`; it grants nothing else. |
 | `wetsproces-burger` | A citizen: submit for themself, and read their own dossier. |
-| `wetsproces-lezer` | An employee: read the chronicle of each cell they work for. |
-| `wetsproces-behandelaar` | Also record facts and send copies of decisions for those cells. |
-| `wetsproces-beslisser` | Also take decisions for those cells. |
-| `wetsproces-admin` | Also set the clock in test mode. |
-| `wetsproces-cel-<cel>` | Works for the cell `<cel>`, such as `wetsproces-cel-gemeente_wilgendaal`. |
+| `wetsproces-lezer` | An employee: read the executor's chronicle. |
+| `wetsproces-behandelaar` | Also record facts and send copies of decisions for the executor. |
+| `wetsproces-beslisser` | Also take decisions for the executor. |
+| `wetsproces-admin` | Also set the clock in test mode, and enter in the admin panel what an external party did. |
 
-An employee needs a step of the ladder and a cell role: `wetsproces-beslisser`
-with `wetsproces-cel-gemeente_wilgendaal` decides for the municipality and
-cannot read the GGD's chronicle. The server treats the ladder as ordered, so a
-`wetsproces-beslisser` may read and handle even when Keycloak does not hand it
-the lower roles. Setting the clock needs no cell role.
+The ladder applies to the executor, the one organization the server runs the
+process for ([the executor and the external parties](/components/wetsproces#the-executor-and-the-external-parties)),
+so an employee needs a step of the ladder and nothing else. The server treats
+the ladder as ordered, so a `wetsproces-beslisser` may read and handle even
+when Keycloak does not hand it the lower roles. Nobody holds a role for the
+GGD or the court: an admin enters their acts on their behalf.
 
 Which instance an account logs in at limits what its roles do there. On the
 instance for citizens a session keeps `wetsproces-burger` and drops every
-ladder and cell role, even when the token carries them. On the back office it
+ladder role, even when the token carries them. On the back office it
 keeps those and drops `wetsproces-burger`, so an account with only the
 citizen's role gets `403` on every route the back office has under `/api/`.
 Someone who is both a citizen and an employee logs in to each instance
@@ -368,24 +368,21 @@ A citizen can also reach the server from an app, through
 [FSC voor Burgers](/components/wetsproces-fsc4b). Keycloak plays no part there:
 the BSN comes from a Verifiable Credential of an Activatiedienst the server
 trusts, and the server gives that session the rights of `wetsproces-burger` and
-nothing more. No role of the ladder or of a cell can reach such a session, and
+nothing more. No role of the ladder can reach such a session, and
 it reaches only the citizen's routes under `/fsc4b/burger/`.
 
 ### Keycloak setup for the wetsproces server
 
 The realm is configured by hand; nothing in the repository changes it.
 
-1. **Create the roles**: `wetsproces-toegang`, `wetsproces-burger`, the four
-   ladder roles, and one `wetsproces-cel-<cel>` per cell of the case. For the
-   parking card these are `wetsproces-cel-gemeente_wilgendaal`,
-   `wetsproces-cel-ggd_wilgendaal` and `wetsproces-cel-rechtbank_wilgendaal`.
+1. **Create the roles**: `wetsproces-toegang`, `wetsproces-burger` and the
+   four ladder roles.
 2. **Configure composite roles**:
    - `wetsproces-burger` and `wetsproces-lezer` each contain
      `wetsproces-toegang`;
    - `wetsproces-behandelaar` contains `wetsproces-lezer`,
      `wetsproces-beslisser` contains `wetsproces-behandelaar`, and
      `wetsproces-admin` contains `wetsproces-beslisser`.
-   The cell roles are composites of nothing and are granted per employee.
 3. **Create two clients**, one per instance: `wetsproces` for citizens on
    `wetsproces.regelrecht.rijks.app`, and `wetsproces-backoffice` for
    employees on `wetsproces-backoffice.regelrecht.rijks.app`. Each is
@@ -405,7 +402,7 @@ The realm is configured by hand; nothing in the repository changes it.
    attribute `bsn` to it, editable by admins only, so a user cannot change
    their own number.
 6. **Assign roles and attributes**: a citizen gets `wetsproces-burger` and the
-   attribute `bsn`; an employee gets a ladder role and one or more cell roles.
+   attribute `bsn`; an employee of the executor gets a ladder role.
 
 The claim name is `WETSPROCES_SUBJECT_CLAIM` on the server, `bsn` by default.
 A citizen whose account lacks it can log in but gets `403` on everything that
@@ -445,5 +442,5 @@ role still works too. The editor service has no API key path.
 - Roles are persisted in the session at login (`SESSION_KEY_ROLES`) so
   per-request checks don't re-parse the JWT.
 - Wetsproces routes: `packages/wetsproces/src/api.rs`, split into a group for
-  any user, a citizen group and a back-office group; the roles and the checks
-  per cell are in `packages/wetsproces/src/access.rs`.
+  any user, a citizen group, a back-office group and the admin panel; the
+  roles are in `packages/wetsproces/src/access.rs`.

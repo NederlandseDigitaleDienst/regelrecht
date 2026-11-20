@@ -5,6 +5,12 @@
 // come to, and the decision itself. The preview may ask more: a finding a
 // policy leaves to the authority for this case (`stil`). Once a decision is
 // taken it shows with why it came out so.
+//
+// With `namens` the same screen serves the admin panel: the submission waits
+// for an external party, such as an appeal for the court, and the admin
+// enters the decision on its behalf through the panel's routes. The
+// submission then comes from what the panel shows of that party
+// (`beheerApi.partijen`), not from a chronicle.
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
@@ -17,16 +23,27 @@ import { besluitenOp, celNaam, omschrijving, toegewezen } from '../gedeeld/keten
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { Gram, Veld, Voorvertoning, Waarom } from '../gedeeld/types';
 import WaaromLijst from '../gedeeld/WaaromLijst.vue';
-import { backofficeApi } from './api';
+import { backofficeApi, beheerApi } from './api';
+import type { Partij } from './api';
 import { useBackoffice } from './useBackoffice';
 
-const props = defineProps<{ cel: string; id: string }>();
+const props = defineProps<{ cel: string; id: string; namens?: boolean }>();
 const router = useRouter();
 const { casus, vormen, wie, kronieken, fout, laden, laad } = useBackoffice();
+const api = props.namens ? beheerApi : backofficeApi;
+const terug = props.namens
+  ? { pad: '/backoffice/beheer', tekst: 'Terug naar het beheerpaneel' }
+  : { pad: '/backoffice', tekst: 'Terug naar de werkvoorraad' };
 
+// The external party, when the screen enters a decision on its behalf.
+const partij = ref<Partij | null>(null);
 const kroniek = computed(() => kronieken.value.find((k) => k.cel === props.cel));
-const indiening = computed(() => kroniek.value?.grammen.find((g) => g.id === props.id) ?? null);
-const mag = computed(() => wie.value?.cellen.find((c) => c.cel === props.cel)?.beslissen ?? false);
+const indiening = computed(
+  () => (props.namens ? partij.value?.open : kroniek.value?.grammen)?.find((g) => g.id === props.id) ?? null,
+);
+const mag = computed(() =>
+  props.namens ? (wie.value?.partijen_invoeren ?? false) : (wie.value?.cellen.find((c) => c.cel === props.cel)?.beslissen ?? false),
+);
 const naamVanCel = (cel: string) => (casus.value ? celNaam(cel, casus.value) : cel);
 
 /** The decision form of the article the submission asks a decision of. */
@@ -53,7 +70,9 @@ let sleutel = nieuweSleutel();
 
 /** A decision already on the submission, taken before this screen opened. */
 const eerder = computed(() =>
-  indiening.value && casus.value && kroniek.value ? besluitenOp(indiening.value.id, kroniek.value.grammen, casus.value).at(-1) : undefined,
+  !props.namens && indiening.value && casus.value && kroniek.value
+    ? besluitenOp(indiening.value.id, kroniek.value.grammen, casus.value).at(-1)
+    : undefined,
 );
 const eerderWaarom = ref<Waarom | null>(null);
 const besluit = computed(() => genomen.value?.besluit ?? eerder.value ?? null);
@@ -63,8 +82,16 @@ const stand = (g: Gram) => (casus.value ? toegewezen(g, casus.value) : undefined
 async function laadEerder() {
   if (eerder.value && !genomen.value) eerderWaarom.value = await backofficeApi.waarom(eerder.value.id).catch(() => null);
 }
+async function laadPartij() {
+  try {
+    partij.value = (await beheerApi.partijen()).partijen.find((p) => p.cel === props.cel) ?? null;
+  } catch (e) {
+    fout.value = foutTekst(e);
+  }
+}
 onMounted(async () => {
   await laad();
+  if (props.namens) await laadPartij();
   await laadEerder();
 });
 
@@ -72,7 +99,7 @@ async function voorvertonen() {
   bezig.value = true;
   melding.value = '';
   try {
-    const v = await backofficeApi.voorvertoning({ op: props.id, bevindingen: zonderLeeg(bevindingen.value) });
+    const v = await api.voorvertoning({ op: props.id, bevindingen: zonderLeeg(bevindingen.value) });
     voorvertoning.value = v;
     for (const s of v.stil) if (!stil.value.some((x) => x.naam === s.naam)) stil.value.push(s);
   } catch (e) {
@@ -86,7 +113,7 @@ async function beslissen() {
   bezig.value = true;
   melding.value = '';
   try {
-    genomen.value = await backofficeApi.beslissen({ op: props.id, bevindingen: zonderLeeg(bevindingen.value) }, sleutel);
+    genomen.value = await api.beslissen({ op: props.id, bevindingen: zonderLeeg(bevindingen.value) }, sleutel);
     sleutel = nieuweSleutel();
   } catch (e) {
     melding.value = foutTekst(e);
@@ -100,10 +127,20 @@ async function beslissen() {
   <nldd-simple-section>
     <nldd-activity-indicator v-if="laden"></nldd-activity-indicator>
     <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De indiening laadt niet" :supporting-text="fout"></nldd-inline-dialog>
-    <nldd-inline-dialog v-else-if="!indiening || !casus" icon="info" text="Deze indiening staat niet in een kroniek die u mag lezen">
-      <nldd-button slot="actions" appearance="secondary" text="Naar de werkvoorraad" @click="router.push('/backoffice')"></nldd-button>
+    <nldd-inline-dialog
+      v-else-if="!genomen && (!indiening || !casus)"
+      icon="info"
+      :text="namens ? 'Deze indiening wacht niet op een externe partij' : 'Deze indiening staat niet in een kroniek die u mag lezen'"
+    >
+      <nldd-button slot="actions" appearance="secondary" :text="terug.tekst" @click="router.push(terug.pad)"></nldd-button>
     </nldd-inline-dialog>
-    <nldd-container v-else gap="24">
+    <nldd-container v-else-if="indiening && casus" gap="24">
+      <nldd-banner
+        v-if="namens"
+        variant="neutral"
+        :text="`U voert dit besluit in namens ${naamVanCel(cel)}`"
+        supporting-text="De kroniek legt vast dat het via het beheerpaneel is ingevoerd, door uw account."
+      ></nldd-banner>
       <nldd-title
         heading-level="1"
         :text="omschrijving(indiening, casus)"
@@ -132,7 +169,7 @@ async function beslissen() {
         <nldd-title heading-level="3" size="display-6" text="Waarom"></nldd-title>
         <WaaromLijst v-if="waarom" :waarom="waarom" :teksten="vormen?.teksten" :cel-naam="naamVanCel" />
         <nldd-button-group orientation="horizontal">
-          <nldd-button appearance="secondary" text="Terug naar de werkvoorraad" @click="router.push('/backoffice')"></nldd-button>
+          <nldd-button appearance="secondary" :text="terug.tekst" @click="router.push(terug.pad)"></nldd-button>
         </nldd-button-group>
       </nldd-container>
 

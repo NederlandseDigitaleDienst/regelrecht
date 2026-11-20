@@ -1,6 +1,7 @@
 //! The parking card process through the HTTP API, in test mode with the
-//! test login: an application by a citizen, the GGD's advice, the decision,
-//! and what each account may and may not see and do on the way.
+//! test login: an application by a citizen, the GGD's advice entered in the
+//! admin panel, the municipality's decision, and what each account may and
+//! may not see and do on the way.
 
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
@@ -51,7 +52,7 @@ async fn case_forms_and_clock_for_citizens_and_employees() {
     let app = server().await;
     for who in [
         citizen(&app, "anna", ANNA).await,
-        employee(&app, "lezer-1", "wetsproces-lezer", GEMEENTE).await,
+        employee(&app, "lezer-1", "wetsproces-lezer").await,
     ] {
         let (status, casus) = who.get("/api/casus").await;
         assert_eq!(status, StatusCode::OK);
@@ -87,19 +88,14 @@ async fn an_application_the_ggd_advises_on_is_granted_and_lands_in_the_dossier()
     let op = aanvraag["id"].as_str().unwrap().to_string();
 
     set_clock(&app, "2026-10-16").await;
-    let ggd = employee(&app, "ggd-1", "wetsproces-behandelaar", GGD).await;
-    let (status, advies) = ggd
-        .post("/api/backoffice/vastleggingen", advice(ANNA))
-        .await;
-    assert_eq!(status, StatusCode::OK, "{advies}");
+    let advies = ggd_advises(&app, ANNA).await;
     assert_eq!(advies["recording_actor"], json!(GGD));
     // The advice reaches the municipality's chronicle too: one step, two
     // cells.
-    assert_eq!(head(&app, GGD).await, 1);
-    assert_eq!(head(&app, GEMEENTE).await, 2);
+    assert_eq!(head(&app).await, 2);
 
     set_clock(&app, "2026-10-20").await;
-    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser", GEMEENTE).await;
+    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser").await;
     let (status, besluit) = beslisser
         .call(
             Method::POST,
@@ -114,7 +110,7 @@ async fn an_application_the_ggd_advises_on_is_granted_and_lands_in_the_dossier()
         json!(true)
     );
     assert_eq!(besluit["besluit"]["recorded_on"], json!("2026-10-20"));
-    assert_eq!(head(&app, GEMEENTE).await, 3);
+    assert_eq!(head(&app).await, 3);
 
     // Anna's dossier: her application, the advice in both cells, and the
     // decision on her application.
@@ -162,7 +158,7 @@ async fn a_citizen_acts_only_for_themself() {
     loose["artikel"] = json!("algemene_wet_bestuursrecht#6:4");
     let (status, _) = bram.post("/api/indieningen", loose).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
-    assert_eq!(head(&app, GEMEENTE).await, 1);
+    assert_eq!(head(&app).await, 1);
 
     // The back office is closed to a citizen.
     for path in [
@@ -187,55 +183,57 @@ async fn a_citizen_acts_only_for_themself() {
     );
     assert_eq!(nameless.get("/api/dossier").await.0, StatusCode::FORBIDDEN);
     // An employee is no citizen.
-    let lezer = employee(&app, "lezer-1", "wetsproces-lezer", GEMEENTE).await;
+    let lezer = employee(&app, "lezer-1", "wetsproces-lezer").await;
     assert_eq!(lezer.get("/api/dossier").await.0, StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
-async fn an_employee_acts_only_for_their_cells_and_at_their_level() {
+async fn an_employee_acts_only_for_the_executor_and_at_their_level() {
     let app = server().await;
     let aanvraag = anna_applies(&app).await;
     let op = aanvraag["id"].as_str().unwrap();
     let decision = json!({ "op": op, "bevindingen": findings() });
 
-    // A reader of the GGD does not read the municipality's chronicle.
-    let ggd_lezer = employee(&app, "ggd-2", "wetsproces-lezer", GGD).await;
-    let (status, _) = ggd_lezer
-        .get("/api/backoffice/cellen/gemeente_wilgendaal/kroniek")
+    // A reader reads the municipality's chronicle, and no external party's.
+    let lezer = employee(&app, "lezer-2", "wetsproces-lezer").await;
+    let (status, _) = lezer
+        .get(&format!("/api/backoffice/cellen/{GEMEENTE}/kroniek"))
         .await;
-    assert_eq!(status, StatusCode::FORBIDDEN);
-    // ... nor records for the GGD.
-    let (status, _) = ggd_lezer
-        .post("/api/backoffice/vastleggingen", advice(ANNA))
+    assert_eq!(status, StatusCode::OK);
+    for party in [GGD, RECHTBANK] {
+        let (status, _) = lezer
+            .get(&format!("/api/backoffice/cellen/{party}/kroniek"))
+            .await;
+        assert_eq!(status, StatusCode::FORBIDDEN, "{party}");
+    }
+    // Nor does the admin: the panel shows what an input needs, not the
+    // party's chronicle.
+    let (status, _) = admin(&app)
+        .await
+        .get(&format!("/api/backoffice/cellen/{GGD}/kroniek"))
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
-    // A decider of the GGD cannot tell the municipality's application from
-    // one that does not exist.
-    let ggd_beslisser = employee(&app, "ggd-3", "wetsproces-beslisser", GGD).await;
-    let (status, fout) = ggd_beslisser
-        .post("/api/backoffice/besluiten", decision.clone())
-        .await;
-    assert_eq!(status, StatusCode::NOT_FOUND, "{fout}");
-    let (status, other) = ggd_beslisser
-        .post(
-            "/api/backoffice/besluiten",
-            json!({ "op": "no-such-record", "bevindingen": findings() }),
-        )
-        .await;
-    assert_eq!((status, &other), (StatusCode::NOT_FOUND, &fout));
+    // Nobody records for the GGD through the employees' route, an admin
+    // neither: that goes through the admin panel.
+    let behandelaar = employee(&app, "gemeente-2", "wetsproces-behandelaar").await;
+    for who in [&behandelaar, &admin(&app).await] {
+        let (status, _) = who
+            .post("/api/backoffice/vastleggingen", advice(ANNA))
+            .await;
+        assert_eq!(status, StatusCode::FORBIDDEN);
+    }
 
     // A handler of the municipality may read the application but not
     // decide on it.
-    let behandelaar = employee(&app, "gemeente-2", "wetsproces-behandelaar", GEMEENTE).await;
     let (status, _) = behandelaar
         .post("/api/backoffice/besluiten", decision.clone())
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    assert_eq!(head(&app, GEMEENTE).await, 1);
+    assert_eq!(head(&app).await, 1);
 
     // Only an admin sets the clock.
-    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser", GEMEENTE).await;
+    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser").await;
     let (status, _) = beslisser
         .call(
             Method::PUT,
@@ -246,13 +244,10 @@ async fn an_employee_acts_only_for_their_cells_and_at_their_level() {
         .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
-    // A decision after a record the decider cannot read is refused as if
-    // that record did not exist.
-    let ggd = employee(&app, "ggd-1", "wetsproces-behandelaar", GGD).await;
-    let (status, advies) = ggd
-        .post("/api/backoffice/vastleggingen", advice(ANNA))
-        .await;
-    assert_eq!(status, StatusCode::OK, "{advies}");
+    // A decision after a record in the GGD's chronicle is refused as if
+    // that record did not exist: the municipality has the receipt in its
+    // own chronicle, not the GGD's record.
+    let advies = ggd_advises(&app, ANNA).await;
     let mut after_unreadable = decision.clone();
     after_unreadable["na"] = advies["id"].clone();
     let (status, fout) = beslisser
@@ -282,16 +277,21 @@ async fn the_forms_name_no_record_the_caller_may_not_see() {
         .await;
     assert!(!own(&forms), "{forms}");
     assert!(!forms.to_string().contains(id), "{forms}");
-    let (_, forms) = employee(&app, "ggd-2", "wetsproces-lezer", GGD)
-        .await
-        .get("/api/formulier")
-        .await;
-    assert!(!forms.to_string().contains(id), "{forms}");
-    let (_, forms) = employee(&app, "gemeente-3", "wetsproces-lezer", GEMEENTE)
+    // An employee sees the municipality's records, and of the GGD's advice
+    // only the receipt in the municipality's chronicle.
+    let advies = ggd_advises(&app, ANNA).await;
+    let ggd_id = advies["id"].as_str().unwrap();
+    let (_, forms) = employee(&app, "gemeente-3", "wetsproces-lezer")
         .await
         .get("/api/formulier")
         .await;
     assert!(own(&forms), "{forms}");
+    assert_eq!(
+        forms["eigen_velden"].as_object().unwrap().len(),
+        2,
+        "{forms}"
+    );
+    assert!(!forms.to_string().contains(ggd_id), "{forms}");
 }
 
 #[tokio::test]
@@ -305,7 +305,7 @@ async fn a_retry_under_the_same_key_answers_the_same_and_records_nothing() {
     assert_eq!(first.0, StatusCode::OK, "{}", first.1);
     let again = submit(Some("k-1")).await;
     assert_eq!(again, first);
-    assert_eq!(head(&app, GEMEENTE).await, 1);
+    assert_eq!(head(&app).await, 1);
     // The same key from another account is refused, not answered with
     // Anna's application.
     let (status, fout) = citizen(&app, "bram", BRAM)
@@ -323,25 +323,25 @@ async fn a_retry_under_the_same_key_answers_the_same_and_records_nothing() {
     for _ in 0..2 {
         assert_eq!(submit(None).await.0, StatusCode::OK);
     }
-    assert_eq!(head(&app, GEMEENTE).await, 3);
+    assert_eq!(head(&app).await, 3);
     assert_eq!(submit(Some("met spatie")).await.0, StatusCode::BAD_REQUEST);
 }
 
 #[tokio::test]
 async fn what_the_cell_refuses_and_an_unknown_cell() {
     let app = server().await;
-    let elders = employee(&app, "elders-1", "wetsproces-lezer", "elders").await;
-    let (status, _) = elders.get("/api/backoffice/cellen/elders/kroniek").await;
+    let lezer = employee(&app, "lezer-1", "wetsproces-lezer").await;
+    let (status, _) = lezer.get("/api/backoffice/cellen/elders/kroniek").await;
     assert_eq!(status, StatusCode::NOT_FOUND);
-    let behandelaar = employee(&app, "ggd-1", "wetsproces-behandelaar", GGD).await;
     let mut unknown_fact = advice(ANNA);
     unknown_fact["feit"] = json!("geen#1#feit");
-    let (status, fout) = behandelaar
-        .post("/api/backoffice/vastleggingen", unknown_fact)
+    let (status, fout) = admin(&app)
+        .await
+        .post("/api/backoffice/beheer/vastleggingen", unknown_fact)
         .await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{fout}");
     assert!(fout["fout"].is_string(), "{fout}");
-    assert_eq!(head(&app, GGD).await, 0);
+    assert_eq!(head(&app).await, 0);
 }
 
 #[tokio::test]
@@ -396,8 +396,9 @@ async fn me_says_what_the_account_may_do_and_nothing_of_other_cells() {
     assert_eq!(ik["niveau"], Value::Null);
     assert_eq!(ik["cellen"], json!([]));
     assert_eq!(ik["klok_zetten"], json!(false));
+    assert_eq!(ik["partijen_invoeren"], json!(false));
 
-    let (status, ik) = employee(&app, "ggd-1", "wetsproces-behandelaar", GGD)
+    let (status, ik) = employee(&app, "gemeente-2", "wetsproces-behandelaar")
         .await
         .get("/api/ik")
         .await;
@@ -405,14 +406,21 @@ async fn me_says_what_the_account_may_do_and_nothing_of_other_cells() {
     assert_eq!(ik["burger"], json!(false));
     assert_eq!(ik["identiteit"], Value::Null);
     assert_eq!(ik["niveau"], json!("behandelaar"));
+    // The executor only: nobody works for an external party here.
     assert_eq!(
         ik["cellen"],
-        json!([{ "cel": GGD, "cel_naam": "GGD Wilgendaal", "lezen": true,
+        json!([{ "cel": GEMEENTE, "cel_naam": "gemeente Wilgendaal", "lezen": true,
                  "behandelen": true, "beslissen": false }])
     );
+    assert_eq!(ik["partijen_invoeren"], json!(false));
 
     let (_, ik) = admin(&app).await.get("/api/ik").await;
     assert_eq!(ik["klok_zetten"], json!(true));
+    assert_eq!(ik["partijen_invoeren"], json!(true));
+
+    // A role of the old cell model alone is no role of this server.
+    let cell_only = login(&app, "x", &["wetsproces-cel-ggd_wilgendaal"], json!({})).await;
+    assert_eq!(cell_only.get("/api/ik").await.0, StatusCode::FORBIDDEN);
 }
 
 #[tokio::test]
@@ -424,20 +432,18 @@ async fn the_test_personas_follow_from_the_case() {
     let citizens: Vec<&Value> = personas.iter().filter(|p| p["soort"] == "burger").collect();
     assert_eq!(citizens.len(), 2);
     assert_eq!(citizens[0]["claims"], json!({ "bsn": ANNA }));
-    // A handler and a decider per cell of the case, and one admin.
-    let staff = personas
+    // A handler and a decider of the executor, and one admin; each holds
+    // a step of the ladder and nothing else.
+    let staff: Vec<&Value> = personas
         .iter()
         .filter(|p| p["soort"] == "medewerker")
-        .count();
-    assert_eq!(staff, 6);
-    let decider = personas
-        .iter()
-        .find(|p| p["niveau"] == "beslisser" && p["cel"] == GEMEENTE)
-        .unwrap();
-    assert_eq!(
-        decider["rollen"],
-        json!(["wetsproces-beslisser", "wetsproces-cel-gemeente_wilgendaal"])
-    );
+        .collect();
+    assert_eq!(staff.len(), 2);
+    assert!(staff.iter().all(|p| p["cel"] == GEMEENTE), "{staff:?}");
+    let decider = staff.iter().find(|p| p["niveau"] == "beslisser").unwrap();
+    assert_eq!(decider["rollen"], json!(["wetsproces-beslisser"]));
+    let admin = personas.iter().find(|p| p["soort"] == "beheerder").unwrap();
+    assert_eq!(admin["rollen"], json!(["wetsproces-admin"]));
     // Each persona logs in as the test login takes it.
     for p in personas {
         let body = json!({ "sub": p["sub"], "rollen": p["rollen"], "claims": p.get("claims").cloned().unwrap_or(json!({})) });
@@ -459,7 +465,7 @@ async fn a_preview_shows_the_outcome_and_records_nothing() {
     let app = server().await;
     let aanvraag = anna_applies(&app).await;
     let op = aanvraag["id"].as_str().unwrap();
-    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser", GEMEENTE).await;
+    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser").await;
     // Without the GGD's advice and without findings the policy finds no
     // examination, so the card is refused; nothing more is asked, because
     // the municipality's own judgements on it are optional.
@@ -476,10 +482,10 @@ async fn a_preview_shows_the_outcome_and_records_nothing() {
         json!(false),
         "{preview}"
     );
-    assert_eq!(head(&app, GEMEENTE).await, 1);
-    // A handler does not decide, so does not preview either; the GGD does
-    // not see the submission.
-    let behandelaar = employee(&app, "gemeente-2", "wetsproces-behandelaar", GEMEENTE).await;
+    assert_eq!(head(&app).await, 1);
+    // A handler does not decide, so does not preview either; the admin
+    // panel does not reach the municipality's submission.
+    let behandelaar = employee(&app, "gemeente-2", "wetsproces-behandelaar").await;
     let body = json!({ "op": op, "bevindingen": {} });
     assert_eq!(
         behandelaar
@@ -488,9 +494,12 @@ async fn a_preview_shows_the_outcome_and_records_nothing() {
             .0,
         StatusCode::FORBIDDEN
     );
-    let ggd = employee(&app, "ggd-3", "wetsproces-beslisser", GGD).await;
     assert_eq!(
-        ggd.post("/api/backoffice/voorvertoning", body).await.0,
+        admin(&app)
+            .await
+            .post("/api/backoffice/beheer/voorvertoning", body)
+            .await
+            .0,
         StatusCode::NOT_FOUND
     );
 }
@@ -500,7 +509,7 @@ async fn why_a_decision_came_out_so_for_its_citizen_and_its_cell() {
     let app = server().await;
     let aanvraag = anna_applies(&app).await;
     let op = aanvraag["id"].as_str().unwrap();
-    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser", GEMEENTE).await;
+    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser").await;
     let (status, besluit) = beslisser
         .post(
             "/api/backoffice/besluiten",
@@ -521,15 +530,18 @@ async fn why_a_decision_came_out_so_for_its_citizen_and_its_cell() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(ook, waarom);
 
-    // Not for another citizen, nor for a cell that does not hold it.
+    // Not for another citizen.
     let bram = citizen(&app, "bram", BRAM).await;
     let (status, fout) = bram.get(&format!("/api/dossier/waarom/{id}")).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "{fout}");
-    let ggd = employee(&app, "ggd-1", "wetsproces-lezer", GGD).await;
-    assert_eq!(
-        ggd.get(&format!("/api/backoffice/waarom/{id}")).await.0,
-        StatusCode::NOT_FOUND
-    );
+    // The back office explains the executor's decisions only: a record of
+    // the GGD is as unknown as one that does not exist.
+    let advies = ggd_advises(&app, ANNA).await;
+    let ggd_id = advies["id"].as_str().unwrap();
+    let (status, fout) = beslisser
+        .get(&format!("/api/backoffice/waarom/{ggd_id}"))
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND, "{fout}");
     // An application is no decision: the kern refuses to explain it.
     let (status, fout) = anna.get(&format!("/api/dossier/waarom/{op}")).await;
     assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{fout}");
@@ -606,4 +618,269 @@ async fn the_frontend_is_served_beside_the_api_and_a_wrong_api_path_stays_a_404(
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn the_admin_panel_is_for_an_admin_and_reaches_only_the_external_parties() {
+    let app = server().await;
+    let aanvraag = anna_applies(&app).await;
+    let op = aanvraag["id"].as_str().unwrap();
+    const PANEL_WRITES: [&str; 4] = [
+        "/api/backoffice/beheer/vastleggingen",
+        "/api/backoffice/beheer/voorvertoning",
+        "/api/backoffice/beheer/besluiten",
+        "/api/backoffice/beheer/toezendingen",
+    ];
+
+    // Not for a decider of the executor, nor for a citizen: the gate
+    // refuses before the body is read.
+    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser").await;
+    let anna = citizen(&app, "anna", ANNA).await;
+    for who in [&beslisser, &anna] {
+        assert_eq!(
+            who.get("/api/backoffice/beheer/partijen").await.0,
+            StatusCode::FORBIDDEN
+        );
+        for path in PANEL_WRITES {
+            assert_eq!(
+                who.post(path, json!({})).await.0,
+                StatusCode::FORBIDDEN,
+                "{path}"
+            );
+        }
+    }
+
+    // The panel names the executor and the external parties, with nothing
+    // waiting for them yet.
+    let admin = admin(&app).await;
+    let (status, panel) = admin.get("/api/backoffice/beheer/partijen").await;
+    assert_eq!(status, StatusCode::OK, "{panel}");
+    assert_eq!(
+        panel,
+        json!({
+            "uitvoerder": { "cel": GEMEENTE, "cel_naam": "gemeente Wilgendaal" },
+            "partijen": [
+                { "cel": GGD, "cel_naam": "GGD Wilgendaal", "open": [], "toe_te_zenden": [] },
+                { "cel": RECHTBANK, "cel_naam": "Rechtbank Wilgendaal", "open": [], "toe_te_zenden": [] },
+            ],
+        })
+    );
+
+    // The executor is no external party, and neither is a cell the case
+    // does not have.
+    for cell in [GEMEENTE, "elders"] {
+        let mut fact = advice(ANNA);
+        fact["cel"] = json!(cell);
+        let (status, fout) = admin.post(PANEL_WRITES[0], fact).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{cell}: {fout}");
+    }
+    // A submission of the executor is as unknown to the panel as one that
+    // does not exist.
+    let decision = |op: &str| json!({ "op": op, "bevindingen": findings() });
+    for path in [PANEL_WRITES[1], PANEL_WRITES[2]] {
+        let (status, fout) = admin.post(path, decision(op)).await;
+        assert_eq!(status, StatusCode::NOT_FOUND, "{fout}");
+        let (status, other) = admin.post(path, decision("no-such-record")).await;
+        assert_eq!((status, &other), (StatusCode::NOT_FOUND, &fout));
+    }
+    assert_eq!(head(&app).await, 1);
+
+    // The GGD's advice: the answer is the GGD's record, and the
+    // municipality gets it in the same step.
+    let (status, advies) = admin.post(PANEL_WRITES[0], advice(ANNA)).await;
+    assert_eq!(status, StatusCode::OK, "{advies}");
+    assert_eq!(advies["recording_actor"], json!(GGD));
+    assert_eq!(head(&app).await, 2);
+
+    // A decision of the executor cannot be sent from the panel.
+    let (status, besluit) = beslisser
+        .post("/api/backoffice/besluiten", decision(op))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{besluit}");
+    let (status, _) = admin
+        .post(
+            PANEL_WRITES[3],
+            json!({ "besluit": besluit["besluit"]["id"] }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+/// The objection fields and the appeal fields share their names (Awb 6:5).
+fn notice_of(grounds: &str) -> Value {
+    json!({
+        "bezwaar_of_beroepschrift_ondertekend": true,
+        "naam_indiener": "A. de Vries",
+        "adres_indiener": "Voorbeeldlaan 2",
+        "dagtekening_bezwaar_of_beroepschrift": "2026-10-21",
+        "omschrijving_bestreden_besluit": "het besluit op de aanvraag",
+        "gronden_bezwaar_of_beroep": grounds,
+    })
+}
+
+/// Anna applies and is refused, objects, and the objection is decided; the
+/// answer is the decision on her objection, which she can appeal.
+async fn anna_is_refused_on_objection(app: &Router) -> Value {
+    let aanvraag = anna_applies(app).await;
+    let beslisser = employee(app, "gemeente-1", "wetsproces-beslisser").await;
+    let decide = |body: Value| {
+        let beslisser = &beslisser;
+        async move {
+            let (status, besluit) = beslisser.post("/api/backoffice/besluiten", body).await;
+            assert_eq!(status, StatusCode::OK, "{besluit}");
+            besluit["besluit"].clone()
+        }
+    };
+    let besluit = decide(json!({ "op": aanvraag["id"], "bevindingen": {} })).await;
+    set_clock(app, "2026-10-21").await;
+    let (status, bezwaar) = citizen(app, "anna", ANNA)
+        .await
+        .post(
+            "/api/indieningen",
+            json!({
+                "artikel": "algemene_wet_bestuursrecht#7:11",
+                "op": besluit["id"],
+                "velden": notice_of("de kaart is ten onrechte geweigerd"),
+            }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{bezwaar}");
+    decide(json!({
+        "op": bezwaar["id"],
+        "bevindingen": {
+            "indiener_bezwaarschrift_is_belanghebbende": true,
+            "indiener_bezwaarschrift_niet_in_verzuim": true,
+        },
+    }))
+    .await
+}
+
+#[tokio::test]
+async fn the_court_decides_on_an_appeal_through_the_admin_panel() {
+    let app = server().await;
+    let op_bezwaar = anna_is_refused_on_objection(&app).await;
+    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser").await;
+    let anna = citizen(&app, "anna", ANNA).await;
+    let admin = admin(&app).await;
+
+    // Anna appeals; the appeal lands with the court and waits in the panel.
+    let (status, beroep) = anna
+        .post(
+            "/api/indieningen",
+            json!({
+                "artikel": "algemene_wet_bestuursrecht#8:70",
+                "op": op_bezwaar["id"],
+                "velden": notice_of("het bezwaar is ten onrechte afgewezen"),
+            }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{beroep}");
+    assert_eq!(beroep["recording_actor"], json!(RECHTBANK));
+    let (_, panel) = admin.get("/api/backoffice/beheer/partijen").await;
+    let court = &panel["partijen"][1];
+    assert_eq!(court["cel"], json!(RECHTBANK));
+    assert_eq!(court["open"][0]["id"], beroep["id"], "{panel}");
+    // The municipality's employees do not reach it.
+    let (status, _) = beslisser
+        .post(
+            "/api/backoffice/besluiten",
+            json!({ "op": beroep["id"], "bevindingen": {} }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // The admin enters the judgment for the court.
+    let judgment = json!({
+        "op": beroep["id"],
+        "bevindingen": {
+            "indiener_is_belanghebbende": true,
+            "indiener_beroepschrift_niet_in_verzuim": true,
+            "rechtsregel_geschonden": false,
+        },
+    });
+    let (status, preview) = admin
+        .post("/api/backoffice/beheer/voorvertoning", judgment.clone())
+        .await;
+    assert_eq!(status, StatusCode::OK, "{preview}");
+    let (status, uitspraak) = admin
+        .post("/api/backoffice/beheer/besluiten", judgment)
+        .await;
+    assert_eq!(status, StatusCode::OK, "{uitspraak}");
+    let uitspraak_id = uitspraak["besluit"]["id"].clone();
+    assert_eq!(uitspraak["besluit"]["recording_actor"], json!(RECHTBANK));
+    let (_, panel) = admin.get("/api/backoffice/beheer/partijen").await;
+    let court = &panel["partijen"][1];
+    assert_eq!(court["open"], json!([]), "{panel}");
+    assert_eq!(court["toe_te_zenden"][0]["id"], uitspraak_id, "{panel}");
+
+    // The copy goes to the municipality, which records its receipt.
+    let before = head(&app).await;
+    let (status, afschrift) = admin
+        .post(
+            "/api/backoffice/beheer/toezendingen",
+            json!({ "besluit": uitspraak_id }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{afschrift}");
+    assert_eq!(head(&app).await, before + 1);
+    let (_, panel) = admin.get("/api/backoffice/beheer/partijen").await;
+    assert_eq!(panel["partijen"][1]["toe_te_zenden"], json!([]), "{panel}");
+    // Anna sees the judgment in her dossier.
+    let (_, dossier) = anna.get("/api/dossier").await;
+    assert!(
+        dossier["grammen"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .any(|g| g["id"] == uitspraak_id),
+        "{dossier}"
+    );
+}
+
+#[tokio::test]
+async fn a_decision_for_a_party_stays_within_its_chronicle() {
+    let app = server().await;
+    let op_bezwaar = anna_is_refused_on_objection(&app).await;
+    let (status, beroep) = citizen(&app, "anna", ANNA)
+        .await
+        .post(
+            "/api/indieningen",
+            json!({
+                "artikel": "algemene_wet_bestuursrecht#8:70",
+                "op": op_bezwaar["id"],
+                "velden": notice_of("het bezwaar is ten onrechte afgewezen"),
+            }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{beroep}");
+    let admin = admin(&app).await;
+    // A judgment "after" a record of the municipality, or of the GGD, is
+    // refused as if that record did not exist.
+    let advies = ggd_advises(&app, ANNA).await;
+    for na in [&op_bezwaar["id"], &advies["id"]] {
+        let body = json!({ "op": beroep["id"], "na": na, "bevindingen": {} });
+        for path in [
+            "/api/backoffice/beheer/voorvertoning",
+            "/api/backoffice/beheer/besluiten",
+        ] {
+            let (status, fout) = admin.post(path, body.clone()).await;
+            assert_eq!(status, StatusCode::NOT_FOUND, "{path}: {fout}");
+        }
+    }
+    // The court's judgment is no decision of the executor to explain.
+    let (status, uitspraak) = admin
+        .post(
+            "/api/backoffice/beheer/besluiten",
+            json!({ "op": beroep["id"], "bevindingen": {
+                    "indiener_is_belanghebbende": true,
+                    "indiener_beroepschrift_niet_in_verzuim": true,
+                    "rechtsregel_geschonden": false,
+                } }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{uitspraak}");
+    let id = uitspraak["besluit"]["id"].as_str().unwrap();
+    let lezer = employee(&app, "lezer-1", "wetsproces-lezer").await;
+    let (status, _) = lezer.get(&format!("/api/backoffice/waarom/{id}")).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
 }

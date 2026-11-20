@@ -8,13 +8,16 @@
 //!   dossier, identified by a claim of their account ([`Citizen`]);
 //! - a ladder for employees ([`Level`]): reader < handler < decider < admin.
 //!   Holding a step holds the steps under it, whether or not Keycloak gives
-//!   the lower roles too;
-//! - per cell a role ([`cell_role`]) that says for which organization (the
-//!   municipality, the GGD, the court) an employee works. A level counts only
-//!   for the cells whose role the employee holds.
+//!   the lower roles too.
+//!
+//! An employee works for the executor of the case, the one cell the server
+//! runs the process for ([`crate::service::Service::executor`]), so a step
+//! of the ladder is all an employee needs. The other cells of the case (the
+//! GGD that advises, the court that decides on an appeal) have no employees
+//! here: what they do, an admin enters in the admin panel on their behalf.
 //!
 //! The rules on top of them live in the API ([`crate::api`]): which route
-//! asks which level, and for which cell.
+//! asks which level, and which records it reaches.
 //!
 //! A principal comes from one of three channels ([`Channel`]): a browser
 //! session after the login through Keycloak or the test login, read here
@@ -50,26 +53,18 @@ pub const ROLE_PREFIX: &str = "wetsproces-";
 /// A citizen: submits for themself and reads their own dossier.
 pub const CITIZEN: &str = "wetsproces-burger";
 
-/// What the role of a cell starts with; the cell's id follows.
-pub const CELL_ROLE_PREFIX: &str = "wetsproces-cel-";
-
-/// The role that says an employee works for the cell `cell`.
-pub fn cell_role(cell: &str) -> String {
-    format!("{CELL_ROLE_PREFIX}{cell}")
-}
-
 /// A step on the ladder of employees, lowest first: each may do what the
 /// steps under it may.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Level {
-    /// Reads the chronicles of their cells.
+    /// Reads the executor's chronicle.
     Reader,
-    /// Records facts and sends copies for their cells.
+    /// Records facts and sends copies for the executor.
     Handler,
-    /// Takes decisions for their cells.
+    /// Takes decisions for the executor.
     Decider,
-    /// Sets the clock in test mode, and whatever is added to manage the
-    /// server.
+    /// Sets the clock in test mode, and enters in the admin panel what an
+    /// external party of the case did.
     Admin,
 }
 
@@ -171,14 +166,9 @@ impl Principal {
             .find(|l| self.roles.contains(l.role()))
     }
 
-    /// Whether the principal holds at least `level`, for any cell.
+    /// Whether the principal holds at least `level`.
     pub fn has(&self, level: Level) -> bool {
         self.level().is_some_and(|held| held >= level)
-    }
-
-    /// Whether the principal holds at least `level` for the cell `cell`.
-    pub fn may(&self, level: Level, cell: &str) -> bool {
-        self.has(level) && self.roles.contains(&cell_role(cell))
     }
 
     /// The principal as a citizen identified by the claim `claim`.
@@ -206,17 +196,27 @@ impl Principal {
         }
     }
 
-    /// Allow when the principal holds `level` for `cell`.
+    /// Allow when the principal holds at least `level`.
     ///
     /// # Errors
     ///
     /// 403 otherwise.
-    pub fn require(&self, level: Level, cell: &str) -> Result<(), ApiError> {
-        if self.may(level, cell) {
+    pub fn require(&self, level: Level) -> Result<(), ApiError> {
+        if self.has(level) {
             Ok(())
         } else {
-            tracing::warn!(sub = %self.sub, level = level.role(), cell, "refused");
+            tracing::warn!(sub = %self.sub, level = level.role(), "refused");
             Err(forbidden())
+        }
+    }
+
+    /// The principal as the store keeps it beside a record it enters in the
+    /// admin panel for an external party: its own account, through the
+    /// panel's channel.
+    pub fn admin_panel_actor(&self) -> Actor {
+        Actor {
+            account: self.sub.clone(),
+            channel: Channel::AdminPanel,
         }
     }
 }
@@ -308,22 +308,34 @@ mod tests {
         for role in Level::ALL.map(Level::role).into_iter().chain([CITIZEN]) {
             assert!(role.starts_with(ROLE_PREFIX), "{role}");
         }
-        assert!(cell_role("ggd").starts_with(ROLE_PREFIX));
     }
 
     #[test]
-    fn a_level_holds_the_levels_under_it_for_its_own_cells_only() {
-        let p = principal(&["wetsproces-beslisser", "wetsproces-cel-gemeente"]);
+    fn a_level_holds_the_levels_under_it_and_no_other_role_gives_one() {
+        let p = principal(&["wetsproces-beslisser"]);
         assert_eq!(p.level(), Some(Level::Decider));
-        assert!(p.may(Level::Reader, "gemeente"));
-        assert!(p.may(Level::Handler, "gemeente"));
-        assert!(p.may(Level::Decider, "gemeente"));
-        assert!(!p.may(Level::Admin, "gemeente"));
-        assert!(!p.may(Level::Reader, "ggd"));
-        // A cell role without a level gives nothing.
-        let p = principal(&["wetsproces-cel-gemeente"]);
-        assert!(!p.may(Level::Reader, "gemeente"));
+        assert!(p.has(Level::Reader));
+        assert!(p.has(Level::Handler));
+        assert!(p.has(Level::Decider));
+        assert!(!p.has(Level::Admin));
+        assert!(p.require(Level::Decider).is_ok());
+        assert_eq!(
+            p.require(Level::Admin).unwrap_err().status(),
+            StatusCode::FORBIDDEN
+        );
+        // A role of the old cell model gives nothing.
+        let p = principal(&["wetsproces-cel-gemeente_wilgendaal"]);
+        assert_eq!(p.level(), None);
         assert!(!p.is_user());
+    }
+
+    #[test]
+    fn what_an_admin_enters_in_the_panel_is_kept_as_through_the_panel() {
+        let p = principal(&["wetsproces-admin"]);
+        assert_eq!(p.actor().channel, Channel::TestLogin);
+        let via_panel = p.admin_panel_actor();
+        assert_eq!(via_panel.account, "sub-1");
+        assert_eq!(via_panel.channel, Channel::AdminPanel);
     }
 
     #[test]

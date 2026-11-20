@@ -61,6 +61,27 @@ const ROUTES: &[(Group, &str, &str)] = &[
     (Group::Backoffice, "POST", "/api/backoffice/toezendingen"),
     (Group::Backoffice, "POST", "/api/backoffice/besluiten"),
     (Group::Backoffice, "PUT", "/api/backoffice/klok"),
+    (Group::Backoffice, "GET", "/api/backoffice/beheer/partijen"),
+    (
+        Group::Backoffice,
+        "POST",
+        "/api/backoffice/beheer/vastleggingen",
+    ),
+    (
+        Group::Backoffice,
+        "POST",
+        "/api/backoffice/beheer/voorvertoning",
+    ),
+    (
+        Group::Backoffice,
+        "POST",
+        "/api/backoffice/beheer/besluiten",
+    ),
+    (
+        Group::Backoffice,
+        "POST",
+        "/api/backoffice/beheer/toezendingen",
+    ),
 ];
 
 /// Whether `surface` registers the routes of `group`.
@@ -138,11 +159,7 @@ async fn a_route_of_the_other_side_is_a_404_also_with_a_session() {
     let everything = login(
         &citizens,
         "alles-1",
-        &[
-            "wetsproces-burger",
-            "wetsproces-admin",
-            "wetsproces-cel-gemeente_wilgendaal",
-        ],
+        &["wetsproces-burger", "wetsproces-admin"],
         json!({ "bsn": ANNA }),
     )
     .await;
@@ -173,11 +190,7 @@ async fn the_citizens_instance_never_gives_a_session_an_employees_role() {
     let both = login(
         &citizens,
         "beide-1",
-        &[
-            "wetsproces-burger",
-            "wetsproces-beslisser",
-            "wetsproces-cel-gemeente_wilgendaal",
-        ],
+        &["wetsproces-burger", "wetsproces-beslisser"],
         json!({ "bsn": ANNA }),
     )
     .await;
@@ -188,7 +201,7 @@ async fn the_citizens_instance_never_gives_a_session_an_employees_role() {
     assert_eq!(ik["cellen"], json!([]));
     assert_eq!(ik["klok_zetten"], json!(false));
     // An employee's account is nobody here.
-    let employee = employee(&citizens, "lezer-1", "wetsproces-lezer", GEMEENTE).await;
+    let employee = employee(&citizens, "lezer-1", "wetsproces-lezer").await;
     assert_eq!(employee.get("/api/ik").await.0, StatusCode::FORBIDDEN);
     assert_eq!(employee.get("/api/casus").await.0, StatusCode::FORBIDDEN);
 }
@@ -204,11 +217,7 @@ async fn the_back_office_refuses_a_session_with_only_the_citizens_role() {
     let both = login(
         &backoffice,
         "beide-1",
-        &[
-            "wetsproces-burger",
-            "wetsproces-lezer",
-            "wetsproces-cel-gemeente_wilgendaal",
-        ],
+        &["wetsproces-burger", "wetsproces-lezer"],
         json!({ "bsn": ANNA }),
     )
     .await;
@@ -329,7 +338,7 @@ async fn a_submission_on_the_citizens_instance_is_decided_on_the_back_office() {
     let op = aanvraag["id"].as_str().unwrap().to_string();
 
     // The back office sees it in the municipality's chronicle.
-    let reader = employee(&backoffice, "lezer-1", "wetsproces-lezer", GEMEENTE).await;
+    let reader = employee(&backoffice, "lezer-1", "wetsproces-lezer").await;
     let (status, kroniek) = reader
         .get(&format!("/api/backoffice/cellen/{GEMEENTE}/kroniek"))
         .await;
@@ -347,15 +356,46 @@ async fn a_submission_on_the_citizens_instance_is_decided_on_the_back_office() {
     // tells the same day, because the day lives in the shared store.
     set_clock("2026-10-16").await;
     assert_eq!(anna.get("/api/klok").await.1["datum"], json!("2026-10-16"));
-    let ggd = employee(&backoffice, "ggd-1", "wetsproces-behandelaar", GGD).await;
-    let (status, advies) = ggd
-        .post("/api/backoffice/vastleggingen", advice(ANNA))
+    // The GGD's advice comes in through the admin panel.
+    let (status, advies) = admin
+        .post("/api/backoffice/beheer/vastleggingen", advice(ANNA))
         .await;
     assert_eq!(status, StatusCode::OK, "{advies}");
     assert_eq!(advies["recorded_on"], json!("2026-10-16"));
+    // The store keeps beside both records of that step, the GGD's and the
+    // municipality's receipt, that the admin's account entered it through
+    // the panel; beside the application, Anna's own login.
+    let pool = sqlx::PgPool::connect(database.url()).await.unwrap();
+    let rows: Vec<(String, Option<String>, Option<String>)> = sqlx::query_as(
+        "SELECT cell, recorded_by, recorded_via FROM wetsproces.grams ORDER BY recorded_at, cell, seq",
+    )
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    let admin_sub = "admin-1".to_string();
+    assert_eq!(
+        rows,
+        [
+            (
+                GEMEENTE.to_string(),
+                Some("anna".to_string()),
+                Some("testlogin".to_string())
+            ),
+            (
+                GEMEENTE.to_string(),
+                Some(admin_sub.clone()),
+                Some("beheerpaneel".to_string())
+            ),
+            (
+                GGD.to_string(),
+                Some(admin_sub),
+                Some("beheerpaneel".to_string())
+            ),
+        ]
+    );
 
     set_clock("2026-10-20").await;
-    let decider = employee(&backoffice, "gemeente-1", "wetsproces-beslisser", GEMEENTE).await;
+    let decider = employee(&backoffice, "gemeente-1", "wetsproces-beslisser").await;
     let (status, besluit) = decider
         .post(
             "/api/backoffice/besluiten",

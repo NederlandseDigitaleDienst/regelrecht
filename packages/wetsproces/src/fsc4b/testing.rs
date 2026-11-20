@@ -258,7 +258,7 @@ pub async fn decide_as_municipality(http: &reqwest::Client, base: &str, op: &str
         .post(format!("{base}/auth/testlogin"))
         .json(&json!({
             "sub": "gemeente-1",
-            "rollen": ["wetsproces-beslisser", "wetsproces-cel-gemeente_wilgendaal"],
+            "rollen": ["wetsproces-beslisser"],
         }))
         .send()
         .await

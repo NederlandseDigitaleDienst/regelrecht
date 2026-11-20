@@ -3,8 +3,16 @@
 //! chronolexografie poc speaks them.
 //!
 //! Every route but `/health` and the login (`/auth/...`, [`crate::login`])
-//! needs a session; without one it answers 401. The routes come in three
-//! groups, each behind its own gate ([`crate::access`] holds the roles):
+//! needs a session; without one it answers 401. The routes come in four
+//! groups, each behind its own gate ([`crate::access`] holds the roles).
+//!
+//! The back office works for one cell, the executor
+//! ([`Service::executor`]): its routes reach the executor's records only.
+//! The other cells of the case are external parties; the admin panel
+//! (`/api/backoffice/beheer/...`) lets an admin enter what such a party did,
+//! and reaches only that party's records and only what the input needs
+//! ([`crate::external`]). What it records is kept as entered through the
+//! panel ([`Channel::AdminPanel`]), by the admin's account.
 //!
 //! | Method and path | Who | What |
 //! |---|---|---|
@@ -16,20 +24,26 @@
 //! | `GET /api/dossier` | citizen | the records about the citizen, in every cell |
 //! | `GET /api/dossier/waarom/{id}` | citizen | why a decision of their dossier came out so |
 //! | `POST /api/indieningen` | citizen | a submission ([`Submit`]) for themself |
-//! | `GET /api/backoffice/cellen/{cel}/kroniek` | reader of the cell | the chronicle of one cell |
-//! | `GET /api/backoffice/waarom/{id}` | reader of the cell holding the decision | why it came out so |
-//! | `POST /api/backoffice/voorvertoning` | decider of the cell holding the submission | what a decision ([`Decide`]) would come to; records nothing |
-//! | `POST /api/backoffice/vastleggingen` | handler of the cell | a fact a cell records ([`Record`]) |
-//! | `POST /api/backoffice/toezendingen` | handler of the cell holding the decision | a copy of a decision ([`SendCopy`]) |
-//! | `POST /api/backoffice/besluiten` | decider of the cell holding the submission | a decision ([`Decide`]) |
+//! | `GET /api/backoffice/cellen/{cel}/kroniek` | reader; the executor only | the executor's chronicle |
+//! | `GET /api/backoffice/waarom/{id}` | reader; a decision of the executor | why it came out so |
+//! | `POST /api/backoffice/voorvertoning` | decider; a submission of the executor | what a decision ([`Decide`]) would come to; records nothing |
+//! | `POST /api/backoffice/vastleggingen` | handler; for the executor | a fact the executor records ([`Record`]) |
+//! | `POST /api/backoffice/toezendingen` | handler; a decision of the executor | a copy of a decision ([`SendCopy`]) |
+//! | `POST /api/backoffice/besluiten` | decider; a submission of the executor | a decision ([`Decide`]) |
 //! | `PUT /api/backoffice/klok` | admin | set the clock, test mode only: `{ "datum": "YYYY-MM-DD" }` |
+//! | `GET /api/backoffice/beheer/partijen` | admin | per external party what waits for it ([`crate::service::ExternalParty`]) |
+//! | `POST /api/backoffice/beheer/vastleggingen` | admin | a fact an external party records |
+//! | `POST /api/backoffice/beheer/voorvertoning` | admin; a submission of an external party | what its decision would come to; records nothing |
+//! | `POST /api/backoffice/beheer/besluiten` | admin; a submission of an external party | its decision |
+//! | `POST /api/backoffice/beheer/toezendingen` | admin; a decision of an external party | a copy of it to the cell it concerns |
 //!
 //! A citizen acts only for themself. The login field of their application
 //! comes from the claim of their account, never from the request, and a
 //! submission that refers to a record must refer to one in their own
-//! dossier. A record an employee names by id must be in a cell whose
-//! chronicle they may read; one that is not answers 404, the same as one
-//! that does not exist, so an id does not tell whether it exists elsewhere.
+//! dossier. A record an employee names by id must be in the executor's
+//! chronicle, and one the admin panel names in an external party's; one
+//! that is not answers 404, the same as one that does not exist, so an id
+//! does not tell whether it exists elsewhere.
 //!
 //! The citizen's routes are offered a second time, under `/fsc4b`, to apps
 //! of the FSC voor Burgers channel ([`crate::fsc4b`]), when that channel is
@@ -66,7 +80,7 @@ use crate::config::Mode;
 use crate::fsc4b::Fsc4b;
 use crate::login::{Login, OidcLogin};
 use crate::service::{Decide, Record, SendCopy, Service, ServiceError, Step, Submit};
-use crate::store::{Channel, IdempotencyKey, StoreError};
+use crate::store::{Actor, Channel, IdempotencyKey, StoreError};
 use crate::surface::Surface;
 
 /// The header that carries a request's [`IdempotencyKey`].
@@ -253,6 +267,22 @@ pub fn router(state: AppState) -> Router {
         .route("/api/backoffice/toezendingen", post(send_copy))
         .route("/api/backoffice/klok", put(set_clock))
         .route_layer(middleware::from_fn_with_state(state.clone(), gate_employee));
+    let admin_panel = Router::new()
+        .route("/api/backoffice/beheer/partijen", get(external_parties))
+        .route(
+            "/api/backoffice/beheer/vastleggingen",
+            post(record_external),
+        )
+        .route(
+            "/api/backoffice/beheer/voorvertoning",
+            post(preview_external),
+        )
+        .route("/api/backoffice/beheer/besluiten", post(decide_external))
+        .route(
+            "/api/backoffice/beheer/toezendingen",
+            post(send_copy_external),
+        )
+        .route_layer(middleware::from_fn_with_state(state.clone(), gate_admin));
     let fsc4b = state
         .fsc4b
         .as_ref()
@@ -265,7 +295,7 @@ pub fn router(state: AppState) -> Router {
         routes = routes.merge(citizen).merge(fsc4b);
     }
     if state.surface.serves_employees() {
-        routes = routes.merge(backoffice);
+        routes = routes.merge(backoffice).merge(admin_panel);
     }
     routes.with_state(state)
 }
@@ -304,13 +334,23 @@ async fn gate_citizen(
     gate(principal, |p| p.is_citizen(), request, next).await
 }
 
-/// An employee: a reader or more, of any cell; the handler checks the cell.
+/// An employee: a reader or more; the handler checks the level it needs
+/// and that the records are the executor's.
 async fn gate_employee(
     principal: Principal,
     request: Request,
     next: Next,
 ) -> Result<Response, ApiError> {
     gate(principal, |p| p.has(Level::Reader), request, next).await
+}
+
+/// An admin, for the admin panel.
+async fn gate_admin(
+    principal: Principal,
+    request: Request,
+    next: Next,
+) -> Result<Response, ApiError> {
+    gate(principal, |p| p.has(Level::Admin), request, next).await
 }
 
 async fn case(State(state): State<AppState>) -> ApiResult {
@@ -339,14 +379,18 @@ pub(crate) async fn forms_for(state: &AppState, principal: &Principal) -> Citize
 }
 
 /// The ids of the records `principal` may see: those of their dossier as a
-/// citizen, and those in the cells they may read as an employee.
+/// citizen, and those in the executor's chronicle as an employee. Not those
+/// of an external party: the executor sees what such a party sends it, which
+/// lands in its own chronicle.
 async fn visible_records(
     state: &AppState,
     principal: &Principal,
 ) -> Result<BTreeSet<String>, ApiError> {
+    let reader = principal.has(Level::Reader);
+    let executor = state.service.executor();
     let mut ids = state
         .service
-        .record_ids(|cell| principal.may(Level::Reader, cell))
+        .record_ids(|cell| reader && cell == executor)
         .await?;
     if principal.is_citizen()
         && let Ok(citizen) = principal.citizen(&state.subject_claim)
@@ -396,9 +440,11 @@ pub(crate) async fn dossier_of(state: &AppState, principal: &Principal) -> Citiz
 
 /// Who is logged in, for a screen to show what they may do: their name,
 /// whether they are a citizen and with which identifier, their level on the
-/// ladder, and per cell of the case they work for what that level lets them
-/// do there. The screen hides what the account may not do; the routes still
-/// check every request themselves.
+/// ladder, and for an employee what that level lets them do for the
+/// executor (`cellen`, which holds the executor only), and whether they may
+/// enter the acts of external parties in the admin panel. The screen hides
+/// what the account may not do; the routes still check every request
+/// themselves.
 async fn me(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
@@ -413,19 +459,19 @@ async fn me(
             None
         });
     let citizen = principal.citizen(&state.subject_claim).ok();
-    let cells: Vec<Value> = state
-        .service
-        .cells()
-        .filter(|(cell, _)| principal.may(Level::Reader, cell))
-        .map(|(cell, cell_name)| {
+    let service = &state.service;
+    let cells: Vec<Value> = principal
+        .has(Level::Reader)
+        .then(|| {
             json!({
-                "cel": cell,
-                "cel_naam": cell_name,
+                "cel": service.executor(),
+                "cel_naam": service.executor_name(),
                 "lezen": true,
-                "behandelen": principal.may(Level::Handler, cell),
-                "beslissen": principal.may(Level::Decider, cell),
+                "behandelen": principal.has(Level::Handler),
+                "beslissen": principal.has(Level::Decider),
             })
         })
+        .into_iter()
         .collect();
     Ok(Json(json!({
         "sub": principal.sub(),
@@ -434,6 +480,7 @@ async fn me(
         "identiteit": citizen.as_ref().map(access::Citizen::subject),
         "niveau": principal.level().map(Level::name),
         "cellen": cells,
+        "partijen_invoeren": principal.has(Level::Admin),
         "klok_zetten": principal.has(Level::Admin) && state.clock.is_some(),
     })))
 }
@@ -461,37 +508,36 @@ pub(crate) async fn explain_for(
     Ok(state.service.explain(id).await?)
 }
 
-/// Why a decision of a cell the employee may read came out so.
-async fn backoffice_explain(
-    State(state): State<AppState>,
-    Extension(principal): Extension<Principal>,
-    Path(id): Path<String>,
-) -> ApiResult {
-    readable_holder(&state, &principal, &id, "decision").await?;
+/// Why a decision of the executor came out so.
+async fn backoffice_explain(State(state): State<AppState>, Path(id): Path<String>) -> ApiResult {
+    executor_record(&state, &id, "decision").await?;
     Ok(Json(state.service.explain(&id).await?))
 }
 
-/// What a decision would come to, for a decider of the cell that holds the
-/// submission, as [`decide`] checks it; nothing is recorded.
+/// What a decision would come to, for a decider of the executor, as
+/// [`decide`] checks it; nothing is recorded.
 async fn preview(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
     Json(d): Json<Decide>,
 ) -> ApiResult {
-    let cell = readable_holder(&state, &principal, &d.submission, "submission").await?;
-    if let Some(after) = &d.after {
-        readable_holder(&state, &principal, after, "record").await?;
-    }
-    principal.require(Level::Decider, &cell)?;
+    executor_decision(&state, &d).await?;
+    principal.require(Level::Decider)?;
     Ok(Json(state.service.preview(d).await?))
 }
 
+/// The executor's chronicle. Another cell of the case is refused, as an
+/// external party whose chronicle no employee reads; a cell the case does
+/// not have answers 404.
 async fn chronicle(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
     Path(cel): Path<String>,
 ) -> ApiResult {
-    principal.require(Level::Reader, &cel)?;
+    if state.service.is_external(&cel) {
+        tracing::warn!(sub = %principal.sub(), cell = %cel, "refused an external party's chronicle");
+        return Err(access::forbidden());
+    }
     Ok(Json(state.service.chronicle(&cel).await?))
 }
 
@@ -512,24 +558,51 @@ async fn perform(
     state: &AppState,
     headers: &HeaderMap,
     step: Step,
-    principal: &Principal,
+    actor: &Actor,
 ) -> CitizenResult {
     let key = key(headers)?;
-    Ok(state.service.perform(key, step, &principal.actor()).await?)
+    Ok(state.service.perform(key, step, actor).await?)
 }
 
-/// The cell holding the record `id`, when `principal` may read its
-/// chronicle; `what` names the record in the 404 otherwise.
-async fn readable_holder(
-    state: &AppState,
-    principal: &Principal,
-    id: &str,
-    what: &str,
-) -> Result<String, ApiError> {
+/// Allow when the executor's chronicle holds the record `id`; `what` names
+/// the record in the 404 otherwise. Every route that reaches it lets a
+/// reader or more through, so a holder that is the executor is readable.
+async fn executor_record(state: &AppState, id: &str, what: &str) -> Result<(), ApiError> {
     match state.service.holder(id).await? {
-        Some(cell) if principal.may(Level::Reader, &cell) => Ok(cell),
+        Some(cell) if cell == state.service.executor() => Ok(()),
         _ => Err(ApiError::not_yours(what)),
     }
+}
+
+/// Allow a decision `d` for the executor: on a submission in its
+/// chronicle, after a record in it if one is named.
+async fn executor_decision(state: &AppState, d: &Decide) -> Result<(), ApiError> {
+    executor_record(state, &d.submission, "submission").await?;
+    if let Some(after) = &d.after {
+        executor_record(state, after, "record").await?;
+    }
+    Ok(())
+}
+
+/// The external party whose chronicle holds the record `id`; `what` names
+/// the record in the 404 otherwise, also when the executor holds it.
+async fn external_holder(state: &AppState, id: &str, what: &str) -> Result<String, ApiError> {
+    match state.service.holder(id).await? {
+        Some(cell) if state.service.is_external(&cell) => Ok(cell),
+        _ => Err(ApiError::not_yours(what)),
+    }
+}
+
+/// Allow a decision `d` for an external party: on a submission in its
+/// chronicle, after a record in that same chronicle if one is named.
+async fn external_decision(state: &AppState, d: &Decide) -> Result<(), ApiError> {
+    let cell = external_holder(state, &d.submission, "submission of an external party").await?;
+    if let Some(after) = &d.after
+        && external_holder(state, after, "record").await? != cell
+    {
+        return Err(ApiError::not_yours("record"));
+    }
+    Ok(())
 }
 
 /// A citizen submits for themself: the login field is theirs, and a
@@ -580,27 +653,24 @@ pub(crate) async fn submit_for(
             "a submission other than the application refers to a record of your dossier (`op`)",
         ));
     }
-    perform(state, headers, Step::Submit(s), principal).await
+    perform(state, headers, Step::Submit(s), &principal.actor()).await
 }
 
-/// A decision, by a decider of the cell that holds the submission.
+/// A decision, by a decider of the executor.
 async fn decide(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
     headers: HeaderMap,
     Json(d): Json<Decide>,
 ) -> ApiResult {
-    let cell = readable_holder(&state, &principal, &d.submission, "submission").await?;
-    if let Some(after) = &d.after {
-        readable_holder(&state, &principal, after, "record").await?;
-    }
-    principal.require(Level::Decider, &cell)?;
-    perform(&state, &headers, Step::Decide(d), &principal)
+    executor_decision(&state, &d).await?;
+    principal.require(Level::Decider)?;
+    perform(&state, &headers, Step::Decide(d), &principal.actor())
         .await
         .map(Json)
 }
 
-/// A fact, by a handler of the cell that records it.
+/// A fact the executor records, by a handler.
 async fn record(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
@@ -608,26 +678,127 @@ async fn record(
     Json(r): Json<Record>,
 ) -> ApiResult {
     // The kern resolves `verwijst_naar` only within the chronicle of
-    // `r.cell` (a record id or a kenmerk of its beginning), which the
-    // handler of that cell may read, so it needs no check of its own here.
-    principal.require(Level::Handler, &r.cell)?;
-    perform(&state, &headers, Step::Record(r), &principal)
+    // `r.cell` (a record id or a kenmerk of its beginning), which is the
+    // executor's here, so it needs no check of its own.
+    if r.cell != state.service.executor() {
+        tracing::warn!(sub = %principal.sub(), cell = %r.cell, "refused a fact for another cell");
+        return Err(access::forbidden());
+    }
+    principal.require(Level::Handler)?;
+    perform(&state, &headers, Step::Record(r), &principal.actor())
         .await
         .map(Json)
 }
 
-/// A copy of a decision, by a handler of the cell that holds it.
+/// A copy of a decision of the executor, by a handler.
 async fn send_copy(
     State(state): State<AppState>,
     Extension(principal): Extension<Principal>,
     headers: HeaderMap,
     Json(s): Json<SendCopy>,
 ) -> ApiResult {
-    let cell = readable_holder(&state, &principal, &s.decision, "decision").await?;
-    principal.require(Level::Handler, &cell)?;
-    perform(&state, &headers, Step::SendCopy(s), &principal)
+    executor_record(&state, &s.decision, "decision").await?;
+    principal.require(Level::Handler)?;
+    perform(&state, &headers, Step::SendCopy(s), &principal.actor())
         .await
         .map(Json)
+}
+
+/// Per external party what the admin panel needs: the submissions that
+/// wait for its decision (`open`) and its decisions of which no copy was
+/// received yet (`toe_te_zenden`). The facts it records and the decision
+/// forms come with the forms (`GET /api/formulier`).
+async fn external_parties(State(state): State<AppState>) -> ApiResult {
+    let parties: Vec<Value> = state
+        .service
+        .external_parties()
+        .await?
+        .into_iter()
+        .map(|p| {
+            json!({
+                "cel": p.cell,
+                "cel_naam": p.name,
+                "open": p.open,
+                "toe_te_zenden": p.unsent,
+            })
+        })
+        .collect();
+    Ok(Json(json!({
+        "uitvoerder": {
+            "cel": state.service.executor(),
+            "cel_naam": state.service.executor_name(),
+        },
+        "partijen": parties,
+    })))
+}
+
+/// A fact an external party records, entered by an admin.
+async fn record_external(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    headers: HeaderMap,
+    Json(r): Json<Record>,
+) -> ApiResult {
+    // As for the executor, the kern resolves `verwijst_naar` within the
+    // party's own chronicle only.
+    if !state.service.is_external(&r.cell) {
+        return Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            format!("'{}' is no external party of this process", r.cell),
+        ));
+    }
+    perform(
+        &state,
+        &headers,
+        Step::Record(r),
+        &principal.admin_panel_actor(),
+    )
+    .await
+    .map(Json)
+}
+
+/// What an external party's decision would come to; nothing is recorded.
+async fn preview_external(State(state): State<AppState>, Json(d): Json<Decide>) -> ApiResult {
+    external_decision(&state, &d).await?;
+    Ok(Json(state.service.preview(d).await?))
+}
+
+/// An external party's decision on a submission in its chronicle, entered by
+/// an admin.
+async fn decide_external(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    headers: HeaderMap,
+    Json(d): Json<Decide>,
+) -> ApiResult {
+    external_decision(&state, &d).await?;
+    perform(
+        &state,
+        &headers,
+        Step::Decide(d),
+        &principal.admin_panel_actor(),
+    )
+    .await
+    .map(Json)
+}
+
+/// A copy of an external party's decision to the cell it concerns, entered
+/// by an admin.
+async fn send_copy_external(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+    headers: HeaderMap,
+    Json(s): Json<SendCopy>,
+) -> ApiResult {
+    external_holder(&state, &s.decision, "decision of an external party").await?;
+    perform(
+        &state,
+        &headers,
+        Step::SendCopy(s),
+        &principal.admin_panel_actor(),
+    )
+    .await
+    .map(Json)
 }
 
 async fn clock_state(state: &AppState) -> ApiResult {

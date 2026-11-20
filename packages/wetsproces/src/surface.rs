@@ -134,7 +134,6 @@ mod tests {
             "wetsproces-toegang",
             "wetsproces-admin",
             "wetsproces-beslisser",
-            "wetsproces-cel-gemeente_wilgendaal",
         ]);
         assert_eq!(
             Surface::Citizen.admitted_roles(token.clone()),
@@ -146,7 +145,6 @@ mod tests {
                 "wetsproces-toegang",
                 "wetsproces-admin",
                 "wetsproces-beslisser",
-                "wetsproces-cel-gemeente_wilgendaal",
             ])
         );
         assert_eq!(Surface::All.admitted_roles(token.clone()), token);

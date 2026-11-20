@@ -69,7 +69,7 @@ use std::path::PathBuf;
 
 use regelrecht_auth::OidcConfig;
 
-use crate::access::{CELL_ROLE_PREFIX, CITIZEN, Level, ROLE_PREFIX};
+use crate::access::{CITIZEN, Level, ROLE_PREFIX};
 use crate::surface::Surface;
 
 /// The variables of the OIDC configuration besides `OIDC_CLIENT_ID`: one of
@@ -332,7 +332,7 @@ pub enum ConfigError {
     NoAccessRole,
     #[error(
         "OIDC_REQUIRED_ROLE is `{0}`; it is a role of this server (wetsproces-...) that every \
-         account holds, such as wetsproces-toegang, and no citizen, level or cell role"
+         account holds, such as wetsproces-toegang, and no citizen or level role"
     )]
     ForeignAccessRole(String),
     #[error(
@@ -572,7 +572,6 @@ fn is_access_role(role: &str) -> bool {
     role.strip_prefix(ROLE_PREFIX)
         .is_some_and(|rest| !rest.is_empty())
         && role != CITIZEN
-        && !role.starts_with(CELL_ROLE_PREFIX)
         && !Level::ALL.iter().any(|l| l.role() == role)
 }
 
@@ -822,7 +821,7 @@ mod tests {
             "wetsproces-",
             "wetsproces-burger",
             "wetsproces-lezer",
-            "wetsproces-cel-gemeente_wilgendaal",
+            "wetsproces-admin",
         ] {
             let base = env(&[STABLE, OIDC]);
             let with_role = |k: &str| match k {
