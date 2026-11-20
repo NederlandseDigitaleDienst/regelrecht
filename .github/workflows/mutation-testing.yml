@@ -39,10 +39,10 @@ env:
   # zo'n halfuur per shard. De engine groeide sindsdien naar ~2570 mutanten,
   # en in de run van 2026-11-16 liepen zeven van de twaalf shards tegen de
   # timeout van een uur aan: ~190 mutanten bleven ongetest zonder dat het
-  # issue dat zei. Met de cel erbij (~580) zijn het er ~3150, en twintig
-  # shards houden elke shard weer ruim onder het uur.
+  # issue dat zei. Met de cel erbij (~580) zijn het er ~3150. Over 24 shards
+  # is dat ~130 per shard, zo'n veertig minuten tegen een timeout van zestig.
   # De matrix wordt hieruit afgeleid, dus dit is de enige plek waar het staat.
-  SHARD_COUNT: 20
+  SHARD_COUNT: 24
   # Zolang er meer dan dit aantal mutanten overleeft, is de opdracht simpel:
   # dat getal omlaag, elke week met dezelfde multiplier zodat de cijfers
   # vergelijkbaar blijven. Zakt het eronder, dan is de voorraad weggewerkt en
@@ -437,6 +437,9 @@ jobs:
           if [ -n "$id" ] && gh run download "$id" --repo "$GITHUB_REPOSITORY" \
                -n construct-mutation-report -D constructs 2>/dev/null; then
             echo "Constructierapport uit run $id."
+            echo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/$id" > constructs/run-url
+          else
+            echo "::warning::Geen constructierapport gevonden; het issue krijgt een regel die dat zegt."
           fi
 
       - name: Meld de bevindingen als issue
@@ -515,6 +518,14 @@ jobs:
               echo "regelwerken en kijkt of bucket B of de suite van de cel het merkt."
               echo
               cat constructs/construct-mutation.md
+              echo
+              echo "Uit [deze run]($(cat constructs/run-url))."
+            else
+              echo
+              echo "### Constructies van het wetsformaat"
+              echo
+              echo "_Geen rapport van de constructiemutatie gevonden: de laatste run op main"
+              echo "is niet afgerond of had geen rapport. Zie \`construct-mutation.yml\`._"
             fi
           } > body.md
 

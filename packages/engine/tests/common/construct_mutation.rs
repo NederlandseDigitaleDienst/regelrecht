@@ -38,6 +38,11 @@ enum Rewrite {
     Operation(&'static str, &'static str),
     /// A rewrite of the whole node that carries `operation: <op>`.
     Node(&'static str, fn(&mut Value) -> bool),
+    /// The node that carries `operation: <op>` is wrapped in a `NOT`. The
+    /// schema has no negated form of `EQUALS` or `IN`; `NOT_EQUALS` and
+    /// `NOT_IN` are compat aliases the engine may drop, after which the
+    /// mutated rulework would fail to load instead of computing otherwise.
+    Negate(&'static str),
     /// The key is removed from every mapping that holds it.
     DropKey(&'static str),
     /// A rewrite of every mapping, for constructs that are not an operation.
@@ -46,7 +51,7 @@ enum Rewrite {
 
 /// Every construct the runner knows how to break.
 pub const CONSTRUCTS: &[Construct] = &[
-    op("EQUALS", "NOT_EQUALS"),
+    negate("EQUALS"),
     op("GREATER_THAN", "GREATER_THAN_OR_EQUAL"),
     op("LESS_THAN", "LESS_THAN_OR_EQUAL"),
     op("GREATER_THAN_OR_EQUAL", "GREATER_THAN"),
@@ -62,7 +67,7 @@ pub const CONSTRUCTS: &[Construct] = &[
     op("FLOOR", "CEIL"),
     op("AND", "OR"),
     op("OR", "AND"),
-    op("IN", "NOT_IN"),
+    negate("IN"),
     node("NOT", "replaced by its operand", unwrap_not),
     node("IF", "first case dropped", drop_first_case),
     node("LIST", "last item dropped", drop_last_item),
@@ -239,6 +244,14 @@ const fn node(name: &'static str, how: &'static str, f: fn(&mut Value) -> bool) 
     }
 }
 
+const fn negate(name: &'static str) -> Construct {
+    Construct {
+        name,
+        how: "wrapped in NOT",
+        rewrite: Rewrite::Negate(name),
+    }
+}
+
 const fn drop_key(name: &'static str, key: &'static str) -> Construct {
     Construct {
         name,
@@ -293,6 +306,11 @@ pub fn mutated(
         Some(articles) => walk(articles, &construct.rewrite),
         None => 0,
     };
+    if sites == 0 {
+        // Unchanged text, so a round trip through serde cannot make the
+        // construct's run differ from the baseline in some other way.
+        return Ok((content.to_string(), 0));
+    }
     Ok((serde_yaml_ng::to_string(&law)?, sites))
 }
 
@@ -310,6 +328,15 @@ fn declares_synthetic_id(line: &str) -> bool {
 /// replaces a node (NOT) still reaches the operations in its operand.
 fn walk(value: &mut Value, rewrite: &Rewrite) -> usize {
     let here = usize::from(apply(value, rewrite));
+    // A negated node now holds the original under `value`. Walking into that
+    // original again would wrap it again, so continue with its operands.
+    let value = match (here, rewrite, value) {
+        (1, Rewrite::Negate(_), Value::Mapping(map)) => match map.get_mut("value") {
+            Some(original) => original,
+            None => return here,
+        },
+        (_, _, value) => value,
+    };
     let below: usize = match value {
         Value::Mapping(map) => map.values_mut().map(|v| walk(v, rewrite)).sum(),
         Value::Sequence(items) => items.iter_mut().map(|v| walk(v, rewrite)).sum(),
@@ -328,6 +355,14 @@ fn apply(value: &mut Value, rewrite: &Rewrite) -> bool {
             false
         }
         Rewrite::Node(op, f) => operation_of(value) == Some(op) && f(value),
+        Rewrite::Negate(op) => {
+            if operation_of(value) != Some(op) {
+                return false;
+            }
+            let original = std::mem::take(value);
+            *value = operation_node("NOT", [("value", original)]);
+            true
+        }
         Rewrite::DropKey(key) => match value {
             Value::Mapping(map) => map.remove(*key).is_some(),
             _ => false,

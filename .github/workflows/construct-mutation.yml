@@ -53,11 +53,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Een suite draait zijn scenario's na elkaar en laadt per scenario het
-        # hele corpus: bucket B kost zo'n vier minuten, de cel drie. Een
-        # constructie is twee suites; over vier shards van vier kernen blijft
-        # elke shard onder het halfuur. Verander je het aantal, verander dan
-        # ook SHARD_COUNT hieronder.
+        # Een suite draait zijn scenario's na elkaar, dus per constructie twee
+        # processen naast elkaar op de vier kernen van een runner. De eerste
+        # run op PR #2061 deed er per shard vijf tot zeven minuten over,
+        # bouwen inbegrepen. Verander je het aantal, verander dan ook
+        # SHARD_COUNT hieronder.
         shard: [0, 1, 2, 3]
     env:
       SHARD_COUNT: 4

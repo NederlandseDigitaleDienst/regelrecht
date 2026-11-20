@@ -54,7 +54,7 @@ mod discovery;
 mod dispatch;
 mod extension;
 mod helpers;
-// Each runner uses part of it: the cell's never lists, neither excuses.
+// Neither runner reads `NOT_MUTATED`, and the cell's runner never lists.
 #[allow(dead_code)]
 #[path = "../common/construct_mutation.rs"]
 mod construct_mutation;

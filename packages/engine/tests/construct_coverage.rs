@@ -270,3 +270,117 @@ fn foreach_combine_moves_to_its_counterpart() {
         Some("MAX")
     );
 }
+
+fn action_value(mr: &serde_yaml_ng::Value) -> &serde_yaml_ng::Value {
+    &mr["execution"]["actions"][0]["value"]
+}
+
+fn with_value(value: &str) -> String {
+    let indented: String = value.lines().map(|l| format!("        {l}\n")).collect();
+    format!("execution:\n  actions:\n    - output: x\n      value:\n{indented}")
+}
+
+#[test]
+fn equals_is_wrapped_in_not_once_and_its_operands_still_mutate() {
+    let (mr, sites) = mutate(
+        "EQUALS",
+        &with_value(
+            "operation: EQUALS\nsubject:\n  operation: EQUALS\n  subject: $a\n  value: 1\nvalue: true",
+        ),
+    );
+    assert_eq!(sites, 2);
+    let outer = action_value(&mr);
+    assert_eq!(outer["operation"].as_str(), Some("NOT"));
+    assert_eq!(outer["value"]["operation"].as_str(), Some("EQUALS"));
+    assert_eq!(outer["value"]["subject"]["operation"].as_str(), Some("NOT"));
+    assert_eq!(
+        outer["value"]["subject"]["value"]["operation"].as_str(),
+        Some("EQUALS")
+    );
+}
+
+#[test]
+fn record_swaps_its_first_two_values_unless_they_are_equal() {
+    let (mr, sites) = mutate(
+        "RECORD",
+        &with_value("operation: RECORD\nfields:\n  a: 1\n  b: 2"),
+    );
+    assert_eq!(sites, 1);
+    assert_eq!(action_value(&mr)["fields"]["a"].as_i64(), Some(2));
+    let (_, sites) = mutate(
+        "RECORD",
+        &with_value("operation: RECORD\nfields:\n  a: 1\n  b: 1"),
+    );
+    assert_eq!(sites, 0);
+}
+
+#[test]
+fn foreach_gets_an_empty_collection_and_loses_its_filter() {
+    let foreach =
+        "operation: FOREACH\ncollection: $c\nas: i\nfilter: true\nbody: $i\ncombine: ONLY";
+    let (mr, _) = mutate("FOREACH", &with_value(foreach));
+    let collection = &action_value(&mr)["collection"];
+    assert_eq!(collection["operation"].as_str(), Some("LIST"));
+    assert_eq!(collection["items"].as_sequence().map(Vec::len), Some(0));
+    let (mr, sites) = mutate("foreachOperation.filter", &with_value(foreach));
+    assert_eq!(sites, 1);
+    assert!(action_value(&mr).get("filter").is_none());
+    let (mr, _) = mutate("foreachOperation.combine", &with_value(foreach));
+    assert!(
+        action_value(&mr).get("combine").is_none(),
+        "ONLY is removed"
+    );
+}
+
+#[test]
+fn date_operands_are_swapped_or_shifted() {
+    let (mr, _) = mutate(
+        "AGE",
+        &with_value("operation: AGE\ndate_of_birth: $b\nreference_date: $r"),
+    );
+    assert_eq!(action_value(&mr)["date_of_birth"].as_str(), Some("$r"));
+    let (mr, _) = mutate(
+        "DATE_DIFF",
+        &with_value("operation: DATE_DIFF\nfrom: $a\nto: $b\nin: days"),
+    );
+    assert_eq!(action_value(&mr)["from"].as_str(), Some("$b"));
+    let (mr, _) = mutate(
+        "DATE_ADD",
+        &with_value("operation: DATE_ADD\ndate: $d\ndays: $n"),
+    );
+    let days = &action_value(&mr)["days"];
+    assert_eq!(days["operation"].as_str(), Some("ADD"));
+    assert_eq!(days["values"][1].as_i64(), Some(1));
+    let (mr, _) = mutate(
+        "DAY_OF_WEEK",
+        &with_value("operation: DAY_OF_WEEK\ndate: $d"),
+    );
+    let date = &action_value(&mr)["date"];
+    assert_eq!(date["operation"].as_str(), Some("DATE_ADD"));
+    assert_eq!(date["date"].as_str(), Some("$d"));
+    let (mr, _) = mutate(
+        "START_OF",
+        &with_value("operation: START_OF\ndate: $d\nin: month"),
+    );
+    assert_eq!(action_value(&mr)["in"].as_str(), Some("year"));
+}
+
+#[test]
+fn a_quoted_synthetic_id_is_recognised() {
+    let law = law(
+        "execution:\n  actions:\n    - output: x\n      operation: ADD\n      values: [1, 2]\n",
+    )
+    .replace("$id: test_mutation", "$id: 'test_mutation'");
+    let (_, sites) = mutated(&law, construct("ADD")).unwrap();
+    assert_eq!(sites, 1);
+}
+
+#[test]
+fn a_synthetic_regelwerk_without_a_site_keeps_its_text() {
+    let law = law(
+        "execution:\n  actions:\n    - output: x\n      value: 1   # a comment serde would drop\n",
+    );
+    let (yaml, sites) = mutated(&law, construct("ADD")).unwrap();
+    assert_eq!(sites, 0);
+    assert_eq!(yaml, law);
+}

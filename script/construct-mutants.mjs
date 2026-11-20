@@ -146,17 +146,33 @@ function cargoTest(suite, mutation) {
   if (mutation) env.BDD_CONSTRUCT_MUTATION = mutation;
   else delete env.BDD_CONSTRUCT_MUTATION;
   const args = ['test', '--manifest-path', path.join(root, 'packages/Cargo.toml'), ...suite.args, '--', '--nocapture'];
-  return new Promise((resolve) => {
-    const child = spawn('cargo', args, { env });
+  return new Promise((resolve, reject) => {
+    // Its own process group, so the timeout below can kill the test binary
+    // that cargo starts and not only cargo: the binary holds the pipes open,
+    // and 'close' would otherwise never come.
+    const child = spawn('cargo', args, { env, detached: true });
     const chunks = [];
     child.stdout.on('data', (c) => chunks.push(c));
     child.stderr.on('data', (c) => chunks.push(c));
     // A mutation that makes a scenario loop forever counts as noticed, like a
     // timeout in cargo-mutants, but the run has to end.
-    const timer = setTimeout(() => child.kill('SIGKILL'), 20 * 60 * 1000);
+    const timer = setTimeout(() => {
+      try {
+        process.kill(-child.pid, 'SIGKILL');
+      } catch {
+        child.kill('SIGKILL');
+      }
+    }, 20 * 60 * 1000);
     child.on('close', (code) => {
       clearTimeout(timer);
       const output = Buffer.concat(chunks).toString('utf8');
+      if (output.includes('Failed to mutate')) {
+        // The mutation itself broke, not a scenario: that is a bug in
+        // construct_mutation.rs and must not count as a pin.
+        process.stderr.write(output);
+        reject(new Error(`${mutation}: the mutation could not be applied`));
+        return;
+      }
       resolve({ suite: suite.name, ok: code === 0, output, ...parseRun(output) });
     });
   });
@@ -236,7 +252,9 @@ async function main(argv) {
   let known;
   let seconds;
   if (argv.includes('--merge')) {
-    const files = argv.slice(argv.indexOf('--merge') + 1).filter((a) => !a.startsWith('--'));
+    const rest = argv.slice(argv.indexOf('--merge') + 1);
+    const end = rest.findIndex((a) => a.startsWith('--'));
+    const files = end < 0 ? rest : rest.slice(0, end);
     const shards = files.map((f) => JSON.parse(fs.readFileSync(f, 'utf8')));
     results = shards.flatMap((sh) => sh.results);
     known = [...new Set(shards.flatMap((sh) => sh.known))];
@@ -247,6 +265,8 @@ async function main(argv) {
     const only = arg('--only');
     if (only) {
       const wanted = new Set(only.split(','));
+      const unknown = [...wanted].filter((name) => !known.includes(name));
+      if (unknown.length > 0) throw new Error(`--only: no construct named ${unknown.join(', ')}`);
       constructs = constructs.filter((c) => wanted.has(c.name));
     }
     // The scenarios run one at a time, so a suite uses one core: run as many
