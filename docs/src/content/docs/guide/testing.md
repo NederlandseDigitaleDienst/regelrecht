@@ -16,6 +16,7 @@ The table lists the tests in this repository and the jobs that run them here. Th
 | The cell's BDD suite and its constructs | `packages/cel/bdd/` | `just bdd` | BDD conformance |
 | Demo scenarios | `corpus/demo/regulation/**/scenarios/` | `just bdd-demo` | BDD demo |
 | Scenarios of the chronolexografie PoC | `packages/poc-chronolexografie/corpus/` | `just bdd-chrono` | BDD demo |
+| Example caller of the reusable BDD workflow | `bdd/external-corpus-example/` | see [BDD scenarios from another repository](#bdd-scenarios-from-another-repository) | Example corpus, Example reports hold only its scenarios |
 | Scenarios of the JavaScript PoCs | `frontend-poc-*/tests/scenarios.test.js` | `npm test -w frontend-poc-<slug>` | E2E (mocked) |
 | Rust unit and integration tests | `packages/*/src/`, `packages/*/tests/` | `just test` | Rust tests |
 | Golden fixtures | `packages/engine/tests/golden_tests.rs` | `just test` | Rust tests |
@@ -25,6 +26,8 @@ The table lists the tests in this repository and the jobs that run them here. Th
 | Schema validation | the corpora | `just validate` | Pre-commit |
 | Script tests | `script/*.test.sh`, `script/*.test.mjs` | `just check` | Pre-commit |
 | Frontend unit tests and type checks | `frontend/`, `frontend-lawmaking/`, `frontend-demo/`, `packages/frontend-shared/`, `packages/poc-chronolexografie/frontend/` | `just frontend-test` | Frontend tests |
+| Unit tests of the JavaScript PoCs | `frontend-poc-*/src/` | `npm test -w frontend-poc-<slug>` | E2E (mocked); wetsgeschiedenis: Frontend tests |
+| PoC tests against the engine or the casus | `frontend-poc-*/tests/`, `packages/poc-chronolexografie/frontend/tests/` | `npm test -w <workspace>` | E2E (mocked); wetsgeschiedenis and chronolexografie: Frontend tests |
 | Editor end to end, mocked | `frontend/e2e/` | `just test-e2e` | E2E (mocked) |
 | Walkthrough pipeline | `script/walkthrough/tests/` | `just walkthrough test` | Frontend tests |
 | Walkthrough replay | `frontend-demo/scripts/verify-walkthrough.mjs` | `just walkthrough verify` | Rondleiding speelt terug |
@@ -34,7 +37,7 @@ The table lists the tests in this repository and the jobs that run them here. Th
 | Mutation testing | `packages/engine`, `packages/pipeline`, `packages/cel` | `just mutants-diff` | Mutation Testing (diff) |
 | Benchmarks | `packages/engine/benches/` | `just bench` | No |
 
-A test of the engine or the law format is named after the construct it tests. That holds for the test file, the feature and the construct directory; a test function may describe the behavior in the terms of its case. The law or case only makes the test concrete, so its name belongs in a fixture or a Background. Bucket A is the exception, because a scenario next to a rulework tests that rulework.
+A test of the engine or the law format is named after the construct it tests. That holds for the test file, the feature, the construct directory and the test function: a function says what the construct does (`a_grant_revoked_on_objection_does_not_count`), not what happens in its case (a refused parking card). The law or case only makes the test concrete, so its name belongs in a fixture or a Background. A large test file is split into a directory, `tests/<construct>/main.rs` with one module per construct beside it, as `packages/cel/tests/submission_lifecycle/` is. Bucket A is the exception, because a scenario next to a rulework tests that rulework. So a test that only checks the values of one rulework belongs there and not in a Rust test.
 
 ## BDD scenarios
 
@@ -73,7 +76,7 @@ To add a construct:
 
 `just bdd` and the CI job "BDD conformance" run the constructs with the rest of the cell's suite; no recipe or workflow changes.
 
-The runner reads the set from where a feature sits, whichever directory `<set>` is. A corpus with a `scenarios/` directory next to its `regulation/` directory would load by the same rule once its features are added to the list in `packages/cel/tests/bdd/main.rs`. Nothing does that yet. The engine's own runner does not look at where a feature sits and always loads the corpus.
+The runner reads the set from where a feature sits, whichever directory `<set>` is. `BDD_CONSTRUCT_SETS` names sets from outside the crate: a `:`-separated list of set directories. When it is set, the runner plays those sets alone and leaves out its own suite, which runs in regelrecht's CI. A directory in it that is not a set, or that holds no feature, fails the run as a construct would. The engine's own runner does not look at where a feature sits and always loads the corpus.
 
 ### The step vocabulary is generated, not hand-written
 
@@ -115,6 +118,8 @@ just bdd-chrono                   # Bucket A over the corpus of the chronolexogr
 just bdd-trace                    # With execution traces in trace_output/
 ```
 
+When a rulework in a directory of `REGULATION_PATH` cannot be loaded, the run fails and names the file; the loader does not skip it.
+
 `just bdd-chrono` runs bucket A over the corpus of the chronolexografie PoC, which keeps its own copies of the real ruleworks it uses so that work on the PoC leaves `corpus/regulation/` alone. Their scenarios went along with them. Two of those features are still identical to the originals in the corpus: `criteria.feature` of the Regeling gehandicaptenparkeerkaart and `regio_en_vakanties.feature` of the Regeling vaststelling schoolvakanties. Both copies stay. The PoC's copy of the parking card regulation already makes a choice of its own on article 2, so that feature tests a different version. The PoC's ruleworks change only when someone works on the PoC, so a red scenario there is a real error and runs in CI. The originals are bucket A and stay out.
 
 Two other PoCs run their scenarios against the engine built to WASM instead, through `tests/scenarios.test.js` in their frontend. They are listed in `BDD_RUNNERS` in `script/orphan-tests.mjs`, which is how the orphan check knows their features are read.
@@ -122,6 +127,43 @@ Two other PoCs run their scenarios against the engine built to WASM instead, thr
 ### Deriving scenarios from legislative intent
 
 Test scenarios are derived from the **Memorie van Toelichting** (MvT), the explanatory memorandum that accompanies Dutch legislation. The MvT contains examples and reasoning from the legislature that serve as ground truth for expected behavior.
+
+## BDD scenarios from another repository
+
+A corpus kept in another repository runs its scenarios in its own CI by calling the reusable workflow `.github/workflows/corpus-bdd.yml`. The workflow checks out the caller and regelrecht side by side and builds the engine. It then runs bucket A over the caller's ruleworks, the construct sets in a directory of the caller, or both:
+
+```yaml
+# .github/workflows/bdd.yml in example-org/regelrecht-corpus-example
+name: BDD
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  bdd:
+    uses: NederlandseDigitaleDienst/regelrecht/.github/workflows/corpus-bdd.yml@<commit>
+    with:
+      regulation-path: regulation          # holds nl/ and the scenarios/ directories
+      include-central-corpus: true         # load corpus/regulation beside it
+      buckets: all                         # corpus, constructs or all
+      constructs-path: constructs          # one construct set per subdirectory
+```
+
+The commit after `@` fixes the workflow and the engine together: with `regelrecht-ref` left empty, the workflow checks out regelrecht at the commit it was read from. Pin a commit, not a branch: a change in regelrecht then reaches the corpus as an update someone reviews. Set `regelrecht-ref` only to try another engine under the same workflow.
+
+With `include-central-corpus`, the ruleworks of `corpus/regulation` load beside the caller's but their scenarios do not run: `BDD_SCENARIO_PATH` keeps bucket A to the caller's directory. A `$id` that both directories hold fails every scenario, with a file from each in the message. A corpus with its own version of a central rulework therefore leaves `include-central-corpus` off, and keeps every central rulework its scenarios read in its own directory. The engine keeps one version per `$id` and `valid_from`. Without the check, a file with the same `valid_from` would replace the other, and the order of `REGULATION_PATH` would decide which one stays; a file with another `valid_from` would quietly join it as an extra version.
+
+Within one directory, the versions of a rulework load side by side.
+
+Each construct set of the caller is named after the construct it tests, as the sets here are. The construct sets run through the cell's runner, without its own suite. Each run writes a JUnit report through `BDD_JUNIT`, so both reports hold only the caller's scenarios. The workflow uploads them as one artifact, named by `artifact-name` (default `bdd-reports`), and lists the counts and every failed scenario in the step summary. The job fails when either run fails. `.github/workflows/corpus-bdd-example.yml` calls it against the fictional corpus in `bdd/external-corpus-example` whenever the workflow, a runner or the example corpus changes.
+
+To run the example locally, from `packages/engine` and then from `packages/cel`:
+
+```bash
+BDD_BUCKET=corpus REGULATION_PATH=$PWD/../../bdd/external-corpus-example/regulation:$PWD/../../corpus/regulation \
+  BDD_SCENARIO_PATH=$PWD/../../bdd/external-corpus-example/regulation cargo test --test bdd
+BDD_CONSTRUCT_SETS=$PWD/../../bdd/external-corpus-example/constructs/decision_on_submission cargo test --test bdd
+```
 
 ## Rust tests
 
@@ -135,13 +177,13 @@ just test-db        # Only the container-backed crates
 
 A few crates also have a recipe of their own, such as `just pipeline-test` and `just pipeline-integration-test` (the second needs Docker); `just` lists them.
 
-The tests of `packages/cel` and the reduction tests of the engine (`packages/engine/tests/reduction.rs`) share one set of fixtures, `packages/cel/tests/fixtures/corpus/`. A fixture there is YAML made for these tests and holds only what they read: the cells, and fictional rulework and reductions cut down to the articles and outputs a test exercises. Real laws such as the Awb and the Leerplichtwet are not copied in. The tests read them from `corpus/regulation/`.
+Each crate's tests read their own fixtures. Those of `packages/cel` are in `packages/cel/tests/fixtures/corpus/`, and the reduction tests of the engine (`packages/engine/tests/reduction.rs`) have theirs in `packages/engine/tests/fixtures/reduction/`. A fixture is YAML made for its tests and holds only what they read: the cells, and fictional rulework and reductions cut down to the articles and outputs a test exercises. Real laws such as the Awb and the Leerplichtwet are not copied in. These tests still read them from `corpus/regulation/`.
 
 ### Golden fixtures and trace snapshots
 
 `packages/engine/tests/golden_tests.rs` runs the JSON cases in `packages/engine/tests/fixtures/*.json`, each a law as YAML text with parameters and an expected result. [Conformance](/reference/conformance#golden-fixtures) describes their format and where they came from.
 
-`packages/engine/tests/trace_integration.rs` evaluates the zorgtoeslag and the standaardpremie, compares each rendered trace with its snapshot (`expected_zorgtoeslag_trace.txt`, `expected_standaardpremie_trace.txt`), and checks what each step of the trace carries. It reads a frozen copy of the ruleworks it needs, in `packages/engine/tests/fixtures/trace_corpus/`, and not the corpus. A change to the zorgtoeslag in the corpus therefore does not turn this engine test red; that change is for the bucket A scenarios and a human. Only the ruleworks the evaluation reaches are in the copy, the Awb included because its hooks show in the trace. Adding another one can fire a hook and change the expected trace.
+`packages/engine/tests/trace_integration.rs` evaluates the zorgtoeslag and the standaardpremie, compares each rendered trace with its snapshot (`expected_zorgtoeslag_trace.txt`, `expected_standaardpremie_trace.txt`), and checks what each step of the trace carries. It reads a frozen copy of the ruleworks it needs, in `packages/engine/tests/fixtures/trace_corpus/`, and not the corpus. A change to the zorgtoeslag in the corpus therefore does not turn this engine test red; that change is for the bucket A scenarios and a human. Only the ruleworks the evaluation reaches are in the copy, the Awb included because its hooks show in the trace. Adding another one can fire a hook and change the expected trace. A few unit tests in `packages/engine/src` (`article.rs`, `resolver.rs`, `service.rs`) read the same copy, and one of them counts its ruleworks.
 
 ### The corpus type check
 
@@ -157,7 +199,7 @@ Checks that the Rust `law-model` accepts exactly what the JSON schema accepts. I
 
 ## Schema validation
 
-Every rulework is validated against the JSON schema. Without arguments, `just validate` checks the corpus (`corpus/regulation`), the ruleworks and reductions of the chronolexografie PoC, and the fixtures of the cell's BDD suite (`packages/cel/bdd/fixtures`: its `regulation/` directory and the reductions of its cell), and the `regulation/` directory of each construct in `packages/cel/bdd/constructs`. It leaves the demo corpus out; `just validate-demo` covers that. The pre-commit hook runs the same recipe on the changed files in all of these directories, the demo corpus included, and CI runs the hooks over the whole tree.
+Every rulework is validated against the JSON schema. Without arguments, `just validate` checks the corpus (`corpus/regulation`), the ruleworks and reductions of the chronolexografie PoC, and the fixtures of the cell's BDD suite (`packages/cel/bdd/fixtures`: its `regulation/` directory and the reductions of its cell), the `regulation/` directory of each construct in `packages/cel/bdd/constructs`, and the fictional outside corpus in `bdd/external-corpus-example`. It leaves the demo corpus out; `just validate-demo` covers that. The pre-commit hook runs the same recipe on the changed files in all of these directories, the demo corpus included, and CI runs the hooks over the whole tree.
 
 ```bash
 just validate                     # Validate all
@@ -168,7 +210,7 @@ just validate-demo                # Validate the demo corpus
 
 ## Frontend tests
 
-`just frontend-test` runs the unit tests and type checks of the editor, lawmaking, the demo, the shared package and the chronolexografie PoC. `just test-e2e` builds the engine to WASM and drives the editor with Playwright against mocked backends. Where frontend code and its tests go is on [Frontend code](/guide/frontend-code).
+`just frontend-test` runs the unit tests and type checks of the editor, lawmaking, the demo, the shared package and the chronolexografie PoC. `just test-e2e` builds the engine to WASM and drives the editor with Playwright against mocked backends. Where frontend code and its tests go is on [Frontend code](/guide/frontend-code#where-tests-go).
 
 `just smoke-preview` is the one test that runs against a deployed editor: a preview by its pull request number, or a URL. It logs in through the real Keycloak and needs the test user's credentials, so CI does not run it. [Deployment](/operations/deployment) covers previews and waking one up first.
 
@@ -227,6 +269,6 @@ A test that no CI job starts never fails, so a missing hook or step goes unnotic
 - a `.feature` file that no BDD runner in CI reads. The engine reads the directories that `BDD_BUCKET` and `REGULATION_PATH` select per step; the PoC runners are listed in `BDD_RUNNERS` in `script/orphan-tests.mjs`
 - a `@wip` tag or an `#[ignore]` without a comment that says why, above it or on the same line (`#[ignore = "..."]` counts too)
 
-The guard skips one directory, `corpus/regulation`, because bucket A over the live laws stays out of CI on purpose. `EXCEPTIONS` in `script/orphan-tests.mjs` records that reason. The guard runs as a pre-commit hook and therefore in the **Pre-commit** check. Its own suite is `just orphan-tests-test`, with a passing and a failing case for each rule.
+The guard skips two directories. Bucket A over the live laws in `corpus/regulation` stays out of CI on purpose. `bdd/external-corpus-example` does run, but through the inputs of the reusable workflow, which the guard cannot read. `EXCEPTIONS` in `script/orphan-tests.mjs` records both reasons. The guard runs as a pre-commit hook and therefore in the **Pre-commit** check. Its own suite is `just orphan-tests-test`, with a passing and a failing case for each rule.
 
 It reads YAML and shell line by line and leans towards counting a test as run. A recipe with a `case` counts as running every branch, and a file counts as run once it is the command or an argument of an interpreter such as `node` or `bash`. The vitest `include` and `exclude` lists and the cargo flags that narrow a run (`--no-run`, `--lib`, `--test`) decide what a run covers. Beyond those, a test drops out only through a literal `if: false` on its step or job, a leg under a matrix `exclude`, or a hook that CI never runs. Any other condition still counts as a run. So does a workflow that only runs on a schedule, and so does a step with `continue-on-error`. Playwright `*.spec.*` files and the pytest suites are outside its scope. Whether a test that runs also tests something is still a question for review.

@@ -1,0 +1,6 @@
+{
+  "punten": [
+    { "naam": "P1 %%NAAM%%", "rd": [0, 0], "waarom": "%%WAAROM_DIT_PUNT%%", "soort": "testpunt", "toets": true },
+    { "naam": "%%VOORBEELDPLEK%%", "rd": [0, 0], "waarom": "%%WAAROM%%", "soort": "voorbeeld" }
+  ]
+}

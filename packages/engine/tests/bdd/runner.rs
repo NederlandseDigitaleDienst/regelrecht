@@ -2,12 +2,19 @@
 //! the parser for an explicit list of feature files and the cucumber run. The
 //! cell's runner includes this module, like the world and the dispatch, by
 //! `#[path]`, and gives it its own features.
+//!
+//! With `BDD_JUNIT` set to a path, a run also writes a JUnit report of every
+//! scenario there, for a CI that reads the outcome rather than the log.
 
+use std::fs::File;
+use std::io;
 use std::path::{Path, PathBuf};
 
 use cucumber::feature::Ext as _;
-use cucumber::{World as _, cli, parser};
+use cucumber::{World as _, WriterExt as _, cli, parser, writer};
 use futures::stream;
+
+use crate::world::RegelrechtWorld;
 
 /// Parser that consumes an explicit, pre-collected list of feature file paths
 /// (the two buckets) instead of recursively walking a single root. This keeps
@@ -50,8 +57,16 @@ pub async fn run(features: Vec<PathBuf>) {
     // counts a step without a matching definition as *skipped*, and
     // `execution_has_failed()` only looks at failed steps. Without it a reworded
     // `Then` passes green while asserting nothing.
-    crate::world::RegelrechtWorld::cucumber::<&Path>()
+    RegelrechtWorld::cucumber::<&Path>()
         .with_parser::<ExplicitPaths, Vec<PathBuf>>(ExplicitPaths)
+        // The console output of the default writer, and beside it the JUnit
+        // report, which goes nowhere without `BDD_JUNIT`.
+        .with_writer(
+            writer::Basic::raw(io::stdout(), writer::Coloring::Auto, 0)
+                .summarized()
+                .tee::<RegelrechtWorld, _>(writer::JUnit::for_tee(junit_output(), 0))
+                .normalized(),
+        )
         .max_concurrent_scenarios(1) // Run scenarios sequentially for predictable state
         .fail_on_skipped()
         // The world starts empty: which regelwerken a scenario loads depends
@@ -65,4 +80,19 @@ pub async fn run(features: Vec<PathBuf>) {
             !is_wip(&feature.tags) && !is_wip(&scenario.tags)
         })
         .await;
+}
+
+/// Where the JUnit report goes: the file `BDD_JUNIT` names, created or
+/// truncated, or nowhere when it is unset or blank. A path that cannot be
+/// written fails the run before the first scenario, rather than after the
+/// last one with no report.
+fn junit_output() -> Box<dyn io::Write> {
+    match std::env::var_os("BDD_JUNIT") {
+        Some(path) if !path.is_empty() => {
+            let file = File::create(&path)
+                .unwrap_or_else(|e| panic!("BDD_JUNIT={}: {e}", Path::new(&path).display()));
+            Box::new(file)
+        }
+        _ => Box::new(io::sink()),
+    }
 }

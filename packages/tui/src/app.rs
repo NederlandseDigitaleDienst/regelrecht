@@ -217,3 +217,76 @@ fn find_corpus_dir(project_root: &Path) -> Option<PathBuf> {
     ];
     candidates.into_iter().find(|p| p.is_dir())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn each_tab_is_reached_by_the_key_it_shows() {
+        for tab in Tab::ALL {
+            let key = tab
+                .key_label()
+                .chars()
+                .next()
+                .expect("key label is one digit");
+            assert_eq!(
+                Tab::from_key(key),
+                Some(tab),
+                "key {key} should open {tab:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_key_that_is_not_a_digit_opens_no_tab() {
+        assert_eq!(Tab::from_key('a'), None);
+    }
+
+    #[test]
+    fn index_and_from_index_round_trip() {
+        for (i, tab) in Tab::ALL.iter().enumerate() {
+            assert_eq!(tab.index(), i);
+            assert_eq!(Tab::from_index(i), Some(*tab));
+        }
+        assert_eq!(Tab::from_index(Tab::ALL.len()), None);
+    }
+
+    #[test]
+    fn next_wraps_from_the_last_tab_to_the_first() {
+        assert_eq!(Tab::Dashboard.next(), Tab::Bdd);
+        assert_eq!(Tab::Actions.next(), Tab::Dashboard);
+    }
+
+    #[test]
+    fn prev_wraps_from_the_first_tab_to_the_last() {
+        assert_eq!(Tab::Bdd.prev(), Tab::Dashboard);
+        assert_eq!(Tab::Dashboard.prev(), Tab::Actions);
+    }
+
+    #[test]
+    fn next_and_prev_undo_each_other_on_every_tab() {
+        for tab in Tab::ALL {
+            assert_eq!(tab.next().prev(), tab);
+            assert_eq!(tab.prev().next(), tab);
+        }
+    }
+
+    #[test]
+    fn corpus_dir_prefers_regulation_over_the_bare_corpus() -> std::io::Result<()> {
+        let root = tempfile::tempdir()?;
+        std::fs::create_dir_all(root.path().join("corpus/regulation"))?;
+        assert_eq!(
+            find_corpus_dir(root.path()),
+            Some(root.path().join("corpus/regulation"))
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn no_corpus_dir_without_a_corpus() -> std::io::Result<()> {
+        let root = tempfile::tempdir()?;
+        assert_eq!(find_corpus_dir(root.path()), None);
+        Ok(())
+    }
+}

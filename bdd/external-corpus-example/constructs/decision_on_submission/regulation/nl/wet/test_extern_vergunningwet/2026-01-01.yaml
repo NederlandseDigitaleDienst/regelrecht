@@ -1,0 +1,53 @@
+---
+# FICTIEF. The regelwerk of a construct set of a corpus outside regelrecht, for
+# the example caller of the reusable BDD workflow
+# (.github/workflows/corpus-bdd-example.yml): an application for a
+# permit, and the decision on it, with the procedure that orders the two.
+# None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.22/schema/v0.8.22/schema.json
+$id: test_extern_vergunningwet
+name: Testwet externe vergunning
+regulatory_layer: WET
+bwb_id: BWBR9999992
+publication_date: '2026-01-01'
+valid_from: '2026-01-01'
+url: https://example.com/test_extern_vergunningwet
+
+# The procedure of a decision on an application: the application, then the
+# decision. A submission is executed at its own stage.
+procedure:
+  - id: beschikking
+    default: true
+    applies_to:
+      legal_character: BESCHIKKING
+    stages:
+      - name: AANVRAAG
+        description: The application is filed.
+      - name: BESLUIT
+        description: The decision is taken.
+
+articles:
+  - number: '1'
+    url: https://example.com/test_extern_vergunningwet/1
+    text: >-
+      FICTIEF. Het college verleent op aanvraag een vergunning aan wie aan de
+      voorwaarden voldoet.
+    machine_readable:
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_extern_vergunningwet#1
+            parameters:
+              - meets_conditions
+          - type: BESCHIKKING
+            outputs:
+              - permit_granted
+        parameters:
+          - name: meets_conditions
+            type: boolean
+        output:
+          - name: permit_granted
+            type: boolean
+        actions:
+          - output: permit_granted
+            value: $meets_conditions

@@ -397,3 +397,74 @@ fn extract_open_terms(content: &str) -> Vec<String> {
 
     terms
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn source_refs_are_the_regulations_named_under_source() {
+        let yaml = "\
+- name: inkomen
+  source:
+    regulation: wet_inkomstenbelasting_2001
+    output: verzamelinkomen
+- name: leeftijd
+  source:
+    output: leeftijd
+- name: toetsingsinkomen
+  source:
+    regulation: 'algemene_wet_inkomensafhankelijke_regelingen'
+";
+        let mut refs = extract_source_refs(yaml);
+        refs.sort();
+        assert_eq!(
+            refs,
+            [
+                "algemene_wet_inkomensafhankelijke_regelingen",
+                "wet_inkomstenbelasting_2001"
+            ]
+        );
+    }
+
+    #[test]
+    fn a_regulation_named_twice_is_one_source_ref() {
+        let yaml = "source:\n  regulation: a\nsource:\n  regulation: a\n";
+        assert_eq!(extract_source_refs(yaml), ["a"]);
+    }
+
+    #[test]
+    fn implements_lists_each_law_until_the_block_ends() {
+        let yaml = "\
+implements:
+  - law: participatiewet
+    article: '8'
+    open_term: verlaging
+  - law: \"wet_x\"
+articles:
+  - law: not_an_implementation
+";
+        assert_eq!(extract_implements(yaml), ["participatiewet", "wet_x"]);
+    }
+
+    #[test]
+    fn open_terms_reads_named_entries_and_bare_list_items() {
+        let yaml = "\
+open_terms:
+  - name: verlaging
+    type: amount
+    description: de verlaging
+  - normbedrag
+articles: []
+";
+        assert_eq!(extract_open_terms(yaml), ["verlaging", "normbedrag"]);
+    }
+
+    #[test]
+    fn content_without_these_blocks_yields_nothing() {
+        let yaml = "$id: wet\narticles: []\n";
+        assert!(extract_source_refs(yaml).is_empty());
+        assert!(extract_implements(yaml).is_empty());
+        assert!(extract_open_terms(yaml).is_empty());
+    }
+}

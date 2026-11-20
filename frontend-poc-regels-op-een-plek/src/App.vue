@@ -44,7 +44,7 @@ onMounted(async () => {
       <nldd-skip-link text="Direct naar de inhoud">
         <nldd-top-navigation-bar
           logo-title="Spoorzone Veenendaal"
-          logo-subtitle="Verkenning · kan hier een woontoren van 5 lagen? Met en zonder DSO"
+          logo-subtitle="Verkenning · kan hier een woontoren van 5 lagen?"
           website-href="./"
         >
         </nldd-top-navigation-bar>

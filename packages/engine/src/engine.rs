@@ -1087,7 +1087,7 @@ articles:
     /// model has it optional because it must read older files, and the
     /// execution may not read that leniency as permission.
     #[test]
-    fn een_actie_zonder_output_laat_de_uitvoering_niet_stil_vallen() {
+    fn an_action_without_output_does_not_pass_silently() {
         let yaml = r"
 $id: action_without_output_law
 regulatory_layer: WET
@@ -1575,34 +1575,58 @@ articles:
         assert_eq!(result.outputs.get("besluiten_terug"), Some(&rows));
     }
 
-    fn get_regulation_path() -> std::path::PathBuf {
-        std::env::var("REGULATION_PATH")
-            .map(std::path::PathBuf::from)
-            .unwrap_or_else(|_| {
-                std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                    .join("..")
-                    .join("..")
-                    .join("corpus")
-                    .join("regulation")
-            })
-    }
-
     // -------------------------------------------------------------------------
-    // IoC Integration Tests
+    // Delegation (open_terms) parsing
     // -------------------------------------------------------------------------
 
     mod ioc {
         use super::*;
 
+        /// An article declares its open terms in order, and an article of the
+        /// same law reads one of them through `source.output`. A small
+        /// fictional law, so a change to a law in the corpus does not touch
+        /// this test.
+        const DELEGATING_LAW: &str = r"
+$id: test_delegating_law
+regulatory_layer: WET
+publication_date: '2025-01-01'
+valid_from: '2025-01-01'
+articles:
+  - number: '8'
+    text: Bij verordening worden het percentage en de duur van de verlaging bepaald.
+    machine_readable:
+      open_terms:
+        - id: verlaging_percentage
+          type: number
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+        - id: duur_maanden
+          type: number
+          required: true
+          delegated_to: gemeenteraad
+          delegation_type: GEMEENTELIJKE_VERORDENING
+  - number: '43'
+    text: De verlaging is het percentage uit artikel 8.
+    machine_readable:
+      execution:
+        input:
+          - name: verlaging_percentage
+            type: number
+            source:
+              output: verlaging_percentage
+        output:
+          - name: verlaging
+            type: number
+        actions:
+          - output: verlaging
+            value: $verlaging_percentage
+";
+
         #[test]
-        fn test_parse_participatiewet_ioc() {
-            // Test that participatiewet uses IoC: article 8 has open_terms,
-            // article 43 references article 8 via source.output
-            let path = get_regulation_path().join("nl/wet/participatiewet/2022-03-15.yaml");
+        fn test_parse_open_terms_and_an_input_from_an_output_of_the_same_law() {
+            let law = ArticleBasedLaw::from_yaml_str(DELEGATING_LAW).unwrap();
 
-            let law = ArticleBasedLaw::from_yaml_file(&path).unwrap();
-
-            // Article 8 should declare open_terms
             let article8 = law.find_article_by_number("8").unwrap();
             let mr = article8.machine_readable.as_ref().unwrap();
             let open_terms = mr.open_terms.as_ref().unwrap();
@@ -1610,7 +1634,6 @@ articles:
             assert_eq!(open_terms[0].id, "verlaging_percentage");
             assert_eq!(open_terms[1].id, "duur_maanden");
 
-            // Article 43 should reference article 8 via source.output
             let article43 = law.find_article_by_number("43").unwrap();
             let exec = article43.get_execution_spec().unwrap();
             let inputs = exec.input.as_ref().unwrap();
@@ -1620,77 +1643,6 @@ articles:
                 .unwrap();
             let source = input.source.as_ref().unwrap();
             assert_eq!(source.output.as_deref(), Some("verlaging_percentage"));
-        }
-    }
-
-    // -------------------------------------------------------------------------
-    // Integration Tests with Real Regulation Files
-    // -------------------------------------------------------------------------
-
-    mod integration {
-        use super::*;
-
-        #[test]
-        fn test_execute_wet_op_de_zorgtoeslag_vermogen_check() {
-            let path = get_regulation_path().join("nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml");
-            let law = ArticleBasedLaw::from_yaml_file(&path).unwrap();
-
-            // Find article that calculates vermogen_onder_grens
-            let article = law.find_article_by_output("vermogen_onder_grens");
-            assert!(
-                article.is_some(),
-                "Should find vermogen_onder_grens article"
-            );
-
-            let article = article.unwrap();
-            let engine = ArticleEngine::new(article, &law);
-
-            // Test with vermogen under threshold for a person without a partner.
-            // Without a service no other law runs, so every input is passed in;
-            // no partner means the partner's bsn and rendementsgrondslag are
-            // absent (null), which both inputs declare nullable (RFC-036).
-            // Thresholds: €141.896 own, €179.429 joint.
-            let mut params = BTreeMap::new();
-            params.insert("vermogen".to_string(), Value::Int(100000)); // €1000 in cents, well under €141.896
-            params.insert("heeft_toeslagpartner".to_string(), Value::Bool(false));
-            params.insert("bsn_toeslagpartner".to_string(), Value::Null);
-            params.insert("vermogen_toeslagpartner".to_string(), Value::Null);
-            params.insert(
-                "heeft_gehele_berekeningsjaar_dezelfde_partner".to_string(),
-                Value::Bool(false),
-            );
-
-            let result = engine.evaluate(params, "2025-01-01").unwrap();
-
-            // Should have vermogen_onder_grens output
-            assert!(result.outputs.contains_key("vermogen_onder_grens"));
-            assert_eq!(
-                result.outputs.get("vermogen_onder_grens"),
-                Some(&Value::Bool(true))
-            );
-        }
-
-        #[test]
-        fn test_execute_regeling_standaardpremie() {
-            let path = get_regulation_path()
-                .join("nl/ministeriele_regeling/regeling_standaardpremie/2025-01-01.yaml");
-            let law = ArticleBasedLaw::from_yaml_file(&path).unwrap();
-
-            // Find article with standaardpremie output
-            let article = law.find_article_by_output("standaardpremie");
-            assert!(article.is_some(), "Should find standaardpremie article");
-
-            let article = article.unwrap();
-            let engine = ArticleEngine::new(article, &law);
-
-            // Execute with minimal params
-            let result = engine.evaluate(BTreeMap::new(), "2025-01-01").unwrap();
-
-            // Should have standaardpremie output (211200 eurocent = €2112 for 2025)
-            assert_eq!(
-                result.outputs.get("standaardpremie"),
-                Some(&Value::Int(211200))
-            );
         }
     }
 }

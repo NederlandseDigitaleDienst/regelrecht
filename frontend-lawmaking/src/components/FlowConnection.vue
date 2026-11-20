@@ -13,6 +13,7 @@
 <script setup lang="ts">
 import { computed } from 'vue';
 import type { Connection, PlacedStage } from '../data/types';
+import { connectionPath, stagePosition } from './flowLayout';
 
 const props = withDefaults(
   defineProps<{
@@ -25,16 +26,10 @@ const props = withDefaults(
   { isActive: false, columnWidth: 220, rowHeight: 80 },
 );
 
-const offsetX = 80;
-const offsetY = 50;
-
 function getPos(stageId: string): { x: number; y: number } {
   const stage = props.stages.find((s) => s.id === stageId);
   if (!stage) return { x: 0, y: 0 };
-  return {
-    x: offsetX + stage.col * props.columnWidth,
-    y: offsetY + stage.row * props.rowHeight,
-  };
+  return stagePosition(stage, props.columnWidth, props.rowHeight);
 }
 
 const dashArray = computed(() => {
@@ -42,22 +37,9 @@ const dashArray = computed(() => {
   return 'none';
 });
 
-const pathData = computed(() => {
-  const from = getPos(props.connection.from);
-  const to = getPos(props.connection.to);
-  const type = props.connection.type;
-
-  // Straight line for same-column connections
-  if (from.x === to.x) {
-    return `M ${from.x} ${from.y} L ${to.x} ${to.y}`;
-  }
-
-  // S-curve for cross-column connections
-  const topY = Math.min(from.y, to.y);
-  const bottomY = Math.max(from.y, to.y);
-  const midY = topY + (bottomY - topY) * 0.5;
-  return `M ${from.x} ${from.y} C ${from.x} ${midY}, ${to.x} ${midY}, ${to.x} ${to.y}`;
-});
+const pathData = computed(() =>
+  connectionPath(getPos(props.connection.from), getPos(props.connection.to)),
+);
 </script>
 
 <style scoped>

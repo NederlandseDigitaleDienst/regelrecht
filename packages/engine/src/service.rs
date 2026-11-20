@@ -9887,29 +9887,23 @@ articles:
     }
 
     // -------------------------------------------------------------------------
-    // Integration Tests with Real Regulation Files
+    // Tests on a frozen copy of real ruleworks
     // -------------------------------------------------------------------------
 
     mod integration {
         use super::*;
         use std::path::PathBuf;
 
+        /// The frozen copy the trace tests read (`tests/fixtures/trace_corpus`),
+        /// so a change to these laws in the corpus does not touch these tests.
         fn get_regulation_path() -> PathBuf {
-            std::env::var("REGULATION_PATH")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| {
-                    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                        .join("..")
-                        .join("..")
-                        .join("corpus")
-                        .join("regulation")
-                })
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/trace_corpus")
         }
 
         #[test]
-        fn test_service_resolve_with_real_files() {
-            // Integration test: load real wet_op_de_zorgtoeslag + regeling_standaardpremie
-            // and verify resolve action works end-to-end
+        fn test_a_cross_law_output_resolves_through_the_regulation_it_names() {
+            // Load wet_op_de_zorgtoeslag and regeling_standaardpremie and
+            // check that the resolve action works end-to-end.
             let regulation_path = get_regulation_path();
 
             let wet_op_de_zorgtoeslag_path =
@@ -9945,7 +9939,7 @@ articles:
         }
 
         #[test]
-        fn test_get_law_info_real() {
+        fn test_law_info_names_id_layer_and_outputs() {
             let regulation_path = get_regulation_path();
             let path = regulation_path.join("nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml");
             let law = ArticleBasedLaw::from_yaml_file(&path).unwrap();

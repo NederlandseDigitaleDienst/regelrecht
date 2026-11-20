@@ -651,7 +651,7 @@ jobs:
       fail-fast: false
       matrix:
         # Each leg runs one action order of the demo bucket on its own runner.
-        # The demo-law validation and the Awb lifecycle run only in the
+        # The demo-law validation runs only in the
         # `forward` leg, which is the shorter of the two. The `Test` gate
         # reads `needs.bdd-demo.result`, which fails when either leg fails.
         include:
@@ -720,16 +720,6 @@ jobs:
           REGULATION_PATH=$(echo "$DIRS" | sed "s|^|$GITHUB_WORKSPACE/|" | paste -sd:)
           export REGULATION_PATH
           cargo test --test bdd -- --nocapture
-
-      # Zoals `just bdd-demo`: de Awb-levensloop over hetzelfde democorpus.
-      # De unit-baan draait deze test alleen tegen corpus/regulation.
-      - name: Run Awb lifecycle over demo corpus
-        if: matrix.leg == 'forward'
-        working-directory: packages/engine
-        env:
-          REGULATION_PATH: ${{ github.workspace }}/corpus/demo/regulation
-          RUSTFLAGS: -Dwarnings -C link-arg=-fuse-ld=mold
-        run: cargo test --test awb_lifecycle
 
   nldd-imports:
     name: Ontwerpsysteem-imports

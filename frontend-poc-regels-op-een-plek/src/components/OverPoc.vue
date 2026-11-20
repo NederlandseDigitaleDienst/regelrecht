@@ -26,7 +26,7 @@ const STAPPEN = [
 
 <template>
   <nldd-sheet placement="left" width="560px" :open="open || undefined" accessible-label="Over deze PoC" @close="open = false">
-    <nldd-top-title-bar text="Over deze PoC" supporting-text="Spoorzone Veenendaal, met en zonder DSO" :heading-level="2">
+    <nldd-top-title-bar text="Over deze PoC" supporting-text="Spoorzone Veenendaal" :heading-level="2">
       <nldd-icon-button slot="toolbar" size="sm" icon="close" text="Sluiten" appearance="neutral-tinted" @click="open = false"></nldd-icon-button>
     </nldd-top-title-bar>
     <div class="inhoud">
@@ -49,14 +49,17 @@ const STAPPEN = [
       <section>
         <nldd-title size="display-5" :heading-level="3" text="Wat we willen leren"></nldd-title>
         <nldd-text size="sm">
-          Wat het DSO levert en wat niet. Het DSO zegt per regel bij welke activiteit en plek hij hoort, maar niet wat de
-          regel doet. Welke activiteiten bij een bouwplan horen, blijft handwerk. Het verschil tussen de sporen laat zien
-          waar dat uitmaakt.
+          Hoe RegelRecht werkt in de fysieke leefomgeving. Tot nu toe rekende RegelRecht met landelijke regelingen die
+          overal hetzelfde gelden. Hier geldt een regel alleen op een plek, komt hij van gemeente, provincie, waterschap
+          en rijk tegelijk, en liggen oude en nieuwe plannen over elkaar. We willen weten of het schema, de engine en de
+          werkwijze dat aankunnen: de regels op een plek verzamelen zonder er één te missen, de voorrang tussen plannen,
+          en een uitkomst die terug te volgen is naar het artikel, ook als dat een onthouding is.
         </nldd-text>
         <nldd-text size="sm">
-          Het verschil komt niet alleen door het DSO. Het DSO-spoor kijkt naar meer plannen, ook van provincie,
-          waterschap en rijk. Dat had ook zonder het DSO gekund, met een uitgebreidere analyse van de plannen. Het DSO
-          maakte het wel makkelijker om die plannen direct te verzamelen.
+          Daarbij zien we ook wat het DSO levert en wat niet. Het DSO zegt per regel bij welke activiteit en plek hij
+          hoort, maar niet wat de regel doet; welke activiteiten bij een bouwplan horen, blijft handwerk. En het DSO-spoor
+          kijkt naar meer plannen, ook van provincie, waterschap en rijk. Dat had ook zonder het DSO gekund, met een
+          uitgebreidere analyse van de plannen; het DSO maakte het verzamelen wel makkelijker.
         </nldd-text>
       </section>
 

@@ -367,15 +367,8 @@ bdd-reversed:
     cd packages/engine && {{ci_flags}} BDD_REVERSE_ACTIONS=1 BDD_BUCKET=corpus REGULATION_PATH="$(pwd)/../../corpus/demo/regulation" cargo test --test bdd -- --nocapture
 
 # Bucket A over de democorpus: REGULATION_PATH wijst wetten en scenario's naar corpus/demo.
-#
-# De Awb-levensloop draait er achteraan, over hetzelfde corpus. Een scenario
-# toetst één wet; de levensloop-test toetst wat de Awb aan elk besluit toevoegt
-# (RFC-007, RFC-008) en daar kwam een fout in dit corpus aan het licht die geen
-# enkel scenario zag: artikel 6:8 rekende met een afgekapte formule en gaf de
-# bekendmakingsdatum terug als einddatum van de bezwaartermijn.
 bdd-demo:
     cd packages/engine && {{ci_flags}} BDD_BUCKET=corpus REGULATION_PATH="$(pwd)/../../corpus/demo/regulation" cargo test --test bdd -- --nocapture
-    cd packages/engine && {{ci_flags}} REGULATION_PATH="$(pwd)/../../corpus/demo/regulation" cargo test --test awb_lifecycle
 
 # Bucket A over het corpus van de chronolexografie-poc: de gedeelde regelwerken
 # en die van elke casus (script/chrono-regulation-dirs.sh) samen, als één

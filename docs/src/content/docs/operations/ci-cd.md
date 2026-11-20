@@ -52,8 +52,7 @@ with `BDD_REVERSE_ACTIONS=1`. Those steps are not part of the feature language;
 The **BDD demo** job runs bucket A over `corpus/demo/regulation`, with
 `REGULATION_PATH` pointing at it. It runs as a matrix of two legs, each on its
 own runner. The `forward` leg first validates every law in that corpus against
-the schema. It then runs the scenarios with the actions in file order, followed
-by the Awb lifecycle test over the same corpus. The `reversed` leg runs the same
+the schema. It then runs the scenarios with the actions in file order. The `reversed` leg runs the same
 scenarios with the actions of every article in reverse order
 (`BDD_REVERSE_ACTIONS=1`). The order in the file must never change an outcome.
 Locally, `just validate-demo` and `just bdd-demo` do what the `forward` leg
@@ -61,6 +60,14 @@ does. `just bdd-reversed` first runs both buckets over `corpus/regulation` and
 the cell's suite in reverse, then the `reversed` leg. The demo corpus and its
 synthetic persona data live entirely in the repository, so this job also hangs
 on the `Test` gate and blocks a merge when either leg fails.
+
+The **Corpus BDD example** workflow (`corpus-bdd-example.yml`) calls the
+reusable `corpus-bdd.yml` the way a corpus in another repository would, against
+the fictional corpus in `bdd/external-corpus-example`. Its job **Example reports
+hold only its scenarios** then checks that the JUnit reports hold exactly the
+scenarios of that corpus. It runs only when the workflow, a runner or the
+example changes, and it is not a required check. How a caller uses the workflow is
+in [Testing](/guide/testing#bdd-scenarios-from-another-repository).
 
 Bucket A over the live corpus (`corpus/regulation/**/scenarios/*.feature`) stays out of CI. It asserts
 what the live laws currently produce, so a failure there means a law changed or a

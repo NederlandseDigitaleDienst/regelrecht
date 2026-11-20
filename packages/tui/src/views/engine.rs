@@ -657,3 +657,72 @@ fn format_value(value: &Value) -> String {
         Value::Unknown(_) => value.to_string(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_value_reads_a_whole_number_as_an_integer() {
+        assert_eq!(parse_value("42"), Value::Int(42));
+        assert_eq!(parse_value("-7"), Value::Int(-7));
+    }
+
+    #[test]
+    fn parse_value_reads_a_fraction_as_a_decimal() {
+        let value = parse_value("1.5");
+        assert!(
+            matches!(value, Value::Decimal(_)),
+            "1.5 should be a decimal, was {value:?}"
+        );
+        assert_eq!(format_value(&value), "1.50");
+    }
+
+    #[test]
+    fn parse_value_reads_dutch_and_english_booleans_in_any_case() {
+        for yes in ["true", "Ja", "YES"] {
+            assert_eq!(parse_value(yes), Value::Bool(true), "input {yes}");
+        }
+        for no in ["false", "nee", "No"] {
+            assert_eq!(parse_value(no), Value::Bool(false), "input {no}");
+        }
+    }
+
+    #[test]
+    fn parse_value_reads_null_and_none_as_null() {
+        assert_eq!(parse_value("null"), Value::Null);
+        assert_eq!(parse_value("None"), Value::Null);
+    }
+
+    #[test]
+    fn parse_value_keeps_anything_else_as_text() {
+        assert_eq!(parse_value("GM0363"), Value::String("GM0363".to_string()));
+    }
+
+    #[test]
+    fn format_value_quotes_text_and_writes_decimals_with_two_places() {
+        assert_eq!(format_value(&Value::String("a".to_string())), "\"a\"");
+        assert_eq!(format_value(&Value::from(1.5)), "1.50");
+    }
+
+    #[test]
+    fn format_value_writes_nested_collections_inline() {
+        let object = Value::Object(BTreeMap::from([
+            ("b".to_string(), Value::Int(2)),
+            (
+                "a".to_string(),
+                Value::Array(vec![Value::Bool(true), Value::Null]),
+            ),
+        ]));
+        assert_eq!(format_value(&object), "{a: [true, null], b: 2}");
+    }
+
+    #[test]
+    fn format_value_names_the_article_of_an_untranslatable() {
+        let value = Value::Untranslatable {
+            article: "3".to_string(),
+            construct: "redelijkheid".to_string(),
+        };
+        assert_eq!(format_value(&value), "UNTRANSLATABLE(art. 3: redelijkheid)");
+    }
+}
