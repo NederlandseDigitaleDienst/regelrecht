@@ -65,7 +65,6 @@ the halving in article 2, fourth lid never happened.
    - each `hooks` entry: does this text describe a rule triggered by a lifecycle
      event ("na bekendmaking", "bij bezwaar")?
    - each `declares` entry: does this text fix that document property?
-   - each `endpoint`: is there a reason for external callability?
 
 3. Classify:
 
