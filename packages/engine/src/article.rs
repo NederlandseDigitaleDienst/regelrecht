@@ -1339,8 +1339,7 @@ articles:
 
         // That every corpus file parses is held by tests/typecheck_corpus.rs,
         // which loads all of them. What stays here is what a parse alone does
-        // not show: which id and layer a file carries, and the fields of a
-        // municipal regulation.
+        // not show: which id and layer a file carries.
         #[test]
         fn test_corpus_files_carry_their_id_and_layer() {
             use RegulatoryLayer::*;
@@ -1406,23 +1405,11 @@ articles:
         }
 
         #[test]
-        fn test_apv_erfgrens_amsterdam_is_a_municipal_regulation() {
-            let path = get_regulation_path()
-                .join("nl/gemeentelijke_verordening/amsterdam/apv_erfgrens/2024-01-01.yaml");
-            let law = ArticleBasedLaw::from_yaml_file(&path)
-                .unwrap_or_else(|e| panic!("Failed to load APV erfgrens Amsterdam: {}", e));
-
-            assert_eq!(law.id, "apv_erfgrens_amsterdam");
-            assert_eq!(
-                law.regulatory_layer,
-                RegulatoryLayer::GemeentelijkeVerordening
-            );
-            assert_eq!(law.gemeente_code, Some("GM0363".to_string()));
-        }
-
-        #[test]
         fn test_find_article_by_output_finds_outputs_and_rejects_an_unknown_one() {
-            let path = get_regulation_path().join("nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml");
+            // The frozen copy the trace tests read, so a change to the
+            // zorgtoeslag in the corpus does not touch this test.
+            let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/trace_corpus/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml");
             let law = ArticleBasedLaw::from_yaml_file(&path).unwrap();
 
             // Test find_article_by_output for key outputs

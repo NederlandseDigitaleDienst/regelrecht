@@ -34,11 +34,15 @@ const POLICY: &str = "fictief_beleid_vakantieverlof_obs_de_klimop";
 /// The policy the head's policy calls for the school year.
 const SCHOOL_YEAR: &str = "fictief_beleid_schooljaargrenzen_obs_de_klimop";
 
-/// The fixtures of these tests: the fictional regelwerken and reductions of
-/// the vakantieverlof case, made for the tests of `packages/cel` and cut down
-/// to what those and these tests read.
+/// The fixtures of these tests (`tests/fixtures/reduction`): the fictional
+/// regelwerken and reductions of the vakantieverlof case. The three policies
+/// are copies of those in the cel's fixtures, kept apart so a change there
+/// does not reach these tests. The reductions read the decisions of the
+/// cell with `source.decisions` (refused in a reduction from schema
+/// v0.8.17), as they were before the cell read its decisions as aggregates,
+/// and declare v0.8.12, which still reads them.
 fn corpus_dir() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../cel/tests/fixtures/corpus")
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/reduction")
 }
 
 /// The corpus of the repository, which holds the real laws these tests call.
@@ -46,25 +50,9 @@ fn repo_corpus_dir() -> std::path::PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
 }
 
-/// The reductions these tests are about, which read the decisions of the
-/// cell with `source.decisions` (refused in a reduction from schema
-/// v0.8.17): the school's reduction and the reduction of the Awb, as they
-/// were before the cell read its decisions as aggregates. They declare
-/// v0.8.12, which still reads them.
-fn own_dir() -> std::path::PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/source_decisions")
-}
-
-/// A file of these tests: from [`own_dir`], or else from the corpus of the
-/// cell's tests.
+/// A file of these tests, from [`corpus_dir`].
 fn corpus(path: &str) -> String {
-    let own = own_dir().join(path);
-    let path = if own.is_file() {
-        own
-    } else {
-        corpus_dir().join(path)
-    };
-    std::fs::read_to_string(path).unwrap()
+    std::fs::read_to_string(corpus_dir().join(path)).unwrap()
 }
 
 /// The reduction of the fictional school that reads its decisions, from
@@ -212,7 +200,7 @@ fn supply(service: &mut LawExecutionService, decisions: serde_json::Value) {
 }
 
 #[test]
-fn leave_granted_to_the_child_in_the_school_year_counts() {
+fn a_grant_to_the_subject_in_the_period_counts() {
     let mut service = service();
     supply(
         &mut service,
@@ -222,7 +210,7 @@ fn leave_granted_to_the_child_in_the_school_year_counts() {
 }
 
 #[test]
-fn a_refusal_another_child_or_another_school_year_does_not_count() {
+fn a_refusal_another_subject_or_another_period_does_not_count() {
     let mut service = service();
     supply(
         &mut service,
@@ -266,7 +254,7 @@ fn a_grant_upheld_on_objection_counts() {
 }
 
 #[test]
-fn the_reduction_asks_the_policy_for_the_school_year_of_the_first_day() {
+fn the_reduction_asks_a_called_policy_for_the_period_of_the_first_day() {
     let mut service = service();
     supply(
         &mut service,
@@ -295,7 +283,7 @@ fn the_reduction_asks_the_policy_for_the_school_year_of_the_first_day() {
 }
 
 #[test]
-fn no_decisions_is_no_leave_granted() {
+fn no_decisions_is_no_grant() {
     let mut service = service();
     supply(&mut service, json!([]));
     assert!(!already(&service, "999990019", "2027-05-10"));
@@ -841,7 +829,7 @@ fn answered(node: &regelrecht_engine::PathNode) -> Vec<&regelrecht_engine::PathN
 }
 
 #[test]
-fn the_answerer_fills_the_term_of_13a() {
+fn the_answerer_fills_the_bound_term() {
     // The reduction is loaded, but the engine does not run it: the answer
     // is the answerer's, which the head's binding takes.
     let service = corpus_service(true);
@@ -1271,7 +1259,7 @@ fn standing(
 }
 
 #[test]
-fn the_awb_reduction_drops_a_revoked_decision_and_keeps_the_one_in_its_place() {
+fn a_reduction_drops_a_revoked_decision_and_keeps_the_one_in_its_place() {
     let a = decision("999990019", "2026-10-05", false);
     let b = decision("999990019", "2026-10-05", true);
     let rows = standing(
@@ -1563,7 +1551,7 @@ fn decisions_named_by_a_parameter_are_read_under_its_value() {
 }
 
 #[test]
-fn leave_the_court_granted_in_place_counts() {
+fn a_grant_the_court_set_in_place_counts() {
     // The court annulled a refusal and granted leave itself (Awb 8:72 lid
     // 3 onder b): the grant it set in place is a row like any other.
     let refusal = decision("999990019", "2026-10-05", false);

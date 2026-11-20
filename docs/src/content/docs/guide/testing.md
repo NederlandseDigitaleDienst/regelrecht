@@ -35,7 +35,7 @@ The table lists the tests in this repository and the jobs that run them here. Th
 | Mutation testing | `packages/engine`, `packages/pipeline`, `packages/cel` | `just mutants-diff` | Mutation Testing (diff) |
 | Benchmarks | `packages/engine/benches/` | `just bench` | No |
 
-A test of the engine or the law format is named after the construct it tests. That holds for the test file, the feature and the construct directory; a test function may describe the behavior in the terms of its case. The law or case only makes the test concrete, so its name belongs in a fixture or a Background. Bucket A is the exception, because a scenario next to a rulework tests that rulework.
+A test of the engine or the law format is named after the construct it tests. That holds for the test file, the feature, the construct directory and the test function: a function says what the construct does (`a_grant_revoked_on_objection_does_not_count`), not what happens in its case (a refused parking card). The law or case only makes the test concrete, so its name belongs in a fixture or a Background. A large test file is split into a directory, `tests/<construct>/main.rs` with one module per construct beside it, as `packages/cel/tests/submission_lifecycle/` is. Bucket A is the exception, because a scenario next to a rulework tests that rulework. So a test that only checks the values of one rulework belongs there and not in a Rust test.
 
 ## BDD scenarios
 
@@ -175,13 +175,13 @@ just test-db        # Only the container-backed crates
 
 A few crates also have a recipe of their own, such as `just pipeline-test` and `just pipeline-integration-test` (the second needs Docker); `just` lists them.
 
-The tests of `packages/cel` and the reduction tests of the engine (`packages/engine/tests/reduction.rs`) share one set of fixtures, `packages/cel/tests/fixtures/corpus/`. A fixture there is YAML made for these tests and holds only what they read: the cells, and fictional rulework and reductions cut down to the articles and outputs a test exercises. Real laws such as the Awb and the Leerplichtwet are not copied in. The tests read them from `corpus/regulation/`.
+Each crate's tests read their own fixtures. Those of `packages/cel` are in `packages/cel/tests/fixtures/corpus/`, and the reduction tests of the engine (`packages/engine/tests/reduction.rs`) have theirs in `packages/engine/tests/fixtures/reduction/`. A fixture is YAML made for its tests and holds only what they read: the cells, and fictional rulework and reductions cut down to the articles and outputs a test exercises. Real laws such as the Awb and the Leerplichtwet are not copied in. These tests still read them from `corpus/regulation/`.
 
 ### Golden fixtures and trace snapshots
 
 `packages/engine/tests/golden_tests.rs` runs the JSON cases in `packages/engine/tests/fixtures/*.json`, each a law as YAML text with parameters and an expected result. [Conformance](/reference/conformance#golden-fixtures) describes their format and where they came from.
 
-`packages/engine/tests/trace_integration.rs` evaluates the zorgtoeslag and the standaardpremie, compares each rendered trace with its snapshot (`expected_zorgtoeslag_trace.txt`, `expected_standaardpremie_trace.txt`), and checks what each step of the trace carries. It reads a frozen copy of the ruleworks it needs, in `packages/engine/tests/fixtures/trace_corpus/`, and not the corpus. A change to the zorgtoeslag in the corpus therefore does not turn this engine test red; that change is for the bucket A scenarios and a human. Only the ruleworks the evaluation reaches are in the copy, the Awb included because its hooks show in the trace. Adding another one can fire a hook and change the expected trace.
+`packages/engine/tests/trace_integration.rs` evaluates the zorgtoeslag and the standaardpremie, compares each rendered trace with its snapshot (`expected_zorgtoeslag_trace.txt`, `expected_standaardpremie_trace.txt`), and checks what each step of the trace carries. It reads a frozen copy of the ruleworks it needs, in `packages/engine/tests/fixtures/trace_corpus/`, and not the corpus. A change to the zorgtoeslag in the corpus therefore does not turn this engine test red; that change is for the bucket A scenarios and a human. Only the ruleworks the evaluation reaches are in the copy, the Awb included because its hooks show in the trace. Adding another one can fire a hook and change the expected trace. A few unit tests in `packages/engine/src` (`article.rs`, `resolver.rs`, `service.rs`) read the same copy, and one of them counts its ruleworks.
 
 ### The corpus type check
 

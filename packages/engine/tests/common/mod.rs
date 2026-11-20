@@ -11,14 +11,6 @@ fn default_regulation_base_path() -> PathBuf {
         .join("regulation")
 }
 
-/// Get the regulation base path from `REGULATION_PATH` env var or default relative path.
-#[allow(dead_code)] // not every test target that includes this module reads one base
-pub fn regulation_base_path() -> PathBuf {
-    std::env::var("REGULATION_PATH")
-        .map(PathBuf::from)
-        .unwrap_or_else(|_| default_regulation_base_path())
-}
-
 /// The regulation base paths in `REGULATION_PATH`, which may name several
 /// directories separated like `PATH` (`:` on Unix), or the default. The BDD
 /// runner loads the laws of all of them and runs their scenarios, so one

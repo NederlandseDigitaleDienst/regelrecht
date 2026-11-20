@@ -72,7 +72,7 @@ pub fn service_of(laws: &[&str]) -> LawExecutionService {
 
 /// The fixtures these tests run on (`tests/fixtures/corpus`): the cells, and
 /// the fictional regelwerken and reductions made for these tests, each cut
-/// down to what the tests read. The engine's reduction tests read them too.
+/// down to what the tests read.
 pub fn corpus() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/corpus")
 }

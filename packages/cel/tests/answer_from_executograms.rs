@@ -187,7 +187,7 @@ fn granted(gram: &Gram) -> bool {
 }
 
 #[test]
-fn leave_in_the_christmas_holiday_is_refused_and_nobody_judged_it() {
+fn an_answer_from_executograms_fills_the_term_without_a_finding() {
     let mut cell = school_in("Utrecht", "Utrecht");
     let app = applied(&mut cell, "2026-12-21", "2026-12-23", "2026-11-02");
     let gram = decide(&mut cell, &app.id, "2026-11-09").unwrap();
@@ -229,7 +229,7 @@ fn leave_in_the_christmas_holiday_is_refused_and_nobody_judged_it() {
 }
 
 #[test]
-fn leave_outside_every_holiday_is_granted() {
+fn outside_every_period_the_answer_is_true() {
     let mut cell = school_in("Utrecht", "Utrecht");
     let app = applied(&mut cell, "2027-02-01", "2027-02-05", "2026-10-13");
     let gram = decide(&mut cell, &app.id, "2026-10-20").unwrap();
@@ -238,7 +238,7 @@ fn leave_outside_every_holiday_is_granted() {
 }
 
 #[test]
-fn the_summer_holiday_follows_the_region_of_the_school() {
+fn the_answer_follows_an_executogram_the_cell_recorded() {
     // 12 to 16 July 2027: summer in regio Noord (from 10 July), not yet in
     // regio Zuid (from 24 July).
     let mut noord = school_in("Groningen", "Groningen");
@@ -252,7 +252,7 @@ fn the_summer_holiday_follows_the_region_of_the_school() {
 }
 
 #[test]
-fn the_herfstvakantie_of_the_school_policy_counts() {
+fn a_period_from_the_cells_own_policy_counts() {
     let mut cell = school_in("Utrecht", "Utrecht");
     let app = applied(&mut cell, "2026-10-19", "2026-10-23", "2026-09-21");
     let gram = decide(&mut cell, &app.id, "2026-10-01").unwrap();
@@ -268,7 +268,7 @@ fn the_herfstvakantie_of_the_school_policy_counts() {
 }
 
 #[test]
-fn a_school_that_moves_before_the_leave_is_judged_on_the_leave_days() {
+fn an_executogram_counts_on_the_days_the_answer_is_about() {
     // Utrecht is in regio Midden, whose summer of 2027 starts on 17 July;
     // Maastricht is in regio Zuid, whose summer starts on 24 July. Recorded
     // on 1 April: the school moves to Maastricht on 1 May. The head decides
@@ -314,7 +314,7 @@ fn a_school_that_moves_before_the_leave_is_judged_on_the_leave_days() {
 }
 
 #[test]
-fn leave_during_which_the_school_moves_is_refused_loudly() {
+fn two_executograms_over_the_days_asked_fail_the_decision() {
     // From 1 June 2027 the school is in Maastricht. Leave from 31 May to 4
     // June has two vestigingen, so two regions; the regeling gives one per
     // school, and the decision fails rather than pick one.
@@ -335,7 +335,7 @@ fn leave_during_which_the_school_moves_is_refused_loudly() {
 }
 
 #[test]
-fn a_school_year_the_policy_does_not_know_leaves_it_to_the_head() {
+fn a_period_the_policy_does_not_cover_leaves_it_to_the_finding() {
     // The policy in force knows the herfst- and voorjaarsvakantie of
     // 2026–2027 only. For leave in 2027–2028 the cell does not know them and
     // is silent, so the head judges as without the reduction.
@@ -366,7 +366,7 @@ fn a_school_year_the_policy_does_not_know_leaves_it_to_the_head() {
 }
 
 #[test]
-fn a_school_without_a_vestiging_has_no_region_and_the_head_judges() {
+fn without_the_executogram_the_cell_is_silent_and_the_authority_finds() {
     let mut cell = school();
     let app = applied(&mut cell, "2027-02-01", "2027-02-05", "2026-10-13");
     let e = decide(&mut cell, &app.id, "2026-10-20").unwrap_err();
@@ -374,7 +374,7 @@ fn a_school_without_a_vestiging_has_no_region_and_the_head_judges() {
 }
 
 #[test]
-fn two_vestigingen_from_the_same_day_are_refused() {
+fn two_executograms_from_the_same_day_are_refused() {
     let mut cell = school_in("Utrecht", "Utrecht");
     established(
         &mut cell,
@@ -392,7 +392,7 @@ fn two_vestigingen_from_the_same_day_are_refused() {
 }
 
 #[test]
-fn the_voorjaarsvakantie_of_the_school_policy_counts() {
+fn another_period_from_the_cells_own_policy_counts() {
     let mut cell = school_in("Utrecht", "Utrecht");
     let app = applied(&mut cell, "2027-02-22", "2027-02-26", "2026-11-02");
     let gram = decide(&mut cell, &app.id, "2026-11-09").unwrap();
@@ -401,7 +401,7 @@ fn the_voorjaarsvakantie_of_the_school_policy_counts() {
 }
 
 #[test]
-fn the_summer_of_the_school_year_before_runs_into_the_next() {
+fn a_period_of_the_previous_year_runs_into_the_next() {
     // 30 August to 3 September 2027 falls in schooljaar 2027–2028, and in
     // regio Zuid still in the summer of 2027 (until 5 September). In regio
     // Noord that summer ended on 22 August. Decided in August 2027, the
@@ -431,7 +431,7 @@ fn the_summer_of_the_school_year_before_runs_into_the_next() {
 }
 
 #[test]
-fn the_next_version_of_the_policy_holds_the_herfstvakantie_of_its_year() {
+fn the_policy_version_in_force_gives_the_periods_of_its_year() {
     // In force from 1 August 2027, the policy for 2027–2028 puts the
     // herfstvakantie on 16 to 24 October 2027.
     let next = [rooster_2027()];
