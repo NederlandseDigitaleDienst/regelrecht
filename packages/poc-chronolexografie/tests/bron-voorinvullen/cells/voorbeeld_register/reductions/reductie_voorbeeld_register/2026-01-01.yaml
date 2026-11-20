@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.21/schema/v0.8.21/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json
 $id: reductie_voorbeeld_register
 regulatory_layer: REDUCTIE
 publication_date: '2026-01-01'
@@ -15,18 +15,6 @@ articles:
     machine_readable:
       projection:
         per: voorbeeld_register#1#vereniging_ingeschreven
-        state:
-          - name: nummer
-            type: string
-          - name: naam
-            type: string
-        steps:
-          - record: voorbeeld_register#1#vereniging_ingeschreven
-            actions:
-              - output: nummer
-                value: $record.nummer
-              - output: naam
-                value: $record.naam
   - number: naam_bij_nummer
     text: Geen regelgeving. De naam van de inschrijving met dit nummer; zonder inschrijving zwijgt het register.
     url: https://example.invalid/reductie_voorbeeld_register#naam_bij_nummer
@@ -62,27 +50,6 @@ articles:
     machine_readable:
       projection:
         per: voorbeeld_register#2#bestuur_vastgesteld
-        state:
-          - name: nummer
-            type: string
-          - name: bestuur
-            type: array
-            columns:
-              - name: naam
-                type: string
-              - name: functie
-                type: string
-              - name: sinds
-                type: date
-              - name: vergoeding
-                type: amount
-        steps:
-          - record: voorbeeld_register#2#bestuur_vastgesteld
-            actions:
-              - output: nummer
-                value: $record.nummer
-              - output: bestuur
-                value: $record.bestuur
   - number: bestuur_bij_nummer
     text: >-
       Geen regelgeving. Het bestuur dat het register bij dit nummer vastlegde;

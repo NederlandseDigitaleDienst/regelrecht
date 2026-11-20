@@ -1,5 +1,5 @@
 ---
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.19/schema/v0.8.19/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json
 $id: reductie_plaats_van_vestiging
 regulatory_layer: REDUCTIE
 publication_date: '2026-07-01'
@@ -9,9 +9,10 @@ valid_from: '2026-08-01'
 # v0.8.19). Artikel vestiging is een aggregaat per vastgelegde vestiging:
 # het feit vestiging, dat het fictieve beleid
 # fictief_beleid_vestiging_obs_de_klimop (artikel 1) vereist, en wat ernaar
-# verwijst. De staat houdt wat de vestiging vermeldt, onder de namen van het
-# feit. Artikel plaats_van_vestiging leest die aggregaten
-# (source.projections) en geeft de vestiging die op de verlofdagen geldt. Het
+# verwijst. Het aggregaat schrijft staat noch stappen, dus kopieert het de
+# velden van het feit (schema v0.8.25). Artikel plaats_van_vestiging leest die
+# aggregaten (source.projections) en geeft de vestiging die op de
+# verlofdagen geldt. Het
 # aggregaat staat in dit bestand omdat alleen dit artikel het leest. De cel
 # van de school geeft de uitvoer als de antwoorden gemeente_van_vestiging,
 # provincie_van_vestiging en deel_van_gemeente_van_vestiging (cel.yaml,
@@ -43,26 +44,6 @@ articles:
     machine_readable:
       projection:
         per: fictief_beleid_vestiging_obs_de_klimop#1#vestiging
-        state:
-          - name: gemeente
-            type: string
-          - name: provincie
-            type: string
-          - name: deel_van_gemeente
-            type: string
-          - name: sinds
-            type: date
-        steps:
-          - record: fictief_beleid_vestiging_obs_de_klimop#1#vestiging
-            actions:
-              - output: gemeente
-                value: $record.gemeente
-              - output: provincie
-                value: $record.provincie
-              - output: deel_van_gemeente
-                value: $record.deel_van_gemeente
-              - output: sinds
-                value: $record.sinds
   - number: plaats_van_vestiging
     text: >-
       Geen regelgeving. Het systeem van het hoofd van OBS De Klimop kijkt door

@@ -336,3 +336,16 @@ describe('the picture of one value', () => {
     expect(n.indexOf('maximum_bedrijfsparkeervergunningen')).toBeLessThan(n.indexOf('maximum_bedrijfsparkeervergunningen_bereikt'));
   });
 });
+
+describe('the picture of an aggregate that copies its fact', () => {
+  // Article vestiging writes neither state nor steps (schema v0.8.25): each
+  // field of the fact is a property of its state, set from the record.
+  const k = keten(alle, 'vakantieverlof', { law: 'reductie_plaats_van_vestiging', article: 'plaats_van_vestiging', naam: 'gemeente_van_vestiging' });
+  const red = 'reductie_plaats_van_vestiging';
+
+  it('runs each field of the fact into the property of the same name', () => {
+    for (const veld of ['gemeente', 'sinds']) {
+      expect(heeft(k, 'kroniek', [KRONIEK, 'fictief_beleid_vestiging_obs_de_klimop#1#vestiging'], [red, veld]), veld).toBe(true);
+    }
+  });
+});
