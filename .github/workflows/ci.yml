@@ -899,6 +899,11 @@ jobs:
       - name: Build wetsproces bundle
         run: npm run build -w frontend-wetsproces
 
+      # De burger-entry in beide vervoeren: de app (Tauri-commando's) en de
+      # webomgeving voor burgers (cookie). De Tauri-schil zelf bouwt CI niet.
+      - name: Build wetsproces citizen bundles
+        run: npm run build:app -w frontend-wetsproces && npm run build:burger -w frontend-wetsproces
+
   # Verplichte check op main. De benen hierboven dragen nieuwe namen en mogen
   # dus van vorm veranderen; deze naam moet blijven bestaan, want een required
   # check die niet verschijnt laat elke PR eeuwig hangen. Skipped benen (geen

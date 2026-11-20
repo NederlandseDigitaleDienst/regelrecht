@@ -27,11 +27,13 @@
 //! only the routes below.
 
 pub mod citizen;
+/// The reference client, from the crate the app runs on too.
 #[cfg(feature = "test-utils")]
-pub mod client;
+pub use regelrecht_fsc4b::client;
 pub mod demo;
 pub mod discovery;
-pub mod jose;
+/// The JOSE formats, from the crate the app shares with this server.
+pub use regelrecht_fsc4b::jose;
 pub mod presentation;
 pub mod session;
 pub mod store;

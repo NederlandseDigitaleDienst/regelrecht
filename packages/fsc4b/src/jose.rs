@@ -480,23 +480,68 @@ impl SigningKey {
     ///
     /// [`JoseError::Crypto`] when signing fails.
     pub fn sign(&self, claims: &Value, extra: &[(&str, &str)]) -> Result<String, JoseError> {
-        let mut header = Map::new();
-        header.insert("typ".into(), Value::from("jwt"));
-        header.insert("alg".into(), Value::from(JWS_ALG));
-        for (name, value) in extra {
-            header.insert((*name).into(), Value::from(*value));
-        }
-        let input = format!(
-            "{}.{}",
-            b64url(Value::Object(header).to_string().as_bytes()),
-            b64url(claims.to_string().as_bytes())
-        );
+        sign_jws(self, claims, extra)
+    }
+}
+
+/// What signs with an ES256 key: a key in this process ([`SigningKey`]), or
+/// one an app keeps in secure hardware, which signs without handing the
+/// private key out. The JWS around the signature is [`sign_jws`]'s work.
+pub trait Es256Signer: Send + Sync {
+    /// The public key, as a JWK.
+    fn public_jwk(&self) -> &Jwk;
+
+    /// The ES256 signature over `input`: `r` and `s`, 32 bytes each, as
+    /// RFC 7518 §3.4 puts them in a JWS.
+    ///
+    /// # Errors
+    ///
+    /// [`JoseError::Crypto`] when signing fails.
+    fn sign_es256(&self, input: &[u8]) -> Result<Vec<u8>, JoseError>;
+}
+
+impl Es256Signer for SigningKey {
+    fn public_jwk(&self) -> &Jwk {
+        &self.jwk
+    }
+
+    fn sign_es256(&self, input: &[u8]) -> Result<Vec<u8>, JoseError> {
         let signature = self
             .pair
-            .sign(&SystemRandom::new(), input.as_bytes())
+            .sign(&SystemRandom::new(), input)
             .map_err(|_| JoseError::Crypto)?;
-        Ok(format!("{input}.{}", b64url(signature.as_ref())))
+        Ok(signature.as_ref().to_vec())
     }
+}
+
+/// A compact JWS of `claims` by `signer`, with `typ: jwt`, `alg: ES256` and
+/// the headers in `extra` (such as a `kid`).
+///
+/// # Errors
+///
+/// [`JoseError::Crypto`] when signing fails or the signature is not
+/// 64 bytes.
+pub fn sign_jws(
+    signer: &dyn Es256Signer,
+    claims: &Value,
+    extra: &[(&str, &str)],
+) -> Result<String, JoseError> {
+    let mut header = Map::new();
+    header.insert("typ".into(), Value::from("jwt"));
+    header.insert("alg".into(), Value::from(JWS_ALG));
+    for (name, value) in extra {
+        header.insert((*name).into(), Value::from(*value));
+    }
+    let input = format!(
+        "{}.{}",
+        b64url(Value::Object(header).to_string().as_bytes()),
+        b64url(claims.to_string().as_bytes())
+    );
+    let signature = signer.sign_es256(input.as_bytes())?;
+    if signature.len() != SIGNATURE_LEN {
+        return Err(JoseError::Crypto);
+    }
+    Ok(format!("{input}.{}", b64url(&signature)))
 }
 
 /// A symmetric `A256GCM` key, such as the session key of a CreateSession.

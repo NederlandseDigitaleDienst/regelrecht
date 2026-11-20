@@ -22,8 +22,10 @@ description: "The screens of the wetsproces server: a public side for citizens a
 | `/burger/besluit/{id}` | citizen | One decision: what came out, why, and an objection against it |
 | `/backoffice` | employee | Per cell the employee works for, the submissions without a decision and the facts the cell records |
 | `/backoffice/behandelen/{cel}/{id}` | decider of the cell | One submission: the findings the decision asks, a preview, the decision |
-| `/backoffice/kroniek` | reader of a cell | The chronicle of a cell |
+| `/backoffice/kroniek/{cel}` | reader of a cell | The chronicle of a cell |
 | `/backoffice/klok` | admin, test mode | The test clock |
+
+Both sides are laid out as the [editor](/components/frontend): a bar with the tabs of the side and the account menu, and under it a list in a sidebar with the chosen item in a pane beside it. A decision opens next to the dossier, a submission next to the work queue. The shell is `src/gedeeld/Schil.vue`; the citizen's app uses it too. The appearance submenu in the account menu is the editor's own component, `WeergaveMenuItem.vue` in `frontend-shared`.
 
 The tabs and buttons a screen shows follow from `GET /api/ik`, which says per cell what the account may do. That is a matter of what to show: the server checks every call against the roles itself.
 
@@ -59,9 +61,9 @@ Two parts of the UI spec have no effect here yet. A prefill from a source (`fill
 
 ## The public side and the back office
 
-`src/burger/` and `src/backoffice/` each have their own routes and their own API client, and every screen loads as a chunk of its own. The citizen's client calls only the routes both sides share and the citizen's own. It does not say how a request proves who sends it: `src/gedeeld/sessie.ts` adds that, as the session cookie today. A test (`src/scheiding.test.ts`) fails when a module of the public side imports the back office or the login, names a back-office route, or handles a cookie.
+`src/burger/` and `src/backoffice/` each have their own routes and their own API client, and every screen loads as a chunk of its own. The citizen's client calls only the routes both sides share and the citizen's own. It does not say how a request reaches the server or proves who sends it: `src/gedeeld/sessie.ts` decides that, with the session cookie in the browser. A test (`src/scheiding.test.ts`) fails when a module of the public side imports the back office or the login, names a back-office route, or handles a cookie.
 
-This split lets the public side be bundled on its own later, behind another login. An app that connects through FSC voor Burgers is one such route; it is not built.
+The split lets the public side be bundled on its own, from `burger.html`, with a transport chosen per build: the commands of [the app](/components/wetsproces-app)'s Rust core, or HTTP with the session cookie.
 
 ## Running it locally
 

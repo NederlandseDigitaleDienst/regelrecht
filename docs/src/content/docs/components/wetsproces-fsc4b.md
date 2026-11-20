@@ -15,7 +15,7 @@ The code is in `packages/wetsproces/src/fsc4b/`. Without configuration the chann
 4. It runs `CreateSession` (§4.3.4). `POST /fsc4b/session/v1/challenge` gives a JWS, signed with the organization's key, with a nonce and an ephemeral P-256 key. The app signs the nonce for this organization's OIN (`aud`), puts that signature, the credential and a fresh AES key in a Verifiable Presentation, encrypts it to the ephemeral key (`ECDH-ES`, `A256GCM`), and sends it with the nonce to `POST /fsc4b/session/v1/complete`. The answer is a session token, encrypted under the app's AES key.
 5. It calls the citizen's service with the token in the `Authorization` header and a body that is a JWE under the session key (`alg: dir`, `enc: A256GCM`). The answer comes back encrypted under the same key. Only a `401` (no live session under the token, or a body that does not decrypt under its key) and a `500` while reading the session are plain JSON.
 
-The reference client in `src/fsc4b/client.rs` (feature `test-utils`) does each step as its own function. It is what the end-to-end tests in `tests/fsc4b.rs` run on.
+The client in `packages/fsc4b/src/client.rs` does each step as its own function. The end-to-end tests in `packages/wetsproces/tests/fsc4b.rs` run on it (the feature `test-utils` re-exports it as `fsc4b::client`), and so does [the app](/components/wetsproces-app). The JOSE formats and the names both sides must spell alike are in that crate as well.
 
 ## Routes
 
@@ -87,4 +87,4 @@ Each choice sits in one place in `src/fsc4b/`.
 - **Revocation.** The server does not check Token Status Lists (§4.5). A revoked credential is accepted until its `exp`. The Stelselbeheerder's revocation and expiry of issuer keys (§4.5, §4.6.2) depend on a toepassingsprofiel that does not exist here, so the server does not check them either.
 - **Replay within a session.** The body of a request to the citizen's service holds no time or route, so a request someone captured can be sent again while the session lasts. A submission with an `idempotency_key` is answered from its receipt the second time and recorded once; that key sits inside the encryption, so it cannot be stripped off. A submission without one, and every read, can be replayed. The werkversie names no protection against this.
 - **OpenID4VP and OpenID4VCI** (§4.3.5, §4.4.2), and activation of an app with a real Activatiedienst (§4.4.1).
-- **The native app**, its deployment and a frontend.
+- **A native app with a key in secure hardware.** [The app](/components/wetsproces-app) runs as a desktop window with its key in software; a phone build is not made.

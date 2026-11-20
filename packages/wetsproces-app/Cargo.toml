@@ -1,0 +1,43 @@
+[package]
+name = "regelrecht-wetsproces-app"
+version = "0.1.0"
+edition.workspace = true
+authors = ["MinBZK <noreply@minbzk.nl>"]
+description = "The core of the wetsproces app: the commands a webview calls, over FSC voor Burgers, with the key, the credential and the session kept on the Rust side"
+license = "EUPL-1.2"
+repository = "https://github.com/NederlandseDigitaleDienst/regelrecht"
+publish = false
+
+[dependencies]
+# The protocol and its client, shared with the server and its tests.
+regelrecht-fsc4b = { path = "../fsc4b", features = ["client"] }
+# HTTPS to the server, with the roots of webpki-roots built in: a phone app
+# brings its trust with it. The provider is aws-lc-rs, which the protocol
+# crate links already (`install_crypto_provider`).
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-webpki-roots-no-provider", "json"] }
+rustls = { version = "0.23", default-features = false, features = ["aws-lc-rs"] }
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+# One lock around the session, so concurrent commands share one CreateSession.
+tokio = { workspace = true, features = ["sync"] }
+
+[features]
+# What the end-to-end tests need beside the commands: spoiling a session to
+# show that the core starts a new one.
+test-utils = []
+
+[[test]]
+name = "e2e"
+required-features = ["test-utils"]
+
+[dev-dependencies]
+# A real wetsproces server with the demo Stelsel, in the test process.
+regelrecht-wetsproces = { path = "../wetsproces", features = ["test-utils"] }
+regelrecht-wetsproces-app = { path = ".", features = ["test-utils"] }
+axum.workspace = true
+tempfile.workspace = true
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "net"] }
+
+[lints]
+workspace = true

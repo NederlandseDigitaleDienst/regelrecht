@@ -6,6 +6,10 @@
     // `arr[i]` may be undefined; the type says so.
     "noUncheckedIndexedAccess": true,
 
+    // The transport of the citizen's entry; vite.config.ts picks it per
+    // build, the type check sees the app's. Both files implement `Vervoer`.
+    "paths": { "#vervoer": ["./src/burgeromgeving/vervoer/tauri.ts"] },
+
     // `vue-tsc --build` keeps an incremental cache; out of the app directory.
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo"
   }

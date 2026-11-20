@@ -40,22 +40,27 @@ async function zet() {
 </script>
 
 <template>
-  <nldd-simple-section width="640px">
-    <nldd-title slot="header" heading-level="1" text="Klok" supporting-text="Elke stap in deze testomgeving krijgt deze dag als datum."></nldd-title>
-    <nldd-inline-dialog v-if="!klok && melding" icon="warning" icon-color="critical" text="De klok laadt niet" :supporting-text="melding"></nldd-inline-dialog>
-    <nldd-container v-if="klok" gap="16">
-      <nldd-inline-dialog v-if="!klok.bestuurbaar" icon="info" text="De klok volgt de echte datum" supporting-text="Alleen in de testmodus is de klok te zetten."></nldd-inline-dialog>
-      <template v-else>
-        <nldd-text>Het is nu {{ longDate(klok.datum) }}.</nldd-text>
-        <nldd-form-field label="Nieuwe datum">
-          <nldd-date-field :value="datum" @change="lees"></nldd-date-field>
-        </nldd-form-field>
-        <nldd-banner v-if="gezet" variant="success" :text="`De klok staat op ${longDate(klok.datum)}`"></nldd-banner>
-        <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="De klok is niet gezet" :supporting-text="melding"></nldd-inline-dialog>
-        <nldd-button-group orientation="horizontal">
-          <nldd-button appearance="primary" text="Klok zetten" @click="zet"></nldd-button>
-        </nldd-button-group>
-      </template>
-    </nldd-container>
-  </nldd-simple-section>
+  <nldd-page landmarks="page" sticky-header accessible-label="Klok">
+    <nldd-top-title-bar slot="header" text="Klok" collapse-anchor="klok-titel"></nldd-top-title-bar>
+    <nldd-simple-section>
+      <nldd-title id="klok-titel" size="display-3"><h3>Klok</h3></nldd-title>
+      <nldd-text color="secondary">Elke stap in deze testomgeving krijgt deze dag als datum.</nldd-text>
+      <nldd-spacer size="16"></nldd-spacer>
+      <nldd-inline-dialog v-if="!klok && melding" icon="warning" icon-color="critical" text="De klok laadt niet" :supporting-text="melding"></nldd-inline-dialog>
+      <nldd-container v-if="klok" gap="16">
+        <nldd-inline-dialog v-if="!klok.bestuurbaar" icon="info" text="De klok volgt de echte datum" supporting-text="Alleen in de testmodus is de klok te zetten."></nldd-inline-dialog>
+        <template v-else>
+          <nldd-text>Het is nu {{ longDate(klok.datum) }}.</nldd-text>
+          <nldd-form-field label="Nieuwe datum">
+            <nldd-date-field :value="datum" @change="lees"></nldd-date-field>
+          </nldd-form-field>
+          <nldd-banner v-if="gezet" variant="success" :text="`De klok staat op ${longDate(klok.datum)}`"></nldd-banner>
+          <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="De klok is niet gezet" :supporting-text="melding"></nldd-inline-dialog>
+          <nldd-button-group orientation="horizontal">
+            <nldd-button appearance="primary" text="Klok zetten" @click="zet"></nldd-button>
+          </nldd-button-group>
+        </template>
+      </nldd-container>
+    </nldd-simple-section>
+  </nldd-page>
 </template>

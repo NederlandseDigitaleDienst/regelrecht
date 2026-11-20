@@ -38,7 +38,7 @@ COPY packages/Cargo.lock packages/Cargo.toml ./
 # hoeft te vinden. De grep-assertie valt om als de members-array ooit op één
 # regel wordt gezet; dan zou de sed er stilletjes langs lopen.
 RUN grep -qE '^members = \[$' Cargo.toml && \
-    sed -i '/"admin"/d; /"arch-extract"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d' Cargo.toml
+    sed -i '/"admin"/d; /"arch-extract"/d; /"editor-api"/d; /"harvester"/d; /"pipeline"/d; /"poc-napp"/d; /"poc-portal"/d; /"tui"/d; /"wetsproces-app"/d' Cargo.toml
 # The login: OIDC against Keycloak and the session keys (src/login.rs).
 COPY packages/auth/ auth/
 COPY packages/cel/ cel/
@@ -47,6 +47,8 @@ COPY packages/corpus/ corpus/
 # uit, maar cargo leest het manifest van elke path-dependency.
 COPY packages/github/ github/
 COPY packages/engine/ engine/
+# The protocol of FSC voor Burgers, shared with the app.
+COPY packages/fsc4b/ fsc4b/
 COPY packages/law-model/ law-model/
 COPY packages/poc-chronolexografie/ poc-chronolexografie/
 COPY packages/shared/ shared/
@@ -72,6 +74,8 @@ COPY packages/cel/ cel/
 COPY packages/corpus/ corpus/
 COPY packages/github/ github/
 COPY packages/engine/ engine/
+# The protocol of FSC voor Burgers, shared with the app.
+COPY packages/fsc4b/ fsc4b/
 COPY packages/law-model/ law-model/
 COPY packages/poc-chronolexografie/ poc-chronolexografie/
 COPY packages/shared/ shared/

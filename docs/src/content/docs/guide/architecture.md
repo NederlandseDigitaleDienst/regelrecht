@@ -92,13 +92,15 @@ regelrecht/
 │   ├── poc-napp/         # Backend of the napp PoC
 │   ├── poc-chronolexografie/ # The chronolexography PoC: the cell as an app per case, as WASM, with its frontend in frontend/
 │   ├── wetsproces/       # Server that runs one legal process on the cells, for many users
+│   ├── fsc4b/            # FSC voor Burgers as a library: JOSE, wire names and the client, for the wetsproces server and app
+│   ├── wetsproces-app/   # Core of the wetsproces app: the commands its webview calls, with the key kept in Rust
 │   ├── poc-assistent/    # Policy assistant for the PoCs (Node package)
 │   ├── arch-extract/     # Architecture explorer (developer tool)
 │   └── grafana/          # Provisioned dashboards
 ├── frontend/             # Law editor (Vue 3 + Vite)
 ├── frontend-lawmaking/   # Law-making process visualization
 ├── frontend-demo/        # The demo, engine as WASM in the browser
-├── frontend-wetsproces/  # The screens of the wetsproces server
+├── frontend-wetsproces/  # The screens of the wetsproces server, and in src-tauri/ the shell of the app
 ├── frontend-poc-*/       # The proof-of-concepts behind the portal
 ├── corpus-poc/           # Case corpora of the PoCs, not law in force
 ├── pocs/                 # The PoC register
