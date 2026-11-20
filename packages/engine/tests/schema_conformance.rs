@@ -997,9 +997,8 @@ fn on_version(document: &Value, version: &str) -> Value {
 
 /// Schema v0.8.26 refuses each key it dropped or no longer admits, while
 /// v0.8.24 accepts the same document: a rulework that names the older version
-/// keeps validating. `jaar` is the one exception in the other direction, a key
-/// the law-model reads and no version ever defined, which the open document of
-/// v0.8.24 let through.
+/// keeps validating. `jaar` and `valid_form` are keys no version defined: the
+/// open document of v0.8.24 let them through, and v0.8.26 refuses them.
 #[test]
 fn v0_8_26_refuses_what_it_drops_and_closes() {
     let base: Value = serde_yaml_ng::from_str(V0_8_26_BASE).expect("base is YAML");
@@ -1084,35 +1083,34 @@ fn with_value(base: &Value, value: Value) -> Value {
 }
 
 /// A field composed with `allOf` is closed in v0.8.26 by listing every key it
-/// admits with `true`. Tier C skips those stubs, so each must name a key that
-/// `baseField` or the field's own branches define; otherwise a key would be
-/// admitted with no shape at all and leave the coverage gate unseen.
+/// admits with `true`. The list must equal the keys `baseField` and the
+/// field's own branches define. A stub without a definition would admit a key
+/// with no shape, which Tier C would not see; a definition without a stub
+/// would be refused on that field, and no test would notice.
 #[test]
-fn v0_8_26_field_stubs_name_defined_keys() {
+fn v0_8_26_field_stubs_list_exactly_the_defined_keys() {
+    use std::collections::BTreeSet;
+
     let schemas = regelrecht_engine::schema::load_schemas().expect("load schemas");
     let definitions = &schemas["v0.8.26"]["definitions"];
-    let base: Vec<&String> = definitions["baseField"]["properties"]
+    let base = definitions["baseField"]["properties"]
         .as_object()
-        .expect("baseField has properties")
-        .keys()
-        .collect();
+        .expect("baseField has properties");
     for field in ["parameterField", "inputField", "outputField"] {
-        let own: Vec<&String> = definitions[field]["allOf"]
+        let defined: BTreeSet<&String> = definitions[field]["allOf"]
             .as_array()
             .expect("field is composed with allOf")
             .iter()
             .filter_map(|branch| branch["properties"].as_object())
             .flat_map(|properties| properties.keys())
+            .chain(base.keys())
             .collect();
-        let stubs = definitions[field]["properties"]
+        let listed: BTreeSet<&String> = definitions[field]["properties"]
             .as_object()
-            .expect("field lists its keys");
-        for key in stubs.keys() {
-            assert!(
-                base.contains(&key) || own.contains(&key),
-                "{field} admits `{key}`, which no branch defines"
-            );
-        }
+            .expect("field lists its keys")
+            .keys()
+            .collect();
+        assert_eq!(listed, defined, "{field} lists other keys than it defines");
         assert_eq!(
             definitions[field]["additionalProperties"],
             Value::Bool(false),
