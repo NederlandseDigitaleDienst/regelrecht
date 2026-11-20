@@ -285,7 +285,7 @@ So the action leaves `RUSTC_WRAPPER` unset in that case and writes the warning "
 
 ## Merge gates
 
-Passing the checks above is not enough on its own. Four gates weigh in on whether a pull request can merge. Only **Claude review completed** is a required status check on `main`; the other three report and are read by a human.
+Passing the checks above is not enough on its own. Five gates weigh in on whether a pull request can merge. Only **Claude review completed** is a required status check on `main`; the other four report and are read by a human.
 
 | Gate | What it requires |
 |------|------------------|
@@ -293,6 +293,7 @@ Passing the checks above is not enough on its own. Four gates weigh in on whethe
 | **Claude review completed** | The automated review ran to completion for this commit and left no finding marked Critical. There is no override: fix the finding and push again. |
 | **Security update approved** | A Dependabot security update needs an approving review from someone with write access, on the commit being merged. Security updates skip the five-day cooldown, so a human looks at them instead. |
 | **Mutation Testing (diff)** | Reports on whether the tests pin the behavior the change introduces. It runs when a PR changes `packages/engine`, `packages/pipeline` or `packages/cel`, and mutates only the changed lines. |
+| **Construct mutation** | Reports on whether a scenario in bucket B or the cell's suite notices when one construct of the law format breaks. It runs when a PR changes the scenarios, the synthetic `test_*` ruleworks, the schema or the mutations, and turns red when a construct comes loose or a known gap in `bdd/construct-gaps.txt` gets pinned. See [Testing](/guide/testing#construct-mutation). |
 
 The full list of required checks on `main` is `Pre-commit`, `WASM Build`, `Protect schema versions`, `Security Audit`, `Test`, `Validate PR title` and `Claude review completed`. That list lives in the branch protection, not in a file; `script/merge-queue-checks.test.mjs` keeps a hand-maintained copy of it (see [the merge queue](#the-merge-queue)).
 

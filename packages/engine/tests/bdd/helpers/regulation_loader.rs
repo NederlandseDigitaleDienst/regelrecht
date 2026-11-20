@@ -65,21 +65,37 @@ pub fn load_regulations_from(
 }
 
 /// The YAML of the regelwerk at `path`, as the runners load it: with
-/// `BDD_REVERSE_ACTIONS` set, the actions of each article reversed.
+/// `BDD_REVERSE_ACTIONS` set, the actions of each article reversed, and with
+/// `BDD_CONSTRUCT_MUTATION` set, the construct it names broken
+/// (`common/construct_mutation.rs`).
 ///
 /// # Errors
 ///
-/// When the file cannot be read or its actions cannot be reversed.
+/// When the file cannot be read or its actions cannot be reversed or mutated.
 pub fn regulation_source(path: &Path) -> Result<String, EngineError> {
     let content = std::fs::read_to_string(path)
         .map_err(|e| EngineError::LoadError(format!("Failed to read {}: {e}", path.display())))?;
-    if crate::reverse_actions::enabled() {
+    let content = if crate::reverse_actions::enabled() {
         crate::reverse_actions::reversed_actions(&content).map_err(|e| {
             EngineError::LoadError(format!("Failed to reverse {}: {e}", path.display()))
-        })
+        })?
     } else {
-        Ok(content)
+        content
+    };
+    let Some(construct) = crate::construct_mutation::selected() else {
+        return Ok(content);
+    };
+    let (mutated, sites) = crate::construct_mutation::mutated(&content, construct)
+        .map_err(|e| EngineError::LoadError(format!("Failed to mutate {}: {e}", path.display())))?;
+    if sites > 0 {
+        // stderr, so the driver can count the sites without parsing cucumber.
+        eprintln!(
+            "construct-mutation: {} site(s) in {}",
+            sites,
+            path.display()
+        );
     }
+    Ok(mutated)
 }
 
 /// Load every `.yaml` file under `regulation_dir` into the service, and

@@ -1,0 +1,25 @@
+# Constructs of the law format that no scenario in bucket B or the cell's
+# suite pins yet. `script/construct-mutants.mjs --check` reads this list: a
+# construct that is not pinned and not listed here turns the run red, and so
+# does a construct listed here that has since been pinned. The list only gets
+# shorter. Measured 2026-11-20; how it works is in docs guide/testing.md,
+# section "Construct mutation".
+
+# In no synthetic test_* rulework: no scenario of the language suites
+# evaluates these at all. The Rust unit tests do cover them, but an engine
+# other than the Rust one has only the scenarios.
+AGE
+CEIL
+DATE
+DAY_OF_WEEK
+DIVIDE
+FLOOR
+MAX
+MIN
+ROUND
+SUBTRACT
+machineReadableSection.definitions  # no numeric constant in a synthetic rulework
+machineReadableSection.markings
+
+# Present, but no scenario notices when it goes.
+baseField.type_spec  # removed at 14 sites, every scenario stays green

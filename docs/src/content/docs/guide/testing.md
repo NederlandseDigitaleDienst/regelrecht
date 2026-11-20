@@ -228,12 +228,30 @@ The scripts in `script/` that decide something in CI, such as a merge gate or th
 
 ## Mutation testing
 
-`cargo-mutants` checks whether the tests actually pin behavior or merely execute it. CI runs the diff variant as a gate on changed code.
+`cargo-mutants` checks whether the tests actually pin behavior or merely execute it. CI runs the diff variant as a gate on changed code. The weekly full run (`mutation-testing.yml`) mutates the engine and the cell and opens an issue with what survived.
 
 ```bash
 just mutants       # Full run
 just mutants-diff  # Only what this branch changed
 ```
+
+Line coverage is no measure of this. A line counts as covered when a test runs it, whether or not an assertion depends on what it computed. Read a coverage percentage as context next to the mutation results, never on its own.
+
+### Construct mutation
+
+cargo-mutants breaks the Rust code and runs the Rust tests. It does not run the BDD suites, which are `test = false`, so it says nothing about whether the language suites pin a construct. Those suites matter on their own: bucket B is the contract every engine has to meet, and an engine other than the Rust one has none of the Rust unit tests behind it.
+
+Construct mutation asks that question of the law format. `just construct-mutants` breaks one construct at a time in every synthetic `test_*` rulework: `ADD` becomes `SUBTRACT`, `GREATER_THAN` becomes `GREATER_THAN_OR_EQUAL`, the `hooks` of an article are dropped, every numeric definition goes up by one. It then runs bucket B and the cell's suite. A construct is pinned when a scenario turns red. Each mutation is chosen so that the rulework still loads, which makes a red scenario a sign that an assertion depends on the construct. Real ruleworks in the corpus are left alone.
+
+```bash
+just construct-mutants                       # Every construct, about half an hour
+just construct-mutants --only ADD,IF         # A few
+just construct-mutants --check bdd/construct-gaps.txt
+```
+
+The mutations are in `packages/engine/tests/common/construct_mutation.rs`, and the driver and its report in `script/construct-mutants.mjs`. A construct the run has no mutation for is listed in `NOT_MUTATED` in the same file, with the reason. `packages/engine/tests/construct_coverage.rs` runs with the other Rust tests and fails when the schema has an operation or a property in neither list, so a new construct arrives with a decision about how its tests are measured.
+
+`bdd/construct-gaps.txt` lists the constructs that no scenario pins yet. The workflow **Construct mutation** runs the check on a pull request that changes the scenarios, the synthetic ruleworks, the schema or the mutations. It turns red when a pinned construct comes loose, and also when a listed gap gets pinned, so the list only gets shorter. It also runs weekly, and the issue of the weekly mutation run carries its report.
 
 ## Benchmarks
 

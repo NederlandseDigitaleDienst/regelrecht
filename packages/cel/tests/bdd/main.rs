@@ -35,6 +35,10 @@ mod dispatch;
 mod extension;
 #[path = "../../../engine/tests/bdd/helpers/mod.rs"]
 mod helpers;
+// Each runner uses part of it: the cell's never lists, neither excuses.
+#[allow(dead_code)]
+#[path = "../../../engine/tests/common/construct_mutation.rs"]
+mod construct_mutation;
 #[path = "../../../engine/tests/common/reverse_actions.rs"]
 mod reverse_actions;
 #[path = "../../../engine/tests/bdd/runner.rs"]

@@ -594,6 +594,19 @@ mutants-diff BASE="origin/main":
     cd packages
     cargo mutants --in-place --timeout 120 --in-diff "$diff_file"
 
+# Constructiemutatie: breek één constructie van het wetsformaat tegelijk in de
+# synthetische test_*-regelwerken en draai bucket B en de suite van de cel. Een
+# constructie is vastgepind als er een scenario rood wordt. cargo-mutants
+# hierboven vraagt hetzelfde van de Rust-code van de engine; dit vraagt het van
+# de taal. `--check bdd/construct-gaps.txt` vergelijkt met de bekende gaten,
+# `--only ADD,IF` draait een deel. Het hele rondje kost een half uur of meer.
+[doc("Break one law-format construct at a time and see which scenarios notice")]
+construct-mutants *ARGS:
+    {{ci_flags}} node script/construct-mutants.mjs {{ARGS}}
+
+construct-mutants-test:
+    node --test script/construct-mutants.test.mjs
+
 # --- Benchmarks ---
 
 _bench_flags := "--bench uri_parsing --bench variable_resolution --bench operations --bench article_evaluation --bench law_loading --bench priority --bench service_e2e"
