@@ -1,58 +1,50 @@
 <script setup lang="ts">
-// The shell of the app: the band that says this is a trial, the bar with the
-// name of the process and who is logged in, and the screen of the route.
+// The shell of the web builds with the login (the combined build and the back
+// office): the editor's layout (gedeeld/Schil.vue) with the tabs of the side
+// the screen belongs to, the account of the login, and the trial band with the
+// date of the clock.
 import { computed, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { gedeeldApi } from './gedeeld/api';
-import { geenToegang, ik, startpagina } from './gedeeld/ik';
-import ProefStrook from './gedeeld/ProefStrook.vue';
-import type { Casus, Klok } from './gedeeld/types';
+import { geenToegang, ik } from './gedeeld/ik';
+import Schil from './gedeeld/Schil.vue';
+import { tabsVan } from './gedeeld/schil';
+import type { Tab } from './gedeeld/schil';
+import type { Klok } from './gedeeld/types';
 import { inloggenApi } from './inloggen/api';
 
 const route = useRoute();
 const router = useRouter();
 const klok = ref<Klok | null>(null);
-const casus = ref<Casus | null>(null);
 
-async function laad() {
-  if (!ik.value) {
-    klok.value = null;
-    casus.value = null;
-    return;
-  }
-  [klok.value, casus.value] = await Promise.all([gedeeldApi.klok(), gedeeldApi.casus()]).catch(() => [null, null]);
+async function laadKlok() {
+  klok.value = ik.value ? await gedeeldApi.klok().catch(() => null) : null;
 }
-onMounted(laad);
-watch(ik, laad);
+onMounted(laadKlok);
+watch(ik, laadKlok);
 // The admin sets the clock on its own screen; the band follows.
-watch(
-  () => route.fullPath,
-  () => ik.value && gedeeldApi.klok().then((k) => (klok.value = k)).catch(() => undefined),
-);
+watch(() => route.fullPath, laadKlok);
 
-const titel = computed(() => (casus.value?.titel ? `Wetsproces · ${casus.value.titel}` : 'Wetsproces'));
-const wie = computed(() => ik.value?.naam || ik.value?.sub || '');
-const thuis = computed(() => startpagina(ik.value));
+const naam = computed(() => (ik.value ? ik.value.naam || ik.value.sub : null));
+const rechten = computed<Tab['recht'][]>(() => (ik.value?.klok_zetten ? ['klok_zetten'] : []));
 </script>
 
 <template>
-  <nldd-shell>
-    <nldd-page>
-      <nldd-container slot="header" gap="0">
-        <ProefStrook :klok="klok" />
-        <nldd-top-navigation-bar no-logo :website-title="titel" :website-href="thuis">
-          <nldd-menu-bar v-if="ik" slot="utility" accessible-label="Account">
-            <nldd-menu-bar-item icon="account" :text="wie"></nldd-menu-bar-item>
-            <nldd-menu-bar-item icon="logout" text="Uitloggen" @select="inloggenApi.uitloggen()"></nldd-menu-bar-item>
-          </nldd-menu-bar>
-        </nldd-top-navigation-bar>
-      </nldd-container>
-      <nldd-simple-section v-if="geenToegang && route.name !== 'inloggen'">
+  <Schil
+    :tabs="tabsVan(route)"
+    :naam="naam"
+    :klok="klok"
+    :rechten="rechten"
+    afmeld-tekst="Uitloggen"
+    @afmelden="inloggenApi.uitloggen()"
+  >
+    <nldd-page v-if="geenToegang && route.name !== 'inloggen'" landmarks="page">
+      <nldd-simple-section width="full">
         <nldd-inline-dialog icon="warning" :text="geenToegang.kop" :supporting-text="geenToegang.reden">
           <nldd-button slot="actions" appearance="secondary" text="Opnieuw inloggen" @click="router.push('/inloggen')"></nldd-button>
         </nldd-inline-dialog>
       </nldd-simple-section>
-      <RouterView v-else />
     </nldd-page>
-  </nldd-shell>
+    <RouterView v-else />
+  </Schil>
 </template>

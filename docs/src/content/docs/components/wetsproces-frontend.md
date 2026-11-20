@@ -22,8 +22,10 @@ description: "The screens of the wetsproces server: a public side for citizens a
 | `/burger/besluit/{id}` | citizen | One decision: what came out, why, and an objection against it |
 | `/backoffice` | employee | Per cell the employee works for, the submissions without a decision and the facts the cell records |
 | `/backoffice/behandelen/{cel}/{id}` | decider of the cell | One submission: the findings the decision asks, a preview, the decision |
-| `/backoffice/kroniek` | reader of a cell | The chronicle of a cell |
+| `/backoffice/kroniek/{cel}` | reader of a cell | The chronicle of a cell |
 | `/backoffice/klok` | admin, test mode | The test clock |
+
+Both sides are laid out as the [editor](/components/frontend): a bar with the tabs of the side and the account menu, and under it a list in a sidebar with the chosen item in a pane beside it. A decision opens next to the dossier, a submission next to the work queue. The shell is `src/gedeeld/Schil.vue`; the citizen's app uses it too. The appearance submenu in the account menu is the editor's own component, `WeergaveMenuItem.vue` in `frontend-shared`.
 
 The tabs and buttons a screen shows follow from `GET /api/ik`, which says per cell what the account may do. That is a matter of what to show: the server checks every call against the roles itself.
 

@@ -40,34 +40,38 @@ async function activeer(bsn: string) {
 </script>
 
 <template>
-  <nldd-simple-section width="640px">
-    <nldd-title slot="header" heading-level="1" text="App activeren"></nldd-title>
-    <nldd-container gap="16">
-      <nldd-inline-dialog v-if="reden" icon="warning" text="Opnieuw activeren" :supporting-text="reden"></nldd-inline-dialog>
-      <nldd-inline-dialog
-        v-if="appStatus?.config_problem"
-        icon="warning"
-        icon-color="critical"
-        text="Geen server ingesteld"
-        :supporting-text="melding({ kind: 'not_configured', detail: appStatus.config_problem })"
-      ></nldd-inline-dialog>
-      <template v-else-if="appStatus">
-        <nldd-banner
-          variant="accent"
-          text="Testomgeving: kies een verzonnen burger"
-          supporting-text="In de testmodus geeft de demo-Activatiedienst van de server deze app een bewijs voor een fictief BSN uit de testreeks. Niemand controleert wie u bent. Een echte app krijgt dat bewijs pas nadat u zich bij een Activatiedienst hebt geïdentificeerd."
-        ></nldd-banner>
-        <nldd-text color="secondary">Server: {{ appStatus.server }}</nldd-text>
-        <nldd-list appearance="box-base" accessible-label="Fictieve burgers">
-          <nldd-list-item v-for="bsn in appStatus.test_bsns" :key="bsn" button @click="activeer(bsn)">
-            <nldd-text-cell :text="`Burger met BSN ${bsn}`" supporting-text="Het BSN is fictief."></nldd-text-cell>
-            <nldd-icon-cell icon="chevron-right" color="secondary"></nldd-icon-cell>
-          </nldd-list-item>
-        </nldd-list>
-        <nldd-activity-indicator v-if="bezig"></nldd-activity-indicator>
-        <nldd-text color="secondary">{{ opslagTekst(appStatus) }}</nldd-text>
-      </template>
-      <nldd-inline-dialog v-if="fout" icon="warning" icon-color="critical" text="Activeren lukt niet" :supporting-text="fout"></nldd-inline-dialog>
-    </nldd-container>
-  </nldd-simple-section>
+  <nldd-page landmarks="page" sticky-header accessible-label="App activeren">
+    <nldd-top-title-bar slot="header" text="App activeren" collapse-anchor="activeren-titel"></nldd-top-title-bar>
+    <nldd-simple-section>
+      <nldd-title id="activeren-titel" size="display-3"><h3>App activeren</h3></nldd-title>
+      <nldd-spacer size="16"></nldd-spacer>
+      <nldd-container gap="16">
+        <nldd-inline-dialog v-if="reden" icon="warning" text="Opnieuw activeren" :supporting-text="reden"></nldd-inline-dialog>
+        <nldd-inline-dialog
+          v-if="appStatus?.config_problem"
+          icon="warning"
+          icon-color="critical"
+          text="Geen server ingesteld"
+          :supporting-text="melding({ kind: 'not_configured', detail: appStatus.config_problem })"
+        ></nldd-inline-dialog>
+        <template v-else-if="appStatus">
+          <nldd-banner
+            variant="accent"
+            text="Testomgeving: kies een verzonnen burger"
+            supporting-text="In de testmodus geeft de demo-Activatiedienst van de server deze app een bewijs voor een fictief BSN uit de testreeks. Niemand controleert wie u bent. Een echte app krijgt dat bewijs pas nadat u zich bij een Activatiedienst hebt geïdentificeerd."
+          ></nldd-banner>
+          <nldd-text color="secondary">Server: {{ appStatus.server }}</nldd-text>
+          <nldd-list appearance="box-base" accessible-label="Fictieve burgers">
+            <nldd-list-item v-for="bsn in appStatus.test_bsns" :key="bsn" button @click="activeer(bsn)">
+              <nldd-text-cell :text="`Burger met BSN ${bsn}`" supporting-text="Het BSN is fictief."></nldd-text-cell>
+              <nldd-icon-cell icon="chevron-right" color="secondary"></nldd-icon-cell>
+            </nldd-list-item>
+          </nldd-list>
+          <nldd-activity-indicator v-if="bezig"></nldd-activity-indicator>
+          <nldd-text color="secondary">{{ opslagTekst(appStatus) }}</nldd-text>
+        </template>
+        <nldd-inline-dialog v-if="fout" icon="warning" icon-color="critical" text="Activeren lukt niet" :supporting-text="fout"></nldd-inline-dialog>
+      </nldd-container>
+    </nldd-simple-section>
+  </nldd-page>
 </template>

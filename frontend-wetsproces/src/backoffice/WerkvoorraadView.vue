@@ -2,7 +2,9 @@
 // The work queue: per cell the employee works for, the submissions on which
 // no decision was taken yet, and the facts the cell records, such as an
 // advice. A decider opens a submission to decide on it; a handler records
-// facts. What the account may not do does not show.
+// facts. What the account may not do does not show. Laid out as the
+// editor's library: the queue in the sidebar, the submission being handled
+// in the main pane beside it (BehandelenPaneel.vue).
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { hoofdletter, leesbaar, zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
@@ -13,8 +15,10 @@ import { omschrijving, openIndieningen } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { Handeling } from '../gedeeld/types';
 import { backofficeApi } from './api';
+import BehandelenPaneel from './BehandelenPaneel.vue';
 import { useBackoffice } from './useBackoffice';
 
+const props = defineProps<{ cel?: string; id?: string }>();
 const router = useRouter();
 const { casus, vormen, wie, kronieken, fout, laden, laad } = useBackoffice();
 onMounted(laad);
@@ -74,45 +78,83 @@ async function vastleggen() {
 </script>
 
 <template>
-  <nldd-simple-section>
-    <nldd-title slot="header" heading-level="1" text="Werkvoorraad" supporting-text="Per cel waarvoor u werkt: de indieningen zonder besluit."></nldd-title>
-    <nldd-activity-indicator v-if="laden"></nldd-activity-indicator>
-    <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De werkvoorraad laadt niet" :supporting-text="fout"></nldd-inline-dialog>
-    <nldd-container v-else-if="casus" gap="32">
-      <nldd-banner v-if="vastgelegd" variant="success" :text="`${vastgelegd} is vastgelegd`"></nldd-banner>
-      <nldd-inline-dialog v-if="cellen.length === 0" icon="info" text="U werkt voor geen cel" supporting-text="Dit account mag geen kroniek lezen."></nldd-inline-dialog>
-      <nldd-container v-for="c in cellen" :key="c.recht.cel" gap="12">
-        <nldd-title heading-level="2" size="display-5" :text="hoofdletter(c.recht.cel_naam)"></nldd-title>
-        <nldd-list v-if="c.open.length" appearance="box-base" :accessible-label="`Werkvoorraad van ${c.recht.cel_naam}`">
-          <nldd-list-item v-for="g in c.open" :key="g.id">
-            <nldd-text-cell :text="omschrijving(g, casus)" :supporting-text="`Ontvangen ${longDate(g.recorded_on)} · onder ${g.basis}`"></nldd-text-cell>
-            <nldd-cell v-if="c.recht.beslissen">
-              <nldd-button
-                appearance="primary"
-                size="sm"
-                text="Behandelen"
-                @click="router.push({ name: 'behandelen', params: { cel: c.recht.cel, id: g.id } })"
-              ></nldd-button>
-            </nldd-cell>
-          </nldd-list-item>
-        </nldd-list>
-        <nldd-text v-else color="secondary">Geen open indieningen.</nldd-text>
-        <nldd-text v-if="c.open.length && !c.recht.beslissen" size="sm" color="secondary">
-          Een beslisser van deze cel neemt het besluit; u ziet de indieningen wel.
-        </nldd-text>
-        <nldd-button-group v-if="c.handelingen.length" orientation="horizontal">
-          <nldd-button
-            v-for="h in c.handelingen"
-            :key="h.feit"
-            appearance="secondary"
-            start-icon="add"
-            :text="`${feitNaam(h.feit)} vastleggen`"
-            @click="start(c.recht.cel, h)"
-          ></nldd-button>
-        </nldd-button-group>
-      </nldd-container>
-    </nldd-container>
-  </nldd-simple-section>
+  <nldd-navigation-split-view @back="router.push('/backoffice')">
+    <nldd-split-view-pane slot="primary-sidebar" has-content>
+      <nldd-page sticky-header accessible-label="Werkvoorraad">
+        <nldd-top-title-bar slot="header" text="Werkvoorraad" heading-level="3" collapse-anchor="werkvoorraad-titel"></nldd-top-title-bar>
+        <nldd-simple-section width="full">
+          <nldd-title id="werkvoorraad-titel" size="display-3"><h3>Werkvoorraad</h3></nldd-title>
+          <nldd-text color="secondary">Per cel waarvoor u werkt: de indieningen zonder besluit.</nldd-text>
+          <nldd-spacer size="16"></nldd-spacer>
+          <nldd-activity-indicator v-if="laden" text="De werkvoorraad laden" show-text></nldd-activity-indicator>
+          <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="De werkvoorraad laadt niet" :supporting-text="fout"></nldd-inline-dialog>
+          <template v-else-if="casus">
+            <template v-if="vastgelegd">
+              <nldd-banner variant="success" :text="`${vastgelegd} is vastgelegd`"></nldd-banner>
+              <nldd-spacer size="16"></nldd-spacer>
+            </template>
+            <nldd-inline-dialog v-if="cellen.length === 0" icon="info" text="U werkt voor geen cel" supporting-text="Dit account mag geen kroniek lezen."></nldd-inline-dialog>
+            <template v-for="(c, i) in cellen" :key="c.recht.cel">
+              <nldd-spacer v-if="i > 0" size="24"></nldd-spacer>
+              <nldd-title size="display-5"><h4>{{ hoofdletter(c.recht.cel_naam) }}</h4></nldd-title>
+              <nldd-list v-if="c.open.length" appearance="simple" :accessible-label="`Werkvoorraad van ${c.recht.cel_naam}`">
+                <nldd-list-item
+                  v-for="g in c.open"
+                  :key="g.id"
+                  size="md"
+                  :button="c.recht.beslissen || undefined"
+                  :current="g.id === id || undefined"
+                  @click="c.recht.beslissen && router.push({ name: 'behandelen', params: { cel: c.recht.cel, id: g.id } })"
+                >
+                  <nldd-text-cell :text="omschrijving(g, casus)" :supporting-text="`Ontvangen ${longDate(g.recorded_on)} · onder ${g.basis}`"></nldd-text-cell>
+                  <template v-if="c.recht.beslissen">
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+                  </template>
+                </nldd-list-item>
+              </nldd-list>
+              <nldd-text v-else color="secondary">Geen open indieningen.</nldd-text>
+              <nldd-text v-if="c.open.length && !c.recht.beslissen" size="sm" color="secondary">
+                Een beslisser van deze cel neemt het besluit; u ziet de indieningen wel.
+              </nldd-text>
+              <template v-if="c.handelingen.length">
+                <nldd-spacer size="8"></nldd-spacer>
+                <nldd-button-group orientation="horizontal">
+                  <nldd-button
+                    v-for="h in c.handelingen"
+                    :key="h.feit"
+                    appearance="secondary"
+                    start-icon="add"
+                    :text="`${feitNaam(h.feit)} vastleggen`"
+                    @click="start(c.recht.cel, h)"
+                  ></nldd-button>
+                </nldd-button-group>
+              </template>
+            </template>
+          </template>
+        </nldd-simple-section>
+      </nldd-page>
+    </nldd-split-view-pane>
+
+    <nldd-split-view-pane slot="main" :has-content="id || undefined">
+      <BehandelenPaneel
+        v-if="cel && id && casus"
+        :key="id"
+        :cel="cel"
+        :id="id"
+        :casus="casus"
+        :vormen="vormen"
+        :wie="wie"
+        :kronieken="kronieken"
+        @besloten="laad"
+      />
+      <nldd-page v-else landmarks="page">
+        <nldd-simple-section width="full">
+          <nldd-inline-dialog text="Kies een indiening" supporting-text="Een indiening opent hier, naast de werkvoorraad."></nldd-inline-dialog>
+        </nldd-simple-section>
+      </nldd-page>
+    </nldd-split-view-pane>
+  </nldd-navigation-split-view>
 
   <Teleport to="body">
     <nldd-sheet width="720px" :open="open || undefined" @close="open = false">

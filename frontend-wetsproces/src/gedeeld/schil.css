@@ -1,0 +1,17 @@
+/*
+ * The height the shell needs, as the editor gives it (frontend/css/main.css
+ * and the inline height on its #app). With a split view of several columns
+ * nldd-shell lets each nldd-page scroll inside its pane, and then the page
+ * fills only the height of what it stands in; without these rules that is
+ * nothing and the screen stays empty. The design system leaves this to the
+ * page. Imported by the shell (Schil.vue), so every build that uses it gets it.
+ */
+html,
+body,
+#app {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+}

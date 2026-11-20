@@ -39,29 +39,33 @@ async function kies(p: Persona) {
 </script>
 
 <template>
-  <nldd-simple-section width="640px">
-    <nldd-title slot="header" heading-level="1" text="Inloggen"></nldd-title>
-    <nldd-container gap="16">
-      <template v-if="status?.oidc_configured">
-        <nldd-text>Log in met uw account. Daarna komt u op uw startpagina.</nldd-text>
-        <nldd-button-group orientation="horizontal">
-          <nldd-button appearance="primary" start-icon="login" text="Inloggen" @click="inloggenApi.oidc('/')"></nldd-button>
-        </nldd-button-group>
-      </template>
-      <template v-else-if="status">
-        <nldd-banner
-          variant="accent"
-          text="Testomgeving: kies een account"
-          supporting-text="Hier logt u in zonder wachtwoord, als een van de accounts hieronder. Dat kan alleen in de testmodus zonder Keycloak. Elk account is verzonnen."
-        ></nldd-banner>
-        <nldd-list appearance="box-base" accessible-label="Testaccounts">
-          <nldd-list-item v-for="p in personen" :key="p.sub" button @click="kies(p)">
-            <nldd-text-cell :text="personaNaam(p)" :supporting-text="personaUitleg(p)"></nldd-text-cell>
-            <nldd-icon-cell icon="chevron-right" color="secondary"></nldd-icon-cell>
-          </nldd-list-item>
-        </nldd-list>
-      </template>
-      <nldd-inline-dialog v-if="fout" icon="warning" icon-color="critical" text="Inloggen lukt niet" :supporting-text="fout"></nldd-inline-dialog>
-    </nldd-container>
-  </nldd-simple-section>
+  <nldd-page landmarks="page" sticky-header accessible-label="Inloggen">
+    <nldd-top-title-bar slot="header" text="Inloggen" collapse-anchor="inloggen-titel"></nldd-top-title-bar>
+    <nldd-simple-section>
+      <nldd-title id="inloggen-titel" size="display-3"><h3>Inloggen</h3></nldd-title>
+      <nldd-spacer size="16"></nldd-spacer>
+      <nldd-container gap="16">
+        <template v-if="status?.oidc_configured">
+          <nldd-text>Log in met uw account. Daarna komt u op uw startpagina.</nldd-text>
+          <nldd-button-group orientation="horizontal">
+            <nldd-button appearance="primary" start-icon="login" text="Inloggen" @click="inloggenApi.oidc('/')"></nldd-button>
+          </nldd-button-group>
+        </template>
+        <template v-else-if="status">
+          <nldd-banner
+            variant="accent"
+            text="Testomgeving: kies een account"
+            supporting-text="Hier logt u in zonder wachtwoord, als een van de accounts hieronder. Dat kan alleen in de testmodus zonder Keycloak. Elk account is verzonnen."
+          ></nldd-banner>
+          <nldd-list appearance="box-base" accessible-label="Testaccounts">
+            <nldd-list-item v-for="p in personen" :key="p.sub" button @click="kies(p)">
+              <nldd-text-cell :text="personaNaam(p)" :supporting-text="personaUitleg(p)"></nldd-text-cell>
+              <nldd-icon-cell icon="chevron-right" color="secondary"></nldd-icon-cell>
+            </nldd-list-item>
+          </nldd-list>
+        </template>
+        <nldd-inline-dialog v-if="fout" icon="warning" icon-color="critical" text="Inloggen lukt niet" :supporting-text="fout"></nldd-inline-dialog>
+      </nldd-container>
+    </nldd-simple-section>
+  </nldd-page>
 </template>

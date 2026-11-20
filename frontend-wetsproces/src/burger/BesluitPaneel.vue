@@ -1,10 +1,11 @@
 <script setup lang="ts">
-// One decision from the citizen's dossier: what came out, why, and the
-// submissions the citizen can make against it, such as an objection. Which
+// One decision from the citizen's dossier, as the main pane beside it
+// (DossierView.vue): what came out, why, and the submissions the citizen can
+// make against it, such as an objection. Which
 // those are follows from the case: a submission that refers to a decision
 // and that the cell that took it decides on (keten.ts `indieningenTegen`).
 // Its fields come from the law, without what the decision already holds.
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import { hoofdletter, zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
@@ -13,35 +14,38 @@ import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
 import { artikelNaam, celNaam, indieningenTegen, isBesluit, toegewezen } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
-import type { CasusIndiening, Waarom } from '../gedeeld/types';
+import type { Casus, CasusIndiening, Gram, Vormen, Waarom } from '../gedeeld/types';
 import WaaromLijst from '../gedeeld/WaaromLijst.vue';
 import { burgerApi } from './api';
-import { useBurger } from './useBurger';
 
-const props = defineProps<{ id: string }>();
+const props = defineProps<{ id: string; casus: Casus; vormen: Vormen | null; dossier: Gram[] }>();
 const router = useRouter();
-const { casus, vormen, dossier, fout, laden, laad } = useBurger();
 const waarom = ref<Waarom | null>(null);
 const waaromFout = ref('');
 
 const besluit = computed(() => {
-  const c = casus.value;
-  const g = dossier.value.find((x) => x.id === props.id);
-  return c && g && isBesluit(g, c) ? g : null;
+  const g = props.dossier.find((x) => x.id === props.id);
+  return g && isBesluit(g, props.casus) ? g : null;
 });
-const naamVanCel = (cel: string) => (casus.value ? celNaam(cel, casus.value) : cel);
-const stand = computed(() => (besluit.value && casus.value ? toegewezen(besluit.value, casus.value) : undefined));
-const tegen = computed(() => (besluit.value && casus.value ? indieningenTegen(besluit.value, casus.value) : []));
+const titel = computed(() => (besluit.value ? `Besluit van ${longDate(besluit.value.recorded_on)}` : 'Besluit'));
+const naamVanCel = (cel: string) => celNaam(cel, props.casus);
+const stand = computed(() => (besluit.value ? toegewezen(besluit.value, props.casus) : undefined));
+const tegen = computed(() => (besluit.value ? indieningenTegen(besluit.value, props.casus) : []));
 
-onMounted(laad);
-watch(besluit, async (b) => {
-  if (!b) return;
-  try {
-    waarom.value = await burgerApi.waarom(b.id);
-  } catch (e) {
-    waaromFout.value = foutTekst(e);
-  }
-});
+watch(
+  besluit,
+  async (b) => {
+    waarom.value = null;
+    waaromFout.value = '';
+    if (!b) return;
+    try {
+      waarom.value = await burgerApi.waarom(b.id);
+    } catch (e) {
+      waaromFout.value = foutTekst(e);
+    }
+  },
+  { immediate: true },
+);
 
 // The submission against this decision the sheet holds, with its fields and values.
 const open = ref(false);
@@ -51,8 +55,8 @@ const melding = ref('');
 const bezig = ref(false);
 let sleutel = nieuweSleutel();
 const velden = computed(() => {
-  const vorm = keuze.value && vormen.value?.indieningen[keuze.value.artikel];
-  return vorm && besluit.value ? tegenBesluitVelden(vorm, besluit.value, vormen.value?.teksten) : [];
+  const vorm = keuze.value && props.vormen?.indieningen[keuze.value.artikel];
+  return vorm && besluit.value ? tegenBesluitVelden(vorm, besluit.value, props.vormen?.teksten) : [];
 });
 const soortNaam = (i: CasusIndiening) => hoofdletter(i.soort.toLowerCase());
 
@@ -84,52 +88,52 @@ async function indienen() {
 </script>
 
 <template>
-  <nldd-simple-section>
-    <nldd-activity-indicator v-if="laden"></nldd-activity-indicator>
-    <nldd-inline-dialog v-else-if="fout" icon="warning" icon-color="critical" text="Het besluit laadt niet" :supporting-text="fout"></nldd-inline-dialog>
-    <nldd-inline-dialog v-else-if="!besluit" icon="info" text="Dit besluit staat niet in uw dossier">
-      <nldd-button slot="actions" appearance="secondary" text="Naar mijn dossier" @click="router.push('/burger')"></nldd-button>
-    </nldd-inline-dialog>
-    <nldd-container v-else gap="24">
-      <nldd-title
-        heading-level="1"
-        :text="`Besluit van ${longDate(besluit.recorded_on)}`"
-        :supporting-text="`${naamVanCel(besluit.recording_actor)} · onder ${artikelNaam(besluit.basis)}`"
-      >
-        <nldd-tag
-          v-if="stand !== undefined"
-          slot="end"
-          :text="stand ? 'Toegewezen' : 'Afgewezen'"
-          :color="stand ? 'success' : 'critical'"
-        ></nldd-tag>
-      </nldd-title>
+  <nldd-page landmarks="page" sticky-header :accessible-label="titel">
+    <nldd-top-title-bar slot="header" :text="titel" back-text="Mijn dossier" collapse-anchor="besluit-titel"></nldd-top-title-bar>
+    <nldd-simple-section width="full">
+      <nldd-inline-dialog v-if="!besluit" icon="info" text="Dit besluit staat niet in uw dossier"></nldd-inline-dialog>
+      <template v-else>
+        <nldd-title id="besluit-titel" size="display-3">
+          <h3>{{ titel }}</h3>
+          <nldd-tag
+            v-if="stand !== undefined"
+            slot="end"
+            :text="stand ? 'Toegewezen' : 'Afgewezen'"
+            :color="stand ? 'success' : 'critical'"
+          ></nldd-tag>
+        </nldd-title>
+        <nldd-text color="secondary">{{ naamVanCel(besluit.recording_actor) }} · onder {{ artikelNaam(besluit.basis) }}</nldd-text>
+        <nldd-spacer size="24"></nldd-spacer>
 
-      <nldd-container gap="8">
-        <nldd-title heading-level="2" size="display-6" text="Wat eruit kwam"></nldd-title>
+        <nldd-title size="display-5"><h4>Wat eruit kwam</h4></nldd-title>
+        <nldd-spacer size="8"></nldd-spacer>
         <Gegevens :waarden="besluit.outputs" :teksten="vormen?.teksten" label="Uitkomst van het besluit" />
-      </nldd-container>
+        <nldd-spacer size="24"></nldd-spacer>
 
-      <nldd-container gap="8">
-        <nldd-title heading-level="2" size="display-6" text="Waarom" supporting-text="Wie de wet op elk punt invulde, en welke antwoorden het besluit gebruikte."></nldd-title>
+        <nldd-title size="display-5"><h4>Waarom</h4></nldd-title>
+        <nldd-text color="secondary">Wie de wet op elk punt invulde, en welke antwoorden het besluit gebruikte.</nldd-text>
+        <nldd-spacer size="8"></nldd-spacer>
         <WaaromLijst v-if="waarom" :waarom="waarom" :teksten="vormen?.teksten" :cel-naam="naamVanCel" />
         <nldd-inline-dialog v-else-if="waaromFout" icon="warning" text="De uitleg laadt niet" :supporting-text="waaromFout"></nldd-inline-dialog>
         <nldd-activity-indicator v-else></nldd-activity-indicator>
-      </nldd-container>
 
-      <nldd-container v-if="tegen.length" gap="8">
-        <nldd-title heading-level="2" size="display-6" text="Bent u het niet eens met dit besluit?"></nldd-title>
-        <nldd-button-group orientation="horizontal">
-          <nldd-button
-            v-for="i in tegen"
-            :key="i.artikel"
-            appearance="secondary"
-            :text="`${soortNaam(i)} indienen`"
-            @click="start(i)"
-          ></nldd-button>
-        </nldd-button-group>
-      </nldd-container>
-    </nldd-container>
-  </nldd-simple-section>
+        <template v-if="tegen.length">
+          <nldd-spacer size="24"></nldd-spacer>
+          <nldd-title size="display-5"><h4>Bent u het niet eens met dit besluit?</h4></nldd-title>
+          <nldd-spacer size="8"></nldd-spacer>
+          <nldd-button-group orientation="horizontal">
+            <nldd-button
+              v-for="i in tegen"
+              :key="i.artikel"
+              appearance="secondary"
+              :text="`${soortNaam(i)} indienen`"
+              @click="start(i)"
+            ></nldd-button>
+          </nldd-button-group>
+        </template>
+      </template>
+    </nldd-simple-section>
+  </nldd-page>
 
   <Teleport to="body">
     <nldd-sheet width="720px" :open="open || undefined" @close="open = false">
