@@ -3,10 +3,11 @@
 //! judgement where the cell is silent. The case is leave outside the school
 //! holidays.
 //!
-//! Whether leave falls outside the school holidays (Leerplichtwet 1969 art.
-//! 11, onder f, read in art. 13a) follows from what the school recorded and
-//! the law, not from a judgement of the head (RFC-051). The Regeling
-//! vaststelling schoolvakanties 2025–2030 fixes the kerst-, mei- and
+//! Whether leave falls outside the school holidays (art. 13a of the
+//! fictional school leave act, after the Leerplichtwet 1969) follows from
+//! what the school recorded and the law, not from a judgement of the head
+//! (RFC-051). A fictional holidays regulation (after the Regeling
+//! vaststelling schoolvakanties 2025–2030) fixes the kerst-, mei- and
 //! zomervakantie, the last per region; the region follows from where the
 //! school is established, an executogram in its own chronicle; the herfst-
 //! and voorjaarsvakantie are a rule of the school, in its own policy, one
@@ -28,10 +29,10 @@ use regelrecht_cel::{Cell, Error, Gram};
 use regelrecht_engine::LawExecutionService;
 use serde_json::{Map, json};
 
-const LAW: &str = "leerplichtwet_1969";
+const LAW: &str = "test_school_leave_act";
 const ARTICLE: &str = "13a";
 const RECORDING_ACTOR: &str = "obs_de_klimop";
-const REGELING: &str = "regeling_vaststelling_schoolvakanties_20252030";
+const REGELING: &str = "test_school_holidays_regulation";
 const ROOSTER: &str = "fictief_beleid_vakantierooster_obs_de_klimop";
 const PROFESSION: &str = "specifieke_aard_beroep_ouder";
 const OUTSIDE_HOLIDAYS: &str = "verlof_valt_buiten_schoolvakanties";
@@ -40,8 +41,8 @@ const OUTSIDE_HOLIDAYS: &str = "verlof_valt_buiten_schoolvakanties";
 const OUTSIDE_HOLIDAYS_HEAD: &str = "verlof_valt_buiten_schoolvakanties_volgens_hoofd";
 const HOLIDAYS: &str = "reductie_verlof_valt_buiten_schoolvakanties";
 
-/// The Leerplichtwet, the Awb, the regeling and the school's policies from
-/// the corpus.
+/// The school leave act, the general act, the holidays regulation and the
+/// school's policies from the fixtures.
 fn service() -> LawExecutionService {
     service_with(&[])
 }
@@ -51,7 +52,7 @@ fn service_with(extra: &[String]) -> LawExecutionService {
     let mut service = LawExecutionService::new();
     let laws = [
         format!("regulation/nl/wet/{LAW}"),
-        common::poc("regulation/nl/wet/algemene_wet_bestuursrecht"),
+        "regulation/nl/wet/test_general_administrative_act".to_string(),
         format!("regulation/nl/ministeriele_regeling/{REGELING}"),
         "regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaar_obs_de_klimop".to_string(),
         "regulation/nl/uitvoeringsbeleid/fictief_beleid_schooljaargrenzen_obs_de_klimop"
@@ -67,9 +68,7 @@ fn service_with(extra: &[String]) -> LawExecutionService {
         // The decisions under an article as aggregates, with what the Awb
         // gives a decision on an objection and the receipt of a ruling.
         common::reduction_dir("reductie_verlof"),
-        common::poc(
-            "casussen/vakantieverlof/regulation/nl/uitvoeringsbeleid/fictief_beleid_verleend_verlof_obs_de_klimop",
-        ),
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_verleend_verlof_obs_de_klimop".to_string(),
     ];
     common::load(&mut service, laws);
     for yaml in extra {

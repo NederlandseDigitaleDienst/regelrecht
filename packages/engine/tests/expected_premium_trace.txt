@@ -1,5 +1,5 @@
-regeling_standaardpremie (2025-01-01 {} standaardpremie)
-╟──Evaluating rules for regeling_standaardpremie (standaardpremie)
+test_premium_regulation (2025-01-01 {} standaardpremie)
+╟──Evaluating rules for test_premium_regulation (standaardpremie)
 ║   ╙──Computing standaardpremie
 ║       └──Result: standaardpremie = 211200
 ╙──Result: standaardpremie = 211200

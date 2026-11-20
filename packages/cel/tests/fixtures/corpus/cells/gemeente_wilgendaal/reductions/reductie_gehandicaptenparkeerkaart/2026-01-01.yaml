@@ -17,7 +17,7 @@ valid_from: '2026-01-01'
 # vernietigde (Awb 8:72, derde lid, onder b).
 # reductie_geldige_gehandicaptenparkeerkaart leest de aggregaten. Er is geen
 # bekendmaking; de url wijst naar artikel 49.
-url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+url: https://example.com/test_traffic_decree/49
 name: Gehandicaptenparkeerkaart per besluit bij de gemeente Wilgendaal (reductie)
 articles:
   - number: '1'
@@ -26,10 +26,10 @@ articles:
       houdt door middel van een chronolexografische reductie op zijn eigen
       kroniek per besluit op een aanvraag om een gehandicaptenparkeerkaart bij
       of het een kaart verstrekt, en tot en met welke dag zij geldig is.
-    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    url: https://example.com/test_traffic_decree/49
     machine_readable:
       projection:
-        per: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
+        per: test_traffic_decree#49#BESCHIKKING
         state:
           - name: verstrekt
             type: boolean
@@ -39,7 +39,7 @@ articles:
             type: boolean
         steps:
           # Het besluit op de aanvraag.
-          - record: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
+          - record: test_traffic_decree#49#BESCHIKKING
             actions:
               - output: verstrekt
                 value: $record.gehandicaptenparkeerkaart_verstrekt
@@ -50,7 +50,7 @@ articles:
           # lid), dan houdt zij dat nieuwe besluit zelf (nieuw_besluit): één
           # handeling is één record. Vernietigt de bestuursrechter de
           # beslissing, dan valt het nieuwe besluit met haar weg.
-          - record: algemene_wet_bestuursrecht#7:11#BESCHIKKING
+          - record: test_general_administrative_act#7:11#BESCHIKKING
             input:
               - name: verstrekt_na_bezwaar
                 type: boolean
@@ -76,7 +76,7 @@ articles:
           # voorzag de bestuursrechter zelf in de zaak en verstrekte hij een
           # kaart (Awb 8:72, derde lid, onder b), dan heeft de aanvrager een
           # kaart van de rechter.
-          - record: algemene_wet_bestuursrecht#8:79#EXECUTOGRAM
+          - record: test_general_administrative_act#8:79#EXECUTOGRAM
             input:
               - name: kaart_van_de_rechter_na_uitspraak
                 type: boolean

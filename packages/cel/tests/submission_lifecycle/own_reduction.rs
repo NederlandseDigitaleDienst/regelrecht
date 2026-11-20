@@ -137,7 +137,7 @@ fn the_decisions_the_reduction_reads_are_bound_for_the_decision_only() {
     )
     .unwrap();
     assert!(service.data_registry().list_sources().is_empty());
-    // The reduction is rulework of the corpus, as before the decision.
+    // The reduction is a loaded rulework, as before the decision.
     assert!(service.has_law(REDUCTION));
 }
 

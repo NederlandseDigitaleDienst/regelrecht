@@ -55,7 +55,7 @@ fn a_decision_records_its_outcome_and_the_values_it_used_and_refers_to_its_appli
     let gram = decide(&mut cell, &app.id, &judgement(true, true), "2026-10-20").unwrap();
 
     assert_eq!(gram.kind, "BESCHIKKING");
-    assert_eq!(gram.basis, "leerplichtwet_1969#13a");
+    assert_eq!(gram.basis, "test_school_leave_act#13a");
     assert_eq!(gram.refers_to.as_deref(), Some(app.id.as_str()));
     assert_eq!(gram.recorded_on, day("2026-10-20"));
     assert_eq!(uuid_version(&gram.id), 7);

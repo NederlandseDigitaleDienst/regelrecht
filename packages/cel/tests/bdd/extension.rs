@@ -3,10 +3,10 @@
 //!
 //! A scenario has one cell with one chronicle in memory. Records are named by
 //! the id in the scenario; the day they are recorded is the calculation date.
-//! A feature in `packages/cel/bdd/features` runs against the corpus with the
-//! fixtures in `packages/cel/bdd/fixtures` (the synthetic law, and the
-//! reductions of a cell) next to it; a feature in a scenario set
-//! (`crate::sets`) against the regelwerken of that set alone.
+//! A feature in `packages/cel/bdd/features` runs against the fixtures in
+//! `packages/cel/bdd/fixtures` alone (the synthetic laws, and the reductions
+//! of a cell), not the corpus; a feature in a scenario set (`crate::sets`)
+//! against the regelwerken of that set alone.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
@@ -25,7 +25,6 @@ use regelrecht_law_model::stored;
 use walkdir::WalkDir;
 
 use crate::dispatch::{ArgValue, table_cell_value};
-use crate::helpers::regulation_loader::load_all_regulations;
 use crate::helpers::table::{Rows, rows_to_params};
 use crate::sets::{ScenarioSet, load_regelwerk};
 use crate::world::RegelrechtWorld;
@@ -64,16 +63,15 @@ impl State {
 
 /// Load the regelwerken a scenario of the feature at `feature` runs against.
 /// A feature in a scenario set ([`ScenarioSet`]) gets the regelwerken of that
-/// set alone. Any other feature (`bdd/features`) gets the corpus and the
-/// fixtures: every regelwerk under `fixtures/regulation`, and the reductions
-/// under `fixtures/cells`.
+/// set alone. Any other feature (`bdd/features`) gets the fixtures alone:
+/// every regelwerk under `fixtures/regulation`, and the reductions under
+/// `fixtures/cells`. Not the corpus: a hook in a law of the corpus would fire
+/// on the fixtures' decisions, and a change to the corpus would reach a
+/// suite that tests the cell.
 pub fn load(service: &mut LawExecutionService, feature: Option<&Path>) {
     if let Some(set) = feature.and_then(ScenarioSet::containing) {
         set.load(service);
         return;
-    }
-    if let Err(e) = load_all_regulations(service) {
-        panic!("Failed to load regulations: {e}");
     }
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("bdd/fixtures");
     for entry in WalkDir::new(&fixtures).into_iter().filter_map(Result::ok) {

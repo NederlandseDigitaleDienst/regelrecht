@@ -1,0 +1,146 @@
+---
+# FICTIEF. A mini general administrative act for the reduction tests, after
+# article 7:11 of the Algemene wet bestuursrecht: the decision on an objection
+# that calls the contested article anew. None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.10/schema/v0.8.10/schema.json
+$id: test_general_administrative_act
+name: Testwet algemene bestuursregels
+regulatory_layer: WET
+publication_date: '2026-01-01'
+valid_from: '1994-01-01'
+bwb_id: BWBR9999936
+url: https://example.com/test_general_administrative_act
+procedure:
+  - id: beschikking
+    default: true
+    applies_to:
+      legal_character: BESCHIKKING
+    stages:
+      - name: AANVRAAG
+        description: Belanghebbende dient aanvraag in (AWB 4:1)
+        requires:
+          - name: aanvraag_datum
+            type: date
+      - name: BEHANDELING
+        description: Bestuursorgaan onderzoekt de aanvraag (AWB 3:2)
+        requires:
+          - name: beslistermijn_start
+            type: date
+      - name: BESLUIT
+        description: Bestuursorgaan neemt besluit (AWB 1:3)
+        requires:
+          - name: besluit_datum
+            type: date
+      - name: BEKENDMAKING
+        description: Besluit wordt bekendgemaakt (AWB 3:41)
+        requires:
+          - name: bekendmaking_datum
+            type: date
+      - name: BEZWAAR
+        description: Bezwaarperiode (AWB 6:4 e.v.)
+  - id: beroep
+    default: true
+    applies_to:
+      legal_character: UITSPRAAK
+    stages:
+      - name: BEROEP
+        description: Belanghebbende stelt beroep in bij de bestuursrechter (AWB 6:4 lid 3, 8:1)
+      - name: UITSPRAAK
+        description: De bestuursrechter doet uitspraak (AWB 8:66, 8:70)
+        requires:
+          - name: uitspraak_datum
+            type: date
+      - name: TOEZENDING
+        description: De griffier stelt een afschrift van de uitspraak ter beschikking van partijen (AWB
+          8:79)
+        requires:
+          - name: toezending_datum
+            type: date
+articles:
+  - number: '7:11'
+    text: FICTIEF, naar artikel 7:11 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/7:11
+    machine_readable:
+      execution:
+        produces:
+          - type: BEZWAAR
+            requests: test_general_administrative_act#7:11
+            parameters:
+              - bestreden_besluit
+          - type: BESCHIKKING
+            outputs:
+              - bezwaar_ontvankelijk
+              - heroverweging_geeft_aanleiding
+              - bestreden_besluit_herroepen
+              - nieuw_besluit
+        parameters:
+          - name: bestreden_besluit
+            type: decision
+            description: Het besluit waartegen het bezwaar is gericht.
+          - name: bezwaar_of_beroepschrift_tijdig_ingediend
+            type: boolean
+            description: Of het bezwaarschrift tijdig is ingediend (artikel 6:9).
+        input:
+          - name: heroverweging
+            type: decision
+            nullable: true
+            source:
+              article: $bestreden_besluit
+        output:
+          - name: bezwaar_ontvankelijk
+            type: boolean
+            description: 'Of het bezwaar ontvankelijk is (lid 1). Getoetst zijn de termijn (artikel 6:9)
+              en dat het bestreden besluit niet op bezwaar onder dit artikel is genomen (artikel 7:1,
+              eerste lid, onder a): niet de beslissing op bezwaar, en dus ook niet het nieuwe besluit
+              dat zij in de plaats van een herroepen besluit nam en zelf houdt. De overige vereisten en
+              artikel 6:11 nog niet.'
+          - name: heroverweging_geeft_aanleiding
+            type: boolean
+            nullable: true
+            description: 'Of de heroverweging aanleiding geeft het bestreden besluit te herroepen (lid
+              2). Leeg bij een niet-ontvankelijk bezwaar: dan vindt geen heroverweging plaats (lid 1).'
+          - name: bestreden_besluit_herroepen
+            type: boolean
+            description: Of het bestuursorgaan het bestreden besluit herroept (lid 2).
+          - name: nieuw_besluit
+            type: decision
+            nullable: true
+            description: 'Het besluit dat het bestuursorgaan in de plaats van het herroepen besluit neemt
+              (lid 2). Herroepen en in de plaats stellen zijn samen één beslissing op bezwaar: de beslissing
+              houdt het nieuwe besluit zelf, en vervalt de beslissing, dan vervalt het nieuwe besluit
+              met haar.'
+        actions:
+          - output: bezwaar_ontvankelijk
+            value:
+              operation: AND
+              conditions:
+                - $bezwaar_of_beroepschrift_tijdig_ingediend
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $bestreden_besluit.taken_on
+                    value: test_general_administrative_act#7:11
+          - output: heroverweging_geeft_aanleiding
+            value:
+              operation: IF
+              cases:
+                - when: $bezwaar_ontvankelijk
+                  then:
+                    operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $heroverweging.outputs
+                      value: $bestreden_besluit.outputs
+              default: null
+          - output: bestreden_besluit_herroepen
+            value:
+              operation: EQUALS
+              subject: $heroverweging_geeft_aanleiding
+              value: true
+          - output: nieuw_besluit
+            value:
+              operation: IF
+              cases:
+                - when: $bestreden_besluit_herroepen
+                  then: $heroverweging
+              default: null

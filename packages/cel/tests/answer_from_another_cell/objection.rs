@@ -43,7 +43,7 @@ fn without_a_new_finding_the_refusal_stands() {
     let decided = reconsider(&mut cell, &bezwaar.id, &Map::new(), "2026-11-20");
     assert_eq!(decided.len(), 1);
     let decision = &decided[0];
-    assert_eq!(decision.basis, "algemene_wet_bestuursrecht#7:11");
+    assert_eq!(decision.basis, "test_general_administrative_act#7:11");
     assert_eq!(decision.outputs[ADMISSIBLE], json!(true));
     assert_eq!(decision.outputs[CAUSE], json!(false));
     assert_eq!(decision.outputs[REVOKED], json!(false));

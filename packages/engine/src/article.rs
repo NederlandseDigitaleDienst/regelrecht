@@ -1320,104 +1320,65 @@ articles:
         }
     }
 
-    // Integration tests that load real regulation files
+    // Tests that load a regelwerk from a file: the fictional chain the trace
+    // tests read (`tests/fixtures/trace`), not the corpus.
     mod integration {
         use super::*;
         use std::path::PathBuf;
 
-        fn get_regulation_path() -> PathBuf {
-            std::env::var("REGULATION_PATH")
-                .map(PathBuf::from)
-                .unwrap_or_else(|_| {
-                    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                        .join("..")
-                        .join("..")
-                        .join("corpus")
-                        .join("regulation")
-                })
+        /// The fictional chain the trace tests read, in the layout of the
+        /// corpus.
+        fn fixture(file: &str) -> PathBuf {
+            PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/trace/nl")
+                .join(file)
         }
 
         // That every corpus file parses is held by tests/typecheck_corpus.rs,
         // which loads all of them. What stays here is what a parse alone does
         // not show: which id and layer a file carries.
         #[test]
-        fn test_corpus_files_carry_their_id_and_layer() {
+        fn test_a_file_carries_its_id_and_layer() {
             use RegulatoryLayer::*;
             let files = [
                 (
-                    "nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml",
-                    "wet_op_de_zorgtoeslag",
+                    "wet/test_allowance_act/2025-01-01.yaml",
+                    "test_allowance_act",
                     Wet,
                 ),
                 (
-                    "nl/wet/zorgverzekeringswet/2025-01-01.yaml",
-                    "zorgverzekeringswet",
-                    Wet,
-                ),
-                (
-                    "nl/wet/algemene_wet_inkomensafhankelijke_regelingen/2025-01-01.yaml",
-                    "algemene_wet_inkomensafhankelijke_regelingen",
-                    Wet,
-                ),
-                ("nl/wet/kieswet/2025-01-01.yaml", "kieswet", Wet),
-                (
-                    "nl/wet/wet_langdurige_zorg/2025-07-05.yaml",
-                    "wet_langdurige_zorg",
-                    Wet,
-                ),
-                (
-                    "nl/wet/burgerlijk_wetboek_boek_5/2024-01-01.yaml",
-                    "burgerlijk_wetboek_boek_5",
-                    Wet,
-                ),
-                (
-                    "nl/wet/participatiewet/2022-03-15.yaml",
-                    "participatiewet",
-                    Wet,
-                ),
-                (
-                    "nl/wet/wet_basisregistratie_personen/2025-02-12.yaml",
-                    "wet_basisregistratie_personen",
-                    Wet,
-                ),
-                (
-                    "nl/wet/wet_inkomstenbelasting_2001/2025-01-01.yaml",
-                    "wet_inkomstenbelasting_2001",
-                    Wet,
-                ),
-                (
-                    "nl/ministeriele_regeling/regeling_standaardpremie/2025-01-01.yaml",
-                    "regeling_standaardpremie",
+                    "ministeriele_regeling/test_premium_regulation/2025-01-01.yaml",
+                    "test_premium_regulation",
                     MinisterieleRegeling,
-                ),
-                (
-                    "nl/gemeentelijke_verordening/diemen/afstemmingsverordening_participatiewet/2015-01-01.yaml",
-                    "afstemmingsverordening_participatiewet_diemen",
-                    GemeentelijkeVerordening,
                 ),
             ];
             for (file, id, layer) in files {
-                let law = ArticleBasedLaw::from_yaml_file(get_regulation_path().join(file))
+                let law = ArticleBasedLaw::from_yaml_file(fixture(file))
                     .unwrap_or_else(|e| panic!("Failed to load {file}: {e}"));
                 assert_eq!(law.id, id, "{file}");
                 assert_eq!(law.regulatory_layer, layer, "{file}");
             }
+            let municipal = ArticleBasedLaw::from_yaml_str(
+                "$id: test_municipal_ordinance\nregulatory_layer: GEMEENTELIJKE_VERORDENING\n\
+                 publication_date: '2025-01-01'\narticles: []\n",
+            )
+            .unwrap();
+            assert_eq!(municipal.id, "test_municipal_ordinance");
+            assert_eq!(municipal.regulatory_layer, GemeentelijkeVerordening);
         }
 
         #[test]
         fn test_find_article_by_output_finds_outputs_and_rejects_an_unknown_one() {
-            // The frozen copy the trace tests read, so a change to the
-            // zorgtoeslag in the corpus does not touch this test.
-            let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("tests/fixtures/trace_corpus/nl/wet/wet_op_de_zorgtoeslag/2025-01-01.yaml");
-            let law = ArticleBasedLaw::from_yaml_file(&path).unwrap();
+            let law =
+                ArticleBasedLaw::from_yaml_file(fixture("wet/test_allowance_act/2025-01-01.yaml"))
+                    .unwrap();
 
             // Test find_article_by_output for key outputs
             assert!(
-                law.find_article_by_output("heeft_recht_op_zorgtoeslag")
+                law.find_article_by_output("heeft_recht_op_toeslag")
                     .is_some()
             );
-            assert!(law.find_article_by_output("hoogte_zorgtoeslag").is_some());
+            assert!(law.find_article_by_output("hoogte_toeslag").is_some());
             assert!(law.find_article_by_output("vermogen_onder_grens").is_some());
 
             // Test that nonexistent outputs return None

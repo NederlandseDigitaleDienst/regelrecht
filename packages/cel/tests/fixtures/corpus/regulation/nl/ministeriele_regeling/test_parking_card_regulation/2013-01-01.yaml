@@ -1,0 +1,202 @@
+---
+# FICTIEF. A parking card regulation for the tests of the cell, after the
+# Regeling gehandicaptenparkeerkaart: the criteria and the medical
+# examination. None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.8/schema/v0.8.8/schema.json
+$id: test_parking_card_regulation
+name: Testregeling parkeerkaart
+regulatory_layer: MINISTERIELE_REGELING
+publication_date: '2012-09-14'
+valid_from: '2013-01-01'
+bwb_id: BWBR9999939
+url: https://example.com/test_parking_card_regulation
+articles:
+  - number: '1'
+    text: FICTIEF, naar artikel 1 van de Regeling gehandicaptenparkeerkaart.
+    url: https://example.com/test_parking_card_regulation/1
+    machine_readable:
+      execution:
+        parameters:
+          - name: langdurige_loopbeperking
+            type: boolean
+            description: Of de aanvrager ten gevolge van een aandoening of gebrek een aantoonbare loopbeperking
+              van langdurige aard heeft, waardoor hij met de gebruikelijke loophulpmiddelen in redelijkheid
+              niet zelfstandig een afstand van meer dan 100 meter aan een stuk te voet kan overbruggen
+              (onder a en b).
+          - name: continu_afhankelijk_van_hulp_bestuurder
+            type: boolean
+            description: Of de aanvrager voor het vervoer van deur tot deur continu afhankelijk is van
+              de hulp van de bestuurder (onder b).
+          - name: permanent_rolstoelgebonden
+            type: boolean
+            description: Of de aanvrager ten gevolge van een aandoening of gebrek permanent rolstoelgebonden
+              is (onder c).
+          - name: ernstige_beperkingen_andere_dan_loopbeperkingen
+            type: boolean
+            description: Of de aanvrager ten gevolge van een aandoening of gebrek aantoonbare ernstige
+              beperkingen heeft, andere dan loopbeperkingen (onder d).
+        output:
+          - name: komt_in_aanmerking_als_bestuurder
+            type: boolean
+            description: Of de aanvrager als bestuurder voor een kaart in aanmerking komt (onder a, c
+              en d).
+          - name: komt_in_aanmerking_als_passagier
+            type: boolean
+            description: Of de aanvrager als passagier voor een kaart in aanmerking komt (onder b, c en
+              d).
+        actions:
+          - output: komt_in_aanmerking_als_bestuurder
+            value:
+              operation: OR
+              conditions:
+                - $langdurige_loopbeperking
+                - $permanent_rolstoelgebonden
+                - $ernstige_beperkingen_andere_dan_loopbeperkingen
+          - output: komt_in_aanmerking_als_passagier
+            value:
+              operation: OR
+              conditions:
+                - operation: AND
+                  conditions:
+                    - $langdurige_loopbeperking
+                    - $continu_afhankelijk_van_hulp_bestuurder
+                - $permanent_rolstoelgebonden
+                - $ernstige_beperkingen_andere_dan_loopbeperkingen
+  - number: '2'
+    text: FICTIEF, naar artikel 2 van de Regeling gehandicaptenparkeerkaart.
+    url: https://example.com/test_parking_card_regulation/2
+    machine_readable:
+      open_terms:
+        - id: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+          competent_authority:
+            - name: college van burgemeester en wethouders
+              type: CATEGORY
+            - name: CBR
+          type: boolean
+          required: true
+          decided_per_case_by: 'de verstrekkende instantie: het college of het CBR (artikel 49 van het
+            BABW)'
+          description: Of aan de aanvrager eerder een gehandicaptenparkeerkaart is verstrekt (lid 2, onder
+            a en b).
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager.
+          - name: dagtekening_aanvraag
+            type: date
+            nullable: true
+            description: De dagtekening van de aanvraag.
+          - name: datum_afgifte
+            type: date
+            description: De dag waarop de kaart zou worden afgegeven.
+          - name: geneeskundig_onderzoek_achterwege_gelaten
+            type: boolean
+            nullable: true
+            description: Of het college het geneeskundig onderzoek achterwege laat (lid 2, aanhef).
+          - name: bekend_dat_aanvrager_nog_steeds_voldoet
+            type: boolean
+            nullable: true
+            description: Of aan de verstrekkende instantie bekend is dat de aanvrager nog steeds voldoet
+              aan de criteria van artikel 1 (lid 2, onder a).
+          - name: keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet
+            type: boolean
+            nullable: true
+            description: Of de keurende instantie van oordeel is dat de aanvrager nog steeds voldoet aan
+              de criteria van artikel 1 (lid 2, onder b).
+        input:
+          - name: geneeskundig_onderzoek_heeft_plaatsgehad
+            type: boolean
+            source:
+              regulation: test_parking_card_regulation
+              output: geneeskundig_onderzoek_heeft_plaatsgehad
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening_aanvraag
+                datum_afgifte: $datum_afgifte
+        output:
+          - name: gehandicaptenparkeerkaart_mag_worden_afgegeven
+            type: boolean
+            description: Of de kaart mag worden afgegeven, omdat het geneeskundig onderzoek heeft plaatsgehad
+              of achterwege is gelaten (lid 1 en 2).
+        actions:
+          - output: gehandicaptenparkeerkaart_mag_worden_afgegeven
+            value:
+              operation: OR
+              conditions:
+                - operation: AND
+                  conditions:
+                    - operation: EQUALS
+                      subject: $geneeskundig_onderzoek_achterwege_gelaten
+                      value: true
+                    - operation: OR
+                      conditions:
+                        - operation: EQUALS
+                          subject: $bekend_dat_aanvrager_nog_steeds_voldoet
+                          value: true
+                        - operation: EQUALS
+                          subject: $keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet
+                          value: true
+                    - $aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
+                - $geneeskundig_onderzoek_heeft_plaatsgehad
+  - number: '3'
+    text: FICTIEF, naar artikel 3 van de Regeling gehandicaptenparkeerkaart.
+    url: https://example.com/test_parking_card_regulation/3
+    machine_readable:
+      open_terms:
+        - id: geneeskundig_onderzoek_heeft_plaatsgehad
+          competent_authority:
+            - name: Gemeentelijke Gezondheidsdienst
+              type: CATEGORY
+            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+              type: CATEGORY
+          type: boolean
+          required: true
+          decided_per_case_by: 'wie het geneeskundig onderzoek verricht: de Gemeentelijke Gezondheidsdienst
+            of de aangewezen deskundige (artikel 3, eerste lid)'
+          description: Of op of na de dagtekening van de aanvraag en uiterlijk op de dag van afgifte een
+            geneeskundig onderzoek heeft plaatsgehad met betrekking tot de handicap van de aanvrager (artikel
+            2, eerste lid).
+      requires:
+        - fact: geneeskundig_onderzoek_verricht
+          description: 'Dat een geneeskundig onderzoek met betrekking tot de handicap van de aanvrager
+            is verricht door de GGD of de aangewezen deskundige: voor wie, op welke dag en door wie. Het
+            feit houdt geen uitkomst van het onderzoek.'
+          competent_authority:
+            - name: Gemeentelijke Gezondheidsdienst
+              type: CATEGORY
+            - name: vanwege het gemeentelijk gezag aangewezen deskundige
+              type: CATEGORY
+          parameters:
+            - bsn_aanvrager
+            - datum_onderzoek
+            - verricht_door
+      execution:
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de aanvrager wiens handicap is onderzocht.
+          - name: datum_onderzoek
+            type: date
+            description: De dag waarop het geneeskundig onderzoek plaatsvond.
+          - name: verricht_door
+            type: string
+            description: 'Wie het onderzoek verrichtte: de Gemeentelijke Gezondheidsdienst, of bij externe
+              advisering de vanwege het gemeentelijk gezag aangewezen deskundige (lid 1).'
+          - name: dagtekening_aanvraag
+            type: date
+            required: false
+            nullable: true
+            description: De dagtekening van de aanvraag.
+          - name: datum_afgifte
+            type: date
+            required: false
+            description: De dag waarop de kaart zou worden afgegeven.
+        output:
+          - name: geneeskundig_onderzoek_heeft_plaatsgehad
+            type: boolean
+            description: Of voor de aanvraag een geneeskundig onderzoek heeft plaatsgehad (artikel 2,
+              eerste lid).
+        actions:
+          - output: geneeskundig_onderzoek_heeft_plaatsgehad
+            value: $geneeskundig_onderzoek_heeft_plaatsgehad

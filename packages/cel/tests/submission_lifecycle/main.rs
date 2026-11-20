@@ -1,11 +1,13 @@
-//! The lifecycle of a submission in a cell on corpus regelwerken: recorded,
+//! The lifecycle of a submission in a cell: recorded,
 //! decided, counted by a reduction, objected to, and replayed under the
 //! regulation versions it was taken under (RFC-045, RFC-046, RFC-048). The
 //! case is leave from school.
 //!
-//! A cell records an application for vakantieverlof (Leerplichtwet 1969
-//! art. 13a) on the real corpus, with the Awb hooks on it (RFC-045, RFC-046),
-//! and the head of the school decides on it (RFC-046).
+//! A cell records an application for vakantieverlof under a fictional
+//! school leave act (article 13a, after the Leerplichtwet 1969), with the
+//! hooks of a mini general administrative act on it (RFC-045, RFC-046), and
+//! the head of the school decides on it (RFC-046). Both acts are fixtures
+//! (`tests/fixtures/corpus`), not the corpus.
 
 // Test helpers outside a `#[test]` fn may unwrap and panic too; that is how
 // a failing fixture reports itself.
@@ -30,9 +32,9 @@ use regelrecht_cel::{Cell, Disk, Error, Gram, LawSince, Reference, Source, decis
 use regelrecht_engine::LawExecutionService;
 use serde_json::{Map, Value, json};
 
-const LAW: &str = "leerplichtwet_1969";
+const LAW: &str = "test_school_leave_act";
 const ARTICLE: &str = "13a";
-const AWB: &str = "algemene_wet_bestuursrecht";
+const AWB: &str = "test_general_administrative_act";
 /// A fictional school.
 const RECORDING_ACTOR: &str = "obs_de_klimop";
 
@@ -57,7 +59,8 @@ const ONCE: &str = "verlof_al_verleend_in_schooljaar";
 /// his policy (art. 3, RFC-048 §2).
 const ONCE_HEAD: &str = "verlof_al_verleend_in_schooljaar_volgens_hoofd";
 
-/// The Leerplichtwet, the Awb and the school's policies from the corpus.
+/// The school leave act, the general act and the school's policies from the
+/// fixtures.
 fn service() -> LawExecutionService {
     service_without(&[])
 }
@@ -74,7 +77,7 @@ fn service_without(without: &[&str]) -> LawExecutionService {
     let mut service = LawExecutionService::new();
     let laws = [
         format!("regulation/nl/wet/{LAW}"),
-        common::poc("regulation/nl/wet/algemene_wet_bestuursrecht"),
+        "regulation/nl/wet/test_general_administrative_act".to_string(),
         format!("regulation/nl/uitvoeringsbeleid/{POLICY}"),
         format!("regulation/nl/uitvoeringsbeleid/{SCHOOL_YEAR}"),
         format!("regulation/nl/uitvoeringsbeleid/{LEAVE_POLICY}"),
@@ -83,7 +86,7 @@ fn service_without(without: &[&str]) -> LawExecutionService {
         // The decisions under an article as aggregates, with what the Awb
         // gives a decision on an objection and the receipt of a ruling.
         common::reduction_dir("reductie_verlof"),
-        common::poc("casussen/vakantieverlof/regulation/nl/uitvoeringsbeleid/fictief_beleid_verleend_verlof_obs_de_klimop"),
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_verleend_verlof_obs_de_klimop".to_string(),
     ]
     .into_iter()
     .filter(|law| !without.iter().any(|w| law.ends_with(w)));

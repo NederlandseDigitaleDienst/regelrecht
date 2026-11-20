@@ -1,0 +1,175 @@
+---
+# FICTIEF. A school leave act after article 13a of the Leerplichtwet 1969,
+# for the tests of a decision on an application with open terms. It holds
+# that article, and article 2, which establishes no submission. None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/MinBZK/regelrecht/refs/tags/schema-v0.8.1/schema/v0.8.1/schema.json
+$id: test_school_leave_act
+name: Testwet schoolverlof
+regulatory_layer: WET
+publication_date: '2022-04-04'
+valid_from: '2026-08-01'
+bwb_id: BWBR9999935
+url: https://example.com/test_school_leave_act
+articles:
+  - number: '2'
+    text: FICTIEF, naar artikel 2 van de Leerplichtwet 1969. Een artikel dat geen aanvraag instelt.
+    url: https://example.com/test_school_leave_act/2
+  - number: 13a
+    text: FICTIEF, naar artikel 13a van de Leerplichtwet 1969.
+    url: https://example.com/test_school_leave_act/13a
+    machine_readable:
+      competent_authority:
+        name: het hoofd
+        type: CATEGORY
+      open_terms:
+        - id: eerste_lesdag_schooljaar
+          type: date
+          required: true
+          description: De eerste dag waarop de school in het schooljaar les geeft.
+        - id: specifieke_aard_beroep_ouder
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd (artikel 13a, eerste lid)
+          description: Of een van de in artikel 2, eerste lid, bedoelde personen een beroep heeft van
+            zo specifieke aard dat de jongere niet binnen de schoolvakanties met hen op vakantie kan gaan
+            (artikel 11, onder f).
+        - id: verlof_valt_buiten_schoolvakanties
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd (artikel 13a, eerste lid)
+          description: Of het gevraagde verlof buiten de schoolvakanties valt (artikel 11, onder f).
+        - id: verlof_al_verleend_in_schooljaar
+          type: boolean
+          required: true
+          decided_per_case_by: het hoofd (artikel 13a, tweede lid)
+          description: Of het hoofd de jongere in het schooljaar van het gevraagde verlof al verlof als
+            bedoeld in het eerste lid verleende.
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_school_leave_act#13a
+            parameters:
+              - bsn_jongere
+              - eerste_verlofdag
+              - laatste_verlofdag
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - verlofdagen
+              - verlof_raakt_eerste_twee_lesweken
+              - verlof_verleend
+        parameters:
+          - name: bsn_jongere
+            type: string
+            description: Burgerservicenummer van de jongere voor wie verlof wordt gevraagd.
+          - name: eerste_verlofdag
+            type: date
+            description: Eerste dag waarop de jongere de school niet bezoekt.
+          - name: laatste_verlofdag
+            type: date
+            description: Laatste dag waarop de jongere de school niet bezoekt.
+        output:
+          - name: verlofdagen
+            type: number
+            description: 'Het aantal dagen verlof (lid 2): de dagen van maandag tot en met vrijdag van
+              de eerste tot en met de laatste verlofdag.'
+          - name: verlof_raakt_eerste_twee_lesweken
+            type: boolean
+            description: Of het verlof betrekking heeft op de eerste twee lesweken van het schooljaar
+              (lid 2).
+          - name: verlof_verleend
+            type: boolean
+            description: 'Of het hoofd het verlof verleent (lid 1). Lid 2 noemt alleen wanneer het niet
+              kan; het evenredige deel voor een kwalificatieplichtige jongere is nog niet getoetst. Geweigerd
+              wordt ook verlof waarvan de laatste verlofdag vóór de eerste ligt, en verlof dat geen dag
+              van maandag tot en met vrijdag omvat: dan is er geen schoolbezoek om verlof voor te verlenen.'
+        actions:
+          - output: verlofdagen
+            value:
+              operation: SUBTRACT
+              values:
+                - operation: ADD
+                  values:
+                    - operation: MULTIPLY
+                      values:
+                        - 5
+                        - operation: FLOOR
+                          precision: 0
+                          value:
+                            operation: DIVIDE
+                            values:
+                              - operation: SUBTRACT
+                                values:
+                                  - operation: ADD
+                                    values:
+                                      - operation: DATE_DIFF
+                                        from: $eerste_verlofdag
+                                        to: $laatste_verlofdag
+                                        in: days
+                                      - operation: DAY_OF_WEEK
+                                        date: $eerste_verlofdag
+                                  - operation: DAY_OF_WEEK
+                                    date: $laatste_verlofdag
+                              - 7
+                    - operation: MIN
+                      values:
+                        - operation: ADD
+                          values:
+                            - operation: DAY_OF_WEEK
+                              date: $laatste_verlofdag
+                            - 1
+                        - 5
+                - operation: MIN
+                  values:
+                    - operation: DAY_OF_WEEK
+                      date: $eerste_verlofdag
+                    - 5
+          - output: verlof_raakt_eerste_twee_lesweken
+            value:
+              operation: AND
+              conditions:
+                - operation: GREATER_THAN_OR_EQUAL
+                  subject:
+                    operation: DATE_DIFF
+                    from: $eerste_verlofdag
+                    to:
+                      operation: DATE_ADD
+                      date: $eerste_lesdag_schooljaar
+                      days:
+                        operation: SUBTRACT
+                        values:
+                          - 13
+                          - operation: DAY_OF_WEEK
+                            date: $eerste_lesdag_schooljaar
+                    in: days
+                  value: 0
+                - operation: GREATER_THAN_OR_EQUAL
+                  subject:
+                    operation: DATE_DIFF
+                    from: $eerste_lesdag_schooljaar
+                    to: $laatste_verlofdag
+                    in: days
+                  value: 0
+          - output: verlof_verleend
+            value:
+              operation: AND
+              conditions:
+                - $specifieke_aard_beroep_ouder
+                - $verlof_valt_buiten_schoolvakanties
+                - operation: GREATER_THAN_OR_EQUAL
+                  subject:
+                    operation: DATE_DIFF
+                    from: $eerste_verlofdag
+                    to: $laatste_verlofdag
+                    in: days
+                  value: 0
+                - operation: GREATER_THAN_OR_EQUAL
+                  subject: $verlofdagen
+                  value: 1
+                - operation: LESS_THAN_OR_EQUAL
+                  subject: $verlofdagen
+                  value: 10
+                - operation: NOT
+                  value: $verlof_raakt_eerste_twee_lesweken
+                - operation: NOT
+                  value: $verlof_al_verleend_in_schooljaar
