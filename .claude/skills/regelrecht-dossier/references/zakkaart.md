@@ -14,6 +14,10 @@ skill-namen te onthouden — zeg wat je wilt, de router triageert en dispatcht.
 | wet machine-leesbaar maken · corpus reviewen · fouten in de wet vinden | **desk** — `regelrecht-stelselanalyse` |
 | expert-/validatiesessie voorbereiden | **workshop** — `regelrecht-audit-products` |
 
+Achter elke deur: **waar komt deze tekst vandaan, wat bedoelde de wetgever, hoe luidde
+het artikel op die datum?** → `law-wetsgeschiedenis`, per artikel en lid, met het
+Kamerstuk om te citeren.
+
 ## De flow (gesloten lus)
 
 ```

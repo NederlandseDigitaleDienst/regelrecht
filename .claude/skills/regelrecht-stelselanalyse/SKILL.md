@@ -140,8 +140,11 @@ toetsbaar tegen de wettekst i.p.v. alleen de endpoint.
 6. **Documenteer** vanuit de sjablonen: wetgevings-fouten, fixes-plan, engine-limitaties,
    cross-law-diagrammen, corpus-status, engine-tests.
 
-7. **Verifieer met externe bronnen.** Ontgin Staatsbladen / nota's van toelichting /
-   rekenregels via WebFetch; leg status vast in `resolutie-tracker.md`
+7. **Verifieer met externe bronnen.** Voor Kamerstukken en de geschiedenis van een
+   artikel eerst `law-wetsgeschiedenis`: toelichting per artikel en lid, herkomst per
+   regel en de versies door de tijd, elk met het Kamerstuk en zijn adres. Ontgin de rest
+   (Staatsbladen buiten een dossier, rekenregels, publicaties van de uitvoerder) via
+   WebFetch; leg status vast in `resolutie-tracker.md`
    (vocabulaire: verifieerd / weerlegd / gedeeltelijk / onverifieerbaar / out-of-scope)
    en in het bronnen-dossier. Zie `references/verification-cycle.md`.
 
@@ -197,6 +200,12 @@ alleen naar private repos). Draai als preflight vóór elke push; PUBLIC/INTERNA
   snapshots (zie de *Meta-check*): maakt elke ketenschakel los toetsbaar tegen de wettekst,
   niet alleen de endpoint.
 - `regelrecht-dossier` — front-door router (`references/routing.md` = canonieke flow).
+- `law-wetsgeschiedenis` — de wetsgeschiedenis per artikel en lid, uit de afgespeelde
+  Kamerstukken: waar een regel vandaan komt, welke nota's en amendementen haar raakten,
+  hoe zij op een datum luidde, en wat de toelichting erover zegt. Gebruik in stap 7
+  (bronnen), in Step 0 (`vergelijk` tussen twee `valid_from`-datums noemt de gewijzigde
+  artikelen met de wet die ze wijzigde) en bij de 4-weg: komt vreemde tekst uit een laat
+  amendement of een nota, dan is dat bewijs voor een wetgevings-fout, geen vermoeden.
 
 ## Belangrijke regels
 

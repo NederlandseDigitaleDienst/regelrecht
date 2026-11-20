@@ -26,6 +26,12 @@ examples into Gherkin acceptance tests.
 
 ## Step 1: Find MvT Documents
 
+First ask `law-wetsgeschiedenis` which documents discuss the article you need
+(`toelichting <id> <nr>`). It fetches and replays the Kamerdossier and hangs each
+explanatory passage on its article and lid, with the Kamerstuk to cite, so you
+start from the passages instead of a whole memorie. Fall back to the search
+below when it cannot fetch the dossier, or when you need documents outside it.
+
 Extract the `bwb_id` (e.g., `BWBR0018451`) from the law YAML's `bwb_id` field.
 
 Search for related parliamentary documents using the overheid.nl SRU API at

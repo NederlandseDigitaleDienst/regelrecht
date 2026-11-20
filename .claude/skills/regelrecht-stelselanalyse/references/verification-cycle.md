@@ -32,6 +32,19 @@ Externe bronnen die je ontgint (Staatsbladen, nota's van toelichting, vaststelli
 besluiten, rekenregels, nieuwsberichten van de uitvoerder) krijgen elk een eigen
 extract-bestand + een `bronnen-INDEX.md` die comments terugkoppelt aan bronnen.
 
+### Kamerstukken: eerst `law-wetsgeschiedenis`
+
+Gaat de vraag over wat de wetgever met een artikel of lid bedoelde, of waar een tekst
+vandaan komt, haal dan het Kamerdossier op met `law-wetsgeschiedenis` in plaats van de
+stukken los te ontginnen. Die geeft de toelichting per artikel en lid en de herkomst per
+regel, elk met het Kamerstuk en zijn adres, klaar voor het bronnen-dossier. Twee dingen
+neem je uit het antwoord mee de tracker in:
+
+- de regel *Controle*: wijkt de afgespeelde tekst af van de officiële, citeer dan de
+  officiële tekst en niet de afspeling;
+- de passages onder *Niet gekoppeld*: die noemen het artikel zonder eraan te hangen, en
+  zijn vaak juist de algemene uitleg waar het artikelsgewijze deel naar verwijst.
+
 ### WebFetch-ontginning
 
 - Haal officiële publicaties op via WebFetch (Staatsblad-HTML, wetten.overheid.nl,
