@@ -99,10 +99,10 @@ mod tests {
 
     fn corpus() -> std::io::Result<tempfile::TempDir> {
         let root = tempfile::tempdir()?;
-        let wet = root.path().join("corpus/regulation/nl/wet/een_wet");
-        fs::create_dir_all(&wet)?;
-        fs::write(wet.join("2025-01-01.yaml"), "$id: een_wet\n")?;
-        fs::write(wet.join("README.md"), "not a law")?;
+        let law_dir = root.path().join("corpus/regulation/nl/wet/een_wet");
+        fs::create_dir_all(&law_dir)?;
+        fs::write(law_dir.join("2025-01-01.yaml"), "$id: een_wet\n")?;
+        fs::write(law_dir.join("README.md"), "not a law")?;
         Ok(root)
     }
 

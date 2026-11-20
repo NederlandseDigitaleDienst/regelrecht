@@ -150,8 +150,9 @@ describe('playback', () => {
 
 describe('connection geometry', () => {
   test('a stage sits at its column and row, offset from the origin', () => {
-    const [, f] = placeStages([stage('a', 1, 0), stage('f', 2, 1)], [conn('a', 'f')]);
-    expect(stagePosition(f!, 220, 80)).toEqual({ x: 80 + 220, y: 50 + 2 * 80 });
+    const f = placeStages([stage('a', 1, 0), stage('f', 2, 1)], [conn('a', 'f')]).find((s) => s.id === 'f');
+    if (!f) throw new Error('placeStages dropped stage f');
+    expect(stagePosition(f, 220, 80)).toEqual({ x: 80 + 220, y: 50 + 2 * 80 });
   });
 
   test('within a column the path is a straight line', () => {

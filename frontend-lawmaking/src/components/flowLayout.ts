@@ -11,7 +11,7 @@ export const SAME_COL_GAP = 1;
 /** Rows between a stage and one it connects to in another column. */
 export const CROSS_COL_GAP = 2;
 
-/** Where the first column and the first row sit in the SVG. */
+/** Where the first column and the first row sit in the SVG; every component draws from here. */
 export const ORIGIN = { x: 80, y: 50 };
 
 /** A branch or phase whose rows are known, so it can be drawn. */

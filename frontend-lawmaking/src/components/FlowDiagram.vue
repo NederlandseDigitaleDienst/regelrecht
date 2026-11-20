@@ -12,10 +12,10 @@
       <line
         v-for="branch in layoutBranches"
         :key="branch.id"
-        :x1="80 + branch.col * columnWidth"
-        :y1="50 + branch.startRow * rowHeight"
-        :x2="80 + branch.col * columnWidth"
-        :y2="50 + branch.endRow * rowHeight"
+        :x1="ORIGIN.x + branch.col * columnWidth"
+        :y1="ORIGIN.y + branch.startRow * rowHeight"
+        :x2="ORIGIN.x + branch.col * columnWidth"
+        :y2="ORIGIN.y + branch.endRow * rowHeight"
         :stroke="branch.color"
         stroke-width="4"
         stroke-linecap="round"
@@ -30,8 +30,8 @@
         :opacity="branchOpacity(branch)"
       >
         <text
-          :x="80 + branch.col * columnWidth"
-          :y="50 + branch.startRow * rowHeight - 20"
+          :x="ORIGIN.x + branch.col * columnWidth"
+          :y="ORIGIN.y + branch.startRow * rowHeight - 20"
           text-anchor="middle"
           font-size="12"
           font-weight="700"
@@ -48,7 +48,7 @@
         >
           <rect
             :x="0"
-            :y="50 + phase.startRow * rowHeight - 20"
+            :y="ORIGIN.y + phase.startRow * rowHeight - 20"
             :width="svgWidth"
             :height="(phase.endRow - phase.startRow + 1) * rowHeight"
             :fill="phase.color || 'transparent'"
@@ -56,7 +56,7 @@
           />
           <text
             :x="16"
-            :y="50 + phase.startRow * rowHeight - 4"
+            :y="ORIGIN.y + phase.startRow * rowHeight - 4"
             font-size="11"
             font-weight="700"
             :fill="'var(--color-text-muted)'"
@@ -98,6 +98,7 @@ import FlowNode from './FlowNode.vue';
 import FlowConnection from './FlowConnection.vue';
 import type { Branch, Connection, Phase, PlacedStage, Stage, TimelineMarker } from '../data/types';
 import {
+  ORIGIN,
   branchRows,
   isBranchVisible,
   isConnectionActive as isConnectionLit,
@@ -135,8 +136,8 @@ const layoutBranches = computed((): (Branch & Rows)[] => branchRows(props.branch
 const maxCol = computed(() => Math.max(0, ...layoutStages.value.map((s) => s.col)));
 const maxRow = computed(() => Math.max(0, ...layoutStages.value.map((s) => s.row)));
 
-const svgWidth = computed(() => 80 + (maxCol.value + 2) * columnWidth);
-const svgHeight = computed(() => 50 + (maxRow.value + 2) * rowHeight);
+const svgWidth = computed(() => ORIGIN.x + (maxCol.value + 2) * columnWidth);
+const svgHeight = computed(() => ORIGIN.y + (maxRow.value + 2) * rowHeight);
 
 // Zoom via CSS scale
 function zoomIn() {
@@ -167,7 +168,7 @@ watch(() => props.activeStep, (step) => {
     const activeNodes = layoutStages.value.filter((s) => s.step === step);
     if (activeNodes.length === 0) return;
     const maxActiveRow = Math.max(...activeNodes.map((s) => s.row));
-    const targetY = (50 + maxActiveRow * rowHeight) * scale.value;
+    const targetY = (ORIGIN.y + maxActiveRow * rowHeight) * scale.value;
     const containerRect = el.getBoundingClientRect();
     const scrollTarget = targetY - containerRect.height * 0.6;
     el.scrollTo({

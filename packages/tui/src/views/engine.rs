@@ -670,7 +670,12 @@ mod tests {
 
     #[test]
     fn parse_value_reads_a_fraction_as_a_decimal() {
-        assert_eq!(parse_value("1.5"), Value::from(1.5));
+        let value = parse_value("1.5");
+        assert!(
+            matches!(value, Value::Decimal(_)),
+            "1.5 should be a decimal, was {value:?}"
+        );
+        assert_eq!(format_value(&value), "1.50");
     }
 
     #[test]
@@ -695,7 +700,7 @@ mod tests {
     }
 
     #[test]
-    fn format_value_quotes_text_and_rounds_decimals_to_cents() {
+    fn format_value_quotes_text_and_writes_decimals_with_two_places() {
         assert_eq!(format_value(&Value::String("a".to_string())), "\"a\"");
         assert_eq!(format_value(&Value::from(1.5)), "1.50");
     }
