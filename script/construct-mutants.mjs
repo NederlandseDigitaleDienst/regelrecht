@@ -140,6 +140,20 @@ export function report(results, seconds) {
   return lines.join('\n') + '\n';
 }
 
+/** The process groups of the suites still running, to kill on exit. */
+const running = new Set();
+
+function killAll() {
+  for (const pid of running) {
+    try {
+      process.kill(-pid, 'SIGKILL');
+    } catch {
+      // Already gone.
+    }
+  }
+  running.clear();
+}
+
 /** Run one suite, with `mutation` broken (or nothing when null). */
 function cargoTest(suite, mutation) {
   const env = { ...process.env, ...suite.env };
@@ -151,6 +165,7 @@ function cargoTest(suite, mutation) {
     // that cargo starts and not only cargo: the binary holds the pipes open,
     // and 'close' would otherwise never come.
     const child = spawn('cargo', args, { env, detached: true });
+    running.add(child.pid);
     const chunks = [];
     child.stdout.on('data', (c) => chunks.push(c));
     child.stderr.on('data', (c) => chunks.push(c));
@@ -165,6 +180,7 @@ function cargoTest(suite, mutation) {
     }, 20 * 60 * 1000);
     child.on('close', (code) => {
       clearTimeout(timer);
+      running.delete(child.pid);
       const output = Buffer.concat(chunks).toString('utf8');
       if (output.includes('Failed to mutate')) {
         // The mutation itself broke, not a scenario: that is a bug in
@@ -294,7 +310,16 @@ async function main(argv) {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+  // The suites run in process groups of their own, so a Ctrl-C does not reach
+  // them; pass it on.
+  for (const signal of ['SIGINT', 'SIGTERM']) {
+    process.on(signal, () => {
+      killAll();
+      process.exit(130);
+    });
+  }
   main(process.argv.slice(2)).catch((e) => {
+    killAll();
     process.stderr.write(`${e.message}\n`);
     process.exit(2);
   });
