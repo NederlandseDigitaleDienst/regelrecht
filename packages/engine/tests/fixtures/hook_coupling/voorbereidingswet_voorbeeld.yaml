@@ -1,0 +1,51 @@
+---
+# Fictional. A pre_actions hook on every beschikking, whose output a filling
+# reads, and which reads an output of a decision of its own law (resolver.rs).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: voorbereidingswet_voorbeeld
+regulatory_layer: WET
+bwb_id: BWBR9999954
+publication_date: '2025-01-01'
+url: https://example.invalid/voorbereidingswet-voorbeeld
+articles:
+  - number: '1'
+    url: https://example.invalid/voorbereidingswet-voorbeeld/1
+    text: Voor elke beschikking wordt de voorbereiding vastgelegd.
+    machine_readable:
+      hooks:
+        - hook_point: pre_actions
+          applies_to: {legal_character: BESCHIKKING}
+      execution:
+        parameters:
+          - {name: voorbereid_op, type: date, required: false, nullable: true}
+        output:
+          - {name: datum_voorbereid, type: date}
+        actions:
+          - {output: datum_voorbereid, value: '2026-01-01'}
+  - number: '2'
+    url: https://example.invalid/voorbereidingswet-voorbeeld/2
+    text: Na de voorbereiding wordt binnen zes weken beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host: {law: subsidiewet_voorbeeld, article: '1'}
+      execution:
+        parameters:
+          - {name: datum_voorbereid, type: date, required: true}
+        output:
+          - {name: wettelijke_beslistermijn, type: date}
+        actions:
+          - output: wettelijke_beslistermijn
+            value: {operation: DATE_ADD, date: $datum_voorbereid, weeks: 6}
+  - number: '3'
+    url: https://example.invalid/voorbereidingswet-voorbeeld/3
+    text: Een aanvraag die niet is voorbereid wordt afgewezen.
+    machine_readable:
+      execution:
+        produces: {legal_character: BESCHIKKING, decision_type: AFWIJZING}
+        output:
+          - {name: voorbereid_op, type: date}
+        actions:
+          - {output: voorbereid_op, value: '2026-01-01'}

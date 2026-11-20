@@ -1,0 +1,56 @@
+---
+# Fictional. A hook whose input looks for its host's output in its own law,
+# and a filling that asks for a parameter nothing hands the hook (resolver.rs).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: meldwet_voorbeeld
+regulatory_layer: WET
+bwb_id: BWBR9999953
+publication_date: '2025-01-01'
+url: https://example.invalid/meldwet-voorbeeld
+articles:
+  - number: '1'
+    url: https://example.invalid/meldwet-voorbeeld/1
+    text: Van elke toekenning wordt melding gedaan.
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to: {legal_character: BESCHIKKING, decision_type: TOEKENNING}
+      execution:
+        input:
+          - name: verleend
+            type: boolean
+            source: {output: subsidie_verleend}
+        output:
+          - {name: gemeld, type: boolean}
+        actions:
+          - {output: gemeld, value: true}
+  - number: '2'
+    url: https://example.invalid/meldwet-voorbeeld/2
+    text: De minister kent een meldnummer toe.
+    machine_readable:
+      execution:
+        produces: {legal_character: BESCHIKKING, decision_type: TOEKENNING}
+        parameters:
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: meldnummer_toegekend, type: boolean}
+        actions:
+          - {output: meldnummer_toegekend, value: true}
+  - number: '3'
+    url: https://example.invalid/meldwet-voorbeeld/3
+    text: Na de vaststelling wordt binnen zeven jaar beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host: {law: subsidiewet_voorbeeld, article: '3'}
+      execution:
+        parameters:
+          - {name: bewaartermijn_jaren, type: number, required: true}
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: wettelijke_beslistermijn, type: date}
+        actions:
+          - output: wettelijke_beslistermijn
+            value: {operation: DATE_ADD, date: $datum_ontvangst, years: $bewaartermijn_jaren}

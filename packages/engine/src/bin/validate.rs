@@ -166,6 +166,17 @@ fn main() {
         }
     }
 
+    // Step 5: couplings between hooks and their hosts in the set that
+    // cannot work as written, hosts (RFC-058) the hook never reaches, and
+    // fillings that ask for a parameter their host does not hand on. A
+    // WARN: the regulation still runs, and a host may be outside the set.
+    let laws: Vec<&ArticleBasedLaw> = latest.values().copied().collect();
+    let mut warnings = regelrecht_engine::hook_coupling_warnings(&laws);
+    warnings.sort();
+    for warning in warnings {
+        eprintln!("WARN: hook coupling: {warning}");
+    }
+
     if failed {
         process::exit(1);
     }

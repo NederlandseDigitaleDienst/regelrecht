@@ -1,0 +1,26 @@
+---
+# Fictional. A policy rule of the minister that sets the decision period of a
+# subsidy grant. Its filling names host article '11' where article 1 is meant.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: beleidsregel_subsidie_voorbeeld
+regulatory_layer: BELEIDSREGEL
+publication_date: '2025-06-01'
+url: https://example.invalid/beleidsregel-subsidie
+articles:
+  - number: '1'
+    url: https://example.invalid/beleidsregel-subsidie/1
+    text: Op een aanvraag tot verlening van subsidie wordt binnen tien weken beslist.
+    machine_readable:
+      implements:
+        - law: algemene_wet_voorbeeld
+          article: '4:13'
+          open_term: wettelijke_beslistermijn
+          host: {law: subsidiewet_voorbeeld, article: '11'}
+      execution:
+        parameters:
+          - {name: datum_ontvangst, type: date, required: true}
+        output:
+          - {name: wettelijke_beslistermijn, type: date}
+        actions:
+          - output: wettelijke_beslistermijn
+            value: {operation: DATE_ADD, date: $datum_ontvangst, weeks: 10}
