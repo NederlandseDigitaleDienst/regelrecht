@@ -28,11 +28,11 @@ articles:
           - name: beslissingen_op_bezwaar
             type: array
             source:
-              decisions: algemene_wet_bestuursrecht#7:11
+              decisions: test_general_administrative_act#7:11
           - name: uitspraken
             type: array
             source:
-              facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak
+              facts: test_general_administrative_act#8:79#afschrift_van_de_uitspraak
         output:
           - name: beslissingen_herroepen_bij_uitspraak
             type: array
@@ -71,7 +71,7 @@ articles:
                 conditions:
                   - operation: EQUALS
                     subject: $uitspraak.uitspraak_in_de_plaats.basis
-                    value: algemene_wet_bestuursrecht#7:11
+                    value: test_general_administrative_act#7:11
                   - operation: EQUALS
                     subject: $uitspraak.uitspraak_in_de_plaats.bestreden_besluit_herroepen
                     value: true
@@ -132,7 +132,7 @@ articles:
           - name: uitspraken
             type: array
             source:
-              facts: algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak
+              facts: test_general_administrative_act#8:79#afschrift_van_de_uitspraak
           - name: besluiten_in_stand
             type: array
             source:
@@ -158,7 +158,7 @@ articles:
                     conditions:
                       - operation: EQUALS
                         subject: $uitspraak.uitspraak_in_de_plaats.basis
-                        value: algemene_wet_bestuursrecht#7:11
+                        value: test_general_administrative_act#7:11
                       - operation: EQUALS
                         subject: $uitspraak.uitspraak_in_de_plaats.nieuw_besluit.basis
                         value: $basis

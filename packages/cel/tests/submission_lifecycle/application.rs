@@ -21,19 +21,25 @@ fn the_shape_of_the_application_comes_from_the_law() {
     assert_eq!(
         supplied,
         vec![
-            ("bsn_jongere", "leerplichtwet_1969#13a"),
-            ("eerste_verlofdag", "leerplichtwet_1969#13a"),
-            ("laatste_verlofdag", "leerplichtwet_1969#13a"),
-            ("aanvraag_ondertekend", "algemene_wet_bestuursrecht#4:2"),
-            ("naam_aanvrager", "algemene_wet_bestuursrecht#4:2"),
-            ("adres_aanvrager", "algemene_wet_bestuursrecht#4:2"),
-            ("dagtekening", "algemene_wet_bestuursrecht#4:2"),
-            ("gevraagde_beschikking", "algemene_wet_bestuursrecht#4:2"),
+            ("bsn_jongere", "test_school_leave_act#13a"),
+            ("eerste_verlofdag", "test_school_leave_act#13a"),
+            ("laatste_verlofdag", "test_school_leave_act#13a"),
+            (
+                "aanvraag_ondertekend",
+                "test_general_administrative_act#4:2"
+            ),
+            ("naam_aanvrager", "test_general_administrative_act#4:2"),
+            ("adres_aanvrager", "test_general_administrative_act#4:2"),
+            ("dagtekening", "test_general_administrative_act#4:2"),
+            (
+                "gevraagde_beschikking",
+                "test_general_administrative_act#4:2"
+            ),
         ]
     );
     let moment = shape.moment.unwrap();
     assert_eq!(moment.parameter.as_deref(), Some("datum_ontvangst"));
-    assert_eq!(moment.declared_by, "algemene_wet_bestuursrecht#4:13");
+    assert_eq!(moment.declared_by, "test_general_administrative_act#4:13");
 }
 
 #[test]
@@ -42,7 +48,7 @@ fn an_application_is_recorded_with_its_basis_and_the_deadline_its_hooks_give() {
     let gram = record(&mut cell, &application(), "2026-10-13").unwrap();
 
     assert_eq!(gram.kind, "AANVRAAG");
-    assert_eq!(gram.basis, "leerplichtwet_1969#13a");
+    assert_eq!(gram.basis, "test_school_leave_act#13a");
     assert_eq!(gram.recording_actor, RECORDING_ACTOR);
     assert_eq!(gram.recorded_on, day("2026-10-13"));
     assert_eq!(uuid_version(&gram.id), 7);
@@ -56,7 +62,7 @@ fn an_application_is_recorded_with_its_basis_and_the_deadline_its_hooks_give() {
     let moment = gram.moment.as_ref().unwrap();
     assert_eq!(moment.parameter.as_deref(), Some("datum_ontvangst"));
     assert_eq!(moment.on, day("2026-10-13"));
-    assert_eq!(moment.declared_by, "algemene_wet_bestuursrecht#4:13");
+    assert_eq!(moment.declared_by, "test_general_administrative_act#4:13");
 
     // What the Awb hooks give is not in the chronolexogram: it follows from
     // the fields and the law of the day, and the cell computes it when
@@ -79,7 +85,7 @@ fn an_application_is_recorded_with_its_basis_and_the_deadline_its_hooks_give() {
     assert!(serialized.get("field_basis").is_none());
     assert!(serialized.get("output_basis").is_none());
     assert!(serialized["moment"].get("basis").is_none());
-    assert_eq!(serialized["basis"], "leerplichtwet_1969#13a");
+    assert_eq!(serialized["basis"], "test_school_leave_act#13a");
 
     assert_eq!(cell.grams(), [gram]);
 }

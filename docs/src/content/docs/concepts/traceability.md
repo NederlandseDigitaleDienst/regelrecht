@@ -52,7 +52,7 @@ So the shape of the left margin is a map of which law you are in at any depth, w
 
 ## A real trace
 
-Here is the engine computing `hoogte_zorgtoeslag` (the healthcare allowance amount) for one person on 2025-01-01. The full rendering is checked in at `packages/engine/tests/expected_zorgtoeslag_trace.txt` and pinned by a snapshot test, so it stays in step with the engine. The interesting parts:
+Here is the engine computing `hoogte_zorgtoeslag` (the healthcare allowance amount) for one person on 2025-01-01. The command at the end of this page renders it in full. A snapshot test pins the trace of a smaller fictional chain of the same shape (`packages/engine/tests/expected_allowance_trace.txt`), so the format stays in step with the engine. The interesting parts:
 
 ### A cross-law chain
 
@@ -134,7 +134,7 @@ The quickest way to see one is the bundled example, which loads the local corpus
 cargo run --example trace -- wet_op_de_zorgtoeslag hoogte_zorgtoeslag 2025-01-01 bsn=999993653
 ```
 
-(See `packages/engine/examples/trace.rs`.) For a simpler starting point, `packages/engine/tests/expected_standaardpremie_trace.txt` is a seven-line trace of a single law with no cross-law calls.
+(See `packages/engine/examples/trace.rs`.) For a simpler starting point, `packages/engine/tests/expected_premium_trace.txt` is a five-line trace of a single fictional regulation with no cross-law calls.
 
 In Rust, call `evaluate_law_output_with_trace(...)` and render the `trace` field with `render_box_drawing()`. In the browser, the WASM engine exposes `executeWithTrace(...)` (and `executeMultipleWithTrace(...)` for several outputs at once); both return the trace document under `trace` and the box-drawing rendering under `trace_text`. The editor's execution view and the [TUI](../components/tui)'s trace screen both build on this.
 

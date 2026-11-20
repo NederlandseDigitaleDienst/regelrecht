@@ -1,6 +1,7 @@
-//! Outcomes of art. 13a of the Leerplichtwet 1969 in the live corpus. These
-//! check values of one regelwerk, not a construct of the cell, and so read
-//! as a bucket-A scenario next to that regelwerk; they stay here until the
+//! Outcomes of art. 13a of the fictional school leave act, which follows
+//! art. 13a of the Leerplichtwet 1969. These check values of one regelwerk,
+//! not a construct of the cell. The same outcomes of the Leerplichtwet
+//! itself belong in a bucket-A scenario next to it; these stay here until the
 //! cell's steps run there.
 
 use super::*;

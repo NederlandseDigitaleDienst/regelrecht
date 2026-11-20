@@ -40,7 +40,7 @@ articles:
             type: string
             nullable: true
             source:
-              regulation: regeling_vaststelling_schoolvakanties_20252030
+              regulation: test_school_holidays_regulation
               output: regio_van_school
               parameters:
                 eerste_verlofdag: $eerste_verlofdag
@@ -49,7 +49,7 @@ articles:
             type: date
             nullable: true
             source:
-              regulation: regeling_vaststelling_schoolvakanties_20252030
+              regulation: test_school_holidays_regulation
               parameters:
                 eerste_jaar_schooljaar: $eerste_jaar_schooljaar
                 regio: $regio
@@ -57,7 +57,7 @@ articles:
             type: date
             nullable: true
             source:
-              regulation: regeling_vaststelling_schoolvakanties_20252030
+              regulation: test_school_holidays_regulation
               parameters:
                 eerste_jaar_schooljaar: $eerste_jaar_schooljaar
                 regio: $regio
@@ -65,7 +65,7 @@ articles:
             type: date
             nullable: true
             source:
-              regulation: regeling_vaststelling_schoolvakanties_20252030
+              regulation: test_school_holidays_regulation
               parameters:
                 eerste_jaar_schooljaar: $eerste_jaar_schooljaar
                 regio: $regio
@@ -73,7 +73,7 @@ articles:
             type: date
             nullable: true
             source:
-              regulation: regeling_vaststelling_schoolvakanties_20252030
+              regulation: test_school_holidays_regulation
               parameters:
                 eerste_jaar_schooljaar: $eerste_jaar_schooljaar
                 regio: $regio
@@ -81,7 +81,7 @@ articles:
             type: date
             nullable: true
             source:
-              regulation: regeling_vaststelling_schoolvakanties_20252030
+              regulation: test_school_holidays_regulation
               parameters:
                 jaar: $laatste_jaar_schooljaar
                 regio: $regio
@@ -89,7 +89,7 @@ articles:
             type: date
             nullable: true
             source:
-              regulation: regeling_vaststelling_schoolvakanties_20252030
+              regulation: test_school_holidays_regulation
               parameters:
                 jaar: $laatste_jaar_schooljaar
                 regio: $regio
@@ -97,7 +97,7 @@ articles:
             type: date
             nullable: true
             source:
-              regulation: regeling_vaststelling_schoolvakanties_20252030
+              regulation: test_school_holidays_regulation
               output: zomervakantie_eerste_dag
               parameters:
                 jaar: $eerste_jaar_schooljaar
@@ -106,7 +106,7 @@ articles:
             type: date
             nullable: true
             source:
-              regulation: regeling_vaststelling_schoolvakanties_20252030
+              regulation: test_school_holidays_regulation
               output: zomervakantie_laatste_dag
               parameters:
                 jaar: $eerste_jaar_schooljaar

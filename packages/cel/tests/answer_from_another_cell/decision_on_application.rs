@@ -24,16 +24,22 @@ fn the_fields_of_an_application_come_from_its_article_and_the_hooks_on_it() {
             ("bsn_aanvrager", babw.as_str()),
             ("kaart_als_bestuurder", babw.as_str()),
             ("kaart_als_passagier", babw.as_str()),
-            ("aanvraag_ondertekend", "algemene_wet_bestuursrecht#4:2"),
-            ("naam_aanvrager", "algemene_wet_bestuursrecht#4:2"),
-            ("adres_aanvrager", "algemene_wet_bestuursrecht#4:2"),
-            ("dagtekening", "algemene_wet_bestuursrecht#4:2"),
-            ("gevraagde_beschikking", "algemene_wet_bestuursrecht#4:2"),
+            (
+                "aanvraag_ondertekend",
+                "test_general_administrative_act#4:2"
+            ),
+            ("naam_aanvrager", "test_general_administrative_act#4:2"),
+            ("adres_aanvrager", "test_general_administrative_act#4:2"),
+            ("dagtekening", "test_general_administrative_act#4:2"),
+            (
+                "gevraagde_beschikking",
+                "test_general_administrative_act#4:2"
+            ),
         ]
     );
     let moment = shape.moment.unwrap();
     assert_eq!(moment.parameter.as_deref(), Some("datum_ontvangst"));
-    assert_eq!(moment.declared_by, "algemene_wet_bestuursrecht#4:13");
+    assert_eq!(moment.declared_by, "test_general_administrative_act#4:13");
 }
 
 #[test]

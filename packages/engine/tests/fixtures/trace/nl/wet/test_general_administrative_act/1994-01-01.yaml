@@ -1,0 +1,57 @@
+---
+# FICTIEF. A general administrative act for the trace tests, after
+# articles 3:46 and 6:7 of the Algemene wet bestuursrecht. It holds only
+# what the trace shows of a general act: a hook before and a hook after the
+# actions of a decision. None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: test_general_administrative_act
+regulatory_layer: WET
+publication_date: '2026-01-01'
+valid_from: '1994-01-01'
+name: Testwet algemene bestuursregels
+bwb_id: BWBR9999934
+url: https://example.com/test_general_administrative_act
+
+procedure:
+  - id: beschikking
+    default: true
+    applies_to:
+      legal_character: BESCHIKKING
+    stages:
+      - name: BESLUIT
+        description: The decision is taken.
+
+articles:
+  - number: '3:46'
+    text: FICTIEF, naar artikel 3:46 van de Algemene wet bestuursrecht. Een besluit is gemotiveerd.
+    url: https://example.com/test_general_administrative_act/3:46
+    machine_readable:
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BESLUIT
+      execution:
+        output:
+          - name: motivering_vereist
+            type: boolean
+        actions:
+          - output: motivering_vereist
+            value: true
+
+  - number: '6:7'
+    text: FICTIEF, naar artikel 6:7 van de Algemene wet bestuursrecht. De bezwaartermijn is zes weken.
+    url: https://example.com/test_general_administrative_act/6:7
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BESLUIT
+      execution:
+        output:
+          - name: termijn_weken
+            type: number
+        actions:
+          - output: termijn_weken
+            value: 6

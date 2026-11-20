@@ -30,7 +30,7 @@ articles:
             source:
               regulation: reductie_algemene_wet_bestuursrecht
               parameters:
-                basis: leerplichtwet_1969#13a
+                basis: test_school_leave_act#13a
           - name: begin_schooljaar
             type: date
             source:

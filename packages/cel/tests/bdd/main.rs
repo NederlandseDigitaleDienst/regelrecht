@@ -2,8 +2,9 @@
 //! in its chronicle, and a reduction plays the chronicle forward
 //! (`projection`), with the engine rewinding where the law undoes a record.
 //!
-//! The features are in `packages/cel/bdd/features`, their fixtures (a
-//! synthetic law and a cell with its reduction) in `packages/cel/bdd/fixtures`.
+//! The features are in `packages/cel/bdd/features`, their fixtures (synthetic
+//! laws, a mini general administrative act and a cell with its reductions) in
+//! `packages/cel/bdd/fixtures`; they run against those alone, not the corpus.
 //! Beside them, each construct under `packages/cel/bdd/constructs/` is a
 //! scenario set (`sets.rs`): its features run against its own fictional
 //! regelwerken and nothing else. `BDD_CONSTRUCT_SETS` names sets from outside
@@ -33,6 +34,9 @@ mod common;
 #[path = "../../../engine/tests/bdd/dispatch.rs"]
 mod dispatch;
 mod extension;
+// The cell's own features load only their fixtures, never the corpus, so
+// the corpus loader among the engine's helpers goes unused here.
+#[allow(dead_code)]
 #[path = "../../../engine/tests/bdd/helpers/mod.rs"]
 mod helpers;
 #[path = "../../../engine/tests/common/reverse_actions.rs"]

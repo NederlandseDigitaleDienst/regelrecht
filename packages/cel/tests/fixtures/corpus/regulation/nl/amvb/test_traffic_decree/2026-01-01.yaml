@@ -1,0 +1,255 @@
+---
+# FICTIEF. A traffic decree for the tests of the cell, after articles 49 and
+# 51 of the Besluit administratieve bepalingen inzake het wegverkeer: a card
+# granted on application, and its validity. None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.8/schema/v0.8.8/schema.json
+$id: test_traffic_decree
+name: Testbesluit verkeer
+regulatory_layer: AMVB
+publication_date: '2025-10-10'
+valid_from: '2026-01-01'
+bwb_id: BWBR9999938
+url: https://example.com/test_traffic_decree
+articles:
+  - number: '49'
+    text: FICTIEF, naar artikel 49 van het Besluit administratieve bepalingen inzake het wegverkeer.
+    url: https://example.com/test_traffic_decree/49
+    machine_readable:
+      competent_authority:
+        name: college van burgemeester en wethouders
+        type: CATEGORY
+      open_terms:
+        - id: langdurige_loopbeperking
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders, na geneeskundig onderzoek (Regeling
+            gehandicaptenparkeerkaart, artikelen 2 en 3)
+          description: Of de aanvrager ten gevolge van een aandoening of gebrek een aantoonbare loopbeperking
+            van langdurige aard heeft, waardoor hij met de gebruikelijke loophulpmiddelen in redelijkheid
+            niet zelfstandig meer dan 100 meter aan een stuk te voet kan overbruggen (Regeling gehandicaptenparkeerkaart,
+            artikel 1, eerste lid, onder a en b).
+        - id: continu_afhankelijk_van_hulp_bestuurder
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders, na geneeskundig onderzoek (Regeling
+            gehandicaptenparkeerkaart, artikelen 2 en 3)
+          description: Of de aanvrager voor het vervoer van deur tot deur continu afhankelijk is van de
+            hulp van de bestuurder (Regeling gehandicaptenparkeerkaart, artikel 1, eerste lid, onder b).
+        - id: permanent_rolstoelgebonden
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders, na geneeskundig onderzoek (Regeling
+            gehandicaptenparkeerkaart, artikelen 2 en 3)
+          description: Of de aanvrager ten gevolge van een aandoening of gebrek permanent rolstoelgebonden
+            is (Regeling gehandicaptenparkeerkaart, artikel 1, eerste lid, onder c).
+        - id: ernstige_beperkingen_andere_dan_loopbeperkingen
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders, na geneeskundig onderzoek (Regeling
+            gehandicaptenparkeerkaart, artikelen 2 en 3)
+          description: Of de aanvrager ten gevolge van een aandoening of gebrek aantoonbare ernstige beperkingen
+            heeft, andere dan loopbeperkingen (Regeling gehandicaptenparkeerkaart, artikel 1, eerste lid,
+            onder d).
+        - id: geneeskundig_onderzoek_achterwege_gelaten
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders (Regeling gehandicaptenparkeerkaart,
+            artikel 2, tweede lid)
+          description: Of het college het geneeskundig onderzoek achterwege laat (Regeling gehandicaptenparkeerkaart,
+            artikel 2, tweede lid, aanhef).
+        - id: bekend_dat_aanvrager_nog_steeds_voldoet
+          type: boolean
+          required: false
+          decided_per_case_by: het college van burgemeester en wethouders, als verstrekkende instantie
+            (Regeling gehandicaptenparkeerkaart, artikel 2, tweede lid, onder a)
+          description: Of aan het college bekend is dat de aanvrager, die eerder een kaart kreeg, nog
+            steeds voldoet aan de criteria van artikel 1 van de regeling (artikel 2, tweede lid, onder
+            a).
+        - id: keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet
+          type: boolean
+          required: false
+          decided_per_case_by: 'de keurende instantie: de Gemeentelijke Gezondheidsdienst of de door het
+            college aangewezen deskundige (Regeling gehandicaptenparkeerkaart, artikelen 2, tweede lid,
+            onder b, en 3, eerste lid)'
+          description: Of de keurende instantie van oordeel is dat de aanvrager, die eerder een kaart
+            kreeg, nog steeds voldoet aan de criteria van artikel 1 van de regeling (artikel 2, tweede
+            lid, onder b).
+        - id: bevoegdheid_tot_verstrekken_gebruikt
+          type: boolean
+          required: true
+          decided_per_case_by: het college van burgemeester en wethouders (artikel 49, eerste lid)
+          description: Of het college van zijn bevoegdheid gebruikmaakt om een gehandicaptenparkeerkaart
+            te verstrekken aan een aanvrager die aan de criteria voldoet.
+      execution:
+        produces:
+          - type: AANVRAAG
+            requests: test_traffic_decree#49
+            parameters:
+              - bsn_aanvrager
+              - kaart_als_bestuurder
+              - kaart_als_passagier
+          - type: BESCHIKKING
+            decision_type: TOEKENNING
+            outputs:
+              - gehandicaptenparkeerkaart_verstrekt
+              - kaart_vermeldt_bestuurder
+              - kaart_vermeldt_passagier
+            derived:
+              - kaart_geldig_tot
+        parameters:
+          - name: bsn_aanvrager
+            type: string
+            description: Burgerservicenummer van de gehandicapte die de kaart aanvraagt.
+          - name: kaart_als_bestuurder
+            type: boolean
+            description: Of de aanvrager de kaart vraagt als bestuurder.
+          - name: kaart_als_passagier
+            type: boolean
+            description: Of de aanvrager de kaart vraagt als passagier.
+          - name: besluit_datum
+            type: date
+            description: De dag waarop het college op de aanvraag besluit.
+          - name: dagtekening
+            type: date
+            nullable: true
+            description: De dagtekening van de aanvraag.
+        input:
+          - name: komt_in_aanmerking_als_bestuurder
+            type: boolean
+            source:
+              regulation: test_parking_card_regulation
+              output: komt_in_aanmerking_als_bestuurder
+              parameters:
+                langdurige_loopbeperking: $langdurige_loopbeperking
+                continu_afhankelijk_van_hulp_bestuurder: $continu_afhankelijk_van_hulp_bestuurder
+                permanent_rolstoelgebonden: $permanent_rolstoelgebonden
+                ernstige_beperkingen_andere_dan_loopbeperkingen: $ernstige_beperkingen_andere_dan_loopbeperkingen
+          - name: komt_in_aanmerking_als_passagier
+            type: boolean
+            source:
+              regulation: test_parking_card_regulation
+              output: komt_in_aanmerking_als_passagier
+              parameters:
+                langdurige_loopbeperking: $langdurige_loopbeperking
+                continu_afhankelijk_van_hulp_bestuurder: $continu_afhankelijk_van_hulp_bestuurder
+                permanent_rolstoelgebonden: $permanent_rolstoelgebonden
+                ernstige_beperkingen_andere_dan_loopbeperkingen: $ernstige_beperkingen_andere_dan_loopbeperkingen
+          - name: gehandicaptenparkeerkaart_mag_worden_afgegeven
+            type: boolean
+            source:
+              regulation: test_parking_card_regulation
+              output: gehandicaptenparkeerkaart_mag_worden_afgegeven
+              parameters:
+                bsn_aanvrager: $bsn_aanvrager
+                dagtekening_aanvraag: $dagtekening
+                datum_afgifte: $besluit_datum
+                geneeskundig_onderzoek_achterwege_gelaten: $geneeskundig_onderzoek_achterwege_gelaten
+                bekend_dat_aanvrager_nog_steeds_voldoet: $bekend_dat_aanvrager_nog_steeds_voldoet
+                keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet: $keurende_instantie_oordeelt_dat_aanvrager_nog_steeds_voldoet
+          - name: einde_geldigheidsduur_bij_afgifte
+            type: date
+            source:
+              regulation: test_traffic_decree
+              output: einde_geldigheidsduur
+              parameters:
+                datum_afgifte: $besluit_datum
+        output:
+          - name: gehandicaptenparkeerkaart_verstrekt
+            type: boolean
+            description: Of het college de aanvrager een gehandicaptenparkeerkaart verstrekt (lid 1).
+          - name: kaart_vermeldt_bestuurder
+            type: boolean
+            description: Of de verstrekte kaart met een hoofdletter B aangeeft dat zij voor een gehandicapte
+              bestuurder is (Regeling gehandicaptenparkeerkaart, artikel 1, tweede lid).
+          - name: kaart_vermeldt_passagier
+            type: boolean
+            description: Of de verstrekte kaart met een hoofdletter P aangeeft dat zij voor een gehandicapte
+              passagier is (Regeling gehandicaptenparkeerkaart, artikel 1, tweede lid).
+          - name: kaart_geldig_tot
+            type: date
+            nullable: true
+            description: De laatste dag waarop de verstrekte kaart geldig is (artikel 51, eerste lid);
+              leeg als geen kaart wordt verstrekt.
+        actions:
+          - output: gehandicaptenparkeerkaart_verstrekt
+            value:
+              operation: AND
+              conditions:
+                - operation: OR
+                  conditions:
+                    - operation: AND
+                      conditions:
+                        - $kaart_als_bestuurder
+                        - $komt_in_aanmerking_als_bestuurder
+                    - operation: AND
+                      conditions:
+                        - $kaart_als_passagier
+                        - $komt_in_aanmerking_als_passagier
+                - $bevoegdheid_tot_verstrekken_gebruikt
+                - $gehandicaptenparkeerkaart_mag_worden_afgegeven
+          - output: kaart_vermeldt_bestuurder
+            value:
+              operation: AND
+              conditions:
+                - $gehandicaptenparkeerkaart_verstrekt
+                - $kaart_als_bestuurder
+                - $komt_in_aanmerking_als_bestuurder
+          - output: kaart_vermeldt_passagier
+            value:
+              operation: AND
+              conditions:
+                - $gehandicaptenparkeerkaart_verstrekt
+                - $kaart_als_passagier
+                - $komt_in_aanmerking_als_passagier
+          - output: kaart_geldig_tot
+            value:
+              operation: IF
+              cases:
+                - when: $gehandicaptenparkeerkaart_verstrekt
+                  then: $einde_geldigheidsduur_bij_afgifte
+              default: null
+  - number: '51'
+    text: FICTIEF, naar artikel 51 van het Besluit administratieve bepalingen inzake het wegverkeer.
+    url: https://example.com/test_traffic_decree/51
+    machine_readable:
+      execution:
+        parameters:
+          - name: datum_afgifte
+            type: date
+            description: De dag waarop de gehandicaptenparkeerkaart is afgegeven.
+        output:
+          - name: einde_geldigheidsduur
+            type: date
+            description: De laatste dag van de vijf achtereenvolgende jaren, gerekend vanaf de dag van
+              afgifte (lid 1).
+        actions:
+          - output: einde_geldigheidsduur
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - operation: EQUALS
+                        subject:
+                          operation: DATE_PART
+                          date: $datum_afgifte
+                          in: month
+                        value: 2
+                      - operation: EQUALS
+                        subject:
+                          operation: DATE_PART
+                          date: $datum_afgifte
+                          in: day
+                        value: 29
+                  then:
+                    operation: DATE_ADD
+                    date: $datum_afgifte
+                    years: 5
+              default:
+                operation: DATE_ADD
+                date:
+                  operation: DATE_ADD
+                  date: $datum_afgifte
+                  years: 5
+                days: -1

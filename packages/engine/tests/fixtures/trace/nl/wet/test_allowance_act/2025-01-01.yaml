@@ -1,0 +1,203 @@
+---
+# FICTIEF. An allowance act for the trace tests. It holds what a trace across
+# laws shows and nothing more: a decision (article 2) whose actions cite
+# their provision, an input read from a register (article 1), a call to
+# another act (article 3 and the income in article 2), and an open term a
+# regulation fills (article 4). None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: test_allowance_act
+regulatory_layer: WET
+publication_date: '2024-12-20'
+valid_from: '2025-01-01'
+name: Testwet toeslag
+bwb_id: BWBR9999931
+url: https://example.com/test_allowance_act
+articles:
+  - number: '1'
+    text: FICTIEF. Verzekerde is wie een actieve polis heeft.
+    url: https://example.com/test_allowance_act/1
+    machine_readable:
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: polis_status
+            type: string
+            source: {}
+        output:
+          - name: is_verzekerd
+            type: boolean
+        actions:
+          - output: is_verzekerd
+            value:
+              operation: EQUALS
+              subject: $polis_status
+              value: ACTIEF
+
+  - number: '2'
+    text: |-
+      FICTIEF.
+      1. De verzekerde heeft aanspraak op een toeslag ter grootte van het verschil tussen de
+      standaardpremie en de normpremie.
+      2. De normpremie is een percentage van het toetsingsinkomen.
+    url: https://example.com/test_allowance_act/2
+    machine_readable:
+      definitions:
+        percentage_toetsingsinkomen:
+          value: 0.137
+      execution:
+        produces:
+          legal_character: BESCHIKKING
+          decision_type: TOEKENNING
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: is_verzekerd
+            type: boolean
+            source:
+              output: is_verzekerd
+          - name: toetsingsinkomen
+            type: amount
+            source:
+              regulation: test_income_act
+              output: toetsingsinkomen
+              parameters:
+                bsn: $bsn
+            type_spec:
+              unit: eurocent
+          - name: standaardpremie
+            type: amount
+            source:
+              output: standaardpremie
+            type_spec:
+              unit: eurocent
+          - name: vermogen_onder_grens
+            type: boolean
+            source:
+              output: vermogen_onder_grens
+        output:
+          - name: heeft_recht_op_toeslag
+            type: boolean
+          - name: hoogte_toeslag
+            type: amount
+            type_spec:
+              unit: eurocent
+          - name: toetsingsinkomen_in_aanmerking
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: toetsingsinkomen_in_aanmerking
+            legal_basis:
+              law: Testwet toeslag
+              bwb_id: BWBR9999931
+              article: '2'
+              paragraph: '2'
+              url: https://example.com/test_allowance_act/2
+              juriconnect: jci1.3:c:BWBR9999931&artikel=2&lid=2&z=2025-01-01&g=2025-01-01
+              explanation: Het toetsingsinkomen waarmee de normpremie wordt berekend.
+            value: $toetsingsinkomen
+          - output: hoogte_toeslag
+            legal_basis:
+              law: Testwet toeslag
+              bwb_id: BWBR9999931
+              article: '2'
+              paragraph: '1'
+              url: https://example.com/test_allowance_act/2
+              juriconnect: jci1.3:c:BWBR9999931&artikel=2&lid=1&z=2025-01-01&g=2025-01-01
+              explanation: Het verschil tussen de standaardpremie en de normpremie.
+            value:
+              operation: ROUND
+              precision: 0
+              value:
+                operation: MAX
+                values:
+                  - 0
+                  - operation: SUBTRACT
+                    values:
+                      - $standaardpremie
+                      - operation: MULTIPLY
+                        values:
+                          - $toetsingsinkomen_in_aanmerking
+                          - $percentage_toetsingsinkomen
+          - output: heeft_recht_op_toeslag
+            legal_basis:
+              law: Testwet toeslag
+              bwb_id: BWBR9999931
+              article: '2'
+              url: https://example.com/test_allowance_act/2
+              juriconnect: jci1.3:c:BWBR9999931&artikel=2&z=2025-01-01&g=2025-01-01
+              explanation: >-
+                De aanspraak bestaat voor een verzekerde met een vermogen onder
+                de grens en een toeslag groter dan nul.
+            value:
+              operation: AND
+              conditions:
+                - $is_verzekerd
+                - $vermogen_onder_grens
+                - operation: GREATER_THAN
+                  subject: $hoogte_toeslag
+                  value: 0
+
+  - number: '3'
+    text: FICTIEF. Er is geen aanspraak als de rendementsgrondslag de vermogensgrens overschrijdt.
+    url: https://example.com/test_allowance_act/3
+    machine_readable:
+      definitions:
+        vermogensgrens:
+          value: 14189600
+      execution:
+        parameters:
+          - name: bsn
+            type: string
+            required: true
+        input:
+          - name: vermogen
+            type: amount
+            source:
+              regulation: test_income_act
+              output: rendementsgrondslag
+              parameters:
+                bsn: $bsn
+            type_spec:
+              unit: eurocent
+        output:
+          - name: vermogen_onder_grens
+            type: boolean
+        actions:
+          - output: vermogen_onder_grens
+            legal_basis:
+              law: Testwet toeslag
+              bwb_id: BWBR9999931
+              article: '3'
+              url: https://example.com/test_allowance_act/3
+              juriconnect: jci1.3:c:BWBR9999931&artikel=3&z=2025-01-01&g=2025-01-01
+              explanation: De vermogenstoets.
+            value:
+              operation: LESS_THAN_OR_EQUAL
+              subject: $vermogen
+              value: $vermogensgrens
+
+  - number: '4'
+    text: FICTIEF. Onze Minister stelt de standaardpremie bij regeling vast.
+    url: https://example.com/test_allowance_act/4
+    machine_readable:
+      open_terms:
+        - id: standaardpremie
+          type: amount
+          required: true
+          delegated_to: minister
+          delegation_type: MINISTERIELE_REGELING
+      execution:
+        output:
+          - name: standaardpremie
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: standaardpremie
+            value: $standaardpremie

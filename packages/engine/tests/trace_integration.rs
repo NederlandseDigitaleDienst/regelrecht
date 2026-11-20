@@ -1,18 +1,14 @@
 //! Integration tests for execution tracing.
 //!
 //! Verifies that the trace output matches the expected box-drawing format
-//! for the zorgtoeslag (healthcare allowance) scenario.
+//! for a decision whose evaluation crosses laws.
 //!
-//! The laws come from a frozen copy under `tests/fixtures/trace_corpus/`, not
-//! from `corpus/regulation/`. These tests pin how the engine traces, so they
-//! block CI; the zorgtoeslag scenarios next to the law are deliberately not in
-//! CI, because a change to a law is for a human to judge. Reading the live
-//! corpus here would turn every such change into a red engine test. The copy
-//! holds the version of each regelwerk the evaluation on 2025-01-01 reaches,
-//! including the Awb for its hooks, and nothing more: a law added to the copy
-//! can fire a hook and change the expected trace. When the format of a
-//! regelwerk changes, refresh the copy from the corpus and review the
-//! expected traces alongside.
+//! The laws are a small fictional chain under `tests/fixtures/trace/`: an
+//! allowance act whose decision reads a register, calls an income act and
+//! fills an open term from a regulation, and a general act whose hooks fire
+//! on the decision. That is what a trace across laws shows, and nothing
+//! more, so a change to a law in the corpus does not touch these tests. A
+//! law added to the chain can fire a hook and change the expected trace.
 
 // Allowed crate-wide: test helpers outside a `#[test]` fn may unwrap, expect and
 // panic too, because that is how a failing fixture reports itself.
@@ -23,10 +19,10 @@ use regelrecht_engine::{LawExecutionService, PathNodeType, Value};
 use std::collections::BTreeMap;
 use walkdir::WalkDir;
 
-/// Load every regelwerk of the frozen trace corpus into the service.
+/// Load every regelwerk of the fictional trace chain into the service.
 fn load_all_regulations(service: &mut LawExecutionService) -> Result<usize, String> {
     let regulation_dir =
-        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/trace_corpus");
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/trace");
 
     if !regulation_dir.exists() {
         return Err(format!(
@@ -45,7 +41,7 @@ fn load_all_regulations(service: &mut LawExecutionService) -> Result<usize, Stri
         if path.is_file() && path.extension().is_some_and(|ext| ext == "yaml") {
             let content = std::fs::read_to_string(path)
                 .map_err(|e| format!("Failed to read {}: {}", path.display(), e))?;
-            // Every file in the copy is there on purpose, so one that no
+            // Every file in the chain is there on purpose, so one that no
             // longer loads is a failure rather than a law to skip.
             service
                 .load_law(&content)
@@ -65,112 +61,61 @@ fn record(entries: Vec<(&str, Value)>) -> BTreeMap<String, Value> {
         .collect()
 }
 
-/// Set up a service with all regulations loaded and zorgtoeslag data registered.
-fn setup_zorgtoeslag_service() -> LawExecutionService {
+/// The subject of every evaluation here, a fictional citizen service number.
+const BSN: &str = "999993653";
+
+/// Set up a service with the chain loaded and the registers it reads.
+fn setup_allowance_service() -> LawExecutionService {
     let mut service = LawExecutionService::new();
     load_all_regulations(&mut service).expect("Failed to load regulations");
 
-    // Register raw data sources (matching BDD scenario data)
-    let personal = record(vec![
-        ("bsn", Value::String("999993653".to_string())),
-        ("geboortedatum", Value::String("2005-01-01".to_string())),
-    ]);
-    let relationship = record(vec![
-        ("bsn", Value::String("999993653".to_string())),
-        ("partnerschap_type", Value::String("GEEN".to_string())),
-        ("partner_bsn", Value::Null),
-    ]);
     let insurance = record(vec![
-        ("bsn", Value::String("999993653".to_string())),
+        ("bsn", Value::String(BSN.to_string())),
         ("polis_status", Value::String("ACTIEF".to_string())),
-        ("verdragsinschrijving", Value::Bool(false)),
     ]);
-    let box1 = record(vec![
-        ("bsn", Value::String("999993653".to_string())),
-        ("loon_uit_dienstbetrekking", Value::Int(79547)),
-        ("uitkeringen_en_pensioenen", Value::Int(0)),
-        ("winst_uit_onderneming", Value::Int(0)),
-        ("resultaat_overige_werkzaamheden", Value::Int(0)),
-        ("eigen_woning", Value::Int(0)),
-    ]);
-    let inkomensgegevens = record(vec![
-        ("bsn", Value::String("999993653".to_string())),
-        (
-            "aanslag_of_navorderingsaanslag_vastgesteld",
-            Value::Bool(true),
-        ),
-        ("belastbaar_loon", Value::Int(79547)),
-        ("niet_in_nederland_belastbaar_inkomen", Value::Int(0)),
-    ]);
-    let box2 = record(vec![
-        ("bsn", Value::String("999993653".to_string())),
-        ("reguliere_voordelen", Value::Int(0)),
-        ("vervreemdingsvoordelen", Value::Int(0)),
+    let income = record(vec![
+        ("bsn", Value::String(BSN.to_string())),
+        ("inkomen", Value::Int(79547)),
     ]);
     let box3 = record(vec![
-        ("bsn", Value::String("999993653".to_string())),
+        ("bsn", Value::String(BSN.to_string())),
         ("spaargeld", Value::Int(0)),
-        ("beleggingen", Value::Int(0)),
-        ("onroerend_goed", Value::Int(0)),
         ("schulden", Value::Int(0)),
     ]);
-    let detenties = record(vec![
-        ("bsn", Value::String("999993653".to_string())),
-        ("detentiestatus", Value::Null),
-        ("inrichting_type", Value::Null),
-        ("zorgtype", Value::Null),
-        ("juridische_grondslag", Value::Null),
-    ]);
 
-    service
-        .register_dict_source("personal_data", "bsn", vec![personal])
-        .expect("Failed to register personal_data");
-    service
-        .register_dict_source("relationship_data", "bsn", vec![relationship])
-        .expect("Failed to register relationship_data");
     service
         .register_dict_source("insurance", "bsn", vec![insurance])
         .expect("Failed to register insurance");
     service
-        .register_dict_source("box1", "bsn", vec![box1])
-        .expect("Failed to register box1");
-    service
-        .register_dict_source("inkomensgegevens", "bsn", vec![inkomensgegevens])
-        .expect("Failed to register inkomensgegevens");
-    service
-        .register_dict_source("box2", "bsn", vec![box2])
-        .expect("Failed to register box2");
+        .register_dict_source("income", "bsn", vec![income])
+        .expect("Failed to register income");
     service
         .register_dict_source("box3", "bsn", vec![box3])
         .expect("Failed to register box3");
-    service
-        .register_dict_source("detenties", "bsn", vec![detenties])
-        .expect("Failed to register detenties");
-
     service
 }
 
 #[test]
 fn a_cross_law_trace_renders_as_its_snapshot() {
-    let service = setup_zorgtoeslag_service();
+    let service = setup_allowance_service();
 
     let mut params = BTreeMap::new();
-    params.insert("bsn".to_string(), Value::String("999993653".to_string()));
+    params.insert("bsn".to_string(), Value::String(BSN.to_string()));
 
     let result = service
         .evaluate_law_output_with_trace(
-            "wet_op_de_zorgtoeslag",
-            "hoogte_zorgtoeslag",
+            "test_allowance_act",
+            "hoogte_toeslag",
             params,
             "2025-01-01",
         )
         .expect("Law evaluation should succeed");
 
     // Verify the computation result
-    let hoogte = result.outputs.get("hoogte_zorgtoeslag");
+    let hoogte = result.outputs.get("hoogte_toeslag");
     assert!(
         hoogte.is_some(),
-        "Expected hoogte_zorgtoeslag output, got: {:?}",
+        "Expected hoogte_toeslag output, got: {:?}",
         result.outputs.keys().collect::<Vec<_>>()
     );
 
@@ -183,7 +128,7 @@ fn a_cross_law_trace_renders_as_its_snapshot() {
     // Snapshot comparison against expected trace output.
     // BTreeMap ensures deterministic iteration order, so trace output is
     // identical across platforms without any normalization.
-    let expected = include_str!("expected_zorgtoeslag_trace.txt");
+    let expected = include_str!("expected_allowance_trace.txt");
     assert_eq!(
         rendered.trim(),
         expected.trim(),
@@ -195,16 +140,16 @@ fn a_cross_law_trace_renders_as_its_snapshot() {
 
 #[test]
 fn tracing_does_not_change_the_outputs() {
-    let service = setup_zorgtoeslag_service();
+    let service = setup_allowance_service();
 
     let mut params = BTreeMap::new();
-    params.insert("bsn".to_string(), Value::String("999993653".to_string()));
+    params.insert("bsn".to_string(), Value::String(BSN.to_string()));
 
     // Execute with trace
     let traced_result = service
         .evaluate_law_output_with_trace(
-            "wet_op_de_zorgtoeslag",
-            "hoogte_zorgtoeslag",
+            "test_allowance_act",
+            "hoogte_toeslag",
             params.clone(),
             "2025-01-01",
         )
@@ -212,12 +157,7 @@ fn tracing_does_not_change_the_outputs() {
 
     // Execute without trace
     let normal_result = service
-        .evaluate_law_output(
-            "wet_op_de_zorgtoeslag",
-            "hoogte_zorgtoeslag",
-            params,
-            "2025-01-01",
-        )
+        .evaluate_law_output("test_allowance_act", "hoogte_toeslag", params, "2025-01-01")
         .expect("Normal evaluation should succeed");
 
     // Results should be identical
@@ -229,19 +169,14 @@ fn tracing_does_not_change_the_outputs() {
 
 #[test]
 fn test_trace_disabled_by_default() {
-    let service = setup_zorgtoeslag_service();
+    let service = setup_allowance_service();
 
     let mut params = BTreeMap::new();
-    params.insert("bsn".to_string(), Value::String("999993653".to_string()));
+    params.insert("bsn".to_string(), Value::String(BSN.to_string()));
 
     // Normal evaluation should not have a trace
     let result = service
-        .evaluate_law_output(
-            "wet_op_de_zorgtoeslag",
-            "hoogte_zorgtoeslag",
-            params,
-            "2025-01-01",
-        )
+        .evaluate_law_output("test_allowance_act", "hoogte_toeslag", params, "2025-01-01")
         .expect("Evaluation should succeed");
 
     assert!(
@@ -252,13 +187,13 @@ fn test_trace_disabled_by_default() {
 
 #[test]
 fn a_single_law_trace_renders_as_its_snapshot() {
-    // Test tracing with a simple single-law scenario (standard premium)
+    // Test tracing with a simple single-law scenario (the premium regulation)
     let mut service = LawExecutionService::new();
     load_all_regulations(&mut service).expect("Failed to load regulations");
 
     let result = service
         .evaluate_law_output_with_trace(
-            "regeling_standaardpremie",
+            "test_premium_regulation",
             "standaardpremie",
             BTreeMap::new(),
             "2025-01-01",
@@ -269,7 +204,7 @@ fn a_single_law_trace_renders_as_its_snapshot() {
     let rendered = trace.render_box_drawing();
 
     // Snapshot comparison against expected trace output
-    let expected = include_str!("expected_standaardpremie_trace.txt");
+    let expected = include_str!("expected_premium_trace.txt");
     assert_eq!(
         rendered.trim(),
         expected.trim(),
@@ -279,25 +214,25 @@ fn a_single_law_trace_renders_as_its_snapshot() {
     );
 }
 
-/// Every step of a real cross-law evaluation names the provision it came from,
+/// Every step of a cross-law evaluation names the provision it came from,
 /// and a step inside another law names *that* law (RFC-039).
 ///
-/// This is the claim the RFC rests on, so it is asserted against the zorgtoeslag
+/// This is the claim the RFC rests on, so it is asserted against the allowance
 /// chain rather than a synthetic tree: the anchor has to survive a cross-law
 /// hop and come back, which is where a naive implementation loses it.
 #[test]
 fn every_step_is_anchored_to_the_provision_it_came_from() {
-    let service = setup_zorgtoeslag_service();
+    let service = setup_allowance_service();
 
     let mut params = BTreeMap::new();
-    params.insert("bsn".to_string(), Value::String("999993653".to_string()));
+    params.insert("bsn".to_string(), Value::String(BSN.to_string()));
 
     let result = service
         .evaluate_law_output_with_trace(
-            "wet_op_de_zorgtoeslag",
+            "test_allowance_act",
             // The entitlement reads every article of the chain; the amount
             // alone does not read the insurance or the capital test (RFC-043).
-            "heeft_recht_op_zorgtoeslag",
+            "heeft_recht_op_toeslag",
             params,
             "2025-01-01",
         )
@@ -336,7 +271,7 @@ fn every_step_is_anchored_to_the_provision_it_came_from() {
         .filter_map(|n| n.anchor.as_ref()?.law_id.as_deref())
         .collect();
     assert!(
-        laws.contains("wet_op_de_zorgtoeslag"),
+        laws.contains("test_allowance_act"),
         "the calling law should appear: {laws:?}"
     );
     assert!(
@@ -384,7 +319,7 @@ fn every_step_is_anchored_to_the_provision_it_came_from() {
         "an open term declared in article 4 is resolved there, not in the article that uses it"
     );
     assert_eq!(
-        article_of("wet_inkomstenbelasting_2001#rendementsgrondslag").as_deref(),
+        article_of("test_income_act#rendementsgrondslag").as_deref(),
         Some("3"),
         "the capital test is article 3; the cross-law call it makes is anchored there"
     );
@@ -397,17 +332,17 @@ fn every_step_is_anchored_to_the_provision_it_came_from() {
 /// the lid the engine cannot infer on its own.
 #[test]
 fn an_action_carries_the_provision_the_corpus_cites() {
-    let service = setup_zorgtoeslag_service();
+    let service = setup_allowance_service();
 
     let mut params = BTreeMap::new();
-    params.insert("bsn".to_string(), Value::String("999993653".to_string()));
+    params.insert("bsn".to_string(), Value::String(BSN.to_string()));
 
     let result = service
         .evaluate_law_output_with_trace(
-            "wet_op_de_zorgtoeslag",
+            "test_allowance_act",
             // The entitlement reads every article of the chain; the amount
             // alone does not read the insurance or the capital test (RFC-043).
-            "heeft_recht_op_zorgtoeslag",
+            "heeft_recht_op_toeslag",
             params,
             "2025-01-01",
         )
@@ -428,19 +363,19 @@ fn an_action_carries_the_provision_the_corpus_cites() {
 
     let step = nodes
         .iter()
-        .find(|n| n.name == "hoogte_zorgtoeslag" && n.legal_basis.is_some())
+        .find(|n| n.name == "hoogte_toeslag" && n.legal_basis.is_some())
         .expect("the toeslag action states the provision it carries out");
     let basis = step.legal_basis.as_ref().unwrap();
 
     assert_eq!(basis.article.as_deref(), Some("2"));
     assert_eq!(basis.paragraph.as_deref(), Some("1"));
-    assert_eq!(basis.bwb_id.as_deref(), Some("BWBR0018451"));
+    assert_eq!(basis.bwb_id.as_deref(), Some("BWBR9999931"));
     // The juriconnect carries `z`/`g`, so it resolves to the text as it stood
     // on this law version's date rather than to the text of today. It is the
     // only part of a citation that carries time at all.
     assert_eq!(
         basis.juriconnect.as_deref(),
-        Some("jci1.3:c:BWBR0018451&artikel=2&lid=1&z=2025-01-01&g=2025-01-01")
+        Some("jci1.3:c:BWBR9999931&artikel=2&lid=1&z=2025-01-01&g=2025-01-01")
     );
     assert!(
         basis
@@ -458,7 +393,7 @@ fn an_action_carries_the_provision_the_corpus_cites() {
     // The anchor is the engine's own account, and it is coarser: it knows the
     // article it was evaluating, never the lid.
     let anchor = step.anchor.as_ref().expect("the step is anchored too");
-    assert_eq!(anchor.law_id.as_deref(), Some("wet_op_de_zorgtoeslag"));
+    assert_eq!(anchor.law_id.as_deref(), Some("test_allowance_act"));
     assert_eq!(anchor.article.as_deref(), Some("2"));
     assert_eq!(
         anchor.paragraph, None,
@@ -476,27 +411,27 @@ fn an_action_carries_the_provision_the_corpus_cites() {
         cited,
         [
             "vermogen_onder_grens",
-            "in_aanmerking_genomen_toetsingsinkomen",
-            "hoogte_zorgtoeslag",
-            "heeft_recht_op_zorgtoeslag",
+            "toetsingsinkomen_in_aanmerking",
+            "hoogte_toeslag",
+            "heeft_recht_op_toeslag",
         ]
         .into_iter()
         .collect(),
         "every action of articles 2 and 3 cites its basis"
     );
 
-    // The entitlement test draws on three provisions, so it cites the article
+    // The entitlement test draws on several provisions, so it cites the article
     // and no lid. A citation is allowed to be coarse; it is not allowed to
     // claim a precision the rule does not have.
     let recht = nodes
         .iter()
-        .find(|n| n.name == "heeft_recht_op_zorgtoeslag")
+        .find(|n| n.name == "heeft_recht_op_toeslag")
         .and_then(|n| n.legal_basis.as_ref())
         .expect("the entitlement action cites its basis");
     assert_eq!(recht.article.as_deref(), Some("2"));
     assert_eq!(
         recht.paragraph, None,
-        "a rule spanning three provisions cites no single lid"
+        "a rule spanning several provisions cites no single lid"
     );
 }
 
@@ -505,17 +440,17 @@ fn an_action_carries_the_provision_the_corpus_cites() {
 /// asks where a value came from must get an answer without reading prose.
 #[test]
 fn a_value_from_a_register_names_its_source() {
-    let service = setup_zorgtoeslag_service();
+    let service = setup_allowance_service();
 
     let mut params = BTreeMap::new();
-    params.insert("bsn".to_string(), Value::String("999993653".to_string()));
+    params.insert("bsn".to_string(), Value::String(BSN.to_string()));
 
     let result = service
         .evaluate_law_output_with_trace(
-            "wet_op_de_zorgtoeslag",
+            "test_allowance_act",
             // The entitlement reads every article of the chain; the amount
             // alone does not read the insurance or the capital test (RFC-043).
-            "heeft_recht_op_zorgtoeslag",
+            "heeft_recht_op_toeslag",
             params,
             "2025-01-01",
         )
@@ -560,15 +495,15 @@ fn a_value_from_a_register_names_its_source() {
 /// step (RFC-039). Consumers read `root`.
 #[test]
 fn a_trace_is_published_as_a_versioned_document() {
-    let service = setup_zorgtoeslag_service();
+    let service = setup_allowance_service();
 
     let mut params = BTreeMap::new();
-    params.insert("bsn".to_string(), Value::String("999993653".to_string()));
+    params.insert("bsn".to_string(), Value::String(BSN.to_string()));
 
     let result = service
         .evaluate_law_output_with_trace(
-            "wet_op_de_zorgtoeslag",
-            "hoogte_zorgtoeslag",
+            "test_allowance_act",
+            "hoogte_toeslag",
             params,
             "2025-01-01",
         )
@@ -601,15 +536,15 @@ fn a_trace_is_published_as_a_versioned_document() {
 /// reader sees an amount rather than a bare count of cents (RFC-023, RFC-039).
 #[test]
 fn a_declared_value_reports_its_unit() {
-    let service = setup_zorgtoeslag_service();
+    let service = setup_allowance_service();
 
     let mut params = BTreeMap::new();
-    params.insert("bsn".to_string(), Value::String("999993653".to_string()));
+    params.insert("bsn".to_string(), Value::String(BSN.to_string()));
 
     let result = service
         .evaluate_law_output_with_trace(
-            "wet_op_de_zorgtoeslag",
-            "hoogte_zorgtoeslag",
+            "test_allowance_act",
+            "hoogte_toeslag",
             params,
             "2025-01-01",
         )
@@ -634,7 +569,7 @@ fn a_declared_value_reports_its_unit() {
         .collect();
     assert!(
         !with_unit.is_empty(),
-        "no step reported a declared unit; zorgtoeslag has amounts in eurocent"
+        "no step reported a declared unit; the allowance has amounts in eurocent"
     );
     assert!(
         with_unit.iter().any(|(_, u)| *u == "eurocent"),
@@ -650,7 +585,7 @@ fn a_declared_value_reports_its_unit() {
     assert_eq!(
         nodes
             .iter()
-            .find(|n| n.name == "hoogte_zorgtoeslag" && n.node_type == PathNodeType::Action)
+            .find(|n| n.name == "hoogte_toeslag" && n.node_type == PathNodeType::Action)
             .and_then(|n| n.type_spec.as_ref()?.unit.as_deref()),
         Some("eurocent"),
         "the action computing the amount reports the unit its output declares"

@@ -29,7 +29,7 @@ articles:
           - name: onderzoeken
             type: array
             source:
-              facts: regeling_gehandicaptenparkeerkaart#3#geneeskundig_onderzoek_verricht
+              facts: test_parking_card_regulation#3#geneeskundig_onderzoek_verricht
         output:
           - name: geneeskundig_onderzoek_heeft_plaatsgehad
             type: boolean

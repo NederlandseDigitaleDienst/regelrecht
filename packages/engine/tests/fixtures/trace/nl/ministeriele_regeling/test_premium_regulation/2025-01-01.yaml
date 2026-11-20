@@ -1,0 +1,32 @@
+---
+# FICTIEF. The regulation that fills the open term of article 4 of
+# test_allowance_act, for the trace tests. None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
+$id: test_premium_regulation
+regulatory_layer: MINISTERIELE_REGELING
+publication_date: '2024-11-19'
+valid_from: '2025-01-01'
+name: Testregeling premie
+bwb_id: BWBR9999933
+url: https://example.com/test_premium_regulation
+legal_basis:
+  - law_id: test_allowance_act
+    article: '4'
+articles:
+  - number: '1'
+    text: FICTIEF. De premie, bedoeld in artikel 4 van de Testwet toeslag, bedraagt € 2.112.
+    url: https://example.com/test_premium_regulation/1
+    machine_readable:
+      implements:
+        - law: test_allowance_act
+          article: '4'
+          open_term: standaardpremie
+      execution:
+        output:
+          - name: standaardpremie
+            type: amount
+            type_spec:
+              unit: eurocent
+        actions:
+          - output: standaardpremie
+            value: 211200
