@@ -136,13 +136,12 @@ fn een_host_die_niet_klopt_is_een_waarschuwing() {
     assert_eq!(output.status.code(), Some(0), "stderr: {err}");
     let warnings: Vec<&str> = err.lines().filter(|l| l.starts_with("WARN:")).collect();
     let expected = [
-        "law 'beleidsregel_subsidie_voorbeeld' article 3 fills open term \
+        "law 'beleidsregel_subsidie_voorbeeld' article 1 fills open term \
          'wettelijke_beslistermijn' for host subsidiewet_voorbeeld article 11, which law \
          'subsidiewet_voorbeeld' does not have",
         "law 'host_fouten_voorbeeld' article 1 fills open term 'wettelijke_beslistermijn' for \
          host subsidiewet_voorbeeld article 2, on which this article never fires as a hook",
         "asks for required parameter(s) 'subsidiejaar', which the host does not hand the hook",
-        "law 'host_fouten_voorbeeld' article 5: names host subsidiewet_voorbeeld article 4",
     ];
     assert_eq!(warnings.len(), expected.len(), "stderr: {err}");
     for (line, what) in warnings.iter().zip(expected) {

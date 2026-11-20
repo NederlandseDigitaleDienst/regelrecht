@@ -127,45 +127,28 @@ pub(crate) fn reject_removed_constructs(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
-/// Refuse a `host` in a file on a schema version that does not know it: on an
-/// `implements`, the article a hook fires on (v0.8.24), and on a hook's
-/// `applies_to`, the law or article whose decisions it fires on (v0.8.25).
+/// Refuse an `implements` that names the article a hook fires on (`host`) in
+/// a file on a schema version before v0.8.24, which does not know the field.
 /// The schema refuses it there too; the loader repeats that because a
 /// document can reach the engine without passing schema validation, and the
-/// filling or the hook would then apply to fewer decisions than readers of
-/// that version take it to apply to.
+/// filling would then apply to one decision only under a version whose
+/// readers take it to apply to every one.
 pub(crate) fn reject_host_before_its_version(law: &ArticleBasedLaw) -> Result<()> {
-    let refuse = |what: String, version: &str| {
-        Err(EngineError::LoadError(format!(
-            "law '{}' {what} with a host, which schema {version} introduced; \
-             declare {version} or later",
-            law.id
-        )))
-    };
-    let knows_implements_host = from_version(law, (0, 8, 24));
-    let knows_hook_host = from_version(law, (0, 8, 25));
+    if from_version(law, (0, 8, 24)) {
+        return Ok(());
+    }
     for (where_, section) in sections(law) {
-        let filling = section
+        let named = section
             .implements
             .iter()
             .flatten()
             .find(|declaration| declaration.host.is_some());
-        if let Some(declaration) = filling.filter(|_| !knows_implements_host) {
-            return refuse(
-                format!(
-                    "{where_}: implements open term '{}' of {} article {}",
-                    declaration.open_term, declaration.law, declaration.article
-                ),
-                "v0.8.24",
-            );
-        }
-        let hook = section
-            .hooks
-            .iter()
-            .flatten()
-            .any(|hook| hook.applies_to.host.is_some());
-        if hook && !knows_hook_host {
-            return refuse(format!("{where_}: has a hook"), "v0.8.25");
+        if let Some(declaration) = named {
+            return Err(EngineError::LoadError(format!(
+                "law '{}' {where_}: implements open term '{}' of {} article {} with a host, \
+                 which schema v0.8.24 introduced; declare v0.8.24 or later",
+                law.id, declaration.open_term, declaration.law, declaration.article
+            )));
         }
     }
     Ok(())
@@ -1737,22 +1720,16 @@ impl std::fmt::Display for HookCouplingWarning {
 
 /// Whether hook declaration `decl` fires on `article` of `law`, on any
 /// stage: the stage decides when the hook fires, not what the host offers
-/// it. A hook that names its host (`applies_to.host`) fires on that host
-/// alone.
+/// it.
 fn hook_applies_to(decl: &HookDeclaration, law: &ArticleBasedLaw, article: &Article) -> bool {
     let f = &decl.applies_to;
     match (&f.legal_character, &f.submission) {
-        (Some(lc), None) => {
-            article.get_decision().is_some_and(|d| {
-                d.legal_character() == Some(lc.as_str())
-                    && f.decision_type
-                        .as_deref()
-                        .is_none_or(|dt| d.decision_type() == Some(dt))
-            }) && f
-                .host
-                .as_ref()
-                .is_none_or(|host| host.admits(&law.id, &article.number))
-        }
+        (Some(lc), None) => article.get_decision().is_some_and(|d| {
+            d.legal_character() == Some(lc.as_str())
+                && f.decision_type
+                    .as_deref()
+                    .is_none_or(|dt| d.decision_type() == Some(dt))
+        }),
         (None, Some(kind)) => {
             article
                 .get_submission()
@@ -1916,13 +1893,11 @@ fn hook_target(decl: &HookDeclaration) -> String {
 /// Where the hook's own law has no such output, that is a warning too,
 /// naming the hosts that do offer the name.
 ///
-/// A host a regulation names (RFC-058) that the hook never reaches is a
-/// warning as well: for a filling of a hook's open term (`implements.host`,
-/// schema v0.8.24) an article its law lacks or one the hook does not fire
-/// on, and for a hook (`applies_to.host`, schema v0.8.25) an article its law
-/// lacks or one whose decision the hook does not match. So is a filling that
-/// asks for a required parameter its host does not hand the hook. A law that
-/// is not loaded is not judged.
+/// A filling of a hook's open term that names its host (`implements.host`,
+/// schema v0.8.24, RFC-058) and that the hook never reaches is a warning as
+/// well: an article its law lacks, or one the hook does not fire on. So is a
+/// filling that asks for a required parameter its host does not hand the
+/// hook. A law that is not loaded is not judged.
 pub fn hook_coupling_warnings(laws: &[&ArticleBasedLaw]) -> Vec<HookCouplingWarning> {
     hook_coupling_warnings_touching(laws, None)
 }
@@ -2058,7 +2033,6 @@ pub(crate) fn hook_coupling_warnings_touching(
         for (host_law, host, matching) in &hosts {
             parameter_warnings(&set, hook, (host_law, host), matching, &mut warnings);
         }
-        hook_host_warnings(&set, hook, touching, &mut warnings);
     }
     filling_warnings(&set, touching, &mut warnings);
     warnings
@@ -2180,46 +2154,6 @@ fn parameter_warnings(
             lookalikes.join(" and ")
         );
         warnings.push(coupling_warning(hook, at, message));
-    }
-}
-
-/// A hook that names its host (`applies_to.host`, RFC-058) with an article
-/// the loaded host law lacks, or whose decision the hook does not match.
-fn hook_host_warnings(
-    set: &CouplingSet<'_>,
-    hook: &HookArticle<'_>,
-    touching: Option<&str>,
-    warnings: &mut Vec<HookCouplingWarning>,
-) {
-    for decl in hook.decls {
-        let Some(named) = &decl.applies_to.host else {
-            continue;
-        };
-        let Some(number) = named.article.as_deref() else {
-            continue;
-        };
-        if !touching.is_none_or(|id| id == hook.law.id || id == named.law) {
-            continue;
-        }
-        let Some(host_law) = set.by_id.get(named.law.as_str()) else {
-            continue;
-        };
-        let reason = match host_law.find_article_by_number(number) {
-            None => format!("which law '{}' does not have", host_law.id),
-            Some(host) if !hook_applies_to(decl, host_law, host) => {
-                "which gives no decision that the hook's applies_to matches".to_string()
-            }
-            Some(_) => continue,
-        };
-        let message = format!(
-            "names host {} article {number}, {reason}; the hook never fires",
-            named.law
-        );
-        warnings.push(coupling_warning(
-            hook,
-            Some((named.law.as_str(), number)),
-            message,
-        ));
     }
 }
 

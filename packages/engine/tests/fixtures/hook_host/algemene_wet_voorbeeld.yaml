@@ -1,7 +1,7 @@
 ---
 # Fictional. A general law with a decision period as a hook on every
 # beschikking, like Awb 4:13 (RFC-058).
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
 $id: algemene_wet_voorbeeld
 regulatory_layer: WET
 bwb_id: BWBR9999950

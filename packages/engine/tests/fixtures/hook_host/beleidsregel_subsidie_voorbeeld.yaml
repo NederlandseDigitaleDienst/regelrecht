@@ -1,8 +1,7 @@
 ---
-# Fictional. A policy rule of the minister about the grants of the
-# Subsidiewet voorbeeld only. Article 3 names host article '11' where
-# article 1 is meant.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json
+# Fictional. A policy rule of the minister that sets the decision period of a
+# subsidy grant. Its filling names host article '11' where article 1 is meant.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
 $id: beleidsregel_subsidie_voorbeeld
 regulatory_layer: BELEIDSREGEL
 publication_date: '2025-06-01'
@@ -10,36 +9,6 @@ url: https://example.invalid/beleidsregel-subsidie
 articles:
   - number: '1'
     url: https://example.invalid/beleidsregel-subsidie/1
-    text: Bij een toekenning op grond van de Subsidiewet voorbeeld meldt de ontvanger wijzigingen binnen vier weken.
-    machine_readable:
-      hooks:
-        - hook_point: post_actions
-          applies_to:
-            legal_character: BESCHIKKING
-            decision_type: TOEKENNING
-            host: {law: subsidiewet_voorbeeld}
-      execution:
-        output:
-          - {name: meldingstermijn_weken, type: number}
-        actions:
-          - {output: meldingstermijn_weken, value: 4}
-  - number: '2'
-    url: https://example.invalid/beleidsregel-subsidie/2
-    text: Na de vaststelling van de subsidie bewaart de ontvanger de administratie zeven jaar.
-    machine_readable:
-      hooks:
-        - hook_point: post_actions
-          applies_to:
-            legal_character: BESCHIKKING
-            decision_type: TOEKENNING
-            host: {law: subsidiewet_voorbeeld, article: '3'}
-      execution:
-        output:
-          - {name: bewaartermijn_jaren, type: number}
-        actions:
-          - {output: bewaartermijn_jaren, value: 7}
-  - number: '3'
-    url: https://example.invalid/beleidsregel-subsidie/3
     text: Op een aanvraag tot verlening van subsidie wordt binnen tien weken beslist.
     machine_readable:
       implements:

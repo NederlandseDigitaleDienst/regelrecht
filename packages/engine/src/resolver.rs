@@ -361,15 +361,14 @@ fn declaration_fingerprint(law: &ArticleBasedLaw) -> Vec<String> {
         if let Some(hooks) = article.get_hooks() {
             for decl in hooks {
                 parts.push(format!(
-                    "hook\0{}\0{:?}\0{:?}\0{:?}\0{:?}\0{:?}\0{:?}\0{:?}",
+                    "hook\0{}\0{:?}\0{:?}\0{:?}\0{:?}\0{:?}\0{:?}",
                     article.number,
                     decl.hook_point,
                     decl.applies_to.legal_character,
                     decl.applies_to.decision_type,
                     decl.applies_to.stage,
                     decl.applies_to.submission,
-                    decl.applies_to.established_by,
-                    decl.applies_to.host
+                    decl.applies_to.established_by
                 ));
             }
         }
@@ -861,10 +860,6 @@ impl RuleResolver {
                     (None, Some(_)) if f.stage.is_some() || f.decision_type.is_some() => Some(
                         "a hook on a submission takes no stage or decision_type; \
                          established_by narrows it",
-                    ),
-                    (None, Some(_)) if f.host.is_some() => Some(
-                        "a hook on a submission takes no applies_to.host; \
-                         established_by narrows it to one article (RFC-058)",
                     ),
                     _ => None,
                 };
@@ -2017,17 +2012,13 @@ impl RuleResolver {
         notes
     }
 
-    /// Find the hooks at this lifecycle event that fire on the decision that
-    /// article `decision.1` of law `decision.0` gives.
+    /// Find hooks that match a given lifecycle event.
     ///
     /// Returns matching (law_id, article_number, filter) entries.
-    /// Filters by stage: if the hook has a stage, it must match; if not, it
-    /// defaults to "BESLUIT". A hook with `applies_to.host` fires only on the
-    /// decisions of the law or article it names (RFC-058).
+    /// Filters by stage: if the hook has a stage, it must match; if not, it defaults to "BESLUIT".
     pub(crate) fn find_hooks(
         &self,
         hook_point: HookPoint,
-        decision: (&str, &str),
         legal_character: &str,
         decision_type: Option<&str>,
         stage: &str,
@@ -2042,7 +2033,7 @@ impl RuleResolver {
 
         entries
             .iter()
-            .filter(|entry| hook_filter_admits(&entry.filter, decision, decision_type, stage))
+            .filter(|entry| hook_filter_admits(&entry.filter, decision_type, stage))
             .collect()
     }
 
@@ -2192,27 +2183,17 @@ impl RuleResolver {
     }
 }
 
-/// Whether a hook filter admits the decision that article `decision.1` of
-/// law `decision.0` gives at this stage, apart from its legal character
-/// (which the hooks index is keyed on).
+/// Whether a hook filter admits a decision at this stage, apart from its legal
+/// character (which the hooks index is keyed on).
 ///
 /// An absent stage means BESLUIT (backward compatibility per RFC-008); an
-/// absent decision type admits every decision type, and an absent host every
-/// law (RFC-058).
+/// absent decision type admits every decision type.
 pub(crate) fn hook_filter_admits(
     filter: &HookFilter,
-    (law_id, article_number): (&str, &str),
     decision_type: Option<&str>,
     stage: &str,
 ) -> bool {
     if filter.stage.as_deref().unwrap_or("BESLUIT") != stage {
-        return false;
-    }
-    if !filter
-        .host
-        .as_ref()
-        .is_none_or(|host| host.admits(law_id, article_number))
-    {
         return false;
     }
     match filter.decision_type.as_deref() {
@@ -4648,13 +4629,7 @@ articles:
         assert_eq!(overrides.len(), 1);
         assert_eq!(overrides[0].law_id, "afwijkingswet");
 
-        let hooks = resolver.find_hooks(
-            HookPoint::PostActions,
-            ("decision_law", "1"),
-            "BESCHIKKING",
-            None,
-            "BESLUIT",
-        );
+        let hooks = resolver.find_hooks(HookPoint::PostActions, "BESCHIKKING", None, "BESLUIT");
         assert_eq!(hooks.len(), 1);
         assert_eq!(hooks[0].law_id, "hookwet");
 
@@ -4715,13 +4690,7 @@ articles:
         assert_eq!(overrides[0].law_id, "afwijkingswet_b");
 
         // Hooks: only b survives, and it is really b.
-        let hooks = resolver.find_hooks(
-            HookPoint::PostActions,
-            ("decision_law", "1"),
-            "BESCHIKKING",
-            None,
-            "BESLUIT",
-        );
+        let hooks = resolver.find_hooks(HookPoint::PostActions, "BESCHIKKING", None, "BESLUIT");
         assert_eq!(hooks.len(), 1);
         assert_eq!(hooks[0].law_id, "hookwet_b");
 
@@ -5179,13 +5148,7 @@ articles:
 
         let find = |dt: Option<&str>| {
             resolver
-                .find_hooks(
-                    HookPoint::PostActions,
-                    ("decision_law", "1"),
-                    "BESCHIKKING",
-                    dt,
-                    "BESLUIT",
-                )
+                .find_hooks(HookPoint::PostActions, "BESCHIKKING", dt, "BESLUIT")
                 .len()
         };
 
@@ -5205,13 +5168,7 @@ articles:
         for dt in [Some("TOEKENNING"), Some("AFWIJZING"), None] {
             assert_eq!(
                 resolver
-                    .find_hooks(
-                        HookPoint::PostActions,
-                        ("decision_law", "1"),
-                        "BESCHIKKING",
-                        dt,
-                        "BESLUIT"
-                    )
+                    .find_hooks(HookPoint::PostActions, "BESCHIKKING", dt, "BESLUIT")
                     .len(),
                 1,
                 "unfiltered hook should fire for decision_type {dt:?}"
@@ -5221,13 +5178,7 @@ articles:
         // Stage still filters.
         assert_eq!(
             resolver
-                .find_hooks(
-                    HookPoint::PostActions,
-                    ("decision_law", "1"),
-                    "BESCHIKKING",
-                    None,
-                    "BEKENDMAKING"
-                )
+                .find_hooks(HookPoint::PostActions, "BESCHIKKING", None, "BEKENDMAKING")
                 .len(),
             0
         );
@@ -5514,7 +5465,6 @@ articles:
             general("3"),
             general("3"),
             general("3"),
-            "host_fouten_voorbeeld subsidiewet_voorbeeld:4".to_string(),
             "meldwet_voorbeeld".to_string(),
         ];
         for (host, count) in [

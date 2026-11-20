@@ -2,7 +2,7 @@
 # Fictional. Two grants, each with a parameter of its own: the grant
 # (article 1) and the settlement (article 3), and a refusal (article 4).
 # Article 2 gives no decision.
-$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
 $id: subsidiewet_voorbeeld
 regulatory_layer: WET
 bwb_id: BWBR9999951

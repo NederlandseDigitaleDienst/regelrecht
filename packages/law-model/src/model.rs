@@ -1425,33 +1425,6 @@ pub struct HookFilter {
         deserialize_with = "optional_article_reference"
     )]
     pub established_by: Option<String>,
-    /// With `legal_character` (schema v0.8.25, RFC-058): only the decisions
-    /// of this law, or of this one article of it. Without it the hook fires
-    /// on the decisions of every law. A hook on a submission takes none;
-    /// `established_by` narrows that one.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub host: Option<DecisionHost>,
-}
-
-/// The law, or the one article of it, whose decisions a hook fires on
-/// (`applies_to.host`, schema v0.8.25, RFC-058).
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DecisionHost {
-    /// The $id of the law.
-    pub law: String,
-    /// The number of the article; absent for every article of the law.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub article: Option<String>,
-}
-
-impl DecisionHost {
-    /// Whether the decision of article `article` of law `law` is one of
-    /// those this host names.
-    #[must_use]
-    pub fn admits(&self, law: &str, article: &str) -> bool {
-        self.law == law && self.article.as_deref().is_none_or(|a| a == article)
-    }
 }
 
 /// Whether `s` is an article reference of the schema (`articleReference`):

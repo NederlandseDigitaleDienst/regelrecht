@@ -1,157 +1,72 @@
-//! A hook that names its host (`applies_to.host`, schema v0.8.25, RFC-058),
-//! and the rulework in `tests/fixtures/hook_host/` that the warnings for a
-//! host that cannot be right are pinned on (see `validate_cli.rs`). All of it
-//! is fictional; every application is received on 2026-01-05.
+//! A filling of a hook's open term whose host cannot be right (RFC-058), on
+//! the fictional rulework in `tests/fixtures/hook_host/` that the loader's
+//! warnings are pinned on (see `validate_cli.rs` and the load-order test in
+//! `resolver.rs`). Every application is received on 2026-01-05.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use regelrecht_engine::{ArticleResult, LawExecutionService, Value};
+use regelrecht_engine::{LawExecutionService, Value};
 use std::collections::BTreeMap;
 
 const GENERAL_LAW: &str = include_str!("fixtures/hook_host/algemene_wet_voorbeeld.yaml");
 const SUBSIDY_LAW: &str = include_str!("fixtures/hook_host/subsidiewet_voorbeeld.yaml");
-const PERMIT_LAW: &str = include_str!("fixtures/hook_host/vergunningwet_voorbeeld.yaml");
 const POLICY: &str = include_str!("fixtures/hook_host/beleidsregel_subsidie_voorbeeld.yaml");
 
-fn loaded(laws: &[&str]) -> LawExecutionService {
+/// The last day for the decision on a subsidy grant, with `policy` loaded.
+fn last_day_of_grant(policy: &str) -> Option<Value> {
     let mut service = LawExecutionService::new();
-    for law in laws {
+    for law in [GENERAL_LAW, SUBSIDY_LAW, policy] {
         service.load_law(law).unwrap();
     }
-    service
-}
-
-fn run(
-    service: &LawExecutionService,
-    law: &str,
-    output: &str,
-    extra: (&str, i64),
-) -> ArticleResult {
     let parameters = BTreeMap::from([
         (
             "datum_ontvangst".to_string(),
             Value::String("2026-01-05".to_string()),
         ),
-        (extra.0.to_string(), Value::Int(extra.1)),
+        ("subsidiejaar".to_string(), Value::Int(2026)),
     ]);
     service
-        .evaluate_law_output_with_trace(law, output, parameters, "2026-01-05")
+        .evaluate_law_output(
+            "subsidiewet_voorbeeld",
+            "subsidie_verleend",
+            parameters,
+            "2026-01-05",
+        )
         .unwrap()
+        .outputs
+        .get("uiterste_beslisdag")
+        .cloned()
 }
 
-/// Which hooks of the policy rule fired, as their outputs and trace show.
-fn policy_hooks(result: &ArticleResult) -> (bool, bool) {
-    let trace = format!("{:?}", result.trace);
-    let fired = |article: &str, output: &str| {
-        let in_trace = trace.contains(&format!("beleidsregel_subsidie_voorbeeld:{article}"));
-        assert_eq!(
-            in_trace,
-            result.outputs.contains_key(output),
-            "a hook leaves a trace node exactly when it fires"
-        );
-        in_trace
-    };
-    (
-        fired("1", "meldingstermijn_weken"),
-        fired("2", "bewaartermijn_jaren"),
-    )
-}
-
-/// `{law}` fires on every decision of that law, `{law, article}` on that
-/// article's alone, and neither on a decision of another law, though all
-/// three are a TOEKENNING, nor on an AFWIJZING of the host. The filling of
-/// the same policy rule names host article '11', which does not exist, so
-/// the grant keeps the default of eight weeks; with article '1' it gets the
-/// policy rule's ten.
+/// The policy rule names host article '11', which does not exist, so the
+/// grant keeps the default of eight weeks: the law loads, and only the
+/// warning says so. With article '1' the grant gets the policy rule's ten.
 #[test]
-fn a_hook_with_a_host_fires_only_on_the_decisions_it_names() {
-    let service = loaded(&[GENERAL_LAW, SUBSIDY_LAW, PERMIT_LAW, POLICY]);
-
-    let grant = run(
-        &service,
-        "subsidiewet_voorbeeld",
-        "subsidie_verleend",
-        ("subsidiejaar", 2026),
-    );
-    assert_eq!(policy_hooks(&grant), (true, false));
-    assert_eq!(
-        grant.outputs.get("uiterste_beslisdag"),
-        Some(&Value::String("2026-03-02".to_string()))
-    );
-
-    let settlement = run(
-        &service,
-        "subsidiewet_voorbeeld",
-        "subsidie_vastgesteld",
-        ("aantal_projecten", 3),
-    );
-    assert_eq!(policy_hooks(&settlement), (true, true));
-
-    let permit = run(
-        &service,
-        "vergunningwet_voorbeeld",
-        "vergunning_verleend",
-        ("x", 0),
-    );
-    assert_eq!(policy_hooks(&permit), (false, false));
-
-    // The host admits the refusal, the decision type does not.
-    let refusal = run(
-        &service,
-        "subsidiewet_voorbeeld",
-        "subsidie_geweigerd",
-        ("subsidiejaar", 2025),
-    );
-    assert_eq!(policy_hooks(&refusal), (false, false));
-
-    // With the typo fixed, the policy rule's ten weeks apply to the grant.
+fn a_filling_for_a_host_that_does_not_exist_never_applies() {
+    let date = |d: &str| Some(Value::String(d.to_string()));
+    assert_eq!(last_day_of_grant(POLICY), date("2026-03-02"));
     let fixed = POLICY.replace("article: '11'", "article: '1'");
-    let service = loaded(&[GENERAL_LAW, SUBSIDY_LAW, &fixed]);
-    let grant = run(
-        &service,
-        "subsidiewet_voorbeeld",
-        "subsidie_verleend",
-        ("subsidiejaar", 2026),
-    );
-    assert_eq!(
-        grant.outputs.get("uiterste_beslisdag"),
-        Some(&Value::String("2026-03-16".to_string()))
-    );
-}
-
-/// A hook on a submission takes no host: `established_by` already narrows it
-/// to the submission of one article, and two fields for that could disagree.
-#[test]
-fn a_hook_on_a_submission_takes_no_host() {
-    let hook = POLICY.replacen(
-        "legal_character: BESCHIKKING\n            decision_type: TOEKENNING\n",
-        "submission: AANVRAAG\n",
-        1,
-    );
-    assert_ne!(hook, POLICY, "the fixture has the hook this test rewrites");
-    let error = LawExecutionService::new().load_law(&hook).unwrap_err();
-    assert!(
-        error.to_string().contains("takes no applies_to.host"),
-        "{error}"
-    );
+    assert_eq!(last_day_of_grant(&fixed), date("2026-03-16"));
 }
 
 /// A key `implements` or `applies_to` does not know, such as `within`, is
 /// refused with its name, where it used to pass without a word.
 #[test]
 fn an_unknown_key_in_implements_or_applies_to_is_refused() {
-    for (known, unknown) in [
+    for (fixture, known, unknown) in [
         (
+            POLICY,
             "host: {law: subsidiewet_voorbeeld, article: '11'}",
-            "within: {law: subsidiewet_voorbeld}",
-        ),
-        (
-            "host: {law: subsidiewet_voorbeeld}",
             "within: {law: subsidiewet_voorbeeld}",
         ),
+        (
+            GENERAL_LAW,
+            "applies_to: {legal_character: BESCHIKKING, stage: BESLUIT}",
+            "applies_to: {legal_character: BESCHIKKING, within: subsidiewet_voorbeeld}",
+        ),
     ] {
-        let law = POLICY.replacen(known, unknown, 1);
-        assert_ne!(law, POLICY, "the fixture has `{known}`");
+        let law = fixture.replacen(known, unknown, 1);
+        assert_ne!(law, fixture, "the fixture has `{known}`");
         let error = LawExecutionService::new().load_law(&law).unwrap_err();
         assert!(
             error.to_string().contains("unknown field `within`"),

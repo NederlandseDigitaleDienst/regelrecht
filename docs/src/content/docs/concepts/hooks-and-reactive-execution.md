@@ -51,21 +51,7 @@ execution:
 
 The engine builds a hook index at load time. When it encounters an article with a `produces` annotation, it checks the index for matching hooks and fires them.
 
-A hook on a decision fires on that legal character whichever law gives it. A policy rule of one administrative body is usually about the decisions of one law only. It says so with `applies_to.host` (schema v0.8.25, [RFC-058](/rfcs/rfc-058)). With `law` alone the hook fires on every decision of that law, and with `law` and `article` on that article's decision only. The host is one more condition on top of the other fields. The decision must still match the legal character, and the decision type and stage where the hook gives them.
-
-```yaml
-# a fictional policy rule on the grants of one subsidy law
-hooks:
-  - hook_point: post_actions
-    applies_to:
-      legal_character: BESCHIKKING
-      decision_type: TOEKENNING
-      host: {law: subsidiewet_voorbeeld}
-```
-
-A hook the host keeps from firing leaves no trace node, as with a decision type that does not match. `just validate` and the loader's log warn when a host names an article the loaded law lacks, or an article that gives no decision with the hook's legal character, and its decision type where the hook names one. The law still loads.
-
-A hook can also apply to an application instead of a decision: `applies_to.submission: AANVRAAG` fires on every article whose `produces` says it establishes one ([RFC-045](/rfcs/rfc-045)). Awb 4:2 and 4:13 work this way. When that article also decides on the application, `produces` lists the two, and a hook matches the item whose `type` it names. A staged run then fires the hooks on the application at the stage named after the kind, AANVRAAG, and the hooks on the decision at their own stages ([RFC-045](/rfcs/rfc-045)). A hook on an application takes no `host`: `applies_to.established_by` narrows it to the application of one article.
+A hook can also apply to an application instead of a decision: `applies_to.submission: AANVRAAG` fires on every article whose `produces` says it establishes one ([RFC-045](/rfcs/rfc-045)). Awb 4:2 and 4:13 work this way. When that article also decides on the application, `produces` lists the two, and a hook matches the item whose `type` it names. A staged run then fires the hooks on the application at the stage named after the kind, AANVRAAG, and the hooks on the decision at their own stages ([RFC-045](/rfcs/rfc-045)).
 
 ## The objection-deadline chain
 

@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.25/schema/v0.8.25/schema.json",
-  "title": "Machine-Readable Dutch Law Schema v0.8.25",
+  "$id": "https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json",
+  "title": "Machine-Readable Dutch Law Schema v0.8.24",
   "description": "Article-based schema for machine-readable representation of Dutch laws and regulations.",
   "type": "object",
   "required": [
@@ -3288,28 +3288,10 @@
                   "established_by": {
                     "$ref": "#/definitions/articleReference",
                     "description": "With submission: only the submission that this article (`<regulation>#<article>`) establishes. Without it the hook applies to every submission of the kind."
-                  },
-                  "host": {
-                    "type": "object",
-                    "description": "Since v0.8.25, with legal_character: only the decisions given by this law (`law`), or by this one article of it (`law` and `article`). Combined with the other fields: the decision must also have the legal character, and the decision type and stage when they are given. Without it the hook fires on every decision of the legal character, whichever law gives it. A hook on a submission takes no host; established_by narrows it to one article. A file on an earlier version knows no `host` here.",
-                    "required": [
-                      "law"
-                    ],
-                    "properties": {
-                      "law": {
-                        "type": "string",
-                        "description": "The $id of the law whose decisions the hook fires on."
-                      },
-                      "article": {
-                        "type": "string",
-                        "description": "The number of the one article of that law whose decision the hook fires on. Without it, every article of the law that gives a decision of the legal character."
-                      }
-                    },
-                    "additionalProperties": false
                   }
                 },
                 "additionalProperties": false,
-                "description": "Which decisions (legal_character, optionally decision_type, stage and host) or which submissions (submission, optionally established_by, RFC-045) of other articles this hook fires on. A hook names one of the two.",
+                "description": "Which decisions (legal_character, optionally decision_type and stage) or which submissions (submission, optionally established_by, RFC-045) of other articles this hook fires on. A hook names one of the two.",
                 "oneOf": [
                   {
                     "required": [
@@ -3349,11 +3331,6 @@
                         {
                           "required": [
                             "decision_type"
-                          ]
-                        },
-                        {
-                          "required": [
-                            "host"
                           ]
                         }
                       ]
