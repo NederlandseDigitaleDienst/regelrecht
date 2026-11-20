@@ -189,9 +189,9 @@ fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
             Ok(mut c) => {
                 c.ui_spec = spec.clone();
                 // A coupling between a hook and its host that cannot work
-                // as written loads and plays, and the hook takes its
-                // fallback: the source says so. A service that does not load is the case's own
-                // error, when it plays.
+                // as written still loads and plays; the source says so. A
+                // service that does not load is the case's own error, when
+                // it plays.
                 if let Ok(service) = c.service() {
                     for warning in service.hook_coupling_warnings() {
                         let warning = warning.to_string();

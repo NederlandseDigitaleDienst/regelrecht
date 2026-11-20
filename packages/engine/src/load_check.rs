@@ -1856,14 +1856,12 @@ impl<'l> CouplingSet<'l> {
     }
 
     /// The names `host` hands a hook (`offered_by_host`), and to a
-    /// `post_actions` hook also the outputs of the `pre_actions` hooks on it,
-    /// other than those of `except`.
+    /// `post_actions` hook also the outputs of the `pre_actions` hooks on it.
     fn offered_to(
         &self,
         host_law: &ArticleBasedLaw,
         host: &'l Article,
         post: bool,
-        except: Option<(&str, &str)>,
     ) -> Vec<&'l str> {
         let mut offered = offered_by_host(host, post);
         if post {
@@ -1871,7 +1869,7 @@ impl<'l> CouplingSet<'l> {
                 let fires = pre.decls.iter().any(|d| {
                     d.hook_point == HookPoint::PreActions && hook_applies_to(d, host_law, host)
                 });
-                if fires && except != Some((pre.law.id.as_str(), pre.article.number.as_str())) {
+                if fires {
                     offered.extend(pre.article.get_outputs().iter().map(|o| o.name.as_str()));
                 }
             }
@@ -1958,7 +1956,7 @@ fn own_outputs_missing<'h>(hook: &HookArticle<'h>) -> Vec<(&'h str, &'h str)> {
 
 /// An input of `hook` that reads an output of the hook's own law that the
 /// law lacks. Which hosts offer it is a warning per host
-/// ([`parameter_warnings`]), so this one does not depend on what is loaded.
+/// ([`host_warnings`]), so this one does not depend on what is loaded.
 fn input_warnings(hook: &HookArticle<'_>, warnings: &mut Vec<HookCouplingWarning>) {
     for (input, output) in own_outputs_missing(hook) {
         let message = format!(
@@ -1981,8 +1979,13 @@ fn host_warnings(
     warnings: &mut Vec<HookCouplingWarning>,
 ) {
     let at = Some((host_law.id.as_str(), host.number.as_str()));
+    // A hook that fires at both points meets the host before its actions
+    // too, without their outputs.
+    let post = matching
+        .iter()
+        .all(|d| d.hook_point == HookPoint::PostActions);
     for (input, output) in own_outputs_missing(hook) {
-        if offered_by_host(host, true).contains(&output) {
+        if offered_by_host(host, post).contains(&output) {
             let message = format!(
                 "input '{input}' reads output '{output}' of the hook's own law, not of its \
                  host {} article {}, which offers it. A hook receives a value of its host as \
@@ -1992,10 +1995,7 @@ fn host_warnings(
             warnings.push(coupling_warning(hook, at, message));
         }
     }
-    if matching
-        .iter()
-        .any(|d| d.hook_point == HookPoint::PostActions)
-    {
+    if post {
         return;
     }
     let offered = offered_by_host(host, false);
@@ -2083,7 +2083,7 @@ fn filling_warnings(
                 let post = matching
                     .iter()
                     .all(|d| d.hook_point == HookPoint::PostActions);
-                let offered = set.offered_to(host_law, host, post, None);
+                let offered = set.offered_to(host_law, host, post);
                 let missing: Vec<&str> = section
                     .execution
                     .as_ref()
@@ -3962,16 +3962,12 @@ articles:
         let laws = [&hooks];
         let set = CouplingSet::new(&laws);
         let host = &hooks.articles[3];
-        let offered = |post, except| {
-            let mut names = set.offered_to(&hooks, host, post, except);
+        let offered = |post| {
+            let mut names = set.offered_to(&hooks, host, post);
             names.sort_unstable();
             names
         };
-        assert_eq!(offered(false, None), ["datum"]);
-        assert_eq!(offered(true, None), ["datum", "verleend", "voor_vuurt"]);
-        assert_eq!(
-            offered(true, Some(("fictieve_haakwet", "1"))),
-            ["datum", "verleend"]
-        );
+        assert_eq!(offered(false), ["datum"]);
+        assert_eq!(offered(true), ["datum", "verleend", "voor_vuurt"]);
     }
 }

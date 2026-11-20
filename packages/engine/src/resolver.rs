@@ -5395,8 +5395,9 @@ articles:
         let reads_output =
             include_str!("../tests/fixtures/hook_coupling/invulling_uitvoer_voorbeeld.yaml");
         // A law whose hook looks for its host's output in its own law, with a
-        // filling that asks for an output of a post_actions hook, and a law
-        // with a pre_actions hook whose output a filling reads.
+        // filling that asks for a parameter nothing hands the hook, and a law
+        // with a pre_actions hook that reads an output of a decision of its
+        // own law and whose output a filling reads.
         let by_input = include_str!("../tests/fixtures/hook_coupling/meldwet_voorbeeld.yaml");
         let pre_hook =
             include_str!("../tests/fixtures/hook_coupling/voorbereidingswet_voorbeeld.yaml");

@@ -1,6 +1,6 @@
 ---
 # Fictional. A hook whose input looks for its host's output in its own law,
-# and a filling that asks for an output of a post_actions hook (resolver.rs).
+# and a filling that asks for a parameter nothing hands the hook (resolver.rs).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
 $id: meldwet_voorbeeld
 regulatory_layer: WET

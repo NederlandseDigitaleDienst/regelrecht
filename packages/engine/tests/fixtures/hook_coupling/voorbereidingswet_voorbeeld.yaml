@@ -17,7 +17,6 @@ articles:
           applies_to: {legal_character: BESCHIKKING}
       execution:
         parameters:
-          - {name: aantal_medewerkers, type: number, required: false, nullable: true}
           - {name: voorbereid_op, type: date, required: false, nullable: true}
         output:
           - {name: datum_voorbereid, type: date}
