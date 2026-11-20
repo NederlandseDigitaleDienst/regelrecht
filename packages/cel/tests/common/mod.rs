@@ -72,42 +72,20 @@ pub fn service_of(laws: &[&str]) -> LawExecutionService {
 
 /// The fixtures these tests run on (`tests/fixtures/corpus`): the cells, and
 /// the fictional regelwerken and reductions made for these tests, each cut
-/// down to what the tests read.
+/// down to what the tests read. The general acts they build on (a mini
+/// general administrative act, a school leave act, a traffic decree and two
+/// regulations) are fictional mini-versions too, so a change to a law in the
+/// corpus or in a PoC does not reach these tests.
 pub fn corpus() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/corpus")
 }
 
-/// The corpus of the repository (`corpus/`), which holds the real laws
-/// these tests call: the fixtures do not copy them.
-pub fn repo_corpus() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR")).join("../../corpus")
-}
-
-/// The directory `dir` of the corpus of the chronolexografie PoC
-/// (`packages/poc-chronolexografie/corpus`), as an absolute path that
-/// [`load`] takes as it is. The cell's tests read the Awb from there: the
-/// Awb of the PoC gives a decision on an objection and the receipt of a
-/// ruling their effects (`revokes`), which the reductions over aggregates
-/// read; the Awb of the corpus does not yet.
-pub fn poc(dir: &str) -> String {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../poc-chronolexografie/corpus")
-        .join(dir)
-        .to_string_lossy()
-        .into_owned()
-}
-
-/// Load every version in each directory of `dirs`, relative to a corpus
+/// Load every version in each directory of `dirs`, relative to the fixtures
 /// (`regulation/nl/wet/<id>`, `cells/<cell>/reductions/<id>`), into
-/// `service`: from the fixtures, or else from the repository's corpus.
+/// `service`.
 pub fn load(service: &mut LawExecutionService, dirs: impl IntoIterator<Item = impl AsRef<str>>) {
     for dir in dirs {
-        let fixture = corpus().join(dir.as_ref());
-        let dir = if fixture.is_dir() {
-            fixture
-        } else {
-            repo_corpus().join(dir.as_ref())
-        };
+        let dir = corpus().join(dir.as_ref());
         for entry in std::fs::read_dir(&dir).unwrap_or_else(|e| panic!("{}: {e}", dir.display())) {
             let path = entry.unwrap().path();
             if path.extension().is_some_and(|x| x == "yaml") {

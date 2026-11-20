@@ -1,0 +1,39 @@
+test_allowance_act (2025-01-01 {bsn: 999993653} hoogte_toeslag)
+╟──Evaluating rules for test_allowance_act (hoogte_toeslag)
+║   ╟──HOOK: Hook PreActions on BESCHIKKING stage BESLUIT → test_general_administrative_act:3:46
+║   ║   ╙──Computing motivering_vereist
+║   ║       └──Result: motivering_vereist = True
+║   ╟──Computing toetsingsinkomen_in_aanmerking
+║   ║   ├──Resolving $TOETSINGSINKOMEN
+║   ║   │   ├──Resolving from RESOLVED_INPUT: 79547
+║   ║   │   └──Reference: test_income_act#toetsingsinkomen
+║   ║   │       ╟──Resolving from PARAMETERS: $BSN = '999993653'
+║   ║   │       ╙──Computing toetsingsinkomen
+║   ║   │           ├──Resolving $INKOMEN
+║   ║   │           │   ├──Resolving from RESOLVED_INPUT: 79547
+║   ║   │           │   └──Resolving from DATA_SOURCE: $INKOMEN = 79547
+║   ║   │           └──Result: toetsingsinkomen = 79547
+║   ║   └──Result: toetsingsinkomen_in_aanmerking = 79547
+║   ╟──Computing hoogte_toeslag
+║   ║   ├──Compute ROUND(...) = 200302
+║   ║   │   └──Compute MAX(...) = 200302.061
+║   ║   │       └──Compute SUBTRACT(...) = 200302.061
+║   ║   │           ├──Resolving $STANDAARDPREMIE
+║   ║   │           │   ├──Resolving from RESOLVED_INPUT: 211200
+║   ║   │           │   └──Resolving $TEST_ALLOWANCE_ACT#STANDAARDPREMIE
+║   ║   │           │       ├──Resolving from RESOLVED_INPUT: 211200
+║   ║   │           │       └──Computing standaardpremie
+║   ║   │           │           ├──Resolving $STANDAARDPREMIE
+║   ║   │           │           │   ├──Resolving from OPEN_TERM: 211200
+║   ║   │           │           │   └──Delegation: Open term 'standaardpremie' implemented by test_premium_regulation article 1: 211200
+║   ║   │           │           │       ╙──Computing standaardpremie
+║   ║   │           │           │           └──Result: standaardpremie = 211200
+║   ║   │           │           └──Result: standaardpremie = 211200
+║   ║   │           └──Compute MULTIPLY(...) = 10897.939
+║   ║   │               ├──Resolving from OUTPUT: $TOETSINGSINKOMEN_IN_AANMERKING = 79547
+║   ║   │               └──Resolving from DEFINITION: $PERCENTAGE_TOETSINGSINKOMEN = 0.137
+║   ║   └──Result: hoogte_toeslag = 200302
+║   ╙──HOOK: Hook PostActions on BESCHIKKING stage BESLUIT → test_general_administrative_act:6:7
+║       ╙──Computing termijn_weken
+║           └──Result: termijn_weken = 6
+╙──Result: hoogte_toeslag = 200302

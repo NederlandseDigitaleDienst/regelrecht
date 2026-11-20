@@ -28,7 +28,7 @@ articles:
     url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
     machine_readable:
       projection:
-        per: leerplichtwet_1969#13a#BESCHIKKING
+        per: test_school_leave_act#13a#BESCHIKKING
         state:
           - name: verlof_verleend
             type: boolean
@@ -40,7 +40,7 @@ articles:
             type: date
         steps:
           # Het besluit op de aanvraag.
-          - record: leerplichtwet_1969#13a#BESCHIKKING
+          - record: test_school_leave_act#13a#BESCHIKKING
             actions:
               - output: verlof_verleend
                 value: $record.verlof_verleend
@@ -51,7 +51,7 @@ articles:
           # lid), dan houdt zij dat nieuwe besluit zelf (nieuw_besluit): één
           # handeling is één record. Vernietigt de bestuursrechter de
           # beslissing, dan valt het nieuwe besluit met haar weg.
-          - record: algemene_wet_bestuursrecht#7:11#BESCHIKKING
+          - record: test_general_administrative_act#7:11#BESCHIKKING
             input:
               - name: verleent_verlof
                 type: boolean
@@ -76,7 +76,7 @@ articles:
           # De ontvangst van een uitspraak (Awb 8:79) over dit besluit:
           # voorzag de bestuursrechter zelf in de zaak (Awb 8:72, derde lid,
           # onder b), dan telt het verlof dat zijn uitspraak verleent.
-          - record: algemene_wet_bestuursrecht#8:79#EXECUTOGRAM
+          - record: test_general_administrative_act#8:79#EXECUTOGRAM
             input:
               - name: verleent_verlof
                 type: boolean

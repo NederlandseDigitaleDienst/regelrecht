@@ -1,0 +1,911 @@
+---
+# FICTIEF. A mini general administrative act for the tests of the cell, after
+# the Algemene wet bestuursrecht. It holds the articles of the procedure of a
+# decision that these tests reach: the application, the decision term, the
+# objection and appeal terms, the decision on an objection (7:11) and the
+# judgment of the court (8:70, 8:72, 8:79). None of it is the text of a law.
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.15/schema/v0.8.15/schema.json
+$id: test_general_administrative_act
+name: Testwet algemene bestuursregels
+regulatory_layer: WET
+publication_date: '2020-07-17'
+valid_from: '2021-07-01'
+bwb_id: BWBR9999937
+url: https://example.com/test_general_administrative_act
+procedure:
+  - id: beschikking
+    default: true
+    applies_to:
+      legal_character: BESCHIKKING
+    stages:
+      - name: AANVRAAG
+        description: Belanghebbende dient aanvraag in (AWB 4:1)
+        requires:
+          - name: aanvraag_datum
+            type: date
+      - name: BEHANDELING
+        description: Bestuursorgaan onderzoekt de aanvraag (AWB 3:2)
+        requires:
+          - name: beslistermijn_start
+            type: date
+      - name: BESLUIT
+        description: Bestuursorgaan neemt besluit (AWB 1:3)
+        requires:
+          - name: besluit_datum
+            type: date
+      - name: BEKENDMAKING
+        description: Besluit wordt bekendgemaakt (AWB 3:41)
+        requires:
+          - name: bekendmaking_datum
+            type: date
+      - name: BEZWAAR
+        description: Bezwaarperiode (AWB 6:4 e.v.)
+  - id: beroep
+    default: true
+    applies_to:
+      legal_character: UITSPRAAK
+    stages:
+      - name: BEROEP
+        description: Belanghebbende stelt beroep in bij de bestuursrechter (AWB 6:4 lid 3, 8:1)
+      - name: UITSPRAAK
+        description: De bestuursrechter doet uitspraak (AWB 8:66, 8:70)
+        requires:
+          - name: uitspraak_datum
+            type: date
+      - name: TOEZENDING
+        description: De griffier stelt een afschrift van de uitspraak ter beschikking van partijen (AWB
+          8:79)
+        requires:
+          - name: toezending_datum
+            type: date
+articles:
+  - number: '3:46'
+    text: FICTIEF, naar artikel 3:46 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/3:46
+    machine_readable:
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BESLUIT
+      execution:
+        output:
+          - name: motivering_vereist
+            type: boolean
+        actions:
+          - output: motivering_vereist
+            value: true
+  - number: '4:2'
+    text: FICTIEF, naar artikel 4:2 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/4:2
+    machine_readable:
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            submission: AANVRAAG
+      execution:
+        parameters:
+          - name: aanvraag_ondertekend
+            type: boolean
+            nullable: true
+            required: false
+            description: Of de aanvraag is ondertekend (lid 1, aanhef).
+          - name: naam_aanvrager
+            type: string
+            nullable: true
+            required: false
+            description: De naam van de aanvrager (lid 1, onder a).
+          - name: adres_aanvrager
+            type: string
+            nullable: true
+            required: false
+            description: Het adres van de aanvrager (lid 1, onder a).
+          - name: dagtekening
+            type: date
+            nullable: true
+            required: false
+            description: De dagtekening van de aanvraag (lid 1, onder b).
+          - name: gevraagde_beschikking
+            type: string
+            nullable: true
+            required: false
+            description: Een aanduiding van de beschikking die wordt gevraagd (lid 1, onder c).
+        output:
+          - name: aanvraag_bevat_wat_artikel_4_2_eist
+            type: boolean
+            description: Of de aanvraag is ondertekend en ten minste de gegevens van lid 1 bevat.
+        actions:
+          - output: aanvraag_bevat_wat_artikel_4_2_eist
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $aanvraag_ondertekend
+                  value: true
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $naam_aanvrager
+                    value: null
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $adres_aanvrager
+                    value: null
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $dagtekening
+                    value: null
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $gevraagde_beschikking
+                    value: null
+  - number: '4:13'
+    text: FICTIEF, naar artikel 4:13 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/4:13
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            submission: AANVRAAG
+      execution:
+        produces:
+          moment:
+            parameter: datum_ontvangst
+            legal_basis:
+              law: Algemene wet bestuursrecht
+              bwb_id: BWBR0005537
+              article: '4:13'
+              paragraph: '1'
+              url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel4:13
+              juriconnect: jci1.3:c:BWBR0005537&artikel=4:13&lid=1&z=2021-07-01&g=2021-07-01
+        parameters:
+          - name: datum_ontvangst
+            type: date
+            required: false
+            description: De dag waarop het bestuursorgaan de aanvraag ontving (lid 1).
+        output:
+          - name: redelijke_beslistermijn_einddatum
+            type: date
+            description: 'De laatste dag van de redelijke termijn van lid 1 voor zover lid 2 die begrenst:
+              acht weken na ontvangst. De dag erna is de termijn in ieder geval verstreken.'
+        actions:
+          - output: redelijke_beslistermijn_einddatum
+            value:
+              operation: DATE_ADD
+              date: $datum_ontvangst
+              weeks: 8
+  - number: '6:5'
+    text: FICTIEF, naar artikel 6:5 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/6:5
+    machine_readable:
+      hooks:
+        - hook_point: pre_actions
+          applies_to:
+            submission: BEZWAAR
+        - hook_point: pre_actions
+          applies_to:
+            submission: BEROEP
+      execution:
+        parameters:
+          - name: bezwaar_of_beroepschrift_ondertekend
+            type: boolean
+            nullable: true
+            required: false
+            description: Of het bezwaar- of beroepschrift is ondertekend (lid 1, aanhef).
+          - name: naam_indiener
+            type: string
+            nullable: true
+            required: false
+            description: De naam van de indiener (lid 1, onder a).
+          - name: adres_indiener
+            type: string
+            nullable: true
+            required: false
+            description: Het adres van de indiener (lid 1, onder a).
+          - name: dagtekening_bezwaar_of_beroepschrift
+            type: date
+            nullable: true
+            required: false
+            description: De dagtekening van het bezwaar- of beroepschrift (lid 1, onder b).
+          - name: omschrijving_bestreden_besluit
+            type: string
+            nullable: true
+            required: false
+            description: Een omschrijving van het besluit waartegen het bezwaar of beroep is gericht (lid
+              1, onder c).
+          - name: gronden_bezwaar_of_beroep
+            type: string
+            nullable: true
+            required: false
+            description: De gronden van het bezwaar of beroep (lid 1, onder d).
+        output:
+          - name: bezwaar_of_beroepschrift_bevat_wat_artikel_6_5_eist
+            type: boolean
+            description: Of het bezwaar- of beroepschrift is ondertekend en ten minste de gegevens van
+              lid 1 bevat.
+        actions:
+          - output: bezwaar_of_beroepschrift_bevat_wat_artikel_6_5_eist
+            value:
+              operation: AND
+              conditions:
+                - operation: EQUALS
+                  subject: $bezwaar_of_beroepschrift_ondertekend
+                  value: true
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $naam_indiener
+                    value: null
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $adres_indiener
+                    value: null
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $dagtekening_bezwaar_of_beroepschrift
+                    value: null
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $omschrijving_bestreden_besluit
+                    value: null
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $gronden_bezwaar_of_beroep
+                    value: null
+  - number: '6:7'
+    text: FICTIEF, naar artikel 6:7 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/6:7
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BESLUIT
+      execution:
+        output:
+          - name: termijn_weken
+            type: number
+        actions:
+          - output: termijn_weken
+            value: 6
+  - number: '6:8'
+    text: FICTIEF, naar artikel 6:8 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/6:8
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            legal_character: BESCHIKKING
+            stage: BEKENDMAKING
+      execution:
+        parameters:
+          - name: bekendmaking_datum
+            type: date
+            required: true
+            description: Datum waarop het besluit is bekendgemaakt
+        input:
+          - name: termijn_weken
+            type: number
+            source:
+              regulation: test_general_administrative_act
+              output: termijn_weken
+        output:
+          - name: termijn_startdatum
+            type: date
+          - name: termijn_einddatum
+            type: date
+        actions:
+          - output: termijn_startdatum
+            value:
+              operation: DATE_ADD
+              date: $bekendmaking_datum
+              days: 1
+          - output: termijn_einddatum
+            value:
+              operation: DATE_ADD
+              date: $bekendmaking_datum
+              weeks: $termijn_weken
+  - number: '6:9'
+    text: FICTIEF, naar artikel 6:9 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/6:9
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            submission: BEZWAAR
+        - hook_point: post_actions
+          applies_to:
+            submission: BEROEP
+      execution:
+        produces:
+          moment:
+            parameter: datum_ontvangst_bezwaar_of_beroepschrift
+            legal_basis:
+              law: Algemene wet bestuursrecht
+              bwb_id: BWBR0005537
+              article: '6:9'
+              paragraph: '1'
+              url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel6:9
+              juriconnect: jci1.3:c:BWBR0005537&artikel=6:9&lid=1&z=2021-07-01&g=2021-07-01
+        parameters:
+          - name: datum_ontvangst_bezwaar_of_beroepschrift
+            type: date
+            required: false
+            description: De dag waarop het bestuursorgaan het bezwaarschrift of de bestuursrechter het
+              beroepschrift ontving (lid 1).
+          - name: termijn_einddatum
+            type: date
+            required: false
+            description: De laatste dag van de termijn voor het indienen van het bezwaar- of beroepschrift
+              (artikelen 6:7 en 6:8).
+        output:
+          - name: bezwaar_of_beroepschrift_tijdig_ingediend
+            type: boolean
+            description: Of het bezwaar- of beroepschrift voor het einde van de termijn is ontvangen (lid
+              1).
+        actions:
+          - output: bezwaar_of_beroepschrift_tijdig_ingediend
+            value:
+              operation: GREATER_THAN_OR_EQUAL
+              subject:
+                operation: DATE_DIFF
+                from: $datum_ontvangst_bezwaar_of_beroepschrift
+                to: $termijn_einddatum
+                in: days
+              value: 0
+  - number: '7:10'
+    text: FICTIEF, naar artikel 7:10 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/7:10
+    machine_readable:
+      hooks:
+        - hook_point: post_actions
+          applies_to:
+            submission: BEZWAAR
+      execution:
+        parameters:
+          - name: termijn_einddatum
+            type: date
+            required: false
+            description: De laatste dag van de termijn voor het indienen van het bezwaarschrift (artikelen
+              6:7 en 6:8).
+        output:
+          - name: beslistermijn_bezwaar_einddatum
+            type: date
+            description: De laatste dag waarop het bestuursorgaan op het bezwaar beslist (lid 1).
+        actions:
+          - output: beslistermijn_bezwaar_einddatum
+            value:
+              operation: DATE_ADD
+              date: $termijn_einddatum
+              weeks: 6
+  - number: '7:11'
+    text: FICTIEF, naar artikel 7:11 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/7:11
+    machine_readable:
+      open_terms:
+        - id: indiener_bezwaarschrift_is_belanghebbende
+          type: boolean
+          required: true
+          decided_per_case_by: het bestuursorgaan dat op het bezwaar beslist (artikelen 1:2, 7:1 en 8:1)
+          description: 'Of de indiener van het bezwaarschrift belanghebbende is: degene wiens belang rechtstreeks
+            bij het bestreden besluit is betrokken (artikelen 1:2, eerste lid, 7:1, eerste lid, en 8:1).'
+        - id: indiener_bezwaarschrift_niet_in_verzuim
+          type: boolean
+          required: true
+          decided_per_case_by: het bestuursorgaan dat op het bezwaar beslist (artikel 6:11)
+          description: Of redelijkerwijs niet kan worden geoordeeld dat de indiener van het na afloop
+            van de termijn ingediende bezwaarschrift in verzuim is geweest (artikel 6:11).
+      execution:
+        produces:
+          - type: BEZWAAR
+            requests: test_general_administrative_act#7:11
+            parameters:
+              - bestreden_besluit
+          - type: BESCHIKKING
+            outputs:
+              - bezwaar_ontvankelijk
+              - heroverweging_geeft_aanleiding
+              - bestreden_besluit_herroepen
+              - nieuw_besluit
+            effects:
+              - revokes: bestreden_besluit
+                when: bestreden_besluit_herroepen
+        parameters:
+          - name: bestreden_besluit
+            type: decision
+            description: Het besluit waartegen het bezwaar is gericht.
+          - name: bezwaar_of_beroepschrift_tijdig_ingediend
+            type: boolean
+            description: Of het bezwaarschrift tijdig is ingediend (artikel 6:9).
+        input:
+          - name: heroverweging
+            type: decision
+            nullable: true
+            source:
+              article: $bestreden_besluit
+        output:
+          - name: bezwaar_ontvankelijk
+            type: boolean
+            description: 'Of het bezwaar ontvankelijk is (lid 1). Getoetst zijn de termijn (artikel 6:9,
+              met artikel 6:11 bij een te laat bezwaarschrift), dat het bestreden besluit niet in bezwaar
+              onder dit artikel is genomen (artikel 7:1, eerste lid, onder a): niet de beslissing op bezwaar,
+              en dus ook niet het nieuwe besluit dat zij in de plaats van een herroepen besluit nam en
+              zelf houdt; en dat de indiener belanghebbende is (artikelen 1:2, 7:1 en 8:1). De overige
+              vereisten nog niet.'
+          - name: heroverweging_geeft_aanleiding
+            type: boolean
+            nullable: true
+            description: 'Of de heroverweging aanleiding geeft het bestreden besluit te herroepen (lid
+              2). Leeg bij een niet-ontvankelijk bezwaar: dan vindt geen heroverweging plaats (lid 1).'
+          - name: bestreden_besluit_herroepen
+            type: boolean
+            description: Of het bestuursorgaan het bestreden besluit herroept (lid 2).
+          - name: nieuw_besluit
+            type: decision
+            nullable: true
+            description: 'Het besluit dat het bestuursorgaan in de plaats van het herroepen besluit neemt
+              (lid 2). Herroepen en in de plaats stellen zijn samen één beslissing op bezwaar: de beslissing
+              houdt het nieuwe besluit zelf, en vervalt de beslissing, dan vervalt het nieuwe besluit
+              met haar.'
+        actions:
+          - output: bezwaar_ontvankelijk
+            value:
+              operation: AND
+              conditions:
+                - operation: OR
+                  conditions:
+                    - $bezwaar_of_beroepschrift_tijdig_ingediend
+                    - $indiener_bezwaarschrift_niet_in_verzuim
+                - operation: NOT
+                  value:
+                    operation: EQUALS
+                    subject: $bestreden_besluit.taken_on
+                    value: test_general_administrative_act#7:11
+                - $indiener_bezwaarschrift_is_belanghebbende
+          - output: heroverweging_geeft_aanleiding
+            value:
+              operation: IF
+              cases:
+                - when: $bezwaar_ontvankelijk
+                  then:
+                    operation: NOT
+                    value:
+                      operation: EQUALS
+                      subject: $heroverweging.outputs
+                      value: $bestreden_besluit.outputs
+              default: null
+          - output: bestreden_besluit_herroepen
+            value:
+              operation: EQUALS
+              subject: $heroverweging_geeft_aanleiding
+              value: true
+          - output: nieuw_besluit
+            value:
+              operation: IF
+              cases:
+                - when: $bestreden_besluit_herroepen
+                  then: $heroverweging
+              default: null
+  - number: 8:70
+    text: FICTIEF, naar artikel 8:70 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/8:70
+    machine_readable:
+      competent_authority:
+        name: de bestuursrechter
+        type: CATEGORY
+      open_terms:
+        - id: indiener_is_belanghebbende
+          type: boolean
+          required: true
+          decided_per_case_by: de bestuursrechter (artikel 8:1)
+          description: 'Of de indiener van het beroepschrift belanghebbende is: degene wiens belang rechtstreeks
+            bij het bestreden besluit is betrokken (artikelen 1:2, eerste lid, en 8:1).'
+        - id: indiener_beroepschrift_niet_in_verzuim
+          type: boolean
+          required: true
+          decided_per_case_by: de bestuursrechter (artikel 6:11)
+          description: Of redelijkerwijs niet kan worden geoordeeld dat de indiener van het na afloop
+            van de termijn ingediende beroepschrift in verzuim is geweest (artikel 6:11).
+        - id: rechtsregel_geschonden
+          type: boolean
+          required: true
+          decided_per_case_by: de bestuursrechter (artikel 8:77, tweede lid)
+          description: Of het bestreden besluit een geschreven of ongeschreven rechtsregel of een algemeen
+            rechtsbeginsel schendt.
+        - id: geschonden_rechtsregel
+          type: string
+          required: false
+          decided_per_case_by: de bestuursrechter (artikel 8:77, tweede lid)
+          description: Welke geschreven of ongeschreven rechtsregel of welk algemeen rechtsbeginsel geschonden
+            wordt geoordeeld.
+      execution:
+        produces:
+          - type: BEROEP
+            requests: test_general_administrative_act#8:70
+            parameters:
+              - bestreden_besluit
+          - type: UITSPRAAK
+            outputs:
+              - beroep_ontvankelijk
+              - beroep_gegrond
+              - uitspraak_strekt_tot
+              - geschonden_geoordeelde_rechtsregel
+              - bestreden_besluit_vernietigd
+              - rechtsgevolgen_vernietigd
+              - opdracht_nieuw_besluit
+              - termijn_nieuw_besluit_einddatum
+              - uitspraak_in_de_plaats
+              - primair_besluit_in_de_plaats
+        parameters:
+          - name: bestreden_besluit
+            type: decision
+            description: Het besluit waartegen het beroep is gericht.
+          - name: bezwaar_of_beroepschrift_tijdig_ingediend
+            type: boolean
+            description: Of het beroepschrift tijdig is ingediend (artikel 6:9).
+        input:
+          - name: vernietiging_bestreden_besluit
+            type: boolean
+            source:
+              regulation: test_general_administrative_act
+              output: vernietiging_bestreden_besluit
+              parameters:
+                bestreden_besluit: $bestreden_besluit
+          - name: vernietiging_rechtsgevolgen
+            type: boolean
+            source:
+              regulation: test_general_administrative_act
+              output: vernietiging_rechtsgevolgen
+              parameters:
+                bestreden_besluit: $bestreden_besluit
+          - name: opdracht_tot_nieuw_besluit
+            type: boolean
+            source:
+              regulation: test_general_administrative_act
+              output: opdracht_tot_nieuw_besluit
+              parameters:
+                bestreden_besluit: $bestreden_besluit
+          - name: gestelde_termijn_nieuw_besluit
+            type: date
+            nullable: true
+            source:
+              regulation: test_general_administrative_act
+              output: gestelde_termijn_nieuw_besluit
+              parameters:
+                bestreden_besluit: $bestreden_besluit
+          - name: besluit_in_de_plaats
+            type: decision
+            nullable: true
+            source:
+              regulation: test_general_administrative_act
+              output: in_de_plaats_gesteld_besluit
+              parameters:
+                bestreden_besluit: $bestreden_besluit
+          - name: primair_besluit_van_de_bestuursrechter
+            type: decision
+            nullable: true
+            source:
+              regulation: test_general_administrative_act
+              output: in_de_plaats_gesteld_primair_besluit
+              parameters:
+                bestreden_besluit: $bestreden_besluit
+        output:
+          - name: beroep_ontvankelijk
+            type: boolean
+            description: Of het beroep ontvankelijk is. Getoetst zijn de termijn (artikel 6:9, met artikel
+              6:11 bij een te laat beroepschrift), dat het bestreden besluit in bezwaar is genomen (artikel
+              7:1, eerste lid) en dat de indiener belanghebbende is (artikel 8:1). De overige vereisten
+              nog niet.
+          - name: beroep_gegrond
+            type: boolean
+            nullable: true
+            description: 'Of het beroep gegrond is (onder c en d). Leeg bij een niet-ontvankelijk beroep:
+              daarop oordeelt de bestuursrechter niet over de gronden.'
+          - name: uitspraak_strekt_tot
+            type: string
+            description: Waartoe de uitspraak strekt (onder b, c of d).
+          - name: geschonden_geoordeelde_rechtsregel
+            type: string
+            nullable: true
+            description: De rechtsregel of het rechtsbeginsel die de uitspraak bij een gegrondverklaring
+              vermeldt (artikel 8:77, tweede lid).
+          - name: bestreden_besluit_vernietigd
+            type: boolean
+            description: Of de bestuursrechter het bestreden besluit vernietigt (artikel 8:72, eerste
+              lid).
+          - name: rechtsgevolgen_vernietigd
+            type: boolean
+            description: Of de vernietiging ook de rechtsgevolgen van het besluit vernietigt (artikel
+              8:72, tweede lid en derde lid, onder a).
+          - name: opdracht_nieuw_besluit
+            type: boolean
+            description: Of de bestuursrechter het bestuursorgaan opdraagt een nieuw besluit te nemen
+              (artikel 8:72, vierde lid).
+          - name: termijn_nieuw_besluit_einddatum
+            type: date
+            nullable: true
+            description: De laatste dag van de termijn die de bestuursrechter stelt voor het nieuwe besluit
+              (artikel 8:72, vierde lid, onder b).
+          - name: uitspraak_in_de_plaats
+            type: decision
+            nullable: true
+            description: Het besluit dat de uitspraak in de plaats van het vernietigde stelt (artikel
+              8:72, derde lid, onder b).
+          - name: primair_besluit_in_de_plaats
+            type: decision
+            nullable: true
+            description: Het besluit op de aanvraag dat de uitspraak in de plaats stelt (artikel 8:72,
+              derde lid, onder b, met artikel 7:11, tweede lid).
+        actions:
+          - output: beroep_ontvankelijk
+            value:
+              operation: AND
+              conditions:
+                - operation: OR
+                  conditions:
+                    - $bezwaar_of_beroepschrift_tijdig_ingediend
+                    - $indiener_beroepschrift_niet_in_verzuim
+                - operation: EQUALS
+                  subject: $bestreden_besluit.taken_on
+                  value: test_general_administrative_act#7:11
+                - $indiener_is_belanghebbende
+          - output: beroep_gegrond
+            value:
+              operation: IF
+              cases:
+                - when: $beroep_ontvankelijk
+                  then: $rechtsregel_geschonden
+              default: null
+          - output: uitspraak_strekt_tot
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: NOT
+                    value: $beroep_ontvankelijk
+                  then: niet-ontvankelijkverklaring van het beroep
+                - when:
+                    operation: EQUALS
+                    subject: $beroep_gegrond
+                    value: true
+                  then: gegrondverklaring van het beroep
+              default: ongegrondverklaring van het beroep
+          - output: geschonden_geoordeelde_rechtsregel
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $beroep_gegrond
+                    value: true
+                  then: $geschonden_rechtsregel
+              default: null
+          - output: bestreden_besluit_vernietigd
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $beroep_gegrond
+                    value: true
+                  then: $vernietiging_bestreden_besluit
+              default: false
+          - output: rechtsgevolgen_vernietigd
+            value:
+              operation: IF
+              cases:
+                - when: $bestreden_besluit_vernietigd
+                  then: $vernietiging_rechtsgevolgen
+              default: false
+          - output: opdracht_nieuw_besluit
+            value:
+              operation: IF
+              cases:
+                - when: $bestreden_besluit_vernietigd
+                  then: $opdracht_tot_nieuw_besluit
+              default: false
+          - output: termijn_nieuw_besluit_einddatum
+            value:
+              operation: IF
+              cases:
+                - when: $opdracht_nieuw_besluit
+                  then: $gestelde_termijn_nieuw_besluit
+              default: null
+          - output: uitspraak_in_de_plaats
+            value:
+              operation: IF
+              cases:
+                - when: $rechtsgevolgen_vernietigd
+                  then: $besluit_in_de_plaats
+              default: null
+          - output: primair_besluit_in_de_plaats
+            value:
+              operation: IF
+              cases:
+                - when: $rechtsgevolgen_vernietigd
+                  then: $primair_besluit_van_de_bestuursrechter
+              default: null
+  - number: 8:72
+    text: FICTIEF, naar artikel 8:72 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/8:72
+    machine_readable:
+      competent_authority:
+        name: de bestuursrechter
+        type: CATEGORY
+      open_terms:
+        - id: rechtsgevolgen_in_stand
+          type: boolean
+          required: true
+          decided_per_case_by: de bestuursrechter (artikel 8:72, derde lid)
+          description: Of de rechtsgevolgen van het vernietigde besluit geheel in stand blijven (lid 3,
+            onder a).
+        - id: uitspraak_treedt_in_de_plaats
+          type: boolean
+          required: true
+          decided_per_case_by: de bestuursrechter (artikel 8:72, derde lid)
+          description: Of de uitspraak in de plaats treedt van het vernietigde besluit (lid 3, onder b).
+        - id: termijn_nieuw_besluit
+          type: date
+          required: false
+          decided_per_case_by: de bestuursrechter (artikel 8:72, vierde lid)
+          description: De laatste dag van de termijn die de bestuursrechter het bestuursorgaan stelt voor
+            het nieuwe besluit (lid 4, onder b).
+      execution:
+        parameters:
+          - name: bestreden_besluit
+            type: decision
+            description: Het besluit waartegen het beroep is gericht (artikel 8:70).
+        input:
+          - name: besluit_van_de_bestuursrechter
+            type: decision
+            nullable: true
+            source:
+              article: $bestreden_besluit
+        output:
+          - name: vernietiging_bestreden_besluit
+            type: boolean
+            description: Of de bestuursrechter het bestreden besluit vernietigt (lid 1).
+          - name: vernietiging_rechtsgevolgen
+            type: boolean
+            description: Of de vernietiging de rechtsgevolgen van het besluit meebrengt (lid 2, met lid
+              3, onder a).
+          - name: opdracht_tot_nieuw_besluit
+            type: boolean
+            description: Of de bestuursrechter het bestuursorgaan opdraagt een nieuw besluit te nemen
+              (lid 4).
+          - name: in_de_plaats_gesteld_besluit
+            type: decision
+            nullable: true
+            description: Het besluit dat de uitspraak in de plaats van het vernietigde stelt (lid 3, onder
+              b).
+          - name: in_de_plaats_gesteld_primair_besluit
+            type: decision
+            nullable: true
+            description: 'Het besluit op de aanvraag dat de uitspraak in de plaats stelt (lid 3, onder
+              b): het in de plaats gestelde besluit zelf, of, als dat een beslissing op bezwaar is, het
+              nieuwe besluit dat zij in de plaats van het herroepen besluit neemt (artikel 7:11, tweede
+              lid).'
+          - name: gestelde_termijn_nieuw_besluit
+            type: date
+            nullable: true
+            description: De laatste dag van de termijn voor het nieuwe besluit, als de bestuursrechter
+              er een stelt (lid 4, onder b).
+        actions:
+          - output: vernietiging_bestreden_besluit
+            value: true
+          - output: vernietiging_rechtsgevolgen
+            value:
+              operation: NOT
+              value: $rechtsgevolgen_in_stand
+          - output: in_de_plaats_gesteld_besluit
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: AND
+                    conditions:
+                      - $vernietiging_rechtsgevolgen
+                      - $uitspraak_treedt_in_de_plaats
+                  then: $besluit_van_de_bestuursrechter
+              default: null
+          - output: in_de_plaats_gesteld_primair_besluit
+            value:
+              operation: IF
+              cases:
+                - when:
+                    operation: EQUALS
+                    subject: $in_de_plaats_gesteld_besluit
+                    value: null
+                  then: null
+                - when:
+                    operation: EQUALS
+                    subject: $in_de_plaats_gesteld_besluit.basis
+                    value: test_general_administrative_act#7:11
+                  then: $in_de_plaats_gesteld_besluit.outputs.nieuw_besluit
+              default: $in_de_plaats_gesteld_besluit
+          - output: opdracht_tot_nieuw_besluit
+            value:
+              operation: AND
+              conditions:
+                - $vernietiging_rechtsgevolgen
+                - operation: EQUALS
+                  subject: $in_de_plaats_gesteld_besluit
+                  value: null
+          - output: gestelde_termijn_nieuw_besluit
+            value:
+              operation: IF
+              cases:
+                - when: $opdracht_tot_nieuw_besluit
+                  then: $termijn_nieuw_besluit
+              default: null
+  - number: 8:79
+    text: FICTIEF, naar artikel 8:79 van de Algemene wet bestuursrecht.
+    url: https://example.com/test_general_administrative_act/8:79
+    machine_readable:
+      requires:
+        - fact: afschrift_van_de_uitspraak
+          description: Het afschrift van de uitspraak dat de griffier ter beschikking van een partij stelt.
+          parameters:
+            - uitspraak_strekt_tot
+            - bestreden_besluit_vernietigd
+            - rechtsgevolgen_vernietigd
+            - opdracht_nieuw_besluit
+            - termijn_nieuw_besluit_einddatum
+            - geschonden_geoordeelde_rechtsregel
+            - uitspraak_in_de_plaats
+            - primair_besluit_in_de_plaats
+            - uitspraak_datum
+          effects:
+            - revokes: refers_to
+              when: rechtsgevolgen_vernietigd
+      execution:
+        parameters:
+          - name: uitspraak_strekt_tot
+            type: string
+            description: Waartoe de uitspraak strekt (artikel 8:70).
+          - name: bestreden_besluit_vernietigd
+            type: boolean
+            description: Of de bestuursrechter het bestreden besluit vernietigde (artikel 8:72, eerste
+              lid).
+          - name: rechtsgevolgen_vernietigd
+            type: boolean
+            description: Of ook de rechtsgevolgen van het besluit vervielen (artikel 8:72, tweede lid
+              en derde lid, onder a).
+          - name: opdracht_nieuw_besluit
+            type: boolean
+            description: Of de bestuursrechter het bestuursorgaan opdroeg een nieuw besluit te nemen (artikel
+              8:72, vierde lid).
+          - name: termijn_nieuw_besluit_einddatum
+            type: date
+            nullable: true
+            required: false
+            description: De laatste dag van de termijn voor het nieuwe besluit (artikel 8:72, vierde lid,
+              onder b).
+          - name: geschonden_geoordeelde_rechtsregel
+            type: string
+            nullable: true
+            required: false
+            description: De rechtsregel die de uitspraak geschonden oordeelde (artikel 8:77, tweede lid).
+          - name: uitspraak_in_de_plaats
+            type: object
+            nullable: true
+            required: false
+            description: Het besluit dat de uitspraak in de plaats van het vernietigde stelt (artikel
+              8:72, derde lid, onder b), zoals het afschrift het vermeldt.
+          - name: primair_besluit_in_de_plaats
+            type: object
+            nullable: true
+            required: false
+            description: Het besluit op de aanvraag dat de uitspraak in de plaats stelt (artikel 8:72,
+              derde lid, onder b, met artikel 7:11, tweede lid), zoals het afschrift het vermeldt.
+          - name: uitspraak_datum
+            type: date
+            description: De dag waarop de bestuursrechter uitspraak deed (artikel 8:77, eerste lid, onder
+              e).

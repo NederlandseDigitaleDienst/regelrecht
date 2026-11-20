@@ -48,7 +48,7 @@ articles:
           type: boolean
           decided_per_case_by: het hoofd van OBS De Klimop
       implements:
-        - law: leerplichtwet_1969
+        - law: test_school_leave_act
           article: 13a
           open_term: verlof_al_verleend_in_schooljaar
       execution:
@@ -87,7 +87,7 @@ articles:
           type: boolean
           decided_per_case_by: het hoofd van OBS De Klimop
       implements:
-        - law: leerplichtwet_1969
+        - law: test_school_leave_act
           article: 13a
           open_term: verlof_valt_buiten_schoolvakanties
       execution:
@@ -122,7 +122,7 @@ articles:
     url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
     machine_readable:
       implements:
-        - law: regeling_vaststelling_schoolvakanties_20252030
+        - law: test_school_holidays_regulation
           article: '2'
           open_term: gemeente_van_vestiging
       execution:
@@ -149,7 +149,7 @@ articles:
     url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
     machine_readable:
       implements:
-        - law: regeling_vaststelling_schoolvakanties_20252030
+        - law: test_school_holidays_regulation
           article: '2'
           open_term: provincie_van_vestiging
       execution:

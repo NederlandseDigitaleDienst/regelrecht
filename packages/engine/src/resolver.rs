@@ -3861,21 +3861,21 @@ articles:
 
     #[test]
     fn test_resolver_load_from_directory() {
-        // The frozen copy the trace tests read, in the layout of the corpus,
-        // so a change to the corpus does not touch this test.
-        let regulation_path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("tests/fixtures/trace_corpus/nl");
+        // The fictional chain the trace tests read, in the layout of the
+        // corpus.
+        let regulation_path =
+            std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/trace/nl");
 
         let mut resolver = RuleResolver::new();
         let count = resolver.load_from_directory(&regulation_path).unwrap();
 
         assert_eq!(
-            count, 7,
-            "Expected the 7 laws of the frozen copy, got {count}"
+            count, 4,
+            "Expected the 4 laws of the fictional chain, got {count}"
         );
-        assert!(resolver.has_law("wet_op_de_zorgtoeslag"));
-        assert!(resolver.has_law("regeling_standaardpremie"));
-        assert!(resolver.has_law("algemene_wet_bestuursrecht"));
+        assert!(resolver.has_law("test_allowance_act"));
+        assert!(resolver.has_law("test_premium_regulation"));
+        assert!(resolver.has_law("test_general_administrative_act"));
     }
 
     // -------------------------------------------------------------------------

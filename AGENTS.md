@@ -57,7 +57,10 @@ means a law changed or the scenario is stale, and a human decides which.
 
 Name an engine or language test file, feature, construct directory or test
 function after the construct it tests, not after the law or case it runs on.
-The rule and its exceptions are in `docs/src/content/docs/guide/testing.md`.
+Run it on the smallest fictional regelwerk that makes the construct possible, a
+fixture of the test's own crate: not the corpus, and not a copy of real
+legislation. The rules and their exceptions are in
+`docs/src/content/docs/guide/testing.md`.
 
 ## Vocabulary: regelwerk
 

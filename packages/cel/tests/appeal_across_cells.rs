@@ -17,9 +17,9 @@ use regelrecht_cel::{Afschrift, Cell, Error, Gram, Received, Reference};
 use regelrecht_engine::LawExecutionService;
 use serde_json::{Map, Value, json};
 
-const LAW: &str = "leerplichtwet_1969";
+const LAW: &str = "test_school_leave_act";
 const ARTICLE: &str = "13a";
-const AWB: &str = "algemene_wet_bestuursrecht";
+const AWB: &str = "test_general_administrative_act";
 const OBJECTION: &str = "7:11";
 const APPEAL: &str = "8:70";
 /// A fictional school and a fictional court.
@@ -27,7 +27,7 @@ const SCHOOL: &str = "obs_de_klimop";
 const COURT: &str = "rechtbank_wilgendaal";
 /// The fact that a party holds the copy of a judgment (Awb 8:79), which the
 /// school records when it receives one.
-const JUDGMENTS: &str = "algemene_wet_bestuursrecht#8:79#afschrift_van_de_uitspraak";
+const JUDGMENTS: &str = "test_general_administrative_act#8:79#afschrift_van_de_uitspraak";
 
 const POLICY: &str = "fictief_beleid_schooljaar_obs_de_klimop";
 const SCHOOL_YEAR: &str = "fictief_beleid_schooljaargrenzen_obs_de_klimop";
@@ -51,13 +51,13 @@ std::thread_local! {
     static WITHOUT_REDUCTION: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
-/// The Leerplichtwet, the Awb, the school's policies and its reduction for
-/// lid 2 from the corpus.
+/// The school leave act, the general act, the school's policies and its
+/// reduction for lid 2 from the fixtures.
 fn service() -> LawExecutionService {
     let mut service = LawExecutionService::new();
     let laws = [
         format!("regulation/nl/wet/{LAW}"),
-        common::poc("regulation/nl/wet/algemene_wet_bestuursrecht"),
+        "regulation/nl/wet/test_general_administrative_act".to_string(),
         format!("regulation/nl/uitvoeringsbeleid/{POLICY}"),
         format!("regulation/nl/uitvoeringsbeleid/{SCHOOL_YEAR}"),
         format!("regulation/nl/uitvoeringsbeleid/{LEAVE_POLICY}"),
@@ -65,9 +65,7 @@ fn service() -> LawExecutionService {
         // The decisions under an article as aggregates, with what the Awb
         // gives a decision on an objection and the receipt of a ruling.
         common::reduction_dir("reductie_verlof"),
-        common::poc(
-            "casussen/vakantieverlof/regulation/nl/uitvoeringsbeleid/fictief_beleid_verleend_verlof_obs_de_klimop",
-        ),
+        "regulation/nl/uitvoeringsbeleid/fictief_beleid_verleend_verlof_obs_de_klimop".to_string(),
     ];
     common::load(&mut service, laws);
     service
@@ -319,11 +317,11 @@ fn the_copy_of_a_decision_holds_its_value_from_the_cell_that_took_it() {
     assert_eq!(copy.gram, decided[0]);
     assert_eq!(
         copy.value["basis"],
-        json!("algemene_wet_bestuursrecht#7:11")
+        json!("test_general_administrative_act#7:11")
     );
     assert_eq!(
         copy.value["taken_on"],
-        json!("algemene_wet_bestuursrecht#7:11")
+        json!("test_general_administrative_act#7:11")
     );
     assert_eq!(
         copy.value["outputs"]["bestreden_besluit_herroepen"],
@@ -345,7 +343,7 @@ fn the_court_records_the_appeal_with_the_copy_it_received() {
     let appeal = appealed(&mut court, &copy).unwrap();
 
     assert_eq!(appeal.kind, "BEROEP");
-    assert_eq!(appeal.basis, "algemene_wet_bestuursrecht#8:70");
+    assert_eq!(appeal.basis, "test_general_administrative_act#8:70");
     assert_eq!(appeal.refers_to, None);
     assert_eq!(
         appeal.received,
@@ -489,7 +487,7 @@ fn the_deciding_cell_records_the_receipt_of_the_judgment() {
     let receipt = received(&mut case).unwrap();
     assert_eq!(receipt.kind, "EXECUTOGRAM");
     assert_eq!(receipt.fact.as_deref(), Some("afschrift_van_de_uitspraak"));
-    assert_eq!(receipt.basis, "algemene_wet_bestuursrecht#8:79");
+    assert_eq!(receipt.basis, "test_general_administrative_act#8:79");
     assert_eq!(
         receipt.refers_to.as_deref(),
         Some(case.on_objection.id.as_str())
@@ -542,7 +540,7 @@ fn after_the_judgment_the_deciding_cell_decides_on_the_objection_again() {
     assert_eq!(again.after.as_deref(), Some(receipt.id.as_str()));
     assert_eq!(again.fields["bestreden_besluit"], json!(case.refused.id));
     assert_eq!(again.outputs["bestreden_besluit_herroepen"], json!(true));
-    assert_eq!(new.basis, "leerplichtwet_1969#13a");
+    assert_eq!(new.basis, "test_school_leave_act#13a");
     assert_eq!(new.outputs["verlof_verleend"], json!(true));
     // The school's chronicle: the application, the refusal, the objection,
     // the decision on it, the receipt, and the decision taken again, which
@@ -1066,7 +1064,7 @@ fn the_copy_of_a_decision_on_objection_holds_the_contested_decision_as_a_value()
         .afschrift(&mut service(), &[], &decided[0].id)
         .unwrap();
     let contested = &copy.value["fields"]["bestreden_besluit"];
-    assert_eq!(contested["basis"], json!("leerplichtwet_1969#13a"));
+    assert_eq!(contested["basis"], json!("test_school_leave_act#13a"));
     assert_eq!(contested["outputs"]["verlof_verleend"], json!(false));
     // In the school's own chronicle the decision on the objection keeps it
     // by its id.
@@ -1084,13 +1082,16 @@ fn the_court_decides_the_case_itself_and_the_deciding_cell_counts_its_grant() {
     assert_eq!(judgment.outputs["rechtsgevolgen_vernietigd"], json!(true));
     assert_eq!(judgment.outputs["opdracht_nieuw_besluit"], json!(false));
     let instead = judgment.outputs["uitspraak_in_de_plaats"].clone();
-    assert_eq!(instead["basis"], json!("algemene_wet_bestuursrecht#7:11"));
+    assert_eq!(
+        instead["basis"],
+        json!("test_general_administrative_act#7:11")
+    );
     assert_eq!(
         instead["outputs"]["bestreden_besluit_herroepen"],
         json!(true)
     );
     let grant = &instead["outputs"]["nieuw_besluit"];
-    assert_eq!(grant["basis"], json!("leerplichtwet_1969#13a"));
+    assert_eq!(grant["basis"], json!("test_school_leave_act#13a"));
     assert_eq!(grant["outputs"]["verlof_verleend"], json!(true));
     // The court takes no decision of the school in its own chronicle: the
     // judgment holds the decision it sets in place as its value.

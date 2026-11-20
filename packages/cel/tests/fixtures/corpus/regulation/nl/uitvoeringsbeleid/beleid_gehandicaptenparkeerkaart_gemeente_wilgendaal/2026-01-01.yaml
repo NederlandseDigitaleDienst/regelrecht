@@ -18,7 +18,7 @@ articles:
         - id: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
           type: boolean
       implements:
-        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+        - law: test_traffic_decree
           article: '49'
           open_term: bevoegdheid_tot_verstrekken_gebruikt
       execution:
@@ -81,7 +81,7 @@ articles:
           type: boolean
           decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
       implements:
-        - law: regeling_gehandicaptenparkeerkaart
+        - law: test_parking_card_regulation
           article: '2'
           open_term: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt
       execution:
@@ -117,7 +117,7 @@ articles:
           type: boolean
           decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
       implements:
-        - law: regeling_gehandicaptenparkeerkaart
+        - law: test_parking_card_regulation
           article: '3'
           open_term: geneeskundig_onderzoek_heeft_plaatsgehad
       execution:
@@ -234,16 +234,16 @@ articles:
           type: boolean
           decided_per_case_by: het college van burgemeester en wethouders van de gemeente Wilgendaal
       implements:
-        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+        - law: test_traffic_decree
           article: '49'
           open_term: langdurige_loopbeperking
-        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+        - law: test_traffic_decree
           article: '49'
           open_term: continu_afhankelijk_van_hulp_bestuurder
-        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+        - law: test_traffic_decree
           article: '49'
           open_term: permanent_rolstoelgebonden
-        - law: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw
+        - law: test_traffic_decree
           article: '49'
           open_term: ernstige_beperkingen_andere_dan_loopbeperkingen
       execution:
