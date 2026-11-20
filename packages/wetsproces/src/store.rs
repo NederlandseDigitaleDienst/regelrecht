@@ -78,11 +78,22 @@ pub enum Channel {
     TestLogin,
     /// A session of the FSC voor Burgers channel ([`crate::fsc4b`]).
     Fsc4b,
+    /// The admin panel of the back office, through which an admin records
+    /// what an external party of the case did (the GGD's advice, the court's
+    /// judgment), until a real link with that party replaces it. The record
+    /// itself names the party (its `recording_actor`); the account beside it
+    /// is the admin's.
+    AdminPanel,
 }
 
 impl Channel {
     /// Every channel.
-    pub const ALL: [Self; 3] = [Self::Keycloak, Self::TestLogin, Self::Fsc4b];
+    pub const ALL: [Self; 4] = [
+        Self::Keycloak,
+        Self::TestLogin,
+        Self::Fsc4b,
+        Self::AdminPanel,
+    ];
 
     /// The name the store keeps.
     pub fn as_str(self) -> &'static str {
@@ -90,6 +101,7 @@ impl Channel {
             Self::Keycloak => "keycloak",
             Self::TestLogin => "testlogin",
             Self::Fsc4b => "fsc4b",
+            Self::AdminPanel => "beheerpaneel",
         }
     }
 

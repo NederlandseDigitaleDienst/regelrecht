@@ -13,7 +13,7 @@ export interface Tab {
   /** Other route names the tab is current on, such as a screen under it. */
   ook?: string[];
   /** A right the account needs to see the tab. */
-  recht?: 'klok_zetten';
+  recht?: 'klok_zetten' | 'partijen_invoeren';
 }
 
 /** The tabs of the side `route` belongs to, from the deepest route that declares them. */

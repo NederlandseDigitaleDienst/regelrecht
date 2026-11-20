@@ -6,7 +6,12 @@
 // policy leaves to the authority for this case (`stil`). Once a decision is
 // taken it shows with why it came out so. The main pane beside the work queue
 // (WerkvoorraadView.vue), which hands it what it loaded.
-import { computed, onMounted, ref } from 'vue';
+//
+// With `namens` it is the pane beside the admin panel (BeheerView.vue): the
+// submission waits for an external party, such as an appeal for the court,
+// is one of what the panel shows of that party (`open`), and the admin
+// decides on its behalf through the panel's routes.
+import { computed, onMounted, ref, watch } from 'vue';
 import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import { schermveld } from '../gedeeld/formulier';
@@ -17,7 +22,7 @@ import { besluitenOp, celNaam, omschrijving, toegewezen } from '../gedeeld/keten
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { Casus, Gram, Ik, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
 import WaaromLijst from '../gedeeld/WaaromLijst.vue';
-import { backofficeApi } from './api';
+import { backofficeApi, beheerApi } from './api';
 import type { Kroniek } from './api';
 
 const props = defineProps<{
@@ -27,12 +32,23 @@ const props = defineProps<{
   vormen: Vormen | null;
   wie: Ik | null;
   kronieken: Kroniek[];
+  /** Decide on behalf of an external party, on one of its waiting submissions. */
+  namens?: boolean;
+  open?: Gram[];
 }>();
 const emit = defineEmits<{ besloten: [] }>();
 
 const kroniek = computed(() => props.kronieken.find((k) => k.cel === props.cel));
-const indiening = computed(() => kroniek.value?.grammen.find((g) => g.id === props.id) ?? null);
-const mag = computed(() => props.wie?.cellen.find((c) => c.cel === props.cel)?.beslissen ?? false);
+const gevonden = computed(() => (props.namens ? props.open : kroniek.value?.grammen)?.find((g) => g.id === props.id) ?? null);
+// A submission the panel decided on leaves what waits for the party; the pane
+// keeps showing it, with the decision.
+const onthouden = ref<Gram | null>(null);
+watch(gevonden, (g) => (onthouden.value = g ?? onthouden.value), { immediate: true });
+const indiening = computed(() => gevonden.value ?? onthouden.value);
+const mag = computed(() =>
+  props.namens ? (props.wie?.partijen_invoeren ?? false) : (props.wie?.cellen.find((c) => c.cel === props.cel)?.beslissen ?? false),
+);
+const api = props.namens ? beheerApi : backofficeApi;
 const naamVanCel = (cel: string) => celNaam(cel, props.casus);
 const titel = computed(() => (indiening.value ? omschrijving(indiening.value, props.casus) : 'Indiening'));
 
@@ -60,7 +76,7 @@ let sleutel = nieuweSleutel();
 
 /** A decision already on the submission, taken before this screen opened. */
 const eerder = computed(() =>
-  indiening.value && kroniek.value ? besluitenOp(indiening.value.id, kroniek.value.grammen, props.casus).at(-1) : undefined,
+  !props.namens && indiening.value && kroniek.value ? besluitenOp(indiening.value.id, kroniek.value.grammen, props.casus).at(-1) : undefined,
 );
 const eerderWaarom = ref<Waarom | null>(null);
 const besluit = computed(() => genomen.value?.besluit ?? eerder.value ?? null);
@@ -76,7 +92,7 @@ async function voorvertonen() {
   bezig.value = true;
   melding.value = '';
   try {
-    const v = await backofficeApi.voorvertoning({ op: props.id, bevindingen: zonderLeeg(bevindingen.value) });
+    const v = await api.voorvertoning({ op: props.id, bevindingen: zonderLeeg(bevindingen.value) });
     voorvertoning.value = v;
     for (const s of v.stil) if (!stil.value.some((x) => x.naam === s.naam)) stil.value.push(s);
   } catch (e) {
@@ -90,7 +106,7 @@ async function beslissen() {
   bezig.value = true;
   melding.value = '';
   try {
-    genomen.value = await backofficeApi.beslissen({ op: props.id, bevindingen: zonderLeeg(bevindingen.value) }, sleutel);
+    genomen.value = await api.beslissen({ op: props.id, bevindingen: zonderLeeg(bevindingen.value) }, sleutel);
     sleutel = nieuweSleutel();
     emit('besloten');
   } catch (e) {
@@ -103,10 +119,20 @@ async function beslissen() {
 
 <template>
   <nldd-page landmarks="page" sticky-header :accessible-label="titel">
-    <nldd-top-title-bar slot="header" :text="titel" back-text="Werkvoorraad" collapse-anchor="indiening-titel"></nldd-top-title-bar>
+    <nldd-top-title-bar slot="header" :text="titel" :back-text="namens ? 'Beheerpaneel' : 'Werkvoorraad'" collapse-anchor="indiening-titel"></nldd-top-title-bar>
     <nldd-simple-section width="full">
-      <nldd-inline-dialog v-if="!indiening" icon="info" text="Deze indiening staat niet in een kroniek die u mag lezen"></nldd-inline-dialog>
+      <nldd-inline-dialog
+        v-if="!indiening"
+        icon="info"
+        :text="namens ? 'Deze indiening wacht niet op een externe partij' : 'Deze indiening staat niet in een kroniek die u mag lezen'"
+      ></nldd-inline-dialog>
       <nldd-container v-else gap="24">
+        <nldd-banner
+          v-if="namens"
+          variant="neutral"
+          :text="`U voert dit besluit in namens ${naamVanCel(cel)}`"
+          supporting-text="De kroniek legt vast dat het via het beheerpaneel is ingevoerd, door uw account."
+        ></nldd-banner>
         <nldd-title
           id="indiening-titel"
           size="display-3"

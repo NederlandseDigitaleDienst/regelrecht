@@ -94,6 +94,7 @@ export function ikUit(status: AppStatus): Ik | null {
     identiteit: status.holder.bsn,
     niveau: null,
     cellen: [],
+    partijen_invoeren: false,
     klok_zetten: false,
   };
 }

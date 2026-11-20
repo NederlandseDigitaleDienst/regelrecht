@@ -7,7 +7,16 @@ import type { Ik } from './gedeeld/types';
 const naar = (path: string, kant?: 'burger' | 'backoffice', name?: string) =>
   ({ path, name, matched: kant ? [{ meta: { kant } }] : [] }) as unknown as RouteLocationNormalized;
 
-const geen: Ik = { sub: 's', naam: null, burger: false, identiteit: null, niveau: null, cellen: [], klok_zetten: false };
+const geen: Ik = {
+  sub: 's',
+  naam: null,
+  burger: false,
+  identiteit: null,
+  niveau: null,
+  cellen: [],
+  partijen_invoeren: false,
+  klok_zetten: false,
+};
 const burger: Ik = { ...geen, burger: true, identiteit: '999990019' };
 const medewerker: Ik = {
   ...geen,
@@ -30,6 +39,13 @@ describe('omleiding', () => {
   it('opens the clock only for whoever may set it', () => {
     expect(omleiding(naar('/backoffice/klok', 'backoffice', 'klok'), medewerker)).toBe('/backoffice');
     expect(omleiding(naar('/backoffice/klok', 'backoffice', 'klok'), { ...medewerker, klok_zetten: true })).toBeUndefined();
+  });
+
+  it('opens the admin panel only for whoever enters what an external party did', () => {
+    const beheer = { path: '/backoffice/beheer', name: 'beheer', matched: [{ meta: { kant: 'backoffice' } }, { meta: { beheer: true } }] };
+    const route = beheer as unknown as RouteLocationNormalized;
+    expect(omleiding(route, { ...medewerker, niveau: 'beslisser' })).toBe('/backoffice');
+    expect(omleiding(route, { ...medewerker, niveau: 'admin', partijen_invoeren: true })).toBeUndefined();
   });
 
   it('always lets the login open', () => {

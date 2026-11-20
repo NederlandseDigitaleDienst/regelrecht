@@ -26,7 +26,10 @@ watch(ik, laadKlok);
 watch(() => route.fullPath, laadKlok);
 
 const naam = computed(() => (ik.value ? ik.value.naam || ik.value.sub : null));
-const rechten = computed<Tab['recht'][]>(() => (ik.value?.klok_zetten ? ['klok_zetten'] : []));
+const rechten = computed<Tab['recht'][]>(() => [
+  ...(ik.value?.klok_zetten ? (['klok_zetten'] as const) : []),
+  ...(ik.value?.partijen_invoeren ? (['partijen_invoeren'] as const) : []),
+]);
 </script>
 
 <template>

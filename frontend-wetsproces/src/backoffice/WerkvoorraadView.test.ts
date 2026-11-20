@@ -20,7 +20,11 @@ const casus: Casus = {
 const vormen: Vormen = {
   indieningen: {},
   besluiten: {},
-  eigen: { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', handelingen: [] },
+  eigen: {
+    cel: 'gemeente',
+    cel_naam: 'gemeente Voorbeeld',
+    handelingen: [{ feit: 'wet#9#betaling_gedaan', velden: [{ naam: 'bedrag', type: 'amount' }] }],
+  },
   andere_cellen: [
     {
       cel: 'adviseur',
@@ -37,7 +41,9 @@ const aanvraag: Gram = {
   recording_actor: 'gemeente',
 };
 
-const ik: { value: Ik } = { value: { sub: 'x', naam: null, burger: false, identiteit: null, niveau: null, cellen: [], klok_zetten: false } };
+const ik: { value: Ik } = {
+  value: { sub: 'x', naam: null, burger: false, identiteit: null, niveau: null, cellen: [], partijen_invoeren: false, klok_zetten: false },
+};
 
 vi.mock('./api', () => ({
   backofficeApi: {
@@ -65,7 +71,7 @@ describe('the work queue', () => {
   it('lets a decider of the cell open a submission to decide on it', async () => {
     const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: true, beslissen: true }]);
     expect(teOpenen(w)).toBe(1);
-    expect(knoppen(w).some((t) => t?.endsWith('vastleggen'))).toBe(false);
+    expect(knoppen(w)).not.toContain('Advies uitgebracht vastleggen');
   });
 
   it('lets the decider flag alone open a submission, without the facts a handler records', async () => {
@@ -77,12 +83,15 @@ describe('the work queue', () => {
   it('shows a handler the submissions without the button to decide', async () => {
     const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: true, beslissen: false }]);
     expect(teOpenen(w)).toBe(0);
-    expect(w.text()).toContain('Een beslisser van deze cel neemt het besluit');
+    expect(w.text()).toContain('Een beslisser neemt het besluit');
   });
 
-  it('offers a handler of a cell the facts that cell records, and a reader nothing', async () => {
-    const recht = { cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', lezen: true, beslissen: false };
-    expect(knoppen(await toon([{ ...recht, behandelen: true }]))).toContain('Advies uitgebracht vastleggen');
+  it('offers a handler the facts the executor records, a reader nothing, and nobody an external party\'s', async () => {
+    const recht = { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, beslissen: false };
+    const handler = knoppen(await toon([{ ...recht, behandelen: true }]));
+    expect(handler).toContain('Betaling gedaan vastleggen');
+    // The advisor's advice goes through the admin panel, not the work queue.
+    expect(handler).not.toContain('Advies uitgebracht vastleggen');
     expect(knoppen(await toon([{ ...recht, behandelen: false }]))).toEqual([]);
   });
 });
