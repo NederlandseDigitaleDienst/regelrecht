@@ -1,6 +1,6 @@
 ---
-# Fictional. A pre_actions hook on every beschikking, whose output the hooks
-# of another law and a filling read (resolver.rs).
+# Fictional. A pre_actions hook on every beschikking, whose output a filling
+# reads, and which reads an output of a decision of its own law (resolver.rs).
 $schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
 $id: voorbereidingswet_voorbeeld
 regulatory_layer: WET
@@ -18,6 +18,7 @@ articles:
       execution:
         parameters:
           - {name: aantal_medewerkers, type: number, required: false, nullable: true}
+          - {name: voorbereid_op, type: date, required: false, nullable: true}
         output:
           - {name: datum_voorbereid, type: date}
         actions:
@@ -39,3 +40,13 @@ articles:
         actions:
           - output: wettelijke_beslistermijn
             value: {operation: DATE_ADD, date: $datum_voorbereid, weeks: 6}
+  - number: '3'
+    url: https://example.invalid/voorbereidingswet-voorbeeld/3
+    text: Een aanvraag die niet is voorbereid wordt afgewezen.
+    machine_readable:
+      execution:
+        produces: {legal_character: BESCHIKKING, decision_type: AFWIJZING}
+        output:
+          - {name: voorbereid_op, type: date}
+        actions:
+          - {output: voorbereid_op, value: '2026-01-01'}

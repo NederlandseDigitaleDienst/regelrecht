@@ -1692,10 +1692,11 @@ pub(crate) fn reject_unknown_state(law: &ArticleBasedLaw) -> Result<()> {
     Ok(())
 }
 
-/// A coupling by name between a hook and its host that reads as a mistake
-/// (RFC-007, RFC-045). The loader cannot prove it wrong: a hook parameter
-/// the host does not offer may be filled by the caller, or left out on
-/// purpose so that the hook takes its fallback. So it warns and loads.
+/// A coupling between a hook and its host that cannot work as written
+/// (RFC-007, RFC-045, RFC-058): what the hook or a filling of its open term
+/// reads is not where it looks for it. The loader warns and loads, because a
+/// caller may still pass the value, or the law the host names may be loaded
+/// later.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct HookCouplingWarning {
     /// The law of the hook article.
@@ -1741,121 +1742,28 @@ fn hook_applies_to(decl: &HookDeclaration, law: &ArticleBasedLaw, article: &Arti
     }
 }
 
-/// What a host offers a hook by name, with the kind of field and its type:
-/// its parameters, inputs and open terms, and to a `post_actions` hook also
+/// The names a host hands a hook: its parameters, inputs and open terms,
+/// and to a `post_actions` hook also
 /// its outputs. This is what `fire_hooks` passes on, less what a caller adds
 /// at run time.
-fn offered_by_host(
-    article: &Article,
-    with_outputs: bool,
-) -> Vec<(&'static str, &str, ParameterType)> {
-    let mut offered: Vec<(&'static str, &str, ParameterType)> = article
+fn offered_by_host(article: &Article, with_outputs: bool) -> Vec<&str> {
+    let mut offered: Vec<&str> = article
         .get_parameters()
         .iter()
-        .map(|p| ("parameter", p.name.as_str(), p.param_type))
-        .chain(
-            article
-                .get_inputs()
-                .iter()
-                .map(|i| ("input", i.name.as_str(), i.input_type)),
-        )
+        .map(|p| p.name.as_str())
+        .chain(article.get_inputs().iter().map(|i| i.name.as_str()))
         .chain(
             article
                 .get_open_terms()
                 .into_iter()
                 .flatten()
-                .map(|t| ("open term", t.id.as_str(), t.term_type)),
+                .map(|t| t.id.as_str()),
         )
         .collect();
     if with_outputs {
-        offered.extend(
-            article
-                .get_outputs()
-                .iter()
-                .map(|o| ("output", o.name.as_str(), o.output_type)),
-        );
+        offered.extend(article.get_outputs().iter().map(|o| o.name.as_str()));
     }
     offered
-}
-
-/// Whether two declared types could hold one value: the groups of the type
-/// check (T3), where `number` and `amount` are one type, and so are `date`
-/// and `string`.
-fn types_compatible(a: ParameterType, b: ParameterType) -> bool {
-    use ParameterType::{Amount, Date, Number, String};
-    match (a, b) {
-        (Number | Amount, Number | Amount) | (Date | String, Date | String) => true,
-        _ => a == b,
-    }
-}
-
-/// Whether `offered` looks like another spelling of `wanted`: the same words
-/// in another order (`datum_besluit`, `besluit_datum`), the same name with a
-/// qualifier that is a number or an article (`termijn_einde_art12`), or a small edit
-/// (at most one in five characters: `einddag`, `einddatum`). A name that
-/// shares a word or two (`datum_ontvangst`, `datum_ontvangst_bezwaar`), or
-/// differs only in a number (`kind_1_leeftijd`, `kind_2_leeftijd`), is
-/// another fact, not a misspelling.
-fn looks_like(wanted: &str, offered: &str) -> bool {
-    if wanted == offered {
-        return false;
-    }
-    let mut a: Vec<&str> = wanted.split('_').collect();
-    let mut b: Vec<&str> = offered.split('_').collect();
-    a.sort_unstable();
-    b.sort_unstable();
-    if a == b {
-        return true;
-    }
-    // A qualifier that is a number or an article (`_12`, `_art12`); one with
-    // a word in it (`_box3`) names another fact.
-    let qualified = |long: &str, short: &str| {
-        long.strip_prefix(short)
-            .and_then(|rest| rest.strip_prefix('_'))
-            .map(|rest| rest.strip_prefix("art").unwrap_or(rest))
-            .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()))
-    };
-    if qualified(wanted, offered) || qualified(offered, wanted) {
-        return true;
-    }
-    // Names that differ only in their numbers count things apart
-    // (`kind_1_leeftijd`, `kind_10_leeftijd`): two facts, not one misspelled.
-    if without_numbers(wanted) == without_numbers(offered) {
-        return false;
-    }
-    let shortest = wanted.chars().count().min(offered.chars().count());
-    edit_distance(wanted, offered) <= shortest / 5
-}
-
-/// `name` with every run of digits as one `#`.
-fn without_numbers(name: &str) -> String {
-    let mut out = String::with_capacity(name.len());
-    for c in name.chars() {
-        if !c.is_ascii_digit() {
-            out.push(c);
-        } else if !out.ends_with('#') {
-            out.push('#');
-        }
-    }
-    out
-}
-
-/// The Levenshtein distance between two names.
-fn edit_distance(a: &str, b: &str) -> usize {
-    let b: Vec<char> = b.chars().collect();
-    let mut row: Vec<usize> = (0..=b.len()).collect();
-    for (i, ca) in a.chars().enumerate() {
-        let mut diagonal = row[0];
-        row[0] = i + 1;
-        for (j, cb) in b.iter().enumerate() {
-            let above = row[j + 1];
-            row[j + 1] = (above + 1)
-                .min(row[j] + 1)
-                .min(diagonal + usize::from(ca != *cb));
-            diagonal = above;
-        }
-    }
-    row[b.len()]
 }
 
 /// What hook declaration `decl` fires on, for a message: the legal
@@ -1870,34 +1778,22 @@ fn hook_target(decl: &HookDeclaration) -> String {
     format!("{} on {on}", decl.hook_point.as_str())
 }
 
-/// The couplings by name between the hooks in `laws` and their hosts in
-/// `laws` that read as a mistake, in the order of `laws` and their articles.
+/// The couplings between the hooks in `laws` and their hosts in `laws` that
+/// cannot work as written, in the order of `laws` and their articles. Each
+/// is decided from the declarations, without guessing at names:
 ///
-/// A hook receives what its host offers under the names its parameters
-/// declare (`fire_hooks`), and nothing checks that the names meet. Where they
-/// do not, the hook goes without the value and takes whatever its actions do
-/// for an absent value, such as a statutory default. That is right for a
-/// host that has no such value, and wrong for a host that has it under
-/// another name. The two are told apart by what the host offers:
-///
-/// - A host that offers nothing under or near the name has no such value,
-///   and the hook's fallback is deliberate: no warning.
-/// - A host that offers a field whose name looks like another spelling of
-///   the parameter ([`looks_like`]) and whose type could hold it has the
-///   value under the wrong name: a warning naming both.
 /// - A `pre_actions` hook whose parameter is an output of the host runs
-///   before that output exists: a warning.
+///   before that output exists.
+/// - An input of a hook with `source.output` and no `source.regulation`
+///   reads the hook's own law, never the host (RFC-007). Where that law has
+///   no such output, that is a warning, and so is each host that offers it.
+/// - A filling of a hook's open term that names its host (`implements.host`,
+///   schema v0.8.24, RFC-058) never applies when the host is an article its
+///   law lacks, or one the hook does not fire on.
+/// - Such a filling that asks for a required parameter its host does not
+///   hand the hook fails under the hook, unless a caller passes it.
 ///
-/// Separately, an input of a hook with `source.output` and no
-/// `source.regulation` reads the hook's own law, never the host (RFC-007).
-/// Where the hook's own law has no such output, that is a warning too,
-/// naming the hosts that do offer the name.
-///
-/// A filling of a hook's open term that names its host (`implements.host`,
-/// schema v0.8.24, RFC-058) and that the hook never reaches is a warning as
-/// well: an article its law lacks, or one the hook does not fire on. So is a
-/// filling that asks for a required parameter its host does not hand the
-/// hook. A law that is not loaded is not judged.
+/// A law that is not loaded is not judged.
 pub fn hook_coupling_warnings(laws: &[&ArticleBasedLaw]) -> Vec<HookCouplingWarning> {
     hook_coupling_warnings_touching(laws, None)
 }
@@ -1959,7 +1855,7 @@ impl<'l> CouplingSet<'l> {
             .collect()
     }
 
-    /// What `host` offers a hook by name (`offered_by_host`), and to a
+    /// The names `host` hands a hook (`offered_by_host`), and to a
     /// `post_actions` hook also the outputs of the `pre_actions` hooks on it,
     /// other than those of `except`.
     fn offered_to(
@@ -1968,7 +1864,7 @@ impl<'l> CouplingSet<'l> {
         host: &'l Article,
         post: bool,
         except: Option<(&str, &str)>,
-    ) -> Vec<(&'static str, &'l str, ParameterType)> {
+    ) -> Vec<&'l str> {
         let mut offered = offered_by_host(host, post);
         if post {
             for pre in &self.hooks {
@@ -1976,13 +1872,7 @@ impl<'l> CouplingSet<'l> {
                     d.hook_point == HookPoint::PreActions && hook_applies_to(d, host_law, host)
                 });
                 if fires && except != Some((pre.law.id.as_str(), pre.article.number.as_str())) {
-                    offered.extend(pre.article.get_outputs().iter().map(|o| {
-                        (
-                            "output of a pre_actions hook",
-                            o.name.as_str(),
-                            o.output_type,
-                        )
-                    }));
+                    offered.extend(pre.article.get_outputs().iter().map(|o| o.name.as_str()));
                 }
             }
         }
@@ -2031,7 +1921,7 @@ pub(crate) fn hook_coupling_warnings_touching(
             input_warnings(hook, &mut warnings);
         }
         for (host_law, host, matching) in &hosts {
-            parameter_warnings(&set, hook, (host_law, host), matching, &mut warnings);
+            host_warnings(hook, (host_law, host), matching, &mut warnings);
         }
     }
     filling_warnings(&set, touching, &mut warnings);
@@ -2081,31 +1971,18 @@ fn input_warnings(hook: &HookArticle<'_>, warnings: &mut Vec<HookCouplingWarning
     }
 }
 
-/// A parameter of `hook` that `host` offers under another spelling, or as
-/// an output a `pre_actions` hook does not see yet.
-fn parameter_warnings(
-    set: &CouplingSet<'_>,
+/// For `hook` on `host`: an input that reads, in the hook's own law, an
+/// output the host offers, and a parameter of a `pre_actions` hook that is an
+/// output of the host, which that hook does not see yet.
+fn host_warnings(
     hook: &HookArticle<'_>,
     (host_law, host): (&ArticleBasedLaw, &Article),
     matching: &[&HookDeclaration],
     warnings: &mut Vec<HookCouplingWarning>,
 ) {
-    let post = matching
-        .iter()
-        .any(|d| d.hook_point == HookPoint::PostActions);
-    let except = Some((hook.law.id.as_str(), hook.article.number.as_str()));
-    let offered = set.offered_to(host_law, host, post, except);
-    let on = matching
-        .iter()
-        .map(|d| hook_target(d))
-        .collect::<Vec<_>>()
-        .join(", ");
     let at = Some((host_law.id.as_str(), host.number.as_str()));
     for (input, output) in own_outputs_missing(hook) {
-        if offered_by_host(host, true)
-            .iter()
-            .any(|(_, n, _)| *n == output)
-        {
+        if offered_by_host(host, true).contains(&output) {
             let message = format!(
                 "input '{input}' reads output '{output}' of the hook's own law, not of its \
                  host {} article {}, which offers it. A hook receives a value of its host as \
@@ -2115,12 +1992,21 @@ fn parameter_warnings(
             warnings.push(coupling_warning(hook, at, message));
         }
     }
+    if matching
+        .iter()
+        .any(|d| d.hook_point == HookPoint::PostActions)
+    {
+        return;
+    }
+    let offered = offered_by_host(host, false);
+    let on = matching
+        .iter()
+        .map(|d| hook_target(d))
+        .collect::<Vec<_>>()
+        .join(", ");
     for parameter in hook.article.get_parameters() {
         let wanted = parameter.name.as_str();
-        if offered.iter().any(|(_, n, _)| *n == wanted) {
-            continue;
-        }
-        if !post && host.has_output(wanted) {
+        if !offered.contains(&wanted) && host.has_output(wanted) {
             let message = format!(
                 "hooks onto {} article {} ({on}) and reads parameter '{wanted}', \
                  which the host produces as an output; a pre_actions hook runs \
@@ -2128,32 +2014,7 @@ fn parameter_warnings(
                 host_law.id, host.number
             );
             warnings.push(coupling_warning(hook, at, message));
-            continue;
         }
-        let lookalikes: Vec<String> = offered
-            .iter()
-            .filter(|(_, n, ty)| {
-                hook.article.find_parameter(n).is_none()
-                    && types_compatible(*ty, parameter.param_type)
-                    && looks_like(wanted, n)
-            })
-            .map(|(kind, n, _)| format!("{kind} '{n}'"))
-            .collect();
-        if lookalikes.is_empty() {
-            continue;
-        }
-        let message = format!(
-            "hooks onto {} article {} ({on}) and reads parameter '{wanted}' by \
-             name, which the host does not offer; the host offers {}. A hook \
-             receives a value of its host only under its own name, so the value \
-             does not reach it: it reads what a caller passes under that name, \
-             or goes without (its fallback, or an unknown). If they are one \
-             value, give them one name",
-            host_law.id,
-            host.number,
-            lookalikes.join(" and ")
-        );
-        warnings.push(coupling_warning(hook, at, message));
     }
 }
 
@@ -2231,7 +2092,7 @@ fn filling_warnings(
                     .flatten()
                     .filter(|p| p.required != Some(false))
                     .map(|p| p.name.as_str())
-                    .filter(|name| !offered.iter().any(|(_, n, _)| n == name))
+                    .filter(|name| !offered.contains(name))
                     .collect();
                 if !missing.is_empty() {
                     let message = format!(
@@ -3793,11 +3654,11 @@ articles:
         assert!(matches!(result.outputs.get("x"), Some(Value::Object(_))));
     }
 
-    // A hook couples to its host by name (RFC-007). The fixtures: a general
+    // A hook reads its host by name (RFC-007). The fixtures: a general
     // procedure law whose hook on every BESCHIKKING sets the last day for
     // the decision, the host's own last day when it gives one and eight
     // weeks after receipt otherwise; and a special law whose decision
-    // gives its own last day, under the hook's name or another.
+    // gives its own last day.
 
     /// The general procedure law: one `post_actions` hook on a BESCHIKKING
     /// with a deliberate fallback, and an article producing the suspension
@@ -3901,115 +3762,12 @@ articles:
         )
     }
 
-    /// A special law whose decision has no last day of its own.
-    const SPECIAL_LAW_WITHOUT_DEADLINE: &str = r#"
-$id: fictieve_vergunningwet
-regulatory_layer: WET
-publication_date: '2025-01-01'
-articles:
-  - number: '1'
-    text: Het bestuursorgaan verleent de vergunning.
-    machine_readable:
-      execution:
-        produces:
-          legal_character: BESCHIKKING
-        parameters:
-          - name: datum_ontvangst
-            type: date
-        output:
-          - name: vergunning_verleend
-            type: boolean
-        actions:
-          - output: vergunning_verleend
-            value: true
-"#;
-
     fn service_with(laws: &[&str]) -> LawExecutionService {
         let mut service = LawExecutionService::new();
         for law in laws {
             service.load_law(law).unwrap();
         }
         service
-    }
-
-    /// The last day the hook sets on the decision of `law`, for an
-    /// application received on 1 March 2025, called as a form does that
-    /// leaves the hook's field for the last day empty: the host's own value
-    /// wins where it reaches the hook.
-    fn last_day(service: &LawExecutionService, law: &str, output: &str) -> String {
-        let parameters = BTreeMap::from([
-            (
-                "datum_ontvangst".to_string(),
-                Value::String("2025-03-01".to_string()),
-            ),
-            ("uiterste_beslisdag".to_string(), Value::Null),
-        ]);
-        let result = service
-            .evaluate_law_output(law, output, parameters, "2025-01-01")
-            .unwrap();
-        result
-            .outputs
-            .get("beslistermijn_einddatum")
-            .map(|v| format!("{v:?}"))
-            .unwrap_or_default()
-    }
-
-    /// The host gives its last day under another name: the hook does not
-    /// reach it and silently takes the eight weeks, so the loader warns,
-    /// whichever of the two laws loads first.
-    #[test]
-    fn a_hook_parameter_the_host_offers_under_another_name_is_reported() {
-        let host = special_law("uiterste_beslisdatum");
-        for order in [
-            [PROCEDURE_LAW, host.as_str()],
-            [host.as_str(), PROCEDURE_LAW],
-        ] {
-            let service = service_with(&order);
-            let warnings = service.hook_coupling_warnings();
-            assert_eq!(warnings.len(), 1, "{warnings:#?}");
-            let warning = &warnings[0];
-            assert_eq!(warning.hook_law, "fictieve_procedurewet");
-            assert_eq!(warning.hook_article, "1");
-            assert_eq!(
-                warning.host,
-                Some(("fictieve_subsidiewet".to_string(), "1".to_string()))
-            );
-            assert!(
-                warning.message.contains("'uiterste_beslisdag'")
-                    && warning.message.contains("output 'uiterste_beslisdatum'")
-                    && warning.message.contains("(post_actions on BESCHIKKING)"),
-                "{warning}"
-            );
-            // What the warning is about: eight weeks after receipt, not
-            // the host's 30 June.
-            assert!(
-                last_day(&service, "fictieve_subsidiewet", "uiterste_beslisdatum")
-                    .contains("2025-04-26")
-            );
-        }
-    }
-
-    /// The other side: the host gives its last day under the hook's name.
-    /// The hook reads it, and the loader says nothing.
-    #[test]
-    fn a_hook_parameter_the_host_offers_under_its_name_is_not_reported() {
-        let host = special_law("uiterste_beslisdag");
-        let service = service_with(&[PROCEDURE_LAW, &host]);
-        assert_eq!(service.hook_coupling_warnings(), vec![]);
-        assert!(
-            last_day(&service, "fictieve_subsidiewet", "uiterste_beslisdag").contains("2025-06-30")
-        );
-    }
-
-    /// A host without a last day of its own offers nothing like the name:
-    /// the eight weeks are the law's fallback, meant for this host, and
-    /// no mistake.
-    #[test]
-    fn a_hook_that_takes_its_fallback_on_purpose_is_not_reported() {
-        let service = service_with(&[PROCEDURE_LAW, SPECIAL_LAW_WITHOUT_DEADLINE]);
-        assert_eq!(service.hook_coupling_warnings(), vec![]);
-        let d = last_day(&service, "fictieve_vergunningwet", "vergunning_verleend");
-        assert!(d.contains("2025-04-26"), "{d}");
     }
 
     /// A `pre_actions` hook runs before its host's actions: a parameter
@@ -4123,30 +3881,11 @@ articles:
         );
     }
 
-    /// The helpers of the coupling check: which declared types can hold one
-    /// value, how far apart two names are, and which submission a hook on a
-    /// submission fires on.
+    /// The helpers of the coupling check: which submission a hook on a
+    /// submission fires on, and what a host hands a hook after its actions,
+    /// the outputs of the pre_actions hooks that fire on it included.
     #[test]
-    fn the_coupling_helpers_compare_types_names_and_submissions() {
-        use ParameterType::{Amount, Boolean, Date, Number, String};
-        for (a, b, compatible) in [
-            (Number, Amount, true),
-            (String, Date, true),
-            (Boolean, Boolean, true),
-            (Boolean, Number, false),
-            (Date, Amount, false),
-        ] {
-            assert_eq!(types_compatible(a, b), compatible, "{a:?} {b:?}");
-        }
-        for (a, b, distance) in [
-            ("kitten", "sitting", 3),
-            ("abcd", "ab", 2),
-            ("abc", "", 3),
-            ("", "ab", 2),
-        ] {
-            assert_eq!(edit_distance(a, b), distance, "{a} {b}");
-        }
-        assert_eq!(without_numbers("kind_10_leeftijd_2"), "kind_#_leeftijd_#");
+    fn the_coupling_helpers_match_submissions_and_pre_actions_outputs() {
         let law = <ArticleBasedLaw as crate::article::LawLoad>::from_yaml_str(
             r#"
 $id: fictieve_indieningswet
@@ -4177,30 +3916,62 @@ articles:
         let hook = &law.articles[0].get_hooks().unwrap()[0];
         assert!(hook_applies_to(hook, &law, &law.articles[1]));
         assert!(!hook_applies_to(hook, &law, &law.articles[2]));
-    }
 
-    /// What counts as another spelling of a name, and what as another fact.
-    #[test]
-    fn another_spelling_is_a_small_edit_a_reordering_or_a_numbered_qualifier() {
-        for (wanted, offered) in [
-            ("uiterste_beslisdag", "uiterste_beslisdatum"),
-            ("datum_besluit", "besluit_datum"),
-            ("uiterste_beslisdag", "uiterste_beslisdag_art12"),
-            ("bekendmakingsdatum", "bekendmaking_datum"),
-        ] {
-            assert!(looks_like(wanted, offered), "{wanted} ~ {offered}");
-        }
-        for (wanted, offered) in [
-            ("uiterste_beslisdag", "uiterste_beslisdag"),
-            ("datum_ontvangst", "datum_ontvangst_bezwaarschrift"),
-            ("termijn_weken", "termijn_dagen"),
-            ("naam_indiener", "adres_indiener"),
-            ("uiterste_beslisdag", "uiterste_beslisdag_verlengd"),
-            ("kind_1_leeftijd", "kind_2_leeftijd"),
-            ("kind_9_leeftijd", "kind_10_leeftijd"),
-            ("inkomen", "inkomen_box3"),
-        ] {
-            assert!(!looks_like(wanted, offered), "{wanted} !~ {offered}");
-        }
+        let hooks = <ArticleBasedLaw as crate::article::LawLoad>::from_yaml_str(
+            r#"
+$id: fictieve_haakwet
+regulatory_layer: WET
+publication_date: '2025-01-01'
+articles:
+  - number: '1'
+    text: Artikel 1.
+    machine_readable:
+      hooks:
+        - {hook_point: pre_actions, applies_to: {legal_character: BESCHIKKING}}
+      execution:
+        output: [{name: voor_vuurt, type: date}]
+        actions: [{output: voor_vuurt, value: '2025-01-01'}]
+  - number: '2'
+    text: Artikel 2.
+    machine_readable:
+      hooks:
+        - hook_point: pre_actions
+          applies_to: {legal_character: BESCHIKKING, decision_type: AFWIJZING}
+      execution:
+        output: [{name: voor_vuurt_niet, type: date}]
+        actions: [{output: voor_vuurt_niet, value: '2025-01-01'}]
+  - number: '3'
+    text: Artikel 3.
+    machine_readable:
+      hooks:
+        - {hook_point: post_actions, applies_to: {legal_character: BESCHIKKING}}
+      execution:
+        output: [{name: na, type: date}]
+        actions: [{output: na, value: '2025-01-01'}]
+  - number: '4'
+    text: Artikel 4.
+    machine_readable:
+      execution:
+        produces: {legal_character: BESCHIKKING, decision_type: TOEKENNING}
+        parameters: [{name: datum, type: date}]
+        output: [{name: verleend, type: boolean}]
+        actions: [{output: verleend, value: true}]
+"#,
+        )
+        .unwrap();
+        let laws = [&hooks];
+        let set = CouplingSet::new(&laws);
+        let host = &hooks.articles[3];
+        let offered = |post, except| {
+            let mut names = set.offered_to(&hooks, host, post, except);
+            names.sort_unstable();
+            names
+        };
+        assert_eq!(offered(false, None), ["datum"]);
+        assert_eq!(offered(true, None), ["datum", "verleend", "voor_vuurt"]);
+        assert_eq!(
+            offered(true, Some(("fictieve_haakwet", "1"))),
+            ["datum", "verleend"]
+        );
     }
 }

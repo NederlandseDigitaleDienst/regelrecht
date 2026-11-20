@@ -683,10 +683,10 @@ impl RuleResolver {
             )));
         }
 
-        // RFC-007: a hook reads its host by name, and nothing else ties the
-        // two. A coupling that reads as a mistake is no refusal (the hook
-        // may mean to take its fallback), so it is logged here and listed
-        // by [`Self::hook_coupling_warnings`].
+        // RFC-007, RFC-058: a coupling between a hook and its host that
+        // cannot work as written is no refusal (a caller may still pass the
+        // value, a host may load later), so it is logged here and listed by
+        // [`Self::hook_coupling_warnings`].
         let law_id = law.id.clone();
         self.insert_law(law)?;
         for warning in self.hook_coupling_warnings_touching(Some(&law_id)) {
@@ -695,15 +695,14 @@ impl RuleResolver {
         Ok(())
     }
 
-    /// The couplings by name between the hooks and their hosts in the
-    /// loaded set that read as a mistake: a hook parameter that
-    /// a host offers under another spelling, a `pre_actions` hook that reads
-    /// an output of its host, an input of a hook that reads an output its
-    /// own law lacks, and a filling of an open term of a hook for a host
+    /// The couplings between the hooks and their hosts in the loaded set
+    /// that cannot work as written: a `pre_actions` hook that reads an
+    /// output of its host, an input of a hook that reads an output its own
+    /// law lacks, and a filling of an open term of a hook for a host
     /// (`implements.host`) the hook never reaches, or that asks for a
-    /// required parameter the host does not hand the hook. The newest version of
-    /// each law counts, as for the hooks index. A warning does not stop a
-    /// law from loading.
+    /// required parameter the host does not hand the hook. The newest
+    /// version of each law counts, as for the hooks index. A warning does not
+    /// stop a law from loading.
     pub fn hook_coupling_warnings(&self) -> Vec<crate::HookCouplingWarning> {
         self.hook_coupling_warnings_touching(None)
     }
@@ -5395,13 +5394,10 @@ articles:
             .replace("post_actions", "pre_actions");
         let reads_output =
             include_str!("../tests/fixtures/hook_coupling/invulling_uitvoer_voorbeeld.yaml");
-        // A law of hooks that couple to their hosts by name: parameters under
-        // another spelling of what a host offers (also on a decision of its
-        // own law), of what a pre_actions hook of a third law outputs, and of
-        // what a post_actions hook outputs, which no other hook sees; an input
-        // that looks for the host in its own law; and a filling. The third
-        // law has that pre_actions hook and a filling that reads its output.
-        let hooks_by_name = include_str!("../tests/fixtures/hook_coupling/meldwet_voorbeeld.yaml");
+        // A law whose hook looks for its host's output in its own law, with a
+        // filling that asks for an output of a post_actions hook, and a law
+        // with a pre_actions hook whose output a filling reads.
+        let by_input = include_str!("../tests/fixtures/hook_coupling/meldwet_voorbeeld.yaml");
         let pre_hook =
             include_str!("../tests/fixtures/hook_coupling/voorbereidingswet_voorbeeld.yaml");
         let laws = [
@@ -5411,7 +5407,7 @@ articles:
             include_str!("../tests/fixtures/hook_host/host_fouten_voorbeeld.yaml"),
             include_str!("../tests/fixtures/hook_host/vergunningwet_voorbeeld.yaml"),
             reads_output,
-            hooks_by_name,
+            by_input,
             pre_hook,
         ];
         let mut whole = None;
@@ -5444,11 +5440,10 @@ articles:
             assert_eq!(on_load, set, "order {order:?}");
             assert_eq!(whole.get_or_insert_with(|| set.clone()), &set);
         }
-        // Per warning, the hook and the host it is about. The filling and
-        // hook host warnings of the fixtures come first, then those of the
-        // hooks by name: the input, and per host the other spelling of
-        // `datum_ontvangst` and of the pre_actions output `datum_voorbereid`,
-        // and the input's output on the host that offers it.
+        // Per warning, the hook and the host it is about: the fillings of
+        // the fixtures, the input that looks for its host in its own law and
+        // the host that offers it, and the pre_actions hook that reads an
+        // output of a decision of its own law.
         let about: Vec<String> = whole
             .iter()
             .flatten()
@@ -5458,8 +5453,7 @@ articles:
             })
             .collect();
         let general = |host: &str| format!("algemene_wet_voorbeeld subsidiewet_voorbeeld:{host}");
-        let by_name = |host: &str| format!("meldwet_voorbeeld {host}");
-        let mut expected = vec![
+        let expected = [
             general("1"),
             general("11"),
             general("2"),
@@ -5467,15 +5461,9 @@ articles:
             general("3"),
             general("3"),
             "meldwet_voorbeeld".to_string(),
+            "meldwet_voorbeeld subsidiewet_voorbeeld:1".to_string(),
+            "voorbereidingswet_voorbeeld voorbereidingswet_voorbeeld:3".to_string(),
         ];
-        for (host, count) in [
-            ("meldwet_voorbeeld:2", 2),
-            ("subsidiewet_voorbeeld:1", 3),
-            ("subsidiewet_voorbeeld:3", 2),
-            ("vergunningwet_voorbeeld:1", 2),
-        ] {
-            expected.extend(std::iter::repeat_n(by_name(host), count));
-        }
         assert_eq!(about, expected, "{whole:#?}");
     }
 }
