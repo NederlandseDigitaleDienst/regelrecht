@@ -1,8 +1,73 @@
-// @vitest-environment node
+// The shell, laid out as the editor's: the tabs of the side and the account
+// menu in the bar, the screen in the main pane. The nldd-* elements are not
+// defined in this test, so it reads the attributes Vue sets on them.
+// (One file for the component and its helpers in schil.ts: a second file
+// named schil.test.ts collides with this one on a case-insensitive disk.)
+import { mount } from '@vue/test-utils';
 import { describe, expect, it } from 'vitest';
+import { createMemoryHistory, createRouter } from 'vue-router';
 import type { RouteRecordNormalized } from 'vue-router';
+import Schil from './Schil.vue';
 import { isHuidig, tabsVan } from './schil';
 import type { Tab } from './schil';
+
+const tabs: Tab[] = [
+  { naam: 'lijst', tekst: 'Lijst', pad: '/lijst', icoon: 'inbox', ook: ['detail'] },
+  { naam: 'klok', tekst: 'Klok', pad: '/klok', icoon: 'calendar', recht: 'klok_zetten' },
+];
+
+async function toon(props: Record<string, unknown>, pad = '/lijst') {
+  const leeg = { render: () => null };
+  const router = createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/lijst', name: 'lijst', component: leeg },
+      { path: '/lijst/:id', name: 'detail', component: leeg },
+      { path: '/klok', name: 'klok', component: leeg },
+    ],
+  });
+  await router.push(pad);
+  return mount(Schil, {
+    props: { tabs, naam: null, ...props },
+    slots: { default: '<p id="scherm">scherm</p>' },
+    global: { plugins: [router] },
+  });
+}
+
+const tabTeksten = (w: Awaited<ReturnType<typeof toon>>) =>
+  w.findAll('nldd-tab-bar-item').map((t) => t.attributes('text'));
+
+describe('the shell', () => {
+  it('shows the screen in the main pane of a bar split view', async () => {
+    const w = await toon({});
+    expect(w.find('nldd-shell nldd-bar-split-view').exists()).toBe(true);
+    expect(w.find('nldd-split-view-pane[slot="main"] #scherm').exists()).toBe(true);
+  });
+
+  it('shows a tab only to who holds the right it needs, in the bar and in the mobile bar', async () => {
+    expect(tabTeksten(await toon({}))).toEqual(['Lijst', 'Lijst']);
+    expect(tabTeksten(await toon({ rechten: ['klok_zetten'] }))).toEqual(['Lijst', 'Klok', 'Lijst', 'Klok']);
+  });
+
+  it('marks the tab of the screen as current, also on a screen under it', async () => {
+    const w = await toon({}, '/lijst/7');
+    expect(w.find('nldd-tab-bar-item').attributes('current')).toBeDefined();
+  });
+
+  it('puts who is in in the account menu, with a way out', async () => {
+    const w = await toon({ naam: 'A. de Vries', afmeldTekst: 'Afmelden' });
+    expect(w.find('nldd-identity').attributes('text')).toBe('A. de Vries');
+    const uit = w.findAll('nldd-menu-item').filter((m) => m.attributes('text') === 'Afmelden');
+    expect(uit.length).toBeGreaterThan(0);
+    await uit[0]!.trigger('select');
+    expect(w.emitted('afmelden')).toHaveLength(1);
+  });
+
+  it('offers no way out to nobody', async () => {
+    const w = await toon({});
+    expect(w.findAll('nldd-menu-item').some((m) => m.attributes('icon') === 'logout')).toBe(false);
+  });
+});
 
 const tab: Tab = { naam: 'dossier', tekst: 'Mijn dossier', pad: '/burger', icoon: 'document', ook: ['besluit'] };
 const record = (meta: RouteRecordNormalized['meta']) => ({ meta }) as RouteRecordNormalized;
