@@ -1,11 +1,15 @@
 ---
 # Fictional. A pre_actions hook on every beschikking, whose output the hooks
 # of another law and a filling read (resolver.rs).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
 $id: voorbereidingswet_voorbeeld
 regulatory_layer: WET
+bwb_id: BWBR9999954
 publication_date: '2025-01-01'
+url: https://example.invalid/voorbereidingswet-voorbeeld
 articles:
   - number: '1'
+    url: https://example.invalid/voorbereidingswet-voorbeeld/1
     text: Voor elke beschikking wordt de voorbereiding vastgelegd.
     machine_readable:
       hooks:
@@ -19,6 +23,7 @@ articles:
         actions:
           - {output: datum_voorbereid, value: '2026-01-01'}
   - number: '2'
+    url: https://example.invalid/voorbereidingswet-voorbeeld/2
     text: Na de voorbereiding wordt binnen zes weken beslist.
     machine_readable:
       implements:

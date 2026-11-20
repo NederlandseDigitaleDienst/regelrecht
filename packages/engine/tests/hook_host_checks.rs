@@ -49,27 +49,37 @@ fn a_filling_for_a_host_that_does_not_exist_never_applies() {
     assert_eq!(last_day_of_grant(&fixed), date("2026-03-16"));
 }
 
-/// A key `implements` or `applies_to` does not know, such as `within`, is
-/// refused with its name, where it used to pass without a word.
+/// A key `implements`, its `host` or `applies_to` does not know, such as
+/// `within`, is refused with its name, where it used to pass without a word.
 #[test]
 fn an_unknown_key_in_implements_or_applies_to_is_refused() {
-    for (fixture, known, unknown) in [
+    for (fixture, known, unknown, key) in [
         (
             POLICY,
             "host: {law: subsidiewet_voorbeeld, article: '11'}",
             "within: {law: subsidiewet_voorbeeld}",
+            "within",
+        ),
+        (
+            POLICY,
+            "host: {law: subsidiewet_voorbeeld, article: '11'}",
+            "host: {law: subsidiewet_voorbeeld, article: '11', lid: '1'}",
+            "lid",
         ),
         (
             GENERAL_LAW,
             "applies_to: {legal_character: BESCHIKKING, stage: BESLUIT}",
             "applies_to: {legal_character: BESCHIKKING, within: subsidiewet_voorbeeld}",
+            "within",
         ),
     ] {
         let law = fixture.replacen(known, unknown, 1);
         assert_ne!(law, fixture, "the fixture has `{known}`");
         let error = LawExecutionService::new().load_law(&law).unwrap_err();
         assert!(
-            error.to_string().contains("unknown field `within`"),
+            error
+                .to_string()
+                .contains(&format!("unknown field `{key}`")),
             "{error}"
         );
     }

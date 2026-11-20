@@ -167,7 +167,8 @@ fn main() {
     }
 
     // Step 5: couplings by name between hooks and their hosts in the set
-    // that read as a mistake, and hosts (RFC-058) the hook never reaches. A
+    // that read as a mistake, hosts (RFC-058) the hook never reaches, and
+    // fillings that ask for a parameter their host does not hand on. A
     // WARN: the regulation still runs, and a host may be outside the set.
     let laws: Vec<&ArticleBasedLaw> = latest.values().copied().collect();
     let mut warnings = regelrecht_engine::hook_coupling_warnings(&laws);

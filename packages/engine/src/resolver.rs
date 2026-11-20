@@ -700,7 +700,8 @@ impl RuleResolver {
     /// a host offers under another spelling, a `pre_actions` hook that reads
     /// an output of its host, an input of a hook that reads an output its
     /// own law lacks, and a filling of an open term of a hook for a host
-    /// (`implements.host`) the hook never reaches. The newest version of
+    /// (`implements.host`) the hook never reaches, or that asks for a
+    /// required parameter the host does not hand the hook. The newest version of
     /// each law counts, as for the hooks index. A warning does not stop a
     /// law from loading.
     pub fn hook_coupling_warnings(&self) -> Vec<crate::HookCouplingWarning> {

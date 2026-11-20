@@ -1,11 +1,15 @@
 ---
 # Fictional. Hooks that couple to their hosts by name, for the coupling
 # warnings of the loader (resolver.rs).
+$schema: https://raw.githubusercontent.com/NederlandseDigitaleDienst/regelrecht/refs/tags/schema-v0.8.24/schema/v0.8.24/schema.json
 $id: meldwet_voorbeeld
 regulatory_layer: WET
+bwb_id: BWBR9999953
 publication_date: '2025-01-01'
+url: https://example.invalid/meldwet-voorbeeld
 articles:
   - number: '1'
+    url: https://example.invalid/meldwet-voorbeeld/1
     text: Van elke toekenning wordt melding gedaan.
     machine_readable:
       hooks:
@@ -25,6 +29,7 @@ articles:
         actions:
           - {output: gemeld, value: true}
   - number: '2'
+    url: https://example.invalid/meldwet-voorbeeld/2
     text: De minister kent een meldnummer toe.
     machine_readable:
       execution:
@@ -36,6 +41,7 @@ articles:
         actions:
           - {output: meldnummer_toegekend, value: true}
   - number: '3'
+    url: https://example.invalid/meldwet-voorbeeld/3
     text: Na de vaststelling wordt binnen zeven jaar beslist.
     machine_readable:
       implements:
@@ -53,11 +59,12 @@ articles:
           - output: wettelijke_beslistermijn
             value: {operation: DATE_ADD, date: $datum_ontvangst, years: $bewaartermijn_jaren}
   - number: '4'
-    text: Van elke afwijzing wordt een termijn voor melding vastgelegd.
+    url: https://example.invalid/meldwet-voorbeeld/4
+    text: Van elke toekenning wordt een termijn voor melding vastgelegd.
     machine_readable:
       hooks:
         - hook_point: post_actions
-          applies_to: {legal_character: BESCHIKKING, decision_type: AFWIJZING}
+          applies_to: {legal_character: BESCHIKKING, decision_type: TOEKENNING}
       execution:
         output:
           - {name: meldingstermijn_weken, type: number}

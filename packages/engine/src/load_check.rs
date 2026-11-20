@@ -1858,8 +1858,8 @@ fn edit_distance(a: &str, b: &str) -> usize {
     row[b.len()]
 }
 
-/// What a hook on `article` of `law` would fire on, for a message: the
-/// legal character or the kind of submission.
+/// What hook declaration `decl` fires on, for a message: the legal
+/// character or the kind of submission.
 fn hook_target(decl: &HookDeclaration) -> String {
     let f = &decl.applies_to;
     let on = f
