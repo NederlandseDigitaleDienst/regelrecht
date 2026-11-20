@@ -35,7 +35,7 @@ mod dispatch;
 mod extension;
 #[path = "../../../engine/tests/bdd/helpers/mod.rs"]
 mod helpers;
-// Each runner uses part of it: the cell's never lists, neither excuses.
+// Neither runner reads `NOT_MUTATED`, and the cell's runner never lists.
 #[allow(dead_code)]
 #[path = "../../../engine/tests/common/construct_mutation.rs"]
 mod construct_mutation;
