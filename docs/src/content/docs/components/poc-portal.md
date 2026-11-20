@@ -194,6 +194,8 @@ The UI spec says how the application form fills and shows the fields the law ask
 
 A field with `visibility: hidden` does not show at all. The application still holds it, with whatever fills it, so a hook that reads the field gets its value. In a case with a login step, an application without a session does not come through the form; it counts as one on paper. The system then fills nothing, and the scenario step names what the application holds.
 
+A field may also carry `label` and `help`: how a screen names it and the line under it. They count by field name over every form, and two elements that give one field a different label or help are refused. The PoC passes them on with its forms (`teksten`), and `VeldInvoer.vue` in `packages/frontend-shared` shows them where a caller hands them over.
+
 An element with an `answer` is not part of the form. The PoC refuses a UI spec in which two elements disagree about a field: one hides it or fills it by the system while another asks it, or one prefills it while another has the system fill it.
 
 A source holds the same directories as the corpus: `casussen/`, `regulation/nl/` and `cells/`. A case from a source runs on that source alone. It brings its own Awb and every other rulework it needs, and nothing of the regelrecht corpus takes their place. A case id that is already taken is set aside, and the app says so.

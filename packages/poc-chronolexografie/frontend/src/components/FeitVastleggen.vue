@@ -11,7 +11,7 @@ import { api } from '../api.js';
 import { hoofdletter, leesbaar, state, stap } from '../state.js';
 import { formulier, huidigeStap, ingeklapt, scenarioVerwijzing, scenarioWaarden } from '../scenarioInvoer.js';
 import ArtikelLink from './ArtikelLink.vue';
-import VeldInvoer from './VeldInvoer.vue';
+import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
 
 const props = defineProps({
   // De cel die vastlegt, en de feiten die zij vastlegt (`vormen`).

@@ -163,6 +163,16 @@ zad component edit harvester-admin --deployment regelrecht \
     --env OIDC_REQUIRED_ROLE=harvester-reader
 ```
 
+### Extra claims in the session
+
+`packages/auth` can copy claims besides the standard ones into a service's
+session. `OIDC_EXTRA_CLAIMS` takes a comma-separated list of claim names, and
+the callback stores those it finds under `person_claims`, taken from the ID
+token and else from the access token. A claim is read at login only: a changed
+value at the IdP counts from the next login, while the roles are also renewed
+when the session refreshes its token. The editor and the harvester set none,
+and their sessions are unchanged.
+
 ## Operational notes
 
 ### Role-change propagation

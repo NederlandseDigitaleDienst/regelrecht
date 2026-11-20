@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { alsInvoer, celTekst, kolomVeld, sleutelKolommen, tabelVerschil, zelfdeTabel } from '../src/tabel.js';
+import { alsInvoer, celTekst, kolomVeld, sleutelKolommen, tabelVerschil, zelfdeTabel } from '@regelrecht/frontend-shared/chronolex/tabel';
 import { BESTUUR, RIJEN } from './fixtureTabel.js';
 
 const { kolommen } = BESTUUR;

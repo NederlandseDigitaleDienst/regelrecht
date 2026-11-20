@@ -23,6 +23,7 @@ The editor is the reference for what lives here, and the other apps conform to i
 | Demo (`frontend-demo/`) | The color scheme, value helpers, the Gherkin runner |
 | The two static PoCs (`frontend-poc-*`) | The Gherkin runner, saved state, browser variants, the line diff, the reload-on-stale-bundle handler, the tool-call formatter, the shared components |
 | Lawmaking (`frontend-lawmaking/`) | The color scheme |
+| Chronolexography PoC (`packages/poc-chronolexografie/frontend/`) | The chronolexography form fields, value helpers |
 
 ## Architecture
 
@@ -44,6 +45,10 @@ The package is written in TypeScript. As in the editor, `tsconfig.json` referenc
 
 - Nothing is compiled ahead of time: the apps' Vite builds and Vitest strip the types when they bundle or test the source. Imports leave out the extension, so a script run with plain `node` cannot load these modules. The other conventions all frontends share are in [Frontend Code](/guide/frontend-code).
 - The Gherkin runner names the engine methods it calls in a small `GherkinEngine` interface. The engine's own generated `.d.ts` is part of each app's WASM build output, which this package cannot reach.
+
+### Chronolexography form fields (`./chronolex/*`, `./components/chronolex/*`)
+
+The fields of a form the kern of the chronolexography PoC derives from the law. `chronolex/waarden.ts` puts values in words, `chronolex/tabel.ts` compares and shows a field that holds a table, and `chronolex/voorinvulling.ts` applies the UI spec: what is prefilled, what the system fills, what the form hides. `VeldInvoer.vue` picks the input by the field's type and takes the `label` and `help` a UI spec gives; `TabelInvoer.vue` edits a table row by row, and `OordeelKeuze.vue` asks yes, no or empty. Their tests stay with the PoC, which holds the test source they read.
 
 ### The Gherkin runner (`./gherkin`)
 

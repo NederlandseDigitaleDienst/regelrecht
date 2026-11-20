@@ -37,7 +37,8 @@ use crate::kern::{Corpus, Result};
 use crate::ui_spec;
 
 /// Where a source holds its UI spec: at its root, where the portal puts
-/// the file its manifest names (`UI_SPEC` in poc-portal, `bron.rs`).
+/// the file its manifest names (`UI_SPEC` in
+/// `packages/corpus/src/source_manifest.rs`).
 pub const UI_SPEC: &str = "ui_spec.yaml";
 
 /// This crate's corpus, under the repository root: the cases under
@@ -398,9 +399,9 @@ mod tests {
     }
 
     /// A source on disk as the portal gives it: a folder, or a manifest
-    /// (packages/poc-portal/src/bron.rs).
+    /// (packages/corpus/src/source_manifest.rs).
     fn uit_map(pad: &Path) -> BTreeMap<String, String> {
-        regelrecht_poc_portal::bron::lokaal(pad).unwrap()
+        regelrecht_corpus::source_manifest::lokaal(pad).unwrap()
     }
 
     /// The Awb of this crate's corpus and the reductions of no cell, by

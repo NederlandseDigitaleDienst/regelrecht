@@ -19,7 +19,7 @@ pub use config::{
     process_env,
 };
 pub use handlers::{
-    AuthStatus, PersonInfo, SESSION_KEY_AUTHENTICATED, SESSION_KEY_EMAIL,
+    AuthStatus, PersonInfo, SESSION_KEY_AUTHENTICATED, SESSION_KEY_CLAIMS, SESSION_KEY_EMAIL,
     SESSION_KEY_EMAIL_VERIFIED, SESSION_KEY_NAME, SESSION_KEY_ROLES, SESSION_KEY_SUB,
 };
 pub use middleware::{

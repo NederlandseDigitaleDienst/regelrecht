@@ -4192,8 +4192,6 @@ dependencies = [
  "sqlx",
  "strum",
  "tempfile",
- "testcontainers",
- "testcontainers-modules",
  "thiserror 2.0.21",
  "tokio",
  "tokio-util",
@@ -4211,9 +4209,9 @@ version = "0.1.0"
 dependencies = [
  "chrono",
  "regelrecht-cel",
+ "regelrecht-corpus",
  "regelrecht-engine",
  "regelrecht-law-model",
- "regelrecht-poc-portal",
  "serde",
  "serde_json",
  "serde_yaml_ng",
@@ -4301,6 +4299,11 @@ dependencies = [
  "chrono-tz",
  "serde",
  "serde_json",
+ "sqlx",
+ "testcontainers",
+ "testcontainers-modules",
+ "tokio",
+ "tracing",
  "tracing-subscriber",
 ]
 

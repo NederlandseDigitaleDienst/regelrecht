@@ -15,6 +15,7 @@ pub mod github_settings;
 pub mod implements_index;
 pub mod models;
 pub mod registry;
+pub mod source_manifest;
 pub mod source_map;
 pub mod timing;
 pub mod validation;

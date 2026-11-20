@@ -19,7 +19,7 @@ import { formulier, scenarioWaarden } from '../scenarioInvoer.js';
 import { stilBegrippen } from '../stil.js';
 import { eerdereOordelen, eigenOordelen } from '../oordelen.js';
 import EigenOordelen from './EigenOordelen.vue';
-import OordeelKeuze from './OordeelKeuze.vue';
+import OordeelKeuze from '@regelrecht/frontend-shared/components/chronolex/OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
 import Uitkomst from './Uitkomst.vue';
 import Voorvertoning from './Voorvertoning.vue';

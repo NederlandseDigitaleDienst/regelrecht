@@ -157,6 +157,7 @@ mod tests {
                     client_secret: "test".into(),
                     issuer_url: "https://example.com".into(),
                     required_role: "harvester-reader".into(),
+                    extra_claims: Vec::new(),
                 })
             } else {
                 None
