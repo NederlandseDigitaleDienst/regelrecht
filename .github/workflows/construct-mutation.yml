@@ -44,6 +44,10 @@ concurrency:
 
 env:
   CARGO_TERM_COLOR: always
+  # Het aantal shards. De matrix hieronder kan geen env lezen, dus zijn lijst
+  # verandert hiermee mee; de rapportjob leidt de bestanden die hij samenvoegt
+  # af van dit getal en faalt als er een ontbreekt.
+  SHARD_COUNT: 4
 
 jobs:
   shard:
@@ -57,10 +61,8 @@ jobs:
         # processen naast elkaar op de vier kernen van een runner. De eerste
         # run op PR #2061 deed er per shard vijf tot zeven minuten over,
         # bouwen inbegrepen. Verander je het aantal, verander dan ook
-        # SHARD_COUNT hieronder.
+        # SHARD_COUNT bovenaan.
         shard: [0, 1, 2, 3]
-    env:
-      SHARD_COUNT: 4
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -118,11 +120,11 @@ jobs:
       # met bekende gaten staat, of als een gat op de lijst inmiddels wel
       # vastgepind is. Een ontbrekende shard laat de merge falen.
       - name: Voeg samen en vergelijk met de bekende gaten
-        run: >-
-          node script/construct-mutants.mjs --out construct-mutation.md
-          --check bdd/construct-gaps.txt
-          --merge shards/construct-mutation-0.json shards/construct-mutation-1.json
-          shards/construct-mutation-2.json shards/construct-mutation-3.json
+        run: |
+          files=$(seq 0 $((SHARD_COUNT - 1)) | sed 's|.*|shards/construct-mutation-&.json|')
+          # shellcheck disable=SC2086 # one argument per file, on purpose
+          node script/construct-mutants.mjs --out construct-mutation.md \
+            --check bdd/construct-gaps.txt --merge $files
 
       - name: Bewaar het rapport
         if: always()
