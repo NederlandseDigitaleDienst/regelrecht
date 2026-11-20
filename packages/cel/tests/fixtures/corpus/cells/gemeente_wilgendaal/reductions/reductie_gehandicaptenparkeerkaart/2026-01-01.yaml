@@ -17,7 +17,7 @@ valid_from: '2026-01-01'
 # vernietigde (Awb 8:72, derde lid, onder b).
 # reductie_geldige_gehandicaptenparkeerkaart leest de aggregaten. Er is geen
 # bekendmaking; de url wijst naar artikel 49.
-url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+url: https://example.com/test_traffic_decree/49
 name: Gehandicaptenparkeerkaart per besluit bij de gemeente Wilgendaal (reductie)
 articles:
   - number: '1'
@@ -26,7 +26,7 @@ articles:
       houdt door middel van een chronolexografische reductie op zijn eigen
       kroniek per besluit op een aanvraag om een gehandicaptenparkeerkaart bij
       of het een kaart verstrekt, en tot en met welke dag zij geldig is.
-    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    url: https://example.com/test_traffic_decree/49
     machine_readable:
       projection:
         per: test_traffic_decree#49#BESCHIKKING

@@ -1,8 +1,9 @@
-//! Outcomes of art. 13a of the fictional school leave act, which follows
-//! art. 13a of the Leerplichtwet 1969. These check values of one regelwerk,
-//! not a construct of the cell. The same outcomes of the Leerplichtwet
-//! itself belong in a bucket-A scenario next to it; these stay here until the
-//! cell's steps run there.
+//! Outcomes of art. 13a of the fictional school leave act. These check
+//! values of one regelwerk, not a construct of the cell, and they no longer
+//! cover the Leerplichtwet itself: they pin the fixture's logic, copied from
+//! art. 13a. The outcomes of the real art. 13a belong in a bucket-A scenario
+//! next to the Leerplichtwet, which does not exist yet; when it does, these
+//! go.
 
 use super::*;
 

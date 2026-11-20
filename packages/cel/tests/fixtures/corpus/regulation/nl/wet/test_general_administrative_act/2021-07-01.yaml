@@ -155,12 +155,12 @@ articles:
           moment:
             parameter: datum_ontvangst
             legal_basis:
-              law: Algemene wet bestuursrecht
-              bwb_id: BWBR0005537
+              law: Testwet algemene bestuursregels
+              bwb_id: BWBR9999937
               article: '4:13'
               paragraph: '1'
-              url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel4:13
-              juriconnect: jci1.3:c:BWBR0005537&artikel=4:13&lid=1&z=2021-07-01&g=2021-07-01
+              url: https://example.com/test_general_administrative_act/4:13
+              juriconnect: jci1.3:c:BWBR9999937&artikel=4:13&lid=1&z=2021-07-01&g=2021-07-01
         parameters:
           - name: datum_ontvangst
             type: date
@@ -328,12 +328,12 @@ articles:
           moment:
             parameter: datum_ontvangst_bezwaar_of_beroepschrift
             legal_basis:
-              law: Algemene wet bestuursrecht
-              bwb_id: BWBR0005537
+              law: Testwet algemene bestuursregels
+              bwb_id: BWBR9999937
               article: '6:9'
               paragraph: '1'
-              url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel6:9
-              juriconnect: jci1.3:c:BWBR0005537&artikel=6:9&lid=1&z=2021-07-01&g=2021-07-01
+              url: https://example.com/test_general_administrative_act/6:9
+              juriconnect: jci1.3:c:BWBR9999937&artikel=6:9&lid=1&z=2021-07-01&g=2021-07-01
         parameters:
           - name: datum_ontvangst_bezwaar_of_beroepschrift
             type: date

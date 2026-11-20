@@ -8,13 +8,13 @@ $id: reductie_algemene_wet_bestuursrecht
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
-url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+url: https://example.com/test_general_administrative_act/8:72
 name: Besluiten die nog gelden, naar de Algemene wet bestuursrecht (reductie)
 articles:
   - number: '1'
     text: >-
       Geen regelgeving.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+    url: https://example.com/test_general_administrative_act/8:72
     machine_readable:
       execution:
         parameters:
@@ -125,7 +125,7 @@ articles:
   - number: '2'
     text: >-
       Geen regelgeving.
-    url: https://wetten.overheid.nl/BWBR0005537/2024-01-01#Artikel8:72
+    url: https://example.com/test_general_administrative_act/8:72
     machine_readable:
       execution:
         input:

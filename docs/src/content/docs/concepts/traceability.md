@@ -52,7 +52,7 @@ So the shape of the left margin is a map of which law you are in at any depth, w
 
 ## A real trace
 
-Here is the engine computing `hoogte_zorgtoeslag` (the healthcare allowance amount) for one person on 2025-01-01. The command at the end of this page renders it in full. A snapshot test pins the trace of a smaller fictional chain of the same shape (`packages/engine/tests/expected_allowance_trace.txt`), so the format stays in step with the engine. The interesting parts:
+Here is the engine computing `hoogte_zorgtoeslag` (the healthcare allowance amount) for one person on 2025-01-01. The command at the end of this page renders it in full. A snapshot test pins the trace of a smaller fictional chain with the same kinds of step (a reference to another law, an open term and two Awb hooks) in `packages/engine/tests/expected_allowance_trace.txt`, so the format stays in step with the engine. The excerpts below are not pinned. The interesting parts:
 
 ### A cross-law chain
 

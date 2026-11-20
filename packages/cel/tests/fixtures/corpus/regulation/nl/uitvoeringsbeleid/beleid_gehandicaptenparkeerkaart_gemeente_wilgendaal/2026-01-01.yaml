@@ -4,7 +4,7 @@ $id: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal
 regulatory_layer: UITVOERINGSBELEID
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
-url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+url: https://example.com/test_traffic_decree/49
 name: Gehandicaptenparkeerkaart in de gemeente Wilgendaal (fictief beleid)
 competent_authority:
   name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
@@ -12,7 +12,7 @@ articles:
   - number: '1'
     text: >-
       FICTIEF, eigen keuze in de modellering.
-    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    url: https://example.com/test_traffic_decree/49
     machine_readable:
       open_terms:
         - id: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
@@ -35,7 +35,7 @@ articles:
   - number: '2'
     text: >-
       FICTIEF, eigen keuze in de modellering.
-    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    url: https://example.com/test_traffic_decree/49
     machine_readable:
       open_terms:
         - id: aanvrager_heeft_geldige_gehandicaptenparkeerkaart_volgens_college
@@ -74,7 +74,7 @@ articles:
   - number: '3'
     text: >-
       FICTIEF, eigen keuze in de modellering.
-    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
+    url: https://example.com/test_parking_card_regulation/2
     machine_readable:
       open_terms:
         - id: aanvrager_eerder_gehandicaptenparkeerkaart_verstrekt_volgens_college
@@ -110,7 +110,7 @@ articles:
   - number: '4'
     text: >-
       FICTIEF, eigen keuze in de modellering.
-    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    url: https://example.com/test_parking_card_regulation/3
     machine_readable:
       open_terms:
         - id: geneeskundig_onderzoek_heeft_plaatsgehad_volgens_college
@@ -152,7 +152,7 @@ articles:
   - number: '5'
     text: >-
       FICTIEF, eigen keuze in de modellering.
-    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    url: https://example.com/test_parking_card_regulation/3
     machine_readable:
       open_terms:
         - id: advies_langdurige_loopbeperking
@@ -218,7 +218,7 @@ articles:
   - number: '6'
     text: >-
       FICTIEF, eigen keuze in de modellering.
-    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    url: https://example.com/test_traffic_decree/49
     machine_readable:
       open_terms:
         - id: langdurige_loopbeperking_volgens_college
@@ -324,7 +324,7 @@ articles:
   - number: '7'
     text: >-
       FICTIEF, eigen keuze in de modellering.
-    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    url: https://example.com/test_parking_card_regulation/3
     machine_readable:
       open_terms:
         - id: advies_langdurige_loopbeperking_volgens_college
