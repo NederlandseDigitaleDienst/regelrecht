@@ -1,0 +1,136 @@
+---
+# Constructiemutatie: welke constructie van het wetsformaat merkt een scenario
+# op als ze iets anders doet? De mutaties staan in
+# packages/engine/tests/common/construct_mutation.rs, de aansturing en het
+# rapport in script/construct-mutants.mjs.
+#
+# Regeldekking zegt dat een constructie is uitgevoerd. Dit zegt of een
+# scenario rood wordt als ze breekt. Het rapport komt in de job-samenvatting,
+# en de wekelijkse mutatierun (mutation-testing.yml) neemt de laatste versie
+# over in zijn issue.
+#
+# Op een PR draait hij alleen als de scenario's, de synthetische regelwerken,
+# het schema of de mutaties zelf veranderen. Rood betekent dan: een constructie
+# die vastgepind was is dat niet meer, of een bekend gat in
+# bdd/construct-gaps.txt is gedicht en moet van de lijst. Geen verplichte
+# check; de goedkope helft (tests/construct_coverage.rs, in de Rust-tests) is
+# dat wel, want daar zit hij in.
+name: Construct mutation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'bdd/conformance/**'
+      - 'bdd/construct-gaps.txt'
+      - 'corpus/regulation/nl/*/test_*/**'
+      - 'packages/cel/bdd/**'
+      - 'packages/cel/tests/bdd/**'
+      - 'packages/engine/tests/bdd/**'
+      - 'packages/engine/tests/common/construct_mutation.rs'
+      - 'schema/**'
+      - 'script/construct-mutants.mjs'
+      - '.github/workflows/construct-mutation.yml'
+  schedule:
+    - cron: '0 3 * * 1'  # Monday 03:00 UTC, before the weekly mutation run
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Het aantal shards. De matrix hieronder kan geen env lezen, dus zijn lijst
+  # verandert hiermee mee; de rapportjob leidt de bestanden die hij samenvoegt
+  # af van dit getal en faalt als er een ontbreekt.
+  SHARD_COUNT: 4
+
+jobs:
+  shard:
+    name: Construct mutation (shard ${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        # Een suite draait zijn scenario's na elkaar, dus per constructie twee
+        # processen naast elkaar op de vier kernen van een runner. De eerste
+        # run op PR #2061 deed er per shard vijf tot zeven minuten over,
+        # bouwen inbegrepen. Verander je het aantal, verander dan ook
+        # SHARD_COUNT bovenaan.
+        shard: [0, 1, 2, 3]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@631a55b12751854ce901bb631d5902ceb48146f7  # stable
+
+      - name: Install mold linker
+        uses: ./.github/actions/setup-mold
+
+      - name: Restore cargo registry (shared met CI)
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-registry-${{ hashFiles('packages/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-registry-
+
+      # Eén build, daarna per constructie twee testruns tegen dezelfde
+      # binaries: de mutatie zit in de YAML die de runner laadt, niet in de
+      # code. RUSTFLAGS herhaalt de mold-link-arg, zoals in ci.yml.
+      - name: Breek elke constructie van deze shard en draai de scenario's
+        env:
+          RUSTFLAGS: '-Dwarnings -C link-arg=-fuse-ld=mold'
+        run: >-
+          node script/construct-mutants.mjs
+          --shard "${{ matrix.shard }}/${SHARD_COUNT}"
+          --json "construct-mutation-${{ matrix.shard }}.json"
+
+      - name: Bewaar de uitkomsten
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
+        with:
+          name: construct-mutation-shard-${{ matrix.shard }}
+          path: construct-mutation-${{ matrix.shard }}.json
+          if-no-files-found: error
+          retention-days: 14
+
+  report:
+    name: Construct mutation
+    needs: shard
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+
+      - name: Haal de shards op
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333  # v8.0.2
+        with:
+          pattern: construct-mutation-shard-*
+          path: shards
+          merge-multiple: true
+
+      # Rood als een constructie niet (meer) vastgepind is en niet in de lijst
+      # met bekende gaten staat, of als een gat op de lijst inmiddels wel
+      # vastgepind is. Een ontbrekende shard laat de merge falen.
+      - name: Voeg samen en vergelijk met de bekende gaten
+        run: |
+          files=$(seq 0 $((SHARD_COUNT - 1)) | sed 's|.*|shards/construct-mutation-&.json|')
+          # shellcheck disable=SC2086 # one argument per file, on purpose
+          node script/construct-mutants.mjs --out construct-mutation.md \
+            --check bdd/construct-gaps.txt --merge $files
+
+      - name: Bewaar het rapport
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9  # v7
+        with:
+          name: construct-mutation-report
+          path: construct-mutation.md
+          if-no-files-found: warn
+          retention-days: 90

@@ -1,5 +1,5 @@
 ---
-# De volledige mutatierun over de hele engine. Dit is de tegenhanger van
+# De volledige mutatierun over de engine en de cel. Dit is de tegenhanger van
 # mutation-diff.yml: die bewaakt nieuwe code op de PR waar hij geschreven
 # wordt, deze inventariseert wekelijks wat er al ligt. De uitkomst gaat naar
 # een issue, want een artifact dat niemand opent is geen bevinding.
@@ -35,10 +35,14 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_MUTANTS_VERSION: 27.1.0
   # Bij ~1050 mutanten van elk zo'n 18 seconden bouwen-plus-testen (gemeten,
-  # niet geschat) kost de hele run ruim vijf uur. Over twaalf shards is dat
-  # zo'n halfuur per shard en past het ruim binnen de timeout hieronder.
+  # niet geschat) kost de hele run ruim vijf uur. Over twaalf shards was dat
+  # zo'n halfuur per shard. De engine groeide sindsdien naar ~2570 mutanten,
+  # en in de run van 2026-11-16 liepen zeven van de twaalf shards tegen de
+  # timeout van een uur aan: ~190 mutanten bleven ongetest zonder dat het
+  # issue dat zei. Met de cel erbij (~580) zijn het er ~3150. Over 24 shards
+  # is dat ~130 per shard, zo'n veertig minuten tegen een timeout van zestig.
   # De matrix wordt hieruit afgeleid, dus dit is de enige plek waar het staat.
-  SHARD_COUNT: 12
+  SHARD_COUNT: 24
   # Zolang er meer dan dit aantal mutanten overleeft, is de opdracht simpel:
   # dat getal omlaag, elke week met dezelfde multiplier zodat de cijfers
   # vergelijkbaar blijven. Zakt het eronder, dan is de voorraad weggewerkt en
@@ -145,9 +149,13 @@ jobs:
         # Afgeleid van SHARD_COUNT door de plan-job, zodat dat getal maar op
         # één plek staat.
         shard: ${{ fromJSON(needs.plan.outputs.shards) }}
+    # Vanuit de workspace-root, met de pakketten bij naam: vanuit
+    # packages/engine ziet cargo-mutants alleen de engine. De cel kwam erbij
+    # omdat de diff-poort haar al muteert, maar alleen op gewijzigde regels; wat
+    # er al stond werd nooit geïnventariseerd.
     defaults:
       run:
-        working-directory: packages/engine
+        working-directory: packages
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
@@ -198,6 +206,7 @@ jobs:
         run: |
           set +e
           cargo mutants --in-place \
+            --package regelrecht-engine --package regelrecht-cel \
             --timeout-multiplier "${{ needs.plan.outputs.multiplier }}" \
             --shard "${{ matrix.shard }}/${SHARD_COUNT}"
           code=$?
@@ -289,6 +298,26 @@ jobs:
               | while read -r count file; do echo "| \`$file\` | $count |"; done
           } > report/top-files.md
 
+          # De score per crate: van de mutanten die compileerden, het deel dat
+          # een test rood maakte. Een timeout telt niet mee als gevangen; zo'n
+          # mutant sneuvelt door de klok, niet door een assertie.
+          {
+            echo '| Crate | Gevangen | Overleefd | Vastgelopen | Score |'
+            echo '| --- | ---: | ---: | ---: | ---: |'
+            for crate in engine cel; do
+              c=$(grep -c "^$crate/" report/caught.txt || true)
+              m=$(grep -c "^$crate/" report/missed.txt || true)
+              t=$(grep -c "^$crate/" report/timeout.txt || true)
+              n=$((c + m + t))
+              if [ "$n" -gt 0 ]; then
+                score=$(awk -v c="$c" -v n="$n" 'BEGIN { printf "%.1f%%", 100 * c / n }')
+              else
+                score="-"
+              fi
+              echo "| \`$crate\` | $c | $m | $t | $score |"
+            done
+          } > report/per-crate.md
+
           # Het geheugen voor de volgende run: hiermee weet de plan-job welke
           # multiplier er gebruikt is en hoe groot de voorraad was.
           cat > report/run-meta.json <<META
@@ -313,6 +342,8 @@ jobs:
             echo "- gevangen: $caught"
             echo "- vastgelopen: $timeout"
             echo "- niet compileerbaar: $unviable"
+            echo
+            cat report/per-crate.md
             echo
             cat report/top-files.md
           } > report/README.md
@@ -392,8 +423,28 @@ jobs:
           path: report/
           retention-days: 90
 
+      # Het rapport van de constructiemutatie (construct-mutation.yml), die
+      # dezelfde ochtend eerder draait. Zij vraagt van de taal wat deze run van
+      # de Rust-code vraagt: of een scenario merkt dat een constructie breekt.
+      - name: Haal het rapport van de constructiemutatie op
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          id=$(gh run list --repo "$GITHUB_REPOSITORY" \
+            --workflow construct-mutation.yml --branch main --status completed \
+            --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$id" ] && gh run download "$id" --repo "$GITHUB_REPOSITORY" \
+               -n construct-mutation-report -D constructs 2>/dev/null; then
+            echo "Constructierapport uit run $id."
+            echo "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/$id" > constructs/run-url
+          else
+            echo "::warning::Geen constructierapport gevonden; het issue krijgt een regel die dat zegt."
+          fi
+
       - name: Meld de bevindingen als issue
         env:
+          MUTANTS_RESULT: ${{ needs.mutants.result }}
           GH_TOKEN: ${{ github.token }}
           MISSED: ${{ steps.merge.outputs.missed }}
           CAUGHT: ${{ steps.merge.outputs.caught }}
@@ -426,6 +477,16 @@ jobs:
             echo "elke overlevende mutatie met bestand, regel en de doorgevoerde wijziging."
             echo "De [run](${RUN_URL}) bewaart het artifact negentig dagen."
             echo
+            if [ "$MUTANTS_RESULT" != "success" ]; then
+              echo "> Niet elke shard werd afgemaakt (\`$MUTANTS_RESULT\`). De mutanten"
+              echo "> van een afgebroken shard staan in geen van de tellingen hierboven,"
+              echo "> dus de werkelijke voorraad kan groter zijn. Zie de shard-jobs in de run."
+              echo
+            fi
+            echo "### Per crate"
+            echo
+            cat report/per-crate.md
+            echo
             echo "### Sinds de vorige run"
             echo
             cat report/vergelijking.md
@@ -448,6 +509,24 @@ jobs:
             echo
             echo "Nieuwe code wordt sinds \`mutation-diff.yml\` op de PR zelf bewaakt; dit"
             echo "issue gaat over de voorraad die daarvoor al bestond."
+            if [ -f constructs/construct-mutation.md ]; then
+              echo
+              echo "### Constructies van het wetsformaat"
+              echo
+              echo "cargo-mutants draait de BDD-suites niet. De constructiemutatie"
+              echo "(\`just construct-mutants\`) breekt per constructie de synthetische"
+              echo "regelwerken en kijkt of bucket B of de suite van de cel het merkt."
+              echo
+              cat constructs/construct-mutation.md
+              echo
+              echo "Uit [deze run]($(cat constructs/run-url))."
+            else
+              echo
+              echo "### Constructies van het wetsformaat"
+              echo
+              echo "_Geen rapport van de constructiemutatie gevonden: de laatste run op main"
+              echo "is niet afgerond of had geen rapport. Zie \`construct-mutation.yml\`._"
+            fi
           } > body.md
 
           new_issue=$(gh issue create \

@@ -54,6 +54,10 @@ mod discovery;
 mod dispatch;
 mod extension;
 mod helpers;
+// Neither runner reads `NOT_MUTATED`, and the cell's runner never lists.
+#[allow(dead_code)]
+#[path = "../common/construct_mutation.rs"]
+mod construct_mutation;
 #[path = "../common/reverse_actions.rs"]
 mod reverse_actions;
 mod runner;
@@ -101,6 +105,14 @@ fn corpus_roots() -> Vec<PathBuf> {
 
 #[tokio::main]
 async fn main() {
+    // `BDD_CONSTRUCT_MUTATION=list`: the driver (`script/construct-mutants.mjs`)
+    // asks which constructs there are, one per line as `name<TAB>mutation`.
+    if construct_mutation::list_requested() {
+        for construct in construct_mutation::CONSTRUCTS {
+            println!("{}\t{}", construct.name, construct.how);
+        }
+        return;
+    }
     // Project root = two levels up from the engine package manifest.
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let root = Path::new(manifest_dir)

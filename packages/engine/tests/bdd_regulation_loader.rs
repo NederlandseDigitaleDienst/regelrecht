@@ -8,6 +8,8 @@
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
 mod common;
+#[path = "common/construct_mutation.rs"]
+mod construct_mutation;
 #[path = "common/reverse_actions.rs"]
 mod reverse_actions;
 

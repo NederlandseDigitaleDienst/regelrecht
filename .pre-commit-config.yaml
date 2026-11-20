@@ -230,6 +230,13 @@ repos:
         # Ook op de meegeleverde tijdlijnen: een nieuwe export kan een vorm hebben die het script niet kent.
         files: ^(\.claude/skills/law-wetsgeschiedenis/|corpus-poc/wetsgeschiedenis/gegevens/)
 
+      - id: construct-mutants
+        name: De constructiemutatie leest zijn uitkomsten goed
+        entry: just construct-mutants-test
+        language: system
+        pass_filenames: false
+        files: ^script/construct-mutants(\.test)?\.mjs$
+
       - id: awb-parity
         name: De Awb zegt in beide corpora hetzelfde
         entry: just awb-parity-test
