@@ -68,9 +68,9 @@ articles:
                   then: null
               default: $regio_van_plaats_van_vestiging
             legal_basis:
-              law: Regeling vaststelling schoolvakanties 2025–2030
+              law: Testregeling schoolvakanties
               article: '2'
-              explanation: '"De plaats van vestiging is bepalend voor de regio waartoe een school behoort."'
+              explanation: De regio van een school volgt uit haar plaats van vestiging.
   - number: '3'
     text: FICTIEF, naar artikel 3 van de Regeling vaststelling schoolvakanties 2025-2030.
     url: https://example.com/test_school_holidays_regulation/3

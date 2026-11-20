@@ -16,7 +16,7 @@ valid_from: '2026-08-01'
 # onder b), met de eerste verlofdag daarvan.
 # reductie_verlof_al_verleend_in_schooljaar leest de aggregaten. Er is geen
 # bekendmaking; de url wijst naar artikel 13a.
-url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+url: https://example.com/test_school_leave_act/13a
 name: Vakantieverlof per besluit bij OBS De Klimop (reductie)
 articles:
   - number: '1'
@@ -25,7 +25,7 @@ articles:
       middel van een chronolexografische reductie op zijn eigen kroniek per
       besluit onder artikel 13a bij of het de jongere verlof verleent, en wat
       de eerste verlofdag is.
-    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel13a
+    url: https://example.com/test_school_leave_act/13a
     machine_readable:
       projection:
         per: test_school_leave_act#13a#BESCHIKKING

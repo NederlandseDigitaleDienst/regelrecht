@@ -8,13 +8,13 @@ $id: reductie_geneeskundig_onderzoek
 regulatory_layer: REDUCTIE
 publication_date: '2025-12-01'
 valid_from: '2026-01-01'
-url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+url: https://example.com/test_parking_card_regulation/3
 name: Geneeskundig onderzoek bij de GGD Wilgendaal (reductie)
 articles:
   - number: '1'
     text: >-
       Geen regelgeving.
-    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel3
+    url: https://example.com/test_parking_card_regulation/3
     machine_readable:
       execution:
         parameters:

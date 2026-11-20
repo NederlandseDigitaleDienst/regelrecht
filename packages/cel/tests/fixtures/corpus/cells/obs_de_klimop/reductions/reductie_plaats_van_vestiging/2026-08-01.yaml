@@ -8,13 +8,13 @@ $id: reductie_plaats_van_vestiging
 regulatory_layer: REDUCTIE
 publication_date: '2026-07-01'
 valid_from: '2026-08-01'
-url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+url: https://example.com/test_school_holidays_regulation/2
 name: Plaats van vestiging van OBS De Klimop (reductie)
 articles:
   - number: '1'
     text: >-
       Geen regelgeving.
-    url: https://wetten.overheid.nl/BWBR0049811/2025-08-01#Artikel2
+    url: https://example.com/test_school_holidays_regulation/2
     machine_readable:
       execution:
         parameters:

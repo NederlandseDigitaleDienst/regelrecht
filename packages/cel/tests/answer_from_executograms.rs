@@ -3,10 +3,11 @@
 //! judgement where the cell is silent. The case is leave outside the school
 //! holidays.
 //!
-//! Whether leave falls outside the school holidays (art. 13a of the fictional
-//! school leave act, after the Leerplichtwet 1969) follows from what the school recorded and
-//! the law, not from a judgement of the head (RFC-051). A fictional holidays
-//! regulation (after the Regeling vaststelling schoolvakanties 2025–2030) fixes the kerst-, mei- and
+//! Whether leave falls outside the school holidays (art. 13a of the
+//! fictional school leave act, after the Leerplichtwet 1969) follows from
+//! what the school recorded and the law, not from a judgement of the head
+//! (RFC-051). A fictional holidays regulation (after the Regeling
+//! vaststelling schoolvakanties 2025–2030) fixes the kerst-, mei- and
 //! zomervakantie, the last per region; the region follows from where the
 //! school is established, an executogram in its own chronicle; the herfst-
 //! and voorjaarsvakantie are a rule of the school, in its own policy, one

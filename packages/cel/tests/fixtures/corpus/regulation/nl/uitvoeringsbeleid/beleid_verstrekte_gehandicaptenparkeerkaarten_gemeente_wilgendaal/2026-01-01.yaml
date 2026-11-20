@@ -17,7 +17,7 @@ valid_from: '2026-01-01'
 # van het herroepen besluit nam, beide voor de reductie per besluit. Het
 # staat los van het beleid gehandicaptenparkeerkaart, omdat dat beleid de
 # reductie aanroept.
-url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+url: https://example.com/test_traffic_decree/49
 name: Verstrekte gehandicaptenparkeerkaarten in de gemeente Wilgendaal (fictief beleid)
 competent_authority:
   name: Het college van burgemeester en wethouders van de gemeente Wilgendaal
@@ -30,7 +30,7 @@ articles:
       geeft geen kaart. Verstrekte de bestuursrechter hem zelf een kaart, en
       het college geen geldige, dan stelt het college zelf vast of hij een
       geldige kaart heeft.
-    url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
+    url: https://example.com/test_traffic_decree/49
     machine_readable:
       # The reduction gives the decisions about the applicant as rows. This
       # article reads nothing else than what it gets.
@@ -111,7 +111,7 @@ articles:
       college verstrekte de aanvrager eerder een kaart als het hem in een
       besluit een kaart verstrekte, geldig of niet, of als de bestuursrechter
       hem zelf een kaart verstrekte.
-    url: https://wetten.overheid.nl/BWBR0012625/2013-01-01#Artikel2
+    url: https://example.com/test_parking_card_regulation/2
     machine_readable:
       # Zoals artikel 1, voor de vraag of het college de aanvrager eerder een
       # kaart verstrekte (artikel 3 van het beleid gehandicaptenparkeerkaart).
@@ -141,7 +141,7 @@ articles:
       FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Voorziet
       de bestuursrechter zelf in de zaak en verstrekt zijn uitspraak de
       aanvrager een kaart, dan heeft de aanvrager een kaart van de rechter.
-    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel8:72
+    url: https://example.com/test_general_administrative_act/8:72
     machine_readable:
       # Awb 8:72, derde lid, onder b: de uitspraak treedt in de plaats van
       # het vernietigde besluit. De gemeente legt de ontvangst van het
@@ -189,7 +189,7 @@ articles:
       verstrekt het een kaart, dan heeft de aanvrager een kaart tot en met de
       dag die het noemt. Een beslissing op bezwaar zonder nieuw besluit laat
       staan wat gold.
-    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel7:11
+    url: https://example.com/test_general_administrative_act/7:11
     machine_readable:
       # Awb 7:11, tweede lid: het bestuursorgaan herroept het bestreden
       # besluit en neemt in de plaats daarvan een nieuw besluit. De gemeente

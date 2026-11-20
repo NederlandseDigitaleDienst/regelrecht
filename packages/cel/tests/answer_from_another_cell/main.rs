@@ -7,10 +7,10 @@
 //! on application (art. 49 of a fictional traffic decree after the BABW, with
 //! the criteria of a fictional parking card regulation after the Regeling
 //! gehandicaptenparkeerkaart, and the validity of art. 51), with a mini
-//! general administrative act on it,
-//! a reduction over its own decisions and the objection under Awb 7:11. Nothing in the cell knows this case: it follows from the
-//! law, the municipality's policy and its reduction, as the leave case of
-//! `tests/submission_lifecycle/` does.
+//! general administrative act on it, a reduction over its own decisions and
+//! the objection under Awb 7:11. Nothing in the cell knows this case: it
+//! follows from the law, the municipality's policy and its reduction, as the
+//! leave case of `tests/submission_lifecycle/` does.
 //!
 //! The medical examination is the GGD's (Regeling art. 3): a cell of its
 //! own records it, and the municipality's decisions take that cell along

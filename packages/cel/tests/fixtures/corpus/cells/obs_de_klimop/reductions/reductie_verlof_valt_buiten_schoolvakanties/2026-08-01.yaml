@@ -9,13 +9,13 @@ $id: reductie_verlof_valt_buiten_schoolvakanties
 regulatory_layer: REDUCTIE
 publication_date: '2026-07-01'
 valid_from: '2026-08-01'
-url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel11
+url: https://example.com/test_school_leave_act/11
 name: Verlof buiten de schoolvakanties bij OBS De Klimop (reductie)
 articles:
   - number: '1'
     text: >-
       Geen regelgeving.
-    url: https://wetten.overheid.nl/BWBR0002628/2026-08-01#Artikel11
+    url: https://example.com/test_school_leave_act/11
     machine_readable:
       execution:
         parameters:
