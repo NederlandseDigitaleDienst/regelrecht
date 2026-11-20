@@ -112,6 +112,11 @@ Sluit af met een prioriteitenlijst en, voor letter-vs-toelichting-bevindingen, e
 "Lezing: toelichting náást de letter" puur op de twee teksten (zonder de implementatie erbij).
 
 ## Samenhang met andere skills
+- `law-wetsgeschiedenis` — levert de toelichting per artikel en lid, met het Kamerstuk
+  erbij, en de herkomst van elke regel. Gebruik dat als bron voor de toelichting-kant van
+  elke letter-vs-toelichting-vraag, in plaats van de memorie van toelichting als geheel te
+  lezen. Let op dat een toelichting het voorstel beschrijft zoals ingediend: controleer met
+  `herkomst` dat de tekst die zij uitlegt nog de tekst is die je toetst.
 - `law-version-drift-check` — dekt klasse 4 (verbatim-drift) in detail; draai die als Step 0.
 - `regelrecht-stelselanalyse` — cross-law-integriteit, cyclus-workflow en classificatie-taxonomie.
 - `law-generate` — de plaatsings-/bindingsregels (source onder `input:`, niet `parameters:`).

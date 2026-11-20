@@ -168,6 +168,13 @@ with an enumeration-forcing prompt:
 Local `pdftotext` is the final fallback for opaque PDFs; mark such articles as
 verified via local extraction.
 
+For cases 2 and 5, `law-wetsgeschiedenis` finds the act cheaply:
+`herkomst <BWB> <nr>` lists every version of the article with the act and
+Staatsblad that made it, and `vergelijk <BWB> --van <date> --tot <date>` shows
+what changed in between, word by word. It is a pointer, not a source of record:
+the verbatim comparison itself still runs against wetten.overheid.nl or the
+Staatsblad as above.
+
 In the report, every article carries its verification mode:
 `primair: wetten.overheid.nl/<datum>` or `secundair: Stb. <jaartal>, <nr>` or
 `tertiair: local-pdf-extract`.

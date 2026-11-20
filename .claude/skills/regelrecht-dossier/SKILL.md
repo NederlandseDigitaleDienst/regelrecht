@@ -19,6 +19,10 @@ eigenlijke werk gebeurt in de twee skills waarnaar het routeert.
   casuïstiek vindbaar (persona's/assen) en norm-ketens leesbaar/geassert (keten-checkpoints
   + golden-traces). Wordt door beide werk-skills gebruikt bij het schrijven van scenario's
   en het reviewen van traces.
+- **`law-wetsgeschiedenis`** — gedeelde bron-laag (geen aparte fase): de wetsgeschiedenis
+  per artikel en lid uit de Kamerstukken, met herkomst, versies door de tijd en
+  toelichting, elk met het stuk om te citeren. De desk gebruikt het bij het verifiëren en
+  classificeren, de workshop om experts te laten zien hoe een bepaling zo is gekomen.
 
 De volledige flow, het gate-criterium en de handoff-lus staan in `references/routing.md`
 (de canonieke bron; beide werk-skills verwijzen hierheen). Voor het inwerken van nieuwe
