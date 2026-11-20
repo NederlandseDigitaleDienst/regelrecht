@@ -3779,7 +3779,8 @@ articles:
         let warnings = service_with(&[&pre, &host]).hook_coupling_warnings();
         assert_eq!(warnings.len(), 1, "{warnings:#?}");
         assert!(
-            warnings[0].message.contains("pre_actions hook runs before"),
+            warnings[0].message.contains("pre_actions hook runs before")
+                && warnings[0].message.contains("(pre_actions on BESCHIKKING)"),
             "{}",
             warnings[0]
         );
