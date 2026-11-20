@@ -16,6 +16,14 @@ export const backofficeRoutes: RouteRecordRaw[] = [
         props: true,
       },
       { path: 'klok', name: 'klok', component: () => import('./KlokView.vue') },
+      { path: 'beheer', name: 'beheer', component: () => import('./BeheerView.vue'), meta: { beheer: true } },
+      {
+        path: 'beheer/behandelen/:cel/:id',
+        name: 'beheer-behandelen',
+        component: () => import('./BehandelenView.vue'),
+        props: (route) => ({ ...route.params, namens: true }),
+        meta: { beheer: true },
+      },
     ],
   },
 ];

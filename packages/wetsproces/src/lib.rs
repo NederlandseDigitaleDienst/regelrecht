@@ -26,6 +26,7 @@
 //! - [`store`]: the chronicle store trait, with the store in memory and the
 //!   one in Postgres;
 //! - [`dossier`]: which records are about one person;
+//! - [`external`]: what the admin panel shows of an external party;
 //! - [`case`]: the one case, from the manifest;
 //! - [`service`]: the steps, against a store and a clock;
 //! - [`api`]: the HTTP API over the service;
@@ -38,6 +39,7 @@ pub mod case;
 pub mod clock;
 pub mod config;
 pub mod dossier;
+pub mod external;
 pub mod fsc4b;
 pub mod login;
 pub mod service;

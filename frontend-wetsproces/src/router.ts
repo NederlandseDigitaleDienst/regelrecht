@@ -17,6 +17,7 @@ export function omleiding(to: RouteLocationNormalized, wie: Ik | null): string |
   if (kant === 'burger' && !wie?.burger) return startpagina(wie);
   if (kant === 'backoffice' && !isMedewerker(wie)) return startpagina(wie);
   if (to.name === 'klok' && !wie?.klok_zetten) return '/backoffice';
+  if (to.matched.some((r) => r.meta.beheer) && !wie?.partijen_invoeren) return '/backoffice';
   return undefined;
 }
 
@@ -39,5 +40,7 @@ declare module 'vue-router' {
   interface RouteMeta {
     /** The side a route belongs to. */
     kant?: 'burger' | 'backoffice';
+    /** A screen of the admin panel, for whoever enters what an external party did. */
+    beheer?: boolean;
   }
 }

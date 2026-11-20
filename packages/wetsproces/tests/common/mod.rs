@@ -26,6 +26,7 @@ pub const ADVICE: &str =
     "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#5#geneeskundig_advies_uitgebracht";
 pub const GEMEENTE: &str = "gemeente_wilgendaal";
 pub const GGD: &str = "ggd_wilgendaal";
+pub const RECHTBANK: &str = "rechtbank_wilgendaal";
 
 /// Made-up citizen numbers of the BSN test range.
 pub const ANNA: &str = "999990032";
@@ -162,9 +163,10 @@ pub async fn citizen<'a>(app: &'a Router, sub: &str, bsn: &str) -> As<'a> {
     login(app, sub, &["wetsproces-burger"], json!({ "bsn": bsn })).await
 }
 
-pub async fn employee<'a>(app: &'a Router, sub: &str, level: &str, cell: &str) -> As<'a> {
-    let cell_role = format!("wetsproces-cel-{cell}");
-    login(app, sub, &[level, &cell_role], json!({})).await
+/// An employee of the executor at `level`: a step of the ladder is all
+/// the roles an employee holds.
+pub async fn employee<'a>(app: &'a Router, sub: &str, level: &str) -> As<'a> {
+    login(app, sub, &[level], json!({})).await
 }
 
 pub async fn admin(app: &Router) -> As<'_> {
@@ -185,10 +187,11 @@ pub async fn set_clock(app: &Router, day: &str) {
     assert_eq!(klok["datum"], json!(day));
 }
 
-pub async fn head(app: &Router, cell: &str) -> u64 {
-    let reader = employee(app, "lezer-1", "wetsproces-lezer", cell).await;
+/// The head of the executor's chronicle, as a reader sees it.
+pub async fn head(app: &Router) -> u64 {
+    let reader = employee(app, "lezer-1", "wetsproces-lezer").await;
     let (status, kroniek) = reader
-        .get(&format!("/api/backoffice/cellen/{cell}/kroniek"))
+        .get(&format!("/api/backoffice/cellen/{GEMEENTE}/kroniek"))
         .await;
     assert_eq!(status, StatusCode::OK, "{kroniek}");
     kroniek["kop"].as_u64().unwrap()
@@ -235,6 +238,17 @@ pub fn advice(bsn: &str) -> Value {
             "ernstige_beperkingen_andere_dan_loopbeperkingen": false,
         },
     })
+}
+
+/// The GGD's advice on `bsn`, entered by an admin in the admin panel; the
+/// answer is the record in the GGD's chronicle.
+pub async fn ggd_advises(app: &Router, bsn: &str) -> Value {
+    let (status, advies) = admin(app)
+        .await
+        .post("/api/backoffice/beheer/vastleggingen", advice(bsn))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{advies}");
+    advies
 }
 
 /// Anna applies; the answer is her application.

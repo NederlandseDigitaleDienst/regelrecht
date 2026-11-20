@@ -127,7 +127,7 @@ export interface Klok {
   bestuurbaar: boolean;
 }
 
-/** What an employee may do in one cell (`GET /api/ik`). */
+/** What an employee may do for the executor (`GET /api/ik`). */
 export interface CelRecht {
   cel: string;
   cel_naam: string;
@@ -144,7 +144,10 @@ export interface Ik {
   /** A citizen's identifier, from the claim of their account. */
   identiteit: string | null;
   niveau: string | null;
+  /** What the account may do for the executor: the one cell an employee works for, or none. */
   cellen: CelRecht[];
+  /** Whether the account enters in the admin panel what an external party did. */
+  partijen_invoeren: boolean;
   klok_zetten: boolean;
 }
 

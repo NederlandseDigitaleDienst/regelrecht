@@ -42,7 +42,7 @@ use serde_json::{Value, json};
 use tower_sessions::session::{Id, Record};
 use tower_sessions::{Session, SessionStore, session_store};
 
-use crate::access::{self, CITIZEN, Level};
+use crate::access::{CITIZEN, Level};
 use crate::api::{ApiError, AppState};
 use crate::config::LoginChoice;
 use crate::surface::Surface;
@@ -197,9 +197,10 @@ async fn test_login(
 /// `GET /auth/testpersonen`: the accounts a test login can take, each as
 /// `POST /auth/testlogin` takes it, with what it is (`soort`: `burger`,
 /// `medewerker` or `beheerder`) so a screen can name it. Two citizens with
-/// a made-up number of the test range; per cell of the case a handler and
-/// a decider; an admin who may decide for every cell. Derived from the
-/// case, so another case gets its own, and only those of the sides the
+/// a made-up number of the test range; a handler and a decider of the
+/// executor; an admin, who also enters what the external parties do.
+/// Derived from the case, so another case gets its own, and only those of
+/// the sides the
 /// surface serves: the citizens on the instance for citizens, the employees
 /// and the admin on the back office. There only beside the test login.
 async fn test_personas(State(state): State<AppState>) -> Json<Value> {
@@ -223,28 +224,29 @@ async fn test_personas(State(state): State<AppState>) -> Json<Value> {
     Json(Value::Array(personas))
 }
 
-/// The employees of the test login: per cell of the case a handler and a
-/// decider, and an admin who may decide for every cell.
+/// The employees of the test login: a handler and a decider of the
+/// executor, each with their step of the ladder and nothing else, and an
+/// admin.
 fn employee_personas(state: &AppState) -> Vec<Value> {
-    let mut personas = Vec::new();
-    for (cell, cell_name) in state.service().cells() {
-        for level in [Level::Handler, Level::Decider] {
-            personas.push(json!({
+    let service = state.service();
+    let (cell, cell_name) = (service.executor(), service.executor_name());
+    let mut personas: Vec<Value> = [Level::Handler, Level::Decider]
+        .into_iter()
+        .map(|level| {
+            json!({
                 "soort": "medewerker",
                 "sub": format!("{}-{cell}", level.name()),
-                "rollen": [level.role(), access::cell_role(cell)],
+                "rollen": [level.role()],
                 "niveau": level.name(),
                 "cel": cell,
                 "cel_naam": cell_name,
-            }));
-        }
-    }
-    let mut admin_roles = vec![Level::Admin.role().to_string()];
-    admin_roles.extend(state.service().cells().map(|(c, _)| access::cell_role(c)));
+            })
+        })
+        .collect();
     personas.push(json!({
         "soort": "beheerder",
         "sub": "beheerder",
-        "rollen": admin_roles,
+        "rollen": [Level::Admin.role()],
         "niveau": Level::Admin.name(),
     }));
     personas
@@ -399,11 +401,7 @@ pub(crate) mod tests {
         let mut r = record(3);
         r.data.insert(
             SESSION_KEY_ROLES.into(),
-            json!([
-                CITIZEN,
-                "wetsproces-admin",
-                "wetsproces-cel-gemeente_wilgendaal"
-            ]),
+            json!([CITIZEN, "wetsproces-admin", "wetsproces-beslisser"]),
         );
         citizens.create(&mut r).await.unwrap();
         let stored = shared.load(&r.id).await.unwrap().unwrap();

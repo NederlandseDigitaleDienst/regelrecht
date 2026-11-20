@@ -14,6 +14,12 @@
 //! ([`Commit::recorded_by`]), and answers the questions the API asks to
 //! decide: which cell holds a record ([`Service::holder`]) and which
 //! records are about one person ([`Service::dossier`]).
+//!
+//! The service runs the process for one cell, the executor
+//! ([`Service::executor`]): the case's own cell, which the case file names
+//! (`cel`). The other cells of the case are external parties
+//! ([`crate::external`]); their chronicles run in the same commits, but what
+//! they do comes in through the admin panel.
 
 use std::sync::Arc;
 
@@ -25,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
 
 use crate::clock::Clock;
+use crate::external::{self, SubmissionKinds};
 use crate::store::{
     Actor, Appended, CellAppend, ChronicleStore, Commit, IdempotencyKey, Keyed, Receipt,
     StoreError, StoredChronicle,
@@ -249,6 +256,19 @@ fn login_field(corpus: &Corpus) -> Result<String, ServiceError> {
     }
 }
 
+/// An external party as the admin panel shows it ([`Service::external_parties`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct ExternalParty {
+    /// The cell, by its recording actor.
+    pub cell: String,
+    /// The name a screen shows for it.
+    pub name: String,
+    /// The submissions in its chronicle that wait for its decision.
+    pub open: Vec<Gram>,
+    /// Its decisions of which no other cell received a copy yet.
+    pub unsent: Vec<Gram>,
+}
+
 /// The records of every cell that are about one person, as
 /// [`Service::dossier`] gives them.
 #[derive(Debug, Clone, PartialEq)]
@@ -376,12 +396,68 @@ impl Service {
         .await
     }
 
-    /// The cells of the case, its own first, each with the name a screen
-    /// shows for it.
-    pub fn cells(&self) -> impl Iterator<Item = (&str, &str)> {
-        self.cells
+    /// The cell this server runs the process for, whose employees log in to
+    /// the back office: the case's own cell (`cel` in the case file).
+    pub fn executor(&self) -> &str {
+        &self.corpus.casus.cel
+    }
+
+    /// The name a screen shows for the executor.
+    pub fn executor_name(&self) -> &str {
+        self.corpus.cel_naam(self.executor())
+    }
+
+    /// Whether `cell` is a cell of the case other than the executor: a
+    /// party whose acts an admin enters in the admin panel.
+    pub fn is_external(&self, cell: &str) -> bool {
+        cell != self.executor() && self.cells.iter().any(|c| c == cell)
+    }
+
+    /// Per external party, in the order of the case, what the admin panel
+    /// needs to enter its acts: the submissions that wait for its decision
+    /// and its decisions of which no copy was received yet. Not its
+    /// chronicle: what else the party recorded stays out of view.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails.
+    pub async fn external_parties(&self) -> Result<Vec<ExternalParty>, ServiceError> {
+        let read = self.read().await?;
+        let afleiding = &self.corpus.afleiding;
+        let kinds = SubmissionKinds::new(afleiding.indieningen.iter().map(|i| i.soort.clone()));
+        let chronicles: Vec<(&str, Vec<Gram>)> = self
+            .cells
             .iter()
-            .map(|c| (c.as_str(), self.corpus.cel_naam(c)))
+            .map(String::as_str)
+            .zip(read.chronicles.into_iter().map(StoredChronicle::into_grams))
+            .collect();
+        let parties = chronicles
+            .iter()
+            .filter(|(cell, _)| *cell != self.executor())
+            .map(|(cell, grams)| {
+                let copied = afleiding
+                    .indieningen
+                    .iter()
+                    .filter(|i| i.cel == *cell && i.ontvangst.is_some())
+                    .map(|i| i.soort.clone())
+                    .collect();
+                let elsewhere: Vec<&Gram> = chronicles
+                    .iter()
+                    .filter(|(other, _)| other != cell)
+                    .flat_map(|(_, g)| g)
+                    .collect();
+                ExternalParty {
+                    cell: (*cell).to_string(),
+                    name: self.corpus.cel_naam(cell).to_string(),
+                    open: external::open(grams, &kinds).into_iter().cloned().collect(),
+                    unsent: external::unsent(grams, &elsewhere, &kinds, &copied)
+                        .into_iter()
+                        .cloned()
+                        .collect(),
+                }
+            })
+            .collect();
+        Ok(parties)
     }
 
     /// Why the decision `id` came out as it did (`kern::waarom`): who filled

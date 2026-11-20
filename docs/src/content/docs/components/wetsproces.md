@@ -19,6 +19,16 @@ The server loads exactly one source manifest at startup, the same `bron.yaml` fo
 
 The first case is the disabled parking card (BABW, article 49). It runs three cells: the municipality that decides, the GGD that examines the applicant and advises, and the administrative court that decides on an appeal. The regelwerken and cells come from the PoC's corpus; only the case file in `packages/wetsproces/casussen/` and the UI spec `packages/wetsproces/ui_spec.yaml` belong to this component. The server takes the case's own login field (`inloggen.veld`) as the field that identifies a citizen, or else the one field its UI spec has the login fill (`fill: {by: system}` without a source). Here that is `bsn_aanvrager`, marked in the UI spec. The server refuses to start when it finds no such field or more than one.
 
+## The executor and the external parties
+
+One cell is the executor: the organization this server runs the process for, and the only one whose employees log in to the back office. It is the case's own cell, which the case file names under `cel`; for the parking card that is the municipality. No setting of the server names it, so another case brings its own executor.
+
+The other cells of the case stay in the process, because the steps need their chronicles, but nobody works for them in this server. Modeling them as organizations with employees of their own would not end: the GGD depends on other parties in turn, and those on others. What such an external party does comes in through the admin panel instead. An admin (`wetsproces-admin`) enters there, on the party's behalf, what the process allows of it at that moment: the GGD records its advice, the court decides on an appeal and sends a copy of its judgment to the municipality. The panel uses the same forms as the rest of the back office, derived from the law and the UI spec.
+
+What the executor sees of an external party follows the process. The municipality reads what the GGD sends it, which lands in the municipality's own chronicle, and not the GGD's chronicle. The admin panel shows of a party only what an input needs: the submissions that wait for its decision, and its decisions of which no other cell has received a copy. Neither the panel nor any route of the back office returns a party's chronicle.
+
+The admin panel exists in test mode and in stable mode, because until there is a real link with such a party it is the only way its acts reach the process. That link is an open point: an exchange with the GGD's or the court's own system would replace the panel for that party, and it is not built.
+
 ## How a request runs
 
 Where the PoC keeps one visitor's chronicle in the browser, this server keeps every cell's chronicle in a chronicle store. Each step loads all cells of the case from the store at one moment, runs the step of the PoC's kern (`packages/poc-chronolexografie/src/kern.rs`, used as a library), and writes what the step recorded back in one commit. A step can record in more than one cell: the GGD's advice lands in the GGD's chronicle and in the municipality's.
@@ -35,7 +45,7 @@ Two stores implement `ChronicleStore`. The store in memory starts empty and is g
 
 | Table | Holds |
 |---|---|
-| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id (unique across all cells), a format version, the record as `jsonb`, when it was stored, `recorded_by`, the account whose request recorded it, and `recorded_via`, the channel it came in by |
+| `grams` | One row per record: the cell, its sequence number in that cell (from 1), the record's id (unique across all cells), a format version, the record as `jsonb`, when it was stored, `recorded_by`, the account whose request recorded it, and `recorded_via`, the channel it came in by: `keycloak`, `testlogin`, `fsc4b`, or `beheerpaneel` for what an admin entered for an external party |
 | `heads` | Per cell its head |
 | `receipts` | Per idempotency key the request, with the account that sent it, and the answer |
 | `sessions` | The login sessions of both surfaces, made by the session store (`tower-sessions`) at startup; each carries the surface it was made on |
@@ -109,7 +119,7 @@ curl -c jar -H 'content-type: application/json' localhost:7180/auth/testlogin \
 
 The session it writes has the same keys as one after Keycloak, so every request after it goes through the same checks. The route exists only in that case; with OIDC configured, and always in stable mode, it answers `404`.
 
-`WETSPROCES_LOGIN` overrides that choice. `testlogin` gives the test login in test mode even when the OIDC variables are set, and reads none of them. A ZAD preview needs this: its `keycloak` service sets those variables in the container, while the realm may not have the wetsproces roles yet. Stable mode refuses `testlogin`. `oidc` refuses to start without the OIDC variables, and any other value stops the server too. The line `listening on 0.0.0.0:<port>` at startup names the login, the mode, the surface and the store, so the log shows what runs. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the cells of the case: on `burger` the citizens, on `backoffice` the employees and the admin.
+`WETSPROCES_LOGIN` overrides that choice. `testlogin` gives the test login in test mode even when the OIDC variables are set, and reads none of them. A ZAD preview needs this: its `keycloak` service sets those variables in the container, while the realm may not have the wetsproces roles yet. Stable mode refuses `testlogin`. `oidc` refuses to start without the OIDC variables, and any other value stops the server too. The line `listening on 0.0.0.0:<port>` at startup names the login, the mode, the surface and the store, so the log shows what runs. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the case: on `burger` the citizens, on `backoffice` a handler and a decider of the executor and the admin.
 
 An app can use the citizen routes without a browser through [FSC voor Burgers](/components/wetsproces-fsc4b), when that channel is configured. [The app](/components/wetsproces-app) does so with the citizen's screens in a webview.
 
@@ -123,21 +133,26 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `GET /api/casus` | citizen or employee | The case and today's date |
 | `GET /api/formulier` | citizen or employee | The forms of the process today, with what the UI spec says of each field |
 | `GET /api/klok` | citizen or employee | Today's date, and whether it can be set |
-| `GET /api/ik` | citizen or employee | Who is logged in, and per cell what the account may do there |
+| `GET /api/ik` | citizen or employee | Who is logged in, what the account may do for the executor (`cellen`), and whether it may use the admin panel (`partijen_invoeren`) |
 | `GET /api/dossier` | citizen | The records about the citizen, from every cell |
 | `GET /api/dossier/waarom/{id}` | citizen | Why a decision in the citizen's dossier came out as it did |
 | `POST /api/indieningen` | citizen | A submission: `artikel` (the case's own when left out), `op`, `velden` |
-| `GET /api/backoffice/cellen/{cel}/kroniek` | reader of the cell | The chronicle of one cell, with its head |
-| `GET /api/backoffice/waarom/{id}` | reader of the cell holding the decision | Why the decision came out as it did |
-| `POST /api/backoffice/voorvertoning` | decider of the cell holding the submission | What a decision (`op`, `na`, `bevindingen`) would come to; records nothing |
-| `POST /api/backoffice/vastleggingen` | handler of the cell | A fact a cell records: `cel`, `feit`, `velden`, `verwijst_naar` |
-| `POST /api/backoffice/toezendingen` | handler of the cell holding the decision | A copy of the decision `besluit` to the cell it concerns |
-| `POST /api/backoffice/besluiten` | decider of the cell holding the submission | A decision on a submission: `op`, `na`, `bevindingen` |
+| `GET /api/backoffice/cellen/{cel}/kroniek` | reader | The executor's chronicle, with its head; an external party's answers `403` |
+| `GET /api/backoffice/waarom/{id}` | reader | Why a decision of the executor came out as it did |
+| `POST /api/backoffice/voorvertoning` | decider | What a decision (`op`, `na`, `bevindingen`) on a submission of the executor would come to; records nothing |
+| `POST /api/backoffice/vastleggingen` | handler | A fact the executor records: `cel`, `feit`, `velden`, `verwijst_naar` |
+| `POST /api/backoffice/toezendingen` | handler | A copy of the executor's decision `besluit` to the cell it concerns |
+| `POST /api/backoffice/besluiten` | decider | A decision on a submission of the executor: `op`, `na`, `bevindingen` |
 | `PUT /api/backoffice/klok` | admin | In test mode, set the date with `{ "datum": "YYYY-MM-DD" }` |
+| `GET /api/backoffice/beheer/partijen` | admin | Per external party the submissions that wait for its decision (`open`) and its decisions not sent yet (`toe_te_zenden`) |
+| `POST /api/backoffice/beheer/vastleggingen` | admin | A fact an external party records, with the body of `vastleggingen` |
+| `POST /api/backoffice/beheer/voorvertoning` | admin | What an external party's decision would come to; records nothing |
+| `POST /api/backoffice/beheer/besluiten` | admin | An external party's decision on a submission it holds |
+| `POST /api/backoffice/beheer/toezendingen` | admin | A copy of an external party's decision to the cell it concerns |
 
 A citizen's application gets `bsn_aanvrager` from the login; a request that sends it is refused with `422`. A submission that refers to a record (`op`) must refer to one in the citizen's own dossier, and any submission other than the application must refer to one. The dossier is the set of records that hold the citizen's number in that field, with every record that refers to one of them, however indirectly: the decision on the application, an objection to that decision. It is derived from the chronicles on every request and kept nowhere else.
 
-An employee names records by id. A record in a cell whose chronicle they may not read answers `404`, the same as an id that does not exist. The forms list the fields of a record only for the records the caller may see: their own dossier, or the cells they may read.
+An employee names records by id. A record outside the executor's chronicle answers `404`, the same as an id that does not exist; under `/api/backoffice/beheer/` the same holds for a record outside the external parties' chronicles. A cell named in the path or body is public, since the case names its cells: a fact for an external party through `vastleggingen`, or its chronicle, answers `403`, and a cell that is no external party answers `404` in the admin panel. The forms list the fields of a record only for the records the caller may see: a citizen's own dossier, or the executor's chronicle. Each record entered through the admin panel keeps the admin's account in `recorded_by` and `beheerpaneel` in `recorded_via`, while the record itself names the party as its `recording_actor`.
 
 The forms carry the UI spec of the source as the PoC applies it (`src/ui_spec.rs` there): which field is prefilled from which output, which the system fills and which the form hides, and the `label` and `help` a screen shows for a field. The screens are on [Wetsproces Screens](/components/wetsproces-frontend); the server serves the build of its surface from `WETSPROCES_FRONTEND`. A path under `/api/`, `/auth/` or `/fsc4b/` that is no route answers `404`; any other path gets the screens' `index.html`.
 

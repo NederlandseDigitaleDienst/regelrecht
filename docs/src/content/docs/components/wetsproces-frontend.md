@@ -20,14 +20,18 @@ description: "The screens of the wetsproces server: a public side for citizens a
 | `/burger` | citizen | The dossier, as chains of what answers to what: an application, the decision on it, an objection to that decision |
 | `/burger/aanvraag` | citizen | A new application under the case's own article |
 | `/burger/besluit/{id}` | citizen | One decision: what came out, why, and an objection against it |
-| `/backoffice` | employee | Per cell the employee works for, the submissions without a decision and the facts the cell records |
-| `/backoffice/behandelen/{cel}/{id}` | decider of the cell | One submission: the findings the decision asks, a preview, the decision |
-| `/backoffice/kroniek` | reader of a cell | The chronicle of a cell |
+| `/backoffice` | employee | The executor's submissions without a decision, and the facts it records itself |
+| `/backoffice/behandelen/{cel}/{id}` | decider | One submission: the findings the decision asks, a preview, the decision |
+| `/backoffice/kroniek` | reader | The executor's chronicle |
+| `/backoffice/beheer` | admin | The admin panel: per external party the facts it records, what waits for its decision, and its decisions not sent yet |
+| `/backoffice/beheer/behandelen/{cel}/{id}` | admin | The screen of `behandelen`, for a submission that waits for an external party, entered on its behalf |
 | `/backoffice/klok` | admin, test mode | The test clock |
 
-The tabs and buttons a screen shows follow from `GET /api/ik`, which says per cell what the account may do. That is a matter of what to show: the server checks every call against the roles itself.
+The executor is the organization the server works for, and an external party is any other cell of the case; both are explained on [Wetsproces](/components/wetsproces#the-executor-and-the-external-parties). The work queue and the admin panel record a fact with the same sheet (`FeitVastleggen.vue`), and the panel decides with the screen of `behandelen`, which then calls the panel's routes. Each says on screen that the admin acts on the party's behalf.
 
-The test accounts come from the server (`GET /auth/testpersonen`), derived from the cells of the case: two citizens with a made-up number from the BSN test range, a handler and a decider for each cell, and an admin. The login screen says it is a test setup, because anyone who reaches it can pick any account.
+The tabs and buttons a screen shows follow from `GET /api/ik`, which says what the account may do for the executor and whether it may use the admin panel. That is a matter of what to show: the server checks every call against the roles itself.
+
+The test accounts come from the server (`GET /auth/testpersonen`), derived from the case: two citizens with a made-up number from the BSN test range, a handler and a decider of the executor, and an admin. The login screen says it is a test setup, because anyone who reaches it can pick any account.
 
 Every screen carries a band that says the case, the people and the data are made up, and that an outcome on the screen is computed and is no decision of an authority. A computed decision looks as firm as a real one, and a screenshot travels without the text around it. In test mode the band also gives the date of the test clock.
 

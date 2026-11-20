@@ -20,6 +20,22 @@ export interface Beslissing {
   bevindingen: Record<string, unknown>;
 }
 
+/** An external party as the admin panel shows it: what waits for it. */
+export interface Partij {
+  cel: string;
+  cel_naam: string;
+  /** The submissions in its chronicle that wait for its decision. */
+  open: Gram[];
+  /** Its decisions of which no other cell received a copy yet. */
+  toe_te_zenden: Gram[];
+}
+
+/** `GET /api/backoffice/beheer/partijen`: the executor, and per external party what waits for it. */
+export interface Partijen {
+  uitvoerder: { cel: string; cel_naam: string };
+  partijen: Partij[];
+}
+
 /** A fact the cell `cel` records. */
 export interface Vastlegging {
   cel: string;
@@ -37,4 +53,19 @@ export const backofficeApi = {
     stuur<{ besluit: Gram; waarom: Waarom }>('POST', '/api/backoffice/besluiten', b, sleutel),
   vastleggen: (v: Vastlegging, sleutel: string) => stuur<Gram>('POST', '/api/backoffice/vastleggingen', v, sleutel),
   klokZetten: (datum: string) => stuur<Klok>('PUT', '/api/backoffice/klok', { datum }),
+};
+
+/**
+ * The admin panel: what an admin enters on behalf of an external party, such
+ * as the GGD's advice or the court's judgment. The same steps as the
+ * executor's, under routes that reach only the external parties' records.
+ */
+export const beheerApi = {
+  partijen: () => haal<Partijen>('/api/backoffice/beheer/partijen'),
+  voorvertoning: (b: Beslissing) => stuur<Voorvertoning>('POST', '/api/backoffice/beheer/voorvertoning', b),
+  beslissen: (b: Beslissing, sleutel: string) =>
+    stuur<{ besluit: Gram; waarom: Waarom }>('POST', '/api/backoffice/beheer/besluiten', b, sleutel),
+  vastleggen: (v: Vastlegging, sleutel: string) => stuur<Gram>('POST', '/api/backoffice/beheer/vastleggingen', v, sleutel),
+  toezenden: (besluit: string, sleutel: string) =>
+    stuur<Gram>('POST', '/api/backoffice/beheer/toezendingen', { besluit }, sleutel),
 };
