@@ -158,7 +158,7 @@ async fn handle(state: &AppState, route: Route, headers: &HeaderMap, body: &str)
     let p = &request.principal;
     let result = match (route, request.payload) {
         (_, Err(e)) => Err(e),
-        (Route::Case, Ok(_)) => Ok(api::case_of(state)),
+        (Route::Case, Ok(_)) => api::case_of(state).await,
         (Route::Forms, Ok(_)) => api::forms_for(state, p).await,
         (Route::Dossier, Ok(_)) => api::dossier_of(state, p).await,
         (Route::Submit, Ok(payload)) => submit(state, p, payload).await,

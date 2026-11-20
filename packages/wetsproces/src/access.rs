@@ -22,6 +22,13 @@
 //! [`crate::fsc4b`] turns into a principal with the citizen's role only.
 //! What follows the principal does not ask which channel it was; the store
 //! keeps the channel beside each record ([`Principal::actor`]).
+//!
+//! A principal holds only the roles its instance admits
+//! ([`crate::surface::Surface::admitted_roles`]): on the instance for
+//! citizens never an employee's role, on the back office never the
+//! citizen's, whatever the token or the test login gave the session. An
+//! account with only the citizen's role is then nobody on the back office,
+//! and every route there refuses it.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -241,8 +248,9 @@ pub fn forbidden() -> ApiError {
 impl FromRequestParts<AppState> for Principal {
     type Rejection = ApiError;
 
-    /// The principal of the request's browser session; the channel is the
-    /// server's login, the only one that writes a session.
+    /// The principal of the request's browser session, with the roles the
+    /// instance's surface admits; the channel is the server's login, the
+    /// only one that writes a session.
     async fn from_request_parts(
         parts: &mut Parts,
         state: &AppState,
@@ -275,7 +283,7 @@ impl FromRequestParts<AppState> for Principal {
             session.get(SESSION_KEY_CLAIMS).await.map_err(read_error)?;
         Ok(Self::new(
             sub,
-            roles.unwrap_or_default(),
+            state.surface().admitted_roles(roles.unwrap_or_default()),
             claims.unwrap_or_default(),
             state.session_channel(),
         ))

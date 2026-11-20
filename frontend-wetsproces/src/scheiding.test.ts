@@ -7,7 +7,11 @@
 // both sides share, in gedeeld/, imports neither side. And the citizen's
 // entry, every module it reaches with either transport (`#vervoer`), holds
 // nothing of the back office; with the app's transport nothing of the login
-// either, and nothing that keeps data in the webview's storage.
+// either, and nothing that keeps data in the webview's storage. The back
+// office has its own entry (src/backofficeomgeving/, backoffice.html): no
+// module of backoffice/ imports one of burger/ or names a citizen's route,
+// and nothing the entry reaches is of the public side. The combined entry
+// (main.ts) is the only one that carries both.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -47,6 +51,25 @@ describe('the public side', () => {
   });
 });
 
+describe('the back office', () => {
+  const backoffice = bestanden(join(src, 'backoffice'));
+
+  it('has modules to check', () => {
+    expect(backoffice.length).toBeGreaterThan(3);
+  });
+
+  it.each(backoffice.map((p) => [relative(src, p), p]))('%s imports nothing of the public side', (_, pad) => {
+    for (const m of imports(pad)) {
+      expect(m, m).not.toMatch(/(^|\/)(burger|burgeromgeving)\//);
+    }
+  });
+
+  it.each(backoffice.map((p) => [relative(src, p), p]))("%s names no citizen's route", (_, pad) => {
+    const tekst = readFileSync(pad, 'utf8');
+    expect(tekst).not.toMatch(/\/api\/(dossier|indieningen)|\/fsc4b\/|['"`]\/burger/);
+  });
+});
+
 describe('what both sides share', () => {
   it.each(bestanden(join(src, 'gedeeld')).map((p) => [relative(src, p), p]))('%s imports neither side', (_, pad) => {
     for (const m of imports(pad)) expect(m, m).not.toMatch(/\.\.\/(burger|backoffice|inloggen)\//);
@@ -64,10 +87,10 @@ function resolve(pad: string, m: string, vervoer: string): string | null {
   throw new Error(`${relative(src, pad)} imports ${m}, which does not resolve`);
 }
 
-/** Every module of src/ the citizen's entry reaches with the transport `vervoer`, as paths under src/. */
-function bundel(vervoer: string): string[] {
+/** Every module of src/ the entry `entry` (a path under src/) reaches with the transport `vervoer`, as paths under src/. */
+function bundel(vervoer: string, entry = join('burgeromgeving', 'main.ts')): string[] {
   const gezien = new Set<string>();
-  const te = [join(src, 'burgeromgeving', 'main.ts')];
+  const te = [join(src, entry)];
   while (te.length) {
     const pad = te.pop() as string; // the loop runs while `te` is not empty
     if (gezien.has(pad)) continue;
@@ -92,7 +115,7 @@ describe('the citizen entry with the transport of the app', () => {
   it('reaches nothing of the back office, the login or the web shell', () => {
     for (const m of app) {
       expect(m, m).not.toMatch(/^(backoffice|inloggen)\//);
-      expect(m, m).not.toMatch(/^(App\.vue|router\.ts|main\.ts)$/);
+      expect(m, m).not.toMatch(/^(App\.vue|router\.ts|main\.ts|start\.ts)$/);
       expect(m, m).not.toBe(join('gedeeld', 'ik.ts'));
       expect(m, m).not.toBe(join('burgeromgeving', 'vervoer', 'cookie.ts'));
     }
@@ -113,5 +136,31 @@ describe('the citizen entry with the cookie transport', () => {
       expect(m, m).not.toMatch(/^backoffice\//);
       expect(m, m).not.toMatch(/^burgeromgeving\/(tauri\/|vervoer\/tauri)/);
     }
+  });
+});
+
+describe('the back-office entry', () => {
+  const backoffice = bundel('cookie', join('backofficeomgeving', 'main.ts'));
+
+  it('reaches the back-office screens, the login and the shell', () => {
+    expect(backoffice).toContain(join('backoffice', 'routes.ts'));
+    expect(backoffice).toContain(join('backoffice', 'WerkvoorraadView.vue'));
+    expect(backoffice).toContain(join('inloggen', 'InloggenView.vue'));
+    expect(backoffice).toContain('App.vue');
+  });
+
+  it('reaches nothing of the public side or the app', () => {
+    for (const m of backoffice) {
+      expect(m, m).not.toMatch(/^(burger|burgeromgeving)\//);
+      expect(m, m).not.toBe('main.ts');
+    }
+  });
+});
+
+describe('the combined entry', () => {
+  it('is the one that reaches both sides', () => {
+    const beide = bundel('cookie', 'main.ts');
+    expect(beide).toContain(join('burger', 'routes.ts'));
+    expect(beide).toContain(join('backoffice', 'routes.ts'));
   });
 });

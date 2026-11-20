@@ -1,5 +1,8 @@
+import { rename } from 'node:fs/promises';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { defineConfig } from 'vite';
+import type { Plugin } from 'vite';
 import vue from '@vitejs/plugin-vue';
 
 // The server in packages/wetsproces serves the built app beside its API, on
@@ -8,23 +11,52 @@ import vue from '@vitejs/plugin-vue';
 // (`just wetsproces`, port 7180 by default).
 const api = process.env.WETSPROCES_API ?? 'http://localhost:7180';
 
-// The citizen's entry (burger.html, src/burgeromgeving/) holds the citizen's
-// screens on their own, with one transport chosen here, by mode, through the
-// import `#vervoer` (src/burgeromgeving/vervoer.ts):
-// - `--mode app`: the transport of the Tauri app, into dist-app/, which the
-//   shell in src-tauri/ embeds;
-// - `--mode burger`: HTTP with the session cookie, into dist-burger/, for a
-//   web environment of citizens only.
-// Any other mode builds the combined web app (index.html) into dist/.
-const burgerBuilds: Record<string, { vervoer: string; outDir: string }> = {
-  app: { vervoer: 'tauri', outDir: 'dist-app' },
-  burger: { vervoer: 'cookie', outDir: 'dist-burger' },
+// One source, four builds, chosen by mode. Each web build lands in
+// dist/<surface>/ with an index.html, and the server serves the one of its
+// WETSPROCES_SURFACE (packages/wetsproces/src/surface.rs):
+// - `--mode all` (the default): the combined app (index.html), both sides,
+//   for a server on `all` in test mode;
+// - `--mode burger`: the citizen's entry (burger.html) with HTTP and the
+//   session cookie, for the environment of citizens;
+// - `--mode backoffice`: the back office's entry (backoffice.html), for the
+//   environment of employees;
+// - `--mode app`: the citizen's entry with the transport of the Tauri app,
+//   into dist-app/, which the shell in src-tauri/ embeds as burger.html.
+// The citizen's entry chooses its transport through the import `#vervoer`
+// (src/burgeromgeving/vervoer.ts), so a bundle holds only its own.
+interface Build {
+  entry: string;
+  outDir: string;
+  vervoer?: string;
+  /** Write the entry as index.html, where the server looks for it. */
+  index: boolean;
+}
+const builds: Record<string, Build> = {
+  all: { entry: 'index.html', outDir: 'dist/all', index: false },
+  burger: { entry: 'burger.html', outDir: 'dist/burger', vervoer: 'cookie', index: true },
+  backoffice: { entry: 'backoffice.html', outDir: 'dist/backoffice', index: true },
+  app: { entry: 'burger.html', outDir: 'dist-app', vervoer: 'tauri', index: false },
 };
 
+/**
+ * Rename the written page `entry` to index.html. On disk, after the bundle is
+ * written: the bundler does not let a plugin rename an output in the bundle.
+ */
+function alsIndex(entry: string): Plugin {
+  return {
+    name: 'wetsproces-als-index',
+    apply: 'build',
+    async writeBundle(options) {
+      const dir = options.dir ?? 'dist';
+      await rename(join(dir, entry), join(dir, 'index.html'));
+    },
+  };
+}
+
 export default defineConfig(({ mode }) => {
-  const burger = burgerBuilds[mode];
+  const build = builds[mode];
   // Tests and the type check see the app's transport.
-  const vervoer = burger?.vervoer ?? 'tauri';
+  const vervoer = build?.vervoer ?? 'tauri';
   return {
     plugins: [
       vue({
@@ -34,6 +66,7 @@ export default defineConfig(({ mode }) => {
           },
         },
       }),
+      ...(build?.index ? [alsIndex(build.entry)] : []),
     ],
     resolve: {
       alias: {
@@ -42,7 +75,8 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       cssTarget: ['chrome123', 'edge123', 'firefox120', 'safari18'],
-      ...(burger ? { outDir: burger.outDir, rollupOptions: { input: 'burger.html' } } : { outDir: 'dist' }),
+      outDir: build?.outDir ?? builds.all?.outDir,
+      rollupOptions: { input: build?.entry ?? 'index.html' },
     },
     server: {
       host: '0.0.0.0',
