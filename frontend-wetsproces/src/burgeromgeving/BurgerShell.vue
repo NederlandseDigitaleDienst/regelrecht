@@ -1,11 +1,12 @@
 <script setup lang="ts">
-// The shell of the citizen's entry: the band that says this is a trial, the
-// bar with the name of the process and who is in, and the screen of the
+// The shell of the citizen's entry: the editor's layout (gedeeld/Schil.vue)
+// with the citizen's tabs, who is in and how to leave, and the screen of the
 // route. The same for the app and the web; what differs is the transport.
 import { inject, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { foutTekst } from '../gedeeld/http';
-import ProefStrook from '../gedeeld/ProefStrook.vue';
+import Schil from '../gedeeld/Schil.vue';
+import { tabsVan } from '../gedeeld/schil';
 import { VERVOER } from './injectie';
 import type { Toegang } from './vervoer';
 
@@ -33,24 +34,16 @@ async function afmelden() {
 </script>
 
 <template>
-  <nldd-shell>
-    <nldd-page>
-      <nldd-container slot="header" gap="0">
-        <ProefStrook :klok="null" />
-        <nldd-top-navigation-bar no-logo website-title="Wetsproces">
-          <nldd-menu-bar v-if="toegang.binnen" slot="utility" accessible-label="Account">
-            <nldd-menu-bar-item icon="account" :text="toegang.naam ?? ''"></nldd-menu-bar-item>
-            <nldd-menu-bar-item icon="logout" :text="vervoer?.afmelden.tekst" @select="afmelden"></nldd-menu-bar-item>
-          </nldd-menu-bar>
-        </nldd-top-navigation-bar>
-      </nldd-container>
-      <nldd-simple-section v-if="fout">
-        <nldd-inline-dialog icon="warning" icon-color="critical" text="Afmelden lukt niet" :supporting-text="fout"></nldd-inline-dialog>
-      </nldd-simple-section>
-      <RouterView />
-      <nldd-simple-section v-if="toegang.binnen && vervoer?.onderschrift()">
-        <nldd-text color="secondary">{{ vervoer.onderschrift() }}</nldd-text>
-      </nldd-simple-section>
-    </nldd-page>
-  </nldd-shell>
+  <Schil
+    :tabs="tabsVan(route)"
+    :naam="toegang.binnen ? toegang.naam || 'Burger' : null"
+    :afmeld-tekst="vervoer?.afmelden.tekst"
+    @afmelden="afmelden"
+  >
+    <RouterView />
+    <template v-if="fout || (toegang.binnen && vervoer?.onderschrift())" #voet>
+      <nldd-inline-dialog v-if="fout" icon="warning" icon-color="critical" text="Afmelden lukt niet" :supporting-text="fout"></nldd-inline-dialog>
+      <nldd-text v-else color="secondary">{{ vervoer?.onderschrift() }}</nldd-text>
+    </template>
+  </Schil>
 </template>

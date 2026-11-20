@@ -57,22 +57,26 @@ async function toon(cellen: Ik['cellen']) {
 }
 
 const knoppen = (w: Awaited<ReturnType<typeof toon>>) => w.findAll('nldd-button').map((b) => b.attributes('text'));
+/** The rows of the queue that open a submission beside it. */
+const teOpenen = (w: Awaited<ReturnType<typeof toon>>) =>
+  w.findAll('nldd-list-item').filter((r) => r.attributes('button') !== undefined).length;
 
 describe('the work queue', () => {
   it('lets a decider of the cell open a submission to decide on it', async () => {
     const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: true, beslissen: true }]);
-    expect(knoppen(w)).toContain('Behandelen');
+    expect(teOpenen(w)).toBe(1);
     expect(knoppen(w).some((t) => t?.endsWith('vastleggen'))).toBe(false);
   });
 
   it('lets the decider flag alone open a submission, without the facts a handler records', async () => {
     const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: false, beslissen: true }]);
-    expect(knoppen(w)).toEqual(['Behandelen']);
+    expect(teOpenen(w)).toBe(1);
+    expect(knoppen(w)).toEqual([]);
   });
 
   it('shows a handler the submissions without the button to decide', async () => {
     const w = await toon([{ cel: 'gemeente', cel_naam: 'gemeente Voorbeeld', lezen: true, behandelen: true, beslissen: false }]);
-    expect(knoppen(w)).not.toContain('Behandelen');
+    expect(teOpenen(w)).toBe(0);
     expect(w.text()).toContain('Een beslisser van deze cel neemt het besluit');
   });
 

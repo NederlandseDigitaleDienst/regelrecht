@@ -6,6 +6,7 @@ import { useGithubAuth } from '../composables/useGithubAuth';
 import { useColorScheme } from '../composables/useColorScheme';
 import { useSettingsSections } from '../composables/useSettingsSections';
 import { rememberHarvesterOrigin } from '../composables/useLastVisitedRoute';
+import WeergaveMenuItem from '@regelrecht/frontend-shared/components/WeergaveMenuItem.vue';
 
 // The contents of the shell's account menu (its identity header and items),
 // rendered bare so the same contents fill both the account button's popup
@@ -59,19 +60,8 @@ function goToHarvesting() {
 }
 
 // The colour scheme is a submenu here rather than a setting in the settings
-// sheet: it is something you switch briefly, and the radios show at once which
-// one is on.
+// sheet (WeergaveMenuItem, shared with the wetsproces screens).
 const { colorScheme, setColorScheme } = useColorScheme();
-const colorSchemeOptions = [
-  ['auto', 'Systeem', 'display'],
-  ['light', 'Licht', 'light-mode'],
-  ['dark', 'Donker', 'dark-mode'],
-];
-// `select` carries no payload; the chosen value is on the item itself.
-function onColorSchemeSelect(e: Event) {
-  const value = (e.target as Element | null)?.getAttribute?.('value');
-  if (value) setColorScheme(value);
-}
 
 // Without Weergave the sheet only keeps sections behind a role or an
 // environment setting. If none is left, the menu item goes too: an
@@ -94,19 +84,7 @@ const { hasContent: settingsHasContent } = useSettingsSections();
     <nldd-menu-item text="Account aanvragen" icon="new-account" @select="emit('request-account')"></nldd-menu-item>
     <nldd-menu-divider></nldd-menu-divider>
   </template>
-  <nldd-menu-item text="Weergave" icon="appearance">
-    <nldd-menu @select="onColorSchemeSelect">
-      <nldd-menu-item
-        v-for="[value, label, icon] in colorSchemeOptions"
-        :key="value"
-        type="radio"
-        :value="value"
-        :text="label"
-        :icon="icon"
-        :selected="colorScheme === value || undefined"
-      ></nldd-menu-item>
-    </nldd-menu>
-  </nldd-menu-item>
+  <WeergaveMenuItem :waarde="colorScheme" @kies="setColorScheme" />
   <nldd-menu-item v-if="settingsHasContent" text="Instellingen" icon="gear" @select="emit('settings')"></nldd-menu-item>
   <nldd-menu-item v-if="canViewHarvesting" text="Harvester" icon="harvest" @select="goToHarvesting"></nldd-menu-item>
   <nldd-menu-divider></nldd-menu-divider>
