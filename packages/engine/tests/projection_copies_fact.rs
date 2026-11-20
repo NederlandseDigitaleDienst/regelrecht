@@ -22,12 +22,12 @@ fn schema(version: &str) -> String {
     )
 }
 
-/// Article 1 requires the registration, with a nullable number, a string
+/// Article 1 requires the registration, with a nullable number, a number, a string
 /// that may be empty and a table; article 2 the correction of its postcode;
 /// article 3 the finding that it was wrong, which revokes it; article 4 a
-/// fact with a field called `id`, and article 5 one with a list without
-/// columns. A fact without fields does not load at
-/// all (RFC-051), so no copy meets one.
+/// fact with a field called `id`, article 5 one with an array without
+/// columns, and article 6 one with an array that may be null. A fact
+/// without fields does not load at all (RFC-051), so no copy meets one.
 fn register() -> String {
     format!(
         r#"
@@ -42,12 +42,13 @@ articles:
     machine_readable:
       requires:
         - fact: ingeschreven
-          parameters: [bewoner, postcode, huisnummer, toevoeging, kamers]
+          parameters: [bewoner, postcode, huisnummer, verdieping, toevoeging, kamers]
       execution:
         parameters:
           - {{name: bewoner, type: string}}
           - {{name: postcode, type: string}}
           - {{name: huisnummer, type: number, nullable: true}}
+          - {{name: verdieping, type: number}}
           - {{name: toevoeging, type: string, nullable: true}}
           - name: kamers
             type: array
@@ -92,6 +93,19 @@ articles:
       execution:
         parameters:
           - {{name: regels, type: array}}
+  - number: '6'
+    text: Een feit met een lijst die leeg mag zijn.
+    machine_readable:
+      requires:
+        - fact: met_lege_lijst
+          parameters: [regels]
+      execution:
+        parameters:
+          - name: regels
+            type: array
+            nullable: true
+            columns:
+              - {{name: tekst, type: string}}
 "#,
         schema("v0.8.24")
     )
@@ -145,6 +159,7 @@ const BY_HAND: &str = r"        per: test_kopie_register#1#ingeschreven
           - {name: bewoner, type: string}
           - {name: postcode, type: string}
           - {name: huisnummer, type: number, nullable: true}
+          - {name: verdieping, type: number}
           - {name: toevoeging, type: string}
           - name: kamers
             type: array
@@ -157,6 +172,7 @@ const BY_HAND: &str = r"        per: test_kopie_register#1#ingeschreven
               - {output: bewoner, value: $record.bewoner}
               - {output: postcode, value: $record.postcode}
               - {output: huisnummer, value: $record.huisnummer}
+              - {output: verdieping, value: $record.verdieping}
               - {output: toevoeging, value: $record.toevoeging}
               - {output: kamers, value: $record.kamers}";
 
@@ -223,6 +239,7 @@ fn registration(
             ("bewoner", text(bewoner)),
             ("postcode", text(postcode)),
             ("huisnummer", Value::Null),
+            ("verdieping", Value::Int(2)),
             ("toevoeging", text("a")),
             (
                 "kamers",
@@ -331,6 +348,9 @@ fn a_copy_holds_the_fields_of_the_root_alone() {
     // start value.
     let revoked = of("r2");
     assert_eq!(revoked.state["bewoner"], Value::Null);
+    // A number that is not nullable starts as 0, a nullable one as null.
+    assert_eq!(revoked.state["verdieping"], Value::Int(0));
+    assert_eq!(revoked.state["huisnummer"], Value::Null);
     assert_eq!(revoked.state["kamers"], Value::Array(Vec::new()));
     assert!(revoked.set_by.values().all(Option::is_none));
 }
@@ -445,7 +465,7 @@ fn a_copy_of_a_field_called_id_is_refused() {
 }
 
 /// A copied field meets the rules of a property written by hand: in the
-/// state an array holds its columns.
+/// state an array holds its columns, and is never null.
 #[test]
 fn a_copy_of_an_array_without_columns_is_refused() {
     let error = refused("v0.8.25", "        per: test_kopie_register#5#met_lijst");
@@ -456,6 +476,46 @@ fn a_copy_of_an_array_without_columns_is_refused() {
             "test_kopie_register#5#met_lijst",
             "'regels'",
             "without columns",
+        ],
+    );
+}
+
+#[test]
+fn a_copy_of_an_array_that_may_be_null_is_refused() {
+    let error = refused(
+        "v0.8.25",
+        "        per: test_kopie_register#6#met_lege_lijst",
+    );
+    assert_mentions(
+        &error,
+        &[
+            "inschrijving",
+            "test_kopie_register#6#met_lege_lijst",
+            "'regels'",
+            "never null",
+        ],
+    );
+}
+
+/// A copy whose `per` names a kind is refused at load also before the law
+/// of its records is loaded: the form alone says it.
+#[test]
+fn a_copy_of_a_kind_is_refused_before_its_law_loads() {
+    let mut service = LawExecutionService::new();
+    let error = service
+        .load_law(&reduction(
+            "v0.8.25",
+            "reductie_kopie",
+            "        per: test_kopie_register#1#BESCHIKKING",
+        ))
+        .expect_err("the loader refuses the projection")
+        .to_string();
+    assert_mentions(
+        &error,
+        &[
+            "inschrijving",
+            "test_kopie_register#1#BESCHIKKING",
+            "names no fact",
         ],
     );
 }
@@ -518,4 +578,115 @@ fn a_copy_of_an_unknown_fact_fails_when_it_plays() {
             "requires no fact",
         ],
     );
+}
+
+/// A register on schema v0.8.24, valid from `valid_from`, whose article 1
+/// requires a registration with `fields` (each `name: type`).
+fn register_version(valid_from: &str, fields: &[(&str, &str)]) -> String {
+    let names: Vec<&str> = fields.iter().map(|(name, _)| *name).collect();
+    let parameters: String = fields
+        .iter()
+        .map(|(name, ty)| format!("          - {{name: {name}, type: {ty}}}\n"))
+        .collect();
+    format!(
+        r#"
+$schema: {}
+$id: test_kopie_register
+regulatory_layer: WET
+publication_date: '{valid_from}'
+valid_from: '{valid_from}'
+articles:
+  - number: '1'
+    text: De inschrijving van een bewoner.
+    machine_readable:
+      requires:
+        - fact: ingeschreven
+          parameters: [{}]
+      execution:
+        parameters:
+{parameters}"#,
+        schema("v0.8.24"),
+        names.join(", ")
+    )
+}
+
+/// The copy, after two versions of the register: from 2025-03-05 the
+/// registration also holds a postcode.
+fn two_register_versions() -> LawExecutionService {
+    let mut service = LawExecutionService::new();
+    service
+        .load_law(&register_version("2025-01-01", &[("bewoner", "string")]))
+        .unwrap();
+    service
+        .load_law(&register_version(
+            "2025-03-05",
+            &[("bewoner", "string"), ("postcode", "string")],
+        ))
+        .unwrap();
+    service
+        .load_law(&reduction("v0.8.25", "reductie_kopie", COPY))
+        .unwrap();
+    service
+}
+
+/// The fields of a copy come from the version of the fact's law in force on
+/// the calculation date: a later version that adds a field adds a property,
+/// without a change to the reduction.
+#[test]
+fn a_copy_follows_the_version_of_the_fact_in_force() {
+    let service = two_register_versions();
+    // The record holds the later field already, so it plays on both days;
+    // the next test takes a record without it.
+    let records = [fact(
+        "r1",
+        ("1", "ingeschreven"),
+        day(2),
+        None,
+        vec![("bewoner", text("bewoner_a")), ("postcode", text("1234AB"))],
+    )];
+    let properties = |on: &str| -> Vec<String> {
+        service
+            .aggregates(
+                "reductie_kopie#inschrijving",
+                &records,
+                &BTreeMap::new(),
+                on,
+            )
+            .unwrap()[0]
+            .state
+            .keys()
+            .cloned()
+            .collect()
+    };
+    assert_eq!(properties("2025-03-04"), ["bewoner"]);
+    assert_eq!(properties("2025-03-06"), ["bewoner", "postcode"]);
+}
+
+/// A record recorded under an earlier version of the fact's law lacks a
+/// field a later version adds. Copied from the later version, the step
+/// reads that field and fails, as a step written by hand that reads it
+/// would.
+#[test]
+fn a_copy_of_a_field_an_older_record_lacks_fails() {
+    let service = two_register_versions();
+    let records = [fact(
+        "r1",
+        ("1", "ingeschreven"),
+        day(2),
+        None,
+        vec![("bewoner", text("bewoner_a"))],
+    )];
+    let play = |on: &str| {
+        service.aggregates(
+            "reductie_kopie#inschrijving",
+            &records,
+            &BTreeMap::new(),
+            on,
+        )
+    };
+    assert!(play("2025-03-04").is_ok());
+    let error = play("2025-03-06")
+        .expect_err("the older record lacks the new field")
+        .to_string();
+    assert_mentions(&error, &["the record holds no 'postcode'"]);
 }

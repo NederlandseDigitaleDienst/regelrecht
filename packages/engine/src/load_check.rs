@@ -1267,9 +1267,9 @@ pub(crate) fn reject_malformed_projection(law: &ArticleBasedLaw) -> Result<()> {
 /// neither, and then copies the fact `per` names
 /// ([`crate::projection::written_out`]). One without the other is refused,
 /// as is an empty state: a copy is written by leaving both out, not by
-/// leaving the steps empty. Whether the fact exists and holds fields is
-/// checked against its law, when the loader holds it and when the
-/// projection plays.
+/// leaving the steps empty. Whether `per` names a fact, and whether the
+/// article requires it, is for [`crate::projection::written_out`], which
+/// the loader runs on every projection.
 fn check_copy_form(
     law: &ArticleBasedLaw,
     projection: &regelrecht_law_model::Projection,
@@ -1294,17 +1294,7 @@ fn check_copy_form(
              copies the fact per names, which came with schema v0.8.25"
                 .to_string(),
         ),
-        (None, None) => match projection.per_basis_and_kind() {
-            Some((_, Some(segment))) if names_fact(segment) => Ok(()),
-            _ => Err(format!(
-                "has a projection that writes neither state nor steps, so it copies the fact \
-                 per names, but {}",
-                match &projection.per {
-                    Some(per) => format!("per {per} names no fact (<regulation>#<article>#<fact>)"),
-                    None => "it has no per".to_string(),
-                }
-            )),
-        },
+        (None, None) => Ok(()),
     }
 }
 

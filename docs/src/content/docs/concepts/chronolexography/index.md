@@ -231,7 +231,7 @@ A row does not say whether its root counts. A root that does not count applies n
 
 A recorded fact is played the same way, one aggregate per recorded instance, with `per` naming the fact where its article requires more than one. Real legislation often lays down two acts in one article, so the article stays whole rather than being split to suit the reductions. The step on the root copies the fields of the fact into the state, and the read model gets one row per instance. A revoked root keeps its row, with the start values of its state, so a read model that counts rows has to skip it.
 
-When the step on the root only copies the fact, the projection can leave the copy out (schema v0.8.25). A projection with `per` naming a fact and neither `state` nor `steps` holds every field of that fact in its state, with the type, `nullable` and `columns` its article declares, and plays one step on the root that sets each property from the field of the same name. A read model reads its rows like any other:
+When the step on the root only copies the fact, the projection can leave the copy out (schema v0.8.25). A projection with `per` naming a fact and neither `state` nor `steps` holds every field of that fact in its state. Each property takes the type, `nullable` and `columns` its article declares. One step on the root sets each property from the field of the same name. A read model reads its rows like any other:
 
 ```yaml
 # reductie_plaats_van_vestiging (PoC), article vestiging
@@ -239,9 +239,9 @@ projection:
   per: fictief_beleid_vestiging_obs_de_klimop#1#vestiging
 ```
 
-Only the root is copied. A correction that refers to the root sets nothing, so a reduction that plays corrections writes its state and steps out. Effects hold as they do anywhere, and a revoked root keeps the start values. The fields come from the version of the fact's article in force on the calculation date, so a new version of that law that adds a field adds a column to the rows without a change to the reduction.
+Only the root is copied. A correction that refers to the root sets nothing, so a reduction that plays corrections writes its state and steps by hand. Effects hold as they do anywhere, and a revoked root keeps the start values. The fields come from the version of the fact's article in force on the calculation date. A new version that adds a field adds it to every row, and a record from before that version lacks it: the play then fails, as a step written by hand that reads the field would.
 
-A projection writes both keys or neither, and the loader refuses one without the other or a copy whose `per` names a kind. The copied state meets the rules of a state written by hand, so a fact with a field called `id`, or with a list without `columns`, has no copy. The loader checks the fact against its law when it holds that law, and the engine again when the projection plays. The tests are in `packages/engine/tests/projection_copies_fact.rs`.
+A projection writes both keys or neither, and the loader refuses one without the other or a copy whose `per` names a kind. The copied state meets the rules of a state written by hand, so a fact with a field called `id`, or with an `array` without `columns` or an `array` that may be null, has no copy. The loader checks the fact against its law when it holds that law, and the engine again when the projection plays. The tests are in `packages/engine/tests/projection_copies_fact.rs`.
 
 A fact may hold a table, such as the result of a polling station with the number of votes per list. The law declares it as a parameter of type `array` with its `columns`: one row per element, one value per column. The state then has a property of type `array` with the same columns, and the step on the root copies the whole array. A list of rows has one type everywhere, `array`, whether it is a parameter, an output or a property of the state. A parameter may declare its columns, and in the state an array always does:
 

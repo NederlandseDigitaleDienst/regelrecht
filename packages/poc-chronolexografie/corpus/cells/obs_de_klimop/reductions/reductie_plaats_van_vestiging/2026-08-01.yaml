@@ -12,11 +12,10 @@ valid_from: '2026-08-01'
 # verwijst. Het aggregaat schrijft staat noch stappen, dus kopieert het de
 # velden van het feit (schema v0.8.25). Artikel plaats_van_vestiging leest die
 # aggregaten (source.projections) en geeft de vestiging die op de
-# verlofdagen geldt. Het
-# aggregaat staat in dit bestand omdat alleen dit artikel het leest. De cel
-# van de school geeft de uitvoer als de antwoorden gemeente_van_vestiging,
-# provincie_van_vestiging en deel_van_gemeente_van_vestiging (cel.yaml,
-# answers). Het beleid van het hoofd
+# verlofdagen geldt. Het aggregaat staat in dit bestand omdat alleen dit
+# artikel het leest. De cel van de school geeft de uitvoer als de antwoorden
+# gemeente_van_vestiging, provincie_van_vestiging en
+# deel_van_gemeente_van_vestiging (cel.yaml, answers). Het beleid van het hoofd
 # (fictief_beleid_vakantieverlof_obs_de_klimop) koppelt ze aan de open
 # begrippen van artikel 2 van de Regeling vaststelling schoolvakanties
 # 2025–2030 ("De plaats van vestiging is bepalend voor de regio"). Er is geen

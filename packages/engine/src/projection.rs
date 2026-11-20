@@ -1262,8 +1262,7 @@ pub(crate) fn aggregate_projection<'l>(
 ///
 /// For a projection that copies its fact: when `per` names no fact, when
 /// the article it names does not exist or requires no such fact, and when a
-/// field is no parameter of the article or is called `id`, the name under which a row of the aggregates holds its
-/// root.
+/// field has no copy in the state ([`copied_property`]).
 pub(crate) fn written_out<'p, 'l>(
     projection: &'p Projection,
     law_of: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
@@ -1287,22 +1286,12 @@ pub(crate) fn written_out<'p, 'l>(
             "per names no fact (<regulation>#<article>#<fact>)".to_string(),
         ));
     };
-    let (law_id, number) = basis.split_once('#').unwrap_or((basis, ""));
-    let law = match (law_of(law_id), versions) {
-        (Some(law), _) => law,
-        (None, Versions::Loaded) => return Ok(Cow::Borrowed(projection)),
-        (None, Versions::InForce(_)) => {
-            return Err(refuse(format!("'{law_id}' has no version {versions}")));
-        }
+    let Some(article) = record_article(basis, law_of, versions).map_err(refuse)? else {
+        return Ok(Cow::Borrowed(projection));
     };
-    let article = law
-        .find_article_by_number(number)
-        .ok_or_else(|| refuse(format!("'{law_id}' has no article {number} {versions}")))?;
-    let required = article.required_fact(fact).ok_or_else(|| {
-        refuse(format!(
-            "article {number} of '{law_id}' requires no fact '{fact}' {versions}"
-        ))
-    })?;
+    let required = article
+        .required_fact(fact)
+        .ok_or_else(|| refuse(format!("{basis} requires no fact '{fact}' {versions}")))?;
     // A fact holds at least one field: the loader refuses its law otherwise
     // (RFC-051).
     let fields = required.parameters.as_deref().unwrap_or_default();
@@ -1340,9 +1329,10 @@ pub(crate) fn written_out<'p, 'l>(
 /// The property of the state a projection that copies its fact gives the
 /// field `name` of that fact: the type, `nullable` and `columns` of the
 /// parameter of the same name in `article`, held to the rules a property
-/// written by hand meets. `nullable` is written only where it changes the
-/// start value, for a boolean, a number or an amount: a string or a date may
-/// hold null anyway, and an array never does.
+/// written by hand meets. An array that may be null has no copy: in the
+/// state an array is never null. `nullable` is written only where it
+/// changes the start value, for a boolean, a number or an amount: a string
+/// or a date may hold null anyway.
 fn copied_property(article: &Article, name: &str) -> std::result::Result<StateProperty, String> {
     if name == ROOT_ID {
         return Err(format!(
@@ -1356,6 +1346,12 @@ fn copied_property(article: &Article, name: &str) -> std::result::Result<StatePr
         .find(|p| p.name == name)
         .ok_or_else(|| format!("the fact holds '{name}', which is no parameter of the article"))?;
     let ty = parameter.param_type;
+    if ty == ParameterType::Array && parameter.is_nullable() {
+        return Err(format!(
+            "the fact holds '{name}' as an array that may be null, and an array in the state \
+             is never null"
+        ));
+    }
     let nullable = parameter.is_nullable()
         && matches!(
             ty,
@@ -1768,6 +1764,25 @@ pub(crate) struct StepRules {
     pub(crate) since_v0_8_20: bool,
 }
 
+/// The article `basis` (`<regulation>#<article>`) names, as `law_of` gives
+/// its law in `versions`: `Ok(None)` when the loader does not hold that law
+/// yet ([`Versions::Loaded`]), so there is nothing to check against.
+fn record_article<'l>(
+    basis: &str,
+    law_of: &dyn Fn(&str) -> Option<&'l ArticleBasedLaw>,
+    versions: Versions,
+) -> std::result::Result<Option<&'l Article>, String> {
+    let (law_id, number) = basis.split_once('#').unwrap_or((basis, ""));
+    match (law_of(law_id), versions) {
+        (Some(law), _) => law
+            .find_article_by_number(number)
+            .map(Some)
+            .ok_or_else(|| format!("{basis} names no article {versions}")),
+        (None, Versions::Loaded) => Ok(None),
+        (None, Versions::InForce(_)) => Err(format!("'{law_id}' has no version {versions}")),
+    }
+}
+
 /// `per` held to the law it names, as a step is ([`record_kind`]): the
 /// kind it names must be one the article gives, the fact one it requires,
 /// and without either the article must give one kind of record and require
@@ -1786,13 +1801,9 @@ pub(crate) fn check_per<'l>(
     if !since_v0_8_18 && !segment.is_some_and(names_fact) {
         return Ok(());
     }
-    let (law_id, number) = basis.split_once('#').unwrap_or((basis, ""));
-    let article = match (law_of(law_id), versions) {
-        (Some(law), _) => law.find_article_by_number(number),
-        (None, Versions::Loaded) => return Ok(()),
-        (None, Versions::InForce(_)) => None,
-    }
-    .ok_or_else(|| format!("{basis} names no article {versions}"))?;
+    let Some(article) = record_article(basis, law_of, versions)? else {
+        return Ok(());
+    };
     match record_kind(article, basis, segment)? {
         None => Err("the article gives no record, so no record is a root".to_string()),
         Some(_) => Ok(()),
