@@ -25,7 +25,7 @@ use std::sync::Arc;
 
 use chrono::NaiveDate;
 use regelrecht_cel::Gram;
-use regelrecht_poc_chronolexografie::kern::{self, Cellen, Corpus};
+use regelrecht_poc_chronolexografie::kern::{self, Cellen, Corpus, Indiener};
 use regelrecht_poc_chronolexografie::ui_spec::Systeemvulling;
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value, json};
@@ -52,6 +52,17 @@ pub struct Submit {
     pub refers_to: Option<String>,
     #[serde(default, rename = "velden")]
     pub fields: Map<String, Value>,
+    /// Who submits, as the server knows them: set by the server, never read
+    /// from a request (a request that names it is refused as an unknown
+    /// field). For the case's application, what the UI spec has the system
+    /// fill is filled from it when the step runs ([`kern::systeemvelden`]).
+    #[serde(
+        default,
+        skip_deserializing,
+        rename = "indiener",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub submitter: Option<Indiener>,
 }
 
 /// A decision on the submission `op`, after the record `na` if given, with
@@ -112,14 +123,18 @@ impl Step {
         match self {
             Self::Submit(s) => {
                 let article = s.article.as_deref().unwrap_or(&corpus.casus.artikel);
-                let gram = kern::indienen(
-                    corpus,
-                    cellen,
-                    article,
-                    s.refers_to.as_deref(),
-                    &s.fields,
-                    on,
-                )?;
+                let mut fields = s.fields.clone();
+                // What the system fills is filled here, on the day the step
+                // runs and on the chronicles it runs on, so the day of the
+                // application is the day it is recorded on.
+                if let Some(submitter) = &s.submitter
+                    && article == corpus.casus.artikel
+                {
+                    let filled = kern::systeemvelden(corpus, cellen, submitter, &fields, on)?;
+                    fields.extend(filled);
+                }
+                let gram =
+                    kern::indienen(corpus, cellen, article, s.refers_to.as_deref(), &fields, on)?;
                 to_value(&gram)
             }
             Self::Decide(d) => {
@@ -366,6 +381,47 @@ impl Service {
     /// belongs to.
     pub fn application_article(&self) -> &str {
         &self.corpus.casus.artikel
+    }
+
+    /// The fields of the case's application that the UI spec has the system
+    /// fill, the login field among them: the server fills them, and a
+    /// request may not.
+    pub fn system_fields(&self) -> impl Iterator<Item = &str> {
+        std::iter::once(self.login_field.as_str()).chain(
+            self.corpus
+                .ui_spec
+                .systeem
+                .keys()
+                .map(String::as_str)
+                .filter(|f| *f != self.login_field),
+        )
+    }
+
+    /// What the system would fill in an application of `submitter` today
+    /// ([`kern::systeemvelden`]), for a form to show before it is
+    /// submitted. Nothing is recorded; the submission fills it anew.
+    ///
+    /// # Errors
+    ///
+    /// When the store fails, or a source the UI spec names gives nothing.
+    pub async fn system_preview(
+        &self,
+        submitter: Indiener,
+    ) -> Result<Map<String, Value>, ServiceError> {
+        let read = self.read().await?;
+        let corpus = Arc::clone(&self.corpus);
+        let today = self.today().await?;
+        blocking(move || {
+            let cellen = restore(&corpus, read)?;
+            Ok(kern::systeemvelden(
+                &corpus,
+                &cellen,
+                &submitter,
+                &Map::new(),
+                today,
+            )?)
+        })
+        .await
     }
 
     /// Today, by the clock of this service.
@@ -892,21 +948,30 @@ pub(crate) mod tests {
         }
     }
 
+    /// The citizen of the tests, logged in with `method`, as the API makes
+    /// them a submitter.
+    pub(crate) fn submitter(method: &str) -> Indiener {
+        Indiener {
+            inlog: serde_json::from_value(json!({
+                "bsn_aanvrager": "999990020",
+                "naam": "A. de Vries",
+            }))
+            .unwrap(),
+            inlogmiddel: Some(method.into()),
+        }
+    }
+
     pub(crate) fn submission() -> Step {
         Step::Submit(Submit {
             article: None,
             refers_to: None,
             fields: serde_json::from_value(json!({
-                "bsn_aanvrager": "999990020",
                 "kaart_als_bestuurder": true,
                 "kaart_als_passagier": false,
-                "aanvraag_ondertekend": true,
-                "naam_aanvrager": "A. de Vries",
                 "adres_aanvrager": "Voorbeeldlaan 2",
-                "dagtekening": "2026-10-05",
-                "gevraagde_beschikking": "gehandicaptenparkeerkaart",
             }))
             .unwrap(),
+            submitter: Some(submitter("DigiD")),
         })
     }
 
@@ -934,7 +999,7 @@ pub(crate) mod tests {
         if let Step::Submit(submit) = &mut step {
             submit
                 .fields
-                .insert("naam_aanvrager".into(), json!("A.\u{0}de Vries"));
+                .insert("adres_aanvrager".into(), json!("Voorbeeld\u{0}laan 2"));
         }
         let e = s.perform(None, step, &actor()).await.unwrap_err();
         assert!(matches!(e, ServiceError::Refused(_)), "{e}");

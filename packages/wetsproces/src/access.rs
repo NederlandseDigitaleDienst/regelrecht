@@ -39,7 +39,8 @@ use axum::extract::FromRequestParts;
 use axum::http::StatusCode;
 use axum::http::request::Parts;
 use regelrecht_auth::{
-    SESSION_KEY_AUTHENTICATED, SESSION_KEY_CLAIMS, SESSION_KEY_ROLES, SESSION_KEY_SUB,
+    SESSION_KEY_AUTHENTICATED, SESSION_KEY_CLAIMS, SESSION_KEY_NAME, SESSION_KEY_ROLES,
+    SESSION_KEY_SUB,
 };
 use serde_json::Value;
 use tower_sessions::Session;
@@ -98,6 +99,22 @@ pub struct Principal {
     roles: BTreeSet<String>,
     claims: BTreeMap<String, Value>,
     channel: Channel,
+    /// The name the login gave, if it gave one.
+    name: Option<String>,
+}
+
+/// The means a citizen logged in with on `channel`, as an application
+/// states it (`login_method` in the UI spec): the simulated DigiD of the
+/// test login counts as DigiD, and that login exists in test mode only;
+/// Keycloak and FSC voor Burgers go by their own name. An admin entering an
+/// external party's act logs in as no citizen and states none.
+pub fn login_method(channel: Channel) -> Option<&'static str> {
+    match channel {
+        Channel::TestLogin => Some("DigiD"),
+        Channel::Keycloak => Some("Keycloak"),
+        Channel::Fsc4b => Some("FSC voor Burgers"),
+        Channel::AdminPanel => None,
+    }
 }
 
 impl Principal {
@@ -113,7 +130,19 @@ impl Principal {
             roles,
             claims,
             channel,
+            name: None,
         }
+    }
+
+    /// The principal with the name the login gave.
+    pub fn with_name(mut self, name: Option<String>) -> Self {
+        self.name = name.filter(|n| !n.trim().is_empty());
+        self
+    }
+
+    /// The name the login gave, if it gave one.
+    pub fn name(&self) -> Option<&str> {
+        self.name.as_deref()
     }
 
     /// A citizen of the FSC voor Burgers channel: the account `sub`, with the
@@ -281,12 +310,19 @@ impl FromRequestParts<AppState> for Principal {
             session.get(SESSION_KEY_ROLES).await.map_err(read_error)?;
         let claims: Option<BTreeMap<String, Value>> =
             session.get(SESSION_KEY_CLAIMS).await.map_err(read_error)?;
+        // The name only fills a field the system shows; a session that does
+        // not give it leaves that field empty, as `GET /api/ik` does.
+        let name: Option<String> = session.get(SESSION_KEY_NAME).await.unwrap_or_else(|e| {
+            tracing::warn!(error = %e, "reading the name from the session");
+            None
+        });
         Ok(Self::new(
             sub,
             state.surface().admitted_roles(roles.unwrap_or_default()),
             claims.unwrap_or_default(),
             state.session_channel(),
-        ))
+        )
+        .with_name(name))
     }
 }
 

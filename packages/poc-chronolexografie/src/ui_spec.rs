@@ -17,12 +17,18 @@
 //!   change it;
 //! - `fill: {by: system}`: the system fills it and the applicant does not
 //!   type it ([`Systeemvulling`]). Without more, the login fills it, with the
-//!   claim of that name. With `from: <source>` the cell computes it, as a
-//!   prefill; with `value` it is that value; with `submission: date` it is
-//!   the day the form submits on, and with `submission: requested_decision`
-//!   the article whose decision the application asks for (`requests`);
+//!   claim of that name; with `login: <claim>` the login fills it with that
+//!   claim, such as the name. With `from: <source>` the cell computes it, as
+//!   a prefill, and `parameters` may give the source what the system knows
+//!   of the submission under the names of its parameters
+//!   (`{datum_indiening: date}`). With `value` it is that value; with
+//!   `submission: date` it is the day the form submits on, with
+//!   `submission: requested_decision` the article whose decision the
+//!   application asks for (`requests`), and with `submission: login_method`
+//!   the means the applicant logged in with ([`Indieningsgegeven`]);
 //! - `visibility: hidden`: the form does not show it. It still submits what
-//!   fills it.
+//!   fills it. `visibility: shown` on a field the system fills shows it
+//!   without letting the applicant change it.
 //!
 //! What a field says counts over every element, as a prefill does, so an
 //! element of another screen that names a field of the application says it
@@ -38,11 +44,14 @@
 //! nothing about it.
 //!
 //! A field may also say how a screen names it: `label`, the name of the
-//! field on a screen, and `help`, a line under it ([`Veldtekst`]). Without
-//! them a screen names the field after the regelwerk. They count by field
-//! name over every element and every form, so the same field is named the
-//! same on the application, the objection and the decision; two elements
-//! that name one field differently are refused.
+//! field on a screen, `help`, a line under it, and `group`, the heading of
+//! the group it stands in ([`Veldtekst`]). Without them a screen names the
+//! field after the regelwerk. They count by field name over every element
+//! and every form, so the same field is named the same on the application,
+//! the objection and the decision; two elements that name one field
+//! differently are refused. The order the fields are named in, over the
+//! elements, is the order a screen shows them in ([`UiSpec::volgorde`]); a
+//! field the UI spec does not name follows, in the order of the law.
 //!
 //! The poc reads only those keys and leaves every other key to the register
 //! and its own checks, so a register that grows a key does not stop a case
@@ -89,6 +98,7 @@ struct Field {
     answer: Option<Answer>,
     label: Option<String>,
     help: Option<String>,
+    group: Option<String>,
 }
 
 /// What a field of a view beside a decision shows: the answer of the case's
@@ -115,17 +125,22 @@ pub struct UiSpec {
     pub weergaven: Vec<Weergave>,
     /// Per field, how a screen names it, where the UI spec says so.
     pub teksten: BTreeMap<String, Veldtekst>,
+    /// The fields in the order the UI spec names them, each once: the order
+    /// a screen shows them in.
+    pub volgorde: Vec<String>,
 }
 
-/// How a screen names a field (`label`) and what it says under it (`help`),
-/// where the UI spec gives them; a screen falls back on the field's name in
-/// the regelwerk.
+/// How a screen names a field (`label`), what it says under it (`help`) and
+/// the heading of the group it stands in (`group`), where the UI spec gives
+/// them; a screen falls back on the field's name in the regelwerk.
 #[derive(Debug, Clone, Default, PartialEq, Eq, serde::Serialize)]
 pub struct Veldtekst {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub help: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub group: Option<String>,
 }
 
 /// How the system fills a field of the application (`fill: {by: system}`).
@@ -136,9 +151,17 @@ pub enum Systeemvulling {
     /// The login, with the claim of the field's name; without a login, or
     /// without such a claim, nothing.
     Inloggen,
+    /// The login, with the claim this names (`login`), such as the name of
+    /// who logged in; without such a claim, nothing.
+    Inlogclaim(String),
     /// What the cell answers for a source, `<regelwerk>#<article>#<output>`,
-    /// on what the form holds, as it prefills a field (`from`).
-    Bron(String),
+    /// on what the form holds, as it prefills a field (`from`), and on what
+    /// the system knows of the submission (`parameters`).
+    Bron {
+        bron: String,
+        /// Per parameter of the source, what of the submission it takes.
+        parameters: BTreeMap<String, Indieningsgegeven>,
+    },
     /// This value (`value`).
     Waarde(serde_json::Value),
     /// What the system knows of the submission itself (`submission`).
@@ -146,13 +169,35 @@ pub enum Systeemvulling {
 }
 
 /// What the system knows of a submission it sends, apart from what is in it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Indieningsgegeven {
     /// The day it submits on (`date`).
     Datum,
     /// The article whose decision the application asks for, as the law
     /// says it (`requested_decision`; `requests`, RFC-045 §1).
     GevraagdBesluit,
+    /// The means the applicant logged in with to submit it
+    /// (`login_method`), such as `DigiD`; empty when the system knows of no
+    /// login, as for a form without one.
+    Inlogmiddel,
+}
+
+impl Indieningsgegeven {
+    /// The name a UI spec gives it.
+    pub fn naam(self) -> &'static str {
+        match self {
+            Self::Datum => "date",
+            Self::GevraagdBesluit => "requested_decision",
+            Self::Inlogmiddel => "login_method",
+        }
+    }
+
+    /// The datum a UI spec names `naam`, if it is one.
+    fn lees(naam: &str) -> Option<Self> {
+        [Self::Datum, Self::GevraagdBesluit, Self::Inlogmiddel]
+            .into_iter()
+            .find(|g| g.naam() == naam)
+    }
 }
 
 /// An element that shows, beside each decision of the case's cell, what the
@@ -190,6 +235,10 @@ struct Fill {
     #[serde(default, deserialize_with = "aanwezig")]
     value: Option<Value>,
     submission: Option<String>,
+    /// The claim of the login that fills the field.
+    login: Option<String>,
+    /// Per parameter of the source `from`, what of the submission it takes.
+    parameters: Option<BTreeMap<String, String>>,
 }
 
 /// A key that is present, `null` included: serde reads a `null` into an
@@ -262,6 +311,11 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
         .map(teksten)
         .transpose()?
         .unwrap_or_default();
+    let volgorde = register
+        .elements
+        .as_deref()
+        .map(volgorde)
+        .unwrap_or_default();
     let (elements, weergaven) = match (register.elements, register.elementen) {
         (Some(elements), None) => per_field(elements)?,
         (None, Some(elementen)) => (older_form(elementen)?, Vec::new()),
@@ -289,26 +343,45 @@ pub fn lees(tekst: &str) -> Result<UiSpec, String> {
         verborgen,
         weergaven,
         teksten,
+        volgorde,
     })
 }
 
-/// Per field the `label` and `help` the elements give it. Two elements that
-/// give one field a different label, or a different help, are refused.
+/// The names of the fields of `elements`, each once, in the order they are
+/// named.
+fn volgorde(elements: &[Element]) -> Vec<String> {
+    let mut gezien = BTreeSet::new();
+    elements
+        .iter()
+        .flat_map(|e| &e.fields)
+        .filter_map(|f| f.name.as_deref().filter(|n| !n.is_empty()))
+        .filter(|n| gezien.insert(*n))
+        .map(str::to_string)
+        .collect()
+}
+
+/// Per field the `label`, `help` and `group` the elements give it. Two
+/// elements that give one field a different label, help or group are
+/// refused.
 fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> {
-    // Per field and per key (`label`, `help`): the text, and the element that gave it.
+    // Per field and per key (`label`, `help`, `group`): the text, and the element that gave it.
     let mut gegeven: BTreeMap<(String, &'static str), (String, String)> = BTreeMap::new();
     for (i, element) in elements.iter().enumerate() {
         let naam = element_name(element.id.as_ref(), i);
         for field in &element.fields {
-            if field.label.is_none() && field.help.is_none() {
+            if field.label.is_none() && field.help.is_none() && field.group.is_none() {
                 continue;
             }
             let Some(veld) = field.name.as_deref().filter(|v| !v.is_empty()) else {
                 return Err(format!(
-                    "the UI spec: {naam} gives a `label` or `help` to a field without a `name`"
+                    "the UI spec: {naam} gives a `label`, `help` or `group` to a field without a `name`"
                 ));
             };
-            for (wat, tekst) in [("label", &field.label), ("help", &field.help)] {
+            for (wat, tekst) in [
+                ("label", &field.label),
+                ("help", &field.help),
+                ("group", &field.group),
+            ] {
                 let Some(tekst) = tekst else { continue };
                 match gegeven.get(&(veld.to_string(), wat)) {
                     Some((eerder, door)) if eerder != tekst => {
@@ -327,10 +400,10 @@ fn teksten(elements: &[Element]) -> Result<BTreeMap<String, Veldtekst>, String> 
     let mut uit: BTreeMap<String, Veldtekst> = BTreeMap::new();
     for ((veld, wat), (tekst, _)) in gegeven {
         let t = uit.entry(veld).or_default();
-        if wat == "label" {
-            t.label = Some(tekst);
-        } else {
-            t.help = Some(tekst);
+        match wat {
+            "label" => t.label = Some(tekst),
+            "help" => t.help = Some(tekst),
+            _ => t.group = Some(tekst),
         }
     }
     Ok(uit)
@@ -396,16 +469,24 @@ fn lees_veld(velden: &mut ElementVelden, field: Field, weergave: bool) -> Result
         // as an unknown key is.
         Some(_) => return Ok(()),
     };
-    let vult = fill.from.is_some() || fill.value.is_some() || fill.submission.is_some();
+    let vult = fill.from.is_some()
+        || fill.value.is_some()
+        || fill.submission.is_some()
+        || fill.login.is_some();
     if veld.is_empty() && (vult || !systeem) {
         return Err(format!(
             "the UI spec: {name} fills a field without a `name`"
         ));
     }
     if !systeem {
-        if fill.value.is_some() || fill.submission.is_some() {
+        if fill.value.is_some()
+            || fill.submission.is_some()
+            || fill.login.is_some()
+            || fill.parameters.is_some()
+        {
             return Err(format!(
-                "the UI spec: {name} gives '{veld}' a `value` or `submission` without `by: system`"
+                "the UI spec: {name} gives '{veld}' a `value`, `submission`, `login` or \
+                 `parameters` without `by: system`"
             ));
         }
         let Some(from) = fill.from else {
@@ -437,37 +518,63 @@ fn lees_veld(velden: &mut ElementVelden, field: Field, weergave: bool) -> Result
 
 /// How the system fills `veld` by `fill`, a `fill` with `by: system`.
 fn systeemvulling(name: &str, veld: &str, fill: Fill) -> Result<Systeemvulling, String> {
-    match (fill.from, fill.value, fill.submission) {
-        (None, None, None) => Ok(Systeemvulling::Inloggen),
-        (Some(from), None, None) => {
+    if fill.parameters.is_some() && fill.from.is_none() {
+        return Err(format!(
+            "the UI spec: {name} gives '{veld}' `parameters` without a source (`from`)"
+        ));
+    }
+    match (fill.from, fill.value, fill.submission, fill.login) {
+        (None, None, None, None) => Ok(Systeemvulling::Inloggen),
+        (None, None, None, Some(claim)) if !claim.is_empty() => {
+            Ok(Systeemvulling::Inlogclaim(claim))
+        }
+        (None, None, None, Some(_)) => Err(format!(
+            "the UI spec: {name} fills '{veld}' from the login with an empty `login`"
+        )),
+        (Some(from), None, None, None) => {
             if !regelrecht_law_model::is_fact_reference(&from) {
                 return Err(format!(
                     "the UI spec: {name} fills '{veld}' from '{from}', which is no \
                      <regelwerk>#<article>#<output>"
                 ));
             }
-            Ok(Systeemvulling::Bron(from))
+            let parameters = fill
+                .parameters
+                .unwrap_or_default()
+                .into_iter()
+                .map(|(parameter, gegeven)| {
+                    indieningsgegeven(name, veld, &gegeven).map(|g| (parameter, g))
+                })
+                .collect::<Result<_, _>>()?;
+            Ok(Systeemvulling::Bron {
+                bron: from,
+                parameters,
+            })
         }
-        (None, Some(value), None) => serde_json::to_value(&value)
+        (None, Some(value), None, None) => serde_json::to_value(&value)
             .map(Systeemvulling::Waarde)
             .map_err(|e| {
                 format!("the UI spec: {name} fills '{veld}' with a value JSON cannot hold: {e}")
             }),
-        (None, None, Some(gegeven)) => match gegeven.as_str() {
-            "date" => Ok(Systeemvulling::Indiening(Indieningsgegeven::Datum)),
-            "requested_decision" => Ok(Systeemvulling::Indiening(
-                Indieningsgegeven::GevraagdBesluit,
-            )),
-            ander => Err(format!(
-                "the UI spec: {name} fills '{veld}' with `submission: {ander}`; \
-                 the system knows `date` and `requested_decision`"
-            )),
-        },
+        (None, None, Some(gegeven), None) => {
+            indieningsgegeven(name, veld, &gegeven).map(Systeemvulling::Indiening)
+        }
         _ => Err(format!(
             "the UI spec: {name} fills '{veld}' by the system with more than one of \
-             `from`, `value` and `submission`"
+             `from`, `value`, `submission` and `login`"
         )),
     }
+}
+
+/// What of the submission `gegeven` names, as `veld` of the element `name`
+/// takes it.
+fn indieningsgegeven(name: &str, veld: &str, gegeven: &str) -> Result<Indieningsgegeven, String> {
+    Indieningsgegeven::lees(gegeven).ok_or_else(|| {
+        format!(
+            "the UI spec: {name} fills '{veld}' with `{gegeven}` of the submission; \
+             the system knows `date`, `requested_decision` and `login_method`"
+        )
+    })
 }
 
 /// Per field the system fills, how, and the fields the form hides, over
@@ -776,7 +883,10 @@ elements:
                 ("nummer".to_string(), Systeemvulling::Inloggen),
                 (
                     "elektronisch".to_string(),
-                    Systeemvulling::Bron("r#6#langs_portaal".into())
+                    Systeemvulling::Bron {
+                        bron: "r#6#langs_portaal".into(),
+                        parameters: BTreeMap::new(),
+                    }
                 ),
                 (
                     "kanaal".to_string(),
@@ -803,6 +913,79 @@ elements:
     }
 
     #[test]
+    fn the_system_fills_from_a_claim_of_the_login_and_a_source_on_the_submission() {
+        let spec = lees(
+            "elements:
+              - id: UI1
+                fields:
+                  - {name: naam, visibility: shown, fill: {by: system, login: naam}}
+                  - {name: middel, visibility: hidden, fill: {by: system, submission: login_method}}
+                  - name: dagtekening
+                    visibility: shown
+                    fill:
+                      by: system
+                      from: 'b#9#dagtekening'
+                      parameters: {datum_indiening: date, middel: login_method}",
+        )
+        .unwrap();
+        assert_eq!(
+            spec.systeem,
+            BTreeMap::from([
+                (
+                    "dagtekening".to_string(),
+                    Systeemvulling::Bron {
+                        bron: "b#9#dagtekening".into(),
+                        parameters: BTreeMap::from([
+                            ("datum_indiening".to_string(), Indieningsgegeven::Datum),
+                            ("middel".to_string(), Indieningsgegeven::Inlogmiddel),
+                        ]),
+                    }
+                ),
+                (
+                    "middel".to_string(),
+                    Systeemvulling::Indiening(Indieningsgegeven::Inlogmiddel)
+                ),
+                (
+                    "naam".to_string(),
+                    Systeemvulling::Inlogclaim("naam".into())
+                ),
+            ])
+        );
+        assert_eq!(Indieningsgegeven::Inlogmiddel.naam(), "login_method");
+    }
+
+    #[test]
+    fn the_order_and_the_groups_of_the_fields_come_from_the_ui_spec() {
+        let spec = lees(
+            "elements:
+              - id: UI1
+                fields:
+                  - {name: b, group: Uw gegevens}
+                  - {name: a, group: Uw gegevens}
+                  - {name: c}
+              - id: UI2
+                fields:
+                  - {name: a}
+                  - {name: d, group: Overig}",
+        )
+        .unwrap();
+        assert_eq!(spec.volgorde, ["b", "a", "c", "d"]);
+        assert_eq!(spec.teksten["a"].group.as_deref(), Some("Uw gegevens"));
+        assert_eq!(spec.teksten["d"].group.as_deref(), Some("Overig"));
+        assert!(!spec.teksten.contains_key("c"));
+        let e = lees(
+            "elements: [{id: UI1, fields: [{name: x, group: Een}]},
+                        {id: UI2, fields: [{name: x, group: Twee}]}]",
+        )
+        .unwrap_err();
+        assert!(
+            e.contains("UI1 and UI2 give 'x' a different `group`"),
+            "{e}"
+        );
+        assert!(lees("elementen: []").unwrap().volgorde.is_empty());
+    }
+
+    #[test]
     fn a_system_fill_that_does_not_read_is_refused() {
         let fout = |fill: &str| {
             lees(&format!(
@@ -815,9 +998,21 @@ elements:
         let e = fout("{by: system, from: 'r#6'}");
         assert!(e.contains("which is no <regelwerk>"), "{e}");
         let e = fout("{by: system, submission: dag}");
-        assert!(e.contains("`submission: dag`"), "{e}");
+        assert!(e.contains("`dag` of the submission"), "{e}");
         let e = fout("{value: portaal}");
         assert!(e.contains("without `by: system`"), "{e}");
+        let e = fout("{login: naam}");
+        assert!(e.contains("without `by: system`"), "{e}");
+        let e = fout("{from: 'r#6#a', parameters: {d: date}}");
+        assert!(e.contains("without `by: system`"), "{e}");
+        let e = fout("{by: system, parameters: {d: date}}");
+        assert!(e.contains("`parameters` without a source"), "{e}");
+        let e = fout("{by: system, from: 'r#6#a', parameters: {d: dag}}");
+        assert!(e.contains("`dag` of the submission"), "{e}");
+        let e = fout("{by: system, login: naam, value: 1}");
+        assert!(e.contains("more than one of"), "{e}");
+        let e = fout("{by: system, login: ''}");
+        assert!(e.contains("empty `login`"), "{e}");
         // A `by` the poc does not know is left to the register.
         assert!(lees("elements: [{id: UI1, fields: [{name: x, fill: {by: user}}]}]").is_ok());
         // `value: null` is an empty value, not the login.
@@ -839,7 +1034,7 @@ elements:
                                           {name: x, fill: {by: system, submission: dag}}]}]",
         )
         .unwrap_err();
-        assert!(e.contains("`submission: dag`"), "{e}");
+        assert!(e.contains("`dag` of the submission"), "{e}");
     }
 
     #[test]
@@ -932,14 +1127,16 @@ elements:
                     "kenteken".to_string(),
                     Veldtekst {
                         label: None,
-                        help: Some("Zoals op het kentekenbewijs".into())
+                        help: Some("Zoals op het kentekenbewijs".into()),
+                        group: None,
                     }
                 ),
                 (
                     "naam".to_string(),
                     Veldtekst {
                         label: Some("Uw naam".into()),
-                        help: Some("Zoals in uw paspoort".into())
+                        help: Some("Zoals in uw paspoort".into()),
+                        group: None,
                     }
                 ),
             ])
@@ -972,7 +1169,7 @@ elements:
         );
         let e = lees("elements: [{id: UI1, fields: [{label: Een}]}]").unwrap_err();
         assert!(
-            e.contains("UI1 gives a `label` or `help` to a field without a `name`"),
+            e.contains("UI1 gives a `label`, `help` or `group` to a field without a `name`"),
             "{e}"
         );
         // The same text twice is one.

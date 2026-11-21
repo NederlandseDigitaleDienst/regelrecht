@@ -618,9 +618,12 @@ mod tests {
         assert_eq!(
             vormen["systeem"],
             serde_json::json!({
-                "aanhef": { "bron": "voorbeeld_inschrijving#4#aanhef" },
-                "kenmerk": { "waarde": "K-1" },
-                "referentie": { "waarde": "voorbeeld_inschrijving#1" },
+                "aanhef": { "soort": "bron", "bron": "voorbeeld_inschrijving#4#aanhef" },
+                "kenmerk": { "soort": "waarde", "waarde": "K-1" },
+                "referentie": {
+                    "soort": "gevraagd_besluit",
+                    "waarde": "voorbeeld_inschrijving#1"
+                },
             })
         );
         assert_eq!(

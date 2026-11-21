@@ -210,18 +210,16 @@ pub async fn head(app: &Router) -> u64 {
     kroniek["kop"].as_u64().unwrap()
 }
 
-/// An application as a citizen sends it: without the citizen number, which
-/// the login fills.
+/// An application as a citizen sends it: only what the citizen fills in.
+/// The UI spec has the system fill the rest (the citizen number, the name,
+/// the date, the requested decision and the means of signing), and the
+/// server refuses those from a request.
 pub fn application() -> Value {
     json!({
         "velden": {
             "kaart_als_bestuurder": true,
             "kaart_als_passagier": false,
-            "aanvraag_ondertekend": true,
-            "naam_aanvrager": "A. de Vries",
             "adres_aanvrager": "Voorbeeldlaan 2",
-            "dagtekening": "2026-10-05",
-            "gevraagde_beschikking": "gehandicaptenparkeerkaart",
         }
     })
 }

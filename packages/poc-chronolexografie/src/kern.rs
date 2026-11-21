@@ -723,6 +723,9 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
         // Per field how a screen names it, where the UI spec says so
         // (`label`, `help`): by field name, for every form alike.
         "teksten": corpus.ui_spec.teksten,
+        // The order the UI spec names the fields in: a screen shows them so,
+        // and a field it does not name after them, in the order of the law.
+        "volgorde": corpus.ui_spec.volgorde,
         "eigen_velden": std::iter::once(&cell.eigen)
             .chain(&cell.andere)
             .flat_map(|c| c.grams())
@@ -973,10 +976,16 @@ fn eigen_ui_spec(files: &dyn Files, casus_dir: &Path, id: &str) -> Result<crate:
 /// Per field of the application `aanvraag` that the UI spec `spec` has the
 /// system fill ([`crate::ui_spec::Systeemvulling`]), what fills it on `on`:
 /// `{"bron": <source>}` for a source the cell computes as it prefills
-/// ([`voorinvullen`]), `{"waarde": <value>}` for a value the system knows
-/// itself, such as the day it submits on or the article whose decision the
-/// application asks for (`requests`; `null` when the law names none), and
-/// `{}` for the login, which fills the field with the claim of its name.
+/// ([`voorinvullen`]), with `parameters` when the source takes what the
+/// system knows of the submission; `{"waarde": <value>}` for a value the
+/// system knows itself, such as the day it submits on or the article whose
+/// decision the application asks for (`requests`; `null` when the law names
+/// none); `{"soort": "inloggen"}` for the login, which fills the field with
+/// the claim of its name, and with `"inlog": <claim>` another claim. Each
+/// carries `soort`, the kind of fill, so a screen can say where the value
+/// comes from: `inloggen`, `waarde`, `datum`, `gevraagd_besluit`,
+/// `inlogmiddel` or `bron`. The means of login is known only to a system
+/// with a login of its own: here its `waarde` is `null`.
 /// The login field (`inlogveld`) is never among them: the login fills it,
 /// whatever the UI spec says ([`inloggen`]).
 fn door_het_systeem(
@@ -992,20 +1001,125 @@ fn door_het_systeem(
         .filter(|(veld, _)| vraagt(aanvraag, veld) && Some(veld.as_str()) != inlogveld)
         .map(|(veld, vulling)| {
             let hoe = match vulling {
-                Systeemvulling::Inloggen => json!({}),
-                Systeemvulling::Bron(bron) => json!({ "bron": bron }),
-                Systeemvulling::Waarde(waarde) => json!({ "waarde": waarde }),
+                Systeemvulling::Inloggen => json!({ "soort": "inloggen" }),
+                Systeemvulling::Inlogclaim(claim) => {
+                    json!({ "soort": "inloggen", "inlog": claim })
+                }
+                Systeemvulling::Bron { bron, parameters } if parameters.is_empty() => {
+                    json!({ "soort": "bron", "bron": bron })
+                }
+                Systeemvulling::Bron { bron, parameters } => json!({
+                    "soort": "bron",
+                    "bron": bron,
+                    "parameters": parameters
+                        .iter()
+                        .map(|(p, g)| (p.clone(), json!(g.naam())))
+                        .collect::<Map<String, Value>>(),
+                }),
+                Systeemvulling::Waarde(waarde) => json!({ "soort": "waarde", "waarde": waarde }),
                 Systeemvulling::Indiening(Indieningsgegeven::Datum) => {
-                    json!({ "waarde": on.to_string() })
+                    json!({ "soort": "datum", "waarde": on.to_string() })
                 }
                 Systeemvulling::Indiening(Indieningsgegeven::GevraagdBesluit) => {
-                    json!({ "waarde": aanvraag.requests })
+                    json!({ "soort": "gevraagd_besluit", "waarde": aanvraag.requests })
+                }
+                Systeemvulling::Indiening(Indieningsgegeven::Inlogmiddel) => {
+                    json!({ "soort": "inlogmiddel", "waarde": null })
                 }
             };
             (veld.clone(), hoe)
         })
         .collect();
     Value::Object(uit)
+}
+
+/// What a system with a login of its own knows of whoever submits an
+/// application, apart from what they fill in: the claims of the login, by
+/// name (the login field among them, under its own name), and the means
+/// they logged in with, such as `DigiD`.
+#[derive(Debug, Clone, Default, PartialEq, serde::Serialize)]
+pub struct Indiener {
+    pub inlog: Map<String, Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub inlogmiddel: Option<String>,
+}
+
+/// What the system fills in the application of the case on `on`, for the
+/// applicant `indiener`, as the UI spec says ([`crate::ui_spec::Systeemvulling`]):
+/// per field the UI spec has the system fill and the application asks, its
+/// value. A claim the login does not give leaves its field out. A source
+/// runs on what the application holds (`velden`), the values the system
+/// fills other than from a source, and what its `parameters` take of the
+/// submission; it gives its output, as a prefill does ([`voorinvullen`]),
+/// `null` when the source gives none. One source does not read another's
+/// outcome, so the order of the fields does not matter.
+///
+/// A field here is the system's: a caller that takes an application from
+/// someone refuses one that names such a field itself.
+///
+/// # Errors
+///
+/// Refused when the article of the case establishes no submission on `on`,
+/// or the cell refuses to run a source ([`Cell::consult`]): the application
+/// would be recorded without what the system was to fill.
+pub fn systeemvelden(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    indiener: &Indiener,
+    velden: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<Map<String, Value>> {
+    use crate::ui_spec::{Indieningsgegeven, Systeemvulling};
+    let service = corpus.service()?;
+    let (law, article) = basis(&corpus.casus.artikel)?;
+    let aanvraag = shape::derive(&service, law, article, on)?;
+    let gegeven = |g: Indieningsgegeven| match g {
+        Indieningsgegeven::Datum => json!(on.to_string()),
+        Indieningsgegeven::GevraagdBesluit => json!(aanvraag.requests),
+        Indieningsgegeven::Inlogmiddel => json!(indiener.inlogmiddel),
+    };
+    let gevuld: Vec<(&String, &Systeemvulling)> = corpus
+        .ui_spec
+        .systeem
+        .iter()
+        .filter(|(veld, _)| vraagt(&aanvraag, veld))
+        .collect();
+    let mut uit = Map::new();
+    for (veld, vulling) in &gevuld {
+        let waarde = match vulling {
+            Systeemvulling::Inloggen => indiener.inlog.get(veld.as_str()).cloned(),
+            Systeemvulling::Inlogclaim(claim) => indiener.inlog.get(claim).cloned(),
+            Systeemvulling::Waarde(waarde) => Some(waarde.clone()),
+            Systeemvulling::Indiening(g) => Some(gegeven(*g)),
+            Systeemvulling::Bron { .. } => continue,
+        };
+        if let Some(waarde) = waarde {
+            uit.insert((*veld).clone(), waarde);
+        }
+    }
+    // A source reads the application as the system fills it, but for the
+    // outcome of another source.
+    let sfeer = cellen.sfeer();
+    let mut basis = velden.clone();
+    basis.extend(uit.clone());
+    for (veld, vulling) in &gevuld {
+        let Systeemvulling::Bron { bron, parameters } = vulling else {
+            continue;
+        };
+        let mut invoer = basis.clone();
+        for (parameter, g) in parameters {
+            invoer.insert(parameter.clone(), gegeven(*g));
+        }
+        let result = cellen
+            .eigen
+            .consult(&service, &sfeer, bron, &invoer, on)
+            .map_err(|e| {
+                Error::Refused(format!("the system cannot fill '{veld}' from {bron}: {e}"))
+            })?;
+        let gevonden = uit_bron(&result, bron)?;
+        uit.insert((*veld).clone(), gevonden["waarde"].clone());
+    }
+    Ok(uit)
 }
 
 /// Whether the application form of `aanvraag` asks the field `naam`: a

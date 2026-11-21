@@ -147,17 +147,14 @@ impl Server {
     }
 }
 
-/// An application as a citizen sends it: without the citizen number, which
-/// the server fills from the credential.
+/// An application as a citizen sends it: only what the citizen fills in;
+/// the server fills the citizen number from the credential and the rest of
+/// what the UI spec has the system fill.
 fn application() -> Value {
     json!({ "velden": {
         "kaart_als_bestuurder": true,
         "kaart_als_passagier": false,
-        "aanvraag_ondertekend": true,
-        "naam_aanvrager": "A. de Vries",
         "adres_aanvrager": "Voorbeeldlaan 2",
-        "dagtekening": "2026-10-05",
-        "gevraagde_beschikking": "gehandicaptenparkeerkaart",
     }})
 }
 
@@ -192,6 +189,12 @@ async fn the_whole_protocol(server: &Server) -> String {
         json!(ANNA),
         "{aanvraag}"
     );
+    // The policy of the municipality counts only a login with DigiD as a
+    // signature (article 8), so through this channel the application does
+    // not count as signed. A session of this channel gives no name: the
+    // field stays empty.
+    assert_eq!(aanvraag["fields"]["aanvraag_ondertekend"], json!(false));
+    assert_eq!(aanvraag["fields"]["naam_aanvrager"], json!(null));
     // The same key again answers as the first time.
     let (_, again) = anna
         .call(

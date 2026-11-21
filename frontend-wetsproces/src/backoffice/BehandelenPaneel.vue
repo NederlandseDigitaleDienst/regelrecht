@@ -14,7 +14,7 @@
 import { computed, onMounted, ref, watch } from 'vue';
 import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
-import { schermveld } from '../gedeeld/formulier';
+import { herkomsten, schermveld } from '../gedeeld/formulier';
 import type { Schermveld } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
@@ -45,6 +45,10 @@ const gevonden = computed(() => (props.namens ? props.open : kroniek.value?.gram
 const onthouden = ref<Gram | null>(null);
 watch(gevonden, (g) => (onthouden.value = g ?? onthouden.value), { immediate: true });
 const indiening = computed(() => gevonden.value ?? onthouden.value);
+/** Per field the system filled in the submission, where its value came from: for the case's application only. */
+const herkomstVan = computed(() =>
+  indiening.value?.basis === props.casus.artikel ? herkomsten(props.vormen?.indieningen[props.casus.artikel]) : {},
+);
 const mag = computed(() =>
   props.namens ? (props.wie?.partijen_invoeren ?? false) : (props.wie?.cellen.find((c) => c.cel === props.cel)?.beslissen ?? false),
 );
@@ -152,7 +156,7 @@ async function beslissen() {
 
         <nldd-container gap="8">
           <nldd-title heading-level="4" size="display-5" text="Wat er is ingediend"></nldd-title>
-          <Gegevens :waarden="indiening.fields" :teksten="vormen?.teksten" :noem="noemStuk" label="Gegevens van de indiening" />
+          <Gegevens :waarden="indiening.fields" :teksten="vormen?.teksten" :noem="noemStuk" :herkomst="herkomstVan" label="Gegevens van de indiening" />
         </nldd-container>
 
         <nldd-container v-if="besluit" gap="16">

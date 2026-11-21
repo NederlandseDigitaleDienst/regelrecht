@@ -63,11 +63,7 @@ async fn run(base: &str, bsn: &str) -> Result<(), Box<dyn std::error::Error>> {
     let application = json!({ "velden": {
         "kaart_als_bestuurder": true,
         "kaart_als_passagier": false,
-        "aanvraag_ondertekend": true,
-        "naam_aanvrager": "T. Burger",
         "adres_aanvrager": "Voorbeeldlaan 1",
-        "dagtekening": "2026-10-05",
-        "gevraagde_beschikking": "gehandicaptenparkeerkaart",
     }});
     let (status, answer) = session
         .call(&http, "indieningen", &application, None)

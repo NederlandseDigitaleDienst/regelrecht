@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { aanvraagformulier, aanvraagVelden, beginwaarden, schermveld, tegenBesluitVelden } from './formulier';
+import { aanvraagformulier, aanvraagVelden, beginwaarden, herkomst, opVolgorde, schermveld, tegenBesluitVelden } from './formulier';
 import type { Indieningsvorm } from './types';
 
 // A made-up application, not of any case: the form follows from what the
@@ -26,8 +26,12 @@ describe('aanvraagformulier', () => {
     const f = aanvraagformulier(vorm, {}, '999990019');
     expect(f.invullen.map((s) => s.veld.naam)).toEqual(['wil_een_vergunning', 'ondertekend', 'dagtekening']);
     // The login fills the number and the form shows it; the channel is hidden.
-    expect(f.doorSysteem).toEqual([
-      expect.objectContaining({ label: 'Nummer aanvrager', waarde: '999990019', uitInlog: true }),
+    const getoond = f.groepen.flatMap((g) => g.velden);
+    expect(getoond.filter((v) => v.systeem)).toEqual([
+      expect.objectContaining({
+        label: 'Nummer aanvrager',
+        systeem: { waarde: '999990019', herkomst: 'Uit de inlog van de aanvrager.' },
+      }),
     ]);
   });
 
@@ -40,19 +44,68 @@ describe('aanvraagformulier', () => {
     ]);
   });
 
-  it('shows every field of the law when the case has no UI spec', () => {
+  it('shows every field of the law in its order when the case has no UI spec', () => {
     const kaal = { ...vorm, systeem: undefined, verborgen: undefined };
     const f = aanvraagformulier(kaal, undefined, null);
     expect(f.invullen.map((s) => s.veld.naam)).toEqual(vorm.velden.map((v) => v.naam));
-    expect(f.doorSysteem).toEqual([]);
+    expect(f.groepen).toHaveLength(1);
+    expect(f.groepen[0]?.titel).toBe('');
+  });
+
+  it('orders and groups the fields as the UI spec says, and shows what the system fills with its origin', () => {
+    const metSysteem: Indieningsvorm = {
+      ...vorm,
+      systeem: {
+        nummer_aanvrager: { soort: 'inloggen', waarde: '999990019' },
+        ondertekend: { soort: 'bron', bron: 'beleid_voorbeeld#8#geldt_als_ondertekend', waarde: true },
+        dagtekening: { soort: 'datum', waarde: '2026-10-13' },
+        kanaal: { soort: 'waarde', waarde: 'portaal' },
+      },
+    };
+    const teksten = {
+      nummer_aanvrager: { group: 'Uw gegevens' },
+      wil_een_vergunning: { group: 'Uw aanvraag' },
+      dagtekening: { group: 'Over deze aanvraag' },
+      ondertekend: { group: 'Over deze aanvraag' },
+    };
+    const volgorde = ['nummer_aanvrager', 'wil_een_vergunning', 'dagtekening', 'ondertekend'];
+    const f = aanvraagformulier(metSysteem, teksten, null, volgorde);
+    expect(f.groepen.map((g) => [g.titel, g.velden.map((v) => v.veld.naam)])).toEqual([
+      ['Uw gegevens', ['nummer_aanvrager']],
+      ['Uw aanvraag', ['wil_een_vergunning']],
+      ['Over deze aanvraag', ['dagtekening', 'ondertekend']],
+    ]);
+    const veld = (naam: string) => f.groepen.flatMap((g) => g.velden).find((v) => v.veld.naam === naam);
+    expect(veld('ondertekend')?.systeem).toEqual({ waarde: true, herkomst: 'Volgt uit Beleid voorbeeld artikel 8.' });
+    expect(veld('dagtekening')?.systeem?.herkomst).toBe('De dag van indiening, volgens de klok van het systeem.');
+    expect(f.invullen.map((s) => s.veld.naam)).toEqual(['wil_een_vergunning']);
+  });
+});
+
+describe('opVolgorde', () => {
+  it('puts the fields the UI spec names first, in its order, and the rest after in the order of the law', () => {
+    const velden = ['a', 'b', 'c', 'd'].map((naam) => ({ naam }));
+    expect(opVolgorde(velden, ['c', 'a']).map((v) => v.naam)).toEqual(['c', 'a', 'b', 'd']);
+    expect(opVolgorde(velden).map((v) => v.naam)).toEqual(['a', 'b', 'c', 'd']);
+  });
+});
+
+describe('herkomst', () => {
+  it('says for each kind of fill where the value comes from', () => {
+    expect(herkomst({ soort: 'inloggen' })).toBe('Uit de inlog van de aanvrager.');
+    expect(herkomst({ soort: 'inloggen', inlog: 'naam', waarde: 'A' })).toBe('Uit de inlog van de aanvrager.');
+    expect(herkomst({ soort: 'waarde', waarde: 'x' })).toBe('Hetzelfde bij elke aanvraag.');
+    expect(herkomst({ soort: 'gevraagd_besluit', waarde: 'w#1' })).toBe('Het besluit dat de wet bij deze aanvraag noemt.');
+    expect(herkomst({ soort: 'inlogmiddel', waarde: 'DigiD' })).toBe('Het middel waarmee de aanvrager inlogde.');
+    expect(herkomst({ soort: 'bron', bron: 'algemene_wet_bestuursrecht#4:2#x' })).toBe('Volgt uit Awb artikel 4:2.');
   });
 });
 
 describe('aanvraagVelden', () => {
-  it('sends what the system knows and leaves out the login field and the empty ones', () => {
-    const velden = aanvraagVelden(vorm, { wil_een_vergunning: true, ondertekend: undefined, nummer_aanvrager: 'x' });
-    // The server fills the login field itself and refuses it from the request.
-    expect(velden).toEqual({ wil_een_vergunning: true, kanaal: 'portaal' });
+  it('sends what the applicant filled in, and nothing the system fills', () => {
+    const velden = aanvraagVelden(vorm, { wil_een_vergunning: true, ondertekend: undefined, nummer_aanvrager: 'x', kanaal: 'y' });
+    // The server fills those itself and refuses them from the request.
+    expect(velden).toEqual({ wil_een_vergunning: true });
   });
 });
 

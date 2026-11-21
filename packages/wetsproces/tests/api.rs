@@ -64,8 +64,8 @@ async fn case_forms_and_clock_for_citizens_and_employees() {
         assert_eq!(aanvraag["soort"], json!("AANVRAAG"), "{vormen}");
         // The UI spec has the login fill the citizen number.
         assert_eq!(
-            aanvraag["systeem"]["bsn_aanvrager"],
-            json!({}),
+            aanvraag["systeem"]["bsn_aanvrager"]["soort"],
+            json!("inloggen"),
             "{aanvraag}"
         );
         // And names what a decision says of the deadline, on every screen.
@@ -637,6 +637,147 @@ async fn why_a_decision_came_out_so_for_its_citizen_and_its_cell() {
         fout["fout"].as_str().unwrap().contains("not a decision"),
         "{fout}"
     );
+}
+
+/// The application form says per field where its value comes from, as the
+/// UI spec has it, and shows a citizen what the system will record for
+/// them: the login (number and name), the clock (the date), a fixed value
+/// (the requested decision) and a rule (the signature, from article 8 of
+/// the policy, on the means of login); the citizen fills in the address and
+/// the kind of card.
+#[tokio::test]
+async fn the_application_form_shows_where_each_field_comes_from_and_its_value() {
+    let app = server().await;
+    let anna = digid(&app, ANNA, "Anna Voorbeeld").await;
+    let (status, vormen) = anna.get("/api/formulier").await;
+    assert_eq!(status, StatusCode::OK, "{vormen}");
+    let aanvraag =
+        &vormen["indieningen"]["besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49"];
+    let systeem = &aanvraag["systeem"];
+    assert_eq!(
+        systeem["bsn_aanvrager"],
+        json!({ "soort": "inloggen", "waarde": ANNA }),
+        "{systeem}"
+    );
+    assert_eq!(
+        systeem["naam_aanvrager"],
+        json!({ "soort": "inloggen", "inlog": "naam", "waarde": "Anna Voorbeeld" }),
+        "{systeem}"
+    );
+    assert_eq!(
+        systeem["gevraagde_beschikking"],
+        json!({ "soort": "waarde", "waarde": "gehandicaptenparkeerkaart" }),
+        "{systeem}"
+    );
+    assert_eq!(
+        systeem["dagtekening"],
+        json!({ "soort": "datum", "waarde": "2026-10-13" }),
+        "{systeem}"
+    );
+    assert_eq!(
+        systeem["aanvraag_ondertekend"],
+        json!({
+            "soort": "bron",
+            "bron": "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#8#aanvraag_geldt_als_ondertekend",
+            "parameters": { "inlogmiddel": "login_method" },
+            "waarde": true
+        }),
+        "{systeem}"
+    );
+    assert_eq!(aanvraag["verborgen"], json!([]));
+    // The citizen fills in what the system does not.
+    for veld in [
+        "adres_aanvrager",
+        "kaart_als_bestuurder",
+        "kaart_als_passagier",
+    ] {
+        assert!(systeem.get(veld).is_none(), "{veld}: {systeem}");
+    }
+    // The order and the groups come from the UI spec.
+    let volgorde: Vec<&str> = vormen["volgorde"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|v| v.as_str().unwrap())
+        .collect();
+    assert_eq!(
+        volgorde[..3],
+        ["bsn_aanvrager", "naam_aanvrager", "adres_aanvrager"]
+    );
+    assert_eq!(
+        vormen["teksten"]["adres_aanvrager"]["group"],
+        json!("Uw gegevens")
+    );
+    assert_eq!(
+        vormen["teksten"]["gevraagde_beschikking"]["label"],
+        json!("Wat vraagt u aan?")
+    );
+    // An employee sees how the form fills, not a citizen's values.
+    let lezer = employee(&app, "lezer-1", "wetsproces-lezer").await;
+    let (_, vormen) = lezer.get("/api/formulier").await;
+    let systeem = &vormen["indieningen"]["besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49"]
+        ["systeem"];
+    assert_eq!(systeem["bsn_aanvrager"], json!({ "soort": "inloggen" }));
+}
+
+/// The server fills what the UI spec has the system fill, on the day of the
+/// (test) clock, and refuses a request that sends such a field; the
+/// signature follows from the means of login, by article 8 of the policy.
+#[tokio::test]
+async fn the_server_fills_the_system_fields_and_the_signature_follows_from_the_login() {
+    let app = server().await;
+    set_clock(&app, "2026-10-20").await;
+    let anna = digid(&app, ANNA, "Anna Voorbeeld").await;
+    for veld in [
+        "dagtekening",
+        "naam_aanvrager",
+        "gevraagde_beschikking",
+        "aanvraag_ondertekend",
+    ] {
+        let mut body = application();
+        body["velden"][veld] = json!("2026-10-01");
+        let (status, fout) = anna.post("/api/indieningen", body).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{veld}: {fout}");
+        assert!(
+            fout["fout"]
+                .as_str()
+                .unwrap()
+                .contains("filled by the system"),
+            "{fout}"
+        );
+    }
+    // Who submits is the server's to say, not the request's.
+    let mut body = application();
+    body["indiener"] = json!({ "inlog": {}, "inlogmiddel": "DigiD" });
+    let (status, fout) = anna.post("/api/indieningen", body).await;
+    assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY, "{fout}");
+    assert_eq!(head(&app).await, 0);
+
+    let (status, aanvraag) = anna.post("/api/indieningen", application()).await;
+    assert_eq!(status, StatusCode::OK, "{aanvraag}");
+    let velden = &aanvraag["fields"];
+    assert_eq!(velden["bsn_aanvrager"], json!(ANNA));
+    assert_eq!(velden["naam_aanvrager"], json!("Anna Voorbeeld"));
+    assert_eq!(velden["dagtekening"], json!("2026-10-20"), "the test clock");
+    assert_eq!(
+        velden["gevraagde_beschikking"],
+        json!("gehandicaptenparkeerkaart")
+    );
+    assert_eq!(
+        velden["aanvraag_ondertekend"],
+        json!(true),
+        "DigiD, article 8"
+    );
+    // The decision on it reads the 4:2 check as before.
+    let id = aanvraag["id"].as_str().unwrap();
+    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser").await;
+    let (status, besluit) = beslisser
+        .post(
+            "/api/backoffice/besluiten",
+            json!({ "op": id, "bevindingen": findings() }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{besluit}");
 }
 
 #[tokio::test]
