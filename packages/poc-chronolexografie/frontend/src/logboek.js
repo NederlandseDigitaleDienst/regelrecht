@@ -9,40 +9,24 @@
  * `uitkomst` (een uitvoer van het artikel) of `begrip` (een open begrip, met
  * wie het invulde).
  */
-import { bezwaarBasis, hoofdletter, kort, leesbaar, state, toegewezen, waarde } from './state.js';
+import {
+  artikelNaam as gedeeldArtikelNaam,
+  toon,
+  wetNaam as gedeeldeWetNaam,
+} from '@regelrecht/frontend-shared/chronolex/waarden';
+import { bezwaarBasis, kort, leesbaar, state, toegewezen } from './state.js';
 
-// Regelwerken die overal bij hun afkorting heten.
-const AFKORTINGEN = {
-  algemene_wet_bestuursrecht: 'Awb',
-  besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw: 'BABW',
-};
+/** A value from the chain in words, shared with the wetsprocessysteem. */
+export { toon };
 
-/**
- * De naam van een regelwerk: zijn afkorting, de naam die het zelf draagt
- * (`api.casus`), of zijn `$id` leesbaar met een hoofdletter.
- *
- * A name that refers to a value of the regelwerk (`'#wet_naam'`) is no name.
- */
-export function wetNaam(wet) {
-  if (AFKORTINGEN[wet]) return AFKORTINGEN[wet];
-  const naam = state.casus?.regelwerken?.find((r) => r.id === wet)?.naam;
-  if (naam && !naam.startsWith('#')) return naam;
-  return hoofdletter(leesbaar(wet));
-}
+/** The name the case gives a regelwerk, if any (`api.casus`). */
+const naamInCasus = (wet) => state.casus?.regelwerken?.find((r) => r.id === wet)?.naam;
+
+/** The name of a regelwerk, shared with the wetsprocessysteem, with the names of this case. */
+export const wetNaam = (wet) => gedeeldeWetNaam(wet, naamInCasus);
 
 /** `leerplichtwet_1969`, `13a` → `Leerplichtwet 1969 artikel 13a`. */
-export const artikelNaam = (wet, artikel) => `${wetNaam(wet)} artikel ${artikel}`;
-
-/** Een waarde uit de keten in woorden: ja, nee, een datum of een getal. */
-export function toon(v) {
-  if (v === true) return 'ja';
-  if (v === false) return 'nee';
-  if (v == null) return 'geen waarde';
-  if (Array.isArray(v)) return v.length ? v.map((x) => toon(x)).join(', ') : 'geen';
-  if (typeof v === 'object' && 'basis' in v) return `een besluit onder ${v.basis}`;
-  if (typeof v === 'string') return v;
-  return waarde(v);
-}
+export const artikelNaam = (wet, artikel) => gedeeldArtikelNaam(wet, artikel, naamInCasus);
 
 /** Het chronolexogram `id` als `bezwaar 0000aaaa`, als het in `grammen` staat. */
 export function gramNaam(id, grammen) {

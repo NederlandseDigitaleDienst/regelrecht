@@ -393,6 +393,7 @@ fn auth_state() -> AppState {
         client_secret: "not-a-secret".to_string(),
         issuer_url: "https://sso.example.test/realms/test".to_string(),
         required_role: READER.to_string(),
+        extra_claims: Vec::new(),
     });
     AppState {
         config: Arc::new(config),

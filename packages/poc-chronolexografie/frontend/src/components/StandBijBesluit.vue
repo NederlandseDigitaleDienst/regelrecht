@@ -8,7 +8,7 @@
 import { reactive, ref, watch } from 'vue';
 import { hoofdletter, leesbaar, longDate, state } from '../state.js';
 import { label, toonWaarde, vraagStand } from '../stand.js';
-import VeldInvoer from './VeldInvoer.vue';
+import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
 
 const props = defineProps({
   // The decision, a chronolexogram of the case's cell.

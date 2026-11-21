@@ -3,7 +3,7 @@
  * bron/<naam> die achter het poc-portaal het portaal zelf serveert
  * (packages/poc-portal/src/bron.rs), hier uit de lokale map in
  * POC_BRON_<NAAM>, of uit het manifest dat die variabele noemt, zoals het
- * portaal het leest (`Manifest` in bron.rs). Zonder die variabele antwoordt
+ * portaal het leest (`Manifest` in packages/corpus/src/source_manifest.rs). Zonder die variabele antwoordt
  * de route 503, zoals het portaal zonder token, en toont de app "bron niet
  * beschikbaar".
  */

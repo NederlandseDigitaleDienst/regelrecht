@@ -66,7 +66,9 @@ fn spel_in(root: &str) -> Spel {
 /// files by their path in the source), and what became of that source.
 fn spel_met_bron(bestanden: BTreeMap<String, String>) -> (Spel, BronStand) {
     let mut files = BTreeMap::new();
-    for (pad, tekst) in regelrecht_poc_portal::bron::uit_map(&crate_dir().join("corpus")).unwrap() {
+    for (pad, tekst) in
+        regelrecht_corpus::source_manifest::uit_map(&crate_dir().join("corpus")).unwrap()
+    {
         files.insert(format!("packages/poc-chronolexografie/corpus/{pad}"), tekst);
     }
     let bron = Bron {
@@ -82,7 +84,7 @@ fn spel_met_bron(bestanden: BTreeMap<String, String>) -> (Spel, BronStand) {
 
 /// The files of the source at `pad`, a manifest or a folder.
 fn bestanden(pad: &Path) -> BTreeMap<String, String> {
-    regelrecht_poc_portal::bron::lokaal(pad).unwrap_or_else(|e| panic!("{e}"))
+    regelrecht_corpus::source_manifest::lokaal(pad).unwrap_or_else(|e| panic!("{e}"))
 }
 
 /// The number of scenarios of the case `casus_id`.

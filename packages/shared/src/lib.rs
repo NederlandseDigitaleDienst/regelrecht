@@ -1,5 +1,7 @@
 #[cfg(feature = "dates")]
 pub mod dates;
+#[cfg(feature = "postgres")]
+pub mod postgres;
 pub mod regulatory_layer;
 pub mod schema_version;
 #[cfg(feature = "telemetry")]

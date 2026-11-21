@@ -11,7 +11,7 @@ import { api } from '../api.js';
 import { formulier, huidigeStap, scenarioOver, scenarioWaarden } from '../scenarioInvoer.js';
 import { besluitenOnder, isBesluitSoort, kort, leesbaar, longDate, state, stap, waarde, zonderLeeg } from '../state.js';
 import ArtikelLink from './ArtikelLink.vue';
-import VeldInvoer from './VeldInvoer.vue';
+import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
 
 const artikelen = computed(() =>
   (state.casus.ambtshalve ?? []).filter((a) => a.cel === state.casus.cel).map((a) => a.artikel),

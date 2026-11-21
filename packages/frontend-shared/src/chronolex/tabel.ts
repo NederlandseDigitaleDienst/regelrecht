@@ -16,23 +16,40 @@
  * says, and every other column (text, a date, yes or no) is what it is about.
  * That holds without naming any column of any law.
  */
-import { toon } from './logboek.js';
-import { isDecimaal, leesbaar } from './state.js';
+import { isDecimaal, leesbaar, toon } from './waarden';
+
+/** A column of a table, as the law declares it. */
+export interface Kolom {
+  naam: string;
+  type: string;
+}
+
+/** A row of a table: a value per column. */
+export type Rij = Record<string, unknown>;
 
 /** The types of a column that counts something: no part of a key. */
 const MAAT = ['number', 'amount'];
 
 /** The names of the columns that say which row a row is. */
-export const sleutelKolommen = (kolommen) => kolommen.filter((k) => !MAAT.includes(k.type)).map((k) => k.naam);
+export const sleutelKolommen = (kolommen: Kolom[]): string[] =>
+  kolommen.filter((k) => !MAAT.includes(k.type)).map((k) => k.naam);
 
 /** A cell as it is compared: absent is null, a decimal is its number. */
-const celWaarde = (v) => {
+const celWaarde = (v: unknown): unknown => {
   if (v === undefined) return null;
   return isDecimaal(v) ? Number(v.__decimal) : v;
 };
 
 /** The values of `rij` in the columns `namen`, as one text to compare. */
-const inhoud = (rij, namen) => JSON.stringify(namen.map((n) => celWaarde(rij?.[n])));
+const inhoud = (rij: Rij | undefined, namen: string[]): string =>
+  JSON.stringify(namen.map((n) => celWaarde(rij?.[n])));
+
+/** What differs between two tables ([`tabelVerschil`]). */
+export interface Verschil {
+  gewijzigd: { bron: Rij; eigen: Rij }[];
+  ontbreekt: Rij[];
+  extra: Rij[];
+}
 
 /**
  * What differs between the table the source gives (`bron`) and the one the
@@ -40,7 +57,7 @@ const inhoud = (rij, namen) => JSON.stringify(namen.map((n) => celWaarde(rij?.[n
  * column (`gewijzigd`, `{ bron, eigen }`), rows of the source without a pair
  * (`ontbreekt`), and rows the applicant added (`extra`).
  */
-export function tabelVerschil(bron, eigen, kolommen) {
+export function tabelVerschil(bron: Rij[] | undefined, eigen: Rij[] | undefined, kolommen: Kolom[]): Verschil {
   const alle = kolommen.map((k) => k.naam);
   const sleutels = sleutelKolommen(kolommen);
   const rest = [...(eigen ?? [])];
@@ -50,18 +67,19 @@ export function tabelVerschil(bron, eigen, kolommen) {
     rest.splice(i, 1);
     return false;
   });
-  const gewijzigd = [];
-  const ontbreekt = [];
+  const gewijzigd: Verschil['gewijzigd'] = [];
+  const ontbreekt: Rij[] = [];
   for (const rij of zonderGelijke) {
     const i = sleutels.length ? rest.findIndex((e) => inhoud(e, sleutels) === inhoud(rij, sleutels)) : -1;
-    if (i < 0) ontbreekt.push(rij);
-    else gewijzigd.push({ bron: rij, eigen: rest.splice(i, 1)[0] });
+    const paar = i < 0 ? undefined : rest.splice(i, 1)[0];
+    if (paar === undefined) ontbreekt.push(rij);
+    else gewijzigd.push({ bron: rij, eigen: paar });
   }
   return { gewijzigd, ontbreekt, extra: rest };
 }
 
 /** Whether two tables hold the same rows, in whatever order. */
-export function zelfdeTabel(a, b, kolommen) {
+export function zelfdeTabel(a: unknown, b: unknown, kolommen: Kolom[]): boolean {
   if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
   const { gewijzigd, ontbreekt, extra } = tabelVerschil(a, b, kolommen);
   return gewijzigd.length + ontbreekt.length + extra.length === 0;
@@ -72,32 +90,36 @@ export function zelfdeTabel(a, b, kolommen) {
  * source gives it from a chronicle) as its number, so the sheet can edit it
  * and the application can be submitted; a value that is no table as it is.
  */
-export const alsInvoer = (tabel) =>
+export const alsInvoer = (tabel: unknown): unknown =>
   Array.isArray(tabel)
-    ? tabel.map((rij) =>
+    ? tabel.map((rij: Rij | null) =>
         Object.fromEntries(Object.entries(rij ?? {}).map(([k, v]) => [k, isDecimaal(v) ? Number(v.__decimal) : v])),
       )
     : tabel;
 
 /** A cell as the table shows it: as the app shows values, an empty one as nothing. */
-export const celTekst = (v) => (v === null || v === undefined ? '' : toon(v));
+export const celTekst = (v: unknown): string => (v === null || v === undefined ? '' : toon(v));
 
 /** The filled cells of `rij` in the columns `namen`, in one line. */
-const rijTekst = (rij, namen) =>
+const rijTekst = (rij: Rij | undefined, namen: string[]): string =>
   namen
     .map((n) => celTekst(rij?.[n]))
     .filter(Boolean)
     .join(', ');
 
 /** A row of the source in one line: every filled cell. */
-export const bronRij = (rij, kolommen) => rijTekst(rij, kolommen.map((k) => k.naam));
+export const bronRij = (rij: Rij | undefined, kolommen: Kolom[]): string =>
+  rijTekst(
+    rij,
+    kolommen.map((k) => k.naam),
+  );
 
 /**
  * What the source gives where the applicant's table differs, as the rest of
  * a sentence after "… geeft": per changed row the columns that differ, then
  * the rows the source has that the table lacks, then those it does not have.
  */
-export function verschilTekst(bron, eigen, kolommen) {
+export function verschilTekst(bron: Rij[], eigen: Rij[], kolommen: Kolom[]): string {
   const { gewijzigd, ontbreekt, extra } = tabelVerschil(bron, eigen, kolommen);
   const sleutels = sleutelKolommen(kolommen);
   const delen = [
@@ -114,4 +136,4 @@ export function verschilTekst(bron, eigen, kolommen) {
 }
 
 /** A column as a field of the form: of its type, and it may stay empty. */
-export const kolomVeld = (kolom) => ({ naam: kolom.naam, type: kolom.type, mag_leeg: true, basis: '' });
+export const kolomVeld = (kolom: Kolom) => ({ naam: kolom.naam, type: kolom.type, mag_leeg: true, basis: '' });

@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 // A field that holds a table (schema v0.8.20): the rows in an nldd-table, a
 // column per column the law declares. A row is edited in a sheet, as the
 // NLDD pattern "bewerken in een sheet" does it: the table stays in view, the
@@ -8,22 +8,29 @@
 // and off. A row added or removed, or a row saved, gives the form the whole
 // table anew; removing the last row empties the field, and saving a new row
 // with nothing filled in adds nothing. A table the system fills
-// (`alleenLezen`) shows its rows without the buttons.
+// (`alleenLezen`) shows its rows without the buttons. Shared by the
+// chronolexografie poc and the wetsprocessysteem.
 import { computed, ref } from 'vue';
-import { leesbaar } from '../state.js';
-import { bronRij, celTekst, kolomVeld, sleutelKolommen } from '../tabel.js';
+import { leesbaar } from '../../chronolex/waarden';
+import { bronRij, celTekst, kolomVeld, sleutelKolommen } from '../../chronolex/tabel';
+import type { Kolom, Rij } from '../../chronolex/tabel';
 import VeldInvoer from './VeldInvoer.vue';
 
-const props = defineProps({
-  veld: { type: Object, required: true },
-  modelValue: { type: Array, default: undefined },
-  herkomst: { type: String, default: '' },
-  alleenLezen: { type: Boolean, default: false },
-});
-const emit = defineEmits(['update:modelValue']);
+const props = withDefaults(
+  defineProps<{
+    veld: { naam: string; basis?: string; kolommen: Kolom[] };
+    modelValue?: Rij[];
+    herkomst?: string;
+    alleenLezen?: boolean;
+    label?: string;
+  }>(),
+  { modelValue: undefined, herkomst: '', alleenLezen: false, label: '' },
+);
+const emit = defineEmits<{ 'update:modelValue': [rijen: Rij[] | undefined] }>();
 
+const naam = computed(() => props.label || leesbaar(props.veld.naam));
 // Only an array holds rows: an unknown value (RFC-036) is an object, and its keys are no rows.
-const rijen = computed(() => (Array.isArray(props.modelValue) ? props.modelValue : []));
+const rijen = computed<Rij[]>(() => (Array.isArray(props.modelValue) ? props.modelValue : []));
 const kolommen = computed(() => props.veld.kolommen);
 // Every column takes an equal share, the buttons what they need.
 const sporen = computed(() => [...kolommen.value.map(() => 'minmax(120px, 1fr)'), 'auto'].join(' '));
@@ -31,23 +38,22 @@ const sporen = computed(() => [...kolommen.value.map(() => 'minmax(120px, 1fr)')
 // The row in the sheet: `index` is its place in the table, null for a new
 // row; `rij` the values the sheet holds until "Bewaar". It stays after the
 // sheet closes, so the sheet keeps its content while it slides away.
-const concept = ref(null);
+const concept = ref<{ index: number | null; rij: Rij } | null>(null);
 const open = ref(false);
 const titelId = computed(() => `tabel-${props.veld.naam}-rij`);
 
 const sleutels = computed(() => kolommen.value.filter((k) => sleutelKolommen(kolommen.value).includes(k.naam)));
 /** What names row `i`: its key columns, else every filled column, else its number. */
-const rijNaam = (rij, i) => bronRij(rij, sleutels.value) || bronRij(rij, kolommen.value) || `Rij ${i + 1}`;
+const rijNaam = (rij: Rij | undefined, i: number) =>
+  bronRij(rij, sleutels.value) || bronRij(rij, kolommen.value) || `Rij ${i + 1}`;
 
 const kop = computed(() => {
   const c = concept.value;
   if (!c) return '';
-  return c.index === null
-    ? `Rij toevoegen aan ${leesbaar(props.veld.naam)}`
-    : `${rijNaam(rijen.value[c.index], c.index)} bewerken`;
+  return c.index === null ? `Rij toevoegen aan ${naam.value}` : `${rijNaam(rijen.value[c.index], c.index)} bewerken`;
 });
 
-function bewerk(index) {
+function bewerk(index: number) {
   concept.value = { index, rij: { ...rijen.value[index] } };
   open.value = true;
 }
@@ -56,6 +62,7 @@ function nieuw() {
   open.value = true;
 }
 function bewaar() {
+  if (!concept.value) return;
   const { index, rij } = concept.value;
   const volledig = Object.fromEntries(kolommen.value.map((k) => [k.naam, rij[k.naam] ?? null]));
   open.value = false;
@@ -67,18 +74,23 @@ function bewaar() {
 }
 
 /** A yes-or-no cell as the dropdown holds it, and back. */
-const jaNeeKeuze = (v) => (v === true ? 'ja' : v === false ? 'nee' : '');
-const jaNeeWaarde = (k) => (k === 'ja' ? true : k === 'nee' ? false : null);
-function verwijder(index) {
+const jaNeeKeuze = (v: unknown) => (v === true ? 'ja' : v === false ? 'nee' : '');
+const jaNeeWaarde = (k: string) => (k === 'ja' ? true : k === 'nee' ? false : null);
+const zetJaNee = (naam: string, e: Event) => {
+  if (concept.value) concept.value.rij[naam] = jaNeeWaarde((e.target as HTMLSelectElement | null)?.value ?? '');
+};
+const zetCel = (naam: string, waarde: unknown) => {
+  if (concept.value) concept.value.rij[naam] = waarde;
+};
+function verwijder(index: number) {
   const uit = rijen.value.filter((_, i) => i !== index);
   emit('update:modelValue', uit.length ? uit : undefined);
 }
 </script>
-
 <template>
-  <nldd-form-section :text="leesbaar(veld.naam)" :supporting-text="veld.basis">
+  <nldd-form-section :text="naam" :supporting-text="veld.basis">
     <nldd-container gap="12">
-      <nldd-table :accessible-label="leesbaar(veld.naam)" :columns="sporen">
+      <nldd-table :accessible-label="naam" :columns="sporen">
         <nldd-table-row slot="header">
           <nldd-text-cell v-for="k in kolommen" :key="k.naam" :text="leesbaar(k.naam)"></nldd-text-cell>
           <nldd-cell width="fit-content"><nldd-visually-hidden>Acties</nldd-visually-hidden></nldd-cell>
@@ -138,7 +150,7 @@ function verwijder(index) {
                 <nldd-dropdown>
                   <select
                     :value="jaNeeKeuze(concept.rij[k.naam])"
-                    @change="concept.rij[k.naam] = jaNeeWaarde($event.target.value)"
+                    @change="zetJaNee(k.naam, $event)"
                   >
                     <option value="">Leeg</option>
                     <option value="ja">Ja</option>
@@ -150,7 +162,7 @@ function verwijder(index) {
                 v-else
                 :veld="kolomVeld(k)"
                 :model-value="concept.rij[k.naam] ?? undefined"
-                @update:model-value="concept.rij[k.naam] = $event"
+                @update:model-value="zetCel(k.naam, $event)"
               />
             </template>
             <nldd-form-actions>

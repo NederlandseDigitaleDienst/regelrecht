@@ -14,7 +14,13 @@
  * spel leidt het af uit de wet. awb.js geeft die de namen van de Awb-stappen
  * waaronder dit bestand ze nog als vaste keten leest.
  */
-import { isUnknown, missingFacts } from '@regelrecht/frontend-shared';
+import {
+  isBesluitwaarde,
+  isDecimaal,
+  jaNee,
+  leesbaar,
+  waarde,
+} from '@regelrecht/frontend-shared/chronolex/waarden';
 import { reactive } from 'vue';
 import { api } from './api.js';
 import { metAwbNamen, vormenMetAwbNamen } from './awb.js';
@@ -372,18 +378,17 @@ export const longDate = (iso) =>
     timeZone: 'UTC',
   });
 
-/** Een naam uit de wet leesbaar: `laatste_verlofdag` → `laatste verlofdag`. */
-export const leesbaar = (naam) => String(naam).replaceAll('_', ' ');
-
-/** `verlof verleend` → `Verlof verleend`. */
-export const hoofdletter = (tekst) => tekst.charAt(0).toUpperCase() + tekst.slice(1);
-/** Een uitkomst van eerder leesbaar: `true` → `ja`, `false` → `nee`. */
-export const jaNee = (v) => (v === true ? 'ja' : v === false ? 'nee' : String(v));
-
-/** Velden zonder de lege (`undefined`): die laat een indiening weg. */
-export const zonderLeeg = (velden) =>
-  Object.fromEntries(Object.entries(velden).filter(([, v]) => v !== undefined));
-
+// Names, yes-or-no, decimals, decisions held as a value and their words are
+// shared with the wetsprocessysteem (@regelrecht/frontend-shared/chronolex).
+export {
+  hoofdletter,
+  isBesluitwaarde,
+  isDecimaal,
+  jaNee,
+  leesbaar,
+  waarde,
+  zonderLeeg,
+} from '@regelrecht/frontend-shared/chronolex/waarden';
 export const kort = (id) => String(id).slice(-8);
 
 /** Een waarde van een aanvraag kort: een tabel als het aantal rijen. */
@@ -417,45 +422,6 @@ export const besluitenOnder = (artikel) =>
 
 /** The decisions of the case's cell under the case's deciding article, in chronicle order. */
 export const eigenBesluiten = () => state.grammen.filter((g) => isBesluit(g) && g.basis === besluitBasis());
-
-/** Een decimaal staat in een chronolexogram als `{"__decimal": "…"}`. */
-export const isDecimaal = (v) =>
-  v !== null && typeof v === 'object' && Object.keys(v).length === 1 && '__decimal' in v;
-
-/**
- * Een besluitwaarde (`{basis, fields, findings, outputs}`), zoals de
- * uitspraak die houdt als de rechter zelf in de zaak voorziet (Awb 8:72,
- * derde lid, onder b).
- */
-export const isBesluitwaarde = (v) =>
-  v !== null &&
-  typeof v === 'object' &&
-  typeof v.basis === 'string' &&
-  ['fields', 'findings', 'outputs'].every((k) => v[k] !== null && typeof v[k] === 'object');
-
-/**
- * Een waarde leesbaar: een decimaal als het getal, een besluitwaarde als
- * haar basis met haar uitvoer (een besluit daarin net zo, tussen
- * haakjes), een onbekende waarde (RFC-036) als onbekend met wat ontbreekt,
- * de rest als JSON.
- */
-export function waarde(v) {
-  if (isDecimaal(v)) return v.__decimal;
-  if (isUnknown(v)) {
-    // As the editor (outputFormat.ts) and the demo (format.ts) write it, each
-    // name once: the engine may report one fact from two laws.
-    const ontbreekt = [...new Set(missingFacts(v).map((f) => leesbaar(f.name)))];
-    return ontbreekt.length ? `onbekend (ontbreekt: ${ontbreekt.join(', ')})` : 'onbekend';
-  }
-  if (isBesluitwaarde(v)) {
-    const uitvoer = Object.entries(v.outputs).map(([naam, w]) => {
-      const tekst = waarde(w);
-      return `${leesbaar(naam)}: ${isBesluitwaarde(w) ? `(${tekst})` : tekst}`;
-    });
-    return [`besluit onder ${v.basis}`, ...uitvoer].join('; ');
-  }
-  return JSON.stringify(v);
-}
 
 // The id of a chronolexogram: a UUID.
 const GRAM_ID = /^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;

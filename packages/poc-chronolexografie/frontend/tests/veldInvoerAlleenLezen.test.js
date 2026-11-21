@@ -4,7 +4,7 @@
 // defined here, so the test reads their attributes.
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp, h, nextTick } from 'vue';
-import VeldInvoer from '../src/components/VeldInvoer.vue';
+import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
 import { BESTUUR, RIJEN } from './fixtureTabel.js';
 
 let app = null;

@@ -5,7 +5,7 @@
 // here, so the test reads their attributes and fires their events itself.
 import { afterEach, describe, expect, it } from 'vitest';
 import { createApp, h, nextTick, ref } from 'vue';
-import VeldInvoer from '../src/components/VeldInvoer.vue';
+import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
 import { BESTUUR, RIJEN } from './fixtureTabel.js';
 
 let app = null;

@@ -39,11 +39,11 @@ import EigenOordelen from './EigenOordelen.vue';
 import FeitVastleggen from './FeitVastleggen.vue';
 import AmbtshalveBesluiten from './AmbtshalveBesluiten.vue';
 import StandBijBesluit from './StandBijBesluit.vue';
-import OordeelKeuze from './OordeelKeuze.vue';
+import OordeelKeuze from '@regelrecht/frontend-shared/components/chronolex/OordeelKeuze.vue';
 import StilOordeel from './StilOordeel.vue';
 import Voorvertoning from './Voorvertoning.vue';
 import Waarom from './Waarom.vue';
-import VeldInvoer from './VeldInvoer.vue';
+import VeldInvoer from '@regelrecht/frontend-shared/components/chronolex/VeldInvoer.vue';
 
 const oordelen = () => state.vormen?.besluit.bevindingen ?? [];
 

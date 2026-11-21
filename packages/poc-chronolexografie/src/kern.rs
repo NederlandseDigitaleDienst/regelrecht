@@ -720,6 +720,9 @@ pub fn vormen(corpus: &Corpus, cell: &Cellen, on: NaiveDate) -> Result<Value> {
         "andere_cellen": handelingen(&service, corpus, cell, on)?,
         "eigen": eigen_handelingen(&service, corpus, cell, on)?,
         "per_besluit": weergaven(&service, corpus, on),
+        // Per field how a screen names it, where the UI spec says so
+        // (`label`, `help`): by field name, for every form alike.
+        "teksten": corpus.ui_spec.teksten,
         "eigen_velden": std::iter::once(&cell.eigen)
             .chain(&cell.andere)
             .flat_map(|c| c.grams())
