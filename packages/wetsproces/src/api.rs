@@ -71,10 +71,11 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post, put};
 use axum::{Extension, Json, Router};
 use chrono::NaiveDate;
+use regelrecht_poc_chronolexografie::kern::Indiener;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
-use crate::access::{self, Level, Principal};
+use crate::access::{self, Citizen, Level, Principal};
 use crate::clock::ControllableClock;
 use crate::config::Mode;
 use crate::fsc4b::Fsc4b;
@@ -375,7 +376,53 @@ pub(crate) async fn forms_for(state: &AppState, principal: &Principal) -> Citize
     without_login_offer(&mut forms);
     let visible = visible_records(state, principal).await?;
     only_visible_records(&mut forms, &visible);
+    if let Ok(citizen) = principal.citizen(&state.subject_claim) {
+        let preview = state
+            .service
+            .system_preview(submitter(state, principal, &citizen))
+            .await;
+        with_system_values(&mut forms, state.service.application_article(), preview);
+    }
     Ok(forms)
+}
+
+/// Put in the application form of `forms` (under `article`) what the system
+/// fills for this citizen: per field it fills, its value (`waarde`). What
+/// the form shows is then what the submission records, as long as the day
+/// does not change in between. A preview that fails leaves the values out
+/// and says why (`fout`); the form still loads, and the submission fills
+/// the fields anew or refuses with the reason.
+fn with_system_values(
+    forms: &mut Value,
+    article: &str,
+    preview: Result<Map<String, Value>, ServiceError>,
+) {
+    let Some(application) = forms
+        .get_mut("indieningen")
+        .and_then(|i| i.get_mut(article))
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    let values = match preview {
+        Ok(values) => values,
+        Err(e) => {
+            tracing::warn!(error = %e, "the preview of what the system fills failed");
+            application.insert("systeem_fout".into(), Value::from(e.to_string()));
+            return;
+        }
+    };
+    let Some(system) = application
+        .get_mut("systeem")
+        .and_then(Value::as_object_mut)
+    else {
+        return;
+    };
+    for (field, value) in values {
+        if let Some(fill) = system.get_mut(&field).and_then(Value::as_object_mut) {
+            fill.insert("waarde".into(), value);
+        }
+    }
 }
 
 /// The ids of the records `principal` may see: those of their dossier as a
@@ -635,18 +682,32 @@ pub(crate) async fn submit_for(
             format!("'{field}' is filled from your login, not from the request"),
         ));
     }
+    let application = s
+        .article
+        .as_deref()
+        .is_none_or(|a| a == state.service.application_article());
+    if application
+        && let Some(system) = state
+            .service
+            .system_fields()
+            .find(|f| s.fields.contains_key(*f))
+    {
+        return Err(ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            format!("'{system}' is filled by the system, not from the request"),
+        ));
+    }
     if let Some(id) = &s.refers_to
         && !state.service.dossier(citizen.subject()).await?.holds(id)
     {
         return Err(ApiError::not_yours("record in your dossier"));
     }
-    let application = s
-        .article
-        .as_deref()
-        .is_none_or(|a| a == state.service.application_article());
     if application {
+        // The login field holds the citizen whatever the UI spec says of it:
+        // it is what picks out the dossier.
         s.fields
             .insert(field.to_string(), Value::from(citizen.subject()));
+        s.submitter = Some(submitter(state, principal, &citizen));
     } else if s.refers_to.is_none() {
         return Err(ApiError::new(
             StatusCode::UNPROCESSABLE_ENTITY,
@@ -654,6 +715,25 @@ pub(crate) async fn submit_for(
         ));
     }
     perform(state, headers, Step::Submit(s), &principal.actor()).await
+}
+
+/// What the server knows of the citizen `principal` who submits an
+/// application: the login field holds their identifier, the claim `naam` the
+/// name the login gave, and the means of login follows from the channel
+/// ([`access::login_method`]).
+fn submitter(state: &AppState, principal: &Principal, citizen: &Citizen) -> Indiener {
+    let mut inlog = Map::new();
+    inlog.insert(
+        state.service.login_field().to_string(),
+        Value::from(citizen.subject()),
+    );
+    if let Some(name) = principal.name() {
+        inlog.insert("naam".into(), Value::from(name));
+    }
+    Indiener {
+        inlog,
+        inlogmiddel: access::login_method(principal.channel()).map(str::to_string),
+    }
 }
 
 /// A decision, by a decider of the executor.

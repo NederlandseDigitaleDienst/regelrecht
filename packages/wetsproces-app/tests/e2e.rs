@@ -81,11 +81,7 @@ fn application() -> Value {
     json!({ "velden": {
         "kaart_als_bestuurder": true,
         "kaart_als_passagier": false,
-        "aanvraag_ondertekend": true,
-        "naam_aanvrager": "T. Burger",
         "adres_aanvrager": "Voorbeeldlaan 1",
-        "dagtekening": "2026-10-05",
-        "gevraagde_beschikking": "gehandicaptenparkeerkaart",
     }})
 }
 

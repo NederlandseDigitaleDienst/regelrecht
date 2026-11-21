@@ -16,18 +16,33 @@ export interface Veld {
   beleid?: boolean;
 }
 
-/** How a screen names a field, where the UI spec says so (`label`, `help`). */
+/** How a screen names a field, where the UI spec says so (`label`, `help`, `group`). */
 export interface Veldtekst {
   label?: string;
   help?: string;
+  /** The heading of the group the field stands in. */
+  group?: string;
 }
+
+/**
+ * Where the system takes the value of a field from (`kern::door_het_systeem`):
+ * the login, the clock, a fixed value, the decision the law names, the means
+ * of login, or a rule (`bron`).
+ */
+export type Systeemsoort = 'inloggen' | 'datum' | 'waarde' | 'gevraagd_besluit' | 'inlogmiddel' | 'bron';
 
 /** How the system fills a field of the application (`fill: {by: system}`). */
 export interface Systeemvulling {
-  /** A value the system knows itself. */
+  soort?: Systeemsoort;
+  /**
+   * The value: one the system knows itself, or for a citizen the value the
+   * server will record for them, whatever the kind.
+   */
   waarde?: unknown;
-  /** A source the cell computes. */
+  /** The rule whose outcome fills it, `<regelwerk>#<article>#<output>`. */
   bron?: string;
+  /** The claim of the login that fills it, when not the field's own. */
+  inlog?: string;
 }
 
 /** The form of a submission under one article. */
@@ -42,6 +57,8 @@ export interface Indieningsvorm {
   prefill?: Record<string, string>;
   systeem?: Record<string, Systeemvulling>;
   verborgen?: string[];
+  /** Why the server could not say what it will fill, if so. */
+  systeem_fout?: string;
 }
 
 /** The form of a decision under one article: what the authority finds. */
@@ -75,6 +92,8 @@ export interface Vormen {
   andere_cellen: CelHandelingen[];
   /** Per field how a screen names it, from the UI spec. */
   teksten?: Record<string, Veldtekst>;
+  /** The fields in the order the UI spec names them. */
+  volgorde?: string[];
 }
 
 /** A submission the case knows, with the cell that decides on it. */

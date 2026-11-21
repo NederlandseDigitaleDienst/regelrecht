@@ -46,27 +46,36 @@ Every screen carries a band that says the case, the people and the data are made
 
 No field of a case is named in the code of the app. A form takes its fields from `GET /api/formulier`, which the kern derives from the law in force on the day of the clock, in the order the law gives them. A yes or no that the law requires is a switch. A yes or no the law lets stay empty is a choice of yes, no or empty, and so is every finding of the authority.
 
-The case's UI spec (`packages/wetsproces/ui_spec.yaml`, read by `packages/poc-chronolexografie/src/ui_spec.rs`) adds to that. A field the system fills shows read-only, or not at all when the spec hides it, and is never sent: the server fills the login field itself. `label` and `help` name a field on the screen and put a line under it, by field name over every form. Without a UI spec every field the law asks is on the form, under its name in the rulework.
+The case's UI spec (`packages/wetsproces/ui_spec.yaml`, read by `packages/poc-chronolexografie/src/ui_spec.rs`) decides how the screen shows those fields. The fields stand in the order the spec names them, under the heading of their `group`; a field the spec does not name follows, in the order of the law. `label` and `help` name a field and put a line under it, by field name over every form. A field the system fills shows read-only with the value the server will record, and under it where that value comes from: the login, the day of submission, a fixed value, or the article of the rule whose outcome it is. The form never sends such a field. A field the spec hides is not on the form. Without a UI spec every field the law asks is on the form, under its name in the rulework.
+
+For the parking card the application form reads, under "Over deze aanvraag":
 
 ```yaml
-elements:
-  - id: UI1
-    element: aanvraagformulier
-    fields:
-      - name: bsn_aanvrager
-        visibility: shown
-        fill: {by: system}
-        label: Burgerservicenummer
-      - name: gevraagde_beschikking
-        label: Wat vraagt u aan?
-        help: Bijvoorbeeld een gehandicaptenparkeerkaart.
+- name: gevraagde_beschikking
+  group: Over deze aanvraag
+  visibility: shown
+  fill: {by: system, value: gehandicaptenparkeerkaart}
+  label: Wat vraagt u aan?
+- name: dagtekening
+  group: Over deze aanvraag
+  visibility: shown
+  fill: {by: system, submission: date}
+  label: Dagtekening
+- name: aanvraag_ondertekend
+  group: Over deze aanvraag
+  visibility: shown
+  fill:
+    by: system
+    from: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#8#aanvraag_geldt_als_ondertekend
+    parameters: {inlogmiddel: login_method}
+  label: Ondertekend
 ```
 
-With this spec the application form shows the citizen number read-only, with "Ingevuld uit uw inlog." under it, and asks "Wat vraagt u aan?" with the help text below. The other fields carry their names from the rulework, such as "Naam aanvrager".
+A citizen who logged in with the simulated DigiD sees "gehandicaptenparkeerkaart", today's date and "ja", each read-only. Under the last one stands "Volgt uit" and the article of the municipality's policy. The back office shows the same origin beside each of these fields of a recorded application. Where they come from is on [Wetsproces](/components/wetsproces#what-the-server-fills-in-an-application).
 
-The form fields and the rules for what the system fills are shared with the chronolexography PoC, in `@regelrecht/frontend-shared/chronolex` ([Shared Frontend Package](/components/frontend-shared)).
+The form fields are shared with the chronolexography PoC, in `@regelrecht/frontend-shared/chronolex` ([Shared Frontend Package](/components/frontend-shared)).
 
-Two parts of the UI spec have no effect here yet. A prefill from a source (`fill: {from: ...}`) and the views beside a decision (`answer`) need a route that computes them, and this case uses neither.
+Two parts of the UI spec have no effect here yet: a prefill the applicant may change (`fill: {from: ...}` without `by: system`) and the views beside a decision (`answer`). Both need a route that computes them, and this case uses neither.
 
 ## The public side and the back office
 

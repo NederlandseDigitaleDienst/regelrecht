@@ -2,6 +2,8 @@
 // What a record holds, field by field: what was submitted, what the
 // authority found, what came out. Empty fields stay out. `noem` names a
 // record a field refers to, such as the contested decision of an objection.
+// `herkomst` says per field where its value came from, where the system
+// filled it, such as the rule of a policy.
 import { computed } from 'vue';
 import { schermveld } from './formulier';
 import { waardeTekst } from './keten';
@@ -12,11 +14,12 @@ const props = defineProps<{
   teksten?: Vormen['teksten'];
   label: string;
   noem?: (id: string) => string | undefined;
+  herkomst?: Record<string, string>;
 }>();
 const rijen = computed(() =>
   Object.entries(props.waarden ?? {})
     .filter(([, v]) => v !== null && v !== undefined)
-    .map(([naam, v]) => ({ naam, label: schermveld({ naam, type: null }, props.teksten).label, waarde: waardeTekst(v, props.noem) })),
+    .map(([naam, v]) => ({ naam, label: schermveld({ naam, type: null }, props.teksten).label, waarde: [waardeTekst(v, props.noem), props.herkomst?.[naam]].filter(Boolean).join(' · ') })),
 );
 </script>
 

@@ -162,11 +162,29 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `POST /api/backoffice/beheer/besluiten` | admin | An external party's decision on a submission it holds |
 | `POST /api/backoffice/beheer/toezendingen` | admin | A copy of an external party's decision to the cell it concerns |
 
-A citizen's application gets `bsn_aanvrager` from the login; a request that sends it is refused with `422`. A submission that refers to a record (`op`) must refer to one in the citizen's own dossier, and any submission other than the application must refer to one. The dossier is the set of records that hold the citizen's number in that field, with every record that refers to one of them, however indirectly: the decision on the application, an objection to that decision. It is derived from the chronicles on every request and kept nowhere else.
+A citizen's application gets `bsn_aanvrager` from the login, and every other field the UI spec has the system fill from the server ([below](#what-the-server-fills-in-an-application)); a request that sends such a field is refused with `422`. A submission that refers to a record (`op`) must refer to one in the citizen's own dossier, and any submission other than the application must refer to one. The dossier is the set of records that hold the citizen's number in that field, with every record that refers to one of them, however indirectly: the decision on the application, an objection to that decision. It is derived from the chronicles on every request and kept nowhere else.
 
 An employee names records by id. A record outside the executor's chronicle answers `404`, the same as an id that does not exist; under `/api/backoffice/beheer/` the same holds for a record outside the external parties' chronicles. A cell named in the path or body is public, since the case names its cells: a fact for an external party through `vastleggingen`, or its chronicle, answers `403`, and a cell that is no external party answers `404` in the admin panel. The forms list the fields of a record only for the records the caller may see: a citizen's own dossier, or the executor's chronicle. Each record entered through the admin panel keeps the admin's account in `recorded_by` and `beheerpaneel` in `recorded_via`, while the record itself names the party as its `recording_actor`.
 
 The forms carry the UI spec of the source as the PoC applies it (`src/ui_spec.rs` there): which field is prefilled from which output, which the system fills and which the form hides, and the `label` and `help` a screen shows for a field. The screens are on [Wetsproces Screens](/components/wetsproces-frontend); the server serves the build of its surface from `WETSPROCES_FRONTEND`. A path under `/api/`, `/auth/` or `/fsc4b/` that is no route answers `404`; any other path gets the screens' `index.html`.
+
+## What the server fills in an application
+
+The UI spec decides how the value of each field of the application comes about. A field without `fill` is the citizen's to fill in. For a field with `fill: {by: system}` the server makes the value itself when the application comes in, inside the step that records it, so the value belongs to the same day and the same chronicles as the record (`kern::systeemvelden`):
+
+| UI spec | Value |
+|---|---|
+| `{by: system}` | the login: the identifier under the subject claim |
+| `{by: system, login: naam}` | the login: the name it gave, empty when it gave none |
+| `{by: system, submission: date}` | the day of the clock (the test clock in test mode) |
+| `{by: system, value: ...}` | that fixed value |
+| `{by: system, from: <regelwerk>#<article>#<output>, parameters: {...}}` | the outcome of that article, run on what the server knows of the submission |
+
+`parameters` passes that knowledge to the article under the names of its parameters: `date`, the day of submission, and `login_method`, the means the citizen logged in with. The test login, the simulated DigiD, gives `DigiD`; the login through Keycloak gives `Keycloak`, and FSC voor Burgers gives `FSC voor Burgers`. For the parking card the date of the application is the day of the clock, the requested decision is the fixed value `gehandicaptenparkeerkaart`, and whether the application is signed follows from article 8 of the municipality's fictitious policy: an application submitted after a login with DigiD counts as signed. Through Keycloak or FSC voor Burgers it does not, so such an application is recorded as unsigned. That is a deliberate choice: the policy names one method it trusts, and a channel it does not name gets no signature it never granted. A session of FSC voor Burgers carries no name, so the name stays empty on that channel.
+
+These fields are input fields of the application: Awb 4:2 asks that an application holds them. The rule generates a value for such a field, and the execution of the law reads it as it would read the same value typed in, so nothing changes in how the law is executed. That is why they are no open terms that policy fills. The choice of the executor sits in an article of its own policy that can be read, explained and changed apart from the law.
+
+`GET /api/formulier` gives a citizen, per field the system fills, the value the server would record now (`waarde`), so the form shows what will be recorded. When a rule cannot run, the form says why under `systeem_fout`, and the submission refuses with the reason.
 
 ## Running it locally
 
