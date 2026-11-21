@@ -68,6 +68,12 @@ async fn case_forms_and_clock_for_citizens_and_employees() {
             json!({}),
             "{aanvraag}"
         );
+        // And names what a decision says of the deadline, on every screen.
+        assert_eq!(
+            vormen["teksten"]["termijn_einddatum"]["label"],
+            json!("Laatste dag voor bezwaar of beroep"),
+            "{vormen}"
+        );
         let (status, klok) = who.get("/api/klok").await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(
@@ -365,6 +371,14 @@ async fn the_test_login_exists_only_in_test_mode_without_oidc() {
         .await
         .unwrap();
     assert_eq!(test_login(with_oidc.clone()).await, StatusCode::NOT_FOUND);
+    // The simulated DigiD is the same route, so it is not there either.
+    let (status, _) = anonymous(&with_oidc)
+        .post(
+            "/auth/testlogin",
+            json!({ "bsn": ANNA, "naam": "Anna Voorbeeld" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
     assert_eq!(login_page(with_oidc).await, StatusCode::TEMPORARY_REDIRECT);
 
     // Stable mode, on Postgres.
@@ -444,6 +458,13 @@ async fn the_test_personas_follow_from_the_case() {
     assert_eq!(decider["rollen"], json!(["wetsproces-beslisser"]));
     let admin = personas.iter().find(|p| p["soort"] == "beheerder").unwrap();
     assert_eq!(admin["rollen"], json!(["wetsproces-admin"]));
+    // Each citizen has a made-up name beside the number.
+    let names: Vec<&Value> = personas
+        .iter()
+        .filter(|p| p["soort"] == "burger")
+        .map(|p| &p["naam"])
+        .collect();
+    assert_eq!(names, [&json!("Anna Voorbeeld"), &json!("Bram Proef")]);
     // Each persona logs in as the test login takes it.
     for p in personas {
         let body = json!({ "sub": p["sub"], "rollen": p["rollen"], "claims": p.get("claims").cloned().unwrap_or(json!({})) });

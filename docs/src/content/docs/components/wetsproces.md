@@ -119,6 +119,17 @@ curl -c jar -H 'content-type: application/json' localhost:7180/auth/testlogin \
 
 The session it writes has the same keys as one after Keycloak, so every request after it goes through the same checks. The route exists only in that case; with OIDC configured, and always in stable mode, it answers `404`.
 
+The citizens' screen to get in (the simulated DigiD) sends a citizen's number and name instead, and nothing else:
+
+```bash
+curl -c jar -H 'content-type: application/json' localhost:7180/auth/testlogin \
+  -d '{"bsn": "999990032", "naam": "Anna Voorbeeld"}'
+```
+
+The server makes that account itself: the role `wetsproces-burger` and no other, the number under the subject claim, and the name in the session, where `GET /api/ik` gives it. It takes only a number of nine digits that passes the eleven test and starts with `99999`, the range made for testing, so a number typed into the simulation is never a real one. A refused number answers `400` with the reason in Dutch. A body that adds roles, claims or a `sub` to the number and name fits neither shape and is refused. The back office serves no citizens and answers `404`.
+
+`GET /auth/logout` beside the test login ends the session and sends the browser to `/`, where the screen to get in waits again.
+
 `WETSPROCES_LOGIN` overrides that choice. `testlogin` gives the test login in test mode even when the OIDC variables are set, and reads none of them. A ZAD preview needs this: its `keycloak` service sets those variables in the container, while the realm may not have the wetsproces roles yet. Stable mode refuses `testlogin`. `oidc` refuses to start without the OIDC variables, and any other value stops the server too. The line `listening on 0.0.0.0:<port>` at startup names the login, the mode, the surface and the store, so the log shows what runs. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the case: on `burger` the citizens, on `backoffice` a handler and a decider of the executor and the admin.
 
 An app can use the citizen routes without a browser through [FSC voor Burgers](/components/wetsproces-fsc4b), when that channel is configured. [The app](/components/wetsproces-app) does so with the citizen's screens in a webview.

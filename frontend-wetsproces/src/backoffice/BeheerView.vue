@@ -14,7 +14,7 @@ import { useRouter } from 'vue-router';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
-import { omschrijving } from '../gedeeld/keten';
+import { artikelNaam, omschrijving } from '../gedeeld/keten';
 import type { Gram, Handeling } from '../gedeeld/types';
 import { beheerApi } from './api';
 import type { Partijen } from './api';
@@ -111,7 +111,7 @@ async function toezenden(besluit: Gram) {
                   :current="g.id === id || undefined"
                   @click="router.push({ name: 'beheer-behandelen', params: { cel: p.cel, id: g.id } })"
                 >
-                  <nldd-text-cell :text="omschrijving(g, casus)" :supporting-text="`Ontvangen ${longDate(g.recorded_on)} · onder ${g.basis}`"></nldd-text-cell>
+                  <nldd-text-cell :text="omschrijving(g, casus)" :supporting-text="`Ontvangen ${longDate(g.recorded_on)} · onder ${artikelNaam(g.basis)}`"></nldd-text-cell>
                   <nldd-spacer-cell size="8"></nldd-spacer-cell>
                   <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
                 </nldd-list-item>

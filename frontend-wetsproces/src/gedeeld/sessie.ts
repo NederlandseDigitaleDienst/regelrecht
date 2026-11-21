@@ -21,24 +21,59 @@ export interface Sessie {
   stuur<T>(methode: string, pad: string, body: unknown, sleutel?: string): Promise<T>;
 }
 
-/** The reason in an error answer of the server, or its plain text. */
-export function reden(body: string): string {
+/** What a screen says when the server could not be reached or answered with a page of the platform. */
+export const NIET_BEREIKBAAR =
+  'De server is op dit moment niet bereikbaar. Wat u hebt ingevuld blijft staan; probeer het over een moment opnieuw.';
+
+/**
+ * The reason in an error answer of the server (`{ "fout": "<why>" }`), for a
+ * screen to show. Any other body is never shown as it is: a 5xx is often an
+ * HTML page of the platform in front of the server (a restart, a deploy),
+ * and a 4xx without a reason is axum's own rejection, written for a
+ * developer. Both transports take their messages from here.
+ */
+export function reden(body: string, status?: number): string {
   try {
     const parsed: unknown = JSON.parse(body);
     if (parsed && typeof parsed === 'object' && 'fout' in parsed && typeof parsed.fout === 'string') {
       return parsed.fout;
     }
   } catch {
-    // Not JSON: axum's own rejection of a body that does not parse.
+    // Not JSON: a page of the platform, or axum's rejection in plain text.
   }
-  return body;
+  if (status !== undefined && status >= 400 && status < 500) {
+    return `De server nam dit verzoek niet aan (status ${status}). Wat u hebt ingevuld blijft staan; probeer het opnieuw.`;
+  }
+  return NIET_BEREIKBAAR;
 }
 
-const errorMessage = (_status: number, body: string) => reden(body);
+const errorMessage = (status: number, body: string) => reden(body, status);
+
+/** A call that got no answer the screen can read: no answer at all, or a page that is not the JSON it asked for. */
+export class Onbereikbaar extends Error {
+  constructor(oorzaak: unknown) {
+    super(NIET_BEREIKBAAR, { cause: oorzaak });
+    this.name = 'Onbereikbaar';
+  }
+}
+
+/**
+ * `fetch` rejects with a TypeError when the request never reached the
+ * server, and reading a 200 that is a page of the platform as JSON fails with
+ * a SyntaxError. Both become `Onbereikbaar`; the original goes to the console
+ * for whoever looks. Any other error passes on as it is.
+ */
+export function onbereikbaar(e: unknown): never {
+  if (e instanceof TypeError || e instanceof SyntaxError) {
+    console.error('a call to the server failed', e);
+    throw new Onbereikbaar(e);
+  }
+  throw e;
+}
 
 /** The session cookie of this origin, which the browser sends along. */
 export const cookieSessie: Sessie = {
-  haal: <T>(pad: string) => apiFetchJson<T>(pad, { credentials: 'same-origin', errorMessage }),
+  haal: <T>(pad: string) => apiFetchJson<T>(pad, { credentials: 'same-origin', errorMessage }).catch(onbereikbaar),
   stuur: <T>(methode: string, pad: string, body: unknown, sleutel?: string) => {
     const headers: Record<string, string> = { 'content-type': 'application/json' };
     if (sleutel) headers['idempotency-key'] = sleutel;
@@ -48,7 +83,7 @@ export const cookieSessie: Sessie = {
       body: JSON.stringify(body),
       credentials: 'same-origin',
       errorMessage,
-    });
+    }).catch(onbereikbaar);
   },
 };
 

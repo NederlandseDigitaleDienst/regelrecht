@@ -252,6 +252,100 @@ async fn the_test_login_offers_each_side_its_own_accounts() {
     );
 }
 
+#[tokio::test]
+async fn the_simulated_digid_logs_in_a_citizen_by_number_and_name() {
+    for surface in [Surface::Citizen, Surface::All] {
+        let app = on(surface).await;
+        let bram = digid(&app, BRAM, "Bram Proef").await;
+        let (status, ik) = bram.get("/api/ik").await;
+        assert_eq!(status, StatusCode::OK, "{surface}: {ik}");
+        assert_eq!(ik["burger"], json!(true));
+        assert_eq!(ik["identiteit"], json!(BRAM));
+        assert_eq!(ik["naam"], json!("Bram Proef"));
+        assert_eq!(ik["niveau"], Value::Null);
+        assert_eq!(ik["cellen"], json!([]));
+        assert_eq!(bram.get("/api/dossier").await.0, StatusCode::OK);
+    }
+}
+
+#[tokio::test]
+async fn the_simulated_digid_gives_no_role_but_the_citizens() {
+    for surface in [Surface::Citizen, Surface::All] {
+        let app = on(surface).await;
+        // Roles or claims beside a number and a name fit no shape of the login.
+        for extra in [
+            json!({ "rollen": ["wetsproces-admin"] }),
+            json!({ "claims": { "bsn": ANNA } }),
+            json!({ "sub": "beheerder" }),
+        ] {
+            let mut body = json!({ "bsn": BRAM, "naam": "Bram Proef" });
+            body.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            let (status, _) = anonymous(&app).post("/auth/testlogin", body.clone()).await;
+            assert!(status.is_client_error(), "{surface}: {body} gave {status}");
+        }
+    }
+    // The back office serves no citizens and takes no DigiD login.
+    let backoffice = on(Surface::Backoffice).await;
+    let (status, _) = anonymous(&backoffice)
+        .post(
+            "/auth/testlogin",
+            json!({ "bsn": BRAM, "naam": "Bram Proef" }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+}
+
+#[tokio::test]
+async fn logging_out_of_the_test_login_ends_the_session_and_goes_to_the_start() {
+    for surface in [Surface::Citizen, Surface::Backoffice, Surface::All] {
+        let app = on(surface).await;
+        let who = if surface.serves_citizens() {
+            digid(&app, ANNA, "Anna Voorbeeld").await
+        } else {
+            employee(&app, "lezer-1", "wetsproces-lezer").await
+        };
+        assert_eq!(who.get("/api/ik").await.0, StatusCode::OK, "{surface}");
+        let request = axum::http::Request::get("/auth/logout")
+            .header("cookie", who.cookie.as_deref().unwrap())
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let response = tower::ServiceExt::oneshot(app.clone(), request)
+            .await
+            .unwrap();
+        assert!(response.status().is_redirection(), "{surface}");
+        // To the start of this origin, not to `//`, which a browser reads as a host.
+        assert_eq!(response.headers()["location"], "/", "{surface}");
+        assert_eq!(
+            who.get("/api/ik").await.0,
+            StatusCode::UNAUTHORIZED,
+            "{surface}"
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_simulated_digid_refuses_a_number_it_cannot_take() {
+    let app = on(Surface::Citizen).await;
+    for (bsn, naam, says) in [
+        ("12345", "Bram Proef", "negen cijfers"),
+        ("999990033", "Bram Proef", "elfproef"),
+        ("123456782", "Bram Proef", "testreeks"),
+        (BRAM, "   ", "naam"),
+        (BRAM, "Bram\nProef", "letters"),
+    ] {
+        let (status, fout) = anonymous(&app)
+            .post("/auth/testlogin", json!({ "bsn": bsn, "naam": naam }))
+            .await;
+        assert_eq!(status, StatusCode::BAD_REQUEST, "{bsn}: {fout}");
+        assert!(
+            fout["fout"].as_str().unwrap().contains(says),
+            "{bsn}: {fout}"
+        );
+    }
+}
+
 /// Two configurations in test mode on the database at `url`: the instance
 /// for citizens and the one for the back office, as two deployments run.
 fn pair(url: &str) -> (Config, Config) {

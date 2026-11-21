@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { indieningenTegen, isBesluit, ketens, openIndieningen, plat } from './keten';
+import { indieningenTegen, isBesluit, ketens, openIndieningen, plat, waardeTekst } from './keten';
 import type { Casus, Gram } from './types';
 
 const casus: Casus = {
@@ -73,8 +73,46 @@ describe('indieningenTegen', () => {
     expect(indieningenTegen(besluit, { ...casus, artikel: 'wet#9' })).toEqual([]);
   });
 
-  it('offers nothing of that kind against the decision on it', () => {
+  it('offers an appeal to the court against the decision on an objection, and no second objection', () => {
     const opBezwaar = gram('e', 'BESCHIKKING', 'awb#7:11', 'c');
-    expect(indieningenTegen(opBezwaar, casus)).toEqual([]);
+    expect(indieningenTegen(opBezwaar, casus).map((i) => i.soort)).toEqual(['BEROEP']);
+  });
+
+  it('offers against the decision on an objection what every other cell decides on', () => {
+    // A case with a second outside cell that decides on a submission: it is
+    // offered too, as the rule says; nothing in the case data has one yet.
+    const tweeHoven: Casus = {
+      ...casus,
+      indieningen: [
+        ...casus.indieningen,
+        { artikel: 'wet#9', besluit: 'wet#9', cel: 'hof', cel_naam: 'Hof Voorbeeld', soort: 'HOGER_BEROEP' },
+      ],
+    };
+    const opBezwaar = gram('e', 'BESCHIKKING', 'awb#7:11', 'c');
+    expect(indieningenTegen(opBezwaar, tweeHoven).map((i) => i.soort)).toEqual(['BEROEP', 'HOGER_BEROEP']);
+  });
+
+  it("offers nothing against the court's ruling", () => {
+    const uitspraak = { ...gram('g', 'UITSPRAAK', 'awb#8:70', 'f'), recording_actor: 'rechtbank' };
+    expect(indieningenTegen(uitspraak, casus)).toEqual([]);
+  });
+});
+
+describe('waardeTekst', () => {
+  it('names a decision a record holds by its article, never by its key', () => {
+    expect(waardeTekst({ basis: 'algemene_wet_bestuursrecht#7:11', fields: {} })).toBe('een besluit onder Awb artikel 7:11');
+  });
+
+  it('names a record a field refers to, never by its id', () => {
+    const id = '01a1fe00-0c63-707b-9459-f2cee1184407';
+    expect(waardeTekst(id, (x) => (x === id ? 'besluit (beschikking) van 13 oktober 2026' : undefined))).toBe(
+      'besluit (beschikking) van 13 oktober 2026',
+    );
+    expect(waardeTekst(id)).toBe('een eerder vastgelegd stuk');
+  });
+
+  it('writes a date as a screen does, and a yes or no in words', () => {
+    expect(waardeTekst('2026-10-13')).toBe('13 oktober 2026');
+    expect(waardeTekst(true)).toBe('ja');
   });
 });

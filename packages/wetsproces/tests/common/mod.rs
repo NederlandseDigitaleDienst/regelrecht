@@ -135,7 +135,20 @@ pub fn anonymous(app: &Router) -> As<'_> {
 
 /// Log in with the test login as `sub`, with `roles` and `claims`.
 pub async fn login<'a>(app: &'a Router, sub: &str, roles: &[&str], claims: Value) -> As<'a> {
-    let body = json!({ "sub": sub, "rollen": roles, "claims": claims });
+    login_with(
+        app,
+        json!({ "sub": sub, "rollen": roles, "claims": claims }),
+    )
+    .await
+}
+
+/// Log in through the simulated DigiD as the citizen `naam` with `bsn`.
+pub async fn digid<'a>(app: &'a Router, bsn: &str, naam: &str) -> As<'a> {
+    login_with(app, json!({ "bsn": bsn, "naam": naam })).await
+}
+
+/// Log in with the test login with `body`, which must succeed.
+async fn login_with(app: &Router, body: Value) -> As<'_> {
     let request = Request::post("/auth/testlogin")
         .header("content-type", "application/json")
         .body(Body::from(body.to_string()))

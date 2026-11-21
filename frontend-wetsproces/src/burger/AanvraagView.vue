@@ -65,7 +65,7 @@ async function indienen() {
             :supporting-label="s.veld.basis"
           >
             <nldd-text-field :value="s.waarde == null ? '' : String(s.waarde)" readonly></nldd-text-field>
-            <nldd-form-field-help-text>{{ s.help || (s.uitInlog ? 'Ingevuld uit uw inlog.' : 'Ingevuld door het systeem.') }}</nldd-form-field-help-text>
+            <nldd-form-field-help-text>{{ s.help || (s.uitInlog ? 'Dit komt uit uw inlog. U hoeft het niet in te vullen.' : `Dit vult ${casus?.cel_naam ?? 'de organisatie'} zelf in. U hoeft het niet in te vullen.`) }}</nldd-form-field-help-text>
           </nldd-form-field>
         </nldd-container>
         <SpecFormulier :velden="formulier.invullen" :waarden="waarden" @zet="(n, v) => (waarden[n] = v)" />

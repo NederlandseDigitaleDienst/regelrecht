@@ -8,8 +8,10 @@ import {
   artikelNaam as gedeeldArtikelNaam,
   hoofdletter,
   leesbaar,
+  toon,
   wetNaam,
 } from '@regelrecht/frontend-shared/chronolex/waarden';
+import { longDate } from './datum';
 import type { Casus, Gram } from './types';
 
 /** The kind of record a cell keeps of a fact it recorded. */
@@ -54,11 +56,13 @@ export const openIndieningen = (grammen: Gram[], casus: Casus): Gram[] =>
   grammen.filter((g) => isIndiening(g, casus) && besluitenOp(g.id, grammen, casus).length === 0);
 
 /**
- * The submissions a person can make against the decision `besluit`: those
- * that refer to a decision and that the cell that took it decides on, other
- * than the one it decided. An application refers to no decision, so the case
- * names none; one decided elsewhere, such as by a court, needs a step this
- * app does not offer yet.
+ * The submissions a person can make against the decision `besluit`, in the
+ * order the Awb sets: against a decision on an application, what the same
+ * cell decides on (an objection); against the decision of the case's own
+ * cell on such a submission, what another cell decides on (an appeal to a
+ * court). Against anything else, such as the court's ruling, nothing: a
+ * further step is not in any case yet. An application refers to no
+ * decision, so it is never offered.
  */
 export function indieningenTegen(besluit: Gram, casus: Casus): Casus['indieningen'] {
   // An application of any article is of the kind of the case's own application.
@@ -66,9 +70,29 @@ export function indieningenTegen(besluit: Gram, casus: Casus): Casus['indieninge
   // application from the rest, so nothing is offered.
   const aanvraag = casus.indieningen.find((i) => i.artikel === casus.artikel)?.soort;
   if (!aanvraag) return [];
-  return casus.indieningen.filter(
-    (i) => i.cel === besluit.recording_actor && i.besluit !== besluit.basis && i.soort !== aanvraag,
-  );
+  const tegenBesluit = casus.indieningen.filter((i) => i.soort !== aanvraag);
+  const hier = tegenBesluit.filter((i) => i.cel === besluit.recording_actor);
+  const opAanvraag = casus.indieningen.some((i) => i.soort === aanvraag && i.besluit === besluit.basis);
+  if (opAanvraag) return hier;
+  const opBezwaar = besluit.recording_actor === casus.cel && hier.some((i) => i.besluit === besluit.basis);
+  return opBezwaar ? tegenBesluit.filter((i) => i.cel !== besluit.recording_actor) : [];
+}
+
+/** Whether `v` is the id of a record, which the chronicles give out as a UUID. */
+const isRecordId = (v: string): boolean => /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(v);
+
+/**
+ * A value of a record in words: a date as a screen writes it, a decision a
+ * record holds (such as the contested decision of an objection) by the
+ * article it was taken under, a reference to another record by what
+ * `noem` calls it (or as an earlier record when it cannot), and anything
+ * else as `toon` gives it. An id is never shown as it is.
+ */
+export function waardeTekst(v: unknown, noem?: (id: string) => string | undefined): string {
+  if (typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v)) return longDate(v);
+  if (typeof v === 'string' && isRecordId(v)) return noem?.(v) ?? 'een eerder vastgelegd stuk';
+  if (v && typeof v === 'object' && 'basis' in v && typeof v.basis === 'string') return `een besluit onder ${artikelNaam(v.basis)}`;
+  return toon(v);
 }
 
 /** `<regelwerk>#<article>` as a screen writes it, such as `Awb artikel 4:2`. */

@@ -18,7 +18,7 @@ import { schermveld } from '../gedeeld/formulier';
 import type { Schermveld } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
-import { besluitenOp, celNaam, omschrijving, toegewezen } from '../gedeeld/keten';
+import { artikelNaam, besluitenOp, celNaam, omschrijving, toegewezen } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { Casus, Gram, Ik, Veld, Voorvertoning, Vormen, Waarom } from '../gedeeld/types';
 import WaaromLijst from '../gedeeld/WaaromLijst.vue';
@@ -50,6 +50,15 @@ const mag = computed(() =>
 );
 const api = props.namens ? beheerApi : backofficeApi;
 const naamVanCel = (cel: string) => celNaam(cel, props.casus);
+/**
+ * A record a field refers to, in words: `besluit (beschikking) van 13 oktober
+ * 2026`. Searched in every chronicle the panel has: an appeal sits with the
+ * court, the decision it contests with the municipality.
+ */
+const noemStuk = (id: string) => {
+  const g = props.kronieken.flatMap((k) => k.grammen).find((x) => x.id === id);
+  return g ? `${omschrijving(g, props.casus).toLowerCase()} van ${longDate(g.recorded_on)}` : undefined;
+};
 const titel = computed(() => (indiening.value ? omschrijving(indiening.value, props.casus) : 'Indiening'));
 
 /** The decision form of the article the submission asks a decision of. */
@@ -138,12 +147,12 @@ async function beslissen() {
           size="display-3"
           heading-level="3"
           :text="titel"
-          :supporting-text="`Ontvangen ${longDate(indiening.recorded_on)} door ${naamVanCel(indiening.recording_actor)} · onder ${indiening.basis}`"
+          :supporting-text="`Ontvangen ${longDate(indiening.recorded_on)} door ${naamVanCel(indiening.recording_actor)} · onder ${artikelNaam(indiening.basis)}`"
         ></nldd-title>
 
         <nldd-container gap="8">
           <nldd-title heading-level="4" size="display-5" text="Wat er is ingediend"></nldd-title>
-          <Gegevens :waarden="indiening.fields" :teksten="vormen?.teksten" label="Gegevens van de indiening" />
+          <Gegevens :waarden="indiening.fields" :teksten="vormen?.teksten" :noem="noemStuk" label="Gegevens van de indiening" />
         </nldd-container>
 
         <nldd-container v-if="besluit" gap="16">
@@ -161,7 +170,13 @@ async function beslissen() {
           </nldd-title>
           <Gegevens :waarden="besluit.outputs" :teksten="vormen?.teksten" label="Uitkomst van het besluit" />
           <nldd-title heading-level="5" size="display-6" text="Waarom"></nldd-title>
-          <WaaromLijst v-if="waarom" :waarom="waarom" :teksten="vormen?.teksten" :cel-naam="naamVanCel" />
+          <WaaromLijst
+            v-if="waarom && besluit"
+            :waarom="waarom"
+            :teksten="vormen?.teksten"
+            :cel-naam="naamVanCel"
+            :beslisser="naamVanCel(besluit.recording_actor)"
+          />
         </nldd-container>
 
         <nldd-container v-else-if="mag" gap="16">
@@ -169,7 +184,7 @@ async function beslissen() {
             heading-level="4"
             size="display-5"
             text="Bevindingen"
-            supporting-text="Het artikel laat deze punten aan het bestuursorgaan over. Een oordeel dat u leeg laat, gaat niet mee."
+            :supporting-text="`Het artikel laat deze punten aan ${naamVanCel(cel)} over. Een oordeel dat u leeg laat, gaat niet mee.`"
           ></nldd-title>
           <SpecFormulier
             v-if="velden.length"
@@ -178,7 +193,7 @@ async function beslissen() {
             oordeel
             @zet="(n, v) => (bevindingen[n] = v)"
           />
-          <nldd-text v-else color="secondary">Dit besluit vraagt het bestuursorgaan geen bevindingen.</nldd-text>
+          <nldd-text v-else color="secondary">Dit besluit vraagt {{ naamVanCel(cel) }} geen bevindingen.</nldd-text>
 
           <nldd-inline-dialog
             v-if="voorvertoning?.geweigerd"
