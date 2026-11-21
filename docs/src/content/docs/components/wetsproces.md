@@ -62,7 +62,7 @@ A commit is one transaction. It claims its idempotency key first, so a retry und
 
 `WETSPROCES_MODE` selects the mode and has no default, not even in the image. Without it the server does not start. The mode sets the clock; where the chronicles live is chosen apart from it, with `WETSPROCES_STORE`.
 
-- `test` uses a clock an admin sets with `PUT /api/backoffice/klok`, starting on the case's `speeldatum`. The store is `memory` unless `WETSPROCES_STORE=postgres` asks for PostgreSQL, which gives a lasting chronicle with a clock that can still be moved. On PostgreSQL the day survives a restart, as the chronicles do. With the OIDC variables set it logs in through Keycloak; without them it offers the test login.
+- `test` uses a clock an admin sets with `PUT /api/backoffice/klok`, starting on the case's `speeldatum`. An admin can also empty the test setup with `POST /api/backoffice/testomgeving/leegmaken`: the records of every cell go, what the admin panel entered for an external party included, with the answers kept under idempotency keys and the day of the test clock, which then stands on the `speeldatum` again. The sessions of the login and of FSC voor Burgers stay, so nobody is logged out; a citizen still logged in sees an empty dossier. It happens in one transaction that first locks the tables in the order a commit takes them, so a submission under way lands whole before it or is refused after it. What the case begins with is recorded again, as at a fresh start. On PostgreSQL the chronicles stay append-only: migration `0007_test_reset.sql` lets a `TRUNCATE` through only in a transaction that set `wetsproces.leegmaken` itself, which only this route does in the server. That guards against a mistake in the server, not against a database user who can run SQL. The server log names the account that emptied the setup. The store is `memory` unless `WETSPROCES_STORE=postgres` asks for PostgreSQL, which gives a lasting chronicle with a clock that can still be moved. On PostgreSQL the day survives a restart, as the chronicles do. With the OIDC variables set it logs in through Keycloak; without them it offers the test login.
 - `stable` uses the real date in the Netherlands, in the Europe/Amsterdam time zone, always the PostgreSQL store, and always the login through Keycloak. It refuses to start without the OIDC variables, `OIDC_REQUIRED_ROLE` or `BASE_URL`, and with `WETSPROCES_STORE=memory`. It also refuses to start without `WETSPROCES_SURFACE`, or with `all`. In either mode, an OIDC variable set without `OIDC_CLIENT_ID` stops the server, so a half-finished configuration never opens the test login.
 
 | Variable | Default | Meaning |
@@ -156,6 +156,7 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `POST /api/backoffice/toezendingen` | handler | A copy of the executor's decision `besluit` to the cell it concerns |
 | `POST /api/backoffice/besluiten` | decider | A decision on a submission of the executor: `op`, `na`, `bevindingen` |
 | `PUT /api/backoffice/klok` | admin | In test mode, set the date with `{ "datum": "YYYY-MM-DD" }` |
+| `POST /api/backoffice/testomgeving/leegmaken` | admin | In test mode, empty the test setup (see [Modes](#modes)); in stable mode the route does not exist |
 | `GET /api/backoffice/beheer/partijen` | admin | Per external party the submissions that wait for its decision (`open`) and its decisions not sent yet (`toe_te_zenden`) |
 | `POST /api/backoffice/beheer/vastleggingen` | admin | A fact an external party records, with the body of `vastleggingen` |
 | `POST /api/backoffice/beheer/voorvertoning` | admin | What an external party's decision would come to; records nothing |
@@ -212,6 +213,15 @@ WETSPROCES_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:54
 ## Deployment
 
 CI builds the image `regelrecht-wetsproces` (`packages/wetsproces/Dockerfile`) when the crate or what it depends on changes. The image holds the three builds of the screens under `/app/frontend`, so one image runs as either surface. Neither the preview nor the production deploy rolls it out yet: the `regelrecht` deployment has no wetsproces component. See [Deployment](/operations/deployment).
+
+Until then the server runs as a test setup in a ZAD deployment of its own, `fieldlab`, apart from the previews and with a database of its own:
+
+| Component | Host | `WETSPROCES_SURFACE` | Login |
+|---|---|---|---|
+| `wetsproces-burgers` | `wetsproces-burgers-fieldlab-regel-k4c.rig.prd1.gn2.quattro.rijksapps.nl` | `burger` | the test login, with the simulated DigiD |
+| `wetsproces-medewerkers` | `wetsproces-medewerkers-fieldlab-regel-k4c.rig.prd1.gn2.quattro.rijksapps.nl` | `backoffice` | behind the access wall, then Keycloak with the client `regel-k4c-fieldlab` (`WETSPROCES_LOGIN=oidc`) |
+
+Both run in test mode on PostgreSQL. A push to the pull request of the integration branch builds the image; nothing rolls it out on its own. Putting a build into `fieldlab` takes `zad deployment update-image fieldlab --component <component> --image ghcr.io/nederlandsedigitaledienst/regelrecht-wetsproces:sha-<tag>` for each component, and `zad logs fieldlab --component <component>` shows the startup line of the new container.
 
 Rolling it out takes two components in the `regelrecht` deployment, from the same image and on the deployment's database (`DATABASE_SERVER_FULL`):
 

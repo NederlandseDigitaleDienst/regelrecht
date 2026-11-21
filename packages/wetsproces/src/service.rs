@@ -300,6 +300,19 @@ impl Dossier {
 }
 
 impl Service {
+    /// Empty the test setup: every chronicle, the kept answers and the test
+    /// clock ([`ChronicleStore::reset`]). The caller sees to it that this
+    /// runs only in test mode.
+    ///
+    /// # Errors
+    ///
+    /// [`ServiceError::Store`] when the store fails; nothing is emptied then.
+    pub async fn reset(&self) -> Result<(), ServiceError> {
+        self.store.reset().await?;
+        // What the case begins with, as at a fresh start.
+        self.begin().await
+    }
+
     /// The service for `corpus` on `store` and `clock`. When no cell of the
     /// case has a record yet, what the case begins with (its `begin`) is
     /// committed first, once, whichever instance gets there first.
@@ -861,6 +874,9 @@ pub(crate) mod tests {
         async fn set_test_day(&self, day: NaiveDate) -> Result<(), StoreError> {
             self.inner.set_test_day(day).await
         }
+        async fn reset(&self) -> Result<(), StoreError> {
+            self.inner.reset().await
+        }
         async fn append(&self, commit: Commit) -> Result<Appended, StoreError> {
             if self.appends.fetch_add(1, Ordering::SeqCst) < self.conflicts {
                 return Err(StoreError::Conflict {
@@ -889,6 +905,36 @@ pub(crate) mod tests {
             .await
             .unwrap();
         (s, store)
+    }
+
+    #[tokio::test]
+    async fn a_reset_records_what_the_case_begins_with_again() {
+        // A case of the poc's tests whose register begins with three means.
+        let manifest = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../poc-chronolexografie/tests/bron-inlogstap/bron.yaml");
+        let (corpus, _) = crate::case::load(&manifest).unwrap();
+        let store = Arc::new(InMemoryStore::new());
+        let clock = Arc::new(ControllableClock::new(
+            Arc::clone(&store) as _,
+            corpus.casus.speeldatum,
+        ));
+        let s = Service::start(corpus, Arc::clone(&store) as _, clock)
+            .await
+            .unwrap();
+        let heads = || async {
+            let cells: Vec<&str> = s.cells.iter().map(String::as_str).collect();
+            store
+                .load_all(&cells)
+                .await
+                .unwrap()
+                .iter()
+                .map(StoredChronicle::head)
+                .collect::<Vec<_>>()
+        };
+        let begun = heads().await;
+        assert!(begun.iter().any(|h| *h > 0), "{begun:?}");
+        s.reset().await.unwrap();
+        assert_eq!(heads().await, begun);
     }
 
     /// The made-up `sub` of the account the tests act as.

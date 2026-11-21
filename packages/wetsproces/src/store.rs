@@ -302,4 +302,16 @@ pub trait ChronicleStore: Send + Sync + std::fmt::Debug {
     ///
     /// [`StoreError::Backend`] when the store fails.
     async fn set_test_day(&self, day: NaiveDate) -> Result<(), StoreError>;
+
+    /// Empty a test setup: the chronicles of every cell, the answers kept
+    /// under idempotency keys, and the test clock, which then stands on the
+    /// case's start again. All at once, waiting for a commit that is under
+    /// way and making one that comes after it find its heads moved. The
+    /// sessions of the login and of FSC voor Burgers stay. Only the reset of
+    /// test mode calls it ([`crate::api`]); a store has no mode of its own.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError::Backend`] when the store fails; nothing is emptied then.
+    async fn reset(&self) -> Result<(), StoreError>;
 }

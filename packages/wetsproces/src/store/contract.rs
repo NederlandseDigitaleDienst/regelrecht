@@ -270,6 +270,29 @@ pub async fn the_test_clock_holds_the_day_it_was_last_set_to(store: &dyn Chronic
     assert_eq!(store.test_day().await.unwrap(), Some(day("2026-10-20")));
 }
 
+/// A reset empties every chronicle, the kept answers and the test clock,
+/// and the store takes new records from a head of nothing again.
+pub async fn a_reset_empties_the_chronicles_the_answers_and_the_clock(store: &dyn ChronicleStore) {
+    store
+        .append(commit(
+            "k1",
+            vec![append("a", 0, &["1"]), append("b", 0, &["2"])],
+        ))
+        .await
+        .unwrap();
+    let day = "2026-12-01".parse::<chrono::NaiveDate>().unwrap();
+    store.set_test_day(day).await.unwrap();
+    store.reset().await.unwrap();
+    for chronicle in store.load_all(&["a", "b"]).await.unwrap() {
+        assert_eq!(chronicle.head(), 0);
+    }
+    assert!(store.receipt(&key("k1")).await.unwrap().is_none());
+    assert_eq!(store.test_day().await.unwrap(), None);
+    // The same ids and the same key are free again.
+    let again = commit("k1", vec![append("a", 0, &["1"])]);
+    assert_eq!(store.append(again).await.unwrap(), Appended::Committed);
+}
+
 /// One `#[tokio::test]` per contract test, each on a fresh store from
 /// `$fixture`, an async expression whose value has a `store()` method.
 macro_rules! contract_tests {
@@ -284,6 +307,7 @@ macro_rules! contract_tests {
             of_concurrent_appends_on_one_cell_exactly_one_wins,
             of_concurrent_retries_under_one_key_one_commits_and_the_rest_replay,
             the_test_clock_holds_the_day_it_was_last_set_to,
+            a_reset_empties_the_chronicles_the_answers_and_the_clock,
         );
     };
     (@each $fixture:expr; $($name:ident,)*) => {

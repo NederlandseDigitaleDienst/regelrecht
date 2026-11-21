@@ -31,6 +31,7 @@
 //! | `POST /api/backoffice/toezendingen` | handler; a decision of the executor | a copy of a decision ([`SendCopy`]) |
 //! | `POST /api/backoffice/besluiten` | decider; a submission of the executor | a decision ([`Decide`]) |
 //! | `PUT /api/backoffice/klok` | admin | set the clock, test mode only: `{ "datum": "YYYY-MM-DD" }` |
+//! | `POST /api/backoffice/testomgeving/leegmaken` | admin; only in test mode, absent otherwise | empty every chronicle, the kept answers and the test clock ([`reset_test_environment`]) |
 //! | `GET /api/backoffice/beheer/partijen` | admin | per external party what waits for it ([`crate::service::ExternalParty`]) |
 //! | `POST /api/backoffice/beheer/vastleggingen` | admin | a fact an external party records |
 //! | `POST /api/backoffice/beheer/voorvertoning` | admin; a submission of an external party | what its decision would come to; records nothing |
@@ -259,15 +260,24 @@ pub fn router(state: AppState) -> Router {
         .route("/api/dossier/waarom/{id}", get(dossier_explain))
         .route("/api/indieningen", post(submit))
         .route_layer(middleware::from_fn_with_state(state.clone(), gate_citizen));
-    let backoffice = Router::new()
+    let mut backoffice = Router::new()
         .route("/api/backoffice/cellen/{cel}/kroniek", get(chronicle))
         .route("/api/backoffice/besluiten", post(decide))
         .route("/api/backoffice/voorvertoning", post(preview))
         .route("/api/backoffice/waarom/{id}", get(backoffice_explain))
         .route("/api/backoffice/vastleggingen", post(record))
         .route("/api/backoffice/toezendingen", post(send_copy))
-        .route("/api/backoffice/klok", put(set_clock))
-        .route_layer(middleware::from_fn_with_state(state.clone(), gate_employee));
+        .route("/api/backoffice/klok", put(set_clock));
+    // Emptying the setup exists only where the clock can be set: in test
+    // mode. In stable mode the route is not there at all.
+    if state.clock.is_some() {
+        backoffice = backoffice.route(
+            "/api/backoffice/testomgeving/leegmaken",
+            post(reset_test_environment),
+        );
+    }
+    let backoffice =
+        backoffice.route_layer(middleware::from_fn_with_state(state.clone(), gate_employee));
     let admin_panel = Router::new()
         .route("/api/backoffice/beheer/partijen", get(external_parties))
         .route(
@@ -921,6 +931,32 @@ async fn set_clock(
         .await
         .map_err(|e| ApiError::from(ServiceError::from(e)))?;
     tracing::info!(sub = %principal.sub(), day = %body.datum, "clock set");
+    clock_state(&state).await
+}
+
+/// `POST /api/backoffice/testomgeving/leegmaken`: empty the test setup, for
+/// the admin, only in test mode. Every chronicle goes, with what the admin
+/// panel entered for external parties, the answers kept under idempotency
+/// keys and the test clock, which stands on the case's start again. The
+/// sessions stay, so the admin is not logged out and a citizen still in
+/// sees an empty dossier. The log keeps who did it.
+async fn reset_test_environment(
+    State(state): State<AppState>,
+    Extension(principal): Extension<Principal>,
+) -> ApiResult {
+    if !principal.has(Level::Admin) {
+        return Err(access::forbidden());
+    }
+    // Registered only with a settable clock; checked again, so a stable
+    // instance can never empty a chronicle.
+    if state.clock.is_none() {
+        return Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            "there is no such route",
+        ));
+    }
+    state.service.reset().await?;
+    tracing::warn!(sub = %principal.sub(), "the test environment was emptied");
     clock_state(&state).await
 }
 

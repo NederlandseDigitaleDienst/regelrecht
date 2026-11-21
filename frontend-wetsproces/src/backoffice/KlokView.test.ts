@@ -5,10 +5,13 @@ import { describe, expect, it, vi } from 'vitest';
 import { huidigeKlok } from '../gedeeld/klok';
 import KlokView from './KlokView.vue';
 
+const leegmaken = vi.fn(async () => ({ bestuurbaar: true, datum: '2026-10-13', modus: 'test' }));
+
 vi.mock('./api', () => ({
   backofficeApi: {
     klok: async () => ({ bestuurbaar: true, datum: '2026-10-13', modus: 'test' }),
     klokZetten: async (datum: string) => ({ bestuurbaar: true, datum, modus: 'test' }),
+    leegmaken: () => leegmaken(),
   },
 }));
 
@@ -21,5 +24,26 @@ describe('the clock screen', () => {
     await w.findAll('nldd-button').find((b) => b.attributes('text') === 'Klok zetten')!.trigger('click');
     await flushPromises();
     expect(huidigeKlok.value?.datum).toBe('2026-12-01');
+  });
+
+  it('empties the test setup only after the confirmation, and shows the clock back on the start', async () => {
+    leegmaken.mockClear();
+    huidigeKlok.value = { bestuurbaar: true, datum: '2026-12-01', modus: 'test' };
+    const w = mount(KlokView);
+    await flushPromises();
+    const knop = (tekst: string) => w.findAll('nldd-button').find((b) => b.attributes('text') === tekst)!;
+    await knop('Testomgeving leegmaken').trigger('click');
+    const dialoog = w.find('nldd-modal-dialog');
+    expect(dialoog.attributes('open')).toBeDefined();
+    expect(dialoog.attributes('supporting-text')).toContain('niet terug te draaien');
+    // Cancelling empties nothing.
+    await knop('Annuleren').trigger('click');
+    expect(leegmaken).not.toHaveBeenCalled();
+    await knop('Testomgeving leegmaken').trigger('click');
+    await knop('Leegmaken').trigger('click');
+    await flushPromises();
+    expect(leegmaken).toHaveBeenCalledTimes(1);
+    expect(huidigeKlok.value?.datum).toBe('2026-10-13');
+    expect(w.find('nldd-banner').attributes('text')).toContain('De testomgeving is leeg');
   });
 });

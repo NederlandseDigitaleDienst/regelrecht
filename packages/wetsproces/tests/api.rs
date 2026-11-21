@@ -399,6 +399,75 @@ async fn the_test_login_exists_only_in_test_mode_without_oidc() {
 }
 
 #[tokio::test]
+async fn the_admin_empties_the_test_setup_and_nobody_is_logged_out() {
+    let app = server().await;
+    let anna = citizen(&app, "anna", ANNA).await;
+    let admin = admin(&app).await;
+    let (status, _) = anna.post("/api/indieningen", application()).await;
+    assert_eq!(status, StatusCode::OK);
+    set_clock(&app, "2026-12-01").await;
+    assert!(head(&app).await > 0);
+    let (status, klok) = admin
+        .post("/api/backoffice/testomgeving/leegmaken", json!({}))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{klok}");
+    // The clock stands on the case's start again.
+    assert_eq!(klok["datum"], json!("2026-10-13"));
+    assert_eq!(head(&app).await, 0);
+    // Both are still logged in; the citizen's dossier is empty.
+    assert_eq!(admin.get("/api/ik").await.0, StatusCode::OK);
+    let (status, dossier) = anna.get("/api/dossier").await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(dossier["grammen"], json!([]));
+    // The same application can be made again.
+    assert_eq!(
+        anna.post("/api/indieningen", application()).await.0,
+        StatusCode::OK
+    );
+}
+
+#[tokio::test]
+async fn only_the_admin_empties_the_test_setup() {
+    let app = server().await;
+    let anna = citizen(&app, "anna", ANNA).await;
+    let (status, _) = anna.post("/api/indieningen", application()).await;
+    assert_eq!(status, StatusCode::OK);
+    let path = "/api/backoffice/testomgeving/leegmaken";
+    for (who, expected) in [
+        (
+            employee(&app, "beslisser-1", "wetsproces-beslisser").await,
+            StatusCode::FORBIDDEN,
+        ),
+        (
+            employee(&app, "behandelaar-1", "wetsproces-behandelaar").await,
+            StatusCode::FORBIDDEN,
+        ),
+        (citizen(&app, "bram", BRAM).await, StatusCode::FORBIDDEN),
+        (anonymous(&app), StatusCode::UNAUTHORIZED),
+    ] {
+        assert_eq!(who.post(path, json!({})).await.0, expected);
+    }
+    assert!(head(&app).await > 0, "nothing was emptied");
+}
+
+#[tokio::test]
+async fn in_stable_mode_there_is_no_route_to_empty_anything() {
+    let database = regelrecht_shared::postgres::test_utils::TestDatabase::create().await;
+    let mut c = config(Mode::Stable);
+    c.store = StoreChoice::postgres(database.url().to_string());
+    let stable = app::build_with(&c, offline_login()).await.unwrap();
+    let request = Request::post("/api/backoffice/testomgeving/leegmaken")
+        .body(Body::empty())
+        .unwrap();
+    // Not refused for want of a login, but not there: a 404, as for any path
+    // the server does not know. A route that existed would answer 401.
+    assert_eq!(
+        stable.oneshot(request).await.unwrap().status(),
+        StatusCode::NOT_FOUND
+    );
+}
+
+#[tokio::test]
 async fn me_says_what_the_account_may_do_and_nothing_of_other_cells() {
     let app = server().await;
     let (status, ik) = citizen(&app, "anna", ANNA).await.get("/api/ik").await;
