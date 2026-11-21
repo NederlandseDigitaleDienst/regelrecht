@@ -4,7 +4,7 @@
 import { createRouter } from 'vue-router';
 import type { RouteLocationNormalized, RouteLocationRaw } from 'vue-router';
 import { burgerRoutes } from '../burger/routes';
-import { terugNaar } from './terug';
+import { BURGER, terugNaar } from '../gedeeld/terug';
 import type { Toegang, Vervoer } from './vervoer';
 
 /**
@@ -16,7 +16,7 @@ import type { Toegang, Vervoer } from './vervoer';
 export function omleiding(to: RouteLocationNormalized, toegang: Toegang): RouteLocationRaw | undefined {
   if (to.path === '/') return toegang.binnen ? '/burger' : '/toegang';
   if (to.name !== 'toegang' && !toegang.binnen) {
-    return terugNaar(to.fullPath) === '/burger' ? '/toegang' : { name: 'toegang', query: { terug: to.fullPath } };
+    return terugNaar(to.fullPath, BURGER, '') ? { name: 'toegang', query: { terug: to.fullPath } } : '/toegang';
   }
   return undefined;
 }

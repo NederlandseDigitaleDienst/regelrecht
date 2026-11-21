@@ -349,7 +349,7 @@ async fn the_simulated_digid_refuses_a_number_it_cannot_take() {
 /// Two configurations in test mode on the database at `url`: the instance
 /// for citizens and the one for the back office, as two deployments run.
 fn pair(url: &str) -> (Config, Config) {
-    let store = StoreChoice::Postgres { url: url.into() };
+    let store = StoreChoice::postgres(url);
     let mut citizens = config_on(Mode::Test, Surface::Citizen);
     citizens.store = store.clone();
     let mut backoffice = config_on(Mode::Test, Surface::Backoffice);

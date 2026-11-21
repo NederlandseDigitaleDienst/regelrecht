@@ -4,16 +4,22 @@
 // (a citizen with a made-up number, an employee of a cell, the admin). That
 // screen says it is a test setup, because anyone who reaches it can pick any
 // account.
-import { onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { computed, onMounted, ref } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import type { AuthStatus } from '@regelrecht/frontend-shared';
 import { foutTekst } from '../gedeeld/http';
 import { laadIk, startpagina } from '../gedeeld/ik';
+import { ALLE_KANTEN, terugNaar } from '../gedeeld/terug';
 import { inloggenApi } from './api';
 import type { Persona } from './api';
 import { personaNaam, personaUitleg } from './personen';
 
+/** The screens a link may lead back to after the login: the build's own sides. */
+const props = withDefaults(defineProps<{ naar?: readonly string[] }>(), { naar: () => ALLE_KANTEN });
+const route = useRoute();
 const router = useRouter();
+/** The screen of a link that brought someone here, to go back to after the login. */
+const terug = computed(() => terugNaar(route.query.terug, props.naar, ''));
 const status = ref<AuthStatus | null>(null);
 const personen = ref<Persona[]>([]);
 const fout = ref('');
@@ -33,7 +39,10 @@ async function kies(p: Persona) {
     // A citizen logs in as the simulated DigiD does it: by number and name.
     if (p.soort === 'burger' && p.identiteit) await inloggenApi.digid(p.identiteit, p.naam ?? personaNaam(p));
     else await inloggenApi.testlogin(p, personaNaam(p));
-    await router.push(startpagina(await laadIk(true)));
+    // Who is in now, for the router; then back to the link's screen. The
+    // router sends an account of the other side to its own start.
+    const wie = await laadIk(true);
+    await router.push(terug.value || startpagina(wie));
   } catch (e) {
     fout.value = foutTekst(e);
   }
@@ -50,7 +59,7 @@ async function kies(p: Persona) {
         <template v-if="status?.oidc_configured">
           <nldd-text>Log in met uw account. Daarna komt u op uw startpagina.</nldd-text>
           <nldd-button-group orientation="horizontal">
-            <nldd-button appearance="primary" start-icon="login" text="Inloggen" @click="inloggenApi.oidc('/')"></nldd-button>
+            <nldd-button appearance="primary" start-icon="login" text="Inloggen" @click="inloggenApi.oidc(terug || '/')"></nldd-button>
           </nldd-button-group>
         </template>
         <template v-else-if="status">

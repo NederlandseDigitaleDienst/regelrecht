@@ -314,7 +314,10 @@ async fn open_store(choice: &StoreChoice, timeout: Duration) -> Result<Stores, S
             chronicles: Arc::new(InMemoryStore::new()),
             sessions: None,
         }),
-        StoreChoice::Postgres { url } => match PostgresStore::connect_within(url, timeout).await {
+        StoreChoice::Postgres {
+            url,
+            max_connections,
+        } => match PostgresStore::connect_within(url, timeout, *max_connections).await {
             Ok(store) => Ok(Stores {
                 sessions: Some(store.pool().clone()),
                 chronicles: Arc::new(store),
@@ -354,9 +357,7 @@ mod tests {
     #[tokio::test]
     async fn stable_mode_refuses_the_test_login_and_the_store_in_memory() {
         let mut c = config(Mode::Stable);
-        c.store = StoreChoice::Postgres {
-            url: "postgres://nowhere.invalid/regelrecht".into(),
-        };
+        c.store = StoreChoice::postgres("postgres://nowhere.invalid/regelrecht");
         let e = build_with(&c, Login::TestLogin).await.unwrap_err();
         assert!(matches!(e, StartupError::StableNeedsLogin), "{e}");
         let c = config(Mode::Stable);
@@ -370,9 +371,7 @@ mod tests {
     async fn stable_mode_refuses_to_serve_both_sides() {
         let database = TestDatabase::create().await;
         let mut c = config(Mode::Stable);
-        c.store = StoreChoice::Postgres {
-            url: database.url().to_string(),
-        };
+        c.store = StoreChoice::postgres(database.url().to_string());
         let e = build_with(&c, crate::login::tests::offline_login())
             .await
             .unwrap_err();
@@ -400,8 +399,15 @@ mod tests {
     async fn two_instances_starting_at_once_on_a_new_database_both_start() {
         let database = TestDatabase::create().await;
         let mut c = config(Mode::Test);
+        // On the smallest pool: each runs the store's migration and the
+        // sessions' migration, each holding a lock on one connection while
+        // it migrates on the other.
         c.store = StoreChoice::Postgres {
             url: database.url().to_string(),
+            max_connections: crate::store::postgres::PoolSize::try_from(
+                crate::store::postgres::PoolSize::MIN,
+            )
+            .unwrap(),
         };
         let mut b = c.clone();
         c.surface = Surface::Citizen;
@@ -417,9 +423,7 @@ mod tests {
     #[tokio::test]
     async fn an_unreachable_postgres_does_not_fall_back_to_memory() {
         // Port 1 on the loopback: nothing listens.
-        let choice = StoreChoice::Postgres {
-            url: "postgres://wetsproces@127.0.0.1:1/regelrecht".into(),
-        };
+        let choice = StoreChoice::postgres("postgres://wetsproces@127.0.0.1:1/regelrecht");
         let e = open_store(&choice, Duration::from_millis(500))
             .await
             .unwrap_err();
@@ -439,9 +443,7 @@ mod tests {
     async fn test_mode_starts_on_postgres_with_its_sessions_beside_the_chronicles() {
         let database = TestDatabase::create().await;
         let mut c = config(Mode::Test);
-        c.store = StoreChoice::Postgres {
-            url: database.url().to_string(),
-        };
+        c.store = StoreChoice::postgres(database.url().to_string());
         let _router = build_with(&c, Login::TestLogin).await.unwrap();
         let pool = PgPool::connect(database.url()).await.unwrap();
         let tables: Vec<String> = sqlx::query_scalar(
@@ -459,9 +461,7 @@ mod tests {
         let database = TestDatabase::create().await;
         let mut c = config(Mode::Stable);
         c.surface = Surface::Citizen;
-        c.store = StoreChoice::Postgres {
-            url: database.url().to_string(),
-        };
+        c.store = StoreChoice::postgres(database.url().to_string());
         let _router = build_with(&c, crate::login::tests::offline_login())
             .await
             .unwrap();

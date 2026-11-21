@@ -233,10 +233,7 @@ async fn the_reference_client_runs_the_whole_protocol_in_memory() {
 #[tokio::test]
 async fn the_reference_client_runs_the_whole_protocol_on_postgres_and_the_channel_is_kept() {
     let database = TestDatabase::create().await;
-    let server = demo_server(StoreChoice::Postgres {
-        url: database.url().to_string(),
-    })
-    .await;
+    let server = demo_server(StoreChoice::postgres(database.url().to_string())).await;
     let id = the_whole_protocol(&server).await;
     let pool = sqlx::PgPool::connect(database.url()).await.unwrap();
     let (by, via): (String, String) =
@@ -433,9 +430,7 @@ async fn a_nonce_answered_twice_is_refused_the_second_time() {
 async fn a_nonce_answered_twice_on_two_instances_is_refused_the_second_time() {
     // Two servers on one database, as two instances behind one address.
     let database = TestDatabase::create().await;
-    let store = StoreChoice::Postgres {
-        url: database.url().to_string(),
-    };
+    let store = StoreChoice::postgres(database.url().to_string());
     let (one_listener, base) = listener().await;
     let (two_listener, two_base) = listener().await;
     let stelsel = TestStelsel::at(&base);
@@ -593,9 +588,7 @@ fn offline_login() -> Login {
 #[tokio::test]
 async fn stable_mode_refuses_the_demo_stelsel_and_registers_no_demo_route() {
     let database = TestDatabase::create().await;
-    let store = StoreChoice::Postgres {
-        url: database.url().to_string(),
-    };
+    let store = StoreChoice::postgres(database.url().to_string());
     let demo = Fsc4bChoice::Demo {
         public_url: "https://wetsproces.example.org".into(),
     };

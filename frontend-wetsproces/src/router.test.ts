@@ -5,7 +5,7 @@ import { omleiding } from './router';
 import type { Ik } from './gedeeld/types';
 
 const naar = (path: string, kant?: 'burger' | 'backoffice', name?: string) =>
-  ({ path, name, matched: kant ? [{ meta: { kant } }] : [] }) as unknown as RouteLocationNormalized;
+  ({ path, fullPath: path, name, matched: kant ? [{ meta: { kant } }] : [] }) as unknown as RouteLocationNormalized;
 
 const geen: Ik = {
   sub: 's',
@@ -33,6 +33,11 @@ describe('omleiding', () => {
     expect(omleiding(naar('/backoffice', 'backoffice'), burger)).toBe('/burger');
     expect(omleiding(naar('/burger', 'burger'), medewerker)).toBe('/backoffice');
     expect(omleiding(naar('/burger', 'burger'), null)).toBe('/inloggen');
+    // A deeper screen without a login comes back after it.
+    expect(omleiding(naar('/backoffice/kroniek/c', 'backoffice', 'kroniek'), null)).toEqual({
+      name: 'inloggen',
+      query: { terug: '/backoffice/kroniek/c' },
+    });
     expect(omleiding(naar('/burger/aanvraag', 'burger'), burger)).toBeUndefined();
   });
 

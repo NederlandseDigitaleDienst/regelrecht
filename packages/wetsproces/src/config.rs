@@ -13,6 +13,9 @@
 //!   takes no other.
 //! - `DATABASE_URL`, or else `DATABASE_SERVER_FULL` as ZAD sets it: the
 //!   database of the `postgres` store, required with it.
+//! - `WETSPROCES_DB_MAX_CONNECTIONS`: how many connections the instance
+//!   holds to that database at most, in its one pool; by default 5, at
+//!   least 2 ([`PoolSize`]). Read only for the `postgres` store.
 //! - `WETSPROCES_MANIFEST`: the source manifest to run, by default
 //!   `packages/wetsproces/bron.yaml` of this checkout.
 //! - `WETSPROCES_PORT`: the port, by default 8000.
@@ -70,6 +73,7 @@ use std::path::PathBuf;
 use regelrecht_auth::OidcConfig;
 
 use crate::access::{CITIZEN, Level, ROLE_PREFIX};
+use crate::store::postgres::PoolSize;
 use crate::surface::Surface;
 
 /// The variables of the OIDC configuration besides `OIDC_CLIENT_ID`: one of
@@ -121,11 +125,33 @@ impl std::fmt::Display for Mode {
 pub enum StoreChoice {
     /// In memory, empty at every start.
     Memory,
-    /// In PostgreSQL at `url`, in the schema `wetsproces`.
-    Postgres { url: String },
+    /// In PostgreSQL at `url`, in the schema `wetsproces`, with at most
+    /// `max_connections` connections.
+    Postgres {
+        url: String,
+        max_connections: PoolSize,
+    },
 }
 
 impl StoreChoice {
+    /// The postgres store at `url` with the default pool.
+    pub fn postgres(url: impl Into<String>) -> Self {
+        Self::Postgres {
+            url: url.into(),
+            max_connections: PoolSize::default(),
+        }
+    }
+
+    /// How many connections the store holds at most; none in memory.
+    pub fn max_connections(&self) -> Option<u32> {
+        match self {
+            Self::Memory => None,
+            Self::Postgres {
+                max_connections, ..
+            } => Some(max_connections.get()),
+        }
+    }
+
     /// Its name, as `WETSPROCES_STORE` takes it.
     pub fn name(&self) -> &'static str {
         match self {
@@ -140,7 +166,13 @@ impl std::fmt::Debug for StoreChoice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Memory => f.write_str("Memory"),
-            Self::Postgres { .. } => f.write_str("Postgres { url: <redacted> }"),
+            Self::Postgres {
+                max_connections, ..
+            } => write!(
+                f,
+                "Postgres {{ url: <redacted>, max_connections: {} }}",
+                max_connections.get()
+            ),
         }
     }
 }
@@ -318,6 +350,8 @@ pub enum ConfigError {
     StableNeedsPostgres,
     #[error("the postgres store needs DATABASE_URL or DATABASE_SERVER_FULL, and neither is set")]
     NoDatabase,
+    #[error("WETSPROCES_DB_MAX_CONNECTIONS: {0}")]
+    BadPoolSize(String),
     #[error("the OIDC configuration: {0}")]
     Oidc(String),
     #[error(
@@ -390,9 +424,12 @@ impl Config {
         let set = |k: &str| env(k).filter(|v| !v.trim().is_empty());
         let mode = set("WETSPROCES_MODE").ok_or(ConfigError::NoMode)?.parse()?;
         let surface = surface_choice(mode, set("WETSPROCES_SURFACE").as_deref())?;
-        let store = store_choice(mode, set("WETSPROCES_STORE").as_deref(), || {
-            regelrecht_shared::postgres::database_url(&env)
-        })?;
+        let store = store_choice(
+            mode,
+            set("WETSPROCES_STORE").as_deref(),
+            || regelrecht_shared::postgres::database_url(&env),
+            set("WETSPROCES_DB_MAX_CONNECTIONS").as_deref(),
+        )?;
         let manifest = set("WETSPROCES_MANIFEST")
             .map_or_else(|| PathBuf::from(DEFAULT_MANIFEST), PathBuf::from);
         let frontend = set("WETSPROCES_FRONTEND")
@@ -576,11 +613,13 @@ fn is_access_role(role: &str) -> bool {
 }
 
 /// The store `WETSPROCES_STORE` names for `mode`, or the mode's own when it
-/// names none; `database_url` is asked only for the postgres store.
+/// names none; `database_url` and the pool size `max_connections` count only
+/// for the postgres store.
 fn store_choice(
     mode: Mode,
     named: Option<&str>,
     database_url: impl FnOnce() -> Option<String>,
+    max_connections: Option<&str>,
 ) -> Result<StoreChoice, ConfigError> {
     let postgres = match named.map(str::trim) {
         None => mode == Mode::Stable,
@@ -593,7 +632,15 @@ fn store_choice(
         return Ok(StoreChoice::Memory);
     }
     let url = database_url().ok_or(ConfigError::NoDatabase)?;
-    Ok(StoreChoice::Postgres { url })
+    let max_connections = max_connections
+        .map(str::parse)
+        .transpose()
+        .map_err(ConfigError::BadPoolSize)?
+        .unwrap_or_default();
+    Ok(StoreChoice::Postgres {
+        url,
+        max_connections,
+    })
 }
 
 #[cfg(test)]
@@ -734,6 +781,32 @@ mod tests {
     }
 
     #[test]
+    fn the_pool_size_comes_from_the_environment_with_a_low_default() {
+        const PG: Pairs = &[
+            ("WETSPROCES_MODE", "test"),
+            ("WETSPROCES_STORE", "postgres"),
+            ("DATABASE_URL", "postgres://db/regelrecht"),
+        ];
+        let c = Config::from_env(env(&[PG])).unwrap();
+        assert_eq!(c.store.max_connections(), Some(5));
+        let c = Config::from_env(env(&[PG, &[("WETSPROCES_DB_MAX_CONNECTIONS", "3")]])).unwrap();
+        assert_eq!(c.store.max_connections(), Some(3));
+        // Too few for the migration, or no number: refused at start.
+        const TOO_FEW: Pairs = &[("WETSPROCES_DB_MAX_CONNECTIONS", "1")];
+        const NO_NUMBER: Pairs = &[("WETSPROCES_DB_MAX_CONNECTIONS", "veel")];
+        for wrong in [TOO_FEW, NO_NUMBER] {
+            assert!(matches!(error(&[PG, wrong]), ConfigError::BadPoolSize(_)));
+        }
+        // The store in memory has no pool and reads none.
+        let c = Config::from_env(env(&[&[
+            ("WETSPROCES_MODE", "test"),
+            ("WETSPROCES_DB_MAX_CONNECTIONS", "veel"),
+        ]]))
+        .unwrap();
+        assert_eq!(c.store.max_connections(), None);
+    }
+
+    #[test]
     fn the_store_is_chosen_apart_from_the_mode() {
         let c = Config::from_env(env(&[&[
             ("WETSPROCES_MODE", "test"),
@@ -742,12 +815,7 @@ mod tests {
         ]]))
         .unwrap();
         assert_eq!(c.mode, Mode::Test);
-        assert_eq!(
-            c.store,
-            StoreChoice::Postgres {
-                url: "postgres://zad/regelrecht".into()
-            }
-        );
+        assert_eq!(c.store, StoreChoice::postgres("postgres://zad/regelrecht"));
         assert_eq!(
             error(&[&[("WETSPROCES_MODE", "test"), ("WETSPROCES_STORE", "file")]]),
             ConfigError::UnknownStore("file".into())
@@ -999,9 +1067,7 @@ mod tests {
 
     #[test]
     fn the_database_url_stays_out_of_debug_output() {
-        let store = StoreChoice::Postgres {
-            url: "postgres://user:secret@db/regelrecht".into(),
-        };
+        let store = StoreChoice::postgres("postgres://user:secret@db/regelrecht");
         assert!(!format!("{store:?}").contains("secret"));
     }
 }

@@ -384,9 +384,7 @@ async fn the_test_login_exists_only_in_test_mode_without_oidc() {
     // Stable mode, on Postgres.
     let database = regelrecht_shared::postgres::test_utils::TestDatabase::create().await;
     let mut c = config(Mode::Stable);
-    c.store = StoreChoice::Postgres {
-        url: database.url().to_string(),
-    };
+    c.store = StoreChoice::postgres(database.url().to_string());
     let stable = app::build_with(&c, offline_login()).await.unwrap();
     assert_eq!(test_login(stable.clone()).await, StatusCode::NOT_FOUND);
     assert_eq!(

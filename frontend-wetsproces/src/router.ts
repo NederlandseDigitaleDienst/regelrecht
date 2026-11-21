@@ -5,14 +5,21 @@
 // Which side an account sees follows from what it may do (`GET /api/ik`);
 // the server checks every call itself.
 import { createRouter, createWebHistory } from 'vue-router';
-import type { RouteLocationNormalized, RouteRecordRaw } from 'vue-router';
+import type { RouteLocationNormalized, RouteLocationRaw, RouteRecordRaw } from 'vue-router';
 import { isMedewerker, laadIk, startpagina } from './gedeeld/ik';
+import { ALLE_KANTEN, terugNaar } from './gedeeld/terug';
 import type { Ik } from './gedeeld/types';
 
-/** Where `to` sends `wie` instead, or nothing when `wie` may open it. */
-export function omleiding(to: RouteLocationNormalized, wie: Ik | null): string | undefined {
+/**
+ * Where `to` sends `wie` instead, or nothing when `wie` may open it. Someone
+ * not logged in who asked for a screen deeper than a side's start, such as
+ * a decision from a link, gets it back after the login (`terug`, read by
+ * the login screen).
+ */
+export function omleiding(to: RouteLocationNormalized, wie: Ik | null): RouteLocationRaw | undefined {
   if (to.path === '/') return startpagina(wie);
   if (to.name === 'inloggen') return undefined;
+  if (!wie && terugNaar(to.fullPath, ALLE_KANTEN, '')) return { name: 'inloggen', query: { terug: to.fullPath } };
   const kant = to.matched.find((r) => r.meta.kant)?.meta.kant;
   if (kant === 'burger' && !wie?.burger) return startpagina(wie);
   if (kant === 'backoffice' && !isMedewerker(wie)) return startpagina(wie);
