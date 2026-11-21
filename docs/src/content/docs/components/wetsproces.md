@@ -196,6 +196,15 @@ WETSPROCES_STORE=postgres DATABASE_URL=postgres://postgres:postgres@localhost:54
 
 CI builds the image `regelrecht-wetsproces` (`packages/wetsproces/Dockerfile`) when the crate or what it depends on changes. The image holds the three builds of the screens under `/app/frontend`, so one image runs as either surface. Neither the preview nor the production deploy rolls it out yet: the `regelrecht` deployment has no wetsproces component. See [Deployment](/operations/deployment).
 
+Until then the server runs as a test setup in a ZAD deployment of its own, `fieldlab`, apart from the previews and with a database of its own:
+
+| Component | Host | `WETSPROCES_SURFACE` | Login |
+|---|---|---|---|
+| `wetsproces-burgers` | `wetsproces-burgers-fieldlab-regel-k4c.rig.prd1.gn2.quattro.rijksapps.nl` | `burger` | the test login, with the simulated DigiD |
+| `wetsproces-medewerkers` | `wetsproces-medewerkers-fieldlab-regel-k4c.rig.prd1.gn2.quattro.rijksapps.nl` | `backoffice` | behind the access wall, then Keycloak with the client `regel-k4c-fieldlab` (`WETSPROCES_LOGIN=oidc`) |
+
+Both run in test mode on PostgreSQL. A push to the pull request of the integration branch builds the image; nothing rolls it out on its own. Putting a build into `fieldlab` takes `zad deployment update-image fieldlab --component <component> --image ghcr.io/nederlandsedigitaledienst/regelrecht-wetsproces:sha-<tag>` for each component, and `zad logs fieldlab --component <component>` shows the startup line of the new container.
+
 Rolling it out takes two components in the `regelrecht` deployment, from the same image and on the deployment's database (`DATABASE_SERVER_FULL`):
 
 | Component | Domain | `WETSPROCES_SURFACE` | Keycloak client |
