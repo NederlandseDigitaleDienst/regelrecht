@@ -1,7 +1,9 @@
 <script setup lang="ts">
 // The test clock, for the admin in test mode: the day every step runs on.
 // Moving it lets a process run past a deadline without waiting for it. The
-// server refuses it in stable mode, where the clock is the real date.
+// server refuses it in stable mode, where the clock is the real date. Here
+// too the admin empties the test setup, after a confirmation: the server
+// offers that only in test mode.
 import { onMounted, ref } from 'vue';
 import { longDate } from '../gedeeld/datum';
 import { foutTekst } from '../gedeeld/http';
@@ -13,6 +15,9 @@ const klok = ref<Klok | null>(null);
 const datum = ref('');
 const melding = ref('');
 const gezet = ref(false);
+const bevestigen = ref(false);
+const leeg = ref(false);
+const bezig = ref(false);
 
 onMounted(async () => {
   try {
@@ -28,7 +33,25 @@ const lees = (e: Event) => {
   datum.value = detail?.value ?? (e.target as HTMLInputElement | null)?.value ?? '';
 };
 
+async function leegmaken() {
+  bevestigen.value = false;
+  melding.value = '';
+  gezet.value = false;
+  bezig.value = true;
+  try {
+    klok.value = await backofficeApi.leegmaken();
+    datum.value = klok.value.datum;
+    huidigeKlok.value = klok.value;
+    leeg.value = true;
+  } catch (e) {
+    melding.value = foutTekst(e);
+  } finally {
+    bezig.value = false;
+  }
+}
+
 async function zet() {
+  leeg.value = false;
   melding.value = '';
   gezet.value = false;
   try {
@@ -62,8 +85,30 @@ async function zet() {
           <nldd-button-group orientation="horizontal">
             <nldd-button appearance="primary" text="Klok zetten" @click="zet"></nldd-button>
           </nldd-button-group>
+
+          <nldd-spacer size="24"></nldd-spacer>
+          <nldd-title size="display-5"><h4>Testomgeving leegmaken</h4></nldd-title>
+          <nldd-text color="secondary">
+            Begin opnieuw met een lege testomgeving: alle kronieken zijn daarna leeg en de klok staat weer op de
+            begindatum van de casus. Wie is ingelogd, blijft ingelogd.
+          </nldd-text>
+          <nldd-banner v-if="leeg" variant="success" :text="`De testomgeving is leeg; de klok staat op ${longDate(klok.datum)}`"></nldd-banner>
+          <nldd-button-group orientation="horizontal">
+            <nldd-button appearance="critical-tinted" start-icon="delete" text="Testomgeving leegmaken" :loading="bezig || undefined" @click="bevestigen = true"></nldd-button>
+          </nldd-button-group>
         </template>
       </nldd-container>
     </nldd-simple-section>
   </nldd-page>
+
+  <nldd-modal-dialog
+    variant="alert"
+    :open="bevestigen || undefined"
+    text="Testomgeving leegmaken?"
+    supporting-text="Alles wat in deze testomgeving is vastgelegd verdwijnt: de kronieken van alle cellen, met de aanvragen, besluiten, bezwaren en beroepen, en wat in het beheerpaneel namens externe partijen is ingevoerd. De klok gaat terug naar de begindatum. Wie is ingelogd, blijft ingelogd. Dit is niet terug te draaien."
+    @close="bevestigen = false"
+  >
+    <nldd-button slot="actions" appearance="primary" text="Annuleren" @click="bevestigen = false"></nldd-button>
+    <nldd-button slot="actions" appearance="destructive" text="Leegmaken" @click="leegmaken"></nldd-button>
+  </nldd-modal-dialog>
 </template>

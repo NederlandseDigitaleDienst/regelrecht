@@ -122,6 +122,12 @@ impl ChronicleStore for InMemoryStore {
         self.state()?.test_day = Some(day);
         Ok(())
     }
+
+    async fn reset(&self) -> Result<(), StoreError> {
+        // Under the lock every commit takes, so none is left half.
+        *self.state()? = State::default();
+        Ok(())
+    }
 }
 
 #[cfg(test)]

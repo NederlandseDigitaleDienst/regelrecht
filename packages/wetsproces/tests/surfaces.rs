@@ -61,6 +61,11 @@ const ROUTES: &[(Group, &str, &str)] = &[
     (Group::Backoffice, "POST", "/api/backoffice/toezendingen"),
     (Group::Backoffice, "POST", "/api/backoffice/besluiten"),
     (Group::Backoffice, "PUT", "/api/backoffice/klok"),
+    (
+        Group::Backoffice,
+        "POST",
+        "/api/backoffice/testomgeving/leegmaken",
+    ),
     (Group::Backoffice, "GET", "/api/backoffice/beheer/partijen"),
     (
         Group::Backoffice,
@@ -344,6 +349,30 @@ async fn the_simulated_digid_refuses_a_number_it_cannot_take() {
             "{bsn}: {fout}"
         );
     }
+}
+
+#[tokio::test]
+async fn emptied_on_the_back_office_the_citizens_instance_shows_it_at_once() {
+    let database = TestDatabase::create().await;
+    let (c, b) = pair(database.url());
+    let citizens = app::build_with(&c, Login::TestLogin).await.unwrap();
+    let backoffice = app::build_with(&b, Login::TestLogin).await.unwrap();
+    let anna = citizen(&citizens, "anna", ANNA).await;
+    let admin = admin(&backoffice).await;
+    let (status, _) = anna.post("/api/indieningen", application()).await;
+    assert_eq!(status, StatusCode::OK);
+    set_clock(&backoffice, "2026-12-01").await;
+    assert_eq!(anna.get("/api/klok").await.1["datum"], json!("2026-12-01"));
+    let (status, klok) = admin
+        .post("/api/backoffice/testomgeving/leegmaken", json!({}))
+        .await;
+    assert_eq!(status, StatusCode::OK, "{klok}");
+    // The other instance, not restarted, reads the empty chronicles and the
+    // clock on the case's start from the shared database.
+    let (status, dossier) = anna.get("/api/dossier").await;
+    assert_eq!(status, StatusCode::OK, "{dossier}");
+    assert_eq!(dossier["grammen"], json!([]));
+    assert_eq!(anna.get("/api/klok").await.1["datum"], json!("2026-10-13"));
 }
 
 /// Two configurations in test mode on the database at `url`: the instance
