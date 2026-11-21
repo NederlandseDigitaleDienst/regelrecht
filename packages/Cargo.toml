@@ -8,6 +8,7 @@ members = [
     "corpus",
     "editor-api",
     "engine",
+    "fsc4b",
     "github",
     "harvester",
     "law-model",
@@ -18,6 +19,8 @@ members = [
     "poc-wetsgeschiedenis",
     "shared",
     "tui",
+    "wetsproces",
+    "wetsproces-app",
 ]
 
 [workspace.package]

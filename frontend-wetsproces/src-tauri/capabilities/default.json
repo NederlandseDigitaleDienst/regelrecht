@@ -1,0 +1,16 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "The main window calls the eight commands of the core and nothing else: no file system, no shell, no HTTP from the webview.",
+  "windows": ["main"],
+  "permissions": [
+    "allow-status",
+    "allow-activeren",
+    "allow-afmelden",
+    "allow-casus",
+    "allow-formulier",
+    "allow-dossier",
+    "allow-waarom",
+    "allow-indienen"
+  ]
+}

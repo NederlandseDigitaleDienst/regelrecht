@@ -141,8 +141,14 @@ pub fn met_bronnen(
 }
 
 /// The cases of `bron`, each on the source under `bron/<name>` alone. A case
-/// that does not load is in `stand.fouten`.
-fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
+/// that does not load is in `stand.fouten`. The wetsproces component loads
+/// its one case with this too (`packages/wetsproces/src/case.rs`).
+///
+/// # Errors
+///
+/// When the name of the source is no name, its files make no bundle, or its
+/// regelwerken or case files do not read.
+pub fn uit_bron(bron: &Bron, stand: &mut BronStand) -> Result<Vec<Corpus>> {
     let wortel = Path::new(BRONNEN).join(&bron.naam);
     // A name is one path component of a-z, 0-9 and '-', so it stays under
     // `bron/`.
@@ -612,9 +618,12 @@ mod tests {
         assert_eq!(
             vormen["systeem"],
             serde_json::json!({
-                "aanhef": { "bron": "voorbeeld_inschrijving#4#aanhef" },
-                "kenmerk": { "waarde": "K-1" },
-                "referentie": { "waarde": "voorbeeld_inschrijving#1" },
+                "aanhef": { "soort": "bron", "bron": "voorbeeld_inschrijving#4#aanhef" },
+                "kenmerk": { "soort": "waarde", "waarde": "K-1" },
+                "referentie": {
+                    "soort": "gevraagd_besluit",
+                    "waarde": "voorbeeld_inschrijving#1"
+                },
             })
         );
         assert_eq!(

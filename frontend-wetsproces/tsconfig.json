@@ -1,0 +1,11 @@
+// Three programs, one per environment, following the create-vue layout:
+// the app (browser), the config files (Node) and the tests (Vitest).
+// `vue-tsc --build` checks all three.
+{
+  "files": [],
+  "references": [
+    { "path": "./tsconfig.node.json" },
+    { "path": "./tsconfig.app.json" },
+    { "path": "./tsconfig.vitest.json" }
+  ]
+}

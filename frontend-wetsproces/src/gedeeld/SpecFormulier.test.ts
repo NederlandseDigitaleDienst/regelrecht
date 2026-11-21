@@ -1,0 +1,54 @@
+// The form a screen draws from the law and the UI spec. The nldd-* elements
+// are not defined in this test, so it reads the attributes Vue sets on them.
+import { mount } from '@vue/test-utils';
+import { describe, expect, it } from 'vitest';
+import { aanvraagformulier } from './formulier';
+import SpecFormulier from './SpecFormulier.vue';
+import type { Indieningsvorm } from './types';
+
+const vorm: Indieningsvorm = {
+  soort: 'AANVRAAG',
+  basis: 'voorbeeldwet#3',
+  besluit: 'voorbeeldwet#3',
+  cel: 'voorbeeldcel',
+  velden: [
+    { naam: 'nummer_aanvrager', type: 'string', mag_leeg: false, basis: 'voorbeeldwet#3' },
+    { naam: 'wil_een_vergunning', type: 'boolean', mag_leeg: false, basis: 'voorbeeldwet#3' },
+    { naam: 'ondertekend', type: 'boolean', mag_leeg: true, basis: 'algemene_wet#4:2' },
+    { naam: 'geheim', type: 'string', mag_leeg: true, basis: 'voorbeeldwet#3' },
+    { naam: 'dagtekening', type: 'date', mag_leeg: true, basis: 'algemene_wet#4:2' },
+  ],
+  systeem: { nummer_aanvrager: {} },
+  verborgen: ['geheim'],
+};
+
+function teken(teksten = {}) {
+  const { invullen } = aanvraagformulier(vorm, teksten, '999990019');
+  return mount(SpecFormulier, { props: { velden: invullen, waarden: {} } });
+}
+
+describe('SpecFormulier', () => {
+  it('draws a field per question of the law, by its type, without what the system fills or the spec hides', () => {
+    const w = teken();
+    expect(w.findAll('nldd-switch-field').map((e) => e.attributes('label'))).toEqual(['Wil een vergunning']);
+    // A yes or no that may stay empty asks ja, nee or nothing.
+    const keuze = w.findAll('nldd-form-field').map((e) => e.attributes('label'));
+    expect(keuze).toEqual(['Ondertekend', 'Dagtekening']);
+    expect(w.find('select').findAll('option').map((o) => o.text())).toEqual(['Niet opgegeven', 'Ja', 'Nee']);
+    expect(w.findAll('nldd-date-field')).toHaveLength(1);
+    expect(w.html()).not.toContain('Nummer aanvrager');
+    expect(w.html()).not.toContain('Geheim');
+  });
+
+  it('takes the label and help the UI spec gives a field', () => {
+    const w = teken({ dagtekening: { label: 'Datum van uw aanvraag', help: 'De dag waarop u ondertekent.' } });
+    const veld = w.findAll('nldd-form-field').find((e) => e.attributes('label') === 'Datum van uw aanvraag');
+    expect(veld?.find('nldd-form-field-help-text').text()).toBe('De dag waarop u ondertekent.');
+  });
+
+  it('sends a change of a field up by its name', async () => {
+    const w = teken();
+    await w.find('select').setValue('ja');
+    expect(w.emitted('zet')).toEqual([['ondertekend', true]]);
+  });
+});

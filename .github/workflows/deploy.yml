@@ -50,6 +50,7 @@ jobs:
       demo: ${{ steps.filter.outputs.demo }}
       poc: ${{ steps.filter.outputs.poc }}
       poc-napp: ${{ steps.filter.outputs.poc-napp }}
+      wetsproces: ${{ steps.filter.outputs.wetsproces }}
       poc-wetsgeschiedenis: ${{ steps.filter.outputs.poc-wetsgeschiedenis }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
@@ -256,6 +257,25 @@ jobs:
       dockerfile: packages/poc-napp/Dockerfile
       cache-scope: poc-napp
       deps-cache-scope: poc-napp
+
+  # Het wetsprocessysteem (packages/wetsproces). Alleen bouwen: deploy-preview
+  # en deploy-production noemen dit image nog niet. Het regelrecht-deployment
+  # in ZAD heeft geen component `wetsproces`, en zonder login hoort de server
+  # niet open in productie te staan; wat er voor de uitrol nodig is staat in
+  # docs/src/content/docs/components/wetsproces.md. Het image staat dan wel
+  # klaar in GHCR, onder sha- en pr-tags zoals elk ander.
+  build-wetsproces:
+    needs: [changes, ci-green]
+    if: github.event.action != 'closed' && needs.changes.outputs.wetsproces == 'true'
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/build-image.yml
+    with:
+      image-name: regelrecht-wetsproces
+      dockerfile: packages/wetsproces/Dockerfile
+      cache-scope: wetsproces
+      deps-cache-scope: wetsproces
 
   build-poc-wetsgeschiedenis:
     needs: [changes, ci-green]
@@ -660,6 +680,7 @@ jobs:
               {"org": "${{ github.repository_owner }}", "name": "regelrecht-docs", "tag": "pr-${{ github.event.pull_request.number }}"},
               {"org": "${{ github.repository_owner }}", "name": "regelrecht-poc", "tag": "pr-${{ github.event.pull_request.number }}"},
               {"org": "${{ github.repository_owner }}", "name": "regelrecht-poc-napp", "tag": "pr-${{ github.event.pull_request.number }}"},
+              {"org": "${{ github.repository_owner }}", "name": "regelrecht-wetsproces", "tag": "pr-${{ github.event.pull_request.number }}"},
               {"org": "${{ github.repository_owner }}", "name": "regelrecht-poc-wetsgeschiedenis", "tag": "pr-${{ github.event.pull_request.number }}"}
             ]
           github-token: ${{ secrets.GITHUB_TOKEN }}

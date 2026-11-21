@@ -306,10 +306,11 @@ check: format lint build-check validate validate-annotations deploy-filters-test
 
 # Crates with testcontainers-backed suites. Enumerates the exceptions, not the
 # members: a new crate is covered by --workspace. The list is exactly the crates
-# that dev-depend on regelrecht-pipeline/test-utils:
-#   grep -l 'regelrecht-pipeline.*test-utils' packages/*/Cargo.toml
-db_crates_exclude := "--exclude regelrecht-pipeline --exclude regelrecht-editor-api --exclude regelrecht-admin"
-db_crates := "-p regelrecht-pipeline -p regelrecht-editor-api -p regelrecht-admin"
+# that dev-depend on a `test-utils` feature that starts Postgres
+# (regelrecht-pipeline's, or regelrecht-shared's underneath it):
+#   grep -lE '(regelrecht-pipeline|regelrecht-shared).*test-utils' packages/*/Cargo.toml
+db_crates_exclude := "--exclude regelrecht-pipeline --exclude regelrecht-editor-api --exclude regelrecht-admin --exclude regelrecht-wetsproces"
+db_crates := "-p regelrecht-pipeline -p regelrecht-editor-api -p regelrecht-admin -p regelrecht-wetsproces"
 
 # Every recipe below is ONE cargo invocation, and that is load-bearing. Cargo
 # unifies features over the selected packages, so two invocations with different
@@ -1082,6 +1083,17 @@ poc: poc-build
     POC_PORT=8611 \
     cargo run --manifest-path packages/Cargo.toml --package regelrecht-poc-portal
 
+# Run the wetsprocessysteem locally in test mode (packages/wetsproces): the
+# chronicles in memory, the test login at POST /auth/testlogin, and the clock
+# set by an admin with PUT /api/backoffice/klok. Binds to 0.0.0.0;
+# WETSPROCES_PORT picks another port. With WETSPROCES_STORE=postgres and
+# DATABASE_URL the chronicles stay in Postgres; with the OIDC_* variables the
+# login goes through Keycloak instead. It serves both sides on one address
+# (WETSPROCES_SURFACE=all); set WETSPROCES_SURFACE=burger or backoffice, each
+# on its own port, to run the two environments apart on one database.
+wetsproces:
+    WETSPROCES_MODE=test WETSPROCES_PORT="${WETSPROCES_PORT:-7180}" \
+    cargo run --manifest-path packages/Cargo.toml --package regelrecht-wetsproces
 # Start de wetsgeschiedenis los, op http://localhost:8420/wetsgeschiedenis/
 #
 # Bouwt de frontend met hetzelfde voorvoegsel als achter het portaal, zodat

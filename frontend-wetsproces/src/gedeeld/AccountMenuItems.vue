@@ -1,0 +1,24 @@
+<script setup lang="ts">
+// The contents of the shell's account menu, rendered bare, as the editor
+// does it (frontend/src/components/AccountMenuItems.vue), so the same items
+// fill the account button's popup and its place in the overflow menu: who
+// is in, the colour scheme, and leaving. `kop` adds the name as the menu's
+// header, which only the popup has room for.
+import { useColorScheme } from '@regelrecht/frontend-shared';
+import WeergaveMenuItem from '@regelrecht/frontend-shared/components/WeergaveMenuItem.vue';
+
+defineProps<{ naam: string | null; afmeldTekst: string; kop?: boolean }>();
+const emit = defineEmits<{ afmelden: [] }>();
+const { colorScheme, setColorScheme } = useColorScheme();
+</script>
+
+<template>
+  <nldd-container v-if="kop && naam" slot="header" padding-inline="16" padding-block="12">
+    <nldd-identity :text="naam"></nldd-identity>
+  </nldd-container>
+  <WeergaveMenuItem :waarde="colorScheme" @kies="setColorScheme" />
+  <template v-if="naam">
+    <nldd-menu-divider></nldd-menu-divider>
+    <nldd-menu-item :text="afmeldTekst" icon="logout" @select="emit('afmelden')"></nldd-menu-item>
+  </template>
+</template>

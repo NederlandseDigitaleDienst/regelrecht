@@ -16,6 +16,11 @@ valid_from: '2026-01-01'
 # stelt het college het zelf vast, bij artikel 4 geldt zonder vaststelling dat
 # er geen onderzoek was, bij artikel 7 stelt het vast wat het advies opgeeft.
 # Artikel 5 en 6 gaan over het geneeskundig advies.
+# Artikel 8 zegt wanneer een elektronisch ingediende aanvraag als ondertekend
+# geldt. Het is geen open begrip van de wet: het geeft een waarde voor het
+# veld aanvraag_ondertekend, dat volgens artikel 4:2 van de Awb in de aanvraag
+# staat. Het systeem waarmee de aanvrager indient, voert het uit en zet de
+# uitkomst in dat veld (de UI-beschrijving van het wetsprocessysteem).
 url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
 name: Gehandicaptenparkeerkaart in de gemeente Wilgendaal (fictief beleid)
 competent_authority:
@@ -903,3 +908,47 @@ articles:
                     value: null
                   then: $advies_ernstige_beperkingen_andere_dan_loopbeperkingen_volgens_college
               default: $antwoord_ernstige_beperkingen_andere_dan_loopbeperkingen
+  - number: '8'
+    text: >-
+      FICTIEF, eigen keuze in de modellering: geen bekendgemaakt beleid. Een
+      aanvraag om een gehandicaptenparkeerkaart die de aanvrager elektronisch
+      indient nadat hij zich met DigiD heeft aangemeld, geldt als ondertekend.
+      Het college acht die methode van ondertekening voldoende betrouwbaar.
+    url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel2:16
+    machine_readable:
+      # Een gewone uitvoer, geen invulling van een open begrip: artikel 4:2
+      # van de Awb vraagt een ondertekende aanvraag, en dit artikel zegt hoe
+      # het college dat bij een elektronische aanvraag vaststelt. Het systeem
+      # waarmee de aanvrager indient, kent het middel waarmee hij zich
+      # aanmeldde, voert dit artikel daarmee uit en zet de uitkomst in het
+      # veld aanvraag_ondertekend van de aanvraag. De uitvoering van de wet
+      # verandert er niet door; wie het beleid aanpast, past dit artikel aan.
+      execution:
+        parameters:
+          - name: inlogmiddel
+            type: string
+            nullable: true
+            description: >-
+              Het middel waarmee de aanvrager zich aanmeldde toen hij de
+              aanvraag elektronisch indiende; leeg als hij zich niet aanmeldde.
+        output:
+          - name: aanvraag_geldt_als_ondertekend
+            type: boolean
+            description: >-
+              Of de elektronisch ingediende aanvraag als ondertekend geldt:
+              alleen na een aanmelding met DigiD.
+            legal_basis:
+              law: Algemene wet bestuursrecht
+              bwb_id: BWBR0005537
+              article: '2:16'
+              url: https://wetten.overheid.nl/BWBR0005537/2021-07-01#Artikel2:16
+              juriconnect: jci1.3:c:BWBR0005537&artikel=2:16&z=2021-07-01&g=2021-07-01
+              explanation: >-
+                Het college legt vast welke methode van elektronisch
+                ondertekenen het voldoende betrouwbaar acht.
+        actions:
+          - output: aanvraag_geldt_als_ondertekend
+            value:
+              operation: EQUALS
+              subject: $inlogmiddel
+              value: DigiD

@@ -109,6 +109,9 @@ export const sidebar: Record<string, SidebarGroup[]> = {
       items: [
         { text: 'Pipeline', link: '/components/pipeline' },
         { text: 'Harvester', link: '/components/harvester' },
+        { text: 'Wetsproces', link: '/components/wetsproces' },
+        { text: 'Wetsproces: FSC voor Burgers', link: '/components/wetsproces-fsc4b' },
+        { text: 'Wetsproces: the app', link: '/components/wetsproces-app' },
       ],
     },
     {
@@ -120,6 +123,7 @@ export const sidebar: Record<string, SidebarGroup[]> = {
         { text: 'Lawmaking Frontend', link: '/components/lawmaking' },
         { text: 'Demo', link: '/components/demo' },
         { text: 'PoC Portal', link: '/components/poc-portal' },
+        { text: 'Wetsproces Screens', link: '/components/wetsproces-frontend' },
         { text: 'Terminal UI (TUI)', link: '/components/tui' },
         { text: 'Shared Frontend Package', link: '/components/frontend-shared' },
       ],
