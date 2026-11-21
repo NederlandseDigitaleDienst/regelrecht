@@ -5,7 +5,9 @@
 //! realm roles and the claims of [`crate::config::Config::subject_claim`]
 //! into the session. In test mode without OIDC configuration the test login
 //! ([`test_login`]) writes the same keys with whatever roles and claims it is
-//! sent. The rest of the server reads only the session
+//! sent, or, for the simulated DigiD of the citizen's side, a citizen with
+//! the number and name it is sent ([`SimulatedDigid`]). The rest of the
+//! server reads only the session
 //! ([`crate::access::Principal`]), so a request after the test login goes
 //! through the same checks as one after Keycloak. The test login is a route
 //! only in that case: stable mode never registers it.
@@ -29,6 +31,7 @@ use async_trait::async_trait;
 
 use axum::extract::State;
 use axum::http::StatusCode;
+use axum::response::Redirect;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use regelrecht_auth::{
@@ -112,10 +115,7 @@ impl Login {
                     "/auth/status",
                     get(regelrecht_auth::handlers::status::<AppState>),
                 )
-                .route(
-                    "/auth/logout",
-                    get(regelrecht_auth::handlers::logout::<AppState>),
-                ),
+                .route("/auth/logout", get(test_logout)),
         }
     }
 
@@ -133,6 +133,82 @@ impl Login {
     }
 }
 
+/// What `POST /auth/testlogin` takes: a citizen by number and name, or an
+/// account with whatever roles and claims. A body with both shapes' fields
+/// fits neither and is refused.
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum TestLoginRequest {
+    Digid(SimulatedDigid),
+    Account(TestLogin),
+}
+
+/// A login of the simulated DigiD: a citizen's number and name, nothing
+/// else. The server makes the account itself, with the citizen's role only,
+/// so a request cannot add a role to it.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct SimulatedDigid {
+    bsn: String,
+    naam: String,
+}
+
+/// The longest name the simulated DigiD takes, in characters.
+const MAX_NAME_CHARS: usize = 100;
+
+/// The fictional names of the citizens of the test login, in the order of
+/// [`TEST_CITIZENS`].
+const TEST_CITIZEN_NAMES: [&str; 2] = ["Anna Voorbeeld", "Bram Proef"];
+// A citizen without a name would drop out of the list in silence.
+const _: () = assert!(TEST_CITIZEN_NAMES.len() == TEST_CITIZENS.len());
+
+/// A citizen service number of the test range: nine digits that pass the
+/// eleven test and start with [`regelrecht_fsc4b::wire::TEST_BSN_PREFIX`].
+/// The simulated DigiD takes no other, so a number typed into it is never a
+/// real one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Bsn(String);
+
+impl Bsn {
+    /// The number in `text`, with spaces around it left out.
+    ///
+    /// # Errors
+    ///
+    /// A message for the citizen when it is not nine digits, fails the eleven
+    /// test, or is outside the test range.
+    fn parse(text: &str) -> Result<Self, &'static str> {
+        let text = text.trim();
+        if text.len() != 9 || !text.bytes().all(|b| b.is_ascii_digit()) {
+            return Err("Een BSN bestaat uit negen cijfers.");
+        }
+        if !passes_eleven_test(text) {
+            return Err("Dit BSN haalt de elfproef niet. Kijk de cijfers na.");
+        }
+        if !regelrecht_fsc4b::wire::is_test_bsn(text) {
+            return Err(
+                "Deze simulatie neemt alleen een BSN uit de testreeks aan: negen cijfers die beginnen met 99999.",
+            );
+        }
+        Ok(Self(text.to_owned()))
+    }
+
+    /// The number as text.
+    fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+/// The eleven test of a citizen service number of nine ASCII digits: the
+/// first eight times 9 down to 2, minus the last, is a multiple of 11.
+fn passes_eleven_test(digits: &str) -> bool {
+    let sum: i64 = digits
+        .bytes()
+        .zip([9, 8, 7, 6, 5, 4, 3, 2, -1])
+        .map(|(b, weight)| i64::from(b - b'0') * weight)
+        .sum();
+    sum % 11 == 0
+}
+
 /// A test login: the account, its realm roles and its claims.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -147,18 +223,63 @@ pub struct TestLogin {
 }
 
 /// `POST /auth/testlogin`: a session for the account in the body, as the
-/// OIDC callback would have made it. There only in test mode without OIDC
-/// configuration ([`Login::routes`]).
+/// OIDC callback would have made it, or for a citizen of the simulated
+/// DigiD. There only in test mode without OIDC configuration
+/// ([`Login::routes`]).
 async fn test_login(
+    State(state): State<AppState>,
     session: Session,
-    Json(login): Json<TestLogin>,
+    Json(request): Json<TestLoginRequest>,
 ) -> Result<Json<Value>, ApiError> {
+    let login = match request {
+        TestLoginRequest::Account(login) => login,
+        TestLoginRequest::Digid(digid) => simulated_citizen(&state, &digid)?,
+    };
     if login.sub.trim().is_empty() {
         return Err(ApiError::new(
             StatusCode::BAD_REQUEST,
             "a test login needs a `sub`",
         ));
     }
+    write_session(&session, &login).await?;
+    tracing::info!(sub = %login.sub, roles = ?login.rollen, "test login");
+    Ok(Json(json!({ "sub": login.sub, "rollen": login.rollen })))
+}
+
+/// The account of a citizen of the simulated DigiD: the citizen's role and
+/// nothing else, their number under the subject claim, and their name.
+fn simulated_citizen(state: &AppState, digid: &SimulatedDigid) -> Result<TestLogin, ApiError> {
+    if !state.surface().serves_citizens() {
+        return Err(ApiError::new(
+            StatusCode::NOT_FOUND,
+            "this instance serves no citizens",
+        ));
+    }
+    let bad = |message: &str| ApiError::new(StatusCode::BAD_REQUEST, message);
+    let bsn = Bsn::parse(&digid.bsn).map_err(bad)?;
+    let name = digid.naam.trim();
+    if name.is_empty() {
+        return Err(bad("Vul een naam in."));
+    }
+    if name.chars().count() > MAX_NAME_CHARS {
+        return Err(bad(&format!(
+            "Een naam is hoogstens {MAX_NAME_CHARS} tekens lang."
+        )));
+    }
+    // A name goes into the session and onto every screen that shows it.
+    if name.chars().any(char::is_control) {
+        return Err(bad("Een naam bestaat uit letters, spaties en leestekens."));
+    }
+    Ok(TestLogin {
+        sub: format!("burger-{}", bsn.as_str()),
+        rollen: BTreeSet::from([CITIZEN.to_owned()]),
+        claims: BTreeMap::from([(state.subject_claim().to_owned(), Value::from(bsn.as_str()))]),
+        naam: Some(name.to_owned()),
+    })
+}
+
+/// Write `login` into `session` under the keys the OIDC callback uses.
+async fn write_session(session: &Session, login: &TestLogin) -> Result<(), ApiError> {
     let failed = |e: tower_sessions::session::Error| {
         tracing::error!(error = %e, "writing the session of a test login");
         ApiError::new(
@@ -189,15 +310,29 @@ async fn test_login(
             login.naam.as_deref().unwrap_or(&login.sub),
         )
         .await
-        .map_err(failed)?;
-    tracing::info!(sub = %login.sub, roles = ?login.rollen, "test login");
-    Ok(Json(json!({ "sub": login.sub, "rollen": login.rollen })))
+        .map_err(failed)
+}
+
+/// `GET /auth/logout` beside the test login: end the session and go back to
+/// the start, where a screen to get in waits. The shared handler of
+/// `regelrecht_auth` sends a server without `BASE_URL` to `//`, which a
+/// browser reads as a host and cannot open; the test login has no `BASE_URL`
+/// and no Keycloak to send anyone to.
+async fn test_logout(session: Session) -> Result<Redirect, ApiError> {
+    session.flush().await.map_err(|e| {
+        tracing::error!(error = %e, "ending the session of a test login");
+        ApiError::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "the server failed on this request; the cause is in its log",
+        )
+    })?;
+    Ok(Redirect::to("/"))
 }
 
 /// `GET /auth/testpersonen`: the accounts a test login can take, each as
 /// `POST /auth/testlogin` takes it, with what it is (`soort`: `burger`,
 /// `medewerker` or `beheerder`) so a screen can name it. Two citizens with
-/// a made-up number of the test range; a handler and a decider of the
+/// a made-up name and a made-up number of the test range; a handler and a decider of the
 /// executor; an admin, who also enters what the external parties do.
 /// Derived from the case, so another case gets its own, and only those of
 /// the sides the
@@ -208,15 +343,21 @@ async fn test_personas(State(state): State<AppState>) -> Json<Value> {
     let mut personas = Vec::new();
     if surface.serves_citizens() {
         let claim = state.subject_claim();
-        personas.extend(TEST_CITIZENS.iter().map(|bsn| {
-            json!({
-                "soort": "burger",
-                "sub": format!("burger-{bsn}"),
-                "rollen": [CITIZEN],
-                "claims": { claim: bsn },
-                "identiteit": bsn,
-            })
-        }));
+        personas.extend(
+            TEST_CITIZENS
+                .iter()
+                .zip(TEST_CITIZEN_NAMES)
+                .map(|(bsn, name)| {
+                    json!({
+                        "soort": "burger",
+                        "sub": format!("burger-{bsn}"),
+                        "rollen": [CITIZEN],
+                        "claims": { claim: bsn },
+                        "identiteit": bsn,
+                        "naam": name,
+                    })
+                }),
+        );
     }
     if surface.serves_employees() {
         personas.extend(employee_personas(&state));
@@ -377,6 +518,35 @@ pub(crate) mod tests {
             client: Arc::new(regelrecht_auth::test_utils::offline_client(issuer)),
             end_session_url: None,
         }))
+    }
+
+    #[test]
+    fn a_bsn_is_nine_digits_that_pass_the_eleven_test_in_the_test_range() {
+        for bsn in TEST_CITIZENS {
+            assert_eq!(
+                Bsn::parse(bsn).map(|b| b.as_str().to_owned()),
+                Ok(bsn.to_owned())
+            );
+        }
+        assert_eq!(
+            Bsn::parse(" 999990032 ").map(|b| b.as_str().to_owned()),
+            Ok("999990032".into())
+        );
+        for wrong in ["", "99999003", "9999900321", "99999003a", "999 99003"] {
+            assert_eq!(
+                Bsn::parse(wrong),
+                Err("Een BSN bestaat uit negen cijfers."),
+                "{wrong}"
+            );
+        }
+        // One digit off fails the eleven test.
+        assert_eq!(
+            Bsn::parse("999990033"),
+            Err("Dit BSN haalt de elfproef niet. Kijk de cijfers na.")
+        );
+        // Passes the eleven test, but is outside the test range.
+        assert!(passes_eleven_test("123456782"));
+        assert!(Bsn::parse("123456782").unwrap_err().contains("testreeks"));
     }
 
     #[test]

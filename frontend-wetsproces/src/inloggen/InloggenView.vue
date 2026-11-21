@@ -30,7 +30,9 @@ onMounted(async () => {
 async function kies(p: Persona) {
   fout.value = '';
   try {
-    await inloggenApi.testlogin(p, personaNaam(p));
+    // A citizen logs in as the simulated DigiD does it: by number and name.
+    if (p.soort === 'burger' && p.identiteit) await inloggenApi.digid(p.identiteit, p.naam ?? personaNaam(p));
+    else await inloggenApi.testlogin(p, personaNaam(p));
     await router.push(startpagina(await laadIk(true)));
   } catch (e) {
     fout.value = foutTekst(e);

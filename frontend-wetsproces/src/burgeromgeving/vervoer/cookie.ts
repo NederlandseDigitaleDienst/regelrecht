@@ -25,8 +25,17 @@ export const vervoer: Vervoer = {
     const ik = await cookieSessie.haal<Ik>('/api/ik').catch(() => null);
     return { binnen: !!ik?.burger, naam: ik ? (ik.naam ?? ik.sub) : null };
   },
-  toegangScherm: () => import('../../inloggen/InloggenView.vue'),
-  afmelden: { tekst: 'Uitloggen', doe: async () => inloggenApi.uitloggen() },
+  toegangScherm: () => import('../../inloggen/DigidSimulatieView.vue'),
+  afmelden: {
+    tekst: 'Uitloggen',
+    // The browser leaves for /auth/logout, which ends the session and sends
+    // it back to the start. The promise never settles: a route change of
+    // the shell after it could cut that navigation short.
+    doe: () => {
+      inloggenApi.uitloggen();
+      return new Promise<void>(() => {});
+    },
+  },
   onderschrift: () => '',
   history: () => createWebHistory(),
 };

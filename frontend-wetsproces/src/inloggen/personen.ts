@@ -6,7 +6,7 @@ import type { Persona } from './api';
 
 /** The name an account of the test login shows, and is logged in under. */
 export function personaNaam(p: Persona): string {
-  if (p.soort === 'burger') return `Burger met BSN ${p.identiteit ?? ''}`.trim();
+  if (p.soort === 'burger') return p.naam ? `${p.naam}, BSN ${p.identiteit ?? ''}` : `Burger met BSN ${p.identiteit ?? ''}`.trim();
   if (p.soort === 'beheerder') return 'Beheerder';
   return `${hoofdletter(p.niveau ?? 'medewerker')} bij ${p.cel_naam ?? p.cel ?? ''}`.trim();
 }

@@ -62,7 +62,7 @@ export function melding(f: KernFout): string {
     case 'network':
       return 'De server is niet bereikbaar. Controleer de verbinding en probeer het opnieuw.';
     case 'service':
-      return reden(typeof f.body === 'string' ? f.body : JSON.stringify(f.body));
+      return reden(typeof f.body === 'string' ? f.body : JSON.stringify(f.body), f.status);
     case 'protocol':
       return `Het antwoord van de server klopt niet met het protocol: ${f.detail}`;
     case 'key_store':
@@ -77,7 +77,7 @@ export function alsFout(e: unknown): Error {
   if (!isKernFout(e)) return e instanceof Error ? e : new Error(String(e));
   if (e.kind === 'service') {
     const body = typeof e.body === 'string' ? e.body : JSON.stringify(e.body);
-    return new ApiError(reden(body), { status: e.status, body, contentType: 'application/json' });
+    return new ApiError(reden(body, e.status), { status: e.status, body, contentType: 'application/json' });
   }
   // A 401, as the browser gets without a login: the screens already know it.
   if (opnieuwActiveren(e)) return new ApiError(melding(e), { status: 401 });

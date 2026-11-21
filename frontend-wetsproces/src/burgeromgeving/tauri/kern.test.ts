@@ -107,6 +107,16 @@ describe('the session of the app', () => {
     expect((fout as Error).message).toMatch(/niet bereikbaar/);
   });
 
+  it('shows no page of the platform the core got back in place of an answer', async () => {
+    const pagina = '<html><body><h1>503 Service Unavailable</h1></body></html>';
+    const { invoke } = stub(() => ({ kind: 'service', status: 503, body: pagina }));
+    const fout = await kernSessie(invoke, vi.fn())
+      .haal('/api/casus')
+      .catch((e: unknown) => e);
+    expect((fout as ApiError).message).toMatch(/niet bereikbaar/);
+    expect((fout as ApiError).message).not.toContain('<');
+  });
+
   it('has a text for every error of the core', () => {
     const fouten: KernFout[] = [
       { kind: 'not_configured', detail: 'x' },

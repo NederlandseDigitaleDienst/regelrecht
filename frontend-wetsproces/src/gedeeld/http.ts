@@ -2,13 +2,19 @@
 // and out, through the session of sessie.ts, and the server's own reason when
 // it refuses (`{ "fout": "<why>" }`).
 import { ApiError } from '@regelrecht/frontend-shared';
-import { sessie } from './sessie';
+import { reden, sessie } from './sessie';
 
 export { reden } from './sessie';
 
-/** The message of an error thrown by a call, for a screen to show. */
+/**
+ * The message of an error thrown by a call, for a screen to show: the
+ * server's own reason, or a short line in its place (`reden`), never the raw
+ * body of an answer. Also for a call made without the session, such as the
+ * login's.
+ */
 export function foutTekst(e: unknown): string {
-  if (e instanceof ApiError) return e.message || `De server antwoordde met ${e.status}.`;
+  // An error the app's core made itself carries its message and no body.
+  if (e instanceof ApiError) return e.body ? reden(e.body, e.status) : e.message || reden('', e.status);
   if (e instanceof Error) return e.message;
   return String(e);
 }
