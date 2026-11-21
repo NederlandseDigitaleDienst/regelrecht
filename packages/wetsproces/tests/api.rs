@@ -68,6 +68,12 @@ async fn case_forms_and_clock_for_citizens_and_employees() {
             json!({}),
             "{aanvraag}"
         );
+        // And names what a decision says of the deadline, on every screen.
+        assert_eq!(
+            vormen["teksten"]["termijn_einddatum"]["label"],
+            json!("Laatste dag voor bezwaar of beroep"),
+            "{vormen}"
+        );
         let (status, klok) = who.get("/api/klok").await;
         assert_eq!(status, StatusCode::OK);
         assert_eq!(

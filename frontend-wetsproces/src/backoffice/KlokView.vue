@@ -5,6 +5,7 @@
 import { onMounted, ref } from 'vue';
 import { longDate } from '../gedeeld/datum';
 import { foutTekst } from '../gedeeld/http';
+import { huidigeKlok } from '../gedeeld/klok';
 import type { Klok } from '../gedeeld/types';
 import { backofficeApi } from './api';
 
@@ -32,6 +33,8 @@ async function zet() {
   gezet.value = false;
   try {
     klok.value = await backofficeApi.klokZetten(datum.value);
+    // The trial band above shows the date too.
+    huidigeKlok.value = klok.value;
     gezet.value = true;
   } catch (e) {
     melding.value = foutTekst(e);

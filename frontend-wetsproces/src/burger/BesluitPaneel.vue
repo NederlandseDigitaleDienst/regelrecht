@@ -1,9 +1,9 @@
 <script setup lang="ts">
 // One decision from the citizen's dossier, as the main pane beside it
 // (DossierView.vue): what came out, why, and the submissions the citizen can
-// make against it, such as an objection. Which
-// those are follows from the case: a submission that refers to a decision
-// and that the cell that took it decides on (keten.ts `indieningenTegen`).
+// make against it: an objection against a decision on an application, an
+// appeal to the court against the decision on that objection. Which those
+// are follows from the case (keten.ts `indieningenTegen`).
 // Its fields come from the law, without what the decision already holds.
 import { computed, ref, watch } from 'vue';
 import { useRouter } from 'vue-router';
@@ -113,7 +113,13 @@ async function indienen() {
         <nldd-title size="display-5"><h4>Waarom</h4></nldd-title>
         <nldd-text color="secondary">Wie de wet op elk punt invulde, en welke antwoorden het besluit gebruikte.</nldd-text>
         <nldd-spacer size="8"></nldd-spacer>
-        <WaaromLijst v-if="waarom" :waarom="waarom" :teksten="vormen?.teksten" :cel-naam="naamVanCel" />
+        <WaaromLijst
+          v-if="waarom && besluit"
+          :waarom="waarom"
+          :teksten="vormen?.teksten"
+          :cel-naam="naamVanCel"
+          :beslisser="naamVanCel(besluit.recording_actor)"
+        />
         <nldd-inline-dialog v-else-if="waaromFout" icon="warning" text="De uitleg laadt niet" :supporting-text="waaromFout"></nldd-inline-dialog>
         <nldd-activity-indicator v-else></nldd-activity-indicator>
 

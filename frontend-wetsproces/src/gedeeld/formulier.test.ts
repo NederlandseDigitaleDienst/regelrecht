@@ -76,3 +76,13 @@ describe('tegenBesluitVelden', () => {
     expect(velden.map((s) => s.veld.naam)).toEqual(['gronden']);
   });
 });
+
+describe('schermveld', () => {
+  it('names the article a field comes from in words, never by its key', () => {
+    const veld = vorm.velden.find((v) => v.naam === 'dagtekening')!;
+    expect(schermveld(veld).veld.basis).toBe('Algemene wet artikel 4:2');
+    expect(schermveld({ ...veld, basis: 'algemene_wet_bestuursrecht#4:2' }).veld.basis).toBe('Awb artikel 4:2');
+    // The field itself is left as it is: the value still goes under its own name.
+    expect(veld.basis).toBe('algemene_wet#4:2');
+  });
+});

@@ -10,7 +10,7 @@ import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
-import { omschrijving, openIndieningen } from '../gedeeld/keten';
+import { artikelNaam, omschrijving, openIndieningen } from '../gedeeld/keten';
 import type { Handeling } from '../gedeeld/types';
 import { backofficeApi } from './api';
 import BehandelenPaneel from './BehandelenPaneel.vue';
@@ -76,7 +76,7 @@ async function klaar(naam: string) {
                   :current="g.id === id || undefined"
                   @click="c.recht.beslissen && router.push({ name: 'behandelen', params: { cel: c.recht.cel, id: g.id } })"
                 >
-                  <nldd-text-cell :text="omschrijving(g, casus)" :supporting-text="`Ontvangen ${longDate(g.recorded_on)} · onder ${g.basis}`"></nldd-text-cell>
+                  <nldd-text-cell :text="omschrijving(g, casus)" :supporting-text="`Ontvangen ${longDate(g.recorded_on)} · onder ${artikelNaam(g.basis)}`"></nldd-text-cell>
                   <template v-if="c.recht.beslissen">
                     <nldd-spacer-cell size="8"></nldd-spacer-cell>
                     <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>

@@ -2,14 +2,22 @@
 // screens of src/burger/, nothing of the back office. What getting in means
 // is the transport's (vervoer.ts).
 import { createRouter } from 'vue-router';
-import type { RouteLocationNormalized } from 'vue-router';
+import type { RouteLocationNormalized, RouteLocationRaw } from 'vue-router';
 import { burgerRoutes } from '../burger/routes';
+import { terugNaar } from './terug';
 import type { Toegang, Vervoer } from './vervoer';
 
-/** Where `to` sends the citizen instead, given `toegang`. */
-export function omleiding(to: RouteLocationNormalized, toegang: Toegang): string | undefined {
+/**
+ * Where `to` sends the citizen instead, given `toegang`. Someone who is not in
+ * and asked for a screen deeper than the dossier, such as a decision from a
+ * link, gets that screen back after getting in (`terug`, read by the screen
+ * to get in with `terugNaar`).
+ */
+export function omleiding(to: RouteLocationNormalized, toegang: Toegang): RouteLocationRaw | undefined {
   if (to.path === '/') return toegang.binnen ? '/burger' : '/toegang';
-  if (to.name !== 'toegang' && !toegang.binnen) return '/toegang';
+  if (to.name !== 'toegang' && !toegang.binnen) {
+    return terugNaar(to.fullPath) === '/burger' ? '/toegang' : { name: 'toegang', query: { terug: to.fullPath } };
+  }
   return undefined;
 }
 

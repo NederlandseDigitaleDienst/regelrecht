@@ -7,6 +7,7 @@ import { computed, ref, watch } from 'vue';
 import { zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { beginwaarden, schermveld } from '../gedeeld/formulier';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
+import { artikelNaam } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { Gram, Handeling, Vormen } from '../gedeeld/types';
 import type { Vastlegging } from './api';
@@ -62,7 +63,7 @@ async function opslaan() {
         <nldd-simple-section v-if="keuze">
           <nldd-container gap="16">
             <slot></slot>
-            <nldd-text color="secondary">De gegevens komen uit {{ keuze.handeling.feit.split('#').slice(0, 2).join(' artikel ') }}.</nldd-text>
+            <nldd-text color="secondary">De gegevens komen uit {{ artikelNaam(keuze.handeling.feit.split('#').slice(0, 2).join('#')) }}.</nldd-text>
             <SpecFormulier :velden="velden" :waarden="waarden" @zet="(n, v) => (waarden[n] = v)" />
             <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Niet vastgelegd" :supporting-text="melding"></nldd-inline-dialog>
             <nldd-button-group orientation="horizontal">

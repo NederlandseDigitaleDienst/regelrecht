@@ -7,7 +7,7 @@ import { computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
-import { omschrijving } from '../gedeeld/keten';
+import { artikelNaam, omschrijving } from '../gedeeld/keten';
 import { useBackoffice } from './useBackoffice';
 
 const props = defineProps<{ cel?: string }>();
@@ -17,6 +17,13 @@ onMounted(laad);
 
 const gekozen = computed(() => kronieken.value.find((k) => k.cel === props.cel));
 const kies = (cel: string) => router.push({ name: 'kroniek', params: { cel } });
+/** The record `id` of the chosen chronicle, in words, by its number in the chronicle. */
+const noem = (id: string) => {
+  const i = gekozen.value?.grammen.findIndex((g) => g.id === id) ?? -1;
+  const g = gekozen.value?.grammen[i];
+  if (!g) return 'een stuk in een andere kroniek';
+  return casus.value ? `nr. ${i + 1}, ${omschrijving(g, casus.value).toLowerCase()}` : `nr. ${i + 1}`;
+};
 </script>
 
 <template>
@@ -67,7 +74,7 @@ const kies = (cel: string) => router.push({ name: 'kroniek', params: { cel } });
               <nldd-text-cell
                 :overline="`${i + 1}`"
                 :text="omschrijving(g, casus)"
-                :supporting-text="`${longDate(g.recorded_on)} · ${g.basis}${g.refers_to ? ` · verwijst naar ${g.refers_to}` : ''}`"
+                :supporting-text="`${longDate(g.recorded_on)} · ${artikelNaam(g.basis)}${g.refers_to ? ` · verwijst naar ${noem(g.refers_to)}` : ''}`"
               ></nldd-text-cell>
             </nldd-list-item>
           </nldd-list>

@@ -7,13 +7,15 @@
 // real DigiD: no logo, no colours, none of its wording. With Keycloak the
 // ordinary login screen takes over.
 import { computed, onMounted, ref } from 'vue';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import type { AuthStatus } from '@regelrecht/frontend-shared';
 import { foutTekst } from '../gedeeld/http';
 import { inloggenApi } from './api';
 import type { Persona } from './api';
 import InloggenView from './InloggenView.vue';
+import { terugNaar } from '../burgeromgeving/terug';
 
+const route = useRoute();
 const router = useRouter();
 const status = ref<AuthStatus | null>(null);
 const burgers = ref<Persona[]>([]);
@@ -47,7 +49,8 @@ async function inloggen(nummer: string, wie: string) {
   bezig.value = true;
   try {
     await inloggenApi.digid(nummer, wie);
-    await router.push('/burger');
+    // Back to the screen of a link that brought the citizen here, or the dossier.
+    await router.push(terugNaar(route.query.terug));
   } catch (e) {
     fout.value = foutTekst(e);
   } finally {

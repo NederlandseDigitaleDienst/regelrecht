@@ -20,7 +20,7 @@ description: "The screens of the wetsproces server: a public side for citizens a
 | `/toegang` | citizen | The citizens' build: the login through Keycloak, or in test mode without OIDC the simulated DigiD |
 | `/burger` | citizen | The dossier, as chains of what answers to what: an application, the decision on it, an objection to that decision |
 | `/burger/aanvraag` | citizen | A new application under the case's own article |
-| `/burger/besluit/{id}` | citizen | One decision: what came out, why, and an objection against it |
+| `/burger/besluit/{id}` | citizen | One decision: what came out, why, and what the citizen can file against it: an objection against a decision on an application, an appeal to the court against the decision on that objection |
 | `/backoffice` | employee | The executor's submissions without a decision, and the facts it records itself |
 | `/backoffice/behandelen/{cel}/{id}` | decider | One submission: the findings the decision asks, a preview, the decision |
 | `/backoffice/kroniek/{cel}` | reader | The executor's chronicle |
@@ -36,7 +36,7 @@ The tabs and buttons a screen shows follow from `GET /api/ik`, which says what t
 
 The test accounts come from the server (`GET /auth/testpersonen`), derived from the case: two citizens with a made-up name and a made-up number from the BSN test range, a handler and a decider of the executor, and an admin. The login screen says it is a test setup, because anyone who reaches it can pick any account.
 
-In the citizens' build the test login is a simulated DigiD step (`src/inloggen/DigidSimulatieView.vue`): pick one of those citizens from a list, or type a name and a number of the test range. The heading and a banner say it is a simulation and not DigiD, and the screen takes no logo, colour or wording of the real one. The server checks the number and gives the account the citizen's role only ([Login](/components/wetsproces#login)). The app gets in by activation and never shows this screen.
+In the citizens' build the test login is a simulated DigiD step (`src/inloggen/DigidSimulatieView.vue`): pick one of those citizens from a list, or type a name and a number of the test range. The heading and a banner say it is a simulation and not DigiD, and the screen takes no logo, colour or wording of the real one. The server checks the number and gives the account the citizen's role only ([Login](/components/wetsproces#login)). The app gets in by activation and never shows this screen. A link to a citizen's screen opened without a session leads here first and back to that screen after the login; only a path under `/burger/` is followed.
 
 When a call fails, a screen shows the server's own reason. An answer without one, such as a page of the platform while the server restarts, or no answer at all, becomes a short line that says the server cannot be reached and that what was filled in stays; the raw body never reaches the screen. `reden` in `src/gedeeld/sessie.ts` does this for both transports.
 

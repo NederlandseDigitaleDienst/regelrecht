@@ -25,3 +25,18 @@ elements:
       - name: gevraagde_beschikking
         label: Wat vraagt u aan?
         help: Bijvoorbeeld een gehandicaptenparkeerkaart.
+  # Wat een besluit over de termijn zegt. Dezelfde velden staan in het
+  # besluit op de aanvraag (de bezwaartermijn), in de beslissing op bezwaar
+  # (de beroepstermijn) en in het bezwaar dat ze overneemt, dus de namen
+  # passen bij elk van die drie.
+  - id: UI2
+    element: besluit
+    fields:
+      - name: termijn_startdatum
+        label: Begin van de termijn voor bezwaar of beroep
+      - name: termijn_einddatum
+        label: Laatste dag voor bezwaar of beroep
+      - name: termijn_weken
+        label: Duur van die termijn in weken
+      - name: motivering_vereist
+        label: Het besluit moet gemotiveerd worden

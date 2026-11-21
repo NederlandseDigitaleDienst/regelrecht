@@ -5,6 +5,7 @@
 // and the UI spec only adds to that or hides.
 import { hoofdletter, leesbaar, zonderLeeg } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { metSysteem, opHetFormulier, tegenBesluit } from '@regelrecht/frontend-shared/chronolex/voorinvulling';
+import { artikelNaam } from './keten';
 import type { Indieningsvorm, Veld, Veldtekst, Vormen } from './types';
 
 /** A field as a screen shows it. */
@@ -20,7 +21,8 @@ export interface Schermveld {
 export function schermveld(veld: Veld, teksten: Vormen['teksten'] = {}): Schermveld {
   const tekst: Veldtekst = teksten[veld.naam] ?? {};
   return {
-    veld,
+    // The article a field comes from, in words for the screen, such as `Awb artikel 4:2`.
+    veld: veld.basis ? { ...veld, basis: artikelNaam(veld.basis) } : veld,
     label: tekst.label ?? hoofdletter(leesbaar(veld.naam)),
     help: tekst.help ?? '',
   };
