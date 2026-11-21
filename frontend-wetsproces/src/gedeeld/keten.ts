@@ -39,16 +39,27 @@ export interface Knoop {
   onder: Knoop[];
 }
 
+
 /**
- * The records of `grammen` as chains: each record that refers to none of
- * them is the top of one, with what refers to it underneath. A record found
- * in two chronicles (a fact one cell sends another) counts once.
+ * The records of `grammen` as chains: each record that hangs under none of
+ * them is the top of one, with what hangs under it underneath, in the order
+ * the records came: application, decision, objection, decision on it,
+ * appeal, ruling. A record found in two chronicles (a fact one cell sends
+ * another) counts once.
  */
 export function ketens(grammen: Gram[]): Knoop[] {
   const uniek = [...new Map(grammen.map((g) => [g.id, g])).values()];
   const ids = new Set(uniek.map((g) => g.id));
-  const knoop = (g: Gram): Knoop => ({ gram: g, onder: verwijzendNaar(g.id, uniek).map(knoop) });
-  return uniek.filter((g) => !g.refers_to || !ids.has(g.refers_to)).map(knoop);
+  // What `g` hangs under: what it received from another cell when that is
+  // in the list, such as the decision an appeal to the court contests or the
+  // ruling whose copy the municipality received; else the record it refers to.
+  const ouder = (g: Gram): string | undefined =>
+    (g.received && ids.has(g.received.id) ? g.received.id : undefined) ?? g.refers_to ?? undefined;
+  const knoop = (g: Gram): Knoop => ({ gram: g, onder: uniek.filter((x) => ouder(x) === g.id).map(knoop) });
+  return uniek.filter((g) => {
+    const o = ouder(g);
+    return !o || !ids.has(o);
+  }).map(knoop);
 }
 
 /** The submissions in the chronicle `grammen` on which no decision was taken yet. */
@@ -117,7 +128,33 @@ export function toegewezen(g: Gram, casus: Casus): boolean | undefined {
 export function omschrijving(g: Gram, casus: Casus): string {
   if (isVastlegging(g)) return hoofdletter(leesbaar(g.fact ?? 'vastlegging'));
   if (isIndiening(g, casus)) return hoofdletter(leesbaar(g.kind.toLowerCase()));
-  return `Besluit (${leesbaar(g.kind.toLowerCase())})`;
+  // A decision of another cell goes by its own name, such as a court's ruling.
+  return g.recording_actor === casus.cel ? `Besluit (${leesbaar(g.kind.toLowerCase())})` : besluitNaam(g, casus);
+}
+
+/**
+ * The output of a decision that holds the last day to object to it or
+ * appeal against it, as the Awb in the corpus derives it (articles 6:7 and
+ * 6:8). The objection takes the same field over from the decision it
+ * contests. A decision without it gives no deadline to show.
+ */
+const TERMIJN_EINDE = 'termijn_einddatum';
+
+/** The deadline of decision `besluit` on day `vandaag`: its last day, and whether that has passed. */
+export function termijn(besluit: Gram, vandaag: string): { einde: string; voorbij: boolean } | null {
+  const einde = besluit.outputs?.[TERMIJN_EINDE];
+  if (typeof einde !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(einde)) return null;
+  // ISO days compare as text.
+  return { einde, voorbij: vandaag > einde };
+}
+
+/**
+ * What a decision is called on its own screen: a decision of the case's own
+ * cell is a `Besluit`; one of another cell goes by its legal character as
+ * the regelwerk names it, so a court's ruling is an `Uitspraak`.
+ */
+export function besluitNaam(g: Gram, casus: Casus): string {
+  return g.recording_actor === casus.cel ? 'Besluit' : hoofdletter(leesbaar(g.kind.toLowerCase()));
 }
 
 /** The records of the chain under `k`, the top first, each with the record it answers to. */

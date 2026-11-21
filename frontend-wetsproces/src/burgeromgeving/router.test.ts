@@ -4,7 +4,7 @@
 import { describe, expect, it } from 'vitest';
 import type { RouteLocationNormalized } from 'vue-router';
 import { omleiding } from './router';
-import { terugNaar } from './terug';
+import { BURGER, terugNaar } from '../gedeeld/terug';
 
 const naar = (path: string, name?: string) => ({ path, fullPath: path, name }) as unknown as RouteLocationNormalized;
 const binnen = { binnen: true, naam: 'Test Burger' };
@@ -24,9 +24,9 @@ describe('the routes of the citizen entry', () => {
   });
 
   it('sends someone back to the screen of a link after getting in, and nowhere else', () => {
-    expect(terugNaar('/burger/besluit/01a1')).toBe('/burger/besluit/01a1');
+    expect(terugNaar('/burger/besluit/01a1', BURGER, '/burger')).toBe('/burger/besluit/01a1');
     for (const elders of ['//voorbeeld.org/x', 'https://voorbeeld.org', '/backoffice', '/burgerX', undefined, ['/burger/x']]) {
-      expect(terugNaar(elders)).toBe('/burger');
+      expect(terugNaar(elders, BURGER, '/burger')).toBe('/burger');
     }
   });
 });

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { indieningenTegen, isBesluit, ketens, openIndieningen, plat, waardeTekst } from './keten';
+import { besluitNaam, indieningenTegen, termijn, isBesluit, ketens, openIndieningen, plat, waardeTekst } from './keten';
 import type { Casus, Gram } from './types';
 
 const casus: Casus = {
@@ -50,6 +50,18 @@ describe('the records of a chronicle', () => {
       ['b', 'a'],
       ['c', 'b'],
     ]);
+  });
+
+  it('put an appeal to the court under the decision it contests, and the ruling under it', () => {
+    const opBezwaar = gram('e', 'BESCHIKKING', 'awb#7:11', 'c');
+    const beroep = { ...gram('f', 'BEROEP', 'awb#8:70'), recording_actor: 'rechtbank', received: { from: 'gemeente', id: 'e' } };
+    const uitspraak = { ...gram('g', 'UITSPRAAK', 'awb#8:70', 'f'), recording_actor: 'rechtbank' };
+    // The municipality's receipt of the ruling's copy refers to its own decision and received the ruling.
+    const afschrift = { ...gram('h', 'EXECUTOGRAM', 'awb#8:79', 'e'), received: { from: 'rechtbank', id: 'g' } };
+    // In the order of the chronicles, the municipality's first.
+    const k = ketens([aanvraag, besluit, bezwaar, opBezwaar, afschrift, advies, beroep, uitspraak]);
+    expect(k.map((x) => x.gram.id)).toEqual(['a', 'd']);
+    expect(plat(k[0]!).map((r) => r.gram.id)).toEqual(['a', 'b', 'c', 'e', 'f', 'g', 'h']);
   });
 });
 
@@ -114,5 +126,38 @@ describe('waardeTekst', () => {
   it('writes a date as a screen does, and a yes or no in words', () => {
     expect(waardeTekst('2026-10-13')).toBe('13 oktober 2026');
     expect(waardeTekst(true)).toBe('ja');
+  });
+});
+
+describe('besluitNaam', () => {
+  it("calls the case cell's decision a Besluit and another cell's by its legal character", () => {
+    expect(besluitNaam(besluit, casus)).toBe('Besluit');
+    expect(besluitNaam({ ...gram('g', 'UITSPRAAK', 'awb#8:70', 'f'), recording_actor: 'rechtbank' }, casus)).toBe('Uitspraak');
+  });
+});
+
+describe('termijn', () => {
+  const metTermijn = { ...besluit, outputs: { verleend: false, termijn_einddatum: '2026-11-24' } };
+
+  it('gives the last day and whether it has passed, by the clock', () => {
+    expect(termijn(metTermijn, '2026-11-24')).toEqual({ einde: '2026-11-24', voorbij: false });
+    expect(termijn(metTermijn, '2026-11-25')).toEqual({ einde: '2026-11-24', voorbij: true });
+  });
+
+  it('gives nothing for a decision that names no deadline', () => {
+    expect(termijn(besluit, '2026-11-25')).toBeNull();
+  });
+});
+
+describe('omschrijving of a decision of another cell', () => {
+  it("names a court's ruling as on its own screen", async () => {
+    const { omschrijving } = await import('./keten');
+    expect(omschrijving({ ...gram('g', 'UITSPRAAK', 'awb#8:70', 'f'), recording_actor: 'rechtbank' }, casus)).toBe('Uitspraak');
+    expect(omschrijving(besluit, casus)).toBe('Besluit (beschikking)');
+  });
+
+  it('hang a receipt under what it refers to when what it received is not in the list', () => {
+    const afschrift = { ...gram('h', 'EXECUTOGRAM', 'awb#8:79', 'b'), received: { from: 'rechtbank', id: 'weg' } };
+    expect(plat(ketens([aanvraag, besluit, afschrift])[0]!).map((r) => r.gram.id)).toEqual(['a', 'b', 'h']);
   });
 });

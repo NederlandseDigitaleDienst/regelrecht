@@ -13,7 +13,7 @@ import { foutTekst } from '../gedeeld/http';
 import { inloggenApi } from './api';
 import type { Persona } from './api';
 import InloggenView from './InloggenView.vue';
-import { terugNaar } from '../burgeromgeving/terug';
+import { BURGER, terugNaar } from '../gedeeld/terug';
 
 const route = useRoute();
 const router = useRouter();
@@ -50,7 +50,7 @@ async function inloggen(nummer: string, wie: string) {
   try {
     await inloggenApi.digid(nummer, wie);
     // Back to the screen of a link that brought the citizen here, or the dossier.
-    await router.push(terugNaar(route.query.terug));
+    await router.push(terugNaar(route.query.terug, BURGER, '/burger'));
   } catch (e) {
     fout.value = foutTekst(e);
   } finally {
@@ -60,7 +60,7 @@ async function inloggen(nummer: string, wie: string) {
 </script>
 
 <template>
-  <InloggenView v-if="status?.oidc_configured" />
+  <InloggenView v-if="status?.oidc_configured" :naar="BURGER" />
   <nldd-page v-else landmarks="page" sticky-header accessible-label="Gesimuleerde DigiD">
     <nldd-top-title-bar slot="header" text="Gesimuleerde DigiD" collapse-anchor="digid-titel"></nldd-top-title-bar>
     <nldd-simple-section>

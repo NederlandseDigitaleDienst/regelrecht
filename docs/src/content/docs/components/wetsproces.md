@@ -71,6 +71,7 @@ A commit is one transaction. It claims its idempotency key first, so a retry und
 | `WETSPROCES_SURFACE` | `all` in test mode, none in stable mode | Which side the instance serves: `burger`, `backoffice` or `all` (see [Surfaces](#surfaces)) |
 | `WETSPROCES_STORE` | `memory` in test mode, `postgres` in stable mode | Where the chronicles live |
 | `DATABASE_URL` | none | The database for the `postgres` store; `DATABASE_SERVER_FULL` is read as fallback. Required with that store. |
+| `WETSPROCES_DB_MAX_CONNECTIONS` | `5` | How many connections an instance holds to that database at most. The chronicles, the sessions and FSC voor Burgers share one pool. At least `2`: the migration holds its lock on one connection while it migrates on another. The startup line names the value. |
 | `WETSPROCES_MANIFEST` | `packages/wetsproces/bron.yaml` | The source manifest |
 | `WETSPROCES_PORT` | 8000 | The port |
 | `WETSPROCES_FRONTEND` | the build output of `frontend-wetsproces/` in the checkout; `/app/frontend` in the image | The built screens, one build per surface in a directory of its name. The server serves `<dir>/<surface>`, and its API alone when there is no `index.html` there |
@@ -130,7 +131,7 @@ The server makes that account itself: the role `wetsproces-burger` and no other,
 
 `GET /auth/logout` beside the test login ends the session and sends the browser to `/`, where the screen to get in waits again.
 
-`WETSPROCES_LOGIN` overrides that choice. `testlogin` gives the test login in test mode even when the OIDC variables are set, and reads none of them. A ZAD preview needs this: its `keycloak` service sets those variables in the container, while the realm may not have the wetsproces roles yet. Stable mode refuses `testlogin`. `oidc` refuses to start without the OIDC variables, and any other value stops the server too. The line `listening on 0.0.0.0:<port>` at startup names the login, the mode, the surface and the store, so the log shows what runs. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the case: on `burger` the citizens, on `backoffice` a handler and a decider of the executor and the admin.
+`WETSPROCES_LOGIN` overrides that choice. `testlogin` gives the test login in test mode even when the OIDC variables are set, and reads none of them. A ZAD preview needs this: its `keycloak` service sets those variables in the container, while the realm may not have the wetsproces roles yet. Stable mode refuses `testlogin`. `oidc` refuses to start without the OIDC variables, and any other value stops the server too. The line `listening on 0.0.0.0:<port>` at startup names the login, the mode, the surface, the store and its pool size (`db_max_connections`), so the log shows what runs. So does `GET /auth/testpersonen`, which lists the accounts the login screen offers, derived from the case: on `burger` the citizens, on `backoffice` a handler and a decider of the executor and the admin.
 
 An app can use the citizen routes without a browser through [FSC voor Burgers](/components/wetsproces-fsc4b), when that channel is configured. [The app](/components/wetsproces-app) does so with the citizen's screens in a webview.
 

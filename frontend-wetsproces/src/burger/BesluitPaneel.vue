@@ -12,7 +12,7 @@ import { longDate } from '../gedeeld/datum';
 import { beginwaarden, tegenBesluitVelden } from '../gedeeld/formulier';
 import Gegevens from '../gedeeld/Gegevens.vue';
 import { foutTekst, nieuweSleutel } from '../gedeeld/http';
-import { artikelNaam, celNaam, indieningenTegen, isBesluit, toegewezen } from '../gedeeld/keten';
+import { artikelNaam, besluitNaam, celNaam, indieningenTegen, isBesluit, termijn, toegewezen } from '../gedeeld/keten';
 import SpecFormulier from '../gedeeld/SpecFormulier.vue';
 import type { Casus, CasusIndiening, Gram, Vormen, Waarom } from '../gedeeld/types';
 import WaaromLijst from '../gedeeld/WaaromLijst.vue';
@@ -27,7 +27,13 @@ const besluit = computed(() => {
   const g = props.dossier.find((x) => x.id === props.id);
   return g && isBesluit(g, props.casus) ? g : null;
 });
-const titel = computed(() => (besluit.value ? `Besluit van ${longDate(besluit.value.recorded_on)}` : 'Besluit'));
+/** The deadline to object or appeal, by the test clock or the real day (`casus.vandaag`). */
+const deadline = computed(() => (besluit.value ? termijn(besluit.value, props.casus.vandaag) : null));
+/** What the citizen can file against it, in words: `bezwaar`, or `bezwaar of beroep`. */
+const tegenWoorden = computed(() => tegen.value.map((i) => soortNaam(i).toLowerCase()).join(' of '));
+const titel = computed(() =>
+  besluit.value ? `${besluitNaam(besluit.value, props.casus)} van ${longDate(besluit.value.recorded_on)}` : 'Besluit',
+);
 const naamVanCel = (cel: string) => celNaam(cel, props.casus);
 const stand = computed(() => (besluit.value ? toegewezen(besluit.value, props.casus) : undefined));
 const tegen = computed(() => (besluit.value ? indieningenTegen(besluit.value, props.casus) : []));
@@ -127,6 +133,16 @@ async function indienen() {
           <nldd-spacer size="24"></nldd-spacer>
           <nldd-title size="display-5"><h4>Bent u het niet eens met dit besluit?</h4></nldd-title>
           <nldd-spacer size="8"></nldd-spacer>
+          <template v-if="deadline">
+            <nldd-inline-dialog
+              v-if="deadline.voorbij"
+              icon="warning"
+              :text="`De termijn liep tot en met ${longDate(deadline.einde)}`"
+              :supporting-text="`U kunt nog ${tegenWoorden} indienen, maar het is dan te laat. Het wordt alleen behandeld als redelijkerwijs niet kan worden geoordeeld dat u in verzuim bent geweest (Awb artikel 6:11). Schrijf in de gronden waarom u later bent.`"
+            ></nldd-inline-dialog>
+            <nldd-text v-else>U kunt {{ tegenWoorden }} indienen tot en met {{ longDate(deadline.einde) }}.</nldd-text>
+            <nldd-spacer size="8"></nldd-spacer>
+          </template>
           <nldd-button-group orientation="horizontal">
             <nldd-button
               v-for="i in tegen"

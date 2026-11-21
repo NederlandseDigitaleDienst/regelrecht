@@ -111,6 +111,11 @@ export interface Gram {
   kind: string;
   basis: string;
   refers_to?: string | null;
+  /**
+   * What came in from another cell: for a submission that contests a
+   * decision of another cell (an appeal to the court), that decision.
+   */
+  received?: { from: string; id: string } | null;
   fact?: string | null;
   fields?: Record<string, unknown>;
   findings?: Record<string, unknown>;

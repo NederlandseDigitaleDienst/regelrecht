@@ -49,8 +49,59 @@ pub const SCHEMA: &str = "wetsproces";
 /// still makes the two runs take turns while they migrate.
 pub(crate) const MIGRATION_LOCK_KEY: i64 = 0x5745_5453_5052_4F43; // "WETSPROC"
 
-/// Connections per instance: a request holds one for a read or a commit.
-const MAX_CONNECTIONS: u32 = 10;
+/// How many connections an instance may hold to the database at most, all
+/// in one pool that the chronicles, the sessions and FSC voor Burgers share.
+/// A request holds one for a read or a commit; a commit does all its work on
+/// the one connection of its transaction, however many cells it locks.
+/// Starting takes two at once: one holds the advisory lock of the migration
+/// ([`MIGRATION_LOCK_KEY`]) while the migrator runs on another. Several
+/// components share one database role on a platform such as ZAD, each with
+/// a pool of its own, so the default is low.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PoolSize(u32);
+
+impl PoolSize {
+    /// The fewest connections that let the migration run.
+    pub const MIN: u32 = 2;
+
+    /// The number of connections.
+    pub fn get(self) -> u32 {
+        self.0
+    }
+}
+
+impl Default for PoolSize {
+    fn default() -> Self {
+        Self(5)
+    }
+}
+
+impl TryFrom<u32> for PoolSize {
+    type Error = String;
+
+    fn try_from(n: u32) -> Result<Self, Self::Error> {
+        if n < Self::MIN {
+            return Err(format!(
+                "{n} connections cannot run the migration, which holds a lock on one connection \
+                 while it migrates on another; give at least {}",
+                Self::MIN
+            ));
+        }
+        Ok(Self(n))
+    }
+}
+
+impl std::str::FromStr for PoolSize {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let n: u32 = s
+            .trim()
+            .parse()
+            .map_err(|_| format!("`{s}` is no number of connections"))?;
+        Self::try_from(n)
+    }
+}
 
 /// How long a connection may take before the store gives up: long enough
 /// for a database that is starting next to the server.
@@ -86,15 +137,20 @@ impl PostgresStore {
     /// [`StoreError::Backend`] when the URL does not parse, the database
     /// cannot be reached, or a migration fails.
     pub async fn connect(url: &str) -> Result<Self, StoreError> {
-        Self::connect_within(url, CONNECT_TIMEOUT).await
+        Self::connect_within(url, CONNECT_TIMEOUT, PoolSize::default()).await
     }
 
-    /// [`PostgresStore::connect`], giving up on a connection after `timeout`.
+    /// [`PostgresStore::connect`] with at most `size` connections, giving up
+    /// on a connection after `timeout`.
     ///
     /// # Errors
     ///
     /// As [`PostgresStore::connect`].
-    pub async fn connect_within(url: &str, timeout: Duration) -> Result<Self, StoreError> {
+    pub async fn connect_within(
+        url: &str,
+        timeout: Duration,
+        size: PoolSize,
+    ) -> Result<Self, StoreError> {
         let options: PgConnectOptions = url
             .parse()
             .map_err(|e| StoreError::Backend(format!("the database URL does not parse: {e}")))?;
@@ -102,7 +158,7 @@ impl PostgresStore {
         // migration table lands there too and not in `public`.
         let options = options.options([("search_path", SCHEMA)]);
         let pool = PgPoolOptions::new()
-            .max_connections(MAX_CONNECTIONS)
+            .max_connections(size.get())
             .acquire_timeout(timeout)
             .connect_with(options)
             .await
@@ -531,6 +587,88 @@ mod tests {
             assert!(e.contains("append-only"), "{sql}: {e}");
         }
         assert_eq!(f.store.load("a").await.unwrap().head(), 1);
+    }
+
+    /// The smallest pool [`PoolSize`] allows.
+    fn smallest() -> PoolSize {
+        PoolSize::try_from(PoolSize::MIN).unwrap()
+    }
+
+    #[test]
+    fn a_pool_holds_at_least_the_connections_the_migration_needs() {
+        assert_eq!(PoolSize::default().get(), 5);
+        assert_eq!("3".parse::<PoolSize>().unwrap().get(), 3);
+        for wrong in ["0", "1", "veel", "-2", ""] {
+            assert!(wrong.parse::<PoolSize>().is_err(), "{wrong}");
+        }
+    }
+
+    #[tokio::test]
+    async fn instances_with_the_smallest_pool_migrate_at_once_without_waiting_forever() {
+        let database = TestDatabase::create().await;
+        let url = database.url().to_string();
+        // Three instances start together; each holds the migration lock on
+        // one connection while its migrator runs on the other.
+        let starts = (0..3).map(|_| {
+            let url = url.clone();
+            tokio::spawn(async move {
+                PostgresStore::connect_within(&url, Duration::from_secs(20), smallest()).await
+            })
+        });
+        let started =
+            tokio::time::timeout(Duration::from_secs(60), futures::future::join_all(starts))
+                .await
+                .expect("three instances should start within a minute");
+        for store in started {
+            store.unwrap().unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn commits_over_several_cells_do_not_starve_the_smallest_pool() {
+        let database = TestDatabase::create().await;
+        let store = Arc::new(
+            PostgresStore::connect_within(database.url(), Duration::from_secs(20), smallest())
+                .await
+                .unwrap(),
+        );
+        // Sixteen writers on two connections. Half write two cells of their
+        // own; the other half fight over the same two cells and retry on a
+        // conflict, so commits lock several cells and wait on each other.
+        let writers = (0..16).map(|i| {
+            let store = Arc::clone(&store);
+            tokio::spawn(async move {
+                let cells = if i % 2 == 0 {
+                    [format!("eigen-{i}-a"), format!("eigen-{i}-b")]
+                } else {
+                    ["gedeeld-a".to_string(), "gedeeld-b".to_string()]
+                };
+                let id = |c: &str| format!("{c}-{i}");
+                loop {
+                    let heads = store
+                        .load_all(&[cells[0].as_str(), cells[1].as_str()])
+                        .await
+                        .unwrap();
+                    let appends = cells
+                        .iter()
+                        .zip(&heads)
+                        .map(|(cell, h)| append(cell, h.head(), &[id(cell).as_str()]))
+                        .collect();
+                    match store.append(unkeyed(appends)).await {
+                        Ok(_) => break,
+                        Err(StoreError::Conflict { .. }) => continue,
+                        Err(e) => panic!("writer {i}: {e}"),
+                    }
+                }
+            })
+        });
+        tokio::time::timeout(Duration::from_secs(60), futures::future::join_all(writers))
+            .await
+            .expect("sixteen writers on two connections should finish within a minute")
+            .into_iter()
+            .for_each(|w| w.unwrap());
+        let shared = store.load("gedeeld-a").await.unwrap();
+        assert_eq!(shared.into_grams().len(), 8);
     }
 
     #[tokio::test]

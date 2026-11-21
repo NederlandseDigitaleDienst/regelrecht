@@ -29,6 +29,10 @@ async fn run() -> Result<(), Box<dyn std::error::Error>> {
         surface = %config.surface,
         login = config.login.name(),
         store = config.store.name(),
+        db_max_connections = config
+            .store
+            .max_connections()
+            .map_or_else(|| "none".to_string(), |n| n.to_string()),
         "listening on 0.0.0.0:{}",
         config.port
     );
