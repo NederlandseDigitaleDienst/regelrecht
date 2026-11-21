@@ -312,6 +312,40 @@ impl ChronicleStore for PostgresStore {
         .map_err(backend("setting the test clock"))?;
         Ok(())
     }
+
+    async fn reset(&self) -> Result<(), StoreError> {
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(backend("starting a reset"))?;
+        // Every table at once, in the order a commit takes them: the kept
+        // answers first (a commit with a key claims it there before its
+        // heads), then the heads and the records. A commit under way
+        // finishes before the reset; one after it finds its heads moved.
+        sqlx::query(
+            "LOCK TABLE wetsproces.receipts, wetsproces.heads, wetsproces.grams, \
+             wetsproces.test_clock IN ACCESS EXCLUSIVE MODE",
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(backend("locking the chronicles for a reset"))?;
+        // The one transaction in which the triggers of the chronicles let a
+        // TRUNCATE through (migration 0007).
+        sqlx::query("SELECT set_config('wetsproces.leegmaken', 'testomgeving', true)")
+            .execute(&mut *tx)
+            .await
+            .map_err(backend("opening the chronicles for a reset"))?;
+        sqlx::query(
+            "TRUNCATE wetsproces.grams, wetsproces.heads, wetsproces.receipts, \
+             wetsproces.test_clock",
+        )
+        .execute(&mut *tx)
+        .await
+        .map_err(backend("emptying the chronicles"))?;
+        tx.commit().await.map_err(backend("committing a reset"))?;
+        Ok(())
+    }
 }
 
 /// The unique constraint on `grams.gram_id`, by the name Postgres gives it.
@@ -669,6 +703,63 @@ mod tests {
             .for_each(|w| w.unwrap());
         let shared = store.load("gedeeld-a").await.unwrap();
         assert_eq!(shared.into_grams().len(), 8);
+    }
+
+    #[tokio::test]
+    async fn without_its_own_setting_a_transaction_still_cannot_truncate_the_chronicles() {
+        let f = Fixture::new().await;
+        f.store
+            .append(commit("k1", vec![append("a", 0, &["1"])]))
+            .await
+            .unwrap();
+        let e = sqlx::query("TRUNCATE wetsproces.grams, wetsproces.heads")
+            .execute(f.store.pool())
+            .await
+            .unwrap_err();
+        assert!(e.to_string().contains("append-only"), "{e}");
+        assert_eq!(f.count("SELECT count(*) FROM wetsproces.grams").await, 1);
+    }
+
+    #[tokio::test]
+    async fn a_reset_amid_commits_leaves_no_commit_half() {
+        let f = Fixture::new().await;
+        let store = Arc::new(f.store.clone());
+        // Commits over two cells each, while a reset runs among them: every
+        // commit lands whole or not at all, so both cells always hold as
+        // many records as each other.
+        // Half the writers commit under a key, as a submission does: they
+        // claim it among the kept answers before they lock their heads.
+        let writers = (0..8).map(|i| {
+            let store = Arc::clone(&store);
+            tokio::spawn(async move {
+                let heads = store.load_all(&["a", "b"]).await.unwrap();
+                let a = format!("a-{i}");
+                let b = format!("b-{i}");
+                let appends = vec![
+                    append("a", heads[0].head(), &[a.as_str()]),
+                    append("b", heads[1].head(), &[b.as_str()]),
+                ];
+                let c = if i % 2 == 0 {
+                    commit(&format!("k{i}"), appends)
+                } else {
+                    unkeyed(appends)
+                };
+                // A commit that lands before the reset, or that finds its
+                // heads moved by it, is fine; any other failure is not.
+                match store.append(c).await {
+                    Ok(_) | Err(StoreError::Conflict { .. }) => {}
+                    Err(e) => panic!("writer {i}: {e}"),
+                }
+            })
+        });
+        let reset = {
+            let store = Arc::clone(&store);
+            tokio::spawn(async move { store.reset().await.unwrap() })
+        };
+        futures::future::join_all(writers).await;
+        reset.await.unwrap();
+        let heads = store.load_all(&["a", "b"]).await.unwrap();
+        assert_eq!(heads[0].head(), heads[1].head());
     }
 
     #[tokio::test]
