@@ -220,7 +220,7 @@ The UI spec decides how the value of each field of the application comes about. 
 
 These fields are input fields of the application: Awb 4:2 asks that an application holds them. The rule generates a value for such a field, and the execution of the law reads it as it would read the same value typed in, so nothing changes in how the law is executed. That is why they are no open terms that policy fills. The choice of the executor sits in an article of its own policy that can be read, explained and changed apart from the law.
 
-`GET /api/formulier` gives a citizen, per field the system fills, the value the server would record now (`waarde`), so the form shows what will be recorded. When a rule cannot run, the form says why under `systeem_fout`, and the submission refuses with the reason.
+`GET /api/formulier` gives a citizen, per field the system fills, the value the server would record now (`waarde`), so the form shows what will be recorded for the fields it does not hide. For a hidden field the forms still say how the system fills it, so a screen that shows a recorded application can name the origin. When a rule cannot run, the form says why under `systeem_fout`, and the submission refuses with the reason.
 
 ## Running it locally
 

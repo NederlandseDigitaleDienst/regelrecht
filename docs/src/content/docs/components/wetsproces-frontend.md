@@ -46,14 +46,14 @@ Every screen carries a band that says the case, the people and the data are made
 
 No field of a case is named in the code of the app. A form takes its fields from `GET /api/formulier`, which the kern derives from the law in force on the day of the clock, in the order the law gives them. A yes or no that the law requires is a switch. A yes or no the law lets stay empty is a choice of yes, no or empty, and so is every finding of the authority.
 
-The case's UI spec (`packages/wetsproces/ui_spec.yaml`, read by `packages/poc-chronolexografie/src/ui_spec.rs`) decides how the screen shows those fields. The fields stand in the order the spec names them, under the heading of their `group`; a field the spec does not name follows, in the order of the law. `label` and `help` name a field and put a line under it, by field name over every form. A field the system fills shows read-only with the value the server will record, and under it where that value comes from: the login, the day of submission, a fixed value, or the article of the rule whose outcome it is. The form never sends such a field. A field the spec hides is not on the form. Without a UI spec every field the law asks is on the form, under its name in the rulework.
+The case's UI spec (`packages/wetsproces/ui_spec.yaml`, read by `packages/poc-chronolexografie/src/ui_spec.rs`) decides how the screen shows those fields. The fields stand in the order the spec names them, under the heading of their `group`; a field the spec does not name follows, in the order of the law. `label` and `help` name a field and put a line under it, by field name over every form. A field the system fills shows read-only with the value the server will record, and under it where that value comes from: the login, the day of submission, a fixed value, or the article of the rule whose outcome it is. The form never sends such a field. A field the spec hides is not on the form, also when the system fills it. Without a UI spec every field the law asks is on the form, under its name in the rulework.
 
-For the parking card the application form reads, under "Over deze aanvraag":
+For the parking card the application form has, under "Over deze aanvraag":
 
 ```yaml
 - name: gevraagde_beschikking
   group: Over deze aanvraag
-  visibility: shown
+  visibility: hidden
   fill: {by: system, value: gehandicaptenparkeerkaart}
   label: Wat vraagt u aan?
 - name: dagtekening
@@ -63,7 +63,7 @@ For the parking card the application form reads, under "Over deze aanvraag":
   label: Dagtekening
 - name: aanvraag_ondertekend
   group: Over deze aanvraag
-  visibility: shown
+  visibility: hidden
   fill:
     by: system
     from: beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#8#aanvraag_geldt_als_ondertekend
@@ -71,7 +71,7 @@ For the parking card the application form reads, under "Over deze aanvraag":
   label: Ondertekend
 ```
 
-A citizen who logged in with the simulated DigiD sees "gehandicaptenparkeerkaart", today's date and "ja", each read-only. Under the last one stands "Volgt uit" and the article of the municipality's policy. The back office shows the same origin beside each of these fields of a recorded application. Where they come from is on [Wetsproces](/components/wetsproces#what-the-server-fills-in-an-application).
+A citizen sees only the date, read-only, with the day of submission under it. The requested decision and the signature are hidden: the server fills and records them all the same. A hidden field is out of sight on the form and nowhere else. The application holds it, so the dossier and the chronicle show its value. The forms still say how the system fills it (`systeem`), and the citizen's dossier and the back office's handling of an application name that origin beside the value, for the signature the article of the municipality's policy. Where the values come from is on [Wetsproces](/components/wetsproces#what-the-server-fills-in-an-application).
 
 The form fields are shared with the chronolexography PoC, in `@regelrecht/frontend-shared/chronolex` ([Shared Frontend Package](/components/frontend-shared)).
 
