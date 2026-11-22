@@ -145,11 +145,6 @@ impl Principal {
         self.name.as_deref()
     }
 
-    /// The claims the login kept, by name.
-    pub fn claims(&self) -> &BTreeMap<String, Value> {
-        &self.claims
-    }
-
     /// A citizen of the FSC voor Burgers channel: the account `sub`, with the
     /// citizen's role and no other, identified by `subject` under the claim
     /// `claim`. A session of that channel never holds an employee's role.

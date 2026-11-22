@@ -90,9 +90,12 @@ export interface Aanvraagformulier {
  * `velden` in the order the UI spec names them (`volgorde`); a field it does
  * not name follows, in the order it came in. `naam` gives a field's name.
  */
+export function opVolgorde<V extends { naam: string }>(velden: V[], volgorde?: string[]): V[];
+export function opVolgorde<V>(velden: V[], volgorde: string[] | undefined, naam: (v: V) => string): V[];
 export function opVolgorde<V>(
   velden: V[],
   volgorde: string[] = [],
+  // The overloads above make a caller without `naam` pass fields that have one.
   naam: (v: V) => string = (v) => (v as { naam: string }).naam,
 ): V[] {
   const plek = (v: V) => {
@@ -109,11 +112,13 @@ export function opVolgorde<V>(
  * `velden`, already in order, under the headings of their groups. A group
  * stands where its first field stands, and every later field of it joins it
  * there, so an order that interrupts a group never shows its heading twice.
+ * A field without a group stays where it stands, under no heading.
  */
 export function inGroepen<V extends { groep: string }>(velden: V[]): Veldgroep<V>[] {
   const groepen: Veldgroep<V>[] = [];
   for (const veld of velden) {
-    const groep = groepen.find((g) => g.titel === veld.groep);
+    const laatste = groepen[groepen.length - 1];
+    const groep = veld.groep ? groepen.find((g) => g.titel === veld.groep) : laatste?.titel === '' ? laatste : undefined;
     if (groep) groep.velden.push(veld);
     else groepen.push({ titel: veld.groep, velden: [veld] });
   }

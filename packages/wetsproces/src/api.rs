@@ -221,7 +221,8 @@ impl From<ServiceError> for ApiError {
             )
             | ServiceError::Internal(_)
             | ServiceError::LoginField(_)
-            | ServiceError::Prefill(_) => {
+            | ServiceError::Prefill(_)
+            | ServiceError::LoginClaim(_) => {
                 // The full error, with what the database said, goes to the
                 // log only.
                 tracing::error!(error = %e, "request failed");
@@ -739,14 +740,13 @@ fn submitter(state: &AppState, principal: &Principal, citizen: &Citizen) -> Indi
 }
 
 /// The claims of `principal`'s login by name, for a field the UI spec fills
-/// with `login: <claim>`: every claim the login kept, `naam` for the name it
-/// gave, and the login field `login_field` with the citizen's `subject`.
+/// with `login: <claim>`: the login field `login_field` with the citizen's
+/// `subject`, and `naam` for the name the login gave. No other claim: a UI
+/// spec that asks one does not start the server ([`crate::service::KEPT_CLAIMS`]), and the
+/// submission, with what it holds of the login, is kept with its
+/// idempotency key.
 fn login_claims(principal: &Principal, login_field: &str, subject: &str) -> Map<String, Value> {
-    let mut inlog: Map<String, Value> = principal
-        .claims()
-        .iter()
-        .map(|(claim, value)| (claim.clone(), value.clone()))
-        .collect();
+    let mut inlog = Map::new();
     if let Some(name) = principal.name() {
         inlog.insert("naam".into(), Value::from(name));
     }
@@ -996,7 +996,7 @@ mod tests {
     }
 
     #[test]
-    fn a_field_filled_from_the_login_can_take_any_claim_the_login_kept() {
+    fn a_field_filled_from_the_login_takes_the_identifier_or_the_name_and_nothing_else() {
         use std::collections::{BTreeMap, BTreeSet};
         let principal = Principal::new(
             "burger-1".into(),
@@ -1009,8 +1009,14 @@ mod tests {
         )
         .with_name(Some("Anna Voorbeeld".into()));
         let inlog = login_claims(&principal, "bsn_aanvrager", "999990032");
-        assert_eq!(inlog["telefoon"], json!("0600000000"));
-        assert_eq!(inlog["naam"], json!("Anna Voorbeeld"));
-        assert_eq!(inlog["bsn_aanvrager"], json!("999990032"));
+        // Only what every UI spec that starts may ask: no other claim.
+        assert_eq!(
+            inlog,
+            serde_json::from_value::<Map<String, Value>>(json!({
+                "naam": "Anna Voorbeeld",
+                "bsn_aanvrager": "999990032",
+            }))
+            .unwrap()
+        );
     }
 }

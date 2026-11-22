@@ -3660,6 +3660,60 @@ pub fn toezenden(
 mod tests {
     use super::*;
 
+    /// A submission whose moment `naam_moment` (if any) the article `door`
+    /// names, with `velden` as `(name, type, declared by)`.
+    fn indiening(
+        moment: Option<(&str, &str)>,
+        velden: &[(&str, ParameterType, &str)],
+    ) -> shape::Shape {
+        shape::Shape {
+            kind: "BEZWAAR".into(),
+            law_id: "w".into(),
+            article: "1".into(),
+            outputs: Vec::new(),
+            stage: None,
+            fields: velden
+                .iter()
+                .map(|(naam, type_, door)| shape::Field {
+                    name: (*naam).into(),
+                    type_: *type_,
+                    nullable: true,
+                    declared_by: vec![(*door).into()],
+                    columns: None,
+                })
+                .collect(),
+            moment: moment.map(|(naam, door)| shape::Moment {
+                parameter: Some(naam.into()),
+                declared_by: door.into(),
+            }),
+            requests: None,
+            given: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn the_deadline_of_a_submission_is_the_one_date_beside_its_moment() {
+        let date = ParameterType::Date;
+        let einde = ("termijn_einde", date, "awb#6:9");
+        // The date the article that names the moment declares beside it.
+        let vorm = indiening(
+            Some(("ontvangst", "awb#6:9")),
+            &[einde, ("gronden", ParameterType::String, "awb#6:5")],
+        );
+        assert_eq!(termijnveld(&vorm), Some("termijn_einde"));
+        // No moment: no deadline.
+        assert_eq!(termijnveld(&indiening(None, &[einde])), None);
+        // A date another article declares is no deadline.
+        let vorm = indiening(Some(("ontvangst", "awb#6:9")), &[("dag", date, "awb#6:5")]);
+        assert_eq!(termijnveld(&vorm), None);
+        // Two dates beside the moment: the law does not say which, so none.
+        let vorm = indiening(
+            Some(("ontvangst", "awb#6:9")),
+            &[einde, ("begin", date, "awb#6:9")],
+        );
+        assert_eq!(termijnveld(&vorm), None);
+    }
+
     /// `bevindingen` for a decision on an objection, with what the authority
     /// judges on admissibility (Awb 7:11) where `bevindingen` says nothing:
     /// the objector is an interested party (1:2, 7:1 and 8:1), and was at

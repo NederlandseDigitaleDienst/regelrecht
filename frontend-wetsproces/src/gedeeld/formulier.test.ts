@@ -104,6 +104,19 @@ describe('inGroepen', () => {
       ['', ['d']],
     ]);
   });
+
+  it('leaves a field without a group where it stands, not with an earlier one', () => {
+    const velden = [
+      { naam: 'x', groep: '' },
+      { naam: 'y', groep: 'G' },
+      { naam: 'z', groep: '' },
+    ];
+    expect(inGroepen(velden).map((g) => [g.titel, g.velden.map((v) => v.naam)])).toEqual([
+      ['', ['x']],
+      ['G', ['y']],
+      ['', ['z']],
+    ]);
+  });
 });
 
 describe('herkomst', () => {

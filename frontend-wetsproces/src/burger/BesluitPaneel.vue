@@ -144,7 +144,7 @@ async function indienen() {
               v-if="deadline.voorbij"
               icon="warning"
               :text="`De termijn liep tot en met ${longDate(deadline.einde)}`"
-              :supporting-text="[`U kunt nog ${tegenWoorden} indienen, maar het is dan te laat.`, teLaat].filter(Boolean).join(' ')"
+              :supporting-text="[`U kunt nog ${tegenWoorden} indienen, maar het is dan te laat.`, teLaat, 'Schrijf in de gronden waarom u later bent.'].filter(Boolean).join(' ')"
             ></nldd-inline-dialog>
             <nldd-text v-else>U kunt {{ tegenWoorden }} indienen tot en met {{ longDate(deadline.einde) }}.</nldd-text>
             <nldd-spacer size="8"></nldd-spacer>
