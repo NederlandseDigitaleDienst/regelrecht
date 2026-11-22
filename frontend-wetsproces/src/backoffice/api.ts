@@ -13,6 +13,8 @@ export interface Kroniek {
   grammen: Gram[];
   /** What the kern says of its records: what each is, which are revoked, what answers each submission. */
   stand: Stand;
+  /** Per record the system made by an article of the policy, that article. */
+  door_het_systeem?: Record<string, string>;
 }
 
 /** A submission that waits for a decision of the executor. */

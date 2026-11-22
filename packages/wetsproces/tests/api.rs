@@ -117,11 +117,12 @@ async fn an_application_the_ggd_advises_on_is_granted_and_lands_in_the_dossier()
         json!(true)
     );
     assert_eq!(besluit["besluit"]["recorded_on"], json!("2026-10-20"));
-    assert_eq!(head(&app).await, 4);
+    // The grant brings the order of the card with it, by the policy.
+    assert_eq!(head(&app).await, 5);
 
     // Anna's dossier: her application, the request for an examination in
-    // both cells, the advice in both cells, and the decision on her
-    // application.
+    // both cells, the advice in both cells, the decision on her application
+    // and the order of her card.
     let (status, dossier) = citizen(&app, "anna", ANNA).await.get("/api/dossier").await;
     assert_eq!(status, StatusCode::OK, "{dossier}");
     let kinds: Vec<&str> = dossier["grammen"]
@@ -130,7 +131,7 @@ async fn an_application_the_ggd_advises_on_is_granted_and_lands_in_the_dossier()
         .iter()
         .map(|g| g["kind"].as_str().unwrap())
         .collect();
-    assert_eq!(kinds.len(), 6, "{dossier}");
+    assert_eq!(kinds.len(), 7, "{dossier}");
     assert!(kinds.contains(&"AANVRAAG"), "{kinds:?}");
     // Bram has applied for nothing: his dossier is empty.
     let (status, dossier) = citizen(&app, "bram", BRAM).await.get("/api/dossier").await;

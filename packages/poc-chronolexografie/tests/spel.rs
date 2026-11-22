@@ -293,8 +293,10 @@ fn a_saved_game_plays_on_where_it_was() {
     kapot["kronieken"][0][0]["recording_actor"] = json!("iemand_anders");
     let e = terug.herstellen(kapot).unwrap_err();
     assert!(e.to_string().contains("was recorded by"), "{e}");
-    // The advice, the application, its request to the GGD, the decision.
-    assert_eq!(soorten(&terug.kroniek().unwrap()).len(), 4);
+    // The advice, the application, its request to the GGD, the decision,
+    // and the order of the card the system made with the grant (policy on
+    // issued cards, art. 7).
+    assert_eq!(soorten(&terug.kroniek().unwrap()).len(), 5);
     let mut te_weinig = bewaard;
     te_weinig["kronieken"] = json!([[]]);
     assert!(terug.herstellen(te_weinig).is_err());
@@ -694,11 +696,18 @@ fn parkeerkaart_the_ggd_examines_after_the_application_and_the_card_follows() {
     assert_eq!(besluit["besluit"]["outputs"][&uitkomst], json!(true));
     // The decision is in the municipality's chronicle, after the
     // application, the request for an examination it brought about (policy,
-    // art. 9) and the advice it received.
+    // art. 9) and the advice it received; the grant brings the order of the
+    // card with it (policy on issued cards, art. 7).
     let kroniek = spel.kroniek().unwrap();
     assert_eq!(
         soorten(&kroniek),
-        ["AANVRAAG", "EXECUTOGRAM", "EXECUTOGRAM", "BESCHIKKING"]
+        [
+            "AANVRAAG",
+            "EXECUTOGRAM",
+            "EXECUTOGRAM",
+            "BESCHIKKING",
+            "EXECUTOGRAM"
+        ]
     );
 }
 
@@ -1638,20 +1647,58 @@ fn a_prefill_from_a_source_that_is_no_output_of_its_article_leaves_its_field_emp
 
 #[test]
 fn parkeerkaart_an_act_after_a_grant_is_refused_without_a_grant() {
-    // The case names the acts after a grant (na_toekenning): the cell of the
-    // municipality records them only about a record that granted, in turn.
+    // The case names the acts after a grant (na_toekenning): the order is
+    // the system's, so nobody records it by hand.
     let mut spel = spel_met("gehandicaptenparkeerkaart");
     let fout = spel
         .vastleggen(
             "gemeente_wilgendaal",
-            "beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_besteld_bij_drukker",
+            "beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#7#kaart_besteld_bij_drukker",
             &map(&json!({ "datum_bestelling": "2026-10-21" })),
             dag("2026-10-21"),
         )
         .unwrap_err();
-    assert!(
-        fout.to_string()
-            .contains("refers to the record that granted"),
-        "{fout}"
-    );
+    assert!(fout.to_string().contains("records no fact"), "{fout}");
+}
+
+#[test]
+fn parkeerkaart_a_grant_brings_the_order_of_the_card_once() {
+    // The order is the system's (na_toekenning, door_het_systeem): it lands
+    // with the decision that grants, refers to it, and does not come twice
+    // when the game goes on.
+    let mut spel = spel_met("gehandicaptenparkeerkaart");
+    let casus = spel.casus().unwrap();
+    let aanvraag = spel
+        .indienen(
+            "besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49",
+            None,
+            &map(&casus["voorbeeld"]["aanvraag"]),
+            dag("2026-10-13"),
+        )
+        .unwrap();
+    advies(&mut spel, "999990020", "2026-10-16", true);
+    let besluit = spel
+        .beslissen(
+            aanvraag["id"].as_str().unwrap(),
+            None,
+            &map(&casus["voorbeeld"]["bevindingen"]),
+            dag("2026-10-20"),
+        )
+        .unwrap();
+    let id = besluit["besluit"]["id"].clone();
+    let orders = |spel: &mut Spel| {
+        spel.kroniek().unwrap()["grammen"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .filter(|g| g["fact"] == json!("kaart_besteld_bij_drukker"))
+            .cloned()
+            .collect::<Vec<_>>()
+    };
+    let eerst = orders(&mut spel);
+    assert_eq!(eerst.len(), 1);
+    assert_eq!(eerst[0]["refers_to"], id);
+    assert_eq!(eerst[0]["fields"]["datum_bestelling"], json!("2026-10-20"));
+    advies(&mut spel, "999990020", "2026-10-21", true);
+    assert_eq!(orders(&mut spel).len(), 1);
 }

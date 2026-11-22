@@ -86,7 +86,7 @@ Two stores implement `ChronicleStore`. The store in memory starts empty and is g
 | `test_clock` | In test mode, the day an admin set the clock to; no row until it is first set |
 | `fsc4b_challenges`, `fsc4b_sessions` | The challenges and sessions of [FSC voor Burgers](/components/wetsproces-fsc4b) |
 
-`recorded_by` sits beside the record, not inside it: the record says what the law made happen, the column says who asked for it. It holds the Keycloak `sub`, or the account of an app (`fsc4b:` and a key thumbprint). `recorded_via` says which channel: `keycloak`, `testlogin` or `fsc4b`. A record the executor's policy made when an application came in has `beleid` there and the article in `recorded_by` (migration `0009_recorded_via_policy.sql`, see [A request to an external party](#a-request-to-an-external-party-and-the-answer-back)). Both are empty for what the server records itself, such as the case's beginning; `recorded_by` is also empty for records stored before the login existed (migration `0002_recorded_by.sql`), and `recorded_via` for those stored before migration `0003_recorded_via.sql`.
+`recorded_by` sits beside the record, not inside it: the record says what the law made happen, the column says who asked for it. It holds the Keycloak `sub`, or the account of an app (`fsc4b:` and a key thumbprint). `recorded_via` says which channel: `keycloak`, `testlogin` or `fsc4b`. A record the executor's policy made without a person, such as the request to the GGD or the order of a card, has `beleid` there and the article in `recorded_by` (migration `0009_recorded_via_policy.sql`, see [A request to an external party](#a-request-to-an-external-party-and-the-answer-back)). Both are empty for what the server records itself, such as the case's beginning; `recorded_by` is also empty for records stored before the login existed (migration `0002_recorded_by.sql`), and `recorded_via` for those stored before migration `0003_recorded_via.sql`.
 
 `grams` is append-only, and the database enforces it: a trigger refuses every `UPDATE`, `DELETE` and `TRUNCATE` on it. A request that holds the character U+0000 is refused with `422` in both stores, because `jsonb` cannot store it. A record written in a format version this build does not know is not read; the request fails with `500`, and the server log names the cell, the record and the version.
 
@@ -186,7 +186,7 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `GET /api/backoffice/cellen/{cel}/kroniek` | reader | The executor's chronicle, with its head and its standing (`stand`); an external party's answers `403` |
 | `GET /api/backoffice/werkvoorraad` | reader | The executor's submissions that wait for a decision (`open`), each with the record to decide after (`na`) when its last decision was revoked |
 | `GET /api/backoffice/waarom/{id}` | reader | Why a decision of the executor came out as it did |
-| `POST /api/backoffice/voorvertoning` | decider | What a decision (`op`, `na`, `bevindingen`) on a submission of the executor would come to; records nothing |
+| `POST /api/backoffice/voorvertoning` | decider | What a decision (`op`, `na`, `bevindingen`) on a submission of the executor would come to, and under `automatisch` what the system would then do itself; records nothing |
 | `GET /api/backoffice/verzoeken` | reader | The requests the executor's policy made, each with the party, whether it is open, and the executor's receipt of the answer |
 | `POST /api/backoffice/vastleggingen` | handler | A fact the executor records: `cel`, `feit`, `velden`, `verwijst_naar` |
 | `GET /api/backoffice/vervolg` | reader | Every grant and how far the acts after it are (see [After a grant](#after-a-grant)) |
@@ -234,12 +234,12 @@ These fields are input fields of the application: Awb 4:2 asks that an applicati
 
 A grant is not the end of the process. For the parking card the municipality orders the card from the printer, its post room establishes that the printed card came in, and the municipality hands it to the citizen, who collects it or gets it by post. Each is a fact the municipality records in its own chronicle, and each refers to the decision that granted the card.
 
-The facts are in article 5 of the municipality's fictitious policy on cards it issued (`beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal`), each with what it holds:
+The facts are in the municipality's fictitious policy on cards it issued (`beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal`), each with what it holds. The order is in article 7, which has the system take it (see [Steps the system takes itself](#steps-the-system-takes-itself)); the other two are in article 5:
 
 ```yaml
-- fact: kaart_besteld_bij_drukker
+- fact: kaart_besteld_bij_drukker      # article 7
   parameters: [datum_bestelling]
-- fact: gedrukte_kaart_ontvangen
+- fact: gedrukte_kaart_ontvangen       # article 5
   parameters: [datum_ontvangst, ontvangst_vastgesteld_door]
 - fact: kaart_uitgereikt
   parameters: [datum_uitreiking, per_post_verzonden]
@@ -257,16 +257,57 @@ na_toekenning:
   toekenning: toekenningsbesluit
   stand: Uw kaart is toegekend. De gemeente bestelt haar bij de drukker.
   handelingen:
-    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_besteld_bij_drukker
+    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#7#kaart_besteld_bij_drukker
       gedaan: datum_bestelling
-      knop: Kaart bestellen bij de drukker
+      door_het_systeem:
+        artikel: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#7
+        parameters:
+          datum_bestelling: date
+          toekenningsbesluit: submission
       stand: Uw kaart wordt gedrukt.
-    # the receipt and the handing out follow, in the same form
+    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#gedrukte_kaart_ontvangen
+      gedaan: datum_ontvangst
+      knop: Ontvangst van de gedrukte kaart vastleggen
+      stand: Uw kaart ligt klaar.
+    # the handing out follows, with a knop as well
 ```
 
-The kern (`packages/poc-chronolexografie/src/vervolg.rs`) refuses such a fact unless it refers to a record that grants and is the next act there: the first one whose day is still empty. So a receipt before the order is refused, and so is a second order or anything after a refusal. The check runs inside the step, on the chronicles the step commits against, so two employees who record the same act at once cannot both succeed. The server holds no rule of the parking card; a case without `na_toekenning` has no acts after a grant.
+An act with `knop` is a person's; an act with `door_het_systeem` is the system's and has no button.
+
+The kern (`packages/poc-chronolexografie/src/vervolg.rs`) refuses such a fact unless it refers to a record that grants and is the next act there: the first one whose day is still empty. So a handing out before the receipt is refused, and so is a second receipt or anything after a refusal. The check runs inside the step, on the chronicles the step commits against, so two employees who record the same act at once cannot both succeed. The server holds no rule of the parking card; a case without `na_toekenning` has no acts after a grant.
 
 The UI spec has the system fill the day of each act with the day of the clock, so the test clock sets those days in test mode, and fills `ontvangst_vastgesteld_door` with `postkamer`. The server fills them in the step, as it fills an application, and refuses a request that names them. A fact holds only the fills the system knows itself, a fixed value or the day: a fact comes from an employee, not from a citizen's login.
+
+## Steps the system takes itself
+
+Some steps need no person: no judgement, no observation and nothing done by hand. The system takes them, in the commit of the step that brings them about, so they land together with it or not at all. There is one mechanism for all of them. The case file names an article of the executor's own policy and what the system passes it, and the kern runs it (`opvolgen` in `verzoek.rs`). The article has one boolean output, which says whether to act, and requires one fact the executor establishes, which the system then records with the values of the article's parameters. The parameter values are `date`, the day of the step, or `submission`, the id of the record that brings the step about. Two places in the case file declare such a step:
+
+| Declared under | Occasioned by | For the parking card |
+|---|---|---|
+| `bij_aanvraag` | an application | article 9 of the parking-card policy: the request to the GGD |
+| `door_het_systeem` of an act in `na_toekenning` | a grant that counts and has that act next | article 7 of the policy on issued cards: ordering the card |
+
+After every step, whatever it was, the server records each system act that is now next for a grant the step changed (`vervolg::automatisch`): a grant on the application, a grant on objection, or a new decision after an annulment. A step about something else brings about no system act, also not one another grant still has pending. A system act passes the same check as a person's ([`vervolg::toets`](#after-a-grant)): its turn, once per grant, and only while the grant counts. Nobody can record it by hand. In the work queue its row says the next step waits for the system and has no button. One system act can make the next act a system act too, so this runs in rounds until a round records nothing. A round advances each grant by at most one act, so there are never more rounds than acts; past that the step fails and records nothing.
+
+The store keeps `beleid` as `recorded_via` and the article as `recorded_by` for each such record. The chronicle and the dossier pass that on under `door_het_systeem`, per record the article, and the screens add "Automatisch vastgelegd volgens …" to the row. A retry of the step under its `Idempotency-Key` gets the first answer, so the system act is not made twice. `POST /api/backoffice/voorvertoning` also returns `automatisch`: per system act that the decision would bring about, the fact, the article and the record it refers to.
+
+Which steps of the parking card are a person's and which the system's:
+
+| Step | By | Why |
+|---|---|---|
+| Application, objection, appeal | the citizen | a choice of the citizen |
+| Request to the GGD, and its receipt there | the system (article 9) | follows from the application by policy |
+| The GGD's advice, the court's ruling and its copy to the municipality | the admin, for that party | the admin panel stands in for that party |
+| Receipt of the advice or the ruling at the municipality | the system | delivered with the fact or the copy |
+| Copy of the contested decision to the court | the system | goes with the appeal |
+| A decision, also on objection or after an annulment | a decider | a judgement |
+| Making a decision known to the citizen | no step | the decision is in the dossier as soon as it is recorded |
+| Ordering the card | the system (article 7) | nothing to judge or observe |
+| Receipt of the printed card | a person of the post room | an observation |
+| Handing out the card | a handler | done by hand |
+| Copy of an own decision to another cell (`toezendingen`) | a handler | kept by hand: which decision goes where is not settled in the case |
+
+## The post room
 
 Any employee of the post room records the receipt under the handler's role. The record says the post room established it; `recorded_by` says which account. A role per department in Keycloak, so that only the post room can record a receipt, is an open point.
 

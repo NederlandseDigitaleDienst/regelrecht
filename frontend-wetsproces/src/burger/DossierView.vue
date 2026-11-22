@@ -18,7 +18,7 @@ import { leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import { celNaam, herroeping, isBesluit, ketens, nieuwBesluitVan, omschrijving, plat, rolVan, toegewezen } from '../gedeeld/keten';
 import type { Gram } from '../gedeeld/types';
-import { burgerStand } from '../gedeeld/vervolg';
+import { burgerStand, doorHetSysteem as doorHetSysteemTekst } from '../gedeeld/vervolg';
 import BesluitPaneel from './BesluitPaneel.vue';
 import StukPaneel from './StukPaneel.vue';
 import { useBurger } from './useBurger';
@@ -26,7 +26,7 @@ import { useBurger } from './useBurger';
 const props = defineProps<{ id?: string }>();
 const route = useRoute();
 const router = useRouter();
-const { casus, vormen, dossier, stand: standVanDossier, vervolg, fout, laden, laad } = useBurger();
+const { casus, vormen, dossier, stand: standVanDossier, vervolg, doorHetSysteem, fout, laden, laad } = useBurger();
 onMounted(laad);
 // The dossier and a decision in it are one screen, so going back to the
 // dossier after an objection keeps this component: load again on what was
@@ -79,6 +79,8 @@ function regel(g: Gram, boven?: Gram): string {
   if (!c) return '';
   const delen = [longDate(g.recorded_on), celNaam(g.recording_actor, c)];
   if (boven) delen.push(`op ${omschrijf(boven).toLowerCase()} van ${longDate(boven.recorded_on)}`);
+  const systeem = doorHetSysteemTekst(g.id, doorHetSysteem.value);
+  if (systeem) delen.push(systeem);
   return delen.join(' · ');
 }
 function stand(g: Gram): { tekst: string; kleur: string } | null {
