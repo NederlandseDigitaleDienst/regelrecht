@@ -95,15 +95,18 @@ impl ChronicleStore for InMemoryStore {
             }
         }
         state.ids.append(&mut ids);
-        for append in commit.appends {
-            let stored = append.grams.into_iter().map(|gram| StoredGram {
-                gram,
-                recorded_by: commit.recorded_by.as_ref().map(|a| a.account.clone()),
-                recorded_via: commit.recorded_by.as_ref().map(|a| a.channel),
+        for append in &commit.appends {
+            let stored = append.grams.iter().map(|gram| {
+                let actor = commit.actor_of(gram);
+                StoredGram {
+                    gram: gram.clone(),
+                    recorded_by: actor.as_ref().map(|a| a.account.clone()),
+                    recorded_via: actor.map(|a| a.channel),
+                }
             });
             state
                 .chronicles
-                .entry(append.cell)
+                .entry(append.cell.clone())
                 .or_default()
                 .grams
                 .extend(stored);

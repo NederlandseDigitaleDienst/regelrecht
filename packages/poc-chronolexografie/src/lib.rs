@@ -21,5 +21,6 @@ pub mod inlogstap;
 pub mod kern;
 pub mod spel;
 pub mod ui_spec;
+pub mod verzoek;
 #[cfg(feature = "wasm")]
 pub mod wasm;
