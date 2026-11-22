@@ -5,13 +5,16 @@
 // the chronicles on every request (`GET /api/dossier`). Laid out as the
 // editor's library: the dossier in the sidebar, a record chosen from it in
 // the main pane beside it. Every row opens: a decision in BesluitPaneel.vue,
-// a submission or a recorded fact in StukPaneel.vue.
+// a submission or a recorded fact in StukPaneel.vue. Under a decision that
+// granted, a line says how far the acts after the grant are, in the words
+// the case gives them (`na_toekenning`), such as "Uw kaart ligt klaar.".
 import { computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
 import { celNaam, isBesluit, ketens, omschrijving, plat, toegewezen } from '../gedeeld/keten';
 import type { Gram } from '../gedeeld/types';
+import { burgerStand } from '../gedeeld/vervolg';
 import BesluitPaneel from './BesluitPaneel.vue';
 import StukPaneel from './StukPaneel.vue';
 import { useBurger } from './useBurger';
@@ -19,7 +22,7 @@ import { useBurger } from './useBurger';
 const props = defineProps<{ id?: string }>();
 const route = useRoute();
 const router = useRouter();
-const { casus, vormen, dossier, fout, laden, laad } = useBurger();
+const { casus, vormen, dossier, vervolg, fout, laden, laad } = useBurger();
 onMounted(laad);
 // The dossier and a decision in it are one screen, so going back to the
 // dossier after an objection keeps this component: load again on what was
@@ -46,9 +49,17 @@ const lijsten = computed(() => {
       regel: regel(gram, boven),
       stand: stand(gram),
       gekozen: gram.id === props.id,
+      vervolg: vervolgTekst(gram.id),
     })),
   }));
 });
+
+/** How far the acts after the grant `id` are, in the citizen's words, if `id` granted and the case names such acts. */
+function vervolgTekst(id: string): string {
+  const na = casus.value?.na_toekenning;
+  const s = vervolg.value.find((v) => v.toekenning === id);
+  return na && s ? burgerStand(s, na) : '';
+}
 
 /** Whether the record of the address is a decision, which has a pane of its own. */
 const gekozenIsBesluit = computed(() => {
@@ -97,21 +108,26 @@ function stand(g: Gram): { tekst: string; kleur: string } | null {
               <nldd-spacer v-if="i > 0" size="24"></nldd-spacer>
               <nldd-title size="display-5"><h4>{{ l.naam }}</h4></nldd-title>
               <nldd-list appearance="simple" :accessible-label="l.naam">
-                <nldd-list-item
-                  v-for="r in l.rijen"
-                  :key="r.gram.id"
-                  size="md"
-                  button
-                  :current="r.gekozen || undefined"
-                  @click="router.push({ name: 'stuk', params: { id: r.gram.id } })"
-                >
-                  <nldd-text-cell :text="r.tekst" :supporting-text="r.regel"></nldd-text-cell>
-                  <nldd-cell v-if="r.stand">
-                    <nldd-tag :text="r.stand.tekst" :color="r.stand.kleur" size="sm"></nldd-tag>
-                  </nldd-cell>
-                  <nldd-spacer-cell size="8"></nldd-spacer-cell>
-                  <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
-                </nldd-list-item>
+                <template v-for="r in l.rijen" :key="r.gram.id">
+                  <nldd-list-item
+                    size="md"
+                    button
+                    :current="r.gekozen || undefined"
+                    @click="router.push({ name: 'stuk', params: { id: r.gram.id } })"
+                  >
+                    <nldd-text-cell :text="r.tekst" :supporting-text="r.regel"></nldd-text-cell>
+                    <nldd-cell v-if="r.stand">
+                      <nldd-tag :text="r.stand.tekst" :color="r.stand.kleur" size="sm"></nldd-tag>
+                    </nldd-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+                  </nldd-list-item>
+                  <nldd-list-item v-if="r.vervolg" size="md">
+                    <nldd-icon-cell size="20"><nldd-icon icon="info"></nldd-icon></nldd-icon-cell>
+                    <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                    <nldd-text-cell :text="r.vervolg" supporting-text="Na de toekenning"></nldd-text-cell>
+                  </nldd-list-item>
+                </template>
               </nldd-list>
             </template>
           </template>

@@ -5,23 +5,57 @@
 // decides on it there; a handler records facts. What the account may not do does not show. What an external party
 // does, such as the GGD's advice, comes in through the admin panel. Laid out as the
 // editor's library: the queue in the sidebar, the submission being handled
-// in the main pane beside it (BehandelenPaneel.vue).
+// in the main pane beside it (BehandelenPaneel.vue). Under the queue, what
+// follows a grant (`na_toekenning` in the case file): each grant whose acts
+// are not all done, how far it is, and for a handler the next act as a
+// button. Those acts are recorded only there, never on their own.
 import { computed, onMounted, ref } from 'vue';
 import { useRouter } from 'vue-router';
-import { hoofdletter } from '@regelrecht/frontend-shared/chronolex/waarden';
+import { hoofdletter, toon } from '@regelrecht/frontend-shared/chronolex/waarden';
+import { foutTekst } from '../gedeeld/http';
 import { longDate } from '../gedeeld/datum';
 import { artikelNaam, omschrijving, openIndieningen } from '../gedeeld/keten';
 import type { Handeling } from '../gedeeld/types';
 import { backofficeApi } from './api';
 import BehandelenPaneel from './BehandelenPaneel.vue';
 import { feitNaam } from './feit';
+import { medewerkerStand, vervolgFeiten } from '../gedeeld/vervolg';
+import type { Vervolgstand } from '../gedeeld/types';
 import FeitVastleggen from './FeitVastleggen.vue';
 import { useBackoffice } from './useBackoffice';
 
 const props = defineProps<{ cel?: string; id?: string }>();
 const router = useRouter();
-const { casus, vormen, wie, kronieken, fout, laden, laad } = useBackoffice();
+const { casus, vormen, wie, kronieken, fout, laden, laad: laadBackoffice } = useBackoffice();
+
+/** The grants of the executor and how far their acts are. */
+const vervolg = ref<Vervolgstand[]>([]);
+const vervolgFout = ref('');
+async function laad() {
+  await laadBackoffice();
+  try {
+    vervolg.value = await backofficeApi.vervolg();
+    vervolgFout.value = '';
+  } catch (e) {
+    vervolgFout.value = foutTekst(e);
+  }
+}
 onMounted(laad);
+
+/** Per grant whose acts are not all done: how far it is and the next act, as the case names it. */
+const openToekenningen = computed(() => {
+  const na = casus.value?.na_toekenning;
+  if (!na) return [];
+  return vervolg.value
+    .filter((s) => s.volgende)
+    .map((s) => ({
+      stand: s,
+      tekst: [casus.value?.titel, s.aanvrager ? `voor ${toon(s.aanvrager)}` : ''].filter(Boolean).join(' '),
+      regel: medewerkerStand(s),
+      knop: na.handelingen.find((h) => h.feit === s.volgende)?.knop ?? `${feitNaam(s.volgende ?? '')} vastleggen`,
+      handeling: vormen.value?.eigen.handelingen.find((h) => h.feit === s.volgende),
+    }));
+});
 
 /** The executor: what the account may do there, its open submissions and the facts it records. */
 const cellen = computed(() =>
@@ -31,13 +65,17 @@ const cellen = computed(() =>
     return {
       recht,
       open: casus.value && kroniek ? openIndieningen(kroniek.grammen, casus.value) : [],
-      handelingen: recht.behandelen && eigen?.cel === recht.cel ? eigen.handelingen : [],
+      // An act after a grant is recorded beside that grant, not on its own.
+      handelingen:
+        recht.behandelen && eigen?.cel === recht.cel
+          ? eigen.handelingen.filter((h) => !vervolgFeiten(casus.value).has(h.feit))
+          : [],
     };
   }),
 );
 
 // The fact the sheet records, in the cell `cel`.
-const keuze = ref<{ cel: string; handeling: Handeling } | null>(null);
+const keuze = ref<{ cel: string; handeling: Handeling; verwijst_naar?: string; titel?: string } | null>(null);
 const vastgelegd = ref('');
 
 async function klaar(naam: string) {
@@ -97,6 +135,30 @@ async function klaar(naam: string) {
                     @click="keuze = { cel: c.recht.cel, handeling: h }"
                   ></nldd-button>
                 </nldd-button-group>
+              </template>
+              <template v-if="c.recht.cel === casus.cel && casus.na_toekenning">
+                <nldd-spacer size="24"></nldd-spacer>
+                <nldd-title size="display-6"><h5>Na de toekenning</h5></nldd-title>
+                <nldd-text color="secondary">Wat er na een toekenning nog moet gebeuren, per toekenning de volgende stap.</nldd-text>
+                <nldd-spacer size="8"></nldd-spacer>
+                <nldd-inline-dialog v-if="vervolgFout" icon="warning" icon-color="critical" text="Dit overzicht laadt niet" :supporting-text="vervolgFout"></nldd-inline-dialog>
+                <nldd-list v-else-if="openToekenningen.length" appearance="simple" accessible-label="Na de toekenning">
+                  <!-- For a handler the row opens the sheet of the next act; a reader only sees how far it is. -->
+                  <nldd-list-item
+                    v-for="t in openToekenningen"
+                    :key="t.stand.toekenning"
+                    size="md"
+                    :button="(c.recht.behandelen && t.handeling) || undefined"
+                    @click="c.recht.behandelen && t.handeling && (keuze = { cel: c.recht.cel, handeling: t.handeling, verwijst_naar: t.stand.toekenning, titel: t.knop })"
+                  >
+                    <nldd-text-cell :text="t.tekst" :supporting-text="c.recht.behandelen ? `${t.regel} · Volgende stap: ${t.knop}` : t.regel"></nldd-text-cell>
+                    <template v-if="c.recht.behandelen && t.handeling">
+                      <nldd-spacer-cell size="8"></nldd-spacer-cell>
+                      <nldd-icon-cell size="20"><nldd-icon icon="chevron-right"></nldd-icon></nldd-icon-cell>
+                    </template>
+                  </nldd-list-item>
+                </nldd-list>
+                <nldd-text v-else color="secondary">Er wacht niets na een toekenning.</nldd-text>
               </template>
             </template>
           </template>

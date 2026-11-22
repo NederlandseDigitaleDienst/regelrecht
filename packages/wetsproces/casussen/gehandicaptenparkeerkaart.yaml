@@ -34,4 +34,31 @@ andere_cellen:
     cel_naam: GGD Wilgendaal
   - cel: rechtbank_wilgendaal
     cel_naam: Rechtbank Wilgendaal
+# Wat er na een toekenning met de kaart gebeurt: de gemeente bestelt haar bij
+# de drukker, de postkamer stelt vast dat de gedrukte kaart binnen is, en de
+# gemeente reikt haar uit. Elk is een feit van artikel 5 van het fictieve
+# beleid over verstrekte kaarten, dat verwijst naar het besluit dat de kaart
+# verstrekte. Het aggregaat per besluit van de reductie van de gemeente houdt
+# bij welk besluit dat is (toekenning) en op welke dag elke handeling
+# plaatsvond (gedaan). De handelingen komen in deze volgorde en elk één keer;
+# na een weigering, of een verstrekking die op bezwaar is herroepen of door de
+# rechter vernietigd, komt er geen. `knop` is wat de medewerker aanklikt,
+# `stand` wat de burger leest zodra de handeling gedaan is.
+na_toekenning:
+  aggregaat: reductie_geldige_gehandicaptenparkeerkaart#kaart
+  toekenning: toekenningsbesluit
+  stand: Uw kaart is toegekend. De gemeente bestelt haar bij de drukker.
+  handelingen:
+    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_besteld_bij_drukker
+      gedaan: datum_bestelling
+      knop: Kaart bestellen bij de drukker
+      stand: Uw kaart wordt gedrukt.
+    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#gedrukte_kaart_ontvangen
+      gedaan: datum_ontvangst
+      knop: Ontvangst van de gedrukte kaart vastleggen
+      stand: Uw kaart ligt klaar.
+    - feit: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_uitgereikt
+      gedaan: datum_uitreiking
+      knop: Kaart uitreiken
+      stand: Uw kaart is op {datum} aan u uitgereikt.
 scenarios: []
