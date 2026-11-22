@@ -158,12 +158,15 @@ fn application() -> Value {
     }})
 }
 
-/// The ids of the records in a dossier.
+/// The ids of the submissions and decisions in a dossier.
 fn ids(dossier: &Value) -> Vec<String> {
     dossier["grammen"]
         .as_array()
         .unwrap()
         .iter()
+        // Not the facts recorded beside them, such as the request to the GGD
+        // an application brings about.
+        .filter(|g| g["kind"] != "EXECUTOGRAM")
         .map(|g| g["id"].as_str().unwrap().to_string())
         .collect()
 }

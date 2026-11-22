@@ -90,6 +90,9 @@ fn ids(dossier: &Value) -> Vec<&str> {
         .as_array()
         .unwrap()
         .iter()
+        // Not the facts recorded beside them, such as the request to the GGD
+        // an application brings about.
+        .filter(|g| g["kind"] != "EXECUTOGRAM")
         .map(|g| g["id"].as_str().unwrap())
         .collect()
 }
