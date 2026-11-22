@@ -31,7 +31,7 @@ use async_trait::async_trait;
 
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::response::Redirect;
+use axum::response::{IntoResponse, Redirect};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use regelrecht_auth::{
@@ -49,6 +49,52 @@ use crate::access::{CITIZEN, Level};
 use crate::api::{ApiError, AppState};
 use crate::config::LoginChoice;
 use crate::surface::Surface;
+
+/// The screen of `surface`'s build that logs in, where a failed login is
+/// told: the citizen's build has its own (`/toegang`), every other build
+/// `/inloggen`.
+fn login_screen(surface: Surface) -> &'static str {
+    match surface {
+        Surface::Citizen => "/toegang",
+        Surface::Backoffice | Surface::All => "/inloggen",
+    }
+}
+
+/// The path of the shared OIDC routes that Keycloak sends the browser back
+/// to (`regelrecht_auth::auth_routes`).
+const CALLBACK: &str = "/auth/callback";
+
+/// A failed `/auth/callback` answered with a redirect to the login screen of
+/// `surface` instead of a bare status: `?fout=rol` when Keycloak logged the
+/// account in but it lacks the role this server requires (a 403 without an
+/// `error` from Keycloak), `?fout=inloggen` for anything else (Keycloak sent
+/// an error, the state did not match, the code did not redeem). The app
+/// shows a message there and does not send the browser to Keycloak again by
+/// itself, so a login that keeps failing makes no loop. Every other route of
+/// the login passes as it is.
+async fn login_failed_to_screen(
+    surface: Surface,
+    request: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> axum::response::Response {
+    let callback = request.uri().path() == CALLBACK;
+    let from_keycloak = request
+        .uri()
+        .query()
+        .is_some_and(|q| q.split('&').any(|p| p.starts_with("error=")));
+    let response = next.run(request).await;
+    let status = response.status();
+    if !callback || !(status.is_client_error() || status.is_server_error()) {
+        return response;
+    }
+    let fout = if status == StatusCode::FORBIDDEN && !from_keycloak {
+        "rol"
+    } else {
+        "inloggen"
+    };
+    tracing::warn!(%status, fout, "the login through Keycloak failed");
+    Redirect::to(&format!("{}?fout={fout}", login_screen(surface))).into_response()
+}
 
 /// The key in a session's data under which it carries its surface.
 pub const SESSION_KEY_SURFACE: &str = "wetsproces.surface";
@@ -104,10 +150,18 @@ impl Login {
         }
     }
 
-    /// The routes under `/auth` for this login.
-    pub fn routes(&self) -> Router<AppState> {
+    /// The routes under `/auth` for this login, for a server of `surface`.
+    /// With OIDC a failed return from Keycloak sends the browser to the
+    /// screen that logs in, with `?fout=rol` or `?fout=inloggen`, so the app
+    /// says what went wrong instead of the browser showing a bare status
+    /// ([`login_failed_to_screen`]).
+    pub fn routes(&self, surface: Surface) -> Router<AppState> {
         match self {
-            Self::Oidc(_) => regelrecht_auth::auth_routes::<AppState>(),
+            Self::Oidc(_) => {
+                regelrecht_auth::auth_routes::<AppState>().layer(axum::middleware::from_fn(
+                    move |request, next| login_failed_to_screen(surface, request, next),
+                ))
+            }
             Self::TestLogin => Router::new()
                 .route("/auth/testlogin", post(test_login))
                 .route("/auth/testpersonen", get(test_personas))
