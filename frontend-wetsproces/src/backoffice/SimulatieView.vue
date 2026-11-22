@@ -1,9 +1,9 @@
 <script setup lang="ts">
-// The test clock, for the admin in test mode: the day every step runs on.
-// Moving it lets a process run past a deadline without waiting for it. The
-// server refuses it in stable mode, where the clock is the real date. Here
-// too the admin empties the test setup, after a confirmation: the server
-// offers that only in test mode.
+// The simulation, for the admin in test mode, in two parts. The clock: the
+// day every step runs on; moving it lets a process run past a deadline
+// without waiting for it, and the server refuses it in stable mode, where the
+// clock is the real date. Emptying the test setup, after a confirmation,
+// which the server offers only in test mode.
 import { onMounted, ref } from 'vue';
 import { longDate } from '../gedeeld/datum';
 import { foutTekst } from '../gedeeld/http';
@@ -66,16 +66,18 @@ async function zet() {
 </script>
 
 <template>
-  <nldd-page landmarks="page" sticky-header accessible-label="Klok">
-    <nldd-top-title-bar slot="header" text="Klok" collapse-anchor="klok-titel"></nldd-top-title-bar>
+  <nldd-page landmarks="page" sticky-header accessible-label="Simulatie">
+    <nldd-top-title-bar slot="header" text="Simulatie" collapse-anchor="simulatie-titel"></nldd-top-title-bar>
     <nldd-simple-section>
-      <nldd-title id="klok-titel" size="display-3"><h3>Klok</h3></nldd-title>
-      <nldd-text color="secondary">Elke stap in deze testomgeving krijgt deze dag als datum.</nldd-text>
-      <nldd-spacer size="16"></nldd-spacer>
+      <nldd-title id="simulatie-titel" size="display-3"><h3>Simulatie</h3></nldd-title>
+      <nldd-text color="secondary">De testomgeving bijsturen: de datum waarop alles gebeurt, en een lege start.</nldd-text>
+      <nldd-spacer size="24"></nldd-spacer>
       <nldd-inline-dialog v-if="!klok && melding" icon="warning" icon-color="critical" text="De klok laadt niet" :supporting-text="melding"></nldd-inline-dialog>
       <nldd-container v-if="klok" gap="16">
         <nldd-inline-dialog v-if="!klok.bestuurbaar" icon="info" text="De klok volgt de echte datum" supporting-text="Alleen in de testmodus is de klok te zetten."></nldd-inline-dialog>
         <template v-else>
+          <nldd-title size="display-5"><h4>Klok</h4></nldd-title>
+          <nldd-text color="secondary">Elke stap in deze testomgeving krijgt deze dag als datum.</nldd-text>
           <nldd-text>Het is nu {{ longDate(klok.datum) }}.</nldd-text>
           <nldd-form-field label="Nieuwe datum">
             <nldd-date-field :value="datum" @change="lees"></nldd-date-field>

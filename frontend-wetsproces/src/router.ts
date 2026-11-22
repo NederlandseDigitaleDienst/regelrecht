@@ -23,7 +23,7 @@ export function omleiding(to: RouteLocationNormalized, wie: Ik | null): RouteLoc
   const kant = to.matched.find((r) => r.meta.kant)?.meta.kant;
   if (kant === 'burger' && !wie?.burger) return startpagina(wie);
   if (kant === 'backoffice' && !isMedewerker(wie)) return startpagina(wie);
-  if (to.name === 'klok' && !wie?.klok_zetten) return '/backoffice';
+  if (to.name === 'simulatie' && !wie?.klok_zetten) return '/backoffice';
   if (to.matched.some((r) => r.meta.beheer) && !wie?.partijen_invoeren) return '/backoffice';
   return undefined;
 }

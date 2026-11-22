@@ -14,7 +14,10 @@
 //!   with [`StoreError::Conflict`] and the service runs the step again on
 //!   the new state. A cell the step only read is in the commit too, with no
 //!   records, so a decision on a stale view of another cell is refused as
-//!   well;
+//!   well. A commit also names the generation it was read in
+//!   ([`Commit::generation`]): a reset of test mode starts a new one, so a
+//!   step read before it is refused ([`StoreError::Reset`]) even when the
+//!   heads happen to stand where they stood;
 //! - **idempotent**: a commit may carry an [`IdempotencyKey`] and the
 //!   request it answered. A second commit under a key already used is not
 //!   applied; the store hands back the first one's [`Receipt`] instead;
@@ -132,6 +135,9 @@ pub struct Actor {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct StoredChronicle {
     pub grams: Vec<StoredGram>,
+    /// The generation of the store it was read in: how often the store was
+    /// reset before ([`ChronicleStore::reset`]). A commit names it.
+    pub generation: u64,
 }
 
 impl StoredChronicle {
@@ -219,6 +225,11 @@ pub struct Commit {
     /// about: kept as recorded through [`Channel::Policy`], by the article
     /// that made them, not by `recorded_by` ([`Commit::actor_of`]).
     pub by_policy: BTreeSet<String>,
+    /// The generation the step read its chronicles in
+    /// ([`StoredChronicle::generation`]). After a reset the heads may stand
+    /// where they stood before it, while the records they count are others;
+    /// the generation tells the two apart.
+    pub generation: u64,
 }
 
 impl Commit {
@@ -252,6 +263,10 @@ pub enum StoreError {
         expected: u64,
         actual: u64,
     },
+    /// The store was reset since the commit's chronicles were read: they are
+    /// gone, whatever the heads say. Nothing was applied.
+    #[error("the store was reset since the step read it (generation {actual}, not {expected})")]
+    Reset { expected: u64, actual: u64 },
     /// A stored record is in a format this build does not read. Nothing
     /// is guessed: the chronicle is refused as a whole.
     #[error(
@@ -310,7 +325,8 @@ pub trait ChronicleStore: Send + Sync + std::fmt::Debug {
     ///
     /// # Errors
     ///
-    /// [`StoreError::Conflict`] when a head moved, and
+    /// [`StoreError::Conflict`] when a head moved,
+    /// [`StoreError::Reset`] when the store was reset since the read, and
     /// [`StoreError::DuplicateGram`] when a record's id is taken; then
     /// nothing is applied.
     /// [`StoreError::Backend`] when the store fails.
@@ -333,13 +349,16 @@ pub trait ChronicleStore: Send + Sync + std::fmt::Debug {
 
     /// Empty a test setup: the chronicles of every cell, the answers kept
     /// under idempotency keys, and the test clock, which then stands on the
-    /// case's start again. All at once, waiting for a commit that is under
-    /// way and making one that comes after it find its heads moved. The
-    /// sessions of the login and of FSC voor Burgers stay. Only the reset of
-    /// test mode calls it ([`crate::api`]); a store has no mode of its own.
+    /// case's start again. Then append `begin`, what the case begins with,
+    /// each after a head of 0, so no request sees the store empty. All in one
+    /// go, waiting for a commit that is under way, and starting a new
+    /// generation, so a commit read before it is refused
+    /// ([`StoreError::Reset`]). The sessions of the login and of FSC voor
+    /// Burgers stay. Only the reset of test mode calls it ([`crate::api`]).
     ///
     /// # Errors
     ///
-    /// [`StoreError::Backend`] when the store fails; nothing is emptied then.
-    async fn reset(&self) -> Result<(), StoreError>;
+    /// [`StoreError::Backend`] when the store fails, or refuses a reset
+    /// because a server in stable mode used it; nothing is emptied then.
+    async fn reset(&self, begin: Vec<CellAppend>) -> Result<(), StoreError>;
 }

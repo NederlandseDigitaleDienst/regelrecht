@@ -26,7 +26,7 @@ description: "The screens of the wetsproces server: a public side for citizens a
 | `/backoffice/kroniek/{cel}` | reader | The executor's chronicle. Every record opens in a sheet with what it holds; a submission, or a decision on one, leads on to its panel in the work queue |
 | `/backoffice/beheer` | admin | The admin panel: per external party the requests of the executor it has not answered, the facts it records, what waits for its decision, and its decisions not sent yet. An answer to a request, such as the GGD's advice, is recorded from that request, which fills in for whom it is; without a request only for an applicant with none open |
 | `/backoffice/beheer/behandelen/{cel}/{id}` | admin | A submission that waits for an external party, beside the panel, decided on its behalf |
-| `/backoffice/klok` | admin, test mode | The test clock, and the button that empties the test setup after a confirmation that says what goes and that it cannot be undone |
+| `/backoffice/simulatie` | admin, test mode | The simulation, in two parts: the test clock, and the button that empties the test setup after a confirmation that says what goes and that it cannot be undone. `/backoffice/klok` leads here |
 
 Both sides are laid out as the [editor](/components/frontend): a bar with the tabs of the side and the account menu, and under it a list in a sidebar with the chosen item in a pane beside it. Every record of the dossier opens next to it, a submission next to the work queue or the admin panel. The shell is `src/gedeeld/Schil.vue`; the citizen's app uses it too. The appearance submenu in the account menu is the editor's own component, `WeergaveMenuItem.vue` in `frontend-shared`.
 
