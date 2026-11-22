@@ -307,4 +307,6 @@ export interface Voorvertoning {
   voorlopig?: { besluit: Gram; waarom?: Waarom };
   geweigerd?: string;
   stil: Veld[];
+  /** What the system would then record itself: per act its fact, the article and the record it refers to. */
+  automatisch?: { feit: string; artikel: string; verwijst_naar?: string | null }[];
 }

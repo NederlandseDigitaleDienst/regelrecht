@@ -2,6 +2,7 @@
 // place the decider decides again, after that record; with a new decision in
 // its place that one holds and nothing waits. What answers the submission
 // comes from the server's `stand`.
+import { artikelNaam } from '../gedeeld/keten';
 import { flushPromises, mount } from '@vue/test-utils';
 import { describe, expect, it, vi } from 'vitest';
 import type { Casus, Gram, Ik, Stand, Voorvertoning } from '../gedeeld/types';
@@ -164,6 +165,34 @@ describe('the decision as it would be taken', () => {
     // Folded away until asked for.
     expect(meer.find('nldd-list-item').attributes('expanded')).toBe('false');
     expect(w.findAll('nldd-button').map((b) => b.attributes('text'))).toEqual(['Besluit nemen']);
+  });
+
+  it('says what the system would then record itself, such as ordering the card', async () => {
+    voorvertoning.mockClear().mockResolvedValueOnce({
+      stil: [],
+      voorlopig: { besluit: { ...gram('p', 'BESCHIKKING', 'awb#7:11', 'c'), outputs: { verleend: true } } },
+      automatisch: [{ feit: 'beleid#7#kaart_besteld_bij_drukker', artikel: 'beleid#7', verwijst_naar: null }],
+    });
+    const w = toon(wacht, [bezwaar]);
+    await flushPromises();
+    expect(w.findAll('nldd-title').map((t) => t.attributes('text'))).toContain('Daarna doet het systeem zelf');
+    const rij = w.find('nldd-list[accessible-label="Wat het systeem daarna zelf vastlegt"] nldd-text-cell');
+    expect(rij.attributes('text')).toBe('Kaart besteld bij drukker');
+    expect(rij.attributes('supporting-text')).toBe(`Volgens ${artikelNaam('beleid#7')}`);
+    // A refusal says what is missing; what would follow a decision does not show.
+    voorvertoning.mockClear().mockResolvedValueOnce({
+      stil: [],
+      geweigerd: 'missing',
+      automatisch: [{ feit: 'beleid#7#kaart_besteld_bij_drukker', artikel: 'beleid#7', verwijst_naar: null }],
+    });
+    const geweigerd = toon(wacht, [bezwaar]);
+    await flushPromises();
+    expect(geweigerd.findAll('nldd-title').map((t) => t.attributes('text'))).not.toContain('Daarna doet het systeem zelf');
+    // Nothing to tell: no heading.
+    voorvertoning.mockClear().mockResolvedValueOnce({ stil: [], voorlopig: { besluit: { ...gram('p', 'BESCHIKKING', 'awb#7:11', 'c'), outputs: {} } } });
+    const leeg = toon(wacht, [bezwaar]);
+    await flushPromises();
+    expect(leeg.findAll('nldd-title').map((t) => t.attributes('text'))).not.toContain('Daarna doet het systeem zelf');
   });
 
   it('says what is missing instead of an outcome when no decision can be computed yet', async () => {

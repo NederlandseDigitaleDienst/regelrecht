@@ -40,6 +40,7 @@ import type { Casus, Gram, Ik, Rol, Veld, Voorvertoning, Vormen, Waarom } from '
 import { backofficeApi, beheerApi } from './api';
 import BesluitWeergave from './BesluitWeergave.vue';
 import type { EigenVerzoek, Kroniek } from './api';
+import { feitNaam } from './feit';
 import { verzoekenBij } from './verzoek';
 import type { VerzoekBij } from './verzoek';
 
@@ -372,6 +373,14 @@ async function beslissen() {
             :cel-naam="naamVanCel"
             voorlopig
           />
+          <template v-if="voorvertoning?.voorlopig && voorvertoning.automatisch?.length">
+            <nldd-title heading-level="5" size="display-6" text="Daarna doet het systeem zelf"></nldd-title>
+            <nldd-list appearance="box-base" accessible-label="Wat het systeem daarna zelf vastlegt">
+              <nldd-list-item v-for="(a, i) in voorvertoning.automatisch" :key="i" size="md">
+                <nldd-text-cell :text="feitNaam(a.feit)" :supporting-text="`Volgens ${artikelNaam(a.artikel)}`"></nldd-text-cell>
+              </nldd-list-item>
+            </nldd-list>
+          </template>
           <nldd-text v-if="rekent && voorvertoning" size="sm" color="secondary">De voorvertoning wordt bijgewerkt.</nldd-text>
 
           <nldd-inline-dialog v-if="melding" icon="warning" icon-color="critical" text="Dat lukt niet" :supporting-text="melding"></nldd-inline-dialog>
