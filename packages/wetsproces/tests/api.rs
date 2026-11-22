@@ -763,7 +763,7 @@ async fn the_application_form_shows_where_each_field_comes_from_and_its_value() 
     );
     assert_eq!(
         vormen["teksten"]["adres_aanvrager"]["group"],
-        json!("Uw gegevens")
+        json!("Gegevens van de aanvrager")
     );
     assert_eq!(
         vormen["teksten"]["gevraagde_beschikking"]["label"],
@@ -1292,6 +1292,31 @@ async fn the_municipality_sees_its_request_run_and_the_advice_come_back() {
     ] {
         assert!(feiten.contains(&feit), "{feiten:?}");
     }
+    // And says which of its records belong to that request, by id, so a
+    // screen hangs the receipt, the advice and its receipt under it.
+    let ids: Vec<&str> = dossier["grammen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|g| g["id"].as_str())
+        .collect();
+    let rij = &dossier["verzoeken"][0];
+    assert_eq!(
+        dossier["verzoeken"].as_array().unwrap().len(),
+        1,
+        "{dossier}"
+    );
+    assert_eq!(rij["verzoek"], lopend[0]["verzoek"]["id"]);
+    assert_eq!(rij["antwoord"], advies["id"]);
+    for key in ["verzoek", "ontvangen", "antwoord", "antwoord_ontvangen"] {
+        assert!(ids.contains(&rij[key].as_str().unwrap()), "{key}: {rij}");
+    }
+    // Another citizen's dossier holds none of it.
+    let (_, other) = citizen(&app, "bram", "999990020")
+        .await
+        .get("/api/dossier")
+        .await;
+    assert_eq!(other["verzoeken"], json!([]), "{other}");
 
     // Emptying the test setup takes the requests with it; a new application
     // asks the GGD again.

@@ -519,12 +519,47 @@ pub(crate) async fn dossier_of(state: &AppState, principal: &Principal) -> Citiz
     };
     // Which of its records the system made by an article of the policy.
     let door_het_systeem = door_het_systeem(state, |id| dossier.holds(id)).await?;
+    let verzoeken = requests_in(state, &dossier).await;
     Ok(json!({
         "grammen": dossier.grams,
         "stand": stand,
         "vervolg": standen,
         "door_het_systeem": door_het_systeem,
+        "verzoeken": verzoeken,
     }))
+}
+
+/// The requests of the executor's policy in `dossier`, each by the ids of
+/// its records that are in it: the request (`verzoek`), its receipt by the
+/// other party (`ontvangen`), the answer (`antwoord`) and the executor's
+/// receipt of that (`antwoord_ontvangen`). Only ids, and only of records in
+/// the dossier, so a screen can hang each under its request and learns
+/// nothing else. When the requests do not read, the dossier loads without.
+async fn requests_in(state: &AppState, dossier: &crate::service::Dossier) -> Vec<Value> {
+    let requests = match state.service.requests().await {
+        Ok(requests) => requests,
+        Err(e) => {
+            tracing::warn!(error = %e, "the requests of the policy do not read");
+            return Vec::new();
+        }
+    };
+    let held = |g: Option<&regelrecht_cel::Gram>| {
+        g.map(|g| g.id.clone())
+            .filter(|id| dossier.holds(id))
+            .map_or(Value::Null, Value::String)
+    };
+    requests
+        .iter()
+        .filter(|r| dossier.holds(&r.verzoek.id))
+        .map(|r| {
+            json!({
+                "verzoek": r.verzoek.id,
+                "ontvangen": held(r.ontvangen.as_ref()),
+                "antwoord": held(r.antwoord.as_ref()),
+                "antwoord_ontvangen": held(r.antwoord_ontvangen.as_ref()),
+            })
+        })
+        .collect()
 }
 
 /// Per record for which `include` holds that the system made by an article
@@ -547,8 +582,10 @@ async fn door_het_systeem(
 /// Every grant of the executor, with how far the acts that follow it are,
 /// for any employee: what a reader may see of the executor's chronicle.
 /// Each carries the day of the record that granted (`toegekend_op`) and
-/// whom it concerns (`aanvrager`, the login field of the decision), so a
-/// screen can name it without reading the chronicle.
+/// whom it concerns (`aanvrager`, the login field of the decision, and
+/// `naam`, the applicant's name from the application when the UI spec has a
+/// field for it), so a screen can name it without reading the chronicle.
+/// Employees only: the route is the back office's.
 async fn grants(State(state): State<AppState>) -> ApiResult {
     let service = &state.service;
     let standen = service.standen().await?;
@@ -558,13 +595,27 @@ async fn grants(State(state): State<AppState>) -> ApiResult {
     let mut vervolg = Vec::with_capacity(standen.len());
     for stand in standen {
         let toegekend_op = record(&stand.toekenning).map(|g| g["recorded_on"].clone());
-        let aanvrager = record(&stand.besluit)
+        let besluit = record(&stand.besluit);
+        let aanvrager = besluit
             .and_then(|g| g["fields"].get(service.login_field()))
             .cloned();
+        // The name as the application recorded it, from the login; on the
+        // decision too when it took the application's fields along.
+        let aanvraag = besluit
+            .and_then(|g| g["refers_to"].as_str())
+            .and_then(&record);
+        let naam = service.name_field().and_then(|veld| {
+            [besluit, aanvraag]
+                .into_iter()
+                .flatten()
+                .find_map(|g| g["fields"].get(veld).filter(|v| v.is_string()))
+                .cloned()
+        });
         let mut rij = serde_json::to_value(&stand)
             .map_err(|e| ApiError::from(ServiceError::Internal(e.to_string())))?;
         rij["toegekend_op"] = toegekend_op.unwrap_or(Value::Null);
         rij["aanvrager"] = aanvrager.unwrap_or(Value::Null);
+        rij["naam"] = naam.unwrap_or(Value::Null);
         vervolg.push(rij);
     }
     Ok(Json(json!({ "vervolg": vervolg })))

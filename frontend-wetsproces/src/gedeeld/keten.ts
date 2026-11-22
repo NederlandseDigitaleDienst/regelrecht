@@ -12,7 +12,7 @@ import {
   wetNaam,
 } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from './datum';
-import type { BesluitInDePlaats, Casus, Gram, Rol, Stand, Stukantwoord } from './types';
+import type { BesluitInDePlaats, Casus, Gram, Rol, Stand, Stukantwoord, VerzoekInDossier } from './types';
 
 /** What `g` is, as the server's `stand` says; undefined for a record it does not cover. */
 export const rolVan = (g: Gram, stand: Pick<Stand, 'rollen'>): Rol | undefined => stand.rollen[g.id];
@@ -84,13 +84,17 @@ export interface Knoop {
  * `eerder` (each id with its place in the list):
  * what it received from another cell when that is among them, such as the
  * decision an appeal to the court contests or the ruling whose copy the
- * municipality received; else the record it refers to; else an earlier
- * record among them that one of its fields names, such as the application a
- * request to another party was made for. None for an application.
+ * municipality received; else the record it refers to; else the one
+ * `onder` names for it, such as the request an answer belongs to, which the
+ * server knows and the records do not say; else an earlier record among
+ * them that one of its fields names, such as the application a request to
+ * another party was made for. None for an application.
  */
-function ouderVan(g: Gram, eerder: Map<string, number>): string | undefined {
+function ouderVan(g: Gram, eerder: Map<string, number>, onder: Record<string, string> = {}): string | undefined {
   if (g.received && eerder.has(g.received.id)) return g.received.id;
   if (g.refers_to) return g.refers_to;
+  const gegeven = onder[g.id];
+  if (gegeven && eerder.has(gegeven)) return gegeven;
   // Only a record that came before it: a field can name nothing later, and
   // two records naming each other would otherwise both drop out of the chains.
   const plek = eerder.get(g.id) ?? Infinity;
@@ -107,13 +111,14 @@ const plekken = (grammen: Gram[]): Map<string, number> => new Map(grammen.map((g
  * them is the top of one, with what hangs under it underneath, in the order
  * the records came: application, decision, objection, decision on it,
  * appeal, ruling. A record found in two chronicles (a fact one cell sends
- * another) counts once.
+ * another) counts once. `onder` names, per record id, a record it hangs
+ * under where the records themselves do not say so ([`onderVerzoeken`]).
  */
-export function ketens(grammen: Gram[]): Knoop[] {
+export function ketens(grammen: Gram[], onder: Record<string, string> = {}): Knoop[] {
   const uniek = [...new Map(grammen.map((g) => [g.id, g])).values()];
   const ids = new Set(uniek.map((g) => g.id));
   const plek = plekken(uniek);
-  const ouder = (g: Gram) => ouderVan(g, plek);
+  const ouder = (g: Gram) => ouderVan(g, plek, onder);
   const knoop = (g: Gram): Knoop => ({ gram: g, onder: uniek.filter((x) => ouder(x) === g.id).map(knoop) });
   return uniek.filter((g) => {
     const o = ouder(g);
@@ -226,6 +231,20 @@ export function besluitNaam(g: Gram, casus: Casus): string {
 export function waarover(g: Gram, grammen: Gram[]): Gram | undefined {
   const id = ouderVan(g, plekken(grammen));
   return id ? grammen.find((x) => x.id === id) : undefined;
+}
+
+/**
+ * Per record of a request of the policy, the request it hangs under: the
+ * other party's receipt, the answer and the executor's receipt of the
+ * answer. The answer names its request by nothing in itself; the server
+ * pairs them (`verzoeken` in `GET /api/dossier`).
+ */
+export function onderVerzoeken(verzoeken: VerzoekInDossier[]): Record<string, string> {
+  return Object.fromEntries(
+    verzoeken.flatMap((v) =>
+      [v.ontvangen, v.antwoord, v.antwoord_ontvangen].filter((id): id is string => !!id).map((id) => [id, v.verzoek]),
+    ),
+  );
 }
 
 /** The records of the chain under `k`, the top first, each with the record it answers to. */

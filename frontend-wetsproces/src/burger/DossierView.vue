@@ -16,7 +16,7 @@ import { computed, onMounted, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { leesbaar } from '@regelrecht/frontend-shared/chronolex/waarden';
 import { longDate } from '../gedeeld/datum';
-import { celNaam, herroeping, isBesluit, ketens, nieuwBesluitVan, omschrijving, plat, rolVan, toegewezen } from '../gedeeld/keten';
+import { celNaam, herroeping, isBesluit, ketens, nieuwBesluitVan, omschrijving, onderVerzoeken, plat, rolVan, toegewezen } from '../gedeeld/keten';
 import type { Gram } from '../gedeeld/types';
 import { burgerStand, doorHetSysteem as doorHetSysteemTekst } from '../gedeeld/vervolg';
 import BesluitPaneel from './BesluitPaneel.vue';
@@ -26,7 +26,7 @@ import { useBurger } from './useBurger';
 const props = defineProps<{ id?: string }>();
 const route = useRoute();
 const router = useRouter();
-const { casus, vormen, dossier, stand: standVanDossier, vervolg, doorHetSysteem, fout, laden, laad } = useBurger();
+const { casus, vormen, dossier, stand: standVanDossier, vervolg, doorHetSysteem, verzoeken, fout, laden, laad } = useBurger();
 onMounted(laad);
 // The dossier and a decision in it are one screen, so going back to the
 // dossier after an objection keeps this component: load again on what was
@@ -45,7 +45,7 @@ const ingediend = computed(() => {
 const lijsten = computed(() => {
   const c = casus.value;
   if (!c) return [];
-  return ketens(dossier.value).map((k) => ({
+  return ketens(dossier.value, onderVerzoeken(verzoeken.value)).map((k) => ({
     naam: omschrijf(k.gram),
     rijen: plat(k).map(({ gram, boven }) => ({
       gram,

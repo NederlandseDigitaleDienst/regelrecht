@@ -104,6 +104,21 @@ export interface Vervolgstand {
   toegekend_op?: string | null;
   /** For an employee: whom the grant concerns, by the field the login fills. */
   aanvrager?: unknown;
+  /** For an employee: the applicant's name, as the application recorded it from the login. */
+  naam?: string | null;
+}
+
+/**
+ * A request of the policy in a citizen's dossier, by the ids of its records
+ * there: the request, the other party's receipt, the answer and the
+ * executor's receipt of it. An id is null when that record is not (yet) in
+ * the dossier.
+ */
+export interface VerzoekInDossier {
+  verzoek: string;
+  ontvangen: string | null;
+  antwoord: string | null;
+  antwoord_ontvangen: string | null;
 }
 
 /** The facts one cell records. */

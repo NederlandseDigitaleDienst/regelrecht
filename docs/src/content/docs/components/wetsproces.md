@@ -180,7 +180,7 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `GET /api/formulier` | citizen or employee | The forms of the process today, with what the UI spec says of each field |
 | `GET /api/klok` | citizen or employee | Today's date, and whether it can be set |
 | `GET /api/ik` | citizen or employee | Who is logged in, what the account may do for the executor (`cellen`), and whether it may use the admin panel (`partijen_invoeren`) |
-| `GET /api/dossier` | citizen | The records about the citizen, from every cell, with their standing (`stand`, [below](#what-answers-a-submission)), and under `vervolg` how far the acts after each of their grants are |
+| `GET /api/dossier` | citizen | The records about the citizen, from every cell, with their standing (`stand`, [below](#what-answers-a-submission)), under `vervolg` how far the acts after each of their grants are, and under `verzoeken` per request of the policy the ids of its records in the dossier (the request, its receipt, the answer and the receipt of that), so a screen can hang the answer under its request |
 | `GET /api/dossier/waarom/{id}` | citizen | Why a decision in the citizen's dossier came out as it did |
 | `POST /api/indieningen` | citizen | A submission: `artikel` (the case's own when left out), `op`, `velden` |
 | `GET /api/backoffice/cellen/{cel}/kroniek` | reader | The executor's chronicle, with its head and its standing (`stand`); an external party's answers `403` |
@@ -189,7 +189,7 @@ The keys in requests and answers are those of the kern, as the PoC uses them (`v
 | `POST /api/backoffice/voorvertoning` | decider | What a decision (`op`, `na`, `bevindingen`) on a submission of the executor would come to, and under `automatisch` what the system would then do itself; records nothing |
 | `GET /api/backoffice/verzoeken` | reader | The requests the executor's policy made, each with the party, whether it is open, and the executor's receipt of the answer |
 | `POST /api/backoffice/vastleggingen` | handler | A fact the executor records: `cel`, `feit`, `velden`, `verwijst_naar` |
-| `GET /api/backoffice/vervolg` | reader | Every grant and how far the acts after it are (see [After a grant](#after-a-grant)) |
+| `GET /api/backoffice/vervolg` | reader | Every grant and how far the acts after it are (see [After a grant](#after-a-grant)), and whom it is for: the login field (`aanvrager`) and, where the UI spec fills a field from the name of the login, that name as the application recorded it (`naam`, else null) |
 | `POST /api/backoffice/toezendingen` | handler | A copy of the executor's decision `besluit` to the cell it concerns |
 | `POST /api/backoffice/besluiten` | decider | A decision on a submission of the executor: `op`, `na`, `bevindingen` |
 | `PUT /api/backoffice/klok` | admin | In test mode, set the date with `{ "datum": "YYYY-MM-DD" }` |

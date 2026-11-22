@@ -145,6 +145,30 @@ async fn a_grant_brings_the_order_in_the_same_step_by_the_article_of_the_policy(
     assert_eq!(vervolg[0]["aanvrager"], json!(ANNA));
 }
 
+#[tokio::test]
+async fn an_employee_sees_whom_a_grant_is_for_by_name_and_a_citizen_gets_no_such_field() {
+    let app = server().await;
+    let besluit = anna_is_granted(&app).await;
+    let kroniek = chronicle(&app).await;
+    let aanvraag = kroniek["grammen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["id"] == besluit["refers_to"])
+        .cloned()
+        .unwrap();
+    // The name the application recorded from the login.
+    let naam = aanvraag["fields"]["naam_aanvrager"].clone();
+    assert!(naam.is_string(), "{aanvraag}");
+    let vervolg = grants(&app).await;
+    assert_eq!(vervolg[0]["naam"], naam);
+    let (status, dossier) = citizen(&app, "anna", ANNA).await.get("/api/dossier").await;
+    assert_eq!(status, StatusCode::OK, "{dossier}");
+    // Her own row of the grant is there, without the name the back office gets.
+    assert_eq!(dossier["vervolg"][0]["besluit"], besluit["id"], "{dossier}");
+    assert!(dossier["vervolg"][0].get("naam").is_none(), "{dossier}");
+}
+
 /// The decider grants Anna's application; the answer is the decision.
 async fn anna_decides(app: &Router, aanvraag: &Value) -> Value {
     let beslisser = employee(app, "gemeente-1", "wetsproces-beslisser").await;
