@@ -1246,3 +1246,112 @@ async fn the_municipality_sees_its_request_run_and_the_advice_come_back() {
     anna_applies(&app).await;
     assert!(open_request(&app, ANNA).await.is_some());
 }
+
+#[tokio::test]
+async fn after_a_court_annuls_the_decision_on_objection_the_municipality_decides_again() {
+    let app = server().await;
+    let op_bezwaar = anna_is_refused_on_objection(&app).await;
+    let bezwaar_id = op_bezwaar["refers_to"].clone();
+    let beslisser = employee(&app, "gemeente-1", "wetsproces-beslisser").await;
+    let anna = citizen(&app, "anna", ANNA).await;
+    let admin = admin(&app).await;
+    // Nothing waits for the municipality: each submission has its decision.
+    let (status, queue) = beslisser.get("/api/backoffice/werkvoorraad").await;
+    assert_eq!(status, StatusCode::OK, "{queue}");
+    assert_eq!(queue["open"], json!([]), "{queue}");
+
+    let (status, beroep) = anna
+        .post(
+            "/api/indieningen",
+            json!({
+                "artikel": "algemene_wet_bestuursrecht#8:70",
+                "op": op_bezwaar["id"],
+                "velden": notice_of("het bezwaar is ten onrechte afgewezen"),
+            }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{beroep}");
+    // The court annuls the decision on the objection with its legal
+    // effects, and orders a new one.
+    set_clock(&app, "2026-11-20").await;
+    let (status, uitspraak) = admin
+        .post(
+            "/api/backoffice/beheer/besluiten",
+            json!({ "op": beroep["id"], "bevindingen": {
+                "indiener_is_belanghebbende": true,
+                "indiener_beroepschrift_niet_in_verzuim": true,
+                "rechtsregel_geschonden": true,
+                "geschonden_rechtsregel": "artikel 7:12, eerste lid, van de Algemene wet bestuursrecht",
+                "rechtsgevolgen_in_stand": false,
+                "uitspraak_treedt_in_de_plaats": false,
+                "termijn_nieuw_besluit": "2026-12-18",
+            } }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{uitspraak}");
+    assert_eq!(
+        uitspraak["besluit"]["outputs"]["opdracht_nieuw_besluit"],
+        json!(true),
+        "{uitspraak}"
+    );
+    let (status, ontvangst) = admin
+        .post(
+            "/api/backoffice/beheer/toezendingen",
+            json!({ "besluit": uitspraak["besluit"]["id"] }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{ontvangst}");
+
+    // The objection waits again, to be decided after the receipt.
+    let (_, queue) = beslisser.get("/api/backoffice/werkvoorraad").await;
+    assert_eq!(queue["open"].as_array().unwrap().len(), 1, "{queue}");
+    assert_eq!(queue["open"][0]["stuk"]["id"], bezwaar_id, "{queue}");
+    assert_eq!(queue["open"][0]["na"], ontvangst["id"], "{queue}");
+    // Anna sees the decision on her objection revoked by the receipt.
+    let (_, dossier) = anna.get("/api/dossier").await;
+    let stand = &dossier["stand"];
+    assert_eq!(
+        stand["herroepen"][op_bezwaar["id"].as_str().unwrap()],
+        ontvangst["id"]
+    );
+    assert_eq!(
+        stand["antwoorden"][bezwaar_id.as_str().unwrap()]["soort"],
+        json!("vervallen"),
+        "{stand}"
+    );
+
+    // The GGD advises now, and the municipality decides on the objection
+    // again, after the receipt: well founded, a new decision in the place of
+    // the refusal.
+    ggd_advises(&app, ANNA).await;
+    let mut bevindingen = findings();
+    bevindingen["indiener_bezwaarschrift_is_belanghebbende"] = json!(true);
+    bevindingen["indiener_bezwaarschrift_niet_in_verzuim"] = json!(true);
+    let (status, opnieuw) = beslisser
+        .post(
+            "/api/backoffice/besluiten",
+            json!({ "op": bezwaar_id, "na": ontvangst["id"], "bevindingen": bevindingen }),
+        )
+        .await;
+    assert_eq!(status, StatusCode::OK, "{opnieuw}");
+    assert_eq!(opnieuw["besluit"]["after"], ontvangst["id"]);
+    let (_, queue) = beslisser.get("/api/backoffice/werkvoorraad").await;
+    assert_eq!(queue["open"], json!([]), "{queue}");
+
+    // What answers Anna's application now is the new decision.
+    let (_, dossier) = anna.get("/api/dossier").await;
+    let aanvraag = dossier["grammen"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|g| g["kind"] == json!("AANVRAAG"))
+        .unwrap();
+    let antwoord = &dossier["stand"]["antwoorden"][aanvraag["id"].as_str().unwrap()];
+    assert_eq!(antwoord["soort"], json!("in_de_plaats"), "{dossier}");
+    assert_eq!(antwoord["door"], opnieuw["besluit"]["id"]);
+    assert_eq!(
+        antwoord["nieuw"]["outputs"]["gehandicaptenparkeerkaart_verstrekt"],
+        json!(true),
+        "{antwoord}"
+    );
+}

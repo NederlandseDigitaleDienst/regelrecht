@@ -27,6 +27,7 @@ use regelrecht_poc_chronolexografie::bundel::{Bron, BronStand, met_bronnen};
 use regelrecht_poc_chronolexografie::inlogstap::WACHTWOORD;
 use regelrecht_poc_chronolexografie::kern::Corpus;
 use regelrecht_poc_chronolexografie::spel::Spel;
+use regelrecht_poc_chronolexografie::stand::{Antwoord, stand};
 use serde_json::{Value, json};
 use speler::Verslag;
 
@@ -744,6 +745,29 @@ fn every_scenario_of_a_procedure_without_the_awb_plays_with_its_own_values() {
             dag0,
         )
         .unwrap();
+    // The withdrawal revokes the decision, and is itself the authority's
+    // answer: the application does not wait for a decision again.
+    let dir = crate_dir().join(ZONDER_AWB);
+    let corpus = Corpus::alle(&dir, &dir.join("casussen"))
+        .unwrap()
+        .into_iter()
+        .find(|c| c.casus.id == "fictieve_vergunning")
+        .unwrap();
+    let kroniek = spel.kroniek().unwrap();
+    let grams: Vec<regelrecht_cel::Gram> = speler::grammen(&kroniek)
+        .map(|g| serde_json::from_value(g.clone()).unwrap())
+        .collect();
+    let s = stand(&corpus.service().unwrap(), &grams).unwrap();
+    assert_eq!(s.herroepen.get(&id(&besluit)), Some(&id(&intrekking)));
+    assert_eq!(
+        s.antwoorden[&id(&aanvraag)],
+        Antwoord::Vervallen {
+            besluit: id(&besluit),
+            door: id(&intrekking),
+            na: None,
+        }
+    );
+    assert!(s.open(&grams).is_empty());
     for gram in [&aanvraag, &besluit, &intrekking] {
         let gelezen: Vec<&str> = gram["law_versions"]
             .as_array()

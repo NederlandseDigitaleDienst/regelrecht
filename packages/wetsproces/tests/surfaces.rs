@@ -55,6 +55,7 @@ const ROUTES: &[(Group, &str, &str)] = &[
         "GET",
         "/api/backoffice/cellen/gemeente_wilgendaal/kroniek",
     ),
+    (Group::Backoffice, "GET", "/api/backoffice/werkvoorraad"),
     (Group::Backoffice, "GET", "/api/backoffice/waarom/x"),
     (Group::Backoffice, "POST", "/api/backoffice/voorvertoning"),
     (Group::Backoffice, "GET", "/api/backoffice/verzoeken"),
