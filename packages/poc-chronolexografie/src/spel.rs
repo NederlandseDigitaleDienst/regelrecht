@@ -104,15 +104,23 @@ impl Spel {
         let spel = self.gekozen.as_mut().ok_or(Fout::GeenCasus)?;
         let corpus = &self.casussen[spel.casus];
         let kop = spel.cell.eigen.grams().len();
-        let uit = stap(corpus, &mut spel.cell)?;
+        // The step runs on a copy, and the copy replaces the game only when
+        // the step and what the system then does by itself both succeed.
+        let mut proef = spel.cell.sandbox();
+        let uit = stap(corpus, &mut proef)?;
         // A step that recorded something may bring about an act the system
         // takes itself, such as ordering a granted card (crate::vervolg).
-        if spel.cell.eigen.grams().len() != kop {
-            let datum = spel.cell.eigen.grams().last().map(|g| g.recorded_on);
-            if let Some(datum) = datum {
-                crate::vervolg::automatisch(corpus, &mut spel.cell, datum)?;
-            }
+        if let Some(datum) = proef
+            .eigen
+            .grams()
+            .get(kop..)
+            .and_then(|nieuw| nieuw.last())
+            .map(|g| g.recorded_on)
+        {
+            let voor = crate::vervolg::standen(corpus, &spel.cell, datum)?;
+            crate::vervolg::automatisch(corpus, &mut proef, &voor, datum)?;
         }
+        spel.cell = proef;
         Ok(uit)
     }
 

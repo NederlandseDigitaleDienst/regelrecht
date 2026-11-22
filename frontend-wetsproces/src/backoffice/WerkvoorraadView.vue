@@ -61,13 +61,18 @@ const openToekenningen = computed(() => {
   if (!na) return [];
   return vervolg.value
     .filter((s) => s.volgende)
-    .map((s) => ({
-      stand: s,
-      tekst: [casus.value?.titel, s.aanvrager ? `voor ${toon(s.aanvrager)}` : ''].filter(Boolean).join(' '),
-      regel: medewerkerStand(s, na),
-      knop: na.handelingen.find((h) => h.feit === s.volgende)?.knop ?? `${feitNaam(s.volgende ?? '')} vastleggen`,
-      handeling: vormen.value?.eigen.handelingen.find((h) => h.feit === s.volgende),
-    }));
+    .map((s) => {
+      const volgende = na.handelingen.find((h) => h.feit === s.volgende);
+      // An act the system takes itself has no button: it waits for the system.
+      const doorSysteem = !!volgende?.door_het_systeem;
+      return {
+        stand: s,
+        tekst: [casus.value?.titel, s.aanvrager ? `voor ${toon(s.aanvrager)}` : ''].filter(Boolean).join(' '),
+        regel: medewerkerStand(s, na),
+        knop: doorSysteem ? 'wacht op het systeem' : (volgende?.knop ?? `${feitNaam(s.volgende ?? '')} vastleggen`),
+        handeling: doorSysteem ? undefined : vormen.value?.eigen.handelingen.find((h) => h.feit === s.volgende),
+      };
+    });
 });
 
 /** The executor: what the account may do there, its open submissions and the facts it records. */

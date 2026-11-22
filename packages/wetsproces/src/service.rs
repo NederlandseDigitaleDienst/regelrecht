@@ -145,14 +145,16 @@ impl Applied {
 impl Step {
     /// Run the step of the kern on `cellen`, on `on`, and then every act the
     /// system takes itself that the step brought about, such as ordering a
-    /// card once a grant counts (`vervolg::automatisch`). Those land in the
-    /// same commit as the step, recorded by the article that has the system
-    /// take them ([`Commit::by_policy`]).
+    /// card once a grant counts (`vervolg::automatisch`): only for the
+    /// grants this step changed. Those land in the same commit as the step,
+    /// recorded by the article that has the system take them
+    /// ([`Commit::by_policy`]).
     fn apply(&self, corpus: &Corpus, cellen: &mut Cellen, on: NaiveDate) -> kern::Result<Applied> {
+        let voor = vervolg::standen(corpus, cellen, on)?;
         let mut applied = self.apply_step(corpus, cellen, on)?;
         applied
             .by_policy
-            .extend(vervolg::automatisch(corpus, cellen, on)?);
+            .extend(vervolg::automatisch(corpus, cellen, &voor, on)?);
         Ok(applied)
     }
 
@@ -874,18 +876,24 @@ impl Service {
             let mut preview = to_value(&preview)?;
             // What the system would do by itself once this decision is taken,
             // such as ordering the card it grants: on a copy, nothing lands.
+            // A preview that cannot say so still shows the outcome.
             let mut proef = cellen.sandbox();
-            let automatisch = match kern::beslissen(
-                &corpus,
-                &mut proef,
-                &d.submission,
-                d.after.as_deref(),
-                &d.findings,
-                today,
-            ) {
-                Ok(_) => vervolg::zou_automatisch(&corpus, &proef, today)?,
-                Err(_) => Vec::new(),
-            };
+            let automatisch = vervolg::standen(&corpus, &cellen, today)
+                .and_then(|voor| {
+                    kern::beslissen(
+                        &corpus,
+                        &mut proef,
+                        &d.submission,
+                        d.after.as_deref(),
+                        &d.findings,
+                        today,
+                    )?;
+                    vervolg::zou_automatisch(&corpus, &proef, &voor, today)
+                })
+                .unwrap_or_else(|e| {
+                    tracing::debug!(error = %e, "no automatic acts to preview");
+                    Vec::new()
+                });
             if let Some(map) = preview.as_object_mut() {
                 map.insert("automatisch".into(), Value::Array(automatisch));
             }

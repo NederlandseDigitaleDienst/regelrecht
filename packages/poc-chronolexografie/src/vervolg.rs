@@ -15,7 +15,7 @@
 //! after every step, [`automatisch`] records each such act that is next, by
 //! the same check a person's act passes ([`toets`]).
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use chrono::NaiveDate;
 use regelrecht_cel::{Error, reading, shape};
@@ -263,7 +263,14 @@ pub(crate) fn controleer(corpus: &Corpus) -> Result<()> {
         shape::fact_fields(&service, &h.feit, on, None)
             .map_err(|e| fout(format!("{}: {e}", h.feit)))?;
         match (&h.door_het_systeem, &h.knop) {
-            (Some(o), _) => {
+            (Some(_), Some(_)) => {
+                return Err(fout(format!(
+                    "{}: an act is the system's or a person's, so it has `door_het_systeem` or \
+                     `knop`, not both",
+                    h.feit
+                )));
+            }
+            (Some(o), None) => {
                 if o.antwoord.is_some() {
                     return Err(fout(format!(
                         "{}: an act after a grant awaits no answer",
@@ -305,38 +312,61 @@ pub(crate) fn controleer(corpus: &Corpus) -> Result<()> {
 /// advances a grant by one act or ends. The ids of the records it made. It
 /// runs on a copy first, so all of it lands or none.
 ///
+/// Only the grants the step changed take part: those whose [`Stand`] differs
+/// from what it was before the step (`voor`, from [`standen`]). A step about
+/// something else brings about no act of the system, also not one that some
+/// other grant still has pending.
+///
 /// # Errors
 ///
 /// What the article or the cells refuse, and [`Error::Setup`] when the acts
 /// do not settle within that many rounds.
-pub fn automatisch(corpus: &Corpus, cellen: &mut Cellen, on: NaiveDate) -> Result<Vec<String>> {
+pub fn automatisch(
+    corpus: &Corpus,
+    cellen: &mut Cellen,
+    voor: &[Stand],
+    on: NaiveDate,
+) -> Result<Vec<String>> {
     let Some(na) = &corpus.casus.na_toekenning else {
         return Ok(Vec::new());
     };
     if na.handelingen.iter().all(|h| h.door_het_systeem.is_none()) {
         return Ok(Vec::new());
     }
-    automatisch_in(corpus, na, &mut cellen.sandbox(), on)?;
-    automatisch_in(corpus, na, cellen, on)
+    let veranderd: BTreeSet<String> = standen(corpus, cellen, on)?
+        .into_iter()
+        .filter(|s| !voor.contains(s))
+        .map(|s| s.toekenning)
+        .collect();
+    if veranderd.is_empty() {
+        return Ok(Vec::new());
+    }
+    automatisch_in(corpus, na, &mut cellen.sandbox(), &veranderd, on)?;
+    automatisch_in(corpus, na, cellen, &veranderd, on)
 }
 
+/// [`automatisch`] for the grants in `veranderd`, on `cellen` itself.
 fn automatisch_in(
     corpus: &Corpus,
     na: &NaToekenning,
     cellen: &mut Cellen,
+    veranderd: &BTreeSet<String>,
     on: NaiveDate,
 ) -> Result<Vec<String>> {
     let service = corpus.service()?;
     // Every record of every cell before this runs: what the step itself
     // recorded, in any cell, is not the system's.
-    let voor: Vec<String> = std::iter::once(&cellen.eigen)
+    let voor: BTreeSet<String> = std::iter::once(&cellen.eigen)
         .chain(&cellen.andere)
         .flat_map(|c| c.grams())
         .map(|g| g.id.clone())
         .collect();
     let mut ronde = || -> Result<usize> {
         let mut gedaan = 0;
-        for stand in standen(corpus, cellen, on)? {
+        for stand in standen(corpus, cellen, on)?
+            .into_iter()
+            .filter(|s| veranderd.contains(&s.toekenning))
+        {
             let Some(volgende) = &stand.volgende else {
                 continue;
             };
@@ -400,15 +430,21 @@ fn tot_rust(rondes: usize, ronde: &mut dyn FnMut() -> Result<usize>) -> Result<(
 }
 
 /// The acts the system would take by itself if a step brought `cellen` to
-/// where they are, without recording anything: per act its fact and the
-/// article that has the system take it. For a preview of a decision.
+/// where they are from `voor`, without recording anything: per act its fact,
+/// the article that has the system take it, and the record it refers to.
+/// For a preview of a decision.
 ///
 /// # Errors
 ///
 /// As [`automatisch`].
-pub fn zou_automatisch(corpus: &Corpus, cellen: &Cellen, on: NaiveDate) -> Result<Vec<Value>> {
+pub fn zou_automatisch(
+    corpus: &Corpus,
+    cellen: &Cellen,
+    voor: &[Stand],
+    on: NaiveDate,
+) -> Result<Vec<Value>> {
     let mut proef = cellen.sandbox();
-    let ids = automatisch(corpus, &mut proef, on)?;
+    let ids = automatisch(corpus, &mut proef, voor, on)?;
     Ok(proef
         .eigen
         .grams()
