@@ -224,7 +224,7 @@ impl Corpus {
             let naam = werk.versies.last().and_then(|(_, law)| law.name.clone());
             gelezen.push((id.clone(), naam, werk.map.clone()));
         }
-        Ok(Self {
+        let corpus = Self {
             casus,
             afleiding,
             regelwerken: gelezen,
@@ -234,7 +234,9 @@ impl Corpus {
             andere_dirs,
             files,
             ui_spec: crate::ui_spec::UiSpec::default(),
-        })
+        };
+        crate::vervolg::controleer(&corpus)?;
+        Ok(corpus)
     }
 
     /// Every case in `casus_dir` on the corpus at `root`, on disk.
@@ -277,7 +279,7 @@ impl Corpus {
         for (a, dir) in self.casus.andere_cellen.iter().zip(&self.andere_dirs) {
             let cel = self.begonnen(&a.cel, dir, a.begin.as_ref())?;
             for gram in cel.grams() {
-                afleveren(&service, &mut eigen, gram)?;
+                ontvangen(&service, &mut eigen, gram)?;
             }
             andere.push(cel);
         }
@@ -468,6 +470,7 @@ impl Corpus {
             "begin": c.begin,
             "andere_cellen": c.andere_cellen,
             "inloggen": c.inloggen,
+            "na_toekenning": c.na_toekenning,
             "scenarios": c.scenarios,
             "artikel": c.artikel,
             "besluit": format!("{}#{}", a.decision_law, a.decision),
@@ -1345,16 +1348,20 @@ fn handelingen(
 ) -> Result<Vec<Value>> {
     let mut uit = Vec::new();
     for (cell, andere) in cellen.andere.iter().zip(&corpus.casus.andere_cellen) {
+        // A request of the case's cell arrives with the step that makes it.
+        let ontvangsten =
+            crate::verzoek::ontvangsten(service, corpus, cellen.eigen.authority(), cell, on)?;
         let mut feiten = gelezen_feiten(service, cell, on);
         for f in benoemde_feiten(service, corpus, cell, on) {
             if !feiten.contains(&f) {
                 feiten.push(f);
             }
         }
+        feiten.retain(|f| !ontvangsten.contains(f));
         uit.push(json!({
             "cel": cell.recording_actor(),
             "cel_naam": andere.cel_naam,
-            "handelingen": met_velden(service, feiten, on)?,
+            "handelingen": met_velden(service, &corpus.ui_spec, feiten, on)?,
         }));
     }
     Ok(uit)
@@ -1383,9 +1390,13 @@ fn eigen_handelingen(
         .iter()
         .filter_map(|i| i.ontvangst.as_deref())
         .collect();
+    // A request the cell's policy makes when an application comes in is
+    // recorded with the application, not by hand.
+    let verzonden = crate::verzoek::verzonden(service, corpus, eigen.authority(), on)?;
     let mut feiten = Vec::new();
     for feit in benoemde_feiten(service, corpus, eigen, on) {
         if !afschriften.contains(&feit.as_str())
+            && !verzonden.contains(&feit)
             && !is_ontvangst(service, &feit, eigen.authority(), on)?
         {
             feiten.push(feit);
@@ -1394,7 +1405,7 @@ fn eigen_handelingen(
     Ok(json!({
         "cel": eigen.recording_actor(),
         "cel_naam": corpus.casus.cel_naam,
-        "handelingen": met_velden(service, feiten, on)?,
+        "handelingen": met_velden(service, &corpus.ui_spec, feiten, on)?,
     }))
 }
 
@@ -1502,19 +1513,71 @@ fn is_ontvangst(
 /// Each fact of `feiten` with the fields the article that requires it lists.
 fn met_velden(
     service: &LawExecutionService,
+    spec: &crate::ui_spec::UiSpec,
     feiten: Vec<String>,
     on: NaiveDate,
 ) -> Result<Vec<Value>> {
     feiten
         .into_iter()
         .map(|feit| {
-            let velden: Vec<Value> = shape::fact_fields(service, &feit, on, None)?
-                .iter()
-                .map(veld)
+            let velden = shape::fact_fields(service, &feit, on, None)?;
+            let systeem: Map<String, Value> = feit_door_het_systeem(spec, &velden, on)
+                .into_iter()
+                .map(|(naam, (soort, waarde))| (naam, json!({ "soort": soort, "waarde": waarde })))
                 .collect();
-            Ok(json!({ "feit": feit, "velden": velden }))
+            let velden: Vec<Value> = velden.iter().map(veld).collect();
+            Ok(json!({ "feit": feit, "velden": velden, "systeem": systeem }))
         })
         .collect()
+}
+
+/// Per field of a fact among `velden` that the UI spec `spec` has the
+/// system fill with what the system knows itself, its kind and its value on
+/// `on`: a fixed value (`waarde`), or the day the fact is recorded
+/// (`datum`, from `submission: date`). A fact is recorded by an employee,
+/// not by a citizen who logs in, so a fill from the login, from a source or
+/// from what else the system knows of a submission fills nothing here: the
+/// field stays the employee's.
+fn feit_door_het_systeem(
+    spec: &crate::ui_spec::UiSpec,
+    velden: &[shape::Field],
+    on: NaiveDate,
+) -> BTreeMap<String, (&'static str, Value)> {
+    use crate::ui_spec::{Indieningsgegeven, Systeemvulling};
+    velden
+        .iter()
+        .filter_map(|f| {
+            let gevuld = match spec.systeem.get(&f.name)? {
+                Systeemvulling::Waarde(waarde) => ("waarde", waarde.clone()),
+                Systeemvulling::Indiening(Indieningsgegeven::Datum) => {
+                    ("datum", json!(on.to_string()))
+                }
+                _ => return None,
+            };
+            Some((f.name.clone(), gevuld))
+        })
+        .collect()
+}
+
+/// What the system fills in the fact `feit` recorded on `on`, as the UI
+/// spec of the case says ([`feit_door_het_systeem`]): per field, its value.
+/// A caller that takes a fact from someone refuses one that names such a
+/// field itself.
+///
+/// # Errors
+///
+/// When no article in force on `on` requires `feit`.
+pub fn feit_systeemvelden(
+    corpus: &Corpus,
+    feit: &str,
+    on: NaiveDate,
+) -> Result<Map<String, Value>> {
+    let service = corpus.service()?;
+    let velden = shape::fact_fields(&service, feit, on, None)?;
+    Ok(feit_door_het_systeem(&corpus.ui_spec, &velden, on)
+        .into_iter()
+        .map(|(naam, (_, waarde))| (naam, waarde))
+        .collect())
 }
 
 /// The facts (`<regulation>#<article>#<fact>`) whose executograms a step or
@@ -1618,6 +1681,10 @@ pub fn vastleggen_verwijzend(
         None => None,
     };
     let refers_to = refers_to.as_deref();
+    // An act after a grant comes in its turn, once (crate::vervolg).
+    if eigen {
+        crate::vervolg::toets(corpus, cellen, feit, refers_to, on)?;
+    }
     // The fact and its receipt land together or not at all: the case's cell
     // can refuse the receipt after the other cell took the fact. Try it first.
     leg_vast(
@@ -1681,10 +1748,9 @@ fn verwezen(corpus: &Corpus, cellen: &Cellen, cel: &str, naar: &str) -> Result<S
         })
 }
 
-/// The cell `cel` records `feit`. What the fact of another cell sends the
-/// case's cell arrives ([`afleveren`]); the case's own cell sends itself
-/// nothing.
-fn leg_vast(
+/// The cell `cel` records `feit`, and what that fact sends another cell
+/// arrives there ([`afleveren`]).
+pub(crate) fn leg_vast(
     service: &LawExecutionService,
     cellen: &mut Cellen,
     cel: &str,
@@ -1693,35 +1759,46 @@ fn leg_vast(
     refers_to: Option<&str>,
     on: NaiveDate,
 ) -> Result<Gram> {
-    let eigen = cel == cellen.eigen.recording_actor();
     let (cell, _) = cellen.splits_voor(cel)?;
     let gram = cell.record_executogram_referring(service, feit, velden, refers_to, on)?;
-    if !eigen {
-        afleveren(service, &mut cellen.eigen, &gram)?;
-    }
+    afleveren(service, cellen, &gram)?;
     Ok(gram)
 }
 
-/// Deliver the executogram `gram` of another cell to the case's cell: where
-/// the article of its fact requires a receipt the case's cell establishes
-/// ([`shape::receipt_of`]), that cell records it in its own chronicle on the
-/// same day, with the same values, and reads it from there. So the advice of
-/// the GGD reaches the municipality without a step of its own. The receipt
-/// holds no link to `gram`: a chronicle only keeps `received` on the receipt
-/// of a copy of a decision (RFC-053), and an advice is none.
-fn afleveren(service: &LawExecutionService, eigen: &mut Cell, gram: &Gram) -> Result<()> {
+/// Deliver the executogram `gram` to every other cell of the case for which
+/// the article of its fact requires a receipt ([`shape::receipt_of`]): that
+/// cell records it in its own chronicle on the same day, with the same
+/// values, and reads it from there. One mechanism carries both directions:
+/// the advice of the GGD reaches the municipality, and the municipality's
+/// request for an examination reaches the GGD ([`crate::verzoek`]), each
+/// without a step of its own. The receipt holds no link to `gram`: a
+/// chronicle only keeps `received` on the receipt of a copy of a decision
+/// (RFC-053), and neither is one.
+fn afleveren(service: &LawExecutionService, cellen: &mut Cellen, gram: &Gram) -> Result<()> {
+    for cell in std::iter::once(&mut cellen.eigen).chain(cellen.andere.iter_mut()) {
+        if cell.recording_actor() != gram.recording_actor {
+            ontvangen(service, cell, gram)?;
+        }
+    }
+    Ok(())
+}
+
+/// The cell `cell` records the receipt of the executogram `gram` of another
+/// cell, where the article of its fact requires one it establishes
+/// ([`afleveren`]).
+fn ontvangen(service: &LawExecutionService, cell: &mut Cell, gram: &Gram) -> Result<()> {
     let Some(fact) = &gram.fact else {
         return Ok(());
     };
     let feit = format!("{}#{fact}", gram.basis);
     let on = gram.recorded_on;
-    if let Some(ontvangst) = shape::receipt_of(service, &feit, on, eigen.authority())? {
+    if let Some(ontvangst) = shape::receipt_of(service, &feit, on, cell.authority())? {
         let velden: Map<String, Value> = gram
             .fields
             .iter()
             .map(|(k, v)| (k.clone(), v.clone()))
             .collect();
-        eigen.record_executogram(service, &ontvangst, &velden, on)?;
+        cell.record_executogram(service, &ontvangst, &velden, on)?;
     }
     Ok(())
 }
@@ -1740,7 +1817,8 @@ fn afleveren(service: &LawExecutionService, eigen: &mut Cell, gram: &Gram) -> Re
 ///
 /// Refused when `artikel` establishes no submission a cell of the case
 /// decides on, when no cell holds `op`, and whatever the cell refuses
-/// ([`Cell::record_submission`], [`Cell::afschrift`]).
+/// ([`Cell::record_submission`], [`Cell::afschrift`]); for the case's
+/// application also what its policy refuses ([`indienen_volgens_beleid`]).
 pub fn indienen(
     corpus: &Corpus,
     cellen: &mut Cellen,
@@ -1749,6 +1827,27 @@ pub fn indienen(
     velden: &Map<String, Value>,
     on: NaiveDate,
 ) -> Result<Gram> {
+    indienen_volgens_beleid(corpus, cellen, artikel, op, velden, on).map(|(gram, _)| gram)
+}
+
+/// [`indienen`], and the ids of the records the case's cell made by its own
+/// policy in the same step: for the case's application, what the articles of
+/// `bij_aanvraag` recorded, such as the request to the GGD and its receipt
+/// there ([`crate::verzoek`]). The application and those records land
+/// together or not at all: the step runs on a copy of the cells first.
+///
+/// # Errors
+///
+/// As [`indienen`], and what an article of `bij_aanvraag` refuses
+/// ([`crate::verzoek::na_aanvraag`]).
+pub fn indienen_volgens_beleid(
+    corpus: &Corpus,
+    cellen: &mut Cellen,
+    artikel: &str,
+    op: Option<&str>,
+    velden: &Map<String, Value>,
+    on: NaiveDate,
+) -> Result<(Gram, Vec<String>)> {
     let cel = corpus.indiening(artikel)?.cel.clone();
     let (law, article) = basis(artikel)?;
     let mut service = corpus.service()?;
@@ -1765,8 +1864,24 @@ pub fn indienen(
         (None, Some(op)) => Some(Reference::Local(op)),
         (None, None) => None,
     };
-    let (cell, sfeer) = cellen.splits_voor(&cel)?;
-    cell.record_submission(&mut service, &sfeer, law, article, reference, velden, on)
+    // What the case's cell does by its own policy when an application comes
+    // in, such as asking the GGD for an examination, in the same step.
+    let volgens_beleid = artikel == corpus.casus.artikel && !corpus.casus.bij_aanvraag.is_empty();
+    let mut stap = |cellen: &mut Cellen| -> Result<(Gram, Vec<String>)> {
+        let (cell, sfeer) = cellen.splits_voor(&cel)?;
+        let gram =
+            cell.record_submission(&mut service, &sfeer, law, article, reference, velden, on)?;
+        let beleid = if volgens_beleid {
+            crate::verzoek::na_aanvraag(&service, corpus, cellen, &gram, on)?
+        } else {
+            Vec::new()
+        };
+        Ok((gram, beleid))
+    };
+    if volgens_beleid {
+        stap(&mut cellen.sandbox())?;
+    }
+    stap(cellen)
 }
 
 /// What the sources give for fields of the application before it is
@@ -2351,7 +2466,7 @@ pub fn logboek(corpus: &Corpus, cell: &Cellen) -> Result<Vec<Handeling>> {
             .filter(|g| g.refers_to.as_deref() == Some(gram.id.as_str()))
             .map(|g| g.id.clone())
             .collect();
-        let waarom = if is_besluit(&service, gram)? {
+        let waarom = if crate::stand::is_besluit(&service, gram)? {
             Some(waarom(corpus, cell, &gram.id)?)
         } else {
             None
@@ -2363,20 +2478,6 @@ pub fn logboek(corpus: &Corpus, cell: &Cellen) -> Result<Vec<Handeling>> {
         });
     }
     Ok(uit)
-}
-
-/// Whether `gram` is a decision: taken on what it refers to, of the legal
-/// character its article gives a decision. An executogram of a fact, such
-/// as the receipt of a judgment, refers to a decision and is none.
-fn is_besluit(service: &LawExecutionService, gram: &Gram) -> Result<bool> {
-    if gram.refers_to.is_none() || gram.kind == EXECUTOGRAM {
-        return Ok(false);
-    }
-    let (law_id, article) = gram
-        .basis
-        .split_once('#')
-        .ok_or_else(|| Error::Setup(format!("'{}' has no basis", gram.id)))?;
-    Ok(decision::derive(service, law_id, article, gram.recorded_on)?.kind == gram.kind)
 }
 
 /// The reductions the catalogues of `cells` name, each once, as `law`
@@ -2826,7 +2927,10 @@ pub fn beslissen(
 /// The decisions `besluit` took in turn: per output its article declares of
 /// type `decision`, the decision it holds, with the day of `besluit`. One
 /// act is one record, so these are no records of their own (`Cell::decide`).
-fn in_de_plaats(service: &LawExecutionService, besluit: &Gram) -> Result<Map<String, Value>> {
+pub(crate) fn in_de_plaats(
+    service: &LawExecutionService,
+    besluit: &Gram,
+) -> Result<Map<String, Value>> {
     let (law, article) = basis(&besluit.basis)?;
     let Some(artikel) = service
         .resolver()
@@ -3640,10 +3744,7 @@ pub fn toezenden(
     })?;
     let feit = corpus
         .afleiding
-        .indieningen
-        .iter()
-        .find(|i| i.besluit == afschrift.gram.basis)
-        .and_then(|i| i.ontvangst.as_deref())
+        .ontvangst_van(&afschrift.gram.basis)
         .ok_or_else(|| {
             Error::Refused(format!(
                 "no regelwerk of this case requires a fact for the receipt of a copy of a \
@@ -6020,11 +6121,15 @@ mod tests {
 
     #[test]
     fn parkeerkaart_a_refused_receipt_leaves_both_chronicles_as_they_were() {
-        // The municipality's chronicle is at 20 October, the GGD's is empty:
-        // only the receipt of an advice of the 16th is refused.
+        // The municipality's chronicle is at 20 October, with the
+        // application and its request to the GGD; the GGD's holds the
+        // receipt of that request of the 20th. An advice of the 16th is
+        // refused, and neither chronicle changes.
         let (corpus, mut cell) = kaart();
         let voorbeeld = corpus.casus.voorbeeld.aanvraag.clone();
         aanvragen(&corpus, &mut cell, &voorbeeld, day("2026-10-20")).unwrap();
+        assert_eq!(cell.grams().len(), 2);
+        assert_eq!(cell.andere[0].grams().len(), 1);
         let bsn = voorbeeld["bsn_aanvrager"].as_str().unwrap();
         let e = vastleggen(
             &corpus,
@@ -6036,8 +6141,8 @@ mod tests {
         )
         .unwrap_err();
         assert!(e.to_string().contains("back in time"), "{e}");
-        assert_eq!(cell.grams().len(), 1);
-        assert!(cell.andere[0].grams().is_empty());
+        assert_eq!(cell.grams().len(), 2);
+        assert_eq!(cell.andere[0].grams().len(), 1);
     }
 
     #[test]
@@ -6268,16 +6373,18 @@ mod tests {
         // The log, newest first: art. 49 runs, the policy fills its term,
         // and in it the cell answers. The GGD's advices are in the GGD's own
         // chronicle and, as received, in the municipality's;
-        // the log shows both, as the facts they are: six entries of the
-        // municipality and two executograms of the GGD.
+        // the log shows both, as the facts they are. So does the request for
+        // an examination the first application made (policy, art. 9): the
+        // second made none, since the applicant had a card. Seven entries of
+        // the municipality and three executograms of the GGD.
         let log = serde_json::to_value(logboek(&corpus, &cell).unwrap()).unwrap();
         let stappen = log.as_array().unwrap();
-        assert_eq!(stappen.len(), 8);
+        assert_eq!(stappen.len(), 10);
         let ggd = stappen
             .iter()
             .filter(|h| h["gram"]["recording_actor"] == json!("ggd_wilgendaal"))
             .count();
-        assert_eq!(ggd, 2);
+        assert_eq!(ggd, 3);
         assert_eq!(log[0]["gram"]["id"], json!(tweede.besluit.id));
         let keten = &log[0]["waarom"]["keten"];
         assert_eq!(keten[0]["artikel"], json!("49"));
@@ -6799,6 +6906,122 @@ mod tests {
             .find(|i| i["besluiten_onder"] == json!("algemene_wet_bestuursrecht#7:11"))
             .unwrap();
         assert_eq!(op_bezwaar["rijen"].as_array().unwrap().len(), 2);
+    }
+
+    /// What answers each submission ([`crate::stand`]) through objection,
+    /// appeal and the decision taken again: an annulled decision on the
+    /// objection leaves the objection waiting, after the receipt of the
+    /// judgment, and the decision taken again puts a new decision in the
+    /// place of the refusal.
+    #[test]
+    fn the_standing_answer_follows_revocations_through_appeal_and_deciding_again() {
+        use crate::stand::{Antwoord, Rol, stand};
+        let corpus = corpus();
+        let service = corpus.service().unwrap();
+        let mut cell = corpus.cell().unwrap();
+        let voorbeeld = &corpus.casus.voorbeeld;
+        let app = aanvragen(&corpus, &mut cell, &voorbeeld.aanvraag, day("2026-10-14")).unwrap();
+        let s = stand(&service, cell.grams()).unwrap();
+        assert_eq!(s.antwoorden[&app.id], Antwoord::Open);
+        assert_eq!(s.open(cell.grams()).len(), 1);
+        let geweigerd = besluiten(
+            &corpus,
+            &mut cell,
+            &app.id,
+            &beroep(false),
+            day("2026-10-14"),
+        )
+        .unwrap()
+        .besluit;
+        let bezwaar = kaart_bezwaar(&corpus, &mut cell, &geweigerd.id, "2026-11-01");
+        let ongegrond = beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &bezwaar.id,
+            &ontvankelijk(&Map::new()),
+            day("2026-11-15"),
+        )
+        .unwrap();
+        let op_bezwaar = ongegrond["beslissing"]["id"].as_str().unwrap().to_string();
+        let s = stand(&service, cell.grams()).unwrap();
+        assert!(s.is(&app.id, Rol::Indiening) && s.is(&bezwaar.id, Rol::Indiening));
+        assert!(s.is(&geweigerd.id, Rol::Besluit) && s.is(&op_bezwaar, Rol::Besluit));
+        let besloten = |id: &str| Antwoord::Besloten { besluit: id.into() };
+        assert_eq!(s.antwoorden[&app.id], besloten(&geweigerd.id));
+        assert_eq!(s.antwoorden[&bezwaar.id], besloten(&op_bezwaar));
+        assert!(s.open(cell.grams()).is_empty());
+
+        let mut velden = voorbeeld.beroep.clone();
+        velden.insert(
+            "dagtekening_bezwaar_of_beroepschrift".into(),
+            json!("2026-12-01"),
+        );
+        let ingesteld =
+            beroep_instellen(&corpus, &mut cell, &op_bezwaar, &velden, day("2026-12-01")).unwrap();
+        let s = stand(&service, rechtbank(&cell).grams()).unwrap();
+        assert_eq!(s.antwoorden[&ingesteld.id], Antwoord::Open);
+        let gedaan = uitspraak_doen(
+            &corpus,
+            &mut cell,
+            &ingesteld.id,
+            &uitspraak_bevindingen(&corpus, &[]),
+            day("2027-01-11"),
+        )
+        .unwrap();
+        let uitspraak = gedaan["uitspraak"]["id"].as_str().unwrap();
+        let s = stand(&service, rechtbank(&cell).grams()).unwrap();
+        assert_eq!(s.antwoorden[&ingesteld.id], besloten(uitspraak));
+        let ontvangst = toezenden(&corpus, &mut cell, uitspraak, day("2027-01-11")).unwrap();
+
+        // The receipt annuls the decision on the objection: the objection
+        // waits again, after the receipt, and the refusal stands again.
+        let s = stand(&service, cell.grams()).unwrap();
+        assert!(s.is(&ontvangst.id, Rol::Vastlegging));
+        assert_eq!(s.herroepen.get(&op_bezwaar), Some(&ontvangst.id));
+        assert_eq!(
+            s.antwoorden[&bezwaar.id],
+            Antwoord::Vervallen {
+                besluit: op_bezwaar.clone(),
+                door: ontvangst.id.clone(),
+                na: Some(ontvangst.id.clone()),
+            }
+        );
+        assert_eq!(s.antwoorden[&app.id], besloten(&geweigerd.id));
+        let open = s.open(cell.grams());
+        assert_eq!(open.len(), 1);
+        assert_eq!(
+            (open[0].stuk.id.as_str(), open[0].na),
+            (bezwaar.id.as_str(), Some(ontvangst.id.as_str()))
+        );
+
+        // Decided again, well founded: the refusal is revoked and the new
+        // decision the decision on the objection holds is what answers the
+        // application.
+        let opnieuw = opnieuw_beslissen_op_bezwaar(
+            &corpus,
+            &mut cell,
+            &ontvangst.id,
+            &ontvankelijk(&beroep(true)),
+            day("2027-01-18"),
+        )
+        .unwrap();
+        let tweede = opnieuw["beslissing"]["id"].as_str().unwrap();
+        let s = stand(&service, cell.grams()).unwrap();
+        assert_eq!(s.antwoorden[&bezwaar.id], besloten(tweede));
+        let Antwoord::InDePlaats {
+            besluit,
+            door,
+            uitvoer,
+            nieuw,
+        } = &s.antwoorden[&app.id]
+        else {
+            panic!("{:?}", s.antwoorden[&app.id]);
+        };
+        assert_eq!((besluit, door.as_str()), (&geweigerd.id, tweede));
+        assert_eq!(uitvoer, "nieuw_besluit");
+        assert_eq!(nieuw["outputs"]["verlof_verleend"], json!(true));
+        assert_eq!(nieuw["recorded_on"], json!("2027-01-18"));
+        assert!(s.open(cell.grams()).is_empty());
     }
 
     #[test]
@@ -7464,5 +7687,202 @@ mod tests {
         .besluit;
         assert_eq!(b.fields["verlof_al_verleend_in_schooljaar"], json!(true));
         assert_eq!(b.outputs["verlof_verleend"], json!(false));
+    }
+
+    /// The request for an examination (the municipality's fictitious
+    /// policy, art. 9) and its receipt at the GGD.
+    const VERZOEK: &str =
+        "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#9#geneeskundig_onderzoek_aangevraagd";
+    const VERZOEK_ONTVANGEN: &str = "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#9#verzoek_om_geneeskundig_onderzoek_ontvangen";
+
+    fn feit_van(g: &Gram) -> String {
+        format!("{}#{}", g.basis, g.fact.as_deref().unwrap_or_default())
+    }
+
+    #[test]
+    fn parkeerkaart_an_application_asks_the_ggd_for_an_examination_in_one_step() {
+        let (corpus, mut cell) = kaart();
+        let voorbeeld = corpus.casus.voorbeeld.aanvraag.clone();
+        let app = aanvragen(&corpus, &mut cell, &voorbeeld, day("2026-10-13")).unwrap();
+        // The municipality records its request after the application, the
+        // GGD its receipt, with the same values.
+        let verzoek = &cell.grams()[1];
+        assert_eq!(feit_van(verzoek), VERZOEK);
+        assert_eq!(verzoek.fields["bsn_aanvrager"], json!("999990020"));
+        assert_eq!(verzoek.fields["datum_verzoek"], json!("2026-10-13"));
+        assert_eq!(verzoek.fields["aanvraag"], json!(app.id));
+        let ontvangen = &cell.andere[0].grams()[0];
+        assert_eq!(feit_van(ontvangen), VERZOEK_ONTVANGEN);
+        assert_eq!(ontvangen.recording_actor, "ggd_wilgendaal");
+        assert_eq!(ontvangen.fields, verzoek.fields);
+        let open = crate::verzoek::verzoeken(&corpus, &cell).unwrap();
+        assert_eq!(open.len(), 1);
+        assert!(open[0].open());
+        assert_eq!(open[0].aan, "ggd_wilgendaal");
+        assert_eq!(open[0].ontvangen.as_ref().unwrap().id, ontvangen.id);
+    }
+
+    #[test]
+    fn parkeerkaart_no_second_request_while_one_is_open() {
+        let (corpus, mut cell) = kaart();
+        let voorbeeld = corpus.casus.voorbeeld.aanvraag.clone();
+        aanvragen(&corpus, &mut cell, &voorbeeld, day("2026-10-13")).unwrap();
+        aanvragen(&corpus, &mut cell, &voorbeeld, day("2026-10-14")).unwrap();
+        let verzoeken = |cell: &Cellen| {
+            cell.grams()
+                .iter()
+                .filter(|g| feit_van(g) == VERZOEK)
+                .count()
+        };
+        assert_eq!(verzoeken(&cell), 1);
+        assert_eq!(cell.andere[0].grams().len(), 1);
+        // Another applicant gets a request of their own.
+        let mut ander = voorbeeld.clone();
+        ander.insert("bsn_aanvrager".into(), json!(ZONDER_CRITERIUM));
+        aanvragen(&corpus, &mut cell, &ander, day("2026-10-14")).unwrap();
+        assert_eq!(verzoeken(&cell), 2);
+    }
+
+    #[test]
+    fn parkeerkaart_an_advice_answers_the_request_and_a_later_application_asks_again() {
+        let (corpus, mut cell) = kaart();
+        let voorbeeld = corpus.casus.voorbeeld.aanvraag.clone();
+        aanvragen(&corpus, &mut cell, &voorbeeld, day("2026-10-13")).unwrap();
+        let ontvangen = cell.andere[0].grams()[0].id.clone();
+        // The answer takes the applicant from the request; the form gives
+        // only what the GGD found.
+        let mut gevonden = advies("999990020", "2026-10-16", true);
+        gevonden.remove("bsn_aanvrager");
+        let gram = crate::verzoek::beantwoorden(
+            &corpus,
+            &mut cell,
+            "ggd_wilgendaal",
+            &ontvangen,
+            ADVIES,
+            &gevonden,
+            day("2026-10-16"),
+        )
+        .unwrap();
+        assert_eq!(gram.fields["bsn_aanvrager"], json!("999990020"));
+        let v = crate::verzoek::verzoeken(&corpus, &cell).unwrap();
+        assert!(!v[0].open());
+        assert_eq!(v[0].antwoord.as_ref().unwrap().id, gram.id);
+        let binnen = v[0].antwoord_ontvangen.as_ref().unwrap();
+        assert_eq!(binnen.recording_actor, "gemeente_wilgendaal");
+        // Answered twice is refused.
+        let e = crate::verzoek::beantwoorden(
+            &corpus,
+            &mut cell,
+            "ggd_wilgendaal",
+            &ontvangen,
+            ADVIES,
+            &gevonden,
+            day("2026-10-17"),
+        )
+        .unwrap_err();
+        assert!(e.to_string().contains("answered already"), "{e}");
+        // With the advice in, the next application without a card asks again.
+        aanvragen(&corpus, &mut cell, &voorbeeld, day("2026-10-20")).unwrap();
+        let v = crate::verzoek::verzoeken(&corpus, &cell).unwrap();
+        assert_eq!(v.len(), 2);
+        assert!(v[1].open());
+    }
+
+    #[test]
+    fn parkeerkaart_an_answer_refuses_another_applicant_or_an_earlier_day() {
+        let (corpus, mut cell) = kaart();
+        let voorbeeld = corpus.casus.voorbeeld.aanvraag.clone();
+        aanvragen(&corpus, &mut cell, &voorbeeld, day("2026-10-13")).unwrap();
+        let ontvangen = cell.andere[0].grams()[0].id.clone();
+        let vooraf = (cell.grams().len(), cell.andere[0].grams().len());
+        let e = crate::verzoek::beantwoorden(
+            &corpus,
+            &mut cell,
+            "ggd_wilgendaal",
+            &ontvangen,
+            ADVIES,
+            &advies(ZONDER_CRITERIUM, "2026-10-16", true),
+            day("2026-10-16"),
+        )
+        .unwrap_err();
+        assert!(e.to_string().contains("bsn_aanvrager"), "{e}");
+        let mut eerder = advies("999990020", "2026-10-01", true);
+        eerder.remove("bsn_aanvrager");
+        let e = crate::verzoek::beantwoorden(
+            &corpus,
+            &mut cell,
+            "ggd_wilgendaal",
+            &ontvangen,
+            ADVIES,
+            &eerder,
+            day("2026-10-16"),
+        )
+        .unwrap_err();
+        assert!(e.to_string().contains("before the request"), "{e}");
+        let e = crate::verzoek::beantwoorden(
+            &corpus,
+            &mut cell,
+            "ggd_wilgendaal",
+            "geen-verzoek",
+            ADVIES,
+            &eerder,
+            day("2026-10-16"),
+        )
+        .unwrap_err();
+        assert!(e.to_string().contains("no request"), "{e}");
+        assert_eq!((cell.grams().len(), cell.andere[0].grams().len()), vooraf);
+    }
+
+    #[test]
+    fn parkeerkaart_a_request_is_recorded_by_the_process_not_by_hand() {
+        let (corpus, cell) = kaart();
+        let vormen = vormen(&corpus, &cell, day("2026-10-13")).unwrap();
+        let feiten = |v: &Value| -> Vec<String> {
+            v["handelingen"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|h| h["feit"].as_str().unwrap().to_string())
+                .collect()
+        };
+        assert!(!feiten(&vormen["eigen"]).contains(&VERZOEK.to_string()));
+        let ggd = vormen["andere_cellen"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|c| c["cel"] == json!("ggd_wilgendaal"))
+            .unwrap();
+        assert!(!feiten(ggd).contains(&VERZOEK_ONTVANGEN.to_string()));
+        assert!(feiten(ggd).contains(&ADVIES.to_string()));
+    }
+
+    #[test]
+    fn parkeerkaart_the_policy_reports_what_it_recorded_and_only_the_answer_fact_answers() {
+        let (corpus, mut cell) = kaart();
+        let voorbeeld = corpus.casus.voorbeeld.aanvraag.clone();
+        let (app, beleid) = indienen_volgens_beleid(
+            &corpus,
+            &mut cell,
+            &corpus.casus.artikel,
+            None,
+            &voorbeeld,
+            day("2026-10-13"),
+        )
+        .unwrap();
+        // The request and its receipt, not the application.
+        let ontvangen = cell.andere[0].grams()[0].id.clone();
+        assert_eq!(beleid, [cell.grams()[1].id.clone(), ontvangen.clone()]);
+        assert!(!beleid.contains(&app.id));
+        let e = crate::verzoek::beantwoorden(
+            &corpus,
+            &mut cell,
+            "ggd_wilgendaal",
+            &ontvangen,
+            VERZOEK_ONTVANGEN,
+            &Map::new(),
+            day("2026-10-16"),
+        )
+        .unwrap_err();
+        assert!(e.to_string().contains("does not answer"), "{e}");
     }
 }

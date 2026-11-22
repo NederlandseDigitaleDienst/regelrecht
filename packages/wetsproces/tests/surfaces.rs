@@ -55,9 +55,12 @@ const ROUTES: &[(Group, &str, &str)] = &[
         "GET",
         "/api/backoffice/cellen/gemeente_wilgendaal/kroniek",
     ),
+    (Group::Backoffice, "GET", "/api/backoffice/werkvoorraad"),
     (Group::Backoffice, "GET", "/api/backoffice/waarom/x"),
     (Group::Backoffice, "POST", "/api/backoffice/voorvertoning"),
+    (Group::Backoffice, "GET", "/api/backoffice/verzoeken"),
     (Group::Backoffice, "POST", "/api/backoffice/vastleggingen"),
+    (Group::Backoffice, "GET", "/api/backoffice/vervolg"),
     (Group::Backoffice, "POST", "/api/backoffice/toezendingen"),
     (Group::Backoffice, "POST", "/api/backoffice/besluiten"),
     (Group::Backoffice, "PUT", "/api/backoffice/klok"),
@@ -479,15 +482,16 @@ async fn a_submission_on_the_citizens_instance_is_decided_on_the_back_office() {
     // tells the same day, because the day lives in the shared store.
     set_clock("2026-10-16").await;
     assert_eq!(anna.get("/api/klok").await.1["datum"], json!("2026-10-16"));
-    // The GGD's advice comes in through the admin panel.
-    let (status, advies) = admin
-        .post("/api/backoffice/beheer/vastleggingen", advice(ANNA))
-        .await;
-    assert_eq!(status, StatusCode::OK, "{advies}");
+    // The GGD's advice comes in through the admin panel, from the request
+    // the application brought about.
+    let advies = ggd_advises(&backoffice, ANNA).await;
     assert_eq!(advies["recorded_on"], json!("2026-10-16"));
     // The store keeps beside both records of that step, the GGD's and the
     // municipality's receipt, that the admin's account entered it through
-    // the panel; beside the application, Anna's own login.
+    // the panel; beside the application, Anna's own login; and beside the
+    // request and its receipt at the GGD, the article of the municipality's
+    // policy that made them.
+    const POLICY: &str = "beleid_gehandicaptenparkeerkaart_gemeente_wilgendaal#9";
     let pool = sqlx::PgPool::connect(database.url()).await.unwrap();
     let rows: Vec<(String, Option<String>, Option<String>)> = sqlx::query_as(
         "SELECT cell, recorded_by, recorded_via FROM wetsproces.grams ORDER BY recorded_at, cell, seq",
@@ -503,6 +507,16 @@ async fn a_submission_on_the_citizens_instance_is_decided_on_the_back_office() {
                 GEMEENTE.to_string(),
                 Some("anna".to_string()),
                 Some("testlogin".to_string())
+            ),
+            (
+                GEMEENTE.to_string(),
+                Some(POLICY.to_string()),
+                Some("beleid".to_string())
+            ),
+            (
+                GGD.to_string(),
+                Some(POLICY.to_string()),
+                Some("beleid".to_string())
             ),
             (
                 GEMEENTE.to_string(),

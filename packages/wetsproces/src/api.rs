@@ -21,19 +21,22 @@
 //! | `GET /api/formulier` | citizen or employee | the forms, with what the UI spec says of their fields |
 //! | `GET /api/klok` | citizen or employee | today, and whether the clock can be set |
 //! | `GET /api/ik` | citizen or employee | who is logged in, and what they may do ([`me`]) |
-//! | `GET /api/dossier` | citizen | the records about the citizen, in every cell |
+//! | `GET /api/dossier` | citizen | the records about the citizen, in every cell, with what the kern says of them (`stand`) and how far the acts after each of their grants are |
 //! | `GET /api/dossier/waarom/{id}` | citizen | why a decision of their dossier came out so |
 //! | `POST /api/indieningen` | citizen | a submission ([`Submit`]) for themself |
-//! | `GET /api/backoffice/cellen/{cel}/kroniek` | reader; the executor only | the executor's chronicle |
+//! | `GET /api/backoffice/cellen/{cel}/kroniek` | reader; the executor only | the executor's chronicle, with what the kern says of it (`stand`) |
+//! | `GET /api/backoffice/werkvoorraad` | reader | the executor's submissions that wait for a decision ([`crate::service::WorkQueue`]) |
 //! | `GET /api/backoffice/waarom/{id}` | reader; a decision of the executor | why it came out so |
 //! | `POST /api/backoffice/voorvertoning` | decider; a submission of the executor | what a decision ([`Decide`]) would come to; records nothing |
+//! | `GET /api/backoffice/verzoeken` | reader | the requests the executor's policy made, and whether an answer came back ([`requests`]) |
 //! | `POST /api/backoffice/vastleggingen` | handler; for the executor | a fact the executor records ([`Record`]) |
+//! | `GET /api/backoffice/vervolg` | reader | every grant and how far the acts after it are ([`grants`]) |
 //! | `POST /api/backoffice/toezendingen` | handler; a decision of the executor | a copy of a decision ([`SendCopy`]) |
 //! | `POST /api/backoffice/besluiten` | decider; a submission of the executor | a decision ([`Decide`]) |
 //! | `PUT /api/backoffice/klok` | admin | set the clock, test mode only: `{ "datum": "YYYY-MM-DD" }` |
 //! | `POST /api/backoffice/testomgeving/leegmaken` | admin; only in test mode, absent otherwise | empty every chronicle, the kept answers and the test clock ([`reset_test_environment`]) |
 //! | `GET /api/backoffice/beheer/partijen` | admin | per external party what waits for it ([`crate::service::ExternalParty`]) |
-//! | `POST /api/backoffice/beheer/vastleggingen` | admin | a fact an external party records |
+//! | `POST /api/backoffice/beheer/vastleggingen` | admin | a fact an external party records; with `verzoek`, the answer to that open request |
 //! | `POST /api/backoffice/beheer/voorvertoning` | admin; a submission of an external party | what its decision would come to; records nothing |
 //! | `POST /api/backoffice/beheer/besluiten` | admin; a submission of an external party | its decision |
 //! | `POST /api/backoffice/beheer/toezendingen` | admin; a decision of an external party | a copy of it to the cell it concerns |
@@ -213,7 +216,9 @@ impl From<ServiceError> for ApiError {
             ServiceError::Refused(_) => StatusCode::UNPROCESSABLE_ENTITY,
             ServiceError::UnknownCell(_) => StatusCode::NOT_FOUND,
             ServiceError::KeyReused(_) | ServiceError::Busy => StatusCode::CONFLICT,
-            ServiceError::Store(StoreError::Conflict { .. }) => StatusCode::CONFLICT,
+            ServiceError::Store(StoreError::Conflict { .. } | StoreError::Reset { .. }) => {
+                StatusCode::CONFLICT
+            }
             ServiceError::Store(
                 StoreError::Backend(_)
                 | StoreError::UnknownFormat { .. }
@@ -264,10 +269,13 @@ pub fn router(state: AppState) -> Router {
         .route_layer(middleware::from_fn_with_state(state.clone(), gate_citizen));
     let mut backoffice = Router::new()
         .route("/api/backoffice/cellen/{cel}/kroniek", get(chronicle))
+        .route("/api/backoffice/werkvoorraad", get(work_queue))
         .route("/api/backoffice/besluiten", post(decide))
         .route("/api/backoffice/voorvertoning", post(preview))
         .route("/api/backoffice/waarom/{id}", get(backoffice_explain))
+        .route("/api/backoffice/verzoeken", get(requests))
         .route("/api/backoffice/vastleggingen", post(record))
+        .route("/api/backoffice/vervolg", get(grants))
         .route("/api/backoffice/toezendingen", post(send_copy))
         .route("/api/backoffice/klok", put(set_clock));
     // Emptying the setup exists only where the clock can be set: in test
@@ -493,8 +501,47 @@ async fn dossier(
 /// The dossier of the citizen `principal`.
 pub(crate) async fn dossier_of(state: &AppState, principal: &Principal) -> CitizenResult {
     let citizen = principal.citizen(&state.subject_claim)?;
-    let dossier = state.service.dossier(citizen.subject()).await?;
-    Ok(json!({ "grammen": dossier.grams }))
+    let (dossier, stand) = state.service.dossier_with_stand(citizen.subject()).await?;
+    // How far the acts after a grant are, for the grants in this dossier only.
+    // It plays the aggregate over every grant and keeps this citizen's; when
+    // that fails, the dossier still loads, without it.
+    let standen: Vec<_> = match state.service.standen().await {
+        Ok(standen) => standen
+            .into_iter()
+            .filter(|s| dossier.holds(&s.toekenning))
+            .collect(),
+        Err(e) => {
+            tracing::warn!(error = %e, "how far the acts after a grant are does not play");
+            Vec::new()
+        }
+    };
+    Ok(json!({ "grammen": dossier.grams, "stand": stand, "vervolg": standen }))
+}
+
+/// Every grant of the executor, with how far the acts that follow it are,
+/// for any employee: what a reader may see of the executor's chronicle.
+/// Each carries the day of the record that granted (`toegekend_op`) and
+/// whom it concerns (`aanvrager`, the login field of the decision), so a
+/// screen can name it without reading the chronicle.
+async fn grants(State(state): State<AppState>) -> ApiResult {
+    let service = &state.service;
+    let standen = service.standen().await?;
+    let kroniek = service.chronicle(service.executor()).await?;
+    let grams = kroniek["grammen"].as_array().cloned().unwrap_or_default();
+    let record = |id: &str| grams.iter().find(|g| g["id"] == id);
+    let mut vervolg = Vec::with_capacity(standen.len());
+    for stand in standen {
+        let toegekend_op = record(&stand.toekenning).map(|g| g["recorded_on"].clone());
+        let aanvrager = record(&stand.besluit)
+            .and_then(|g| g["fields"].get(service.login_field()))
+            .cloned();
+        let mut rij = serde_json::to_value(&stand)
+            .map_err(|e| ApiError::from(ServiceError::Internal(e.to_string())))?;
+        rij["toegekend_op"] = toegekend_op.unwrap_or(Value::Null);
+        rij["aanvrager"] = aanvrager.unwrap_or(Value::Null);
+        vervolg.push(rij);
+    }
+    Ok(Json(json!({ "vervolg": vervolg })))
 }
 
 /// Who is logged in, for a screen to show what they may do: their name,
@@ -600,6 +647,17 @@ async fn chronicle(
     Ok(Json(state.service.chronicle(&cel).await?))
 }
 
+/// What waits for a decision of the executor: per submission the record the
+/// decision is to be taken after, when an earlier one was revoked (`na`).
+async fn work_queue(State(state): State<AppState>) -> ApiResult {
+    let queue = state.service.work_queue().await?;
+    Ok(Json(json!({
+        "cel": state.service.executor(),
+        "cel_naam": state.service.executor_name(),
+        "open": queue.open,
+    })))
+}
+
 /// The request's key, or none without the header.
 fn key(headers: &HeaderMap) -> Result<Option<IdempotencyKey>, ApiError> {
     let Some(value) = headers.get(IDEMPOTENCY_KEY) else {
@@ -682,10 +740,13 @@ pub(crate) async fn submit_for(
     headers: &HeaderMap,
     mut s: Submit,
 ) -> CitizenResult {
-    // The checks read the chronicles apart from the step. That is safe
-    // because a chronicle only grows and a record never changes cell: what
-    // was in the dossier or a readable cell when checked still is when the
-    // step runs.
+    // The checks read the chronicles apart from the step. In stable mode
+    // that is safe because a chronicle only grows and a record never changes
+    // cell: what was in the dossier or a readable cell when checked still is
+    // when the step runs. In test mode a reset may empty the chronicles in
+    // between; the checks then held on records that are gone, and the step
+    // runs on what the reset left (`Service::perform` runs it again when the
+    // store was reset since its read).
     let citizen = principal.citizen(&state.subject_claim)?;
     let field = state.service.login_field();
     if s.fields.contains_key(field) {
@@ -783,6 +844,12 @@ async fn record(
         return Err(access::forbidden());
     }
     principal.require(Level::Handler)?;
+    if r.request.is_some() {
+        return Err(ApiError::new(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "the executor answers no request; an external party does, through the admin panel",
+        ));
+    }
     perform(&state, &headers, Step::Record(r), &principal.actor())
         .await
         .map(Json)
@@ -802,10 +869,38 @@ async fn send_copy(
         .map(Json)
 }
 
+/// The requests the executor's policy made when an application came in,
+/// such as the request to the GGD for an examination: per request its
+/// record in the executor's chronicle, the party it went to, whether it is
+/// still open, and the executor's record of the answer it received. Not the
+/// party's own records: the executor reads what came back to it, not the
+/// party's chronicle.
+async fn requests(State(state): State<AppState>) -> ApiResult {
+    let requests: Vec<Value> = state
+        .service
+        .requests()
+        .await?
+        .into_iter()
+        .map(|r| {
+            json!({
+                "verzoek": r.verzoek,
+                "aan": r.aan,
+                "aan_naam": state.service.cell_name(&r.aan),
+                "open": r.open(),
+                "antwoord_ontvangen": r.antwoord_ontvangen,
+            })
+        })
+        .collect();
+    Ok(Json(json!({ "verzoeken": requests })))
+}
+
 /// Per external party what the admin panel needs: the submissions that
-/// wait for its decision (`open`) and its decisions of which no copy was
-/// received yet (`toe_te_zenden`). The facts it records and the decision
-/// forms come with the forms (`GET /api/formulier`).
+/// wait for its decision (`open`), its decisions of which no copy was
+/// received yet (`toe_te_zenden`), and the requests of the executor it has
+/// not answered (`verzoeken`), each with the fact that answers it. The facts
+/// it records and the decision forms come with the forms
+/// (`GET /api/formulier`); `antwoord_op_verzoek` names those that answer a
+/// request, which a party with an open request records from it.
 async fn external_parties(State(state): State<AppState>) -> ApiResult {
     let parties: Vec<Value> = state
         .service
@@ -818,6 +913,10 @@ async fn external_parties(State(state): State<AppState>) -> ApiResult {
                 "cel_naam": p.name,
                 "open": p.open,
                 "toe_te_zenden": p.unsent,
+                "verzoeken": p.requests.iter().map(|r| json!({
+                    "verzoek": r.received,
+                    "antwoordfeit": r.answer,
+                })).collect::<Vec<_>>(),
             })
         })
         .collect();
@@ -827,6 +926,7 @@ async fn external_parties(State(state): State<AppState>) -> ApiResult {
             "cel_naam": state.service.executor_name(),
         },
         "partijen": parties,
+        "antwoord_op_verzoek": state.service.answer_facts(),
     })))
 }
 

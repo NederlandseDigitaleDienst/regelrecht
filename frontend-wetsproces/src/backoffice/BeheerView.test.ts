@@ -45,15 +45,17 @@ const ik: Ik = {
   partijen_invoeren: true,
   klok_zetten: false,
 };
-const panel: { value: Partijen } = { value: { uitvoerder: { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld' }, partijen: [] } };
+const panel: { value: Partijen } = {
+  value: { uitvoerder: { cel: 'gemeente', cel_naam: 'gemeente Voorbeeld' }, partijen: [], antwoord_op_verzoek: [] },
+};
 
 vi.mock('./api', () => ({
   backofficeApi: { casus: async () => casus, formulier: async () => vormen, ik: async () => ik, kroniek: async () => null },
   beheerApi: { partijen: async () => panel.value },
 }));
 
-async function toon(partijen: Partijen['partijen']) {
-  panel.value = { ...panel.value, partijen };
+async function toon(partijen: Partijen['partijen'], antwoord_op_verzoek: string[] = []) {
+  panel.value = { ...panel.value, partijen, antwoord_op_verzoek };
   const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/:p(.*)*', component: { render: () => null } }] });
   const w = mount(BeheerView, { global: { plugins: [router], stubs: { teleport: true } } });
   await flushPromises();
@@ -65,16 +67,50 @@ const knoppen = (w: Awaited<ReturnType<typeof toon>>) => w.findAll('nldd-button'
 describe('the admin panel', () => {
   it('offers the facts a party records, a decision on what waits, and a copy to send', async () => {
     const w = await toon([
-      { cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', open: [], toe_te_zenden: [] },
-      { cel: 'rechter', cel_naam: 'Rechtbank Voorbeeld', open: [gram('b1', 'BEROEP')], toe_te_zenden: [gram('u1', 'UITSPRAAK')] },
+      { cel: 'adviseur', cel_naam: 'Adviseur Voorbeeld', open: [], toe_te_zenden: [], verzoeken: [] },
+      { cel: 'rechter', cel_naam: 'Rechtbank Voorbeeld', open: [gram('b1', 'BEROEP')], toe_te_zenden: [gram('u1', 'UITSPRAAK')], verzoeken: [] },
     ]);
     expect(knoppen(w)).toEqual(['Advies uitgebracht vastleggen', 'Afschrift toezenden']);
     // The appeal opens beside the panel, to decide on the court's behalf.
     expect(w.findAll('nldd-list-item').filter((r) => r.attributes('button') !== undefined)).toHaveLength(1);
   });
 
+  it('records an answer from an open request only, which says for whom it is', async () => {
+    const verzoek: Gram = {
+      id: 'v1',
+      kind: 'EXECUTOGRAM',
+      basis: 'beleid#9',
+      fact: 'verzoek_om_onderzoek_ontvangen',
+      recorded_on: '2026-10-13',
+      recording_actor: 'adviseur',
+      fields: { advies: true, aanvraag: 'a1' },
+    };
+    const w = await toon(
+      [
+        {
+          cel: 'adviseur',
+          cel_naam: 'Adviseur Voorbeeld',
+          open: [],
+          toe_te_zenden: [],
+          verzoeken: [{ verzoek, antwoordfeit: 'beleid#5#advies_uitgebracht' }],
+        },
+      ],
+      ['beleid#5#advies_uitgebracht'],
+    );
+    // The answer starts at the request; on its own it is only kept in
+    // reserve, for an applicant without an open request.
+    expect(knoppen(w)).toEqual(['Advies uitgebracht vastleggen zonder verzoek']);
+    const cel = w.find('nldd-text-cell');
+    expect(cel.attributes('text')).toBe('Verzoek om onderzoek ontvangen');
+    expect(cel.attributes('supporting-text')).toContain('13 oktober 2026');
+    await w.find('nldd-list-item[button]').trigger('click');
+    // The sheet opens on the answer, with what the request already holds.
+    const sheet = w.findComponent({ name: 'FeitVastleggen' });
+    expect(sheet.props('keuze')).toMatchObject({ cel: 'adviseur', verzoek: 'v1', vast: { advies: true } });
+  });
+
   it('says so when the process asks nothing of a party', async () => {
-    const w = await toon([{ cel: 'rechter', cel_naam: 'Rechtbank Voorbeeld', open: [], toe_te_zenden: [] }]);
+    const w = await toon([{ cel: 'rechter', cel_naam: 'Rechtbank Voorbeeld', open: [], toe_te_zenden: [], verzoeken: [] }]);
     expect(knoppen(w)).toEqual([]);
     expect(w.text()).toContain('Op dit moment vraagt het proces niets van Rechtbank Voorbeeld');
   });

@@ -6,10 +6,11 @@ use std::sync::Mutex;
 
 use async_trait::async_trait;
 use chrono::NaiveDate;
+use regelrecht_cel::Gram;
 
 use crate::store::{
-    Appended, ChronicleStore, Commit, IdempotencyKey, Receipt, StoreError, StoredChronicle,
-    StoredGram,
+    Actor, Appended, CellAppend, ChronicleStore, Commit, IdempotencyKey, Receipt, StoreError,
+    StoredChronicle, StoredGram,
 };
 
 #[derive(Debug, Default)]
@@ -20,6 +21,38 @@ struct State {
     ids: BTreeSet<String>,
     /// The day the test clock was last set to.
     test_day: Option<NaiveDate>,
+    /// How often the store was reset.
+    generation: u64,
+}
+
+impl State {
+    fn chronicle(&self, cell: &str) -> StoredChronicle {
+        StoredChronicle {
+            generation: self.generation,
+            ..self.chronicles.get(cell).cloned().unwrap_or_default()
+        }
+    }
+
+    /// Append every record of `appends`, as recorded by `recorded_by`. The
+    /// caller checked the heads and the ids.
+    fn write(&mut self, appends: Vec<CellAppend>, actor_of: impl Fn(&Gram) -> Option<Actor>) {
+        for append in appends {
+            self.ids.extend(append.grams.iter().map(|g| g.id.clone()));
+            let stored = append.grams.into_iter().map(|gram| {
+                let actor = actor_of(&gram);
+                StoredGram {
+                    gram,
+                    recorded_by: actor.as_ref().map(|a| a.account.clone()),
+                    recorded_via: actor.map(|a| a.channel),
+                }
+            });
+            self.chronicles
+                .entry(append.cell)
+                .or_default()
+                .grams
+                .extend(stored);
+        }
+    }
 }
 
 /// Every chronicle and receipt in one map behind one lock, so a commit is
@@ -46,20 +79,12 @@ impl InMemoryStore {
 #[async_trait]
 impl ChronicleStore for InMemoryStore {
     async fn load(&self, cell: &str) -> Result<StoredChronicle, StoreError> {
-        Ok(self
-            .state()?
-            .chronicles
-            .get(cell)
-            .cloned()
-            .unwrap_or_default())
+        Ok(self.state()?.chronicle(cell))
     }
 
     async fn load_all(&self, cells: &[&str]) -> Result<Vec<StoredChronicle>, StoreError> {
         let state = self.state()?;
-        Ok(cells
-            .iter()
-            .map(|cell| state.chronicles.get(*cell).cloned().unwrap_or_default())
-            .collect())
+        Ok(cells.iter().map(|cell| state.chronicle(cell)).collect())
     }
 
     async fn receipt(&self, key: &IdempotencyKey) -> Result<Option<Receipt>, StoreError> {
@@ -72,6 +97,12 @@ impl ChronicleStore for InMemoryStore {
             && let Some(receipt) = state.receipts.get(&keyed.key)
         {
             return Ok(Appended::Replayed(receipt.clone()));
+        }
+        if commit.generation != state.generation {
+            return Err(StoreError::Reset {
+                expected: commit.generation,
+                actual: state.generation,
+            });
         }
         for append in &commit.appends {
             let actual = state
@@ -94,20 +125,7 @@ impl ChronicleStore for InMemoryStore {
                 });
             }
         }
-        state.ids.append(&mut ids);
-        for append in commit.appends {
-            let stored = append.grams.into_iter().map(|gram| StoredGram {
-                gram,
-                recorded_by: commit.recorded_by.as_ref().map(|a| a.account.clone()),
-                recorded_via: commit.recorded_by.as_ref().map(|a| a.channel),
-            });
-            state
-                .chronicles
-                .entry(append.cell)
-                .or_default()
-                .grams
-                .extend(stored);
-        }
+        state.write(commit.appends.clone(), |gram| commit.actor_of(gram));
         if let Some(keyed) = commit.keyed {
             state.receipts.insert(keyed.key, keyed.receipt);
         }
@@ -123,9 +141,16 @@ impl ChronicleStore for InMemoryStore {
         Ok(())
     }
 
-    async fn reset(&self) -> Result<(), StoreError> {
-        // Under the lock every commit takes, so none is left half.
-        *self.state()? = State::default();
+    async fn reset(&self, begin: Vec<CellAppend>) -> Result<(), StoreError> {
+        // Under the lock every commit takes, so none is left half and none
+        // finds the store empty.
+        let mut state = self.state()?;
+        *state = State {
+            generation: state.generation + 1,
+            ..State::default()
+        };
+        state.write(begin, |_| None);
+        drop(state);
         Ok(())
     }
 }

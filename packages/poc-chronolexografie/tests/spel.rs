@@ -250,7 +250,12 @@ fn two_games_are_apart_and_a_reset_touches_only_its_own() {
         soorten(&tweede_verlof.kroniek().unwrap()),
         ["EXECUTOGRAM", "AANVRAAG"]
     );
-    assert_eq!(soorten(&kaart.kroniek().unwrap()), ["AANVRAAG"]);
+    // The application, and the request for an examination it brought
+    // about (the municipality's fictitious policy, art. 9).
+    assert_eq!(
+        soorten(&kaart.kroniek().unwrap()),
+        ["AANVRAAG", "EXECUTOGRAM"]
+    );
 }
 
 #[test]
@@ -288,7 +293,8 @@ fn a_saved_game_plays_on_where_it_was() {
     kapot["kronieken"][0][0]["recording_actor"] = json!("iemand_anders");
     let e = terug.herstellen(kapot).unwrap_err();
     assert!(e.to_string().contains("was recorded by"), "{e}");
-    assert_eq!(soorten(&terug.kroniek().unwrap()).len(), 3);
+    // The advice, the application, its request to the GGD, the decision.
+    assert_eq!(soorten(&terug.kroniek().unwrap()).len(), 4);
     let mut te_weinig = bewaard;
     te_weinig["kronieken"] = json!([[]]);
     assert!(terug.herstellen(te_weinig).is_err());
@@ -502,9 +508,14 @@ fn the_preview_answers_a_refusal_as_a_state_and_records_nothing() {
     assert!(geweigerd.get("voorlopig").is_none());
 
     let kroniek = spel.kroniek().unwrap();
-    // The application, after the advice the municipality received; the GGD
-    // keeps it in its own chronicle too.
-    assert_eq!(soorten(&kroniek), ["EXECUTOGRAM", "AANVRAAG"]);
+    // The application, after the advice the municipality received, and the
+    // request for an examination of this application (policy, art. 9): the
+    // advice was of before it. The GGD keeps the advice in its own chronicle
+    // too.
+    assert_eq!(
+        soorten(&kroniek),
+        ["EXECUTOGRAM", "AANVRAAG", "EXECUTOGRAM"]
+    );
     let ggd = &kroniek["andere"][0];
     assert_eq!(ggd["cel"], json!("ggd_wilgendaal"));
     assert_eq!(ggd["grammen"][0]["kind"], json!("EXECUTOGRAM"));
@@ -639,7 +650,8 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
     // objection revokes the refusal (Awb 7:11 lid 2, as an effect), so the
     // refusal does not count. The decision it put in its place is part of
     // it, and its step gives the card the cell counted, in the aggregate of
-    // the refusal.
+    // the refusal; article 6 makes the decision on the objection the record
+    // the acts after the grant refer to.
     let refusal = geweigerd["besluit"]["id"].as_str().unwrap();
     let id = besluit["besluit"]["id"].as_str().unwrap();
     let hoe = spel
@@ -652,7 +664,7 @@ fn parkeerkaart_a_card_granted_on_objection_counts_at_the_next_application() {
         "{spoor}"
     );
     assert!(
-        spoor.contains(&format!("{beslissing}: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#4: kaart_geldig_tot: null -> ")),
+        spoor.contains(&format!("{beslissing}: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#4, beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#6: kaart_geldig_tot: null -> ")),
         "{spoor}"
     );
 }
@@ -680,12 +692,13 @@ fn parkeerkaart_the_ggd_examines_after_the_application_and_the_card_follows() {
         )
         .unwrap();
     assert_eq!(besluit["besluit"]["outputs"][&uitkomst], json!(true));
-    // The decision is in the municipality's chronicle, after the application
-    // and the advice it received.
+    // The decision is in the municipality's chronicle, after the
+    // application, the request for an examination it brought about (policy,
+    // art. 9) and the advice it received.
     let kroniek = spel.kroniek().unwrap();
     assert_eq!(
         soorten(&kroniek),
-        ["AANVRAAG", "EXECUTOGRAM", "BESCHIKKING"]
+        ["AANVRAAG", "EXECUTOGRAM", "EXECUTOGRAM", "BESCHIKKING"]
     );
 }
 
@@ -1621,4 +1634,24 @@ fn a_prefill_from_a_source_that_is_no_output_of_its_article_leaves_its_field_emp
         assert!(fout.contains(waarom), "{bron}: {fout}");
         assert_eq!(ingevuld["werkzame_personen"]["waarde"], json!(4), "{bron}");
     }
+}
+
+#[test]
+fn parkeerkaart_an_act_after_a_grant_is_refused_without_a_grant() {
+    // The case names the acts after a grant (na_toekenning): the cell of the
+    // municipality records them only about a record that granted, in turn.
+    let mut spel = spel_met("gehandicaptenparkeerkaart");
+    let fout = spel
+        .vastleggen(
+            "gemeente_wilgendaal",
+            "beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_besteld_bij_drukker",
+            &map(&json!({ "datum_bestelling": "2026-10-21" })),
+            dag("2026-10-21"),
+        )
+        .unwrap_err();
+    assert!(
+        fout.to_string()
+            .contains("refers to the record that granted"),
+        "{fout}"
+    );
 }

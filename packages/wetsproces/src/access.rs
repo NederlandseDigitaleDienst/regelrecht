@@ -107,13 +107,14 @@ pub struct Principal {
 /// states it (`login_method` in the UI spec): the simulated DigiD of the
 /// test login counts as DigiD, and that login exists in test mode only;
 /// Keycloak and FSC voor Burgers go by their own name. An admin entering an
-/// external party's act logs in as no citizen and states none.
+/// external party's act logs in as no citizen and states none, and neither
+/// does the server when its policy records.
 pub fn login_method(channel: Channel) -> Option<&'static str> {
     match channel {
         Channel::TestLogin => Some("DigiD"),
         Channel::Keycloak => Some("Keycloak"),
         Channel::Fsc4b => Some("FSC voor Burgers"),
-        Channel::AdminPanel => None,
+        Channel::AdminPanel | Channel::Policy => None,
     }
 }
 

@@ -64,6 +64,44 @@ export interface Besluitvorm {
 export interface Handeling {
   feit: string;
   velden: Veld[];
+  /**
+   * Per field the UI spec has the system fill: the kind of fill (`datum`, the
+   * day by the clock, or `waarde`, a fixed value) and the value it records.
+   */
+  systeem?: Record<string, { soort: 'datum' | 'waarde'; waarde: unknown }>;
+}
+
+/** One act after a grant, as the case names it (`na_toekenning`). */
+export interface Vervolghandeling {
+  /** The fact, `<regelwerk>#<article>#<fact>`. */
+  feit: string;
+  /** What the button that records it says. */
+  knop: string;
+  /** What a citizen reads once it is done; `{datum}` stands for its day. */
+  stand: string;
+}
+
+/** What follows a grant in the case: the acts in their order. */
+export interface NaToekenning {
+  /** What a citizen reads of a grant before the first act. */
+  stand: string;
+  handelingen: Vervolghandeling[];
+}
+
+/** One grant and how far its acts are (`vervolg::Stand`). */
+export interface Vervolgstand {
+  /** The decision on the application, the root of the aggregate. */
+  besluit: string;
+  /** The record that granted, which every act refers to. */
+  toekenning: string;
+  /** Per act, in order, the day it was done, or null. */
+  stappen: { feit: string; gedaan: string | null }[];
+  /** The fact of the next act; null once every act is done. */
+  volgende: string | null;
+  /** For an employee: the day of the record that granted. */
+  toegekend_op?: string | null;
+  /** For an employee: whom the grant concerns, by the field the login fills. */
+  aanvrager?: unknown;
 }
 
 /** The facts one cell records. */
@@ -110,6 +148,8 @@ export interface Casus {
   rol?: string;
   andere_cellen: { cel: string; cel_naam: string }[];
   indieningen: CasusIndiening[];
+  /** What follows a grant, where the case says so. */
+  na_toekenning?: NaToekenning | null;
   vandaag: string;
 }
 

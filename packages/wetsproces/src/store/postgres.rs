@@ -9,18 +9,24 @@
 //! - `grams`: one row per record, keyed by cell and sequence number (1, 2,
 //!   ...), with the record as JSON, the [`crate::store::FORMAT_VERSION`] it was written in,
 //!   when it was stored and who asked for it (`recorded_by`, migration 0002)
-//!   by which channel (`recorded_via`, migrations 0003 and 0006). A trigger refuses every `UPDATE`, `DELETE` and
-//!   `TRUNCATE`: a chronicle only grows;
+//!   by which channel (`recorded_via`, migrations 0003, 0006 and 0009). A trigger refuses every `UPDATE`, `DELETE` and
+//!   `TRUNCATE`: a chronicle only grows, except that a reset of test mode
+//!   may empty it (migrations 0007 and 0008);
 //! - `heads`: per cell its head, the number of records in it. A commit locks
 //!   the head rows of its cells, so commits on one cell take turns;
 //! - `receipts`: per idempotency key what the request under it answered;
-//! - `test_clock` (migration 0005): the day the test clock was set to.
+//! - `test_clock` (migration 0005): the day the test clock was set to;
+//! - `generation` (migration 0008): how often a reset of test mode emptied
+//!   the store; a commit names the generation it read in;
+//! - `stable` (migration 0008): set once a server in stable mode used the
+//!   database ([`PostgresStore::mark_stable`]); from then on no reset gets
+//!   past the triggers.
 //!
 //! A commit is one transaction. It first claims its key in `receipts`, so a
 //! second request under the same key waits for the first and then replays
 //! it; then it locks the heads of its cells in one fixed order (by name),
 //! so two commits never wait for each other in a circle; then it checks
-//! every head, appends the records and moves the heads.
+//! every head and the generation, appends the records and moves the heads.
 
 use std::collections::BTreeMap;
 use std::time::Duration;
@@ -176,6 +182,21 @@ impl PostgresStore {
         self.pool.close().await;
     }
 
+    /// Record that a server in stable mode uses this database. From then on
+    /// the triggers of the chronicles refuse every reset (migration 0008),
+    /// also from a server in test mode that is pointed here by mistake.
+    ///
+    /// # Errors
+    ///
+    /// [`StoreError::Backend`] when the store fails.
+    pub async fn mark_stable(&self) -> Result<(), StoreError> {
+        sqlx::query("INSERT INTO wetsproces.stable DEFAULT VALUES ON CONFLICT DO NOTHING")
+            .execute(&self.pool)
+            .await
+            .map_err(backend("marking the database as stable"))?;
+        Ok(())
+    }
+
     /// The connections, with [`SCHEMA`] first in their search path; the
     /// session store of the login shares them.
     pub fn pool(&self) -> &PgPool {
@@ -219,15 +240,23 @@ impl ChronicleStore for PostgresStore {
     }
 
     async fn load_all(&self, cells: &[&str]) -> Result<Vec<StoredChronicle>, StoreError> {
-        // One statement, so one snapshot: every cell as it stood at once.
+        // One snapshot for both statements: every cell as it stood at once,
+        // in the generation it stood in.
+        let mut tx = self
+            .pool
+            .begin_with("BEGIN ISOLATION LEVEL REPEATABLE READ, READ ONLY")
+            .await
+            .map_err(backend("starting a read"))?;
+        let generation = read_generation(&mut tx).await?;
         let rows = sqlx::query(
             "SELECT cell, seq, format_version, gram, recorded_by, recorded_via FROM wetsproces.grams \
              WHERE cell = ANY($1) ORDER BY cell, seq",
         )
         .bind(cells)
-        .fetch_all(&self.pool)
+        .fetch_all(&mut *tx)
         .await
         .map_err(backend("reading the chronicles"))?;
+        tx.commit().await.map_err(backend("ending a read"))?;
         let mut by_cell: BTreeMap<String, StoredChronicle> = BTreeMap::new();
         for row in &rows {
             let cell: String = column(row, "cell")?;
@@ -253,7 +282,10 @@ impl ChronicleStore for PostgresStore {
         }
         Ok(cells
             .iter()
-            .map(|cell| by_cell.get(*cell).cloned().unwrap_or_default())
+            .map(|cell| StoredChronicle {
+                generation,
+                ..by_cell.get(*cell).cloned().unwrap_or_default()
+            })
             .collect())
     }
 
@@ -281,8 +313,21 @@ impl ChronicleStore for PostgresStore {
             return Ok(Appended::Replayed(receipt));
         }
         let heads = lock_heads(&mut tx, &commit.appends).await?;
+        // After the heads, so a reset under way has finished; shared, so
+        // the next one waits for this commit. Before the heads are compared,
+        // as the store in memory does: after a reset the answer is a reset.
+        let actual = read_generation(&mut tx).await?;
+        if actual != commit.generation {
+            return Err(StoreError::Reset {
+                expected: commit.generation,
+                actual,
+            });
+        }
         check_heads(&heads, &commit.appends)?;
-        write_appends(&mut tx, heads, commit.appends, commit.recorded_by.as_ref()).await?;
+        write_appends(&mut tx, heads, &commit.appends, |gram| {
+            commit.actor_of(gram)
+        })
+        .await?;
         tx.commit().await.map_err(backend("committing"))?;
         Ok(Appended::Committed)
     }
@@ -313,7 +358,7 @@ impl ChronicleStore for PostgresStore {
         Ok(())
     }
 
-    async fn reset(&self) -> Result<(), StoreError> {
+    async fn reset(&self, begin: Vec<CellAppend>) -> Result<(), StoreError> {
         let mut tx = self
             .pool
             .begin()
@@ -321,11 +366,13 @@ impl ChronicleStore for PostgresStore {
             .map_err(backend("starting a reset"))?;
         // Every table at once, in the order a commit takes them: the kept
         // answers first (a commit with a key claims it there before its
-        // heads), then the heads and the records. A commit under way
-        // finishes before the reset; one after it finds its heads moved.
+        // heads), then the heads, the generation and the records. A read
+        // takes the generation before the records too, so neither waits on
+        // the other in a circle. A commit under way finishes before the
+        // reset; one after it names the old generation and is refused.
         sqlx::query(
-            "LOCK TABLE wetsproces.receipts, wetsproces.heads, wetsproces.grams, \
-             wetsproces.test_clock IN ACCESS EXCLUSIVE MODE",
+            "LOCK TABLE wetsproces.receipts, wetsproces.heads, wetsproces.generation, \
+             wetsproces.grams, wetsproces.test_clock IN ACCESS EXCLUSIVE MODE",
         )
         .execute(&mut *tx)
         .await
@@ -343,6 +390,16 @@ impl ChronicleStore for PostgresStore {
         .execute(&mut *tx)
         .await
         .map_err(backend("emptying the chronicles"))?;
+        // A step read before this point names the old generation, and is
+        // refused when it commits after it, wherever the heads then stand.
+        sqlx::query("UPDATE wetsproces.generation SET generation = generation + 1")
+            .execute(&mut *tx)
+            .await
+            .map_err(backend("starting a new generation"))?;
+        // What the case begins with, in the same transaction: no request
+        // finds the store empty in between.
+        let heads = lock_heads(&mut tx, &begin).await?;
+        write_appends(&mut tx, heads, &begin, |_| None).await?;
         tx.commit().await.map_err(backend("committing a reset"))?;
         Ok(())
     }
@@ -414,6 +471,15 @@ async fn claim_key(
     read_receipt(&row).map(Some)
 }
 
+/// The generation of the store, held shared until `tx` ends.
+async fn read_generation(tx: &mut Transaction<'_, Postgres>) -> Result<u64, StoreError> {
+    let generation: i64 = sqlx::query_scalar("SELECT generation FROM wetsproces.generation")
+        .fetch_one(&mut **tx)
+        .await
+        .map_err(backend("reading the generation"))?;
+    from_db(generation)
+}
+
 /// Lock the head of every cell in `appends`, in the order of their names,
 /// and give each one's head. A cell without a row gets one at 0 first.
 async fn lock_heads(
@@ -466,19 +532,20 @@ fn check_heads(heads: &BTreeMap<String, u64>, appends: &[CellAppend]) -> Result<
     Ok(())
 }
 
-/// Append every record after its cell's head, as recorded by `recorded_by`,
-/// and move the heads.
+/// Append every record of `appends` after its cell's head, with who made
+/// it (`actor_of`, such as [`Commit::actor_of`]), and move the heads.
 async fn write_appends(
     tx: &mut Transaction<'_, Postgres>,
     mut heads: BTreeMap<String, u64>,
-    appends: Vec<CellAppend>,
-    recorded_by: Option<&Actor>,
+    appends: &[CellAppend],
+    actor_of: impl Fn(&Gram) -> Option<Actor>,
 ) -> Result<(), StoreError> {
     let mut moved = Vec::new();
     for append in appends {
         let head = heads.entry(append.cell.clone()).or_insert(0);
         for gram in &append.grams {
             *head += 1;
+            let actor = actor_of(gram);
             sqlx::query(
                 "INSERT INTO wetsproces.grams \
                  (cell, seq, gram_id, format_version, gram, recorded_by, recorded_via) \
@@ -489,8 +556,8 @@ async fn write_appends(
             .bind(&gram.id)
             .bind(FORMAT_VERSION)
             .bind(Json(gram))
-            .bind(recorded_by.map(|a| a.account.as_str()))
-            .bind(recorded_by.map(|a| a.channel.as_str()))
+            .bind(actor.as_ref().map(|a| a.account.as_str()))
+            .bind(actor.as_ref().map(|a| a.channel.as_str()))
             .execute(&mut **tx)
             .await
             .map_err(|e| {
@@ -507,7 +574,7 @@ async fn write_appends(
             })?;
         }
         if !append.grams.is_empty() {
-            moved.push(append.cell);
+            moved.push(append.cell.clone());
         }
     }
     moved.sort_unstable();
@@ -584,9 +651,11 @@ mod tests {
                 "_sqlx_migrations",
                 "fsc4b_challenges",
                 "fsc4b_sessions",
+                "generation",
                 "grams",
                 "heads",
                 "receipts",
+                "stable",
                 "test_clock"
             ]
         );
@@ -744,22 +813,55 @@ mod tests {
                 } else {
                     unkeyed(appends)
                 };
-                // A commit that lands before the reset, or that finds its
-                // heads moved by it, is fine; any other failure is not.
+                // A commit that lands before the reset, or that a reset
+                // overtook, is fine; any other failure is not.
                 match store.append(c).await {
-                    Ok(_) | Err(StoreError::Conflict { .. }) => {}
+                    Ok(_) | Err(StoreError::Conflict { .. } | StoreError::Reset { .. }) => {}
                     Err(e) => panic!("writer {i}: {e}"),
                 }
             })
         });
+        // Readers too, which take the generation before the records: a
+        // reset must not wait on them in a circle.
+        let readers = (0..8).map(|_| {
+            let store = Arc::clone(&store);
+            tokio::spawn(async move {
+                let heads = store.load_all(&["a", "b"]).await.unwrap();
+                assert_eq!(heads[0].generation, heads[1].generation);
+            })
+        });
         let reset = {
             let store = Arc::clone(&store);
-            tokio::spawn(async move { store.reset().await.unwrap() })
+            tokio::spawn(async move { store.reset(Vec::new()).await.unwrap() })
         };
         futures::future::join_all(writers).await;
+        for reader in futures::future::join_all(readers).await {
+            reader.unwrap();
+        }
         reset.await.unwrap();
         let heads = store.load_all(&["a", "b"]).await.unwrap();
         assert_eq!(heads[0].head(), heads[1].head());
+    }
+
+    #[tokio::test]
+    async fn a_database_that_stable_mode_used_is_never_reset() {
+        let f = Fixture::new().await;
+        f.store
+            .append(commit("k1", vec![append("a", 0, &["1"])]))
+            .await
+            .unwrap();
+        // Before the mark a reset goes through; after it, not even the
+        // store's own reset gets past the triggers.
+        f.store.reset(Vec::new()).await.unwrap();
+        f.store.mark_stable().await.unwrap();
+        f.store.mark_stable().await.unwrap();
+        let mut c = commit("k2", vec![append("a", 0, &["2"])]);
+        c.generation = 1;
+        f.store.append(c).await.unwrap();
+        let e = f.store.reset(Vec::new()).await.unwrap_err();
+        assert!(e.to_string().contains("append-only"), "{e}");
+        assert_eq!(f.store.load("a").await.unwrap().head(), 1);
+        assert!(f.store.receipt(&key("k2")).await.unwrap().is_some());
     }
 
     #[tokio::test]
@@ -836,7 +938,9 @@ mod tests {
             .await
             .unwrap();
         let after = service.chronicle("gemeente_wilgendaal").await.unwrap();
-        assert_eq!(after["kop"], before["kop"].as_u64().unwrap() + 1);
+        // The application and the request for an examination it brought
+        // about.
+        assert_eq!(after["kop"], before["kop"].as_u64().unwrap() + 2);
         f.store.close().await;
 
         let again = start(PostgresStore::connect(f.database.url()).await.unwrap()).await;

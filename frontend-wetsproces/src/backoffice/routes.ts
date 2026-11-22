@@ -23,7 +23,7 @@ export const backofficeRoutes: RouteRecordRaw[] = [
           ook: ['beheer-behandelen'],
           recht: 'partijen_invoeren',
         },
-        { naam: 'klok', tekst: 'Klok', pad: '/backoffice/klok', icoon: 'calendar', recht: 'klok_zetten' },
+        { naam: 'simulatie', tekst: 'Simulatie', pad: '/backoffice/simulatie', icoon: 'calendar', recht: 'klok_zetten' },
       ],
     },
     children: [
@@ -35,7 +35,9 @@ export const backofficeRoutes: RouteRecordRaw[] = [
         props: true,
       },
       { path: 'kroniek/:cel?', name: 'kroniek', component: () => import('./KroniekView.vue'), props: true },
-      { path: 'klok', name: 'klok', component: () => import('./KlokView.vue') },
+      { path: 'simulatie', name: 'simulatie', component: () => import('./SimulatieView.vue') },
+      // The address of this screen before it was called a simulation.
+      { path: 'klok', redirect: { name: 'simulatie' } },
       { path: 'beheer', name: 'beheer', component: () => import('./BeheerView.vue'), meta: { beheer: true } },
       {
         path: 'beheer/behandelen/:cel/:id',
