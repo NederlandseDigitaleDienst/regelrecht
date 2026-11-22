@@ -157,6 +157,17 @@ export function besluitNaam(g: Gram, casus: Casus): string {
   return g.recording_actor === casus.cel ? 'Besluit' : hoofdletter(leesbaar(g.kind.toLowerCase()));
 }
 
+/**
+ * The record of `grammen` that `g` answers to or is about: what it received
+ * from another cell (the decision an appeal contests, the ruling a copy
+ * brings), else what it refers to (the decision an objection contests).
+ * None for an application.
+ */
+export function waarover(g: Gram, grammen: Gram[]): Gram | undefined {
+  const id = g.received?.id ?? g.refers_to;
+  return id ? grammen.find((x) => x.id === id) : undefined;
+}
+
 /** The records of the chain under `k`, the top first, each with the record it answers to. */
 export function plat(k: Knoop, boven?: Gram): { gram: Gram; boven?: Gram }[] {
   return [{ gram: k.gram, boven }, ...k.onder.flatMap((o) => plat(o, k.gram))];
