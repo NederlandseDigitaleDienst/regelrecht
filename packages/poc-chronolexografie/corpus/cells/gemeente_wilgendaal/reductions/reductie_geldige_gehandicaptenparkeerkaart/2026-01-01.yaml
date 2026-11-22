@@ -17,9 +17,12 @@ valid_from: '2026-01-01'
 # BABW), ook als een beslissing op bezwaar een nieuw besluit in de plaats
 # van het herroepen besluit nam, en of de bestuursrechter zelf een kaart
 # verstrekte toen hij het besluit vernietigde (Awb 8:72, derde lid, onder
-# b). De andere twee artikelen lezen die aggregaten van de besluiten over de
-# aanvrager (source.projections); het aggregaat staat in dit bestand omdat
-# alleen zij het lezen. Wat die besluiten op een dag betekenen, zegt het
+# b). Daarnaast houdt de staat bij welk besluit de kaart verstrekte en wat
+# het college daarna met de kaart deed: bestellen bij de drukker, de
+# ontvangst door de postkamer en de uitreiking (artikel 5 en 6 van het
+# beleid over verstrekte kaarten). De andere twee artikelen lezen die
+# aggregaten van de besluiten over de aanvrager (source.projections); het
+# aggregaat staat in dit bestand omdat alleen zij het lezen. Wat die besluiten op een dag betekenen, zegt het
 # beleid van het college over verstrekte kaarten
 # (beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal). De cel
 # van de gemeente geeft hun uitvoer als twee antwoorden (cel.yaml, answers):
@@ -41,7 +44,8 @@ articles:
       Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
       houdt door middel van een chronolexografische reductie op zijn eigen
       kroniek per besluit op een aanvraag om een gehandicaptenparkeerkaart bij
-      of het een kaart verstrekt, en tot en met welke dag zij geldig is.
+      of het een kaart verstrekt, tot en met welke dag zij geldig is, en wat
+      het college daarna met de kaart deed.
     url: https://wetten.overheid.nl/BWBR0004826/2026-01-01#Artikel49
     machine_readable:
       projection:
@@ -53,14 +57,42 @@ articles:
             type: date
           - name: kaart_van_de_rechter
             type: boolean
+          # Wat er na de verstrekking met de kaart gebeurt (artikel 5 van
+          # het beleid over verstrekte kaarten): het besluit dat haar
+          # verstrekte, waar elk feit naar verwijst (artikel 6), en de dag
+          # van elke handeling, leeg zolang zij niet is vastgelegd.
+          - name: toekenningsbesluit
+            type: string
+          - name: datum_bestelling
+            type: date
+          - name: datum_ontvangst
+            type: date
+          - name: ontvangst_vastgesteld_door
+            type: string
+          - name: datum_uitreiking
+            type: date
+          - name: per_post_verzonden
+            type: boolean
         steps:
           # Het besluit op de aanvraag.
           - record: besluit_administratieve_bepalingen_inzake_het_wegverkeer_babw#49#BESCHIKKING
+            input:
+              - name: toekenningsbesluit_na_besluit
+                type: string
+                nullable: true
+                source:
+                  regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+                  output: toekenningsbesluit_na_besluit
+                  parameters:
+                    verstrekt: $record.gehandicaptenparkeerkaart_verstrekt
+                    besluit: $record.id
             actions:
               - output: verstrekt
                 value: $record.gehandicaptenparkeerkaart_verstrekt
               - output: kaart_geldig_tot
                 value: $record.kaart_geldig_tot
+              - output: toekenningsbesluit
+                value: $toekenningsbesluit_na_besluit
           # De beslissing op een bezwaar tegen dit besluit. Nam zij een nieuw
           # besluit in de plaats van het herroepen besluit (Awb 7:11, tweede
           # lid), dan houdt zij dat nieuwe besluit zelf (nieuw_besluit): één
@@ -83,11 +115,23 @@ articles:
                   regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
                   output: kaart_geldig_tot_na_bezwaar
                   parameters: *bezwaar
+              - name: toekenningsbesluit_na_bezwaar
+                type: string
+                nullable: true
+                source:
+                  regulation: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal
+                  output: toekenningsbesluit_na_bezwaar
+                  parameters:
+                    al_toekenningsbesluit: $state.toekenningsbesluit
+                    nieuw_besluit: $record.nieuw_besluit
+                    beslissing_op_bezwaar: $record.id
             actions:
               - output: verstrekt
                 value: $verstrekt_na_bezwaar
               - output: kaart_geldig_tot
                 value: $kaart_geldig_tot_na_bezwaar
+              - output: toekenningsbesluit
+                value: $toekenningsbesluit_na_bezwaar
           # De ontvangst van een uitspraak (Awb 8:79) over dit besluit:
           # voorzag de bestuursrechter zelf in de zaak en verstrekte hij een
           # kaart (Awb 8:72, derde lid, onder b), dan heeft de aanvrager een
@@ -105,6 +149,25 @@ articles:
             actions:
               - output: kaart_van_de_rechter
                 value: $kaart_van_de_rechter_na_uitspraak
+          # Wat het college met de verstrekte kaart deed (artikel 5 van het
+          # beleid over verstrekte kaarten). Een feit verwijst naar het besluit
+          # dat de kaart verstrekte, en komt zo in dit aggregaat.
+          - record: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_besteld_bij_drukker
+            actions:
+              - output: datum_bestelling
+                value: $record.datum_bestelling
+          - record: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#gedrukte_kaart_ontvangen
+            actions:
+              - output: datum_ontvangst
+                value: $record.datum_ontvangst
+              - output: ontvangst_vastgesteld_door
+                value: $record.ontvangst_vastgesteld_door
+          - record: beleid_verstrekte_gehandicaptenparkeerkaarten_gemeente_wilgendaal#5#kaart_uitgereikt
+            actions:
+              - output: datum_uitreiking
+                value: $record.datum_uitreiking
+              - output: per_post_verzonden
+                value: $record.per_post_verzonden
   - number: aanvrager_heeft_geldige_gehandicaptenparkeerkaart
     text: >-
       Geen regelgeving. Het systeem van het college van de gemeente Wilgendaal
